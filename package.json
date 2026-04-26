@@ -1,0 +1,38 @@
+{
+  "name": "domotion",
+  "version": "0.1.0",
+  "description": "DOM-to-animated-SVG renderer. Captures HTML/CSS via Playwright Chromium and converts it to self-contained SVG with CSS animations — pixel-faithful demos that scale crisply and load lazily.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "FEATURES.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "capture": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "demos:test": "tsx tests/features.ts",
+    "demos:test:showcase": "tsx tests/showcase.ts",
+    "demos:test:html": "tsx tests/html-test-suite.ts",
+    "demos:test:all": "tsx tests/features.ts ; tsx tests/showcase.ts ; tsx tests/html-test-suite.ts",
+    "demos:review": "tsx tests/review-server.ts",
+    "demos:examples": "tsx examples/terminal-demo.ts && tsx examples/showcase-rendering.ts && tsx examples/showcase-transitions.ts"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.59.1",
+    "bidi-js": "^1.0.3",
+    "fontkit": "^2.0.4",
+    "svgo": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

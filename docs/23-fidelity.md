@@ -1,0 +1,126 @@
+# Domotion: rendering fidelity and warnings
+
+Requirements and support matrix for Domotion — the engine that converts captured HTML/CSS into SVG for animated demos. This doc is the contract with consumers about **what CSS features round-trip**.
+
+## Goals
+
+- Faithful visual reproduction of captured DOM as SVG, targeting Chromium on macOS as the canonical reference.
+- Predictable output: if a feature isn't fully supported, the tool says so (it doesn't silently drop content).
+- Self-contained SVG: renders identically when embedded in a page or loaded standalone.
+
+## Support matrix
+
+Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partial = works for common cases; edge cases below threshold. Unsupported = captured but not emitted, or emitted approximately; warning is logged.
+
+### Layout & box model
+
+- [x] position: static, relative, absolute
+- [~] position: fixed, sticky — paint order correct, but rendered as static snapshot at t=0 (no scroll-following animation)
+- [x] display: block, inline, inline-block, flex, grid, table
+- [x] float + clear (text wraps correctly around floats via per-line capture)
+- [x] box-sizing, margin, padding, width/height, min/max
+- [x] overflow: hidden/scroll/auto/clip (children clipped to padding box)
+- [~] overflow: scroll/auto — content is clipped but native scrollbar chrome is not yet emulated (tracked SK-468)
+
+### Visual / paint
+
+- [x] background-color (all modern CSS color formats: hex/rgb/hsl/hwb/lab/lch/oklab/oklch/color()/color-mix)
+- [x] background-image: linear-gradient, radial-gradient, repeating-*, url()
+- [x] multiple background layers (first-on-top semantics preserved)
+- [ ] background-image: conic-gradient — no SVG equivalent; layer not painted (warning logged)
+- [~] background-size, -position, -repeat — url() layers approximate center/cover
+- [x] border (uniform) with border-radius
+- [x] border (per-side with different width/style/color)
+- [x] border-style: solid, dashed, dotted
+- [x] border-style: double, groove, ridge, inset, outset — implemented in dom-to-svg.ts uniform-border path
+- [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093
+- [ ] border-image — tracked SK-466
+- [x] outline (style/width/color/offset, including dashed/dotted) — SK-1111
+- [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113
+- [x] text-shadow: x/y offset + blur, multi-layered — SK-1113
+- [x] opacity (element-level, applies to whole subtree)
+- [x] filter (blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate, sepia, chained)
+- [x] mix-blend-mode
+- [ ] backdrop-filter — captured but not emitted (no SVG equivalent in img-rendered SVG)
+- [x] clip-path: inset(), circle(), ellipse(), polygon()
+- [ ] clip-path: path() — not supported (warning logged if detected)
+- [ ] mask — captured but not emitted
+
+### Transforms
+
+- [~] transform: translate(…) — renders correctly (bbox absorbs translation)
+- [ ] transform: rotate/scale/skew/matrix — renders as axis-aligned bbox (tracked SK-1127 — see `28-domotion-css-transforms.md`)
+- [ ] transform: 3D — out of scope; downgrade to 2D (SK-1127)
+
+### Typography
+
+- [~] Font families: SF Pro / SF Mono only; non-SF families fall back (tracked SK-1124 — see `25-domotion-font-family-chain.md`)
+- [x] Weight, size, style (italic via SFNSItalic.ttf — SK-1105), variant, stretch
+- [x] letter-spacing, word-spacing, line-height
+- [x] Multi-line wrapped paragraphs (per-visual-line capture via Range)
+- [x] text-align: left/right/center/start/end
+- [~] text-align: justify — does not space-stretch (warning logged)
+- [~] RTL/bidi — visual order is preserved for Latin mixed with RTL scripts; complex-script shaping (Arabic contextual forms, Hebrew niqqud positioning) is not done (tracked SK-469)
+- [ ] writing-mode: vertical-rl/vertical-lr/sideways-* — render as horizontal (tracked SK-1123 — see `24-domotion-writing-mode.md`)
+- [x] Color-bitmap glyphs (emoji, U+2713, etc.): rasterized via Playwright `page.screenshot` and embedded as `<image>` — SK-1058 / SK-1090
+- [x] ::first-letter drop caps (rasterized when font-size differs from element) — SK-1114
+
+### Images
+
+- [x] `<img>` with src/width/height
+- [x] object-fit (fill/contain/cover/scale-down) + object-position → SVG preserveAspectRatio
+- [x] `<picture>`/`srcset` → captured as the resolved `<img currentSrc>`
+- [~] broken-image alt fallback — not rendered (blank rect)
+- [x] `<svg>` inline content (passed through verbatim)
+
+### Form controls
+
+- [x] `<input>` with `value` attr — rendered via path
+- [x] `<input>` placeholder — rendered in `::placeholder` color (and font-style, font-weight) — SK-1097 / SK-1100 / SK-1099
+- [x] `<textarea>` content — rasterized via `page.screenshot` for pixel-perfect Chrome word-wrap — SK-1108
+- [~] `<button>`, `<select>` chrome: synthesized to UA-default; author-styled `::-webkit-*` pseudos partially supported (tracked SK-1125 / SK-1126)
+
+### List markers
+
+- [x] `list-style-image: url(...)` on `<li>` — rendered as `<image>` at the marker slot
+- [x] `list-style-type`: disc/circle/square/decimal/lower-alpha/lower-roman/… — synthesized as shape or text marker
+- [x] `::marker` styling (color / font-weight / font-size) — SK-1115
+
+### Stacking
+
+- [x] z-index for positioned siblings (paint order sorted: negative, base, auto/0, positive)
+- [~] Nested stacking contexts (trapped z-index inside opacity/transform context) — flattened; may paint above outside sibling
+
+### Out of scope
+
+- `<canvas>`, `<video>`, `<iframe>`, `<object>`, `<embed>` — element bodies are not rendered; warning logged.
+- CSS animations / transitions — domotion captures a static frame; multi-frame animation is composed at a higher layer (see `src/animator.ts`).
+- `@page` print-media rules — screen capture only.
+
+## Warning system
+
+Every call to `captureElementTree()` collects warnings when it encounters a feature from the lists above that doesn't round-trip fully. After the call:
+
+```ts
+import { captureElementTree, getLastCaptureWarnings, logCaptureWarnings } from "domotion/dom-to-svg";
+
+const tree = await captureElementTree(page, "body", viewport);
+logCaptureWarnings();      // stderr one-line-per-warning
+// or structured:
+for (const w of getLastCaptureWarnings()) {
+  console.log(w.selector, w.feature, w.detail);
+}
+```
+
+Each warning has:
+- `selector`: a short CSS-selectorish path (up to 5 ancestors) identifying the element.
+- `feature`: the feature name (e.g. `transform`, `backdrop-filter`, `<iframe>`, `scrollbar`, `text-align:justify`).
+- `detail`: one sentence on what's not supported and/or a tracking ticket reference.
+
+Warnings are deduped by `(feature, selector)` within one capture. They're stored in `html-test-suite.ts`'s `results.json` under the `warnings` key for each test file, and shown as a badge `(Nw)` next to failing lines in the console output.
+
+## Testing approach
+
+- `tests/features.ts` — 36 focused feature tests exercising one rendering property each. Target <3% pixel diff vs. captured HTML. Every change to fidelity must pass these.
+- `tests/showcase.ts` — 3 full-page integration tests derived from real product frames.
+- `tests/html-test-suite.ts` — 147-file external suite covering broadly-supported HTML5 + stable CSS (from `~/Documents/html-test`). Baseline tracked in `tests/output/html-test/results.json` and visualized via `tests/output/html-test/index.html`.
