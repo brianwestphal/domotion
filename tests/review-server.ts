@@ -29,11 +29,11 @@ import { spawn } from "node:child_process";
 // ── Paths ──
 
 // Anchor against this file's location so paths resolve correctly regardless
-// of cwd (running from the repo root or from inside ).
+// of cwd (running from the repo root or from inside tests/).
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output");
 const HTML_TEST_DIR = resolve(OUTPUT_DIR, "html-test");
-const PROJECT_ROOT = resolve(TESTS_DIR, "../../..");
+const PROJECT_ROOT = resolve(TESTS_DIR, "..");
 const SETTINGS_PATH = resolve(PROJECT_ROOT, ".hotsheet/settings.json");
 
 const MANIFEST_FILES: Array<{ suite: SuiteName; path: string; imagesDir: string; isBareArray: boolean }> = [
