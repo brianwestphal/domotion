@@ -144,11 +144,19 @@ function parseAttrs(s: string): Record<string, string> {
  * primary positioner in our generator output. Role/fill identify visual
  * "slots" without tying to the text content (aria-label changes per frame as
  * typing progresses — excluding it lets us merge).
+ *
+ * `id` is included because it's an identity attribute: two `<path id="g113"
+ * d="X"/>` and `<path id="g198" d="X"/>` glyph defs are NOT the same logical
+ * element even if their geometry is identical (fontkit emits matching path
+ * data for visually-identical glyphs at different code points). Without
+ * including `id`, those two defs would collapse into one and `<use href="#g198"/>`
+ * references would break — see frame-merge.test.ts "preserves distinct ids
+ * for paths with identical d".
  */
 export function structuralFingerprint(n: ParsedNode): string {
   if (n.kind === "text") return `T:${n.text}`;
   const a = n.attrs ?? {};
-  const keyAttrs = ["transform", "href", "x", "y", "d", "width", "height", "fill", "role", "class"];
+  const keyAttrs = ["id", "transform", "href", "x", "y", "d", "width", "height", "fill", "role", "class"];
   const pairs = keyAttrs.filter((k) => a[k] != null).map((k) => `${k}=${a[k]}`);
   return `${n.tag}|${pairs.join(",")}`;
 }
@@ -243,6 +251,15 @@ export function mergeFrames(
 function mergeNode(
   perFrame: ParsedNode[],
   getClass: (visibleFrames: number[]) => string,
+  /**
+   * When true, do not apply visibility classes to children. Used for
+   * `<defs>` content (glyph paths, gradients, clipPaths) — these are
+   * referenced by `<use>` elements in visible groups, so they must
+   * always be defined regardless of which frames they originated from.
+   * Applying a class would hide the def's contents during other frames
+   * and break the references.
+   */
+  alwaysVisible: boolean = false,
 ): string {
   // Collect child groups. Each group = children at the same "slot" across
   // frames that share a fingerprint. For frames lacking a matching child at
@@ -300,7 +317,7 @@ function mergeNode(
     // Fast path: this element is byte-identical across all its occurrences.
     const raws = new Set(contents.map((c) => c.raw));
     if (raws.size === 1) {
-      const cls = getClass(visibleFrames);
+      const cls = alwaysVisible ? "" : getClass(visibleFrames);
       parts.push(renderWithClass(contents[0], cls));
       continue;
     }
@@ -329,8 +346,14 @@ function mergeNode(
       return { kind: "element", tag: wrapper.tag ?? "g", rawAttrs: "", attrs: {}, children: [], selfClosing: false, raw: "" };
     });
 
-    const innerMerged = mergeNode(perFrameChildrenParents, getClass);
-    const visibilityClass = getClass(visibleFrames);
+    // Children of `<defs>` are reusable resources (glyph paths, gradients,
+    // clipPaths) referenced by `<use>` from visible groups. They must always
+    // be defined regardless of which frames they originated from, otherwise
+    // a `<use>` from one frame referencing a def introduced in another frame
+    // would render nothing.
+    const childAlwaysVisible = alwaysVisible || wrapper.tag === "defs";
+    const innerMerged = mergeNode(perFrameChildrenParents, getClass, childAlwaysVisible);
+    const visibilityClass = alwaysVisible ? "" : getClass(visibleFrames);
     const merged: string = renderWrapperWithInner(wrapper, innerMerged, visibilityClass);
     parts.push(merged);
   }

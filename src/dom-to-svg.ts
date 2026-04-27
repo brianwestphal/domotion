@@ -1687,6 +1687,16 @@ async function rasterizeBitmapGlyphs(
 
 
 /**
+ * Wrap inner SVG markup (as returned by `elementTreeToSvg`) in a complete
+ * `<svg>` document with the standard namespace, viewBox, and intrinsic size.
+ * This is the boilerplate every standalone-capture user would otherwise write
+ * themselves — call this when you want a self-contained SVG file.
+ */
+export function wrapSvg(inner: string, width: number, height: number): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">${inner}</svg>`;
+}
+
+/**
  * Convert a CapturedElement tree into SVG markup.
  */
 export function elementTreeToSvg(

@@ -6,6 +6,7 @@
  */
 
 import { mergeFrames } from "./frame-merge.js";
+import { buildChrome, type DeviceChromeConfig } from "./chrome.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -52,12 +53,13 @@ export interface AnimationConfig {
   width: number;
   height: number;
   frames: AnimationFrame[];
-  /** Optional device chrome wrapper */
-  chrome?: {
-    type: "terminal" | "browser" | "phone";
-    title?: string;
-    url?: string;
-  };
+  /**
+   * Optional device chrome wrapper. When set, the rendered SVG grows by
+   * the chrome's outer dimensions and the captured frames are translated
+   * into the chrome's content area. See `DeviceChromeConfig` for the
+   * available styles (terminal / browser / phone).
+   */
+  chrome?: DeviceChromeConfig;
   /**
    * Markup (e.g. `<path id="g0" d="..."/>...`) hoisted into the top-level
    * `<defs>`. Frames can reference these IDs via `<use href="#...">`. Use for
@@ -104,7 +106,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 
   const anyOverlays = frames.some((f) => f.overlays != null && f.overlays.length > 0);
   if (allCrossfade && frames.length > 1 && !anyOverlays) {
-    return composeMergedSvg(config, frameTiming, totalSec);
+    return applyChromeIfSet(composeMergedSvg(config, frameTiming, totalSec), width, height, config.chrome);
   }
 
   const frameGroups: string[] = [];
@@ -214,7 +216,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 
   // Compose final SVG with XML declaration for proper UTF-8
   const sharedDefsMarkup = config.sharedDefs ?? "";
-  return `<?xml version="1.0" encoding="UTF-8"?>
+  const out = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
     <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}
@@ -228,6 +230,24 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 ${frameGroups.join("\n")}
   </g>
 </svg>`;
+  return applyChromeIfSet(out, width, height, config.chrome);
+}
+
+/**
+ * Wrap a complete `<svg>...</svg>` document in device chrome. Returns the
+ * input unchanged when `chrome` is null/undefined.
+ */
+function applyChromeIfSet(svg: string, contentWidth: number, contentHeight: number, chrome?: DeviceChromeConfig): string {
+  if (chrome == null) return svg;
+  const openMatch = svg.match(/<svg[^>]*>/);
+  const closeIdx = svg.lastIndexOf("</svg>");
+  if (openMatch == null || closeIdx === -1 || openMatch.index == null) return svg;
+  const innerStart = openMatch.index + openMatch[0].length;
+  const inner = svg.slice(innerStart, closeIdx);
+  const xmlPrefix = svg.startsWith("<?xml") ? svg.slice(0, svg.indexOf("?>") + 2) + "\n" : "";
+
+  const f = buildChrome(chrome, contentWidth, contentHeight);
+  return `${xmlPrefix}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${f.outerWidth} ${f.outerHeight}" width="${f.outerWidth}" height="${f.outerHeight}">${f.before}<g transform="translate(${f.contentX}, ${f.contentY})">${inner}</g>${f.after}</svg>`;
 }
 
 function renderTypingOverlay(

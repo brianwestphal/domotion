@@ -5,7 +5,8 @@
  * and capture the DOM as SVG via the dom-to-svg converter.
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { spawnSync } from "node:child_process";
+import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg } from "./dom-to-svg.js";
 
 export interface CaptureOptions {
@@ -14,6 +15,42 @@ export interface CaptureOptions {
   mobile?: boolean;
   /** Authenticate via dev-login API before capturing */
   devUser?: string;
+}
+
+/**
+ * Launch Chromium via Playwright, auto-installing the browser binary on first
+ * use if it's missing. Use this instead of importing `chromium` from
+ * `@playwright/test` directly when you want a frictionless first-run
+ * experience for users of your tool.
+ *
+ * The install step is `npx playwright install chromium` and runs synchronously
+ * (stdout / stderr inherited) so the user sees its progress. Subsequent calls
+ * are a normal `chromium.launch()` with no overhead.
+ */
+export async function launchChromium(opts?: LaunchOptions): Promise<Browser> {
+  try {
+    return await chromium.launch(opts);
+  } catch (err) {
+    if (!isMissingBrowserError(err)) throw err;
+
+    console.error("[domotion] Chromium binary not found — installing via 'npx playwright install chromium'…");
+    const result = spawnSync("npx", ["playwright", "install", "chromium"], {
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
+    if (result.status !== 0) {
+      throw new Error(
+        "[domotion] Failed to auto-install Playwright Chromium. " +
+        "Run 'npx playwright install chromium' manually and try again.",
+      );
+    }
+    return chromium.launch(opts);
+  }
+}
+
+function isMissingBrowserError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /Executable doesn't exist|playwright install|browserType\.launch.*Failed to launch/i.test(msg);
 }
 
 export class DemoRecorder {
@@ -31,7 +68,7 @@ export class DemoRecorder {
   }
 
   async init(opts: CaptureOptions): Promise<void> {
-    this.browser = await chromium.launch();
+    this.browser = await launchChromium();
     this.context = await this.browser.newContext({
       viewport: { width: opts.width, height: opts.height },
       isMobile: opts.mobile ?? false,

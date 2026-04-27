@@ -22,24 +22,21 @@ Early — extracted in 2026-04 from the slicekit project where it had been incub
 npm install domotion
 ```
 
-You'll also need Playwright's Chromium browser:
-
-```bash
-npx playwright install chromium
-```
+That's it — Domotion auto-installs Playwright's Chromium binary on first use
+(via `npx playwright install chromium`). On CI you may want to pre-install it
+yourself to keep the first job's runtime down.
 
 ## Usage
 
 ```ts
-import { chromium } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg } from "domotion";
+import { captureElementTree, elementTreeToSvg, launchChromium, wrapSvg } from "domotion";
 
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const page = await browser.newPage();
 await page.setContent(`<div style="padding:20px;color:white;background:#0d1117">Hello</div>`);
 
 const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 200 });
-const svg = elementTreeToSvg(tree, 800, 200);
+const svg = wrapSvg(elementTreeToSvg(tree, 800, 200), 800, 200);
 
 console.log(svg);
 await browser.close();
@@ -66,4 +63,4 @@ npm run demos:examples  # run the bundled example demo scripts
 
 ## License
 
-TBD.
+[MIT](LICENSE) © Brian Westphal

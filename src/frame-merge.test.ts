@@ -113,4 +113,45 @@ describe("frame-merge: structuralFingerprint", () => {
     const b = parseSiblings(`<g transform="translate(3,4)"/>`)[0];
     expect(structuralFingerprint(a)).not.toBe(structuralFingerprint(b));
   });
+
+  it("preserves distinct ids for paths with identical d", () => {
+    // Regression: fontkit emits the same path data for visually-identical
+    // glyphs at different code points. The merger must NOT collapse two
+    // <path id="gA" d="X"/> and <path id="gB" d="X"/> into one — that would
+    // break <use href="#gB"/> references.
+    const a = parseSiblings(`<path id="gA" d="M0 0h10v10z"/>`)[0];
+    const b = parseSiblings(`<path id="gB" d="M0 0h10v10z"/>`)[0];
+    expect(structuralFingerprint(a)).not.toBe(structuralFingerprint(b));
+  });
+
+  it("keeps both glyph defs when one frame has duplicate-d paths under different ids", () => {
+    // End-to-end regression for the install-demo bug: each frame defined
+    // <path id="g113" d="X"/> AND <path id="g198" d="X"/>. The merger
+    // collapsed them into one def, so <use href="#g198"/> rendered nothing.
+    const frames = [
+      `<defs><path id="g113" d="M0 0h10z"/><path id="g198" d="M0 0h10z"/></defs><g><use href="#g198"/></g>`,
+      `<defs><path id="g113" d="M0 0h10z"/><path id="g198" d="M0 0h10z"/></defs><g><use href="#g198"/></g>`,
+    ];
+    const r = mergeFrames(frames, simpleTiming(2));
+    expect(r.merged).toContain(`id="g113"`);
+    expect(r.merged).toContain(`id="g198"`);
+  });
+
+  it("does not apply visibility classes to defs children", () => {
+    // Regression: glyph defs introduced in later frames were being given
+    // visibility classes (e.g. class="t1"). Then <use href="#gX"/> from a
+    // different frame's visible group rendered nothing because the def's
+    // own opacity animation hid it during the using frame.
+    const frames = [
+      `<defs><path id="gA" d="M0 0z"/></defs><g><use href="#gA"/></g>`,
+      `<defs><path id="gA" d="M0 0z"/><path id="gB" d="M1 1z"/></defs><g><use href="#gA"/><use href="#gB"/></g>`,
+      `<defs><path id="gA" d="M0 0z"/><path id="gB" d="M1 1z"/></defs><g><use href="#gA"/><use href="#gB"/></g>`,
+    ];
+    const r = mergeFrames(frames, simpleTiming(3));
+    // gB is only in frames 2-3, but the def itself must not be hidden by
+    // a class — frames 2-3 visible groups need to <use> it.
+    const gBdef = r.merged.match(/<path id="gB"[^/]*\/>/);
+    expect(gBdef).not.toBeNull();
+    expect(gBdef![0]).not.toMatch(/class=/);
+  });
 });
