@@ -5,4 +5,5 @@ export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverla
 export { DemoRecorder, launchChromium } from "./capture.js";
 export type { CaptureOptions } from "./capture.js";
 export { optimizeSvg } from "./optimize.js";
-export { getGlyphDefs, clearGlyphDefs } from "./text-to-path.js";
+export { getGlyphDefs, clearGlyphDefs, registerWebfont, clearWebfonts } from "./text-to-path.js";
+export { discoverAndRegisterWebfonts, attachWebfontTracker } from "./capture.js";

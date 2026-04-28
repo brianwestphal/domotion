@@ -1163,6 +1163,11 @@ const CAPTURE_SCRIPT = `
       if (el.naturalWidth > 0 && el.naturalHeight > 0) {
         var imageIntrinsic = { w: el.naturalWidth, h: el.naturalHeight };
       }
+    } else if (tag === 'input' && el.type === 'image') {
+      // <input type="image"> renders the src as a clickable button-image.
+      // No currentSrc / naturalWidth on HTMLInputElement; the bounding rect
+      // already reflects width/height attributes or the image's natural size.
+      imageSrc = el.src;
     }
     // Capture list-style-image intrinsic dims on <li> so the renderer paints
     // markers at their natural size (CSS default).
@@ -1809,8 +1814,13 @@ export function elementTreeToSvg(
     // CSS transform function to a matrix in computed style, so we only
     // need to translate matrix() / matrix3d() into SVG syntax.
     const originParts = (el.styles.transformOrigin ?? "").trim().split(/\s+/);
-    const tOriginX = el.x + (parseFloat(originParts[0] ?? "") || el.width / 2);
-    const tOriginY = el.y + (parseFloat(originParts[1] ?? "") || el.height / 2);
+    // parseFloat("0px") === 0, which is falsy — guarding with `||` would
+    // silently substitute the bbox center for an explicit `transform-origin: 0 0`
+    // (and rotate around the center instead of the top-left).
+    const parsedOX = parseFloat(originParts[0] ?? "");
+    const parsedOY = parseFloat(originParts[1] ?? "");
+    const tOriginX = el.x + (Number.isFinite(parsedOX) ? parsedOX : el.width / 2);
+    const tOriginY = el.y + (Number.isFinite(parsedOY) ? parsedOY : el.height / 2);
     const transformAttr = cssTransformToSvg(el.styles.transform, tOriginX, tOriginY);
     const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "";
     const groupAttrs: string[] = [];
@@ -2160,8 +2170,8 @@ export function elementTreeToSvg(
     const fc = renderFormControl(el, indent, defCtx);
     if (fc !== "") svgParts.push(fc);
 
-    // Image
-    if (el.imageSrc != null && el.tag === "img") {
+    // Image (<img> or <input type="image">)
+    if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
       const fit = el.styles.objectFit ?? "fill";
       if (fit === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
         // object-fit: none -> render image at intrinsic size, aligned via
@@ -2231,7 +2241,9 @@ export function elementTreeToSvg(
         const gap = 8;
         const idx = el.listItemIndex ?? 1;
         if (lsType === "disc" || lsType === "circle" || lsType === "square") {
-          const r0 = markerFontSize * 0.18;
+          // Chrome's disc marker is the U+2022 bullet glyph at the marker
+          // font-size; in sans-serif at 16px it's roughly 6.5px wide → r ≈ 0.20em.
+          const r0 = markerFontSize * 0.2;
           const mx = outside ? el.x - gap - r0 : el.x + r0;
           if (lsType === "disc") {
             svgParts.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="${markerColor}" />`);
@@ -2249,6 +2261,34 @@ export function elementTreeToSvg(
             `${indent}<text x="${r(mx)}" y="${r(my)}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${el.styles.fontFamily}" fill="${markerColor}">${label}</text>`,
           );
         }
+      }
+    }
+
+    // CSS paint order: floats paint AFTER block descendants but BEFORE the
+    // parent's inline content. The "inline content" here is `el.text` — when
+    // a paragraph has a `float: left` span followed by text and the span's
+    // `shape-outside` lets text wrap into the float's bounding box, the text
+    // should paint ON TOP of the float (not be covered by it).
+    //
+    // Only hoist floats when this element actually has its own text. If we
+    // hoisted floats unconditionally, a parent like `<main>` whose children
+    // are all blocks (search/article/figure) plus a float (aside) would
+    // paint the aside FIRST and then the block siblings would cover it.
+    // Letting the float fall through to the normal child sort puts it last
+    // (= on top of preceding block siblings) — matching Chrome for that case.
+    const hasOwnText = el.text !== "";
+    const floatChildren: CapturedElement[] = [];
+    const nonFloatChildren: CapturedElement[] = [];
+    if (hasOwnText) {
+      for (const c of el.children) {
+        const flt = c.styles.float ?? "none";
+        const pos = c.styles.position;
+        const positioned = pos != null && pos !== "static";
+        if (!positioned && flt !== "none") floatChildren.push(c);
+        else nonFloatChildren.push(c);
+      }
+      for (const child of floatChildren) {
+        renderElement(child, depth + 1);
       }
     }
 
@@ -2357,8 +2397,10 @@ export function elementTreeToSvg(
     // and an explicit integer z-index paint in z-index order (negative below,
     // positive above); auto or static keeps DOM order. This is an approximation
     // of full CSS stacking context semantics but covers the common case of
-    // positioned siblings jockeying for front/back.
-    const sortedChildren = sortChildrenByPaintOrder(el.children);
+    // positioned siblings jockeying for front/back. When we hoisted floats
+    // above (text-bearing parents), exclude them here; otherwise sort all.
+    const remainingChildren = hasOwnText ? nonFloatChildren : el.children;
+    const sortedChildren = sortChildrenByPaintOrder(remainingChildren);
     for (const child of sortedChildren) {
       renderElement(child, depth + 1);
     }

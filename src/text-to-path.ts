@@ -24,6 +24,67 @@ interface FontInstance {
 
 const fontInstanceCache = new Map<string, FontInstance>();
 
+// Webfont registry. Populated per capture by `discoverAndRegisterWebfonts`
+// in capture.ts after the page's `document.fonts.ready` resolves. Keys are
+// lower-cased family names (matching `resolveFontKey`'s normalization). Each
+// family can have multiple registered variants (different weights / italic).
+//
+// Resolution policy: when the author's font-family stack matches a registered
+// family, we pick the variant whose (weight, style) is closest to the request.
+// This sidesteps the system-font fallback in `getFontInstance` entirely —
+// webfont glyphs come from the loaded buffer, not from disk.
+interface WebfontVariant { weight: number; italic: boolean; font: FontInstance }
+const webfontRegistry = new Map<string, WebfontVariant[]>();
+
+/**
+ * Open a webfont buffer with fontkit and register it under the given family
+ * name (case-insensitive). `weight` is a CSS numeric weight (100-900); 400
+ * when omitted. `style` is "normal" / "italic" / "oblique"; treated as italic
+ * for any non-normal value.
+ *
+ * Buffers must be decompressed already — fontkit's `create()` reads TTF/OTF
+ * directly. WOFF2/WOFF bytes are decompressed in `loadWebfont()` (capture.ts)
+ * before they reach this function.
+ */
+export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer): void {
+  const key = family.toLowerCase().replace(/^["']|["']$/g, "");
+  let font: FontInstance;
+  try {
+    font = fontkit.create(buffer) as any;
+  } catch {
+    return; // unparseable — silently skip; capture-side warning happens elsewhere
+  }
+  const italic = style != null && style !== "" && style.toLowerCase() !== "normal";
+  const list = webfontRegistry.get(key) ?? [];
+  list.push({ weight, italic, font });
+  webfontRegistry.set(key, list);
+}
+
+/** Drop all registered webfonts. Call at the start of a fresh capture run. */
+export function clearWebfonts(): void {
+  webfontRegistry.clear();
+}
+
+/**
+ * Pick the closest matching registered variant for the given family +
+ * weight/style. Used internally by `getFontInstance` for `webfont:<name>`
+ * keys; italic match dominates the score so italic+regular beats
+ * upright+italic-mismatch.
+ */
+function pickWebfontVariant(family: string, weight: number, slant: number): FontInstance | null {
+  const variants = webfontRegistry.get(family);
+  if (variants == null || variants.length === 0) return null;
+  const wantItalic = slant !== 0;
+  let best: WebfontVariant | null = null;
+  let bestScore = Infinity;
+  for (const v of variants) {
+    const styleMismatch = v.italic === wantItalic ? 0 : 1000;
+    const score = styleMismatch + Math.abs(v.weight - weight);
+    if (score < bestScore) { bestScore = score; best = v; }
+  }
+  return best?.font ?? null;
+}
+
 /**
  * Italic slant for SF Pro's `slnt` variation axis. SF Pro supports slnt ∈
  * roughly [-10, 0] and exposes no separate italic family, so we drive the
@@ -56,6 +117,13 @@ const FONT_PATHS: Record<string, FontPath> = {
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
+  // Generic serif (font-family: serif / ui-serif, "Times New Roman", "Georgia").
+  "times":           { path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" },
+  "times-italic":    { path: "/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf" },
+  "georgia":         { path: "/System/Library/Fonts/Supplemental/Georgia.ttf" },
+  "georgia-italic":  { path: "/System/Library/Fonts/Supplemental/Georgia Italic.ttf" },
+  // Generic cursive — Chrome on macOS resolves `cursive` to Snell Roundhand.
+  "snell":           { path: "/System/Library/Fonts/Supplemental/SnellRoundhand.ttc", postscriptName: "SnellRoundhand" },
 };
 
 /**
@@ -95,11 +163,16 @@ export function fallbackFontKey(codepoint: number): string | null {
   // Misc Symbols, Dingbats, Geometric Shapes, Arrows — common monochrome
   // symbol blocks covered by Apple Symbols. Color-emoji blocks (1F300+)
   // are included too, though fontkit will skip glyphs without outlines.
-  if ((codepoint >= 0x2190 && codepoint <= 0x21FF)
+  // Letterlike Symbols (ℝ ℕ ℤ ℂ ℚ etc., 2100-214F) and Mathematical
+  // Alphanumeric Symbols (𝒜 𝒷 𝒞 𝕊 etc., 1D400-1D7FF) are also covered by
+  // Apple Symbols; without these the math test renders them as .notdef boxes.
+  if ((codepoint >= 0x2100 && codepoint <= 0x214F)
+    || (codepoint >= 0x2190 && codepoint <= 0x21FF)
     || (codepoint >= 0x2200 && codepoint <= 0x22FF)
     || (codepoint >= 0x25A0 && codepoint <= 0x25FF)
     || (codepoint >= 0x2600 && codepoint <= 0x26FF)
     || (codepoint >= 0x2700 && codepoint <= 0x27BF)
+    || (codepoint >= 0x1D400 && codepoint <= 0x1D7FF)
     || (codepoint >= 0x1F300 && codepoint <= 0x1F5FF)
     || (codepoint >= 0x1F680 && codepoint <= 0x1F6FF)) {
     return "symbols";
@@ -108,6 +181,11 @@ export function fallbackFontKey(codepoint: number): string | null {
 }
 
 function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0): FontInstance | null {
+  // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
+  // registry rather than the on-disk FONT_PATHS table.
+  if (key.startsWith("webfont:")) {
+    return pickWebfontVariant(key.slice("webfont:".length), weight, slant);
+  }
   // SF Pro / SF Mono ship their italics as separate .ttf files rather than
   // exposing a `slnt` variable-axis on the upright file, so route italic
   // requests at the spec level instead of trying to drive an axis. Fallback
@@ -117,6 +195,8 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   if (slant !== 0) {
     if (key === "sf-pro") effectiveKey = "sf-pro-italic";
     else if (key === "sf-mono") effectiveKey = "sf-mono-italic";
+    else if (key === "times") effectiveKey = "times-italic";
+    else if (key === "georgia") effectiveKey = "georgia-italic";
   }
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
@@ -158,8 +238,29 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
 }
 
 export function resolveFontKey(fontFamily: string): string {
-  const lower = fontFamily.toLowerCase();
-  if (lower.includes("mono") || lower.includes("menlo") || lower.includes("sf mono")) return "sf-mono";
+  // Walk the comma-separated stack — Chrome's getComputedStyle returns the
+  // unresolved list (e.g. `"DoesNotExist", Georgia, "Times New Roman", serif`)
+  // not the matched font. Pick the first name we recognize, mirroring how
+  // Chrome falls through the stack until something loads.
+  const names = fontFamily.split(",").map((s) => s.trim().replace(/^["']|["']$/g, "").toLowerCase());
+  for (const name of names) {
+    if (name === "" || name === "doesnotexist") continue;
+    // Registered webfonts win — the page declared this family AND we hold
+    // its bytes. `getFontInstance` dispatches the webfont: prefix to the
+    // runtime registry instead of the on-disk FONT_PATHS table.
+    if (webfontRegistry.has(name)) return `webfont:${name}`;
+    if (name.includes("mono") || name.includes("menlo") || name.includes("courier") || name.includes("consolas")) return "sf-mono";
+    if (name === "serif" || name === "ui-serif" || name === "times" || name === "times new roman") return "times";
+    if (name === "georgia") return "georgia";
+    if (name === "cursive" || name === "snell roundhand" || name === "brush script mt" || name === "apple chancery") return "snell";
+    // sans-serif / system-ui / ui-sans-serif / ui-rounded / fantasy / math /
+    // emoji / fangsong / any explicit sans family → SF Pro. Math / emoji
+    // glyphs that SF Pro lacks fall through to per-codepoint fallback.
+    if (name === "sans-serif" || name === "system-ui" || name === "ui-sans-serif"
+      || name === "ui-rounded" || name === "fantasy" || name === "math"
+      || name === "emoji" || name === "fangsong"
+      || name === "helvetica" || name === "arial" || name === "sf pro" || name === "-apple-system") return "sf-pro";
+  }
   return "sf-pro";
 }
 
@@ -283,7 +384,14 @@ export function textToPathMarkup(
       const cp = text.codePointAt(i)!;
       const ch = String.fromCodePoint(cp);
       const fbKey = fallbackFontKey(cp);
-      const useKey = fbKey ?? primaryFontKey;
+      // `fallbackFontKey` routes whole Unicode blocks (arrows, math operators,
+      // dingbats…) to Apple Symbols, but SF Pro itself has many of those
+      // glyphs and Apple Symbols's versions are visibly narrower. Only fall
+      // back when the primary font actually lacks the glyph (gid 0 = .notdef).
+      let useKey = fbKey ?? primaryFontKey;
+      if (fbKey != null && (primaryFont as any).glyphForCodePoint(cp).id !== 0) {
+        useKey = primaryFontKey;
+      }
       if (useKey !== curKey && curText.length > 0) {
         const f = getFontInstance(curKey, weight, fontSize, slant);
         if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i });

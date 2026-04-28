@@ -27,6 +27,9 @@ import {
   optimizeSvg,
   launchChromium,
   logCaptureWarnings,
+  discoverAndRegisterWebfonts,
+  attachWebfontTracker,
+  clearWebfonts,
   type AnimationFrame,
   type IntraFrameAnimation,
   type Overlay,
@@ -224,9 +227,22 @@ async function runCapture(args: string[]): Promise<void> {
       ...(flags.colorScheme != null ? { colorScheme: flags.colorScheme } : {}),
     });
     const page = await ctx.newPage();
+    // Track every font URL the browser fetches during the page load. Most
+    // webfonts are cross-origin (Google Fonts, Adobe Fonts CDNs) and don't
+    // expose their resource-timing entries to JS, so this listener-based
+    // tracker is how `discoverAndRegisterWebfonts` learns about them.
+    const tracker = attachWebfontTracker(page);
 
     await loadInputIntoPage(page, input);
     await applyReadyWaits(page, flags);
+
+    // Webfont discovery: now that document.fonts.ready resolved, walk the
+    // page's @font-face rules, fetch the actual bytes via the browser's
+    // request stack, and register them with text-to-path so the renderer
+    // draws with the real webfont glyphs instead of a system substitute.
+    clearWebfonts();
+    await discoverAndRegisterWebfonts(page, tracker.urls);
+    tracker.detach();
 
     const clip = flags.clip ?? [0, 0, flags.width, flags.height];
     const tree = await captureElementTree(page, flags.selector, {
@@ -325,6 +341,14 @@ async function runAnimate(args: string[]): Promise<void> {
     });
     const page = await ctx.newPage();
     const frames: AnimationFrame[] = [];
+    // Frames may pull from different documents with different webfonts.
+    // Clear once at the start; each frame's discovery accumulates into the
+    // same registry. Multiple frames declaring the same family register
+    // multiple variants and the resolver picks the closest weight/style.
+    clearWebfonts();
+    // One tracker for the whole animate run — fonts fetched by any frame
+    // get accumulated, and we deduplicate URLs inside discoverAndRegister.
+    const tracker = attachWebfontTracker(page);
 
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
@@ -335,6 +359,7 @@ async function runAnimate(args: string[]): Promise<void> {
         waitFor: fc.waitFor,
         fontsReady: true,
       });
+      await discoverAndRegisterWebfonts(page, tracker.urls);
       if (fc.scroll != null) {
         const sx = fc.scroll[0], sy = fc.scroll[1];
         await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
@@ -390,6 +415,7 @@ async function runAnimate(args: string[]): Promise<void> {
         animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
       });
     }
+    tracker.detach();
 
     let svg = generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames });
     const optimize = values.optimize === true || cfg.optimize === true;

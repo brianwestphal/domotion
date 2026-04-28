@@ -8,6 +8,7 @@
 import { spawnSync } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg } from "./dom-to-svg.js";
+import { registerWebfont } from "./text-to-path.js";
 
 export interface CaptureOptions {
   width: number;
@@ -160,4 +161,165 @@ export class DemoRecorder {
   async close(): Promise<void> {
     await this.browser?.close();
   }
+}
+
+/**
+ * Install a `requestfinished` listener that records every font-file URL the
+ * browser fetches into a Set. Returns the set + a detach handle. Pair with
+ * `discoverAndRegisterWebfonts(page, tracker.urls)` after the page loads.
+ *
+ * Needed because `performance.getEntriesByType("resource")` omits
+ * cross-origin fonts that don't send `Timing-Allow-Origin: *` (most CDNs
+ * don't), and most webfonts in the wild are served cross-origin.
+ *
+ * Attach BEFORE navigation so the listener catches the initial fetches.
+ */
+export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: () => void } {
+  const urls = new Set<string>();
+  const handler = (req: { url: () => string }): void => {
+    const u = req.url();
+    if (/\.(woff2?|ttf|otf)(\?|$)/i.test(u)) urls.add(u);
+  };
+  page.on("requestfinished", handler);
+  return { urls, detach: () => page.off("requestfinished", handler) };
+}
+
+/**
+ * Discover all `@font-face` rules in the page's stylesheets, fetch each
+ * font file via the browser context's request API (so cookies / CORS / auth
+ * follow whatever the browser is using), and register the bytes with
+ * `text-to-path.ts` so the renderer can draw with the actual webfont glyphs
+ * instead of falling through to the system-font substitutes.
+ *
+ * Should be called AFTER `await page.evaluate(() => document.fonts.ready)`
+ * — otherwise late-loading fonts may not be in `document.styleSheets` yet.
+ *
+ * Cross-origin stylesheets whose `cssRules` throw a SecurityError are silently
+ * skipped (we can't enumerate their rules from JS). Same-origin sheets and
+ * inline `<style>` blocks always work.
+ *
+ * Caller is responsible for `clearWebfonts()` between captures if needed.
+ * No-op when the page declares no `@font-face` rules.
+ */
+export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: Iterable<string> = []): Promise<{ family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string }[]> {
+  // Two-pass discovery:
+  //
+  //   1. Same-origin `@font-face` rules — gives us the CSS-declared family
+  //      name verbatim. Cross-origin sheets (Google Fonts, etc.) throw a
+  //      SecurityError on cssRules access and are skipped here.
+  //
+  //   2. Resource-based fallback — every font URL the browser actually
+  //      fetched. Cross-origin entries don't appear in
+  //      `performance.getEntriesByType("resource")` without a
+  //      `Timing-Allow-Origin: *` header from the font CDN, so callers
+  //      should pass the URL set captured from a `requestfinished` listener
+  //      registered before navigation. We download anything ending in
+  //      .woff2/.woff/.ttf/.otf, parse with fontkit, and register under
+  //      the font's own internal `familyName`.
+  //
+  // Pass 1 names match CSS exactly (good when authors rename a face);
+  // pass 2 catches fonts that pass 1 missed and uses the font's internal
+  // name (good for Google Fonts which keep names in sync).
+  type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string };
+  type ResourceUrl = { kind: "resource"; url: string };
+  type DiscoveredItem = FaceRule | ResourceUrl;
+  const fromPage = await page.evaluate(() => {
+    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string }
+    interface ResourceUrl { kind: "resource"; url: string }
+    const out: (FaceRule | ResourceUrl)[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const sheet of Array.from(document.styleSheets)) {
+      let cssRules: CSSRuleList;
+      try { cssRules = sheet.cssRules; } catch { continue; }
+      for (const rule of Array.from(cssRules)) {
+        if (rule.constructor.name !== "CSSFontFaceRule") continue;
+        const r = rule as CSSFontFaceRule;
+        const family = r.style.getPropertyValue("font-family").trim().replace(/^["']|["']$/g, "");
+        const weight = r.style.getPropertyValue("font-weight") || "400";
+        const style = r.style.getPropertyValue("font-style") || "normal";
+        const src = r.style.getPropertyValue("src");
+        const m = /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(src);
+        if (m == null) continue;
+        const base = sheet.href ?? document.baseURI;
+        let absUrl: string;
+        try { absUrl = new URL(m[1], base).href; } catch { continue; }
+        seenUrls.add(absUrl);
+        out.push({ kind: "font-face", family, weight, style, url: absUrl });
+      }
+    }
+
+    for (const entry of performance.getEntriesByType("resource") as PerformanceResourceTiming[]) {
+      if (!/\.(woff2?|ttf|otf)(\?|$)/i.test(entry.name)) continue;
+      if (seenUrls.has(entry.name)) continue;
+      seenUrls.add(entry.name);
+      out.push({ kind: "resource", url: entry.name });
+    }
+    return { entries: out, seenUrls: Array.from(seenUrls) };
+  });
+  const discovered = fromPage.entries as DiscoveredItem[];
+  const seen = new Set(fromPage.seenUrls);
+  for (const url of observedFontUrls) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    discovered.push({ kind: "resource", url });
+  }
+
+  const report: { family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string }[] = [];
+  for (const item of discovered) {
+    try {
+      const resp = await page.context().request.get(item.url);
+      if (!resp.ok()) {
+        report.push({ family: "", weight: 400, style: "normal", url: item.url, source: item.kind, ok: false, error: `HTTP ${resp.status()}` });
+        continue;
+      }
+      const buf = Buffer.from(await resp.body());
+
+      if (item.kind === "font-face") {
+        const weightNum = parseWeightDescriptor(item.weight);
+        registerWebfont(item.family, weightNum, item.style, buf);
+        report.push({ family: item.family, weight: weightNum, style: item.style, url: item.url, source: "font-face", ok: true });
+      } else {
+        // Resource-only path: read family + weight + italic from the font itself.
+        const meta = await readFontMetadata(buf);
+        if (meta == null) {
+          report.push({ family: "", weight: 400, style: "normal", url: item.url, source: "resource", ok: false, error: "fontkit could not parse" });
+          continue;
+        }
+        registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf);
+        report.push({ family: meta.family, weight: meta.weight, style: meta.italic ? "italic" : "normal", url: item.url, source: "resource", ok: true });
+      }
+    } catch (e) {
+      report.push({ family: "", weight: 400, style: "normal", url: item.url, source: item.kind, ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return report;
+}
+
+async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: number; italic: boolean } | null> {
+  const fontkit = await import("fontkit");
+  try {
+    const f = (fontkit as any).create(buf);
+    const family = f.familyName ?? "";
+    if (family === "") return null;
+    const weight = (f["OS/2"]?.usWeightClass) ?? 400;
+    const italic = !!(f["OS/2"]?.fsSelection?.italic);
+    return { family, weight, italic };
+  } catch {
+    return null;
+  }
+}
+
+function parseWeightDescriptor(value: string): number {
+  // CSS keywords and numeric, including weight ranges like "100 900".
+  const v = value.trim().toLowerCase();
+  if (v === "normal") return 400;
+  if (v === "bold") return 700;
+  // Range form: take the first number.
+  const m = /-?\d+/.exec(v);
+  if (m != null) {
+    const n = parseInt(m[0], 10);
+    if (Number.isFinite(n) && n >= 1 && n <= 1000) return n;
+  }
+  return 400;
 }

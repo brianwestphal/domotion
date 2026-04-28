@@ -54,7 +54,10 @@ In `src/text-to-path.ts`:
 
 ## Edge cases
 
-- `@font-face` web fonts are out of scope — we don't have the font file. Warn and fall through.
+- `@font-face` web fonts (DM-227): supported. `discoverAndRegisterWebfonts` (in `capture.ts`) walks the page's same-origin `@font-face` rules AND every font URL captured by the `attachWebfontTracker` `requestfinished` listener (cross-origin fonts from CDNs like Google Fonts, which don't expose resource-timing entries to JS). Each fetched buffer is parsed with `fontkit.create()` and registered via `registerWebfont(family, weight, style, buffer)` into a runtime registry keyed by lowercase family name. The resolver consults this registry before the on-disk `FONT_PATHS` table — `resolveFontKey` returns a `webfont:<family>` key, `getFontInstance` dispatches that prefix to a closest-(weight, italic)-match picker. Caller is responsible for `clearWebfonts()` between captures.
+  - **License**: the SVG embeds rendered glyph *outlines* (`<path d="...">` per glyph, deduplicated via `<defs>`/`<use>`), NOT the font file. Functionally equivalent to converting text to outlines in Illustrator or how PDF text-as-outlines works. The font itself is never redistributed in the output. Most font licenses permit this (rendered output is not a font copy), but as with any rendered-text export, it's the user's responsibility to verify their font's terms.
+  - **Variable fonts**: range descriptors (`font-weight: 100 900`) take the lower bound. Variation axes aren't yet driven for webfonts (the `wght`/`opsz` plumbing in `getFontInstance` only kicks in for system-installed variable fonts).
+  - **Color fonts** (sbix/COLR/CBDT): fontkit reads them but the path renderer emits monochrome only — degrades to silhouette glyphs (same as today's behavior for the system Apple Color Emoji file).
 - Weight-axis fonts (variable-weight files): only SF Pro currently exposes `wght`. Others would use the closest-weight sibling (TTC `getFont(name)` per weight).
 - Italic + bold combined: e.g. `helvetica-bold-italic` postscriptName `Helvetica-BoldOblique`. Handle in the `getFontInstance` route — the slant flag picks `-italic`, weight selects sibling.
 - Files that don't ship on a given macOS install (Arial, Verdana are installed by Office, not the OS) — guard the `openSync` call with try/catch (already does), continue to next family in chain.

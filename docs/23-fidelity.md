@@ -54,7 +54,8 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 
 ### Typography
 
-- [~] Font families: SF Pro / SF Mono only; non-SF families fall back (tracked SK-1124 — see `25-domotion-font-family-chain.md`)
+- [x] Font families: generic keywords (`serif`/`sans-serif`/`monospace`/`cursive`) + a handful of installed families (Times, Georgia, Snell Roundhand, SF Pro, SF Mono); unmatched families fall through to SF Pro. See `25-font-family-chain.md`.
+- [x] Webfonts via `@font-face` (DM-227): same-origin sheets are walked for `@font-face` rules; cross-origin fonts (Google Fonts, Adobe Fonts) are picked up by a `requestfinished` listener attached before navigation. Each font buffer is fetched via the browser's request stack, parsed with fontkit, and registered into a per-capture registry that the resolver consults before the on-disk fallbacks.
 - [x] Weight, size, style (italic via SFNSItalic.ttf — SK-1105), variant, stretch
 - [x] letter-spacing, word-spacing, line-height
 - [x] Multi-line wrapped paragraphs (per-visual-line capture via Range)
