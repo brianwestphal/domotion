@@ -143,6 +143,19 @@ const FONT_PATHS: Record<string, FontPath> = {
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
+  // Chrome on macOS routes Dingbats (U+2700-27BF: ✂✈✏✔✘✚✦❄❤❶ etc.) to
+  // Zapf Dingbats, NOT Apple Symbols. Apple Symbols' glyphs at the same
+  // codepoints exist but have different (narrower, often slightly different
+  // shape) widths — verified empirically per DM-241 follow-up: every dingbat
+  // tested matched Zapf Dingbats' natural advance, none matched Apple Symbols'.
+  "zapf-dingbats":   { path: "/System/Library/Fonts/ZapfDingbats.ttf" },
+  // Mathematical Alphanumeric Symbols (U+1D400-1D7FF: 𝐀 𝒜 𝕊 𝟬 𝔄 𝛼 etc.)
+  // — Chrome paints these via STIX Two Math, the math-coverage font Apple
+  // ships in Supplemental. Verified empirically (DM-257): every Math Alpha
+  // char tested matched STIXTwoMath's natural advance to within 0.05px,
+  // while Apple Symbols and Helvetica lack these glyphs entirely (would
+  // render as .notdef tofu).
+  "stix-math":       { path: "/System/Library/Fonts/Supplemental/STIXTwoMath.otf" },
   // Chrome on macOS resolves the CSS `sans-serif` generic keyword to
   // Helvetica (per Blink's third_party/blink/renderer/platform/fonts/mac
   // font_cache_mac.mm). This is critical for fidelity — SF Pro has different
@@ -169,26 +182,33 @@ const FONT_PATHS: Record<string, FontPath> = {
 };
 
 /**
- * Map a Unicode code point to a fallback font key when the primary SF Pro
- * font lacks a glyph for it. Returns null when the primary font is expected
- * to have the glyph (Latin, basic punctuation, etc.).
+ * Ordered list of fallback font keys to try when the primary font lacks a
+ * glyph for `codepoint`. Caller iterates the chain and picks the first font
+ * whose `glyphForCodePoint(cp).id !== 0`. Returns an empty array when no
+ * fallback is needed (caller should keep using primary).
+ *
+ * Order matches Chrome's macOS CoreText fallback per Unicode block, verified
+ * empirically by probing Chrome's painted width vs each candidate font's
+ * natural advance (DM-241 follow-up audit). Apple Symbols stays as the final
+ * safety net so we never end up with a .notdef tofu — better to draw a
+ * slightly-wrong glyph than nothing.
  */
-export function fallbackFontKey(codepoint: number): string | null {
+export function fallbackFontChain(codepoint: number): string[] {
   // Hebrew (U+0590..05FF) + presentation forms (U+FB1D..FB4F).
   if ((codepoint >= 0x0590 && codepoint <= 0x05FF)
     || (codepoint >= 0xFB1D && codepoint <= 0xFB4F)) {
-    return "sf-hebrew";
+    return ["sf-hebrew"];
   }
   // Arabic core block + presentation forms A and B.
   if ((codepoint >= 0x0600 && codepoint <= 0x06FF)
     || (codepoint >= 0xFB50 && codepoint <= 0xFDFF)
     || (codepoint >= 0xFE70 && codepoint <= 0xFEFF)) {
-    return "sf-arabic";
+    return ["sf-arabic"];
   }
   // Devanagari (U+0900..097F).
-  if (codepoint >= 0x0900 && codepoint <= 0x097F) return "devanagari";
+  if (codepoint >= 0x0900 && codepoint <= 0x097F) return ["devanagari"];
   // Thai (U+0E00..0E7F).
-  if (codepoint >= 0x0E00 && codepoint <= 0x0E7F) return "thai";
+  if (codepoint >= 0x0E00 && codepoint <= 0x0E7F) return ["thai"];
   // CJK: Unified Ideographs + Ext A, Hiragana, Katakana (+ phonetic exts),
   // Hangul Syllables + Jamo, CJK Symbols & Punctuation.
   if ((codepoint >= 0x3000 && codepoint <= 0x303F)
@@ -200,31 +220,51 @@ export function fallbackFontKey(codepoint: number): string | null {
     || (codepoint >= 0xAC00 && codepoint <= 0xD7AF)
     || (codepoint >= 0x1100 && codepoint <= 0x11FF)
     || (codepoint >= 0xF900 && codepoint <= 0xFAFF)) {
-    return "cjk";
+    return ["cjk"];
   }
-  // Misc Symbols, Dingbats, Geometric Shapes, Arrows — common monochrome
-  // symbol blocks covered by Apple Symbols. Color-emoji blocks (1F300+)
-  // are included too, though fontkit will skip glyphs without outlines.
-  // Letterlike Symbols (ℝ ℕ ℤ ℂ ℚ etc., 2100-214F) and Mathematical
-  // Alphanumeric Symbols (𝒜 𝒷 𝒞 𝕊 etc., 1D400-1D7FF) are also covered by
-  // Apple Symbols; without these the math test renders them as .notdef boxes.
-  // Box Drawing (2500-257F) and Block Elements (2580-259F) are commonly used
-  // for ASCII-art tables in <pre> blocks (DM-238) — Courier (the macOS
-  // monospace generic) lacks them, so without this routing they render as
-  // .notdef tofu.
+  // Box Drawing / Block Elements → Menlo. Apple Symbols' versions are
+  // proportional (~6.98px @13px) and don't fill a Courier monospace cell
+  // (~7.80px), leaving visible gaps in ASCII-art tables. Menlo's are
+  // designed at full monospace cell width (~7.83px @13px). DM-241.
+  if (codepoint >= 0x2500 && codepoint <= 0x259F) return ["menlo"];
+  // Dingbats → Zapf Dingbats. macOS Chrome paints ✂✈✏✔✘✚✦❄❤❶ via Zapf
+  // Dingbats; Apple Symbols has the same codepoints but at different (often
+  // narrower) widths — empirical match shows Chrome consistently picks Zapf.
+  if (codepoint >= 0x2700 && codepoint <= 0x27BF) return ["zapf-dingbats", "symbols"];
+  // Geometric Shapes (▲△▽★☆♀♂…) and Misc Symbols (☀☁☂♠♥♦…) — Chrome on
+  // macOS paints many of these at the CJK em-square width (16px @16px font-
+  // size) via Hiragino Sans GB, NOT Apple Symbols (which has them at
+  // proportional 9-14px). Try CJK first; fall through to Apple Symbols for
+  // the chars Hiragino lacks (☘ ☑ ◇ etc.). DM-256.
+  if ((codepoint >= 0x25A0 && codepoint <= 0x25FF)
+    || (codepoint >= 0x2600 && codepoint <= 0x26FF)) {
+    return ["cjk", "symbols"];
+  }
+  // Mathematical Alphanumeric Symbols (𝐀 𝒜 𝕊 𝟬 𝔄 𝛼 etc.) — Chrome paints
+  // via STIX Two Math (the system math-coverage font); Apple Symbols
+  // and Hiragino lack these glyphs entirely. DM-257.
+  if (codepoint >= 0x1D400 && codepoint <= 0x1D7FF) {
+    return ["stix-math", "symbols"];
+  }
+  // Letterlike (ℝℕℤℂℚ™), Arrows, Math Operators, Pictographs, Transport.
+  // The caller's primary-first check already routes chars Helvetica/Times
+  // have (∑∏∫≠≤≥, ™, ●, ←→) to the primary; what reaches this fallback is
+  // the residue (∀∃∈ ⇒⇔ etc.) for which Apple Symbols is the right macOS
+  // source.
   if ((codepoint >= 0x2100 && codepoint <= 0x214F)
     || (codepoint >= 0x2190 && codepoint <= 0x21FF)
     || (codepoint >= 0x2200 && codepoint <= 0x22FF)
-    || (codepoint >= 0x2500 && codepoint <= 0x259F)
-    || (codepoint >= 0x25A0 && codepoint <= 0x25FF)
-    || (codepoint >= 0x2600 && codepoint <= 0x26FF)
-    || (codepoint >= 0x2700 && codepoint <= 0x27BF)
-    || (codepoint >= 0x1D400 && codepoint <= 0x1D7FF)
     || (codepoint >= 0x1F300 && codepoint <= 0x1F5FF)
     || (codepoint >= 0x1F680 && codepoint <= 0x1F6FF)) {
-    return "symbols";
+    return ["symbols"];
   }
-  return null;
+  return [];
+}
+
+/** @deprecated Single-key wrapper for back-compat — prefer `fallbackFontChain`. */
+export function fallbackFontKey(codepoint: number): string | null {
+  const chain = fallbackFontChain(codepoint);
+  return chain.length > 0 ? chain[0] : null;
 }
 
 function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0): FontInstance | null {
@@ -502,14 +542,30 @@ export function textToPathMarkup(
     while (i < text.length) {
       const cp = text.codePointAt(i)!;
       const ch = String.fromCodePoint(cp);
-      const fbKey = fallbackFontKey(cp);
-      // `fallbackFontKey` routes whole Unicode blocks (arrows, math operators,
-      // dingbats…) to Apple Symbols, but SF Pro itself has many of those
-      // glyphs and Apple Symbols's versions are visibly narrower. Only fall
-      // back when the primary font actually lacks the glyph (gid 0 = .notdef).
-      let useKey = fbKey ?? primaryFontKey;
-      if (fbKey != null && (primaryFont as any).glyphForCodePoint(cp).id !== 0) {
-        useKey = primaryFontKey;
+      // Primary-first: many of the chars `fallbackFontChain` routes (∑ ∏ ≠ ●
+      // ™ ←) are present in the requested primary font (Helvetica/Times/SF
+      // Pro) at metrics that match Chrome's painted width. Use primary
+      // whenever it has the glyph; only walk the fallback chain otherwise.
+      let useKey = primaryFontKey;
+      if ((primaryFont as any).glyphForCodePoint(cp).id === 0) {
+        // Walk the chain in order, pick the first font that actually has
+        // the glyph. If nothing in the chain has it (e.g. an exotic emoji
+        // that even Apple Symbols lacks), fall through to the LAST chain
+        // entry anyway — its .notdef has a stable advance the rasterGlyph
+        // overlay can pin a captured emoji PNG against, where switching
+        // to primary's .notdef would shift glyph positions and drift the
+        // rest of the line.
+        const chain = fallbackFontChain(cp);
+        let picked: string | null = null;
+        for (const candidate of chain) {
+          const cf = getFontInstance(candidate, weight, fontSize, slant);
+          if (cf != null && (cf as any).glyphForCodePoint != null
+              && (cf as any).glyphForCodePoint(cp).id !== 0) {
+            picked = candidate;
+            break;
+          }
+        }
+        useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
       }
       if (useKey !== curKey && curText.length > 0) {
         const f = getFontInstance(curKey, weight, fontSize, slant);
@@ -532,25 +588,32 @@ export function textToPathMarkup(
     return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets);
   }
 
-  // Mixed-font content with captured per-char xOffsets. Latin/primary runs
+  // Content with captured per-char xOffsets. Primary runs and non-shaping
+  // fallback runs (CJK, hiragana/katakana via cjk, Hebrew, symbols, Menlo)
   // anchor each glyph at its captured x to preserve subpixel positioning
-  // (SK-1234). Fallback-font runs (Arabic, Devanagari, Thai, …) are shaped
-  // as a unit via font.layout(runText) so contextual joining (init/medi/fina),
-  // cluster reordering (Devanagari i-matra), and ligature substitution (क्ष)
-  // survive — fontkit's shaping for these scripts agrees with Chromium's
-  // HarfBuzz to within ~1px (SK-1237 investigation), so anchoring the run at
-  // its visual-leftmost xOffset and laying out with native cumulative
-  // advances produces the right glyphs at the right positions.
-  const hasMultipleFontRuns = runs.length > 1;
-  if (hasMultipleFontRuns && xOffsets != null && xOffsets.length === text.length) {
+  // (SK-1234) AND honor per-char layout decisions Chrome made that fontkit's
+  // native advances would miss (notably ruby-align: space-around distributing
+  // a single rt char to fill its base column — DM-239). Shaping-required
+  // fallbacks (Arabic, Devanagari, Thai) still go through font.layout(runText)
+  // as a unit so contextual joining (init/medi/fina), cluster reordering
+  // (Devanagari i-matra), and ligature substitution (क्ष) survive — fontkit's
+  // shaping for these scripts agrees with Chromium's HarfBuzz to within ~1px
+  // (SK-1237 investigation).
+  if (xOffsets != null && xOffsets.length === text.length) {
     const groups: string[] = [];
     let rightEdge = 0;
     for (const run of runs) {
       const runScale = fontSize / run.font.unitsPerEm;
       const sc = Number(runScale.toFixed(5));
+      const isShapingRequired = run.fontKey === "sf-arabic"
+        || run.fontKey === "devanagari"
+        || run.fontKey === "thai";
 
-      if (run.fontKey === primaryFontKey) {
-        // Primary-font run inside mixed line — keep SK-1234 per-char anchoring.
+      if (!isShapingRequired) {
+        // Per-char anchoring — primary runs and any fallback that's 1:1 char→
+        // glyph (no shaping reordering or contextual joining). Each codepoint
+        // shapes individually; placement uses the captured xOffset so we
+        // inherit Chrome's spacing decisions including ruby column-fitting.
         let i = run.startIdx;
         while (i < run.endIdx) {
           const cp = text.codePointAt(i)!;
@@ -571,7 +634,7 @@ export function textToPathMarkup(
           i += ch.length;
         }
       } else {
-        // Fallback-font run — shape the whole run together. Anchor at the
+        // Shaping fallback — shape the whole run together. Anchor at the
         // visual-leftmost captured x: for LTR that's xOffsets[startIdx], for
         // RTL that's xOffsets[endIdx-1] (last logical char paints leftmost).
         // Math.min covers both directions and any embedded BiDi.

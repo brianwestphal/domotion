@@ -4,15 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Domotion is a DOM-to-animated-SVG renderer. It captures HTML/CSS rendered in Playwright Chromium and converts the captured tree into a self-contained SVG with optional CSS animations. The output is pixel-faithful to Chromium on macOS, scales crisply at any size, and embeds without external assets — purpose-built for marketing and documentation demos that need to load lazily and look identical across browsers.
+Domotion is a DOM-to-animated-SVG renderer. It captures HTML/CSS rendered in Playwright Chromium and converts the captured tree into a self-contained SVG with optional CSS animations. The output is pixel-faithful to Chromium on the host platform, scales crisply at any size, and embeds without external assets — purpose-built for marketing and documentation demos that need to load lazily and look identical across browsers.
 
 The project was originally built inside the `slicekit` monorepo as `tools/svg-demo-gen`; it was extracted in 2026-04 to live as a standalone package so it can be published to npm and consumed by other projects. See `docs/` for full requirements docs covering rendering fidelity, supported CSS features, and known caveats.
+
+## Platform support — non-negotiable
+
+**Domotion ships as an npm package and must function on macOS, Linux, and Windows like any normal npm package.** The output should be pixel-faithful to Chromium *on the platform the capture is running on* — Chromium-on-macOS uses CoreText fallback (Hiragino, Apple Symbols, Zapf Dingbats, STIX Two Math), Chromium-on-Linux uses fontconfig (Noto / DejaVu / Liberation), Chromium-on-Windows uses DirectWrite (Segoe UI Symbol, Cambria Math, Consolas, Yu Gothic). Each platform's fallback chain must be calibrated against the actual painted output of Chromium on that platform.
+
+Today the implementation is fully calibrated only for macOS — that's debt, not design. The cross-platform roadmap lives in tickets DM-258 (path discovery) → DM-259 (Linux chains) / DM-260 (Windows chains) / DM-261 (bundled fallback fonts) → DM-262 (CI on Linux + Windows).
+
+**Rules for new code**:
+- Don't add hardcoded `/System/Library/Fonts/...` paths or other macOS-only literals without flagging the cross-platform gap in the change.
+- New font / fallback / metric routing must be designed platform-aware from the start (lookup by `process.platform`, not assumed to be `darwin`).
+- When matching Chromium's behavior, verify empirically against Chromium on the target platform — the same probe methodology used for DM-241 / DM-256 / DM-257 (measure `Range.getBoundingClientRect().width`, match against candidate font advance widths via fontkit's `glyphForCodePoint`).
 
 ## Stack
 
 - **Runtime**: Node.js 22+, TypeScript 5.8+
 - **Capture**: `@playwright/test` (Chromium headless) — the only browser engine we target.
-- **Glyph paths**: `fontkit` for `font.layout()` shaping and outline extraction from macOS system fonts.
+- **Glyph paths**: `fontkit` for `font.layout()` shaping and outline extraction from host system fonts (currently macOS-calibrated; Linux/Windows tracked DM-258+).
 - **Bidi**: `bidi-js` for paired-bracket mirroring on RTL embedding levels.
 - **Optimization**: `svgo` for the optional optimize pass.
 - **Tests**: `vitest` for unit tests; bespoke visual-regression harnesses under `tests/`.
@@ -32,7 +43,7 @@ npm run demos:examples  # run the three example demo scripts
 ## Code Organization
 
 - **`src/dom-to-svg.ts`** — capture entry point. Exports `captureElementTree()` (runs an in-page CAPTURE_SCRIPT to walk the DOM into a serializable tree) and `elementTreeToSvg()` (renders the tree as SVG markup). The CAPTURE_SCRIPT lives as a string literal that's `evaluate()`d in the page context, so it can't import from the rest of the source — keep it self-contained.
-- **`src/text-to-path.ts`** — fontkit glyph-to-path conversion with `<defs>`/`<use>` deduplication. Owns the `FONT_PATHS` map (macOS system fonts), `fallbackFontKey()` script-to-font routing, and the run-based shaping path that handles Arabic contextual joining, Devanagari cluster reordering, and CJK GPOS.
+- **`src/text-to-path.ts`** — fontkit glyph-to-path conversion with `<defs>`/`<use>` deduplication. Owns the `FONT_PATHS` map (currently macOS-only paths; cross-platform path discovery tracked DM-258), `fallbackFontChain()` script-to-font routing (per-Unicode-block ordered chain, calibrated empirically against Chromium painted widths), and the run-based shaping path that handles Arabic contextual joining, Devanagari cluster reordering, and CJK GPOS.
 - **`src/text-renderer.ts`** — chooses single-line, multi-segment, multi-line, or input rendering based on captured shape. Wraps `applyBidi()` for paired-bracket mirroring before handing text to the path renderer.
 - **`src/animator.ts`** — `generateAnimatedSvg()` composes multiple captured frames into one SVG with `@keyframes` cross-fade / push-left / scroll transitions.
 - **`src/capture.ts`** — Playwright bring-up helpers (`launchBrowser`, `withPage`).

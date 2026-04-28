@@ -1052,7 +1052,15 @@ const CAPTURE_SCRIPT = `
               r.setStart(node, i);
               r.setEnd(node, i + step);
               const cr = r.getBoundingClientRect();
-              if (cr.width === 0 && cr.height === 0) { i += step - 1; continue; } // collapsed whitespace
+              // Skip whitespace chars Chrome collapsed away (e.g. the second
+              // space at a line wrap, where HTML normal whitespace collapsing
+              // leaves only one painted space). Such chars report rect.width
+              // === 0 even when rect.height matches the line box. Non-
+              // whitespace zero-width chars (combining marks like the acute
+              // on é) MUST stay in the stream — they pair with the preceding
+              // base char during shaping.
+              const isWs = step === 1 && /\\s/.test(raw[i]);
+              if (cr.width === 0 && (cr.height === 0 || isWs)) { i += step - 1; continue; }
               const ch = raw.slice(i, i + step);
               // Carry each chars full per-char rect so the line-emission
               // pass can build rasterGlyphs for codepoints Chrome paints via
@@ -2363,12 +2371,20 @@ export function elementTreeToSvg(
             svgParts.push(`${indent}<rect x="${r(mx - r0)}" y="${r(shapeY - r0)}" width="${r(r0 * 2)}" height="${r(r0 * 2)}" fill="${markerColor}" />`);
           }
         } else {
-          // Text-based marker (decimal / lower-alpha / lower-roman / etc.)
+          // Text-based marker (decimal / lower-alpha / lower-roman / etc.).
+          // Chrome's default ::marker is right-aligned within the marker box
+          // with a small UA-defined gap to the content (~4px on macOS Chrome).
+          // Anchor to `el.x - smallGap` with text-anchor="end" so the marker's
+          // right edge sits just left of the principal block — guessing the
+          // marker's rendered width is unreliable across font fallbacks
+          // ("1." is 11.5px in Helvetica, 13.6px in Inter, 18px in Courier),
+          // and getting it ~10px wrong drives the entire visible offset.
           const label = formatListMarker(lsType, idx) + ".";
-          const approxWidth = label.length * markerFontSize * 0.55;
-          const mx = outside ? el.x - gap - approxWidth : el.x;
+          const smallGap = 4;
+          const mx = outside ? el.x - smallGap : el.x;
+          const anchor = outside ? "end" : "start";
           svgParts.push(
-            `${indent}<text x="${r(mx)}" y="${r(my)}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${el.styles.fontFamily}" fill="${markerColor}">${label}</text>`,
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${el.styles.fontFamily}" fill="${markerColor}">${label}</text>`,
           );
         }
       }

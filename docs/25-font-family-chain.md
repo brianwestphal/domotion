@@ -2,6 +2,8 @@
 
 Requirements for honoring author-specified font-family chains in Domotion. Origin: SK-1124 (follow-up from SK-1095). Today `resolveFontKey` in `src/text-to-path.ts` only distinguishes mono from sans-serif, so a page declaring `font-family: "Helvetica Neue", "Times New Roman", monospace` always paints with SF Pro regardless of the requested family.
 
+> **Cross-platform note (DM-258 / DM-259 / DM-260)**: This doc describes the macOS calibration of the chain resolver and `FONT_PATHS`. The same logic must work on Linux (fontconfig — Noto / DejaVu / Liberation) and Windows (DirectWrite — Arial / Consolas / Times New Roman / Segoe UI Symbol / Cambria Math / Yu Gothic). The hardcoded `/System/Library/Fonts/...` paths below are platform-specific debt; replacement via per-platform path discovery is tracked in DM-258. The empirical-probe methodology used to calibrate macOS (DM-241 / DM-256 / DM-257) must be re-run on each target platform to populate per-platform fallback chains.
+
 ## Why now
 
 Editorial pages (Times for body, Helvetica for headings), branded UIs that pin a specific family, and the existing `20-font-family.html` test all suffer measurable diff because Chrome resolved a different family. Diff here is metrics-based (different glyph widths, x-heights) so it cascades into wrong line breaks for paragraphs.

@@ -4,9 +4,10 @@ Requirements and support matrix for Domotion — the engine that converts captur
 
 ## Goals
 
-- Faithful visual reproduction of captured DOM as SVG, targeting Chromium on macOS as the canonical reference.
+- Faithful visual reproduction of captured DOM as SVG, targeting Chromium on the host platform as the canonical reference.
 - Predictable output: if a feature isn't fully supported, the tool says so (it doesn't silently drop content).
 - Self-contained SVG: renders identically when embedded in a page or loaded standalone.
+- **Cross-platform parity**: works on macOS, Linux, and Windows like any normal npm package, calibrated against Chromium's actual fallback behavior on each platform (CoreText / fontconfig / DirectWrite). Today fully calibrated only for macOS; Linux and Windows are roadmap items (tickets DM-258 → DM-259 / DM-260 / DM-261 → DM-262). New code must be platform-aware from the start, not macOS-hardcoded.
 
 ## Support matrix
 
@@ -54,7 +55,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 
 ### Typography
 
-- [x] Font families: generic keywords (`serif`/`sans-serif`/`monospace`/`cursive`) + a handful of installed families (Times, Georgia, Snell Roundhand, SF Pro, SF Mono); unmatched families fall through to SF Pro. See `25-font-family-chain.md`.
+- [x] Font families: generic keywords (`serif`/`sans-serif`/`monospace`/`cursive`) + a handful of installed families. The mapping is platform-specific (macOS today: Helvetica / Times / Courier / SF Pro / SF Mono / Snell Roundhand / Hiragino Sans GB / Apple Symbols / Zapf Dingbats / STIX Two Math; Linux and Windows mappings tracked DM-258 / DM-259 / DM-260). Unmatched families fall through to the platform's sans-serif default. See `25-font-family-chain.md`.
 - [x] Webfonts via `@font-face` (DM-227): same-origin sheets are walked for `@font-face` rules; cross-origin fonts (Google Fonts, Adobe Fonts) are picked up by a `requestfinished` listener attached before navigation. Each font buffer is fetched via the browser's request stack, parsed with fontkit, and registered into a per-capture registry that the resolver consults before the on-disk fallbacks.
 - [x] Variable webfont axes (DM-228 / DM-229): `wght`, `opsz`, `slnt` driven from CSS `font-weight` / `font-size` / `font-style` via `applyVariationAxes`. WOFF2 buffers are decompressed to TTF (via `wawoff2`) before fontkit parsing — fontkit's WOFF2 variation path returns an instance whose tables can't be read.
 - [x] Weight, size, style (italic via SFNSItalic.ttf — SK-1105), variant, stretch
