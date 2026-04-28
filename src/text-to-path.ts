@@ -137,7 +137,12 @@ const FONT_PATHS: Record<string, FontPath> = {
   "menlo-italic":       { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Italic" },
   "menlo-bold-italic":  { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-BoldItalic" },
   "monaco":          { path: "/System/Library/Fonts/Monaco.ttf" },
-  "sf-arabic":       { path: "/System/Library/Fonts/SFArabic.ttf" },
+  // Chrome on macOS uses Geeza Pro for the Arabic block, NOT SF Arabic. SF
+  // Arabic glyphs are wider (~29.7px for بحرم at 16px) while Geeza Pro
+  // matches Chrome's painted width (~27.6px) — DM-270 probe. SF Arabic was
+  // designed for Apple system UI and isn't what Chrome's CoreText fallback
+  // picks for `Times` body text.
+  "sf-arabic":       { path: "/System/Library/Fonts/GeezaPro.ttc", postscriptName: "GeezaPro" },
   "sf-hebrew":       { path: "/System/Library/Fonts/SFHebrew.ttf" },
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
@@ -173,10 +178,18 @@ const FONT_PATHS: Record<string, FontPath> = {
   "arial-italic":           { path: "/System/Library/Fonts/Supplemental/Arial Italic.ttf" },
   "arial-bold-italic":      { path: "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf" },
   // Generic serif (font-family: serif / ui-serif, "Times New Roman", "Georgia").
-  "times":           { path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" },
-  "times-italic":    { path: "/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf" },
-  "georgia":         { path: "/System/Library/Fonts/Supplemental/Georgia.ttf" },
-  "georgia-italic":  { path: "/System/Library/Fonts/Supplemental/Georgia Italic.ttf" },
+  // Times is what Chrome on macOS resolves the bare `<body>`/`<h1>` default to
+  // when no font-family is set — UA stylesheet anchors `<body>` at Times, so
+  // we need bold + italic + bold-italic siblings to render `<h1>`/`<strong>`/
+  // `<em>` in serif content faithfully (DM-269).
+  "times":              { path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" },
+  "times-bold":         { path: "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf" },
+  "times-italic":       { path: "/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf" },
+  "times-bold-italic":  { path: "/System/Library/Fonts/Supplemental/Times New Roman Bold Italic.ttf" },
+  "georgia":             { path: "/System/Library/Fonts/Supplemental/Georgia.ttf" },
+  "georgia-bold":        { path: "/System/Library/Fonts/Supplemental/Georgia Bold.ttf" },
+  "georgia-italic":      { path: "/System/Library/Fonts/Supplemental/Georgia Italic.ttf" },
+  "georgia-bold-italic": { path: "/System/Library/Fonts/Supplemental/Georgia Bold Italic.ttf" },
   // Generic cursive — Chrome on macOS resolves `cursive` to Snell Roundhand.
   "snell":           { path: "/System/Library/Fonts/Supplemental/SnellRoundhand.ttc", postscriptName: "SnellRoundhand" },
 };
@@ -282,14 +295,15 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   if (slant !== 0) {
     if (key === "sf-pro") effectiveKey = "sf-pro-italic";
     else if (key === "sf-mono") effectiveKey = "sf-mono-italic";
-    else if (key === "times") effectiveKey = "times-italic";
-    else if (key === "georgia") effectiveKey = "georgia-italic";
   }
-  // Helvetica/Arial/Courier/Menlo don't expose a variable wght axis — pick
-  // the right sub-font (or sibling file) based on weight × slant. Boundary
-  // at 600 matches CSS font-weight: bold (700) and the typical "semibold or
-  // above is bold" rule Chrome uses when an exact weight isn't installed.
-  if (key === "helvetica" || key === "arial" || key === "courier" || key === "menlo") {
+  // Helvetica/Arial/Courier/Menlo/Times/Georgia don't expose a variable wght
+  // axis — pick the right sub-font (or sibling file) based on weight × slant.
+  // Boundary at 600 matches CSS font-weight: bold (700) and the typical
+  // "semibold or above is bold" rule Chrome uses when an exact weight isn't
+  // installed. Times/Georgia ship four sibling files (regular/bold/italic/
+  // bold-italic) for headings + emphasis in serif content (DM-269).
+  if (key === "helvetica" || key === "arial" || key === "courier" || key === "menlo"
+      || key === "times" || key === "georgia") {
     const isBold = weight >= 600;
     const isItalic = slant !== 0;
     if (isBold && isItalic) effectiveKey = `${key}-bold-italic`;
@@ -389,8 +403,13 @@ export function resolveFontKey(fontFamily: string): string {
     // it on disk; SF Mono is only used when explicitly requested. Consolas
     // isn't installed on macOS — Chrome falls back to Times metrics there,
     // but for fidelity-of-intent we route it to Courier.
-    if (name === "monospace" || name === "ui-monospace"
-      || name === "courier" || name === "courier new"
+    //
+    // `ui-monospace` is NOT recognized by Chrome on macOS (DM-269 probe:
+    // painted T width = 9.77, q = 8.0 — same as Times, not Courier or SF
+    // Mono). Chrome falls through to the standard-font default (Times). It
+    // intentionally falls through here so the last-resort `times` mapping
+    // at the bottom catches it.
+    if (name === "monospace" || name === "courier" || name === "courier new"
       || name === "consolas") return "courier";
     if (name === "menlo") return "menlo";
     if (name === "monaco") return "monaco";
@@ -410,17 +429,23 @@ export function resolveFontKey(fontFamily: string): string {
     if (name === "arial") return "arial";
     // system-ui / -apple-system / BlinkMacSystemFont / "SF Pro" → SF Pro.
     // These keywords mean "the platform UI font", which on modern macOS is
-    // San Francisco. fantasy / math / emoji / fangsong have no clean macOS
-    // equivalent — fall through to SF Pro and let per-codepoint fallback
-    // route the glyphs that SF Pro lacks.
+    // San Francisco.
     if (name === "system-ui" || name === "-apple-system" || name === "blinkmacsystemfont"
-      || name === "ui-rounded" || name === "sf pro" || name === "sf pro text" || name === "sf pro display"
-      || name === "fantasy" || name === "math" || name === "emoji" || name === "fangsong") return "sf-pro";
+      || name === "sf pro" || name === "sf pro text" || name === "sf pro display") return "sf-pro";
+    // Other generic keywords Chrome on macOS does NOT recognize as system
+    // fonts: `ui-monospace`, `ui-rounded`, `fantasy`, `math`, `emoji`,
+    // `fangsong`. Chrome falls through to the standard-font default (Times).
+    // DM-269 probe confirmed each of these paints with Times metrics
+    // (q=8.0, T=9.77) on macOS Chrome. Returning "times" here matches what
+    // Chrome actually paints; per-codepoint fallback (CJK, emoji, math)
+    // still routes the glyphs Times lacks to the right block-specific font.
+    if (name === "ui-monospace" || name === "ui-rounded"
+      || name === "fantasy" || name === "math" || name === "emoji" || name === "fangsong") return "times";
   }
   // Last-resort fallback when no family in the stack matched. Chrome's
   // ultimate fallback on macOS for an unrecognized name is the user's
-  // configured sans-serif default, which is Helvetica.
-  return "helvetica";
+  // configured "Standard Font" preference, which defaults to Times.
+  return "times";
 }
 
 function resolveFont(fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0): FontInstance | null {

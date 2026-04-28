@@ -145,7 +145,11 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : fillColor;
-    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, tt + fontSize, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle);
+    // baselineY = textTop + fontAscent. Using fontSize here would put the
+    // underline ~1px too low (fontSize includes descent; baseline sits at
+    // ascent above textTop, not at the line-bottom). DM-265.
+    const decoBaselineY = tt + (el.fontAscent ?? fontSize);
+    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle);
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
     const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, clipId) : "";
@@ -224,7 +228,8 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       const sy = seg.y + seg.height / 2;
       parts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
-    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, seg.y + segFontSize, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle);
+    const segDecoBaselineY = seg.y + (segAscent ?? segFontSize);
+    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle);
     if (decoMarkup !== "") parts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
     // text get their actual Chrome-painted pixels stamped over the position.

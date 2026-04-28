@@ -14,7 +14,14 @@ describe("resolveFontKey: generic-family resolution", () => {
 
   it("routes monospace to Courier, not SF Mono or Menlo", () => {
     expect(resolveFontKey("monospace")).toBe("courier");
-    expect(resolveFontKey("ui-monospace")).toBe("courier");
+  });
+
+  it("routes ui-monospace and ui-rounded to Times (Chrome's actual fallback when keyword is unrecognized)", () => {
+    // DM-269: macOS Chrome doesn't recognize ui-monospace / ui-rounded as
+    // system fonts — painted T width is 9.77px (Times) and q is 8.0px (Times),
+    // not Courier or SF Mono. Chrome falls through to the Standard Font default.
+    expect(resolveFontKey("ui-monospace")).toBe("times");
+    expect(resolveFontKey("ui-rounded")).toBe("times");
   });
 
   it("routes serif to Times, not Georgia", () => {
@@ -57,6 +64,17 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("MONOSPACE")).toBe("courier");
     expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica");
     expect(resolveFontKey("'SF Mono'")).toBe("sf-mono");
+  });
+
+  it("routes Chrome-unrecognized generics (fantasy / math / emoji / fangsong) to Times", () => {
+    // DM-269: probed Chrome on macOS — these all paint with Times metrics
+    // (q=8.0, T=9.77) when used as the only family. The Standard Font default
+    // is Times; per-codepoint fallback then routes the glyphs Times lacks
+    // (CJK, math alpha, color emoji) to the right block-specific font.
+    expect(resolveFontKey("fantasy")).toBe("times");
+    expect(resolveFontKey("math")).toBe("times");
+    expect(resolveFontKey("emoji")).toBe("times");
+    expect(resolveFontKey("fangsong")).toBe("times");
   });
 });
 
@@ -116,8 +134,12 @@ describe("resolveFontKey: chain walking", () => {
     expect(resolveFontKey("Menlo, Consolas, monospace")).toBe("menlo");
   });
 
-  it("falls through to Helvetica when nothing matches (Chrome's macOS fallback)", () => {
-    expect(resolveFontKey("Nothing-Installed-1, Nothing-Installed-2")).toBe("helvetica");
-    expect(resolveFontKey("")).toBe("helvetica");
+  it("falls through to Times when nothing matches (Chrome's macOS Standard Font default)", () => {
+    // DM-269: probed Chrome — body with no font-family computes to "Times",
+    // and elements declaring an unrecognized family chain fall through to
+    // the same Standard Font default. Previously this was Helvetica which
+    // was wrong for serif default contexts.
+    expect(resolveFontKey("Nothing-Installed-1, Nothing-Installed-2")).toBe("times");
+    expect(resolveFontKey("")).toBe("times");
   });
 });

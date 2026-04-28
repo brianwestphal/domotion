@@ -580,7 +580,18 @@ const CAPTURE_SCRIPT = `
   // below is codepoints we've observed Chrome routing to the emoji font
   // despite path availability (checkmark family), plus the canonical emoji
   // planes (U+1F300+).
-  const _rasterCps = new Set([0x2713, 0x2714, 0x2716, 0x2717, 0x2757]);
+  // Codepoints in U+2700-27BF (Dingbats) that Chrome paints via Apple Color
+  // Emoji rather than the monochrome Zapf Dingbats / Apple Symbols glyph —
+  // confirmed empirically per DM-269 (✨ rendered as color emoji, not the
+  // Zapf glyph). Default emoji-presentation per Unicode emoji-data: ✨ ❌ ❎
+  // ❓ ❔ ❕ ❗ ➕ ➖ ➗ ➡ ➰ ➿ etc. Without explicit variation selectors,
+  // Chrome picks color presentation for these. The rasterGlyph system stamps
+  // the captured PNG over the path-mode glyph so this list lets the screen-
+  // shotter pick them up.
+  const _rasterCps = new Set([
+    0x2713, 0x2714, 0x2716, 0x2717, 0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
+    0x274C, 0x274E, 0x2795, 0x2796, 0x2797, 0x27A1, 0x27B0, 0x27BF,
+  ]);
   const needsRaster = (cp) => {
     if (_rasterCps.has(cp)) return true;
     // Regional-indicator flags (pairs are joined into country flag emoji).
@@ -774,7 +785,9 @@ const CAPTURE_SCRIPT = `
       if (content == null || content === 'none' || content === 'normal' || content === '') continue;
       // Parse content string. CSS concatenates mixed forms:
       //   "literal"  attr(x)  url(foo)  counter(name)  open-quote
-      // Handled: string literals, attr(), url() (rendered as <image>).
+      // Handled: string literals, attr(), url() (rendered as <image>),
+      // open-quote / close-quote (default English quotation marks; nested
+      // levels not tracked — DM-254).
       // Not handled: counter() (needs list-counter tracking).
       let text = '';
       let imageUrl = '';
@@ -802,6 +815,21 @@ const CAPTURE_SCRIPT = `
           }
           imageUrl = url;
           i = end + 1;
+        } else if (content.startsWith('open-quote', i)) {
+          // Default English quotation pair. CSS quotes property can override
+          // (and nested levels rotate through pairs) but the default chain on
+          // Chrome is U+201C / U+201D (outer), U+2018 / U+2019 (inner). We
+          // emit only the outer level — sufficient for most ::before/::after
+          // generated quotes.
+          text += '“';
+          i += 'open-quote'.length;
+        } else if (content.startsWith('close-quote', i)) {
+          text += '”';
+          i += 'close-quote'.length;
+        } else if (content.startsWith('no-open-quote', i)) {
+          i += 'no-open-quote'.length;
+        } else if (content.startsWith('no-close-quote', i)) {
+          i += 'no-close-quote'.length;
         } else {
           i++;
         }
@@ -2360,8 +2388,14 @@ export function elementTreeToSvg(
         const idx = el.listItemIndex ?? 1;
         if (lsType === "disc" || lsType === "circle" || lsType === "square") {
           // Chrome's disc marker is the U+2022 bullet glyph at the marker
-          // font-size; in sans-serif at 16px it's roughly 6.5px wide → r ≈ 0.20em.
-          const r0 = markerFontSize * 0.2;
+          // font-size. The actual filled-disc bbox in Helvetica/SF Pro/Times
+          // is ~3-4px diameter at 16px (radius ~0.10-0.12em), NOT the 0.20em
+          // we used previously — that was twice as big as Chrome paints.
+          // Probe (DM-274): Helvetica diameter 3.45px (r/fs=0.108), SF Pro
+          // 3.05px (0.095), Times 3.92px (0.123). Use 0.11em as a single
+          // value that's close to all three; per-font tuning isn't worth the
+          // complexity since most pages use sans-serif (Helvetica) markers.
+          const r0 = markerFontSize * 0.11;
           const mx = outside ? el.x - gap - r0 : el.x + r0;
           if (lsType === "disc") {
             svgParts.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="${markerColor}" />`);
