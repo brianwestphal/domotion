@@ -67,11 +67,15 @@ export function clearWebfonts(): void {
 
 /**
  * Pick the closest matching registered variant for the given family +
- * weight/style. Used internally by `getFontInstance` for `webfont:<name>`
- * keys; italic match dominates the score so italic+regular beats
- * upright+italic-mismatch.
+ * weight/style, then drive any variation axes the file exposes (so a single
+ * variable webfont — Inter Variable, Roboto Flex, Recursive — can serve
+ * multiple weights / sizes / slants from one buffer instead of substituting
+ * the registered base instance for every request).
+ *
+ * Used internally by `getFontInstance` for `webfont:<name>` keys; italic
+ * match dominates the score so italic+regular beats upright+italic-mismatch.
  */
-function pickWebfontVariant(family: string, weight: number, slant: number): FontInstance | null {
+function pickWebfontVariant(family: string, weight: number, fontSize: number, slant: number): FontInstance | null {
   const variants = webfontRegistry.get(family);
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
@@ -82,7 +86,8 @@ function pickWebfontVariant(family: string, weight: number, slant: number): Font
     const score = styleMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
-  return best?.font ?? null;
+  if (best == null) return null;
+  return applyVariationAxes(best.font, weight, fontSize, slant);
 }
 
 /**
@@ -184,7 +189,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
   if (key.startsWith("webfont:")) {
-    return pickWebfontVariant(key.slice("webfont:".length), weight, slant);
+    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant);
   }
   // SF Pro / SF Mono ship their italics as separate .ttf files rather than
   // exposing a `slnt` variable-axis on the upright file, so route italic
@@ -217,24 +222,60 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
         font = opened.fonts[0];
       }
     }
-    // Some fonts (e.g. Hiragino Sans GB) expose getVariation but lack the
-    // required fvar/gvar/CFF2 tables, so actually calling it throws. Guard
-    // with a per-call try so we fall back to the non-variation font rather
-    // than failing the whole fallback chain.
-    let instance: FontInstance = font;
-    if (font.variationAxes != null && Object.keys(font.variationAxes).length > 0 && font.getVariation != null) {
-      const axes: Record<string, number> = { wght: weight };
-      if (font.variationAxes?.opsz != null) axes.opsz = fontSize;
-      // SF Pro's slnt axis drives italic/oblique synthesis; harmless when a
-      // font doesn't expose it (the `slnt` key is just ignored).
-      if (slant !== 0 && font.variationAxes?.slnt != null) axes.slnt = slant;
-      try { instance = font.getVariation(axes); } catch { instance = font; }
-    }
+    const instance = applyVariationAxes(font, weight, fontSize, slant);
     fontInstanceCache.set(cacheKey, instance);
     return instance;
   } catch {
     return null;
   }
+}
+
+/**
+ * Drive a variable font's exposed variation axes from the requested CSS
+ * weight / font-size / slant:
+ *
+ *   - `wght` ← `weight` (CSS numeric weight, 100-900)
+ *   - `opsz` ← `fontSize` (px) when the font exposes the axis
+ *   - `slnt` ← `slant` when non-zero AND the axis exists (SF Pro / Recursive
+ *     synthesize italic/oblique from this; ignored otherwise)
+ *
+ * Returns the original font when the file isn't variable or `getVariation`
+ * is missing. Some fonts (Hiragino Sans GB) expose `getVariation` but lack
+ * the required `fvar`/`gvar`/`CFF2` tables, so the call is wrapped in
+ * try/catch — failure falls back to the unvariated font rather than
+ * cascading up.
+ *
+ * Used by both the system-installed font path (`getFontInstance`) and the
+ * runtime webfont path (`pickWebfontVariant`) so variable webfonts like
+ * Inter Variable or Roboto Flex render at the requested weight/size instead
+ * of always producing the registered base instance.
+ */
+function applyVariationAxes(font: any, weight: number, fontSize: number, slant: number): FontInstance {
+  if (font.variationAxes == null || Object.keys(font.variationAxes).length === 0 || font.getVariation == null) {
+    return font;
+  }
+  const axes: Record<string, number> = {};
+  if (font.variationAxes.wght != null) axes.wght = weight;
+  if (font.variationAxes.opsz != null) axes.opsz = fontSize;
+  if (slant !== 0 && font.variationAxes.slnt != null) axes.slnt = slant;
+  if (Object.keys(axes).length === 0) return font;
+  let v: FontInstance;
+  try {
+    v = font.getVariation(axes);
+  } catch {
+    return font;
+  }
+  // Fontkit's WOFF2 variation path returns an instance whose internal stream
+  // doesn't expose the parent's tables — accessing `unitsPerEm` /
+  // `layout(...)` throws "Cannot read properties of undefined". Probe for
+  // that and fall back to the original font when the variation is broken.
+  // For TTF/OTF parents the probe succeeds and we use the variation as-is.
+  try {
+    if ((v as any).unitsPerEm == null) return font;
+  } catch {
+    return font;
+  }
+  return v;
 }
 
 export function resolveFontKey(fontFamily: string): string {

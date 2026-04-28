@@ -273,7 +273,8 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         report.push({ family: "", weight: 400, style: "normal", url: item.url, source: item.kind, ok: false, error: `HTTP ${resp.status()}` });
         continue;
       }
-      const buf = Buffer.from(await resp.body());
+      const fetched = Buffer.from(await resp.body());
+      const buf = await ensureNonWoff2(fetched);
 
       if (item.kind === "font-face") {
         const weightNum = parseWeightDescriptor(item.weight);
@@ -307,6 +308,33 @@ async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: 
     return { family, weight, italic };
   } catch {
     return null;
+  }
+}
+
+/**
+ * If `buf` is WOFF2 (magic `wOF2`), decompress it to plain TTF bytes via
+ * `wawoff2`. Otherwise return the buffer untouched.
+ *
+ * Why we need this: fontkit *parses* WOFF2 fine, but `getVariation()` on a
+ * WOFF2 font returns an instance whose internal stream can't read the
+ * parent's tables (`unitsPerEm` / `layout()` throw). Most webfonts in the
+ * wild are WOFF2, so without this step variable-axis support (DM-228 / 229)
+ * would silently degrade to the registered base instance for every weight.
+ *
+ * Decompressing to TTF before fontkit.create produces a font whose variation
+ * results retain access to all tables — same as a TTF loaded from disk.
+ */
+async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
+  if (buf.length < 4) return buf;
+  const isWoff2 = buf[0] === 0x77 && buf[1] === 0x4F && buf[2] === 0x46 && buf[3] === 0x32;
+  if (!isWoff2) return buf;
+  try {
+    // wawoff2 ships no .d.ts; the runtime export is `{ compress, decompress }`.
+    const wawoff = await (import("wawoff2" as string) as Promise<{ decompress: (b: Uint8Array) => Promise<Uint8Array> }>);
+    const ttf = await wawoff.decompress(new Uint8Array(buf));
+    return Buffer.from(ttf);
+  } catch {
+    return buf; // fall through: register the WOFF2 anyway, variations just won't work
   }
 }
 
