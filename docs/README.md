@@ -11,5 +11,6 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [27-progress-meter-pseudos.md](27-progress-meter-pseudos.md) | Author-styled `<progress>` and `<meter>` pseudos via the stylesheet walker. |
 | [28-css-transforms.md](28-css-transforms.md) | CSS 2D `transform` (rotate / scale / skew / matrix) on rendered SVG groups. |
 | [29-gradient-fills.md](29-gradient-fills.md) | CSS `linear-gradient` / `radial-gradient` → SVG `<linearGradient>` / `<radialGradient>` with px-positioned stops. |
+| [30-animation-model.md](30-animation-model.md) | Animated-SVG composition: transitions (`crossfade` / `push-left` / `scroll` / `cut`), per-frame overlays, intra-frame property animations, frame-local SVG overlays, slide-in entrance sugar. |
 
 The docs preserve their historical SK-XXXX references — those are the slicekit Hot Sheet tickets that originally drove each feature. Treat the ticket numbers as opaque pointers to design context, not as live work tracking.

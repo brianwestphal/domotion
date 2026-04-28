@@ -6,7 +6,6 @@
  */
 
 import { mergeFrames } from "./frame-merge.js";
-import { buildChrome, type DeviceChromeConfig } from "./chrome.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -15,11 +14,24 @@ export interface AnimationFrame {
   duration: number;
   /** Transition to next frame */
   transition?: {
-    type: "crossfade" | "push-left" | "scroll";
+    /**
+     * `crossfade` (default) overlaps fade-out and fade-in. `push-left` slides
+     * the outgoing frame off and the incoming frame in from the right.
+     * `scroll` keeps both visible during the transition. `cut` is instant —
+     * no fade, no slide. For `cut`, `duration` is ignored.
+     */
+    type: "crossfade" | "push-left" | "scroll" | "cut";
     duration: number;
   };
   /** Overlays: typing, tap ripple */
   overlays?: Overlay[];
+  /**
+   * Intra-frame property animations. Run during this frame's hold time.
+   * The CLI / `DemoRecorder` resolves selectors against the DOM at capture
+   * and sets `data-domotion-anim` on matching elements; this list is the
+   * post-resolution form referencing those ids. See `IntraFrameAnimation`.
+   */
+  animations?: IntraFrameAnimation[];
 }
 
 export interface TypingOverlay {
@@ -47,19 +59,81 @@ export interface TapOverlay {
   delay?: number;
 }
 
-export type Overlay = TypingOverlay | TapOverlay;
+/**
+ * Frame-local SVG overlay: composites a separately-captured SVG (inlined as
+ * markup, not referenced as `<image href>`) on top of the captured frame.
+ * Used for picture-in-picture effects like sliding a phone-framed preview
+ * into the corner of a terminal demo.
+ *
+ * The overlay is positioned at (x, y), clipped to (width, height), and
+ * gets its own `class="ov-<animId>"` wrapper so intra-frame animations
+ * (or `enter`/`exit` sugar) can target it without colliding with elements
+ * inside the embedded SVG.
+ */
+export interface SvgOverlay {
+  kind: "svg";
+  /**
+   * The SVG content to inline. The CLI resolves `src` paths from the
+   * config file's directory and namespaces the embedded SVG's ids before
+   * setting this field.
+   */
+  innerSvg: string;
+  /** Top-left corner in the captured frame's coordinate space. */
+  x: number;
+  y: number;
+  /** Render size — the embedded SVG's viewBox is preserved and scales to fit. */
+  width: number;
+  height: number;
+  /**
+   * Stable id used to key the overlay's wrapper class (`ov-<animId>`) so
+   * `enter`/`exit` / `animations` can target it. The CLI assigns this.
+   */
+  animId: string;
+  /** Slide-in entrance (DM-211). Sugar over `animations`. */
+  enter?: { from: "top" | "bottom" | "left" | "right"; duration: number; easing?: string; delay?: number };
+  /** Slide-out exit (DM-211). */
+  exit?: { from: "top" | "bottom" | "left" | "right"; duration: number; easing?: string; delay?: number };
+}
+
+export type Overlay = TypingOverlay | TapOverlay | SvgOverlay;
+
+/**
+ * Animate a CSS property on captured elements that match a selector, while
+ * the frame is held on screen. The selector is resolved against the source
+ * DOM at capture time (see DM-209) and the matching elements get
+ * `class="anim-<id>"` on their rendered SVG groups.
+ *
+ * Resolution requires the consumer (CLI / `DemoRecorder`) to set
+ * `data-domotion-anim="<id>"` on matching DOM elements before capture; the
+ * `id` referenced here must be the same id set on the DOM.
+ */
+export interface IntraFrameAnimation {
+  /** Anim id — must match the `data-domotion-anim` value set on the DOM pre-capture. */
+  animId: string;
+  /**
+   * CSS property to animate. `clipPath` takes raw CSS `clip-path` values
+   * (e.g. `"inset(0 100% 0 0)"` -> `"inset(0 0 0 0)"`) and is the right
+   * choice for left-to-right reveals like typing-into-captured-text. When
+   * the captured element is wrapped in a `<g class="anim-<id>">`, the
+   * keyframes apply `clip-path` to that wrapper.
+   */
+  property: "width" | "height" | "opacity" | "transform" | "translateX" | "translateY" | "clipPath";
+  /** Start value (CSS string, e.g. `"0%"`, `"240px"`, `"0.3"`). */
+  from: string;
+  /** End value (same syntax as `from`). */
+  to: string;
+  /** Duration in ms. Must be ≤ the parent frame's `duration`. */
+  duration: number;
+  /** CSS easing string. Default `linear`. */
+  easing?: string;
+  /** Ms after the frame becomes visible before animation starts. Default 0. */
+  delay?: number;
+}
 
 export interface AnimationConfig {
   width: number;
   height: number;
   frames: AnimationFrame[];
-  /**
-   * Optional device chrome wrapper. When set, the rendered SVG grows by
-   * the chrome's outer dimensions and the captured frames are translated
-   * into the chrome's content area. See `DeviceChromeConfig` for the
-   * available styles (terminal / browser / phone).
-   */
-  chrome?: DeviceChromeConfig;
   /**
    * Markup (e.g. `<path id="g0" d="..."/>...`) hoisted into the top-level
    * `<defs>`. Frames can reference these IDs via `<use href="#...">`. Use for
@@ -73,7 +147,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   const { width, height, frames } = config;
 
   const totalDuration = frames.reduce(
-    (sum, f) => sum + f.duration + (f.transition?.duration ?? 300),
+    (sum, f) => sum + f.duration + transitionDuration(f),
     0,
   );
   const totalSec = totalDuration / 1000;
@@ -86,7 +160,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   {
     let t = 0;
     for (const f of frames) {
-      const td = f.transition?.duration ?? 300;
+      const td = transitionDuration(f);
       frameTiming.startPct.push((t / totalDuration) * 100);
       frameTiming.holdEndPct.push(((t + f.duration) / totalDuration) * 100);
       frameTiming.transEndPct.push(((t + f.duration + td) / totalDuration) * 100);
@@ -94,19 +168,19 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     }
   }
 
-  // Fast path: if every transition is crossfade (or default), merge all frames
-  // into a single de-duplicated tree with per-element visibility timelines.
-  // This is the common case — and where the flicker / file-size problems lived
-  // (full-scene redraw per frame). For push-left / scroll transitions we stay
-  // on the slower per-frame-atomic path below.
-  const allCrossfade = frames.every((f) => {
+  // Fast path: if every transition is crossfade (or default) or `cut`, merge
+  // all frames into a single de-duplicated tree with per-element visibility
+  // timelines. `cut` is just `crossfade` with duration 0 — same merge logic
+  // applies; it ends up as step-end keyframes flipping at exact frame
+  // boundaries.
+  const allMergeable = frames.every((f) => {
     const type = f.transition?.type;
-    return type == null || type === "crossfade";
+    return type == null || type === "crossfade" || type === "cut";
   });
 
   const anyOverlays = frames.some((f) => f.overlays != null && f.overlays.length > 0);
-  if (allCrossfade && frames.length > 1 && !anyOverlays) {
-    return applyChromeIfSet(composeMergedSvg(config, frameTiming, totalSec), width, height, config.chrome);
+  if (allMergeable && frames.length > 1 && !anyOverlays) {
+    return composeMergedSvg(config, frameTiming, totalSec);
   }
 
   const frameGroups: string[] = [];
@@ -115,7 +189,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
-    const transDur = frame.transition?.duration ?? 300;
+    const transDur = transitionDuration(frame);
     const transType = frame.transition?.type ?? "crossfade";
 
     const startPct = pct(timeOffset, totalDuration);
@@ -124,7 +198,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 
     const prevFrame = i > 0 ? frames[i - 1] : null;
     const entersViaPush = prevFrame?.transition?.type === "push-left";
-    const prevTransDur = prevFrame?.transition?.duration ?? 300;
+    const prevTransDur = prevFrame != null ? transitionDuration(prevFrame) : 300;
     const enterStartPct = entersViaPush
       ? pct(timeOffset - prevTransDur, totalDuration)
       : startPct;
@@ -169,27 +243,51 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; }`);
 
     } else {
-      // Crossfade: opacity in/out. The fade-in must OVERLAP the previous
-      // frame's fade-out so shared pixels stay visible (otherwise you get a
-      // dark flash in the middle of the transition). Fade-in starts at the
-      // previous frame's holdEndPct — i.e. when its fade-out begins.
+      // Crossfade or cut: opacity in/out.
+      //
+      // For `cut` (transDur === 0): use disjoint keyframes with step-end timing
+      // so opacity flips instantly at frame boundaries with no interpolation
+      // smear — frame N is opaque from startPct to transEndPct EXCLUSIVE, and
+      // 0 outside. Without step-end, linear interpolation between distant
+      // keyframes makes adjacent frames bleed across the entire cycle.
+      //
+      // For crossfade: the fade-in OVERLAPS the previous frame's fade-out so
+      // shared pixels stay visible during the transition. Linear interpolation
+      // is what we want here.
       frameGroups.push(
         `  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`,
       );
 
-      const fadeInStartPct = i > 0
-        ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
-        : startPct;
-      const prevEnd = i > 0
-        ? `${Math.max(0, parseFloat(fadeInStartPct) - 0.01).toFixed(2)}%,`
-        : "";
-
-      keyframes.push(`
+      const isCut = transType === "cut" || transDur === 0;
+      if (isCut) {
+        const startNum = parseFloat(startPct);
+        const endNum = parseFloat(transEndPct);
+        const beforeStart = Math.max(0, startNum - 0.001).toFixed(3);
+        const afterEnd = Math.min(100, endNum + 0.001).toFixed(3);
+        keyframes.push(`
+    @keyframes fv-${i} {
+      0% { opacity: 0; }
+      ${beforeStart}% { opacity: 0; }
+      ${startNum.toFixed(3)}% { opacity: 1; }
+      ${endNum.toFixed(3)}% { opacity: 1; }
+      ${afterEnd}% { opacity: 0; }
+      100% { opacity: 0; }
+    }
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+      } else {
+        const fadeInStartPct = i > 0
+          ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
+          : startPct;
+        const prevEnd = i > 0
+          ? `${Math.max(0, parseFloat(fadeInStartPct) - 0.01).toFixed(2)}%,`
+          : "";
+        keyframes.push(`
     @keyframes fv-${i} {
       0%, ${prevEnd} ${transEndPct}, 100% { opacity: 0; }
       ${startPct}, ${holdEndPct} { opacity: 1; }
     }
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; }`);
+      }
     }
 
     // Overlays
@@ -197,13 +295,19 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       for (const overlay of frame.overlays) {
         if (overlay.kind === "typing") {
           const { svgMarkup, css } = renderTypingOverlay(
-            overlay, i, timeOffset, totalDuration, totalSec,
+            overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec,
           );
           frameGroups.push(svgMarkup);
           keyframes.push(css);
         } else if (overlay.kind === "tap") {
           const { svgMarkup, css } = renderTapOverlay(
             overlay, i, timeOffset, totalDuration, totalSec,
+          );
+          frameGroups.push(svgMarkup);
+          keyframes.push(css);
+        } else if (overlay.kind === "svg") {
+          const { svgMarkup, css } = renderSvgOverlay(
+            overlay, i, timeOffset, frame.duration, totalDuration, totalSec,
           );
           frameGroups.push(svgMarkup);
           keyframes.push(css);
@@ -216,6 +320,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 
   // Compose final SVG with XML declaration for proper UTF-8
   const sharedDefsMarkup = config.sharedDefs ?? "";
+  const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
   const out = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
@@ -223,37 +328,32 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   </defs>
   <style>
     .f { opacity: 0; }
-    ${keyframes.join("\n")}
+    ${keyframes.join("\n")}${animationCss}
   </style>
   <g clip-path="url(#viewport-clip)">
   <rect width="${width}" height="${height}" fill="#0d1117" />
 ${frameGroups.join("\n")}
   </g>
 </svg>`;
-  return applyChromeIfSet(out, width, height, config.chrome);
+  return out;
 }
 
 /**
- * Wrap a complete `<svg>...</svg>` document in device chrome. Returns the
- * input unchanged when `chrome` is null/undefined.
+ * Effective transition duration for a frame. `cut` is always 0 — the type
+ * means "instant" so any duration on the input is meaningless. Default
+ * (no transition specified) is 300ms (legacy crossfade duration).
  */
-function applyChromeIfSet(svg: string, contentWidth: number, contentHeight: number, chrome?: DeviceChromeConfig): string {
-  if (chrome == null) return svg;
-  const openMatch = svg.match(/<svg[^>]*>/);
-  const closeIdx = svg.lastIndexOf("</svg>");
-  if (openMatch == null || closeIdx === -1 || openMatch.index == null) return svg;
-  const innerStart = openMatch.index + openMatch[0].length;
-  const inner = svg.slice(innerStart, closeIdx);
-  const xmlPrefix = svg.startsWith("<?xml") ? svg.slice(0, svg.indexOf("?>") + 2) + "\n" : "";
-
-  const f = buildChrome(chrome, contentWidth, contentHeight);
-  return `${xmlPrefix}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${f.outerWidth} ${f.outerHeight}" width="${f.outerWidth}" height="${f.outerHeight}">${f.before}<g transform="translate(${f.contentX}, ${f.contentY})">${inner}</g>${f.after}</svg>`;
+function transitionDuration(f: AnimationFrame): number {
+  if (f.transition == null) return 300;
+  if (f.transition.type === "cut") return 0;
+  return f.transition.duration;
 }
 
 function renderTypingOverlay(
   overlay: TypingOverlay,
   frameIdx: number,
   frameStart: number,
+  frameEnd: number,
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
@@ -283,9 +383,11 @@ function renderTypingOverlay(
     .${id}-bg { animation: ${id}-bg ${totalSec.toFixed(2)}s infinite; }`);
   }
 
-  // Render full text with an animated clip that reveals characters one-by-one
+  // Render full text with an animated clip that reveals characters one-by-one.
+  // The overlay must disappear by the time the frame ends — otherwise it'll
+  // leak across the cut boundary and overlap the next frame's content.
   const textEndMs = typeStartMs + overlay.text.length * speed;
-  const holdEndMs = frameStart + 3000;
+  const holdEndMs = Math.min(frameStart + 3000, frameEnd);
   const fullTextWidth = overlay.text.length * charWidth + 4;
   const textHeight = fontSize + 4;
   const clipId = `${id}-clip`;
@@ -344,6 +446,87 @@ function pct(ms: number, total: number): string {
 }
 
 /**
+ * Render a frame-local SVG overlay. The embedded SVG markup is wrapped in a
+ * `<g transform="translate(x y)" clip-path="..."/>` and an inner
+ * `<g class="ov-<id>">` so `enter`/`exit` / explicit animations can target
+ * the overlay without colliding with classes inside the embedded SVG.
+ */
+function renderSvgOverlay(
+  overlay: SvgOverlay,
+  frameIdx: number,
+  frameStart: number,
+  frameHoldMs: number,
+  totalDuration: number,
+  totalSec: number,
+): { svgMarkup: string; css: string } {
+  const id = `ov-${frameIdx}-${overlay.animId}`;
+  const clipId = `${id}-clip`;
+  const visibilityId = `${id}-vis`;
+  const overlayEnd = frameStart + frameHoldMs;
+  const visStart = pct(frameStart, totalDuration);
+  const visEnd = pct(overlayEnd, totalDuration);
+
+  const cssRules: string[] = [];
+  // Visibility timeline: hidden until frame start, visible during the hold.
+  cssRules.push(`
+    @keyframes ${visibilityId} { 0%, ${pct(Math.max(0, frameStart - 1), totalDuration)} { opacity: 0; } ${visStart} { opacity: 1; } ${visEnd} { opacity: 1; } ${pct(overlayEnd + 1, totalDuration)}, 100% { opacity: 0; } }
+    .${id} { animation: ${visibilityId} ${totalSec.toFixed(2)}s infinite; }`);
+
+  // Slide-in entrance (DM-211): translate from off-screen to (0, 0) over
+  // duration ms, starting at frame start + delay.
+  if (overlay.enter != null) {
+    const e = overlay.enter;
+    const easing = e.easing ?? "ease-out";
+    const enterDelay = e.delay ?? 0;
+    const fromStr = offsetForDirection(e.from, overlay.width, overlay.height, true);
+    const enterStart = frameStart + enterDelay;
+    const enterEnd = enterStart + e.duration;
+    const enterId = `${id}-enter`;
+    cssRules.push(`
+    @keyframes ${enterId} { 0% { transform: ${fromStr}; } ${pct(enterStart, totalDuration)} { transform: ${fromStr}; } ${pct(enterEnd, totalDuration)} { transform: translate(0, 0); } 100% { transform: translate(0, 0); } }
+    .${id}-enter { animation: ${enterId} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing}; }`);
+  }
+
+  // Slide-out exit. Mirror of enter — translate from (0,0) to off-screen.
+  if (overlay.exit != null) {
+    const e = overlay.exit;
+    const easing = e.easing ?? "ease-in";
+    const exitDelay = e.delay ?? 0;
+    const toStr = offsetForDirection(e.from, overlay.width, overlay.height, false);
+    const exitStart = overlayEnd - e.duration - exitDelay;
+    const exitId = `${id}-exit`;
+    cssRules.push(`
+    @keyframes ${exitId} { 0%, ${pct(exitStart, totalDuration)} { transform: translate(0, 0); } ${pct(exitStart + e.duration, totalDuration)} { transform: ${toStr}; } 100% { transform: ${toStr}; } }
+    .${id}-exit { animation: ${exitId} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing}; }`);
+  }
+
+  // Markup: outer wrapper translates to (x, y) and clips, inner wrapper
+  // carries the visibility class, then the enter/exit transform wrapper, then
+  // the inlined SVG content.
+  const enterClass = overlay.enter != null ? ` ${id}-enter` : "";
+  const exitClass = overlay.exit != null ? ` ${id}-exit` : "";
+  const svgMarkup = `  <g transform="translate(${overlay.x} ${overlay.y})" clip-path="url(#${clipId})">
+    <defs><clipPath id="${clipId}"><rect width="${overlay.width}" height="${overlay.height}"/></clipPath></defs>
+    <g class="${id}${enterClass}${exitClass}">${overlay.innerSvg}</g>
+  </g>`;
+
+  return { svgMarkup, css: cssRules.join("") };
+}
+
+/**
+ * Offset string for a slide direction. When `outFrom` is true the offset is
+ * the off-screen starting position (i.e. the overlay sits there before
+ * animating to `(0,0)`). When false, it's the off-screen end position
+ * (overlay animates from `(0,0)` to here on exit).
+ */
+function offsetForDirection(dir: "top" | "bottom" | "left" | "right", w: number, h: number, _outFrom: boolean): string {
+  if (dir === "top")    return `translate(0, -${h}px)`;
+  if (dir === "bottom") return `translate(0, ${h}px)`;
+  if (dir === "left")   return `translate(-${w}px, 0)`;
+  return `translate(${w}px, 0)`; // right
+}
+
+/**
  * Compose the animated SVG using the frame-merge pipeline. Every element in
  * every frame is reduced to one render with a visibility timeline. Stable
  * elements (prompt, background, typed characters that stay on screen) emit
@@ -359,6 +542,7 @@ function composeMergedSvg(
   const framesSvg = frames.map((f) => f.svgContent);
   const { css, merged } = mergeFrames(framesSvg, frameTiming, "t");
   const sharedDefsMarkup = config.sharedDefs ?? "";
+  const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
@@ -366,13 +550,60 @@ function composeMergedSvg(
   </defs>
   <style>
     :root { --scene-dur: ${totalSec.toFixed(2)}s; }
-${css}
+${css}${animationCss}
   </style>
   <g clip-path="url(#viewport-clip)">
   <rect width="${width}" height="${height}" fill="#0d1117" />
 ${merged}
   </g>
 </svg>`;
+}
+
+/**
+ * Compile each frame's intra-frame animations into CSS. Each animation gets
+ * a uniquely-named keyframe block whose timing is mapped onto the global
+ * scene clock so the property holds at `from` until the frame becomes
+ * visible (+ `delay`), animates to `to` over `duration`, then holds at `to`
+ * until the loop restarts.
+ */
+function buildIntraFrameAnimationCss(
+  frames: AnimationFrame[],
+  frameTiming: { startPct: number[] },
+  totalSec: number,
+): string {
+  const totalMs = totalSec * 1000;
+  const out: string[] = [];
+  for (let i = 0; i < frames.length; i++) {
+    const animations = frames[i].animations;
+    if (animations == null || animations.length === 0) continue;
+    const frameStartMs = (frameTiming.startPct[i] / 100) * totalMs;
+    for (let ai = 0; ai < animations.length; ai++) {
+      const a = animations[ai];
+      const delay = a.delay ?? 0;
+      const easing = a.easing ?? "linear";
+      const startMs = frameStartMs + delay;
+      const endMs = startMs + a.duration;
+      const startPct = (startMs / totalMs) * 100;
+      const endPct = (endMs / totalMs) * 100;
+      const propValue = (val: string): string => {
+        if (a.property === "translateX") return `transform: translateX(${val});`;
+        if (a.property === "translateY") return `transform: translateY(${val});`;
+        if (a.property === "clipPath") return `clip-path: ${val};`;
+        return `${a.property}: ${val};`;
+      };
+      const animName = `f${i}-${a.animId}-${ai}`;
+      // Hold `from` until startPct, animate from→to during [startPct, endPct],
+      // hold `to` afterwards. Pre-frame holds use 0% as the from anchor.
+      out.push(`    @keyframes ${animName} {
+      0% { ${propValue(a.from)} }
+      ${startPct.toFixed(3)}% { ${propValue(a.from)} }
+      ${endPct.toFixed(3)}% { ${propValue(a.to)} }
+      100% { ${propValue(a.to)} }
+    }
+    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing}; }`);
+    }
+  }
+  return out.length === 0 ? "" : "\n" + out.join("\n");
 }
 
 function escapeXml(s: string): string {

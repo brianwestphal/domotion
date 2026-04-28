@@ -39,9 +39,8 @@ export const content = `
     <tr><td><code>--no-fonts-ready</code></td><td>off</td><td>Skip the <code>document.fonts.ready</code> wait. By default Domotion waits for web fonts.</td></tr>
     <tr><td><code>--optimize</code></td><td>off</td><td>Run output through SVGO. 30–50% smaller; reduces decimal precision so diffs get noisier.</td></tr>
     <tr><td><code>--warnings</code></td><td>off</td><td>Log capture warnings to stderr after the run (CSS features that didn't round-trip).</td></tr>
-    <tr><td><code>--chrome &lt;kind&gt;</code></td><td>—</td><td>Wrap the SVG in device chrome: <code>terminal</code>, <code>browser</code>, or <code>phone</code>. Output grows by the chrome's outer dimensions.</td></tr>
-    <tr><td><code>--chrome-url &lt;url&gt;</code></td><td>(input URL)</td><td>URL displayed in the browser-chrome address bar.</td></tr>
-    <tr><td><code>--chrome-title &lt;t&gt;</code></td><td>—</td><td>Title shown in the terminal title bar / browser tab.</td></tr>
+    <tr><td><code>--mobile</code></td><td>off</td><td>Emulate a mobile device (iOS user-agent, <code>isMobile=true</code>). Sites that branch on UA or use <code>@media (hover: none)</code> render their mobile path.</td></tr>
+    <tr><td><code>--color-scheme &lt;s&gt;</code></td><td>—</td><td>Sets <code>prefers-color-scheme</code>: <code>light</code>, <code>dark</code>, or <code>no-preference</code>. Pages that use <code>@media (prefers-color-scheme: dark)</code> render their dark variant.</td></tr>
   </tbody>
 </table>
 
@@ -65,12 +64,12 @@ domotion capture ./demo.html --clip 200,200,400,200 -o slice.svg
 <span class="tk-c"># Capture HTML produced by a build step, no temp file.</span>
 node build-demo-html.js | domotion capture - --width 600 --height 200 -o out.svg
 
-<span class="tk-c"># Wrap the capture in browser chrome.</span>
-domotion capture https://example.com --chrome browser -o framed.svg
-
-<span class="tk-c"># Phone frame around a mobile-shaped capture.</span>
+<span class="tk-c"># Mobile capture: iOS user-agent + isMobile.</span>
 domotion capture https://example.com \\
-  --width 390 --height 844 --chrome phone -o phone.svg</code></pre>
+  --width 390 --height 844 --mobile -o phone.svg
+
+<span class="tk-c"># Capture a dark-mode-aware page in dark mode.</span>
+domotion capture https://example.com --color-scheme dark -o dark.svg</code></pre>
 
 <h2>animate</h2>
 
@@ -113,6 +112,7 @@ its <code>actions</code> (if any), waits the requested time, and is captured.</p
   <thead><tr><th>Type</th><th>What it does</th></tr></thead>
   <tbody>
     <tr><td><code>"crossfade"</code></td><td>Old frame fades out as new frame fades in. Best for shared layouts where individual elements are crossing over.</td></tr>
+    <tr><td><code>"cut"</code></td><td>Instant — the next frame replaces the current one with no fade or slide. <code>duration</code> is ignored. Best for "this just changed" beats: a progress bar resizing, a new line appearing in a terminal, a panel toggling.</td></tr>
     <tr><td><code>"push-left"</code></td><td>New frame slides in from the right, old frame slides out to the left. Best when the two frames are unrelated screens.</td></tr>
     <tr><td><code>"scroll"</code></td><td>Vertical scroll between frames; treats them as a single tall canvas. Best for "scroll through the page" demos.</td></tr>
   </tbody>
@@ -132,13 +132,55 @@ its <code>actions</code> (if any), waits the requested time, and is captured.</p
 <p>Use <code>wait</code> to give animations / async UI a chance to settle
 between actions.</p>
 
+<h3>Animations (intra-frame)</h3>
+
+<p>Animations declared on a frame run during its hold time. Use them for
+property changes that happen <em>within</em> a single frame: progress bar
+filling, content scrolling, an element fading in. Each animation resolves
+its <code>selector</code> against the captured DOM and tags matching elements
+with a CSS class the renderer targets via keyframes.</p>
+
+<pre><code>{ <span class="tk-s">"selector"</span>: <span class="tk-s">".bar"</span>, <span class="tk-s">"property"</span>: <span class="tk-s">"transform"</span>,
+  <span class="tk-s">"from"</span>: <span class="tk-s">"scaleX(0)"</span>, <span class="tk-s">"to"</span>: <span class="tk-s">"scaleX(1)"</span>,
+  <span class="tk-s">"duration"</span>: <span class="tk-n">2000</span>, <span class="tk-s">"easing"</span>: <span class="tk-s">"ease-out"</span>, <span class="tk-s">"delay"</span>: <span class="tk-n">150</span> }</code></pre>
+
+<p>Supported <code>property</code> values: <code>transform</code>,
+<code>opacity</code>, <code>width</code>, <code>height</code>,
+<code>translateX</code>, <code>translateY</code>. Use full transform strings
+(<code>scaleX(0.5)</code>, <code>rotate(15deg)</code>) for the
+<code>transform</code> property. The <code>translateX</code> /
+<code>translateY</code> shorthand expects raw values
+(<code>"240px"</code>, <code>"-50%"</code>).</p>
+
+<div class="callout note">
+  <span class="icon">ⓘ</span>
+  <div class="body">
+    <p>For "fill from left" effects (progress bars), use
+    <code>transform: scaleX(0)→scaleX(1)</code> with
+    <code>transform-origin: left</code> set on the source element. CSS
+    <code>width</code> animations on SVG-rendered rects don't compose
+    cleanly because of how SVG percentage units work — <code>scaleX</code>
+    on a wrapper group is the reliable path.</p>
+  </div>
+</div>
+
 <h3>Overlays</h3>
 
 <p>Overlays draw <em>on top</em> of the captured frame so you can simulate
 typing or taps without modifying the page. Two kinds:</p>
 
 <pre><code>{ <span class="tk-s">"kind"</span>: <span class="tk-s">"typing"</span>, <span class="tk-s">"text"</span>: <span class="tk-s">"hello"</span>, <span class="tk-s">"x"</span>: <span class="tk-n">20</span>, <span class="tk-s">"y"</span>: <span class="tk-n">40</span>, <span class="tk-s">"speed"</span>: <span class="tk-n">80</span> }
-{ <span class="tk-s">"kind"</span>: <span class="tk-s">"tap"</span>,    <span class="tk-s">"x"</span>: <span class="tk-n">120</span>, <span class="tk-s">"y"</span>: <span class="tk-n">90</span>, <span class="tk-s">"delay"</span>: <span class="tk-n">600</span> }</code></pre>
+{ <span class="tk-s">"kind"</span>: <span class="tk-s">"tap"</span>,    <span class="tk-s">"x"</span>: <span class="tk-n">120</span>, <span class="tk-s">"y"</span>: <span class="tk-n">90</span>, <span class="tk-s">"delay"</span>: <span class="tk-n">600</span> }
+{ <span class="tk-s">"kind"</span>: <span class="tk-s">"svg"</span>,    <span class="tk-s">"src"</span>: <span class="tk-s">"./preview.svg"</span>, <span class="tk-s">"x"</span>: <span class="tk-n">180</span>, <span class="tk-s">"y"</span>: <span class="tk-n">0</span>,
+                  <span class="tk-s">"width"</span>: <span class="tk-n">280</span>, <span class="tk-s">"height"</span>: <span class="tk-n">580</span>,
+                  <span class="tk-s">"enter"</span>: { <span class="tk-s">"from"</span>: <span class="tk-s">"bottom"</span>, <span class="tk-s">"duration"</span>: <span class="tk-n">600</span>, <span class="tk-s">"easing"</span>: <span class="tk-s">"ease-out"</span> } }</code></pre>
+
+<p>The <code>svg</code> overlay inlines a separately-captured SVG file as a
+picture-in-picture layer. <code>src</code> is resolved relative to the
+config file's directory; ids in the embedded SVG are namespaced
+automatically. Use <code>enter</code> / <code>exit</code> for slide-in
+sugar — <code>from</code> is one of <code>"top"</code>, <code>"bottom"</code>,
+<code>"left"</code>, <code>"right"</code>.</p>
 
 <p>See <a href="../../api/overlays/">Overlay types</a> for the full property
 list.</p>

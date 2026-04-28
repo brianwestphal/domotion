@@ -31,11 +31,6 @@ export const content = `
     <div class="desc">Ordered list of captured frames. See below.</div>
   </div>
   <div class="row">
-    <div class="name">chrome</div>
-    <div class="type">DeviceChromeConfig</div>
-    <div class="desc">Optional device-chrome wrapper. When set, the rendered SVG grows by the chrome's outer dimensions and the captured frames are translated into the chrome's content area. <code>type</code> is one of <code>"terminal"</code> (macOS-style window with traffic lights), <code>"browser"</code> (browser window with title bar + address bar; pass <code>url</code>), or <code>"phone"</code> (iPhone-style frame with status bar and home indicator).</div>
-  </div>
-  <div class="row">
     <div class="name">sharedDefs</div>
     <div class="type">string</div>
     <div class="desc">SVG markup hoisted into the top-level <code>&lt;defs&gt;</code>. Frames can reference these IDs via <code>&lt;use href="#..."&gt;</code> — useful for glyph paths and other assets that repeat across frames.</div>
@@ -80,7 +75,8 @@ export const content = `
 <h3>Transition types</h3>
 
 <ul>
-  <li><strong><code>crossfade</code></strong> — outgoing fades to 0 while incoming fades from 0; durations overlap so shared pixels stay visible. Default and recommended.</li>
+  <li><strong><code>crossfade</code></strong> — outgoing fades to 0 while incoming fades from 0; durations overlap so shared pixels stay visible. Default and recommended for "this state replaced that state".</li>
+  <li><strong><code>cut</code></strong> — instant. No fade, no slide; <code>duration</code> is ignored. Use for beats where the page just updated (progress bar moved, line appeared, panel toggled).</li>
   <li><strong><code>push-left</code></strong> — outgoing slides off to the left, incoming slides in from the right.</li>
   <li><strong><code>scroll</code></strong> — both frames remain visible during the transition; opacity changes only at the end.</li>
 </ul>
@@ -114,19 +110,6 @@ be paused without scripting in the host page.</p>
     { svgContent: frame2, duration: <span class="tk-n">3000</span> },
   ],
 };</code></pre>
-
-<h2 id="device-chrome">DeviceChromeConfig</h2>
-
-<pre class="sig"><span class="tk-k">interface</span> <span class="tk-t">DeviceChromeConfig</span> {
-  type: <span class="tk-s">"terminal"</span> | <span class="tk-s">"browser"</span> | <span class="tk-s">"phone"</span>;
-  url?: <span class="tk-t">string</span>;     <span class="tk-c">// browser only — shown in the address bar</span>
-  title?: <span class="tk-t">string</span>;   <span class="tk-c">// terminal/browser — shown in the title bar / tab</span>
-}</pre>
-
-<p>For single-frame captures, the same wrapper is available via
-<a href="../element-tree-to-svg/#wrapsvg"><code>wrapWithChrome(inner, w, h, chrome)</code></a>
-or by passing <code>--chrome &lt;kind&gt;</code> to the
-<a href="../../start/cli/#capture"><code>domotion capture</code> CLI</a>.</p>
 
 <h2>See also</h2>
 

@@ -106,6 +106,14 @@ export interface CapturedElement {
   y: number;
   width: number;
   height: number;
+  /**
+   * If the source DOM had `data-domotion-anim="<id>"` on this element, the id
+   * is captured here. The renderer surfaces it as `class="anim-<id>"` on the
+   * rendered group so an intra-frame animation (DM-209) can target it via CSS
+   * keyframes. The animator (or CLI wrapper) is responsible for setting the
+   * data attribute on the live DOM before capture.
+   */
+  animId?: string;
   styles: {
     backgroundColor: string;
     borderColor: string;
@@ -643,7 +651,11 @@ const CAPTURE_SCRIPT = `
     // collapse to 0 height (absolutes don't contribute to layout) — those
     // children still need to be captured and painted.
     const zeroSized = rect.width === 0 || rect.height === 0;
-    if (zeroSized && el.children.length === 0) return null;
+    // Skip empty zero-sized elements UNLESS they're tagged for an intra-frame
+    // animation — an animated element starting at width: 0 should still be
+    // captured so the renderer can emit its anim-class wrapper. (DM-209.)
+    const _hasAnim = el.dataset != null && el.dataset.domotionAnim != null && el.dataset.domotionAnim !== '';
+    if (zeroSized && el.children.length === 0 && !_hasAnim) return null;
 
     const tag = el.tagName.toLowerCase();
 
@@ -1194,10 +1206,12 @@ const CAPTURE_SCRIPT = `
       if (c) children.push(c);
     }
 
+    const _animId = el.dataset != null ? el.dataset.domotionAnim : undefined;
     return {
       tag, text,
       x: rect.left - vp.x, y: rect.top - vp.y,
       width: rect.width, height: rect.height,
+      animId: _animId,
       styles: {
         backgroundColor: normColor(cs.backgroundColor),
         borderColor: normColor(cs.borderColor),
@@ -1804,12 +1818,23 @@ export function elementTreeToSvg(
     if (opacity < 1) groupAttrs.push(`opacity="${r(opacity)}"`);
     if (clipPathUrlId != null) groupAttrs.push(`clip-path="url(#${clipPathUrlId})"`);
     if (maskUrlId != null) groupAttrs.push(`mask="url(#${maskUrlId})"`);
+    // animId (DM-209): elements tagged with `data-domotion-anim="<id>"` in the
+    // source DOM get a `class="anim-<id>"` on an extra inner `<g>` wrapper so
+    // the animator can target them via CSS keyframes for intra-frame motion.
+    // The class lives on a SEPARATE wrapper from any merger-added visibility
+    // class (which gets applied to the outer group) so the two `animation`
+    // declarations don't clobber each other.
+    const animClass = el.animId != null && el.animId !== "" ? `anim-${el.animId}` : "";
     const styleParts: string[] = [];
     if (filterCss !== "") styleParts.push(`filter:${filterCss}`);
     if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
     if (styleParts.length > 0) groupAttrs.push(`style="${styleParts.join(";")}"`);
     const opened = needsGroup;
     if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
+    // Inner anim-class wrapper sits INSIDE any visibility/transform group so
+    // the merger's class (added on the outer group) and our anim class can
+    // each carry their own `animation` shorthand without clobbering.
+    if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
 
     // Outset box-shadow (SK-1101 + SK-1113): paints BENEATH the element box.
     // CSS spec says the first shadow in the list is closest to the element;
@@ -2349,6 +2374,7 @@ export function elementTreeToSvg(
     const scrollbarMarkup = renderScrollbarChrome(el, indent);
     if (scrollbarMarkup !== "") svgParts.push(scrollbarMarkup);
 
+    if (animClass !== "") svgParts.push(`${indent}</g>`);
     if (opened) svgParts.push(`${indent}</g>`);
   }
 

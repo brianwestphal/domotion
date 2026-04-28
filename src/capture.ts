@@ -13,6 +13,12 @@ export interface CaptureOptions {
   width: number;
   height: number;
   mobile?: boolean;
+  /**
+   * Sets the browser context's `prefers-color-scheme` media feature, which
+   * controls how dark-mode-aware sites resolve their CSS. Default behavior
+   * (undefined) follows Playwright's own default of "light".
+   */
+  colorScheme?: "light" | "dark" | "no-preference";
   /** Authenticate via dev-login API before capturing */
   devUser?: string;
 }
@@ -73,6 +79,7 @@ export class DemoRecorder {
       viewport: { width: opts.width, height: opts.height },
       isMobile: opts.mobile ?? false,
       ...(opts.mobile ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+      ...(opts.colorScheme != null ? { colorScheme: opts.colorScheme } : {}),
     });
 
     // Dev auth if requested

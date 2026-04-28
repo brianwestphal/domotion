@@ -253,9 +253,8 @@ async function captureAnimation(page: Page): Promise<string> {
     frames.push({
       svgContent,
       duration: 3000,
-      // Zero-duration crossfade = hard cut: each frame holds for `duration`
-      // and the next frame replaces it with no fade overlap.
-      transition: { type: "crossfade", duration: 0 },
+      // Hard cut: instant frame switch with no fade or slide.
+      transition: { type: "cut", duration: 0 },
     });
   }
   return optimizeSvg(generateAnimatedSvg({ width: W, height: H, frames }));

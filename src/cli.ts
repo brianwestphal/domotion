@@ -23,14 +23,14 @@ import {
   captureElementTree,
   elementTreeToSvg,
   wrapSvg,
-  wrapWithChrome,
   generateAnimatedSvg,
   optimizeSvg,
   launchChromium,
   logCaptureWarnings,
   type AnimationFrame,
-  type DeviceChromeConfig,
-  type DeviceChromeKind,
+  type IntraFrameAnimation,
+  type Overlay,
+  type SvgOverlay,
 } from "./index.js";
 
 const VERSION = "0.1.0";
@@ -60,12 +60,8 @@ capture options:
       --no-fonts-ready     Skip the document.fonts.ready wait (default: wait).
       --optimize           Run output through SVGO.
       --warnings           Log capture warnings to stderr after capture.
-      --chrome <kind>      Wrap the SVG in device chrome:
-                             "terminal" — macOS-style terminal window.
-                             "browser"  — browser window (use --chrome-url).
-                             "phone"    — iPhone-style phone frame.
-      --chrome-url <url>   URL displayed in the address bar for browser chrome.
-      --chrome-title <t>   Title displayed in the title bar / tab.
+      --mobile             Emulate a mobile device (iOS UA, isMobile=true).
+      --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
 
 animate config (JSON):
   {
@@ -93,12 +89,24 @@ animate config (JSON):
         "overlays": [                               // see Overlay types
           { "kind": "tap",    "x": 100, "y": 50 },
           { "kind": "typing", "text": "Hello", "x": 20, "y": 40 }
+        ],
+        "animations": [                             // intra-frame motion
+          {
+            "selector": ".bar",                     // CSS selector in source HTML
+            "property": "transform",                // or width/height/opacity/translateX/translateY
+            "from": "scaleX(0)",
+            "to":   "scaleX(1)",
+            "duration": 2000,
+            "easing": "ease-out",                   // optional, default "linear"
+            "delay": 150                            // optional ms after frame start
+          }
         ]
       }
     ]
   }
 
-  Transition types: "crossfade" | "push-left" | "scroll".
+  Transition types: "crossfade" | "push-left" | "scroll" | "cut".
+                  ("cut" = instant; duration is ignored.)
   Paths in "input" are resolved relative to the config file's directory.
 
 Examples:
@@ -160,7 +168,8 @@ interface CaptureFlags {
   fontsReady: boolean;
   optimize: boolean;
   warnings: boolean;
-  chrome?: DeviceChromeConfig;
+  mobile: boolean;
+  colorScheme?: "light" | "dark" | "no-preference";
 }
 
 async function runCapture(args: string[]): Promise<void> {
@@ -180,9 +189,8 @@ async function runCapture(args: string[]): Promise<void> {
       "no-fonts-ready": { type: "boolean" },
       optimize:      { type: "boolean" },
       warnings:      { type: "boolean" },
-      chrome:        { type: "string" },
-      "chrome-url":  { type: "string" },
-      "chrome-title": { type: "string" },
+      mobile:        { type: "boolean" },
+      "color-scheme": { type: "string" },
       help:          { type: "boolean", short: "h" },
     },
   });
@@ -203,14 +211,18 @@ async function runCapture(args: string[]): Promise<void> {
     fontsReady:  values["no-fonts-ready"] !== true,
     optimize:    values.optimize === true,
     warnings:    values.warnings === true,
-    chrome:      values.chrome != null
-      ? { type: parseChromeKind(values.chrome), url: values["chrome-url"] ?? input, title: values["chrome-title"] }
-      : undefined,
+    mobile:      values.mobile === true,
+    colorScheme: parseColorScheme(values["color-scheme"]),
   };
 
   const browser = await launchChromium();
   try {
-    const ctx = await browser.newContext({ viewport: { width: flags.width, height: flags.height } });
+    const ctx = await browser.newContext({
+      viewport: { width: flags.width, height: flags.height },
+      isMobile: flags.mobile,
+      ...(flags.mobile ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+      ...(flags.colorScheme != null ? { colorScheme: flags.colorScheme } : {}),
+    });
     const page = await ctx.newPage();
 
     await loadInputIntoPage(page, input);
@@ -221,9 +233,7 @@ async function runCapture(args: string[]): Promise<void> {
       x: clip[0], y: clip[1], width: clip[2], height: clip[3],
     });
     const inner = elementTreeToSvg(tree, clip[2], clip[3]);
-    let svg = flags.chrome != null
-      ? wrapWithChrome(inner, clip[2], clip[3], flags.chrome)
-      : wrapSvg(inner, clip[2], clip[3]);
+    let svg = wrapSvg(inner, clip[2], clip[3]);
     if (flags.optimize) svg = optimizeSvg(svg);
 
     if (flags.warnings) logCaptureWarnings("capture");
@@ -245,14 +255,15 @@ interface AnimateConfig {
   height: number;
   output?: string;
   optimize?: boolean;
-  chrome?: DeviceChromeConfig;
+  mobile?: boolean;
+  colorScheme?: "light" | "dark" | "no-preference";
   frames: AnimateFrameConfig[];
 }
 
 interface AnimateFrameConfig {
   input: string;
   duration: number;
-  transition?: { type: "crossfade" | "push-left" | "scroll"; duration: number };
+  transition?: { type: "crossfade" | "push-left" | "scroll" | "cut"; duration: number };
   selector?: string;
   wait?: number;
   waitFor?: string;
@@ -260,6 +271,18 @@ interface AnimateFrameConfig {
   actions?: AnimateAction[];
   // Overlays passed through verbatim — typed as unknown[] here, validated by AnimationFrame at runtime.
   overlays?: unknown[];
+  /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
+  animations?: AnimateFrameAnimationConfig[];
+}
+
+interface AnimateFrameAnimationConfig {
+  selector: string;
+  property: IntraFrameAnimation["property"];
+  from: string;
+  to: string;
+  duration: number;
+  easing?: string;
+  delay?: number;
 }
 
 type AnimateAction =
@@ -294,7 +317,12 @@ async function runAnimate(args: string[]): Promise<void> {
 
   const browser = await launchChromium();
   try {
-    const ctx = await browser.newContext({ viewport: { width: cfg.width, height: cfg.height } });
+    const ctx = await browser.newContext({
+      viewport: { width: cfg.width, height: cfg.height },
+      isMobile: cfg.mobile === true,
+      ...(cfg.mobile === true ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+      ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
+    });
     const page = await ctx.newPage();
     const frames: AnimationFrame[] = [];
 
@@ -313,20 +341,57 @@ async function runAnimate(args: string[]): Promise<void> {
       }
       if (fc.actions != null) await runActions(page, fc.actions);
 
+      // Intra-frame animations (DM-209): tag the live DOM with
+      // `data-domotion-anim="<id>"` for each animation's selector. The capture
+      // pass picks up the data attribute and the renderer surfaces it as
+      // class="anim-<id>" on the rendered group, which the animator targets
+      // with a CSS keyframe block.
+      const resolvedAnimations: IntraFrameAnimation[] = [];
+      if (fc.animations != null && fc.animations.length > 0) {
+        for (let ai = 0; ai < fc.animations.length; ai++) {
+          const a = fc.animations[ai];
+          const animId = `f${i}a${ai}`;
+          await page.evaluate(
+            (args: { selector: string; animId: string }) => {
+              const els = document.querySelectorAll(args.selector);
+              els.forEach((el) => {
+                if (el instanceof HTMLElement) el.dataset.domotionAnim = args.animId;
+              });
+            },
+            { selector: a.selector, animId },
+          );
+          resolvedAnimations.push({
+            animId,
+            property: a.property,
+            from: a.from,
+            to: a.to,
+            duration: a.duration,
+            easing: a.easing,
+            delay: a.delay,
+          });
+        }
+      }
+
       const tree = await captureElementTree(page, fc.selector ?? "body", {
         x: 0, y: 0, width: cfg.width, height: cfg.height,
       });
       const svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`);
+
+      // Resolve SVG-kind overlays: read each `src` from disk, namespace its
+      // ids, and replace with `innerSvg`. Other overlay kinds pass through
+      // verbatim. (DM-210.)
+      const overlays = resolveSvgOverlays(fc.overlays, configDir, i);
+
       frames.push({
         svgContent,
         duration: fc.duration,
         transition: fc.transition,
-        // Overlays pass through; AnimationFrame typing is enforced when generateAnimatedSvg consumes it.
-        overlays: fc.overlays as AnimationFrame["overlays"],
+        overlays,
+        animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
       });
     }
 
-    let svg = generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, chrome: cfg.chrome });
+    let svg = generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames });
     const optimize = values.optimize === true || cfg.optimize === true;
     if (optimize) svg = optimizeSvg(svg);
 
@@ -395,6 +460,56 @@ function validateAnimateConfig(cfg: AnimateConfig): void {
   }
 }
 
+/**
+ * Walk a frame's overlay list, expand `kind: "svg"` entries by reading the
+ * referenced SVG file, namespacing its ids, and replacing `src` with the
+ * inlined `innerSvg`. Other overlay kinds pass through verbatim.
+ */
+function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: string, frameIdx: number): Overlay[] | undefined {
+  if (rawOverlays == null) return undefined;
+  const out: Overlay[] = [];
+  let svgIdx = 0;
+  for (const ov of rawOverlays) {
+    if (ov != null && typeof ov === "object" && (ov as { kind?: string }).kind === "svg") {
+      const raw = ov as { kind: "svg"; src: string; x: number; y: number; width: number; height: number; enter?: SvgOverlay["enter"]; exit?: SvgOverlay["exit"] };
+      const srcPath = resolve(configDir, raw.src);
+      if (!existsSync(srcPath)) throw new Error(`animate: svg overlay file not found: ${srcPath}`);
+      const fileText = readFileSync(srcPath, "utf8");
+      const animId = `s${svgIdx++}`;
+      const namespaced = namespaceSvgIds(fileText, `f${frameIdx}o${animId}-`);
+      out.push({
+        kind: "svg",
+        innerSvg: namespaced,
+        x: raw.x, y: raw.y, width: raw.width, height: raw.height,
+        animId,
+        enter: raw.enter, exit: raw.exit,
+      });
+    } else {
+      out.push(ov as Overlay);
+    }
+  }
+  return out;
+}
+
+/**
+ * Strip the outer `<svg>` wrapper (if present) from an SVG file's contents,
+ * then prefix every `id="..."`, `href="#..."`, and `xlink:href="#..."` with
+ * the given prefix so multiple inlined SVGs can coexist in one document
+ * without id collisions.
+ */
+function namespaceSvgIds(svg: string, prefix: string): string {
+  // Strip XML decl + outer <svg ...> wrapper.
+  let inner = svg;
+  inner = inner.replace(/<\?xml[^>]*\?>/, "");
+  inner = inner.replace(/<svg\b[^>]*>/, "");
+  inner = inner.replace(/<\/svg>\s*$/, "");
+  // Prefix ids and hash references.
+  inner = inner.replace(/\bid="([^"]+)"/g, (_m, id: string) => `id="${prefix}${id}"`);
+  inner = inner.replace(/\b(href|xlink:href)="#([^"]+)"/g, (_m, attr: string, id: string) => `${attr}="#${prefix}${id}"`);
+  inner = inner.replace(/url\(#([^)]+)\)/g, (_m, id: string) => `url(#${prefix}${id})`);
+  return inner;
+}
+
 function resolveFrameInput(input: string, configDir: string): string {
   if (input === "-") return input;
   if (/^https?:\/\//i.test(input)) return input;
@@ -410,9 +525,10 @@ function parseIntFlag(value: string | undefined, name: string, def: number): num
   return n;
 }
 
-function parseChromeKind(value: string): DeviceChromeKind {
-  if (value === "terminal" || value === "browser" || value === "phone") return value;
-  throw new Error(`--chrome expects one of "terminal", "browser", "phone"; got "${value}"`);
+function parseColorScheme(value: string | undefined): "light" | "dark" | "no-preference" | undefined {
+  if (value == null) return undefined;
+  if (value === "light" || value === "dark" || value === "no-preference") return value;
+  throw new Error(`--color-scheme expects one of "light", "dark", "no-preference"; got "${value}"`);
 }
 
 function parseTuple(value: string, len: number, name: string): number[] {
