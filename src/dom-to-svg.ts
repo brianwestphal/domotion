@@ -74,6 +74,12 @@ export interface TextSegment {
    *  Undefined means inherit from the element. */
   fontWeight?: string;
   /**
+   * Override fontBoundingBoxAscent (px) when the segment uses a font/size
+   * different from the element (::before / ::after with custom font-size).
+   * Renderer falls back to the element's fontAscent when this is undefined.
+   */
+  fontAscent?: number;
+  /**
    * Viewport-relative rectangle (CSS pixels) to screenshot when the WHOLE
    * segment is raster-worthy — used for ::before / ::after pseudos whose
    * entire text is a color-bitmap run. Populated by CAPTURE_SCRIPT;
@@ -349,6 +355,14 @@ export interface CapturedElement {
   textLeft?: number;
   textHeight?: number;
   textWidth?: number;
+  /**
+   * Chrome's `canvas.measureText().fontBoundingBoxAscent` for the element's
+   * computed font (px, integer-rounded). This is the exact distance Chrome
+   * paints from line-box top to baseline — reading it from the browser
+   * sidesteps the fontkit-vs-Chrome metric divergence (Helvetica/Arial/Times
+   * etc on macOS use winAscent, not hhea, while SF Pro has equal metrics; the
+   * "right metric per font" is fragile to derive but trivial to measure).
+   */
   fontAscent?: number;
   fontDescent?: number;
   /**
@@ -584,6 +598,37 @@ const CAPTURE_SCRIPT = `
       if (cp > 0xFFFF) i++;
     }
     return false;
+  };
+
+  // Per-font baseline metric cache. fontkit's font.ascent (HHEA) does not
+  // match where Chrome paints the baseline on macOS for the legacy MS-shipped
+  // fonts (Helvetica, Arial, Times, Georgia, Menlo, Courier) — Chrome uses
+  // OS/2.usWinAscent there, not HHEA. Reading the answer from
+  // canvas.measureText().fontBoundingBoxAscent dodges the per-font metric-
+  // selection rules entirely (the browser already applied them). Cached by
+  // resolved font spec to avoid recreating canvases per element.
+  const _fontMetricsCache = new Map();
+  const _measureFontMetrics = (cs) => {
+    // Compose a stable key matching what canvas font shorthand will normalize
+    // to. fontStyle / fontWeight / fontSize / fontFamily are the inputs that
+    // affect the ascent value.
+    const fs = cs.fontStyle || 'normal';
+    const fw = cs.fontWeight || '400';
+    const fz = cs.fontSize || '14px';
+    const ff = cs.fontFamily || 'sans-serif';
+    const key = fs + '|' + fw + '|' + fz + '|' + ff;
+    let v = _fontMetricsCache.get(key);
+    if (v != null) return v;
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    // Canvas font shorthand: <style> <weight> <size> <family>
+    ctx.font = fs + ' ' + fw + ' ' + fz + ' ' + ff;
+    // 'Mxgp' picks up cap, x-height, and descender — fontBoundingBoxAscent is
+    // font-wide max so the exact string only matters as a non-empty input.
+    const m = ctx.measureText('Mxgp');
+    v = { ascent: m.fontBoundingBoxAscent, descent: m.fontBoundingBoxDescent };
+    _fontMetricsCache.set(key, v);
+    return v;
   };
 
   // Unsupported-feature warnings. Collected during capture and returned to the
@@ -824,6 +869,11 @@ const CAPTURE_SCRIPT = `
       // For ::after: place at the END of the element's content — we approximate by
       // using elLeft + (element's intrinsic text width) but we don't know that
       // precisely; Chromium positions ::after right after the last text node.
+      // Capture pseudos baseline metric — CSS lets ::before / ::after override
+      // font-size independent of the host, so the captured ascent must come
+      // from the pseudo's computed font, not the element's. Renderer uses
+      // seg.fontAscent when present and falls back to el.fontAscent otherwise.
+      const _pseudoMetrics = _measureFontMetrics(pcs);
       const pseudoSeg = {
         text, x: pseudo === '::before' ? elLeft : elLeft + rect.width - pseudoWidth - 2 * (parseFloat(cs.paddingRight) || 0),
         y: yPos, width: pseudoWidth, height: elFontSize,
@@ -832,6 +882,7 @@ const CAPTURE_SCRIPT = `
         // independently of their parent — see .stamp::after green check,
         // li[data-badge]::before purple bold badge, etc.).
         color: pcs.color, fontSize: elFontSize, fontWeight: pcs.fontWeight,
+        fontAscent: _pseudoMetrics.ascent,
       };
       // If the pseudo contains any codepoint Chrome paints via a color-bitmap
       // font (U+2713 ✓, emoji, etc.), record a page-absolute rect so the
@@ -906,6 +957,9 @@ const CAPTURE_SCRIPT = `
         textTop = rect.top - vp.y + bt + pt;
         textHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
         textWidth = rect.width - bl * 2 - pl * 2;
+        const _inputMetrics = _measureFontMetrics(cs);
+        fontAscent = _inputMetrics.ascent;
+        fontDescent = _inputMetrics.descent;
         // Per-char xOffsets via a hidden probe span (SK-1234). Without these
         // the renderer falls back to fontkit's native advances which drift
         // ~0.5px/char vs Chromium's HarfBuzz shaping. The probe replicates
@@ -1098,6 +1152,9 @@ const CAPTURE_SCRIPT = `
           textTop = minTop - vp.y;
           textWidth = maxRight - minLeft;
           textHeight = maxBottom - minTop;
+          const _textMetrics = _measureFontMetrics(cs);
+          fontAscent = _textMetrics.ascent;
+          fontDescent = _textMetrics.descent;
         }
       }
     }
@@ -2280,7 +2337,15 @@ export function elementTreeToSvg(
           : (textColor != null ? colorStr(textColor) : "rgb(0,0,0)");
         const markerFontSize = parseFloat(el.markerFontSize ?? "") || fontSizePx;
         const markerFontWeight = el.markerFontWeight ?? el.styles.fontWeight;
-        const my = el.y + lineHeightPx * 0.72; // approximate baseline for text markers
+        // Text-marker baseline = li's text baseline. When CAPTURE_SCRIPT
+        // recorded fontAscent (canvas.measureText().fontBoundingBoxAscent),
+        // textTop+fontAscent is exactly where Chrome painted the body text
+        // baseline (DM-237). Falling back to a 0.72*lineHeight approximation
+        // when we don't have either textTop or fontAscent — that path is rare
+        // (li with empty direct text), and visually close enough.
+        const my = (el.textTop != null && el.fontAscent != null)
+          ? el.textTop + el.fontAscent
+          : el.y + lineHeightPx * 0.72;
         const shapeY = el.y + lineHeightPx / 2;
         // Default gap between marker and content = ~8px.
         const gap = 8;
@@ -3937,6 +4002,8 @@ function formatListMarker(type: string, n: number): string {
       return romanMarker(n).toLowerCase();
     case "upper-roman":
       return romanMarker(n);
+    case "lower-greek":
+      return greekMarker(n);
     default:
       return String(n);
   }
@@ -3950,6 +4017,24 @@ function alphaMarker(n: number, upper: boolean): string {
     n--;
     s = String.fromCharCode(base + (n % 26)) + s;
     n = Math.floor(n / 26);
+  }
+  return s;
+}
+
+// CSS `lower-greek` walks the 24 letters of the Greek alphabet (α..ω, no
+// final-sigma ς), then doubles up (αα, αβ, αγ, …) just like lower-alpha.
+function greekMarker(n: number): string {
+  if (n <= 0) return String(n);
+  // U+03B1 α through U+03C9 ω, but skip U+03C2 ς (final sigma) — only 24
+  // letters in the CSS counter style. Build the explicit alphabet so we
+  // don't have to special-case the U+03C2 hole.
+  const greek = "αβγδεζηθικλμνξοπρστυφχψω"; // 24 chars
+  let s = "";
+  let v = n;
+  while (v > 0) {
+    v--;
+    s = greek.charAt(v % 24) + s;
+    v = Math.floor(v / 24);
   }
   return s;
 }

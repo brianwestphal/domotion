@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveFontKey } from "./text-to-path.js";
+import { renderTextAsPath, resolveFontKey } from "./text-to-path.js";
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
@@ -57,6 +57,55 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("MONOSPACE")).toBe("courier");
     expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica");
     expect(resolveFontKey("'SF Mono'")).toBe("sf-mono");
+  });
+});
+
+// Baseline placement: when CAPTURE_SCRIPT records the browser's
+// canvas.measureText().fontBoundingBoxAscent on the element (DM-237), the
+// renderer must use that value verbatim instead of computing ascent from
+// fontkit's HHEA `font.ascent`. fontkit's HHEA is correct for SF Pro / SF Mono
+// (where HHEA = winAscent) but ~5px too small at fontSize=32 for Helvetica
+// and the other macOS legacy MS fonts (Arial, Times, Georgia, Menlo, Courier),
+// where Chrome reads winAscent. Without the override, headings drift up by an
+// amount proportional to font size.
+describe("renderTextAsPath: ascentOverride threading", () => {
+  // Extract the y-coordinate from the outer translate(x,y) on the returned
+  // <g> markup. That y is the baseline anchor — exactly the value affected
+  // by the override.
+  const baselineY = (markup: string | null): number | null => {
+    if (markup == null) return null;
+    const m = /transform="translate\([^,]+,([^)]+)\)"/.exec(markup);
+    return m != null ? parseFloat(m[1]) : null;
+  };
+
+  it("uses ascentOverride verbatim for baselineY when provided", () => {
+    const top = 100;
+    const ascent = 30; // simulates Chrome's fontBoundingBoxAscent for fs=32 Helvetica bold
+    const out = renderTextAsPath("Hi", 0, top, 32, "Helvetica", "700", "#000",
+      undefined, undefined, undefined, undefined, ascent);
+    expect(baselineY(out)).toBe(top + ascent);
+  });
+
+  it("falls back to fontkit ascent when no override given", () => {
+    const top = 100;
+    // No override — falls back to round(font.ascent * scale). The exact value
+    // depends on the resolved font; we just assert the answer is *different*
+    // from a clearly-wrong override, so the test fails if both branches end
+    // up using the same code.
+    const native = renderTextAsPath("Hi", 0, top, 32, "Helvetica", "700", "#000");
+    const overridden = renderTextAsPath("Hi", 0, top, 32, "Helvetica", "700", "#000",
+      undefined, undefined, undefined, undefined, 30);
+    expect(baselineY(native)).not.toBe(baselineY(overridden));
+  });
+
+  it("scales the override correctly across font sizes", () => {
+    // Same font, different sizes → override is applied verbatim, no extra math.
+    const a = renderTextAsPath("Hi", 0, 0, 14, "Helvetica", "400", "#000",
+      undefined, undefined, undefined, undefined, 13);
+    const b = renderTextAsPath("Hi", 0, 0, 50, "Helvetica", "400", "#000",
+      undefined, undefined, undefined, undefined, 47);
+    expect(baselineY(a)).toBe(13);
+    expect(baselineY(b)).toBe(47);
   });
 });
 

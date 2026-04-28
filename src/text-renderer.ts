@@ -141,7 +141,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
   const pathText = reordered.text;
   const xOffsetsRel = reordered.xOffsets;
-  const result = renderTextAsPath(pathText, tl, tt, fontSize, fontFamily, fontWeight, fillColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle);
+  const result = renderTextAsPath(pathText, tl, tt, fontSize, fontFamily, fontWeight, fillColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, el.fontAscent);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : fillColor;
@@ -214,7 +214,8 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
     const reordered = applyBidi(seg.text, xOffsetsRelRaw, dir);
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle);
+    const segAscent = seg.fontAscent ?? el.fontAscent;
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent);
     if (result != null) { parts.push(result); }
     else {
       // Fallback to CSS <text> if path rendering fails
@@ -267,7 +268,8 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontSize = seg.fontSize ?? fontSize;
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle);
+      const segAscent = seg.fontAscent ?? el.fontAscent;
+      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent);
       if (result != null) parts.push(`  ${result}`);
     }
   } else {
@@ -276,7 +278,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const line = lines[li];
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
-      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle);
+      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent);
       if (result != null) parts.push(`  ${result}`);
     }
   }
@@ -317,7 +319,7 @@ export function renderInputText(opts: RenderTextOpts): string {
   // which still uses the SK-1108 element raster path).
   const xOffsetsRel = el.inputXOffsets != null
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
-  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle);
+  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent);
   if (result != null) return result;
 
   // Fallback to CSS <text> if path rendering fails

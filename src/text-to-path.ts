@@ -208,9 +208,14 @@ export function fallbackFontKey(codepoint: number): string | null {
   // Letterlike Symbols (ℝ ℕ ℤ ℂ ℚ etc., 2100-214F) and Mathematical
   // Alphanumeric Symbols (𝒜 𝒷 𝒞 𝕊 etc., 1D400-1D7FF) are also covered by
   // Apple Symbols; without these the math test renders them as .notdef boxes.
+  // Box Drawing (2500-257F) and Block Elements (2580-259F) are commonly used
+  // for ASCII-art tables in <pre> blocks (DM-238) — Courier (the macOS
+  // monospace generic) lacks them, so without this routing they render as
+  // .notdef tofu.
   if ((codepoint >= 0x2100 && codepoint <= 0x214F)
     || (codepoint >= 0x2190 && codepoint <= 0x21FF)
     || (codepoint >= 0x2200 && codepoint <= 0x22FF)
+    || (codepoint >= 0x2500 && codepoint <= 0x259F)
     || (codepoint >= 0x25A0 && codepoint <= 0x25FF)
     || (codepoint >= 0x2600 && codepoint <= 0x26FF)
     || (codepoint >= 0x2700 && codepoint <= 0x27BF)
@@ -702,6 +707,15 @@ export function renderTextAsPath(
   xOffsets?: number[],
   /** CSS font-style; 'italic' / 'oblique' activate SF Pro's slnt axis. */
   fontStyle?: string,
+  /**
+   * Captured `canvas.measureText().fontBoundingBoxAscent` (px) — distance
+   * from line-box top to baseline as Chrome will paint it. Overrides the
+   * fontkit-derived ascent below, which is HHEA-based and disagrees with
+   * Chrome on macOS for Helvetica/Arial/Times/Georgia/Menlo/Courier (Chrome
+   * uses winAscent there). Per-font metric-selection rules are fragile to
+   * derive but trivial to read from the browser. See SK-1267 / DM-237.
+   */
+  ascentOverride?: number,
 ): string | null {
   const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle);
   if (result == null || result.markup === "") return null;
@@ -712,13 +726,12 @@ export function renderTextAsPath(
   if (font == null) return null;
 
   const scale = fontSize / font.unitsPerEm;
-  // Round the ascent to whole pixels to match Chromium's metric quantization
-  // (SK-1234). canvas.measureText().fontBoundingBoxAscent for SF Pro returns
-  // round(ascent_in_px), e.g. 14 for fontSize=14 (precise float would be
-  // 13.535) and 23 for fontSize=24. The text baseline Chromium paints sits
-  // at line_box_top + leading/2 + rounded_ascent, so our SVG glyphs need to
-  // use the same rounded ascent value or they end up ~0.5px too high or low.
-  const ascent = Math.round(font.ascent * scale);
+  // Use the captured fontBoundingBoxAscent when available — that's the exact
+  // value Chrome used to position the baseline within the line box. fontkit's
+  // font.ascent (HHEA) is the right answer for SF Pro / SF Mono (where HHEA
+  // = winAscent) but ~5 px too small at fontSize=32 for Helvetica and other
+  // legacy MS fonts on macOS, where Chrome reads winAscent.
+  const ascent = ascentOverride != null ? ascentOverride : Math.round(font.ascent * scale);
   const baselineY = y + ascent;
 
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
