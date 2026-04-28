@@ -24,28 +24,36 @@ In `src/text-to-path.ts`:
 1. Replace `resolveFontKey(fontFamily: string): string` with `resolveFontKey(fontFamily: string): string` that splits on top-level commas, trims quotes, and matches each token in priority order:
    - Quoted family names (`"Helvetica Neue"`, `"Times New Roman"`) match against an explicit table.
    - Unquoted system-default keywords (`-apple-system`, `system-ui`, `BlinkMacSystemFont`) → SF Pro.
-   - Generic keywords:
-     - `serif` → New York or Times.
-     - `sans-serif` → SF Pro.
-     - `monospace` → SF Mono.
+   - Generic keywords (matching Chrome on macOS, per `third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm`):
+     - `serif` / `ui-serif` → Times New Roman.
+     - `sans-serif` / `ui-sans-serif` → **Helvetica** (NOT SF Pro — Chrome's macOS sans-serif default is Helvetica; SF Pro is the `system-ui` / `-apple-system` mapping).
+     - `system-ui` / `-apple-system` / `BlinkMacSystemFont` → SF Pro.
+     - `monospace` / `ui-monospace` → **Courier** (NOT SF Mono or Menlo — Chrome's macOS monospace default per Blink's `kMonospaceFamily → kCourier`. SF Mono is ~3% wider and has a 2px taller rounded ascent at 13px, which misaligns `<code>` baselines vs surrounding text).
      - `cursive` → Snell Roundhand (if present, else SF Pro).
      - `fantasy` → SF Pro (warning logged).
    - Anything else → next token, then SF Pro.
 
-2. New `FONT_PATHS` entries for the common families. Initial set (all macOS system fonts):
+2. New `FONT_PATHS` entries for the common families. Initial set (all macOS system fonts). Helvetica is a TTC with separate sub-fonts per weight×slant; pick the right sub-font in `getFontInstance` based on weight (≥600 → Bold) and slant.
 
    ```ts
-   "helvetica":        { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica" },
-   "helvetica-italic": { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Oblique" },
+   "helvetica":             { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica" },
+   "helvetica-bold":        { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Bold" },
+   "helvetica-italic":      { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Oblique" },
+   "helvetica-bold-italic": { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-BoldOblique" },
    "times":            { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-Roman" },
    "times-italic":     { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-Italic" },
-   "courier":          { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier" },
-   "courier-italic":   { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-Oblique" },
+   "courier":              { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier" },
+   "courier-bold":         { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-Bold" },
+   "courier-italic":       { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-Oblique" },
+   "courier-bold-italic":  { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-BoldOblique" },
    "georgia":          { path: "/System/Library/Fonts/Georgia.ttc", postscriptName: "Georgia" },
    "georgia-italic":   { path: "/System/Library/Fonts/Georgia.ttc", postscriptName: "Georgia-Italic" },
    "arial":            { path: "/Library/Fonts/Arial.ttf" },
    "verdana":          { path: "/Library/Fonts/Verdana.ttf" },
-   "menlo":            { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Regular" },
+   "menlo":              { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Regular" },
+   "menlo-bold":         { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Bold" },
+   "menlo-italic":       { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Italic" },
+   "menlo-bold-italic":  { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-BoldItalic" },
    "monaco":           { path: "/System/Library/Fonts/Monaco.ttf" },
    "new-york":         { path: "/System/Library/Fonts/NewYork.ttf" },
    ```

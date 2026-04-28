@@ -116,12 +116,49 @@ const FONT_PATHS: Record<string, FontPath> = {
   "sf-pro-italic":   { path: "/System/Library/Fonts/SFNSItalic.ttf" },
   "sf-mono":         { path: "/System/Library/Fonts/SFNSMono.ttf" },
   "sf-mono-italic":  { path: "/System/Library/Fonts/SFNSMonoItalic.ttf" },
+  // Chrome on macOS resolves the CSS `monospace` generic keyword to Courier
+  // (per Blink's third_party/blink/renderer/platform/fonts/mac
+  // font_cache_mac.mm — kMonospaceFamily → kCourier), NOT SF Mono or Menlo.
+  // SF Mono is ~3% wider than Courier at the same em size and has a 2px
+  // taller ascent at 13px (rounded), so substituting it for `monospace`
+  // misaligns `<code>` baselines against the surrounding sans-serif text.
+  // Courier.ttc is a collection: weight × slant variants picked by
+  // postscriptName in getFontInstance.
+  "courier":              { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier" },
+  "courier-bold":         { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-Bold" },
+  "courier-italic":       { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-Oblique" },
+  "courier-bold-italic":  { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-BoldOblique" },
+  // Author-named monospace families. Menlo and Monaco both ship as system
+  // fonts with their own metrics — different from Courier and SF Mono — so
+  // when an author explicitly requests them we should honor that rather than
+  // substitute one mono for another.
+  "menlo":              { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Regular" },
+  "menlo-bold":         { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Bold" },
+  "menlo-italic":       { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Italic" },
+  "menlo-bold-italic":  { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-BoldItalic" },
+  "monaco":          { path: "/System/Library/Fonts/Monaco.ttf" },
   "sf-arabic":       { path: "/System/Library/Fonts/SFArabic.ttf" },
   "sf-hebrew":       { path: "/System/Library/Fonts/SFHebrew.ttf" },
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
+  // Chrome on macOS resolves the CSS `sans-serif` generic keyword to
+  // Helvetica (per Blink's third_party/blink/renderer/platform/fonts/mac
+  // font_cache_mac.mm). This is critical for fidelity — SF Pro has different
+  // glyph shapes and metrics, so substituting it for `sans-serif` produces
+  // visible drift on every page that uses the default. Helvetica.ttc is a
+  // collection: pick weight × slant variants by postscriptName in
+  // getFontInstance.
+  "helvetica":              { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica" },
+  "helvetica-bold":         { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Bold" },
+  "helvetica-italic":       { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Oblique" },
+  "helvetica-bold-italic":  { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-BoldOblique" },
+  // Arial ships as separate weight/style files in macOS Supplemental.
+  "arial":                  { path: "/System/Library/Fonts/Supplemental/Arial.ttf" },
+  "arial-bold":             { path: "/System/Library/Fonts/Supplemental/Arial Bold.ttf" },
+  "arial-italic":           { path: "/System/Library/Fonts/Supplemental/Arial Italic.ttf" },
+  "arial-bold-italic":      { path: "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf" },
   // Generic serif (font-family: serif / ui-serif, "Times New Roman", "Georgia").
   "times":           { path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" },
   "times-italic":    { path: "/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf" },
@@ -202,6 +239,17 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
     else if (key === "sf-mono") effectiveKey = "sf-mono-italic";
     else if (key === "times") effectiveKey = "times-italic";
     else if (key === "georgia") effectiveKey = "georgia-italic";
+  }
+  // Helvetica/Arial/Courier/Menlo don't expose a variable wght axis — pick
+  // the right sub-font (or sibling file) based on weight × slant. Boundary
+  // at 600 matches CSS font-weight: bold (700) and the typical "semibold or
+  // above is bold" rule Chrome uses when an exact weight isn't installed.
+  if (key === "helvetica" || key === "arial" || key === "courier" || key === "menlo") {
+    const isBold = weight >= 600;
+    const isItalic = slant !== 0;
+    if (isBold && isItalic) effectiveKey = `${key}-bold-italic`;
+    else if (isBold) effectiveKey = `${key}-bold`;
+    else if (isItalic) effectiveKey = `${key}-italic`;
   }
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
@@ -290,19 +338,44 @@ export function resolveFontKey(fontFamily: string): string {
     // its bytes. `getFontInstance` dispatches the webfont: prefix to the
     // runtime registry instead of the on-disk FONT_PATHS table.
     if (webfontRegistry.has(name)) return `webfont:${name}`;
-    if (name.includes("mono") || name.includes("menlo") || name.includes("courier") || name.includes("consolas")) return "sf-mono";
+    // Chrome on macOS resolves the CSS `monospace` generic to Courier (per
+    // Blink's font_cache_mac.mm — kMonospaceFamily → kCourier). For author-
+    // named monospaces we map to whatever the author asked for if we have
+    // it on disk; SF Mono is only used when explicitly requested. Consolas
+    // isn't installed on macOS — Chrome falls back to Times metrics there,
+    // but for fidelity-of-intent we route it to Courier.
+    if (name === "monospace" || name === "ui-monospace"
+      || name === "courier" || name === "courier new"
+      || name === "consolas") return "courier";
+    if (name === "menlo") return "menlo";
+    if (name === "monaco") return "monaco";
+    if (name === "sf mono" || name === "sfmono-regular" || name === "sf-mono") return "sf-mono";
     if (name === "serif" || name === "ui-serif" || name === "times" || name === "times new roman") return "times";
     if (name === "georgia") return "georgia";
     if (name === "cursive" || name === "snell roundhand" || name === "brush script mt" || name === "apple chancery") return "snell";
-    // sans-serif / system-ui / ui-sans-serif / ui-rounded / fantasy / math /
-    // emoji / fangsong / any explicit sans family → SF Pro. Math / emoji
-    // glyphs that SF Pro lacks fall through to per-codepoint fallback.
-    if (name === "sans-serif" || name === "system-ui" || name === "ui-sans-serif"
-      || name === "ui-rounded" || name === "fantasy" || name === "math"
-      || name === "emoji" || name === "fangsong"
-      || name === "helvetica" || name === "arial" || name === "sf pro" || name === "-apple-system") return "sf-pro";
+    // Chrome on macOS resolves `sans-serif`, `helvetica`, and `helvetica neue`
+    // to Helvetica (Blink: font_cache_mac.mm + font_fallback_list.cc — the
+    // generic `sans-serif` keyword is hardcoded to Helvetica on macOS, not
+    // SF Pro). Matching this exactly is critical: SF Pro has different
+    // glyph shapes (notably the `1`, `R`, `g`) and ~2% wider metrics than
+    // Helvetica at the same em size, so substituting it produces visible
+    // drift on every page that uses the default sans-serif.
+    if (name === "sans-serif" || name === "ui-sans-serif" || name === "helvetica"
+      || name === "helvetica neue") return "helvetica";
+    if (name === "arial") return "arial";
+    // system-ui / -apple-system / BlinkMacSystemFont / "SF Pro" → SF Pro.
+    // These keywords mean "the platform UI font", which on modern macOS is
+    // San Francisco. fantasy / math / emoji / fangsong have no clean macOS
+    // equivalent — fall through to SF Pro and let per-codepoint fallback
+    // route the glyphs that SF Pro lacks.
+    if (name === "system-ui" || name === "-apple-system" || name === "blinkmacsystemfont"
+      || name === "ui-rounded" || name === "sf pro" || name === "sf pro text" || name === "sf pro display"
+      || name === "fantasy" || name === "math" || name === "emoji" || name === "fangsong") return "sf-pro";
   }
-  return "sf-pro";
+  // Last-resort fallback when no family in the stack matched. Chrome's
+  // ultimate fallback on macOS for an unrecognized name is the user's
+  // configured sans-serif default, which is Helvetica.
+  return "helvetica";
 }
 
 function resolveFont(fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0): FontInstance | null {

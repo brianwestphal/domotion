@@ -143,6 +143,15 @@ export interface CapturedElement {
     borderRightColor: string;
     borderBottomColor: string;
     borderLeftColor: string;
+    /**
+     * For table cells: `"collapse"` means the parent table sets
+     * `border-collapse: collapse` so adjacent cells share a single painted
+     * border instead of stacking two adjacent ones. The renderer paints
+     * cell borders centered on the cell edge (no half-inset) in this mode
+     * so that two cells'\'' shared edges overlap exactly into one line
+     * instead of doubling.
+     */
+    borderCollapse: string;
     overflowX: string;
     overflowY: string;
     scrollbarGutter: string;
@@ -1251,6 +1260,7 @@ const CAPTURE_SCRIPT = `
         borderRightColor: normColor(cs.borderRightColor),
         borderBottomColor: normColor(cs.borderBottomColor),
         borderLeftColor: normColor(cs.borderLeftColor),
+        borderCollapse: cs.borderCollapse,
         overflowX: cs.overflowX,
         overflowY: cs.overflowY,
         scrollbarGutter: cs.scrollbarGutter || 'auto',
@@ -2081,31 +2091,66 @@ export function elementTreeToSvg(
         svgParts.push(
           `${indent}<line x1="${r(el.x + el.width - w / 2)}" y1="${r(el.y)}" x2="${r(el.x + el.width - w / 2)}" y2="${r(el.y + el.height)}" stroke="${colorStr(brColor)}" stroke-width="${r(w)}" />`,
         );
+      } else if ((style === "dashed" || style === "dotted") && borderRadius === 0) {
+        // Dashed/dotted uniform borders need per-side dash spacing — Chrome
+        // adjusts the dash cycle so dashes start and end exactly at corners.
+        // SVG `stroke-dasharray` on a single rect would use ONE pattern across
+        // all 4 sides, but the top/bottom and left/right have different
+        // lengths, so the pattern would mis-align at every corner. Emit 4
+        // lines instead so each side gets its own adjusted pattern.
+        const collapse = el.styles.borderCollapse === "collapse";
+        const inset = collapse ? 0 : bt.w / 2;
+        const linecap = style === "dotted" ? ` stroke-linecap="round"` : "";
+        const sides: Array<[number, number, number, number, number]> = [
+          [el.x, el.y + inset, el.x + el.width, el.y + inset, el.width],
+          [el.x + el.width - inset, el.y, el.x + el.width - inset, el.y + el.height, el.height],
+          [el.x, el.y + el.height - inset, el.x + el.width, el.y + el.height - inset, el.width],
+          [el.x + inset, el.y, el.x + inset, el.y + el.height, el.height],
+        ];
+        for (const [x1, y1, x2, y2, len] of sides) {
+          const dash = adjustedDashArray(style, bt.w, len);
+          svgParts.push(
+            `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+          );
+        }
       } else {
         const dash = dashArrayForStyle(bt.style, bt.w);
         const linecap = bt.style === "dotted" ? ` stroke-linecap="round"` : "";
         // CSS paints borders INSIDE the border-box. SVG strokes are centered on
         // the path, so half would spill outside. Inset the rect by half the
         // stroke width so the stroke sits entirely inside the element box.
-        const half = bt.w / 2;
+        // Exception: with border-collapse:collapse on the parent table, Chrome
+        // collapses adjacent cell borders into a single shared line painted ON
+        // the shared edge (not inset). If we kept the inset, two adjacent
+        // cells'\'' borders would land ~1px apart and read as a doubled 2px line.
+        // Centered painting (no inset) lets the two cells'\'' borders overlap
+        // exactly, producing a single 1px line — matching Chrome'\''s collapsed
+        // table grid.
+        const collapse = el.styles.borderCollapse === "collapse";
+        const half = collapse ? 0 : bt.w / 2;
         svgParts.push(
-          `${indent}<rect x="${r(el.x + half)}" y="${r(el.y + half)}" width="${r(Math.max(0, el.width - bt.w))}" height="${r(Math.max(0, el.height - bt.w))}" rx="${r(Math.max(0, borderRadius - half))}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+          `${indent}<rect x="${r(el.x + half)}" y="${r(el.y + half)}" width="${r(Math.max(0, el.width - half * 2))}" height="${r(Math.max(0, el.height - half * 2))}" rx="${r(Math.max(0, borderRadius - half))}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
         );
       }
     } else if (!uniform) {
       // Per-side border: emit 4 separate lines along the element edges. Lines
       // are drawn at the centerline of each border so stroke spills equally
       // inward/outward — visually close enough for typical 1-10px borders.
-      const sides: Array<[typeof bt, number, number, number, number]> = [
-        [bt, el.x, el.y + (bt?.w ?? 0) / 2, el.x + el.width, el.y + (bt?.w ?? 0) / 2],
-        [br, el.x + el.width - (br?.w ?? 0) / 2, el.y, el.x + el.width - (br?.w ?? 0) / 2, el.y + el.height],
-        [bb, el.x, el.y + el.height - (bb?.w ?? 0) / 2, el.x + el.width, el.y + el.height - (bb?.w ?? 0) / 2],
-        [bl, el.x + (bl?.w ?? 0) / 2, el.y, el.x + (bl?.w ?? 0) / 2, el.y + el.height],
+      // border-collapse:collapse → paint each side ON the cell edge (not
+      // inset by half-width), so two adjacent cells'\'' shared sides overlap
+      // exactly and produce a single line instead of a doubled one.
+      const collapse = el.styles.borderCollapse === "collapse";
+      const inset = (w: number) => collapse ? 0 : w / 2;
+      const sides: Array<[typeof bt, number, number, number, number, number]> = [
+        [bt, el.x, el.y + inset(bt?.w ?? 0), el.x + el.width, el.y + inset(bt?.w ?? 0), el.width],
+        [br, el.x + el.width - inset(br?.w ?? 0), el.y, el.x + el.width - inset(br?.w ?? 0), el.y + el.height, el.height],
+        [bb, el.x, el.y + el.height - inset(bb?.w ?? 0), el.x + el.width, el.y + el.height - inset(bb?.w ?? 0), el.width],
+        [bl, el.x + inset(bl?.w ?? 0), el.y, el.x + inset(bl?.w ?? 0), el.y + el.height, el.height],
       ];
-      for (const [side, x1, y1, x2, y2] of sides) {
+      for (const [side, x1, y1, x2, y2, len] of sides) {
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
         if (side.style === "none" || side.style === "hidden") continue;
-        const dash = dashArrayForStyle(side.style, side.w);
+        const dash = adjustedDashArray(side.style, side.w, len);
         const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
         svgParts.push(
           `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
@@ -4025,7 +4070,7 @@ function cssTransformToSvg(transform: string | undefined, originX: number, origi
 /** Map CSS border-style to an SVG stroke-dasharray. Returns "" for solid (no dash). */
 function dashArrayForStyle(style: string, width: number): string {
   switch (style) {
-    case "dashed": return `${r(width * 2)} ${r(width * 1.2)}`;
+    case "dashed": return `${r(width * 2)} ${r(width * 2)}`;
     // Dotted: use a near-zero dash with round linecap so each "dot" becomes a
     // circle of diameter ~= stroke-width. Dash period = stroke-width * 2.
     case "dotted": return `0.01 ${r(width * 2)}`;
@@ -4033,4 +4078,39 @@ function dashArrayForStyle(style: string, width: number): string {
     // so the border still appears (better than nothing). Tracked in a follow-up.
     default: return "";
   }
+}
+
+/**
+ * Per-side adjusted dash array. Chrome'\''s dashed/dotted border rasterizer
+ * (see Blink `BoxPainterBase::PaintBorderSides`) sizes each side'\''s dash
+ * cycle so dashes start and end exactly at the corners — otherwise the last
+ * dash before a corner is partial and the pattern looks ragged.
+ *
+ * Algorithm: ideal period (dash + gap) is `4 * width` for dashed, `2 * width`
+ * for dotted. Compute cycle count `N = round(sideLength / period)` (clamped
+ * to ≥1), then scale dash and gap by `sideLength / (N * period)` so
+ * `N * (dash + gap) === sideLength` exactly.
+ *
+ * Returns "" when style isn'\''t dashed/dotted, or when the side is too short
+ * to fit even one cycle (renderer falls back to solid).
+ */
+function adjustedDashArray(style: string, width: number, sideLength: number): string {
+  if (sideLength <= 0 || width <= 0) return "";
+  if (style === "dashed") {
+    const idealDash = width * 2;
+    const idealGap = width * 2;
+    const idealPeriod = idealDash + idealGap;
+    const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
+    const scale = sideLength / (cycles * idealPeriod);
+    return `${r(idealDash * scale)} ${r(idealGap * scale)}`;
+  }
+  if (style === "dotted") {
+    // Dot diameter = width (round-cap on near-zero dash). Dot center spacing
+    // = `2 * width`, so each cycle (dot + gap) = 2 * width.
+    const idealPeriod = width * 2;
+    const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
+    const adjustedPeriod = sideLength / cycles;
+    return `0.01 ${r(adjustedPeriod)}`;
+  }
+  return "";
 }
