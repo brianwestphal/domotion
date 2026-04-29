@@ -144,7 +144,15 @@ const FONT_PATHS: Record<string, FontPath> = {
   // picks for `Times` body text.
   "sf-arabic":       { path: "/System/Library/Fonts/GeezaPro.ttc", postscriptName: "GeezaPro" },
   "sf-hebrew":       { path: "/System/Library/Fonts/SFHebrew.ttf" },
+  // Hiragino Sans GB ships W3 (regular) and W6 (bold) as separate sub-fonts in
+  // the same TTC; the file doesn't expose a usable wght axis (DM-256), so the
+  // bold variant is selected by postscriptName at the spec level — same
+  // pattern as helvetica/times/georgia. The advance widths are identical
+  // between W3/W6 (24px @24px font-size for em-square glyphs) but the stem
+  // thickness differs, so headings using cjk-block fallback chars (← → ▲ ☀)
+  // need W6 to match Chrome's painted weight.
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
+  "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
@@ -253,17 +261,29 @@ export function fallbackFontChain(codepoint: number): string[] {
     || (codepoint >= 0x2600 && codepoint <= 0x26FF)) {
     return ["cjk", "symbols"];
   }
+  // Arrows: most of the Arrows block (↑↓↔↦⇒⇔ …) routes to Apple Symbols
+  // below, but ← → ↗ ↙ are the four codepoints Hiragino W6 has at the CJK
+  // em-square width (24px @24px) which is what Chrome paints — Apple
+  // Symbols has them at 15-17px, rendering visibly thinner. Other Hiragino-
+  // covered arrows (↑↓↖↘) Hiragino paints at 24px but Chrome paints at
+  // 17.34/21.98 (a different fallback we haven't pinned down), so they
+  // stay on Apple Symbols rather than over-correcting. DM-296.
+  if (codepoint === 0x2190 || codepoint === 0x2192
+      || codepoint === 0x2197 || codepoint === 0x2199) {
+    return ["cjk", "symbols"];
+  }
   // Mathematical Alphanumeric Symbols (𝐀 𝒜 𝕊 𝟬 𝔄 𝛼 etc.) — Chrome paints
   // via STIX Two Math (the system math-coverage font); Apple Symbols
   // and Hiragino lack these glyphs entirely. DM-257.
   if (codepoint >= 0x1D400 && codepoint <= 0x1D7FF) {
     return ["stix-math", "symbols"];
   }
-  // Letterlike (ℝℕℤℂℚ™), Arrows, Math Operators, Pictographs, Transport.
+  // Letterlike (ℝℕℤℂℚ™), Arrows residue, Math Operators, Pictographs, Transport.
   // The caller's primary-first check already routes chars Helvetica/Times
-  // have (∑∏∫≠≤≥, ™, ●, ←→) to the primary; what reaches this fallback is
-  // the residue (∀∃∈ ⇒⇔ etc.) for which Apple Symbols is the right macOS
-  // source.
+  // have (∑∏∫≠≤≥, ™, ●) to the primary; what reaches this fallback is the
+  // residue (∀∃∈ ↑↓↔ ⇒⇔ etc.) for which Apple Symbols is the right macOS
+  // source. (← → ↗ ↙ branch above to CJK because Hiragino's em-wide glyph
+  // matches Chrome and Apple Symbols' is too narrow — DM-296.)
   if ((codepoint >= 0x2100 && codepoint <= 0x214F)
     || (codepoint >= 0x2190 && codepoint <= 0x21FF)
     || (codepoint >= 0x2200 && codepoint <= 0x22FF)
@@ -309,6 +329,11 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
     if (isBold && isItalic) effectiveKey = `${key}-bold-italic`;
     else if (isBold) effectiveKey = `${key}-bold`;
     else if (isItalic) effectiveKey = `${key}-italic`;
+  }
+  // CJK has only regular + bold variants (no italic); pick W6 for bold contexts
+  // so fallback characters in headings (← → ▲ ☀) inherit the heading weight.
+  if (key === "cjk" && weight >= 600) {
+    effectiveKey = "cjk-bold";
   }
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
@@ -434,13 +459,19 @@ export function resolveFontKey(fontFamily: string): string {
       || name === "sf pro" || name === "sf pro text" || name === "sf pro display") return "sf-pro";
     // Other generic keywords Chrome on macOS does NOT recognize as system
     // fonts: `ui-monospace`, `ui-rounded`, `fantasy`, `math`, `emoji`,
-    // `fangsong`. Chrome falls through to the standard-font default (Times).
-    // DM-269 probe confirmed each of these paints with Times metrics
-    // (q=8.0, T=9.77) on macOS Chrome. Returning "times" here matches what
-    // Chrome actually paints; per-codepoint fallback (CJK, emoji, math)
-    // still routes the glyphs Times lacks to the right block-specific font.
+    // `fangsong`. Chrome treats them as missing and walks past them to the
+    // next name in the stack. Only when nothing else matches does Chrome
+    // fall through to the standard-font default (Times). DM-269 probe
+    // confirmed bare `ui-monospace` paints with Times metrics (q=8.0,
+    // T=9.77), but `ui-monospace, Menlo, monospace` paints in Menlo —
+    // proving Chrome doesn't pin these keywords, it skips them. We must do
+    // the same: `continue` past them so the rest of the stack (Menlo,
+    // Consolas, monospace, …) gets a chance to match. The last-resort
+    // `times` at the bottom of this function catches the no-match case.
+    // (DM-302: textarea code editor used `font: ui-monospace, Menlo, …`
+    // and we wrongly pinned to Times, painting code in a serif face.)
     if (name === "ui-monospace" || name === "ui-rounded"
-      || name === "fantasy" || name === "math" || name === "emoji" || name === "fangsong") return "times";
+      || name === "fantasy" || name === "math" || name === "emoji" || name === "fangsong") continue;
   }
   // Last-resort fallback when no family in the stack matched. Chrome's
   // ultimate fallback on macOS for an unrecognized name is the user's

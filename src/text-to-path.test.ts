@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderTextAsPath, resolveFontKey } from "./text-to-path.js";
+import { fallbackFontChain, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
@@ -16,12 +16,22 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("monospace")).toBe("courier");
   });
 
-  it("routes ui-monospace and ui-rounded to Times (Chrome's actual fallback when keyword is unrecognized)", () => {
+  it("routes bare ui-monospace and ui-rounded to Times (last-resort fallback)", () => {
     // DM-269: macOS Chrome doesn't recognize ui-monospace / ui-rounded as
     // system fonts — painted T width is 9.77px (Times) and q is 8.0px (Times),
     // not Courier or SF Mono. Chrome falls through to the Standard Font default.
     expect(resolveFontKey("ui-monospace")).toBe("times");
     expect(resolveFontKey("ui-rounded")).toBe("times");
+  });
+
+  it("falls through ui-monospace when later names in the chain are valid (DM-302)", () => {
+    // CSS like `font: ui-monospace, Menlo, Consolas, monospace` is common —
+    // the leading ui-monospace is a hint Chrome doesn't recognize on macOS,
+    // and Chrome paints Menlo (the next valid name). Pinning to Times on the
+    // ui-monospace keyword would make code editors render in a serif face.
+    expect(resolveFontKey("ui-monospace, Menlo, Consolas, monospace")).toBe("menlo");
+    expect(resolveFontKey("ui-rounded, Helvetica")).toBe("helvetica");
+    expect(resolveFontKey("emoji, sans-serif")).toBe("helvetica");
   });
 
   it("routes serif to Times, not Georgia", () => {
@@ -124,6 +134,29 @@ describe("renderTextAsPath: ascentOverride threading", () => {
       undefined, undefined, undefined, undefined, 47);
     expect(baselineY(a)).toBe(13);
     expect(baselineY(b)).toBe(47);
+  });
+});
+
+describe("fallbackFontChain: Arrows-block routing (DM-296)", () => {
+  // Chrome on macOS paints ← → ↗ ↙ at 24px @24px font-size (matching
+  // Hiragino W6's CJK em-square glyph). Apple Symbols paints them at
+  // 15-17px which renders visibly thinner. Lock the cjk-first routing
+  // for these four codepoints. Other arrows (↑↓↔↦⇒…) stay on Apple
+  // Symbols because Hiragino either lacks the glyph or paints it at a
+  // different width than Chrome.
+  it("routes ← → ↗ ↙ to cjk-first (matches Chrome's painted width)", () => {
+    expect(fallbackFontChain(0x2190)).toEqual(["cjk", "symbols"]);
+    expect(fallbackFontChain(0x2192)).toEqual(["cjk", "symbols"]);
+    expect(fallbackFontChain(0x2197)).toEqual(["cjk", "symbols"]);
+    expect(fallbackFontChain(0x2199)).toEqual(["cjk", "symbols"]);
+  });
+
+  it("keeps the rest of the Arrows block on Apple Symbols", () => {
+    expect(fallbackFontChain(0x2191)).toEqual(["symbols"]);
+    expect(fallbackFontChain(0x2193)).toEqual(["symbols"]);
+    expect(fallbackFontChain(0x2194)).toEqual(["symbols"]);
+    expect(fallbackFontChain(0x21D2)).toEqual(["symbols"]);
+    expect(fallbackFontChain(0x21D4)).toEqual(["symbols"]);
   });
 });
 

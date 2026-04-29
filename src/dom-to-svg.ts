@@ -1190,7 +1190,19 @@ const CAPTURE_SCRIPT = `
         let firstCharSeen = false;
         for (const node of el.childNodes) {
           if (node.nodeType === Node.TEXT_NODE) {
-            const raw = node.textContent || '';
+            // Apply CSS text-transform — Chrome paints transformed glyphs and
+            // measures them at the transformed advance. Range.getBoundingClientRect
+            // returns the transformed-glyph rect even though node.textContent
+            // is the un-transformed source string, so we must mirror the
+            // transform on our text content for the path renderer to draw the
+            // matching glyphs at the captured x positions. Capitalize uses an
+            // ASCII word-boundary heuristic — sufficient for current fixtures;
+            // a CSS-spec-compliant Unicode word break would need ICU.
+            let raw = node.textContent || '';
+            const tt = cs.textTransform;
+            if (tt === 'uppercase') raw = raw.toUpperCase();
+            else if (tt === 'lowercase') raw = raw.toLowerCase();
+            else if (tt === 'capitalize') raw = raw.replace(/\\b\\p{L}/gu, (ch) => ch.toUpperCase());
             if (!raw.trim()) continue;
             text += raw.trim() + ' ';
 
