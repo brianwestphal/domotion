@@ -10,7 +10,7 @@
 import * as fontkit from "fontkit";
 
 interface FontInstance {
-  layout(text: string): {
+  layout(text: string, features?: string[]): {
     glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number }>;
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
   };
@@ -19,6 +19,9 @@ interface FontInstance {
   descent: number;
   underlinePosition: number;
   underlineThickness: number;
+  /** Available OpenType feature tags (e.g. ['liga', 'kern', 'smcp']). Used by
+   *  the synthesized-small-caps path to detect when smcp is missing. */
+  availableFeatures?: string[];
   "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
 }
 
@@ -575,6 +578,13 @@ export function textToPathMarkup(
   xOffsets?: number[],
   /** CSS font-style ('italic' / 'oblique' / 'normal'). Drives SF Pro's slnt. */
   fontStyle?: string,
+  /**
+   * OpenType feature tags to enable for shaping (e.g. ['smcp'] for
+   * `font-variant: small-caps`). Threaded through to every fontkit
+   * `font.layout()` call so single-char and multi-char shaping both pick the
+   * substituted glyph. Empty / undefined means default shaping. (DM-294)
+   */
+  features?: string[],
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -638,10 +648,28 @@ export function textToPathMarkup(
       runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length });
     }
   }
+  // Synthesized small-caps detection (DM-294). When `font-variant: small-caps`
+  // resolves to the OpenType `smcp` feature but the active font lacks `smcp`
+  // (Helvetica, Arial, SF Pro, Georgia, Times — all the body fonts we hit on
+  // macOS), Chrome falls back to *synthesized* small-caps: lowercase letters
+  // are rendered as uppercase glyphs at a smaller font size while uppercase
+  // letters stay full size. Empirically the scale Chromium uses on Helvetica
+  // at 16px is 11/16 ≈ 0.6875; at 32px it's 22/32 = 0.6875; at 20px it's
+  // 14/20 = 0.700. We approximate with a flat 0.7 — the per-char xOffsets
+  // already encode Chrome's painted positions, so the only thing we choose
+  // is the glyph (uppercase vs lowercase) and its scale; small width drift
+  // per glyph is acceptable.
+  const smcpRequested = features != null && features.includes("smcp");
+  const primaryHasSmcp = smcpRequested
+    && Array.isArray((primaryFont as any).availableFeatures)
+    && (primaryFont as any).availableFeatures.includes("smcp");
+  const synthSmallCaps = smcpRequested && !primaryHasSmcp;
   // Single-run, primary-font path keeps the existing fast path with xOffsets
   // support and per-char fidelity. Multi-run path falls back to native advances.
-  if (runs.length === 1 && runs[0].fontKey === primaryFontKey) {
-    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets);
+  // When synthesizing small-caps we need per-char rendering at variable scales,
+  // so we route around singleFontMarkup which emits one fixed-scale group.
+  if (runs.length === 1 && runs[0].fontKey === primaryFontKey && !synthSmallCaps) {
+    return singleFontMarkup(runs[0].font, runs[0].fontKey, runs[0].text, weight, fontSize, slant, targetWidth, xOffsets, features);
   }
 
   // Content with captured per-char xOffsets. Primary runs and non-shaping
@@ -670,11 +698,26 @@ export function textToPathMarkup(
         // glyph (no shaping reordering or contextual joining). Each codepoint
         // shapes individually; placement uses the captured xOffset so we
         // inherit Chrome's spacing decisions including ruby column-fitting.
+        // When `synthSmallCaps` is on (DM-294), lowercase letters are
+        // upper-cased and rendered at the small-cap scale so we match Chrome's
+        // painted glyphs for fonts that don't carry an `smcp` feature.
+        const SMALL_CAP_SCALE = 0.7;
+        const smallCapScVal = Number((runScale * SMALL_CAP_SCALE).toFixed(5));
         let i = run.startIdx;
         while (i < run.endIdx) {
           const cp = text.codePointAt(i)!;
-          const ch = String.fromCodePoint(cp);
-          const layout = run.font.layout(ch);
+          let ch = String.fromCodePoint(cp);
+          let chScale = sc;
+          if (synthSmallCaps) {
+            const upper = ch.toUpperCase();
+            if (upper !== ch && upper.length === ch.length) {
+              ch = upper;
+              chScale = smallCapScVal;
+            }
+          }
+          const layout = features != null && features.length > 0 && !synthSmallCaps
+            ? run.font.layout(ch, features)
+            : run.font.layout(ch);
           const uses: string[] = [];
           for (const g of layout.glyphs) {
             if (g.path.commands.length > 0) {
@@ -684,7 +727,7 @@ export function textToPathMarkup(
           }
           if (uses.length > 0) {
             const cssX = Number(xOffsets[i].toFixed(3));
-            groups.push(`<g transform="translate(${cssX},0) scale(${sc},${-sc})">${uses.join("")}</g>`);
+            groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})">${uses.join("")}</g>`);
             if (cssX > rightEdge) rightEdge = cssX;
           }
           i += ch.length;
@@ -698,7 +741,9 @@ export function textToPathMarkup(
         for (let i = run.startIdx; i < run.endIdx; i++) {
           if (xOffsets[i] < runMinX) runMinX = xOffsets[i];
         }
-        const layout = run.font.layout(run.text);
+        const layout = features != null && features.length > 0
+          ? run.font.layout(run.text, features)
+          : run.font.layout(run.text);
         const uses: string[] = [];
         let runFontUnits = 0;
         for (let gi = 0; gi < layout.glyphs.length; gi++) {
@@ -728,7 +773,9 @@ export function textToPathMarkup(
   let xCss = 0;
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
-    const layout = run.font.layout(run.text);
+    const layout = features != null && features.length > 0
+      ? run.font.layout(run.text, features)
+      : run.font.layout(run.text);
     const uses: string[] = [];
     let runX = 0;
     for (let i = 0; i < layout.glyphs.length; i++) {
@@ -764,9 +811,12 @@ function singleFontMarkup(
   slant: number,
   targetWidth?: number,
   xOffsets?: number[],
+  features?: string[],
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
-  const run = font.layout(text);
+  const run = features != null && features.length > 0
+    ? font.layout(text, features)
+    : font.layout(text);
   let totalAdvance = 0;
   for (const pos of run.positions) totalAdvance += pos.xAdvance;
   const nativeWidth = totalAdvance * scale;
@@ -835,8 +885,13 @@ export function renderTextAsPath(
    * derive but trivial to read from the browser. See SK-1267 / DM-237.
    */
   ascentOverride?: number,
+  /**
+   * OpenType feature tags forwarded to fontkit (e.g. ['smcp'] when CSS
+   * `font-variant: small-caps` is in effect on this run). DM-294.
+   */
+  features?: string[],
 ): string | null {
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle);
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features);
   if (result == null || result.markup === "") return null;
 
   const weight = parseInt(fontWeight) || 400;

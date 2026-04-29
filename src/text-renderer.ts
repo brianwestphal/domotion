@@ -146,7 +146,8 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
   const pathText = reordered.text;
   const xOffsetsRel = reordered.xOffsets;
-  const result = renderTextAsPath(pathText, tl, tt, fontSize, fontFamily, fontWeight, fillColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, el.fontAscent);
+  const features = singleSeg?.fontVariant != null && /\bsmall-caps\b/.test(singleSeg.fontVariant) ? ["smcp"] : undefined;
+  const result = renderTextAsPath(pathText, tl, tt, fontSize, fontFamily, fontWeight, fillColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, el.fontAscent, features);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : fillColor;
@@ -223,16 +224,24 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // Per-segment overrides from ::before / ::after pseudos (color, fontSize,
     // fontWeight). Fall back to the element's styles when the segment has no
     // override. This is how we render the .flag::before red, the li[data-badge]
-    // purple-bold, the abbr[title]::after blue-and-smaller, etc.
+    // purple-bold, the abbr[title]::after blue-and-smaller, etc. ::first-line
+    // uses the same mechanism — the first segment of a paragraph inherits a
+    // pseudo-style override from CAPTURE_SCRIPT (DM-294).
     const segColor = seg.color ?? fillColor;
     const segFontSize = seg.fontSize ?? elFontSize;
     const segFontWeight = seg.fontWeight ?? elFontWeight;
+    const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
+    // `font-variant: small-caps` resolves to the OpenType `smcp` feature.
+    // CSS spec maps small-caps to smcp only (uppercase letters stay full
+    // height); font-variant-caps: all-small-caps would add c2sc but isn't
+    // covered by the shorthand we read here. (DM-294)
+    const segFeatures = seg.fontVariant != null && /\bsmall-caps\b/.test(seg.fontVariant) ? ["smcp"] : undefined;
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
     const reordered = applyBidi(seg.text, xOffsetsRelRaw, dir);
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent);
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures);
     if (result != null) { parts.push(result); }
     else {
       // Fallback to CSS <text> if path rendering fails

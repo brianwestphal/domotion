@@ -73,6 +73,15 @@ export interface TextSegment {
   /** Override font-weight (e.g. li[data-badge]::before { font-weight: bold }).
    *  Undefined means inherit from the element. */
   fontWeight?: string;
+  /** Override font-style (e.g. ::first-line { font-style: italic }). */
+  fontStyle?: string;
+  /** Override font-variant (e.g. ::first-line { font-variant: small-caps }).
+   *  When 'small-caps', renderer applies the OpenType `smcp` feature so
+   *  lowercase letters shape as small uppercase forms — Chrome paints them
+   *  the same way and the captured xOffsets already encode the small-caps
+   *  advance widths, so the only thing the renderer needs to change is the
+   *  glyph variant per character. (DM-294) */
+  fontVariant?: string;
   /**
    * Override fontBoundingBoxAscent (px) when the segment uses a font/size
    * different from the element (::before / ::after with custom font-size).
@@ -1349,6 +1358,37 @@ const CAPTURE_SCRIPT = `
               maxRight = Math.max(maxRight, line.right);
               maxBottom = Math.max(maxBottom, line.bottom);
             }
+          }
+        }
+        // ::first-line detection (DM-294). The first visual line of an element
+        // can carry styles different from the rest via the ::first-line pseudo
+        // (font-variant: small-caps, color, font-style, font-weight, font-size,
+        // letter-spacing). Chrome's getComputedStyle(el, '::first-line')
+        // resolves the actual computed values for us — we don't need to walk
+        // the stylesheet or implement the CSS cascade ourselves. When the
+        // pseudo's resolved style differs from the element's base, attach the
+        // overrides to textSegments[0] (= the first visual line) so the
+        // renderer applies them only there. Letter-spacing already comes
+        // through in the captured xOffsets so we don't propagate it.
+        if (textSegments.length > 0) {
+          const flLineStyle = window.getComputedStyle(el, '::first-line');
+          const firstSeg = textSegments[0];
+          if (flLineStyle.fontVariant !== '' && flLineStyle.fontVariant !== cs.fontVariant) {
+            firstSeg.fontVariant = flLineStyle.fontVariant;
+          }
+          if (flLineStyle.color !== '' && flLineStyle.color !== cs.color) {
+            firstSeg.color = flLineStyle.color;
+          }
+          if (flLineStyle.fontWeight !== '' && flLineStyle.fontWeight !== cs.fontWeight) {
+            firstSeg.fontWeight = flLineStyle.fontWeight;
+          }
+          if (flLineStyle.fontStyle !== '' && flLineStyle.fontStyle !== cs.fontStyle) {
+            firstSeg.fontStyle = flLineStyle.fontStyle;
+          }
+          const flFs = parseFloat(flLineStyle.fontSize);
+          const elFs2 = parseFloat(cs.fontSize);
+          if (flFs > 0 && Math.abs(flFs - elFs2) > 0.1) {
+            firstSeg.fontSize = flFs;
           }
         }
         text = text.trim();
@@ -2651,13 +2691,18 @@ export function elementTreeToSvg(
           const intrinsic = el.listMarkerIntrinsic;
           const markerW = intrinsic != null && intrinsic.w > 0 ? intrinsic.w : 16;
           const markerH = intrinsic != null && intrinsic.h > 0 ? intrinsic.h : 16;
-          const mx = outside ? el.x - markerW - 4 : el.x;
-          // For a big image marker Chrome stretches the li's height to contain
-          // it, then centers the text vertically within that li. The marker
-          // itself is centered on the li too, so its center aligns with the
-          // text line's center. Use el.height (captured from the laid-out li)
-          // so we stay in sync with whatever vertical metrics Chrome used.
-          const my = el.y + (el.height - markerH) / 2;
+          // Chrome's outside list-style-image marker positioning (DM-298):
+          // - Horizontal: image right edge sits ~7px to the left of the li's
+          //   inline-start edge — pixel probe of `03-lists-style-image-position`
+          //   showed Chrome's painted gap is 7-8px, not the 4px we previously
+          //   used; the previous 4 left the marker 3px too far right.
+          // - Vertical: image TOP aligns with li.top, not (el.height - markerH)/2.
+          //   Chrome stretches the li's height to fit the marker but does NOT
+          //   center it vertically — the marker is top-aligned with whatever
+          //   line box would have started there. Pixel probe confirmed the
+          //   2px Y offset that centering introduced.
+          const mx = outside ? el.x - markerW - 7 : el.x;
+          const my = outside ? el.y : el.y + (el.height - markerH) / 2;
           svgParts.push(
             `${indent}<image href="${esc(embedAsDataUri(urlMatch[1]))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
           );

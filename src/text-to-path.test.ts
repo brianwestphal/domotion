@@ -160,6 +160,49 @@ describe("fallbackFontChain: Arrows-block routing (DM-296)", () => {
   });
 });
 
+describe("synthesized small-caps (DM-294)", () => {
+  // Helvetica/Arial/SF Pro/Times/Georgia all lack the OpenType `smcp` feature,
+  // so `font-variant: small-caps` triggers Chrome's synthesized-small-caps
+  // path: lowercase letters render as uppercase glyphs at ~0.7× the font
+  // size, while uppercase letters stay at full size. The renderer mirrors
+  // this when it sees `features: ['smcp']` and the font lacks the feature.
+  it("renders lowercase letters as uppercase glyphs at the small-cap scale", () => {
+    // Render "abc" at 16px Helvetica with smcp.
+    const out = renderTextAsPath(
+      "abc", 0, 0, 16, "Helvetica", "400", "#000",
+      undefined, undefined, [0, 8, 16], undefined, undefined, ["smcp"],
+    );
+    expect(out).not.toBeNull();
+    // Synth path emits one <g transform="translate(x,0) scale(s,-s)"> per
+    // char. With SMALL_CAP_SCALE = 0.7 and 16/2048 unit scale, the per-char
+    // scale is 16/2048 * 0.7 ≈ 0.00547. Confirm that we see the small-cap
+    // scale on each <g> (not the full-size 0.00781).
+    const matches = out!.match(/scale\(([^,]+),/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(3);
+    // Outer scale on the wrapper <g transform="translate(x,baselineY)"> is
+    // 1, so we look at the inner per-char scales (4 total: 1 outer + 3 char).
+    // Each should be ≈ 0.00547 (small-cap), not 0.00781 (full).
+    const charScales = matches.slice(1, 4).map((m) => parseFloat(m.replace(/scale\(/, "")));
+    for (const s of charScales) {
+      expect(s).toBeCloseTo(16 / 2048 * 0.7, 3);
+    }
+  });
+
+  it("keeps uppercase letters at full size in a smcp run", () => {
+    // "ABC" all uppercase — synth path must NOT shrink them.
+    const out = renderTextAsPath(
+      "ABC", 0, 0, 16, "Helvetica", "400", "#000",
+      undefined, undefined, [0, 10, 20], undefined, undefined, ["smcp"],
+    );
+    expect(out).not.toBeNull();
+    const matches = out!.match(/scale\(([^,]+),/g) ?? [];
+    const charScales = matches.slice(1, 4).map((m) => parseFloat(m.replace(/scale\(/, "")));
+    for (const s of charScales) {
+      expect(s).toBeCloseTo(16 / 2048, 3);
+    }
+  });
+});
+
 describe("resolveFontKey: chain walking", () => {
   it("picks the first recognized name in the stack", () => {
     expect(resolveFontKey('"DoesNotExist", monospace')).toBe("courier");
