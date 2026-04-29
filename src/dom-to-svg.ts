@@ -212,6 +212,11 @@ export interface CapturedElement {
     emptyCellsHidden?: boolean;
     /** Form-control state captured so we can synthesize native chrome. */
     inputType?: string;
+    /** CSS `appearance` / `-webkit-appearance` longhand. 'none' means the
+     *  author has opted out of UA chrome — the renderer should let the host
+     *  rect (background / border / border-radius) show through and only
+     *  overlay the :checked indicator. DM-285. */
+    inputAppearance?: string;
     checked?: boolean;
     indeterminate?: boolean;
     disabled?: boolean;
@@ -248,6 +253,18 @@ export interface CapturedElement {
      *  (`size > 1` or `multiple`) this is undefined and per-option rendering
      *  flows through the listbox path instead. */
     selectDisplayText?: string;
+    /** Captured option list for listbox-mode `<select>` (size > 1 or
+     *  multiple). Each entry is one row the renderer paints inside the
+     *  select's content rect. DM-282. */
+    selectListboxOptions?: Array<{
+      text: string;
+      selected: boolean;
+      disabled: boolean;
+      /** Optgroup label row (italic + bold; not user-selectable). */
+      isOptgroupLabel?: boolean;
+      /** Indented child of an optgroup. */
+      isOptgroupChild?: boolean;
+    }>;
     accentColor?: string;
     caretColor?: string;
     /** For <input type=range/color/date/time/...> — the current value. */
@@ -498,6 +515,47 @@ const CAPTURE_SCRIPT = `
   // is approximated as source order — adequate for a single author stylesheet.
   const _firstColorRe = /(#[0-9a-fA-F]{3,8}|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|\\b(?:white|black|red|green|blue|yellow|purple|orange|gray|grey|currentColor)\\b)/;
   const _isUnsetCssValue = (v) => v === '' || v === 'initial' || v === 'inherit' || v === 'unset' || v === 'revert';
+  // Walk all stylesheets for ':placeholder-shown' rules. Strip the pseudo from
+  // the selector to get a host selector that el.matches() can test even when
+  // the element isn't currently in the matched state. We capture the rule's
+  // bg-color and the renderer applies it conditionally on inputs whose value
+  // is empty + placeholder attribute is set. DM-283.
+  const _placeholderShownRules = [];
+  const _collectPlaceholderShownRules = (rules) => {
+    if (rules == null) return;
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (rule == null) continue;
+      const sel = rule.selectorText;
+      if (typeof sel === 'string' && sel.indexOf(':placeholder-shown') >= 0) {
+        const hostSel = sel.replace(/:placeholder-shown/g, '').trim() || '*';
+        const decl = rule.style;
+        let bg = '';
+        if (!_isUnsetCssValue(decl.backgroundColor)) bg = decl.backgroundColor;
+        else if (!_isUnsetCssValue(decl.background)) {
+          const cm = decl.background.match(_firstColorRe);
+          if (cm != null) bg = cm[1];
+        }
+        if (bg !== '') _placeholderShownRules.push({ hostSel: hostSel, bg: bg });
+      }
+      if (rule.cssRules != null && rule.cssRules.length > 0) _collectPlaceholderShownRules(rule.cssRules);
+    }
+  };
+  for (let _si = 0; _si < document.styleSheets.length; _si++) {
+    try { _collectPlaceholderShownRules(document.styleSheets[_si].cssRules); } catch (e) { /* CORS — skip */ }
+  }
+  // Resolve ':placeholder-shown' bg color for an empty-with-placeholder input.
+  // Returns the captured color or empty string. DM-283.
+  const _resolvePlaceholderShownBg = (el) => {
+    let bg = '';
+    for (let i = 0; i < _placeholderShownRules.length; i++) {
+      const r = _placeholderShownRules[i];
+      let isMatch = false;
+      try { isMatch = el.matches(r.hostSel); } catch (e) { /* invalid */ }
+      if (isMatch) bg = r.bg;
+    }
+    return bg;
+  };
   // Resolve var() and calc() in a declared rule value by temporarily applying
   // it to the host's inline style and reading the computed value back
   // (SK-1191). The host has the same CSS variables in scope as the pseudo
@@ -632,8 +690,38 @@ const CAPTURE_SCRIPT = `
     0x2713, 0x2714, 0x2716, 0x2717, 0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
     0x274C, 0x274E, 0x2795, 0x2796, 0x2797, 0x27A1, 0x27B0, 0x27BF,
   ]);
-  const needsRaster = (cp) => {
+  // Codepoints in the U+2600-26FF Misc Symbols block with EmojiPresentation=Yes
+  // per Unicode emoji-data: Chrome paints these as color emoji by default
+  // (without needing the U+FE0F variation selector). Source: unicode.org
+  // emoji-data v15.1. DM-278.
+  const _emojiPresentation26 = new Set([
+    0x2614, 0x2615, 0x2648, 0x2649, 0x264A, 0x264B, 0x264C, 0x264D,
+    0x264E, 0x264F, 0x2650, 0x2651, 0x2652, 0x2653, 0x267F, 0x2693,
+    0x26A1, 0x26AA, 0x26AB, 0x26BD, 0x26BE, 0x26C4, 0x26C5, 0x26CE,
+    0x26D4, 0x26EA, 0x26F2, 0x26F3, 0x26F5, 0x26FA, 0x26FD,
+  ]);
+  // Codepoints in U+2600-26FF that are Emoji=Yes but default to text
+  // presentation. Authors typically pair these with U+FE0F (the emoji
+  // variation selector) to force the color emoji glyph. The FE0F-aware
+  // detection in textNeedsRaster catches that pairing; for cases where the
+  // codepoint appears bare (no VS), text presentation is correct and we
+  // still path-render.
+  const _emojiBaseCps = new Set([
+    0x2600, 0x2601, 0x2602, 0x2603, 0x2604, 0x260E, 0x2611, 0x2618,
+    0x261D, 0x2620, 0x2622, 0x2623, 0x2626, 0x262A, 0x262E, 0x262F,
+    0x2638, 0x2639, 0x263A, 0x2640, 0x2642, 0x265F, 0x2660, 0x2663,
+    0x2665, 0x2666, 0x2668, 0x267B, 0x267E, 0x2692, 0x2694, 0x2695,
+    0x2696, 0x2697, 0x2699, 0x269B, 0x269C, 0x26A0, 0x26A7, 0x26B0,
+    0x26B1, 0x26C8, 0x26CF, 0x26D1, 0x26D3, 0x26E9, 0x26F0, 0x26F1,
+    0x26F4, 0x26F7, 0x26F8, 0x26F9,
+  ]);
+  const needsRaster = (cp, nextCp) => {
     if (_rasterCps.has(cp)) return true;
+    if (_emojiPresentation26.has(cp)) return true;
+    // U+FE0F (Variation Selector-16) after a base emoji codepoint requests
+    // emoji presentation — Chrome paints the colorful glyph instead of the
+    // text-mode path glyph. DM-278.
+    if (nextCp === 0xFE0F && (_emojiBaseCps.has(cp) || _emojiPresentation26.has(cp))) return true;
     // Regional-indicator flags (pairs are joined into country flag emoji).
     if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
     // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
@@ -645,7 +733,9 @@ const CAPTURE_SCRIPT = `
   const textNeedsRaster = (s) => {
     for (let i = 0; i < s.length; i++) {
       const cp = s.codePointAt(i);
-      if (needsRaster(cp)) return true;
+      const step = cp > 0xFFFF ? 2 : 1;
+      const nextCp = i + step < s.length ? s.codePointAt(i + step) : 0;
+      if (needsRaster(cp, nextCp)) return true;
       if (cp > 0xFFFF) i++;
     }
     return false;
@@ -980,18 +1070,13 @@ const CAPTURE_SCRIPT = `
     // render; on a healthy browser the text is invisible but Range.getClientRects
     // still reports a rect at (0, 0) which would place a stray label at the top
     // of the page.
-    // option/optgroup text is hidden by Chrome's UA shadow DOM when the
-    // parent <select> is in closed-dropdown mode (size <= 1 && !multiple) —
-    // only the selectedOptions[0] text renders inside the select's content
-    // rect (handled via styles.selectDisplayText). For listbox mode (size > 1
-    // or multiple) Chrome paints each option as its own row, so we DO want
-    // to capture per-option text and rects. DM-246.
-    var optionInListbox = false;
-    if (tag === 'option' || tag === 'optgroup') {
-      var _selParent = el.closest && el.closest('select');
-      if (_selParent != null && (_selParent.size > 1 || _selParent.multiple)) optionInListbox = true;
-    }
-    const textIsHiddenFallback = tag === 'meter' || tag === 'progress' || tag === 'datalist' || ((tag === 'option' || tag === 'optgroup') && !optionInListbox);
+    // option/optgroup text is hidden by Chrome's UA shadow DOM at every level
+    // we can probe — neither closed dropdowns nor listbox-mode selects expose
+    // a usable getBoundingClientRect on the option children. Closed dropdowns
+    // synthesize the selected option text via styles.selectDisplayText
+    // (DM-246); listbox-mode selects synthesize all rows via
+    // styles.selectListboxOptions (DM-282).
+    const textIsHiddenFallback = tag === 'meter' || tag === 'progress' || tag === 'datalist' || tag === 'option' || tag === 'optgroup';
     if (tag !== 'svg' && tag !== 'img' && !textIsHiddenFallback) {
       // Capture input/textarea values (not in text nodes). For input types
       // whose value is rendered as native chrome (range thumb, color swatch,
@@ -1200,11 +1285,14 @@ const CAPTURE_SCRIPT = `
               // paired emoji.
               const rasterGlyphs = [];
               let utf16Idx = 0;
-              for (const cRec of line.chars) {
+              for (let _ci = 0; _ci < line.chars.length; _ci++) {
+                const cRec = line.chars[_ci];
                 const cp = cRec.ch.codePointAt(0);
+                const nextCh = _ci + 1 < line.chars.length ? line.chars[_ci + 1].ch : '';
+                const nextCp = nextCh ? nextCh.codePointAt(0) : 0;
                 const isFirstLetter = firstLetterStyled && !firstCharSeen && /\\S/.test(cRec.ch);
                 if (isFirstLetter) firstCharSeen = true;
-                if ((cp != null && needsRaster(cp)) || isFirstLetter) {
+                if ((cp != null && needsRaster(cp, nextCp)) || isFirstLetter) {
                   rasterGlyphs.push({
                     charIndex: utf16Idx,
                     rect: {
@@ -1352,7 +1440,21 @@ const CAPTURE_SCRIPT = `
         }
       }
     }
-    if (tag === 'svg') svgContent = el.outerHTML;
+    if (tag === 'svg') {
+      // Inline SVG icons styled by external CSS (e.g. '.icon-btn svg { fill:none;
+      // stroke: currentColor; stroke-width: 2 }') need their resolved presentation
+      // attributes baked into the outerHTML so the icon paints correctly when
+      // re-embedded outside the original cascade. Skip when the svg already
+      // declared the attribute inline. DM-279.
+      const svgFill = cs.fill;
+      const svgStroke = cs.stroke;
+      const svgStrokeWidth = cs.strokeWidth;
+      const clone = el.cloneNode(true);
+      if (svgFill && svgFill !== '' && !el.hasAttribute('fill')) clone.setAttribute('fill', svgFill);
+      if (svgStroke && svgStroke !== '' && svgStroke !== 'none' && !el.hasAttribute('stroke')) clone.setAttribute('stroke', svgStroke);
+      if (svgStrokeWidth && svgStrokeWidth !== '' && !el.hasAttribute('stroke-width')) clone.setAttribute('stroke-width', svgStrokeWidth);
+      svgContent = clone.outerHTML;
+    }
 
     const children = [];
     for (const child of el.children) {
@@ -1371,7 +1473,19 @@ const CAPTURE_SCRIPT = `
       width: rect.width, height: rect.height,
       animId: _animId,
       styles: {
-        backgroundColor: normColor(cs.backgroundColor),
+        backgroundColor: (function () {
+          // For empty inputs with a placeholder, walk captured ':placeholder-shown'
+          // rules and apply the matched rule's bg-color in place of the cascade
+          // default (Chrome's getComputedStyle resolves backgroundColor to
+          // rgba(0,0,0,0) when only the 'background' shorthand was set, so the
+          // longhand reads white even though Chrome paints the rule's color).
+          // DM-283.
+          if (isPlaceholderCapture) {
+            const psBg = _resolvePlaceholderShownBg(el);
+            if (psBg !== '') return normColor(psBg);
+          }
+          return normColor(cs.backgroundColor);
+        })(),
         borderColor: normColor(cs.borderColor),
         borderWidth: cs.borderWidth,
         borderRadius: cs.borderRadius,
@@ -1490,6 +1604,12 @@ const CAPTURE_SCRIPT = `
         float: cs.float,
         emptyCellsHidden: (tag === 'td' || tag === 'th') && cs.emptyCells === 'hide' && (el.textContent || '').trim() === '' && el.children.length === 0,
         inputType: tag === 'input' ? (el.type || 'text') : undefined,
+        // Captured CSS appearance / -webkit-appearance longhand for inputs.
+        // When 'none' (the appearance:none custom-styled pattern), the
+        // renderer suppresses its UA-default checkbox / radio chrome so the
+        // host's author-styled border + background show through, with only
+        // the :checked indicator overlaid on top. DM-285.
+        inputAppearance: tag === 'input' ? (cs.webkitAppearance || cs.appearance || '') : undefined,
         checked: (tag === 'input' && (el.type === 'checkbox' || el.type === 'radio')) ? !!el.checked : undefined,
         indeterminate: (tag === 'input' && el.type === 'checkbox') ? !!el.indeterminate : undefined,
         disabled: (tag === 'input' || tag === 'button' || tag === 'select' || tag === 'textarea') ? !!el.disabled : undefined,
@@ -1545,6 +1665,32 @@ const CAPTURE_SCRIPT = `
           ? (el.selectedOptions && el.selectedOptions.length > 0
               ? (el.selectedOptions[0].textContent || '').trim()
               : (el.options && el.options.length > 0 ? (el.options[0].textContent || '').trim() : ''))
+          : undefined,
+        // Listbox-mode selects (size > 1 or multiple) flatten their option/
+        // optgroup children into a captured row list. The renderer walks this
+        // list and paints one row per entry inside the select's content rect.
+        // Optgroup labels are emitted as italic+bold rows that don't count
+        // against selection. DM-282.
+        selectListboxOptions: tag === 'select' && (el.size > 1 || el.multiple)
+          ? (function () {
+              const out = [];
+              const kids = el.children;
+              for (let _ki = 0; _ki < kids.length; _ki++) {
+                const c = kids[_ki];
+                if (c.tagName === 'OPTGROUP') {
+                  out.push({ text: c.label || '', selected: false, disabled: !!c.disabled, isOptgroupLabel: true });
+                  const og = c.children;
+                  for (let _gi = 0; _gi < og.length; _gi++) {
+                    const o = og[_gi];
+                    if (o.tagName !== 'OPTION') continue;
+                    out.push({ text: (o.textContent || '').trim(), selected: !!o.selected, disabled: !!o.disabled, isOptgroupChild: true });
+                  }
+                } else if (c.tagName === 'OPTION') {
+                  out.push({ text: (c.textContent || '').trim(), selected: !!c.selected, disabled: !!c.disabled });
+                }
+              }
+              return out;
+            })()
           : undefined,
         accentColor: (tag === 'input' || tag === 'progress' || tag === 'meter') ? normColor(cs.accentColor || 'auto') : undefined,
         caretColor: (tag === 'input' || tag === 'textarea') ? normColor(cs.caretColor || 'auto') : undefined,
@@ -2213,44 +2359,67 @@ export function elementTreeToSvg(
         svgParts.push(
           `${indent}<rect x="${r(el.x + innerInset)}" y="${r(el.y + innerInset)}" width="${r(el.width - 2 * innerInset)}" height="${r(el.height - 2 * innerInset)}" rx="${r(Math.max(0, borderRadius - innerInset))}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}" />`,
         );
-      } else if ((style === "groove" || style === "ridge") && bt.w >= 2) {
-        // Two concentric half-width strokes. groove: outer dark / inner light
-        // (carved-in look); ridge: outer light / inner dark (raised-out).
-        // Outer stroke centerline at bw/4 inside border box; inner at 3*bw/4.
-        const half = bt.w / 2;
-        const darker = shadeColor(bt.color, -18);
-        const lighter = shadeColor(bt.color, 18);
-        const outerColor = style === "groove" ? darker : lighter;
-        const innerColor = style === "groove" ? lighter : darker;
-        const outerInset = bt.w / 4;
-        const innerInset = bt.w * 3 / 4;
-        svgParts.push(
-          `${indent}<rect x="${r(el.x + outerInset)}" y="${r(el.y + outerInset)}" width="${r(el.width - 2 * outerInset)}" height="${r(el.height - 2 * outerInset)}" rx="${r(Math.max(0, borderRadius - outerInset))}" fill="none" stroke="${colorStr(outerColor)}" stroke-width="${r(half)}" />`,
-        );
-        svgParts.push(
-          `${indent}<rect x="${r(el.x + innerInset)}" y="${r(el.y + innerInset)}" width="${r(el.width - 2 * innerInset)}" height="${r(el.height - 2 * innerInset)}" rx="${r(Math.max(0, borderRadius - innerInset))}" fill="none" stroke="${colorStr(innerColor)}" stroke-width="${r(half)}" />`,
-        );
-      } else if (style === "inset" || style === "outset") {
-        // Top+left get one shade, bottom+right get the other. inset looks pressed-in,
-        // outset raised-out. Emit via 4 per-side lines so each side can have its own color.
-        const darker = shadeColor(bt.color, -22);
-        const lighter = shadeColor(bt.color, 22);
-        const tlColor = style === "inset" ? darker : lighter;
-        const brColor = style === "inset" ? lighter : darker;
+      } else if ((style === "groove" || style === "ridge" || style === "inset" || style === "outset") && bt.w >= 2) {
+        // 3D bevel borders (DM-280). Each side is painted as its own
+        // trapezoid polygon so the four shade pairs miter cleanly at corners.
+        // Inset / outset: solid shade per side. Groove / ridge: split each
+        // side into outer and inner halves with inverted shades so the
+        // border reads as a carved (groove) or raised (ridge) ridge.
         const w = bt.w;
-        // Lines at centerline of each side.
-        svgParts.push(
-          `${indent}<line x1="${r(el.x)}" y1="${r(el.y + w / 2)}" x2="${r(el.x + el.width)}" y2="${r(el.y + w / 2)}" stroke="${colorStr(tlColor)}" stroke-width="${r(w)}" />`,
-        );
-        svgParts.push(
-          `${indent}<line x1="${r(el.x + w / 2)}" y1="${r(el.y)}" x2="${r(el.x + w / 2)}" y2="${r(el.y + el.height)}" stroke="${colorStr(tlColor)}" stroke-width="${r(w)}" />`,
-        );
-        svgParts.push(
-          `${indent}<line x1="${r(el.x)}" y1="${r(el.y + el.height - w / 2)}" x2="${r(el.x + el.width)}" y2="${r(el.y + el.height - w / 2)}" stroke="${colorStr(brColor)}" stroke-width="${r(w)}" />`,
-        );
-        svgParts.push(
-          `${indent}<line x1="${r(el.x + el.width - w / 2)}" y1="${r(el.y)}" x2="${r(el.x + el.width - w / 2)}" y2="${r(el.y + el.height)}" stroke="${colorStr(brColor)}" stroke-width="${r(w)}" />`,
-        );
+        const x0 = el.x, y0 = el.y;
+        const x1 = el.x + el.width, y1 = el.y + el.height;
+        const darker = colorStr(shadeColor(bt.color, -22));
+        const lighter = colorStr(shadeColor(bt.color, 22));
+        // tl = top + left (sharing one shade); br = bottom + right (other shade).
+        const tlIsLighter = style === "outset" || style === "ridge";
+        const tlColor = tlIsLighter ? lighter : darker;
+        const brColor = tlIsLighter ? darker : lighter;
+        // Trapezoid polygons for each side. Outer corners are the captured
+        // border-box corners; inner corners are inset by w on each axis.
+        const topPoly = `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`;
+        const rightPoly = `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`;
+        const bottomPoly = `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`;
+        const leftPoly = `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`;
+        if (style === "inset" || style === "outset") {
+          svgParts.push(`${indent}<polygon points="${topPoly}" fill="${tlColor}" />`);
+          svgParts.push(`${indent}<polygon points="${leftPoly}" fill="${tlColor}" />`);
+          svgParts.push(`${indent}<polygon points="${rightPoly}" fill="${brColor}" />`);
+          svgParts.push(`${indent}<polygon points="${bottomPoly}" fill="${brColor}" />`);
+        } else {
+          // Groove / ridge: split each trapezoid horizontally in half so the
+          // outer half and inner half can carry inverse shades. The mid-line
+          // for the top trapezoid runs from (x0+w/2, y0+w/2) to
+          // (x1-w/2, y0+w/2) — i.e., w/2 inset on every axis.
+          const halfW = w / 2;
+          const xa = x0, xb = x1, ya = y0, yb = y1;
+          // Outer halves: top, right, bottom, left — each is a 4-pt polygon.
+          const topOuter = `${r(xa)},${r(ya)} ${r(xb)},${r(ya)} ${r(xb - halfW)},${r(ya + halfW)} ${r(xa + halfW)},${r(ya + halfW)}`;
+          const rightOuter = `${r(xb)},${r(ya)} ${r(xb)},${r(yb)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xb - halfW)},${r(ya + halfW)}`;
+          const bottomOuter = `${r(xa)},${r(yb)} ${r(xb)},${r(yb)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xa + halfW)},${r(yb - halfW)}`;
+          const leftOuter = `${r(xa)},${r(ya)} ${r(xa)},${r(yb)} ${r(xa + halfW)},${r(yb - halfW)} ${r(xa + halfW)},${r(ya + halfW)}`;
+          // Inner halves: top, right, bottom, left.
+          const topInner = `${r(xa + halfW)},${r(ya + halfW)} ${r(xb - halfW)},${r(ya + halfW)} ${r(xb - w)},${r(ya + w)} ${r(xa + w)},${r(ya + w)}`;
+          const rightInner = `${r(xb - halfW)},${r(ya + halfW)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xb - w)},${r(yb - w)} ${r(xb - w)},${r(ya + w)}`;
+          const bottomInner = `${r(xa + halfW)},${r(yb - halfW)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xb - w)},${r(yb - w)} ${r(xa + w)},${r(yb - w)}`;
+          const leftInner = `${r(xa + halfW)},${r(ya + halfW)} ${r(xa + halfW)},${r(yb - halfW)} ${r(xa + w)},${r(yb - w)} ${r(xa + w)},${r(ya + w)}`;
+          // groove: outer is darker on top+left, lighter on bottom+right
+          // (carved-in look); inner is the inverse so the inside of the
+          // groove brightens on top+left.
+          // ridge:  outer is lighter on top+left, darker on bottom+right
+          // (raised look); inner is the inverse.
+          const outerTL = style === "ridge" ? lighter : darker;
+          const outerBR = style === "ridge" ? darker : lighter;
+          const innerTL = outerBR;
+          const innerBR = outerTL;
+          svgParts.push(`${indent}<polygon points="${topOuter}" fill="${outerTL}" />`);
+          svgParts.push(`${indent}<polygon points="${leftOuter}" fill="${outerTL}" />`);
+          svgParts.push(`${indent}<polygon points="${rightOuter}" fill="${outerBR}" />`);
+          svgParts.push(`${indent}<polygon points="${bottomOuter}" fill="${outerBR}" />`);
+          svgParts.push(`${indent}<polygon points="${topInner}" fill="${innerTL}" />`);
+          svgParts.push(`${indent}<polygon points="${leftInner}" fill="${innerTL}" />`);
+          svgParts.push(`${indent}<polygon points="${rightInner}" fill="${innerBR}" />`);
+          svgParts.push(`${indent}<polygon points="${bottomInner}" fill="${innerBR}" />`);
+        }
       } else if ((style === "dashed" || style === "dotted") && borderRadius === 0) {
         // Dashed/dotted uniform borders need per-side dash spacing — Chrome
         // adjusts the dash cycle so dashes start and end exactly at corners.
@@ -2362,7 +2531,12 @@ export function elementTreeToSvg(
     // on-page size.
     if (el.svgContent != null) {
       const sized = injectSvgSize(el.svgContent, el.width, el.height);
-      svgParts.push(`${indent}<g transform="translate(${r(el.x)}, ${r(el.y)})">${sized}</g>`);
+      // Inline SVG icons commonly use `fill="currentColor"` / `stroke="currentColor"`
+      // so the icon picks up the button's text color. Set the wrapping group's
+      // CSS `color` to the captured text color so currentColor resolves to
+      // what Chrome painted, not the SVG document root's default black. DM-279.
+      const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
+      svgParts.push(`${indent}<g transform="translate(${r(el.x)}, ${r(el.y)})" color="${iconColor}">${sized}</g>`);
       return;
     }
 

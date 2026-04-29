@@ -54,14 +54,17 @@ function gradientFillFor(
 }
 
 // ── Chromium macOS default colors (sampled from Playwright captures) ──
+// Re-calibrated against headless Chromium-on-macOS screenshots in DM-284.
+// Probe methodology: paint each control with default chrome on a 1x viewport,
+// `magick info:` pixel-pick from a known position inside the fill region.
 const UA_BORDER = "rgb(118,118,118)";
 const UA_FILL = "rgb(255,255,255)";
-const ACCENT_BLUE = "rgb(0,122,255)";
-const TRACK_BG = "rgb(237,237,237)";
+const ACCENT_BLUE = "rgb(0,117,255)";
+const TRACK_BG = "rgb(239,239,239)";
 const TRACK_FG = "rgb(118,118,118)";
-const METER_GREEN = "rgb(48,160,63)";
-const METER_YELLOW = "rgb(234,162,50)";
-const METER_RED = "rgb(232,78,78)";
+const METER_GREEN = "rgb(16,124,16)";
+const METER_YELLOW = "rgb(255,185,0)";
+const METER_RED = "rgb(216,59,1)";
 const DISABLED_BORDER = "rgba(118,118,118,0.5)";
 
 function r(n: number): string { return Number(n.toFixed(1)).toString(); }
@@ -80,6 +83,7 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
   if (tag === "progress") return renderProgress(el, indent, defCtx);
   if (tag === "meter") return renderMeter(el, indent, defCtx);
   if (tag === "select" && el.styles.selectChevron === true) return renderSelectChevron(el, indent);
+  if (tag === "select" && el.styles.selectListboxOptions != null) return renderListbox(el, indent);
   if (tag === "details") return renderDetailsMarker(el, indent);
   return "";
 }
@@ -101,6 +105,11 @@ function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx
 }
 
 function renderCheckbox(el: CapturedElement, indent: string): string {
+  // appearance: none → author has opted out of UA chrome. The host's normal
+  // element-rendering path already painted its bg + border with the captured
+  // styles; we just overlay the :checked indicator. Switch-shape (wide,
+  // pill-radius) renders as a toggle thumb instead of a checkmark. DM-285.
+  if (el.styles.inputAppearance === "none") return renderCustomCheckboxOrSwitch(el, indent);
   // 13x13 square with 2px radius, blue+check when checked, dash when indeterminate.
   const size = Math.min(el.width, el.height);
   const cx = el.x + el.width / 2;
@@ -125,7 +134,58 @@ function renderCheckbox(el: CapturedElement, indent: string): string {
   return parts.join("\n");
 }
 
+/**
+ * Render an `appearance: none` custom checkbox or switch. Distinguishes the
+ * switch shape (wide pill: aspect ratio > 1.5 + border-radius >= half-height)
+ * from the rectangular checkbox shape (square-ish + border-radius < half).
+ *
+ * The host rect (background / border) is already painted by the normal
+ * element-rendering path, so we only overlay the :checked indicator.
+ */
+function renderCustomCheckboxOrSwitch(el: CapturedElement, indent: string): string {
+  const w = el.width;
+  const h = el.height;
+  const aspect = h > 0 ? w / h : 1;
+  const radiusStr = el.styles.borderRadius ?? "0";
+  const radius = parseFloat(radiusStr) || 0;
+  const isSwitch = aspect > 1.5 && radius >= h / 2 - 1;
+  if (isSwitch) {
+    // Pill switch: thumb circle 2px inset from each edge, anchored left when
+    // unchecked, right when checked. Thumb is white per common authoring
+    // (the .sw fixture's ::before { background: white }).
+    const inset = 2;
+    const thumbR = (h - inset * 2) / 2;
+    const cx = el.styles.checked === true
+      ? el.x + el.width - inset - thumbR
+      : el.x + inset + thumbR;
+    const cy = el.y + el.height / 2;
+    return `${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(thumbR)}" fill="#fff" />`;
+  }
+  // Custom checkbox. Indicator is a checkmark in the host's border color
+  // (the :checked rule typically swaps both bg and border to the same
+  // accent). Falls back to UA accent when the captured border is missing.
+  if (el.styles.checked !== true) return "";
+  const indicatorColor = el.styles.borderTopColor ?? resolveAccent(el);
+  const size = Math.min(w, h);
+  const cx = el.x + w / 2;
+  const cy = el.y + h / 2;
+  const x = cx - size / 2;
+  const y = cy - size / 2;
+  const p = (dx: number, dy: number): string => `${r(x + dx * size)},${r(y + dy * size)}`;
+  return `${indent}<polyline points="${p(0.22, 0.55)} ${p(0.42, 0.74)} ${p(0.78, 0.3)}" fill="none" stroke="${indicatorColor}" stroke-width="${r(Math.max(1.5, size * 0.14))}" stroke-linecap="round" stroke-linejoin="round" />`;
+}
+
 function renderRadio(el: CapturedElement, indent: string): string {
+  // appearance: none → host rect already painted with author bg/border;
+  // overlay only the :checked dot in the captured border color. DM-285.
+  if (el.styles.inputAppearance === "none") {
+    if (el.styles.checked !== true) return "";
+    const size = Math.min(el.width, el.height);
+    const cx = el.x + el.width / 2;
+    const cy = el.y + el.height / 2;
+    const dotColor = el.styles.borderTopColor ?? resolveAccent(el);
+    return `${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(size * 0.25)}" fill="${dotColor}" />`;
+  }
   const size = Math.min(el.width, el.height);
   const cx = el.x + el.width / 2;
   const cy = el.y + el.height / 2;
@@ -694,6 +754,47 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const valueRect = { x: el.x, y: barY, w: valueW, h: barH };
     const valueGrad = gradientFillFor(valueBgImage, valueRect, defCtx);
     parts.push(`${indent}<rect x="${r(el.x)}" y="${r(barY)}" width="${r(valueW)}" height="${r(barH)}" rx="${r(trackRadius)}" fill="${valueGrad ?? fill}" />`);
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Render a listbox-mode `<select>` (size > 1 or multiple). The host rect
+ * (border + bg) is already painted by the normal element-rendering path;
+ * this overlays one text row per option, with `:checked` rows highlighted
+ * in the Chrome-on-macOS selection-blue band. Optgroup labels render in
+ * italic + bold and are not selectable. DM-282.
+ */
+function renderListbox(el: CapturedElement, indent: string): string {
+  const opts = el.styles.selectListboxOptions;
+  if (opts == null || opts.length === 0) return "";
+  const fontSize = parseFloat(el.styles.fontSize ?? "13") || 13;
+  const fontFamily = el.styles.fontFamily ?? "-apple-system, system-ui, sans-serif";
+  const color = el.styles.color ?? "rgb(0,0,0)";
+  // Chrome's listbox option row is line-height ≈ fontSize × 1.16. The first
+  // row is offset by 1px (border inset) plus a thin top padding.
+  const rowH = fontSize * 1.16;
+  const innerX = el.x + 5;
+  const innerY = el.y + 1;
+  const innerW = el.width - 6;
+  const parts: string[] = [];
+  // Selection-row highlight (Chrome-on-macOS). We overlay an opaque rect
+  // BEHIND the text. Disabled rows aren't highlighted even when selected.
+  const SELECTION_BG = "rgb(180, 215, 255)";
+  for (let i = 0; i < opts.length; i++) {
+    const o = opts[i];
+    const ry = innerY + i * rowH;
+    if (ry + rowH > el.y + el.height - 1) break;
+    if (o.selected && !o.disabled && !o.isOptgroupLabel) {
+      parts.push(`${indent}<rect x="${r(innerX - 4)}" y="${r(ry)}" width="${r(innerW + 4)}" height="${r(rowH)}" fill="${SELECTION_BG}" />`);
+    }
+    const tx = innerX + (o.isOptgroupChild ? 8 : 0);
+    const ty = ry + rowH * 0.78;
+    const fontStyleAttr = o.isOptgroupLabel ? ` font-style="italic"` : "";
+    const fontWeightAttr = o.isOptgroupLabel ? ` font-weight="bold"` : "";
+    const opacityAttr = o.disabled ? ` opacity="0.5"` : "";
+    const escaped = o.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily}" fill="${color}"${fontStyleAttr}${fontWeightAttr}${opacityAttr}>${escaped}</text>`);
   }
   return parts.join("\n");
 }

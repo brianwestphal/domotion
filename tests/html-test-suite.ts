@@ -39,17 +39,17 @@ const HEIGHT = 768;
 //      nothing should be" / "missing whole widget" — the text pixels blow this
 //      metric even when the tile's raw average stays low because the white
 //      background between text dilutes it.
-// Thresholds calibrated against the text-drift floor: path-mode rendering via
-// fontkit produces glyph shapes that differ from Chromiums hinted+antialiased
-// text by ~1-2 pixels per glyph. Across a text-heavy page this accumulates to
-// ~3-3.5% avg diff and ~6-7% significant-pixel % even when the layout is
-// pixel-exact. Thresholds set just above this floor so structurally broken
-// renders fail (>5% avg, >50% tile-sig) while clean-but-drifted text passes.
-// See SK-539 for the investigation.
-const PASS_THRESHOLD_AVG = 3.5;
-const PASS_THRESHOLD_TILE = 25;
+// Thresholds calibrated against the text-drift floor AFTER the Yee
+// anti-aliasing detector excludes sub-pixel-glyph drift from both the avg
+// and significant-pixel metrics (DM-281). The drift floor that previously
+// landed around ~3% avg / ~6% sig now sits around ~1.5% avg / ~3% sig
+// because path-mode glyph antialiasing is recognised and skipped. Tightened
+// thresholds let borderline-broken renders fail while clean text still
+// passes. See SK-539 for the historical investigation.
+const PASS_THRESHOLD_AVG = 2.0;
+const PASS_THRESHOLD_TILE = 20;
 const PASS_THRESHOLD_TILE_SIGNIFICANT = 50;
-const PASS_THRESHOLD_SIG_PIXELS = 7;
+const PASS_THRESHOLD_SIG_PIXELS = 5;
 const TILE_PX = 64;
 // Per-pixel distance threshold (0..441) above which a pixel counts as "clearly
 // different" rather than antialias noise. 40 is ~9% of max distance — tuned to
@@ -137,6 +137,60 @@ async function comparePngs(
       const maxDist = Math.sqrt(255 * 255 * 3);
       const TILE = ${tilePx};
       const SIG = ${significantDist};
+      // Y-channel (luminance) brightness for one pixel — used by the Yee
+      // anti-aliasing detector below. ITU-R BT.601 coefficients.
+      function rgbY(d, i) { return d[i] * 0.298912 + d[i+1] * 0.586611 + d[i+2] * 0.114478; }
+      // Pixelmatch-style 'antialiased(img, x, y, w, h, img2)' check: a pixel
+      // is anti-aliasing if it sits on an edge in either image AND the
+      // brightness fan in the 3x3 neighborhood is consistent with sub-pixel
+      // glyph coverage rather than a real content change. Implementation
+      // adapted from mapbox/pixelmatch (BSD): each pixel gets up to one
+      // 'darker' and one 'lighter' high-contrast neighbor; the pixel is AA
+      // when the darker neighbor's color appears in many surrounding cells
+      // of EITHER image (it's an edge stroke), or the lighter neighbor's
+      // does (white-side anti-aliasing). DM-281.
+      function hasManySiblings(d, x1, y1) {
+        const x0 = Math.max(x1 - 1, 0);
+        const y0 = Math.max(y1 - 1, 0);
+        const x2v = Math.min(x1 + 1, w - 1);
+        const y2v = Math.min(y1 + 1, h - 1);
+        let zeroes = (x1 === x0 || x1 === x2v || y1 === y0 || y1 === y2v) ? 1 : 0;
+        const pos = (y1 * w + x1) * 4;
+        for (let xx = x0; xx <= x2v; xx++) {
+          for (let yy = y0; yy <= y2v; yy++) {
+            if (xx === x1 && yy === y1) continue;
+            const pos2 = (yy * w + xx) * 4;
+            if (d[pos] === d[pos2] && d[pos+1] === d[pos2+1] && d[pos+2] === d[pos2+2]) zeroes++;
+            if (zeroes > 2) return true;
+          }
+        }
+        return false;
+      }
+      function antialiased(d, x1, y1, dOther) {
+        const x0 = Math.max(x1 - 1, 0);
+        const y0 = Math.max(y1 - 1, 0);
+        const x2v = Math.min(x1 + 1, w - 1);
+        const y2v = Math.min(y1 + 1, h - 1);
+        let zeroes = (x1 === x0 || x1 === x2v || y1 === y0 || y1 === y2v) ? 1 : 0;
+        let min = 0, max = 0;
+        let minX = -1, minY = -1, maxX = -1, maxY = -1;
+        const pos = (y1 * w + x1) * 4;
+        const baseY = rgbY(d, pos);
+        for (let xx = x0; xx <= x2v; xx++) {
+          for (let yy = y0; yy <= y2v; yy++) {
+            if (xx === x1 && yy === y1) continue;
+            const pos2 = (yy * w + xx) * 4;
+            const delta = rgbY(d, pos2) - baseY;
+            if (delta === 0) zeroes++;
+            else if (delta < 0) { if (delta < min) { min = delta; minX = xx; minY = yy; } }
+            else { if (delta > max) { max = delta; maxX = xx; maxY = yy; } }
+          }
+        }
+        if (zeroes < 2) return false;
+        if (minX < 0 || maxX < 0) return false;
+        return (hasManySiblings(d, minX, minY) && hasManySiblings(dOther, minX, minY))
+            || (hasManySiblings(d, maxX, maxY) && hasManySiblings(dOther, maxX, maxY));
+      }
       const tilesX = Math.ceil(w / TILE);
       const tilesY = Math.ceil(h / TILE);
       // Accumulate per-tile normalized distance and significant-pixel count.
@@ -155,15 +209,34 @@ async function comparePngs(
           const dg = d1[i+1] - d2[i+1];
           const db = d1[i+2] - d2[i+2];
           const dist = Math.sqrt(dr*dr + dg*dg + db*db);
-          const norm = dist / maxDist;
+          let isAA = false;
+          if (dist > SIG) {
+            // Yee anti-aliasing check: a pixel that differs between the two
+            // images may just be sub-pixel glyph coverage drift. We classify
+            // it as AA if it's on an edge in either image (and that edge
+            // continues through several neighbors), and only count
+            // non-AA differences toward the diff tally. DM-281.
+            isAA = antialiased(d1, x, y, d2) || antialiased(d2, x, y, d1);
+          }
+          // Both avg and sig metrics exclude AA pixels — those represent
+          // sub-pixel glyph drift, not real content mismatches. The diff
+          // image still highlights AA pixels (in dim yellow) so reviewers
+          // can see what was filtered.
+          const norm = isAA ? 0 : dist / maxDist;
           totalDist += norm;
           const ti = ty * tilesX + tx;
           tileDist[ti] += norm;
           tilePixCount[ti]++;
-          if (dist > SIG) { tileSig[ti]++; totalSig++; }
+          if (dist > SIG && !isAA) { tileSig[ti]++; totalSig++; }
           const intensity = Math.min(255, dist * 2);
           if (intensity > 8) {
-            diffData.data[i] = intensity; diffData.data[i+1] = 0; diffData.data[i+2] = 0; diffData.data[i+3] = 255;
+            // Render AA-classified diffs in dim yellow, non-AA in red so the
+            // viewer can see at a glance which pixels actually differ.
+            if (isAA) {
+              diffData.data[i] = 120; diffData.data[i+1] = 100; diffData.data[i+2] = 0; diffData.data[i+3] = 255;
+            } else {
+              diffData.data[i] = intensity; diffData.data[i+1] = 0; diffData.data[i+2] = 0; diffData.data[i+3] = 255;
+            }
           } else {
             diffData.data[i] = d1[i] * 0.3; diffData.data[i+1] = d1[i+1] * 0.3; diffData.data[i+2] = d1[i+2] * 0.3; diffData.data[i+3] = 255;
           }

@@ -16,5 +16,8 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [30-animation-model.md](30-animation-model.md) | Animated-SVG composition: transitions (`crossfade` / `push-left` / `scroll` / `cut`), per-frame overlays, intra-frame property animations, frame-local SVG overlays, slide-in entrance sugar. |
 | [31-vertical-range.md](31-vertical-range.md) | Vertical-axis `<input type=range>` via `writing-mode: vertical-*` + `direction` semantics. |
 | [32-repeating-gradients.md](32-repeating-gradients.md) | `repeating-linear-gradient` / `repeating-radial-gradient` and `calc(N% ± Mpx)` stop positions. |
+| [33-custom-checkbox-radio.md](33-custom-checkbox-radio.md) | `appearance: none` checkbox / radio / switch — host-element rect shows through, indicator overlaid in author colors, switch-shape detection. |
+| [34-diff-scoring.md](34-diff-scoring.md) | `tests/html-test-suite.ts` visual-diff metric — Yee anti-aliasing filter, threshold rationale, diff-image legend. |
+| [35-cursor-overlay.md](35-cursor-overlay.md) | Cursor / touch / click overlay simulation API — proposed design, awaiting feedback (DM-277). |
 
 The docs preserve their historical SK-XXXX references — those are the slicekit Hot Sheet tickets that originally drove each feature. Treat the ticket numbers as opaque pointers to design context, not as live work tracking.
