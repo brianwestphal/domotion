@@ -54,9 +54,9 @@ npm run demos:examples  # run the three example demo scripts
 - **`src/frame-merge.ts`** — combines per-frame element trees into one tree for animation, deduping shared static elements.
 - **`tests/features.ts`** — minimal HTML snippets, one per rendering feature. Each test renders both via Chromium and via Domotion's pipeline and diffs the PNGs (3% threshold).
 - **`tests/showcase.ts`** — three full-page integration tests.
-- **`tests/html-test-suite.ts`** — sweeps every `*.html` under `~/Documents/html-test/` and reports per-tile diff metrics.
+- **`tests/html-test-suite.tsx`** — sweeps every `*.html` under `~/Documents/html-test/` and reports per-tile diff metrics.
 - **`tests/runner.ts`** — shared visual-regression harness used by features.ts and showcase.ts.
-- **`tests/review-server.ts`** — local web UI that loads the expected/actual/diff PNGs from each suite for human review.
+- **`tests/review-server.tsx`** — local web UI that loads the expected/actual/diff PNGs from each suite for human review.
 - **`examples/`** — three runnable demo scripts (`terminal-demo.ts`, `showcase-rendering.ts`, `showcase-transitions.ts`) that produce the SVGs shipped on the consumer site.
 
 ## CAPTURE_SCRIPT discipline

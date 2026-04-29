@@ -1,10 +1,10 @@
 # Domotion: visual-diff scoring
 
-Requirements for the `tests/html-test-suite.ts` PNG-comparison metric. Origin: DM-281 (the original baseline metric was raw per-pixel RGB distance with no anti-aliasing awareness, so glyph-rendering drift dominated the signal and structurally-broken renders could pass under generous thresholds).
+Requirements for the `tests/html-test-suite.tsx` PNG-comparison metric. Origin: DM-281 (the original baseline metric was raw per-pixel RGB distance with no anti-aliasing awareness, so glyph-rendering drift dominated the signal and structurally-broken renders could pass under generous thresholds).
 
 ## What changed
 
-`comparePngs` in `tests/html-test-suite.ts` now classifies every per-pixel difference as either real content drift OR sub-pixel glyph anti-aliasing using a port of pixelmatch's `antialiased()` detector (BSD-licensed; mapbox/pixelmatch). AA-classified pixels are excluded from both the average-distance metric AND the significant-pixel count, so the headline numbers reflect *only* actual content mismatches. AA pixels are still drawn into `*-diff.png` (in dim yellow) so reviewers can see what was filtered.
+`comparePngs` in `tests/html-test-suite.tsx` now classifies every per-pixel difference as either real content drift OR sub-pixel glyph anti-aliasing using a port of pixelmatch's `antialiased()` detector (BSD-licensed; mapbox/pixelmatch). AA-classified pixels are excluded from both the average-distance metric AND the significant-pixel count, so the headline numbers reflect *only* actual content mismatches. AA pixels are still drawn into `*-diff.png` (in dim yellow) so reviewers can see what was filtered.
 
 ## Yee / pixelmatch antialias detector — recap
 

@@ -1,7 +1,7 @@
 /**
  * Build the Domotion user manual into static HTML in `site/dist/`.
  *
- * Each page is `site/pages/<slug>.ts` exporting `meta` (PageMeta) and
+ * Each page is `site/pages/<slug>.tsx` exporting `meta` (PageMeta) and
  * `content` (HTML string). The build script discovers pages via the manifest
  * in `structure.ts` so the sidebar and prev/next links stay in sync.
  *
@@ -14,6 +14,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ALL_PAGES } from "./structure.js";
 import { renderPage, type PageMeta } from "./layout.js";
+import { SafeHtml } from "../src/jsx-runtime.js";
 
 const SITE_DIR = dirname(fileURLToPath(import.meta.url));
 const PAGES_DIR = resolve(SITE_DIR, "pages");
@@ -22,18 +23,18 @@ const DIST_DIR = resolve(SITE_DIR, "dist");
 
 interface PageModule {
   meta: PageMeta;
-  content: string;
+  content: SafeHtml;
 }
 
 async function loadPage(slug: string): Promise<PageModule> {
   const filename = slug === "" ? "home" : slug;
-  const path = resolve(PAGES_DIR, `${filename}.ts`);
+  const path = resolve(PAGES_DIR, `${filename}.tsx`);
   if (!existsSync(path)) {
     throw new Error(`Missing page module: ${path}`);
   }
   const mod = await import(pathToFileURL(path).href) as Partial<PageModule>;
-  if (mod.meta == null || typeof mod.content !== "string") {
-    throw new Error(`Page ${slug} must export { meta, content }`);
+  if (mod.meta == null || !(mod.content instanceof SafeHtml)) {
+    throw new Error(`Page ${slug} must export { meta, content: SafeHtml }`);
   }
   return { meta: mod.meta, content: mod.content };
 }

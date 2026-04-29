@@ -17,7 +17,7 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [09-vertical-range.md](09-vertical-range.md) | Vertical-axis `<input type=range>` via `writing-mode: vertical-*` + `direction` semantics. |
 | [10-repeating-gradients.md](10-repeating-gradients.md) | `repeating-linear-gradient` / `repeating-radial-gradient` and `calc(N% ± Mpx)` stop positions. |
 | [11-custom-checkbox-radio.md](11-custom-checkbox-radio.md) | `appearance: none` checkbox / radio / switch — host-element rect shows through, indicator overlaid in author colors, switch-shape detection. |
-| [12-diff-scoring.md](12-diff-scoring.md) | `tests/html-test-suite.ts` visual-diff metric — Yee anti-aliasing filter, threshold rationale, diff-image legend. |
+| [12-diff-scoring.md](12-diff-scoring.md) | `tests/html-test-suite.tsx` visual-diff metric — Yee anti-aliasing filter, threshold rationale, diff-image legend. |
 | [13-cursor-overlay.md](13-cursor-overlay.md) | Cursor / touch / click overlay simulation API — proposed design, awaiting feedback (DM-277). |
 | [14-per-corner-border-radius.md](14-per-corner-border-radius.md) | Per-corner border-radius (asymmetric `10px 30px 50px 70px` and elliptical `50px / 20px`) — capture format, corner-overlap clamp, inner-radius derivation, path geometry. |
 

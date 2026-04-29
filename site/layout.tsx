@@ -21,7 +21,7 @@ export interface PageMeta {
 }
 
 /** Render a single page's complete HTML document. */
-export function renderPage(meta: PageMeta, body: string): string {
+export function renderPage(meta: PageMeta, body: SafeHtml): string {
   const isHome = meta.slug === "";
   const section = isHome ? undefined : findSection(meta.slug);
   const { prev, next } = findPrevNext(meta.slug);
@@ -65,7 +65,7 @@ export function renderPage(meta: PageMeta, body: string): string {
                 <h1>{meta.title}</h1>
                 {meta.subtitle != null ? <p className="subtitle">{meta.subtitle}</p> : null}
               </header>
-              {raw(body)}
+              {body}
             </article>
             <PrevNext prev={prev} next={next} root={root} />
           </main>

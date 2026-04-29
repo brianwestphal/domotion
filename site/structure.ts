@@ -1,7 +1,7 @@
 /**
  * Single source of truth for the user manual's page tree.
  *
- * Each page is one TypeScript module under `site/pages/<slug>.ts` exporting
+ * Each page is one TypeScript module under `site/pages/<slug>.tsx` exporting
  * `meta` and `content`. The build script (`site/build.ts`) reads this list,
  * imports each page, and writes the rendered HTML to `site/dist/<slug>/index.html`.
  *

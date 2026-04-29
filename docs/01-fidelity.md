@@ -122,7 +122,7 @@ Each warning has:
 - `feature`: the feature name (e.g. `transform`, `backdrop-filter`, `<iframe>`, `scrollbar`, `text-align:justify`).
 - `detail`: one sentence on what's not supported and/or a tracking ticket reference.
 
-Warnings are deduped by `(feature, selector)` within one capture. They're stored in `html-test-suite.ts`'s `results.json` under the `warnings` key for each test file, and shown as a badge `(Nw)` next to failing lines in the console output.
+Warnings are deduped by `(feature, selector)` within one capture. They're stored in `html-test-suite.tsx`'s `results.json` under the `warnings` key for each test file, and shown as a badge `(Nw)` next to failing lines in the console output.
 
 ## Testing approach
 
