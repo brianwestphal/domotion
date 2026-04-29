@@ -35,6 +35,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [x] border-style: solid, dashed, dotted
 - [x] border-style: double, groove, ridge, inset, outset — implemented in dom-to-svg.ts uniform-border path
 - [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093
+- [x] per-corner border-radius (asymmetric `10px 30px 50px 70px`) and elliptical corners (`50px / 20px`) — DM-300, see docs/36
 - [ ] border-image — tracked SK-466
 - [x] outline (style/width/color/offset, including dashed/dotted) — SK-1111
 - [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113

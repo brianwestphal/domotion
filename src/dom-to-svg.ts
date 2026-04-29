@@ -578,6 +578,24 @@ const CAPTURE_SCRIPT = `
     else host.style.setProperty(cssProp, saved, savedPriority);
     return resolved !== '' ? resolved : value;
   };
+  // Resolve a single border-corner-radius value (e.g. "30px" or "50% 20%") to
+  // a px-based axis-pair the renderer can use. Chrome's longhand corner values
+  // come back already-resolved to px when the author used px, but a percent-
+  // valued radius is preserved as e.g. "50%" so we have to evaluate it against
+  // the box dimensions ourselves. Returns "h v" in px (two numbers separated
+  // by a space) — h is the horizontal axis (resolved against rect width) and
+  // v is the vertical axis (resolved against rect height). Per-corner radii
+  // can be elliptical; returning the pair lets the renderer emit per-axis arc
+  // commands without losing the elliptical shape (e.g. border-radius:50px/20px).
+  const _resolveCornerRadius = (v, w, h) => {
+    if (v == null || v === '') return '0px 0px';
+    const parts = v.split(/\\s+/);
+    const a = parts[0] || '0';
+    const b = parts[1] != null ? parts[1] : a;
+    const aPx = a.endsWith('%') ? (parseFloat(a) || 0) * w / 100 : (parseFloat(a) || 0);
+    const bPx = b.endsWith('%') ? (parseFloat(b) || 0) * h / 100 : (parseFloat(b) || 0);
+    return aPx + 'px ' + bPx + 'px';
+  };
   // Detect whether a value is a CSS gradient function (linear/radial/conic
   // and their repeating variants). Used to capture rangeTrackBgImage etc.
   // SK-1224: linear-gradient ships first; SK-1225 adds radial.
@@ -1508,16 +1526,10 @@ const CAPTURE_SCRIPT = `
         // width and vertical against height; we average the corner-axis pair
         // for a single rx value, which is fine for the common symmetric case
         // (50% on a square box → circle). See SK-1093.
-        borderTopLeftRadius: (function () {
-          const v = cs.borderTopLeftRadius || '';
-          if (v.indexOf('%') < 0) return v;
-          const parts = v.split(/\\s+/);
-          const hp = parseFloat(parts[0]) || 0;
-          const vp = parseFloat(parts[1] != null ? parts[1] : parts[0]) || 0;
-          const hpPx = parts[0].endsWith('%') ? hp * rect.width / 100 : hp;
-          const vpPx = (parts[1] != null ? parts[1] : parts[0]).endsWith('%') ? vp * rect.height / 100 : vp;
-          return ((hpPx + vpPx) / 2) + 'px';
-        })(),
+        borderTopLeftRadius: _resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height),
+        borderTopRightRadius: _resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height),
+        borderBottomRightRadius: _resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height),
+        borderBottomLeftRadius: _resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height),
         borderTopWidth: cs.borderTopWidth,
         borderRightWidth: cs.borderRightWidth,
         borderBottomWidth: cs.borderBottomWidth,
@@ -2072,18 +2084,20 @@ export function elementTreeToSvg(
     const textColor = parseColor(el.styles.color);
     const borderColor = parseColor(el.styles.borderColor);
     const borderWidth = parseFloat(el.styles.borderWidth) || 0;
-    // Border-radius resolution (SK-1093): the borderRadius shorthand keeps
-    // author percentages ("50%") so naive parseFloat reads it as 50 px. Use
-    // the longhand top-left value, which Chrome resolves to pixels regardless
-    // of the input form. Falls back to the shorthand for older captures.
-    //
-    // Clamp to half the smaller box extent: SVG `<rect rx>` defaults `ry` to
-    // `rx`, then clamps each axis independently to half-box, producing
-    // ellipse ends when the input radius exceeds the short axis. CSS instead
-    // clamps both axes to min(half-w, half-h) for `border-radius: <length>`,
-    // so a `border-radius: 999px` 80×30 button paints as a pill (15-px
-    // corners), not as a stretched ellipse. DM-246 (carry-over from DM-271).
-    const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius) || 0;
+    // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
+    // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
+    // "50px 20px" for elliptical corners). Each corner can independently be
+    // round or elliptical and have a different radius from its neighbours
+    // (CSS `border-radius: 10px 30px 50px 70px` maps to TL=10, TR=30, BR=50,
+    // BL=70). When all four corners are equal-and-circular, the renderer
+    // emits `<rect rx>`; otherwise it emits an SVG `<path>` with explicit
+    // per-corner arc commands via roundedRectSvg. `borderRadius` below is the
+    // single-value fallback used by the few call sites that still emit a bare
+    // `<rect rx>` directly — they degrade to sharp corners on non-uniform
+    // captures, which is acceptable for now. DM-246 (the half-extent clamp
+    // for the uniform fast path) is preserved by `roundedRectSvg`.
+    const corners = parseCornerRadii(el.styles, el.width, el.height);
+    const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
     const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
     const opacity = parseFloat(el.styles.opacity);
 
@@ -2192,7 +2206,11 @@ export function elementTreeToSvg(
         const sw = el.width + sh.spread * 2;
         const sh2 = el.height + sh.spread * 2;
         if (sw <= 0 || sh2 <= 0) continue;
-        const sr = Math.max(0, borderRadius + sh.spread);
+        // Outer shadow corners: each axis grows by `spread` (clamped at 0)
+        // since the shadow rect extends beyond the border-box by spread on
+        // every side. Per-corner radii grow uniformly so each corner stays
+        // proportional to its source.
+        const shadowCorners = insetCornerRadii(corners, -sh.spread, -sh.spread, -sh.spread, -sh.spread);
         let filterAttr = "";
         if (sh.blur > 0) {
           const stdDev = sh.blur / 2;
@@ -2207,7 +2225,7 @@ export function elementTreeToSvg(
           filterAttr = ` filter="url(#${fid})"`;
         }
         svgParts.push(
-          `${indent}<rect x="${r(sx)}" y="${r(sy)}" width="${r(sw)}" height="${r(sh2)}" rx="${r(sr)}" fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr} />`,
+          `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
         );
       }
     }
@@ -2218,7 +2236,7 @@ export function elementTreeToSvg(
     // CSS layering. The background-color paints *under* all layers.
     if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01) {
       svgParts.push(
-        `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" rx="${r(borderRadius)}" fill="${colorStr(bgColor)}" />`,
+        `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
       );
     }
     const bgImage = el.styles.backgroundImage;
@@ -2271,8 +2289,16 @@ export function elementTreeToSvg(
         const out = buildBackgroundLayerDef(defId, layer, originBox.x, originBox.y, originBox.w, originBox.h, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
         if (out.def === "") continue;
         defsParts.push(out.def);
+        // Inner clip corners: subtract the corresponding border-side widths
+        // so a per-corner border-radius becomes the inner radius the bg layer
+        // is clipped to. For padding-box / content-box layers this matches
+        // CSS's "the corner gets pulled in by the adjacent border widths"
+        // semantics (rTL.h shrinks by bwL, rTL.v shrinks by bwT, etc.).
+        const innerCorners = layerClip === "border-box"
+          ? corners
+          : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
         svgParts.push(
-          `${indent}<rect x="${r(clipBox.x)}" y="${r(clipBox.y)}" width="${r(clipBox.w)}" height="${r(clipBox.h)}" rx="${r(Math.max(0, borderRadius - Math.max(bwL, bwT)))}" fill="url(#${defId})" />`,
+          `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"`)}`,
         );
       }
     }
@@ -2297,7 +2323,10 @@ export function elementTreeToSvg(
       const ibTop = el.y + sbwT;
       const ibW = Math.max(0, el.width - sbwL - sbwR);
       const ibH = Math.max(0, el.height - sbwT - sbwB);
-      const innerR = Math.max(0, borderRadius - Math.max(sbwL, sbwT));
+      // Border-inner per-corner radii: each corner shrinks by the adjacent
+      // border-side widths. Used as the basis for the inset-shadow stroke
+      // path; the final ring radius will subtract sp/2 for stroke centering.
+      const innerCorners = insetCornerRadii(corners, sbwT, sbwR, sbwB, sbwL);
       for (const sh of shadows) {
         if (!sh.inset) continue;
         // Skip non-trivial shadows we cant emit accurately — anything with
@@ -2327,8 +2356,9 @@ export function elementTreeToSvg(
           );
           filterAttr = ` filter="url(#${fid})"`;
         }
+        const ringCorners = insetCornerRadii(innerCorners, sp / 2, sp / 2, sp / 2, sp / 2);
         svgParts.push(
-          `${indent}<rect x="${r(rx)}" y="${r(ry)}" width="${r(rw)}" height="${r(rh)}" rx="${r(Math.max(0, innerR - sp / 2))}" fill="none" stroke="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}" stroke-width="${r(sp)}"${filterAttr} />`,
+          `${indent}${roundedRectSvg(rx, ry, rw, rh, ringCorners, `fill="none" stroke="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}" stroke-width="${r(sp)}"${filterAttr}`)}`,
         );
       }
     }
@@ -2365,11 +2395,13 @@ export function elementTreeToSvg(
         const strokeW = bt.w / 3;
         const outerInset = bt.w / 6;
         const innerInset = bt.w * 5 / 6;
+        const outerCorners = insetCornerRadii(corners, outerInset, outerInset, outerInset, outerInset);
+        const innerCorners = insetCornerRadii(corners, innerInset, innerInset, innerInset, innerInset);
         svgParts.push(
-          `${indent}<rect x="${r(el.x + outerInset)}" y="${r(el.y + outerInset)}" width="${r(el.width - 2 * outerInset)}" height="${r(el.height - 2 * outerInset)}" rx="${r(Math.max(0, borderRadius - outerInset))}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}" />`,
+          `${indent}${roundedRectSvg(el.x + outerInset, el.y + outerInset, el.width - 2 * outerInset, el.height - 2 * outerInset, outerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
         );
         svgParts.push(
-          `${indent}<rect x="${r(el.x + innerInset)}" y="${r(el.y + innerInset)}" width="${r(el.width - 2 * innerInset)}" height="${r(el.height - 2 * innerInset)}" rx="${r(Math.max(0, borderRadius - innerInset))}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}" />`,
+          `${indent}${roundedRectSvg(el.x + innerInset, el.y + innerInset, el.width - 2 * innerInset, el.height - 2 * innerInset, innerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
         );
       } else if ((style === "groove" || style === "ridge" || style === "inset" || style === "outset") && bt.w >= 2) {
         // 3D bevel borders (DM-280). Each side is painted as its own
@@ -2432,7 +2464,7 @@ export function elementTreeToSvg(
           svgParts.push(`${indent}<polygon points="${rightInner}" fill="${innerBR}" />`);
           svgParts.push(`${indent}<polygon points="${bottomInner}" fill="${innerBR}" />`);
         }
-      } else if ((style === "dashed" || style === "dotted") && borderRadius === 0) {
+      } else if ((style === "dashed" || style === "dotted") && corners.uniform && corners.tl.h === 0) {
         // Dashed/dotted uniform borders need per-side dash spacing — Chrome
         // adjusts the dash cycle so dashes start and end exactly at corners.
         // SVG `stroke-dasharray` on a single rect would use ONE pattern across
@@ -2469,8 +2501,10 @@ export function elementTreeToSvg(
         // table grid.
         const collapse = el.styles.borderCollapse === "collapse";
         const half = collapse ? 0 : bt.w / 2;
+        const strokeCorners = insetCornerRadii(corners, half, half, half, half);
+        const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
         svgParts.push(
-          `${indent}<rect x="${r(el.x + half)}" y="${r(el.y + half)}" width="${r(Math.max(0, el.width - half * 2))}" height="${r(Math.max(0, el.height - half * 2))}" rx="${r(Math.max(0, borderRadius - half))}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+          `${indent}${roundedRectSvg(el.x + half, el.y + half, Math.max(0, el.width - half * 2), Math.max(0, el.height - half * 2), strokeCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttr}${linecap}`)}`,
         );
       }
     } else if (!uniform) {
@@ -2500,7 +2534,7 @@ export function elementTreeToSvg(
     } else if (borderWidth > 0 && borderColor != null && borderColor.a > 0.01) {
       // Legacy path for elements whose per-side captures weren't parsed cleanly.
       svgParts.push(
-        `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" rx="${r(borderRadius)}" fill="none" stroke="${colorStr(borderColor)}" stroke-width="${r(borderWidth)}" />`,
+        `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="none" stroke="${colorStr(borderColor)}" stroke-width="${r(borderWidth)}"`)}`,
       );
     }
 
@@ -2802,7 +2836,7 @@ export function elementTreeToSvg(
     let overflowClipId: string | null = null;
     if (clipsOverflow && el.children.length > 0) {
       overflowClipId = `${idPrefix}ov${clipIdx++}`;
-      defsParts.push(`<clipPath id="${overflowClipId}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" rx="${r(borderRadius)}" /></clipPath>`);
+      defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(el.x, el.y, el.width, el.height, corners, "")}</clipPath>`);
       svgParts.push(`${indent}<g clip-path="url(#${overflowClipId})">`);
     }
 
@@ -2889,6 +2923,130 @@ function colorStr(c: RGBA): string {
 
 function r(n: number): string { return Number(n.toFixed(1)).toString(); }
 function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+/** Per-corner border-radius axis-pair (h = horizontal, v = vertical).
+ *  An elliptical corner has h ≠ v; a circular corner has h = v. */
+export type CornerRadiusPair = { h: number; v: number };
+
+/** Resolved per-corner border-radius for the four corners of a rect, with
+ *  CSS-spec corner-overlap scaling already applied. `uniform` is true when
+ *  all four corners are circular AND share the same radius, which lets the
+ *  renderer emit a single `<rect rx>` instead of a per-corner `<path>`. */
+export type CornerRadii = {
+  tl: CornerRadiusPair;
+  tr: CornerRadiusPair;
+  br: CornerRadiusPair;
+  bl: CornerRadiusPair;
+  uniform: boolean;
+};
+
+/** Parse a captured "h v" axis-pair (e.g. "30px 30px" or "50px 20px"). */
+function _parsePair(v: string | undefined): CornerRadiusPair {
+  if (!v) return { h: 0, v: 0 };
+  const parts = v.split(/\s+/);
+  return {
+    h: parseFloat(parts[0]) || 0,
+    v: parseFloat(parts[1] != null ? parts[1] : parts[0]) || 0,
+  };
+}
+
+/** Resolve the four per-corner radii for a captured element, applying CSS's
+ *  corner-overlap scale-down (https://www.w3.org/TR/css-backgrounds-3/#corner-overlap):
+ *  if any edge's two corner radii would together exceed the edge length, all
+ *  four corners are scaled down uniformly. This is what produces the pill
+ *  shape for `border-radius:999px` on a short element — without the spec
+ *  clamp, two adjacent 999-px corners would overlap visibly. Falls back to
+ *  the legacy single `borderRadius` shorthand when the per-corner longhands
+ *  weren't captured (older snapshots). */
+export function parseCornerRadii(
+  styles: { borderTopLeftRadius?: string; borderTopRightRadius?: string; borderBottomRightRadius?: string; borderBottomLeftRadius?: string; borderRadius?: string },
+  width: number,
+  height: number,
+): CornerRadii {
+  let tl = _parsePair(styles.borderTopLeftRadius);
+  let tr = _parsePair(styles.borderTopRightRadius);
+  let br = _parsePair(styles.borderBottomRightRadius);
+  let bl = _parsePair(styles.borderBottomLeftRadius);
+  // Legacy fallback: a capture without per-corner longhands gets the shorthand
+  // applied to all four corners as circular radii.
+  if (!styles.borderTopLeftRadius && styles.borderRadius) {
+    const fallback = parseFloat(styles.borderRadius) || 0;
+    tl = tr = br = bl = { h: fallback, v: fallback };
+  }
+  // CSS corner-overlap scale-down: if rTL.h + rTR.h > width, scale all by
+  // width / (rTL.h + rTR.h) (and similarly for the other three edges). We
+  // take the smallest f across the four edges and apply it once.
+  const sums = [
+    { s: tl.h + tr.h, lim: width },
+    { s: tr.v + br.v, lim: height },
+    { s: br.h + bl.h, lim: width },
+    { s: bl.v + tl.v, lim: height },
+  ];
+  let f = 1;
+  for (const { s, lim } of sums) {
+    if (s > 0 && lim > 0) f = Math.min(f, lim / s);
+  }
+  if (f < 1) {
+    tl = { h: tl.h * f, v: tl.v * f };
+    tr = { h: tr.h * f, v: tr.v * f };
+    br = { h: br.h * f, v: br.v * f };
+    bl = { h: bl.h * f, v: bl.v * f };
+  }
+  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
+    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  return { tl, tr, br, bl, uniform };
+}
+
+/** Inset each corner radius by the matching border-side widths, clamping to 0.
+ *  Use this to derive the inner radii used by background clips (where the
+ *  border has eaten into the corner) and inner border strokes. CSS specifies
+ *  that the inner corner is the outer corner pulled in by the adjacent border
+ *  widths (top + left for TL, top + right for TR, etc.). */
+export function insetCornerRadii(c: CornerRadii, top: number, right: number, bottom: number, left: number): CornerRadii {
+  const tl = { h: Math.max(0, c.tl.h - left), v: Math.max(0, c.tl.v - top) };
+  const tr = { h: Math.max(0, c.tr.h - right), v: Math.max(0, c.tr.v - top) };
+  const br = { h: Math.max(0, c.br.h - right), v: Math.max(0, c.br.v - bottom) };
+  const bl = { h: Math.max(0, c.bl.h - left), v: Math.max(0, c.bl.v - bottom) };
+  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
+    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  return { tl, tr, br, bl, uniform };
+}
+
+/** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
+ *  Path goes clockwise from the top-left, using elliptical arc commands at each
+ *  corner. Zero-radius corners collapse to a sharp 90° join. */
+export function roundedRectPath(x: number, y: number, w: number, h: number, c: CornerRadii): string {
+  // Each corner is at most clamped to fit; the spec scale-down already handled
+  // edge-overlap, but clamp per-axis to half-extent as a safety net.
+  const tl = { h: Math.min(c.tl.h, w), v: Math.min(c.tl.v, h) };
+  const tr = { h: Math.min(c.tr.h, w), v: Math.min(c.tr.v, h) };
+  const br = { h: Math.min(c.br.h, w), v: Math.min(c.br.v, h) };
+  const bl = { h: Math.min(c.bl.h, w), v: Math.min(c.bl.v, h) };
+  return [
+    `M${r(x + tl.h)},${r(y)}`,
+    `L${r(x + w - tr.h)},${r(y)}`,
+    tr.h > 0 || tr.v > 0 ? `A${r(tr.h)},${r(tr.v)} 0 0 1 ${r(x + w)},${r(y + tr.v)}` : "",
+    `L${r(x + w)},${r(y + h - br.v)}`,
+    br.h > 0 || br.v > 0 ? `A${r(br.h)},${r(br.v)} 0 0 1 ${r(x + w - br.h)},${r(y + h)}` : "",
+    `L${r(x + bl.h)},${r(y + h)}`,
+    bl.h > 0 || bl.v > 0 ? `A${r(bl.h)},${r(bl.v)} 0 0 1 ${r(x)},${r(y + h - bl.v)}` : "",
+    `L${r(x)},${r(y + tl.v)}`,
+    tl.h > 0 || tl.v > 0 ? `A${r(tl.h)},${r(tl.v)} 0 0 1 ${r(x + tl.h)},${r(y)}` : "",
+    `Z`,
+  ].filter(s => s !== "").join(" ");
+}
+
+/** Emit a rounded-rect SVG element. Uses `<rect rx>` when the corners are
+ *  uniform (cheaper, less markup); falls back to `<path>` for asymmetric or
+ *  elliptical corners. The `attrs` string is injected verbatim — pass in
+ *  fill/stroke/etc. */
+export function roundedRectSvg(x: number, y: number, w: number, h: number, c: CornerRadii, attrs: string): string {
+  if (c.uniform) {
+    const rx = Math.min(c.tl.h, w / 2, h / 2);
+    return `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" rx="${r(rx)}" ${attrs} />`;
+  }
+  return `<path d="${roundedRectPath(x, y, w, h, c)}" ${attrs} />`;
+}
 
 /**
  * Inject explicit width/height into an inline `<svg ...>` opening tag if it

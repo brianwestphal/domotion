@@ -7,6 +7,10 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "imports": {
+    "#jsx/jsx-runtime": "./src/jsx-runtime.ts",
+    "#jsx/jsx-dev-runtime": "./src/jsx-runtime.ts"
+  },
   "bin": {
     "domotion": "dist/cli.js"
   },

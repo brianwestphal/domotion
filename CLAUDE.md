@@ -10,11 +10,12 @@ The project was originally built inside the `slicekit` monorepo as `tools/svg-de
 
 ## Platform support — non-negotiable
 
-**Domotion ships as an npm package and must function on macOS, Linux, and Windows like any normal npm package.** The output should be pixel-faithful to Chromium *on the platform the capture is running on* — Chromium-on-macOS uses CoreText fallback (Hiragino, Apple Symbols, Zapf Dingbats, STIX Two Math), Chromium-on-Linux uses fontconfig (Noto / DejaVu / Liberation), Chromium-on-Windows uses DirectWrite (Segoe UI Symbol, Cambria Math, Consolas, Yu Gothic). Each platform's fallback chain must be calibrated against the actual painted output of Chromium on that platform.
+**Domotion ships as an npm package and must function on macOS, Linux, and Windows like any normal npm package.** The output should be pixel-faithful to Chromium _on the platform the capture is running on_ — Chromium-on-macOS uses CoreText fallback (Hiragino, Apple Symbols, Zapf Dingbats, STIX Two Math), Chromium-on-Linux uses fontconfig (Noto / DejaVu / Liberation), Chromium-on-Windows uses DirectWrite (Segoe UI Symbol, Cambria Math, Consolas, Yu Gothic). Each platform's fallback chain must be calibrated against the actual painted output of Chromium on that platform.
 
 Today the implementation is fully calibrated only for macOS — that's debt, not design. The cross-platform roadmap lives in tickets DM-258 (path discovery) → DM-259 (Linux chains) / DM-260 (Windows chains) / DM-261 (bundled fallback fonts) → DM-262 (CI on Linux + Windows).
 
 **Rules for new code**:
+
 - Don't add hardcoded `/System/Library/Fonts/...` paths or other macOS-only literals without flagging the cross-platform gap in the change.
 - New font / fallback / metric routing must be designed platform-aware from the start (lookup by `process.platform`, not assumed to be `darwin`).
 - When matching Chromium's behavior, verify empirically against Chromium on the target platform — the same probe methodology used for DM-241 / DM-256 / DM-257 (measure `Range.getBoundingClientRect().width`, match against candidate font advance widths via fontkit's `glyphForCodePoint`).
@@ -81,9 +82,29 @@ The capture function is serialized to a string and executed inside the captured 
 - **`npm run demos:test`** is the primary regression signal — every feature has a fixture; new features need fixtures.
 - The `html-test-suite` against `~/Documents/html-test/*.html` is the broad-coverage signal. Some failures are pre-existing and tracked separately; new code shouldn't introduce regressions there.
 
+### JSX Runtime
+
+The project uses a custom JSX runtime (`src/jsx-runtime.ts`) instead of React. It renders JSX to HTML strings via the `SafeHtml` class. This runtime is shared by both the server-side components and client-side modules. Configured via:
+- `tsconfig.json`: `"jsx": "react-jsx"`, `"jsxImportSource": "#jsx"`
+- `package.json` imports map: `"#jsx/jsx-runtime": "./src/jsx-runtime.ts"`
+- `tsup.config.ts`: esbuild alias resolves `#jsx/jsx-runtime` at build time (both server and client configs)
+
+When writing TSX components, they return `SafeHtml` (which is `JSX.Element`). Use `raw()` to inject pre-escaped HTML strings. All string children are auto-escaped. In client code, convert JSX to DOM elements with `toElement()` from `src/client/dom.ts`, or to string for `innerHTML` with `.toString()`.
+
 ## Git
 
 - **Never commit unless explicitly asked.** Do not run `git commit`, `git add`, or any git write operations proactively. Only commit when the user directly asks.
+
+## Ticket-Driven Work
+
+When the user gives you work directly via the CLI (not via MCP channel or Hot Sheet events), analyze the request and create Hot Sheet tickets before starting implementation — especially for substantial or multi-step work. This keeps work visible, trackable, and consistent with the Hot Sheet workflow.
+
+- **Do create tickets** for: feature implementation, bug fixes, refactoring, multi-step tasks, anything that involves changing code.
+- **Don't create tickets** for: simple questions, git commits, quick lookups, trivial one-line changes.
+- **When in doubt, create the tickets.** The overhead is minimal and the tracking value is high.
+- Use the Hot Sheet API to create tickets, mark them as Up Next, then work through them normally (set status to "started", implement, set to "completed" with notes).
+- **Always create follow-up tickets** for work that isn't completed in the current session: unfinished implementation steps, open design questions needing answers, known gaps discovered during work, features designed but not yet built (e.g., a requirements doc without implementation). Never leave follow-up work undocumented — if it's not in a ticket, it will be forgotten.
+- **Use FEEDBACK NEEDED before deferring or asking about follow-up tickets.** When you're about to (a) defer a ticket because it needs more work, (b) ask the user whether to file follow-up tickets, or (c) close a ticket with a question buried in the notes ("let me know if you want X" / "happy to do Y if you want"), DO NOT close it that way. Instead, leave the ticket in `started` status and add a `FEEDBACK NEEDED:` note (per `.hotsheet/worklist.md`), then signal channel done and wait for the user. Closing with an unanswered question buries the question and the user can't easily see it. The FEEDBACK NEEDED mechanism is the only way to reliably get attention on a question.
 
 ## Documentation
 
