@@ -2336,17 +2336,21 @@ export function elementTreeToSvg(
         if (sh.spread < 0) continue;
         if (sh.spread === 0 && sh.blur === 0) continue;
         if (ibW <= 0 || ibH <= 0) continue;
-        // Effective ring width: spread itself, plus blur for the soft glow
-        // case. Pure-blur insets (e.g. inset 0 0 12px) treat blur as the
-        // ring width; pure-spread (no-blur) treats spread as the width.
-        // Approximate combined width as max(spread, blur) so the stroke
-        // sits where Chromes painted ring centers.
-        const sp = Math.max(sh.spread, sh.blur);
-        const rx = ibLeft + sp / 2;
-        const ry = ibTop + sp / 2;
-        const rw = Math.max(0, ibW - sp);
-        const rh = Math.max(0, ibH - sp);
-        if (rw <= 0 || rh <= 0) continue;
+        // Render the inset shadow as a stroked rect at the inside-the-border
+        // edge, clipped to inside the border-box so the stroke (and the blur
+        // halo, if any) only show on the inner side of the edge. Stroke is
+        // centered on the path; the clipPath drops the outward half so the
+        // visible thickness is half the stroke width. For pure-spread (no
+        // blur) we want a sharp `spread`-wide ring, so stroke-width = 2 *
+        // spread. For pure-blur (no spread) we use a thin baseline ring of
+        // blur-width pixels — the blur then produces the visible falloff;
+        // a larger ring overpaints, smaller produces too-faint output.
+        // Combined spread + blur sums both: visible band = spread, with the
+        // blur softening the inner edge. Previously the code used
+        // max(spread, blur) as both stroke width AND inward offset, which
+        // conflated blur with spread and painted pure-blur insets as a
+        // thick solid ring. DM-304.
+        const ringWidth = Math.max(2 * sh.spread, 1);
         let filterAttr = "";
         if (sh.blur > 0) {
           const stdDev = sh.blur / 2;
@@ -2356,9 +2360,13 @@ export function elementTreeToSvg(
           );
           filterAttr = ` filter="url(#${fid})"`;
         }
-        const ringCorners = insetCornerRadii(innerCorners, sp / 2, sp / 2, sp / 2, sp / 2);
+        const cid = `${idPrefix}ishc${clipIdx++}`;
+        defsParts.push(
+          `<clipPath id="${cid}">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, "")}</clipPath>`,
+        );
+        const strokeColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
         svgParts.push(
-          `${indent}${roundedRectSvg(rx, ry, rw, rh, ringCorners, `fill="none" stroke="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}" stroke-width="${r(sp)}"${filterAttr}`)}`,
+          `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="none" stroke="${strokeColor}" stroke-width="${r(ringWidth)}"${filterAttr}`)}</g>`,
         );
       }
     }
@@ -2412,8 +2420,12 @@ export function elementTreeToSvg(
         const w = bt.w;
         const x0 = el.x, y0 = el.y;
         const x1 = el.x + el.width, y1 = el.y + el.height;
-        const darker = colorStr(shadeColor(bt.color, -22));
-        const lighter = colorStr(shadeColor(bt.color, 22));
+        // Match Chromium's BoxBorderPainter: darker = base × 2/3 per channel,
+        // lighter = the base color itself (no actual lightening). The
+        // earlier symmetric ±22% lightness shift in HSL space produced too
+        // much contrast vs Chromium's painted output (DM-293).
+        const darker = colorStr({ r: Math.round(bt.color.r * 2 / 3), g: Math.round(bt.color.g * 2 / 3), b: Math.round(bt.color.b * 2 / 3), a: bt.color.a });
+        const lighter = colorStr(bt.color);
         // tl = top + left (sharing one shade); br = bottom + right (other shade).
         const tlIsLighter = style === "outset" || style === "ridge";
         const tlColor = tlIsLighter ? lighter : darker;
