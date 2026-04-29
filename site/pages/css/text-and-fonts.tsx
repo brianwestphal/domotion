@@ -6,7 +6,7 @@ import { raw, type SafeHtml } from "../../../src/jsx-runtime.js";
 export const meta = {
   slug: "css/text-and-fonts",
   title: "Text & fonts",
-  subtitle: "What's supported across font families, weights, decorations, scripts.",
+  subtitle: "Path-mode glyphs, run-based shaping, every common script — with a few caveats.",
 };
 
 export const content: SafeHtml = raw(`
@@ -18,103 +18,63 @@ export const content: SafeHtml = raw(`
 <p>For the design rationale (path mode, run-based shaping, decoration metrics)
 see <a href="../../concepts/text-rendering/">Text rendering</a>. The
 <a href="../../guides/fonts/">Fonts &amp; non-Latin scripts</a> guide covers
-practical font choices. This page is the support matrix.</p>
+practical font choices.</p>
 
-<h2>Font selection</h2>
+<p>Standard CSS typography round-trips: <code>font-size</code>,
+<code>font-weight</code> (100–900), <code>font-style: italic</code>,
+<code>letter-spacing</code> (captured per character so subpixel offsets land
+correctly), <code>word-spacing</code>, <code>line-height</code>,
+<code>text-align: left / right / center / start / end</code>, all the
+word-wrap properties (<code>overflow-wrap</code>, <code>word-break</code>,
+<code>hyphens</code>) since the visual line breaks Chromium chose are
+captured directly, and <code>white-space: pre</code> / <code>pre-wrap</code>
+/ <code>nowrap</code>. Underline, line-through, and overline use the font's
+<code>post.underlinePosition</code> / <code>OS/2.yStrikeoutPosition</code>
+tables to match Chromium exactly, and <code>text-decoration-color</code> /
+<code>-style</code> / <code>-thickness</code> all flow through.</p>
 
-<table>
-  <thead><tr><th>Aspect</th><th>Status</th><th>Notes</th></tr></thead>
-  <tbody>
-    <tr><td>Apple system fonts (SF Pro, SF Mono, New York)</td><td>Full</td><td>Bundled mapping table covers these.</td></tr>
-    <tr><td>Common web-safe fallbacks (Helvetica, Arial, Times New Roman, Menlo, Monaco)</td><td>Full on macOS</td><td>Resolved through the system stack.</td></tr>
-    <tr><td>Web fonts (Google Fonts, Adobe Fonts, self-hosted)</td><td>Partial</td><td>Capture works; path-mode glyphs fall back to <code>&lt;text&gt;</code> if the font isn't in the bundled mapping.</td></tr>
-    <tr><td>Italic styles (SFNSItalic.ttf)</td><td>Full</td><td>Discovered via the same lookup table.</td></tr>
-    <tr><td>Variable fonts</td><td>Partial</td><td>Weight axis works (variable SF). Other axes interpolate to nearest static instance.</td></tr>
-  </tbody>
-</table>
+<p>Pseudo-elements: <code>::before</code> / <code>::after</code> (captured as
+text segments with per-pseudo color / size / weight; <code>content: url(...)</code>
+honoured), <code>::first-letter</code> drop caps (rasterised when
+<code>font-size</code> differs), <code>::first-line</code>,
+<code>::placeholder</code> (color / font-style / font-weight applied to
+placeholder text), and <code>::marker</code> all work.</p>
 
-<h2>Sizing &amp; metrics</h2>
+<p>Scripts: Latin, Cyrillic, Greek, Arabic with contextual forms and ligatures
+(run-based shaping plus bidi-js paired-bracket mirroring), Hebrew with niqqud,
+Devanagari with cluster reordering preserved, Thai with mark-on-base
+positioning, CJK (Han, Hiragana, Katakana, Hangul) with GPOS positioning, and
+other complex scripts (Tibetan, Khmer, Burmese) via the same fallback-run
+pipeline (not in the regression suite, but the mechanism is the same).</p>
 
-<table>
-  <thead><tr><th>Property</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>font-size</code></td><td>Full</td></tr>
-    <tr><td><code>font-weight</code> (100–900, normal, bold)</td><td>Full</td></tr>
-    <tr><td><code>font-style</code>: italic</td><td>Full (uses dedicated italic file when available)</td></tr>
-    <tr><td><code>font-variant-numeric</code> / <code>font-feature-settings</code></td><td>Partial — features that don't change layout work; layout-affecting features (e.g. tabular-nums) are honored via Chromium's measurement.</td></tr>
-    <tr><td><code>letter-spacing</code></td><td>Full — captured in per-character offsets.</td></tr>
-    <tr><td><code>word-spacing</code></td><td>Full</td></tr>
-    <tr><td><code>line-height</code></td><td>Full — multi-line capture honours computed line-height.</td></tr>
-  </tbody>
-</table>
-
-<h2>Alignment &amp; wrapping</h2>
-
-<table>
-  <thead><tr><th>Property</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>text-align: left / right / center / start / end</code></td><td>Full</td></tr>
-    <tr><td><code>text-align: justify</code></td><td>Partial — text is left-aligned in the SVG (no inter-word stretching). Warning logged.</td></tr>
-    <tr><td>Word wrap (<code>overflow-wrap</code>, <code>word-break</code>, <code>hyphens</code>)</td><td>Full — the visual line breaks Chromium chose are captured directly.</td></tr>
-    <tr><td><code>white-space: pre / pre-wrap / nowrap</code></td><td>Full</td></tr>
-  </tbody>
-</table>
-
-<h2>Decorations</h2>
+<h2>The exceptions</h2>
 
 <ul>
-  <li><strong>Underline, line-through, overline</strong> — full support. Position
-    and thickness are read from the font's
-    <code>post.underlinePosition</code> / <code>OS/2.yStrikeoutPosition</code>
-    tables to match Chromium exactly.</li>
-  <li><strong>Decoration colour, style, thickness</strong> — captured from
-    <code>text-decoration-color</code>, <code>-style</code>,
-    <code>-thickness</code> and applied to the SVG decoration.</li>
-  <li><strong>Wavy underline</strong> — falls back to a straight line. Warning
-    logged.</li>
+  <li><strong><code>text-align: justify</code></strong> — text is left-aligned
+    in the SVG output (no inter-word stretching). Warning logged.</li>
+  <li><strong>Wavy underline</strong> (<code>text-decoration-style: wavy</code>)
+    — falls back to a straight line. Warning logged.</li>
+  <li><strong>Web fonts not in the bundled mapping</strong> — capture works,
+    but path-mode glyph rendering needs the font file to be discoverable in
+    the host system; otherwise the renderer falls back to <code>&lt;text&gt;</code>
+    elements that depend on the consumer's font cache. Either switch to a
+    system-installed font for the demo or accept the cross-engine font
+    differences.</li>
+  <li><strong>Variable font axes other than weight</strong> — the weight axis
+    works for variable SF Pro; other axes interpolate to the nearest static
+    instance.</li>
+  <li><strong>Emoji and colour-bitmap glyphs</strong> — embedded as base64 PNGs
+    (deduped per glyph). Vector emoji fonts (e.g. COLRv1) collapse to bitmap.</li>
+  <li><strong><code>::selection</code></strong> — captures don't include user
+    selection state.</li>
 </ul>
-
-<h2>Scripts</h2>
-
-<table>
-  <thead><tr><th>Script</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>Latin (incl. accented forms)</td><td>Full</td></tr>
-    <tr><td>Cyrillic</td><td>Full</td></tr>
-    <tr><td>Greek</td><td>Full</td></tr>
-    <tr><td>Arabic (incl. contextual forms, ligatures)</td><td>Full — run-based shaping with bidi-js mirroring.</td></tr>
-    <tr><td>Hebrew (incl. niqqud)</td><td>Full</td></tr>
-    <tr><td>Devanagari (Hindi, Marathi, Sanskrit)</td><td>Full — cluster reordering preserved.</td></tr>
-    <tr><td>Thai (mark-on-base)</td><td>Full</td></tr>
-    <tr><td>CJK (Han, Hiragana, Katakana, Hangul)</td><td>Full — GPOS positioning honoured.</td></tr>
-    <tr><td>Emoji / colour-bitmap glyphs</td><td>Raster fallback (base64 PNG, deduped per glyph).</td></tr>
-    <tr><td>Other complex scripts (Tibetan, Khmer, Burmese)</td><td>Should work via the same fallback-run pipeline; not in the visual-regression suite.</td></tr>
-  </tbody>
-</table>
-
-<h2>Pseudo elements</h2>
-
-<table>
-  <thead><tr><th>Pseudo</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>::before</code> / <code>::after</code></td><td>Full — captured as text segments with per-pseudo color / size / weight overrides. Image content (<code>content: url(...)</code>) honoured.</td></tr>
-    <tr><td><code>::first-letter</code></td><td>Full — drop caps with different font-size are rasterised at the correct dimensions.</td></tr>
-    <tr><td><code>::first-line</code></td><td>Full</td></tr>
-    <tr><td><code>::placeholder</code></td><td>Full — color, font-style, font-weight applied to placeholder text in inputs.</td></tr>
-    <tr><td><code>::marker</code></td><td>Full — color, font-weight, font-size honoured on list markers.</td></tr>
-    <tr><td><code>::selection</code></td><td>None — captures don't include user selection state.</td></tr>
-  </tbody>
-</table>
 
 <h2>Common pitfalls</h2>
 
 <ul>
   <li><strong>Web font not loaded yet.</strong> Always <code>await
-    page.evaluate(() =&gt; document.fonts.ready)</code>. Without it you'll
-    capture the fallback typeface and the layout will shift the next time
-    you render.</li>
-  <li><strong>Font-family isn't in the bundled mapping.</strong> The path
-    renderer falls back to <code>&lt;text&gt;</code>. Either switch to a
-    system font for the demo or accept the cross-engine font differences.</li>
+    page.evaluate(() =&gt; document.fonts.ready)</code> before capturing.
+    Without it you'll capture the fallback typeface and the layout will shift
+    the next time you render.</li>
 </ul>
 `);

@@ -10,37 +10,27 @@ export const meta = {
 };
 
 export const content: SafeHtml = raw(`
-<h2>Right-to-left scripts</h2>
+<h2>Right-to-left scripts — full support</h2>
 
-<p>Arabic, Hebrew, and other RTL scripts are fully supported. Domotion uses
+<p>Arabic, Hebrew, and other RTL scripts round-trip faithfully. Domotion uses
 <a href="https://github.com/lojjic/bidi-js" rel="noopener" target="_blank">bidi-js</a>
 to apply paired-bracket mirroring on RTL embedding levels before the text
 reaches the path renderer, then run-based fontkit shaping to produce the
 correct contextual glyph forms.</p>
 
-<p>What works:</p>
+<p>Pure RTL paragraphs, mixed LTR / RTL on the same line ("Hello مرحبا
+world"), bracket and quote mirroring (<code>(</code> / <code>)</code> swap
+visual direction inside RTL runs), numerical digits in RTL contexts, and
+RTL alignment via <code>direction: rtl</code> on the parent all work as
+authored.</p>
 
-<ul>
-  <li>Pure RTL paragraphs.</li>
-  <li>Mixed LTR / RTL text on the same line ("Hello مرحبا world").</li>
-  <li>Bracket and quote mirroring (<code>(</code> / <code>)</code> swap visual
-    direction inside RTL runs).</li>
-  <li>Numerical digits in RTL contexts.</li>
-  <li>RTL text alignment via <code>direction: rtl</code> on the parent.</li>
-</ul>
+<h2>The exception: vertical writing modes</h2>
 
-<h2>Vertical writing modes</h2>
-
-<table>
-  <thead><tr><th>Mode</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>writing-mode: horizontal-tb</code> (default)</td><td>Full</td></tr>
-    <tr><td><code>writing-mode: vertical-rl</code></td><td>None — currently rendered as horizontal. Warning logged.</td></tr>
-    <tr><td><code>writing-mode: vertical-lr</code></td><td>None — same.</td></tr>
-    <tr><td><code>writing-mode: sideways-rl / sideways-lr</code></td><td>None — same.</td></tr>
-    <tr><td><code>text-orientation</code></td><td>None — only meaningful in vertical writing modes.</td></tr>
-  </tbody>
-</table>
+<p><code>writing-mode: vertical-rl</code>, <code>vertical-lr</code>, and
+<code>sideways-rl</code> / <code>sideways-lr</code> currently render as
+horizontal-tb. <code>text-orientation</code> only matters in vertical modes
+and is therefore also unsupported. A warning is logged whenever a vertical
+writing mode is captured.</p>
 
 <h3>Why this is hard</h3>
 

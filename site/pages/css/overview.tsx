@@ -6,158 +6,99 @@ import { raw, type SafeHtml } from "../../../src/jsx-runtime.js";
 export const meta = {
   slug: "css/overview",
   title: "CSS support overview",
-  subtitle: "What round-trips, what falls back to raster, what's not yet supported.",
+  subtitle: "Modern HTML and CSS round-trip faithfully — these are the exceptions.",
 };
 
 export const content: SafeHtml = raw(`
-<p>Domotion targets Chromium on macOS as the canonical reference render. The
-goal is sub-3% pixel-diff fidelity for everything in the "supported" column —
-in practice many features are pixel-identical. This page is the at-a-glance
-support matrix; the per-area pages in this section have the details and
-the known caveats.</p>
+<p>Domotion's goal is sub-3% pixel-diff fidelity against Chromium on the host
+platform. Treat that as the default: anything in modern HTML and CSS that
+Chromium paints, Domotion captures and re-emits as native SVG primitives. The
+per-area pages in this section exist for the few features that have caveats
+or aren't yet covered.</p>
 
-<h2>Reading the matrix</h2>
+<h2>The exceptions, by area</h2>
+
+<p>Click through for the details and any workarounds.</p>
 
 <ul>
-  <li><strong>Full</strong> — round-trips faithfully, &lt; 3% pixel-diff vs. Chromium capture.</li>
-  <li><strong>Partial</strong> — works for the common cases listed; edge cases below threshold.</li>
-  <li><strong>Raster</strong> — captured but emitted as a screenshot
-    <code>&lt;image&gt;</code> instead of native SVG primitives.</li>
-  <li><strong>None</strong> — captured but not emitted, or emitted approximately;
-    a warning is logged.</li>
+  <li><a href="../layout/"><strong>Layout</strong></a> — <code>position: fixed</code>
+    and <code>sticky</code> render at the captured position with no scroll-following
+    (the SVG is one static frame). Native scrollbar chrome on
+    <code>overflow: scroll / auto</code> isn't drawn yet — the visible scroll
+    region renders correctly.</li>
+  <li><a href="../colors-bg/"><strong>Colors &amp; backgrounds</strong></a> —
+    output is sRGB; widely-separated stops in OKLCH-interpolated gradients drift
+    slightly. <code>background-image: url(...)</code> embeds inlined PNG / JPEG /
+    GIF / WebP / AVIF / SVG; other formats pass through with their original URL.</li>
+  <li><a href="../gradients/"><strong>Gradients</strong></a> —
+    <code>conic-gradient</code> has no SVG equivalent and is skipped (warning
+    logged). Linear, radial, and both <code>repeating-*</code> variants are
+    full-fidelity.</li>
+  <li><a href="../borders/"><strong>Borders &amp; effects</strong></a> —
+    <code>border-image</code> is not yet implemented. <code>backdrop-filter</code>
+    has no SVG equivalent in <code>&lt;img&gt;</code>-rendered SVG. <code>clip-path:
+    path()</code> isn't emitted yet (warning logged); <code>mask</code> is captured
+    but not yet emitted.</li>
+  <li><a href="../transforms/"><strong>Transforms</strong></a> — currently the
+    largest gap. Only <code>translate</code> round-trips faithfully; <code>rotate</code>,
+    <code>scale</code>, <code>skew</code>, <code>matrix</code>, and 3D transforms
+    render as the un-transformed bounding box. Workarounds on the page.</li>
+  <li><a href="../text-and-fonts/"><strong>Text &amp; fonts</strong></a> —
+    <code>text-align: justify</code> doesn't space-stretch (left-aligned in the
+    output, warning logged). Wavy underline falls back to a straight line. Web
+    fonts that aren't in the bundled mapping fall back to <code>&lt;text&gt;</code>
+    instead of path-mode glyphs. <code>::selection</code> isn't captured.</li>
+  <li><a href="../writing-mode/"><strong>Writing mode</strong></a> — RTL (Arabic,
+    Hebrew, etc.) is fully supported. Vertical writing modes (<code>vertical-rl</code>
+    / <code>vertical-lr</code> / <code>sideways-*</code>) currently render as
+    horizontal (warning logged); rasterised fallback is on the roadmap.</li>
+  <li><a href="../form-controls/"><strong>Form controls</strong></a> —
+    <code>&lt;input type=file&gt;</code> renders the button chrome only. Bare
+    <code>&lt;button&gt;</code> / <code>&lt;select&gt;</code> with no author CSS
+    only partially synthesises the UA chrome. Open <code>&lt;select&gt;</code>
+    dropdowns can't be captured (they live in OS chrome). <code>&lt;textarea&gt;</code>
+    content is rasterised for pixel-perfect Chromium word-wrap.</li>
 </ul>
 
-<h2>Layout &amp; box model</h2>
+<h2>Out of scope</h2>
 
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>position: static / relative / absolute</code></td><td>Full</td></tr>
-    <tr><td><code>position: fixed / sticky</code></td><td>Partial — paint order correct, no scroll-following.</td></tr>
-    <tr><td><code>display: block / inline / inline-block / flex / grid / table</code></td><td>Full</td></tr>
-    <tr><td><code>float</code> + <code>clear</code></td><td>Full — text wraps via per-line capture.</td></tr>
-    <tr><td><code>box-sizing</code>, margin, padding, sizing</td><td>Full</td></tr>
-    <tr><td><code>overflow: hidden / clip</code></td><td>Full — children clipped to padding box.</td></tr>
-    <tr><td><code>overflow: scroll / auto</code></td><td>Partial — content clipped, native scrollbar chrome not yet emulated.</td></tr>
-  </tbody>
-</table>
-
-<p>Details: <a href="../layout/">CSS support: layout</a>.</p>
-
-<h2>Backgrounds &amp; colors</h2>
-
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>Modern color formats (hex, rgb, hsl, hwb, lab, lch, oklab, oklch, color(), color-mix())</td><td>Full</td></tr>
-    <tr><td>Solid + transparent backgrounds</td><td>Full</td></tr>
-    <tr><td><code>linear-gradient</code>, <code>radial-gradient</code> (incl. <code>repeating-*</code>)</td><td>Full</td></tr>
-    <tr><td>Multiple background layers</td><td>Full — first-on-top semantics preserved.</td></tr>
-    <tr><td><code>conic-gradient</code></td><td>None — no SVG equivalent; layer skipped, warning logged.</td></tr>
-    <tr><td><code>background: url(...)</code></td><td>Partial — center / cover approximated.</td></tr>
-  </tbody>
-</table>
-
-<p>Details: <a href="../colors-bg/">Colors &amp; backgrounds</a>, <a href="../gradients/">Gradients</a>.</p>
-
-<h2>Borders &amp; effects</h2>
-
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>Uniform borders + per-side borders + per-corner radius</td><td>Full</td></tr>
-    <tr><td><code>border-style</code>: solid / dashed / dotted / double / groove / ridge / inset / outset</td><td>Full</td></tr>
-    <tr><td><code>border-radius: 50%</code> on a square box</td><td>Full — circle output.</td></tr>
-    <tr><td><code>border-image</code></td><td>None</td></tr>
-    <tr><td><code>outline</code> incl. dashed / dotted</td><td>Full</td></tr>
-    <tr><td><code>box-shadow</code> outset and inset, blur, multi-layer</td><td>Full — uses SVG <code>feGaussianBlur</code>.</td></tr>
-    <tr><td><code>text-shadow</code> incl. multi-layer</td><td>Full</td></tr>
-    <tr><td><code>opacity</code></td><td>Full — applies to whole subtree.</td></tr>
-    <tr><td><code>filter</code> (blur, brightness, drop-shadow, grayscale, hue-rotate, etc.)</td><td>Full</td></tr>
-    <tr><td><code>mix-blend-mode</code></td><td>Full</td></tr>
-    <tr><td><code>backdrop-filter</code></td><td>None — no SVG equivalent in <code>&lt;img&gt;</code>-rendered SVG.</td></tr>
-    <tr><td><code>clip-path</code>: <code>inset</code>, <code>circle</code>, <code>ellipse</code>, <code>polygon</code></td><td>Full</td></tr>
-    <tr><td><code>clip-path: path()</code></td><td>None — warning logged.</td></tr>
-    <tr><td><code>mask</code></td><td>None — captured but not yet emitted.</td></tr>
-  </tbody>
-</table>
-
-<p>Details: <a href="../borders/">Borders &amp; radius</a>.</p>
-
-<h2>Transforms</h2>
-
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>transform: translate(...)</code></td><td>Partial — bounding box absorbs the translation.</td></tr>
-    <tr><td><code>transform: rotate / scale / skew / matrix</code></td><td>None — currently rendered as axis-aligned bounding box.</td></tr>
-    <tr><td>3D transforms</td><td>None — out of scope.</td></tr>
-  </tbody>
-</table>
-
-<p>Details: <a href="../transforms/">Transforms</a>.</p>
-
-<h2>Typography</h2>
-
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>SF Pro / SF Mono families</td><td>Full</td></tr>
-    <tr><td>Other families</td><td>Partial — fall back when not in lookup table.</td></tr>
-    <tr><td>Weight / size / style / variant / stretch</td><td>Full</td></tr>
-    <tr><td><code>letter-spacing</code>, <code>word-spacing</code>, <code>line-height</code></td><td>Full</td></tr>
-    <tr><td>Multi-line wrapped paragraphs</td><td>Full — per-visual-line capture.</td></tr>
-    <tr><td><code>text-align: left / right / center / start / end</code></td><td>Full</td></tr>
-    <tr><td><code>text-align: justify</code></td><td>Partial — does not space-stretch.</td></tr>
-    <tr><td>RTL / bidi shaping</td><td>Full — Arabic / Hebrew / Devanagari / Thai / CJK supported.</td></tr>
-    <tr><td><code>writing-mode: vertical-*</code></td><td>None — currently rendered as horizontal.</td></tr>
-    <tr><td>Emoji / colour-bitmap glyphs</td><td>Raster — embedded as base64 PNG.</td></tr>
-    <tr><td><code>::first-letter</code> drop caps</td><td>Full — rasterised when font-size differs.</td></tr>
-  </tbody>
-</table>
-
-<p>Details: <a href="../text-and-fonts/">Text &amp; fonts</a>,
-<a href="../writing-mode/">Writing mode (RTL / vertical)</a>.</p>
-
-<h2>Form controls</h2>
-
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>&lt;input&gt;</code> with value</td><td>Full</td></tr>
-    <tr><td><code>&lt;input&gt;</code> placeholder</td><td>Full — <code>::placeholder</code> color / font-style honoured.</td></tr>
-    <tr><td><code>&lt;textarea&gt;</code> content</td><td>Raster — pixel-perfect Chromium word-wrap.</td></tr>
-    <tr><td><code>&lt;input type="checkbox" / radio / range / color"&gt;</code></td><td>Full — synthesised SVG mimics Chromium's UA chrome.</td></tr>
-    <tr><td><code>&lt;progress&gt;</code>, <code>&lt;meter&gt;</code></td><td>Full incl. author-styled <code>::-webkit-*</code> pseudos.</td></tr>
-    <tr><td><code>&lt;button&gt;</code>, <code>&lt;select&gt;</code> chrome</td><td>Partial — author-styled <code>::-webkit-*</code> pseudos partially supported.</td></tr>
-  </tbody>
-</table>
-
-<p>Details: <a href="../form-controls/">Form controls</a>.</p>
-
-<h2>Out of scope (today)</h2>
+<p>These aren't bugs — they're outside what a static SVG snapshot can reasonably
+represent:</p>
 
 <ul>
-  <li><code>&lt;canvas&gt;</code>, <code>&lt;video&gt;</code>, <code>&lt;iframe&gt;</code>,
-    <code>&lt;object&gt;</code>, <code>&lt;embed&gt;</code> — bodies not rendered, warning logged.</li>
-  <li>CSS animations / transitions — Domotion captures a static frame; multi-frame
-    animation is composed at a higher layer
+  <li><code>&lt;canvas&gt;</code>, <code>&lt;video&gt;</code>,
+    <code>&lt;iframe&gt;</code>, <code>&lt;object&gt;</code>,
+    <code>&lt;embed&gt;</code> — bodies aren't rendered (warning logged).
+    Capture a poster frame or screenshot instead.</li>
+  <li>CSS animations and transitions — Domotion captures one static frame.
+    Multi-frame animation is composed at a higher layer
     (<a href="../../api/generate-animated-svg/"><code>generateAnimatedSvg</code></a>).</li>
-  <li><code>@page</code> print-media rules.</li>
+  <li><code>@page</code> rules — print-media only.</li>
+  <li>Live focus / hover / selection state — set the desired state in
+    Playwright before capturing.</li>
 </ul>
 
-<h2>Warnings</h2>
+<h2>Capture warnings</h2>
 
-<p>When a capture encounters a feature that doesn't round-trip fully, Domotion
-records a warning so you can find it. The helpers are exported from the
-package root:</p>
+<p>When a capture hits a feature that doesn't round-trip fully, Domotion records
+a structured warning so you can find what was skipped. Helpers are exported
+from the package root:</p>
 
 <pre><code><span class="tk-k">import</span> { getLastCaptureWarnings, logCaptureWarnings } <span class="tk-k">from</span> <span class="tk-s">"domotion"</span>;
 
 <span class="tk-f">logCaptureWarnings</span>();                  <span class="tk-c">// to stderr</span>
 <span class="tk-k">const</span> warnings = <span class="tk-f">getLastCaptureWarnings</span>(); <span class="tk-c">// or programmatic</span></code></pre>
 
-<p>Each warning has a <code>selector</code> (short ancestor-path identifier),
-a <code>feature</code> name, and a one-sentence <code>detail</code>. They're
-deduped by <code>(feature, selector)</code> per capture.</p>
+<p>Each warning carries a <code>selector</code> (short ancestor-path identifier),
+a <code>feature</code> name, and a one-sentence <code>detail</code>. Warnings
+are deduped by <code>(feature, selector)</code> per capture.</p>
+
+<h2>Cross-platform note</h2>
+
+<p>Domotion targets pixel-faithful Chromium output <em>on the host platform</em>.
+Today the rendering pipeline is fully calibrated against Chromium-on-macOS
+(CoreText fallback chain). Linux (fontconfig — Noto / DejaVu / Liberation) and
+Windows (DirectWrite — Segoe UI / Consolas / Cambria Math / Yu Gothic)
+calibration is roadmap work; non-macOS captures will run but font fallback
+matching may diverge from Chromium until that's complete.</p>
 `);

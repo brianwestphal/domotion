@@ -10,54 +10,40 @@ export const meta = {
 };
 
 export const content: SafeHtml = raw(`
-<p>This is the area where Domotion has the largest known gap. Today, only
-translation is faithfully reproduced; rotation, scale, skew, and matrix
-transforms are captured but rendered as the un-transformed bounding box of
-the element. The doc <code>docs/06-css-transforms.md</code> in the source tree
-tracks this work.</p>
+<p>This is currently the largest fidelity gap in Domotion. Only translation
+round-trips faithfully — every other CSS transform is captured but rendered
+as the un-transformed axis-aligned bounding box of the element.</p>
 
-<h2>Support matrix</h2>
+<h2>What works</h2>
 
-<table>
-  <thead><tr><th>Transform</th><th>Status</th><th>Notes</th></tr></thead>
-  <tbody>
-    <tr>
-      <td><code>transform: translate(x, y)</code></td>
-      <td>Partial</td>
-      <td>The bounding box absorbs the translation — the element renders at its visually-translated position. Works because Domotion captures the resolved <code>getBoundingClientRect</code>.</td>
-    </tr>
-    <tr>
-      <td><code>transform: translateX / translateY / translate3d</code></td>
-      <td>Partial</td>
-      <td>Same as <code>translate</code> for the 2D component; z is ignored.</td>
-    </tr>
-    <tr>
-      <td><code>transform: rotate(...)</code></td>
-      <td>None</td>
-      <td>Renders as the element's axis-aligned bounding box at the rotated position. Visually wrong for any non-trivial rotation. Warning logged.</td>
-    </tr>
-    <tr>
-      <td><code>transform: scale(...)</code></td>
-      <td>None</td>
-      <td>Renders as the post-scale bounding box, but inner content is captured at original size — proportions look wrong.</td>
-    </tr>
-    <tr>
-      <td><code>transform: skew(...) / matrix(...)</code></td>
-      <td>None</td>
-      <td>Same.</td>
-    </tr>
-    <tr>
-      <td>3D transforms (<code>perspective</code>, <code>rotate3d</code>, etc.)</td>
-      <td>None</td>
-      <td>Out of scope; degraded to the underlying 2D component (which is itself unsupported).</td>
-    </tr>
-  </tbody>
-</table>
+<ul>
+  <li><strong><code>transform: translate(x, y)</code></strong>,
+    <code>translateX</code>, <code>translateY</code>, the 2D component of
+    <code>translate3d</code> — the bounding box absorbs the translation, so
+    the element renders at its visually-translated position. (Domotion captures
+    the resolved <code>getBoundingClientRect</code>, which Chromium has already
+    moved.)</li>
+</ul>
+
+<h2>What doesn't</h2>
+
+<ul>
+  <li><strong><code>rotate</code></strong> — renders as the element's
+    axis-aligned bounding box at the rotated position. Visually wrong for any
+    non-trivial rotation. Warning logged.</li>
+  <li><strong><code>scale</code></strong> — renders as the post-scale bounding
+    box, but inner content is captured at original size, so proportions look
+    wrong.</li>
+  <li><strong><code>skew</code> and <code>matrix</code></strong> — same as
+    rotate.</li>
+  <li><strong>3D transforms</strong> (<code>perspective</code>,
+    <code>rotate3d</code>, etc.) — out of scope; degraded to the underlying
+    2D component (which is itself unsupported).</li>
+</ul>
 
 <h2>Workarounds</h2>
 
-<p>If your demo needs a rotated or scaled element today, you have three
-options:</p>
+<p>If your demo needs a rotated or scaled element today:</p>
 
 <ol>
   <li><strong>Pre-bake the rotation into your HTML.</strong> Use an SVG icon
@@ -77,10 +63,10 @@ options:</p>
 <p>Rotated text isn't just "draw the same characters at an angle" — Chromium
 hints glyphs differently when their baseline isn't axis-aligned, the
 sub-pixel positioning rules change, and decoration metrics shift. Faithfully
-reproducing a rotated text run in SVG requires either applying a
-matched <code>transform</code> on the path elements (loses hinting parity)
-or rasterising the rotated region (loses vector benefits). Both paths are
-on the roadmap; neither is shipped yet.</p>
+reproducing a rotated text run in SVG requires either applying a matched
+<code>transform</code> on the path elements (loses hinting parity) or
+rasterising the rotated region (loses vector benefits). Both paths are on
+the roadmap; neither is shipped yet.</p>
 
 <p>Translation, by contrast, doesn't change glyph orientation — Chromium's
 rendering is the same as if the box were positioned absolutely, which the

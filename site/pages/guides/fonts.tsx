@@ -11,9 +11,8 @@ export const meta = {
 
 export const content: SafeHtml = raw(`
 <p>Domotion's path renderer needs to find a real font file on disk to extract
-glyph outlines from. This page covers how the lookup works, which scripts
-have first-class support, and how to handle scripts whose fonts you don't
-have locally.</p>
+glyph outlines from. This page covers how the lookup works, how to handle web
+fonts, and what to expect for non-Latin scripts.</p>
 
 <h2>Where Domotion looks for fonts</h2>
 
@@ -66,30 +65,28 @@ system fonts: SF Pro, SF Mono, New York, Helvetica Neue, etc.</p>
 <p>Domotion handles complex scripts by detecting fallback-font runs (Chromium
 has already chosen a different font for them) and shaping each run as a unit
 with <code>font.layout(runText)</code>. That means contextual joining,
-ligature clusters, and mark-on-base positioning all survive.</p>
+ligature clusters, and mark-on-base positioning all survive — Latin,
+Cyrillic, Greek, Arabic (initial / medial / final / isolated forms; bidi via
+<code>bidi-js</code>), Hebrew, Devanagari (cluster reordering, ligatures),
+Thai (mark-on-base), and CJK (Han, Hiragana, Katakana, Hangul; GPOS positioning)
+all round-trip. Other complex scripts (Tibetan, Khmer, Burmese) flow through
+the same pipeline.</p>
 
-<table>
-  <thead>
-    <tr><th>Script</th><th>Status</th><th>Notes</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>Latin (English, French, Spanish, ...)</td><td>Full</td><td>The default path. Per-character x-offsets keep sub-pixel positioning.</td></tr>
-    <tr><td>Arabic</td><td>Full</td><td>Initial / medial / final / isolated forms come through. Bidi handled via <code>bidi-js</code>; paired-bracket mirroring on RTL embedding levels.</td></tr>
-    <tr><td>Hebrew</td><td>Full</td><td>RTL handled the same way as Arabic.</td></tr>
-    <tr><td>Devanagari (Hindi, Marathi, ...)</td><td>Full</td><td>Cluster reordering and ligatures via fontkit shaping.</td></tr>
-    <tr><td>Thai</td><td>Full</td><td>Mark-on-base positioning preserved.</td></tr>
-    <tr><td>CJK (Chinese, Japanese, Korean)</td><td>Full</td><td>GPOS positioning honoured. The Han glyph set is huge — expect SVGs for CJK paragraphs to be larger than equivalent Latin.</td></tr>
-    <tr><td>Emoji / colour-bitmap</td><td>Raster fallback</td><td>Each unique glyph is screenshotted once and embedded as a base64 PNG, then referenced via <code>&lt;use&gt;</code>.</td></tr>
-  </tbody>
-</table>
+<p>Mixed-script lines like "Hello مرحبا नमस्ते" work — each contiguous
+fallback run is shaped as a unit, and the per-character anchor offsets keep
+the runs aligned with what Chromium painted.</p>
+
+<p>Emoji and colour-bitmap glyphs are the exception: each unique glyph is
+screenshotted once and embedded as a base64 PNG, then referenced via
+<code>&lt;use&gt;</code> for dedup.</p>
 
 <h2>Verified shaping accuracy</h2>
 
-<p>For the scripts above, fontkit's shaping is within ~1% of HarfBuzz on
-Arabic and Thai, and pixel-identical on Devanagari and CJK ideographs at
-typical body sizes. The Domotion test suite includes one fixture per script
-that diffs the SVG render against the Chromium PNG — the path renderer is
-within Domotion's overall 3% pixel-diff threshold for all of them.</p>
+<p>fontkit's shaping is within ~1% of HarfBuzz on Arabic and Thai, and
+pixel-identical on Devanagari and CJK ideographs at typical body sizes. The
+test suite includes one fixture per script that diffs the SVG render against
+the Chromium PNG — the path renderer is within Domotion's overall 3%
+pixel-diff threshold for all of them.</p>
 
 <h2>Web fonts</h2>
 
@@ -107,13 +104,6 @@ or <code>@import url(...)</code>:</p>
     Domotion's current public surface; file an issue if this matters for
     your use case.</li>
 </ol>
-
-<h2>Mixing scripts in one line</h2>
-
-<p>Mixed-script lines like "Hello مرحبا नमस्ते" work — the capture script
-records each contiguous fallback run, the renderer shapes each run as a
-unit, and the per-character anchor offsets keep the runs aligned with what
-Chromium painted.</p>
 
 <h2>Decoration handling</h2>
 

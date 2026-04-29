@@ -6,7 +6,7 @@ import { raw, type SafeHtml } from "../../../src/jsx-runtime.js";
 export const meta = {
   slug: "css/form-controls",
   title: "Form controls",
-  subtitle: "Inputs, checkboxes, range sliders, progress bars, color pickers.",
+  subtitle: "Inputs, checkboxes, range sliders, progress bars, color pickers — synthesised SVG that mimics Chromium.",
 };
 
 export const content: SafeHtml = raw(`
@@ -21,53 +21,40 @@ this by detecting form-control tags and synthesising matching SVG markup
 that mimics what Chromium paints, including support for the most common
 author-styled <code>::-webkit-*</code> pseudos.</p>
 
-<h2>Text inputs</h2>
+<p>What round-trips: <code>&lt;input&gt;</code> with <code>value</code>
+(rendered as path-mode text), <code>::placeholder</code> styling
+(color / font-style / font-weight), disabled and readonly visual states,
+<code>&lt;input type="checkbox"&gt;</code> (checkmark or indeterminate dash),
+<code>&lt;input type="radio"&gt;</code> (dot when checked),
+<code>&lt;input type="range"&gt;</code> (track + thumb with author-styled
+<code>::-webkit-slider-runnable-track</code> and
+<code>::-webkit-slider-thumb</code>), <code>&lt;input type="color"&gt;</code>
+(swatch shows the picker value), <code>&lt;progress&gt;</code> (bar + fill
+at <code>value / max</code>; author-styled <code>::-webkit-progress-bar</code>
+and <code>::-webkit-progress-value</code>), <code>&lt;meter&gt;</code>
+(three-zone colouring based on <code>low</code> / <code>high</code> /
+<code>optimum</code>), and any <code>&lt;button&gt;</code> with author CSS
+applied (it captures as a normal styled element).</p>
 
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>&lt;input&gt;</code> with <code>value</code></td><td>Full — value rendered as path text.</td></tr>
-    <tr><td>Placeholder text</td><td>Full — colour, font-style, font-weight from <code>::placeholder</code> honoured.</td></tr>
-    <tr><td>Disabled / readonly visual states</td><td>Full</td></tr>
-    <tr><td><code>&lt;textarea&gt;</code> content with word-wrap</td><td>Raster — captured via <code>page.screenshot</code> for pixel-perfect Chromium wrap behaviour.</td></tr>
-    <tr><td>Cursor / focus ring at capture time</td><td>None — captures don't simulate focus.</td></tr>
-  </tbody>
-</table>
+<h2>The exceptions</h2>
 
-<h2>Choice inputs</h2>
-
-<table>
-  <thead><tr><th>Type</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>type="checkbox"</code></td><td>Full — synthesised checkbox with checkmark or indeterminate dash.</td></tr>
-    <tr><td><code>type="radio"</code></td><td>Full — synthesised dot when checked.</td></tr>
-    <tr><td><code>type="range"</code></td><td>Full — track + thumb. Author-styled <code>::-webkit-slider-runnable-track</code> and <code>::-webkit-slider-thumb</code> honoured.</td></tr>
-    <tr><td><code>type="color"</code></td><td>Full — swatch shows the picker value.</td></tr>
-    <tr><td><code>type="file"</code></td><td>Partial — button chrome only; selected filename text TBD.</td></tr>
-  </tbody>
-</table>
-
-<h2>Progress &amp; meter</h2>
-
-<table>
-  <thead><tr><th>Element</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>&lt;progress&gt;</code></td><td>Full — bar + fill at <code>value / max</code>. Author-styled <code>::-webkit-progress-bar</code> and <code>::-webkit-progress-value</code> honoured.</td></tr>
-    <tr><td><code>&lt;meter&gt;</code></td><td>Full — three-zone colouring (green / yellow / red) based on <code>low</code> / <code>high</code> / <code>optimum</code>.</td></tr>
-  </tbody>
-</table>
-
-<h2>Buttons &amp; selects</h2>
-
-<table>
-  <thead><tr><th>Element</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>&lt;button&gt;</code> with all-CSS styling</td><td>Full — captured as a normal styled element.</td></tr>
-    <tr><td><code>&lt;button&gt;</code> relying on UA chrome (no CSS)</td><td>Partial — UA chrome partially synthesised.</td></tr>
-    <tr><td><code>&lt;select&gt;</code> closed (showing selected option)</td><td>Partial — text shown; arrow / chevron approximated.</td></tr>
-    <tr><td><code>&lt;select&gt;</code> open dropdown</td><td>None — Domotion can only capture what's painted in the page; the open dropdown lives in OS chrome.</td></tr>
-  </tbody>
-</table>
+<ul>
+  <li><strong><code>&lt;input type="file"&gt;</code></strong> — button chrome
+    only; the selected filename text doesn't render yet.</li>
+  <li><strong><code>&lt;textarea&gt;</code> content</strong> — captured via
+    <code>page.screenshot</code> and embedded as a raster <code>&lt;image&gt;</code>
+    so word-wrap is pixel-perfect to Chromium. Sharp at 1× but doesn't scale
+    crisply like path-mode text.</li>
+  <li><strong>Bare <code>&lt;button&gt;</code> / <code>&lt;select&gt;</code>
+    with no author CSS</strong> — the UA chrome is partially synthesised.
+    Style the control with CSS for full fidelity.</li>
+  <li><strong>Open <code>&lt;select&gt;</code> dropdowns</strong> — can't be
+    captured. The open dropdown lives in OS chrome, not in the page DOM.
+    Closed selects (showing the selected option text + chevron) work.</li>
+  <li><strong>Cursor and focus ring at capture time</strong> — captures don't
+    simulate focus / hover / selection state. Set the desired state in
+    Playwright before capturing if you need it.</li>
+</ul>
 
 <h2>Capturing inputs in specific states</h2>
 

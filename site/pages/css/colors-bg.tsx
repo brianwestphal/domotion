@@ -6,62 +6,43 @@ import { raw, type SafeHtml } from "../../../src/jsx-runtime.js";
 export const meta = {
   slug: "css/colors-bg",
   title: "Colors & backgrounds",
-  subtitle: "What round-trips: solid colours, layered backgrounds, modern colour spaces.",
+  subtitle: "Modern colour formats, layered backgrounds, image embedding — with a few caveats.",
 };
 
 export const content: SafeHtml = raw(`
-<h2>Color formats</h2>
+<p>Every CSS colour format Chromium accepts as a computed style works —
+hex, <code>rgb()</code> / <code>rgba()</code>, <code>hsl()</code> / <code>hsla()</code>,
+<code>hwb()</code>, <code>lab()</code>, <code>lch()</code>, <code>oklab()</code>,
+<code>oklch()</code>, <code>color()</code> with display-p3 / sRGB, <code>color-mix(...)</code>,
+and <code>currentColor</code>. Domotion reads the resolved colour, not the
+source CSS, so notation differences don't matter.</p>
 
-<p>Every colour value Chromium accepts as a computed style is honoured —
-Domotion reads the resolved colour, not the source CSS, so notation differences
-don't matter:</p>
+<p>Backgrounds — solid colours, multiple stacked layers (first-on-top
+semantics preserved), gradients (see <a href="../gradients/">Gradients</a>),
+URL-referenced images, <code>background-clip</code> in all four flavours
+including <code>text</code>, <code>background-origin</code>, and
+<code>background-attachment</code> — all round-trip. Alpha channels work
+everywhere a colour is accepted; <code>opacity</code> applies to the entire
+subtree (matches CSS); <code>opacity: 0</code> elements are skipped from output.</p>
 
-<ul>
-  <li>Hex: <code>#fff</code>, <code>#80c0ffaa</code></li>
-  <li><code>rgb()</code>, <code>rgba()</code></li>
-  <li><code>hsl()</code>, <code>hsla()</code></li>
-  <li><code>hwb()</code></li>
-  <li>Modern colour spaces: <code>lab()</code>, <code>lch()</code>,
-    <code>oklab()</code>, <code>oklch()</code></li>
-  <li><code>color()</code> with display-p3, srgb, etc.</li>
-  <li><code>color-mix(...)</code></li>
-  <li><code>currentColor</code> (resolves to the element's text colour)</li>
-</ul>
-
-<p>Output is always in <code>rgb()</code> / <code>rgba()</code> in the SVG —
-the wider colour spaces collapse to sRGB at write time. For most marketing
-use cases this is invisible; if you're working with HDR / display-P3 source
-material and care about extended-gamut output, that's not yet supported.</p>
-
-<h2>Background layers</h2>
-
-<table>
-  <thead><tr><th>Feature</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>Solid <code>background-color</code></td><td>Full</td></tr>
-    <tr><td>Multiple layered backgrounds</td><td>Full — first-on-top semantics preserved.</td></tr>
-    <tr><td><code>background-image: linear-gradient / radial-gradient</code> + their <code>repeating-*</code> variants</td><td>Full — see <a href="../gradients/">Gradients</a>.</td></tr>
-    <tr><td><code>background-image: url(...)</code></td><td>Partial — embedded as <code>&lt;image&gt;</code> with <code>preserveAspectRatio</code> approximated from <code>background-size</code> + <code>background-position</code>.</td></tr>
-    <tr><td><code>background-image: conic-gradient</code></td><td>None — no SVG equivalent. Layer skipped, warning logged.</td></tr>
-    <tr><td><code>background-clip: border-box / padding-box / content-box / text</code></td><td>Full — text-clipping is rendered via SVG mask.</td></tr>
-    <tr><td><code>background-origin</code>, <code>background-attachment</code></td><td>Full</td></tr>
-    <tr><td><code>background-repeat: repeat / no-repeat / round / space</code></td><td>Partial — common combinations honoured for url() layers.</td></tr>
-  </tbody>
-</table>
-
-<h2>Image embedding</h2>
-
-<p>Background-image URLs and <code>&lt;img src&gt;</code> values are inlined as
-base64 data URIs at capture time so the SVG remains self-contained. Supported
-input formats: PNG, JPEG, GIF, WebP, AVIF, SVG. Unknown extensions pass
-through with their original URL (which will break offline).</p>
-
-<h2>Transparency &amp; opacity</h2>
+<h2>The exceptions</h2>
 
 <ul>
-  <li>Alpha channels in colours work everywhere a colour is accepted.</li>
-  <li>Element <code>opacity</code> applies to the entire subtree (matches CSS).</li>
-  <li><code>opacity: 0</code> elements are skipped in the SVG output.</li>
+  <li><strong>Wide-gamut colour output.</strong> Output is always <code>rgb()</code>
+    / <code>rgba()</code> in the SVG — wider colour spaces collapse to sRGB at
+    write time. Invisible for most marketing use cases; if you're working with
+    HDR / display-P3 source material and care about extended-gamut output,
+    that's not yet supported.</li>
+  <li><strong><code>conic-gradient</code></strong> — no SVG equivalent in
+    <code>&lt;img&gt;</code>-rendered SVG. The layer is skipped and a warning
+    is logged.</li>
+  <li><strong>Unknown background-image formats.</strong> PNG, JPEG, GIF, WebP,
+    AVIF, and SVG are inlined as base64 data URIs at capture time. Other
+    extensions pass through with their original URL (which will break offline).</li>
+  <li><strong><code>background-image: url(...)</code> sizing.</strong> Common
+    cases (<code>cover</code> / <code>contain</code> / explicit dimensions)
+    work; some <code>background-size</code> + <code>background-position</code>
+    + <code>background-repeat</code> combinations are approximated.</li>
 </ul>
 
 <h2>See also</h2>
