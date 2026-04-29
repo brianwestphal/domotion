@@ -117,6 +117,11 @@ interface RenderTextOpts {
   idPrefix: string;
   clipId: string;
   fillColor: string;
+  /** True when the element has overflow != visible (hidden / clip / scroll /
+   *  auto on either axis) and text must be clipped to the content rect. When
+   *  false, path-mode text renders without a clip-path so default
+   *  `overflow: visible` text can spill past the box edge as Chrome paints. */
+  overflowClip?: boolean;
 }
 
 /**
@@ -153,6 +158,14 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
     const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, clipId) : "";
+    // Wrap the path-mode output in the element's clip-path only when the
+    // element actually overflow-clips (DM-305). Default `overflow: visible`
+    // lets text extend past the box edge, so the unconditional clip from
+    // an earlier draft over-cut text on `word-wrap: break-word` paragraphs
+    // whose last char measured a fraction of a px past `el.x + el.width`.
+    if (opts.overflowClip) {
+      return `<g clip-path="url(#${clipId})">${result}${decoMarkup}${rasterOverlay}</g>`;
+    }
     return `${result}${decoMarkup}${rasterOverlay}`;
   }
 
@@ -237,6 +250,12 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     if (rasterOverlay !== "") parts.push(rasterOverlay);
   }
 
+  // Wrap the multi-segment output in the element's clip-path only when the
+  // element actually overflow-clips (DM-305) — see comment in
+  // renderSingleLineText for why an unconditional clip is wrong.
+  if (opts.overflowClip) {
+    return `<g clip-path="url(#${clipId})">${parts.join("\n")}</g>`;
+  }
   return parts.join("\n");
 }
 

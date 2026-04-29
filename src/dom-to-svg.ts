@@ -2411,7 +2411,7 @@ export function elementTreeToSvg(
         svgParts.push(
           `${indent}${roundedRectSvg(el.x + innerInset, el.y + innerInset, el.width - 2 * innerInset, el.height - 2 * innerInset, innerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
         );
-      } else if ((style === "groove" || style === "ridge" || style === "inset" || style === "outset") && bt.w >= 2) {
+      } else if ((style === "groove" || style === "ridge" || style === "inset" || style === "outset") && bt.w >= 1) {
         // 3D bevel borders (DM-280). Each side is painted as its own
         // trapezoid polygon so the four shade pairs miter cleanly at corners.
         // Inset / outset: solid shade per side. Groove / ridge: split each
@@ -2493,9 +2493,10 @@ export function elementTreeToSvg(
           [el.x + inset, el.y, el.x + inset, el.y + el.height, el.height],
         ];
         for (const [x1, y1, x2, y2, len] of sides) {
-          const dash = adjustedDashArray(style, bt.w, len);
+          const { array: dash, offset } = adjustedDashAttrs(style, bt.w, len);
+          const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
           svgParts.push(
-            `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+            `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttrs}${linecap} />`,
           );
         }
       } else {
@@ -2537,10 +2538,11 @@ export function elementTreeToSvg(
       for (const [side, x1, y1, x2, y2, len] of sides) {
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
         if (side.style === "none" || side.style === "hidden") continue;
-        const dash = adjustedDashArray(side.style, side.w, len);
+        const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
         const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+        const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
         svgParts.push(
-          `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+          `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap} />`,
         );
       }
     } else if (borderWidth > 0 && borderColor != null && borderColor.a > 0.01) {
@@ -2771,7 +2773,7 @@ export function elementTreeToSvg(
         svgParts.push(`${indent}<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${cid})"/>`);
       } else {
 
-      const renderOneText = (opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string }): string => {
+      const renderOneText = (opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string; overflowClip?: boolean }): string => {
         const hasMultipleSegments = opts.el.textSegments != null && opts.el.textSegments.length > 1;
         const isMultiLine = opts.el.text.includes("\n");
         if (hasMultipleSegments) return renderMultiSegmentText(opts, opts.el.textSegments!);
@@ -2825,7 +2827,14 @@ export function elementTreeToSvg(
         svgParts.push(`${indent}${body}`);
       }
 
-      const renderOpts = { el, idPrefix, clipId: cid, fillColor };
+      // Whether the element's own text needs clipping: only when overflow
+      // is set on the element itself (overflow != visible on either axis).
+      // Default `overflow: visible` lets text spill past the box, matching
+      // Chrome (DM-305).
+      const tox = el.styles.overflowX;
+      const toy = el.styles.overflowY;
+      const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
+      const renderOpts = { el, idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip };
       svgParts.push(`${indent}${renderOneText(renderOpts)}`);
       }
     }
@@ -4655,7 +4664,30 @@ function dashArrayForStyle(style: string, width: number): string {
  * to fit even one cycle (renderer falls back to solid).
  */
 function adjustedDashArray(style: string, width: number, sideLength: number): string {
-  if (sideLength <= 0 || width <= 0) return "";
+  return adjustedDashAttrs(style, width, sideLength).array;
+}
+
+/**
+ * Returns the `stroke-dasharray` value AND the matching `stroke-dashoffset`
+ * needed to centre the dash pattern within the side so it visually matches
+ * Chromium's BoxBorderPainter (DM-318).
+ *
+ * For dotted: Chromium centres each dot in its half-period slot — i.e. dots
+ *   are inset from each corner by half a period rather than starting flush.
+ *   In SVG terms, the dasharray is `0.01 period` with linecap=round (so each
+ *   "dash" renders as a single dot), and stroke-dashoffset is set to half a
+ *   period so the line starts mid-gap and the first dot appears at period/2.
+ *
+ * For dashed: Chromium also tends to centre the dash pattern — the first
+ *   dash starts at gap/2 from the corner so each side has equal margin. The
+ *   prior implementation started the cycle with a full dash flush at the
+ *   corner, which left a visible phase offset vs Chrome's painted output.
+ *
+ * Returns offset as a number (0 if no shift needed), the caller emits a
+ * `stroke-dashoffset` attribute when offset !== 0.
+ */
+function adjustedDashAttrs(style: string, width: number, sideLength: number): { array: string; offset: number } {
+  if (sideLength <= 0 || width <= 0) return { array: "", offset: 0 };
   if (style === "dashed") {
     // Blink uses a 2:1 dash:gap ratio for `border-style: dashed` (DM-267).
     const idealDash = width * 2;
@@ -4663,7 +4695,14 @@ function adjustedDashArray(style: string, width: number, sideLength: number): st
     const idealPeriod = idealDash + idealGap;
     const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
     const scale = sideLength / (cycles * idealPeriod);
-    return `${r(idealDash * scale)} ${r(idealGap * scale)}`;
+    const dash = idealDash * scale;
+    const gap = idealGap * scale;
+    // Centre the dash pattern so each side has gap/2 of margin at each
+    // corner. stroke-dashoffset specifies the distance into the cycle where
+    // the line starts; cycle is `dash gap`, so an offset of `dash + gap/2`
+    // places the line start mid-gap and the first dash visible at gap/2 —
+    // matching Chromium's BoxBorderPainter (DM-318).
+    return { array: `${r(dash)} ${r(gap)}`, offset: dash + gap / 2 };
   }
   if (style === "dotted") {
     // Dot diameter = width (round-cap on near-zero dash). Dot center spacing
@@ -4671,7 +4710,11 @@ function adjustedDashArray(style: string, width: number, sideLength: number): st
     const idealPeriod = width * 2;
     const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
     const adjustedPeriod = sideLength / cycles;
-    return `0.01 ${r(adjustedPeriod)}`;
+    // Shift the cycle so the first dot is at adjustedPeriod / 2 from the
+    // start, matching Chrome's centred-dot painting. The cycle is
+    // `0.01 adjustedPeriod`, total ≈ adjustedPeriod; an offset of
+    // adjustedPeriod / 2 starts mid-gap.
+    return { array: `0.01 ${r(adjustedPeriod)}`, offset: adjustedPeriod / 2 };
   }
-  return "";
+  return { array: "", offset: 0 };
 }
