@@ -243,6 +243,11 @@ export interface CapturedElement {
     meterEvenLessGoodBgImage?: string;
     detailsOpen?: boolean;
     selectChevron?: boolean;
+    /** Text of the currently-selected option, rendered inside the `<select>`
+     *  content rect for closed dropdowns (DM-246). For listbox-mode selects
+     *  (`size > 1` or `multiple`) this is undefined and per-option rendering
+     *  flows through the listbox path instead. */
+    selectDisplayText?: string;
     accentColor?: string;
     caretColor?: string;
     /** For <input type=range/color/date/time/...> — the current value. */
@@ -250,6 +255,8 @@ export interface CapturedElement {
     inputMin?: string;
     inputMax?: string;
     inputStep?: string;
+    /** True for inputs with the `multiple` attribute (file / email / select). DM-271. */
+    inputMultiple?: boolean;
     /** For <input type=file> — name of the first selected file, or empty. */
     inputFileName?: string;
     /** Custom-styled <input type=range> ::-webkit-slider-runnable-track / ::-webkit-slider-thumb (SK-1131). */
@@ -264,6 +271,10 @@ export interface CapturedElement {
     rangeThumbRadius?: string;
     /** Resolved gradient text for the slider thumb (SK-1224). */
     rangeThumbBgImage?: string;
+    /** ::-webkit-slider-runnable-track border shorthand (DM-273). */
+    rangeTrackBorder?: string;
+    /** ::-webkit-slider-thumb border shorthand (DM-273). */
+    rangeThumbBorder?: string;
     /** ::-webkit-color-swatch pseudo styles (SK-1223). */
     colorSwatchBg?: string;
     colorSwatchBgImage?: string;
@@ -513,6 +524,29 @@ const CAPTURE_SCRIPT = `
   // and their repeating variants). Used to capture rangeTrackBgImage etc.
   // SK-1224: linear-gradient ships first; SK-1225 adds radial.
   const _gradientRe = /^\\s*(repeating-)?(linear|radial|conic)-gradient\\s*\\(/i;
+  // Extract gradient function calls from a CSS background-shorthand string,
+  // dropping any non-gradient layers (background-color, plain url(), etc.).
+  // Walks balanced parens to keep the gradient inner commas intact. Returns
+  // a comma-separated list of gradient calls suitable for assigning to
+  // background-image. DM-275.
+  const _extractGradients = (text) => {
+    const re = /(repeating-)?(linear|radial|conic)-gradient\\s*\\(/gi;
+    const out = [];
+    let m;
+    while ((m = re.exec(text)) != null) {
+      const start = m.index;
+      let depth = 0;
+      let i = start;
+      for (; i < text.length; i++) {
+        const c = text[i];
+        if (c === '(') depth++;
+        else if (c === ')') { depth--; if (depth === 0) { i++; break; } }
+      }
+      out.push(text.slice(start, i));
+      re.lastIndex = i;
+    }
+    return out.join(', ');
+  };
   const _resolvePseudo = (el, kind) => {
     let width = '', height = '', backgroundColor = '', borderRadius = '', backgroundImage = '';
     let border = '', padding = '';
@@ -548,10 +582,16 @@ const CAPTURE_SCRIPT = `
       // longhand, or a gradient function within the background shorthand.
       // The shorthand commonly carries gradients in author CSS
       // ('background: linear-gradient(...)'). Prefer longhand when set.
+      // When falling back to the shorthand, isolate the gradient call(s):
+      // a 'background:' value can carry a comma-separated layer list like
+      // '<gradient>, #cbd5e1' where the trailing color is the bg-color, not
+      // an additional image. Passing the whole shorthand to _resolveOne
+      // for background-image would fail validation and silently fall back
+      // to 'none'. DM-275.
       if (!_isUnsetCssValue(d.backgroundImage) && _gradientRe.test(d.backgroundImage)) {
-        backgroundImage = d.backgroundImage;
+        backgroundImage = _extractGradients(d.backgroundImage);
       } else if (!_isUnsetCssValue(d.background) && _gradientRe.test(d.background)) {
-        backgroundImage = d.background;
+        backgroundImage = _extractGradients(d.background);
       }
     }
     return {
@@ -940,7 +980,18 @@ const CAPTURE_SCRIPT = `
     // render; on a healthy browser the text is invisible but Range.getClientRects
     // still reports a rect at (0, 0) which would place a stray label at the top
     // of the page.
-    const textIsHiddenFallback = tag === 'meter' || tag === 'progress' || tag === 'datalist' || tag === 'option' || tag === 'optgroup';
+    // option/optgroup text is hidden by Chrome's UA shadow DOM when the
+    // parent <select> is in closed-dropdown mode (size <= 1 && !multiple) —
+    // only the selectedOptions[0] text renders inside the select's content
+    // rect (handled via styles.selectDisplayText). For listbox mode (size > 1
+    // or multiple) Chrome paints each option as its own row, so we DO want
+    // to capture per-option text and rects. DM-246.
+    var optionInListbox = false;
+    if (tag === 'option' || tag === 'optgroup') {
+      var _selParent = el.closest && el.closest('select');
+      if (_selParent != null && (_selParent.size > 1 || _selParent.multiple)) optionInListbox = true;
+    }
+    const textIsHiddenFallback = tag === 'meter' || tag === 'progress' || tag === 'datalist' || ((tag === 'option' || tag === 'optgroup') && !optionInListbox);
     if (tag !== 'svg' && tag !== 'img' && !textIsHiddenFallback) {
       // Capture input/textarea values (not in text nodes). For input types
       // whose value is rendered as native chrome (range thumb, color swatch,
@@ -1490,12 +1541,18 @@ const CAPTURE_SCRIPT = `
         })() : {}),
         detailsOpen: tag === 'details' ? !!el.open : undefined,
         selectChevron: tag === 'select' && el.size <= 1 && !el.multiple,
+        selectDisplayText: tag === 'select' && el.size <= 1 && !el.multiple
+          ? (el.selectedOptions && el.selectedOptions.length > 0
+              ? (el.selectedOptions[0].textContent || '').trim()
+              : (el.options && el.options.length > 0 ? (el.options[0].textContent || '').trim() : ''))
+          : undefined,
         accentColor: (tag === 'input' || tag === 'progress' || tag === 'meter') ? normColor(cs.accentColor || 'auto') : undefined,
         caretColor: (tag === 'input' || tag === 'textarea') ? normColor(cs.caretColor || 'auto') : undefined,
         inputValue: tag === 'input' ? (el.value || '') : undefined,
         inputMin: tag === 'input' ? (el.min || '') : undefined,
         inputMax: tag === 'input' ? (el.max || '') : undefined,
         inputStep: tag === 'input' ? (el.step || '') : undefined,
+        inputMultiple: tag === 'input' ? !!el.multiple : undefined,
         inputFileName: (tag === 'input' && el.type === 'file' && el.files && el.files.length > 0) ? el.files[0].name : undefined,
         // ::-webkit-color-swatch / -wrapper / -inner-spin-button /
         // -search-cancel-button pseudo styles via the stylesheet walker
@@ -1555,6 +1612,8 @@ const CAPTURE_SCRIPT = `
             rangeThumbHeight: styledThumb ? ms.height : undefined,
             rangeThumbRadius: styledThumb ? ms.borderRadius : undefined,
             rangeThumbBgImage: styledThumb && ms.backgroundImage !== '' ? ms.backgroundImage : undefined,
+            rangeTrackBorder: styledTrack && ts.border !== '' ? ts.border : undefined,
+            rangeThumbBorder: styledThumb && ms.border !== '' ? ms.border : undefined,
           };
         })() : {}),
         fileButtonBg: (tag === 'input' && el.type === 'file') ? normColor(window.getComputedStyle(el, '::file-selector-button').backgroundColor) : undefined,
@@ -1859,7 +1918,15 @@ export function elementTreeToSvg(
     // author percentages ("50%") so naive parseFloat reads it as 50 px. Use
     // the longhand top-left value, which Chrome resolves to pixels regardless
     // of the input form. Falls back to the shorthand for older captures.
-    const borderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius) || 0;
+    //
+    // Clamp to half the smaller box extent: SVG `<rect rx>` defaults `ry` to
+    // `rx`, then clamps each axis independently to half-box, producing
+    // ellipse ends when the input radius exceeds the short axis. CSS instead
+    // clamps both axes to min(half-w, half-h) for `border-radius: <length>`,
+    // so a `border-radius: 999px` 80×30 button paints as a pill (15-px
+    // corners), not as a stretched ellipse. DM-246 (carry-over from DM-271).
+    const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius) || 0;
+    const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
     const opacity = parseFloat(el.styles.opacity);
 
     if (opacity === 0) return;
@@ -4202,10 +4269,12 @@ function cssTransformToSvg(transform: string | undefined, originX: number, origi
   return `translate(${ox} ${oy}) ${matrixStr} translate(${-ox} ${-oy})`;
 }
 
-/** Map CSS border-style to an SVG stroke-dasharray. Returns "" for solid (no dash). */
+/** Map CSS border-style to an SVG stroke-dasharray. Returns "" for solid (no dash).
+ *  Blink (BoxBorderPainter) paints dashed borders with dash = 2 * width and
+ *  gap = width (a 2:1 ratio). DM-267. */
 function dashArrayForStyle(style: string, width: number): string {
   switch (style) {
-    case "dashed": return `${r(width * 2)} ${r(width * 2)}`;
+    case "dashed": return `${r(width * 2)} ${r(width)}`;
     // Dotted: use a near-zero dash with round linecap so each "dot" becomes a
     // circle of diameter ~= stroke-width. Dash period = stroke-width * 2.
     case "dotted": return `0.01 ${r(width * 2)}`;
@@ -4232,8 +4301,9 @@ function dashArrayForStyle(style: string, width: number): string {
 function adjustedDashArray(style: string, width: number, sideLength: number): string {
   if (sideLength <= 0 || width <= 0) return "";
   if (style === "dashed") {
+    // Blink uses a 2:1 dash:gap ratio for `border-style: dashed` (DM-267).
     const idealDash = width * 2;
-    const idealGap = width * 2;
+    const idealGap = width;
     const idealPeriod = idealDash + idealGap;
     const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
     const scale = sideLength / (cycles * idealPeriod);

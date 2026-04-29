@@ -325,7 +325,11 @@ export function renderInputText(opts: RenderTextOpts): string {
   const xOffsetsRel = el.inputXOffsets != null
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
   const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent);
-  if (result != null) return result;
+  // Clip the path-rendered text to the input's content rect so values that
+  // overflow the visible width (common on readonly inputs with long text or
+  // any input narrower than its value) are truncated like Chrome paints
+  // them, not extending past the right border. DM-245.
+  if (result != null) return `<g clip-path="url(#${clipId})">${result}</g>`;
 
   // Fallback to CSS <text> if path rendering fails
   const textY = (el.textTop != null && el.textHeight != null && el.textHeight > 0)

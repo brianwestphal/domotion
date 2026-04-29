@@ -150,19 +150,20 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // here we only react to which of rangeTrack* / rangeThumb* are populated.
   // Gradient backgrounds (SK-1224) on track/thumb resolve through defCtx
   // into a top-level <linearGradient> def referenced via fill="url(#...)".
+  //
+  // Vertical writing-mode (DM-276) flips the layout axis: the track runs
+  // top-to-bottom inside `el`, and `direction: rtl` puts low value at the
+  // bottom (matching the test fixture and Chrome's painted behavior for
+  // `<input type=range>` with `writing-mode: vertical-*`).
   const s = el.styles;
   const styledTrack = s.rangeTrackBg != null;
   const styledThumb = s.rangeThumbWidth != null;
-  const trackH = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 4;
+  const trackThickness = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 4;
   const trackR = styledTrack ? (parseFloat(s.rangeTrackRadius ?? "") || 0) : 2;
   const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : TRACK_BG;
   const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 14;
   const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 14;
   const thumbRadius = styledThumb ? (parseFloat(s.rangeThumbRadius ?? "") || thumbW / 2) : thumbW / 2;
-  const cy = el.y + el.height / 2;
-  const trackY = cy - trackH / 2;
-  const halfThumb = thumbW / 2;
-  const parts: string[] = [];
   const accent = resolveAccent(el);
   const valStr = s.inputValue;
   const minStr = s.inputMin;
@@ -171,35 +172,106 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const min = minStr != null && minStr !== "" ? parseFloat(minStr) : 0;
   const max = maxStr != null && maxStr !== "" ? parseFloat(maxStr) : 100;
   const ratio = !isNaN(val) && max > min ? Math.max(0, Math.min(1, (val - min) / (max - min))) : 0.5;
-  const trackLeft = el.x + halfThumb;
-  const trackRight = el.x + el.width - halfThumb;
-  const thumbX = trackLeft + (trackRight - trackLeft) * ratio;
-  const trackW = el.width - thumbW;
-  const trackGradFill = gradientFillFor(s.rangeTrackBgImage, { x: trackLeft, y: trackY, w: trackW, h: trackH }, defCtx);
+  const isVertical = s.writingMode != null && s.writingMode !== "" && s.writingMode !== "horizontal-tb";
+  const parts: string[] = [];
+
+  // Geometry: in horizontal mode the track is along x (length = el.width),
+  // thumb moves in x. In vertical mode track is along y (length = el.height),
+  // thumb moves in y. `direction: rtl` flips the value axis so low is at
+  // the visual end of the track (right for horizontal, bottom for vertical).
+  let trackRect: { x: number; y: number; w: number; h: number };
+  let fillRect: { x: number; y: number; w: number; h: number };
+  let thumbCx: number;
+  let thumbCy: number;
+
+  if (isVertical) {
+    const halfThumb = thumbH / 2;
+    const trackX = el.x + el.width / 2 - trackThickness / 2;
+    const trackTop = el.y + halfThumb;
+    const trackBottom = el.y + el.height - halfThumb;
+    const trackLen = trackBottom - trackTop;
+    const lowAtBottom = s.direction === "rtl";
+    const fromTop = lowAtBottom ? (1 - ratio) : ratio;
+    thumbCx = el.x + el.width / 2;
+    thumbCy = trackTop + trackLen * fromTop;
+    trackRect = { x: trackX, y: trackTop, w: trackThickness, h: trackLen };
+    // UA accent fill spans from the value end of the track to the thumb.
+    if (lowAtBottom) {
+      fillRect = { x: trackX, y: thumbCy, w: trackThickness, h: Math.max(0, trackBottom - thumbCy) };
+    } else {
+      fillRect = { x: trackX, y: trackTop, w: trackThickness, h: Math.max(0, thumbCy - trackTop) };
+    }
+  } else {
+    const halfThumb = thumbW / 2;
+    const cy = el.y + el.height / 2;
+    const trackY = cy - trackThickness / 2;
+    const trackLeft = el.x + halfThumb;
+    const trackRight = el.x + el.width - halfThumb;
+    const trackLen = trackRight - trackLeft;
+    thumbCy = cy;
+    thumbCx = trackLeft + trackLen * ratio;
+    trackRect = { x: trackLeft, y: trackY, w: trackLen, h: trackThickness };
+    fillRect = { x: trackLeft, y: trackY, w: Math.max(0, thumbCx - trackLeft), h: trackThickness };
+  }
+
+  const trackGradFill = gradientFillFor(s.rangeTrackBgImage, trackRect, defCtx);
+  // CSS background layering: when both a gradient image and a background
+  // color are declared, the color paints first and the gradient overlays.
+  // For opaque non-repeating gradients this is invisible, but a repeating
+  // gradient with transparent stops (e.g. tick-marks track) reveals the
+  // color between stripes (DM-275).
+  if (trackGradFill != null && styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" && s.rangeTrackBg != null && s.rangeTrackBg !== "") {
+    parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`);
+  }
   const trackFill = trackGradFill ?? trackBgColor;
-  parts.push(`${indent}<rect x="${r(trackLeft)}" y="${r(trackY)}" width="${r(trackW)}" height="${r(trackH)}" rx="${r(trackR)}" fill="${trackFill}" />`);
-  // UA default paints an accent-colored fill from the track left to the
+  parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${trackFill}" />`);
+  // UA default paints an accent-colored fill from the track origin to the
   // thumb. Author-styled tracks usually replace this with their own
   // background, so skip the accent fill when the track was overridden.
   if (!styledTrack) {
-    parts.push(`${indent}<rect x="${r(trackLeft)}" y="${r(trackY)}" width="${r(Math.max(0, thumbX - trackLeft))}" height="${r(trackH)}" rx="${r(trackR)}" fill="${accent}" />`);
+    parts.push(`${indent}<rect x="${r(fillRect.x)}" y="${r(fillRect.y)}" width="${r(fillRect.w)}" height="${r(fillRect.h)}" rx="${r(trackR)}" fill="${accent}" />`);
   }
+  // Parse author thumb border (e.g. "2px solid white") for styled sliders. When
+  // the pseudo doesn't declare a border, fall through to the UA stroke for
+  // unstyled UA thumbs and to no stroke for styled thumbs (Chrome paints the
+  // styled thumb borderless unless the author asks for one). DM-273.
+  const thumbBorder = parseBorderShorthand(s.rangeThumbBorder);
   // Author-styled non-square thumb: render as a rect (matches rectangular
   // and pill-shaped thumbs). Default UA thumb is a circle.
-  if (styledThumb && (thumbH !== thumbW || thumbRadius < thumbW / 2)) {
+  if (styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2)) {
     const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : UA_FILL;
-    const thumbRect = { x: thumbX - thumbW / 2, y: cy - thumbH / 2, w: thumbW, h: thumbH };
+    const thumbRect = { x: thumbCx - thumbW / 2, y: thumbCy - thumbH / 2, w: thumbW, h: thumbH };
     const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
     const thumbFill = thumbGradFill ?? thumbBgColor;
-    parts.push(`${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}" />`);
+    const strokeAttrs = thumbBorder != null ? ` stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}"` : "";
+    parts.push(`${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}"${strokeAttrs} />`);
+  } else if (styledThumb) {
+    const halfThumb = thumbW / 2;
+    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : UA_FILL;
+    const thumbRect = { x: thumbCx - halfThumb, y: thumbCy - halfThumb, w: thumbW, h: thumbW };
+    const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
+    const thumbFill = thumbGradFill ?? thumbBgColor;
+    const strokeAttrs = thumbBorder != null ? ` stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}"` : "";
+    parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${thumbFill}"${strokeAttrs} />`);
   } else {
-    const thumbBgColor = styledThumb && s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : UA_FILL;
-    const thumbRect = { x: thumbX - halfThumb, y: cy - halfThumb, w: thumbW, h: thumbW };
-    const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
-    const thumbFill = thumbGradFill ?? thumbBgColor;
-    parts.push(`${indent}<circle cx="${r(thumbX)}" cy="${r(cy)}" r="${r(halfThumb)}" fill="${thumbFill}" stroke="${UA_BORDER}" stroke-width="1" />`);
+    // Native (UA-default) range thumb. Chrome paints a filled accent-colored
+    // circle, not a hollow white-with-gray-border one. Disabled state mutes
+    // it via the host opacity Chrome already applies. DM-273.
+    const halfThumb = thumbW / 2;
+    parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${accent}" />`);
   }
   return parts.join("\n");
+}
+
+/** Parse a CSS `border` shorthand like `"2px solid white"` into a width/color
+ *  pair. Returns null when the input is missing, "none", or unparseable. */
+function parseBorderShorthand(border: string | undefined): { width: number; color: string } | null {
+  if (border == null || border === "" || /\bnone\b/.test(border)) return null;
+  const m = /^([\d.]+)px\s+(\w+)\s+(.+)$/.exec(border.trim());
+  if (m == null || m[2] === "none") return null;
+  const w = parseFloat(m[1]);
+  if (!isFinite(w) || w <= 0) return null;
+  return { width: w, color: m[3] };
 }
 
 function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
@@ -331,10 +403,16 @@ function renderSearchInput(el: CapturedElement, indent: string, defCtx?: DefCtx)
 function renderFileInput(el: CapturedElement, indent: string): string {
   const parts: string[] = [];
   const s = el.styles;
+  // Visually-hidden file inputs (label-wrapped pattern: opacity:0 or
+  // width/height clipped to 1px) shouldn't render the synthesized 'Choose
+  // File' chrome — the label is the visible UI and our chrome would stamp
+  // ugly overlapping text on top. DM-271.
+  const isHidden = el.width <= 2 || el.height <= 2 || s.opacity === "0";
+  if (isHidden) return "";
   // Resolve styles from the captured pseudo, with UA defaults as fallback.
   const bg = s.fileButtonBg != null && s.fileButtonBg !== "" ? s.fileButtonBg : "rgb(239,239,239)";
   const color = s.fileButtonColor != null && s.fileButtonColor !== "" ? s.fileButtonColor : "rgb(0,0,0)";
-  const radius = s.fileButtonBorderRadius != null ? (parseFloat(s.fileButtonBorderRadius) || 3) : 3;
+  const rawRadius = s.fileButtonBorderRadius != null ? (parseFloat(s.fileButtonBorderRadius) || 3) : 3;
   // Border: parse "Wpx <style> <color>" — only the width matters for our paint.
   let borderW = 1;
   let borderColor = UA_BORDER;
@@ -356,13 +434,18 @@ function renderFileInput(el: CapturedElement, indent: string): string {
   }
   const fontWeight = s.fileButtonFontWeight != null && s.fileButtonFontWeight !== "" ? s.fileButtonFontWeight : "400";
   const fontSize = 11;
-  // Approximate "Choose File" width: ~6.5px/char at 11px font, plus padding.
-  const labelText = "Choose File";
+  // <input type=file multiple> labels as "Choose Files" (Chrome).
+  const labelText = s.inputMultiple === true ? "Choose Files" : "Choose File";
   const textW = labelText.length * fontSize * 0.6;
   const btnW = textW + padH * 2;
   const btnH = Math.min(fontSize + padV * 2, el.height);
   const bx = el.x + 2;
   const by = el.y + (el.height - btnH) / 2;
+  // Clamp the captured border-radius to half-extents so a `border-radius: 999px`
+  // pill doesn't become an ellipse via SVG's per-axis rx/ry default-equality
+  // rule (rx=999 with ry unset → ry=999 → ry clamps to btnH/2 independent of
+  // rx clamping to btnW/2 → ellipse ends, not semicircles). DM-271.
+  const radius = Math.min(rawRadius, btnW / 2, btnH / 2);
   const strokeAttrs = borderW > 0 ? ` stroke="${borderColor}" stroke-width="${borderW}"` : "";
   parts.push(`${indent}<rect x="${r(bx)}" y="${r(by)}" width="${r(btnW)}" height="${r(btnH)}" rx="${r(radius)}" fill="${bg}"${strokeAttrs} />`);
   parts.push(`${indent}<text x="${r(bx + btnW / 2)}" y="${r(by + btnH / 2 + 4)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" font-family="-apple-system, system-ui, sans-serif" fill="${color}">${labelText}</text>`);
@@ -377,19 +460,95 @@ function renderFileInput(el: CapturedElement, indent: string): string {
  */
 function renderDatePicker(el: CapturedElement, indent: string): string {
   const parts: string[] = [];
+  const t = el.styles.inputType ?? "date";
   const val = el.styles.inputValue ?? "";
   const tx = el.x + 6;
   const ty = el.y + el.height / 2 + 4;
-  if (val !== "") {
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="11" font-family="-apple-system, system-ui, sans-serif" fill="rgb(0,0,0)">${val.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
+  // Chrome renders date inputs with an en-US-formatted display value: dates
+  // as MM/DD/YYYY, times as hh:mm AM/PM, etc. The captured `inputValue` is
+  // the canonical ISO form (`2026-04-21`). DM-263.
+  const display = formatDateInputDisplay(t, val);
+  if (display !== "") {
+    // Chrome paints date input values in a tabular monospaced face; we route
+    // through the system mono fallback so the segments don't kern.
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="rgb(0,0,0)">${display.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
   }
-  // Chevron on the right (like <select>).
-  const size = Math.min(8, el.height * 0.4);
-  const cx = el.x + el.width - 10;
+  // Picker icon on the right edge: calendar for date / month / week / datetime-local,
+  // clock for time. Chrome paints these monochrome at ~14px in the input's
+  // line-height. DM-263.
+  const cx = el.x + el.width - 12;
   const cy = el.y + el.height / 2;
-  const p = (dx: number, dy: number): string => `${r(cx + dx * size)},${r(cy + dy * size)}`;
-  parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${TRACK_FG}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
+  const iconSize = Math.min(11, el.height - 6);
+  if (t === "time") {
+    parts.push(renderClockIcon(indent, cx, cy, iconSize));
+  } else {
+    parts.push(renderCalendarIcon(indent, cx, cy, iconSize));
+  }
   return parts.join("\n");
+}
+
+/** Format an ISO date-input value into Chrome's en-US display string.
+ *  Falls back to the raw value when parsing fails (preserves the original
+ *  rendering for unrecognized inputs). DM-263. */
+function formatDateInputDisplay(type: string, val: string): string {
+  if (val === "") return "";
+  if (type === "date") {
+    // YYYY-MM-DD → MM/DD/YYYY
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val);
+    if (m == null) return val;
+    return `${m[2]}/${m[3]}/${m[1]}`;
+  }
+  if (type === "time") {
+    // HH:MM[:SS] (24h) → hh:mm AM/PM (12h)
+    const m = /^(\d{2}):(\d{2})/.exec(val);
+    if (m == null) return val;
+    const h24 = parseInt(m[1], 10);
+    const mm = m[2];
+    const ampm = h24 >= 12 ? "PM" : "AM";
+    let h12 = h24 % 12;
+    if (h12 === 0) h12 = 12;
+    return `${h12.toString().padStart(2, "0")}:${mm} ${ampm}`;
+  }
+  if (type === "datetime-local") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(val);
+    if (m == null) return val;
+    const h24 = parseInt(m[4], 10);
+    const ampm = h24 >= 12 ? "PM" : "AM";
+    let h12 = h24 % 12;
+    if (h12 === 0) h12 = 12;
+    return `${m[2]}/${m[3]}/${m[1]}, ${h12.toString().padStart(2, "0")}:${m[5]} ${ampm}`;
+  }
+  if (type === "month") {
+    const m = /^(\d{4})-(\d{2})$/.exec(val);
+    if (m == null) return val;
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const idx = parseInt(m[2], 10) - 1;
+    if (idx < 0 || idx > 11) return val;
+    return `${months[idx]} ${m[1]}`;
+  }
+  if (type === "week") {
+    const m = /^(\d{4})-W(\d{2})$/.exec(val);
+    if (m == null) return val;
+    return `Week ${m[2]}, ${m[1]}`;
+  }
+  return val;
+}
+
+function renderCalendarIcon(indent: string, cx: number, cy: number, size: number): string {
+  // Simple calendar glyph: rounded rect with two top "binders" and a grid line.
+  const w = size;
+  const h = size;
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  const stroke = TRACK_FG;
+  return `${indent}<g fill="none" stroke="${stroke}" stroke-width="1" stroke-linecap="round"><rect x="${r(x + 0.5)}" y="${r(y + 1.5)}" width="${r(w - 1)}" height="${r(h - 2)}" rx="1" /><line x1="${r(x + 0.5)}" y1="${r(y + 4)}" x2="${r(x + w - 0.5)}" y2="${r(y + 4)}" /><line x1="${r(x + 3)}" y1="${r(y + 0.5)}" x2="${r(x + 3)}" y2="${r(y + 2.5)}" /><line x1="${r(x + w - 3)}" y1="${r(y + 0.5)}" x2="${r(x + w - 3)}" y2="${r(y + 2.5)}" /></g>`;
+}
+
+function renderClockIcon(indent: string, cx: number, cy: number, size: number): string {
+  // Simple clock glyph: circle with two hands.
+  const r1 = size / 2;
+  const stroke = TRACK_FG;
+  return `${indent}<g fill="none" stroke="${stroke}" stroke-width="1" stroke-linecap="round"><circle cx="${r(cx)}" cy="${r(cy)}" r="${r(r1 - 0.5)}" /><line x1="${r(cx)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - r1 * 0.55)}" /><line x1="${r(cx)}" y1="${r(cy)}" x2="${r(cx + r1 * 0.4)}" y2="${r(cy)}" /></g>`;
 }
 
 /**
@@ -540,12 +699,28 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
 }
 
 function renderSelectChevron(el: CapturedElement, indent: string): string {
+  const parts: string[] = [];
+  // Selected-option text inside the closed dropdown's content rect (DM-246).
+  // Chrome paints `selectedOptions[0]?.textContent` here; option/optgroup
+  // children are otherwise textIsHiddenFallback and don't reach the renderer.
+  const display = el.styles.selectDisplayText;
+  if (display != null && display !== "") {
+    const fontSize = parseFloat(el.styles.fontSize ?? "13") || 13;
+    const fontFamily = el.styles.fontFamily ?? "-apple-system, system-ui, sans-serif";
+    const fontWeight = el.styles.fontWeight ?? "400";
+    const color = el.styles.color ?? "rgb(0,0,0)";
+    const tx = el.x + 6;
+    const ty = el.y + el.height / 2 + fontSize * 0.35;
+    const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily}" font-weight="${fontWeight}" fill="${color}">${escaped}</text>`);
+  }
   // Chromium macOS default: small down-chevron near the right edge.
   const size = Math.min(10, el.height * 0.5);
   const cx = el.x + el.width - 10;
   const cy = el.y + el.height / 2;
   const p = (dx: number, dy: number): string => `${r(cx + dx * size)},${r(cy + dy * size)}`;
-  return `${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${TRACK_FG}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`;
+  parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${TRACK_FG}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
+  return parts.join("\n");
 }
 
 function renderDetailsMarker(el: CapturedElement, indent: string): string {
