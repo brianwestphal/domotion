@@ -87,8 +87,8 @@ in the SVG output.</p>
 <h2>See also</h2>
 
 <ul>
-  <li><code>docs/26-input-pseudos.md</code> in the repo — design notes on which
+  <li><code>docs/04-input-pseudos.md</code> in the repo — design notes on which
     shadow pseudos are recognised.</li>
-  <li><code>docs/27-progress-meter-pseudos.md</code> — progress / meter pseudos.</li>
+  <li><code>docs/05-progress-meter-pseudos.md</code> — progress / meter pseudos.</li>
 </ul>
 `;

@@ -14,7 +14,7 @@
  * the caller supplies. The frame index is computed from the event's `t`
  * (each frame's start/end time is derived from the animation timing).
  *
- * See docs/35-cursor-overlay.md for the design.
+ * See docs/13-cursor-overlay.md for the design.
  */
 
 export interface CursorStyle {

@@ -145,7 +145,7 @@ export interface AnimationConfig {
   /**
    * Optional cursor / click overlay (DM-277). Renders a macOS-style cursor
    * moving along the script timeline with QuickTime-style click pulses.
-   * Off by default; opt-in per animation. See `docs/35-cursor-overlay.md`.
+   * Off by default; opt-in per animation. See `docs/13-cursor-overlay.md`.
    */
   cursorOverlay?: CursorOverlay;
   /**

@@ -8,7 +8,7 @@ export const content = `
 <p>This is the area where Domotion has the largest known gap. Today, only
 translation is faithfully reproduced; rotation, scale, skew, and matrix
 transforms are captured but rendered as the un-transformed bounding box of
-the element. The doc <code>docs/28-css-transforms.md</code> in the source tree
+the element. The doc <code>docs/06-css-transforms.md</code> in the source tree
 tracks this work.</p>
 
 <h2>Support matrix</h2>
@@ -84,7 +84,7 @@ captured bounding box already absorbs.</p>
 <h2>See also</h2>
 
 <ul>
-  <li><code>docs/28-css-transforms.md</code> in the repo for the design notes
+  <li><code>docs/06-css-transforms.md</code> in the repo for the design notes
     on what a full transform implementation will look like.</li>
 </ul>
 `;

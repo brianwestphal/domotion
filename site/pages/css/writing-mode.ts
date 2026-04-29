@@ -43,7 +43,7 @@ correct contextual glyph forms.</p>
 and how decorations attach. The element-raster fallback is the planned path
 forward — capturing the vertical region as a screenshot and embedding it as
 an SVG <code>&lt;image&gt;</code> — but it isn't yet wired up. See
-<code>docs/24-writing-mode.md</code> in the repo for the design notes.</p>
+<code>docs/02-writing-mode.md</code> in the repo for the design notes.</p>
 
 <h3>Workarounds</h3>
 

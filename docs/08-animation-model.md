@@ -1,4 +1,4 @@
-# 30 — Animation model: transitions, overlays, intra-frame motion
+# 08 — Animation model: transitions, overlays, intra-frame motion
 
 The animation pipeline composes multiple captured frames into a single SVG with CSS keyframe transitions between frames, optional per-frame overlays, and (with this doc's additions) intra-frame property animations and SVG overlays.
 

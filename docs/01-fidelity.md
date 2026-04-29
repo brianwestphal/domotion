@@ -35,7 +35,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [x] border-style: solid, dashed, dotted
 - [x] border-style: double, groove, ridge, inset, outset — implemented in dom-to-svg.ts uniform-border path
 - [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093
-- [x] per-corner border-radius (asymmetric `10px 30px 50px 70px`) and elliptical corners (`50px / 20px`) — DM-300, see docs/36
+- [x] per-corner border-radius (asymmetric `10px 30px 50px 70px`) and elliptical corners (`50px / 20px`) — DM-300, see docs/14
 - [ ] border-image — tracked SK-466
 - [x] outline (style/width/color/offset, including dashed/dotted) — SK-1111
 - [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113
@@ -56,7 +56,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 
 ### Typography
 
-- [x] Font families: generic keywords (`serif`/`sans-serif`/`monospace`/`cursive`) + a handful of installed families. The mapping is platform-specific (macOS today: Helvetica / Times / Courier / SF Pro / SF Mono / Snell Roundhand / Hiragino Sans GB / Apple Symbols / Zapf Dingbats / STIX Two Math; Linux and Windows mappings tracked DM-258 / DM-259 / DM-260). Unmatched families fall through to the platform's sans-serif default. See `25-font-family-chain.md`.
+- [x] Font families: generic keywords (`serif`/`sans-serif`/`monospace`/`cursive`) + a handful of installed families. The mapping is platform-specific (macOS today: Helvetica / Times / Courier / SF Pro / SF Mono / Snell Roundhand / Hiragino Sans GB / Apple Symbols / Zapf Dingbats / STIX Two Math; Linux and Windows mappings tracked DM-258 / DM-259 / DM-260). Unmatched families fall through to the platform's sans-serif default. See `03-font-family-chain.md`.
 - [x] Webfonts via `@font-face` (DM-227): same-origin sheets are walked for `@font-face` rules; cross-origin fonts (Google Fonts, Adobe Fonts) are picked up by a `requestfinished` listener attached before navigation. Each font buffer is fetched via the browser's request stack, parsed with fontkit, and registered into a per-capture registry that the resolver consults before the on-disk fallbacks.
 - [x] Variable webfont axes (DM-228 / DM-229): `wght`, `opsz`, `slnt` driven from CSS `font-weight` / `font-size` / `font-style` via `applyVariationAxes`. WOFF2 buffers are decompressed to TTF (via `wawoff2`) before fontkit parsing — fontkit's WOFF2 variation path returns an instance whose tables can't be read.
 - [x] Weight, size, style (italic via SFNSItalic.ttf — SK-1105), variant, stretch
