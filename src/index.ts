@@ -2,6 +2,7 @@ export { captureElementTree, elementTreeToSvg, wrapSvg, getLastCaptureWarnings, 
 export type { CapturedElement, CaptureWarning } from "./dom-to-svg.js";
 export { generateAnimatedSvg } from "./animator.js";
 export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverlay, SvgOverlay, IntraFrameAnimation } from "./animator.js";
+export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./cursor-overlay.js";
 export { DemoRecorder, launchChromium } from "./capture.js";
 export type { CaptureOptions } from "./capture.js";
 export { optimizeSvg } from "./optimize.js";

@@ -6,6 +6,7 @@
  */
 
 import { mergeFrames } from "./frame-merge.js";
+import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -141,6 +142,17 @@ export interface AnimationConfig {
    * them in every frame's local defs.
    */
   sharedDefs?: string;
+  /**
+   * Optional cursor / click overlay (DM-277). Renders a macOS-style cursor
+   * moving along the script timeline with QuickTime-style click pulses.
+   * Off by default; opt-in per animation. See `docs/35-cursor-overlay.md`.
+   */
+  cursorOverlay?: CursorOverlay;
+  /**
+   * Resolver for selector-based cursor move events. Required if any event
+   * uses `selector`; otherwise pass undefined / null.
+   */
+  resolveSelector?: SelectorResolver;
 }
 
 export function generateAnimatedSvg(config: AnimationConfig): string {
@@ -321,6 +333,24 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   // Compose final SVG with XML declaration for proper UTF-8
   const sharedDefsMarkup = config.sharedDefs ?? "";
   const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
+  // Cursor overlay (DM-277). The frame start times let the resolver pick
+  // which frame's selector matches apply at each event's timestamp.
+  let overlayMarkup = "";
+  if (config.cursorOverlay != null && config.cursorOverlay.events.length > 0) {
+    const frameStarts: number[] = [];
+    let acc = 0;
+    for (const f of frames) {
+      frameStarts.push(acc);
+      acc += f.duration + transitionDuration(f);
+    }
+    const resolved = resolveCursorScript(
+      config.cursorOverlay,
+      totalDuration,
+      frameStarts,
+      config.resolveSelector ?? null,
+    );
+    overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration);
+  }
   const out = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
@@ -332,7 +362,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   </style>
   <g clip-path="url(#viewport-clip)">
   <rect width="${width}" height="${height}" fill="#0d1117" />
-${frameGroups.join("\n")}
+${frameGroups.join("\n")}${overlayMarkup}
   </g>
 </svg>`;
   return out;
@@ -543,6 +573,25 @@ function composeMergedSvg(
   const { css, merged } = mergeFrames(framesSvg, frameTiming, "t");
   const sharedDefsMarkup = config.sharedDefs ?? "";
   const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
+  // Cursor overlay (DM-277). Same emission as the unmerged path — the
+  // overlay sits above the merged frame group, clipped to the viewport.
+  const totalDuration = totalSec * 1000;
+  let overlayMarkup = "";
+  if (config.cursorOverlay != null && config.cursorOverlay.events.length > 0) {
+    const frameStarts: number[] = [];
+    let acc = 0;
+    for (const f of frames) {
+      frameStarts.push(acc);
+      acc += f.duration + transitionDuration(f);
+    }
+    const resolved = resolveCursorScript(
+      config.cursorOverlay,
+      totalDuration,
+      frameStarts,
+      config.resolveSelector ?? null,
+    );
+    overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration);
+  }
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
@@ -554,7 +603,7 @@ ${css}${animationCss}
   </style>
   <g clip-path="url(#viewport-clip)">
   <rect width="${width}" height="${height}" fill="#0d1117" />
-${merged}
+${merged}${overlayMarkup}
   </g>
 </svg>`;
 }
