@@ -25,7 +25,16 @@ function rasterGlyphOverlays(seg: TextSegment, clipId: string): string {
   const out: string[] = [];
   for (const g of seg.rasterGlyphs) {
     if (g.dataUri == null) continue;
-    out.push(`<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`);
+    // Emoji bitmaps from Apple Color Emoji's sbix table are square. The
+    // captured rect is the painted line-box height (~lineHeight) by the
+    // emoji advance (~em-square), so width and height typically differ
+    // (e.g. 20x18 for a 16px-font emoji on a 18px line). With
+    // preserveAspectRatio="none" the square bitmap gets vertically squished
+    // to fit; `xMidYMid meet` preserves aspect ratio (centered, padded) so
+    // the emoji renders square at its natural shape — matches Chrome which
+    // paints the bitmap at em-square size centered in the line box. (DM-336
+    // / DM-377.)
+    out.push(`<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${clipId})"/>`);
   }
   return out.join("");
 }

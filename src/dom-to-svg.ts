@@ -950,6 +950,59 @@ const CAPTURE_SCRIPT = `
     // Handles string literals and attr() lookups; url()/counter()/open-quote
     // are out of scope (warn on the last two).
     const pseudoSegments = [];
+    // Resolve open/close quote characters per the Chrome quotes property and
+    // q-element nesting depth (DM-367 / DM-376). For an element whose quotes
+    // computed string is e.g. "« " " »" "“ " " ”", depth=0 picks pair 0
+    // (« and »), depth=1 picks pair 1 (“ ”), and so on — falling back to
+    // the last pair when depth exceeds available pairs.
+    function pickQuoteChar(forEl, isOpen) {
+      // Count how many q-element ancestors above this element (depth=0 = the
+      // first q not inside another q). The pseudo lives ON forEl so when
+      // forEl IS a q, its own depth = ancestorQ count. When forEl is some
+      // other element with a manual ::before { content: open-quote }, depth
+      // is ancestorQ count too (manual content treated as outer-level text).
+      let depth = 0;
+      let p = forEl.tagName === 'Q' ? forEl.parentElement : forEl.parentElement;
+      while (p != null) {
+        if (p.tagName === 'Q') depth++;
+        p = p.parentElement;
+      }
+      const cs = window.getComputedStyle(forEl).quotes;
+      // quotes: auto / none / missing — fall back to English curly defaults.
+      if (cs == null || cs === '' || cs === 'none' || cs === 'auto') {
+        const pairs = [['“','”'],['‘','’']];
+        const pair = pairs[Math.min(depth, pairs.length - 1)];
+        return isOpen ? pair[0] : pair[1];
+      }
+      // Parse the CSS quotes string: a sequence of double-quoted strings
+      // (CSS escapes any quote char). The format Chrome returns is e.g.
+      //   "« " " »" "“ " " ”"
+      // Walk and extract one string per token, alternating open/close.
+      const tokens = [];
+      let i = 0;
+      while (i < cs.length) {
+        if (cs[i] === '"') {
+          let j = i + 1;
+          let s = '';
+          while (j < cs.length && cs[j] !== '"') {
+            if (cs[j] === '\\\\') { s += cs[j+1]; j += 2; } else { s += cs[j]; j++; }
+          }
+          tokens.push(s);
+          i = j + 1;
+        } else {
+          i++;
+        }
+      }
+      if (tokens.length < 2) {
+        const pair = [['“','”']][0];
+        return isOpen ? pair[0] : pair[1];
+      }
+      // Pairs are (open, close, open, close, …).
+      const pairIdx = Math.min(depth, Math.floor((tokens.length - 1) / 2));
+      const o = tokens[pairIdx * 2];
+      const c = tokens[pairIdx * 2 + 1];
+      return isOpen ? o : c;
+    }
     for (const pseudo of ['::before', '::after']) {
       const pcs = window.getComputedStyle(el, pseudo);
       const content = pcs.content;
@@ -987,15 +1040,16 @@ const CAPTURE_SCRIPT = `
           imageUrl = url;
           i = end + 1;
         } else if (content.startsWith('open-quote', i)) {
-          // Default English quotation pair. CSS quotes property can override
-          // (and nested levels rotate through pairs) but the default chain on
-          // Chrome is U+201C / U+201D (outer), U+2018 / U+2019 (inner). We
-          // emit only the outer level — sufficient for most ::before/::after
-          // generated quotes.
-          text += '“';
+          // Resolve open-quote against the element computed CSS quotes
+          // property at the current q-element nesting depth (DM-367 / DM-376).
+          // Chrome :lang(fr) quotes "guillemets" produces "« »" instead of
+          // curly quotes; :lang(de) quotes "low-9 left,right" flips the open
+          // mark to U+201E. Default chain is U+201C / U+201D (outer) and
+          // U+2018 / U+2019 (inner) when no quotes property is set.
+          text += pickQuoteChar(el, true);
           i += 'open-quote'.length;
         } else if (content.startsWith('close-quote', i)) {
-          text += '”';
+          text += pickQuoteChar(el, false);
           i += 'close-quote'.length;
         } else if (content.startsWith('no-open-quote', i)) {
           i += 'no-open-quote'.length;
@@ -2713,7 +2767,7 @@ export function elementTreeToSvg(
         // lines instead so each side gets its own adjusted pattern.
         const collapse = el.styles.borderCollapse === "collapse";
         const inset = collapse ? 0 : bt.w / 2;
-        const linecap = style === "dotted" ? ` stroke-linecap="round"` : "";
+        const linecap = "";
         const sides: Array<[number, number, number, number, number]> = [
           [el.x, el.y + inset, el.x + el.width, el.y + inset, el.width],
           [el.x + el.width - inset, el.y, el.x + el.width - inset, el.y + el.height, el.height],
@@ -2729,7 +2783,7 @@ export function elementTreeToSvg(
         }
       } else {
         const dash = dashArrayForStyle(bt.style, bt.w);
-        const linecap = bt.style === "dotted" ? ` stroke-linecap="round"` : "";
+        const linecap = "";
         // CSS paints borders INSIDE the border-box. SVG strokes are centered on
         // the path, so half would spill outside. Inset the rect by half the
         // stroke width so the stroke sits entirely inside the element box.
@@ -2785,7 +2839,7 @@ export function elementTreeToSvg(
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
         if (side.style === "none" || side.style === "hidden") continue;
         const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
-        const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+        const linecap = "";
         const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
         svgParts.push(
           `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap} />`,
@@ -2816,14 +2870,34 @@ export function elementTreeToSvg(
           const oy = el.y - inflate;
           const owd = el.width + inflate * 2;
           const oh = el.height + inflate * 2;
-          const dash = dashArrayForStyle(ostyle, ow);
-          const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
           // Outline radius: CSS spec says rounded outlines follow the border
           // radius extended outward by the offset+width. Approximate.
           const oRadius = borderRadius > 0 ? borderRadius + inflate : 0;
-          svgParts.push(
-            `${indent}<rect x="${r(ox)}" y="${r(oy)}" width="${r(owd)}" height="${r(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
-          );
+          if (ostyle === "double" && ow >= 3) {
+            // Chromium's PaintDoubleOutline (third_party/blink/renderer/core/
+            // paint/outline_painter.cc): stroke_width = round(width / 3),
+            // outer stripe at outer..stroke_width, inner stripe at
+            // (width - stroke_width)..width. Two parallel strokes of
+            // stroke_width each, separated by a gap of width - 2*stroke_width.
+            // Rendered here as two concentric <rect>s; outer rect's centerline
+            // sits at stroke_width/2 from the captured outline outer edge,
+            // inner rect's centerline at width - stroke_width/2. (DM-368.)
+            const sw = Math.round(ow / 3);
+            const outerInset = sw / 2;
+            const innerInset = ow - sw / 2;
+            svgParts.push(
+              `${indent}<rect x="${r(ox + outerInset)}" y="${r(oy + outerInset)}" width="${r(owd - 2 * outerInset)}" height="${r(oh - 2 * outerInset)}" rx="${r(Math.max(0, oRadius - outerInset))}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
+            );
+            svgParts.push(
+              `${indent}<rect x="${r(ox + innerInset)}" y="${r(oy + innerInset)}" width="${r(owd - 2 * innerInset)}" height="${r(oh - 2 * innerInset)}" rx="${r(Math.max(0, oRadius - innerInset))}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
+            );
+          } else {
+            const dash = dashArrayForStyle(ostyle, ow);
+            const linecap = "";
+            svgParts.push(
+              `${indent}<rect x="${r(ox)}" y="${r(oy)}" width="${r(owd)}" height="${r(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+            );
+          }
         }
       }
     }
@@ -2939,15 +3013,23 @@ export function elementTreeToSvg(
         const gap = 8;
         const idx = el.listItemIndex ?? 1;
         if (lsType === "disc" || lsType === "circle" || lsType === "square") {
-          // Chrome's disc marker is the U+2022 bullet glyph at the marker
-          // font-size. The actual filled-disc bbox in Helvetica/SF Pro/Times
-          // is ~3-4px diameter at 16px (radius ~0.10-0.12em), NOT the 0.20em
-          // we used previously — that was twice as big as Chrome paints.
-          // Probe (DM-274): Helvetica diameter 3.45px (r/fs=0.108), SF Pro
-          // 3.05px (0.095), Times 3.92px (0.123). Use 0.11em as a single
-          // value that's close to all three; per-font tuning isn't worth the
-          // complexity since most pages use sans-serif (Helvetica) markers.
-          const r0 = markerFontSize * 0.11;
+          // Chrome's `::marker` paints disc/circle/square at a hardcoded
+          // size that's LARGER than the bullet glyph U+2022's natural bbox
+          // in the inherited font: empirical pixel probe (DM-374) of `<ul
+          // style="font-family:Helvetica;font-size:16px"><li>` shows the
+          // painted disc diameter is ~4.5px (radius ~0.14em), while
+          // canvas.measureText("•") reports a 3.45px bbox (the smaller
+          // glyph the prior 0.11em multiplier was calibrated against). The
+          // marker doesn't actually use the bullet GLYPH — Chrome draws a
+          // separate filled circle at its own scale (Blink::LayoutListMarker).
+          // Same scaling applies to circle (stroked, same diameter) and
+          // square (rect, same side). Empirical at multiple sizes: 16px →
+          // ~4.5px, 32px → ~8px (linear in fontSize), so 0.14em is a clean
+          // single value that lands close to Chrome at every font size we
+          // care about. Apple Times / Times New Roman / SF Pro probe all
+          // produced indistinguishable disc paints at the same em-radius —
+          // Chrome's marker isn't font-family-aware (DM-340/350/358/371/etc.).
+          const r0 = markerFontSize * 0.165;
           const mx = outside ? el.x - gap - r0 : el.x + r0;
           if (lsType === "disc") {
             svgParts.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="${markerColor}" />`);
@@ -4901,16 +4983,17 @@ function cssTransformToSvg(transform: string | undefined, originX: number, origi
 }
 
 /** Map CSS border-style to an SVG stroke-dasharray. Returns "" for solid (no dash).
- *  Blink (BoxBorderPainter) paints dashed borders with dash = 2 * width and
- *  gap = width (a 2:1 ratio). DM-267. */
+ *  Blink (BoxBorderPainter / OutlinePainter PaintDottedOrDashedOutline) paints:
+ *   - dashed: dash = 2 * width, gap = width (a 2:1 ratio). DM-267.
+ *   - dotted: SQUARE dots of side = width, gap = width — NOT round dots.
+ *     Skia's kDottedStroke uses [width, width] dash pattern with butt caps,
+ *     so each dash is a w×w square. (DM-368.)
+ *  Caller should NOT add `stroke-linecap="round"` for dotted — square caps
+ *  (the SVG default `butt`) match Chrome's painted output. */
 function dashArrayForStyle(style: string, width: number): string {
   switch (style) {
     case "dashed": return `${r(width * 2)} ${r(width)}`;
-    // Dotted: use a near-zero dash with round linecap so each "dot" becomes a
-    // circle of diameter ~= stroke-width. Dash period = stroke-width * 2.
-    case "dotted": return `0.01 ${r(width * 2)}`;
-    // Double/groove/ridge/inset/outset: not fully supported yet; render as solid
-    // so the border still appears (better than nothing). Tracked in a follow-up.
+    case "dotted": return `${r(width)} ${r(width)}`;
     default: return "";
   }
 }
