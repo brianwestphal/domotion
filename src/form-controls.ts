@@ -82,7 +82,12 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
   if (tag === "input") return renderInputControl(el, indent, defCtx);
   if (tag === "progress") return renderProgress(el, indent, defCtx);
   if (tag === "meter") return renderMeter(el, indent, defCtx);
-  if (tag === "select" && el.styles.selectChevron === true) return renderSelectChevron(el, indent);
+  // Closed-dropdown selects: emit the selected-option text always, but the
+  // native chevron only when the page kept UA chrome (selectChevron). Pages
+  // using `appearance: none` + a CSS background-image arrow get just the
+  // text — the page's CSS chevron paints separately via the background-image
+  // pipeline. (DM-308)
+  if (tag === "select" && el.styles.selectDisplayText != null) return renderSelectChevron(el, indent);
   if (tag === "select" && el.styles.selectListboxOptions != null) return renderListbox(el, indent);
   if (tag === "details") return renderDetailsMarker(el, indent);
   return "";
@@ -815,12 +820,17 @@ function renderSelectChevron(el: CapturedElement, indent: string): string {
     const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
     parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily}" font-weight="${fontWeight}" fill="${color}">${escaped}</text>`);
   }
-  // Chromium macOS default: small down-chevron near the right edge.
-  const size = Math.min(10, el.height * 0.5);
-  const cx = el.x + el.width - 10;
-  const cy = el.y + el.height / 2;
-  const p = (dx: number, dy: number): string => `${r(cx + dx * size)},${r(cy + dy * size)}`;
-  parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${TRACK_FG}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
+  // Chromium macOS default: small down-chevron near the right edge. Skip
+  // when the page set appearance: none — the chevron is the page's
+  // responsibility (drawn via background-image) and stacking ours produces
+  // a double-arrow. DM-308.
+  if (el.styles.selectChevron === true) {
+    const size = Math.min(10, el.height * 0.5);
+    const cx = el.x + el.width - 10;
+    const cy = el.y + el.height / 2;
+    const p = (dx: number, dy: number): string => `${r(cx + dx * size)},${r(cy + dy * size)}`;
+    parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${TRACK_FG}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
+  }
   return parts.join("\n");
 }
 

@@ -1519,10 +1519,19 @@ const CAPTURE_SCRIPT = `
       const svgFill = cs.fill;
       const svgStroke = cs.stroke;
       const svgStrokeWidth = cs.strokeWidth;
+      const svgFontFamily = cs.fontFamily;
       const clone = el.cloneNode(true);
       if (svgFill && svgFill !== '' && !el.hasAttribute('fill')) clone.setAttribute('fill', svgFill);
       if (svgStroke && svgStroke !== '' && svgStroke !== 'none' && !el.hasAttribute('stroke')) clone.setAttribute('stroke', svgStroke);
       if (svgStrokeWidth && svgStrokeWidth !== '' && !el.hasAttribute('stroke-width')) clone.setAttribute('stroke-width', svgStrokeWidth);
+      // Bake the inherited font-family onto the root <svg> so any <text>
+      // descendants without their own font-family inherit it when the SVG
+      // is re-embedded outside the page's cascade. Without this, SVG <text>
+      // defaults to "serif" (Times) and breaks pages whose body sets
+      // sans-serif. DM-306.
+      if (svgFontFamily && svgFontFamily !== '' && !el.hasAttribute('font-family')) {
+        clone.setAttribute('font-family', svgFontFamily);
+      }
       svgContent = clone.outerHTML;
     }
 
@@ -1635,10 +1644,16 @@ const CAPTURE_SCRIPT = `
             layers.push(bgImage.slice(start));
           }
           return layers.map((layer) => {
-            const u = /^\\s*url\\((?:"|')?([^"')]+)/.exec(layer);
+            // Match all three url() forms: "...", '...', and bare. Data: URLs
+            // with embedded HTML attribute quotes (escaped as \") were silently
+            // truncated by the prior single regex. (DM-308)
+            const u = /^\\s*url\\(\\s*(?:"((?:\\\\.|[^"\\\\])*)"|'((?:\\\\.|[^'\\\\])*)'|([^)\\s]+))\\s*\\)/.exec(layer);
             if (u == null) return null;
+            const raw = u[1] || u[2] || u[3] || '';
+            if (raw === '') return null;
+            const url = raw.replace(/\\\\(.)/g, '$1');
             const img = new Image();
-            img.src = u[1];
+            img.src = url;
             const w = img.naturalWidth || 0;
             const h = img.naturalHeight || 0;
             return w > 0 && h > 0 ? { w, h } : null;
@@ -1724,7 +1739,11 @@ const CAPTURE_SCRIPT = `
           };
         })() : {}),
         detailsOpen: tag === 'details' ? !!el.open : undefined,
-        selectChevron: tag === 'select' && el.size <= 1 && !el.multiple,
+        // Native chevron only when the select keeps UA chrome — appearance:
+        // none means the page draws its own arrow via background-image, and
+        // we should not stack our default chevron on top. (DM-308)
+        selectChevron: tag === 'select' && el.size <= 1 && !el.multiple
+          && cs.appearance !== 'none' && cs.webkitAppearance !== 'none',
         selectDisplayText: tag === 'select' && el.size <= 1 && !el.multiple
           ? (el.selectedOptions && el.selectedOptions.length > 0
               ? (el.selectedOptions[0].textContent || '').trim()
@@ -3512,6 +3531,21 @@ function sortChildrenByPaintOrder(children: CapturedElement[]): CapturedElement[
 }
 
 /**
+ * Extract the URL contents from a CSS `url(...)` token, handling double-
+ * quoted, single-quoted, and unquoted variants — including data: URLs whose
+ * contents carry embedded `"` characters that the prior `[^"')]+` regex
+ * tripped on. CSS escape sequences (`\"` → `"`, `\\` → `\`) are unescaped.
+ * Returns null when the input isn't a `url(...)` token. (DM-308)
+ */
+function parseCssUrl(token: string): string | null {
+  const m = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)\s*$/.exec(token);
+  if (m == null) return null;
+  const raw = m[1] ?? m[2] ?? m[3];
+  if (raw == null) return null;
+  return raw.replace(/\\(.)/g, "$1");
+}
+
+/**
  * Split a comma-separated list respecting parentheses nesting. Used to split
  * multiple CSS background layers like:
  *   'linear-gradient(red, blue), url("x.png")'
@@ -3560,9 +3594,9 @@ function buildBackgroundLayerDef(
     const repeating = /^repeating-/i.test(layer);
     return { def: buildRadialGradientDef(id, radial[1], repeating, elX, elY, w, h) };
   }
-  const url = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(layer);
-  if (url != null) {
-    return { def: buildImagePatternDef(id, url[1], elX, elY, w, h, sizeCss, posCss, repeatCss, intrinsic, attachment, fixedViewport) };
+  const urlContent = parseCssUrl(layer);
+  if (urlContent != null) {
+    return { def: buildImagePatternDef(id, urlContent, elX, elY, w, h, sizeCss, posCss, repeatCss, intrinsic, attachment, fixedViewport) };
   }
   return { def: "" };
 }
