@@ -1706,6 +1706,11 @@ const CAPTURE_SCRIPT = `
       // still returns their rects and cs.display isn't 'none', so we explicitly
       // skip non-summary children when the parent details is closed.
       if (tag === 'details' && !el.open && child.tagName.toLowerCase() !== 'summary') continue;
+      // <select> renders its own listbox/dropdown via the form-control
+      // synth; recursively capturing <option>/<optgroup> children would
+      // emit their own background rects and stack them on top of the
+      // synth output, hiding the option text. Skip them. (DM-355)
+      if (tag === 'select' && (child.tagName.toLowerCase() === 'option' || child.tagName.toLowerCase() === 'optgroup')) continue;
       const c = capture(child);
       if (c) children.push(c);
     }
