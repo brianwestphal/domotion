@@ -1039,6 +1039,33 @@ const CAPTURE_SCRIPT = `
           }
           imageUrl = url;
           i = end + 1;
+        } else if (content.startsWith('counter(', i) || content.startsWith('counters(', i)) {
+          // Resolve counter() / counters() against the element's snapshot of
+          // active CSS counter scopes (computed in the pre-walk above). DM-357.
+          const isCounters = content.startsWith('counters(', i);
+          const openIdx = i + (isCounters ? 'counters('.length : 'counter('.length);
+          const closeIdx = content.indexOf(')', openIdx);
+          if (closeIdx < 0) { i++; continue; }
+          const args = content.slice(openIdx, closeIdx).split(',').map((s) => {
+            const t = s.trim();
+            if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+              return t.slice(1, -1);
+            }
+            return t;
+          });
+          const cname = args[0];
+          const sep = isCounters ? (args[1] ?? '') : '';
+          // counter-style argument (third arg of counters(), second of counter())
+          // is currently ignored — we always render decimal. Most fixtures use
+          // the default style; non-decimal formatting can be added later.
+          const snapshot = _counterSnapshot.get(el) || [];
+          const matches = snapshot.filter((s) => s.name === cname).map((s) => String(s.value));
+          if (isCounters) {
+            text += matches.length > 0 ? matches.join(sep) : '0';
+          } else {
+            text += matches.length > 0 ? matches[matches.length - 1] : '0';
+          }
+          i = closeIdx + 1;
         } else if (content.startsWith('open-quote', i)) {
           // Resolve open-quote against the element computed CSS quotes
           // property at the current q-element nesting depth (DM-367 / DM-376).
@@ -2072,6 +2099,75 @@ const CAPTURE_SCRIPT = `
 
   const root = document.querySelector(sel);
   if (!root) return { tree: [], warnings: [] };
+
+  // CSS counters pre-walk (DM-357). Walk the document in DOM order,
+  // applying counter-reset / counter-set / counter-increment per the
+  // computed style of each element, and snapshot the active counter
+  // scope chain at every element. The pseudo emit loop later substitutes
+  // counter(name) / counters(name, sep) tokens against this snapshot.
+  // Without this, content like 'counter(section) "."' was emitted
+  // verbatim — so headings rendered as just '.' instead of '1.', '2.',
+  // '99.', etc. Counter scoping rules (CSS Lists & Counters Level 3):
+  // counter-reset on element X creates a counter scoped to X plus all
+  // descendants; counter() resolves to the innermost ancestor's value;
+  // counters() joins all values along the ancestor chain (outermost first).
+  const _counterSnapshot = new WeakMap();
+  function _parseCounterDecl(declStr, defaultValue) {
+    if (!declStr || declStr === 'none') return [];
+    // Format: "name1 [num] name2 [num] ..."
+    const tokens = declStr.split(/\\s+/);
+    const out = [];
+    let i = 0;
+    while (i < tokens.length) {
+      const name = tokens[i++];
+      if (!name) continue;
+      let value = defaultValue;
+      if (i < tokens.length && /^-?\\d+$/.test(tokens[i])) {
+        value = parseInt(tokens[i++], 10);
+      }
+      out.push({ name, value });
+    }
+    return out;
+  }
+  // Active counter scope stack: each entry { name, value, owner }.
+  const _activeScopes = [];
+  function _findInnermost(name) {
+    for (let i = _activeScopes.length - 1; i >= 0; i--) {
+      if (_activeScopes[i].name === name) return _activeScopes[i];
+    }
+    return null;
+  }
+  function _counterPreWalk(el) {
+    const cs = window.getComputedStyle(el);
+    const owned = [];
+    _parseCounterDecl(cs.counterReset, 0).forEach(({name, value}) => {
+      const scope = { name, value, owner: el };
+      _activeScopes.push(scope);
+      owned.push(scope);
+    });
+    _parseCounterDecl(cs.counterSet, 0).forEach(({name, value}) => {
+      const s = _findInnermost(name);
+      if (s) s.value = value;
+      else { const ns = { name, value, owner: el }; _activeScopes.push(ns); owned.push(ns); }
+    });
+    _parseCounterDecl(cs.counterIncrement, 1).forEach(({name, value}) => {
+      const s = _findInnermost(name);
+      if (s) s.value += value;
+      else { const ns = { name, value, owner: el }; _activeScopes.push(ns); owned.push(ns); }
+    });
+    // Snapshot the active scopes (shallow copy of name+value pairs).
+    _counterSnapshot.set(el, _activeScopes.map((s) => ({ name: s.name, value: s.value })));
+    for (const child of el.children) _counterPreWalk(child);
+    // Pop scopes owned by this element on exit (counter scope ends with the
+    // owner element's subtree).
+    while (_activeScopes.length > 0 && owned.length > 0
+      && _activeScopes[_activeScopes.length - 1] === owned[owned.length - 1]) {
+      _activeScopes.pop();
+      owned.pop();
+    }
+  }
+  _counterPreWalk(root);
+
   const result = [];
   for (const child of root.children) {
     const c = capture(child);
