@@ -1287,6 +1287,51 @@ const CAPTURE_SCRIPT = `
               i += step - 1;
             }
             if (cur != null) lines.push(cur);
+            // BiDi visual-fragment splitting (DM-323). When a single DOM text
+            // node lands inside a dir=rtl paragraph, Chrome can split it
+            // into multiple visually-separate chunks — most commonly trailing
+            // punctuation reorders to the visual-left while the rest of the
+            // run paints on the visual-right. Detect those large xOffset
+            // discontinuities here (gap between consecutive chars > 80 px in
+            // either direction) and split the line into multiple fragments,
+            // each with its own xOffset min so the segment downstream renders
+            // at the correct anchor. Without this, our min(xOffsets) for
+            // the whole line collapses the visually-rightmost run onto the
+            // visually-leftmost char x and the chars overlap.
+            const fragmentedLines = [];
+            for (const ln of lines) {
+              if (ln.chars.length <= 1) { fragmentedLines.push(ln); continue; }
+              let frag = { chars: [ln.chars[0]], top: ln.top, bottom: ln.bottom };
+              const fragments = [frag];
+              for (let ci = 1; ci < ln.chars.length; ci++) {
+                const prev = ln.chars[ci - 1];
+                const cur = ln.chars[ci];
+                // Big leftward jump (cur starts well to the LEFT of prev's
+                // left edge) OR big rightward jump (cur starts well to the
+                // RIGHT of prev's right edge) — either is a reordered
+                // fragment boundary that Chrome paints at a discontinuous x.
+                const leftJump = cur.left < prev.left - 80;
+                const rightJump = cur.left > prev.right + 80;
+                if (leftJump || rightJump) {
+                  frag = { chars: [cur], top: ln.top, bottom: ln.bottom };
+                  fragments.push(frag);
+                } else {
+                  frag.chars.push(cur);
+                }
+              }
+              for (const f of fragments) {
+                let l = Infinity, r = -Infinity;
+                for (const c of f.chars) {
+                  if (c.left < l) l = c.left;
+                  if (c.right > r) r = c.right;
+                }
+                f.left = l;
+                f.right = r;
+                fragmentedLines.push(f);
+              }
+            }
+            lines.length = 0;
+            for (const fl of fragmentedLines) lines.push(fl);
             // Preserve DOM/logical order. For an LTR paragraph that's also
             // visual order. For RTL runs Chrome paints chars at non-monotonic
             // x (logical-first goes to visual-right), so xOffsets may zig-zag
