@@ -326,6 +326,13 @@ export interface CapturedElement {
     fileButtonBorderRadius?: string;
     fileButtonPadding?: string;
     fileButtonFontWeight?: string;
+    fileButtonFontSize?: string;
+    fileButtonFontFamily?: string;
+    fileButtonMarginRight?: string;
+    /** Canvas-measureText width of the button label at the captured font (DM-288).
+     *  Lets the renderer position the trailing 'No file chosen' placeholder at
+     *  exactly Chrome's painted x rather than overestimating via a per-char ratio. */
+    fileButtonLabelWidth?: number;
     /** CSS outline (drawn outside the border-box, doesn't take layout space). */
     outlineStyle?: string;
     outlineWidth?: string;
@@ -1903,6 +1910,26 @@ const CAPTURE_SCRIPT = `
         fileButtonBorderRadius: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').borderRadius : undefined,
         fileButtonPadding: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').padding : undefined,
         fileButtonFontWeight: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').fontWeight : undefined,
+        fileButtonFontSize: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').fontSize : undefined,
+        fileButtonFontFamily: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').fontFamily : undefined,
+        fileButtonMarginRight: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').marginRight : undefined,
+        fileButtonLabelWidth: (tag === 'input' && el.type === 'file') ? (function () {
+          // Measure the button label's painted width via canvas.measureText
+          // using the resolved pseudo font. Chrome returns sub-pixel exact
+          // widths here; we use this to position the trailing 'No file
+          // chosen' placeholder at the same x Chrome paints rather than
+          // overestimating via the per-char ratio. DM-288.
+          var pseudoCs = window.getComputedStyle(el, '::file-selector-button');
+          var c = document.createElement('canvas');
+          var ctx = c.getContext('2d');
+          if (ctx == null) return undefined;
+          var weight = pseudoCs.fontWeight || '400';
+          var size = pseudoCs.fontSize || '13px';
+          var family = pseudoCs.fontFamily || 'sans-serif';
+          ctx.font = weight + ' ' + size + ' ' + family;
+          var label = el.multiple ? 'Choose Files' : 'Choose File';
+          return ctx.measureText(label).width;
+        })() : undefined,
         outlineStyle: cs.outlineStyle,
         outlineWidth: cs.outlineWidth,
         outlineColor: normColor(cs.outlineColor),
@@ -2635,16 +2662,34 @@ export function elementTreeToSvg(
       // Per-side border: emit 4 separate lines along the element edges. Lines
       // are drawn at the centerline of each border so stroke spills equally
       // inward/outward — visually close enough for typical 1-10px borders.
+      // Mitered-corner trim (DM-329): Chrome's BoxBorderPainter paints each
+      // side as a trapezoid; the corner pixels belong to whichever adjacent
+      // side has the WIDER border (the wider trapezoid extends further into
+      // the corner past the narrower one's miter line). To approximate that
+      // with center-stroked lines, each side is trimmed at each end by the
+      // adjacent side's WIDTH if that adjacent is wider — the wider side
+      // then "owns" the corner unobstructed. When self ≥ adjacent we don't
+      // trim, so this side wins the corner. Without this rule the painting
+      // order alone (top → right → bottom → left) determined corner
+      // ownership, painting the TR / BL corners with the wrong side when
+      // top/bottom were thicker than right/left (e.g. box 3 of the
+      // border-styles-variants fixture: top=4, right=2 — Chrome paints TR
+      // red because top is thicker, but our right line covered it yellow).
       // border-collapse:collapse → paint each side ON the cell edge (not
       // inset by half-width), so two adjacent cells'\'' shared sides overlap
       // exactly and produce a single line instead of a doubled one.
       const collapse = el.styles.borderCollapse === "collapse";
       const inset = (w: number) => collapse ? 0 : w / 2;
+      const tw = bt?.w ?? 0;
+      const rw = br?.w ?? 0;
+      const bw = bb?.w ?? 0;
+      const lw = bl?.w ?? 0;
+      const trimAdj = (self: number, adj: number) => collapse ? 0 : (adj > self ? adj : 0);
       const sides: Array<[typeof bt, number, number, number, number, number]> = [
-        [bt, el.x, el.y + inset(bt?.w ?? 0), el.x + el.width, el.y + inset(bt?.w ?? 0), el.width],
-        [br, el.x + el.width - inset(br?.w ?? 0), el.y, el.x + el.width - inset(br?.w ?? 0), el.y + el.height, el.height],
-        [bb, el.x, el.y + el.height - inset(bb?.w ?? 0), el.x + el.width, el.y + el.height - inset(bb?.w ?? 0), el.width],
-        [bl, el.x + inset(bl?.w ?? 0), el.y, el.x + inset(bl?.w ?? 0), el.y + el.height, el.height],
+        [bt, el.x + trimAdj(tw, lw), el.y + inset(tw), el.x + el.width - trimAdj(tw, rw), el.y + inset(tw), Math.max(0, el.width - trimAdj(tw, lw) - trimAdj(tw, rw))],
+        [br, el.x + el.width - inset(rw), el.y + trimAdj(rw, tw), el.x + el.width - inset(rw), el.y + el.height - trimAdj(rw, bw), Math.max(0, el.height - trimAdj(rw, tw) - trimAdj(rw, bw))],
+        [bb, el.x + trimAdj(bw, lw), el.y + el.height - inset(bw), el.x + el.width - trimAdj(bw, rw), el.y + el.height - inset(bw), Math.max(0, el.width - trimAdj(bw, lw) - trimAdj(bw, rw))],
+        [bl, el.x + inset(lw), el.y + trimAdj(lw, tw), el.x + inset(lw), el.y + el.height - trimAdj(lw, bw), Math.max(0, el.height - trimAdj(lw, tw) - trimAdj(lw, bw))],
       ];
       for (const [side, x1, y1, x2, y2, len] of sides) {
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;

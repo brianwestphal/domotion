@@ -514,13 +514,24 @@ export function resolveFontKey(fontFamily: string): string {
     // glyph shapes (notably the `1`, `R`, `g`) and ~2% wider metrics than
     // Helvetica at the same em size, so substituting it produces visible
     // drift on every page that uses the default sans-serif.
-    if (name === "sans-serif" || name === "ui-sans-serif" || name === "helvetica"
+    if (name === "sans-serif" || name === "helvetica"
       || name === "helvetica neue") return "helvetica";
     if (name === "arial") return "arial";
-    // system-ui / -apple-system / BlinkMacSystemFont / "SF Pro" → SF Pro.
+    // system-ui / BlinkMacSystemFont / "SF Pro" → SF Pro.
     // These keywords mean "the platform UI font", which on modern macOS is
-    // San Francisco.
-    if (name === "system-ui" || name === "-apple-system" || name === "blinkmacsystemfont"
+    // San Francisco. NOTE: `-apple-system` is INTENTIONALLY excluded —
+    // empirical probe (DM-291) on the current Chromium build shows bare
+    // `-apple-system` resolves to the UA standard font (Times, 35.98px on
+    // the "greet" sample at 18px) rather than SF Pro (42.20px), and as a
+    // first family in a stack like `-apple-system, sans-serif` Chrome falls
+    // through to `sans-serif` → Helvetica (41.03px). Mapping it to SF Pro
+    // here paints the Latin glyphs ~3% wider than Chrome on every test that
+    // uses the historically-canonical -apple-system stack, including the
+    // text-mixed-script feature fixture's "greet" / "Hello" runs which
+    // jammed against the adjacent Arabic/CJK glyphs because SF Pro's "t"
+    // and "o" advances are ~1px wider than Helvetica's at 18px. Let
+    // `-apple-system` fall through via the `continue` clause below.
+    if (name === "system-ui" || name === "blinkmacsystemfont"
       || name === "sf pro" || name === "sf pro text" || name === "sf pro display") return "sf-pro";
     // Other generic keywords Chrome on macOS does NOT recognize as system
     // fonts: `ui-monospace`, `ui-rounded`, `fantasy`, `math`, `emoji`,
@@ -535,8 +546,9 @@ export function resolveFontKey(fontFamily: string): string {
     // `times` at the bottom of this function catches the no-match case.
     // (DM-302: textarea code editor used `font: ui-monospace, Menlo, …`
     // and we wrongly pinned to Times, painting code in a serif face.)
-    if (name === "ui-monospace" || name === "ui-rounded"
-      || name === "math" || name === "emoji" || name === "fangsong") continue;
+    if (name === "ui-monospace" || name === "ui-rounded" || name === "ui-sans-serif"
+      || name === "math" || name === "emoji" || name === "fangsong"
+      || name === "-apple-system") continue;
   }
   // Last-resort fallback when no family in the stack matched. Chrome's
   // ultimate fallback on macOS for an unrecognized name is the user's

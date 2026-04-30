@@ -9,19 +9,31 @@ import { fallbackFontChain, renderTextAsPath, resolveFontKey } from "./text-to-p
 describe("resolveFontKey: generic-family resolution", () => {
   it("routes sans-serif to Helvetica, not SF Pro", () => {
     expect(resolveFontKey("sans-serif")).toBe("helvetica");
-    expect(resolveFontKey("ui-sans-serif")).toBe("helvetica");
+  });
+
+  it("skips bare ui-sans-serif so it falls through to Times (DM-290)", () => {
+    // Empirical Chromium probe at 16px: `ui-sans-serif` paints at 376.38px
+    // (UA-default Times metrics), not 410.03px (Helvetica). Like the other
+    // ui-* keywords, Chromium-on-macOS doesn't recognise this generic and
+    // walks past it to the next family in the stack — or falls through to
+    // the Standard Font default if it's the only one. Mapping it to
+    // Helvetica painted the 20-font-family fixture's `ui-sans-serif` row
+    // with sans-serif glyphs while Chrome paints serifs (DM-290 user note).
+    expect(resolveFontKey("ui-sans-serif")).toBe("times");
+    expect(resolveFontKey("ui-sans-serif, sans-serif")).toBe("helvetica");
   });
 
   it("routes monospace to Courier, not SF Mono or Menlo", () => {
     expect(resolveFontKey("monospace")).toBe("courier");
   });
 
-  it("routes bare ui-monospace and ui-rounded to Times (last-resort fallback)", () => {
+  it("routes bare ui-monospace / ui-rounded / ui-sans-serif to Times (last-resort fallback)", () => {
     // DM-269: macOS Chrome doesn't recognize ui-monospace / ui-rounded as
     // system fonts — painted T width is 9.77px (Times) and q is 8.0px (Times),
     // not Courier or SF Mono. Chrome falls through to the Standard Font default.
     expect(resolveFontKey("ui-monospace")).toBe("times");
     expect(resolveFontKey("ui-rounded")).toBe("times");
+    expect(resolveFontKey("ui-sans-serif")).toBe("times");
   });
 
   it("falls through ui-monospace when later names in the chain are valid (DM-302)", () => {
@@ -39,10 +51,21 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("ui-serif")).toBe("times");
   });
 
-  it("routes system-ui / -apple-system / BlinkMacSystemFont to SF Pro", () => {
+  it("routes system-ui / BlinkMacSystemFont to SF Pro", () => {
     expect(resolveFontKey("system-ui")).toBe("sf-pro");
-    expect(resolveFontKey("-apple-system")).toBe("sf-pro");
     expect(resolveFontKey("BlinkMacSystemFont")).toBe("sf-pro");
+  });
+
+  it("skips bare -apple-system so the next family in the stack matches (DM-291)", () => {
+    // Chromium probe at 18px on "greet": `font-family: -apple-system` alone
+    // paints at 35.98px (UA-default Times metrics), `font-family: sans-serif`
+    // paints at 41.03px (Helvetica), and `font-family: -apple-system,
+    // sans-serif` paints at 41.03px — proving Chrome doesn't recognise
+    // -apple-system in this build and falls through to the next family. We
+    // mirror that by skipping it; the test fixture pinned this stack and the
+    // SF Pro glyphs were ~1px wider than Chrome's Helvetica painted output.
+    expect(resolveFontKey("-apple-system")).toBe("times");
+    expect(resolveFontKey("-apple-system, sans-serif")).toBe("helvetica");
   });
 
   it("routes cursive to Apple Chancery (DM-290)", () => {

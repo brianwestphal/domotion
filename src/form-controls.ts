@@ -600,10 +600,33 @@ function renderFileInput(el: CapturedElement, indent: string): string {
     if (tok.length >= 4) { padH = (tok[1] + tok[3]) / 2; }
   }
   const fontWeight = s.fileButtonFontWeight != null && s.fileButtonFontWeight !== "" ? s.fileButtonFontWeight : "400";
-  const fontSize = 11;
+  // Chrome's UA default font-size for ::file-selector-button is 13.333px (it
+  // inherits from the input chrome, not from the page). When the author sets
+  // `font: inherit` on the pseudo (the f-primary / f-outline patterns in
+  // 06-forms-style-file), this becomes the body's font-size — typically 16px.
+  // Reading the captured pseudo font-size makes us match either case.
+  const fontSize = s.fileButtonFontSize != null && s.fileButtonFontSize !== ""
+    ? (parseFloat(s.fileButtonFontSize) || 13)
+    : 13;
+  const fontFamily = s.fileButtonFontFamily != null && s.fileButtonFontFamily !== ""
+    ? s.fileButtonFontFamily
+    : "-apple-system, system-ui, sans-serif";
+  // Chrome's UA ::file-selector-button has `margin-inline-end: 4px` (4px gap
+  // before the trailing "No file chosen" placeholder), but the test fixture
+  // overrides this to `margin-right: 12px`. Read the captured pseudo
+  // marginRight and use it as the gap; default to 4 when unset. DM-288.
+  const marginRight = s.fileButtonMarginRight != null && s.fileButtonMarginRight !== ""
+    ? (parseFloat(s.fileButtonMarginRight) || 4)
+    : 4;
   // <input type=file multiple> labels as "Choose Files" (Chrome).
   const labelText = s.inputMultiple === true ? "Choose Files" : "Choose File";
-  const textW = labelText.length * fontSize * 0.6;
+  // Use the canvas-measureText'\''d label width when the capture provided one
+  // (it'\''s painted at sub-pixel exact width from Chrome'\''s actual font);
+  // fall back to the cheap per-char ratio otherwise (e.g. animated frames
+  // captured before measureText was available).
+  const textW = s.fileButtonLabelWidth != null && s.fileButtonLabelWidth > 0
+    ? s.fileButtonLabelWidth
+    : labelText.length * fontSize * 0.6;
   const btnW = textW + padH * 2;
   const btnH = Math.min(fontSize + padV * 2, el.height);
   const bx = el.x + 2;
@@ -615,9 +638,12 @@ function renderFileInput(el: CapturedElement, indent: string): string {
   const radius = Math.min(rawRadius, btnW / 2, btnH / 2);
   const strokeAttrs = borderW > 0 ? ` stroke="${borderColor}" stroke-width="${borderW}"` : "";
   parts.push(`${indent}<rect x="${r(bx)}" y="${r(by)}" width="${r(btnW)}" height="${r(btnH)}" rx="${r(radius)}" fill="${bg}"${strokeAttrs} />`);
-  parts.push(`${indent}<text x="${r(bx + btnW / 2)}" y="${r(by + btnH / 2 + 4)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" font-family="-apple-system, system-ui, sans-serif" fill="${color}">${labelText}</text>`);
+  // Baseline offset inside the button: ~0.35*fontSize below the vertical center
+  // matches Helvetica/sans-serif baseline placement at small sizes.
+  const baselineOffset = fontSize * 0.35;
+  parts.push(`${indent}<text x="${r(bx + btnW / 2)}" y="${r(by + btnH / 2 + baselineOffset)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}">${labelText}</text>`);
   const label = el.styles.inputFileName != null && el.styles.inputFileName !== "" ? el.styles.inputFileName : "No file chosen";
-  parts.push(`${indent}<text x="${r(bx + btnW + 8)}" y="${r(by + btnH / 2 + 4)}" font-size="${fontSize}" font-family="-apple-system, system-ui, sans-serif" fill="rgb(0,0,0)">${label.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
+  parts.push(`${indent}<text x="${r(bx + btnW + marginRight)}" y="${r(by + btnH / 2 + baselineOffset)}" font-size="${fontSize}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="rgb(0,0,0)">${label.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
   return parts.join("\n");
 }
 
