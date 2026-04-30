@@ -225,8 +225,12 @@ function renderRadio(el: CapturedElement, indent: string): string {
   const stroke = el.styles.disabled ? DISABLED_BORDER : UA_BORDER;
   const accent = resolveAccent(el);
   if (el.styles.checked === true) {
+    // Chrome's checked native radio is a donut: thin accent-colored outer
+    // ring (~1px at 13px diameter), white middle, accent-colored center dot
+    // (~0.5 of the radius). Three concentric circles. (DM-292)
     parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr)}" fill="${accent}" />`);
-    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr * 0.35)}" fill="#fff" />`);
+    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr - 1)}" fill="#fff" />`);
+    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr * 0.5)}" fill="${accent}" />`);
   } else {
     parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr - 0.5)}" fill="${UA_FILL}" stroke="${stroke}" stroke-width="1" />`);
   }
