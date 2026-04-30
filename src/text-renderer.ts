@@ -64,20 +64,50 @@ function renderTextDecoration(
   const has = (k: string) => textDecorationLine.includes(k);
   const dash = (thick: number) => style === "dashed" ? ` stroke-dasharray="${thick * 2} ${thick * 2}"`
     : style === "dotted" ? ` stroke-dasharray="${thick} ${thick}"` : "";
+  // Emit one decoration line at (y, thickness) honoring the text-decoration-style.
+  // (DM-345.) For wavy: build a sin-wave path. For double: two parallel
+  // lines with a 1×thickness gap. For solid/dashed/dotted: a single
+  // <line> with optional stroke-dasharray.
+  function emitLine(y: number, t: number): string {
+    if (style === "wavy") {
+      // Wavy: sine-wave path with amplitude ≈ thickness, period ≈ 6×thickness.
+      const amp = Math.max(1, t * 0.8);
+      const period = Math.max(4, t * 5);
+      const halfPeriod = period / 2;
+      let d = `M ${r(segX)} ${r(y)}`;
+      let x = segX;
+      let dir = 1;
+      while (x < segX + segWidth) {
+        const nx = Math.min(x + halfPeriod, segX + segWidth);
+        const cy = y + dir * amp;
+        d += ` Q ${r((x + nx) / 2)} ${r(cy)} ${r(nx)} ${r(y)}`;
+        x = nx;
+        dir = -dir;
+      }
+      return `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(Math.max(1, t * 0.6))}"/>`;
+    }
+    if (style === "double") {
+      // Double: two parallel lines. Chrome's spec for `text-decoration-style:
+      // double` paints two strokes spanning the full text-decoration-thickness
+      // (each = thickness, separated by thickness gap). Chromium's actual
+      // paint: bottom line at the underline position, top line `thickness`
+      // pixels above; total height = 3×thickness. Use minimum 1px stroke
+      // and 2px center-to-center spacing so thin underlines stay visible.
+      const stroke = Math.max(1, t);
+      const sep = Math.max(2, t * 2);
+      return `<line x1="${r(segX)}" y1="${r(y - sep / 2)}" x2="${r(segX + segWidth)}" y2="${r(y - sep / 2)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
+        + `<line x1="${r(segX)}" y1="${r(y + sep / 2)}" x2="${r(segX + segWidth)}" y2="${r(y + sep / 2)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`;
+    }
+    return `<line x1="${r(segX)}" y1="${r(y)}" x2="${r(segX + segWidth)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`;
+  }
   if (has("underline")) {
-    const y = baselineY + m.underlineOffsetY;
-    const t = m.underlineThickness;
-    lines.push(`<line x1="${r(segX)}" y1="${r(y)}" x2="${r(segX + segWidth)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`);
+    lines.push(emitLine(baselineY + m.underlineOffsetY, m.underlineThickness));
   }
   if (has("line-through")) {
-    const y = baselineY - m.strikeoutOffsetY;
-    const t = m.strikeoutThickness;
-    lines.push(`<line x1="${r(segX)}" y1="${r(y)}" x2="${r(segX + segWidth)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`);
+    lines.push(emitLine(baselineY - m.strikeoutOffsetY, m.strikeoutThickness));
   }
   if (has("overline")) {
-    const y = baselineY - m.overlineOffsetY;
-    const t = m.overlineThickness;
-    lines.push(`<line x1="${r(segX)}" y1="${r(y)}" x2="${r(segX + segWidth)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`);
+    lines.push(emitLine(baselineY - m.overlineOffsetY, m.overlineThickness));
   }
   return lines.join("");
 }

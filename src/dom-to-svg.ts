@@ -353,6 +353,13 @@ export interface CapturedElement {
     textOrientation?: string;
     /** CSS resize. Non-none on textareas paints the bottom-right resize handle. */
     resize?: string;
+    /** CSS text-overflow ('clip' | 'ellipsis' | "<string>" | …). Renderer paints
+     *  the truncation marker at the visible right edge when overflow is hidden
+     *  and white-space prevents wrapping. (DM-373) */
+    textOverflow?: string;
+    /** Whitespace handling — needed alongside text-overflow to determine if the
+     *  truncation marker should paint. */
+    whiteSpace?: string;
     color: string;
     fontSize: string;
     fontFamily: string;
@@ -2039,6 +2046,8 @@ const CAPTURE_SCRIPT = `
         // 'inline'. When non-none on a <textarea> Chrome paints a small
         // diagonal-line resize handle in the bottom-right corner. (DM-339)
         resize: cs.resize,
+        textOverflow: cs.textOverflow,
+        whiteSpace: cs.whiteSpace,
         color: normColor(cs.color),
         fontSize: cs.fontSize,
         fontFamily: cs.fontFamily,
@@ -3315,6 +3324,53 @@ export function elementTreeToSvg(
     if (el.pseudoImages != null) {
       for (const pi of el.pseudoImages) {
         svgParts.push(`${indent}<image href="${esc(embedAsDataUri(pi.url))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
+      }
+    }
+
+    // text-overflow truncation marker (DM-373). When an element has
+    // text-overflow: ellipsis (or a custom string) AND overflow:hidden AND
+    // white-space:nowrap, Chrome truncates the visible text and paints a
+    // truncation marker (`…` by default, or the author-specified string)
+    // at the right edge of the content box. Our text capture reads the
+    // FULL source text and clips with SVG clip-path, so the marker is
+    // missing visually. Approximate Chrome's behavior by emitting a
+    // small `<text>` with the marker glyph at the right edge of the
+    // visible content area when the truncation conditions are met.
+    {
+      const to = el.styles.textOverflow;
+      const ws = el.styles.whiteSpace;
+      const ox = el.styles.overflowX;
+      const isTruncated = to != null && to !== "" && to !== "clip"
+        && (ws === "nowrap" || ws === "pre")
+        && ox != null && ox !== "visible"
+        && el.text !== "";
+      if (isTruncated) {
+        // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'.
+        let marker = "…";
+        if (to !== "ellipsis") {
+          // Strip outer quotes if any, take the first string token.
+          const m = /^"([^"]*)"|^'([^']*)'/.exec(to);
+          if (m != null) marker = m[1] ?? m[2] ?? "…";
+        }
+        const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+        const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
+        const padR = parseFloat(el.styles.paddingRight ?? "") || 0;
+        // Position: right edge of the content box, minus a small inset for
+        // the marker glyph. Baseline at the same y as the element's text
+        // baseline (textTop + fontAscent if captured).
+        const tx = el.x + el.width - padR - 2;
+        const ty = (el.textTop != null && el.fontAscent != null)
+          ? el.textTop + el.fontAscent
+          : el.y + fontSizePx * 1.1;
+        const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        // Paint a small white background rect under the marker so the
+        // overflowing text behind it gets visually erased — mirrors Chrome
+        // where the truncated text doesn't bleed past the marker.
+        const bgCol = el.styles.backgroundColor != null && el.styles.backgroundColor !== "rgba(0, 0, 0, 0)"
+          ? el.styles.backgroundColor : "rgb(254,243,199)";
+        const markerW = marker.length * fontSizePx * 0.55;
+        svgParts.push(`${indent}<rect x="${r(tx - markerW)}" y="${r(ty - fontSizePx)}" width="${r(markerW + 2)}" height="${r(fontSizePx * 1.2)}" fill="${bgCol}" />`);
+        svgParts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${el.styles.fontFamily}" fill="${fillCol}">${escMarker}</text>`);
       }
     }
 
