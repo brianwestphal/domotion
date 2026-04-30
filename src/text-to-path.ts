@@ -71,19 +71,44 @@ export function clearWebfonts(): void {
 
 /**
  * `@font-face { src: local(...) }` aliases. Maps a CSS family name (e.g.
- * `"TestSerif"`) to a resolved on-disk font key (e.g. `"georgia"`). When the
- * page declares an `@font-face` with all-`local()` sources, capture.ts walks
- * the local() list and registers the first recognized system font name here
- * — so the renderer's `resolveFontKey` can route the otherwise-unknown CSS
- * family to the correct sibling-file group, picking up weight/italic dispatch
- * from `getFontInstance` automatically (Georgia Bold for weight=700, Georgia
- * Italic for italic, etc.). DM-303.
+ * `"TestSerif"`) to one or more resolved on-disk font keys per declared
+ * (weight, style) variant. When the page declares an `@font-face` with
+ * all-`local()` sources, capture.ts walks the local() list and registers the
+ * first recognized system font name here, paired with the @font-face's own
+ * `font-weight` / `font-style` descriptors — so the renderer can score the
+ * declared variants like a webfont would (DM-360).
+ *
+ * Without per-variant tracking, a request for `bold + italic` against a family
+ * that declared only `regular`, `italic`, and `bold` (no bold-italic) would
+ * incorrectly resolve to Georgia Bold Italic on disk; Chrome instead picks the
+ * closest declared variant (italic 400) and synthesizes from there. DM-303 /
+ * DM-360.
  */
-const localFontAliasRegistry = new Map<string, string>();
-export function registerLocalFontAlias(family: string, resolvedKey: string): void {
+interface LocalFontAliasVariant { weight: number; italic: boolean; baseKey: string }
+const localFontAliasRegistry = new Map<string, LocalFontAliasVariant[]>();
+export function registerLocalFontAlias(family: string, resolvedKey: string, weight: number = 400, italic: boolean = false): void {
   const key = family.toLowerCase().replace(/^["']|["']$/g, "").trim();
   if (key === "" || resolvedKey === "") return;
-  localFontAliasRegistry.set(key, resolvedKey);
+  const list = localFontAliasRegistry.get(key) ?? [];
+  list.push({ weight, italic, baseKey: resolvedKey });
+  localFontAliasRegistry.set(key, list);
+}
+
+/** Pick the declared (weight, style) variant closest to the requested combo —
+ * mirrors `pickWebfontVariant` scoring (italic match dominates). Returns the
+ * matched variant's resolved base key (e.g. `"georgia"`), or null when no
+ * variants are registered for the family. */
+function pickLocalFontAliasVariant(family: string, weight: number, italic: boolean): LocalFontAliasVariant | null {
+  const variants = localFontAliasRegistry.get(family);
+  if (variants == null || variants.length === 0) return null;
+  let best: LocalFontAliasVariant | null = null;
+  let bestScore = Infinity;
+  for (const v of variants) {
+    const styleMismatch = v.italic === italic ? 0 : 1000;
+    const score = styleMismatch + Math.abs(v.weight - weight);
+    if (score < bestScore) { bestScore = score; best = v; }
+  }
+  return best;
 }
 
 /**
@@ -200,6 +225,13 @@ const FONT_PATHS: Record<string, FontPath> = {
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
+  // Chrome on macOS routes a handful of arrow codepoints (↑ ↓) to LucidaGrande
+  // rather than Apple Symbols — Apple Symbols' ↑ ↓ are 9.86/10.28px wide
+  // @22px while LucidaGrande's are 14.19/14.19px, and Chrome's captured
+  // bounding box matches LucidaGrande to within 0.01px. DM-369. Other arrows
+  // (↔ ⇒ ⇔ etc.) stay on Apple Symbols because LucidaGrande lacks those
+  // glyphs.
+  "lucida-grande":   { path: "/System/Library/Fonts/LucidaGrande.ttc", postscriptName: "LucidaGrande" },
   // Chrome on macOS routes Dingbats (U+2700-27BF: ✂✈✏✔✘✚✦❄❤❶ etc.) to
   // Zapf Dingbats, NOT Apple Symbols. Apple Symbols' glyphs at the same
   // codepoints exist but have different (narrower, often slightly different
@@ -290,9 +322,14 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string): strin
   // default since they all collapse to that key in `resolveFontKey`.
   const serifPrimary = primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia";
   // Hebrew (U+0590..05FF) + presentation forms (U+FB1D..FB4F).
+  // sf-hebrew before lucida-grande as a probe: SFHebrew layouts "שלום עולם"
+  // at 68.62px @16px while LucidaGrande layouts at 75.85px. Captured xs from
+  // Chrome's `font-family: sans-serif` paint in 02-text-bidi land at 63.766
+  // for ש's ink-left, suggesting a run width around 75 (closer to LucidaGrande
+  // — Chrome's Helvetica → Hebrew CoreText fallback). Track DM-347 follow-up.
   if ((codepoint >= 0x0590 && codepoint <= 0x05FF)
     || (codepoint >= 0xFB1D && codepoint <= 0xFB4F)) {
-    return ["sf-hebrew"];
+    return ["lucida-grande", "sf-hebrew"];
   }
   // Arabic core block + presentation forms A and B.
   if ((codepoint >= 0x0600 && codepoint <= 0x06FF)
@@ -338,20 +375,42 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string): strin
   // ◉◌◐◑ (DM-324) and ☀☁☂☃ (DM-326) at em-square width when GB doesn't,
   // matching Chrome's 18px paint instead of falling through to Apple
   // Symbols' narrower 11-15px advance.
+  // Within Geometric Shapes, the small filled / outline primitives that
+  // LucidaGrande carries at narrow proportional advance — ■ □ ● ○ ◆ ◇ —
+  // are what Chrome's CoreText cascade for `font-family: sans-serif`
+  // (Helvetica) actually picks for those individual codepoints, NOT the
+  // CJK/Hiragino em-square glyph that the rest of the block uses. Probed
+  // against captured xOffsets in 02-text-symbols (DM-349):
+  //   ■ □ : LucidaGrande 9.76px @18px (Hiragino paints 18px → 8px too wide)
+  //   ● ○ : LucidaGrande 10.41px @18px (Hiragino 18px too wide)
+  //   ◆   : LucidaGrande 13.01px @18px
+  //   ◇   : LucidaGrande 11.07px @18px
+  // Everything else in 0x25A0..25FF (▲▽◉◌◐◑★…) Chrome paints at em-square
+  // via Hiragino — keep those on the existing chain.
+  if (codepoint === 0x25A0 || codepoint === 0x25A1
+    || codepoint === 0x25CF || codepoint === 0x25CB
+    || codepoint === 0x25C6 || codepoint === 0x25C7) {
+    return ["lucida-grande", "symbols"];
+  }
   if ((codepoint >= 0x25A0 && codepoint <= 0x25FF)
     || (codepoint >= 0x2600 && codepoint <= 0x26FF)) {
     return ["cjk", "hiragino-jp", "symbols"];
   }
-  // Arrows: most of the Arrows block (↑↓↔↦⇒⇔ …) routes to Apple Symbols
-  // below, but ← → ↗ ↙ are the four codepoints Hiragino W6 has at the CJK
-  // em-square width (24px @24px) which is what Chrome paints — Apple
-  // Symbols has them at 15-17px, rendering visibly thinner. Other Hiragino-
-  // covered arrows (↑↓↖↘) Hiragino paints at 24px but Chrome paints at
-  // 17.34/21.98 (a different fallback we haven't pinned down), so they
-  // stay on Apple Symbols rather than over-correcting. DM-296.
+  // Arrows: most of the Arrows block (↔↦⇒⇔ …) routes to Apple Symbols
+  // below, but specific codepoints split off:
+  //   ← → ↗ ↙  — Hiragino W6 at the CJK em-square width (24px @24px), which
+  //              is what Chrome paints; Apple Symbols has them at 15-17px,
+  //              rendering visibly thinner (DM-296).
+  //   ↑ ↓     — LucidaGrande at 14.19px @22px, which matches Chrome's
+  //              captured bounding box; Apple Symbols paints them at
+  //              9.86/10.28px and Hiragino paints at 22/24px, both wrong
+  //              (DM-369).
   if (codepoint === 0x2190 || codepoint === 0x2192
       || codepoint === 0x2197 || codepoint === 0x2199) {
     return ["cjk", "symbols"];
+  }
+  if (codepoint === 0x2191 || codepoint === 0x2193) {
+    return ["lucida-grande", "symbols"];
   }
   // Mathematical Alphanumeric Symbols (𝐀 𝒜 𝕊 𝟬 𝔄 𝛼 etc.) — Chrome paints
   // via STIX Two Math (the system math-coverage font); Apple Symbols
@@ -417,6 +476,19 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // registry rather than the on-disk FONT_PATHS table.
   if (key.startsWith("webfont:")) {
     return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant);
+  }
+  // `localalias:<family>` — the family was declared via @font-face local() and
+  // we tracked one or more declared (weight, italic) variants pointing at base
+  // FONT_PATHS keys. Pick the closest declared variant and use ITS weight /
+  // italic to drive the sibling-file selection below — NOT the requested
+  // weight/italic — so Chrome's "no bold-italic declared → use italic 400"
+  // behavior is preserved instead of silently substituting the on-disk
+  // bold-italic sibling. DM-360.
+  if (key.startsWith("localalias:")) {
+    const family = key.slice("localalias:".length);
+    const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);
+    if (variant == null) return null;
+    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0);
   }
   // SF Pro / SF Mono ship their italics as separate .ttf files rather than
   // exposing a `slnt` variable-axis on the upright file, so route italic
@@ -540,12 +612,13 @@ export function resolveFontKey(fontFamily: string): string {
     // its bytes. `getFontInstance` dispatches the webfont: prefix to the
     // runtime registry instead of the on-disk FONT_PATHS table.
     if (webfontRegistry.has(name)) return `webfont:${name}`;
-    // `@font-face { src: local(...) }` alias — the page declared an
-    // @font-face whose first source resolves to a system font we already know
-    // about (Georgia / Menlo / Times / etc.). The captured alias gives us the
-    // resolved key directly; getFontInstance then dispatches to the right
-    // sibling file (georgia-bold, georgia-italic, …) per weight/style. DM-303.
-    if (localFontAliasRegistry.has(name)) return localFontAliasRegistry.get(name)!;
+    // `@font-face { src: local(...) }` alias — the page declared one or more
+    // @font-face rules whose first local() source resolves to a system font
+    // we already know about (Georgia / Menlo / Times / etc.). Return a
+    // `localalias:` prefixed key so getFontInstance can score the requested
+    // weight/italic against the registered variants — important when the page
+    // declared regular + italic + bold but NOT bold-italic (DM-360 / DM-303).
+    if (localFontAliasRegistry.has(name)) return `localalias:${name}`;
     // Chrome on macOS resolves the CSS `monospace` generic to Courier (per
     // Blink's font_cache_mac.mm — kMonospaceFamily → kCourier). For author-
     // named monospaces we map to whatever the author asked for if we have

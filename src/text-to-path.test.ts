@@ -191,8 +191,9 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
   // to Apple Symbols whose advances are 11-15px — visibly narrower than
   // Chrome's painted output.
   it("routes the U+25A0..25FF and U+2600..26FF blocks through hiragino-jp before symbols", () => {
-    // Geometric Shapes block (U+25A0..25FF).
-    expect(fallbackFontChain(0x25A0)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    // Geometric Shapes block (U+25A0..25FF) — chars Chrome paints at em-square.
+    // Note: ■ □ ● ○ ◆ ◇ are individually carved out to LucidaGrande first
+    // (DM-349) because Chrome paints those at proportional 9-13px, not em-square.
     expect(fallbackFontChain(0x25C9)).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(fallbackFontChain(0x25CC)).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(fallbackFontChain(0x25D0)).toEqual(["cjk", "hiragino-jp", "symbols"]);
@@ -204,6 +205,18 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     expect(fallbackFontChain(0x2603)).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(fallbackFontChain(0x2640)).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(fallbackFontChain(0x26A5)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+  });
+
+  it("routes ■ □ ● ○ ◆ ◇ through LucidaGrande (matches Chrome's narrow paint)", () => {
+    // DM-349: empirical xOffset capture in 02-text-symbols showed Chrome
+    // paints these at LucidaGrande's proportional advance (9.76 / 10.41 /
+    // 13.01 / 11.07 px @18px), not at the em-square 18px Hiragino renders.
+    expect(fallbackFontChain(0x25A0)).toEqual(["lucida-grande", "symbols"]); // ■
+    expect(fallbackFontChain(0x25A1)).toEqual(["lucida-grande", "symbols"]); // □
+    expect(fallbackFontChain(0x25CF)).toEqual(["lucida-grande", "symbols"]); // ●
+    expect(fallbackFontChain(0x25CB)).toEqual(["lucida-grande", "symbols"]); // ○
+    expect(fallbackFontChain(0x25C6)).toEqual(["lucida-grande", "symbols"]); // ◆
+    expect(fallbackFontChain(0x25C7)).toEqual(["lucida-grande", "symbols"]); // ◇
   });
 });
 
@@ -231,10 +244,12 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     expect(fallbackFontChain(0x4F60)).toEqual(["cjk"]);
   });
   it("does NOT swap the symbol blocks for serif primaries (only CJK ranges)", () => {
-    // Geometric Shapes / Misc Symbols still route through the existing
-    // ["cjk", "hiragino-jp", "symbols"] chain regardless of primary —
-    // those blocks aren't affected by the serif/sans CJK distinction.
-    expect(fallbackFontChain(0x25A0, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    // Geometric Shapes / Misc Symbols still route through their dedicated
+    // chains regardless of primary — those blocks aren't affected by the
+    // serif/sans CJK distinction. ■ is one of the LucidaGrande-narrow chars
+    // (DM-349), so it stays on its dedicated chain even with a serif primary.
+    expect(fallbackFontChain(0x25A0, "times")).toEqual(["lucida-grande", "symbols"]);
+    expect(fallbackFontChain(0x25C9, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(fallbackFontChain(0x2600, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
     // Arrows ← → ↗ ↙ likewise use the cjk-first arrows chain.
     expect(fallbackFontChain(0x2190, "times")).toEqual(["cjk", "symbols"]);
@@ -266,11 +281,11 @@ describe("Math Operators primary-font handling (DM-332)", () => {
   });
 });
 
-describe("fallbackFontChain: Arrows-block routing (DM-296)", () => {
+describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369)", () => {
   // Chrome on macOS paints ← → ↗ ↙ at 24px @24px font-size (matching
   // Hiragino W6's CJK em-square glyph). Apple Symbols paints them at
   // 15-17px which renders visibly thinner. Lock the cjk-first routing
-  // for these four codepoints. Other arrows (↑↓↔↦⇒…) stay on Apple
+  // for these four codepoints. Other arrows (↔↦⇒…) stay on Apple
   // Symbols because Hiragino either lacks the glyph or paints it at a
   // different width than Chrome.
   it("routes ← → ↗ ↙ to cjk-first (matches Chrome's painted width)", () => {
@@ -280,9 +295,17 @@ describe("fallbackFontChain: Arrows-block routing (DM-296)", () => {
     expect(fallbackFontChain(0x2199)).toEqual(["cjk", "symbols"]);
   });
 
+  // ↑ ↓ are not at CJK em-square width and not at Apple Symbols' narrow
+  // width either — Chrome paints them via LucidaGrande at 14.19px @22px.
+  // DM-369: confirmed via fontkit advance probe (LucidaGrande U+2191 id=926
+  // = 14.19px, U+2193 id=928 = 14.19px) matching the bounding box that
+  // Range.getBoundingClientRect captures from Chrome.
+  it("routes ↑ ↓ to LucidaGrande (matches Chrome's painted width)", () => {
+    expect(fallbackFontChain(0x2191)).toEqual(["lucida-grande", "symbols"]);
+    expect(fallbackFontChain(0x2193)).toEqual(["lucida-grande", "symbols"]);
+  });
+
   it("keeps the rest of the Arrows block on Apple Symbols", () => {
-    expect(fallbackFontChain(0x2191)).toEqual(["symbols"]);
-    expect(fallbackFontChain(0x2193)).toEqual(["symbols"]);
     expect(fallbackFontChain(0x2194)).toEqual(["symbols"]);
     expect(fallbackFontChain(0x21D2)).toEqual(["symbols"]);
     expect(fallbackFontChain(0x21D4)).toEqual(["symbols"]);

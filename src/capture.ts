@@ -229,7 +229,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     const out: (FaceRule | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
 
-    interface LocalFace { kind: "local"; family: string; localNames: string[] }
+    interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string }
     for (const sheet of Array.from(document.styleSheets)) {
       let cssRules: CSSRuleList;
       try { cssRules = sheet.cssRules; } catch { continue; }
@@ -250,7 +250,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
           // the wrong face.
           const locals = Array.from(src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g)).map((mm) => mm[1].trim()).filter((n) => n !== "");
           if (locals.length > 0) {
-            (out as any[]).push({ kind: "local", family, localNames: locals });
+            (out as any[]).push({ kind: "local", family, localNames: locals, weight, style });
           }
           continue;
         }
@@ -283,11 +283,17 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     if (item.kind === "local") {
       // Walk local() names in order and register the first one we recognize.
       // This mirrors Chrome's @font-face fallback: the first local() that
-      // resolves on the host wins. (DM-303)
+      // resolves on the host wins. (DM-303). Capture the @font-face descriptor
+      // weight + italic so the renderer can score the requested combo against
+      // declared variants, instead of silently picking a bold-italic sibling
+      // file when only italic-400 was declared (DM-360).
+      const declaredWeight = parseWeightDescriptor((item as any).weight);
+      const declaredStyle = String((item as any).style ?? "normal").toLowerCase();
+      const declaredItalic = declaredStyle !== "" && declaredStyle !== "normal";
       for (const localName of item.localNames as string[]) {
         const key = systemFontKeyForLocalName(localName);
         if (key != null) {
-          registerLocalFontAlias(item.family, key);
+          registerLocalFontAlias(item.family, key, declaredWeight, declaredItalic);
           break;
         }
       }
