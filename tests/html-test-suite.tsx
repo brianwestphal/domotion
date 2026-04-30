@@ -24,6 +24,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { captureElementTree, elementTreeToSvg, getLastCaptureWarnings } from "../src/dom-to-svg.js";
+import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { raw } from "../src/jsx-runtime.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -363,6 +364,12 @@ async function main(): Promise<void> {
       });
 
       await page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
+
+      // Pick up any @font-face rules — covers both url(...) downloads and
+      // local(...) aliases (DM-303). Without this, fixtures using
+      // `font-family: "MyFamily"` declared via @font-face render in the
+      // chain-fallback face (`serif` → Times) instead of the local() target.
+      try { await discoverAndRegisterWebfonts(page); } catch { /* best-effort */ }
 
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
       capWarnings = getLastCaptureWarnings();

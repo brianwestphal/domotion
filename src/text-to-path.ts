@@ -66,6 +66,24 @@ export function registerWebfont(family: string, weight: number, style: string, b
 /** Drop all registered webfonts. Call at the start of a fresh capture run. */
 export function clearWebfonts(): void {
   webfontRegistry.clear();
+  localFontAliasRegistry.clear();
+}
+
+/**
+ * `@font-face { src: local(...) }` aliases. Maps a CSS family name (e.g.
+ * `"TestSerif"`) to a resolved on-disk font key (e.g. `"georgia"`). When the
+ * page declares an `@font-face` with all-`local()` sources, capture.ts walks
+ * the local() list and registers the first recognized system font name here
+ * — so the renderer's `resolveFontKey` can route the otherwise-unknown CSS
+ * family to the correct sibling-file group, picking up weight/italic dispatch
+ * from `getFontInstance` automatically (Georgia Bold for weight=700, Georgia
+ * Italic for italic, etc.). DM-303.
+ */
+const localFontAliasRegistry = new Map<string, string>();
+export function registerLocalFontAlias(family: string, resolvedKey: string): void {
+  const key = family.toLowerCase().replace(/^["']|["']$/g, "").trim();
+  if (key === "" || resolvedKey === "") return;
+  localFontAliasRegistry.set(key, resolvedKey);
 }
 
 /**
@@ -425,6 +443,12 @@ export function resolveFontKey(fontFamily: string): string {
     // its bytes. `getFontInstance` dispatches the webfont: prefix to the
     // runtime registry instead of the on-disk FONT_PATHS table.
     if (webfontRegistry.has(name)) return `webfont:${name}`;
+    // `@font-face { src: local(...) }` alias — the page declared an
+    // @font-face whose first source resolves to a system font we already know
+    // about (Georgia / Menlo / Times / etc.). The captured alias gives us the
+    // resolved key directly; getFontInstance then dispatches to the right
+    // sibling file (georgia-bold, georgia-italic, …) per weight/style. DM-303.
+    if (localFontAliasRegistry.has(name)) return localFontAliasRegistry.get(name)!;
     // Chrome on macOS resolves the CSS `monospace` generic to Courier (per
     // Blink's font_cache_mac.mm — kMonospaceFamily → kCourier). For author-
     // named monospaces we map to whatever the author asked for if we have

@@ -8,7 +8,7 @@
 import { spawnSync } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg } from "./dom-to-svg.js";
-import { registerWebfont } from "./text-to-path.js";
+import { registerLocalFontAlias, registerWebfont } from "./text-to-path.js";
 
 export interface CaptureOptions {
   width: number;
@@ -229,6 +229,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     const out: (FaceRule | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
 
+    interface LocalFace { kind: "local"; family: string; localNames: string[] }
     for (const sheet of Array.from(document.styleSheets)) {
       let cssRules: CSSRuleList;
       try { cssRules = sheet.cssRules; } catch { continue; }
@@ -240,7 +241,19 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         const style = r.style.getPropertyValue("font-style") || "normal";
         const src = r.style.getPropertyValue("src");
         const m = /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(src);
-        if (m == null) continue;
+        if (m == null) {
+          // No url() — but src may carry one or more local() entries. Capture
+          // the local names so the Node side can register an alias to the
+          // matching system font (DM-303). Without this, `font-family: Foo`
+          // where Foo is declared via @font-face { src: local("Georgia") }
+          // falls through the family chain to the next name and renders in
+          // the wrong face.
+          const locals = Array.from(src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g)).map((mm) => mm[1].trim()).filter((n) => n !== "");
+          if (locals.length > 0) {
+            (out as any[]).push({ kind: "local", family, localNames: locals });
+          }
+          continue;
+        }
         const base = sheet.href ?? document.baseURI;
         let absUrl: string;
         try { absUrl = new URL(m[1], base).href; } catch { continue; }
@@ -266,7 +279,20 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   }
 
   const report: { family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string }[] = [];
-  for (const item of discovered) {
+  for (const item of discovered as any[]) {
+    if (item.kind === "local") {
+      // Walk local() names in order and register the first one we recognize.
+      // This mirrors Chrome's @font-face fallback: the first local() that
+      // resolves on the host wins. (DM-303)
+      for (const localName of item.localNames as string[]) {
+        const key = systemFontKeyForLocalName(localName);
+        if (key != null) {
+          registerLocalFontAlias(item.family, key);
+          break;
+        }
+      }
+      continue;
+    }
     try {
       const resp = await page.context().request.get(item.url);
       if (!resp.ok()) {
@@ -295,6 +321,36 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     }
   }
   return report;
+}
+
+/**
+ * Resolve a CSS `local("Name")` argument to a `resolveFontKey`-style key
+ * that matches our on-disk FONT_PATHS table. Returns null when the local
+ * name isn't a system font we know about (so the caller walks to the next
+ * `local()` in the @font-face's src list). DM-303.
+ *
+ * The names we recognize are limited to the families we actually ship paths
+ * for in `text-to-path.ts` — Georgia / Menlo / Monaco / Courier / Times /
+ * Helvetica / Arial. For unknown names we punt; the rest of the font-family
+ * chain (e.g. `, serif`) will catch the gap.
+ */
+function systemFontKeyForLocalName(localName: string): string | null {
+  const n = localName.toLowerCase().replace(/^["']|["']$/g, "").trim();
+  // Strip a trailing weight/style suffix so "Georgia Bold" / "Georgia Italic"
+  // / "Georgia Bold Italic" all collapse to "georgia" — `getFontInstance`
+  // dispatches to the right sibling file based on the requested CSS weight
+  // and style, so the alias just needs to point at the family.
+  const base = n.replace(/\s+(bold|italic|oblique|regular|light|medium|semibold|black)\b/g, "").trim();
+  if (base === "georgia") return "georgia";
+  if (base === "menlo") return "menlo";
+  if (base === "monaco") return "monaco";
+  if (base === "courier" || base === "courier new") return "courier";
+  if (base === "times" || base === "times new roman") return "times";
+  if (base === "helvetica" || base === "helvetica neue") return "helvetica";
+  if (base === "arial") return "arial";
+  if (base === "sf pro" || base === "sf pro text" || base === "sf pro display") return "sf-pro";
+  if (base === "sf mono" || base === "sfmono-regular") return "sf-mono";
+  return null;
 }
 
 async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: number; italic: boolean } | null> {
