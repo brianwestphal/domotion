@@ -468,6 +468,15 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
  */
 function renderNumberInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   const s = el.styles;
+  // Like the search-cancel button, Chrome only paints the spin buttons when
+  // the input is hovered or focused. Static-screenshot captures see no
+  // hover/focus, so by default the spin chrome must be invisible. Only emit
+  // when the author put explicit rules on `::-webkit-inner-spin-button` —
+  // those force the visibility on. (DM-289)
+  const hasAuthorPseudo = (s.numberSpinButtonBg != null && s.numberSpinButtonBg !== "")
+    || (s.numberSpinButtonBorder != null && s.numberSpinButtonBorder !== "")
+    || (s.numberSpinButtonRadius != null && s.numberSpinButtonRadius !== "");
+  if (!hasAuthorPseudo) return "";
   const parts: string[] = [];
   // Spin button geometry: ~14px wide, full input height minus 1px inset on
   // each edge so the box sits inside the input's border.
@@ -505,13 +514,21 @@ function renderNumberInput(el: CapturedElement, indent: string, defCtx?: DefCtx)
 
 /**
  * <input type=search>: paint the ::-webkit-search-cancel-button chrome
- * (the "X" reset button) on the right edge — only when the input value
- * is non-empty (matches Chromium's behavior). Author rules captured via
- * the SK-1223 walker override the UA defaults.
+ * (the "X" reset button) on the right edge. Chrome only shows the cancel
+ * button when the input is hovered or focused — for a static-screenshot
+ * capture neither state is in effect, so we only emit the chrome when the
+ * page has explicit author rules on the pseudo (those override Chrome's
+ * default visibility). Without this guard our default cancel button stamps
+ * an "X" on every search input that has a value, while Chrome paints
+ * nothing. (DM-289)
  */
 function renderSearchInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   const s = el.styles;
   if (s.inputValue == null || s.inputValue === "") return "";
+  const hasAuthorPseudo = (s.searchCancelButtonBg != null && s.searchCancelButtonBg !== "")
+    || (s.searchCancelButtonBorder != null && s.searchCancelButtonBorder !== "")
+    || (s.searchCancelButtonRadius != null && s.searchCancelButtonRadius !== "");
+  if (!hasAuthorPseudo) return "";
   const parts: string[] = [];
   const size = Math.min(14, el.height - 4);
   if (size <= 0) return "";
