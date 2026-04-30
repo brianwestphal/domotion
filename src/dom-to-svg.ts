@@ -301,6 +301,10 @@ export interface CapturedElement {
     rangeTrackBorder?: string;
     /** ::-webkit-slider-thumb border shorthand (DM-273). */
     rangeThumbBorder?: string;
+    /** ::-webkit-slider-thumb box-shadow (DM-319). Used for the donut-ring
+     *  effect: `box-shadow: 0 0 0 Npx <color>` paints an outer ring of width
+     *  N around the thumb. We only render the spread-only form. */
+    rangeThumbBoxShadow?: string;
     /** ::-webkit-color-swatch pseudo styles (SK-1223). */
     colorSwatchBg?: string;
     colorSwatchBgImage?: string;
@@ -634,7 +638,7 @@ const CAPTURE_SCRIPT = `
   };
   const _resolvePseudo = (el, kind) => {
     let width = '', height = '', backgroundColor = '', borderRadius = '', backgroundImage = '';
-    let border = '', padding = '';
+    let border = '', padding = '', boxShadow = '';
     let matched = false;
     for (let i = 0; i < _pseudoRules.length; i++) {
       const r = _pseudoRules[i];
@@ -649,6 +653,7 @@ const CAPTURE_SCRIPT = `
       if (!_isUnsetCssValue(d.borderRadius)) borderRadius = d.borderRadius;
       if (!_isUnsetCssValue(d.border)) border = d.border;
       if (!_isUnsetCssValue(d.padding)) padding = d.padding;
+      if (!_isUnsetCssValue(d.boxShadow)) boxShadow = d.boxShadow;
       // background-color longhand expands to 'initial' when the rule only
       // declared the 'background' shorthand with a non-color value (e.g. a
       // gradient). In that case fall through to extracting the first color
@@ -690,6 +695,7 @@ const CAPTURE_SCRIPT = `
       backgroundImage: _resolveOne(el, 'backgroundImage', backgroundImage),
       border: border,
       padding: padding,
+      boxShadow: boxShadow,
     };
   };
 
@@ -1843,6 +1849,7 @@ const CAPTURE_SCRIPT = `
             rangeThumbBgImage: styledThumb && ms.backgroundImage !== '' ? ms.backgroundImage : undefined,
             rangeTrackBorder: styledTrack && ts.border !== '' ? ts.border : undefined,
             rangeThumbBorder: styledThumb && ms.border !== '' ? ms.border : undefined,
+            rangeThumbBoxShadow: styledThumb && ms.boxShadow !== '' ? ms.boxShadow : undefined,
           };
         })() : {}),
         fileButtonBg: (tag === 'input' && el.type === 'file') ? normColor(window.getComputedStyle(el, '::file-selector-button').backgroundColor) : undefined,

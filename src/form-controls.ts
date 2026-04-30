@@ -77,6 +77,32 @@ function resolveAccent(el: CapturedElement): string {
   return ac;
 }
 
+/**
+ * Pick the native UA color for the *unfilled* portion of a `<input type=range>`
+ * track based on `accent-color`. Chrome ensures the unfilled track stays
+ * visible against the accent: when the accent has relative luminance above
+ * ~0.26 (CIE Y, sRGB → linear), Chrome darkens the unfilled track to
+ * `rgb(59, 59, 59)` instead of the default `rgb(239, 239, 239)`. Empirical
+ * probe (DM-320) of accents at 24 luminance points confirmed the threshold:
+ * #888888 (Y=0.246) → light, #16a34a (Y=0.269) → dark; switch line ≈ Y=0.26.
+ *
+ * Returns `TRACK_BG` (light) when accent is unset / 'auto' / dark, the dark
+ * variant when the accent is bright enough, and the original `TRACK_BG`
+ * fallback when the color string can't be parsed.
+ */
+function unfilledTrackColor(accentCss: string | undefined): string {
+  if (accentCss == null || accentCss === "" || accentCss === "auto" || accentCss === "currentcolor") return TRACK_BG;
+  // Extract sRGB triplet from rgb()/rgba() (Chrome canonicalises hex etc.).
+  const m = /rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(accentCss);
+  if (m == null) return TRACK_BG;
+  const lin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const Y = 0.2126 * lin(parseFloat(m[1])) + 0.7152 * lin(parseFloat(m[2])) + 0.0722 * lin(parseFloat(m[3]));
+  return Y > 0.26 ? "rgb(59,59,59)" : TRACK_BG;
+}
+
 export function renderFormControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   const tag = el.tag;
   if (tag === "input") return renderInputControl(el, indent, defCtx);
@@ -225,7 +251,10 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const styledThumb = s.rangeThumbWidth != null;
   const trackThickness = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 4;
   const trackR = styledTrack ? (parseFloat(s.rangeTrackRadius ?? "") || 0) : 2;
-  const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : TRACK_BG;
+  // Unfilled-track color: author-set when the slider is `appearance: none` +
+  // styled track, otherwise the UA default which depends on `accent-color`
+  // (Chrome darkens the unfilled track when the accent is bright — DM-320).
+  const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : unfilledTrackColor(s.accentColor);
   const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 14;
   const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 14;
   const thumbRadius = styledThumb ? (parseFloat(s.rangeThumbRadius ?? "") || thumbW / 2) : thumbW / 2;
@@ -316,8 +345,28 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const thumbRect = { x: thumbCx - halfThumb, y: thumbCy - halfThumb, w: thumbW, h: thumbW };
     const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
     const thumbFill = thumbGradFill ?? thumbBgColor;
-    const strokeAttrs = thumbBorder != null ? ` stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}"` : "";
-    parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${thumbFill}"${strokeAttrs} />`);
+    // Donut-effect outer ring (DM-319). When the thumb pseudo has a
+    // `box-shadow: 0 0 0 Npx <color>` (spread-only inset-less shadow), Chrome
+    // paints an extra ring of width N around the thumb's outer edge — the
+    // visible "green outer ring" on the tick-marks slider. Layering matches
+    // CSS paint order: shadow (bottom) → background-fill → border (top).
+    // SVG's `stroke` is path-centered, so to keep the border drawn ENTIRELY
+    // inside the thumb's box (Chrome's behavior), we shrink the inner-fill
+    // circle's path radius by `borderWidth/2` and add the same back to the
+    // stroke width — that puts the stroke band between r=halfThumb-border and
+    // r=halfThumb, leaving the outer-ring band (halfThumb..halfThumb+spread)
+    // free for the box-shadow.
+    const ringShadow = parseSpreadOnlyShadow(s.rangeThumbBoxShadow);
+    if (ringShadow != null) {
+      const ringR = halfThumb + ringShadow.spread;
+      parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(ringR)}" fill="${ringShadow.color}" />`);
+    }
+    if (thumbBorder != null) {
+      const innerR = Math.max(0, halfThumb - thumbBorder.width / 2);
+      parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(innerR)}" fill="${thumbFill}" stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}" />`);
+    } else {
+      parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${thumbFill}" />`);
+    }
   } else {
     // Native (UA-default) range thumb. Chrome paints a filled accent-colored
     // circle, not a hollow white-with-gray-border one. Disabled state mutes
@@ -326,6 +375,38 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${accent}" />`);
   }
   return parts.join("\n");
+}
+
+/**
+ * Parse a CSS `box-shadow` value of the spread-only form
+ *   `<color> 0px 0px 0px <Npx>`  or  `0px 0px 0px <Npx> <color>`
+ * (Chrome canonicalizes either author syntax to the color-first form). Used
+ * by `renderRange` to detect the donut-ring author pattern
+ *   `box-shadow: 0 0 0 1px <color>`
+ * on `::-webkit-slider-thumb` (DM-319). Returns `{ spread, color }` for the
+ * single-shadow spread-only case; null for missing / `none` / multi-shadow /
+ * any-non-zero-offset / any-non-zero-blur.
+ */
+function parseSpreadOnlyShadow(value: string | undefined): { spread: number; color: string } | null {
+  if (value == null || value === "" || value === "none") return null;
+  // Multi-shadow lists are comma-separated; we only handle single-shadow so
+  // bail when more than one comma at the top level (parens nesting in `rgb(...)`
+  // is fine because we tokenize with a depth counter via the regex below).
+  // Pattern: optional color prefix, then four <length> tokens, then optional
+  // color suffix. The four lengths are x / y / blur / spread.
+  const m = /^\s*(?:(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+)\s+)?(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+))?\s*$/.exec(value.trim());
+  if (m == null) return null;
+  const colorPrefix = m[1];
+  const x = parseFloat(m[2]);
+  const y = parseFloat(m[3]);
+  const blur = parseFloat(m[4]);
+  const spread = parseFloat(m[5]);
+  const colorSuffix = m[6];
+  const color = colorPrefix ?? colorSuffix;
+  if (color == null || color === "" || /^(?:inset|none)$/i.test(color)) return null;
+  if (x !== 0 || y !== 0 || blur !== 0) return null;
+  if (!isFinite(spread) || spread <= 0) return null;
+  return { spread, color };
 }
 
 /** Parse a CSS `border` shorthand like `"2px solid white"` into a width/color
