@@ -233,18 +233,17 @@ async function comparePngs(
           tileDist[ti] += norm;
           tilePixCount[ti]++;
           if (dist > SIG && !isAA) { tileSig[ti]++; totalSig++; }
-          const intensity = Math.min(255, dist * 2);
-          if (intensity > 8) {
-            // Render AA-classified diffs in dim yellow, non-AA in red so the
-            // viewer can see at a glance which pixels actually differ.
-            if (isAA) {
-              diffData.data[i] = 120; diffData.data[i+1] = 100; diffData.data[i+2] = 0; diffData.data[i+3] = 255;
-            } else {
-              diffData.data[i] = intensity; diffData.data[i+1] = 0; diffData.data[i+2] = 0; diffData.data[i+3] = 255;
-            }
-          } else {
-            diffData.data[i] = d1[i] * 0.3; diffData.data[i+1] = d1[i+1] * 0.3; diffData.data[i+2] = d1[i+2] * 0.3; diffData.data[i+3] = 255;
-          }
+          // Diff image is a literal per-channel absolute difference:
+          //   diff[i] = |expected[i] - actual[i]|  (per R/G/B channel, opaque alpha)
+          // Black means identical; brighter pixels show what changed and in
+          // which color. No red tint, no dim-yellow AA overlay, no dimmed-
+          // base background — just the raw difference. The AA classification
+          // and tile metrics still drive the diffPercent / sigPixelPct
+          // numbers above; the diff IMAGE itself is uninterpreted. (DM-379)
+          diffData.data[i]   = Math.abs(dr);
+          diffData.data[i+1] = Math.abs(dg);
+          diffData.data[i+2] = Math.abs(db);
+          diffData.data[i+3] = 255;
         }
       }
       // Find worst tile by significant-pixel ratio (primary), with avg as

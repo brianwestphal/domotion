@@ -114,29 +114,22 @@ async function comparePngs(page: Page, expectedPath: string, actualPath: string,
       let totalDist = 0;
       const totalPixels = w * h;
 
+      // Diff image is a literal per-channel absolute difference:
+      //   diff[i] = |expected[i] - actual[i]|  (per R/G/B channel, opaque alpha)
+      // Black means identical, brighter pixels show what changed in their
+      // actual color — no thresholding, no red tint, no dimmed-base overlay.
+      // (DM-379)
       for (let i = 0; i < data1.length; i += 4) {
         const dr = data1[i] - data2[i];
         const dg = data1[i+1] - data2[i+1];
         const db = data1[i+2] - data2[i+2];
         const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-        const norm = dist / maxDist; // 0..1
+        totalDist += dist / maxDist;
 
-        totalDist += norm;
-
-        // Diff image: intensity = how different (red channel)
-        const intensity = Math.min(255, dist * 2);
-        if (intensity > 8) {
-          diffData.data[i] = intensity;
-          diffData.data[i+1] = 0;
-          diffData.data[i+2] = 0;
-          diffData.data[i+3] = 255;
-        } else {
-          // Show original dimmed
-          diffData.data[i] = data1[i] * 0.3;
-          diffData.data[i+1] = data1[i+1] * 0.3;
-          diffData.data[i+2] = data1[i+2] * 0.3;
-          diffData.data[i+3] = 255;
-        }
+        diffData.data[i]   = Math.abs(dr);
+        diffData.data[i+1] = Math.abs(dg);
+        diffData.data[i+2] = Math.abs(db);
+        diffData.data[i+3] = 255;
       }
 
       diffCtx.putImageData(diffData, 0, 0);

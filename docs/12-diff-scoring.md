@@ -34,10 +34,17 @@ The tile-significant threshold stays at 50% because that's the metric that catch
 
 ## Diff image legend
 
-- **Red pixels**: real content differences (intensity scales with color distance).
-- **Dim yellow pixels**: AA-classified differences. Visible to humans but excluded from the scoring metrics.
-- **Dimmed source pixels (30% alpha)**: pixels that match exactly between expected and actual.
-- **Yellow rectangle**: outlines the worst tile by `tileSig` (then `tileAvg` as tiebreak).
+The diff PNG is a **literal per-channel absolute difference** between expected and actual:
+
+```
+diff[i] = |expected[i] - actual[i]|       (per R/G/B channel, alpha=255)
+```
+
+Black pixels are exact matches; brighter pixels show what changed and in which color (a red glyph that should have been blue paints magenta in the diff; a small anti-aliasing shift on a black-on-white edge paints dim grey). No thresholding, no red tint, no dimmed-source overlay — the image is uninterpreted (DM-379). Reviewers reading the diff see the same per-pixel difference the metric saw.
+
+The **only** painted overlay is a yellow rectangle outlining the worst tile by `tileSig` (then `tileAvg` as tiebreak), drawn after the absolute-difference fill so the navigation hint stays visible against the dark background.
+
+Note: the AA classification still drives the `diffPercent` / `sigPixelPct` metrics (AA-classified pixels don't contribute to either), but it no longer affects the diff IMAGE rendering. If you need to know *which* pixels were classified AA, re-derive from the source images using the algorithm above — the diff PNG itself doesn't encode that distinction.
 
 ## Edge cases / out of scope
 
