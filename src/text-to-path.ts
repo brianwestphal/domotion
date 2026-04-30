@@ -846,6 +846,39 @@ function singleFontMarkup(
   const nativeWidth = totalAdvance * scale;
   const xScale = (targetWidth != null && targetWidth > 0 && nativeWidth > 0)
     ? targetWidth / nativeWidth : 1;
+  // When xOffsets are provided but the layout's glyph count doesn't match the
+  // text length (Helvetica's `liga` feature collapsed `fi` / `fl` into single
+  // glyphs etc.), the per-char anchoring path can't run — without it we lose
+  // Chrome's justify-driven space widths and the rendered line collapses to
+  // unjustified spacing. (DM-287). Re-shape per-char to bypass ligatures so
+  // each codepoint maps 1:1 to a glyph and per-char xOffsets line up.
+  if (xOffsets != null && xOffsets.length !== run.glyphs.length) {
+    const sc = Number(scale.toFixed(5));
+    const uses: string[] = [];
+    let i = 0;
+    while (i < text.length) {
+      const code = text.charCodeAt(i);
+      const isHigh = code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length;
+      const step = isHigh ? 2 : 1;
+      const ch = text.slice(i, i + step);
+      const cl = font.layout(ch);
+      for (let gi = 0; gi < cl.glyphs.length; gi++) {
+        const glyph = cl.glyphs[gi];
+        const pos = cl.positions[gi];
+        if (glyph.path.commands.length > 0) {
+          const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+          const tx = xOffsets[i] / scale + pos.xOffset;
+          const ty = -pos.yOffset;
+          uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
+        }
+      }
+      i += step;
+    }
+    return {
+      markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>` : "",
+      width: xOffsets[xOffsets.length - 1] + nativeWidth / Math.max(1, text.length),
+    };
+  }
   const usePerChar = xOffsets != null && xOffsets.length === run.glyphs.length;
   const sc = Number(scale.toFixed(5));
   const uses: string[] = [];
