@@ -6,6 +6,7 @@
 
 import type { Page } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
+import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text-renderer.js";
 import { getGlyphDefs } from "./text-to-path.js";
 import type { DefCtx } from "./form-controls.js";
@@ -2085,6 +2086,81 @@ export async function captureElementTree(
  * repeated glyphs (common for list markers, repeating checkmarks, etc.) share
  * a single screenshot. See SK-1058.
  */
+/**
+ * Apple Color Emoji sbix bitmap extraction (DM-335). Reads the embedded PNG
+ * for the requested codepoint at the highest available strike (typically
+ * 160 ppem) directly from `/System/Library/Fonts/Apple Color Emoji.ttc`'s
+ * `sbix` table. The returned PNG is the same bitmap Chrome's CoreText
+ * fallback paints — far sharper than a 1× page screenshot at small font
+ * sizes (16-18px), where the screenshot path produced visibly soft glyphs.
+ * Returns null when the codepoint is not in the font (text-presentation
+ * dingbats like ✓✗, regional indicators that need pair-shaping, ZWJ
+ * sequences) or when the .ttc isn't available (Linux/Windows). Callers
+ * fall back to the legacy page.screenshot path in that case.
+ */
+const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
+let _aceFont: any = null;
+let _aceFontLoaded = false;
+// Available sbix strikes on macOS Apple Color Emoji.ttc.
+const SBIX_STRIKES = [20, 26, 32, 40, 48, 52, 64, 96, 160] as const;
+const _sbixCache = new Map<string, Buffer | null>();
+function loadAppleColorEmojiFont(): any {
+  if (_aceFontLoaded) return _aceFont;
+  _aceFontLoaded = true;
+  if (process.platform !== "darwin" || !existsSync(APPLE_COLOR_EMOJI_PATH)) return null;
+  try {
+    const opened = (fontkit as any).openSync(APPLE_COLOR_EMOJI_PATH);
+    _aceFont = opened.fonts != null ? opened.fonts[0] : opened;
+  } catch {
+    _aceFont = null;
+  }
+  return _aceFont;
+}
+function extractEmojiBitmap(codepoint: number, paintedWidthPx: number): Buffer | null {
+  // Pick the smallest strike that supersamples the painted rect at ~3× —
+  // enough to stay crisp through SVG → bitmap rasterization at typical 1-2×
+  // DPRs without bloating the file. For an 18-20px painted rect that lands
+  // on the 64 ppem strike (~6KB) instead of 160 (~24KB); for a 40px rect it
+  // jumps to 160. Floor at 64 so even tiny inline emoji stay legible if the
+  // SVG is later upscaled.
+  const targetPpem = Math.max(64, paintedWidthPx * 3);
+  let pickedPpem = SBIX_STRIKES[SBIX_STRIKES.length - 1];
+  for (const p of SBIX_STRIKES) {
+    if (p >= targetPpem) { pickedPpem = p; break; }
+  }
+  const cacheKey = `${codepoint}|${pickedPpem}`;
+  if (_sbixCache.has(cacheKey)) return _sbixCache.get(cacheKey)!;
+  const font = loadAppleColorEmojiFont();
+  if (font == null) { _sbixCache.set(cacheKey, null); return null; }
+  let result: Buffer | null = null;
+  try {
+    const g = font.glyphForCodePoint(codepoint);
+    if (g != null && g.id !== 0) {
+      try {
+        const img = g.getImageForSize(pickedPpem);
+        if (img != null && img.data != null && img.data.length > 0) {
+          result = Buffer.isBuffer(img.data) ? img.data : Buffer.from(img.data);
+        }
+      } catch {}
+      // Some glyphs only have certain strikes populated — fall through to
+      // the largest available if our picked strike came back empty.
+      if (result == null) {
+        for (let i = SBIX_STRIKES.length - 1; i >= 0; i--) {
+          try {
+            const img = g.getImageForSize(SBIX_STRIKES[i]);
+            if (img != null && img.data != null && img.data.length > 0) {
+              result = Buffer.isBuffer(img.data) ? img.data : Buffer.from(img.data);
+              break;
+            }
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+  _sbixCache.set(cacheKey, result);
+  return result;
+}
+
 async function rasterizeBitmapGlyphs(
   page: Page,
   tree: CapturedElement[],
@@ -2127,6 +2203,20 @@ async function rasterizeBitmapGlyphs(
           if (seg.rasterGlyphs != null) {
             for (const g of seg.rasterGlyphs) {
               const cp = seg.text.codePointAt(g.charIndex);
+              // DM-335: try Apple Color Emoji's sbix table first. Returns
+              // the high-DPI bitmap Chrome itself paints from CoreText —
+              // sharper than a 1× page screenshot at the same emoji rect.
+              // Falls through to the page.screenshot path for codepoints
+              // the color font doesn't cover (text-presentation glyphs,
+              // regional-indicator pairs, ZWJ sequences) or non-darwin
+              // platforms where the .ttc isn't available.
+              if (cp != null && g.rect.width > g.rect.height * 0.4) {
+                const sbixPng = extractEmojiBitmap(cp, g.rect.width);
+                if (sbixPng != null) {
+                  g.dataUri = `data:image/png;base64,${sbixPng.toString("base64")}`;
+                  continue;
+                }
+              }
               // Include rect width+height (rounded) in the dedupe key so a
               // ::first-letter raster of the letter "F" doesnt collide with
               // a regular-sized "F" elsewhere on the page (different render
