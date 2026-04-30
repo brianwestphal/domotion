@@ -963,13 +963,29 @@ function renderSelectChevron(el: CapturedElement, indent: string): string {
 }
 
 function renderDetailsMarker(el: CapturedElement, indent: string): string {
-  // Disclosure triangle left of the first line. 10x10, rotated 90deg when open.
-  const size = 8;
-  const x = el.x + 2;
-  const y = el.y + 8;
+  // Chrome's UA stylesheet for `<details><summary>` paints a disclosure
+  // triangle to the LEFT of the summary's first text line. Empirical
+  // probe (DM-370): triangle size scales roughly with font-size at
+  // ~0.6em per side, painted in the summary's text color (NOT the
+  // greyed-out TRACK_FG we used previously — that left a barely-visible
+  // ghost where Chrome paints a clean black caret). Closed state uses
+  // the right-pointing triangle ▶ (U+25B6); open state uses the
+  // down-pointing triangle ▼ (U+25BC).
+  const fontSizePx = parseFloat(el.styles.fontSize ?? "") || 14;
+  const size = Math.max(8, fontSizePx * 0.6);
+  // Vertically center the triangle on the first text line (line-height
+  // typically = 1.2 × font-size, baseline ~0.8 × line-height down).
+  const lineH = parseFloat(el.styles.lineHeight ?? "") || fontSizePx * 1.5;
+  const cx = el.x + 8;
+  const cy = el.y + lineH / 2;
   const open = el.styles.detailsOpen === true;
+  // Use the summary's text color when captured, else dark grey.
+  const fill = (el.styles.color != null && el.styles.color !== "")
+    ? el.styles.color : "rgb(0,0,0)";
+  const half = size / 2;
+  // Right-pointing (closed): ▶ — apex at right. Down-pointing (open): ▼ — apex at bottom.
   const p = open
-    ? `${r(x)},${r(y)} ${r(x + size)},${r(y)} ${r(x + size / 2)},${r(y + size * 0.8)}`
-    : `${r(x)},${r(y)} ${r(x + size * 0.8)},${r(y + size / 2)} ${r(x)},${r(y + size)}`;
-  return `${indent}<polygon points="${p}" fill="${TRACK_FG}" />`;
+    ? `${r(cx - half)},${r(cy - half * 0.6)} ${r(cx + half)},${r(cy - half * 0.6)} ${r(cx)},${r(cy + half * 0.7)}`
+    : `${r(cx - half * 0.7)},${r(cy - half)} ${r(cx + half * 0.6)},${r(cy)} ${r(cx - half * 0.7)},${r(cy + half)}`;
+  return `${indent}<polygon points="${p}" fill="${fill}" />`;
 }

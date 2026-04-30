@@ -351,6 +351,8 @@ export interface CapturedElement {
     writingMode?: string;
     /** CSS text-orientation (`mixed` | `upright` | `sideways`). Used in vertical writing-modes. */
     textOrientation?: string;
+    /** CSS resize. Non-none on textareas paints the bottom-right resize handle. */
+    resize?: string;
     color: string;
     fontSize: string;
     fontFamily: string;
@@ -383,6 +385,11 @@ export interface CapturedElement {
   imageSrc?: string;
   /** Intrinsic pixel dimensions of <img>, used for object-fit: none. */
   imageIntrinsic?: { w: number; h: number };
+  /** True when the <img> failed to load (`complete && naturalWidth === 0`).
+   *  Renderer paints the broken-image fallback (icon + alt text). DM-372. */
+  imageBroken?: boolean;
+  /** <img alt> attribute, painted next to the broken-image icon. DM-372. */
+  imageAlt?: string;
   /** Intrinsic pixel dimensions of list-style-image on <li>. */
   listMarkerIntrinsic?: { w: number; h: number };
   /** 1-based list-item counter value used to format numeric/alpha markers. */
@@ -1614,6 +1621,12 @@ const CAPTURE_SCRIPT = `
       if (el.naturalWidth > 0 && el.naturalHeight > 0) {
         var imageIntrinsic = { w: el.naturalWidth, h: el.naturalHeight };
       }
+      // Broken-image fallback (DM-372): el.complete && naturalWidth===0 means
+      // the browser tried to load and failed (or src was empty). Chrome paints
+      // a small broken-image icon plus the alt text inline. Capture both so
+      // the renderer can synthesize the same fallback.
+      var imageBroken = el.complete && el.naturalWidth === 0;
+      var imageAlt = el.alt || '';
     } else if (tag === 'input' && el.type === 'image') {
       // <input type="image"> renders the src as a clickable button-image.
       // No currentSrc / naturalWidth on HTMLInputElement; the bounding rect
@@ -2022,6 +2035,10 @@ const CAPTURE_SCRIPT = `
         transformOrigin: frozenTransformOrigin != null ? frozenTransformOrigin : cs.transformOrigin,
         writingMode: cs.writingMode,
         textOrientation: cs.textOrientation,
+        // CSS resize: 'none' / 'both' / 'vertical' / 'horizontal' / 'block' /
+        // 'inline'. When non-none on a <textarea> Chrome paints a small
+        // diagonal-line resize handle in the bottom-right corner. (DM-339)
+        resize: cs.resize,
         color: normColor(cs.color),
         fontSize: cs.fontSize,
         fontFamily: cs.fontFamily,
@@ -2039,7 +2056,7 @@ const CAPTURE_SCRIPT = `
         textDecorationColor: cs.textDecorationColor,
         textDecorationStyle: cs.textDecorationStyle,
       },
-      children, imageSrc, imageIntrinsic, listMarkerIntrinsic, listItemIndex, svgContent, pseudoImages,
+      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, listMarkerIntrinsic, listItemIndex, svgContent, pseudoImages,
       // ::marker pseudo styles (SK-1115). Only meaningful on <li>; rest of
       // the time the values come back equal to the elements own font and
       // are quietly ignored at render time.
@@ -3025,6 +3042,32 @@ export function elementTreeToSvg(
     const fc = renderFormControl(el, indent, defCtx);
     if (fc !== "") svgParts.push(fc);
 
+    // Broken-image fallback (DM-372): when the img failed to load (or has
+    // empty src), Chrome paints a small broken-image placeholder icon plus
+    // the alt text in the host font. We approximate the icon with a 16×16
+    // outlined box containing a small triangle (mountain glyph) — close
+    // enough to Chrome's stock broken-image icon — and emit the alt text
+    // as an inline <text> right after the icon.
+    if (el.tag === "img" && el.imageBroken === true) {
+      const ix = el.x;
+      const iy = el.y;
+      const iconSize = 16;
+      const iconX = ix + 1;
+      const iconY = iy + 1;
+      // Icon: a rectangle with a tiny mountain inside (Chrome's broken-image
+      // icon is more elaborate but a simple framed mountain is recognizable).
+      svgParts.push(`${indent}<rect x="${r(iconX)}" y="${r(iconY)}" width="${iconSize - 2}" height="${iconSize - 2}" fill="none" stroke="rgb(128,128,128)" stroke-width="1" />`);
+      svgParts.push(`${indent}<polyline points="${r(iconX + 2)},${r(iconY + iconSize - 4)} ${r(iconX + 5)},${r(iconY + iconSize / 2)} ${r(iconX + 8)},${r(iconY + iconSize - 6)} ${r(iconX + 12)},${r(iconY + iconSize - 4)}" fill="none" stroke="rgb(128,128,128)" stroke-width="0.8" />`);
+      // Alt text emitted next to the icon. Use the element's font / color.
+      if (el.imageAlt != null && el.imageAlt !== "") {
+        const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+        const tx = ix + iconSize + 4;
+        const ty = iy + Math.min(iconSize - 2, fontSizePx);
+        const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
+        const escAlt = el.imageAlt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        svgParts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${el.styles.fontFamily}" fill="${fillCol}">${escAlt}</text>`);
+      }
+    } else
     // Image (<img> or <input type="image">)
     if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
       const fit = el.styles.objectFit ?? "fill";
@@ -3272,6 +3315,28 @@ export function elementTreeToSvg(
     if (el.pseudoImages != null) {
       for (const pi of el.pseudoImages) {
         svgParts.push(`${indent}<image href="${esc(embedAsDataUri(pi.url))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
+      }
+    }
+
+    // Textarea resize handle (DM-339): when CSS `resize` is non-none on a
+    // <textarea>, Chrome's UA stylesheet paints a small ~7×7 diagonal-line
+    // pattern in the bottom-right corner indicating the user can drag to
+    // resize. Empirical: 3 diagonal lines from the corner extending up-left,
+    // ~1.5px stroke, mid-grey (#999), inside the padding-box. Matches what
+    // Chrome paints across resize: vertical / horizontal / both / inline /
+    // block (only `none` suppresses).
+    if (el.tag === "textarea" && el.styles.resize != null && el.styles.resize !== "none") {
+      const handleColor = "rgb(153,153,153)";
+      const handleSize = 7;
+      // Position the handle so its bottom-right corner sits at the textarea's
+      // border-box bottom-right minus a 2px inset (matches Chrome's painted
+      // offset).
+      const cx = el.x + el.width - 2;
+      const cy = el.y + el.height - 2;
+      // Three diagonal strokes 2px apart sloping from bottom-right to upper-left.
+      for (let i = 0; i < 3; i++) {
+        const off = i * 2.5;
+        svgParts.push(`${indent}<line x1="${r(cx - handleSize + off)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - handleSize + off)}" stroke="${handleColor}" stroke-width="0.7" />`);
       }
     }
 
