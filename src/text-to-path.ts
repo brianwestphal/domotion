@@ -174,6 +174,17 @@ const FONT_PATHS: Record<string, FontPath> = {
   // need W6 to match Chrome's painted weight.
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
+  // Hiragino Sans (the Japanese family, not GB) covers a much wider set of
+  // Geometric Shapes and Misc Symbols at em-square width — ◉◌◐◑ ☀☁☂☃ etc. —
+  // that the GB family lacks. Chrome on macOS routes these chars here when
+  // the primary Helvetica/Times/etc. doesn't have them and HiraginoSansGB
+  // doesn't either, painting at 18px em-square; Apple Symbols' versions are
+  // proportional 11-15px so falling all the way through to "symbols" left
+  // them visibly narrower than Chrome (DM-324 / DM-326). The TTC ships W3..W9
+  // sub-fonts; W3 is the regular weight, W6 is the bold pair to match the
+  // existing cjk → cjk-bold weight swap.
+  "hiragino-jp":      { path: "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", postscriptName: "HiraKakuProN-W3" },
+  "hiragino-jp-bold": { path: "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", postscriptName: "HiraKakuProN-W6" },
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
@@ -219,8 +230,19 @@ const FONT_PATHS: Record<string, FontPath> = {
   "georgia-bold":        { path: "/System/Library/Fonts/Supplemental/Georgia Bold.ttf" },
   "georgia-italic":      { path: "/System/Library/Fonts/Supplemental/Georgia Italic.ttf" },
   "georgia-bold-italic": { path: "/System/Library/Fonts/Supplemental/Georgia Bold Italic.ttf" },
-  // Generic cursive — Chrome on macOS resolves `cursive` to Snell Roundhand.
+  // Generic cursive — Chrome on macOS resolves `cursive` to Apple Chancery
+  // (NOT Snell Roundhand). Empirical probe at 16px on the sample "The quick
+  // brown fox jumps over the lazy dog": Chrome cursive = 290.08px, Apple
+  // Chancery = 290.08px, Snell Roundhand = 263.84px. SnellRoundhand stays in
+  // FONT_PATHS for `font-family: "Snell Roundhand"` author requests.
   "snell":           { path: "/System/Library/Fonts/Supplemental/SnellRoundhand.ttc", postscriptName: "SnellRoundhand" },
+  "apple-chancery":  { path: "/System/Library/Fonts/Supplemental/Apple Chancery.ttf" },
+  // Generic fantasy — Chrome on macOS resolves `fantasy` to Papyrus.
+  // Empirical probe at 16px: Chrome fantasy = 313.94px, Papyrus = 313.94px,
+  // Impact = 286.03px (a common other "fantasy" candidate, but not what
+  // Chrome picks). Papyrus.ttc ships W3 + Condensed sub-fonts; the default
+  // (no postscriptName) picks the Regular member.
+  "papyrus":         { path: "/System/Library/Fonts/Supplemental/Papyrus.ttc", postscriptName: "Papyrus" },
 };
 
 /**
@@ -277,10 +299,14 @@ export function fallbackFontChain(codepoint: number): string[] {
   // macOS paints many of these at the CJK em-square width (16px @16px font-
   // size) via Hiragino Sans GB, NOT Apple Symbols (which has them at
   // proportional 9-14px). Try CJK first; fall through to Apple Symbols for
-  // the chars Hiragino lacks (☘ ☑ ◇ etc.). DM-256.
+  // the chars Hiragino lacks (☘ ☑ ◇ etc.). DM-256. Insert Japanese Hiragino
+  // Sans (HiraKakuProN-W3) between cjk-GB and Apple Symbols — it covers
+  // ◉◌◐◑ (DM-324) and ☀☁☂☃ (DM-326) at em-square width when GB doesn't,
+  // matching Chrome's 18px paint instead of falling through to Apple
+  // Symbols' narrower 11-15px advance.
   if ((codepoint >= 0x25A0 && codepoint <= 0x25FF)
     || (codepoint >= 0x2600 && codepoint <= 0x26FF)) {
-    return ["cjk", "symbols"];
+    return ["cjk", "hiragino-jp", "symbols"];
   }
   // Arrows: most of the Arrows block (↑↓↔↦⇒⇔ …) routes to Apple Symbols
   // below, but ← → ↗ ↙ are the four codepoints Hiragino W6 has at the CJK
@@ -355,6 +381,9 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // so fallback characters in headings (← → ▲ ☀) inherit the heading weight.
   if (key === "cjk" && weight >= 600) {
     effectiveKey = "cjk-bold";
+  }
+  if (key === "hiragino-jp" && weight >= 600) {
+    effectiveKey = "hiragino-jp-bold";
   }
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
@@ -468,7 +497,16 @@ export function resolveFontKey(fontFamily: string): string {
     if (name === "sf mono" || name === "sfmono-regular" || name === "sf-mono") return "sf-mono";
     if (name === "serif" || name === "ui-serif" || name === "times" || name === "times new roman") return "times";
     if (name === "georgia") return "georgia";
-    if (name === "cursive" || name === "snell roundhand" || name === "brush script mt" || name === "apple chancery") return "snell";
+    // Chrome on macOS resolves the CSS `cursive` generic keyword to Apple
+    // Chancery (per the empirical probe — bare `cursive` paints at exactly
+    // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).
+    // Author-named "Snell Roundhand" / "Brush Script MT" still get their
+    // explicit families.
+    if (name === "cursive" || name === "apple chancery") return "apple-chancery";
+    if (name === "snell roundhand" || name === "brush script mt") return "snell";
+    // Chrome on macOS resolves the CSS `fantasy` generic to Papyrus
+    // (empirical probe: 313.94px = Papyrus's exact advance on the sample).
+    if (name === "fantasy" || name === "papyrus") return "papyrus";
     // Chrome on macOS resolves `sans-serif`, `helvetica`, and `helvetica neue`
     // to Helvetica (Blink: font_cache_mac.mm + font_fallback_list.cc — the
     // generic `sans-serif` keyword is hardcoded to Helvetica on macOS, not
@@ -498,7 +536,7 @@ export function resolveFontKey(fontFamily: string): string {
     // (DM-302: textarea code editor used `font: ui-monospace, Menlo, …`
     // and we wrongly pinned to Times, painting code in a serif face.)
     if (name === "ui-monospace" || name === "ui-rounded"
-      || name === "fantasy" || name === "math" || name === "emoji" || name === "fangsong") continue;
+      || name === "math" || name === "emoji" || name === "fangsong") continue;
   }
   // Last-resort fallback when no family in the stack matched. Chrome's
   // ultimate fallback on macOS for an unrecognized name is the user's

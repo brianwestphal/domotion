@@ -45,8 +45,23 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("BlinkMacSystemFont")).toBe("sf-pro");
   });
 
-  it("routes cursive to Snell Roundhand", () => {
-    expect(resolveFontKey("cursive")).toBe("snell");
+  it("routes cursive to Apple Chancery (DM-290)", () => {
+    // Empirical probe at 16px: Chrome cursive paints at 290.08px which
+    // matches Apple Chancery exactly (Snell Roundhand is 263.84px — a
+    // ~10% drift if we picked Snell). Author-named "Snell Roundhand" /
+    // "Brush Script MT" still get the snell key since those are explicit.
+    expect(resolveFontKey("cursive")).toBe("apple-chancery");
+    expect(resolveFontKey("Apple Chancery")).toBe("apple-chancery");
+    expect(resolveFontKey("Snell Roundhand")).toBe("snell");
+    expect(resolveFontKey("Brush Script MT")).toBe("snell");
+  });
+
+  it("routes fantasy to Papyrus (DM-290)", () => {
+    // Empirical probe at 16px: Chrome fantasy paints at 313.94px which
+    // matches Papyrus exactly. Without this mapping the keyword fell
+    // through to Times metrics (292.38px), which is ~7% narrower.
+    expect(resolveFontKey("fantasy")).toBe("papyrus");
+    expect(resolveFontKey("Papyrus")).toBe("papyrus");
   });
 });
 
@@ -76,12 +91,13 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("'SF Mono'")).toBe("sf-mono");
   });
 
-  it("routes Chrome-unrecognized generics (fantasy / math / emoji / fangsong) to Times", () => {
-    // DM-269: probed Chrome on macOS — these all paint with Times metrics
+  it("routes Chrome-unrecognized generics (math / emoji / fangsong) to Times", () => {
+    // DM-269: probed Chrome on macOS — these paint with Times metrics
     // (q=8.0, T=9.77) when used as the only family. The Standard Font default
     // is Times; per-codepoint fallback then routes the glyphs Times lacks
     // (CJK, math alpha, color emoji) to the right block-specific font.
-    expect(resolveFontKey("fantasy")).toBe("times");
+    // `fantasy` was previously in this list but is mapped to Papyrus
+    // (DM-290) — see the dedicated test above.
     expect(resolveFontKey("math")).toBe("times");
     expect(resolveFontKey("emoji")).toBe("times");
     expect(resolveFontKey("fangsong")).toBe("times");
@@ -134,6 +150,31 @@ describe("renderTextAsPath: ascentOverride threading", () => {
       undefined, undefined, undefined, undefined, 47);
     expect(baselineY(a)).toBe(13);
     expect(baselineY(b)).toBe(47);
+  });
+});
+
+describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", () => {
+  // Chrome on macOS paints chars like ◉◌◐◑ (U+25C9..D1) and ☀☁☂☃ (U+2600..03)
+  // at em-square width (18px @18px font-size). HiraginoSansGB-W3 (the "cjk"
+  // key) lacks these glyphs entirely; HiraKakuProN-W3 (the "hiragino-jp"
+  // key, regular Japanese Hiragino Sans) covers them at em-square width.
+  // Without hiragino-jp in the chain the renderer falls all the way through
+  // to Apple Symbols whose advances are 11-15px — visibly narrower than
+  // Chrome's painted output.
+  it("routes the U+25A0..25FF and U+2600..26FF blocks through hiragino-jp before symbols", () => {
+    // Geometric Shapes block (U+25A0..25FF).
+    expect(fallbackFontChain(0x25A0)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x25C9)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x25CC)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x25D0)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x25D1)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    // Misc Symbols block (U+2600..26FF).
+    expect(fallbackFontChain(0x2600)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x2601)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x2602)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x2603)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x2640)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(fallbackFontChain(0x26A5)).toEqual(["cjk", "hiragino-jp", "symbols"]);
   });
 });
 
