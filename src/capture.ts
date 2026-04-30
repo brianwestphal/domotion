@@ -345,7 +345,8 @@ function systemFontKeyForLocalName(localName: string): string | null {
   if (base === "menlo") return "menlo";
   if (base === "monaco") return "monaco";
   if (base === "courier" || base === "courier new") return "courier";
-  if (base === "times" || base === "times new roman") return "times";
+  if (base === "times new roman") return "times-new-roman";
+  if (base === "times") return "times";
   if (base === "helvetica" || base === "helvetica neue") return "helvetica";
   if (base === "arial") return "arial";
   if (base === "sf pro" || base === "sf pro text" || base === "sf pro display") return "sf-pro";

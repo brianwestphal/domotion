@@ -11,7 +11,7 @@ import * as fontkit from "fontkit";
 
 interface FontInstance {
   layout(text: string, features?: string[]): {
-    glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number }>;
+    glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>;
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
   };
   unitsPerEm: number;
@@ -174,6 +174,18 @@ const FONT_PATHS: Record<string, FontPath> = {
   // need W6 to match Chrome's painted weight.
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
+  // Songti SC Light (postscriptName STSongti-SC-Light) is what Chrome on
+  // macOS picks for CJK chars when the primary is a SERIF family
+  // (`font-family: serif` / `Times` / `ui-serif` / `fangsong` / `math` /
+  // bare UA default body). Empirical pixel probe at 16px against `font-
+  // family: serif` rendering "你好世界" shows STSongti-SC-Light produces
+  // a 100.000% pixel match — neither HiraginoSansGB-W3 (90.20%) nor
+  // Songti SC Regular (90.23%) matches. DM-333. Same em-square advance
+  // (16px @16px) as the sans-serif `cjk` route, so layout is unaffected;
+  // only the visible glyph shape (stroke contrast / Mincho-style shapes)
+  // changes when the primary is serif.
+  "cjk-serif":       { path: "/System/Library/Fonts/Supplemental/Songti.ttc", postscriptName: "STSongti-SC-Light" },
+  "cjk-serif-bold":  { path: "/System/Library/Fonts/Supplemental/Songti.ttc", postscriptName: "STSongti-SC-Bold" },
   // Hiragino Sans (the Japanese family, not GB) covers a much wider set of
   // Geometric Shapes and Misc Symbols at em-square width — ◉◌◐◑ ☀☁☂☃ etc. —
   // that the GB family lacks. Chrome on macOS routes these chars here when
@@ -217,15 +229,27 @@ const FONT_PATHS: Record<string, FontPath> = {
   "arial-bold":             { path: "/System/Library/Fonts/Supplemental/Arial Bold.ttf" },
   "arial-italic":           { path: "/System/Library/Fonts/Supplemental/Arial Italic.ttf" },
   "arial-bold-italic":      { path: "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf" },
-  // Generic serif (font-family: serif / ui-serif, "Times New Roman", "Georgia").
-  // Times is what Chrome on macOS resolves the bare `<body>`/`<h1>` default to
-  // when no font-family is set — UA stylesheet anchors `<body>` at Times, so
-  // we need bold + italic + bold-italic siblings to render `<h1>`/`<strong>`/
-  // `<em>` in serif content faithfully (DM-269).
-  "times":              { path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" },
-  "times-bold":         { path: "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf" },
-  "times-italic":       { path: "/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf" },
-  "times-bold-italic":  { path: "/System/Library/Fonts/Supplemental/Times New Roman Bold Italic.ttf" },
+  // Generic serif. Chrome on macOS resolves `font-family: serif`, bare
+  // `Times`, `ui-serif`, and the UA-default body/h1 (when no font-family is
+  // set) to Apple's `Times.ttc` — NOT to Times New Roman. The two faces have
+  // identical advance widths for every glyph tested (so layout is unchanged)
+  // but visibly different outlines: Apple Times has bolder em-dash / en-dash
+  // bars (H=185 units in Bold vs TNR's 122) and slightly taller caps. The
+  // h1 default font-weight: bold made the em-dash mismatch the most visible
+  // case (DM-330). Author-named "Times New Roman" still routes to the
+  // separate `times-new-roman*` keys below so explicit requests are honored.
+  "times":              { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-Roman" },
+  "times-bold":         { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-Bold" },
+  "times-italic":       { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-Italic" },
+  "times-bold-italic":  { path: "/System/Library/Fonts/Times.ttc", postscriptName: "Times-BoldItalic" },
+  // Times New Roman (the Microsoft face shipped in Supplemental on macOS) is
+  // what Chrome picks when CSS specifies `font-family: "Times New Roman"`
+  // explicitly — same advance metrics as Apple's Times above but a thinner
+  // em-dash / en-dash and shorter caps.
+  "times-new-roman":              { path: "/System/Library/Fonts/Supplemental/Times New Roman.ttf" },
+  "times-new-roman-bold":         { path: "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf" },
+  "times-new-roman-italic":       { path: "/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf" },
+  "times-new-roman-bold-italic":  { path: "/System/Library/Fonts/Supplemental/Times New Roman Bold Italic.ttf" },
   "georgia":             { path: "/System/Library/Fonts/Supplemental/Georgia.ttf" },
   "georgia-bold":        { path: "/System/Library/Fonts/Supplemental/Georgia Bold.ttf" },
   "georgia-italic":      { path: "/System/Library/Fonts/Supplemental/Georgia Italic.ttf" },
@@ -257,7 +281,14 @@ const FONT_PATHS: Record<string, FontPath> = {
  * safety net so we never end up with a .notdef tofu — better to draw a
  * slightly-wrong glyph than nothing.
  */
-export function fallbackFontChain(codepoint: number): string[] {
+export function fallbackFontChain(codepoint: number, primaryKey?: string): string[] {
+  // When the primary family is a serif (Apple Times / Times New Roman /
+  // Georgia, or fangsong/math/serif/ui-serif which all resolve to `times`),
+  // CJK fallback should produce SERIF CJK glyphs (Songti SC Light) instead
+  // of the default sans-serif Hiragino Sans GB. DM-333. The check is just
+  // the resolved key — `times` includes serif/fangsong/math/ui-serif/UA-
+  // default since they all collapse to that key in `resolveFontKey`.
+  const serifPrimary = primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia";
   // Hebrew (U+0590..05FF) + presentation forms (U+FB1D..FB4F).
   if ((codepoint >= 0x0590 && codepoint <= 0x05FF)
     || (codepoint >= 0xFB1D && codepoint <= 0xFB4F)) {
@@ -284,7 +315,10 @@ export function fallbackFontChain(codepoint: number): string[] {
     || (codepoint >= 0xAC00 && codepoint <= 0xD7AF)
     || (codepoint >= 0x1100 && codepoint <= 0x11FF)
     || (codepoint >= 0xF900 && codepoint <= 0xFAFF)) {
-    return ["cjk"];
+    // Serif primary → SERIF CJK font first (DM-333). Keep `cjk`
+    // (HiraginoSansGB) as a secondary so chars Songti SC Light lacks (a
+    // small set in the rare extension blocks) still resolve.
+    return serifPrimary ? ["cjk-serif", "cjk"] : ["cjk"];
   }
   // Box Drawing / Block Elements → Menlo. Apple Symbols' versions are
   // proportional (~6.98px @13px) and don't fill a Courier monospace cell
@@ -347,6 +381,37 @@ export function fallbackFontKey(codepoint: number): string | null {
   return chain.length > 0 ? chain[0] : null;
 }
 
+/**
+ * Codepoints Chrome on macOS paints via the color-emoji font (Apple Color
+ * Emoji), regardless of any path-font's coverage. Mirrors the predicate in
+ * `src/dom-to-svg.ts` (CAPTURE_SCRIPT's `needsRaster`) so the path pipeline
+ * can skip emitting the .notdef tofu rectangle for these codepoints — the
+ * raster <image> overlay added by the capture layer already covers the
+ * visible glyph, and emitting the tofu underneath produces a visible
+ * black rectangle around the edges of the emoji where the raster has
+ * sub-pixel transparency. (DM-334.)
+ */
+function isEmojiCodepoint(cp: number, nextCp: number): boolean {
+  // Misc Symbols block (U+2600..26FF) chars with default emoji presentation.
+  if (cp === 0x2614 || cp === 0x2615 || (cp >= 0x2648 && cp <= 0x2653)
+    || cp === 0x267F || cp === 0x2693 || cp === 0x26A1 || cp === 0x26AA || cp === 0x26AB
+    || cp === 0x26BD || cp === 0x26BE || cp === 0x26C4 || cp === 0x26C5 || cp === 0x26CE
+    || cp === 0x26D4 || cp === 0x26EA || cp === 0x26F2 || cp === 0x26F3 || cp === 0x26F5
+    || cp === 0x26FA || cp === 0x26FD) return true;
+  // Dingbats Chrome routes to Apple Color Emoji (✨ ❌ ❎ ❓ ❔ ❕ ❗ ➕ ➖ ➗ ➡ ➰ ➿ etc.).
+  if (cp === 0x2728 || cp === 0x2753 || cp === 0x2754 || cp === 0x2755 || cp === 0x2757
+    || cp === 0x274C || cp === 0x274E || cp === 0x2795 || cp === 0x2796 || cp === 0x2797
+    || cp === 0x27A1 || cp === 0x27B0 || cp === 0x27BF) return true;
+  // VS-16 (U+FE0F) after a base emoji codepoint requests color presentation.
+  if (nextCp === 0xFE0F && cp >= 0x2600 && cp <= 0x26FF) return true;
+  // Regional-indicator flags (pairs are joined into country flag emoji).
+  if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
+  // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport,
+  // Alchemical, Supplemental Symbols, Pictographs Extended-A/B.
+  if (cp >= 0x1F300 && cp <= 0x1FAFF) return true;
+  return false;
+}
+
 function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
@@ -370,7 +435,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // installed. Times/Georgia ship four sibling files (regular/bold/italic/
   // bold-italic) for headings + emphasis in serif content (DM-269).
   if (key === "helvetica" || key === "arial" || key === "courier" || key === "menlo"
-      || key === "times" || key === "georgia") {
+      || key === "times" || key === "times-new-roman" || key === "georgia") {
     const isBold = weight >= 600;
     const isItalic = slant !== 0;
     if (isBold && isItalic) effectiveKey = `${key}-bold-italic`;
@@ -381,6 +446,9 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // so fallback characters in headings (← → ▲ ☀) inherit the heading weight.
   if (key === "cjk" && weight >= 600) {
     effectiveKey = "cjk-bold";
+  }
+  if (key === "cjk-serif" && weight >= 600) {
+    effectiveKey = "cjk-serif-bold";
   }
   if (key === "hiragino-jp" && weight >= 600) {
     effectiveKey = "hiragino-jp-bold";
@@ -495,7 +563,12 @@ export function resolveFontKey(fontFamily: string): string {
     if (name === "menlo") return "menlo";
     if (name === "monaco") return "monaco";
     if (name === "sf mono" || name === "sfmono-regular" || name === "sf-mono") return "sf-mono";
-    if (name === "serif" || name === "ui-serif" || name === "times" || name === "times new roman") return "times";
+    // `Times New Roman` resolves to the Microsoft TNR face (separate file from
+    // Apple's Times.ttc); bare `Times` / `serif` / `ui-serif` / the UA default
+    // resolve to Apple Times (DM-330). The two have identical metrics but
+    // visibly different em-dash glyphs in bold weights.
+    if (name === "times new roman") return "times-new-roman";
+    if (name === "serif" || name === "ui-serif" || name === "times") return "times";
     if (name === "georgia") return "georgia";
     // Chrome on macOS resolves the CSS `cursive` generic keyword to Apple
     // Chancery (per the empirical probe — bare `cursive` paints at exactly
@@ -695,7 +768,7 @@ export function textToPathMarkup(
         // overlay can pin a captured emoji PNG against, where switching
         // to primary's .notdef would shift glyph positions and drift the
         // rest of the line.
-        const chain = fallbackFontChain(cp);
+        const chain = fallbackFontChain(cp, primaryFontKey);
         let picked: string | null = null;
         for (const candidate of chain) {
           const cf = getFontInstance(candidate, weight, fontSize, slant);
@@ -792,9 +865,18 @@ export function textToPathMarkup(
           const layout = features != null && features.length > 0 && !synthSmallCaps
             ? run.font.layout(ch, features)
             : run.font.layout(ch);
+          // For emoji codepoints whose layout returns a .notdef tofu (id=0,
+          // hollow rectangle outline), suppress path emission. The capture
+          // layer attached a raster <image> overlay that fills the visual;
+          // emitting the tofu underneath leaves visible black edges around
+          // the emoji where the raster's sub-pixel transparency exposes the
+          // tofu's outline. (DM-334.)
+          const nextI = i + ch.length;
+          const nextCp = nextI < text.length ? text.codePointAt(nextI)! : 0;
+          const skipNotdef = isEmojiCodepoint(cp, nextCp);
           const uses: string[] = [];
           for (const g of layout.glyphs) {
-            if (g.path.commands.length > 0) {
+            if (g.path.commands.length > 0 && !(skipNotdef && g.id === 0)) {
               const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, g.path.commands);
               uses.push(`<use href="#${defId}" x="0" y="0"/>`);
             }
@@ -897,32 +979,42 @@ function singleFontMarkup(
   const xScale = (targetWidth != null && targetWidth > 0 && nativeWidth > 0)
     ? targetWidth / nativeWidth : 1;
   // When xOffsets are provided but the layout's glyph count doesn't match the
-  // text length (Helvetica's `liga` feature collapsed `fi` / `fl` into single
-  // glyphs etc.), the per-char anchoring path can't run — without it we lose
-  // Chrome's justify-driven space widths and the rendered line collapses to
-  // unjustified spacing. (DM-287). Re-shape per-char to bypass ligatures so
-  // each codepoint maps 1:1 to a glyph and per-char xOffsets line up.
+  // text length (Helvetica's `liga` feature collapsed `fi`/`fl` into single
+  // glyphs, Apple Chancery's `Th`/`th` ligatures, etc.), the simple per-char
+  // anchoring path can't run. (DM-287 / DM-331). Use the layout's actual
+  // glyph stream — which includes any ligatures the font fired — and anchor
+  // each glyph cluster at its FIRST codepoint's xOffset. Chrome paints
+  // ligature glyphs at the position of the cluster's first char, so this
+  // matches Chrome both for justified text (DM-287, fi/fl) and for
+  // stylistic-ligature fonts where the per-char glyphs differ visibly from
+  // the ligature glyph (DM-331, Apple Chancery's connected Th/th forms).
   if (xOffsets != null && xOffsets.length !== run.glyphs.length) {
     const sc = Number(scale.toFixed(5));
     const uses: string[] = [];
-    let i = 0;
-    while (i < text.length) {
-      const code = text.charCodeAt(i);
-      const isHigh = code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length;
-      const step = isHigh ? 2 : 1;
-      const ch = text.slice(i, i + step);
-      const cl = font.layout(ch);
-      for (let gi = 0; gi < cl.glyphs.length; gi++) {
-        const glyph = cl.glyphs[gi];
-        const pos = cl.positions[gi];
-        if (glyph.path.commands.length > 0) {
-          const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
-          const tx = xOffsets[i] / scale + pos.xOffset;
-          const ty = -pos.yOffset;
-          uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
-        }
+    let textIdx = 0;
+    for (let gi = 0; gi < run.glyphs.length; gi++) {
+      const glyph = run.glyphs[gi];
+      const pos = run.positions[gi];
+      if (textIdx < xOffsets.length && glyph.path.commands.length > 0) {
+        const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+        const tx = xOffsets[textIdx] / scale + pos.xOffset;
+        const ty = -pos.yOffset;
+        uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
       }
-      i += step;
+      // Advance the text-index cursor by the cluster's char span: each BMP
+      // codepoint in the cluster consumes 1 text index, each astral codepoint
+      // consumes 2 (surrogate pair). Empty codePoints (decomposed glyphs)
+      // count as 1 to keep the cursor moving — good enough for the Latin
+      // ligature cases we hit; Arabic/Devanagari/Thai re-ordering goes
+      // through the multi-font run path, not here.
+      const cps = glyph.codePoints;
+      let span = 0;
+      if (cps != null && cps.length > 0) {
+        for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
+      } else {
+        span = 1;
+      }
+      textIdx += span;
     }
     return {
       markup: uses.length > 0 ? `<g transform="scale(${sc},${-sc})">${uses.join("")}</g>` : "",
