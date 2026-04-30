@@ -943,7 +943,15 @@ function renderSelectChevron(el: CapturedElement, indent: string): string {
     const fontFamily = el.styles.fontFamily ?? "-apple-system, system-ui, sans-serif";
     const fontWeight = el.styles.fontWeight ?? "400";
     const color = el.styles.color ?? "rgb(0,0,0)";
-    const tx = el.x + 6;
+    // Anchor the display text at the element's content-box left edge.
+    // Pages style selects with `appearance: none; padding: 8px 34px 8px 12px`
+    // and similar — the previous hardcoded `el.x + 6` ignored the captured
+    // padding, so styled selects rendered the text 6-12px too far left
+    // (DM-341). UA-default selects (where padding is empty) still resolve to
+    // a reasonable position via Chrome's small computed padding.
+    const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+    const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+    const tx = el.x + bwL + padL;
     const ty = el.y + el.height / 2 + fontSize * 0.35;
     const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
     parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily}" font-weight="${fontWeight}" fill="${color}">${escaped}</text>`);
