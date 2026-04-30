@@ -899,7 +899,12 @@ const CAPTURE_SCRIPT = `
     const rect = el.getBoundingClientRect();
     if (rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height) return null;
 
-    if (cs.display === 'none' || cs.visibility === 'hidden') return null;
+    // visibility: collapse on table-row/column/group collapses that section
+    // (Chrome zero-sizes the row/col, so the zeroSized check below handles it).
+    // On any other element, the spec says it behaves as visibility: hidden — the
+    // text + children are hidden but adjacent layout / shared borders remain.
+    // DM-375.
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return null;
 
     // Zero-sized elements — skip visual rendering of the element itself but
     // still walk children. Elements with all position:absolute children
@@ -1697,6 +1702,31 @@ const CAPTURE_SCRIPT = `
       if (svgFontFamily && svgFontFamily !== '' && !el.hasAttribute('font-family')) {
         clone.setAttribute('font-family', svgFontFamily);
       }
+      // Walk SVG descendants and bake each one's resolved presentation
+      // attributes onto the cloned node. Without this, CSS-only styling such
+      // as svg|rect { stroke: red } or *|circle { fill: green } (DM-346) is
+      // lost when the SVG is re-embedded outside the original cascade —
+      // computed style is resolved against the source DOM, not the clone.
+      const _bakeSvgAttrs = ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'fill-opacity', 'opacity'];
+      const _walkBake = (origNode, cloneNode) => {
+        if (origNode.nodeType !== 1) return;
+        const ns = origNode.namespaceURI;
+        if (ns === 'http://www.w3.org/2000/svg' && origNode !== el) {
+          const ocs = window.getComputedStyle(origNode);
+          for (const attr of _bakeSvgAttrs) {
+            const camel = attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            const val = ocs[camel];
+            if (val != null && val !== '' && !origNode.hasAttribute(attr)) {
+              cloneNode.setAttribute(attr, val);
+            }
+          }
+        }
+        const oChildren = origNode.children;
+        const cChildren = cloneNode.children;
+        const n = Math.min(oChildren.length, cChildren.length);
+        for (let i = 0; i < n; i++) _walkBake(oChildren[i], cChildren[i]);
+      };
+      _walkBake(el, clone);
       svgContent = clone.outerHTML;
     }
 
@@ -2221,7 +2251,19 @@ const CAPTURE_SCRIPT = `
     || (parseFloat(rootCs.borderLeftWidth) || 0) > 0;
   const rootBg = rootCs.backgroundColor;
   const rootHasBg = rootBg != null && rootBg !== 'rgba(0, 0, 0, 0)' && rootBg !== 'transparent';
-  if (rootHasBorder || rootHasBg) {
+  // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
+  // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
+  // Chrome paints it; we'd miss it if we only walked root.children (Element
+  // children only). When the root has any direct text-node child with non-
+  // whitespace content, capture root so its text-node walk picks them up.
+  let rootHasDirectText = false;
+  for (const node of root.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && (node.textContent || '').trim() !== '') {
+      rootHasDirectText = true;
+      break;
+    }
+  }
+  if (rootHasBorder || rootHasBg || rootHasDirectText) {
     const c = capture(root);
     if (c) result.push(c);
   } else {
@@ -2785,7 +2827,17 @@ export function elementTreeToSvg(
         // max(spread, blur) as both stroke width AND inward offset, which
         // conflated blur with spread and painted pure-blur insets as a
         // thick solid ring. DM-304.
-        const ringWidth = Math.max(2 * sh.spread, 1);
+        // For pure-blur (no spread) we use a `blur`-wide ring centered on the
+        // inner edge — half (blur/2) shows inside the clip, half is clipped
+        // away on the outer side. The Gaussian then softens that band into
+        // Chrome's characteristic inset glow falloff (DM-366). Previously the
+        // ring was 1px wide and the blur made it nearly invisible.
+        // For pure-blur (no spread) we use a `blur/2`-wide ring centered on
+        // the inner edge. Half (blur/4) shows inside the clip; the Gaussian
+        // (stdDev = blur/2) softens that band into Chrome's characteristic
+        // inset-glow falloff. A 1px ring is too faint; a `blur`-wide ring is
+        // too strong (DM-366).
+        const ringWidth = Math.max(2 * sh.spread, sh.blur / 2, 1);
         let filterAttr = "";
         if (sh.blur > 0) {
           const stdDev = sh.blur / 2;
@@ -3111,23 +3163,40 @@ export function elementTreeToSvg(
     // Image (<img> or <input type="image">)
     if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
       const fit = el.styles.objectFit ?? "fill";
+      // CSS object-fit operates on the CONTENT BOX (inside borders + padding),
+      // not the border box (DM-378). For an <img width:200; aspect-ratio:4/1;
+      // border:2px; object-fit:contain> the captured rect is 204x54 (border
+      // box) but the image content must paint inside the 200x50 content area.
+      // Subtract per-side border + padding before placing the <image>.
+      const _bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+      const _bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const _bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+      const _bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+      const _padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+      const _padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+      const _padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+      const _padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+      const contentX = el.x + _bwL + _padL;
+      const contentY = el.y + _bwT + _padT;
+      const contentW = Math.max(0, el.width - _bwL - _bwR - _padL - _padR);
+      const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
       if (fit === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
         // object-fit: none -> render image at intrinsic size, aligned via
-        // object-position inside the element's box, and clip overflow to the box.
+        // object-position inside the element's content box, and clip overflow.
         const iw = el.imageIntrinsic.w;
         const ih = el.imageIntrinsic.h;
         const { hPct, vPct } = parseObjectPosition(el.styles.objectPosition ?? "50% 50%");
-        const ix = el.x + (el.width - iw) * (hPct / 100);
-        const iy = el.y + (el.height - ih) * (vPct / 100);
+        const ix = contentX + (contentW - iw) * (hPct / 100);
+        const iy = contentY + (contentH - ih) * (vPct / 100);
         const clipId = `${idPrefix}ifn${clipIdx++}`;
-        defsParts.push(`<clipPath id="${clipId}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" /></clipPath>`);
+        defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
         svgParts.push(
           `${indent}<image href="${esc(embedAsDataUri(el.imageSrc))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
         );
       } else {
         const par = preserveAspectRatioFor(fit, el.styles.objectPosition);
         svgParts.push(
-          `${indent}<image href="${esc(embedAsDataUri(el.imageSrc))}" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" preserveAspectRatio="${par}" />`,
+          `${indent}<image href="${esc(embedAsDataUri(el.imageSrc))}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${par}" />`,
         );
       }
     }
