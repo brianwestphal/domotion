@@ -185,7 +185,15 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
   const pathText = reordered.text;
   const xOffsetsRel = reordered.xOffsets;
-  const features = singleSeg?.fontVariant != null && /\bsmall-caps\b/.test(singleSeg.fontVariant) ? ["smcp"] : undefined;
+  // Resolve OpenType features from font-variant-caps. DM-361 wires the
+  // element-level CSS through to the existing smcp synthesis path.
+  // Segment-level fontVariant (::first-line override) wins when set.
+  function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | undefined): string[] | undefined {
+    const v = segVariant != null && segVariant !== "" ? segVariant : (elCaps ?? "");
+    if (/\b(small-caps|all-small-caps)\b/.test(v)) return ["smcp"];
+    return undefined;
+  }
+  const features = resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps);
   const result = renderTextAsPath(pathText, tl, tt, fontSize, fontFamily, fontWeight, fillColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, el.fontAscent, features);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
@@ -274,7 +282,10 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // CSS spec maps small-caps to smcp only (uppercase letters stay full
     // height); font-variant-caps: all-small-caps would add c2sc but isn't
     // covered by the shorthand we read here. (DM-294)
-    const segFeatures = seg.fontVariant != null && /\bsmall-caps\b/.test(seg.fontVariant) ? ["smcp"] : undefined;
+    // Honor either segment-level font-variant override (::first-line) or
+    // the element-level font-variant-caps. DM-361.
+    const segVariantStr = seg.fontVariant != null && seg.fontVariant !== "" ? seg.fontVariant : (el.styles.fontVariantCaps ?? "");
+    const segFeatures = /\b(small-caps|all-small-caps)\b/.test(segVariantStr) ? ["smcp"] : undefined;
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;

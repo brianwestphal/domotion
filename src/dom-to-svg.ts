@@ -375,6 +375,11 @@ export interface CapturedElement {
     fontStretch: string;
     fontVariationSettings: string;
     fontFeatureSettings: string;
+    /** CSS font-variant-caps — 'normal' | 'small-caps' | 'all-small-caps' |
+     *  'petite-caps' | 'all-petite-caps' | 'unicase' | 'titling-caps'.
+     *  Renderer applies the matching OpenType feature (smcp / c2sc / etc.).
+     *  DM-361. */
+    fontVariantCaps?: string;
     /** CSS direction ('ltr' / 'rtl'). Drives BiDi reordering on RTL paragraphs. */
     direction?: string;
     /** `text-decoration-line` — 'underline', 'line-through', 'overline', or
@@ -2060,6 +2065,10 @@ const CAPTURE_SCRIPT = `
         fontStretch: cs.fontStretch,
         fontVariationSettings: cs.fontVariationSettings,
         fontFeatureSettings: cs.fontFeatureSettings,
+        // CSS font-variant-caps. 'small-caps' / 'all-small-caps' route to
+        // the OpenType smcp feature; renderer applies synthesized small-caps
+        // when the active font lacks smcp (Helvetica, Times, etc.). DM-361.
+        fontVariantCaps: cs.fontVariantCaps,
         direction: cs.direction,
         textDecorationLine: cs.textDecorationLine,
         textDecorationColor: cs.textDecorationColor,
@@ -2195,9 +2204,26 @@ const CAPTURE_SCRIPT = `
   _counterPreWalk(root);
 
   const result = [];
-  for (const child of root.children) {
-    const c = capture(child);
+  // Capture the root element itself when it has visible border or background
+  // (DM-362: <body style="border:3px solid pink"> was not rendering because
+  // we only walked root.children). When the root has nothing visually
+  // distinctive, fall through to the prior child-walk so we don't wrap
+  // every page in a redundant outer rect.
+  const rootCs = window.getComputedStyle(root);
+  const rootHasBorder = (parseFloat(rootCs.borderTopWidth) || 0) > 0
+    || (parseFloat(rootCs.borderRightWidth) || 0) > 0
+    || (parseFloat(rootCs.borderBottomWidth) || 0) > 0
+    || (parseFloat(rootCs.borderLeftWidth) || 0) > 0;
+  const rootBg = rootCs.backgroundColor;
+  const rootHasBg = rootBg != null && rootBg !== 'rgba(0, 0, 0, 0)' && rootBg !== 'transparent';
+  if (rootHasBorder || rootHasBg) {
+    const c = capture(root);
     if (c) result.push(c);
+  } else {
+    for (const child of root.children) {
+      const c = capture(child);
+      if (c) result.push(c);
+    }
   }
   return { tree: result, warnings: _warnings };
 }
