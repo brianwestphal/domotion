@@ -163,9 +163,18 @@ For every glyph extraction, the renderer:
 
 ### `FONT_PATHS` and font-key changes
 
-- New keys for PingFang families: `pingfang-sc`, `pingfang-sc-bold` (TC / HK / MO / JP follow under DM-394 once SC lands clean).
-- No `extractor` field on `FONT_PATHS` entries — the probe-then-fallback model determines the extractor at glyph-resolution time, not at the font-key level.
-- `fallbackFontChain(codepoint, primaryKey)`: CJK Unified Ideographs (U+4E00..U+9FFF) and Ext A (U+3400..U+4DBF) gain `pingfang-sc` as the primary fallback for sans-serif primary, with `cjk` (HiraginoSansGB) retained as a secondary so glyphs PingFang lacks still resolve. DM-382 / DM-364 close out at this routing change.
+- New keys for PingFang families: `pingfang-sc`, `pingfang-sc-bold`, plus `pingfang-tc` / `pingfang-tc-bold`, `pingfang-hk` / `pingfang-hk-bold`, `pingfang-mo` / `pingfang-mo-bold` for the regional variants (DM-394). All point at `PingFang.ttc` with the appropriate postscriptName and `extractor: "coretext"`.
+- There is no `pingfang-jp` entry — Apple's `PingFang.ttc` has no `PingFangJP-Regular` postscriptName on macOS (verified by probing all four `PingFang*-Regular` names; only SC / TC / HK / MO resolve to PingFang metrics — JP falls back to Helvetica). Japanese Han text routes through `hiragino-jp` (HiraKakuProN) instead.
+- `fallbackFontChain(codepoint, primaryKey, lang?)`: CJK Unified Ideographs (U+4E00..U+9FFF), Ext A (U+3400..U+4DBF), and CJK Compatibility Ideographs (U+F900..U+FAFF) gain a locale-aware primary fallback for sans-serif primary:
+  - `lang` ∈ `zh-TW` / `zh-Hant` / `zh-Hant-TW` → `pingfang-tc`, then `pingfang-sc`, then `cjk`.
+  - `lang` ∈ `zh-HK` / `zh-Hant-HK` → `pingfang-hk`, then `pingfang-sc`, then `cjk`.
+  - `lang` ∈ `zh-MO` → `pingfang-mo`, then `pingfang-sc`, then `cjk`.
+  - `lang` ∈ `ja` / `ja-*` → `hiragino-jp`, then `cjk`.
+  - `lang` ∈ `zh-CN` / `zh-Hans` / `zh-SG` / unset / non-Chinese → `pingfang-sc`, then `cjk`.
+  - Region subtags win over script subtags in mixed tags (`zh-Hant-HK` → HK).
+  - The locale matcher is exposed as `pingfangKeyForLang(lang)` for unit tests and reuse.
+- The `lang` argument is the element's computed BCP-47 tag, captured per-element in `CAPTURE_SCRIPT` by walking `el.lang` through ancestor `[lang]` attributes to `<html lang>`. Stored on `CapturedElement.styles.lang` and threaded through `text-renderer.ts` → `renderTextAsPath` → `textToPathMarkup` → `fallbackFontChain`. DM-394.
+- No `extractor` field on the rest of `FONT_PATHS` — the probe-then-fallback model determines the extractor at glyph-resolution time, not at the font-key level.
 
 ### Glyph wrapper
 

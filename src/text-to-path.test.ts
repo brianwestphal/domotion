@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fallbackFontChain, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
+import { fallbackFontChain, pingfangKeyForLang, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
@@ -255,6 +255,50 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     expect(fallbackFontChain(0x3042, "helvetica")).toEqual(["cjk"]); // ぁ
     expect(fallbackFontChain(0x30A2, "helvetica")).toEqual(["cjk"]); // ア
     expect(fallbackFontChain(0xAC00, "helvetica")).toEqual(["cjk"]); // 가
+  });
+  it("routes Han through the lang-matching PingFang variant when lang is set (DM-394)", () => {
+    // 你 is U+4F60 — Han ideograph.
+    expect(fallbackFontChain(0x4F60, "helvetica", "zh-TW")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "helvetica", "zh-Hant")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "helvetica", "zh-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "helvetica", "zh-MO")).toEqual(["pingfang-mo", "pingfang-sc", "cjk"]);
+    // zh-Hant-HK: region wins over script.
+    expect(fallbackFontChain(0x4F60, "helvetica", "zh-Hant-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
+    // Japanese: there's no PingFang JP — routes through Hiragino Kaku.
+    expect(fallbackFontChain(0x4F60, "helvetica", "ja")).toEqual(["hiragino-jp", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "helvetica", "ja-JP")).toEqual(["hiragino-jp", "cjk"]);
+    // SC / unspecified / non-CJK lang → default PingFang SC.
+    expect(fallbackFontChain(0x4F60, "helvetica", "zh-CN")).toEqual(["pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "helvetica", "zh-Hans")).toEqual(["pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "helvetica", "en-US")).toEqual(["pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "helvetica", "")).toEqual(["pingfang-sc", "cjk"]);
+  });
+});
+
+describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
+  it("maps Traditional Chinese region tags to TC", () => {
+    expect(pingfangKeyForLang("zh-TW")).toBe("pingfang-tc");
+    expect(pingfangKeyForLang("zh-tw")).toBe("pingfang-tc");
+    expect(pingfangKeyForLang("zh-Hant")).toBe("pingfang-tc");
+    expect(pingfangKeyForLang("zh-Hant-TW")).toBe("pingfang-tc"); // -tw region
+  });
+  it("maps Hong Kong / Macau region tags to HK / MO", () => {
+    expect(pingfangKeyForLang("zh-HK")).toBe("pingfang-hk");
+    expect(pingfangKeyForLang("zh-Hant-HK")).toBe("pingfang-hk"); // region beats script
+    expect(pingfangKeyForLang("zh-MO")).toBe("pingfang-mo");
+  });
+  it("maps Japanese tags to hiragino-jp (no PingFang JP exists on macOS)", () => {
+    expect(pingfangKeyForLang("ja")).toBe("hiragino-jp");
+    expect(pingfangKeyForLang("ja-JP")).toBe("hiragino-jp");
+  });
+  it("returns null for SC / unspecified / non-CJK / empty (caller falls back to pingfang-sc)", () => {
+    expect(pingfangKeyForLang("zh")).toBeNull();
+    expect(pingfangKeyForLang("zh-CN")).toBeNull();
+    expect(pingfangKeyForLang("zh-Hans")).toBeNull();
+    expect(pingfangKeyForLang("zh-SG")).toBeNull(); // Singapore uses simplified
+    expect(pingfangKeyForLang("en-US")).toBeNull();
+    expect(pingfangKeyForLang("")).toBeNull();
+    expect(pingfangKeyForLang(undefined)).toBeNull();
   });
   it("does NOT swap the symbol blocks for serif primaries (only CJK ranges)", () => {
     // Geometric Shapes / Misc Symbols still route through their dedicated

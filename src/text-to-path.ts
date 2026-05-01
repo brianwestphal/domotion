@@ -210,6 +210,17 @@ const FONT_PATHS: Record<string, FontPath> = {
   // DM-388.
   "pingfang-sc":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Regular", extractor: "coretext" },
   "pingfang-sc-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Medium", extractor: "coretext" },
+  // Per-locale PingFang variants (DM-394). Apple ships the same `hvgl`-only
+  // PingFang.ttc with regional faces for Traditional Chinese, Hong Kong, and
+  // Macau. Chrome routes by computed `lang`: zh-TW / zh-Hant → TC, zh-HK → HK,
+  // zh-MO → MO. There is no `PingFangJP-Regular` postscriptName on macOS;
+  // Japanese text routes through `hiragino-jp` (HiraKakuProN) instead.
+  "pingfang-tc":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangTC-Regular", extractor: "coretext" },
+  "pingfang-tc-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangTC-Medium", extractor: "coretext" },
+  "pingfang-hk":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangHK-Regular", extractor: "coretext" },
+  "pingfang-hk-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangHK-Medium", extractor: "coretext" },
+  "pingfang-mo":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangMO-Regular", extractor: "coretext" },
+  "pingfang-mo-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangMO-Medium", extractor: "coretext" },
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
   // Songti SC Light (postscriptName STSongti-SC-Light) is what Chrome on
@@ -326,7 +337,42 @@ const FONT_PATHS: Record<string, FontPath> = {
  * safety net so we never end up with a .notdef tofu — better to draw a
  * slightly-wrong glyph than nothing.
  */
-export function fallbackFontChain(codepoint: number, primaryKey?: string): string[] {
+/**
+ * Pick the PingFang regional variant key (or `hiragino-jp` for Japanese)
+ * that matches the element's computed `lang`. Returns null when the lang
+ * is empty / unknown — caller should fall through to the default `pingfang-sc`
+ * route in that case. DM-394.
+ *
+ * Matches BCP-47 language tags: the primary subtag wins, with a Han-script
+ * subtag (`Hans` / `Hant`) overriding region for the simplified-vs-traditional
+ * split. Examples:
+ *   "zh-TW"           → pingfang-tc
+ *   "zh-Hant"         → pingfang-tc
+ *   "zh-Hant-HK"      → pingfang-hk (region is more specific than script)
+ *   "zh-HK"           → pingfang-hk
+ *   "zh-MO"           → pingfang-mo
+ *   "zh-CN" / "zh-Hans" / "zh" / "" → null (caller picks pingfang-sc)
+ *   "ja" / "ja-JP"    → hiragino-jp (PingFang has no JP subfont on macOS)
+ */
+export function pingfangKeyForLang(lang: string | undefined): string | null {
+  if (lang == null || lang === "") return null;
+  const lower = lang.toLowerCase();
+  // Japanese: not a PingFang variant — Apple's PingFang.ttc has no PingFangJP
+  // postscriptName. Route Japanese Han through Hiragino Kaku (HiraKakuProN).
+  if (lower === "ja" || lower.startsWith("ja-")) return "hiragino-jp";
+  // Match `zh-*` (or any tag that opts into a Chinese region/script).
+  if (lower !== "zh" && !lower.startsWith("zh-") && !lower.includes("-zh-")) return null;
+  // Region subtags win over script subtags when both appear (zh-Hant-HK = HK).
+  if (lower.includes("-hk")) return "pingfang-hk";
+  if (lower.includes("-mo")) return "pingfang-mo";
+  if (lower.includes("-tw")) return "pingfang-tc";
+  if (lower.includes("-cn") || lower.includes("-sg")) return null; // SC default
+  if (lower.includes("hant")) return "pingfang-tc";
+  if (lower.includes("hans")) return null; // SC default
+  return null;
+}
+
+export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
   // When the primary family is a serif (Apple Times / Times New Roman /
   // Georgia, or fangsong/math/serif/ui-serif which all resolve to `times`),
   // CJK fallback should produce SERIF CJK glyphs (Songti SC Light) instead
@@ -378,7 +424,15 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string): strin
     const isHan = (codepoint >= 0x4E00 && codepoint <= 0x9FFF)
         || (codepoint >= 0x3400 && codepoint <= 0x4DBF)
         || (codepoint >= 0xF900 && codepoint <= 0xFAFF);
-    return isHan ? ["pingfang-sc", "cjk"] : ["cjk"];
+    if (!isHan) return ["cjk"];
+    // For Han: prefer the lang-matching PingFang variant (or hiragino-jp for
+    // Japanese) when lang is set, otherwise fall through to PingFang SC. The
+    // bare `cjk` (HiraginoSansGB) stays as the safety net for any glyph
+    // PingFang lacks in the rare extension blocks.
+    const localeKey = pingfangKeyForLang(lang);
+    if (localeKey === "hiragino-jp") return ["hiragino-jp", "cjk"];
+    if (localeKey != null) return [localeKey, "pingfang-sc", "cjk"];
+    return ["pingfang-sc", "cjk"];
   }
   // Box Drawing / Block Elements → Menlo. Apple Symbols' versions are
   // proportional (~6.98px @13px) and don't fill a Courier monospace cell
@@ -558,9 +612,12 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
     effectiveKey = "hiragino-jp-bold";
   }
   // PingFang ships separate weight subfonts in PingFang.ttc — Regular for
-  // body weight, Medium for semibold+. No italic.
-  if (key === "pingfang-sc" && weight >= 600) {
-    effectiveKey = "pingfang-sc-bold";
+  // body weight, Medium for semibold+. No italic. Same pattern across all
+  // regional variants (SC / TC / HK / MO).
+  if ((key === "pingfang-sc" || key === "pingfang-tc"
+       || key === "pingfang-hk" || key === "pingfang-mo")
+      && weight >= 600) {
+    effectiveKey = `${key}-bold`;
   }
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
@@ -858,6 +915,11 @@ export function textToPathMarkup(
    * substituted glyph. Empty / undefined means default shaping. (DM-294)
    */
   features?: string[],
+  /** BCP-47 language tag from the element's computed `lang` attribute. Routes
+   *  Han fallbacks to the matching PingFang regional variant — `zh-TW` / `zh-Hant`
+   *  → PingFang TC, `zh-HK` → PingFang HK, `zh-MO` → PingFang MO, `ja` →
+   *  Hiragino Kaku, otherwise PingFang SC. (DM-394) */
+  lang?: string,
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -894,7 +956,7 @@ export function textToPathMarkup(
         // overlay can pin a captured emoji PNG against, where switching
         // to primary's .notdef would shift glyph positions and drift the
         // rest of the line.
-        const chain = fallbackFontChain(cp, primaryFontKey);
+        const chain = fallbackFontChain(cp, primaryFontKey, lang);
         let picked: string | null = null;
         for (const candidate of chain) {
           const cf = getFontInstance(candidate, weight, fontSize, slant);
@@ -1215,8 +1277,11 @@ export function renderTextAsPath(
    * `font-variant: small-caps` is in effect on this run). DM-294.
    */
   features?: string[],
+  /** BCP-47 language tag for locale-aware Han fallback variant routing
+   *  (PingFang TC / HK / MO, or Hiragino Kaku for `ja`). DM-394. */
+  lang?: string,
 ): string | null {
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features);
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang);
   if (result == null || result.markup === "") return null;
 
   const weight = parseInt(fontWeight) || 400;

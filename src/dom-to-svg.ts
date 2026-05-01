@@ -382,6 +382,10 @@ export interface CapturedElement {
     fontVariantCaps?: string;
     /** CSS direction ('ltr' / 'rtl'). Drives BiDi reordering on RTL paragraphs. */
     direction?: string;
+    /** BCP-47 language tag inherited from `el.lang` / nearest ancestor `[lang]` /
+     *  `<html lang>`. Routes Han fallback to the matching PingFang regional
+     *  variant (TC / HK / MO) or Hiragino Kaku for `ja`. (DM-394) */
+    lang?: string;
     /** `text-decoration-line` — 'underline', 'line-through', 'overline', or
      *  combinations. 'none' means no decoration; renderer draws an SVG line
      *  below / through / above the text when present. */
@@ -2167,6 +2171,18 @@ const CAPTURE_SCRIPT = `
         // when the active font lacks smcp (Helvetica, Times, etc.). DM-361.
         fontVariantCaps: cs.fontVariantCaps,
         direction: cs.direction,
+        // Computed BCP-47 language tag from el.lang or nearest ancestor
+        // [lang], falling back to document.documentElement.lang. Used by the
+        // path renderer to route CJK Han fallback to the right PingFang
+        // regional variant. (DM-394)
+        lang: (function() {
+          var n = el;
+          while (n != null && n.nodeType === 1) {
+            if (n.lang) return n.lang;
+            n = n.parentElement;
+          }
+          return document.documentElement.lang || '';
+        })(),
         textDecorationLine: cs.textDecorationLine,
         textDecorationColor: cs.textDecorationColor,
         textDecorationStyle: cs.textDecorationStyle,
