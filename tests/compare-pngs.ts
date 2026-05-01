@@ -1,0 +1,248 @@
+import type { Page } from "@playwright/test";
+import { readFileSync, writeFileSync } from "node:fs";
+
+/**
+ * Shared PNG comparator used by every visual-regression runner in `tests/`.
+ * Compares two PNGs and writes a diff image. Pass/fail and diagnostic
+ * metrics are computed identically across `tests/runner.tsx` (features /
+ * showcase) and `tests/html-test-suite.tsx`. DM-383.
+ *
+ * The work runs inside `page.evaluate(...)` because the canvas APIs needed
+ * to decode and walk the PNGs only exist in a browser context.
+ */
+
+/** Per-pixel distance threshold (0..441) above which a pixel counts as
+ *  "clearly different" rather than antialias noise. 40 ≈ 9% of max distance. */
+export const SIGNIFICANT_PIXEL_DIST = 40;
+
+/** Tile size in pixels for the per-tile diagnostic metrics. */
+export const TILE_PX = 64;
+
+export interface CompareResult {
+  /** Pixels that differ between expected and actual AND are not classified as
+   *  glyph anti-aliasing by the Yee detector. Pass requires 0 (DM-383). */
+  nonAaPixels: number;
+  /** `nonAaPixels / totalPixels * 100`. */
+  nonAaPixelPct: number;
+  /** Average normalized color distance %, AA pixels excluded. Diagnostic. */
+  diffPct: number;
+  /** Image-wide fraction of pixels with `dist > SIGNIFICANT_PIXEL_DIST` and
+   *  not classified AA. Diagnostic. */
+  sigPixelPct: number;
+  /** Average color distance % for the worst-scoring tile. Diagnostic. */
+  worstTilePct: number;
+  /** Sig-pixel % for the worst-scoring tile. Diagnostic. */
+  worstTileSignificantPct: number;
+  /** Pixel rect of the worst tile (also drawn as a yellow box on the diff
+   *  PNG so reviewers can navigate to it). */
+  worstTileRect: { x: number; y: number; w: number; h: number };
+}
+
+/**
+ * Compare `expectedPath` vs `actualPath` and write a literal absolute-difference
+ * diff PNG to `diffPath`. Returns the full metric set. DM-383 pass criterion:
+ * `nonAaPixels === 0`.
+ *
+ * `comparePage` is any Playwright Page — it just needs to be navigable and to
+ * support canvas. Callers typically dedicate a separate page so the run page
+ * can keep its viewport / state.
+ */
+export async function comparePngs(
+  comparePage: Page,
+  expectedPath: string,
+  actualPath: string,
+  diffPath: string,
+  tilePx: number = TILE_PX,
+  significantDist: number = SIGNIFICANT_PIXEL_DIST,
+): Promise<CompareResult> {
+  const expectedB64 = readFileSync(expectedPath).toString("base64");
+  const actualB64 = readFileSync(actualPath).toString("base64");
+
+  const result = (await comparePage.evaluate(
+    `(async () => {
+      const loadImg = (src) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+      const [expected, actual] = await Promise.all([
+        loadImg("data:image/png;base64,${expectedB64}"),
+        loadImg("data:image/png;base64,${actualB64}")
+      ]);
+      const w = Math.max(expected.width, actual.width);
+      const h = Math.max(expected.height, actual.height);
+      const c1 = document.createElement("canvas"); c1.width = w; c1.height = h;
+      c1.getContext("2d").drawImage(expected, 0, 0);
+      const d1 = c1.getContext("2d").getImageData(0, 0, w, h).data;
+      const c2 = document.createElement("canvas"); c2.width = w; c2.height = h;
+      c2.getContext("2d").drawImage(actual, 0, 0);
+      const d2 = c2.getContext("2d").getImageData(0, 0, w, h).data;
+      const diffCanvas = document.createElement("canvas");
+      diffCanvas.width = w; diffCanvas.height = h;
+      const diffCtx = diffCanvas.getContext("2d");
+      const diffData = diffCtx.createImageData(w, h);
+      const maxDist = Math.sqrt(255 * 255 * 3);
+      const TILE = ${tilePx};
+      const SIG = ${significantDist};
+      // Yee anti-aliasing detector ported from mapbox/pixelmatch (BSD).
+      // A pixel is AA when it sits on an edge in either image (zeroes >= 2
+      // around it + a contrasty neighbor) and that contrasty neighbor has
+      // many same-color siblings in BOTH images (the edge continues, so the
+      // pixel is sub-pixel coverage along it). DM-281 / DM-383: runs on every
+      // nonzero pixel so glyph anti-aliasing is excluded at any contrast.
+      function rgbY(d, i) { return d[i] * 0.298912 + d[i+1] * 0.586611 + d[i+2] * 0.114478; }
+      function hasManySiblings(d, x1, y1) {
+        const x0 = Math.max(x1 - 1, 0);
+        const y0 = Math.max(y1 - 1, 0);
+        const x2v = Math.min(x1 + 1, w - 1);
+        const y2v = Math.min(y1 + 1, h - 1);
+        let zeroes = (x1 === x0 || x1 === x2v || y1 === y0 || y1 === y2v) ? 1 : 0;
+        const pos = (y1 * w + x1) * 4;
+        for (let xx = x0; xx <= x2v; xx++) {
+          for (let yy = y0; yy <= y2v; yy++) {
+            if (xx === x1 && yy === y1) continue;
+            const pos2 = (yy * w + xx) * 4;
+            if (d[pos] === d[pos2] && d[pos+1] === d[pos2+1] && d[pos+2] === d[pos2+2]) zeroes++;
+            if (zeroes > 2) return true;
+          }
+        }
+        return false;
+      }
+      function antialiased(d, x1, y1, dOther) {
+        const x0 = Math.max(x1 - 1, 0);
+        const y0 = Math.max(y1 - 1, 0);
+        const x2v = Math.min(x1 + 1, w - 1);
+        const y2v = Math.min(y1 + 1, h - 1);
+        let zeroes = (x1 === x0 || x1 === x2v || y1 === y0 || y1 === y2v) ? 1 : 0;
+        let min = 0, max = 0;
+        let minX = -1, minY = -1, maxX = -1, maxY = -1;
+        const pos = (y1 * w + x1) * 4;
+        const baseY = rgbY(d, pos);
+        for (let xx = x0; xx <= x2v; xx++) {
+          for (let yy = y0; yy <= y2v; yy++) {
+            if (xx === x1 && yy === y1) continue;
+            const pos2 = (yy * w + xx) * 4;
+            const delta = rgbY(d, pos2) - baseY;
+            if (delta === 0) zeroes++;
+            else if (delta < 0) { if (delta < min) { min = delta; minX = xx; minY = yy; } }
+            else { if (delta > max) { max = delta; maxX = xx; maxY = yy; } }
+          }
+        }
+        if (zeroes < 2) return false;
+        if (minX < 0 || maxX < 0) return false;
+        return (hasManySiblings(d, minX, minY) && hasManySiblings(dOther, minX, minY))
+            || (hasManySiblings(d, maxX, maxY) && hasManySiblings(dOther, maxX, maxY));
+      }
+      const tilesX = Math.ceil(w / TILE);
+      const tilesY = Math.ceil(h / TILE);
+      const tileDist = new Float64Array(tilesX * tilesY);
+      const tileSig = new Uint32Array(tilesX * tilesY);
+      const tileNonAa = new Uint32Array(tilesX * tilesY);
+      const tilePixCount = new Uint32Array(tilesX * tilesY);
+      let totalDist = 0;
+      let totalSig = 0;
+      let totalNonAa = 0;
+      const totalPixels = w * h;
+      for (let y = 0; y < h; y++) {
+        const ty = (y / TILE) | 0;
+        for (let x = 0; x < w; x++) {
+          const tx = (x / TILE) | 0;
+          const i = (y * w + x) * 4;
+          const dr = d1[i] - d2[i];
+          const dg = d1[i+1] - d2[i+1];
+          const db = d1[i+2] - d2[i+2];
+          const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+          let isAA = false;
+          if (dist > 0) isAA = antialiased(d1, x, y, d2) || antialiased(d2, x, y, d1);
+          const norm = isAA ? 0 : dist / maxDist;
+          totalDist += norm;
+          const ti = ty * tilesX + tx;
+          tileDist[ti] += norm;
+          tilePixCount[ti]++;
+          if (dist > 0 && !isAA) { tileNonAa[ti]++; totalNonAa++; }
+          if (dist > SIG && !isAA) { tileSig[ti]++; totalSig++; }
+          // Diff image is a literal per-channel absolute difference (DM-379).
+          diffData.data[i]   = Math.abs(dr);
+          diffData.data[i+1] = Math.abs(dg);
+          diffData.data[i+2] = Math.abs(db);
+          diffData.data[i+3] = 255;
+        }
+      }
+      // Worst tile keyed off non-AA % first (the pass/fail signal), with sig%
+      // then avg% as successive tiebreaks — yellow box in diff.png points at
+      // the tile most responsible for the verdict.
+      let worstSigPct = 0, worstAvgPct = 0, worstNonAaPct = 0, worstIdx = 0;
+      for (let i = 0; i < tileDist.length; i++) {
+        if (tilePixCount[i] === 0) continue;
+        const nonAaPct = (tileNonAa[i] / tilePixCount[i]) * 100;
+        const sigPct = (tileSig[i] / tilePixCount[i]) * 100;
+        const avgPct = (tileDist[i] / tilePixCount[i]) * 100;
+        if (
+          nonAaPct > worstNonAaPct
+          || (nonAaPct === worstNonAaPct && sigPct > worstSigPct)
+          || (nonAaPct === worstNonAaPct && sigPct === worstSigPct && avgPct > worstAvgPct)
+        ) {
+          worstNonAaPct = nonAaPct;
+          worstSigPct = sigPct;
+          worstAvgPct = avgPct;
+          worstIdx = i;
+        }
+      }
+      const worstTx = worstIdx % tilesX;
+      const worstTy = (worstIdx / tilesX) | 0;
+      const ox = worstTx * TILE, oy = worstTy * TILE;
+      const ow = Math.min(TILE, w - ox), oh = Math.min(TILE, h - oy);
+      for (let dx = 0; dx < ow; dx++) {
+        const top = (oy * w + (ox + dx)) * 4;
+        const bot = ((oy + oh - 1) * w + (ox + dx)) * 4;
+        diffData.data[top] = 255; diffData.data[top+1] = 220; diffData.data[top+2] = 0; diffData.data[top+3] = 255;
+        diffData.data[bot] = 255; diffData.data[bot+1] = 220; diffData.data[bot+2] = 0; diffData.data[bot+3] = 255;
+      }
+      for (let dy = 0; dy < oh; dy++) {
+        const lft = ((oy + dy) * w + ox) * 4;
+        const rgt = ((oy + dy) * w + (ox + ow - 1)) * 4;
+        diffData.data[lft] = 255; diffData.data[lft+1] = 220; diffData.data[lft+2] = 0; diffData.data[lft+3] = 255;
+        diffData.data[rgt] = 255; diffData.data[rgt+1] = 220; diffData.data[rgt+2] = 0; diffData.data[rgt+3] = 255;
+      }
+      diffCtx.putImageData(diffData, 0, 0);
+      return {
+        nonAaPixels: totalNonAa,
+        nonAaPixelPct: (totalNonAa / totalPixels) * 100,
+        diffPercent: (totalDist / totalPixels) * 100,
+        sigPixelPct: (totalSig / totalPixels) * 100,
+        worstTilePct: worstAvgPct,
+        worstTileSignificantPct: worstSigPct,
+        worstTileRect: { x: ox, y: oy, w: ow, h: oh },
+        diffDataUrl: diffCanvas.toDataURL("image/png"),
+      };
+    })()`,
+  )) as {
+    nonAaPixels: number;
+    nonAaPixelPct: number;
+    diffPercent: number;
+    sigPixelPct: number;
+    worstTilePct: number;
+    worstTileSignificantPct: number;
+    worstTileRect: { x: number; y: number; w: number; h: number };
+    diffDataUrl: string;
+  };
+
+  writeFileSync(diffPath, Buffer.from(result.diffDataUrl.split(",")[1], "base64"));
+  return {
+    nonAaPixels: result.nonAaPixels,
+    nonAaPixelPct: result.nonAaPixelPct,
+    diffPct: result.diffPercent,
+    sigPixelPct: result.sigPixelPct,
+    worstTilePct: result.worstTilePct,
+    worstTileSignificantPct: result.worstTileSignificantPct,
+    worstTileRect: result.worstTileRect,
+  };
+}
+
+/** Shared pass criterion: every differing pixel must be classified AA. */
+export const PASS_THRESHOLD_NON_AA_PIXELS = 0;
+
+export function passes(cmp: CompareResult): boolean {
+  return cmp.nonAaPixels <= PASS_THRESHOLD_NON_AA_PIXELS;
+}

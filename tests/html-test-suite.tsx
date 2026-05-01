@@ -18,14 +18,15 @@
  * Usage: npx tsx tests/html-test-suite.tsx [--only 07-svg-shapes]
  */
 
-import { chromium, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
+import { chromium } from "@playwright/test";
+import { mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { captureElementTree, elementTreeToSvg, getLastCaptureWarnings } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { raw } from "../src/jsx-runtime.js";
+import { comparePngs, passes, PASS_THRESHOLD_NON_AA_PIXELS, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HTML_TEST_DIR = resolve(homedir(), "Documents/html-test");
@@ -35,32 +36,9 @@ const HTML_TEST_DIR = resolve(homedir(), "Documents/html-test");
 const OUTPUT_DIR = resolve(__dirname, "output/html-test");
 const WIDTH = 1024;
 const HEIGHT = 768;
-// Pass requires ALL thresholds. Three metrics together catch the failure modes
-// we saw slip past a single average check:
-//   1. avg color distance — reasonable antialias-drift budget across whole image.
-//   2. worst-tile avg — catches a big solid-color mismatch concentrated in one region.
-//   3. worst-tile significant-diff % — counts pixels with visible color delta (>24)
-//      inside each tile. This is the metric that flags "content appears where
-//      nothing should be" / "missing whole widget" — the text pixels blow this
-//      metric even when the tile's raw average stays low because the white
-//      background between text dilutes it.
-// Thresholds calibrated against the text-drift floor AFTER the Yee
-// anti-aliasing detector excludes sub-pixel-glyph drift from both the avg
-// and significant-pixel metrics (DM-281). The drift floor that previously
-// landed around ~3% avg / ~6% sig now sits around ~1.5% avg / ~3% sig
-// because path-mode glyph antialiasing is recognised and skipped. Tightened
-// thresholds let borderline-broken renders fail while clean text still
-// passes. See SK-539 for the historical investigation.
-const PASS_THRESHOLD_AVG = 2.0;
-const PASS_THRESHOLD_TILE = 20;
-const PASS_THRESHOLD_TILE_SIGNIFICANT = 50;
-const PASS_THRESHOLD_SIG_PIXELS = 5;
-const TILE_PX = 64;
-// Per-pixel distance threshold (0..441) above which a pixel counts as "clearly
-// different" rather than antialias noise. 40 is ~9% of max distance — tuned to
-// skip typical path-mode glyph antialiasing drift but still flag an unexpected
-// dark stroke against white background.
-const SIGNIFICANT_PIXEL_DIST = 40;
+// Pass criterion, AA detector, and tile metrics are shared with the simpler
+// runner via tests/compare-pngs.ts (DM-383). PASS_THRESHOLD_NON_AA_PIXELS,
+// TILE_PX, and SIGNIFICANT_PIXEL_DIST are imported above.
 
 /**
  * Tests intentionally deferred because the feature has no SVG equivalent or
@@ -79,6 +57,11 @@ const SKIP_TESTS: Record<string, string> = {
 interface TestResult {
   name: string;
   category: string;
+  /** Count of pixels that differ between expected and actual AND are not
+   *  classified as glyph anti-aliasing by the Yee detector. Pass requires 0. */
+  nonAaPixels: number;
+  /** Same count expressed as a fraction of total image pixels (diagnostic). */
+  nonAaPixelPct: number;
   diffPct: number;
   /** Image-wide fraction of pixels with >SIGNIFICANT_PIXEL_DIST distance. */
   sigPixelPct: number;
@@ -96,208 +79,6 @@ interface TestResult {
   warnings?: Array<{ selector: string; feature: string; detail: string }>;
 }
 
-interface CompareResult {
-  diffPct: number;
-  sigPixelPct: number;
-  worstTilePct: number;
-  worstTileSignificantPct: number;
-  worstTileRect: { x: number; y: number; w: number; h: number };
-}
-
-async function comparePngs(
-  page: Page,
-  expectedPath: string,
-  actualPath: string,
-  diffPath: string,
-  tilePx: number,
-  significantDist: number,
-): Promise<CompareResult> {
-  const expectedB64 = readFileSync(expectedPath).toString("base64");
-  const actualB64 = readFileSync(actualPath).toString("base64");
-
-  const result = (await page.evaluate(
-    `(async () => {
-      const loadImg = (src) => new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = src;
-      });
-      const [expected, actual] = await Promise.all([
-        loadImg("data:image/png;base64,${expectedB64}"),
-        loadImg("data:image/png;base64,${actualB64}")
-      ]);
-      const w = Math.max(expected.width, actual.width);
-      const h = Math.max(expected.height, actual.height);
-      const c1 = document.createElement("canvas"); c1.width = w; c1.height = h;
-      c1.getContext("2d").drawImage(expected, 0, 0);
-      const d1 = c1.getContext("2d").getImageData(0, 0, w, h).data;
-      const c2 = document.createElement("canvas"); c2.width = w; c2.height = h;
-      c2.getContext("2d").drawImage(actual, 0, 0);
-      const d2 = c2.getContext("2d").getImageData(0, 0, w, h).data;
-      const diffCanvas = document.createElement("canvas");
-      diffCanvas.width = w; diffCanvas.height = h;
-      const diffCtx = diffCanvas.getContext("2d");
-      const diffData = diffCtx.createImageData(w, h);
-      const maxDist = Math.sqrt(255 * 255 * 3);
-      const TILE = ${tilePx};
-      const SIG = ${significantDist};
-      // Y-channel (luminance) brightness for one pixel — used by the Yee
-      // anti-aliasing detector below. ITU-R BT.601 coefficients.
-      function rgbY(d, i) { return d[i] * 0.298912 + d[i+1] * 0.586611 + d[i+2] * 0.114478; }
-      // Pixelmatch-style 'antialiased(img, x, y, w, h, img2)' check: a pixel
-      // is anti-aliasing if it sits on an edge in either image AND the
-      // brightness fan in the 3x3 neighborhood is consistent with sub-pixel
-      // glyph coverage rather than a real content change. Implementation
-      // adapted from mapbox/pixelmatch (BSD): each pixel gets up to one
-      // 'darker' and one 'lighter' high-contrast neighbor; the pixel is AA
-      // when the darker neighbor's color appears in many surrounding cells
-      // of EITHER image (it's an edge stroke), or the lighter neighbor's
-      // does (white-side anti-aliasing). DM-281.
-      function hasManySiblings(d, x1, y1) {
-        const x0 = Math.max(x1 - 1, 0);
-        const y0 = Math.max(y1 - 1, 0);
-        const x2v = Math.min(x1 + 1, w - 1);
-        const y2v = Math.min(y1 + 1, h - 1);
-        let zeroes = (x1 === x0 || x1 === x2v || y1 === y0 || y1 === y2v) ? 1 : 0;
-        const pos = (y1 * w + x1) * 4;
-        for (let xx = x0; xx <= x2v; xx++) {
-          for (let yy = y0; yy <= y2v; yy++) {
-            if (xx === x1 && yy === y1) continue;
-            const pos2 = (yy * w + xx) * 4;
-            if (d[pos] === d[pos2] && d[pos+1] === d[pos2+1] && d[pos+2] === d[pos2+2]) zeroes++;
-            if (zeroes > 2) return true;
-          }
-        }
-        return false;
-      }
-      function antialiased(d, x1, y1, dOther) {
-        const x0 = Math.max(x1 - 1, 0);
-        const y0 = Math.max(y1 - 1, 0);
-        const x2v = Math.min(x1 + 1, w - 1);
-        const y2v = Math.min(y1 + 1, h - 1);
-        let zeroes = (x1 === x0 || x1 === x2v || y1 === y0 || y1 === y2v) ? 1 : 0;
-        let min = 0, max = 0;
-        let minX = -1, minY = -1, maxX = -1, maxY = -1;
-        const pos = (y1 * w + x1) * 4;
-        const baseY = rgbY(d, pos);
-        for (let xx = x0; xx <= x2v; xx++) {
-          for (let yy = y0; yy <= y2v; yy++) {
-            if (xx === x1 && yy === y1) continue;
-            const pos2 = (yy * w + xx) * 4;
-            const delta = rgbY(d, pos2) - baseY;
-            if (delta === 0) zeroes++;
-            else if (delta < 0) { if (delta < min) { min = delta; minX = xx; minY = yy; } }
-            else { if (delta > max) { max = delta; maxX = xx; maxY = yy; } }
-          }
-        }
-        if (zeroes < 2) return false;
-        if (minX < 0 || maxX < 0) return false;
-        return (hasManySiblings(d, minX, minY) && hasManySiblings(dOther, minX, minY))
-            || (hasManySiblings(d, maxX, maxY) && hasManySiblings(dOther, maxX, maxY));
-      }
-      const tilesX = Math.ceil(w / TILE);
-      const tilesY = Math.ceil(h / TILE);
-      // Accumulate per-tile normalized distance and significant-pixel count.
-      const tileDist = new Float64Array(tilesX * tilesY);
-      const tileSig = new Uint32Array(tilesX * tilesY);
-      const tilePixCount = new Uint32Array(tilesX * tilesY);
-      let totalDist = 0;
-      let totalSig = 0;
-      const totalPixels = w * h;
-      for (let y = 0; y < h; y++) {
-        const ty = (y / TILE) | 0;
-        for (let x = 0; x < w; x++) {
-          const tx = (x / TILE) | 0;
-          const i = (y * w + x) * 4;
-          const dr = d1[i] - d2[i];
-          const dg = d1[i+1] - d2[i+1];
-          const db = d1[i+2] - d2[i+2];
-          const dist = Math.sqrt(dr*dr + dg*dg + db*db);
-          let isAA = false;
-          if (dist > SIG) {
-            // Yee anti-aliasing check: a pixel that differs between the two
-            // images may just be sub-pixel glyph coverage drift. We classify
-            // it as AA if it's on an edge in either image (and that edge
-            // continues through several neighbors), and only count
-            // non-AA differences toward the diff tally. DM-281.
-            isAA = antialiased(d1, x, y, d2) || antialiased(d2, x, y, d1);
-          }
-          // Both avg and sig metrics exclude AA pixels — those represent
-          // sub-pixel glyph drift, not real content mismatches. The diff
-          // image still highlights AA pixels (in dim yellow) so reviewers
-          // can see what was filtered.
-          const norm = isAA ? 0 : dist / maxDist;
-          totalDist += norm;
-          const ti = ty * tilesX + tx;
-          tileDist[ti] += norm;
-          tilePixCount[ti]++;
-          if (dist > SIG && !isAA) { tileSig[ti]++; totalSig++; }
-          // Diff image is a literal per-channel absolute difference:
-          //   diff[i] = |expected[i] - actual[i]|  (per R/G/B channel, opaque alpha)
-          // Black means identical; brighter pixels show what changed and in
-          // which color. No red tint, no dim-yellow AA overlay, no dimmed-
-          // base background — just the raw difference. The AA classification
-          // and tile metrics still drive the diffPercent / sigPixelPct
-          // numbers above; the diff IMAGE itself is uninterpreted. (DM-379)
-          diffData.data[i]   = Math.abs(dr);
-          diffData.data[i+1] = Math.abs(dg);
-          diffData.data[i+2] = Math.abs(db);
-          diffData.data[i+3] = 255;
-        }
-      }
-      // Find worst tile by significant-pixel ratio (primary), with avg as
-      // tiebreak. This catches "content where there shouldn't be any" even
-      // when diluted by surrounding whitespace.
-      let worstSigPct = 0, worstAvgPct = 0, worstIdx = 0;
-      for (let i = 0; i < tileDist.length; i++) {
-        if (tilePixCount[i] === 0) continue;
-        const sigPct = (tileSig[i] / tilePixCount[i]) * 100;
-        const avgPct = (tileDist[i] / tilePixCount[i]) * 100;
-        if (sigPct > worstSigPct || (sigPct === worstSigPct && avgPct > worstAvgPct)) {
-          worstSigPct = sigPct;
-          worstAvgPct = avgPct;
-          worstIdx = i;
-        }
-      }
-      const worstTx = worstIdx % tilesX;
-      const worstTy = (worstIdx / tilesX) | 0;
-      // Outline worst tile in yellow so humans can find it in the diff image.
-      const ox = worstTx * TILE, oy = worstTy * TILE;
-      const ow = Math.min(TILE, w - ox), oh = Math.min(TILE, h - oy);
-      for (let dx = 0; dx < ow; dx++) {
-        const top = (oy * w + (ox + dx)) * 4;
-        const bot = ((oy + oh - 1) * w + (ox + dx)) * 4;
-        diffData.data[top] = 255; diffData.data[top+1] = 220; diffData.data[top+2] = 0; diffData.data[top+3] = 255;
-        diffData.data[bot] = 255; diffData.data[bot+1] = 220; diffData.data[bot+2] = 0; diffData.data[bot+3] = 255;
-      }
-      for (let dy = 0; dy < oh; dy++) {
-        const lft = ((oy + dy) * w + ox) * 4;
-        const rgt = ((oy + dy) * w + (ox + ow - 1)) * 4;
-        diffData.data[lft] = 255; diffData.data[lft+1] = 220; diffData.data[lft+2] = 0; diffData.data[lft+3] = 255;
-        diffData.data[rgt] = 255; diffData.data[rgt+1] = 220; diffData.data[rgt+2] = 0; diffData.data[rgt+3] = 255;
-      }
-      diffCtx.putImageData(diffData, 0, 0);
-      return {
-        diffPercent: (totalDist / totalPixels) * 100,
-        sigPixelPct: (totalSig / totalPixels) * 100,
-        worstTilePct: worstAvgPct,
-        worstTileSignificantPct: worstSigPct,
-        worstTileRect: { x: ox, y: oy, w: ow, h: oh },
-        diffDataUrl: diffCanvas.toDataURL("image/png"),
-      };
-    })()`,
-  )) as { diffPercent: number; sigPixelPct: number; worstTilePct: number; worstTileSignificantPct: number; worstTileRect: { x: number; y: number; w: number; h: number }; diffDataUrl: string };
-
-  writeFileSync(diffPath, Buffer.from(result.diffDataUrl.split(",")[1], "base64"));
-  return {
-    diffPct: result.diffPercent,
-    sigPixelPct: result.sigPixelPct,
-    worstTilePct: result.worstTilePct,
-    worstTileSignificantPct: result.worstTileSignificantPct,
-    worstTileRect: result.worstTileRect,
-  };
-}
 
 function categoryOf(name: string): string {
   const m = /^(\d+)-([a-z]+)/.exec(name);
@@ -342,6 +123,8 @@ async function main(): Promise<void> {
     const svgPath = resolve(OUTPUT_DIR, `${name}.svg`);
     const svgRenderPath = resolve(OUTPUT_DIR, `${name}-svg-render.html`);
 
+    let nonAaPixels = Number.MAX_SAFE_INTEGER;
+    let nonAaPixelPct = 100;
     let diffPct = 100;
     let sigPixelPct = 100;
     let worstTilePct = 100;
@@ -387,6 +170,8 @@ async function main(): Promise<void> {
       await page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
 
       const cmp = await comparePngs(comparePage, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST);
+      nonAaPixels = cmp.nonAaPixels;
+      nonAaPixelPct = cmp.nonAaPixelPct;
       diffPct = cmp.diffPct;
       sigPixelPct = cmp.sigPixelPct;
       worstTilePct = cmp.worstTilePct;
@@ -398,14 +183,12 @@ async function main(): Promise<void> {
 
     const skipReason = SKIP_TESTS[name];
     const skipped = skipReason != null;
-    const pass = !skipped && err == null
-      && diffPct < PASS_THRESHOLD_AVG
-      && worstTilePct < PASS_THRESHOLD_TILE
-      && worstTileSignificantPct < PASS_THRESHOLD_TILE_SIGNIFICANT
-      && sigPixelPct < PASS_THRESHOLD_SIG_PIXELS;
+    const pass = !skipped && err == null && nonAaPixels <= PASS_THRESHOLD_NON_AA_PIXELS;
     const result: TestResult = {
       name,
       category: categoryOf(name),
+      nonAaPixels,
+      nonAaPixelPct,
       diffPct,
       sigPixelPct,
       worstTilePct,
@@ -421,8 +204,9 @@ async function main(): Promise<void> {
     results.push(result);
     const status = skipped ? "- SKIP" : pass ? "✓ PASS" : "✗ FAIL";
     const warnBadge = result.warnings != null ? ` (${result.warnings.length}w)` : "";
+    const nonAaBadge = !skipped ? ` [non-AA ${nonAaPixels} px (${nonAaPixelPct.toFixed(3)}%)]` : "";
     const tileBadge = !skipped ? ` [sig ${sigPixelPct.toFixed(1)}% · tile avg ${worstTilePct.toFixed(1)}% / sig ${worstTileSignificantPct.toFixed(1)}%]` : "";
-    console.log(`  ${status}  ${name.padEnd(40)} (${diffPct.toFixed(2)}% avg${tileBadge})${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
+    console.log(`  ${status}  ${name.padEnd(40)} (${diffPct.toFixed(2)}% avg${nonAaBadge}${tileBadge})${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
   }
 
   await browser.close();
@@ -485,7 +269,8 @@ function ResultRow({ r }: { r: TestResult }) {
       <td className="name">{r.name}</td>
       <td className="status">{status}</td>
       <td className="diff">
-        <div>{`avg ${r.diffPct.toFixed(2)}%`}</div>
+        <div><b>{`non-AA ${r.nonAaPixels} px (${r.nonAaPixelPct.toFixed(3)}%)`}</b></div>
+        <div className="tile">{`avg ${r.diffPct.toFixed(2)}%`}</div>
         <div className="tile">{`sig ${r.sigPixelPct.toFixed(1)}%`}</div>
         <div className="tile">{`tile avg ${r.worstTilePct.toFixed(1)}%`}</div>
         <div className="tile">{`tile sig ${r.worstTileSignificantPct.toFixed(1)}%`}</div>
@@ -513,7 +298,7 @@ function ResultRow({ r }: { r: TestResult }) {
 function MetricsLegend() {
   return (
     <p className="legend">
-      {`Pass needs ALL: avg < ${PASS_THRESHOLD_AVG}% AND image-wide significant pixels < ${PASS_THRESHOLD_SIG_PIXELS}% AND worst-tile avg < ${PASS_THRESHOLD_TILE}% AND worst-tile significant < ${PASS_THRESHOLD_TILE_SIGNIFICANT}%. Significant pixels are those with color distance > ${SIGNIFICANT_PIXEL_DIST}/441 (above antialias drift, below). The yellow box in diff.png marks the worst tile. Warnings below list known feature gaps surfaced during capture.`}
+      {`Pass requires non-AA pixels = ${PASS_THRESHOLD_NON_AA_PIXELS} (DM-383): every differing pixel must be classified as glyph anti-aliasing by the Yee detector. avg / sig / tile metrics are diagnostic only — they no longer gate pass. Significant pixels are those with color distance > ${SIGNIFICANT_PIXEL_DIST}/441 (above antialias drift). The yellow box in diff.png marks the worst tile. Warnings below list known feature gaps surfaced during capture.`}
     </p>
   );
 }

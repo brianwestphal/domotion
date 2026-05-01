@@ -12,12 +12,13 @@
  * Usage: npx tsx tests/runner.tsx [--only feature-name]
  */
 
-import { chromium, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { chromium } from "@playwright/test";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTree, elementTreeToSvg } from "../src/dom-to-svg.js";
 import { raw } from "../src/jsx-runtime.js";
+import { comparePngs, passes } from "./compare-pngs.js";
 
 // Resolve against this script's dir so runs from any cwd write to the real
 // tests/output, not a stray nested ... path.
@@ -65,90 +66,17 @@ function renderDoc(node: { toString(): string }): string {
   return `<!DOCTYPE html>${node.toString()}`;
 }
 
-/** Compare two PNG buffers pixel-by-pixel. Returns difference percentage (0-100). */
-async function comparePngs(page: Page, expectedPath: string, actualPath: string, diffPath: string): Promise<number> {
-  const expectedB64 = readFileSync(expectedPath).toString("base64");
-  const actualB64 = readFileSync(actualPath).toString("base64");
-
-  const result = await page.evaluate(
-    `(async () => {
-      const loadImg = (src) => new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = src;
-      });
-
-      const [expected, actual] = await Promise.all([
-        loadImg("data:image/png;base64,${expectedB64}"),
-        loadImg("data:image/png;base64,${actualB64}")
-      ]);
-
-      const w = Math.max(expected.width, actual.width);
-      const h = Math.max(expected.height, actual.height);
-
-      const canvas1 = document.createElement("canvas");
-      canvas1.width = w; canvas1.height = h;
-      const ctx1 = canvas1.getContext("2d");
-      ctx1.drawImage(expected, 0, 0);
-      const data1 = ctx1.getImageData(0, 0, w, h).data;
-
-      const canvas2 = document.createElement("canvas");
-      canvas2.width = w; canvas2.height = h;
-      const ctx2 = canvas2.getContext("2d");
-      ctx2.drawImage(actual, 0, 0);
-      const data2 = ctx2.getImageData(0, 0, w, h).data;
-
-      // Create diff image
-      const diffCanvas = document.createElement("canvas");
-      diffCanvas.width = w; diffCanvas.height = h;
-      const diffCtx = diffCanvas.getContext("2d");
-      const diffData = diffCtx.createImageData(w, h);
-
-      // Euclidean color distance scoring: each pixel contributes its color distance
-      // as a fraction of the maximum possible distance (sqrt(3) * 255 ≈ 441.67).
-      // This gives a continuous 0-100% score where anti-aliasing differences (small
-      // color shifts on many pixels) score much lower than structural differences
-      // (large color shifts from misplaced elements).
-      const maxDist = Math.sqrt(255 * 255 * 3); // ~441.67
-      let totalDist = 0;
-      const totalPixels = w * h;
-
-      // Diff image is a literal per-channel absolute difference:
-      //   diff[i] = |expected[i] - actual[i]|  (per R/G/B channel, opaque alpha)
-      // Black means identical, brighter pixels show what changed in their
-      // actual color — no thresholding, no red tint, no dimmed-base overlay.
-      // (DM-379)
-      for (let i = 0; i < data1.length; i += 4) {
-        const dr = data1[i] - data2[i];
-        const dg = data1[i+1] - data2[i+1];
-        const db = data1[i+2] - data2[i+2];
-        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-        totalDist += dist / maxDist;
-
-        diffData.data[i]   = Math.abs(dr);
-        diffData.data[i+1] = Math.abs(dg);
-        diffData.data[i+2] = Math.abs(db);
-        diffData.data[i+3] = 255;
-      }
-
-      diffCtx.putImageData(diffData, 0, 0);
-
-      return {
-        diffPercent: (totalDist / totalPixels) * 100,
-        diffDataUrl: diffCanvas.toDataURL("image/png"),
-      };
-    })()`
-  ) as { diffPercent: number; diffDataUrl: string };
-
-  // Save diff image
-  const diffBase64 = (result.diffDataUrl as string).split(",")[1];
-  writeFileSync(diffPath, Buffer.from(diffBase64, "base64"));
-
-  return result.diffPercent;
+export interface SuiteResult {
+  name: string;
+  nonAaPixels: number;
+  nonAaPixelPct: number;
+  diffPct: number;
+  sigPixelPct: number;
+  worstTilePct: number;
+  worstTileSignificantPct: number;
+  worstTileRect: { x: number; y: number; w: number; h: number };
+  pass: boolean;
 }
-
-export interface SuiteResult { name: string; diffPct: number; pass: boolean }
 
 /**
  * Run a feature-style test suite. If `suiteName` is given, writes a per-suite
@@ -171,7 +99,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   const comparePage = await compareContext.newPage();
   await comparePage.goto("about:blank");
 
-  const results: Array<{ name: string; diffPct: number; pass: boolean }> = [];
+  const results: SuiteResult[] = [];
 
   for (const test of tests) {
     if (onlyTest != null && test.name !== onlyTest) continue;
@@ -204,14 +132,26 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
     await page.waitForTimeout(200);
     await page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: w, height: h } });
 
-    // Step 4: Compare
-    const diffPct = await comparePngs(comparePage, expectedPath, actualPath, diffPath);
-    const pass = diffPct < 3; // less than 3% color distance = pass
+    // Step 4: Compare. Pass criterion (DM-383): every differing pixel must be
+    // classified as glyph anti-aliasing by the Yee detector. avg / sig / tile
+    // metrics are diagnostic.
+    const cmp = await comparePngs(comparePage, expectedPath, actualPath, diffPath);
+    const pass = passes(cmp);
 
-    results.push({ name: test.name, diffPct, pass });
+    results.push({
+      name: test.name,
+      nonAaPixels: cmp.nonAaPixels,
+      nonAaPixelPct: cmp.nonAaPixelPct,
+      diffPct: cmp.diffPct,
+      sigPixelPct: cmp.sigPixelPct,
+      worstTilePct: cmp.worstTilePct,
+      worstTileSignificantPct: cmp.worstTileSignificantPct,
+      worstTileRect: cmp.worstTileRect,
+      pass,
+    });
 
     const status = pass ? "✓ PASS" : "✗ FAIL";
-    console.log(`  ${status}  ${test.name}  (${diffPct.toFixed(2)}% diff)`);
+    console.log(`  ${status}  ${test.name}  (non-AA ${cmp.nonAaPixels} px (${cmp.nonAaPixelPct.toFixed(3)}%) · avg ${cmp.diffPct.toFixed(2)}% · sig ${cmp.sigPixelPct.toFixed(1)}% · tile avg ${cmp.worstTilePct.toFixed(1)}% / sig ${cmp.worstTileSignificantPct.toFixed(1)}%)`);
   }
 
   await browser.close();
@@ -237,7 +177,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   if (failed > 0) {
     console.log("\nFailed tests — inspect diff images in:");
     for (const r of results.filter((r) => !r.pass)) {
-      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png (${r.diffPct.toFixed(2)}%)`);
+      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  non-AA ${r.nonAaPixels} px (${r.nonAaPixelPct.toFixed(3)}%)  avg ${r.diffPct.toFixed(2)}%  tile sig ${r.worstTileSignificantPct.toFixed(1)}%`);
     }
     console.log("\nReview tool: npx tsx tests/review-server.tsx");
     process.exit(1);

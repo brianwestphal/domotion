@@ -1,10 +1,20 @@
 # Domotion: visual-diff scoring
 
-Requirements for the `tests/html-test-suite.tsx` PNG-comparison metric. Origin: DM-281 (the original baseline metric was raw per-pixel RGB distance with no anti-aliasing awareness, so glyph-rendering drift dominated the signal and structurally-broken renders could pass under generous thresholds).
+Requirements for the `tests/html-test-suite.tsx` PNG-comparison metric. Origin: DM-281 (the original baseline metric was raw per-pixel RGB distance with no anti-aliasing awareness, so glyph-rendering drift dominated the signal and structurally-broken renders could pass under generous thresholds). Updated DM-383 (the bucketed avg / sig / tile thresholds were still tolerating visible structural mismatches that fell below the average-distance budget — a missing thin border or a misaligned shadow flips ~50 pixels, well under 5% of a 1024×768 image).
 
-## What changed
+## Pass criterion (DM-383)
 
-`comparePngs` in `tests/html-test-suite.tsx` now classifies every per-pixel difference as either real content drift OR sub-pixel glyph anti-aliasing using a port of pixelmatch's `antialiased()` detector (BSD-licensed; mapbox/pixelmatch). AA-classified pixels are excluded from both the average-distance metric AND the significant-pixel count, so the headline numbers reflect *only* actual content mismatches. AA pixels are still drawn into `*-diff.png` (in dim yellow) so reviewers can see what was filtered.
+A fixture passes iff **every** differing pixel between expected and actual is classified as glyph anti-aliasing by the Yee detector. Concretely: `nonAaPixels === 0`, where `nonAaPixels` counts pixels whose `(R,G,B)` tuple differs between the two images AND that the detector did NOT classify as sub-pixel coverage along an edge.
+
+The previous bucketed thresholds (`avg < 2%`, `sig < 5%`, `tile avg < 20%`, `tile-sig < 50%`) are now diagnostic only — they're still computed and printed so reviewers can gauge the *severity* of a failure, but they no longer gate pass/fail.
+
+The user-facing rationale: "anti-aliasing differences aren't super important, but basically every other difference is important. For now, subtract the anti-aliasing differences and then mark everything with > 0% difference as a failure." Specific tolerances will be re-introduced per fixture once the user reviews which fixtures fail under the strict gate.
+
+## What the AA detector does
+
+`comparePngs` in `tests/html-test-suite.tsx` runs a port of pixelmatch's `antialiased()` detector (BSD-licensed; mapbox/pixelmatch) against **every** pixel where the two images differ. Previously the check was gated by `dist > SIG` (40 in the 0..441 normalized scale) for performance, which meant tiny non-AA drift was uncategorized and forced lenient % thresholds. The DM-383 strict gate runs the detector on every nonzero pixel so AA classification covers the full range of contrast.
+
+AA-classified pixels contribute 0 to all metrics (`nonAaPixels`, the legacy avg-distance metric, and the significant-pixel count). AA pixels are still drawn into `*-diff.png` (literal absolute difference, see below) so reviewers can see what was filtered.
 
 ## Yee / pixelmatch antialias detector — recap
 
@@ -21,16 +31,18 @@ We run the check twice — once anchored in `expected`, once in `actual` — and
 
 ## Threshold rationale
 
-Before the Yee filter the text-drift floor sat at ~3% avg / ~6% sig. After the filter most text-only fixtures land at <1% avg / <2% sig because path-mode glyph anti-aliasing is now correctly attributed to the renderer, not to a rendering bug. Thresholds tightened accordingly:
+Under DM-383 there is one threshold: `PASS_THRESHOLD_NON_AA_PIXELS = 0`. The diagnostic metrics retain their historical meanings (used for reviewer triage and for the worst-tile pointer in the diff PNG):
 
-| metric | old | new |
-|---|---|---|
-| `PASS_THRESHOLD_AVG` | 3.5 | 2.0 |
-| `PASS_THRESHOLD_TILE` | 25 | 20 |
-| `PASS_THRESHOLD_TILE_SIGNIFICANT` | 50 | 50 |
-| `PASS_THRESHOLD_SIG_PIXELS` | 7 | 5 |
+| metric | meaning |
+|---|---|
+| `nonAaPixels` | pass/fail gate — count of differing pixels not classified as AA |
+| `nonAaPixelPct` | `nonAaPixels / totalPixels * 100` |
+| `diffPct` | average normalized color distance % (AA pixels excluded) |
+| `sigPixelPct` | % of pixels with `dist > SIGNIFICANT_PIXEL_DIST (40)` and !isAA |
+| `worstTilePct` | per-tile avg distance for the worst tile |
+| `worstTileSignificantPct` | per-tile sig-pixel % for the worst tile |
 
-The tile-significant threshold stays at 50% because that's the metric that catches "wrong content paints in a small region" (e.g., a missing widget filled by white background). The single failing fixture (`17-bg-multiple`, tile-sig 82%) is the only one above the new threshold; the next-highest passing fixture is at 47%.
+The worst-tile selector is now keyed off `nonAaPct` first (since that's what gates pass), with sig% then avg% as successive tiebreaks — so the yellow box in `*-diff.png` always points to the tile most responsible for the failure verdict.
 
 ## Diff image legend
 
@@ -54,5 +66,9 @@ Note: the AA classification still drives the `diffPercent` / `sigPixelPct` metri
 
 ## Tests
 
-- `npm run demos:test:html` — full html-test suite. 155 pass / 1 pre-existing fail / 5 skipped both before and after the change; no regressions, but the scoring metric values shifted.
+- `npm run demos:test:html` — full html-test suite. Under DM-383 the strict gate produces 0 / 156 PASS at baseline (all fixtures have at least some non-AA drift the detector doesn't catch); the user is iterating per-fixture on what should be allowed back to PASS. The diagnostic metrics in `results.json` make it easy to triage by severity (e.g., `nonAaPixels` ascending picks out fixtures with the smallest residual diff to investigate first).
 - `npm test` — unit tests unchanged (the diff implementation lives only in the test runner, not in the library).
+
+## Shared comparator
+
+The comparator implementation lives in `tests/compare-pngs.ts`. Both runners (`tests/runner.tsx` for features / showcase, `tests/html-test-suite.tsx` for the html-test sweep) import `comparePngs()`, `passes()`, and the threshold / tile constants from there. Pass criterion, AA detection, tile metrics, and the worst-tile yellow box on the diff PNG are identical across all three suites — when the detector changes, change it once.
