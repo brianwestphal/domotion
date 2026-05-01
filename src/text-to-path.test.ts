@@ -236,12 +236,25 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     expect(fallbackFontChain(0x30A2, "times")).toEqual(["cjk-serif", "cjk"]);
     expect(fallbackFontChain(0xAC00, "times")).toEqual(["cjk-serif", "cjk"]);
   });
-  it("keeps the sans-serif ['cjk'] route for non-serif primaries", () => {
-    expect(fallbackFontChain(0x4F60, "helvetica")).toEqual(["cjk"]);
-    expect(fallbackFontChain(0x4F60, "sf-pro")).toEqual(["cjk"]);
-    expect(fallbackFontChain(0x4F60, "menlo")).toEqual(["cjk"]);
+  it("routes Han Unified Ideographs through pingfang-sc → cjk for non-serif primaries (DM-388)", () => {
+    // U+4F60 is in CJK Unified Ideographs (the 你 in 你好). Sans-serif primary
+    // routes through PingFang SC (CoreText extractor) first to match what
+    // Chrome paints, with HiraginoSansGB-W3 retained as the fontkit-readable
+    // safety net for any glyph PingFang lacks. DM-382 / DM-364 / DM-388.
+    expect(fallbackFontChain(0x4F60, "helvetica")).toEqual(["pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "sf-pro")).toEqual(["pingfang-sc", "cjk"]);
+    expect(fallbackFontChain(0x4F60, "menlo")).toEqual(["pingfang-sc", "cjk"]);
     // No primaryKey arg → default sans behaviour.
-    expect(fallbackFontChain(0x4F60)).toEqual(["cjk"]);
+    expect(fallbackFontChain(0x4F60)).toEqual(["pingfang-sc", "cjk"]);
+  });
+  it("keeps the bare ['cjk'] route for non-Han CJK ranges (Hiragana / Katakana / Hangul)", () => {
+    // PingFang routing applies only to Han Unified Ideographs + Ext A + CJK
+    // Compatibility Ideographs. Hiragana (3040..309F), Katakana (30A0..30FF),
+    // and Hangul (AC00..D7AF) are what HiraginoSansGB / Apple's Hiragino
+    // chain paints; they don't go through PingFang.
+    expect(fallbackFontChain(0x3042, "helvetica")).toEqual(["cjk"]); // ぁ
+    expect(fallbackFontChain(0x30A2, "helvetica")).toEqual(["cjk"]); // ア
+    expect(fallbackFontChain(0xAC00, "helvetica")).toEqual(["cjk"]); // 가
   });
   it("does NOT swap the symbol blocks for serif primaries (only CJK ranges)", () => {
     // Geometric Shapes / Misc Symbols still route through their dedicated

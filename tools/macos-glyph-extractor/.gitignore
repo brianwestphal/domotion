@@ -1,0 +1,5 @@
+.build/
+.swiftpm/
+domotion-glyph-paths
+domotion-glyph-paths.zip
+Package.resolved

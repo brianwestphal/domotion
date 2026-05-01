@@ -8,6 +8,7 @@
  */
 
 import * as fontkit from "fontkit";
+import { createCoretextFont, isCoretextHelperAvailable } from "./coretext-helper.js";
 
 interface FontInstance {
   layout(text: string, features?: string[]): {
@@ -153,7 +154,7 @@ function slantForStyle(style: string | undefined): number {
 // macOS system font paths. TTC collections require picking a sub-font by
 // postscript name — fontkit returns a TTCFont wrapper for .ttc files and
 // .getFont(name) extracts the member.
-interface FontPath { path: string; postscriptName?: string }
+interface FontPath { path: string; postscriptName?: string; extractor?: "fontkit" | "coretext" }
 const FONT_PATHS: Record<string, FontPath> = {
   "sf-pro":          { path: "/System/Library/Fonts/SFNS.ttf" },
   // SF Pro ships its italic as a sibling file, not as a variable `slnt` axis
@@ -198,18 +199,17 @@ const FONT_PATHS: Record<string, FontPath> = {
   // thickness differs, so headings using cjk-block fallback chars (← → ▲ ☀)
   // need W6 to match Chrome's painted weight.
   //
-  // KNOWN GAP (DM-382): Chrome on macOS actually paints unmarked Han ideographs
-  // (漢 字 北 京 東 明 日 …) via *PingFang SC*, not HiraginoSansGB. Verified
-  // via CDP `CSS.getPlatformFontsForNode` against the 02-text-ruby fixture:
-  // every Han codepoint resolves to "蘋方-簡" (PingFang SC). Chromium's
-  // `FontCache::PlatformFallbackFontForCharacter` (font_cache_mac.mm) calls
-  // `CTFontCreateForString` with no language tag, and CoreText's modern
-  // unmarked-Han substitute on macOS 10.11+ is PingFang SC. We're stuck on
-  // HiraginoSansGB because PingFang ships only as a CoreText downloadable stub
-  // (`PingFangUI.ttc` in `PrivateFrameworks/.../Reserved/`); fontkit returns
-  // null for `glyphForCodePoint` against that file. Wiring PingFang requires
-  // a separate font-distribution decision (bundled OFL fallback like Source
-  // Han Sans, or a CoreText-glyph-extraction path). Tracked in DM-382.
+  // PingFang SC: what Chrome on macOS actually paints unmarked Han ideographs
+  // (漢 字 北 京 東 明 日 …) through, NOT HiraginoSansGB. Verified via CDP
+  // `CSS.getPlatformFontsForNode` against the 02-text-ruby fixture: every Han
+  // codepoint resolves to "蘋方-簡" (PingFang SC). PingFang stores its outlines
+  // in Apple's proprietary `hvgl` table — fontkit's outline parser doesn't
+  // read that, so we route extraction through the CoreText helper
+  // (`tools/macos-glyph-extractor/`). HiraginoSansGB stays as the secondary
+  // route via `cjk` for any glyph PingFang lacks. DM-382 / DM-364 / DM-385 /
+  // DM-388.
+  "pingfang-sc":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Regular", extractor: "coretext" },
+  "pingfang-sc-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Medium", extractor: "coretext" },
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
   // Songti SC Light (postscriptName STSongti-SC-Light) is what Chrome on
@@ -368,7 +368,17 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string): strin
     // Serif primary → SERIF CJK font first (DM-333). Keep `cjk`
     // (HiraginoSansGB) as a secondary so chars Songti SC Light lacks (a
     // small set in the rare extension blocks) still resolve.
-    return serifPrimary ? ["cjk-serif", "cjk"] : ["cjk"];
+    // For sans-serif primary, route Han Unified Ideographs (and Ext A) through
+    // PingFang SC via CoreText first — that's what Chrome actually paints
+    // (DM-382). The `cjk` HiraginoSansGB chain stays as the fallback for
+    // any codepoint PingFang lacks AND for the Hiragana/Katakana/Hangul/
+    // CJK Symbols ranges where Hiragino is what Chrome picks. Bold scope is
+    // resolved at `getFontInstance` time: weight ≥ 600 → pingfang-sc-bold.
+    if (serifPrimary) return ["cjk-serif", "cjk"];
+    const isHan = (codepoint >= 0x4E00 && codepoint <= 0x9FFF)
+        || (codepoint >= 0x3400 && codepoint <= 0x4DBF)
+        || (codepoint >= 0xF900 && codepoint <= 0xFAFF);
+    return isHan ? ["pingfang-sc", "cjk"] : ["cjk"];
   }
   // Box Drawing / Block Elements → Menlo. Apple Symbols' versions are
   // proportional (~6.98px @13px) and don't fill a Courier monospace cell
@@ -547,11 +557,32 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   if (key === "hiragino-jp" && weight >= 600) {
     effectiveKey = "hiragino-jp-bold";
   }
+  // PingFang ships separate weight subfonts in PingFang.ttc — Regular for
+  // body weight, Medium for semibold+. No italic.
+  if (key === "pingfang-sc" && weight >= 600) {
+    effectiveKey = "pingfang-sc-bold";
+  }
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 
   const spec = FONT_PATHS[effectiveKey];
   if (spec == null) return null;
+
+  // CoreText-extractor route: route to the macOS Swift helper (DM-385 / DM-388).
+  // When the helper isn't present (non-darwin host, dev hasn't built it,
+  // DOMOTION_DISABLE_HELPER set), fall through to fontkit — the renderer's
+  // chain logic skips fontkit-empty paths and walks to the next candidate
+  // (`cjk` / HiraginoSansGB for the PingFang case), preserving the pre-DM-385
+  // baseline.
+  if (spec.extractor === "coretext" && isCoretextHelperAvailable()) {
+    const coretextFont = createCoretextFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
+    if (coretextFont != null) {
+      const instance = coretextFont as unknown as FontInstance;
+      fontInstanceCache.set(cacheKey, instance);
+      return instance;
+    }
+  }
+  if (spec.extractor === "coretext") return null;
 
   try {
     const opened = fontkit.openSync(spec.path) as any;
