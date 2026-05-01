@@ -3185,9 +3185,38 @@ export function elementTreeToSvg(
         [bb, bxL + trimAdj(bw, lw), bxB - inset(bw), bxR - trimAdj(bw, rw), bxB - inset(bw), Math.max(0, bxR - bxL - trimAdj(bw, lw) - trimAdj(bw, rw))],
         [bl, bxL + inset(lw), bxT + trimAdj(lw, tw), bxL + inset(lw), bxB - trimAdj(lw, bw), Math.max(0, bxB - bxT - trimAdj(lw, tw) - trimAdj(lw, bw))],
       ];
-      for (const [side, x1, y1, x2, y2, len] of sides) {
+      // For SOLID sides (and only when not collapsed), emit each side as a
+      // `<polygon>` trapezoid that meets adjacent sides at a miter — this
+      // produces Chrome's BoxBorderPainter taper exactly without needing
+      // the trimAdj winner-takes-corner heuristic. The trapezoid'\\'s outer
+      // edge sits flush with the box outer rect, and the inner edge is
+      // inset by the side'\\'s width, with the corner points meeting the
+      // adjacent sides' inner edges. Dashed / dotted / double / etc. sides
+      // continue to use `<line>` because they'\\'d need a clip-path to
+      // reproduce the trapezoid taper, which would clip the dashes
+      // mid-pattern. DM-421.
+      const useTrapezoid = (side: typeof bt) => !collapse && side != null && side.style === "solid" && side.w > 0;
+      const trapezoids: Array<[typeof bt, string]> = [
+        // top: outer L,T  outer R,T  inner R-rw,T+tw  inner L+lw,T+tw
+        [bt, `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(bxR - rw)},${r(bxT + tw)} ${r(bxL + lw)},${r(bxT + tw)}`],
+        // right: outer R,T  outer R,B  inner R-rw,B-bw  inner R-rw,T+tw
+        [br, `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(bxR - rw)},${r(bxB - bw)} ${r(bxR - rw)},${r(bxT + tw)}`],
+        // bottom: outer R,B  outer L,B  inner L+lw,B-bw  inner R-rw,B-bw
+        [bb, `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(bxL + lw)},${r(bxB - bw)} ${r(bxR - rw)},${r(bxB - bw)}`],
+        // left: outer L,B  outer L,T  inner L+lw,T+tw  inner L+lw,B-bw
+        [bl, `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(bxL + lw)},${r(bxT + tw)} ${r(bxL + lw)},${r(bxB - bw)}`],
+      ];
+      for (let i = 0; i < sides.length; i++) {
+        const [side, x1, y1, x2, y2, len] = sides[i];
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
         if (side.style === "none" || side.style === "hidden") continue;
+        if (useTrapezoid(side)) {
+          // Emit as a polygon trapezoid that tapers correctly at corners.
+          svgParts.push(
+            `${indent}<polygon points="${trapezoids[i][1]}" fill="${colorStr(side.color)}" />`,
+          );
+          continue;
+        }
         const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
         // Dotted uses `0.01 period` dasharray that needs round linecaps to
         // render as circles (DM-399). Dashed keeps default butt caps so the
