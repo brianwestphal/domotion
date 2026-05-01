@@ -4277,7 +4277,7 @@ function buildBackgroundLayerDef(
   const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
   if (linear != null) {
     const repeating = /^repeating-/i.test(layer);
-    return { def: buildLinearGradientDef(id, linear[1], repeating, w, h) };
+    return { def: buildLinearGradientDef(id, linear[1], repeating, w, h, elX, elY) };
   }
   const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
   if (radial != null) {
@@ -4488,7 +4488,7 @@ interface GradientStop { color: RGBA; pos: number }
  * w/h are the element box dimensions — needed to compute corner-to-corner
  * directional keywords ('to top right' etc.) which are aspect-ratio-dependent,
  * not always 45deg. */
-function buildLinearGradientDef(id: string, args: string, repeating: boolean, w: number = 1, h: number = 1): string {
+function buildLinearGradientDef(id: string, args: string, repeating: boolean, w: number = 1, h: number = 1, elX: number = 0, elY: number = 0): string {
   const parts = splitTopLevelCommas(args).map((p) => p.trim());
   let angleDeg = 180; // default 'to bottom'
   let stopsStart = 0;
@@ -4510,21 +4510,46 @@ function buildLinearGradientDef(id: string, args: string, repeating: boolean, w:
   if (stops.length === 0) return "";
 
   // CSS: 0deg points up. SVG coords: y grows down. Vector for CSS angle α is
-  // (sin α, -cos α). Gradient line goes through center; endpoints are at
-  // center ± 0.5*vector in objectBoundingBox coords.
+  // (sin α, -cos α). Per the CSS Images L3 spec the gradient line passes
+  // through the box center at the requested angle and its length is
+  // `|W·sin α| + |H·cos α|` in real coordinates — NOT `1` in unit-square
+  // coordinates. For non-square boxes the two are different: a 45° gradient
+  // on a 180×120 box has gradient line length ≈ 212.13 (real px), with
+  // endpoints at (15, 135) and (165, -15). The endpoint normalization to
+  // the bounding box (which is what SVG's default `gradientUnits=
+  // "objectBoundingBox"` consumes) lands at fractions outside [0, 1] —
+  // (0.083, 1.125) and (0.917, -0.125) — which is valid SVG and renders
+  // identically to Chrome. The previous `0.5 ± 0.5·sinα` / `0.5 ± 0.5·cosα`
+  // formulation only matched a square box; on rectangular boxes the
+  // gradient direction was stretched by the aspect ratio, producing a
+  // visibly different angle than what Chrome paints. Surfaced via DM-395
+  // probe of `mask-mode: alpha` / `mask-mode: luminance` cells in 23-mask
+  // (180×120 boxes); 81% of pixels differed because the 45° gradient rotated
+  // toward atan(W/H) ≈ 56.3° instead of staying at 45°.
   const rad = (angleDeg * Math.PI) / 180;
   const dx = Math.sin(rad);
   const dy = -Math.cos(rad);
-  const x1 = 0.5 - 0.5 * dx;
-  const y1 = 0.5 - 0.5 * dy;
-  const x2 = 0.5 + 0.5 * dx;
-  const y2 = 0.5 + 0.5 * dy;
+  const length = Math.abs(w * dx) + Math.abs(h * dy);
+  const halfL = length / 2;
+  // Endpoints in absolute SVG coordinates. We emit `gradientUnits=
+  // "userSpaceOnUse"` because the SVG default `objectBoundingBox` rescales
+  // x/y independently to the bounding box — distorting the visible gradient
+  // angle on non-square elements. For a 45° gradient on a 180×120 box,
+  // objectBoundingBox would render the gradient at ~33° instead of 45°,
+  // which DM-395's per-pixel probe of `mask-mode: alpha` showed as 75%
+  // of pixels diffing against Chrome's paint. userSpaceOnUse preserves the
+  // angle by keeping the gradient line in real-px coordinates so each
+  // point in the box projects onto the line correctly.
+  const x1 = elX + w / 2 - halfL * dx;
+  const y1 = elY + h / 2 - halfL * dy;
+  const x2 = elX + w / 2 + halfL * dx;
+  const y2 = elY + h / 2 + halfL * dy;
 
   const spread = repeating ? ` spreadMethod="repeat"` : "";
   // Stop offsets need 4 decimals of precision — rounding 0.33 to 0.3 would turn
   // three equal thirds into uneven bands. Use stopFmt, not r(), here.
   const stopsMarkup = stops.map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
-  return `<linearGradient id="${id}" x1="${stopFmt(x1)}" y1="${stopFmt(y1)}" x2="${stopFmt(x2)}" y2="${stopFmt(y2)}"${spread}>${stopsMarkup}</linearGradient>`;
+  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(x1)}" y1="${stopFmt(y1)}" x2="${stopFmt(x2)}" y2="${stopFmt(y2)}"${spread}>${stopsMarkup}</linearGradient>`;
 }
 
 function stopFmt(n: number): string { return Number(n.toFixed(4)).toString(); }
@@ -4838,7 +4863,7 @@ function cssDirectionToAngle(dir: string, w: number = 1, h: number = 1): number 
  * differently depending on the source; we pick alpha for gradients and url()
  * (common case) and respect explicit mask-mode when given.
  */
-function buildMaskDef(
+export function buildMaskDef(
   id: string, maskImage: string,
   elX: number, elY: number, w: number, h: number,
   maskMode: string, sizeCss: string, posCss: string, repeatCss: string,
@@ -4917,7 +4942,7 @@ function buildMaskDef(
       const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
       const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
       let def = "";
-      if (linear != null) def = buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH);
+      if (linear != null) def = buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, gx, gy);
       else if (radial != null) def = buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), gx, gy, gradW, gradH);
       if (def === "") continue;
       contents.push(def);

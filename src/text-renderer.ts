@@ -20,21 +20,26 @@ function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, 
  * bitmap codepoint (emoji, U+2713-family, etc.). Returns "" when the
  * segment has no raster glyphs or none of them have a resolved dataUri.
  */
-function rasterGlyphOverlays(seg: TextSegment, clipId: string): string {
+export function rasterGlyphOverlays(seg: TextSegment, fallbackFontSize: number, clipId: string): string {
   if (seg.rasterGlyphs == null || seg.rasterGlyphs.length === 0) return "";
   const out: string[] = [];
+  // Apple Color Emoji bitmaps are rendered by Chrome's CoreText at em-square
+  // size (fontSize × fontSize), centered horizontally on the glyph advance and
+  // baseline-aligned vertically. The captured `g.rect` is Chrome's per-char
+  // bbox, which spans the FULL line-box height (~1.2-1.5em) and the advance
+  // width (~1.05-1.1em) — bigger than the painted bitmap on both axes. The
+  // earlier `xMidYMid meet` strategy fitted a square bitmap into the rect
+  // using `min(rect.w, rect.h)` as the side length, which over-shot Chrome's
+  // em-square paint by ~1px and shifted the bitmap down by ~1px relative to
+  // the baseline — producing the colored fringe DM-381 reported. Emit at
+  // em-square size centered in the rect instead. (DM-381)
+  const segFontSize = seg.fontSize ?? fallbackFontSize;
   for (const g of seg.rasterGlyphs) {
     if (g.dataUri == null) continue;
-    // Emoji bitmaps from Apple Color Emoji's sbix table are square. The
-    // captured rect is the painted line-box height (~lineHeight) by the
-    // emoji advance (~em-square), so width and height typically differ
-    // (e.g. 20x18 for a 16px-font emoji on a 18px line). With
-    // preserveAspectRatio="none" the square bitmap gets vertically squished
-    // to fit; `xMidYMid meet` preserves aspect ratio (centered, padded) so
-    // the emoji renders square at its natural shape — matches Chrome which
-    // paints the bitmap at em-square size centered in the line box. (DM-336
-    // / DM-377.)
-    out.push(`<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${clipId})"/>`);
+    const size = segFontSize;
+    const ix = g.rect.x + (g.rect.width - size) / 2;
+    const iy = g.rect.y + (g.rect.height - size) / 2;
+    out.push(`<image href="${g.dataUri}" x="${r(ix)}" y="${r(iy)}" width="${r(size)}" height="${r(size)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`);
   }
   return out.join("");
 }
@@ -205,7 +210,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle);
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
-    const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, clipId) : "";
+    const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";
     // Wrap the path-mode output in the element's clip-path only when the
     // element actually overflow-clips (DM-305). Default `overflow: visible`
     // lets text extend past the box edge, so the unconditional clip from
@@ -305,7 +310,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     if (decoMarkup !== "") parts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
     // text get their actual Chrome-painted pixels stamped over the position.
-    const rasterOverlay = rasterGlyphOverlays(seg, clipId);
+    const rasterOverlay = rasterGlyphOverlays(seg, segFontSize, clipId);
     if (rasterOverlay !== "") parts.push(rasterOverlay);
   }
 
