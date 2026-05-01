@@ -466,6 +466,16 @@ export interface CapturedElement {
    * content region. Detection happens in CAPTURE_SCRIPT.
    */
   elementRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
+  /**
+   * <fieldset> with a top-aligned <legend>: Chrome's UA paints the fieldset's
+   * top border at the legend's vertical center (not at fs.y) and notches the
+   * border across the legend's horizontal extent. The captured x/y/width/
+   * height already encode the inset (y shifted down by legend.height/2,
+   * height reduced to match), and this field carries the legend's full
+   * absolute bbox so the renderer can clip the top border behind it via an
+   * even-odd clipPath. DM-342 / DM-343.
+   */
+  fieldsetLegendNotch?: { x: number; y: number; w: number; h: number };
 }
 
 // Browser-side capture code as a string to avoid tsx __name transform issues
@@ -1294,7 +1304,8 @@ const CAPTURE_SCRIPT = `
           document.body.appendChild(probe);
           const probeNode = probe.firstChild;
           if (probeNode != null) {
-            const probeOriginX = probe.getBoundingClientRect().left;
+            const probeBox = probe.getBoundingClientRect();
+            const probeOriginX = probeBox.left;
             const xs = [];
             let i = 0;
             while (i < text.length) {
@@ -1308,6 +1319,27 @@ const CAPTURE_SCRIPT = `
               const left = cr.left - probeOriginX + textLeft;
               for (let k = 0; k < step; k++) xs.push(left);
               i += step;
+            }
+            // Honor text-align inside an <input> (Chrome centers / right-aligns
+            // the value within the content box; the probe is an inline-level
+            // span so its xOffsets are flush-left and need post-shift). DM-353:
+            // .spin input with text-align center left "3" against the left
+            // padding instead of centered between the +/- buttons.
+            const pr = parseFloat(cs.paddingRight) || 0;
+            const br = parseFloat(cs.borderRightWidth) || 0;
+            const contentBoxW = rect.width - bl - br - pl - pr;
+            const probeW = probeBox.width;
+            const slack = contentBoxW - probeW;
+            const align = cs.textAlign;
+            const dir = cs.direction;
+            let shift = 0;
+            if (slack > 0) {
+              if (align === 'center') shift = slack / 2;
+              else if (align === 'right' || (align === 'end' && dir !== 'rtl') || (align === 'start' && dir === 'rtl')) shift = slack;
+            }
+            if (shift !== 0) {
+              textLeft += shift;
+              for (let k = 0; k < xs.length; k++) xs[k] += shift;
             }
             inputXOffsets = xs;
           }
@@ -1746,10 +1778,40 @@ const CAPTURE_SCRIPT = `
     }
 
     const _animId = el.dataset != null ? el.dataset.domotionAnim : undefined;
+
+    // <fieldset> with a top-aligned <legend>: Chrome's UA fieldset paints its
+    // top border at the legend's vertical center, with a notch cut in the
+    // border across the legend's x range. fieldset.getBoundingClientRect()
+    // returns the OUTER box that includes the legend's full height — so the
+    // visible box top sits legend.height/2 below rect.top. Inset the captured
+    // y/height to match Chrome's painted box, and capture the legend's x
+    // range for the renderer to notch the top border behind it. DM-342/DM-343.
+    let fieldsetLegendNotch;
+    let fsX = rect.left - vp.x;
+    let fsY = rect.top - vp.y;
+    let fsW = rect.width;
+    let fsH = rect.height;
+    if (tag === 'fieldset') {
+      for (let i = 0; i < el.children.length; i++) {
+        const ch = el.children[i];
+        if (ch.tagName.toLowerCase() !== 'legend') continue;
+        const lr = ch.getBoundingClientRect();
+        // Top-aligned legend (legend.top === fieldset.top, with sub-px slack).
+        if (lr.height > 0 && lr.width > 0 && Math.abs(lr.top - rect.top) < 2) {
+          const inset = lr.height / 2;
+          fsY = (rect.top - vp.y) + inset;
+          fsH = rect.height - inset;
+          fieldsetLegendNotch = { x: lr.left - vp.x, y: lr.top - vp.y, w: lr.width, h: lr.height };
+        }
+        break;
+      }
+    }
+
     return {
       tag, text,
-      x: rect.left - vp.x, y: rect.top - vp.y,
-      width: rect.width, height: rect.height,
+      x: fsX, y: fsY,
+      width: fsW, height: fsH,
+      fieldsetLegendNotch,
       animId: _animId,
       styles: {
         backgroundColor: (function () {
@@ -2876,6 +2938,20 @@ export function elementTreeToSvg(
       && bt.style === br.style && br.style === bb.style && bb.style === bl.style
       && sameColor(bt.color, br.color) && sameColor(br.color, bb.color) && sameColor(bb.color, bl.color);
 
+    // <fieldset>+<legend> notch: clip the border drawing to exclude the
+    // legend's bbox so the top border breaks behind the legend, matching
+    // Chrome's UA fieldset paint. DM-342/DM-343.
+    let notchedBorderOpen = false;
+    if (el.fieldsetLegendNotch != null) {
+      const ln = el.fieldsetLegendNotch;
+      const notchId = `${idPrefix}fln${clipIdx++}`;
+      defsParts.push(
+        `<clipPath id="${notchId}" clip-rule="evenodd"><path d="M 0 0 L ${r(width)} 0 L ${r(width)} ${r(height)} L 0 ${r(height)} Z M ${r(ln.x)} ${r(ln.y)} L ${r(ln.x + ln.w)} ${r(ln.y)} L ${r(ln.x + ln.w)} ${r(ln.y + ln.h)} L ${r(ln.x)} ${r(ln.y + ln.h)} Z" clip-rule="evenodd"/></clipPath>`,
+      );
+      svgParts.push(`${indent}<g clip-path="url(#${notchId})">`);
+      notchedBorderOpen = true;
+    }
+
     if (suppressEmptyCell) {
       // empty-cells: hide — suppress the border too.
     } else if (borderImagePainted) {
@@ -3056,6 +3132,7 @@ export function elementTreeToSvg(
         `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="none" stroke="${colorStr(borderColor)}" stroke-width="${r(borderWidth)}"`)}`,
       );
     }
+    if (notchedBorderOpen) svgParts.push(`${indent}</g>`);
 
     // Outline (SK-1111): drawn outside the border-box and shifted further out
     // by outline-offset (which can be negative). Doesn't take layout space —
