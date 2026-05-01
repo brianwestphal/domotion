@@ -1860,10 +1860,19 @@ const CAPTURE_SCRIPT = `
         borderRightStyle: cs.borderRightStyle,
         borderBottomStyle: cs.borderBottomStyle,
         borderLeftStyle: cs.borderLeftStyle,
-        borderTopColor: normColor(cs.borderTopColor),
-        borderRightColor: normColor(cs.borderRightColor),
-        borderBottomColor: normColor(cs.borderBottomColor),
-        borderLeftColor: normColor(cs.borderLeftColor),
+        // For <input type=color>, Chromium's appearance:auto native paint
+        // uses rgb(118,118,118) for the border but getComputedStyle reports
+        // rgb(0,0,0) — the computed value doesn't reflect the painted UA
+        // chrome. Override at capture so the generic border-emit path paints
+        // what Chrome actually paints. DM-434 (probed via
+        // scripts/probe-color-input.mjs).
+        // _isUaColorBorder strips whitespace before comparing since
+        // getComputedStyle returns 'rgb(0, 0, 0)' with spaces but normColor
+        // passes such canonical forms through unchanged.
+        borderTopColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderTopColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderTopColor),
+        borderRightColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderRightColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderRightColor),
+        borderBottomColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderBottomColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderBottomColor),
+        borderLeftColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderLeftColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderLeftColor),
         borderCollapse: cs.borderCollapse,
         overflowX: cs.overflowX,
         overflowY: cs.overflowY,
