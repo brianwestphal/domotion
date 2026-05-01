@@ -785,25 +785,28 @@ function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): s
   const customValueFill = customPseudoFill(el.styles.progressValueBg, el.styles.progressValueBgImage);
   const trackFill = customTrackFill ?? TRACK_BG;
   const valueFill = customValueFill ?? accent;
-  // Chromium on macOS paints the unstyled progress bar as a THIN flat stripe
-  // centered vertically in the element box — not a fully-rounded pill filling
-  // the whole height. Match that by insetting to a small inner rect when no
-  // custom pseudo styling is in play. Author-styled bars (pseudos with
-  // explicit bg / border-radius) go through the full-height path so authors
-  // still get what they asked for.
+  // Chromium on macOS paints the unstyled `<progress>` as a centered pill
+  // whose painted height is HALF the element height (rx = height/4 →
+  // perfect pill). Verified by sampling Chromium's painted output at
+  // h=8/16/40px (DM-337):
+  //   h=8  → painted bar ~4px (y inset 2px top, 2px bottom)
+  //   h=16 → painted bar ~8px (y inset 4px each side)
+  //   h=40 → painted bar ~20px (y inset 10px each side)
+  // Author-styled bars (custom pseudos OR explicit border-radius) span the
+  // full element height so authors get what they asked for.
   const isAuthorStyled = customTrackFill != null || customValueFill != null
     || (el.styles.progressBarRadius != null && el.styles.progressBarRadius !== "0px")
     || (el.styles.progressValueRadius != null && el.styles.progressValueRadius !== "0px");
-  const barH = isAuthorStyled ? el.height : Math.min(6, el.height);
+  const barH = isAuthorStyled ? el.height : el.height / 2;
   const barY = el.y + (el.height - barH) / 2;
   const trackRadius = isAuthorStyled
     ? (el.styles.progressBarRadius != null && el.styles.progressBarRadius !== "0px"
         ? parseFloat(el.styles.progressBarRadius) || el.height / 2 : el.height / 2)
-    : 0;
+    : barH / 2;
   const valueRadius = isAuthorStyled
     ? (el.styles.progressValueRadius != null && el.styles.progressValueRadius !== "0px"
         ? parseFloat(el.styles.progressValueRadius) || el.height / 2 : el.height / 2)
-    : 0;
+    : barH / 2;
   // Gradient fills (SK-1224 / SK-1225) for progress pseudos: when the
   // captured ::-webkit-progress-bar / -value bg-image parses as a gradient,
   // emit a <linearGradient> / <radialGradient> def and reference it via
@@ -866,16 +869,17 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const defaultFill = dist === 0 ? METER_GREEN : dist === 1 ? METER_YELLOW : METER_RED;
   const fill = customValueFill ?? defaultFill;
   const trackFill = customTrackFill ?? TRACK_BG;
-  // Same inset-thin-bar convention as <progress>: Chromium macOS paints the
-  // unstyled meter as a thin flat stripe centered in the element box.
+  // Same half-height-pill convention as <progress> (DM-337): Chromium paints
+  // the unstyled <meter> as a centered pill whose painted height is half the
+  // element height. Author-styled bars span full element height.
   const isAuthorStyled = customTrackFill != null || customValueFill != null
     || (el.styles.meterBarRadius != null && el.styles.meterBarRadius !== "0px");
-  const barH = isAuthorStyled ? el.height : Math.min(6, el.height);
+  const barH = isAuthorStyled ? el.height : el.height / 2;
   const barY = el.y + (el.height - barH) / 2;
   const trackRadius = isAuthorStyled
     ? (el.styles.meterBarRadius != null && el.styles.meterBarRadius !== "0px"
         ? parseFloat(el.styles.meterBarRadius) || el.height / 2 : el.height / 2)
-    : 0;
+    : barH / 2;
 
   const parts: string[] = [];
   // Gradient fills (SK-1222 + SK-1224 / SK-1225) for meter pseudos.

@@ -197,6 +197,19 @@ const FONT_PATHS: Record<string, FontPath> = {
   // between W3/W6 (24px @24px font-size for em-square glyphs) but the stem
   // thickness differs, so headings using cjk-block fallback chars (← → ▲ ☀)
   // need W6 to match Chrome's painted weight.
+  //
+  // KNOWN GAP (DM-382): Chrome on macOS actually paints unmarked Han ideographs
+  // (漢 字 北 京 東 明 日 …) via *PingFang SC*, not HiraginoSansGB. Verified
+  // via CDP `CSS.getPlatformFontsForNode` against the 02-text-ruby fixture:
+  // every Han codepoint resolves to "蘋方-簡" (PingFang SC). Chromium's
+  // `FontCache::PlatformFallbackFontForCharacter` (font_cache_mac.mm) calls
+  // `CTFontCreateForString` with no language tag, and CoreText's modern
+  // unmarked-Han substitute on macOS 10.11+ is PingFang SC. We're stuck on
+  // HiraginoSansGB because PingFang ships only as a CoreText downloadable stub
+  // (`PingFangUI.ttc` in `PrivateFrameworks/.../Reserved/`); fontkit returns
+  // null for `glyphForCodePoint` against that file. Wiring PingFang requires
+  // a separate font-distribution decision (bundled OFL fallback like Source
+  // Han Sans, or a CoreText-glyph-extraction path). Tracked in DM-382.
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
   // Songti SC Light (postscriptName STSongti-SC-Light) is what Chrome on

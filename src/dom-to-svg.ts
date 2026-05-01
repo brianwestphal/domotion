@@ -3499,15 +3499,26 @@ export function elementTreeToSvg(
     // Overflow clipping: when a parent has overflow != visible (hidden/scroll/
     // auto/clip on either axis), its children must be clipped to its box.
     // We wrap just the child recursion in a <g clip-path="..."> so the element's
-    // own bg/border/text render unclipped (border-box is outside the padding
-    // edge, which is where overflow clips).
+    // own bg/border/text render unclipped.
+    //
+    // CSS spec (DM-363): overflow clips to the **padding edge**, not the
+    // border-box edge. If we clip to the border-box, child fills extending to
+    // the bottom of the box paint OVER the bottom border stroke and the
+    // border disappears from the rendered output (e.g. 13-pos-sticky:
+    // Section B's `.filler` rect was hiding the scroller's `border-bottom`).
+    // Inset the clip rect by the per-side border widths so the border stroke
+    // remains visible above the clipped children.
     const ox = el.styles.overflowX;
     const oy = el.styles.overflowY;
     const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible");
     let overflowClipId: string | null = null;
     if (clipsOverflow && el.children.length > 0) {
       overflowClipId = `${idPrefix}ov${clipIdx++}`;
-      defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(el.x, el.y, el.width, el.height, corners, "")}</clipPath>`);
+      const cbt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+      const cbr = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const cbb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+      const cbl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+      defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(el.x + cbl, el.y + cbt, Math.max(0, el.width - cbl - cbr), Math.max(0, el.height - cbt - cbb), corners, "")}</clipPath>`);
       svgParts.push(`${indent}<g clip-path="url(#${overflowClipId})">`);
     }
 
