@@ -282,6 +282,17 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // thumb moves in x. In vertical mode track is along y (length = el.height),
   // thumb moves in y. `direction: rtl` flips the value axis so low is at
   // the visual end of the track (right for horizontal, bottom for vertical).
+  // Round box edges to integer device pixels (DM-433) so the track / fill
+  // rects land on Chrome's pixel grid — same alignment Chrome's UA paint
+  // applies. `getBoundingClientRect()` returns fractional coords for inputs
+  // laid out in flex / inline contexts; without rounding, even-thickness
+  // tracks render across 3 antialiased rows instead of 2 solid rows.
+  const elL = Math.round(el.x);
+  const elT = Math.round(el.y);
+  const elR = Math.round(el.x + el.width);
+  const elB = Math.round(el.y + el.height);
+  const elW = elR - elL;
+  const elH = elB - elT;
   let trackRect: { x: number; y: number; w: number; h: number };
   let fillRect: { x: number; y: number; w: number; h: number };
   let thumbCx: number;
@@ -289,13 +300,13 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
 
   if (isVertical) {
     const halfThumb = thumbH / 2;
-    const trackX = el.x + el.width / 2 - trackThickness / 2;
-    const trackTop = el.y + halfThumb;
-    const trackBottom = el.y + el.height - halfThumb;
+    const trackX = elL + elW / 2 - trackThickness / 2;
+    const trackTop = elT + halfThumb;
+    const trackBottom = elT + elH - halfThumb;
     const trackLen = trackBottom - trackTop;
     const lowAtBottom = s.direction === "rtl";
     const fromTop = lowAtBottom ? (1 - ratio) : ratio;
-    thumbCx = el.x + el.width / 2;
+    thumbCx = elL + elW / 2;
     thumbCy = trackTop + trackLen * fromTop;
     trackRect = { x: trackX, y: trackTop, w: trackThickness, h: trackLen };
     // UA accent fill spans from the value end of the track to the thumb.
@@ -306,10 +317,10 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     }
   } else {
     const halfThumb = thumbW / 2;
-    const cy = el.y + el.height / 2;
+    const cy = elT + elH / 2;
     const trackY = cy - trackThickness / 2;
-    const trackLeft = el.x + halfThumb;
-    const trackRight = el.x + el.width - halfThumb;
+    const trackLeft = elL + halfThumb;
+    const trackRight = elR - halfThumb;
     const trackLen = trackRight - trackLeft;
     thumbCy = cy;
     thumbCx = trackLeft + trackLen * ratio;
