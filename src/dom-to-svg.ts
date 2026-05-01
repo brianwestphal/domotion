@@ -396,6 +396,13 @@ export interface CapturedElement {
     /** `text-decoration-style` — 'solid' / 'dashed' / 'dotted' / 'double' /
      *  'wavy'. Undefined or 'solid' = plain line. */
     textDecorationStyle?: string;
+    /** `text-decoration-thickness` — explicit length (e.g. `5px`) or `auto`.
+     *  When set to a length, overrides the auto thickness in
+     *  `getDecorationMetrics`. DM-431. */
+    textDecorationThickness?: string;
+    /** `text-underline-offset` — extra distance below the baseline for the
+     *  underline stroke. Adds to the auto offset. DM-431. */
+    textUnderlineOffset?: string;
   };
   children: CapturedElement[];
   imageSrc?: string;
@@ -2186,6 +2193,8 @@ const CAPTURE_SCRIPT = `
         textDecorationLine: cs.textDecorationLine,
         textDecorationColor: cs.textDecorationColor,
         textDecorationStyle: cs.textDecorationStyle,
+        textDecorationThickness: cs.textDecorationThickness,
+        textUnderlineOffset: cs.textUnderlineOffset,
       },
       children, imageSrc, imageIntrinsic, imageBroken, imageAlt, listMarkerIntrinsic, listItemIndex, svgContent, pseudoImages,
       // ::marker pseudo styles (SK-1115). Only meaningful on <li>; rest of

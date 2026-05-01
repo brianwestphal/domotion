@@ -579,4 +579,41 @@ describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
     const m22 = getDecorationMetrics("Helvetica", 22, "400");
     expect(m22.overlineOffsetY).toBe(22 - 1);    // 21
   });
+
+  it("honors explicit text-decoration-thickness length (DM-431)", () => {
+    // Auto thickness at 16px would be 1; explicit 5px overrides.
+    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, "5px");
+    expect(m.underlineThickness).toBe(5);
+    expect(m.underlineOffsetY).toBe(7.5); // 1.5 * 5
+    expect(m.strikeoutThickness).toBe(5);
+    expect(m.overlineOffsetY).toBe(13.5); // 16 - 5/2
+  });
+
+  it("falls back to auto thickness when text-decoration-thickness is 'auto' or 'from-font' (DM-431)", () => {
+    const auto = getDecorationMetrics("Helvetica", 16, "400", undefined, "auto");
+    expect(auto.underlineThickness).toBe(1); // ceil(16/20) = 1
+    const fromFont = getDecorationMetrics("Helvetica", 16, "400", undefined, "from-font");
+    expect(fromFont.underlineThickness).toBe(1);
+  });
+
+  it("adds explicit text-underline-offset to underlineOffsetY (DM-431)", () => {
+    // Auto offset for thickness 1 = 1.5; +6px offset → 7.5.
+    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, undefined, "6px");
+    expect(m.underlineOffsetY).toBe(7.5);
+    // Strikeout / overline are NOT affected by text-underline-offset.
+    expect(m.strikeoutOffsetY).toBe(Math.round(16 / 3) + 0.5); // 5.5
+    expect(m.overlineOffsetY).toBe(15.5); // 16 - 0.5
+  });
+
+  it("falls back to auto offset when text-underline-offset is 'auto' (DM-431)", () => {
+    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, undefined, "auto");
+    expect(m.underlineOffsetY).toBe(1.5); // 1.5 * 1, no extra
+  });
+
+  it("combines explicit thickness + offset overrides (DM-431)", () => {
+    // 5px thickness with 6px extra offset: center at 1.5*5 + 6 = 13.5.
+    const m = getDecorationMetrics("Helvetica", 16, "400", undefined, "5px", "6px");
+    expect(m.underlineThickness).toBe(5);
+    expect(m.underlineOffsetY).toBe(13.5);
+  });
 });

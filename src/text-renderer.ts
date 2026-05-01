@@ -62,9 +62,13 @@ function renderTextDecoration(
   style: string | undefined,
   segX: number, baselineY: number, segWidth: number,
   fontSize: number, fontFamily: string, fontWeight: string | number, fontStyle: string | undefined,
+  /** CSS `text-decoration-thickness` (e.g. `5px` or `auto`). DM-431. */
+  thicknessOverride?: string,
+  /** CSS `text-underline-offset` (e.g. `6px` or `auto`). DM-431. */
+  underlineOffset?: string,
 ): string {
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
-  const m = getDecorationMetrics(fontFamily, fontSize, fontWeight, fontStyle);
+  const m = getDecorationMetrics(fontFamily, fontSize, fontWeight, fontStyle, thicknessOverride, underlineOffset);
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
   const dash = (thick: number) => style === "dashed" ? ` stroke-dasharray="${thick * 2} ${thick * 2}"`
@@ -209,7 +213,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // Round to integer px so Chrome's pixel-aligned decoration paint
     // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
     const decoBaselineY = Math.round(tt + (el.fontAscent ?? fontSize));
-    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle);
+    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset);
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
     const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";
@@ -308,7 +312,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       parts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle);
+    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset);
     if (decoMarkup !== "") parts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
     // text get their actual Chrome-painted pixels stamped over the position.

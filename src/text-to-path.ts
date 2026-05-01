@@ -1341,6 +1341,13 @@ export interface DecorationMetrics {
  */
 export function getDecorationMetrics(
   fontFamily: string, fontSize: number, fontWeight: string | number, fontStyle?: string,
+  /** CSS `text-decoration-thickness` — when set to a length value (e.g. "5px"),
+   *  overrides the auto thickness. Pass `undefined` or `auto` to use the auto
+   *  rule. DM-431. */
+  thicknessOverride?: string,
+  /** CSS `text-underline-offset` — when set to a length value, adds this much
+   *  EXTRA distance below the baseline (on top of the auto offset). DM-431. */
+  underlineOffsetCss?: string,
 ): DecorationMetrics {
   const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
   const slant = slantForStyle(fontStyle);
@@ -1351,30 +1358,44 @@ export function getDecorationMetrics(
   // stroke at body sizes (≤ 19 px), bumps to 2 px at heading sizes
   // (≥ 20 px), and stays at 2 px through 32 px. The font's
   // post.underlineThickness is ignored in this auto path. DM-398.
+  // DM-431: explicit `text-decoration-thickness: <length>` overrides the
+  // auto rule. `from-font` and `auto` keep the auto rule.
   const autoThicknessPx = Math.max(1, Math.ceil(fontSize / 20));
+  let thicknessPx = autoThicknessPx;
+  if (thicknessOverride != null && thicknessOverride !== "" && thicknessOverride !== "auto" && thicknessOverride !== "from-font") {
+    const explicit = parseFloat(thicknessOverride);
+    if (!isNaN(explicit) && explicit > 0) thicknessPx = explicit;
+  }
+  // Extra underline offset from CSS `text-underline-offset: <length>`.
+  // Stacks on top of the auto offset. DM-431.
+  let extraUnderlineOffset = 0;
+  if (underlineOffsetCss != null && underlineOffsetCss !== "" && underlineOffsetCss !== "auto") {
+    const v = parseFloat(underlineOffsetCss);
+    if (!isNaN(v)) extraUnderlineOffset = v;
+  }
   // Chromium paints the underline stroke with its top at
   // `round(baseline) + thickness_px`, which means the stroke center sits at
   // `round(baseline) + 1.5 * thickness_px`. Emitting the offset relative to
   // the unrounded baseline introduces a sub-pixel error bounded by 0.5 px,
   // which is in the same family as DM-397's residual baseline drift.
-  const underlineOffsetY = 1.5 * autoThicknessPx;
-  const underlineThickness = autoThicknessPx;
+  const underlineOffsetY = 1.5 * thicknessPx + extraUnderlineOffset;
+  const underlineThickness = thicknessPx;
   // Empirical Chrome strikeout placement (probed at 14 / 22 / 32 px sans-
   // serif / Times / Menlo): stroke top sits at `round(baseline) - round(fontSize / 3)`.
   // OS/2.yStrikeoutPosition disagrees with Chrome's actual paint by ~1.5 px
   // on Helvetica at 14px, so use Chrome's auto rule instead. DM-398.
-  const strikeoutOffsetY = Math.round(fontSize / 3) + autoThicknessPx * 0.5;
-  const strikeoutThickness = autoThicknessPx;
+  const strikeoutOffsetY = Math.round(fontSize / 3) + thicknessPx * 0.5;
+  const strikeoutThickness = thicknessPx;
   // Chromium paints overline with stroke top at the em-box top — i.e.
   // `round(baseline) - fontSize`. fontkit's HHEA ascent (used previously)
   // sits ~3 px below this on Helvetica because Chrome uses winAscent for
   // legacy MS-style fonts on macOS. DM-398.
-  const overlineOffsetY = fontSize - autoThicknessPx * 0.5;
+  const overlineOffsetY = fontSize - thicknessPx * 0.5;
   if (font == null) {
     return {
       underlineOffsetY, underlineThickness,
       strikeoutOffsetY, strikeoutThickness,
-      overlineOffsetY, overlineThickness: autoThicknessPx,
+      overlineOffsetY, overlineThickness: thicknessPx,
     };
   }
   return {
