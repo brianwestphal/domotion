@@ -264,6 +264,12 @@ function showLightboxAt(idx) {
   lbIndex = idx;
   lbImg.src = lbFigures[idx].dataset.src;
   lb.classList.add("open");
+  // Scroll the underlying page so the figure's card is centered in the
+  // viewport — invisible while the lightbox is over the page, but means
+  // closing the lightbox lands you on the test you were just inspecting
+  // instead of wherever you opened the lightbox from. (DM-412)
+  const card = lbFigures[idx].closest(".card");
+  if (card != null) card.scrollIntoView({ block: "center", behavior: "auto" });
 }
 
 lb.addEventListener("click", closeLightbox);

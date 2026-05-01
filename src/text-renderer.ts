@@ -206,7 +206,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // baselineY = textTop + fontAscent. Using fontSize here would put the
     // underline ~1px too low (fontSize includes descent; baseline sits at
     // ascent above textTop, not at the line-bottom). DM-265.
-    const decoBaselineY = tt + (el.fontAscent ?? fontSize);
+    // Round to integer px so Chrome's pixel-aligned decoration paint
+    // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
+    const decoBaselineY = Math.round(tt + (el.fontAscent ?? fontSize));
     const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle);
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
@@ -305,7 +307,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       const sy = seg.y + seg.height / 2;
       parts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
-    const segDecoBaselineY = seg.y + (segAscent ?? segFontSize);
+    const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
     const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle);
     if (decoMarkup !== "") parts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered

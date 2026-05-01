@@ -464,6 +464,12 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
   //   ◇   : LucidaGrande 11.07px @18px
   // Everything else in 0x25A0..25FF (▲▽◉◌◐◑★…) Chrome paints at em-square
   // via Hiragino — keep those on the existing chain.
+  // DM-415 / DM-429: tried routing patterned squares (U+25A3..A8 + U+25C8)
+  // to AppleSDGothicNeo and SF NS for the open-shape primitives, but the
+  // painted-ink size came out larger than Chrome's actual paint despite the
+  // advance widths matching — Chrome uses a font with smaller-ink-in-wider-
+  // advance for these. Reverted; the LucidaGrande route remains the closest
+  // visible match in our available font set. Tracked further in DM-429.
   if (codepoint === 0x25A0 || codepoint === 0x25A1
     || codepoint === 0x25CF || codepoint === 0x25CB
     || codepoint === 0x25C6 || codepoint === 0x25C7) {
@@ -1339,28 +1345,38 @@ export function getDecorationMetrics(
   const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant);
+  // Chromium's `text-decoration-thickness: auto` rule, derived empirically
+  // (`scripts/probe-text-decorations.mjs`) against painted Helvetica from 12
+  // to 32 px: thickness = max(1, ceil(fontSize / 20)). Chrome paints a 1 px
+  // stroke at body sizes (≤ 19 px), bumps to 2 px at heading sizes
+  // (≥ 20 px), and stays at 2 px through 32 px. The font's
+  // post.underlineThickness is ignored in this auto path. DM-398.
+  const autoThicknessPx = Math.max(1, Math.ceil(fontSize / 20));
+  // Chromium paints the underline stroke with its top at
+  // `round(baseline) + thickness_px`, which means the stroke center sits at
+  // `round(baseline) + 1.5 * thickness_px`. Emitting the offset relative to
+  // the unrounded baseline introduces a sub-pixel error bounded by 0.5 px,
+  // which is in the same family as DM-397's residual baseline drift.
+  const underlineOffsetY = 1.5 * autoThicknessPx;
+  const underlineThickness = autoThicknessPx;
+  // Empirical Chrome strikeout placement (probed at 14 / 22 / 32 px sans-
+  // serif / Times / Menlo): stroke top sits at `round(baseline) - round(fontSize / 3)`.
+  // OS/2.yStrikeoutPosition disagrees with Chrome's actual paint by ~1.5 px
+  // on Helvetica at 14px, so use Chrome's auto rule instead. DM-398.
+  const strikeoutOffsetY = Math.round(fontSize / 3) + autoThicknessPx * 0.5;
+  const strikeoutThickness = autoThicknessPx;
+  // Chromium paints overline with stroke top at the em-box top — i.e.
+  // `round(baseline) - fontSize`. fontkit's HHEA ascent (used previously)
+  // sits ~3 px below this on Helvetica because Chrome uses winAscent for
+  // legacy MS-style fonts on macOS. DM-398.
+  const overlineOffsetY = fontSize - autoThicknessPx * 0.5;
   if (font == null) {
     return {
-      underlineOffsetY: fontSize * 0.15, underlineThickness: Math.max(1, Math.round(fontSize / 14)),
-      strikeoutOffsetY: fontSize * 0.30, strikeoutThickness: Math.max(1, Math.round(fontSize / 14)),
-      overlineOffsetY: fontSize * 0.95,  overlineThickness: Math.max(1, Math.round(fontSize / 14)),
+      underlineOffsetY, underlineThickness,
+      strikeoutOffsetY, strikeoutThickness,
+      overlineOffsetY, overlineThickness: autoThicknessPx,
     };
   }
-  const scale = fontSize / font.unitsPerEm;
-  // post.underlinePosition is the suggested center of the underline stroke,
-  // in font units, with negative = below baseline. Negate to get a positive
-  // distance below the baseline in screen px (y grows downward).
-  const underlineOffsetY = -font.underlinePosition * scale;
-  const underlineThickness = Math.max(1, font.underlineThickness * scale);
-  const os2 = font["OS/2"];
-  const strikeRawPos = os2?.yStrikeoutPosition ?? Math.round(font.unitsPerEm * 0.30);
-  const strikeRawSize = os2?.yStrikeoutSize ?? font.underlineThickness;
-  const strikeoutOffsetY = strikeRawPos * scale;
-  const strikeoutThickness = Math.max(1, strikeRawSize * scale);
-  // No standard overline metric — Chromium paints just above the ascent,
-  // about underlineThickness/2 above the cap. ascent * scale matches what
-  // Chromium does within ~0.5px on body text.
-  const overlineOffsetY = font.ascent * scale;
   return {
     underlineOffsetY, underlineThickness,
     strikeoutOffsetY, strikeoutThickness,

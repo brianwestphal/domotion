@@ -3064,12 +3064,25 @@ export function elementTreeToSvg(
         // lines instead so each side gets its own adjusted pattern.
         const collapse = el.styles.borderCollapse === "collapse";
         const inset = collapse ? 0 : bt.w / 2;
-        const linecap = "";
+        // For dotted, the dasharray is `0.01 period` and renders dots only
+        // when the line has `stroke-linecap="round"` (each near-zero dash
+        // becomes a circle of stroke-width diameter). Without it the dots
+        // are invisible — DM-399. Dashed uses default butt caps.
+        const linecap = style === "dotted" ? ` stroke-linecap="round"` : "";
+        // Round box edges to integer device pixels so the stroke center
+        // lands on an integer (for even widths) and paints 2 solid rows
+        // instead of 3 antialiased rows. Skip when border-collapse:collapse
+        // because shared edges between adjacent cells must use the same
+        // (un-rounded) coords to overlap exactly. DM-403/405.
+        const bL = collapse ? el.x : Math.round(el.x);
+        const bT = collapse ? el.y : Math.round(el.y);
+        const bR = collapse ? el.x + el.width : Math.round(el.x + el.width);
+        const bB = collapse ? el.y + el.height : Math.round(el.y + el.height);
         const sides: Array<[number, number, number, number, number]> = [
-          [el.x, el.y + inset, el.x + el.width, el.y + inset, el.width],
-          [el.x + el.width - inset, el.y, el.x + el.width - inset, el.y + el.height, el.height],
-          [el.x, el.y + el.height - inset, el.x + el.width, el.y + el.height - inset, el.width],
-          [el.x + inset, el.y, el.x + inset, el.y + el.height, el.height],
+          [bL, bT + inset, bR, bT + inset, bR - bL],
+          [bR - inset, bT, bR - inset, bB, bB - bT],
+          [bL, bB - inset, bR, bB - inset, bR - bL],
+          [bL + inset, bT, bL + inset, bB, bB - bT],
         ];
         for (const [x1, y1, x2, y2, len] of sides) {
           const { array: dash, offset } = adjustedDashAttrs(style, bt.w, len);
@@ -3095,8 +3108,21 @@ export function elementTreeToSvg(
         const half = collapse ? 0 : bt.w / 2;
         const strokeCorners = insetCornerRadii(corners, half, half, half, half);
         const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+        // Chrome paints borders aligned to device pixels: it rounds the box
+        // edges to integers before stroking. Our captured `el.x / el.y` are
+        // fractional from `getBoundingClientRect()`, so emitting the stroke
+        // at `el.x + half` puts the stroke center at a fractional y, which
+        // the SVG renderer then antialiases across 3 pixel rows instead of
+        // 2 — producing a visibly thicker / blurrier border. Round the box
+        // edges to integers (matching Chrome's per-edge `round`), then add
+        // the half-stroke offset. Skip when collapse=true so shared cell
+        // edges still overlap exactly. DM-403/405/406/407/410.
+        const boxLeft = collapse ? el.x : Math.round(el.x);
+        const boxTop = collapse ? el.y : Math.round(el.y);
+        const boxRight = collapse ? el.x + el.width : Math.round(el.x + el.width);
+        const boxBottom = collapse ? el.y + el.height : Math.round(el.y + el.height);
         svgParts.push(
-          `${indent}${roundedRectSvg(el.x + half, el.y + half, Math.max(0, el.width - half * 2), Math.max(0, el.height - half * 2), strokeCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttr}${linecap}`)}`,
+          `${indent}${roundedRectSvg(boxLeft + half, boxTop + half, Math.max(0, boxRight - boxLeft - half * 2), Math.max(0, boxBottom - boxTop - half * 2), strokeCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttr}${linecap}`)}`,
         );
       }
     } else if (!uniform) {
@@ -3126,17 +3152,29 @@ export function elementTreeToSvg(
       const bw = bb?.w ?? 0;
       const lw = bl?.w ?? 0;
       const trimAdj = (self: number, adj: number) => collapse ? 0 : (adj > self ? adj : 0);
+      // Round box edges to integer device pixels so each per-side stroke
+      // lands on Chrome's pixel grid. Only when border-collapse !== collapse:
+      // collapsed table cells share their borders with neighbors and rounding
+      // would split the shared edge between two integer rows. DM-403/405/407.
+      const roundEdges = !collapse;
+      const bxL = roundEdges ? Math.round(el.x) : el.x;
+      const bxT = roundEdges ? Math.round(el.y) : el.y;
+      const bxR = roundEdges ? Math.round(el.x + el.width) : el.x + el.width;
+      const bxB = roundEdges ? Math.round(el.y + el.height) : el.y + el.height;
       const sides: Array<[typeof bt, number, number, number, number, number]> = [
-        [bt, el.x + trimAdj(tw, lw), el.y + inset(tw), el.x + el.width - trimAdj(tw, rw), el.y + inset(tw), Math.max(0, el.width - trimAdj(tw, lw) - trimAdj(tw, rw))],
-        [br, el.x + el.width - inset(rw), el.y + trimAdj(rw, tw), el.x + el.width - inset(rw), el.y + el.height - trimAdj(rw, bw), Math.max(0, el.height - trimAdj(rw, tw) - trimAdj(rw, bw))],
-        [bb, el.x + trimAdj(bw, lw), el.y + el.height - inset(bw), el.x + el.width - trimAdj(bw, rw), el.y + el.height - inset(bw), Math.max(0, el.width - trimAdj(bw, lw) - trimAdj(bw, rw))],
-        [bl, el.x + inset(lw), el.y + trimAdj(lw, tw), el.x + inset(lw), el.y + el.height - trimAdj(lw, bw), Math.max(0, el.height - trimAdj(lw, tw) - trimAdj(lw, bw))],
+        [bt, bxL + trimAdj(tw, lw), bxT + inset(tw), bxR - trimAdj(tw, rw), bxT + inset(tw), Math.max(0, bxR - bxL - trimAdj(tw, lw) - trimAdj(tw, rw))],
+        [br, bxR - inset(rw), bxT + trimAdj(rw, tw), bxR - inset(rw), bxB - trimAdj(rw, bw), Math.max(0, bxB - bxT - trimAdj(rw, tw) - trimAdj(rw, bw))],
+        [bb, bxL + trimAdj(bw, lw), bxB - inset(bw), bxR - trimAdj(bw, rw), bxB - inset(bw), Math.max(0, bxR - bxL - trimAdj(bw, lw) - trimAdj(bw, rw))],
+        [bl, bxL + inset(lw), bxT + trimAdj(lw, tw), bxL + inset(lw), bxB - trimAdj(lw, bw), Math.max(0, bxB - bxT - trimAdj(lw, tw) - trimAdj(lw, bw))],
       ];
       for (const [side, x1, y1, x2, y2, len] of sides) {
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
         if (side.style === "none" || side.style === "hidden") continue;
         const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
-        const linecap = "";
+        // Dotted uses `0.01 period` dasharray that needs round linecaps to
+        // render as circles (DM-399). Dashed keeps default butt caps so the
+        // dash:gap = 2:1 ratio paints flat-ended rectangles like Chrome.
+        const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
         const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
         svgParts.push(
           `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap} />`,
@@ -3208,13 +3246,26 @@ export function elementTreeToSvg(
     // width/height from the captured rect so the SVG renders at its actual
     // on-page size.
     if (el.svgContent != null) {
-      const sized = injectSvgSize(el.svgContent, el.width, el.height);
+      // The captured `el.x / el.y / el.width / el.height` are border-box
+      // coords. The SVG draws into the CONTENT-BOX (CSS box-sizing default
+      // for `<svg>` is content-box), so the actual paint area sits inside
+      // the element's border. Without subtracting border + padding from
+      // the translate offset, our SVG content paints 1-2 px up + left of
+      // where Chrome paints it (DM-416). Subtract the left/top border +
+      // padding so the SVG'\\'s (0, 0) lands at the content-box top-left.
+      const blW = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+      const btW = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+      const plW = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+      const ptW = parseFloat(el.styles.paddingTop ?? "0") || 0;
+      const contentW = Math.max(0, el.width - blW - (parseFloat(el.styles.borderRightWidth ?? "0") || 0) - plW - (parseFloat(el.styles.paddingRight ?? "0") || 0));
+      const contentH = Math.max(0, el.height - btW - (parseFloat(el.styles.borderBottomWidth ?? "0") || 0) - ptW - (parseFloat(el.styles.paddingBottom ?? "0") || 0));
+      const sized = injectSvgSize(el.svgContent, contentW, contentH);
       // Inline SVG icons commonly use `fill="currentColor"` / `stroke="currentColor"`
       // so the icon picks up the button's text color. Set the wrapping group's
       // CSS `color` to the captured text color so currentColor resolves to
       // what Chrome painted, not the SVG document root's default black. DM-279.
       const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
-      svgParts.push(`${indent}<g transform="translate(${r(el.x)}, ${r(el.y)})" color="${iconColor}">${sized}</g>`);
+      svgParts.push(`${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`);
       return;
     }
 
@@ -5485,7 +5536,12 @@ function adjustedDashAttrs(style: string, width: number, sideLength: number): { 
   if (sideLength <= 0 || width <= 0) return { array: "", offset: 0 };
   if (style === "dashed") {
     // Blink uses a 2:1 dash:gap ratio for `border-style: dashed` (DM-267).
-    const idealDash = width * 2;
+    // Empirical re-probe for DM-420: for narrow borders (width ≤ 2 px),
+    // Chrome enforces a minimum dash length of 6 px so dashes stay visible.
+    // Without this, a 2 px-wide dashed border would emit 4 px dashes and
+    // pack ~8 cycles into a 50 px side, while Chrome paints 5 cycles of
+    // 6 px dashes. `scripts/probe-dotted-phase.mjs` confirmed this.
+    const idealDash = Math.max(width * 2, 6);
     const idealGap = width;
     const idealPeriod = idealDash + idealGap;
     const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
@@ -5502,8 +5558,11 @@ function adjustedDashAttrs(style: string, width: number, sideLength: number): { 
   if (style === "dotted") {
     // Dot diameter = width (round-cap on near-zero dash). Dot center spacing
     // = `2 * width`, so each cycle (dot + gap) = 2 * width.
+    // Empirical re-probe (DM-419): Chrome paints `ceil(sideLength / period)`
+    // cycles, not `round`. For a 3 px dotted border on an 80 px side,
+    // Chrome paints 14 dots while our `round(80/6) = 13` was off-by-one.
     const idealPeriod = width * 2;
-    const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
+    const cycles = Math.max(1, Math.ceil(sideLength / idealPeriod));
     const adjustedPeriod = sideLength / cycles;
     // Shift the cycle so the first dot is at adjustedPeriod / 2 from the
     // start, matching Chrome's centred-dot painting. The cycle is

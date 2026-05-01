@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fallbackFontChain, pingfangKeyForLang, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
+import { fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
@@ -211,6 +211,9 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     // DM-349: empirical xOffset capture in 02-text-symbols showed Chrome
     // paints these at LucidaGrande's proportional advance (9.76 / 10.41 /
     // 13.01 / 11.07 px @18px), not at the em-square 18px Hiragino renders.
+    // DM-415 / DM-429 verified this is still the closest visible-shape
+    // match in our font set (tried SF NS / AppleSDGothicNeo, both produced
+    // visibly larger glyphs than Chrome's painted ink).
     expect(fallbackFontChain(0x25A0)).toEqual(["lucida-grande", "symbols"]); // ■
     expect(fallbackFontChain(0x25A1)).toEqual(["lucida-grande", "symbols"]); // □
     expect(fallbackFontChain(0x25CF)).toEqual(["lucida-grande", "symbols"]); // ●
@@ -525,5 +528,55 @@ describe("resolveFontKey: chain walking", () => {
     // was wrong for serif default contexts.
     expect(resolveFontKey("Nothing-Installed-1, Nothing-Installed-2")).toBe("times");
     expect(resolveFontKey("")).toBe("times");
+  });
+});
+
+describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
+  // Empirically derived from `scripts/probe-text-decorations.mjs` on Chromium
+  // / macOS — see DM-398 for the painted-pixel measurements at 12 / 14 / 16
+  // / 18 / 22 / 24 / 32 px sans-serif. Chrome ignores the font's own
+  // post.underlineThickness in the `text-decoration-thickness: auto` path.
+  it("uses 1px stroke for body sizes (≤ 19px)", () => {
+    expect(getDecorationMetrics("Helvetica", 12, "400").underlineThickness).toBe(1);
+    expect(getDecorationMetrics("Helvetica", 14, "400").underlineThickness).toBe(1);
+    expect(getDecorationMetrics("Helvetica", 16, "400").underlineThickness).toBe(1);
+    expect(getDecorationMetrics("Helvetica", 18, "400").underlineThickness).toBe(1);
+  });
+
+  it("bumps to 2px stroke at heading sizes (≥ 20px)", () => {
+    expect(getDecorationMetrics("Helvetica", 22, "400").underlineThickness).toBe(2);
+    expect(getDecorationMetrics("Helvetica", 24, "400").underlineThickness).toBe(2);
+    expect(getDecorationMetrics("Helvetica", 32, "400").underlineThickness).toBe(2);
+  });
+
+  it("emits underlineOffsetY = 1.5 × thickness (Chrome's stroke-top-at-baseline+thickness rule)", () => {
+    // Center sits at `round(baseline) + 1.5*thickness`, so SVG line at
+    // `decoBaselineY + offset` with `stroke-width=thickness` paints the
+    // expected pixel rows when the baseline is rounded by the renderer.
+    const m14 = getDecorationMetrics("Helvetica", 14, "400");
+    expect(m14.underlineOffsetY).toBe(1.5);
+    const m22 = getDecorationMetrics("Helvetica", 22, "400");
+    expect(m22.underlineOffsetY).toBe(3);
+  });
+
+  it("emits strikeoutOffsetY ≈ fontSize/3 above baseline", () => {
+    // Chrome painted strike (probe): 14px → top at row 5 above baseline_int,
+    // 22px → top 7-8 above. Formula: round(fontSize/3) + thickness/2 (so
+    // SVG center sits at baseline_int - round(fs/3), painting <thickness>
+    // rows ending at that y).
+    const m14 = getDecorationMetrics("Helvetica", 14, "400");
+    expect(m14.strikeoutOffsetY).toBe(Math.round(14 / 3) + 0.5);  // 5.5
+    const m22 = getDecorationMetrics("Helvetica", 22, "400");
+    expect(m22.strikeoutOffsetY).toBe(Math.round(22 / 3) + 1);    // 8
+  });
+
+  it("emits overlineOffsetY ≈ fontSize above baseline (top of em-box)", () => {
+    // Chrome paints overline at the em-box top, i.e. baseline - fontSize.
+    // fontkit's HHEA ascent (12.32 at 16px Helvetica) sat ~3px below the
+    // em-top, which is what made overlines render too low pre-DM-398.
+    const m14 = getDecorationMetrics("Helvetica", 14, "400");
+    expect(m14.overlineOffsetY).toBe(14 - 0.5);  // 13.5
+    const m22 = getDecorationMetrics("Helvetica", 22, "400");
+    expect(m22.overlineOffsetY).toBe(22 - 1);    // 21
   });
 });
