@@ -405,6 +405,15 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string): strin
     || codepoint === 0x25C6 || codepoint === 0x25C7) {
     return ["lucida-grande", "symbols"];
   }
+  // Chess pieces ♔..♟ (U+2654..U+265F) — Chrome routes these through Menlo,
+  // not Apple Symbols. Verified via CDP CSS.getPlatformFontsForNode at 22px
+  // sans-serif: Chrome reports the font as "Menlo" and the captured advance
+  // (13.234px @22px) matches Menlo's 13.245px exactly, while Apple Symbols
+  // paints them at 17.188/17.284 — ~4px too wide, causing ♚ to overlap ♔
+  // in domotion's render. (DM-380)
+  if (codepoint >= 0x2654 && codepoint <= 0x265F) {
+    return ["menlo", "symbols"];
+  }
   if ((codepoint >= 0x25A0 && codepoint <= 0x25FF)
     || (codepoint >= 0x2600 && codepoint <= 0x26FF)) {
     return ["cjk", "hiragino-jp", "symbols"];

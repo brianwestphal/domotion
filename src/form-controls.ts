@@ -253,14 +253,19 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const s = el.styles;
   const styledTrack = s.rangeTrackBg != null;
   const styledThumb = s.rangeThumbWidth != null;
-  const trackThickness = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 4;
+  // Native UA range slider — empirically Chrome paints a ~6px solid track
+  // (8px painted total with AA) and a 16px-diameter thumb regardless of bbox
+  // height (verified via probe-range-native-track.mjs against bbox h=16/20).
+  // Earlier values trackThickness=4 / thumbW=14 left a ~2-3px diff visible on
+  // the accent-color re-hue sliders. DM-338.
+  const trackThickness = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 6;
   const trackR = styledTrack ? (parseFloat(s.rangeTrackRadius ?? "") || 0) : 2;
   // Unfilled-track color: author-set when the slider is `appearance: none` +
   // styled track, otherwise the UA default which depends on `accent-color`
   // (Chrome darkens the unfilled track when the accent is bright — DM-320).
   const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : unfilledTrackColor(s.accentColor);
-  const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 14;
-  const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 14;
+  const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 16;
+  const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 16;
   const thumbRadius = styledThumb ? (parseFloat(s.rangeThumbRadius ?? "") || thumbW / 2) : thumbW / 2;
   const accent = resolveAccent(el);
   const valStr = s.inputValue;
