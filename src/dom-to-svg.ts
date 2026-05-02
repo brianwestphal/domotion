@@ -3195,12 +3195,14 @@ export function elementTreeToSvg(
         const collapse = el.styles.borderCollapse === "collapse";
         const inset = collapse ? 0 : bt.w / 2;
         // For dotted, the dasharray is `0.01 period` and renders dots only
-        // when the line has `stroke-linecap="square"` (each near-zero dash
-        // becomes a square of stroke-width side). Without it the dots are
-        // invisible (DM-399). Use SQUARE not round so the dots match
-        // Chrome's painted square dots, not circles. DM-435 — re-probed
-        // 18px green dotted border, Chrome paints `▪`-style square dots.
-        const linecap = style === "dotted" ? ` stroke-linecap="square"` : "";
+        // when the line has `stroke-linecap="round"` (each near-zero dash
+        // becomes a circle of stroke-width diameter). Without it the dots
+        // are invisible (DM-399). Round caps match Chromium's BoxBorderPainter
+        // which paints dotted as "0 length dash strokes and round endcaps,
+        // producing circles" (verified via Chromium source — DM-435 was
+        // reverted, the earlier square-dots probe was misled by AA at 3 px
+        // dot size; high-resolution probe confirms circles).
+        const linecap = style === "dotted" ? ` stroke-linecap="round"` : "";
         // Round box edges to integer device pixels so the stroke center
         // lands on an integer (for even widths) and paints 2 solid rows
         // instead of 3 antialiased rows. Skip when border-collapse:collapse
@@ -3373,10 +3375,12 @@ export function elementTreeToSvg(
           continue;
         }
         const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
-        // Dotted uses `0.01 period` dasharray that needs square linecaps to
-        // render as squares (DM-399 / DM-435). Dashed keeps default butt caps
-        // so the dash:gap = 2:1 ratio paints flat-ended rectangles like Chrome.
-        const linecap = side.style === "dotted" ? ` stroke-linecap="square"` : "";
+        // Dotted uses `0.01 period` dasharray that needs round linecaps to
+        // render as circles (DM-399). Chromium'\\'s BoxBorderPainter draws
+        // dotted as "0 length dash strokes and round endcaps, producing
+        // circles" (verified via Chromium source). Dashed keeps default
+        // butt caps so the dash:gap ratio paints flat-ended rectangles.
+        const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
         const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
         svgParts.push(
           `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap} />`,
@@ -5744,12 +5748,14 @@ function adjustedDashArray(style: string, width: number, sideLength: number): st
 function adjustedDashAttrs(style: string, width: number, sideLength: number): { array: string; offset: number } {
   if (sideLength <= 0 || width <= 0) return { array: "", offset: 0 };
   if (style === "dashed") {
-    // Blink uses a 2:1 dash:gap ratio for `border-style: dashed` at width ≥ 3
-    // (DM-267). For narrower borders Chrome bumps the ratio to 3:1 to keep
-    // dashes visible — 1 px borders get 3 px dashes / 2 px gaps, 2 px get
-    // 6 px dashes / ~5 px gaps. DM-420 / DM-437 (re-probed at width 1/2/3).
-    const idealDash = width <= 2 ? width * 3 : width * 2;
-    const idealGap = width <= 1 ? width * 2 : width;
+    // Chromium's `StyledStrokeData::DashLengthRatio` / `DashGapRatio` (in
+    // `third_party/blink/renderer/platform/graphics/styled_stroke_data.cc`):
+    //   dash = thickness >= 3 ? 2.0 * width : 3.0 * width
+    //   gap  = thickness >= 3 ? 1.0 * width : 2.0 * width
+    // So thick borders (≥ 3 px) get 2:1 dash:gap, thin borders (1-2 px)
+    // get 3:2. Verified directly from Chromium source — DM-437 / DM-420.
+    const idealDash = width >= 3 ? width * 2 : width * 3;
+    const idealGap = width >= 3 ? width : width * 2;
     const idealPeriod = idealDash + idealGap;
     const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
     const scale = sideLength / (cycles * idealPeriod);
