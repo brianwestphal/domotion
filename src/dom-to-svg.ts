@@ -3210,11 +3210,23 @@ export function elementTreeToSvg(
         const bT = collapse ? el.y : Math.round(el.y);
         const bR = collapse ? el.x + el.width : Math.round(el.x + el.width);
         const bB = collapse ? el.y + el.height : Math.round(el.y + el.height);
+        // For thick (≥ 5 px) dashed/dotted borders, shorten each side by
+        // `inset` (= half stroke width) at both ends so adjacent sides
+        // meet at corners without overlap. With butt linecaps the line
+        // ink stops at exactly the line endpoint, so top + left don'\\'t
+        // both paint the same corner pixel. Chrome'\\'s BoxBorderPainter
+        // does the equivalent via per-side clipping — without this trim
+        // our 4-line dashed/dotted emit double-paints the corners as a
+        // darker square (DM-402, visible on the 10 px dashed border in
+        // `17-bg-color-image`). Thin borders skip the trim because the
+        // half-stroke gap (~1.5 px on a 3 px border) leaves a visible
+        // hole at corners.
+        const cornerTrim = bt.w >= 8 ? inset : 0;
         const sides: Array<[number, number, number, number, number]> = [
-          [bL, bT + inset, bR, bT + inset, bR - bL],
-          [bR - inset, bT, bR - inset, bB, bB - bT],
-          [bL, bB - inset, bR, bB - inset, bR - bL],
-          [bL + inset, bT, bL + inset, bB, bB - bT],
+          [bL + cornerTrim, bT + inset, bR - cornerTrim, bT + inset, bR - bL - 2 * cornerTrim],
+          [bR - inset, bT + cornerTrim, bR - inset, bB - cornerTrim, bB - bT - 2 * cornerTrim],
+          [bL + cornerTrim, bB - inset, bR - cornerTrim, bB - inset, bR - bL - 2 * cornerTrim],
+          [bL + inset, bT + cornerTrim, bL + inset, bB - cornerTrim, bB - bT - 2 * cornerTrim],
         ];
         for (const [x1, y1, x2, y2, len] of sides) {
           const { array: dash, offset } = adjustedDashAttrs(style, bt.w, len);
