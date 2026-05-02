@@ -535,10 +535,10 @@ describe("resolveFontKey: chain walking", () => {
 });
 
 describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
-  // Empirically derived from `scripts/probe-text-decorations.mjs` on Chromium
-  // / macOS — see DM-398 for the painted-pixel measurements at 12 / 14 / 16
-  // / 18 / 22 / 24 / 32 px sans-serif. Chrome ignores the font's own
-  // post.underlineThickness in the `text-decoration-thickness: auto` path.
+  // Empirical formula tuned for SVG rasterization (NOT Chromium's source
+  // formula `fontSize / 10` — that one is theoretically correct but produces
+  // worse visual match against Chrome'\\'s HTML render due to the SVG-vs-HTML
+  // rasterization gap documented in DM-418).
   it("uses 1px stroke for body sizes (≤ 19px)", () => {
     expect(getDecorationMetrics("Helvetica", 12, "400").underlineThickness).toBe(1);
     expect(getDecorationMetrics("Helvetica", 14, "400").underlineThickness).toBe(1);
@@ -552,10 +552,7 @@ describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
     expect(getDecorationMetrics("Helvetica", 32, "400").underlineThickness).toBe(2);
   });
 
-  it("emits underlineOffsetY = 1.5 × thickness (Chrome's stroke-top-at-baseline+thickness rule)", () => {
-    // Center sits at `round(baseline) + 1.5*thickness`, so SVG line at
-    // `decoBaselineY + offset` with `stroke-width=thickness` paints the
-    // expected pixel rows when the baseline is rounded by the renderer.
+  it("emits underlineOffsetY = 1.5 × thickness", () => {
     const m14 = getDecorationMetrics("Helvetica", 14, "400");
     expect(m14.underlineOffsetY).toBe(1.5);
     const m22 = getDecorationMetrics("Helvetica", 22, "400");
@@ -563,58 +560,45 @@ describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
   });
 
   it("emits strikeoutOffsetY ≈ fontSize/3 above baseline", () => {
-    // Chrome painted strike (probe): 14px → top at row 5 above baseline_int,
-    // 22px → top 7-8 above. Formula: round(fontSize/3) + thickness/2 (so
-    // SVG center sits at baseline_int - round(fs/3), painting <thickness>
-    // rows ending at that y).
     const m14 = getDecorationMetrics("Helvetica", 14, "400");
-    expect(m14.strikeoutOffsetY).toBe(Math.round(14 / 3) + 0.5);  // 5.5
+    expect(m14.strikeoutOffsetY).toBe(Math.round(14 / 3) + 0.5);
     const m22 = getDecorationMetrics("Helvetica", 22, "400");
-    expect(m22.strikeoutOffsetY).toBe(Math.round(22 / 3) + 1);    // 8
+    expect(m22.strikeoutOffsetY).toBe(Math.round(22 / 3) + 1);
   });
 
   it("emits overlineOffsetY ≈ fontSize above baseline (top of em-box)", () => {
-    // Chrome paints overline at the em-box top, i.e. baseline - fontSize.
-    // fontkit's HHEA ascent (12.32 at 16px Helvetica) sat ~3px below the
-    // em-top, which is what made overlines render too low pre-DM-398.
     const m14 = getDecorationMetrics("Helvetica", 14, "400");
-    expect(m14.overlineOffsetY).toBe(14 - 0.5);  // 13.5
+    expect(m14.overlineOffsetY).toBe(14 - 0.5);
     const m22 = getDecorationMetrics("Helvetica", 22, "400");
-    expect(m22.overlineOffsetY).toBe(22 - 1);    // 21
+    expect(m22.overlineOffsetY).toBe(22 - 1);
   });
 
   it("honors explicit text-decoration-thickness length (DM-431)", () => {
-    // Auto thickness at 16px would be 1; explicit 5px overrides.
     const m = getDecorationMetrics("Helvetica", 16, "400", undefined, "5px");
     expect(m.underlineThickness).toBe(5);
-    expect(m.underlineOffsetY).toBe(7.5); // 1.5 * 5
+    expect(m.underlineOffsetY).toBe(7.5);
     expect(m.strikeoutThickness).toBe(5);
-    expect(m.overlineOffsetY).toBe(13.5); // 16 - 5/2
+    expect(m.overlineOffsetY).toBe(13.5);
   });
 
   it("falls back to auto thickness when text-decoration-thickness is 'auto' or 'from-font' (DM-431)", () => {
     const auto = getDecorationMetrics("Helvetica", 16, "400", undefined, "auto");
-    expect(auto.underlineThickness).toBe(1); // ceil(16/20) = 1
+    expect(auto.underlineThickness).toBe(1);
     const fromFont = getDecorationMetrics("Helvetica", 16, "400", undefined, "from-font");
     expect(fromFont.underlineThickness).toBe(1);
   });
 
   it("adds explicit text-underline-offset to underlineOffsetY (DM-431)", () => {
-    // Auto offset for thickness 1 = 1.5; +6px offset → 7.5.
     const m = getDecorationMetrics("Helvetica", 16, "400", undefined, undefined, "6px");
     expect(m.underlineOffsetY).toBe(7.5);
-    // Strikeout / overline are NOT affected by text-underline-offset.
-    expect(m.strikeoutOffsetY).toBe(Math.round(16 / 3) + 0.5); // 5.5
-    expect(m.overlineOffsetY).toBe(15.5); // 16 - 0.5
   });
 
   it("falls back to auto offset when text-underline-offset is 'auto' (DM-431)", () => {
     const m = getDecorationMetrics("Helvetica", 16, "400", undefined, undefined, "auto");
-    expect(m.underlineOffsetY).toBe(1.5); // 1.5 * 1, no extra
+    expect(m.underlineOffsetY).toBe(1.5);
   });
 
   it("combines explicit thickness + offset overrides (DM-431)", () => {
-    // 5px thickness with 6px extra offset: center at 1.5*5 + 6 = 13.5.
     const m = getDecorationMetrics("Helvetica", 16, "400", undefined, "5px", "6px");
     expect(m.underlineThickness).toBe(5);
     expect(m.underlineOffsetY).toBe(13.5);

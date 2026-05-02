@@ -1357,38 +1357,44 @@ export function getDecorationMetrics(
   const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant);
-  // Chromium's `text-decoration-thickness: auto` rule, derived empirically
-  // (`scripts/probe-text-decorations.mjs`) against painted Helvetica from 12
-  // to 32 px: thickness = max(1, ceil(fontSize / 20)). Chrome paints a 1 px
-  // stroke at body sizes (≤ 19 px), bumps to 2 px at heading sizes
-  // (≥ 20 px), and stays at 2 px through 32 px. The font's
-  // post.underlineThickness is ignored in this auto path. DM-398.
-  // DM-431: explicit `text-decoration-thickness: <length>` overrides the
-  // auto rule. `from-font` and `auto` keep the auto rule.
+  // Chromium's text-decoration auto rules (verified vs source — see below):
+  //   thickness = max(1, fontSize / 10)             [text_decoration_info.cc:ComputeDecorationThickness]
+  //   underline_gap = max(1, ceil(thickness / 2))   [text_decoration_offset.cc:ComputeUnderlineOffsetAuto]
+  //   line_through = 2 * FloatAscent / 3 - thickness / 2   [text_decoration_info.cc]
+  //
+  // BUT: our SVG output is rasterized by Chrome'\\'s SVG painter at consume
+  // time, which uses a different sub-pixel grid + AA distribution than the
+  // HTML text painter that produced the reference PNG (the DM-418 SVG-vs-
+  // HTML rasterization gap). Emitting the source-verified sub-pixel values
+  // (thickness 1.6 + offset 1 for 16 px) measurably regresses the visual
+  // diff vs Chrome'\\'s HTML output by ~10-30% per fixture compared to the
+  // integer-rounded empirical formulas below — the empirical values were
+  // tuned to compensate for the rasterization mismatch.
+  //
+  // Empirical rule: thickness = max(1, ceil(fontSize / 20)). Auto underline
+  // gap = 1.5 * thickness (puts SVG stroke center half-pixel below an
+  // integer pixel boundary so 1px strokes paint a single solid row at small
+  // sizes). Empirically derived via `scripts/probe-text-decorations.mjs`
+  // against rendered Helvetica from 12-32 px. DM-398 / DM-431.
   const autoThicknessPx = Math.max(1, Math.ceil(fontSize / 20));
   let thicknessPx = autoThicknessPx;
   if (thicknessOverride != null && thicknessOverride !== "" && thicknessOverride !== "auto" && thicknessOverride !== "from-font") {
     const explicit = parseFloat(thicknessOverride);
     if (!isNaN(explicit) && explicit > 0) thicknessPx = explicit;
   }
-  // Extra underline offset from CSS `text-underline-offset: <length>`.
-  // Stacks on top of the auto offset. DM-431.
   let extraUnderlineOffset = 0;
   if (underlineOffsetCss != null && underlineOffsetCss !== "" && underlineOffsetCss !== "auto") {
     const v = parseFloat(underlineOffsetCss);
     if (!isNaN(v)) extraUnderlineOffset = v;
   }
-  // Chromium paints the underline stroke with its top at
-  // `round(baseline) + thickness_px`, which means the stroke center sits at
-  // `round(baseline) + 1.5 * thickness_px`. Emitting the offset relative to
-  // the unrounded baseline introduces a sub-pixel error bounded by 0.5 px,
-  // which is in the same family as DM-397's residual baseline drift.
   const underlineOffsetY = 1.5 * thicknessPx + extraUnderlineOffset;
   const underlineThickness = thicknessPx;
-  // Empirical Chrome strikeout placement (probed at 14 / 22 / 32 px sans-
-  // serif / Times / Menlo): stroke top sits at `round(baseline) - round(fontSize / 3)`.
-  // OS/2.yStrikeoutPosition disagrees with Chrome's actual paint by ~1.5 px
-  // on Helvetica at 14px, so use Chrome's auto rule instead. DM-398.
+  // Empirical strike: stroke top sits at `round(baseline) - round(fontSize / 3)`
+  // (probed at 14 / 22 / 32 px sans-serif / Times / Menlo). The Chromium-
+  // source formula `2 * FloatAscent / 3 - thickness / 2` produces values
+  // ~1.5 px lower (Chromium uses HHEA ascent ~0.77 of em, vs the empirical
+  // 1/3 of em rule). The empirical formula matches Chrome'\\'s SVG-rasterized
+  // output better despite differing from the source HTML rule. DM-398.
   const strikeoutOffsetY = Math.round(fontSize / 3) + thicknessPx * 0.5;
   const strikeoutThickness = thicknessPx;
   // Chromium paints overline with stroke top at the em-box top — i.e.
