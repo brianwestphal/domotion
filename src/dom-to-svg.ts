@@ -3195,10 +3195,12 @@ export function elementTreeToSvg(
         const collapse = el.styles.borderCollapse === "collapse";
         const inset = collapse ? 0 : bt.w / 2;
         // For dotted, the dasharray is `0.01 period` and renders dots only
-        // when the line has `stroke-linecap="round"` (each near-zero dash
-        // becomes a circle of stroke-width diameter). Without it the dots
-        // are invisible — DM-399. Dashed uses default butt caps.
-        const linecap = style === "dotted" ? ` stroke-linecap="round"` : "";
+        // when the line has `stroke-linecap="square"` (each near-zero dash
+        // becomes a square of stroke-width side). Without it the dots are
+        // invisible (DM-399). Use SQUARE not round so the dots match
+        // Chrome's painted square dots, not circles. DM-435 — re-probed
+        // 18px green dotted border, Chrome paints `▪`-style square dots.
+        const linecap = style === "dotted" ? ` stroke-linecap="square"` : "";
         // Round box edges to integer device pixels so the stroke center
         // lands on an integer (for even widths) and paints 2 solid rows
         // instead of 3 antialiased rows. Skip when border-collapse:collapse
@@ -3318,6 +3320,18 @@ export function elementTreeToSvg(
         // left: outer L,B  outer L,T  inner L+lw,T+tw  inner L+lw,B-bw
         [bl, `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(bxL + lw)},${r(bxT + tw)} ${r(bxL + lw)},${r(bxB - bw)}`],
       ];
+      // Per-side `double` style — emit two parallel strokes each w/3 wide
+      // separated by a w/3 gap (CSS spec). DM-436. Each side has its own
+      // perpendicular axis, so we offset along the inward normal.
+      const doubleSides: Array<[number, number, number, number]> = [
+        // For each side, the [outerOffsetX, outerOffsetY, innerOffsetX, innerOffsetY]
+        // expressed as multipliers of the side's own width applied to its centerline.
+        // Top: inward normal is +y. Outer stroke at center - w/3, inner at center + w/3.
+        [0, -1, 0, 1], // top: outer up (toward outer edge), inner down
+        [-1, 0, 1, 0], // right: outer right (outer edge), inner left
+        [0, 1, 0, -1], // bottom: outer down, inner up
+        [1, 0, -1, 0], // left: outer left, inner right
+      ];
       for (let i = 0; i < sides.length; i++) {
         const [side, x1, y1, x2, y2, len] = sides[i];
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
@@ -3329,11 +3343,28 @@ export function elementTreeToSvg(
           );
           continue;
         }
+        if (side.style === "double" && side.w >= 3 && !collapse) {
+          // Two parallel strokes, each w/3 wide, separated by a w/3 gap.
+          // Outer stroke center sits at (sideCenter + outerNormal * w/3),
+          // inner at (sideCenter + innerNormal * w/3). Each stroke = w/3 thick.
+          const strokeW = side.w / 3;
+          const offset_ = side.w / 3;
+          const [oxN, oyN, ixN, iyN] = doubleSides[i];
+          const ox = oxN * offset_, oy = oyN * offset_;
+          const ix = ixN * offset_, iy = iyN * offset_;
+          svgParts.push(
+            `${indent}<line x1="${r(x1 + ox)}" y1="${r(y1 + oy)}" x2="${r(x2 + ox)}" y2="${r(y2 + oy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}" />`,
+          );
+          svgParts.push(
+            `${indent}<line x1="${r(x1 + ix)}" y1="${r(y1 + iy)}" x2="${r(x2 + ix)}" y2="${r(y2 + iy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}" />`,
+          );
+          continue;
+        }
         const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
-        // Dotted uses `0.01 period` dasharray that needs round linecaps to
-        // render as circles (DM-399). Dashed keeps default butt caps so the
-        // dash:gap = 2:1 ratio paints flat-ended rectangles like Chrome.
-        const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+        // Dotted uses `0.01 period` dasharray that needs square linecaps to
+        // render as squares (DM-399 / DM-435). Dashed keeps default butt caps
+        // so the dash:gap = 2:1 ratio paints flat-ended rectangles like Chrome.
+        const linecap = side.style === "dotted" ? ` stroke-linecap="square"` : "";
         const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
         svgParts.push(
           `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap} />`,
