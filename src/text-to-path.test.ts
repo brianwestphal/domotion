@@ -311,8 +311,10 @@ describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
     expect(fallbackFontChain(0x25A0, "times")).toEqual(["lucida-grande", "symbols"]);
     expect(fallbackFontChain(0x25C9, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(fallbackFontChain(0x2600, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    // Arrows ← → ↗ ↙ likewise use the cjk-first arrows chain.
-    expect(fallbackFontChain(0x2190, "times")).toEqual(["cjk", "symbols"]);
+    // Arrows ← → ↗ ↙ now route to LucidaGrande regardless of primary
+    // (DM-405 — re-probed via CDP, Chrome paints these via LucidaGrande
+    // at every size 12 → 32 px, not Hiragino).
+    expect(fallbackFontChain(0x2190, "times")).toEqual(["lucida-grande", "symbols"]);
   });
 });
 
@@ -341,18 +343,19 @@ describe("Math Operators primary-font handling (DM-332)", () => {
   });
 });
 
-describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369)", () => {
-  // Chrome on macOS paints ← → ↗ ↙ at 24px @24px font-size (matching
-  // Hiragino W6's CJK em-square glyph). Apple Symbols paints them at
-  // 15-17px which renders visibly thinner. Lock the cjk-first routing
-  // for these four codepoints. Other arrows (↔↦⇒…) stay on Apple
-  // Symbols because Hiragino either lacks the glyph or paints it at a
-  // different width than Chrome.
-  it("routes ← → ↗ ↙ to cjk-first (matches Chrome's painted width)", () => {
-    expect(fallbackFontChain(0x2190)).toEqual(["cjk", "symbols"]);
-    expect(fallbackFontChain(0x2192)).toEqual(["cjk", "symbols"]);
-    expect(fallbackFontChain(0x2197)).toEqual(["cjk", "symbols"]);
-    expect(fallbackFontChain(0x2199)).toEqual(["cjk", "symbols"]);
+describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405)", () => {
+  // Re-probed via CDP `CSS.getPlatformFontsForNode` for DM-405: at every
+  // font-size 12 → 32 px, Chrome paints ← → ↑ ↓ ↗ ↙ via LucidaGrande
+  // — NOT Hiragino as DM-296 originally measured. The earlier Hiragino
+  // route produced thin outlined arrows where Chrome paints chunky
+  // filled arrows (visible on the `→` in `11-box-margin-collapse`).
+  it("routes ← → ↑ ↓ ↗ ↙ to LucidaGrande (matches Chrome's painted glyph shape)", () => {
+    expect(fallbackFontChain(0x2190)).toEqual(["lucida-grande", "symbols"]); // ←
+    expect(fallbackFontChain(0x2192)).toEqual(["lucida-grande", "symbols"]); // →
+    expect(fallbackFontChain(0x2191)).toEqual(["lucida-grande", "symbols"]); // ↑
+    expect(fallbackFontChain(0x2193)).toEqual(["lucida-grande", "symbols"]); // ↓
+    expect(fallbackFontChain(0x2197)).toEqual(["lucida-grande", "symbols"]); // ↗
+    expect(fallbackFontChain(0x2199)).toEqual(["lucida-grande", "symbols"]); // ↙
   });
 
   // ↑ ↓ are not at CJK em-square width and not at Apple Symbols' narrow

@@ -497,11 +497,16 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
   //              captured bounding box; Apple Symbols paints them at
   //              9.86/10.28px and Hiragino paints at 22/24px, both wrong
   //              (DM-369).
+  // ← → ↑ ↓ ↗ ↙ — re-probed via CDP `CSS.getPlatformFontsForNode`
+  // (DM-405): Chrome paints all four cardinal + the two ↗ ↙ diagonals
+  // via Lucida Grande at every size (12 → 32 px). Earlier DM-296 routed
+  // ← → ↗ ↙ to cjk (Hiragino), but the painted glyph is the chunkier
+  // LucidaGrande arrow shape — visible on the `→` in `11-box-margin-collapse`
+  // where our thin Hiragino outline was clearly different from Chrome'\\'s
+  // thick filled arrow. Consolidate all six on the LucidaGrande route.
   if (codepoint === 0x2190 || codepoint === 0x2192
-      || codepoint === 0x2197 || codepoint === 0x2199) {
-    return ["cjk", "symbols"];
-  }
-  if (codepoint === 0x2191 || codepoint === 0x2193) {
+      || codepoint === 0x2197 || codepoint === 0x2199
+      || codepoint === 0x2191 || codepoint === 0x2193) {
     return ["lucida-grande", "symbols"];
   }
   // Mathematical Alphanumeric Symbols (𝐀 𝒜 𝕊 𝟬 𝔄 𝛼 etc.) — Chrome paints
