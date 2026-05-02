@@ -33,13 +33,17 @@ export function rasterGlyphOverlays(seg: TextSegment, fallbackFontSize: number, 
   // em-square paint by ~1px and shifted the bitmap down by ~1px relative to
   // the baseline — producing the colored fringe DM-381 reported. Emit at
   // em-square size centered in the rect instead. (DM-381)
-  const segFontSize = seg.fontSize ?? fallbackFontSize;
   for (const g of seg.rasterGlyphs) {
     if (g.dataUri == null) continue;
-    const size = segFontSize;
-    const ix = g.rect.x + (g.rect.width - size) / 2;
-    const iy = g.rect.y + (g.rect.height - size) / 2;
-    out.push(`<image href="${g.dataUri}" x="${r(ix)}" y="${r(iy)}" width="${r(size)}" height="${r(size)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`);
+    // Emit the screenshot at exactly the captured rect coords + dims. The
+    // PNG was screenshot from Chrome's actual paint at this rect, so
+    // re-embedding it at the same rect preserves the painted geometry
+    // pixel-for-pixel. Earlier (DM-381) we stretched to em-square via
+    // `width=fontSize height=fontSize preserveAspectRatio=none`, which
+    // squished tall line-box rects horizontally — flag emoji and other
+    // raster glyphs rendered visibly larger than Chrome's actual paint
+    // (DM-401 / DM-411 / DM-414).
+    out.push(`<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`);
   }
   return out.join("");
 }

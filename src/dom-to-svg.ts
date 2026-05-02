@@ -5725,14 +5725,12 @@ function adjustedDashArray(style: string, width: number, sideLength: number): st
 function adjustedDashAttrs(style: string, width: number, sideLength: number): { array: string; offset: number } {
   if (sideLength <= 0 || width <= 0) return { array: "", offset: 0 };
   if (style === "dashed") {
-    // Blink uses a 2:1 dash:gap ratio for `border-style: dashed` (DM-267).
-    // Empirical re-probe for DM-420: for narrow borders (width ≤ 2 px),
-    // Chrome enforces a minimum dash length of 6 px so dashes stay visible.
-    // Without this, a 2 px-wide dashed border would emit 4 px dashes and
-    // pack ~8 cycles into a 50 px side, while Chrome paints 5 cycles of
-    // 6 px dashes. `scripts/probe-dotted-phase.mjs` confirmed this.
-    const idealDash = Math.max(width * 2, 6);
-    const idealGap = width;
+    // Blink uses a 2:1 dash:gap ratio for `border-style: dashed` at width ≥ 3
+    // (DM-267). For narrower borders Chrome bumps the ratio to 3:1 to keep
+    // dashes visible — 1 px borders get 3 px dashes / 2 px gaps, 2 px get
+    // 6 px dashes / ~5 px gaps. DM-420 / DM-437 (re-probed at width 1/2/3).
+    const idealDash = width <= 2 ? width * 3 : width * 2;
+    const idealGap = width <= 1 ? width * 2 : width;
     const idealPeriod = idealDash + idealGap;
     const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
     const scale = sideLength / (cycles * idealPeriod);

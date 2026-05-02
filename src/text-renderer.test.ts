@@ -18,23 +18,25 @@ describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
     }]
   };
 
-  it("emits the bitmap at em-square size (fontSize × fontSize) centered in the rect", () => {
+  it("emits the bitmap at the captured rect coords + dims (DM-401 / DM-411 / DM-414)", () => {
+    // The screenshot was captured from Chrome's actual paint at this rect,
+    // so re-embedding at the same coords + dims preserves the painted
+    // geometry pixel-for-pixel. Avoid the prior em-square-stretch which
+    // squished tall line-box rects horizontally and rendered emojis
+    // visibly larger than Chrome's actual paint.
     const out = rasterGlyphOverlays(seg, 22, "ct1");
-    // Center: x = 347.7 + (23 - 22) / 2 = 348.2, y = 695.4 + (25 - 22) / 2 = 696.9.
-    expect(out).toContain('width="22"');
-    expect(out).toContain('height="22"');
-    expect(out).toContain('x="348.2"');
-    expect(out).toContain('y="696.9"');
-    // Stretches at exactly em-square — avoid `xMidYMid meet`'s implicit
-    // letterboxing which over-shoots Chrome's painted bbox by ~1px on the
-    // longer rect axis (the persistent diff DM-381 reported).
+    expect(out).toContain('x="347.7"');
+    expect(out).toContain('y="695.4"');
+    expect(out).toContain('width="23"');
+    expect(out).toContain('height="25"');
     expect(out).toContain('preserveAspectRatio="none"');
   });
 
-  it("uses the segment's own fontSize when set, else the fallback", () => {
+  it("ignores fontSize for sizing — the captured rect dims are authoritative", () => {
     const segWithFs: any = { ...seg, fontSize: 32 };
     const out = rasterGlyphOverlays(segWithFs, 16, "ct1");
-    expect(out).toContain('width="32"');
+    expect(out).toContain('width="23"');
+    expect(out).toContain('height="25"');
   });
 
   it("returns empty when there are no resolved dataUris", () => {
