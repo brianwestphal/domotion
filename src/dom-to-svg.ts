@@ -3591,8 +3591,15 @@ export function elementTreeToSvg(
           ? el.textTop + el.fontAscent
           : el.y + lineHeightPx * 0.72;
         const shapeY = el.y + lineHeightPx / 2;
-        // Default gap between marker and content = ~8px.
-        const gap = 8;
+        // Default gap between marker right edge and the li's content-left.
+        // Empirical pixel probe (DM-403) on `<ul style="padding-left:40">`
+        // at 16 px sans-serif: Chrome paints the disc'\\'s right edge ~12 px
+        // before the li'\\'s content edge (bullet center 14 px before, with
+        // ~2 px radius). The previous 8 placed the bullet ~3 px too close
+        // to the text. Gap stays a constant 12 px independent of font size
+        // — Chrome'\\'s LayoutListMarker uses a fixed pixel offset, not an
+        // em-based one, for this distance.
+        const gap = 12;
         const idx = el.listItemIndex ?? 1;
         if (lsType === "disc" || lsType === "circle" || lsType === "square") {
           // Chrome's `::marker` paints disc/circle/square at a hardcoded
