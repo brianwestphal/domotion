@@ -2611,6 +2611,118 @@ async function rasterizeBitmapGlyphs(
 
 
 /**
+ * Calibrate `fontAscent` on text-bearing elements by scanning a reference
+ * PNG (Chrome's actual paint) for each element's painted ink top, then
+ * back-solving the sub-pixel baseline as
+ * `inkTop - textTop + actualBoundingBoxAscent(text)` where the cap-height
+ * comes from `canvas.measureText(text).actualBoundingBoxAscent` (sub-pixel
+ * accurate, unlike `fontBoundingBoxAscent` which Chrome integer-rounds).
+ *
+ * Closes the residual ±0.6 px text-baseline drift documented in DM-397 /
+ * DM-418. Empirical extraction at capture time — uses Chrome's actual
+ * painted output as ground truth instead of trying to mirror Chromium's
+ * per-platform LayoutNG strut math.
+ *
+ * Caller must provide PNG bytes from a Chrome screenshot of the same
+ * viewport that was captured. For the test pipeline this is the same
+ * `expected.png` we already write to disk for diffing.
+ */
+export async function calibrateBaselines(
+  page: Page,
+  elements: CapturedElement[],
+  pngBytes: Buffer | Uint8Array,
+): Promise<void> {
+  // Flatten the tree into a list of text-bearing elements with stable keys
+  const flat: Array<{ key: string; el: CapturedElement }> = [];
+  let counter = 0;
+  const walk = (els: CapturedElement[]) => {
+    for (const e of els) {
+      if ((e.text != null && e.text !== "") && e.textTop != null && e.textWidth != null && e.textWidth > 0 && e.textHeight != null && e.textHeight > 0) {
+        flat.push({ key: `c${counter++}`, el: e });
+      }
+      if (e.children != null && e.children.length > 0) walk(e.children);
+    }
+  };
+  walk(elements);
+  if (flat.length === 0) return;
+
+  const items = flat.map((f) => ({
+    key: f.key,
+    text: f.el.text!,
+    textTop: f.el.textTop!,
+    textLeft: f.el.textLeft ?? f.el.x,
+    textWidth: f.el.textWidth!,
+    textHeight: f.el.textHeight!,
+    fontSize: parseFloat(f.el.styles.fontSize) || 14,
+    fontFamily: f.el.styles.fontFamily,
+    fontWeight: f.el.styles.fontWeight,
+    fontStyle: f.el.styles.fontStyle,
+    color: f.el.styles.color,
+  }));
+
+  const b64 = `data:image/png;base64,${Buffer.from(pngBytes).toString("base64")}`;
+
+  // The body of this evaluate is sent to the browser as a string. Keep it
+  // free of TypeScript-only helpers that tsc/tsx might emit references to
+  // (notably `__name` for class metadata). Plain function expressions and
+  // var/let work; arrow functions are also fine, but explicit `function`
+  // declarations avoid edge-cases in the transpiler output.
+  const adjustments = await page.evaluate(async function (args: { b64: string; items: typeof items }) {
+    var img = new Image();
+    img.src = args.b64;
+    await img.decode();
+    var c = document.createElement("canvas");
+    c.width = img.width;
+    c.height = img.height;
+    var ctx = c.getContext("2d");
+    if (ctx == null) return [];
+    ctx.drawImage(img, 0, 0);
+    var pix = ctx.getImageData(0, 0, img.width, img.height).data;
+    var W = img.width;
+    var bgLum = 0.299 * pix[0] + 0.587 * pix[1] + 0.114 * pix[2];
+
+    var measureCv = document.createElement("canvas").getContext("2d");
+    var out: Array<{ key: string; ascent: number | null }> = [];
+
+    for (var ii = 0; ii < args.items.length; ii++) {
+      var it = args.items[ii];
+      var x0 = Math.max(0, Math.floor(it.textLeft));
+      var x1 = Math.min(W, Math.ceil(it.textLeft + it.textWidth));
+      var y0 = Math.max(0, Math.floor(it.textTop) - 2);
+      var y1 = Math.min(img.height, Math.ceil(it.textTop + it.textHeight) + 2);
+      var inkTop = -1;
+      for (var y = y0; y < y1 && inkTop < 0; y++) {
+        for (var x = x0; x < x1; x++) {
+          var i = (y * W + x) * 4;
+          var lum = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
+          if (Math.abs(lum - bgLum) > 30) { inkTop = y; break; }
+        }
+      }
+      if (inkTop < 0) { out.push({ key: it.key, ascent: null }); continue; }
+
+      if (measureCv == null) { out.push({ key: it.key, ascent: null }); continue; }
+      measureCv.font = (it.fontStyle || "normal") + " " + (it.fontWeight || "400") + " " + it.fontSize + "px " + it.fontFamily;
+      var tm = measureCv.measureText(it.text);
+      var subPixelAscent = tm.actualBoundingBoxAscent;
+      if (!isFinite(subPixelAscent) || subPixelAscent <= 0) { out.push({ key: it.key, ascent: null }); continue; }
+
+      var correctedAscent = (inkTop - it.textTop) + subPixelAscent;
+      if (correctedAscent < it.fontSize * 0.3 || correctedAscent > it.fontSize * 1.5) {
+        out.push({ key: it.key, ascent: null });
+        continue;
+      }
+      out.push({ key: it.key, ascent: correctedAscent });
+    }
+    return out;
+  }, { b64, items });
+
+  for (let i = 0; i < adjustments.length; i++) {
+    const adj = adjustments[i];
+    if (adj.ascent != null) flat[i].el.fontAscent = adj.ascent;
+  }
+}
+
+/**
  * Wrap inner SVG markup (as returned by `elementTreeToSvg`) in a complete
  * `<svg>` document with the standard namespace, viewBox, and intrinsic size.
  * This is the boilerplate every standalone-capture user would otherwise write
