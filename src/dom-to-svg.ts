@@ -3608,14 +3608,22 @@ export function elementTreeToSvg(
           : el.y + lineHeightPx * 0.72;
         const shapeY = el.y + lineHeightPx / 2;
         // Default gap between marker right edge and the li's content-left.
-        // Empirical pixel probe (DM-403) on `<ul style="padding-left:40">`
-        // at 16 px sans-serif: Chrome paints the disc'\\'s right edge ~12 px
-        // before the li'\\'s content edge (bullet center 14 px before, with
-        // ~2 px radius). The previous 8 placed the bullet ~3 px too close
-        // to the text. Gap stays a constant 12 px independent of font size
-        // — Chrome'\\'s LayoutListMarker uses a fixed pixel offset, not an
-        // em-based one, for this distance.
-        const gap = 12;
+        // Verified vs Chromium source `list_marker.cc::InlineMarginsForOutside`:
+        //   const int kCMarkerPaddingPx = 7;
+        //   margin_end = offset + kCMarkerPaddingPx + 1 - marker_inline_size;
+        //   offset = font_metrics.Ascent() * 2 / 3;
+        // So for 16 px Helvetica (Ascent ≈ 12.32, disc size ≈ 4.5):
+        //   margin_end = 12.32*2/3 + 8 - 4.5 = 11.7 ≈ 12
+        // Use the source formula directly — gives the right gap across
+        // font sizes (vs the previous constant 12 which was only tuned at
+        // 16 px). DM-403 (verified vs Chromium source).
+        // Marker inline size is approximated as the disc diameter
+        // (markerFontSize * 0.28 from the existing 0.14em-radius probe).
+        // Ascent estimated as 0.77 * fontSize (Helvetica HHEA ratio
+        // 1577/2048; close enough for the 8 px constant to dominate).
+        const ascentForGap = markerFontSize * 0.77;
+        const markerInlineSize = markerFontSize * 0.28;
+        const gap = (ascentForGap * 2 / 3) + 8 - markerInlineSize;
         const idx = el.listItemIndex ?? 1;
         if (lsType === "disc" || lsType === "circle" || lsType === "square") {
           // Chrome's `::marker` paints disc/circle/square at a hardcoded
