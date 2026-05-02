@@ -829,11 +829,18 @@ const CAPTURE_SCRIPT = `
   // canvas.measureText().fontBoundingBoxAscent dodges the per-font metric-
   // selection rules entirely (the browser already applied them). Cached by
   // resolved font spec to avoid recreating canvases per element.
+  //
+  // DM-418 sub-pixel-ascent attempt (reverted): tried probing
+  // canvas.fbAsc at fontSize=1600 to extract an unrounded ratio, then
+  // applying ratio * actualFontSize for sub-pixel ascent. Theoretically
+  // closes the integer-rounding ±0.5 px swing, but in practice produces
+  // mixed results — about half of test fixtures regressed (text-right
+  // 1494 → 1636, text-mono 1204 → 1330, layout-flex-center 681 → 857)
+  // because SVG rasterization actually prefers integer baselines for
+  // crisp glyph hinting. Sub-pixel baselines blur some glyphs more
+  // than the integer-rounding drift hurts. Stuck with integer fbAsc.
   const _fontMetricsCache = new Map();
   const _measureFontMetrics = (cs) => {
-    // Compose a stable key matching what canvas font shorthand will normalize
-    // to. fontStyle / fontWeight / fontSize / fontFamily are the inputs that
-    // affect the ascent value.
     const fs = cs.fontStyle || 'normal';
     const fw = cs.fontWeight || '400';
     const fz = cs.fontSize || '14px';
@@ -843,10 +850,7 @@ const CAPTURE_SCRIPT = `
     if (v != null) return v;
     const c = document.createElement('canvas');
     const ctx = c.getContext('2d');
-    // Canvas font shorthand: <style> <weight> <size> <family>
     ctx.font = fs + ' ' + fw + ' ' + fz + ' ' + ff;
-    // 'Mxgp' picks up cap, x-height, and descender — fontBoundingBoxAscent is
-    // font-wide max so the exact string only matters as a non-empty input.
     const m = ctx.measureText('Mxgp');
     v = { ascent: m.fontBoundingBoxAscent, descent: m.fontBoundingBoxDescent };
     _fontMetricsCache.set(key, v);
