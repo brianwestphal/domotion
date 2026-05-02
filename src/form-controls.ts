@@ -338,7 +338,12 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`);
   }
   const trackFill = trackGradFill ?? trackBgColor;
-  parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${trackFill}" />`);
+  // Native UA range slider paints a 1px gray border around the track.
+  // Empirical Chrome paint at 18px sans-serif: rgb(204,204,204) 1px stroke.
+  // Author-styled tracks (rangeTrackBg set) skip this — the author owns
+  // the visual chrome. DM-409.
+  const trackStroke = !styledTrack ? ` stroke="rgb(204,204,204)" stroke-width="1"` : "";
+  parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${trackFill}"${trackStroke} />`);
   // UA default paints an accent-colored fill from the track origin to the
   // thumb. Author-styled tracks usually replace this with their own
   // background, so skip the accent fill when the track was overridden.
