@@ -112,6 +112,11 @@ export interface TextSegment {
     charIndex: number;
     rect: { x: number; y: number; width: number; height: number };
     dataUri?: string;
+    /** When true, the underlying text-path emit for this charIndex must be
+     *  suppressed: the raster image is the ONLY paint for this codepoint
+     *  (e.g. ::first-letter drop caps where the styled big-letter raster
+     *  would otherwise sit on top of the body-size path glyph). DM-439. */
+    suppressGlyph?: boolean;
   }>;
 }
 
@@ -194,6 +199,9 @@ export interface CapturedElement {
     listStyleType: string;
     listStyleImage: string;
     listStylePosition: string;
+    /** CSS `display` (e.g. `block`, `list-item`, `flex`). Used by the
+     *  renderer to detect display:list-item on non-li tags. DM-451. */
+    display?: string;
     backgroundImage: string;
     backgroundSize: string;
     backgroundPosition: string;
@@ -257,6 +265,12 @@ export interface CapturedElement {
     meterEvenLessGoodBg?: string;
     meterEvenLessGoodBgImage?: string;
     detailsOpen?: boolean;
+    /** True when the `<summary>`'s `::marker` was hidden by author CSS
+     *  (e.g. `::marker { color: transparent }` or
+     *  `::-webkit-details-marker { color: transparent }`), so the renderer
+     *  should NOT paint its own UA disclosure triangle on top of the
+     *  author's custom marker. DM-448. */
+    summaryMarkerSuppressed?: boolean;
     selectChevron?: boolean;
     /** Text of the currently-selected option, rendered inside the `<select>`
      *  content rect for closed dropdowns (DM-246). For listbox-mode selects
@@ -424,6 +438,14 @@ export interface CapturedElement {
   markerColor?: string;
   markerFontWeight?: string;
   markerFontSize?: string;
+  /** Computed `::marker { content: ... }`. When non-default ("normal" or
+   *  empty), Chrome paints this string in place of the list-style-type
+   *  bullet/number. Captured as the raw computed value (may include
+   *  surrounding quotes). DM-447. */
+  markerContent?: string;
+  /** Computed `::marker { font-family }`. Defaults to inherit, but authors
+   *  can override (e.g. `font-family: monospace` on numeric markers). */
+  markerFontFamily?: string;
   /** ::before / ::after pseudo-element image content (content: url(...)). */
   pseudoImages?: Array<{ url: string; x: number; y: number; width: number; height: number }>;
   svgContent?: string;
@@ -1551,6 +1573,9 @@ const CAPTURE_SCRIPT = `
                       width: cRec.right - cRec.left,
                       height: cRec.bottom - cRec.top,
                     },
+                    // ::first-letter drop caps: suppress the path glyph so
+                    // only the rasterized big letter paints (DM-439).
+                    suppressGlyph: isFirstLetter ? true : undefined,
                   });
                 }
                 utf16Idx += cRec.ch.length;
@@ -1701,7 +1726,12 @@ const CAPTURE_SCRIPT = `
     // markers at their natural size (CSS default).
     let listMarkerIntrinsic = undefined;
     let listItemIndex = undefined;
-    if (tag === 'li') {
+    // CSS treats any element with display:list-item as a list item, not
+    // just li. divs / spans / sections etc. with the property paint a
+    // marker per list-style-type and contribute to the implicit counter.
+    // (DM-451)
+    const isListItem = tag === 'li' || (cs.display != null && cs.display.includes('list-item'));
+    if (isListItem) {
       if (cs.listStyleImage && cs.listStyleImage !== 'none') {
         const u = /^url\\((?:"|')?([^"')]+)/.exec(cs.listStyleImage);
         if (u != null) {
@@ -1710,20 +1740,33 @@ const CAPTURE_SCRIPT = `
           if (img.naturalWidth > 0) listMarkerIntrinsic = { w: img.naturalWidth, h: img.naturalHeight };
         }
       }
-      // Compute 1-based index for numeric/alpha markers. Respect <ol start>, <ol reversed>, <li value>.
+      // Compute 1-based index for numeric/alpha markers. For <li> respect
+      // <ol start>, <ol reversed>, <li value>. For non-<li> display:list-item
+      // elements, just count display:list-item siblings in DOM order.
       const parent = el.parentElement;
       if (parent != null) {
-        const siblings = Array.from(parent.children).filter((c) => c.tagName.toLowerCase() === 'li');
-        const parentTag = parent.tagName.toLowerCase();
-        const reversed = parentTag === 'ol' && parent.hasAttribute('reversed');
-        let start = 1;
-        if (parentTag === 'ol' && parent.hasAttribute('start')) start = parseInt(parent.getAttribute('start'), 10) || 1;
-        if (reversed) start = siblings.length;
-        let cur = start;
-        for (const s of siblings) {
-          if (s.hasAttribute('value')) cur = parseInt(s.getAttribute('value'), 10) || cur;
-          if (s === el) { listItemIndex = cur; break; }
-          cur += reversed ? -1 : 1;
+        if (tag === 'li') {
+          const siblings = Array.from(parent.children).filter((c) => c.tagName.toLowerCase() === 'li');
+          const parentTag = parent.tagName.toLowerCase();
+          const reversed = parentTag === 'ol' && parent.hasAttribute('reversed');
+          let start = 1;
+          if (parentTag === 'ol' && parent.hasAttribute('start')) start = parseInt(parent.getAttribute('start'), 10) || 1;
+          if (reversed) start = siblings.length;
+          let cur = start;
+          for (const s of siblings) {
+            if (s.hasAttribute('value')) cur = parseInt(s.getAttribute('value'), 10) || cur;
+            if (s === el) { listItemIndex = cur; break; }
+            cur += reversed ? -1 : 1;
+          }
+        } else {
+          let cur = 1;
+          for (const s of parent.children) {
+            const sd = window.getComputedStyle(s).display;
+            if (sd != null && sd.includes('list-item')) {
+              if (s === el) { listItemIndex = cur; break; }
+              cur += 1;
+            }
+          }
         }
       }
     }
@@ -1902,6 +1945,7 @@ const CAPTURE_SCRIPT = `
         maskComposite: cs.maskComposite || 'add',
         listStyleType: cs.listStyleType,
         listStyleImage: cs.listStyleImage,
+        display: cs.display,
         listStylePosition: cs.listStylePosition,
         backgroundImage: cs.backgroundImage,
         backgroundSize: cs.backgroundSize,
@@ -2025,6 +2069,21 @@ const CAPTURE_SCRIPT = `
           };
         })() : {}),
         detailsOpen: tag === 'details' ? !!el.open : undefined,
+        // Detect if author CSS hid the summary's UA disclosure marker (e.g.
+        // ::marker { color: transparent }). If so, skip painting our own
+        // triangle — the author's custom marker (typically ::before) is the
+        // only one that should show. DM-448.
+        summaryMarkerSuppressed: tag === 'details' ? (() => {
+          const sum = el.querySelector(':scope > summary');
+          if (sum == null) return false;
+          const mc = window.getComputedStyle(sum, '::marker').color;
+          // 'transparent' or 'rgba(R, G, B, 0)' → alpha=0. 'rgb(R, G, B)'
+          // (no alpha component) is opaque and must NOT trigger suppression.
+          if (mc === 'transparent') return true;
+          const am = /^rgba\\(\\s*[0-9.]+\\s*,\\s*[0-9.]+\\s*,\\s*[0-9.]+\\s*,\\s*([0-9.]+)\\s*\\)$/.exec(mc);
+          if (am != null && parseFloat(am[1]) === 0) return true;
+          return false;
+        })() : undefined,
         // Native chevron only when the select keeps UA chrome — appearance:
         // none means the page draws its own arrow via background-image, and
         // we should not stack our default chevron on top. (DM-308)
@@ -2213,9 +2272,11 @@ const CAPTURE_SCRIPT = `
       // ::marker pseudo styles (SK-1115). Only meaningful on <li>; rest of
       // the time the values come back equal to the elements own font and
       // are quietly ignored at render time.
-      markerColor: tag === 'li' ? normColor(window.getComputedStyle(el, '::marker').color) : undefined,
-      markerFontWeight: tag === 'li' ? window.getComputedStyle(el, '::marker').fontWeight : undefined,
-      markerFontSize: tag === 'li' ? window.getComputedStyle(el, '::marker').fontSize : undefined,
+      markerColor: isListItem ? normColor(window.getComputedStyle(el, '::marker').color) : undefined,
+      markerFontWeight: isListItem ? window.getComputedStyle(el, '::marker').fontWeight : undefined,
+      markerFontSize: isListItem ? window.getComputedStyle(el, '::marker').fontSize : undefined,
+      markerContent: isListItem ? window.getComputedStyle(el, '::marker').content : undefined,
+      markerFontFamily: isListItem ? window.getComputedStyle(el, '::marker').fontFamily : undefined,
       textSegments: textSegments.length > 0 ? textSegments : undefined,
       textTop, textLeft, textHeight, textWidth, fontAscent, fontDescent,
       inputXOffsets,
@@ -3561,7 +3622,13 @@ export function elementTreeToSvg(
     // to accommodate the marker, which means el.height for a large-image
     // marker is big — we position the marker vertically centered in the first
     // line box (top of li) and let it overflow left for outside markers.
-    if (el.tag === "li") {
+    // <summary> has UA `display: list-item` with list-style-type
+    // `disclosure-closed`/`disclosure-open` — those are painted by the
+    // renderDetailsMarker pipeline on the <details> parent (DM-448), so
+    // skip the generic list-item marker here to avoid double-painting.
+    const isListItem = el.tag !== "summary"
+      && (el.tag === "li" || (el.styles.display != null && el.styles.display.includes("list-item")));
+    if (isListItem) {
       const lsImage = el.styles.listStyleImage;
       const lsType = el.styles.listStyleType ?? "disc";
       const fontSizePx = parseFloat(el.styles.fontSize) || 14;
@@ -3629,7 +3696,35 @@ export function elementTreeToSvg(
         const markerInlineSize = markerFontSize * 0.28;
         const gap = (ascentForGap * 2 / 3) + 8 - markerInlineSize;
         const idx = el.listItemIndex ?? 1;
-        if (lsType === "disc" || lsType === "circle" || lsType === "square") {
+        // Custom `::marker { content: "..." }` (DM-447). When set, Chrome
+        // replaces the list-style-type bullet/number with the content
+        // string. getComputedStyle returns content as a quoted CSS-string
+        // (e.g. '"➤ "') or 'normal' for the default. Take any non-default
+        // content as the marker label.
+        const rawContent = el.markerContent;
+        const hasCustomContent = rawContent != null
+          && rawContent !== ""
+          && rawContent !== "normal"
+          && rawContent !== "none";
+        if (hasCustomContent) {
+          // Parse CSS `<string>`: strip surrounding quotes, take the first
+          // string token, unescape backslash sequences. Multiple tokens
+          // ("..." attr(x) "...") aren't supported here — first token wins.
+          let label = rawContent;
+          const sm = /^"((?:[^"\\]|\\.)*)"|^'((?:[^'\\]|\\.)*)'/.exec(label);
+          if (sm != null) label = sm[1] ?? sm[2] ?? "";
+          label = label.replace(/\\([0-9a-fA-F]{1,6})\s?/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)));
+          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
+          // Position: marker right-aligned just left of the li's content edge,
+          // mirroring the text-marker branch below.
+          const smallGap = 4;
+          const mx = outside ? el.x - smallGap : el.x;
+          const anchor = outside ? "end" : "start";
+          const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          svgParts.push(
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${markerFontFamily}" fill="${markerColor}">${escLabel}</text>`,
+          );
+        } else if (lsType === "disc" || lsType === "circle" || lsType === "square") {
           // Chrome's `::marker` paints disc/circle/square at a hardcoded
           // size that's LARGER than the bullet glyph U+2022's natural bbox
           // in the inherited font: empirical pixel probe (DM-374) of `<ul
@@ -3668,8 +3763,9 @@ export function elementTreeToSvg(
           const smallGap = 4;
           const mx = outside ? el.x - smallGap : el.x;
           const anchor = outside ? "end" : "start";
+          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
           svgParts.push(
-            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${el.styles.fontFamily}" fill="${markerColor}">${label}</text>`,
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${markerFontFamily}" fill="${markerColor}">${label}</text>`,
           );
         }
       }
@@ -3824,22 +3920,53 @@ export function elementTreeToSvg(
         const fontSizePx = parseFloat(el.styles.fontSize) || 14;
         const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
         const padR = parseFloat(el.styles.paddingRight ?? "") || 0;
-        // Position: right edge of the content box, minus a small inset for
-        // the marker glyph. Baseline at the same y as the element's text
-        // baseline (textTop + fontAscent if captured).
-        const tx = el.x + el.width - padR - 2;
+        const brR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+        // Position: right edge of the content box. Baseline at the same y as
+        // the element's text baseline (textTop + fontAscent if captured).
+        const contentRightX = el.x + el.width - padR - brR;
+        const tx = contentRightX;
         const ty = (el.textTop != null && el.fontAscent != null)
           ? el.textTop + el.fontAscent
           : el.y + fontSizePx * 1.1;
         const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        // Paint a small white background rect under the marker so the
-        // overflowing text behind it gets visually erased — mirrors Chrome
-        // where the truncated text doesn't bleed past the marker.
+        // Paint a background rect under the marker so the overflowing text
+        // behind it gets visually erased — mirrors Chrome where the
+        // truncated text doesn't bleed past the marker. Extend the rect all
+        // the way to the element's right edge so any clipped trailing chars
+        // sitting inside the right padding are also covered.
+        // markerW: per-char ~0.95 of fontSize is a conservative width for
+        // "…" in Helvetica/Arial/SF Pro; custom strings may be slightly off
+        // but this is much closer than the previous 0.55 ratio.
         const bgCol = el.styles.backgroundColor != null && el.styles.backgroundColor !== "rgba(0, 0, 0, 0)"
-          ? el.styles.backgroundColor : "rgb(254,243,199)";
-        const markerW = marker.length * fontSizePx * 0.55;
-        svgParts.push(`${indent}<rect x="${r(tx - markerW)}" y="${r(ty - fontSizePx)}" width="${r(markerW + 2)}" height="${r(fontSizePx * 1.2)}" fill="${bgCol}" />`);
-        svgParts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${el.styles.fontFamily}" fill="${fillCol}">${escMarker}</text>`);
+          ? el.styles.backgroundColor : "rgb(255,255,255)";
+        // "…" in Helvetica/Arial/SF Pro has an advance of ~1000-1100 font
+        // units / em (≈1.0× fontSize). Custom strings use length × 0.55 as
+        // a generic ratio.
+        const markerW = marker === "…" ? fontSizePx * 1.0 : marker.length * fontSizePx * 0.55;
+        // Position the marker at Chrome's truncation point: just past the
+        // right edge of the last char that fits with the marker after it.
+        // xOffsets[i] is the captured viewport-x of char i's left edge, so
+        // char k's right edge ≈ xOffsets[k+1]. Find max k such that
+        // xOffsets[k+1] ≤ contentRightX - markerW; place the marker so its
+        // left edge is at xOffsets[k+1].
+        let markerRightX = contentRightX;
+        const seg0 = el.textSegments?.[0];
+        const xOffsets = seg0?.xOffsets;
+        if (xOffsets != null && xOffsets.length > 1) {
+          const limitX = contentRightX - markerW;
+          let markerLeftAtX = xOffsets[0];
+          for (let i = 1; i < xOffsets.length; i++) {
+            if (xOffsets[i] <= limitX) markerLeftAtX = xOffsets[i];
+            else break;
+          }
+          markerRightX = Math.min(markerLeftAtX + markerW, contentRightX);
+        }
+        const bgX = markerRightX - markerW;
+        const bgRightX = el.x + el.width;
+        const bgY = el.textTop != null ? el.textTop : ty - fontSizePx;
+        const bgH = fontSizePx * 1.4;
+        svgParts.push(`${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`);
+        svgParts.push(`${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${el.styles.fontFamily}" fill="${fillCol}">${escMarker}</text>`);
       }
     }
 

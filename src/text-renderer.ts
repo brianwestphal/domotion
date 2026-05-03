@@ -14,6 +14,30 @@ function r(n: number): string { return Number(n.toFixed(1)).toString(); }
 function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
 /**
+ * Replace any UTF-16 code units flagged with `suppressGlyph` in the segment's
+ * raster overlays with U+200B (zero-width space). The path renderer emits no
+ * `<use>` for zero-contour glyphs, so this hides the underlying path glyph
+ * while leaving the segment's xOffsets / aria-label / raster overlay intact.
+ * Used for ::first-letter drop caps (DM-439) where the body-size path glyph
+ * would otherwise show through behind the styled rasterized big letter.
+ */
+function suppressGlyphChars(text: string, seg: TextSegment | undefined): string {
+  if (seg?.rasterGlyphs == null) return text;
+  const suppress = seg.rasterGlyphs.filter((g) => g.suppressGlyph === true);
+  if (suppress.length === 0) return text;
+  // text is a UTF-16 string; charIndex is a UTF-16 position. U+200B is one
+  // UTF-16 unit so the substitution preserves text length and xOffsets
+  // alignment.
+  const ZWSP = String.fromCharCode(0x200B);
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const drop = suppress.some((g) => g.charIndex === i);
+    out += drop ? ZWSP : text[i];
+  }
+  return out;
+}
+
+/**
  * Emit <image> overlays for any per-char raster glyphs the capture layer
  * attached to this segment (SK-1090). These sit on top of the text-path
  * markup and cover the exact pixel region Chrome painted for the color-
@@ -192,7 +216,8 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // each glyph is anchored at the exact x Chrome painted (closes per-char
   // drift). Falls back to Chrome's measured width for uniform scaling.
   const singleSeg = (el.textSegments != null && el.textSegments.length === 1) ? el.textSegments[0] : undefined;
-  const pathTextRaw = singleSeg != null ? singleSeg.text : el.text;
+  const pathTextRawSrc = singleSeg != null ? singleSeg.text : el.text;
+  const pathTextRaw = suppressGlyphChars(pathTextRawSrc, singleSeg);
   const xOffsetsRelRaw = singleSeg?.xOffsets != null ? singleSeg.xOffsets.map((v) => v - tl) : undefined;
   const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
@@ -304,7 +329,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
-    const reordered = applyBidi(seg.text, xOffsetsRelRaw, dir);
+    const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
     const segAscent = seg.fontAscent ?? el.fontAscent;
     const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang);
     if (result != null) { parts.push(result); }
@@ -362,7 +387,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
     const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
     for (const seg of el.textSegments) {
       const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
-      const reordered = applyBidi(seg.text, xOffsetsRelRaw, dir);
+      const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
       const segFontSize = seg.fontSize ?? fontSize;
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;

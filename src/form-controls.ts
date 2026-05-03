@@ -1006,6 +1006,11 @@ function renderSelectChevron(el: CapturedElement, indent: string): string {
 }
 
 function renderDetailsMarker(el: CapturedElement, indent: string): string {
+  // When author CSS hides the UA disclosure marker (::marker { color:
+  // transparent } or ::-webkit-details-marker { color: transparent }),
+  // skip painting — the author has supplied a replacement (typically a
+  // ::before pseudo) and stacking our triangle on top double-paints. DM-448.
+  if (el.styles.summaryMarkerSuppressed === true) return "";
   // Chrome's UA stylesheet for `<details><summary>` paints a disclosure
   // triangle to the LEFT of the summary's first text line. Empirical
   // probe (DM-370): triangle size scales roughly with font-size at
@@ -1019,7 +1024,13 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
   // Vertically center the triangle on the first text line (line-height
   // typically = 1.2 × font-size, baseline ~0.8 × line-height down).
   const lineH = parseFloat(el.styles.lineHeight ?? "") || fontSizePx * 1.5;
-  const cx = el.x + 8;
+  // Position: marker sits inside the summary at its content-start, which
+  // is el.x + paddingL + borderL. Offset by half the marker size so the
+  // glyph's center sits ~half-marker-width past the summary's left edge,
+  // matching Chrome's painted offset (DM-448).
+  const padL = parseFloat(el.styles.paddingLeft ?? "") || 0;
+  const brL = parseFloat(el.styles.borderLeftWidth ?? "") || 0;
+  const cx = el.x + padL + brL + size / 2;
   const cy = el.y + lineH / 2;
   const open = el.styles.detailsOpen === true;
   // Use the summary's text color when captured, else dark grey.
