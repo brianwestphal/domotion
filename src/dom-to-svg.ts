@@ -3804,7 +3804,15 @@ export function elementTreeToSvg(
           // ("1." is 11.5px in Helvetica, 13.6px in Inter, 18px in Courier),
           // and getting it ~10px wrong drives the entire visible offset.
           const label = formatListMarker(lsType, idx) + ".";
-          const smallGap = 4;
+          // DM-447: numeric / alpha / roman markers are painted with a ~8px
+          // gap from the principal-block edge in Chrome (vs the previous
+          // 4px estimate, which placed the marker too far right). Empirical
+          // pixel measurement vs Chrome's painted output on the
+          // 03-lists-marker fixture (16px monospace bold "1.") shows the
+          // marker right edge sits ~7-8px left of li.x. The fixed-width
+          // approximation is safer than text_width × heuristic since
+          // monospace vs proportional font advance varies widely.
+          const smallGap = 8;
           const mx = outside ? el.x - smallGap : el.x;
           const anchor = outside ? "end" : "start";
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
@@ -3840,6 +3848,19 @@ export function elementTreeToSvg(
       }
       for (const child of floatChildren) {
         renderElement(child, depth + 1);
+      }
+    }
+
+    // Pseudo-element image content (::before / ::after with content: url(...)).
+    // CSS atomic-inline-box paint order: the ::before's replaced-element box
+    // paints BEFORE the parent's main-text inline content in the same line,
+    // so subsequent text appears on top of any image overflow. Painting after
+    // text put our SVG circles ON TOP of the paragraph in the 24-generated-content
+    // fixture (DM-440 user feedback: 'z-index of svg is wrong'). Move the
+    // emit ahead of the text block so text reliably wins z.
+    if (el.pseudoImages != null) {
+      for (const pi of el.pseudoImages) {
+        svgParts.push(`${indent}<image href="${esc(embedAsDataUri(pi.url))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
       }
     }
 
@@ -3929,13 +3950,6 @@ export function elementTreeToSvg(
       }
     }
 
-    // Pseudo-element image content (::before / ::after with content: url(...)).
-    if (el.pseudoImages != null) {
-      for (const pi of el.pseudoImages) {
-        svgParts.push(`${indent}<image href="${esc(embedAsDataUri(pi.url))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
-      }
-    }
-
     // text-overflow truncation marker (DM-373). When an element has
     // text-overflow: ellipsis (or a custom string) AND overflow:hidden AND
     // white-space:nowrap, Chrome truncates the visible text and paints a
@@ -4005,10 +4019,19 @@ export function elementTreeToSvg(
           }
           markerRightX = Math.min(markerLeftAtX + markerW, contentRightX);
         }
+        // Clamp the bg-rect to the padding box (inside all four borders) so
+        // it doesn't paint over the element's own borders. DM-449 fix: the
+        // previous bgRightX = el.x + el.width covered the right border, and
+        // a tall bgH could spill past the bottom border, leaving a faded /
+        // missing border at the right and bottom corners.
+        const btTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+        const bbBot = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
         const bgX = markerRightX - markerW;
-        const bgRightX = el.x + el.width;
-        const bgY = el.textTop != null ? el.textTop : ty - fontSizePx;
-        const bgH = fontSizePx * 1.4;
+        const bgRightX = el.x + el.width - brR;
+        const bgYRaw = el.textTop != null ? el.textTop : ty - fontSizePx;
+        const bgY = Math.max(bgYRaw, el.y + btTop);
+        const bgBottomCap = el.y + el.height - bbBot;
+        const bgH = Math.max(0, Math.min(fontSizePx * 1.4, bgBottomCap - bgY));
         svgParts.push(`${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`);
         svgParts.push(`${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${el.styles.fontFamily}" fill="${fillCol}">${escMarker}</text>`);
       }

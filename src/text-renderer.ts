@@ -200,6 +200,29 @@ interface RenderTextOpts {
   overflowClip?: boolean;
 }
 
+// Resolve OpenType features from font-variant-caps (DM-361, DM-444).
+// Spec mapping:
+//   small-caps      → [smcp]                  (lowercase → small caps)
+//   all-small-caps  → [smcp, c2sc]            (lowercase + uppercase → small caps)
+//   petite-caps     → [pcap]                  (lowercase → petite caps)
+//   all-petite-caps → [pcap, c2pc]            (lowercase + uppercase → petite caps)
+//   unicase         → [unic]                  (uppercase → small-cap height; lowercase same)
+//   titling-caps    → [titl]                  (no case change; uppercase glyphs adjusted)
+// The path renderer's synthesis layer (src/text-to-path.ts) applies the
+// matching case-fold + scale when the active font lacks these OpenType
+// features (Helvetica / Arial / SF Pro / Georgia / Times all do). Segment-
+// level fontVariant (::first-line override) wins when set.
+function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | undefined): string[] | undefined {
+  const v = segVariant != null && segVariant !== "" ? segVariant : (elCaps ?? "");
+  if (/\ball-small-caps\b/.test(v)) return ["smcp", "c2sc"];
+  if (/\ball-petite-caps\b/.test(v)) return ["pcap", "c2pc"];
+  if (/\bsmall-caps\b/.test(v)) return ["smcp"];
+  if (/\bpetite-caps\b/.test(v)) return ["pcap"];
+  if (/\bunicase\b/.test(v)) return ["unic"];
+  if (/\btitling-caps\b/.test(v)) return ["titl"];
+  return undefined;
+}
+
 /**
  * Render a single-line text element.
  */
@@ -223,14 +246,6 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
   const pathText = reordered.text;
   const xOffsetsRel = reordered.xOffsets;
-  // Resolve OpenType features from font-variant-caps. DM-361 wires the
-  // element-level CSS through to the existing smcp synthesis path.
-  // Segment-level fontVariant (::first-line override) wins when set.
-  function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | undefined): string[] | undefined {
-    const v = segVariant != null && segVariant !== "" ? segVariant : (elCaps ?? "");
-    if (/\b(small-caps|all-small-caps)\b/.test(v)) return ["smcp"];
-    return undefined;
-  }
   const features = resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps);
   const result = renderTextAsPath(pathText, tl, tt, fontSize, fontFamily, fontWeight, fillColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, el.fontAscent, features, el.styles.lang);
   if (result != null) {
@@ -318,14 +333,10 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segFontSize = seg.fontSize ?? elFontSize;
     const segFontWeight = seg.fontWeight ?? elFontWeight;
     const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
-    // `font-variant: small-caps` resolves to the OpenType `smcp` feature.
-    // CSS spec maps small-caps to smcp only (uppercase letters stay full
-    // height); font-variant-caps: all-small-caps would add c2sc but isn't
-    // covered by the shorthand we read here. (DM-294)
     // Honor either segment-level font-variant override (::first-line) or
-    // the element-level font-variant-caps. DM-361.
-    const segVariantStr = seg.fontVariant != null && seg.fontVariant !== "" ? seg.fontVariant : (el.styles.fontVariantCaps ?? "");
-    const segFeatures = /\b(small-caps|all-small-caps)\b/.test(segVariantStr) ? ["smcp"] : undefined;
+    // the element-level font-variant-caps. (DM-294, DM-361, DM-444). See
+    // resolveCapsFeatures (module scope) for the full spec mapping.
+    const segFeatures = resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps);
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;

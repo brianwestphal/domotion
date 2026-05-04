@@ -1020,9 +1020,12 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
   // the right-pointing triangle ▶ (U+25B6); open state uses the
   // down-pointing triangle ▼ (U+25BC).
   const fontSizePx = parseFloat(el.styles.fontSize ?? "") || 14;
-  const size = Math.max(8, fontSizePx * 0.6);
-  // Vertically center the triangle on the first text line (line-height
-  // typically = 1.2 × font-size, baseline ~0.8 × line-height down).
+  // Chrome's UA disclosure triangle is rendered via the ▶ / ▼ glyphs in the
+  // summary's font at the summary's font-size. Glyph advance is ~0.7em for
+  // U+25B6 / U+25BC in the system sans fonts (DM-448 follow-up). The
+  // previous 0.6em multiplier produced a triangle that read visibly small
+  // vs Chrome's painted output.
+  const size = Math.max(8, fontSizePx * 0.7);
   const lineH = parseFloat(el.styles.lineHeight ?? "") || fontSizePx * 1.5;
   // Position: marker sits inside the summary at its content-start, which
   // is el.x + paddingL + borderL. Offset by half the marker size so the
@@ -1030,8 +1033,17 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
   // matching Chrome's painted offset (DM-448).
   const padL = parseFloat(el.styles.paddingLeft ?? "") || 0;
   const brL = parseFloat(el.styles.borderLeftWidth ?? "") || 0;
+  const padT = parseFloat(el.styles.paddingTop ?? "") || 0;
+  const brT = parseFloat(el.styles.borderTopWidth ?? "") || 0;
   const cx = el.x + padL + brL + size / 2;
-  const cy = el.y + lineH / 2;
+  // Vertical center: the summary is the first child of <details>; its
+  // first line-box top sits at el.y + paddingTop + borderTop, and its
+  // center is half a line-height below that. The previous `cy = el.y +
+  // lineH/2` ignored the details element's own padding/border, leaving
+  // the triangle painted ~paddingTop pixels above where Chrome paints
+  // it (DM-448 user feedback: 'disclosure arrow positions still
+  // incorrect').
+  const cy = el.y + padT + brT + lineH / 2;
   const open = el.styles.detailsOpen === true;
   // Use the summary's text color when captured, else dark grey.
   const fill = (el.styles.color != null && el.styles.color !== "")

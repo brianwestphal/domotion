@@ -1005,11 +1005,43 @@ export function textToPathMarkup(
   // already encode Chrome's painted positions, so the only thing we choose
   // is the glyph (uppercase vs lowercase) and its scale; small width drift
   // per glyph is acceptable.
-  const smcpRequested = features != null && features.includes("smcp");
-  const primaryHasSmcp = smcpRequested
-    && Array.isArray((primaryFont as any).availableFeatures)
-    && (primaryFont as any).availableFeatures.includes("smcp");
-  const synthSmallCaps = smcpRequested && !primaryHasSmcp;
+  // Synthesis covers all six font-variant-caps modes (DM-294 + DM-444):
+  //   small-caps      → smcp                (lowercase → small-cap scale)
+  //   all-small-caps  → smcp + c2sc         (lowercase + uppercase → small-cap scale)
+  //   petite-caps     → pcap                (lowercase → petite-cap scale)
+  //   all-petite-caps → pcap + c2pc         (lowercase + uppercase → petite-cap scale)
+  //   unicase         → unic                (uppercase → small-cap scale; lowercase → small-cap)
+  //   titling-caps    → titl                (no synthesis fallback; rely on OT feature or no-op)
+  // The body-text fonts on macOS (Helvetica / Arial / SF Pro / Georgia /
+  // Times / Menlo) lack pcap, c2pc, c2sc, unic, and titl entirely, so the
+  // synthesis path runs whenever any of these is requested.
+  const features_ = features ?? [];
+  const wantSmcp   = features_.includes("smcp");
+  const wantC2sc   = features_.includes("c2sc");
+  const wantPcap   = features_.includes("pcap");
+  const wantC2pc   = features_.includes("c2pc");
+  const wantUnic   = features_.includes("unic");
+  const availableFeatures = Array.isArray((primaryFont as any).availableFeatures)
+    ? ((primaryFont as any).availableFeatures as string[]) : [];
+  const hasFeature = (f: string) => availableFeatures.includes(f);
+  // Determine the synthesized scale for lowercase / uppercase letters under
+  // each variant. `null` means do not transform (keep native glyph at 1.0).
+  const PETITE_CAP_SCALE = 0.55;
+  const SMALL_CAP_SCALE = 0.7;
+  let synthLowerScale: number | null = null;
+  let synthUpperScale: number | null = null;
+  if (wantSmcp && !hasFeature("smcp")) synthLowerScale = SMALL_CAP_SCALE;
+  if (wantC2sc && !hasFeature("c2sc")) synthUpperScale = SMALL_CAP_SCALE;
+  if (wantPcap && !hasFeature("pcap")) synthLowerScale = PETITE_CAP_SCALE;
+  if (wantC2pc && !hasFeature("c2pc")) synthUpperScale = PETITE_CAP_SCALE;
+  if (wantUnic && !hasFeature("unic")) {
+    // unicase: both cases render at small-cap height.
+    synthLowerScale = SMALL_CAP_SCALE;
+    synthUpperScale = SMALL_CAP_SCALE;
+  }
+  const synthSmallCaps = synthLowerScale != null || synthUpperScale != null;
+  const smcpRequested = wantSmcp;
+  void smcpRequested;
   // Single-run, primary-font path keeps the existing fast path with xOffsets
   // support and per-char fidelity. Multi-run path falls back to native advances.
   // When synthesizing small-caps we need per-char rendering at variable scales,
@@ -1044,11 +1076,12 @@ export function textToPathMarkup(
         // glyph (no shaping reordering or contextual joining). Each codepoint
         // shapes individually; placement uses the captured xOffset so we
         // inherit Chrome's spacing decisions including ruby column-fitting.
-        // When `synthSmallCaps` is on (DM-294), lowercase letters are
-        // upper-cased and rendered at the small-cap scale so we match Chrome's
-        // painted glyphs for fonts that don't carry an `smcp` feature.
-        const SMALL_CAP_SCALE = 0.7;
-        const smallCapScVal = Number((runScale * SMALL_CAP_SCALE).toFixed(5));
+        // When `synthSmallCaps` is on (DM-294 + DM-444), case-fold and
+        // re-scale glyphs per the variant-caps spec. Lowercase letters are
+        // up-cased and rendered at synthLowerScale; uppercase letters
+        // (under c2sc / c2pc / unic) are rendered at synthUpperScale. The
+        // fonts on macOS we hit here all lack the OT features for these
+        // variants, so synthesis is the path Chrome takes too.
         let i = run.startIdx;
         while (i < run.endIdx) {
           const cp = text.codePointAt(i)!;
@@ -1056,9 +1089,13 @@ export function textToPathMarkup(
           let chScale = sc;
           if (synthSmallCaps) {
             const upper = ch.toUpperCase();
-            if (upper !== ch && upper.length === ch.length) {
+            const isLower = upper !== ch && upper.length === ch.length;
+            const isUpper = !isLower && ch.toLowerCase() !== ch && ch.toLowerCase().length === ch.length;
+            if (isLower && synthLowerScale != null) {
               ch = upper;
-              chScale = smallCapScVal;
+              chScale = Number((runScale * synthLowerScale).toFixed(5));
+            } else if (isUpper && synthUpperScale != null) {
+              chScale = Number((runScale * synthUpperScale).toFixed(5));
             }
           }
           const layout = features != null && features.length > 0 && !synthSmallCaps
