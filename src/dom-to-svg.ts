@@ -951,7 +951,19 @@ const CAPTURE_SCRIPT = `
     // On any other element, the spec says it behaves as visibility: hidden — the
     // text + children are hidden but adjacent layout / shared borders remain.
     // DM-375.
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return null;
+    //
+    // For <td>/<th> with visibility:hidden|collapse inside a border-collapse:collapse
+    // table, Chrome still paints the cell's borders (they're part of the shared
+    // table grid). The TOP edge of a hidden header cell is owned by the cell
+    // itself (no neighbor above to draw it), so dropping the cell loses that line.
+    // Fall through with bordersOnlyCell = true and clear text/children/bg
+    // before the final return. DM-450.
+    const _earlyTag = el.tagName.toLowerCase();
+    const bordersOnlyCell = (_earlyTag === 'td' || _earlyTag === 'th')
+      && (cs.visibility === 'hidden' || cs.visibility === 'collapse')
+      && cs.borderCollapse === 'collapse';
+    if (cs.display === 'none') return null;
+    if ((cs.visibility === 'hidden' || cs.visibility === 'collapse') && !bordersOnlyCell) return null;
 
     // Zero-sized elements — skip visual rendering of the element itself but
     // still walk children. Elements with all position:absolute children
@@ -1865,7 +1877,7 @@ const CAPTURE_SCRIPT = `
       }
     }
 
-    return {
+    const _captured = {
       tag, text,
       x: fsX, y: fsY,
       width: fsW, height: fsH,
@@ -2326,6 +2338,21 @@ const CAPTURE_SCRIPT = `
           })()
         : undefined,
     };
+    // DM-450: hidden/collapsed table cell — keep the cell's box + borders so
+    // shared edges of the collapsed table grid still paint, but suppress
+    // text, children, and background fill (per CSS visibility:hidden).
+    if (bordersOnlyCell) {
+      _captured.text = '';
+      _captured.children = [];
+      _captured.styles.backgroundColor = 'rgba(0, 0, 0, 0)';
+      _captured.styles.backgroundImage = undefined;
+      _captured.textSegments = undefined;
+      _captured.imageSrc = undefined;
+      _captured.svgContent = undefined;
+      _captured.pseudoImages = undefined;
+      _captured.elementRaster = undefined;
+    }
+    return _captured;
   };
 
   const root = document.querySelector(sel);
@@ -2624,6 +2651,23 @@ async function rasterizeBitmapGlyphs(
                 const sbixPng = extractEmojiBitmap(cp, g.rect.width);
                 if (sbixPng != null) {
                   g.dataUri = `data:image/png;base64,${sbixPng.toString("base64")}`;
+                  // sbix bitmaps are square. The captured rect uses the line-box
+                  // height (typically the advance width for emoji) which is
+                  // shorter than the advance width — Range.getBoundingClientRect
+                  // returns the line box, not the painted ink. Painting the
+                  // square bitmap into a non-square rect with preserveAspectRatio
+                  // ="none" squishes the glyph vertically (DM-438: smiley emoji
+                  // rendered 20×17 instead of 20×20). Chrome paints the bitmap
+                  // at em-square aspect with the BOTTOM aligned to the line-box
+                  // bottom, so extend the rect upward to a square. Scoped to
+                  // sbix-fed glyphs (Apple Color Emoji on macOS) so DM-401/411
+                  // /414's flag-emoji regression — driven by page.screenshot's
+                  // already-rectangular bitmaps — does not return.
+                  if (g.rect.width > g.rect.height) {
+                    const bottom = g.rect.y + g.rect.height;
+                    g.rect.height = g.rect.width;
+                    g.rect.y = bottom - g.rect.width;
+                  }
                   continue;
                 }
               }
