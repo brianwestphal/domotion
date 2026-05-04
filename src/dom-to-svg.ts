@@ -417,6 +417,11 @@ export interface CapturedElement {
     /** `text-underline-offset` — extra distance below the baseline for the
      *  underline stroke. Adds to the auto offset. DM-431. */
     textUnderlineOffset?: string;
+    /** `text-decoration-skip-ink` — 'auto' (default; break around descenders),
+     *  'none' (always solid), or 'all'. Per Chromium's
+     *  `decoration_line_painter.cc`, only solid + double underlines honor
+     *  skip-ink; dashed / dotted / wavy ignore it. DM-446. */
+    textDecorationSkipInk?: string;
   };
   children: CapturedElement[];
   imageSrc?: string;
@@ -2396,6 +2401,7 @@ const CAPTURE_SCRIPT = `
         textDecorationStyle: cs.textDecorationStyle,
         textDecorationThickness: cs.textDecorationThickness,
         textUnderlineOffset: cs.textUnderlineOffset,
+        textDecorationSkipInk: cs.textDecorationSkipInk,
       },
       children, imageSrc, imageIntrinsic, imageBroken, imageAlt, listMarkerIntrinsic, listItemIndex, svgContent, pseudoImages,
       // ::marker pseudo styles (SK-1115). Only meaningful on <li>; rest of

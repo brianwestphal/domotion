@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
+import { computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
@@ -602,5 +602,52 @@ describe("getDecorationMetrics: Chrome auto-thickness rule (DM-398)", () => {
     const m = getDecorationMetrics("Helvetica", 16, "400", undefined, "5px", "6px");
     expect(m.underlineThickness).toBe(5);
     expect(m.underlineOffsetY).toBe(13.5);
+  });
+});
+
+describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
+  // Underline rect for 18px Helvetica auto thickness sits at +1.5 px from
+  // baseline (1.5 * thickness=1). Descender stems on `j p g y` cross this
+  // band; ascender-only / x-height-only letters do not.
+  const FS = 18;
+  const FF = "Helvetica";
+  const FW = "400";
+  const Y = 1.5;
+  const T = 1;
+
+  it("produces gaps for descender-bearing glyphs", () => {
+    const gaps = computeSkipInkGaps("jumping", FS, FF, FW, undefined, Y, T);
+    // 'j', 'p', 'g' all have stems crossing the underline band.
+    expect(gaps.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("produces no gaps for ascender-only / x-height-only text", () => {
+    const gaps = computeSkipInkGaps("alone", FS, FF, FW, undefined, Y, T);
+    expect(gaps).toEqual([]);
+  });
+
+  it("merges adjacent / overlapping descender gaps", () => {
+    const gaps = computeSkipInkGaps("ggg", FS, FF, FW, undefined, Y, T);
+    // Three adjacent 'g' descenders may merge into one gap or stay separate
+    // depending on the pad — guarantee non-overlapping output.
+    for (let i = 1; i < gaps.length; i++) {
+      expect(gaps[i][0]).toBeGreaterThanOrEqual(gaps[i - 1][1]);
+    }
+  });
+
+  it("returns empty when font cannot be resolved", () => {
+    const gaps = computeSkipInkGaps("test", FS, "NotAFontFamily12345", FW, undefined, Y, T);
+    expect(gaps).toEqual([]);
+  });
+
+  it("scales gaps when targetWidth diverges from fontkit's layout width", () => {
+    const baseline = computeSkipInkGaps("jumping", FS, FF, FW, undefined, Y, T);
+    if (baseline.length === 0) return;
+    const stretched = computeSkipInkGaps("jumping", FS, FF, FW, undefined, Y, T, undefined, 200);
+    // With a stretched targetWidth, the gap centers should shift outward
+    // proportionally — at minimum, the rightmost gap moves right.
+    const lastBaseline = baseline[baseline.length - 1];
+    const lastStretched = stretched[stretched.length - 1];
+    expect(lastStretched[1]).toBeGreaterThan(lastBaseline[1]);
   });
 });

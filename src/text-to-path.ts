@@ -1461,4 +1461,177 @@ export function getDecorationMetrics(
   };
 }
 
+/**
+ * Compute X-range gaps where the underline rect [decorationCenterY - thickness/2,
+ * decorationCenterY + thickness/2] crosses glyph ink for `text` rendered in
+ * the given font. Returns gaps in the text's local coordinate system (X=0 at
+ * the run's anchor — caller adds segX to translate). Used to honor
+ * `text-decoration-skip-ink: auto` on solid / double underlines, matching
+ * Chromium's `decoration_line_painter.cc::ComputeUnderlineSkipFromIntercepts`.
+ *
+ * Algorithm: shape via fontkit, walk each glyph's path, flatten quadratic /
+ * cubic Beziers to short polylines, find segment-vs-horizontal-line
+ * intersections at the rect's top and bottom Y. Per glyph, the gap spans
+ * `[minIntersectX - pad, maxIntersectX + pad]` where pad = 0.5 * thickness
+ * (matches Chromium's `kIntersectionExtension`).
+ *
+ * `decorationCenterYRel` is in baseline-relative screen coords (positive =
+ * below baseline). Returns `[]` when font isn't resolvable, no glyphs cross
+ * the rect, or shaping throws. (DM-446.)
+ */
+export function computeSkipInkGaps(
+  text: string,
+  fontSize: number, fontFamily: string, fontWeight: string | number, fontStyle?: string,
+  decorationCenterYRel: number = 0,
+  decorationThickness: number = 1,
+  features?: string[],
+  /** Chromium-measured run width — when set, intercepts are scaled to match
+   *  so gaps line up with the painted glyph positions even when fontkit's
+   *  layout disagrees with HarfBuzz at sub-px scale. */
+  targetWidth?: number,
+): Array<[number, number]> {
+  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const slant = slantForStyle(fontStyle);
+  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  if (font == null) return [];
+  let layout;
+  try { layout = font.layout(text, features); } catch { return []; }
+  const scale = fontSize / font.unitsPerEm;
+  const yTop = decorationCenterYRel - decorationThickness / 2;
+  const yBot = decorationCenterYRel + decorationThickness / 2;
+  const pad = Math.max(0.5, decorationThickness * 0.5);
+  const rawGaps: Array<[number, number]> = [];
+  let xCursor = 0;
+  for (let i = 0; i < layout.glyphs.length; i++) {
+    const glyph = layout.glyphs[i];
+    const pos = layout.positions[i];
+    const glyphX = xCursor + (pos.xOffset || 0) * scale;
+    const range = glyphPathIntercepts(glyph.path, glyphX, scale, yTop, yBot);
+    if (range != null) rawGaps.push([range.minX - pad, range.maxX + pad]);
+    xCursor += pos.xAdvance * scale;
+  }
+  if (rawGaps.length === 0) return [];
+  if (targetWidth != null && xCursor > 0.5 && Math.abs(xCursor - targetWidth) > 0.5) {
+    const factor = targetWidth / xCursor;
+    for (const g of rawGaps) { g[0] *= factor; g[1] *= factor; }
+  }
+  return mergeGaps(rawGaps);
+}
+
+function mergeGaps(gaps: Array<[number, number]>): Array<[number, number]> {
+  gaps.sort((a, b) => a[0] - b[0]);
+  const out: Array<[number, number]> = [];
+  for (const g of gaps) {
+    const top = out[out.length - 1];
+    if (top != null && g[0] <= top[1]) top[1] = Math.max(top[1], g[1]);
+    else out.push([g[0], g[1]]);
+  }
+  return out;
+}
+
+interface IPt { x: number; y: number }
+
+function glyphPathIntercepts(
+  path: { commands: Array<{ command: string; args: number[] }> },
+  glyphX: number, scale: number,
+  yTop: number, yBot: number,
+): { minX: number; maxX: number } | null {
+  // fontkit y is up-positive in glyph space; screen y is down-positive. We
+  // express screen y relative to baseline so screenY = -fy * scale and yTop /
+  // yBot come in as baseline-relative (positive = below baseline).
+  let prev: IPt | null = null;
+  let subStart: IPt | null = null;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  function pt(fx: number, fy: number): IPt {
+    return { x: glyphX + fx * scale, y: -fy * scale };
+  }
+  function update(x: number) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+  }
+  function segCheck(a: IPt, b: IPt) {
+    const ymin = Math.min(a.y, b.y);
+    const ymax = Math.max(a.y, b.y);
+    if (ymax < yTop || ymin > yBot) return;
+    if (a.y >= yTop && a.y <= yBot) update(a.x);
+    if (b.y >= yTop && b.y <= yBot) update(b.x);
+    const dy = b.y - a.y;
+    if (Math.abs(dy) > 1e-9) {
+      const dx = b.x - a.x;
+      const t1 = (yTop - a.y) / dy;
+      if (t1 > 0 && t1 < 1) update(a.x + t1 * dx);
+      const t2 = (yBot - a.y) / dy;
+      if (t2 > 0 && t2 < 1) update(a.x + t2 * dx);
+    }
+  }
+  function quadAt(p0: IPt, p1: IPt, p2: IPt, t: number): IPt {
+    const u = 1 - t;
+    return { x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+             y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y };
+  }
+  function cubAt(p0: IPt, p1: IPt, p2: IPt, p3: IPt, t: number): IPt {
+    const u = 1 - t;
+    return { x: u*u*u*p0.x + 3*u*u*t*p1.x + 3*u*t*t*p2.x + t*t*t*p3.x,
+             y: u*u*u*p0.y + 3*u*u*t*p1.y + 3*u*t*t*p2.y + t*t*t*p3.y };
+  }
+  function flattenQuad(p0: IPt, p1: IPt, p2: IPt) {
+    const STEPS = 8;
+    let last = p0;
+    for (let i = 1; i <= STEPS; i++) {
+      const cur = quadAt(p0, p1, p2, i / STEPS);
+      segCheck(last, cur);
+      last = cur;
+    }
+  }
+  function flattenCubic(p0: IPt, p1: IPt, p2: IPt, p3: IPt) {
+    const STEPS = 12;
+    let last = p0;
+    for (let i = 1; i <= STEPS; i++) {
+      const cur = cubAt(p0, p1, p2, p3, i / STEPS);
+      segCheck(last, cur);
+      last = cur;
+    }
+  }
+  for (const cmd of path.commands) {
+    const a = cmd.args;
+    switch (cmd.command) {
+      case "moveTo": {
+        const p = pt(a[0], a[1]);
+        prev = p;
+        subStart = p;
+        break;
+      }
+      case "lineTo": {
+        const p = pt(a[0], a[1]);
+        if (prev) segCheck(prev, p);
+        prev = p;
+        break;
+      }
+      case "quadraticCurveTo": {
+        const c1 = pt(a[0], a[1]);
+        const p = pt(a[2], a[3]);
+        if (prev) flattenQuad(prev, c1, p);
+        prev = p;
+        break;
+      }
+      case "bezierCurveTo": {
+        const c1 = pt(a[0], a[1]);
+        const c2 = pt(a[2], a[3]);
+        const p = pt(a[4], a[5]);
+        if (prev) flattenCubic(prev, c1, c2, p);
+        prev = p;
+        break;
+      }
+      case "closePath": {
+        if (prev != null && subStart != null) segCheck(prev, subStart);
+        prev = subStart;
+        break;
+      }
+    }
+  }
+  if (minX === Infinity) return null;
+  return { minX, maxX };
+}
+
 function r(n: number): string { return Number(n.toFixed(2)).toString(); }

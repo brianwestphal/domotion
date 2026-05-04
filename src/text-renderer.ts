@@ -5,7 +5,7 @@
  */
 
 import bidiFactory from "bidi-js";
-import { getDecorationMetrics, renderTextAsPath } from "./text-to-path.js";
+import { computeSkipInkGaps, getDecorationMetrics, renderTextAsPath } from "./text-to-path.js";
 import type { CapturedElement, TextSegment } from "./dom-to-svg.js";
 
 // ── Rendering helpers ──
@@ -94,6 +94,15 @@ function renderTextDecoration(
   thicknessOverride?: string,
   /** CSS `text-underline-offset` (e.g. `6px` or `auto`). DM-431. */
   underlineOffset?: string,
+  /** Run text used to compute `text-decoration-skip-ink: auto` glyph
+   *  intercepts. Required for skip-ink to apply. DM-446. */
+  runText?: string,
+  /** CSS `text-decoration-skip-ink` — `auto` (default) or `none`. Only solid /
+   *  double underlines honor it (matches Chromium). DM-446. */
+  skipInk?: string,
+  /** OpenType feature tags forwarded to fontkit shaping when computing skip-
+   *  ink intercepts so small-caps / petite-caps glyphs match the painted text. */
+  features?: string[],
 ): string {
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
   const m = getDecorationMetrics(fontFamily, fontSize, fontWeight, fontStyle, thicknessOverride, underlineOffset);
@@ -101,11 +110,42 @@ function renderTextDecoration(
   const has = (k: string) => textDecorationLine.includes(k);
   const dash = (thick: number) => style === "dashed" ? ` stroke-dasharray="${thick * 2} ${thick * 2}"`
     : style === "dotted" ? ` stroke-dasharray="${thick} ${thick}"` : "";
+  // Skip-ink applies only to solid + double underlines per Chromium
+  // (`decoration_line_painter.cc::Paint` short-circuits on dashed / dotted /
+  // wavy). We compute gaps once if any underline emit needs them.
+  const skipInkActive = (skipInk == null || skipInk === "auto") && runText != null && runText !== ""
+    && (style == null || style === "solid" || style === "double" || style === "");
+  // Compute X-range gaps where the underline rect crosses glyph ink. Returned
+  // gaps are run-relative (0 = segX); subSegments() splits the underline span
+  // around them.
+  function computeGapsAt(yRel: number, thick: number): Array<[number, number]> {
+    if (!skipInkActive || runText == null) return [];
+    return computeSkipInkGaps(runText, fontSize, fontFamily, fontWeight, fontStyle, yRel, thick, features, segWidth);
+  }
+  // Split [segX, segX+segWidth] into sub-runs by removing gap intervals
+  // (run-relative; gap[0]+segX is absolute screen X).
+  function subSegments(gaps: Array<[number, number]>): Array<{ x0: number; x1: number }> {
+    const x0 = segX;
+    const x1 = segX + segWidth;
+    if (gaps.length === 0) return [{ x0, x1 }];
+    const out: Array<{ x0: number; x1: number }> = [];
+    let cursor = x0;
+    for (const [ga, gb] of gaps) {
+      const ax = segX + ga;
+      const bx = segX + gb;
+      if (bx <= cursor) continue;
+      if (ax > cursor) out.push({ x0: cursor, x1: Math.min(ax, x1) });
+      cursor = Math.max(cursor, bx);
+      if (cursor >= x1) break;
+    }
+    if (cursor < x1) out.push({ x0: cursor, x1 });
+    return out.filter((r) => r.x1 - r.x0 > 0.25);
+  }
   // Emit one decoration line at (y, thickness) honoring the text-decoration-style.
   // (DM-345.) For wavy: build a sin-wave path. For double: two parallel
   // lines with a 1×thickness gap. For solid/dashed/dotted: a single
   // <line> with optional stroke-dasharray.
-  function emitLine(y: number, t: number): string {
+  function emitLine(y: number, t: number, isUnderline: boolean = false): string {
     if (style === "wavy") {
       // Match Chromium's `decoration_line_painter.cc::MakeWave`:
       //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
@@ -139,13 +179,30 @@ function renderTextDecoration(
       // and 2px center-to-center spacing so thin underlines stay visible.
       const stroke = Math.max(1, t);
       const sep = Math.max(2, t * 2);
-      return `<line x1="${r(segX)}" y1="${r(y - sep / 2)}" x2="${r(segX + segWidth)}" y2="${r(y - sep / 2)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
-        + `<line x1="${r(segX)}" y1="${r(y + sep / 2)}" x2="${r(segX + segWidth)}" y2="${r(y + sep / 2)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`;
+      // Skip-ink for double: gaps are computed against the union span [top
+      // line top, bottom line bottom] = ±(sep/2 + stroke/2) around y.
+      const dblGaps = isUnderline
+        ? computeGapsAt(y - baselineY, sep + stroke)
+        : [];
+      const subs = subSegments(dblGaps);
+      const top = y - sep / 2;
+      const bot = y + sep / 2;
+      return subs.map(({ x0, x1 }) =>
+        `<line x1="${r(x0)}" y1="${r(top)}" x2="${r(x1)}" y2="${r(top)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
+        + `<line x1="${r(x0)}" y1="${r(bot)}" x2="${r(x1)}" y2="${r(bot)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
+      ).join("");
     }
-    return `<line x1="${r(segX)}" y1="${r(y)}" x2="${r(segX + segWidth)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`;
+    // Solid (or dashed / dotted): single line span with optional dasharray.
+    // Skip-ink applies only to solid (Chromium short-circuits dashed / dotted).
+    const wantSkip = isUnderline && (style == null || style === "solid" || style === "");
+    const solidGaps = wantSkip ? computeGapsAt(y - baselineY, t) : [];
+    const subs = subSegments(solidGaps);
+    return subs.map(({ x0, x1 }) =>
+      `<line x1="${r(x0)}" y1="${r(y)}" x2="${r(x1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`
+    ).join("");
   }
   if (has("underline")) {
-    lines.push(emitLine(baselineY + m.underlineOffsetY, m.underlineThickness));
+    lines.push(emitLine(baselineY + m.underlineOffsetY, m.underlineThickness, true));
   }
   if (has("line-through")) {
     lines.push(emitLine(baselineY - m.strikeoutOffsetY, m.strikeoutThickness));
@@ -264,7 +321,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // Round to integer px so Chrome's pixel-aligned decoration paint
     // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
     const decoBaselineY = Math.round(tt + (el.fontAscent ?? fontSize));
-    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset);
+    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, pathText, el.styles.textDecorationSkipInk, features);
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
     const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";
@@ -359,7 +416,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       parts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset);
+    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, reordered.text, el.styles.textDecorationSkipInk, segFeatures);
     if (decoMarkup !== "") parts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
     // text get their actual Chrome-painted pixels stamped over the position.
