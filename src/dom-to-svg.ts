@@ -862,15 +862,37 @@ const CAPTURE_SCRIPT = `
   // crisp glyph hinting. Sub-pixel baselines blur some glyphs more
   // than the integer-rounding drift hurts. Stuck with integer fbAsc.
   const _fontMetricsCache = new Map();
-  // Map of @font-face family-name (lowercased) → first local() name. Built once
-  // by walking document.styleSheets. Canvas measureText silently falls back to
-  // the generic family when given an @font-face name (it does not honor local()
-  // src the way DOM rendering does), so TestMono declared via local(Menlo)
-  // measures with monospace=Courier metrics (ascent=14) instead of Menlo
-  // (ascent=15). That 1px ascent gap put every glyph 1px above Chromes paint,
-  // leaving a halo around each character in the diff (DM-445). Substituting
-  // the resolved local() name into the family list before ctx.font fixes it.
+  // Map of @font-face family-name (lowercased) → the local() candidate
+  // Chrome ACTUALLY resolved the alias to. Built once by walking
+  // document.styleSheets. Canvas measureText does NOT honor @font-face
+  // local() src (it falls back to the generic family), so without
+  // substituting the resolved local() name into the font string, the
+  // metrics probe sees Courier (the monospace fallback) instead of the
+  // painted face and reports a different ascent — putting glyphs
+  // above/below where Chrome painted them and leaving halos in the diff.
+  // (DM-445.)
+  //
+  // Important: Chrome's local() resolution only matches a font's full name
+  // or PostScript name, NOT its CSS family name (CSS Fonts 4 §11.2). So
+  // local("Menlo") does NOT match Menlo (whose PostScript name is
+  // "Menlo-Regular") — Chrome falls through to the next local() candidate.
+  // We cannot predict which candidate Chrome picked from name alone, so we
+  // probe by rendering the alias face and comparing its width to each
+  // candidate referenced by direct family name (which does match installed
+  // system fonts). Whichever width matches is the one Chrome resolved.
   const _localFaceMap = new Map();
+  const _probeWidthCS = (familyExpr, weight, style) => {
+    const span = document.createElement('span');
+    span.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre';
+    span.style.fontFamily = familyExpr;
+    span.style.fontWeight = weight;
+    span.style.fontStyle = style;
+    span.textContent = 'mIw0';
+    document.body.appendChild(span);
+    const w = span.getBoundingClientRect().width;
+    document.body.removeChild(span);
+    return w;
+  };
   for (const sheet of Array.from(document.styleSheets)) {
     let cssRules;
     try { cssRules = sheet.cssRules; } catch (e) { continue; }
@@ -878,11 +900,39 @@ const CAPTURE_SCRIPT = `
       if (rule.constructor.name !== 'CSSFontFaceRule') continue;
       const r = rule;
       const family = r.style.getPropertyValue('font-family').trim().replace(/^["']|["']$/g, '').toLowerCase();
+      const weight = r.style.getPropertyValue('font-weight') || '400';
+      const styleDesc = r.style.getPropertyValue('font-style') || 'normal';
       const src = r.style.getPropertyValue('src');
       if (family === '' || /url\\(/.test(src)) continue;
-      const m = /local\\(\\s*["']?([^"')]+?)["']?\\s*\\)/.exec(src);
-      if (m == null) continue;
-      if (!_localFaceMap.has(family)) _localFaceMap.set(family, m[1].trim());
+      const matches = src.match(/local\\(\\s*["']?[^"')]+?["']?\\s*\\)/g);
+      if (matches == null) continue;
+      const locals = [];
+      for (const mm of matches) {
+        const inner = /local\\(\\s*["']?([^"')]+?)["']?\\s*\\)/.exec(mm);
+        if (inner != null) locals.push(inner[1].trim());
+      }
+      if (locals.length === 0) continue;
+      // Probe-by-width to find the local() candidate Chrome actually
+      // resolved this alias to. Cache only the first @font-face rule per
+      // family (matching how src precedence works inside one rule); the
+      // family-key collision case across multiple rules is handled by
+      // the caller using getComputedStyle to pick the right rule's face.
+      // Strip trailing variant suffix from a candidate name so the direct
+      // family-name probe hits the installed family. The alias rule's
+      // weight/style descriptors are applied separately, so the probe
+      // reaches the same face Chrome's local() lookup did.
+      const _stripVariant = (n) => n.replace(/\\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, '').trim();
+      let resolved = null;
+      const aliasW = _probeWidthCS('"' + family + '"', weight, styleDesc);
+      for (const cand of locals) {
+        const candW = _probeWidthCS('"' + _stripVariant(cand) + '"', weight, styleDesc);
+        if (Math.abs(candW - aliasW) < 0.05) { resolved = cand; break; }
+      }
+      // Fall back to the first local() candidate when probing didn't find a
+      // match (keeps the previous behavior for cases the simple width
+      // sample can't disambiguate).
+      if (resolved == null) resolved = locals[0];
+      if (!_localFaceMap.has(family)) _localFaceMap.set(family, resolved);
     }
   }
   const _substituteAliasedFamilies = (ff) => {

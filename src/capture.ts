@@ -224,12 +224,44 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   type ResourceUrl = { kind: "resource"; url: string };
   type DiscoveredItem = FaceRule | ResourceUrl;
   const fromPage = await page.evaluate(() => {
+    // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
+    // stack traces. That helper isn't injected into page.evaluate's
+    // serialized scope, so we polyfill it here. Without this, our local
+    // helpers below throw "__name is not defined" at construction time.
+    if (typeof (window as any).__name === "undefined") {
+      (window as any).__name = function (fn: any) { return fn; };
+    }
     interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string }
     interface ResourceUrl { kind: "resource"; url: string }
     const out: (FaceRule | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
 
-    interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string }
+    interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null }
+    // Width-probe helpers are defined inline below as needed. We avoid hoisting
+    // them into named arrow consts because tsx wraps such names in __name(...)
+    // calls (a runtime helper for stack traces) that isn't available inside
+    // page.evaluate's serialized context. (DM-445 — original symptom: the
+    // entire discovery throws "ReferenceError: __name is not defined".)
+    const probeWidthInline = function (familyExpr: string, weight: string, style: string, sample: string): number {
+      const span = document.createElement("span");
+      span.style.cssText = "position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre";
+      span.style.fontFamily = familyExpr;
+      span.style.fontWeight = weight;
+      span.style.fontStyle = style;
+      span.textContent = sample;
+      document.body.appendChild(span);
+      const w = span.getBoundingClientRect().width;
+      document.body.removeChild(span);
+      return w;
+    };
+    // Strip trailing weight/style suffix from a local() candidate so the
+    // direct family-name probe hits the installed family. e.g. "Georgia
+    // Italic" → "Georgia". The font-style / font-weight descriptors of the
+    // alias rule already set the right variant, so the probe gets the same
+    // face Chrome's local() lookup would reach.
+    const stripVariantSuffixInline = function (n: string): string {
+      return n.replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "").trim();
+    };
     for (const sheet of Array.from(document.styleSheets)) {
       let cssRules: CSSRuleList;
       try { cssRules = sheet.cssRules; } catch { continue; }
@@ -250,7 +282,26 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
           // the wrong face.
           const locals = Array.from(src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g)).map((mm) => mm[1].trim()).filter((n) => n !== "");
           if (locals.length > 0) {
-            (out as any[]).push({ kind: "local", family, localNames: locals, weight, style });
+            // Probe to identify which local() candidate Chrome actually
+            // resolved this alias to. A sample of common monospace + serif
+            // glyphs ('mIw0') gives us enough horizontal divergence between
+            // candidates to disambiguate even closely-related faces.
+            const sample = "mIw0";
+            // Chrome's local() lookup only matches a font's full name or
+            // PostScript name (per CSS Fonts 4 §11.2), not its CSS family
+            // name. So `local("Menlo")` (a family name) fails to match —
+            // but the @font-face still resolves to the next candidate. To
+            // figure out which one, render the alias face and compare its
+            // width to each candidate via DIRECT family-name lookup (which
+            // does match installed system fonts).
+            const aliasW = probeWidthInline(`"${family}"`, weight, style, sample);
+            let resolved: string | null = null;
+            for (const cand of locals) {
+              const candW = probeWidthInline(`"${stripVariantSuffixInline(cand)}"`, weight, style, sample);
+              // Tolerate sub-px FP noise; match if widths agree within 0.05px.
+              if (Math.abs(candW - aliasW) < 0.05) { resolved = cand; break; }
+            }
+            (out as any[]).push({ kind: "local", family, localNames: locals, weight, style, resolvedLocalName: resolved });
           }
           continue;
         }
@@ -281,16 +332,28 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   const report: { family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string }[] = [];
   for (const item of discovered as any[]) {
     if (item.kind === "local") {
-      // Walk local() names in order and register the first one we recognize.
-      // This mirrors Chrome's @font-face fallback: the first local() that
-      // resolves on the host wins. (DM-303). Capture the @font-face descriptor
-      // weight + italic so the renderer can score the requested combo against
-      // declared variants, instead of silently picking a bold-italic sibling
-      // file when only italic-400 was declared (DM-360).
+      // The page-side probe identified which local() candidate Chrome
+      // actually resolved the alias to (by comparing rendered widths). We
+      // route to that one specifically — NOT the first candidate we happen
+      // to recognize — because Chrome's local() lookup only matches a font's
+      // PostScript or full name, not its CSS family name (DM-445). Walking
+      // the candidate list with a family-name-based lookup table would
+      // mis-route e.g. `src: local("Menlo"), local("Monaco")` to Menlo when
+      // Chrome actually paints Monaco (Menlo's PostScript name is
+      // "Menlo-Regular", so the bare "Menlo" form doesn't match).
+      //
+      // If the probe didn't identify a match (none of the candidates
+      // measured the same width as the alias), we fall back to the legacy
+      // family-name lookup over the full candidate list — better than
+      // nothing, and preserves behavior for cases the probe can't resolve
+      // (e.g. an alias whose width happened to disagree with all candidates
+      // due to layout shaping that the simple sample didn't exercise).
       const declaredWeight = parseWeightDescriptor((item as any).weight);
       const declaredStyle = String((item as any).style ?? "normal").toLowerCase();
       const declaredItalic = declaredStyle !== "" && declaredStyle !== "normal";
-      for (const localName of item.localNames as string[]) {
+      const resolved = (item as any).resolvedLocalName as string | null | undefined;
+      const candidates = resolved != null ? [resolved] : (item.localNames as string[]);
+      for (const localName of candidates) {
         const key = systemFontKeyForLocalName(localName);
         if (key != null) {
           registerLocalFontAlias(item.family, key, declaredWeight, declaredItalic);
