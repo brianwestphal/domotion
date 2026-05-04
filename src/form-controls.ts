@@ -298,34 +298,37 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   let thumbCx: number;
   let thumbCy: number;
 
+  // Track spans the FULL element width / height in Chrome (verified via
+  // probe-range-track.mjs against painted output for both UA and appearance:
+  // none + custom track). Earlier we shortened the track by ±halfThumb on each
+  // end, leaving it ~22 px narrower than Chrome's painted track for the gradient
+  // sliders in DM-409. The thumb still travels within an inset range so its
+  // center stays inside the track bounds at value=min/max.
   if (isVertical) {
     const halfThumb = thumbH / 2;
     const trackX = elL + elW / 2 - trackThickness / 2;
-    const trackTop = elT + halfThumb;
-    const trackBottom = elT + elH - halfThumb;
-    const trackLen = trackBottom - trackTop;
+    const thumbTravelTop = elT + halfThumb;
+    const thumbTravelBottom = elT + elH - halfThumb;
     const lowAtBottom = s.direction === "rtl";
     const fromTop = lowAtBottom ? (1 - ratio) : ratio;
     thumbCx = elL + elW / 2;
-    thumbCy = trackTop + trackLen * fromTop;
-    trackRect = { x: trackX, y: trackTop, w: trackThickness, h: trackLen };
-    // UA accent fill spans from the value end of the track to the thumb.
+    thumbCy = thumbTravelTop + (thumbTravelBottom - thumbTravelTop) * fromTop;
+    trackRect = { x: trackX, y: elT, w: trackThickness, h: elH };
     if (lowAtBottom) {
-      fillRect = { x: trackX, y: thumbCy, w: trackThickness, h: Math.max(0, trackBottom - thumbCy) };
+      fillRect = { x: trackX, y: thumbCy, w: trackThickness, h: Math.max(0, elB - thumbCy) };
     } else {
-      fillRect = { x: trackX, y: trackTop, w: trackThickness, h: Math.max(0, thumbCy - trackTop) };
+      fillRect = { x: trackX, y: elT, w: trackThickness, h: Math.max(0, thumbCy - elT) };
     }
   } else {
     const halfThumb = thumbW / 2;
     const cy = elT + elH / 2;
     const trackY = cy - trackThickness / 2;
-    const trackLeft = elL + halfThumb;
-    const trackRight = elR - halfThumb;
-    const trackLen = trackRight - trackLeft;
+    const thumbTravelLeft = elL + halfThumb;
+    const thumbTravelRight = elR - halfThumb;
     thumbCy = cy;
-    thumbCx = trackLeft + trackLen * ratio;
-    trackRect = { x: trackLeft, y: trackY, w: trackLen, h: trackThickness };
-    fillRect = { x: trackLeft, y: trackY, w: Math.max(0, thumbCx - trackLeft), h: trackThickness };
+    thumbCx = thumbTravelLeft + (thumbTravelRight - thumbTravelLeft) * ratio;
+    trackRect = { x: elL, y: trackY, w: elW, h: trackThickness };
+    fillRect = { x: elL, y: trackY, w: Math.max(0, thumbCx - elL), h: trackThickness };
   }
 
   const trackGradFill = gradientFillFor(s.rangeTrackBgImage, trackRect, defCtx);

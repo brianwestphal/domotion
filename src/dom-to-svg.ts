@@ -862,11 +862,47 @@ const CAPTURE_SCRIPT = `
   // crisp glyph hinting. Sub-pixel baselines blur some glyphs more
   // than the integer-rounding drift hurts. Stuck with integer fbAsc.
   const _fontMetricsCache = new Map();
+  // Map of @font-face family-name (lowercased) → first local() name. Built once
+  // by walking document.styleSheets. Canvas measureText silently falls back to
+  // the generic family when given an @font-face name (it does not honor local()
+  // src the way DOM rendering does), so TestMono declared via local(Menlo)
+  // measures with monospace=Courier metrics (ascent=14) instead of Menlo
+  // (ascent=15). That 1px ascent gap put every glyph 1px above Chromes paint,
+  // leaving a halo around each character in the diff (DM-445). Substituting
+  // the resolved local() name into the family list before ctx.font fixes it.
+  const _localFaceMap = new Map();
+  for (const sheet of Array.from(document.styleSheets)) {
+    let cssRules;
+    try { cssRules = sheet.cssRules; } catch (e) { continue; }
+    for (const rule of Array.from(cssRules)) {
+      if (rule.constructor.name !== 'CSSFontFaceRule') continue;
+      const r = rule;
+      const family = r.style.getPropertyValue('font-family').trim().replace(/^["']|["']$/g, '').toLowerCase();
+      const src = r.style.getPropertyValue('src');
+      if (family === '' || /url\\(/.test(src)) continue;
+      const m = /local\\(\\s*["']?([^"')]+?)["']?\\s*\\)/.exec(src);
+      if (m == null) continue;
+      if (!_localFaceMap.has(family)) _localFaceMap.set(family, m[1].trim());
+    }
+  }
+  const _substituteAliasedFamilies = (ff) => {
+    if (_localFaceMap.size === 0) return ff;
+    const parts = ff.split(',').map((s) => s.trim());
+    let changed = false;
+    const out = parts.map((p) => {
+      const bare = p.replace(/^["']|["']$/g, '').toLowerCase();
+      const local = _localFaceMap.get(bare);
+      if (local == null) return p;
+      changed = true;
+      return /\\s/.test(local) ? '"' + local + '"' : local;
+    });
+    return changed ? out.join(', ') : ff;
+  };
   const _measureFontMetrics = (cs) => {
     const fs = cs.fontStyle || 'normal';
     const fw = cs.fontWeight || '400';
     const fz = cs.fontSize || '14px';
-    const ff = cs.fontFamily || 'sans-serif';
+    const ff = _substituteAliasedFamilies(cs.fontFamily || 'sans-serif');
     const key = fs + '|' + fw + '|' + fz + '|' + ff;
     let v = _fontMetricsCache.get(key);
     if (v != null) return v;
