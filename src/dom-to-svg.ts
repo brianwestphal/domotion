@@ -3649,21 +3649,26 @@ export function elementTreeToSvg(
           const oRadius = borderRadius > 0 ? borderRadius + inflate : 0;
           if (ostyle === "double" && ow >= 3) {
             // Chromium's PaintDoubleOutline (third_party/blink/renderer/core/
-            // paint/outline_painter.cc): stroke_width = round(width / 3),
-            // outer stripe at outer..stroke_width, inner stripe at
-            // (width - stroke_width)..width. Two parallel strokes of
-            // stroke_width each, separated by a gap of width - 2*stroke_width.
-            // Rendered here as two concentric <rect>s; outer rect's centerline
-            // sits at stroke_width/2 from the captured outline outer edge,
-            // inner rect's centerline at width - stroke_width/2. (DM-368.)
+            // paint/outline_painter.cc): stroke_width = round(width / 3).
+            // Outer stripe occupies the OUTER `sw` pixels of the outline rect,
+            // inner stripe the INNER `sw` pixels, separated by `ow - 2*sw`.
+            // The captured `ox / owd` is the centerline rect for a standard
+            // ow-wide stroke (outer edge = ox - ow/2). Each stripe is `sw`
+            // wide; the outer stripe's centerline sits at `outer_edge + sw/2`,
+            // the inner stripe's at `inner_edge - sw/2 = outer_edge + ow -
+            // sw/2`. Relative to ox that's −(ow-sw)/2 and +(ow-sw)/2. The
+            // earlier formulation positioned both stripes inside the gap zone
+            // and the inner stripe outside the border-box, producing one
+            // visually-merged stroke. (DM-443.)
             const sw = Math.round(ow / 3);
-            const outerInset = sw / 2;
-            const innerInset = ow - sw / 2;
+            const half = (ow - sw) / 2;
+            const outerR = Math.max(0, oRadius + half);
+            const innerR = Math.max(0, oRadius - half);
             svgParts.push(
-              `${indent}<rect x="${r(ox + outerInset)}" y="${r(oy + outerInset)}" width="${r(owd - 2 * outerInset)}" height="${r(oh - 2 * outerInset)}" rx="${r(Math.max(0, oRadius - outerInset))}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
+              `${indent}<rect x="${r(ox - half)}" y="${r(oy - half)}" width="${r(owd + 2 * half)}" height="${r(oh + 2 * half)}" rx="${r(outerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
             );
             svgParts.push(
-              `${indent}<rect x="${r(ox + innerInset)}" y="${r(oy + innerInset)}" width="${r(owd - 2 * innerInset)}" height="${r(oh - 2 * innerInset)}" rx="${r(Math.max(0, oRadius - innerInset))}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
+              `${indent}<rect x="${r(ox + half)}" y="${r(oy + half)}" width="${r(owd - 2 * half)}" height="${r(oh - 2 * half)}" rx="${r(innerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
             );
           } else {
             const dash = dashArrayForStyle(ostyle, ow);
