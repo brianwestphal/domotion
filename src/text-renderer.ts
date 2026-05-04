@@ -107,10 +107,17 @@ function renderTextDecoration(
   // <line> with optional stroke-dasharray.
   function emitLine(y: number, t: number): string {
     if (style === "wavy") {
-      // Wavy: sine-wave path with amplitude ≈ thickness, period ≈ 6×thickness.
-      const amp = Math.max(1, t * 0.8);
-      const period = Math.max(4, t * 5);
-      const halfPeriod = period / 2;
+      // Match Chromium's `decoration_line_painter.cc::MakeWave`:
+      //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
+      //   control_point_distance = 0.5 + round(3 * thickness + 0.5)
+      // Thickness is clamped to a 1px minimum first. The wave is a series of
+      // quadratic curves alternating above/below the baseline at half-period
+      // intervals — visually equivalent to Chrome's cubic-Bezier composition
+      // at the thicknesses we typically render. (DM-446.)
+      const tc = Math.max(1, t);
+      const wavelength = 1 + 2 * Math.round(2 * tc + 0.5);
+      const amp = 0.5 + Math.round(3 * tc + 0.5);
+      const halfPeriod = wavelength / 2;
       let d = `M ${r(segX)} ${r(y)}`;
       let x = segX;
       let dir = 1;
@@ -121,7 +128,7 @@ function renderTextDecoration(
         x = nx;
         dir = -dir;
       }
-      return `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(Math.max(1, t * 0.6))}"/>`;
+      return `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`;
     }
     if (style === "double") {
       // Double: two parallel lines. Chrome's spec for `text-decoration-style:

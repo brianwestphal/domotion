@@ -1286,6 +1286,18 @@ const CAPTURE_SCRIPT = `
         // baseline); the image paints from this anchor at render dims, which
         // may overflow downward.
         const yPosImg = elTop + (lineHImg - layoutH) / 2;
+        // Capture the inline-blocks outer-box horizontal contributions: the
+        // following text is shifted by (marginL + borderL + paddingL + width +
+        // paddingR + borderR + marginR), but the IMAGE paints at the content-
+        // box top-left = (outerLeft + marginL + borderL + paddingL). Without
+        // these we lose marginR/paddingR/borderR — DM-453 (.img-before with
+        // margin-right:6px rendered 6px right of Chrome).
+        const pMarginL = parseFloat(pcs.marginLeft) || 0;
+        const pMarginR = parseFloat(pcs.marginRight) || 0;
+        const pBorderL = parseFloat(pcs.borderLeftWidth) || 0;
+        const pBorderR = parseFloat(pcs.borderRightWidth) || 0;
+        const pPaddingL = parseFloat(pcs.paddingLeft) || 0;
+        const pPaddingR = parseFloat(pcs.paddingRight) || 0;
         pseudoSegments.push({
           isBefore: pseudo === '::before',
           imageUrl,
@@ -1293,6 +1305,12 @@ const CAPTURE_SCRIPT = `
           renderWidth: renderW,
           renderHeight: renderH,
           color: pcs.color,
+          boxMarginLeft: pMarginL,
+          boxMarginRight: pMarginR,
+          boxBorderLeft: pBorderL,
+          boxBorderRight: pBorderR,
+          boxPaddingLeft: pPaddingL,
+          boxPaddingRight: pPaddingR,
         });
         continue;
       }
@@ -1751,13 +1769,26 @@ const CAPTURE_SCRIPT = `
         // width (p.seg.width), so we place the layout anchor at
         // (firstSeg.x - layoutWidth). The image itself then paints at
         // renderWidth/Height from that anchor and can overflow right/down.
+        // The image paints at the inline-blocks CONTENT-BOX top-left. The
+        // following text is shifted by the full outer-box advance
+        // (marginL + borderL + paddingL + width + paddingR + borderR +
+        // marginR). For ::before that means
+        //   contentBoxLeft = firstSeg.x - (paddingR + borderR + marginR + width)
+        // For ::after the leading text ends at lastSeg.x + lastSeg.width, then
+        //   contentBoxLeft = lastSegEnd + marginL + borderL + paddingL
+        const mL = p.boxMarginLeft || 0;
+        const mR = p.boxMarginRight || 0;
+        const bL = p.boxBorderLeft || 0;
+        const bR = p.boxBorderRight || 0;
+        const pL = p.boxPaddingLeft || 0;
+        const pR = p.boxPaddingRight || 0;
         if (p.isBefore && textSegments.length > 0) {
           const firstSeg = textSegments[0];
-          p.seg.x = firstSeg.x - p.seg.width;
+          p.seg.x = firstSeg.x - p.seg.width - pR - bR - mR;
           p.seg.y = firstSeg.y + (firstSeg.height - p.seg.height) / 2;
         } else if (!p.isBefore && textSegments.length > 0) {
           const lastSeg = textSegments[textSegments.length - 1];
-          p.seg.x = lastSeg.x + lastSeg.width;
+          p.seg.x = lastSeg.x + lastSeg.width + mL + bL + pL;
           p.seg.y = lastSeg.y + (lastSeg.height - p.seg.height) / 2;
         }
         pseudoImages.push({
@@ -3844,11 +3875,24 @@ export function elementTreeToSvg(
           const sm = /^"((?:[^"\\]|\\.)*)"|^'((?:[^'\\]|\\.)*)'/.exec(label);
           if (sm != null) label = sm[1] ?? sm[2] ?? "";
           label = label.replace(/\\([0-9a-fA-F]{1,6})\s?/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)));
+          // DM-452: Codepoints with Emoji=Yes / Emoji_Presentation=No (e.g.
+          // ➤ U+27A4 in the Dingbats block) default to text presentation in
+          // HTML, but our SVG <text> on macOS often falls through to Apple
+          // Color Emoji which paints them wider/right. Appending VS-15
+          // (U+FE0E) forces text presentation, matching Chrome's HTML
+          // ::marker paint. We restrict to codepoints we have empirically
+          // observed to coerce-to-emoji in our SVG output; the broader
+          // "every text-default emoji char" list is intentionally NOT applied
+          // here because it risks false positives on author-painted glyphs.
+          const textPresDefault = /[➤]/g;
+          label = label.replace(textPresDefault, (ch) => ch + "︎");
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
           // Position: marker right-aligned just left of the li's content edge,
           // mirroring the text-marker branch below.
           const smallGap = 4;
-          const mx = outside ? el.x - smallGap : el.x;
+          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          const mx = outside ? el.x - smallGap : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
           const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
           svgParts.push(
@@ -3872,7 +3916,16 @@ export function elementTreeToSvg(
           // produced indistinguishable disc paints at the same em-radius —
           // Chrome's marker isn't font-family-aware (DM-340/350/358/371/etc.).
           const r0 = markerFontSize * 0.165;
-          const mx = outside ? el.x - gap - r0 : el.x + r0;
+          // Inside markers paint inside the principal block at the content
+          // edge, not at the border-box edge. Per Chromium
+          // `list_marker.cc::InlineMarginsForInside`, the marker box is
+          // followed by a 1em end-margin before the text — the captured
+          // textLeft already encodes that, so we just need to anchor the
+          // marker glyph at content-edge + half-symbol-width.
+          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          const contentEdge = el.x + borderL + padL;
+          const mx = outside ? el.x - gap - r0 : contentEdge + r0;
           if (lsType === "disc") {
             svgParts.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="${markerColor}" />`);
           } else if (lsType === "circle") {
@@ -3899,7 +3952,9 @@ export function elementTreeToSvg(
           // approximation is safer than text_width × heuristic since
           // monospace vs proportional font advance varies widely.
           const smallGap = 8;
-          const mx = outside ? el.x - smallGap : el.x;
+          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          const mx = outside ? el.x - smallGap : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
           svgParts.push(

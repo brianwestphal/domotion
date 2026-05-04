@@ -1026,14 +1026,22 @@ export function textToPathMarkup(
   const hasFeature = (f: string) => availableFeatures.includes(f);
   // Determine the synthesized scale for lowercase / uppercase letters under
   // each variant. `null` means do not transform (keep native glyph at 1.0).
-  const PETITE_CAP_SCALE = 0.55;
+  // Chromium uses a single synthesis multiplier for ALL caps variants:
+  // `kSmallCapsFontSizeMultiplier = 0.7f` in
+  // third_party/blink/renderer/platform/fonts/simple_font_data.cc. Per CSS
+  // Fonts 4 §7.4, petite-caps falls back to small-caps when the font lacks
+  // pcap / c2pc, and Chrome uses the same 0.7 scale for the synthesized
+  // form (no separate kPetiteCapsFontSizeMultiplier exists). Our macOS body
+  // fonts (Helvetica/Arial/SF Pro/Georgia/Times/Menlo) ship neither pcap
+  // nor c2pc, so the petite path always synthesizes at 0.7 to match Chrome's
+  // painted output. (DM-444 follow-up.)
   const SMALL_CAP_SCALE = 0.7;
   let synthLowerScale: number | null = null;
   let synthUpperScale: number | null = null;
   if (wantSmcp && !hasFeature("smcp")) synthLowerScale = SMALL_CAP_SCALE;
   if (wantC2sc && !hasFeature("c2sc")) synthUpperScale = SMALL_CAP_SCALE;
-  if (wantPcap && !hasFeature("pcap")) synthLowerScale = PETITE_CAP_SCALE;
-  if (wantC2pc && !hasFeature("c2pc")) synthUpperScale = PETITE_CAP_SCALE;
+  if (wantPcap && !hasFeature("pcap")) synthLowerScale = SMALL_CAP_SCALE;
+  if (wantC2pc && !hasFeature("c2pc")) synthUpperScale = SMALL_CAP_SCALE;
   if (wantUnic && !hasFeature("unic")) {
     // unicase: both cases render at small-cap height.
     synthLowerScale = SMALL_CAP_SCALE;
