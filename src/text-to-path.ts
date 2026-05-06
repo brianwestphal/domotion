@@ -560,6 +560,25 @@ export function fallbackFontKey(codepoint: number): string | null {
  * black rectangle around the edges of the emoji where the raster has
  * sub-pixel transparency. (DM-334.)
  */
+/**
+ * Codepoints in the Unicode Private Use Areas — these are author-assigned
+ * (typically icon-font) glyphs. When the host system fonts don't cover the
+ * codepoint, fontkit returns a `.notdef` tofu (a striated rectangle). We
+ * suppress that emission rather than paint the tofu — a missing icon should
+ * read as "nothing" not as a glyph-shaped black blob over surrounding text
+ * (apple.com country dropdown checkmark covering the leading 'P' of
+ * 'Philippines' — DM-490 / DM-500).
+ */
+function isPrivateUseCodepoint(cp: number): boolean {
+  // BMP PUA
+  if (cp >= 0xE000 && cp <= 0xF8FF) return true;
+  // Supplementary PUA-A
+  if (cp >= 0xF0000 && cp <= 0xFFFFD) return true;
+  // Supplementary PUA-B
+  if (cp >= 0x100000 && cp <= 0x10FFFD) return true;
+  return false;
+}
+
 function isEmojiCodepoint(cp: number, nextCp: number): boolean {
   // Misc Symbols block (U+2600..26FF) chars with default emoji presentation.
   if (cp === 0x2614 || cp === 0x2615 || (cp >= 0x2648 && cp <= 0x2653)
@@ -1130,7 +1149,7 @@ export function textToPathMarkup(
           // tofu's outline. (DM-334.)
           const nextI = i + ch.length;
           const nextCp = nextI < text.length ? text.codePointAt(nextI)! : 0;
-          const skipNotdef = isEmojiCodepoint(cp, nextCp);
+          const skipNotdef = isEmojiCodepoint(cp, nextCp) || isPrivateUseCodepoint(cp);
           const uses: string[] = [];
           for (const g of layout.glyphs) {
             if (g.path.commands.length > 0 && !(skipNotdef && g.id === 0)) {
@@ -1252,7 +1271,9 @@ function singleFontMarkup(
     for (let gi = 0; gi < run.glyphs.length; gi++) {
       const glyph = run.glyphs[gi];
       const pos = run.positions[gi];
-      if (textIdx < xOffsets.length && glyph.path.commands.length > 0) {
+      const skipNotdefHere = glyph.id === 0 && glyph.codePoints != null && glyph.codePoints.length > 0
+        && glyph.codePoints.every((cp: number) => isPrivateUseCodepoint(cp));
+      if (textIdx < xOffsets.length && glyph.path.commands.length > 0 && !skipNotdefHere) {
         const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
         const ty = -pos.yOffset;
@@ -1285,7 +1306,9 @@ function singleFontMarkup(
   for (let i = 0; i < run.glyphs.length; i++) {
     const glyph = run.glyphs[i];
     const pos = run.positions[i];
-    if (glyph.path.commands.length > 0) {
+    const skipNotdefHere = glyph.id === 0 && glyph.codePoints != null && glyph.codePoints.length > 0
+      && glyph.codePoints.every((cp: number) => isPrivateUseCodepoint(cp));
+    if (glyph.path.commands.length > 0 && !skipNotdefHere) {
       const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
       let tx: number;
       if (usePerChar) {

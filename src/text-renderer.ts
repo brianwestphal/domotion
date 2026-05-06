@@ -281,6 +281,26 @@ interface RenderTextOpts {
   overflowClip?: boolean;
 }
 
+/**
+ * Returns true when every codepoint in `text` is in a Unicode Private Use
+ * Area (U+E000–F8FF, U+F0000–FFFFD, U+100000–10FFFD). Used to suppress the
+ * `<text>` fallback for icon-font codepoints whose path-mode emission was
+ * already suppressed as notdef tofu — letting Chromium repaint the tofu
+ * via its UA glyph fallback would defeat the suppression. (DM-490 / DM-500.)
+ */
+function isAllPrivateUseArea(text: string): boolean {
+  if (text.length === 0) return false;
+  for (let i = 0; i < text.length;) {
+    const cp = text.codePointAt(i)!;
+    const inPua = (cp >= 0xE000 && cp <= 0xF8FF)
+      || (cp >= 0xF0000 && cp <= 0xFFFFD)
+      || (cp >= 0x100000 && cp <= 0x10FFFD);
+    if (!inPua) return false;
+    i += cp > 0xFFFF ? 2 : 1;
+  }
+  return true;
+}
+
 // Resolve OpenType features from font-variant-caps (DM-361, DM-444).
 // Spec mapping:
 //   small-caps      → [smcp]                  (lowercase → small caps)
@@ -363,6 +383,14 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     return `${result}${decoMarkup}${rasterOverlay}`;
   }
 
+  // DM-490 / DM-500: when the text is entirely Private Use Area codepoints
+  // and the path-mode renderer returned null (no glyph emitted because every
+  // glyph was a notdef tofu we suppressed), don't fall through to a `<text>`
+  // element either — Chromium will paint the same notdef tofu using its own
+  // glyph fallback, which is exactly what we suppressed at the path level.
+  // A missing icon should read as 'nothing'.
+  if (isAllPrivateUseArea(el.text)) return "";
+
   // Fallback to CSS <text> if path rendering fails
   const ff = fontFamily.replace(/"/g, "'");
   const lsCss = el.styles.letterSpacing !== "normal" && el.styles.letterSpacing !== "0px"
@@ -435,8 +463,12 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segAscent = seg.fontAscent ?? el.fontAscent;
     const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang);
     if (result != null) { parts.push(result); }
-    else {
-      // Fallback to CSS <text> if path rendering fails
+    else if (!isAllPrivateUseArea(seg.text)) {
+      // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
+      // the segment text is entirely Private Use Area (icon-font codepoints
+      // we couldn't resolve to a real glyph), suppress the <text> fallback
+      // too — Chromium's UA fallback paints the same notdef tofu we already
+      // suppressed at the path level, defeating the point.
       const ff = fontFamily.replace(/"/g, "'");
       const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;`;
       const sy = seg.y + seg.height / 2;

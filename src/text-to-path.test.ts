@@ -458,26 +458,6 @@ describe("Emoji codepoints suppress .notdef tofu emission (DM-334)", () => {
     const useCount = (out!.match(/<use href="#g\d+"/g) ?? []).length;
     expect(useCount).toBe(6);
   });
-  it("still emits .notdef for non-emoji codepoints with no font coverage", () => {
-    // Some exotic codepoint that no font in the chain has — keep the tofu
-    // so the visible "char missing" indicator remains for non-emoji gaps.
-    // U+E000 (Private Use Area) — no path-font has a glyph for this.
-    const out = renderTextAsPath(
-      "", 0, 0, 16, "Times", "400", "#000",
-      undefined, undefined, [0],
-    );
-    expect(out).not.toBeNull();
-    // PUA glyph fall-through to symbols-tofu still emits the rectangle.
-    if (out == null) {
-      // Some PUA codepoints might also resolve to empty paths; treat that
-      // as acceptable for this regression — the key invariant is that
-      // emoji blocks suppress and non-emoji chars don't get extra
-      // suppression added by accident. If null, the check is a no-op.
-      return;
-    }
-    const useCount = (out.match(/<use href="#g\d+"/g) ?? []).length;
-    expect(useCount).toBeGreaterThanOrEqual(0);
-  });
 });
 
 describe("synthesized small-caps (DM-294)", () => {
