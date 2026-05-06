@@ -27,7 +27,7 @@ import { captureElementTreeWithWarnings, elementTreeToSvg } from "../src/dom-to-
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { raw } from "../src/jsx-runtime.js";
 import { comparePngs, PASS_THRESHOLD_NON_AA_PIXELS, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
-import { resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
+import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HTML_TEST_DIR = resolve(homedir(), "Documents/html-test");
@@ -198,6 +198,8 @@ async function main(): Promise<void> {
     return;
   }
 
+  // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
+  lowerProcessPriority();
   const workerCount = resolveWorkerCount();
   console.log(`Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT}) with ${workerCount} workers...\n`);
 

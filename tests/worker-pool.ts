@@ -23,12 +23,38 @@ export function detectCoreCount(): number {
 }
 
 /**
- * Default worker count for the visual-regression pool: leave one core free
- * for the OS / editor / Playwright's own browser process when the host has
- * more than one core. On a single-core box we run one worker. DM-459.
+ * Default worker count for the visual-regression pool. Each worker owns a
+ * Playwright `BrowserContext`, which means a separate Chromium *process tree*
+ * (browser + GPU + renderer + utility), so the effective CPU footprint per
+ * worker is several times one core. `cores - 1` was still pegging multi-core
+ * hosts and starving interactive work (DM-459 v2 user feedback). Halving the
+ * core count plus a hard floor of 1 keeps things responsive on 4-core boxes
+ * (2 workers) without giving up too much throughput on 16-core boxes
+ * (8 workers). Combine with `lowerProcessPriority()` for additional
+ * yield-to-foreground behavior. DM-459.
  */
 export function defaultWorkerCount(coreCount: number = detectCoreCount()): number {
-  return coreCount > 1 ? coreCount - 1 : 1;
+  return Math.max(1, Math.floor(coreCount / 2));
+}
+
+/**
+ * Nudge this Node process (and any future child processes — Playwright's
+ * Chromium subprocess inherits) down to a higher nice value so the kernel
+ * yields CPU to interactive work (the user's editor, terminal, browser)
+ * when there's contention. Idle CPU still goes to the test pool, so
+ * absolute throughput on an otherwise-idle machine is unchanged. Skipped
+ * when `DOMOTION_NO_NICE=1` is set so power users can benchmark without
+ * the priority adjustment. Best-effort: an EPERM (e.g. RLIMIT_NICE limit)
+ * is logged once and swallowed. DM-459.
+ */
+export function lowerProcessPriority(nice: number = 10): void {
+  if (process.env["DOMOTION_NO_NICE"] === "1") return;
+  try {
+    os.setPriority(0, nice);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    process.stderr.write(`[worker-pool] could not lower process priority (nice=${nice}): ${msg}\n`);
+  }
 }
 
 /**

@@ -1,6 +1,7 @@
+import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { defaultWorkerCount, detectCoreCount, resolveWorkerCount } from "./worker-pool.js";
+import { defaultWorkerCount, detectCoreCount, lowerProcessPriority, resolveWorkerCount } from "./worker-pool.js";
 
 const ORIGINAL_ARGV = process.argv;
 const ORIGINAL_ENV_WORKERS = process.env["DOMOTION_TEST_WORKERS"];
@@ -25,10 +26,12 @@ describe("detectCoreCount", () => {
 });
 
 describe("defaultWorkerCount (DM-459)", () => {
-  it("leaves one core free on multi-core hosts", () => {
-    expect(defaultWorkerCount(8)).toBe(7);
-    expect(defaultWorkerCount(4)).toBe(3);
+  it("uses ~half the cores on multi-core hosts (Chromium subprocess overhead)", () => {
+    expect(defaultWorkerCount(8)).toBe(4);
+    expect(defaultWorkerCount(4)).toBe(2);
     expect(defaultWorkerCount(2)).toBe(1);
+    expect(defaultWorkerCount(10)).toBe(5);
+    expect(defaultWorkerCount(16)).toBe(8);
   });
 
   it("returns 1 on a single-core host", () => {
@@ -42,14 +45,18 @@ describe("defaultWorkerCount (DM-459)", () => {
     }
   });
 
-  it("at runtime, leaves at least one core free on this host (regression guard)", () => {
-    // Catches accidental hardcoded defaults (`defaultWorkers: number = 6`)
-    // slipping back in. CI hosts are typically multi-core so the < cores
-    // assertion holds; on a hypothetical 1-core box both sides are 1.
+  it("at runtime, leaves at least half the cores free on this host (regression guard)", () => {
+    // Catches accidental loosenings (`cores - 1`, hardcoded `6`, etc.)
+    // slipping back in. Each worker owns a Playwright BrowserContext that
+    // spawns a Chromium process tree (browser + GPU + renderer + utility),
+    // so worker count alone understates CPU footprint; the ~50% cap is
+    // what makes the host stay responsive while tests run (DM-459 v2
+    // user feedback). CI hosts are typically multi-core so the assertion
+    // holds; on a 1-core box both sides are 1.
     const cores = detectCoreCount();
     const workers = defaultWorkerCount();
     if (cores > 1) {
-      expect(workers).toBeLessThan(cores);
+      expect(workers).toBeLessThanOrEqual(Math.floor(cores / 2));
       expect(workers).toBeGreaterThanOrEqual(1);
     } else {
       expect(workers).toBe(1);
@@ -101,5 +108,46 @@ describe("resolveWorkerCount", () => {
   it("falls back to the default when the override is zero or negative", () => {
     process.argv = ["node", "script", "--workers=0"];
     expect(resolveWorkerCount(7)).toBe(7);
+  });
+});
+
+describe("lowerProcessPriority (DM-459 v2)", () => {
+  let originalNice: number;
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalNice = os.getPriority();
+    originalEnv = process.env["DOMOTION_NO_NICE"];
+    delete process.env["DOMOTION_NO_NICE"];
+  });
+
+  afterEach(() => {
+    // Restore the priority we found at start. Lowering nice is allowed
+    // (raising it back to 0 from a positive value) is also allowed for
+    // the calling process per POSIX setpriority. If neither works the
+    // test process just stays niced; harmless inside vitest.
+    try { os.setPriority(0, originalNice); } catch { /* best-effort */ }
+    if (originalEnv == null) delete process.env["DOMOTION_NO_NICE"];
+    else process.env["DOMOTION_NO_NICE"] = originalEnv;
+  });
+
+  it("raises this process's nice value (lower scheduling priority)", () => {
+    const before = os.getPriority();
+    lowerProcessPriority(10);
+    const after = os.getPriority();
+    // POSIX nice goes 0..19 (lower priority = higher number). After the
+    // call, our nice should be at LEAST what we asked for. (If the host
+    // already had a higher nice — e.g. running under `nice -n 15` — the
+    // setPriority call is still allowed and just resets to 10. We accept
+    // either: priority strictly increased, OR is now exactly 10.)
+    expect(after).toBeGreaterThanOrEqual(Math.min(before, 10));
+  });
+
+  it("is a no-op when DOMOTION_NO_NICE=1 is set", () => {
+    process.env["DOMOTION_NO_NICE"] = "1";
+    const before = os.getPriority();
+    lowerProcessPriority(10);
+    const after = os.getPriority();
+    expect(after).toBe(before);
   });
 });

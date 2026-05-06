@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { captureElementTree, elementTreeToSvg } from "../src/dom-to-svg.js";
 import { raw } from "../src/jsx-runtime.js";
 import { comparePngs, passes } from "./compare-pngs.js";
-import { resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
+import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 // Resolve against this script's dir so runs from any cwd write to the real
 // tests/output, not a stray nested ... path.
@@ -158,6 +158,8 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
     return [];
   }
 
+  // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
+  lowerProcessPriority();
   const browser = await chromium.launch();
   const workerCount = resolveWorkerCount();
 

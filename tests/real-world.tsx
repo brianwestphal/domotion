@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url";
 import { captureElementTreeWithWarnings, elementTreeToSvg } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { comparePngs } from "./compare-pngs.js";
-import { resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
+import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
@@ -140,6 +140,8 @@ interface RealWorldWorker {
 }
 
 async function main(): Promise<void> {
+  // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
+  lowerProcessPriority();
   const args = process.argv.slice(2);
   const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
 
