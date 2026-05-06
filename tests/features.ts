@@ -474,6 +474,32 @@ const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-506: CSS sprite icon image-replacement idiom — `text-indent: -9999px`
+    // hides the accessible label off-screen and the visible icon is a slice of
+    // a sprite sheet selected via `background-position`. Capture detects the
+    // pattern and rasterises the painted box (sprite slice) instead of trying
+    // to slice the bg-image declaratively (which doesn't work because the
+    // sync naturalWidth read in CAPTURE_SCRIPT often returns 0 for url()
+    // backgrounds whose <img> cache hasn't loaded). See docs/23.
+    name: "sprite-icon-text-indent",
+    html: (() => {
+      const sprite =
+        "data:image/svg+xml;utf8," +
+        encodeURIComponent(
+          "<svg xmlns='http://www.w3.org/2000/svg' width='60' height='20' viewBox='0 0 60 20'>" +
+            "<rect x='0' y='0' width='20' height='20' fill='%23f59e0b'/>" +
+            "<rect x='20' y='0' width='20' height='20' fill='%231f6feb'/>" +
+            "<rect x='40' y='0' width='20' height='20' fill='%2322c55e'/>" +
+            "</svg>",
+        );
+      const a = (cls: string, label: string, posX: string) =>
+        `<a class="${cls}" aria-label="${label}" href="#" style="background:url(${sprite}) ${posX} 0 no-repeat;width:20px;height:20px;display:inline-block;text-indent:-9999px;overflow:hidden;margin-right:8px;">${label}</a>`;
+      return `<div style="padding:20px;background:#0d1117;font-family:-apple-system,sans-serif;">${a("rss", "RSS", "0")}${a("fb", "Facebook", "-20px")}${a("li", "LinkedIn", "-40px")}</div>`;
+    })(),
+    width: 140,
+    height: 60,
+  },
+  {
     // DM-493: mask-image: url("#id") referencing an inline <mask> defined in
     // the same document. Capture resolves the fragment, serialises the mask's
     // outerHTML, and the renderer copies it into the output <defs> with id

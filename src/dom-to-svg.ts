@@ -537,6 +537,19 @@ export interface CapturedElement {
    */
   replacedSnapshot?: { x: number; y: number; width: number; height: number; rid: string; dataUri?: string };
   /**
+   * Image-replacement icon (DM-506): a CSS-sprite icon whose accessible label
+   * is hidden via `text-indent: -9999px; overflow: hidden` (or the modern
+   * `text-indent: <neg>; overflow: hidden; white-space: nowrap` variant). The
+   * element's painted box is rasterised through the `replacedSnapshot` path so
+   * the sprite slice is captured as Chrome painted it; capture also clears
+   * `text` / `textSegments` / `styles.backgroundImage` so the renderer doesn't
+   * double-paint the sliced sprite or leak the off-screen text into the SVG.
+   * `titleText` is the suppressed author text — emitted as an SVG `<title>`
+   * child of the rasterised `<image>` so screen readers and tooltips still
+   * surface the label. See `docs/23-css-sprite-icons.md`.
+   */
+  imageReplacement?: { titleText: string };
+  /**
    * <fieldset> with a top-aligned <legend>: Chrome's UA paints the fieldset's
    * top border at the legend's vertical center (not at fs.y) and notches the
    * border across the legend's horizontal extent. The captured x/y/width/
@@ -2691,6 +2704,45 @@ const CAPTURE_SCRIPT = `
         };
       }
     }
+    // DM-506: CSS sprite icon image-replacement idiom — text-indent: -9999px
+    // (or text-indent: <neg> + overflow: hidden + white-space: nowrap) on an
+    // element with a background-image. Chrome paints only the sliced sprite
+    // region; the text is offscreen. Domotion's bg-image pattern path can't
+    // slice reliably (the synchronous naturalWidth read at capture-time often
+    // returns 0 for url() backgrounds whose <img> cache hasn't loaded), so we
+    // route the element through the same rasterise-painted-rect path used for
+    // <canvas>/<video>/<iframe>. The captured text becomes an SVG <title> on
+    // the rasterised <image> so accessibility round-trips.
+    // See docs/23-css-sprite-icons.md.
+    if (!bordersOnlyCell
+        && cs.display !== 'none'
+        && rect.width > 0 && rect.height > 0
+        && _captured.replacedSnapshot == null) {
+      const _ti = parseFloat(cs.textIndent) || 0;
+      const _ovX = cs.overflowX === 'hidden' || cs.overflow === 'hidden';
+      const _hasBgImage = cs.backgroundImage != null && cs.backgroundImage !== 'none' && cs.backgroundImage !== '';
+      const _phark = _ti <= -1000;
+      const _modern = _ti < 0 && _ovX && cs.whiteSpace === 'nowrap';
+      if ((_phark || _modern) && _hasBgImage) {
+        const _rid2 = 'dr' + (_replacedIdx++);
+        el.setAttribute('data-domotion-rid', _rid2);
+        const _titleText = ((el.getAttribute && el.getAttribute('aria-label')) || _captured.text || '').trim();
+        _captured.replacedSnapshot = {
+          x: rect.left - vp.x,
+          y: rect.top - vp.y,
+          width: rect.width,
+          height: rect.height,
+          rid: _rid2,
+        };
+        _captured.imageReplacement = { titleText: _titleText };
+        // Suppress the broken bg-image emission and the off-screen text — the
+        // raster already covers both. Keep border + bg-color emission so a
+        // styled border around the icon (rare but supported) still paints.
+        _captured.styles.backgroundImage = undefined;
+        _captured.text = '';
+        _captured.textSegments = undefined;
+      }
+    }
     return _captured;
   };
 
@@ -4230,9 +4282,18 @@ export function elementTreeToSvg(
     // content-box rect dimensions exactly.
     if (el.replacedSnapshot != null && el.replacedSnapshot.dataUri != null) {
       const rs = el.replacedSnapshot;
-      svgParts.push(
-        `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none" />`,
-      );
+      // DM-506: when this is an image-replacement icon (sprite + off-screen
+      // text), wrap the painted raster with an SVG <title> so screen readers
+      // and tooltip UAs still surface the suppressed accessible label.
+      if (el.imageReplacement != null && el.imageReplacement.titleText !== "") {
+        svgParts.push(
+          `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none"><title>${esc(el.imageReplacement.titleText)}</title></image>`,
+        );
+      } else {
+        svgParts.push(
+          `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none" />`,
+        );
+      }
     }
 
     // List marker — render list-style-image at the marker position for <li>
