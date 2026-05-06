@@ -295,6 +295,143 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
     ]);
   });
 
+  it("will-change: transform creates a stacking context (DM-498)", () => {
+    // Apple-style hero pattern: artwork wrapper has `will-change: transform`
+    // (no explicit transform value yet — author intends to animate). Per CSS
+    // spec, this MUST create a stacking context. Without DM-498, Domotion
+    // missed this and positioned descendants escaped past the wrapper into
+    // the parent SC's flat list, disrupting paint order.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 240, height: 160,
+      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({
+          x: 10, y: 10, width: 120, height: 120,
+          styles: { ...makeElement().styles, position: "absolute", willChange: "transform", backgroundColor: "rgb(220,38,38)" },
+          children: [
+            makeElement({
+              x: 40, y: 40, width: 140, height: 90,
+              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
+            }),
+          ],
+        }),
+        makeElement({
+          x: 80, y: 50, width: 140, height: 80,
+          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+        }),
+      ],
+    })];
+
+    const svg = elementTreeToSvg(tree, 240, 160);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
+    expect(order).toEqual([
+      "rgb(220,38,38)", // will-change wrapper (auto-z bucket at root, paints first)
+      "rgb(88,166,255)", // blue trapped INSIDE the SC
+      "rgb(63,185,80)", // green (z:1) paints last via positive bucket
+    ]);
+  });
+
+  it("contain: paint creates a stacking context (DM-498)", () => {
+    // `contain: paint | strict | content` per CSS Containment spec creates
+    // a stacking context. Mirrors the will-change test — descendants stay
+    // inside.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 240, height: 160,
+      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({
+          x: 10, y: 10, width: 120, height: 120,
+          styles: { ...makeElement().styles, position: "absolute", contain: "paint", backgroundColor: "rgb(220,38,38)" },
+          children: [
+            makeElement({
+              x: 40, y: 40, width: 140, height: 90,
+              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
+            }),
+          ],
+        }),
+        makeElement({
+          x: 80, y: 50, width: 140, height: 80,
+          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+        }),
+      ],
+    })];
+
+    const svg = elementTreeToSvg(tree, 240, 160);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
+    expect(order).toEqual([
+      "rgb(220,38,38)",
+      "rgb(88,166,255)",
+      "rgb(63,185,80)",
+    ]);
+  });
+
+  it("isolation: isolate creates a stacking context (DM-498)", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 240, height: 160,
+      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({
+          x: 10, y: 10, width: 120, height: 120,
+          styles: { ...makeElement().styles, position: "absolute", isolation: "isolate", backgroundColor: "rgb(220,38,38)" },
+          children: [
+            makeElement({
+              x: 40, y: 40, width: 140, height: 90,
+              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
+            }),
+          ],
+        }),
+        makeElement({
+          x: 80, y: 50, width: 140, height: 80,
+          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+        }),
+      ],
+    })];
+
+    const svg = elementTreeToSvg(tree, 240, 160);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
+    expect(order).toEqual([
+      "rgb(220,38,38)",
+      "rgb(88,166,255)",
+      "rgb(63,185,80)",
+    ]);
+  });
+
+  it("will-change: scroll-position does NOT create a stacking context", () => {
+    // CSS-Will-Change-1: only properties that themselves create SCs trigger
+    // SC formation when listed in will-change. `scroll-position` is not such
+    // a property — listing it should leave normal hoist behavior intact.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 240, height: 160,
+      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({
+          x: 10, y: 10, width: 120, height: 120,
+          styles: { ...makeElement().styles, position: "absolute", willChange: "scroll-position", backgroundColor: "rgb(220,38,38)" },
+          children: [
+            makeElement({
+              x: 40, y: 40, width: 140, height: 90,
+              // z-index:5, but parent is NOT an SC → blue hoists to root SC.
+              styles: { ...makeElement().styles, position: "absolute", zIndex: "5", backgroundColor: "rgb(88,166,255)" },
+            }),
+          ],
+        }),
+        makeElement({
+          x: 80, y: 50, width: 140, height: 80,
+          styles: { ...makeElement().styles, position: "absolute", zIndex: "1", backgroundColor: "rgb(63,185,80)" },
+        }),
+      ],
+    })];
+
+    const svg = elementTreeToSvg(tree, 240, 160);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
+    // blue (z:5 hoisted to root) paints LAST — over green (z:1).
+    expect(order).toEqual([
+      "rgb(220,38,38)",
+      "rgb(63,185,80)",
+      "rgb(88,166,255)",
+    ]);
+  });
+
   it("position:fixed/sticky always create a stacking context (modern CSS)", () => {
     // A fixed-positioned ancestor with z-index:auto still creates an SC
     // per the "modern CSS" rule. Its z-indexed descendants stay inside.

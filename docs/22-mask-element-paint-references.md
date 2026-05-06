@@ -11,7 +11,11 @@ Common patterns:
 
 ## Today's behaviour
 
-CAPTURE_SCRIPT does not resolve `element(#id)` — `cs.maskImage` returns the literal string `element(#some-id)`, which `buildMaskDef()` doesn't match. Per DM-470's narrow-warning policy, we now warn `non-trivial mask source` for these cases.
+Implemented in DM-494 (this doc).
+
+CAPTURE_SCRIPT detects `mask-image: element(#id)` on every captured element. For each unique referenced id we look up the target via `document.getElementById`, mark it with `data-domotion-rid="mr<n>"`, and record `(id, rid, rect, width, height)` on the root tree's `maskRasters[]` field. After the main DOM walk, `rasterizeMaskSources` (mirrors doc 17) runs the same hide-everything-else stylesheet pass and screenshots the target's painted rect at the page's actual DPR, encoding the result as `data:image/png;base64,…` and stashing it on the matching `maskRasters[]` entry.
+
+The renderer's `buildMaskDef` accepts an optional `elementRasters` lookup. When it sees a layer matching `element(#id)`, it resolves the data URI from the lookup and emits an `<image>` directly into the `<mask>` with mask-position / mask-size honored. `mask-mode: match-source` resolves to `luminance` when any layer in the mask is an `element()` ref (per CSS Masking spec — element() paint references use RGB luminance to drive mask alpha); explicit `mask-mode: alpha` overrides that.
 
 ## Proposed approach
 

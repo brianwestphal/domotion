@@ -442,6 +442,18 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       parts.push(`<image href="${seg.rasterDataUri}" x="${r(seg.rasterRect.x)}" y="${r(seg.rasterRect.y)}" width="${r(seg.rasterRect.width)}" height="${r(seg.rasterRect.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`);
       continue;
     }
+    // DM-497: pseudo-element paint box. ::before / ::after with their own
+    // background-color or border-radius (badges / pills / chips) need a
+    // <rect> behind the text glyphs. Captured at CAPTURE_SCRIPT time once
+    // seg.x/y is in its final viewport-relative position; we just emit it.
+    if (seg.pseudoBox != null) {
+      const pb = seg.pseudoBox;
+      const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
+      const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
+      const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
+        ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
+      parts.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>`);
+    }
     // Per-segment overrides from ::before / ::after pseudos (color, fontSize,
     // fontWeight). Fall back to the element's styles when the segment has no
     // override. This is how we render the .flag::before red, the li[data-badge]

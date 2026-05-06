@@ -118,6 +118,31 @@ export interface TextSegment {
      *  would otherwise sit on top of the body-size path glyph). DM-439. */
     suppressGlyph?: boolean;
   }>;
+  /**
+   * Pseudo-element box paint (DM-497): when this segment came from a
+   * `::before` / `::after` whose computed style sets a non-trivial
+   * `background-color` or `border-radius`, the renderer emits a `<rect>` of
+   * these dimensions BEHIND the segment's text glyphs to honor the pseudo
+   * box paint (badge / pill / chip pattern). Coordinates are viewport-relative
+   * and already include padding + border insets so the rect surrounds the
+   * captured text segment with the author-specified inflation.
+   */
+  pseudoBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    /** Pre-resolved srgb-form CSS color (or "transparent"). Renderer parses
+     *  via parseColor and emits as the rect fill. */
+    backgroundColor?: string;
+    /** Resolved px border-radius (CSS shorthand — single value, four-corner
+     *  symmetric). */
+    borderRadius?: number;
+    /** Uniform border (single side-width + color). Per-side variation isn't
+     *  supported in this pass; mixed-style borders fall through. */
+    borderWidth?: number;
+    borderColor?: string;
+  };
 }
 
 export interface CapturedElement {
@@ -379,6 +404,20 @@ export interface CapturedElement {
     textShadow?: string;
     /** CSS transform (e.g. `rotate(30deg)`, `scale(1.5)`, `matrix(1,0,0,1,0,0)`). 'none' → no transform. */
     transform?: string;
+    /** CSS will-change (DM-498): a comma-separated hint listing properties the
+     *  author intends to animate. When the list contains a property whose
+     *  non-initial value WOULD create a stacking context (transform, opacity,
+     *  filter, mask, clip-path, perspective, top/right/bottom/left, position,
+     *  z-index, isolation, mix-blend-mode), the element itself becomes a
+     *  stacking-context root regardless of whether that property has a
+     *  non-initial value applied. Used by `establishesStackingContext`. */
+    willChange?: string;
+    /** CSS contain (DM-498): `layout`, `paint`, `strict`, `content`, `size`,
+     *  or combinations. `paint` / `strict` / `content` (which includes paint)
+     *  create a stacking context per spec. */
+    contain?: string;
+    /** CSS isolation (DM-498): `isolate` creates a stacking context. */
+    isolation?: string;
     /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
     transformOrigin?: string;
     /** CSS writing-mode (`horizontal-tb` | `vertical-rl` | `vertical-lr` | `sideways-rl` | `sideways-lr`). */
@@ -571,6 +610,19 @@ export interface CapturedElement {
    * See `docs/21-mask-fragment-references.md`.
    */
   maskDefs?: MaskFragmentDef[];
+  /**
+   * DM-494: Raster snapshots of elements referenced by `mask-image:
+   * element(#id)`. Top-level (root only) — same-document only (cross-document
+   * `element()` is not in scope; CSS spec doesn't define it). Each raster is
+   * the actual painted output of the referenced element captured via
+   * `page.screenshot({ clip: rect, omitBackground: true })` after a hide-
+   * everything-else stylesheet, encoded as `data:image/png;base64,…`.
+   * Renderer's `buildMaskDef` looks up the entry by `id` and emits an
+   * `<image>` inside the `<mask>` with `mask-type="luminance"` per Chrome's
+   * `mask-mode: match-source` default for element() references. See
+   * `docs/22-mask-element-paint-references.md`.
+   */
+  maskRasters?: MaskRasterRef[];
 }
 
 export interface MaskFragmentDef {
@@ -578,6 +630,29 @@ export interface MaskFragmentDef {
   id: string;
   /** Verbatim `outerHTML` of the captured `<mask>` element. */
   outerHTML: string;
+}
+
+export interface MaskRasterRef {
+  /** DOM id referenced by `mask-image: element(#id)` — used by the renderer
+   *  to look up the raster from the layer reference. */
+  id: string;
+  /** `data:image/png;base64,…` of the referenced element's painted box.
+   *  Populated by `rasterizeMaskSources`; may be undefined if the screenshot
+   *  failed (e.g. clip went off-page) — renderer falls back to no mask
+   *  emission and warns. */
+  dataUri?: string;
+  /** Captured element rect (viewport-relative px). Used by the post-capture
+   *  pass to drive page.screenshot's clip. Renderer doesn't consume this
+   *  directly; the `<image>` placement comes from the consuming element's
+   *  mask-position / mask-size. */
+  width: number;
+  height: number;
+  /** `data-domotion-rid` value attached to the live DOM target so the
+   *  hide-everything-else stylesheet has a unique selector. */
+  rid: string;
+  /** Viewport-relative rect of the referenced element, used by the post-
+   *  capture pass. */
+  rect: { x: number; y: number; width: number; height: number };
 }
 
 // Browser-side capture code as a string to avoid tsx __name transform issues
@@ -1050,6 +1125,12 @@ const CAPTURE_SCRIPT = `
   // <mask> via document.getElementById and stash its outerHTML keyed by id.
   // Same-document only — external '.svg#frag' refs are deferred (DM-496).
   const _maskDefs = new Map();
+  // DM-494: mask-image: element(#id) — record (id, rect, rid) per unique
+  // referenced element. Post-capture rasterise pass screenshots each unique
+  // ref and stashes the data URI on the root tree as maskRasters[]. Dedupe
+  // by id so multiple consumers of the same element() share one screenshot.
+  const _maskRasters = new Map();
+  let _maskRasterIdx = 0;
   const warn = (sel, feature, detail) => {
     const k = feature + '|' + sel;
     if (_warnKeys.has(k)) return;
@@ -1190,10 +1271,66 @@ const CAPTURE_SCRIPT = `
         if (extFragMatch != null) {
           warn(sel, 'mask', 'external-file SVG fragment refs (url("./file.svg#id")) are not yet emitted (DM-496)');
         } else {
-          var supported = /^(?:repeating-)?(?:linear|radial)-gradient\\(/i.test(miSrc)
-            || /^url\\(/i.test(miSrc);
-          if (!supported) {
-            warn(sel, 'mask', 'non-gradient/non-url() mask source — element() refs are not yet emitted');
+          // DM-494: mask-image: element(#id) — record the referenced element
+          // for post-capture rasterisation. Same-document only (CSS spec
+          // doesn't define cross-document element()). Always-on (not opt-in)
+          // — dedupe by id so multiple consumers share one screenshot, and
+          // skip when the target is display:none / 0-area (painted output is
+          // empty so the screenshot would just hide the mask anyway).
+          var elementMatch = /^element\\(\\s*#([^)\\s]+)\\s*\\)$/i.exec(miSrc);
+          if (elementMatch != null) {
+            var refId = elementMatch[1];
+            if (!_maskRasters.has(refId)) {
+              var refTarget = document.getElementById(refId);
+              if (refTarget == null) {
+                warn(sel, 'mask', 'mask-image: element(#' + refId + ') target not found in document');
+              } else {
+                var refCs = window.getComputedStyle(refTarget);
+                if (refCs.display === 'none' || refCs.visibility === 'hidden') {
+                  warn(sel, 'mask', 'mask-image: element(#' + refId + ') target is display:none / hidden — emitting empty mask');
+                  _maskRasters.set(refId, null);
+                } else {
+                  var refRect = refTarget.getBoundingClientRect();
+                  if (refRect.width <= 0 || refRect.height <= 0) {
+                    warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has zero-area painted box — emitting empty mask');
+                    _maskRasters.set(refId, null);
+                  } else {
+                    // Animated source warning — capture is one frame, no way
+                    // to keep the mask in sync with a JS-driven canvas / CSS
+                    // animation. Emit the snapshot anyway (better than the
+                    // alternative of empty mask hiding the consumer entirely).
+                    if (typeof refTarget.getAnimations === 'function') {
+                      try {
+                        var anims = refTarget.getAnimations();
+                        if (anims != null && anims.length > 0) {
+                          warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has ' + anims.length + ' active animation(s); the rasterised snapshot is t=0 only');
+                        }
+                      } catch (e) { /* getAnimations not supported, skip */ }
+                    }
+                    var refRid = 'mr' + (_maskRasterIdx++);
+                    refTarget.setAttribute('data-domotion-rid', refRid);
+                    _maskRasters.set(refId, {
+                      id: refId,
+                      rid: refRid,
+                      width: refRect.width,
+                      height: refRect.height,
+                      rect: {
+                        x: refRect.left - vp.x,
+                        y: refRect.top - vp.y,
+                        width: refRect.width,
+                        height: refRect.height,
+                      },
+                    });
+                  }
+                }
+              }
+            }
+          } else {
+            var supported = /^(?:repeating-)?(?:linear|radial)-gradient\\(/i.test(miSrc)
+              || /^url\\(/i.test(miSrc);
+            if (!supported) {
+              warn(sel, 'mask', 'non-gradient/non-url()/non-element() mask source — not emitted');
+            }
           }
         }
       }
@@ -1220,6 +1357,11 @@ const CAPTURE_SCRIPT = `
     let text = '';
     let imageSrc = undefined;
     let svgContent = undefined;
+    // DM-499: when an inline SVG hosts <use href="#id"> refs whose targets
+    // carry CSS animations we cannot inline declaratively, set this so the
+    // post-construction block routes the host SVG element through the
+    // rasterise-replaced-elements pipeline instead of emitting svgContent.
+    let _svgRasterFallback = false;
 
     let textTop = 0;
     let textLeft = 0;
@@ -1504,6 +1646,45 @@ const CAPTURE_SCRIPT = `
         color: pcs.color, fontSize: elFontSize, fontWeight: pcs.fontWeight,
         fontAscent: _pseudoMetrics.ascent,
       };
+      // DM-497: stash pseudos own background / border-radius on the wrapper
+      // (boxStyles below). The actual pseudoBox rect is computed after the
+      // injection loop reassigns seg.x/seg.y to anchor against the parents
+      // real text boundaries — at capture-time xPos isnt final.
+      const _pseudoBgRaw = pcs.backgroundColor;
+      const _pseudoBgColor = _pseudoBgRaw && _pseudoBgRaw !== '' && _pseudoBgRaw !== 'rgba(0, 0, 0, 0)' && _pseudoBgRaw !== 'transparent'
+        ? normColor(_pseudoBgRaw) : '';
+      const _pseudoBR = parseFloat(pcs.borderRadius) || 0;
+      // Capture a uniform border when all four sides match. Mixed-side styling
+      // is rare on pseudos in real-world fixtures and falls through.
+      const _bw = parseFloat(pcs.borderTopWidth) || 0;
+      const _bwUniform = _bw > 0
+        && (parseFloat(pcs.borderRightWidth) || 0) === _bw
+        && (parseFloat(pcs.borderBottomWidth) || 0) === _bw
+        && (parseFloat(pcs.borderLeftWidth) || 0) === _bw;
+      const _pseudoBC = _bwUniform ? normColor(pcs.borderTopColor) : '';
+      var _pseudoBoxStyles = null;
+      if (_pseudoBgColor !== '' || _pseudoBR > 0 || (_bwUniform && _pseudoBC !== '' && _pseudoBC !== 'rgba(0, 0, 0, 0)')) {
+        _pseudoBoxStyles = {
+          padL: parseFloat(pcs.paddingLeft) || 0,
+          padR: parseFloat(pcs.paddingRight) || 0,
+          padT: parseFloat(pcs.paddingTop) || 0,
+          padB: parseFloat(pcs.paddingBottom) || 0,
+          borL: parseFloat(pcs.borderLeftWidth) || 0,
+          borR: parseFloat(pcs.borderRightWidth) || 0,
+          borT: parseFloat(pcs.borderTopWidth) || 0,
+          borB: parseFloat(pcs.borderBottomWidth) || 0,
+          // Inline-box bg paints at line-height, not at font-size — so the
+          // boxs vertical extent is lineH + padding + border (not fontSize).
+          // Capture lineH alongside the metrics; the post-injection block
+          // uses it to compute boxH and boxY (centered on the line box).
+          lineH: lineH,
+          fontSize: elFontSize,
+          backgroundColor: _pseudoBgColor !== '' ? _pseudoBgColor : undefined,
+          borderRadius: _pseudoBR > 0 ? _pseudoBR : undefined,
+          borderWidth: _bwUniform ? _bw : undefined,
+          borderColor: _bwUniform && _pseudoBC !== '' && _pseudoBC !== 'rgba(0, 0, 0, 0)' ? _pseudoBC : undefined,
+        };
+      }
       // If the pseudo contains any codepoint Chrome paints via a color-bitmap
       // font (U+2713 ✓, emoji, etc.), record a page-absolute rect so the
       // Node-side raster can screenshot the exact pixels Chrome produced and
@@ -1523,7 +1704,7 @@ const CAPTURE_SCRIPT = `
           height: lineH,
         };
       }
-      pseudoSegments.push({ isBefore: pseudo === '::before', seg: pseudoSeg, color: pcs.color, isPositioned: pseudoIsPositioned });
+      pseudoSegments.push({ isBefore: pseudo === '::before', seg: pseudoSeg, color: pcs.color, isPositioned: pseudoIsPositioned, boxStyles: _pseudoBoxStyles });
     }
 
     // Skip text capture for elements where the child text is fallback content
@@ -1957,15 +2138,26 @@ const CAPTURE_SCRIPT = `
         if (p.isBefore) textSegments.unshift(p.seg);
         else textSegments.push(p.seg);
       } else if (p.isBefore && textSegments.length > 0) {
-        // Offset by measured width before the first real segment's x.
+        // Offset by measured width before the first real segment's x. When
+        // the pseudo carries its own margin / border / padding (DM-497 badge
+        // pattern), the text content is inset further so subtract the right-
+        // side outer-box advance from the anchor.
         const firstSeg = textSegments[0];
-        p.seg.x = firstSeg.x - p.seg.width;
+        const _bs = p.boxStyles || {};
+        const _mR = parseFloat(window.getComputedStyle(el, '::before').marginRight) || 0;
+        p.seg.x = firstSeg.x - p.seg.width - (_bs.padR || 0) - (_bs.borR || 0) - _mR;
         p.seg.y = firstSeg.y;
         p.seg.height = firstSeg.height;
         textSegments.unshift(p.seg);
       } else if (!p.isBefore && textSegments.length > 0) {
+        // ::after sits to the right of the parents trailing text. When the
+        // pseudo has its own margin / padding / border (DM-497), the text
+        // content is offset by margin-left + border-left + padding-left from
+        // the parents text right edge.
         const lastSeg = textSegments[textSegments.length - 1];
-        p.seg.x = lastSeg.x + lastSeg.width;
+        const _bs = p.boxStyles || {};
+        const _mL = parseFloat(window.getComputedStyle(el, '::after').marginLeft) || 0;
+        p.seg.x = lastSeg.x + lastSeg.width + _mL + (_bs.borL || 0) + (_bs.padL || 0);
         p.seg.y = lastSeg.y;
         p.seg.height = lastSeg.height;
         textSegments.push(p.seg);
@@ -1994,6 +2186,32 @@ const CAPTURE_SCRIPT = `
         p.seg.rasterRect.x = p.seg.x;
         p.seg.rasterRect.y = p.seg.y;
         p.seg.rasterRect.height = p.seg.height;
+      }
+      // DM-497: now that seg.x/y is in its final viewport-relative position,
+      // compute the pseudos own paint box (for ::before/::after with their
+      // own background-color or border-radius — badge / pill / chip patterns).
+      // The text anchor is treated as the content-box origin; expand outward
+      // by padding + border on all sides to get the box rect.
+      if (p.boxStyles != null) {
+        const bs = p.boxStyles;
+        // Inline-box bg paints at lineH + padding (not fontSize). Vertical
+        // anchor: text top is at (lineCenter - fontSize/2); box top should
+        // be at (lineCenter - lineH/2 - padT - borT). Solve for lineCenter
+        // from p.seg.y (text-top) and project the box top from that.
+        const _lineCenter = p.seg.y + bs.fontSize / 2;
+        const _boxTop = _lineCenter - bs.lineH / 2 - bs.padT - bs.borT;
+        const _bx = p.seg.x - bs.padL - bs.borL;
+        const _bw = p.seg.width + bs.padL + bs.padR + bs.borL + bs.borR;
+        const _bh = bs.lineH + bs.padT + bs.padB + bs.borT + bs.borB;
+        if (_bw > 0 && _bh > 0) {
+          p.seg.pseudoBox = {
+            x: _bx, y: _boxTop, width: _bw, height: _bh,
+            backgroundColor: bs.backgroundColor,
+            borderRadius: bs.borderRadius,
+            borderWidth: bs.borderWidth,
+            borderColor: bs.borderColor,
+          };
+        }
       }
       text = (p.isBefore ? p.seg.text + ' ' : ' ' + p.seg.text) + text;
     }
@@ -2116,6 +2334,111 @@ const CAPTURE_SCRIPT = `
         for (let i = 0; i < n; i++) _walkBake(oChildren[i], cChildren[i]);
       };
       _walkBake(el, clone);
+      // DM-499: resolve <use href="#id"> fragment refs by inlining the
+      // referenced symbol/group/path into the cloned subtree. Without this
+      // the cloned outerHTML carries dangling fragment refs whose targets
+      // live in a sibling hidden-defs SVG that we never emit (apple.com
+      // country dropdown checkmark, search/cart nav icons, footer social).
+      // Same-document fragment-only refs handled here; external file refs
+      // (./icons.svg#foo) and unresolved targets are left in place — the
+      // dangling ref still doesn't paint, but at least we tried.
+      const _svgNS = 'http://www.w3.org/2000/svg';
+      const _xlinkNS = 'http://www.w3.org/1999/xlink';
+      const _resolveUseRefs = (root, depth) => {
+        if (depth > 5) return; // cycle / depth guard
+        var uses = root.querySelectorAll ? root.querySelectorAll('use') : [];
+        for (var ui = 0; ui < uses.length; ui++) {
+          var useEl = uses[ui];
+          var href = useEl.getAttribute('href');
+          if (href == null || href === '') href = useEl.getAttributeNS(_xlinkNS, 'href') || '';
+          if (href.charAt(0) !== '#') continue; // external or invalid
+          var targetId = href.slice(1);
+          var target = document.getElementById(targetId);
+          if (target == null) continue;
+          if (target.namespaceURI !== _svgNS) continue;
+          // Detect CSS-animated subtree -> raster fallback (DM-508 covers
+          // declarative keyframe extraction). getAnimations({subtree:true})
+          // is supported in modern Chromium; guard for older runtimes.
+          if (typeof target.getAnimations === 'function') {
+            try {
+              var anims = target.getAnimations({ subtree: true });
+              if (anims != null && anims.length > 0) {
+                _svgRasterFallback = true;
+                warn(sel, 'inline-svg', '<use href="#' + targetId + '"> resolved to a CSS-animated subtree; falling back to t=0 raster (DM-508)');
+                return;
+              }
+            } catch (e) { /* getAnimations({subtree}) not supported, fall through */ }
+          }
+          var ux = parseFloat(useEl.getAttribute('x') || '0') || 0;
+          var uy = parseFloat(useEl.getAttribute('y') || '0') || 0;
+          var uw = useEl.getAttribute('width');
+          var uh = useEl.getAttribute('height');
+          var targetTag = target.tagName.toLowerCase();
+          var replacement;
+          if (targetTag === 'symbol') {
+            // <symbol> => nested <svg> with the consumer's x/y/width/height
+            // and the symbol's viewBox. Browsers honor preserveAspectRatio
+            // on the nested <svg> the same way they do for <use> against a
+            // symbol target — we let SVG do the math.
+            var vb = target.getAttribute('viewBox') || '';
+            var par = target.getAttribute('preserveAspectRatio') || '';
+            replacement = document.createElementNS(_svgNS, 'svg');
+            if (ux !== 0) replacement.setAttribute('x', String(ux));
+            if (uy !== 0) replacement.setAttribute('y', String(uy));
+            if (uw != null) replacement.setAttribute('width', uw);
+            if (uh != null) replacement.setAttribute('height', uh);
+            if (vb !== '') replacement.setAttribute('viewBox', vb);
+            if (par !== '') replacement.setAttribute('preserveAspectRatio', par);
+            for (var ci = 0; ci < target.children.length; ci++) {
+              replacement.appendChild(target.children[ci].cloneNode(true));
+            }
+          } else {
+            // <g>, <path>, <circle>, <svg>, etc. — wrap in <g translate(x,y)>.
+            // Skip translate when ux/uy are zero to keep the markup tidy.
+            replacement = document.createElementNS(_svgNS, 'g');
+            if (ux !== 0 || uy !== 0) {
+              replacement.setAttribute('transform', 'translate(' + ux + ',' + uy + ')');
+            }
+            var clonedTarget = target.cloneNode(true);
+            // Drop the id on the clone — keeping it would create a duplicate
+            // id in the output document (the original lives in the hidden
+            // defs SVG which won't be in our output, but safer to remove it
+            // either way).
+            if (clonedTarget.removeAttribute) clonedTarget.removeAttribute('id');
+            replacement.appendChild(clonedTarget);
+          }
+          // Carry over any presentation attrs from the <use> element. CSS
+          // spec: attributes on <use> override the same attribute on the
+          // referenced subtree's root.
+          var _useAttrs = ['fill', 'stroke', 'stroke-width', 'opacity', 'class', 'style'];
+          for (var ai = 0; ai < _useAttrs.length; ai++) {
+            var av = useEl.getAttribute(_useAttrs[ai]);
+            if (av != null && av !== '') replacement.setAttribute(_useAttrs[ai], av);
+          }
+          useEl.parentNode.replaceChild(replacement, useEl);
+          // The replacement may itself contain <use> refs (chain). Recurse
+          // with depth guard.
+          _resolveUseRefs(replacement, depth + 1);
+        }
+      };
+      _resolveUseRefs(clone, 0);
+      // DM-499: substitute fill="currentColor" / stroke="currentColor" with
+      // the consumer's resolved cs.color so the inlined symbol picks up the
+      // host's color even when the resolved subtree's own ancestors don't
+      // propagate currentColor (e.g. a symbol child with explicit
+      // color="red" would otherwise short-circuit the wrapping <g color>
+      // injection at render time). Defense in depth — the renderer also
+      // emits a wrapping <g color=...> for currentColor propagation.
+      var _hostColor = cs.color;
+      var _substCurrentColor = (node) => {
+        if (node.nodeType !== 1) return;
+        var fa = node.getAttribute && node.getAttribute('fill');
+        if (fa != null && /^currentcolor$/i.test(fa)) node.setAttribute('fill', _hostColor);
+        var sa = node.getAttribute && node.getAttribute('stroke');
+        if (sa != null && /^currentcolor$/i.test(sa)) node.setAttribute('stroke', _hostColor);
+        for (var ci = 0; ci < node.children.length; ci++) _substCurrentColor(node.children[ci]);
+      };
+      _substCurrentColor(clone);
       svgContent = clone.outerHTML;
     }
 
@@ -2556,6 +2879,9 @@ const CAPTURE_SCRIPT = `
         textShadow: cs.textShadow,
         transform: frozenTransform != null ? frozenTransform : cs.transform,
         transformOrigin: frozenTransformOrigin != null ? frozenTransformOrigin : cs.transformOrigin,
+        willChange: cs.willChange,
+        contain: cs.contain,
+        isolation: cs.isolation,
         writingMode: cs.writingMode,
         textOrientation: cs.textOrientation,
         // CSS resize: 'none' / 'both' / 'vertical' / 'horizontal' / 'block' /
@@ -2743,6 +3069,26 @@ const CAPTURE_SCRIPT = `
         _captured.textSegments = undefined;
       }
     }
+    // DM-499: inline SVG with a CSS-animated <use> target — fall back to a
+    // page-screenshot raster of the host SVG element. Declarative keyframe
+    // extraction is tracked in DM-508; this path keeps the icon visible (one
+    // frame) instead of emitting unresolved fragment refs. We discard
+    // svgContent so the renderer skips the broken inline SVG path and the
+    // post-pass (rasterizeReplacedElements) populates the data URI.
+    if (_svgRasterFallback && tag === 'svg' && cs.display !== 'none'
+        && rect.width > 0 && rect.height > 0
+        && _captured.replacedSnapshot == null) {
+      const _rid3 = 'dr' + (_replacedIdx++);
+      el.setAttribute('data-domotion-rid', _rid3);
+      _captured.replacedSnapshot = {
+        x: rect.left - vp.x,
+        y: rect.top - vp.y,
+        width: rect.width,
+        height: rect.height,
+        rid: _rid3,
+      };
+      _captured.svgContent = undefined;
+    }
     return _captured;
   };
 
@@ -2857,6 +3203,16 @@ const CAPTURE_SCRIPT = `
   if (_maskDefs.size > 0 && result.length > 0) {
     result[0].maskDefs = Array.from(_maskDefs.values());
   }
+  // DM-494: attach mask raster references (mask-image: element(#id)). Skip
+  // null entries (display:none / zero-area / not-found targets). The post-
+  // capture rasterise pass on the Node side fills in dataUri.
+  if (_maskRasters.size > 0 && result.length > 0) {
+    var rasterArr = [];
+    for (var entry of _maskRasters.values()) {
+      if (entry != null) rasterArr.push(entry);
+    }
+    if (rasterArr.length > 0) result[0].maskRasters = rasterArr;
+  }
   return { tree: result, warnings: _warnings };
 }
 `;
@@ -2924,6 +3280,7 @@ export async function captureElementTreeWithWarnings(
   lastCaptureWarnings = warnings;
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
   await rasterizeReplacedElements(page, typed.tree, viewport);
+  await rasterizeMaskSources(page, typed.tree, viewport);
   return { tree: typed.tree, warnings };
 }
 
@@ -3232,6 +3589,72 @@ async function rasterizeReplacedElements(
 
 
 /**
+ * DM-494: Rasterise each element referenced by `mask-image: element(#id)`.
+ * Mirrors `rasterizeReplacedElements` (doc 17): hide-everything-else
+ * stylesheet → screenshot the target's painted box → encode as a data URI →
+ * stash on `tree[0].maskRasters[i].dataUri`. The renderer's `buildMaskDef`
+ * picks up the data URI from the root tree's lookup table when it sees an
+ * `element()` mask layer.
+ *
+ * Same-document only — CSS spec doesn't define cross-document `element()`.
+ * Always-on (no opt-in flag) — dedupe by referenced id (one screenshot per
+ * unique target regardless of how many consumers reference it). Targets that
+ * are display:none / 0-area are filtered at capture time and never reach
+ * here. See `docs/22-mask-element-paint-references.md`.
+ */
+async function rasterizeMaskSources(
+  page: Page,
+  tree: CapturedElement[],
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<void> {
+  if (tree.length === 0 || tree[0].maskRasters == null || tree[0].maskRasters.length === 0) return;
+  const rasters = tree[0].maskRasters;
+
+  const HIDE_CSS = [
+    "*, *::before, *::after { visibility: hidden !important; }",
+    "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
+    "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
+    "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
+    "html, body { background: transparent !important; }",
+  ].join("\n");
+  let styleHandle: ElementHandle | null = null;
+  try {
+    styleHandle = await page.addStyleTag({ content: HIDE_CSS });
+    for (const mr of rasters) {
+      await page.evaluate((rid) => {
+        const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
+        prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+        const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
+        if (next != null) next.setAttribute("data-domotion-snapshot-target", "");
+      }, mr.rid);
+      const clip = {
+        x: Math.max(0, Math.floor(mr.rect.x + viewport.x)),
+        y: Math.max(0, Math.floor(mr.rect.y + viewport.y)),
+        width: Math.max(1, Math.ceil(mr.rect.width)),
+        height: Math.max(1, Math.ceil(mr.rect.height)),
+      };
+      try {
+        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
+        mr.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
+      } catch {
+        // Screenshot failed — leave dataUri undefined; renderer skips emission.
+      }
+    }
+  } finally {
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
+          (el) => el.removeAttribute("data-domotion-snapshot-target"),
+        );
+      });
+    } catch {}
+    if (styleHandle != null) {
+      try { await styleHandle.evaluate((node) => { (node as Element).remove(); }); } catch {}
+    }
+  }
+}
+
+/**
  * Calibrate `fontAscent` on text-bearing elements by scanning a reference
  * PNG (Chrome's actual paint) for each element's painted ink top, then
  * back-solving the sub-pixel baseline as
@@ -3406,6 +3829,16 @@ export function elementTreeToSvg(
       if (!fragmentMaskDefs.has(def.id)) fragmentMaskDefs.set(def.id, def);
     }
   }
+  // DM-494: top-level mask raster lookup table for `mask-image: element(#id)`.
+  // Keyed by the referenced DOM id; `buildMaskDef` consults this to resolve
+  // an `element()` layer to the painted snapshot screenshot.
+  const elementMaskRasters = new Map<string, MaskRasterRef>();
+  for (const root of elements) {
+    if (root.maskRasters == null) continue;
+    for (const mr of root.maskRasters) {
+      if (!elementMaskRasters.has(mr.id)) elementMaskRasters.set(mr.id, mr);
+    }
+  }
   let fragmentMaskCounter = 0;
   const fragmentMaskOutputId = new Map<string, string>();
   function resolveFragmentMaskRef(
@@ -3506,6 +3939,7 @@ export function elementTreeToSvg(
           el.styles.maskPosition ?? "0% 0%",
           el.styles.maskRepeat ?? "repeat",
           el.styles.maskComposite ?? "add",
+          elementMaskRasters,
         );
         if (maskDef.def !== "") {
           maskUrlId = maskDef.id;
@@ -4179,6 +4613,18 @@ export function elementTreeToSvg(
       const ptW = parseFloat(el.styles.paddingTop ?? "0") || 0;
       const contentW = Math.max(0, el.width - blW - (parseFloat(el.styles.borderRightWidth ?? "0") || 0) - plW - (parseFloat(el.styles.paddingRight ?? "0") || 0));
       const contentH = Math.max(0, el.height - btW - (parseFloat(el.styles.borderBottomWidth ?? "0") || 0) - ptW - (parseFloat(el.styles.paddingBottom ?? "0") || 0));
+      // DM-499: hidden defs SVGs (style="position:absolute;width:0;height:0")
+      // capture as 0×0 elements. Without this guard, `injectSvgSize` returns
+      // the markup unchanged (its w<=0 / h<=0 short-circuit), the SVG falls
+      // back to its 300×150 default viewport, and the defs contents paint
+      // visibly in the output. Skip emission for 0×0 host elements — the
+      // consumer-side `<use>` resolver has already inlined whatever the defs
+      // SVG was holding into each consumer.
+      if (contentW <= 0 || contentH <= 0) {
+        if (animClass !== "") svgParts.push(`${indent}</g>`);
+        if (opened) svgParts.push(`${indent}</g>`);
+        return;
+      }
       const sized = injectSvgSize(el.svgContent, contentW, contentH);
       // Inline SVG icons commonly use `fill="currentColor"` / `stroke="currentColor"`
       // so the icon picks up the button's text color. Set the wrapping group's
@@ -5426,8 +5872,6 @@ function shadeColor(c: RGBA, delta: number): RGBA {
  *   - `isolation: isolate`
  *
  * Not yet modelled (low real-world frequency):
- *   - `will-change` listing a stacking-creating property
- *   - `contain: layout / paint / strict / content`
  *   - `perspective` ≠ `none`
  *
  * Used by the paint-order flattening pass: a positioned descendant whose
@@ -5447,6 +5891,33 @@ function establishesStackingContext(el: CapturedElement): boolean {
   if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return true;
   if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return true;
   if (s.clipPath != null && s.clipPath !== "" && s.clipPath !== "none") return true;
+  // DM-498: `will-change` listing any SC-creating property creates an SC.
+  // Per CSS-Will-Change-1: "If any non-initial value of any of the listed
+  // properties would create a stacking context on the element, the element
+  // creates a stacking context." Real-world high-traffic case: apple.com's
+  // hero carousel uses `will-change: transform` on the slide container, so
+  // without this detection the hoist pass disrupts the natural paint order
+  // and the buttons render BEHIND the artwork. Tokenize on comma+whitespace
+  // and check exact name equality — substring matching would falsely flag
+  // `scroll-position` (which doesn't create an SC) on the `position` token.
+  if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
+    const _scWcProps: ReadonlySet<string> = new Set([
+      "transform", "opacity", "filter", "backdrop-filter",
+      "mask", "mask-image", "clip-path", "perspective",
+      "top", "right", "bottom", "left",
+      "position", "z-index", "isolation", "mix-blend-mode", "contain",
+    ]);
+    const tokens = s.willChange.split(/[\s,]+/);
+    for (const t of tokens) {
+      if (_scWcProps.has(t.toLowerCase())) return true;
+    }
+  }
+  // DM-498: `contain: paint | strict | content` creates an SC.
+  if (s.contain != null && s.contain !== "" && s.contain !== "none") {
+    if (/\b(?:paint|strict|content)\b/i.test(s.contain)) return true;
+  }
+  // DM-498: `isolation: isolate` creates an SC.
+  if (s.isolation === "isolate") return true;
   // DM-487: `overflow != visible` (scroll container) creates a stacking
   // context — any of overflow / overflow-x / overflow-y in {auto, scroll,
   // hidden, clip}. Without this, sticky / positioned descendants of an
@@ -5457,10 +5928,6 @@ function establishesStackingContext(el: CapturedElement): boolean {
   const ox = s.overflowX;
   const oy = s.overflowY;
   if ((ox != null && ox !== "visible") || (oy != null && oy !== "visible")) return true;
-  // `isolation: isolate` isn't currently captured on `Styles`; if the
-  // author uses it the element still gets correct paint via its other
-  // SC-creating siblings (transform / opacity), so the omission is benign
-  // for the fixtures we model.
   return false;
 }
 
@@ -6277,6 +6744,11 @@ export function buildMaskDef(
   elX: number, elY: number, w: number, h: number,
   maskMode: string, sizeCss: string, posCss: string, repeatCss: string,
   compositeCss: string,
+  /** DM-494: lookup table for `mask-image: element(#id)` references. Optional —
+   *  callers without element() refs can omit it. The renderer's main caller
+   *  threads through `elementMaskRasters` (collected from tree[0].maskRasters);
+   *  unit tests can pass undefined to exercise the non-element() branches. */
+  elementRasters?: ReadonlyMap<string, MaskRasterRef>,
 ): { id: string; def: string } {
   const layers = splitTopLevelCommas(maskImage);
   const sizeLayers = splitTopLevelCommas(sizeCss);
@@ -6284,10 +6756,21 @@ export function buildMaskDef(
   const repeatLayers = splitTopLevelCommas(repeatCss);
   const compositeLayers = splitTopLevelCommas(compositeCss);
 
-  // Determine mask-type per CSS mask-mode. match-source = alpha for gradients
-  // and bitmap images (the common practical behavior). Fall to luminance only
-  // if the author explicitly opts in.
-  const maskType = maskMode === "luminance" ? "luminance" : "alpha";
+  // Determine mask-type per CSS mask-mode.
+  //   - alpha: explicit author opt-in to alpha-channel masking.
+  //   - luminance: explicit author opt-in to RGB-luminance masking.
+  //   - match-source (default): the source type drives the mode. Per CSS Masking:
+  //     gradient + bitmap url() sources → alpha (the practical behavior we
+  //     already emit), but element() paint references → luminance (the painted
+  //     RGB drives mask alpha; this is what Chromium implements for `element()`
+  //     under `match-source`). DM-494: when ANY layer in this mask is an
+  //     element() ref AND the author hasn't picked a mode explicitly, switch
+  //     to luminance for spec compliance.
+  const hasElementLayer = layers.some((l) => /^element\(\s*#/i.test(l.trim()));
+  let maskType: "alpha" | "luminance";
+  if (maskMode === "luminance") maskType = "luminance";
+  else if (maskMode === "alpha") maskType = "alpha";
+  else maskType = hasElementLayer ? "luminance" : "alpha";
 
   // Per-layer contents. contents[li] = array of SVG strings (gradient defs
   // + painted rect/image) for layer li. We keep each layer separate so
@@ -6356,6 +6839,60 @@ export function buildMaskDef(
       if (def === "") continue;
       contents.push(def);
       contents.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
+      continue;
+    }
+    // DM-494: `element(#id)` paint reference — emit the post-capture
+    // rasterised <image> directly into the <mask>. Position + size honor
+    // mask-position / mask-size on the consuming element; mask-size:auto
+    // uses the referenced element's painted box dimensions (the spec's
+    // "natural size" for element()).
+    const elementMatch = /^element\(\s*#([^)\s]+)\s*\)$/i.exec(layer);
+    if (elementMatch != null) {
+      if (elementRasters == null) continue;
+      const refId = elementMatch[1];
+      const raster = elementRasters.get(refId);
+      if (raster == null || raster.dataUri == null) continue;
+      const intrinsic = { w: raster.width, h: raster.height };
+      let imgW = intrinsic.w, imgH = intrinsic.h;
+      const sizeTok = layerSize.trim().split(/\s+/);
+      const resolveSize = (tok: string, basis: number, intrinsicDim: number): number => {
+        if (tok == null || tok === "auto" || tok === "") return intrinsicDim;
+        if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+        return parseFloat(tok) || intrinsicDim;
+      };
+      let par: "meet" | "slice" = "meet";
+      if (layerSize === "contain") {
+        const scale = Math.min(w / intrinsic.w, h / intrinsic.h);
+        imgW = intrinsic.w * scale;
+        imgH = intrinsic.h * scale;
+        par = "meet";
+      } else if (layerSize === "cover") {
+        const scale = Math.max(w / intrinsic.w, h / intrinsic.h);
+        imgW = intrinsic.w * scale;
+        imgH = intrinsic.h * scale;
+        par = "slice";
+      } else {
+        imgW = resolveSize(sizeTok[0], w, intrinsic.w);
+        imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, intrinsic.h) : imgW * (intrinsic.h / intrinsic.w);
+      }
+      const posTok = layerPos.trim().split(/\s+/);
+      const resolveH = (t: string): number => {
+        if (t === "left") return 0;
+        if (t === "right") return w - imgW;
+        if (t === "center") return (w - imgW) / 2;
+        if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - imgW);
+        return parseFloat(t) || 0;
+      };
+      const resolveV = (t: string): number => {
+        if (t === "top") return 0;
+        if (t === "bottom") return h - imgH;
+        if (t === "center") return (h - imgH) / 2;
+        if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
+        return parseFloat(t) || 0;
+      };
+      const ix = elX + resolveH(posTok[0] ?? "0%");
+      const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
+      contents.push(`<image href="${raster.dataUri}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${par}" />`);
       continue;
     }
     const url = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(layer);

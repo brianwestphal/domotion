@@ -474,6 +474,47 @@ const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-498: positioned button overlay must paint ABOVE preceding-sibling
+    // artwork in the same stacking context. Mirrors apple.com's hero where a
+    // <picture> (transform; position:absolute) appears before the button
+    // overlay in DOM order, and the buttons should paint on top of the
+    // artwork via positioned-on-top stacking. Domotion was emitting the
+    // image AFTER the buttons in the SVG, causing it to overpaint them.
+    name: "stacking-button-overlay-above-artwork",
+    html: `<div style="position:relative;width:300px;height:160px;overflow:hidden;background:#0d1117;"><div style="position:absolute;inset:0;transform:translateX(0);"><div style="background:linear-gradient(135deg,#1d4ed8 0%,#312e81 100%);width:100%;height:100%;"></div></div><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><a style="background:#0071e3;color:white;padding:8px 16px;border-radius:18px;font-family:-apple-system,sans-serif;font-size:14px;text-decoration:none;">Shop</a></div></div>`,
+    width: 320,
+    height: 180,
+  },
+  {
+    // DM-498: same as above but the artwork wrapper uses `will-change:
+    // transform` instead of (or in addition to) the actual `transform`.
+    // Apple's carousel applies will-change for animation perf without an
+    // initial transform value — Domotion previously didn't detect this as
+    // an SC-creating signal, so positioned descendants of NON-will-change
+    // siblings would hoist past the will-change wrapper and the overlay
+    // button could end up emitted before the artwork. CSS spec: a
+    // will-change listing any SC-creating property creates an SC.
+    name: "stacking-will-change-creates-sc",
+    html: `<div style="position:relative;width:300px;height:160px;overflow:hidden;background:#0d1117;"><div style="position:absolute;inset:0;will-change:transform;"><div style="background:linear-gradient(135deg,#7c3aed 0%,#1e3a8a 100%);width:100%;height:100%;"></div></div><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><a style="background:#0071e3;color:white;padding:8px 16px;border-radius:18px;font-family:-apple-system,sans-serif;font-size:14px;text-decoration:none;">Shop</a></div></div>`,
+    width: 320,
+    height: 180,
+  },
+  {
+    // DM-497: pseudo-element paint box. ::after with bg-color + border-radius
+    // + padding (badge / pill pattern). Capture records the pseudo's own
+    // bg-color and border-radius on the segment, the renderer emits a <rect>
+    // behind the glyph paths so the red pill paints under the white text.
+    // The pseudo is on a span whose own positioning is `position: relative`
+    // with the pseudo `position: absolute`, so the box anchors directly off
+    // the captured pcs.left / pcs.top and the pcs padding/border are added
+    // to xPos at capture time (the cleanest path for box geometry — see
+    // CAPTURE_SCRIPT line ~1486).
+    name: "pseudo-after-badge",
+    html: `<div style="padding:32px;font-family:-apple-system,sans-serif;color:#e6edf3;font-size:16px;line-height:1.5;"><span class="m" style="position:relative;display:inline-block;width:60px;height:24px;">marker</span><style>.m::after{content:'CB';position:absolute;top:0;right:-32px;background:#dc2626;color:white;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;line-height:1;}</style></div>`,
+    width: 220,
+    height: 100,
+  },
+  {
     // DM-506: CSS sprite icon image-replacement idiom — `text-indent: -9999px`
     // hides the accessible label off-screen and the visible icon is a slice of
     // a sprite sheet selected via `background-position`. Capture detects the
@@ -498,6 +539,45 @@ const tests: FeatureTest[] = [
     })(),
     width: 140,
     height: 60,
+  },
+  {
+    // DM-499: inline SVG `<use href="#sym">` referencing a `<symbol>` defined
+    // in a sibling hidden defs SVG — the apple.com country-dropdown checkmark
+    // pattern. Capture-time resolver inlines the symbol into the consumer's
+    // outerHTML so the output is fully self-contained (no dangling fragment
+    // refs that the re-embedded SVG can't resolve).
+    name: "inline-svg-use-symbol",
+    html: `<div style="padding:24px;background:#0d1117;color:#22d3ee;font-family:-apple-system,sans-serif;display:flex;align-items:center;gap:12px;"><svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true"><symbol id="dm-icon-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol></svg><svg width="20" height="20"><use href="#dm-icon-check"/></svg><span style="font-size:14px;">Selected</span><svg width="32" height="32" style="color:#a855f7;"><use href="#dm-icon-check"/></svg></div>`,
+    width: 220,
+    height: 80,
+  },
+  {
+    // DM-499: <use href="#group-id"> targeting a <g> (no symbol viewBox).
+    // Resolver wraps the cloned target in <g transform="translate(x,y)">.
+    name: "inline-svg-use-group",
+    html: `<div style="padding:24px;background:#0d1117;color:#fff;font-family:-apple-system,sans-serif;display:flex;align-items:center;gap:12px;"><svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true"><g id="dm-grp-star"><circle cx="12" cy="12" r="10" fill="#f59e0b"/><circle cx="12" cy="12" r="4" fill="#fff"/></g></svg><svg width="32" height="32" viewBox="0 0 24 24"><use href="#dm-grp-star"/></svg><svg width="32" height="32" viewBox="0 0 24 24"><use href="#dm-grp-star" x="0" y="0"/></svg></div>`,
+    width: 160,
+    height: 80,
+  },
+  {
+    // DM-499 regression: plain self-contained inline SVG (paths declared
+    // inline) must keep round-tripping via the existing DM-279 path.
+    name: "inline-svg-self-contained",
+    html: `<div style="padding:24px;background:#0d1117;color:#3fb950;font-family:-apple-system,sans-serif;display:flex;align-items:center;gap:12px;"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-size:14px;">Inline</span></div>`,
+    width: 180,
+    height: 80,
+  },
+  {
+    // DM-494: mask-image: element(#id) — paint-reference. The referenced
+    // element's actual painted output is rasterised at capture time and
+    // emitted as <image> inside <mask>. mask-mode: match-source → luminance
+    // for element() refs (the RGB drives mask alpha). Source div has a
+    // diagonal split (white on top-left half, black bottom-right) so the
+    // luminance mask cuts the consumer rectangle along that diagonal.
+    name: "mask-element-ref",
+    html: `<div style="padding:20px;background:#0d1117;font-family:-apple-system,sans-serif;color:#e6edf3;"><div id="src" style="position:absolute;left:-9999px;top:-9999px;width:200px;height:120px;background:linear-gradient(135deg,#fff 0%,#fff 50%,#000 50%,#000 100%);"></div><div style="display:flex;gap:16px;"><div style="width:200px;height:120px;background:#22d3ee;mask-image:element(#src);-webkit-mask-image:element(#src);mask-mode:match-source;-webkit-mask-mode:match-source;"></div><div style="width:200px;height:120px;background:#a855f7;mask-image:element(#src);-webkit-mask-image:element(#src);mask-mode:match-source;-webkit-mask-mode:match-source;"></div></div></div>`,
+    width: 480,
+    height: 180,
   },
   {
     // DM-493: mask-image: url("#id") referencing an inline <mask> defined in

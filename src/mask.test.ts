@@ -199,3 +199,76 @@ describe("buildMaskDef — url() sources (DM-395)", () => {
     expect(r.def).not.toBe("");
   });
 });
+
+describe("buildMaskDef — element() paint refs (DM-494)", () => {
+  function makeRaster(id: string, w = 64, h = 64) {
+    return new Map([[id, {
+      id, rid: "mr0", width: w, height: h,
+      dataUri: "data:image/png;base64,iVBORw0KGgo=",
+      rect: { x: 0, y: 0, width: w, height: h },
+    }]]);
+  }
+
+  it("element() ref emits an <image> inside the <mask> with mask-type=luminance under match-source", () => {
+    // CSS Masking spec: mask-mode: match-source resolves to luminance for
+    // element() paint references — the painted RGB drives mask alpha.
+    const rasters = makeRaster("src", 200, 100);
+    const r = buildMaskDef("m", "element(#src)",
+      0, 0, 200, 100, "match-source", "auto", "0% 0%", "no-repeat", "add", rasters);
+    expect(r.def).toContain('mask-type="luminance"');
+    expect(r.def).toContain('<image href="data:image/png;base64,iVBORw0KGgo="');
+    expect(r.def).toContain('width="200"');
+    expect(r.def).toContain('height="100"');
+  });
+
+  it("element() with explicit mask-mode: alpha respects the author override", () => {
+    const rasters = makeRaster("src", 200, 100);
+    const r = buildMaskDef("m", "element(#src)",
+      0, 0, 200, 100, "alpha", "auto", "0% 0%", "no-repeat", "add", rasters);
+    expect(r.def).toContain('mask-type="alpha"');
+  });
+
+  it("element() with mask-size: contain fits inside the consumer box (preserveAspectRatio meet)", () => {
+    // raster intrinsic 200x100; consumer 100x100. contain → fits = 100x50.
+    const rasters = makeRaster("src", 200, 100);
+    const r = buildMaskDef("m", "element(#src)",
+      0, 0, 100, 100, "match-source", "contain", "0% 0%", "no-repeat", "add", rasters);
+    expect(r.def).toContain('width="100"');
+    expect(r.def).toContain('height="50"');
+    expect(r.def).toContain('preserveAspectRatio="xMidYMid meet"');
+  });
+
+  it("element() with mask-size: cover fills the consumer (preserveAspectRatio slice)", () => {
+    // raster 100x200; consumer 100x100. cover → 100x200 (height fills).
+    const rasters = makeRaster("src", 100, 200);
+    const r = buildMaskDef("m", "element(#src)",
+      0, 0, 100, 100, "match-source", "cover", "0% 0%", "no-repeat", "add", rasters);
+    expect(r.def).toContain('preserveAspectRatio="xMidYMid slice"');
+  });
+
+  it("element() with no resolved raster (no dataUri) skips emission", () => {
+    const empty = new Map<string, import("./dom-to-svg.js").MaskRasterRef>();
+    const r = buildMaskDef("m", "element(#src)",
+      0, 0, 200, 100, "match-source", "auto", "0% 0%", "no-repeat", "add", empty);
+    expect(r.def).toBe("");
+  });
+
+  it("element() ref with elementRasters undefined skips emission (legacy callers)", () => {
+    const r = buildMaskDef("m", "element(#src)",
+      0, 0, 200, 100, "match-source", "auto", "0% 0%", "no-repeat", "add");
+    expect(r.def).toBe("");
+  });
+
+  it("mixed gradient + element() layers — luminance wins under match-source", () => {
+    const rasters = makeRaster("src", 64, 64);
+    const r = buildMaskDef("m",
+      "linear-gradient(black, transparent), element(#src)",
+      0, 0, 200, 100, "match-source", "auto, auto", "0% 0%, 0% 0%", "no-repeat, no-repeat", "add",
+      rasters);
+    // Any element() layer in match-source mode → mask-type=luminance.
+    expect(r.def).toContain('mask-type="luminance"');
+    // Both layers contribute content.
+    expect(r.def).toContain("<linearGradient");
+    expect(r.def).toContain('<image href="data:image/png');
+  });
+});
