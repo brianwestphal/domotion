@@ -26,12 +26,13 @@ describe("detectCoreCount", () => {
 });
 
 describe("defaultWorkerCount (DM-459)", () => {
-  it("uses ~half the cores on multi-core hosts (Chromium subprocess overhead)", () => {
-    expect(defaultWorkerCount(8)).toBe(4);
-    expect(defaultWorkerCount(4)).toBe(2);
+  it("uses ~quarter of the cores on multi-core hosts (Chromium subprocess overhead)", () => {
+    expect(defaultWorkerCount(8)).toBe(2);
+    expect(defaultWorkerCount(4)).toBe(1);
     expect(defaultWorkerCount(2)).toBe(1);
-    expect(defaultWorkerCount(10)).toBe(5);
-    expect(defaultWorkerCount(16)).toBe(8);
+    expect(defaultWorkerCount(10)).toBe(2);
+    expect(defaultWorkerCount(16)).toBe(4);
+    expect(defaultWorkerCount(20)).toBe(5);
   });
 
   it("returns 1 on a single-core host", () => {
@@ -45,18 +46,23 @@ describe("defaultWorkerCount (DM-459)", () => {
     }
   });
 
-  it("at runtime, leaves at least half the cores free on this host (regression guard)", () => {
-    // Catches accidental loosenings (`cores - 1`, hardcoded `6`, etc.)
-    // slipping back in. Each worker owns a Playwright BrowserContext that
-    // spawns a Chromium process tree (browser + GPU + renderer + utility),
-    // so worker count alone understates CPU footprint; the ~50% cap is
-    // what makes the host stay responsive while tests run (DM-459 v2
-    // user feedback). CI hosts are typically multi-core so the assertion
-    // holds; on a 1-core box both sides are 1.
+  it("caps the default at 8 on huge hosts (32-core, 64-core, ...)", () => {
+    expect(defaultWorkerCount(32)).toBe(8);
+    expect(defaultWorkerCount(64)).toBe(8);
+    expect(defaultWorkerCount(128)).toBe(8);
+  });
+
+  it("at runtime, leaves at least 3/4 of the cores free on this host (regression guard)", () => {
+    // Catches loosenings (`cores - 1`, `cores / 2`, hardcoded `6`, etc.)
+    // slipping back in. Each worker owns a Playwright BrowserContext —
+    // a Chromium process tree of 4-6 processes plus 500 MB-2 GB resident,
+    // so worker count alone understates the system footprint. The ~25%
+    // cap is what keeps the host genuinely responsive while tests run
+    // (DM-459 v3 user feedback). On a 1-core box both sides are 1.
     const cores = detectCoreCount();
     const workers = defaultWorkerCount();
     if (cores > 1) {
-      expect(workers).toBeLessThanOrEqual(Math.floor(cores / 2));
+      expect(workers).toBeLessThanOrEqual(Math.max(1, Math.floor(cores / 4)));
       expect(workers).toBeGreaterThanOrEqual(1);
     } else {
       expect(workers).toBe(1);

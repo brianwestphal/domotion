@@ -4445,11 +4445,37 @@ export function elementTreeToSvg(
       // `…` because the conditions below tripped, but Chromium clearly
       // rendered three lines.
       const wrappedToMultipleLines = el.textSegments != null && el.textSegments.length > 1;
+      // DM-484: don't paint a truncation marker when the captured text
+      // actually fits within the content box. Apple's country-switcher
+      // "Continue" button (and likewise the "Philippines" dropdown text)
+      // has `text-overflow: ellipsis; overflow: hidden; white-space: nowrap`
+      // even though "Continue" easily fits its 89×35 box — Chromium paints
+      // no ellipsis there, but our previous code did. Compare the captured
+      // text's right edge to the content-box right edge; only emit a marker
+      // if the text would actually be clipped.
+      const padRChk = parseFloat(el.styles.paddingRight ?? "") || 0;
+      const padLChk = parseFloat(el.styles.paddingLeft ?? "") || 0;
+      const brRChk = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const blLChk = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+      const contentBoxW = Math.max(0, el.width - padLChk - padRChk - blLChk - brRChk);
+      const seg0Chk = el.textSegments?.[0];
+      const xOffsetsChk = seg0Chk?.xOffsets;
+      const lastEdgeX = xOffsetsChk != null && xOffsetsChk.length > 0
+        ? xOffsetsChk[xOffsetsChk.length - 1]
+        : null;
+      const segWidth = seg0Chk?.width;
+      const measuredTextW = lastEdgeX != null && seg0Chk != null
+        ? lastEdgeX - (xOffsetsChk![0] ?? 0)
+        : (segWidth ?? null);
+      // Allow a 0.5 px tolerance for sub-pixel rounding so we don't paint
+      // an ellipsis on a string that visually fits.
+      const textFits = measuredTextW != null && measuredTextW <= contentBoxW + 0.5;
       const isTruncated = to != null && to !== "" && to !== "clip"
         && (ws === "nowrap" || ws === "pre")
         && ox != null && ox !== "visible"
         && el.text !== ""
-        && !wrappedToMultipleLines;
+        && !wrappedToMultipleLines
+        && !textFits;
       if (isTruncated) {
         // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'.
         let marker = "…";
@@ -4793,25 +4819,25 @@ export function roundedRectSvg(x: number, y: number, w: number, h: number, c: Co
 }
 
 /**
- * Inject explicit width/height into an inline `<svg ...>` opening tag if it
- * doesn't already have them. Inline icon SVGs commonly omit width/height (CSS
- * sizes them) — re-embedding such an SVG without explicit dimensions makes
- * the renderer fall back to the 300x150 default size, producing the giant
- * black-blob bug. We force width/height to match the captured layout rect
- * so the existing viewBox scales to the right on-page size.
+ * Force inline `<svg ...>` width/height to the captured layout size. Inline
+ * icon SVGs in the wild fall into two cases that both need this:
+ *   1. No width/height attrs — CSS sizes them on the page. Without injection
+ *      the renderer falls back to the 300×150 default (giant black blob).
+ *   2. Width/height attrs present but CSS overrides them (e.g. lucide icons
+ *      ship `width="24" height="24"` and Tailwind shrinks via `size-3!`).
+ *      Re-embedding the SVG creates a new viewport — author CSS no longer
+ *      applies, so the icon paints at the original 24×24 instead of the
+ *      12×12 Chrome painted (DM-480: Resend "Announcing" chevron).
+ * Captured contentW/contentH are CSS-resolved layout dimensions, so forcing
+ * them onto the nested `<svg>` is correct in both cases.
  */
 function injectSvgSize(svgHtml: string, w: number, h: number): string {
   if (w <= 0 || h <= 0) return svgHtml;
   const m = /^(<svg\b)([^>]*)(>)/i.exec(svgHtml);
   if (m == null) return svgHtml;
-  const attrs = m[2];
-  const hasWidth = /\swidth\s*=/.test(attrs);
-  const hasHeight = /\sheight\s*=/.test(attrs);
-  if (hasWidth && hasHeight) return svgHtml;
-  let inject = "";
-  if (!hasWidth) inject += ` width="${r(w)}"`;
-  if (!hasHeight) inject += ` height="${r(h)}"`;
-  return svgHtml.slice(0, m[0].length - 1) + inject + ">" + svgHtml.slice(m[0].length);
+  let attrs = m[2];
+  attrs = attrs.replace(/\s(?:width|height)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  return `<svg${attrs} width="${r(w)}" height="${r(h)}">` + svgHtml.slice(m[0].length);
 }
 
 interface BorderSide { w: number; style: string; color: RGBA }

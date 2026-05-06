@@ -515,19 +515,23 @@ async function runJob(
     writeFileSync(wrapperPath, wrapperHtml);
     await page.goto(`file://${wrapperPath}`);
     await page.waitForTimeout(300);
+    // DM-481: always pass `animations: "disabled"` so scroll/cross-fade
+    // SVGs are screenshotted at frame 0 (the resting state Chromium also
+    // captures for the expected). Without this, ~0.5–1 s elapses between
+    // page.goto and the screenshot, and a 12-second scroll animation has
+    // already advanced ~80 px — that's why the Stripe nav bar appeared
+    // missing in the actual (DM-481).
     // DM-475: heavy real-world fixtures (Stripe etc.) have triggered an
     // intermittent `page.screenshot` timeout ("waiting for fonts to
-    // load... fonts loaded") on the wrapper render. A single retry with
-    // `animations: "disabled"` is enough to recover what's painted so
-    // far — better than discarding the run as 100% diff. DM-479: both
-    // attempts use the standard 90 s timeout (was 25 s / 12 s); the
-    // retry's value is the `animations: "disabled"` flag, not a tighter
-    // deadline.
+    // load... fonts loaded"). The retry with `animations: "disabled"`
+    // was originally only on the failure path; now both attempts share
+    // it. The retry kept here mainly for the rare case where the first
+    // call hits a transient timeout.
     try {
-      await page.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS });
+      await page.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); retrying with animations:disabled`);
+      console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); retrying`);
       await page.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     }
     // Wrapper is purely a render harness — the .svg file is the artifact

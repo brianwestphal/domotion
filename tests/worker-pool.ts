@@ -10,6 +10,7 @@
  */
 
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 
 /**
  * Number of CPU cores the host exposes. Prefers
@@ -25,29 +26,43 @@ export function detectCoreCount(): number {
 /**
  * Default worker count for the visual-regression pool. Each worker owns a
  * Playwright `BrowserContext`, which means a separate Chromium *process tree*
- * (browser + GPU + renderer + utility), so the effective CPU footprint per
- * worker is several times one core. `cores - 1` was still pegging multi-core
- * hosts and starving interactive work (DM-459 v2 user feedback). Halving the
- * core count plus a hard floor of 1 keeps things responsive on 4-core boxes
- * (2 workers) without giving up too much throughput on 16-core boxes
- * (8 workers). Combine with `lowerProcessPriority()` for additional
- * yield-to-foreground behavior. DM-459.
+ * (browser + GPU + renderer + utility) and 500 MB-2 GB of resident RAM, so
+ * the effective system footprint per worker is several cores plus a sizeable
+ * memory hit. Earlier defaults (`cores - 1`, then `cores / 2`) still pegged
+ * the host. DM-459 v3 drops the default to `cores / 4` (floor 1, ceiling 8),
+ * which on a 10-core MBP runs 2 workers, on a 4-core box runs 1, on a 16-core
+ * box runs 4 — combined with the macOS BACKGROUND QoS class set by
+ * `lowerProcessPriority()`, interactive work stays responsive even mid-suite.
+ * Users on idle hosts can override with `--workers N` / `DOMOTION_TEST_WORKERS`.
  */
 export function defaultWorkerCount(coreCount: number = detectCoreCount()): number {
-  return Math.max(1, Math.floor(coreCount / 2));
+  return Math.min(8, Math.max(1, Math.floor(coreCount / 4)));
 }
 
 /**
- * Nudge this Node process (and any future child processes — Playwright's
- * Chromium subprocess inherits) down to a higher nice value so the kernel
- * yields CPU to interactive work (the user's editor, terminal, browser)
- * when there's contention. Idle CPU still goes to the test pool, so
- * absolute throughput on an otherwise-idle machine is unchanged. Skipped
- * when `DOMOTION_NO_NICE=1` is set so power users can benchmark without
- * the priority adjustment. Best-effort: an EPERM (e.g. RLIMIT_NICE limit)
- * is logged once and swallowed. DM-459.
+ * Lower this process (and its descendants — Playwright's Chromium tree) to
+ * the lowest practical scheduler priority so the host stays responsive while
+ * the test suites run.
+ *
+ * Two orthogonal mechanisms applied together — POSIX nice alone has not been
+ * enough on macOS (DM-459 v2 feedback: "still pegging the system"):
+ *
+ * 1. **POSIX nice** — `os.setPriority(0, 19)` on this process. POSIX nice is
+ *    inherited by `fork()`/`spawn()` children, so Chromium subprocesses come
+ *    up at the same nice value.
+ * 2. **macOS BACKGROUND QoS class** — `taskpolicy -B -p <pid>`. This is much
+ *    more aggressive than nice on macOS: the BACKGROUND QoS class limits
+ *    scheduler priority *and* I/O priority *and* timer coalescing, and is
+ *    inherited by descendants. The kernel only gives BACKGROUND-class work
+ *    truly spare cycles. Linux / Windows: nice alone (no equivalent ergonomic
+ *    QoS knob). `taskpolicy` failures are logged once and swallowed —
+ *    on Linux / inside sandboxes the binary is absent and we fall back to
+ *    nice-only.
+ *
+ * Skipped entirely when `DOMOTION_NO_NICE=1` so power users can benchmark
+ * without the throttle. DM-459.
  */
-export function lowerProcessPriority(nice: number = 10): void {
+export function lowerProcessPriority(nice: number = 19): void {
   if (process.env["DOMOTION_NO_NICE"] === "1") return;
   try {
     os.setPriority(0, nice);
@@ -55,13 +70,28 @@ export function lowerProcessPriority(nice: number = 10): void {
     const msg = e instanceof Error ? e.message : String(e);
     process.stderr.write(`[worker-pool] could not lower process priority (nice=${nice}): ${msg}\n`);
   }
+  if (process.platform === "darwin") {
+    // `taskpolicy` ships with macOS at /usr/sbin/taskpolicy. -B sets the
+    // BACKGROUND QoS class (the most aggressive throttle short of suspending
+    // the process). -p PID applies it to a running process; descendants
+    // inherit.
+    const r = spawnSync("/usr/sbin/taskpolicy", ["-B", "-p", String(process.pid)], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    if (r.status !== 0) {
+      const stderr = r.stderr != null ? r.stderr.toString() : "";
+      const reason = r.error != null ? r.error.message : (stderr || `exit ${r.status}`);
+      process.stderr.write(`[worker-pool] taskpolicy -B failed: ${reason.trim()}\n`);
+    }
+  }
 }
 
 /**
  * Resolve the worker count from CLI args (`--workers N`) or env var
  * (`DOMOTION_TEST_WORKERS`). Falls back to `defaultWorkerCount()` —
- * `cpus - 1`, leaving one core free for other work (DM-459). Clamps the
- * final value to [1, 32]; values outside the range are silently coerced.
+ * `cpus / 4` (clamped 1–8), keeping interactive work responsive (DM-459).
+ * Clamps the final value to [1, 32]; values outside the range are silently
+ * coerced.
  *
  * Recognised CLI form: `--workers 6` or `--workers=6` anywhere in argv.
  */
