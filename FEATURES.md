@@ -46,6 +46,9 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 ### SVG
 - [ ] **svg-inline**: Inline SVG elements (icons) positioned correctly
 
+### Text effects
+- [x] **text-bg-clip-gradient** (DM-462): `background-clip: text` + `-webkit-text-fill-color: transparent` — gradient fills the glyph shapes via SVG `<mask>` over the bg-color rect
+
 ### Replaced elements (rasterized as static snapshot — DM-457)
 - [x] **replaced-canvas-shape**: `<canvas>` with drawn shapes — bitmap survives via `page.screenshot`
 - [x] **replaced-video-poster**: `<video poster=…>` paused — poster image captured

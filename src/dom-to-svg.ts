@@ -209,6 +209,15 @@ export interface CapturedElement {
     backgroundClip: string;
     backgroundOrigin: string;
     backgroundAttachment: string;
+    /**
+     * CSS `-webkit-text-fill-color`. When `backgroundClip` is `text` the
+     * common pattern is `webkit-text-fill-color: transparent` so the
+     * background-image (gradient / url) shows through the glyph shapes —
+     * a "gradient headline" effect (Stripe / Resend / Linear hero copy).
+     * Captured separately because `color` may still report a normal value
+     * when the rendered text is actually transparent. DM-462.
+     */
+    webkitTextFillColor?: string;
     paddingTop: string;
     paddingRight: string;
     paddingBottom: string;
@@ -2105,6 +2114,10 @@ const CAPTURE_SCRIPT = `
         backgroundPosition: cs.backgroundPosition,
         backgroundRepeat: cs.backgroundRepeat,
         backgroundClip: cs.backgroundClip,
+        // DM-462: -webkit-text-fill-color is the property that actually
+        // makes the headline text transparent in the background-clip:text
+        // idiom (cs.color may still report a normal value).
+        webkitTextFillColor: cs.webkitTextFillColor || cs.WebkitTextFillColor || undefined,
         backgroundOrigin: cs.backgroundOrigin,
         backgroundAttachment: cs.backgroundAttachment,
         paddingTop: cs.paddingTop,
@@ -3322,6 +3335,13 @@ export function elementTreeToSvg(
         `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
       );
     }
+    // DM-462: when the element uses `background-clip: text`, the first
+    // text-clipped layer's gradient/image is captured here and used as the
+    // fill on the text glyph group (instead of painting it as a normal
+    // <rect fill=url(#bg)> over the headline area). Initialized to null and
+    // assigned in the bg-layer loop below.
+    let textBgClipFill: string | null = null;
+
     const bgImage = el.styles.backgroundImage;
     if (bgImage != null && bgImage !== "none" && bgImage !== "") {
       const layers = splitTopLevelCommas(bgImage);
@@ -3372,6 +3392,15 @@ export function elementTreeToSvg(
         const out = buildBackgroundLayerDef(defId, layer, originBox.x, originBox.y, originBox.w, originBox.h, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
         if (out.def === "") continue;
         defsParts.push(out.def);
+        // DM-462: when this layer's clip is `text`, do NOT paint a rect over
+        // the headline area — the gradient should appear inside the glyph
+        // shapes only. Stash the def URL so the text-rendering block below
+        // can use it as the glyph fill (the first text-clipped layer wins).
+        // The non-text-clipped layers (if any) still emit normally.
+        if (layerClip === "text") {
+          if (textBgClipFill == null) textBgClipFill = `url(#${defId})`;
+          continue;
+        }
         // Inner clip corners: subtract the corresponding border-side widths
         // so a per-corner border-radius becomes the inner radius the bg layer
         // is clipped to. For padding-box / content-box layers this matches
@@ -4206,7 +4235,20 @@ export function elementTreeToSvg(
 
     // Text rendering — delegated to text-renderer.ts based on configured mode
     if (el.text !== "") {
-      const fillColor = textColor != null ? colorStr(textColor) : "#e6edf3";
+      // DM-462: `background-clip: text` + `-webkit-text-fill-color: transparent`
+      // (or `color: transparent`) makes the bg-image paint inside the glyph
+      // shapes — the gradient-headline pattern. When detected, swap the text
+      // fill from the regular color to the gradient's def URL captured from
+      // the text-clipped bg layer above. We honor this when the rendered text
+      // is actually transparent (text-fill-color or color is alpha-zero); if
+      // the author left text-fill-color opaque we just paint the color, which
+      // is what Chrome would paint on top of the (clipped) gradient anyway.
+      const tfcRaw = el.styles.webkitTextFillColor;
+      const tfc = tfcRaw != null ? parseColor(tfcRaw) : null;
+      const textIsTransparent = (tfc != null ? tfc.a < 0.01 : (textColor != null && textColor.a < 0.01));
+      const fillColor = (textBgClipFill != null && textIsTransparent)
+        ? textBgClipFill
+        : (textColor != null ? colorStr(textColor) : "#e6edf3");
       const cid = `${idPrefix}ct${clipIdx++}`;
       defsParts.push(`<clipPath id="${cid}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" /></clipPath>`);
 
@@ -4286,7 +4328,32 @@ export function elementTreeToSvg(
       const toy = el.styles.overflowY;
       const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
       const renderOpts = { el, idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip };
-      svgParts.push(`${indent}${renderOneText(renderOpts)}`);
+      if (textBgClipFill != null && textIsTransparent) {
+        // DM-462: background-clip:text — the bg-image should fill the glyph
+        // shapes, not the headline element rect. We render the text glyphs
+        // INTO an SVG <mask> (with white fill so the mask reveals the bg
+        // through the glyph silhouettes) and paint a <rect fill=url(#bg)>
+        // through that mask. Couldn't use <clipPath> here because Chromium
+        // does not honor <use href=...> references inside <clipPath>
+        // (verified empirically) — and our text glyphs are emitted via
+        // <use> for dedup. Setting fill=url(#bg) directly on the text <g>
+        // was also wrong because userSpaceOnUse gradient coords get re-
+        // interpreted in the post-transform coord system of the inner
+        // scaled glyph group, compressing the gradient to ~6 px wide.
+        // The mask-with-rect approach keeps the gradient in document
+        // coordinates on a straight rect.
+        const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)" } };
+        const maskBody = renderOneText({ el: maskFillEl, idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip });
+        const mid = `${idPrefix}tbgm${clipIdx++}`;
+        defsParts.push(
+          `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}">${maskBody}</mask>`,
+        );
+        svgParts.push(
+          `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${textBgClipFill}" mask="url(#${mid})" />`,
+        );
+      } else {
+        svgParts.push(`${indent}${renderOneText(renderOpts)}`);
+      }
       }
     }
 

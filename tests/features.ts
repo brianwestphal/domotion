@@ -384,6 +384,16 @@ const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-462: background-clip:text + transparent text-fill-color → the
+    // bg-image fills the glyph shapes (gradient headline pattern). Renderer
+    // suppresses the bg rect for the text-clipped layer and routes the
+    // gradient as fill on the text glyph group.
+    name: "text-bg-clip-gradient",
+    html: `<div style="padding:24px;background:#0d1117;font-family:-apple-system,sans-serif;"><h1 style="font-size:36px;font-weight:800;margin:0;background:linear-gradient(90deg,#22d3ee 0%,#a855f7 50%,#f97316 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;">Gradient Headline</h1></div>`,
+    width: 360,
+    height: 110,
+  },
+  {
     name: "replaced-iframe-same-origin",
     html: `<div style="padding:20px;"><iframe srcdoc="<html><body style='margin:0;background:#225;color:#fff;font-family:sans-serif;'><div style='padding:14px;font-size:18px;'>Hello iframe</div></body></html>" width="240" height="100" style="display:block;border:0;"></iframe></div>`,
     width: 280,
