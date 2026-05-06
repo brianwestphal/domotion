@@ -399,7 +399,15 @@ async function runJob(
         await new Promise((r) => setTimeout(r, 400));
         window.scrollTo(0, 0);
       }, canvasH);
-      await page.waitForTimeout(800);
+      // DM-471: third-party iframe ads (Slashdot footer, etc.) often start
+      // loading only after the parent scrolls past their slot, and the
+      // 800 ms post-scroll settle wasn't enough for the network round-trip
+      // + iframe layout to finish before rasterizeReplacedElements ran —
+      // resulting in 0×0 / empty snapshots and missing ad regions in the
+      // actual SVG. Bumping to 1800 ms covers most ad-load latencies on
+      // the recorded HARs without materially slowing the suite (one extra
+      // second per entire-page / scroll capture).
+      await page.waitForTimeout(1800);
     } else if (mode === "scroll") {
       // For the scroll-animated SVG we capture the full document but
       // render the SVG inside a viewport-sized animated wrapper, so the
@@ -417,7 +425,15 @@ async function runJob(
         await new Promise((r) => setTimeout(r, 400));
         window.scrollTo(0, 0);
       }, canvasH);
-      await page.waitForTimeout(800);
+      // DM-471: third-party iframe ads (Slashdot footer, etc.) often start
+      // loading only after the parent scrolls past their slot, and the
+      // 800 ms post-scroll settle wasn't enough for the network round-trip
+      // + iframe layout to finish before rasterizeReplacedElements ran —
+      // resulting in 0×0 / empty snapshots and missing ad regions in the
+      // actual SVG. Bumping to 1800 ms covers most ad-load latencies on
+      // the recorded HARs without materially slowing the suite (one extra
+      // second per entire-page / scroll capture).
+      await page.waitForTimeout(1800);
     }
 
     // DM-461: @font-face discovery happens BEFORE the expected screenshot
@@ -492,7 +508,19 @@ async function runJob(
     writeFileSync(wrapperPath, wrapperHtml);
     await page.goto(`file://${wrapperPath}`);
     await page.waitForTimeout(300);
-    await page.screenshot({ path: actualPath, clip: actualClip });
+    // DM-475: heavy real-world fixtures (Stripe etc.) have triggered an
+    // intermittent `page.screenshot` timeout ("waiting for fonts to
+    // load... fonts loaded") on the wrapper render. A single retry with
+    // `animations: "disabled"` and a shorter explicit timeout is enough
+    // to recover what's painted so far — better than discarding the
+    // run as 100% diff.
+    try {
+      await page.screenshot({ path: actualPath, clip: actualClip, timeout: 25_000 });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); retrying with animations:disabled`);
+      await page.screenshot({ path: actualPath, clip: actualClip, timeout: 12_000, animations: "disabled" });
+    }
     // Wrapper is purely a render harness — the .svg file is the artifact
     // reviewers/consumers care about.
     try { unlinkSync(wrapperPath); } catch { /* best-effort */ }

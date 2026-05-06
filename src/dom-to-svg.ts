@@ -187,6 +187,17 @@ export interface CapturedElement {
     objectPosition: string;
     filter: string;
     backdropFilter: string;
+    /**
+     * DM-476 frosted-glass fallback: when the element has a non-trivial
+     * `backdrop-filter` AND a near-transparent `background-color` (alpha
+     * ≤ 0.1), CAPTURE_SCRIPT reads `document.body`'s computed background
+     * colour and stores it here as a normalised `rgb(...)` / `rgba(...)`
+     * string so the renderer can paint a synthesised opaque fill where
+     * Chromium would have painted blurred underlying pixels. Undefined
+     * when the element doesn't trigger the frosted condition. See
+     * `docs/19-frosted-backdrop-fallback.md`.
+     */
+    frostedBgFallback?: string;
     mixBlendMode: string;
     clipPath: string;
     mask: string;
@@ -1114,7 +1125,18 @@ const CAPTURE_SCRIPT = `
       warn(sel, 'position:' + cs.position, 'rendered as a static snapshot at t=0; scroll-following behavior is not animated');
     }
     if (cs.mask && cs.mask !== 'none' && cs.mask !== '') {
-      warn(sel, 'mask', 'captured but not emitted — mask sources need coordinate-aware emission');
+      // DM-470: only warn for mask sources we can't emit. Gradient and
+      // url() mask-images round-trip cleanly through buildMaskDef() with
+      // size / position / repeat / composite — those don't deserve a
+      // per-element warning. element() paint references and inline-SVG
+      // fragment URLs are the actual gaps; flag those instead.
+      // See docs/20-css-mask-emission.md.
+      var miSrc = cs.maskImage || cs.webkitMaskImage || '';
+      var supported = /^(?:repeating-)?(?:linear|radial)-gradient\\(/i.test(miSrc)
+        || /^url\\(/i.test(miSrc);
+      if (!supported) {
+        warn(sel, 'mask', 'non-gradient/non-url() mask source — element() refs and inline-SVG fragment masks are not yet emitted');
+      }
     }
     if (cs.borderImageSource && cs.borderImageSource !== 'none') {
       warn(sel, 'border-image', '9-slice composition pending (SK-466); border-image-source ignored');
@@ -2096,6 +2118,34 @@ const CAPTURE_SCRIPT = `
         objectPosition: cs.objectPosition,
         filter: cs.filter,
         backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || '',
+        // DM-476 frosted-glass fallback: when this element has both
+        // backdrop-filter and an effectively-transparent background-color,
+        // capture the document body's bg colour as a synthesised opaque
+        // fill that the renderer can paint behind the would-have-been-
+        // frosted region. See docs/19-frosted-backdrop-fallback.md.
+        frostedBgFallback: (function () {
+          var bdf = cs.backdropFilter || cs.webkitBackdropFilter || '';
+          if (bdf === '' || bdf === 'none') return undefined;
+          var bgCol = normColor(cs.backgroundColor);
+          // Parse alpha out of "rgba(r,g,b,a)" / "rgb(r,g,b)" / "rgb(r g b / a)".
+          // normColor canonicalises to one of these forms.
+          var a = 1;
+          var m = /rgba?\\(\\s*[^,)\\s]+[ ,]+[^,)\\s]+[ ,]+[^,)\\s]+(?:[ ,/]+([^)]+))?\\)/.exec(bgCol);
+          if (m != null && m[1] != null) {
+            var av = parseFloat(m[1]);
+            if (!isNaN(av)) a = av;
+          }
+          if (a > 0.1) return undefined;
+          var bodyBg = normColor(window.getComputedStyle(document.body).backgroundColor);
+          // If body itself is transparent (rare on real pages), default to white.
+          var bodyA = 1;
+          var bm = /rgba?\\(\\s*[^,)\\s]+[ ,]+[^,)\\s]+[ ,]+[^,)\\s]+(?:[ ,/]+([^)]+))?\\)/.exec(bodyBg);
+          if (bm != null && bm[1] != null) {
+            var bav = parseFloat(bm[1]);
+            if (!isNaN(bav)) bodyA = bav;
+          }
+          return bodyA <= 0.1 ? 'rgb(255,255,255)' : bodyBg;
+        })(),
         mixBlendMode: cs.mixBlendMode,
         clipPath: cs.clipPath,
         mask: cs.mask || cs.webkitMask || '',
@@ -3334,6 +3384,15 @@ export function elementTreeToSvg(
       svgParts.push(
         `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
       );
+    } else if (!suppressEmptyCell && el.styles.frostedBgFallback != null) {
+      // DM-476: backdrop-filter has no SVG equivalent, so when this element
+      // would have read as a frosted-glass surface in Chromium (transparent
+      // bg + non-trivial backdrop-filter), paint the captured body-bg
+      // colour as an opaque fill so the element at least covers what's
+      // behind it. See docs/19-frosted-backdrop-fallback.md.
+      svgParts.push(
+        `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${el.styles.frostedBgFallback}"`)}`,
+      );
     }
     // DM-462: when the element uses `background-clip: text`, the first
     // text-clipped layer's gradient/image is captured here and used as the
@@ -4370,10 +4429,21 @@ export function elementTreeToSvg(
       const to = el.styles.textOverflow;
       const ws = el.styles.whiteSpace;
       const ox = el.styles.overflowX;
+      // DM-469: skip the truncation marker when the captured text actually
+      // wrapped onto multiple visual lines. CAPTURE_SCRIPT records one
+      // TextSegment per line box, so `textSegments.length > 1` means
+      // Chromium painted the text on multiple lines — even if the captured
+      // computed style reports `white-space: nowrap` somewhere, our marker
+      // logic for single-line truncation is wrong. Observed on the apple.com
+      // country-switcher banner: the multi-line copy collapsed to a single
+      // `…` because the conditions below tripped, but Chromium clearly
+      // rendered three lines.
+      const wrappedToMultipleLines = el.textSegments != null && el.textSegments.length > 1;
       const isTruncated = to != null && to !== "" && to !== "clip"
         && (ws === "nowrap" || ws === "pre")
         && ox != null && ox !== "visible"
-        && el.text !== "";
+        && el.text !== ""
+        && !wrappedToMultipleLines;
       if (isTruncated) {
         // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'.
         let marker = "…";
@@ -6068,7 +6138,7 @@ function translateClipPath(value: string, x: number, y: number, w: number, h: nu
  * map to xMin/xMid/xMax + yMin/yMid/yMax. Percentages are bucketed to thirds
  * since SVG has no finer-grained alignment.
  */
-function preserveAspectRatioFor(fit: string | undefined, pos: string | undefined): string {
+export function preserveAspectRatioFor(fit: string | undefined, pos: string | undefined): string {
   const f = (fit ?? "fill").trim();
   if (f === "fill" || f === "none") return "none";
   const align = alignFromObjectPosition(pos ?? "50% 50%");
