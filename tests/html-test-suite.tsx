@@ -211,8 +211,13 @@ async function main(): Promise<void> {
     setup: async () => {
       const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
       const page = await context.newPage();
+      // DM-479: 90 s instead of Playwright's 30 s default.
+      page.setDefaultTimeout(90_000);
+      page.setDefaultNavigationTimeout(90_000);
       const compareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
       const comparePage = await compareContext.newPage();
+      comparePage.setDefaultTimeout(90_000);
+      comparePage.setDefaultNavigationTimeout(90_000);
       await comparePage.goto("about:blank");
       return { context, page, compareContext, comparePage };
     },

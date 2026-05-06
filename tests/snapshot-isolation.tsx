@@ -77,6 +77,9 @@ async function main(): Promise<void> {
   try {
     const context = await browser.newContext({ viewport: { width: 400, height: 200 } });
     const page = await context.newPage();
+    // DM-479: 90 s instead of Playwright's 30 s default.
+    page.setDefaultTimeout(90_000);
+    page.setDefaultNavigationTimeout(90_000);
     await page.goto(`file://${fixturePath}`);
     await page.waitForTimeout(100);
 

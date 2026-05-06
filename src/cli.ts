@@ -227,6 +227,10 @@ async function runCapture(args: string[]): Promise<void> {
       ...(flags.colorScheme != null ? { colorScheme: flags.colorScheme } : {}),
     });
     const page = await ctx.newPage();
+    // DM-479: bump Playwright's 30 s defaults to 90 s. Long captures on
+    // heavy pages routinely push past 30 s.
+    page.setDefaultTimeout(90_000);
+    page.setDefaultNavigationTimeout(90_000);
     // Track every font URL the browser fetches during the page load. Most
     // webfonts are cross-origin (Google Fonts, Adobe Fonts CDNs) and don't
     // expose their resource-timing entries to JS, so this listener-based
@@ -340,6 +344,9 @@ async function runAnimate(args: string[]): Promise<void> {
       ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
     });
     const page = await ctx.newPage();
+    // DM-479: 90 s instead of Playwright's 30 s default.
+    page.setDefaultTimeout(90_000);
+    page.setDefaultNavigationTimeout(90_000);
     const frames: AnimationFrame[] = [];
     // Frames may pull from different documents with different webfonts.
     // Clear once at the start; each frame's discovery accumulates into the

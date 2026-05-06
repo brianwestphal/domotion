@@ -112,6 +112,11 @@ export class DemoRecorder {
     }
 
     this.page = await this.context.newPage();
+    // DM-479: bump per-page Playwright operation timeouts from the 30 s
+    // default to 90 s. Heavy CSS / font / image loads on real-world sites
+    // and large captures push past 30 s without being genuinely stuck.
+    this.page.setDefaultTimeout(90_000);
+    this.page.setDefaultNavigationTimeout(90_000);
   }
 
   /** Navigate to a URL and capture the visible DOM as SVG. */

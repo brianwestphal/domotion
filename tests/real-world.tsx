@@ -75,12 +75,13 @@ const FULL_PAGE_MAX_H = 6000;
 // beat after `domcontentloaded` before capturing.
 const SETTLE_MS = 3000;
 
-// Per-site goto timeout. Some marketing pages keep beacons firing past
-// `load`, so we use `domcontentloaded` + a fixed settle window instead of
-// the default. 60 s allowance for the DOM-ready event covers most slow
-// CDNs and TLS handshakes without making the suite hang forever on a
-// genuinely broken site.
-const GOTO_TIMEOUT_MS = 60_000;
+// Per-page Playwright operation timeout. DM-479: standardised at 90 s
+// (was a mix of 25 s / 30 s defaults / 60 s explicit). Real-world fixtures
+// pull tens of MB of CSS / fonts / images from third-party CDNs, and the
+// shorter timeouts were causing flaky failures on slow runs without
+// providing meaningful protection against genuinely-stuck pages.
+const PLAYWRIGHT_TIMEOUT_MS = 90_000;
+const GOTO_TIMEOUT_MS = PLAYWRIGHT_TIMEOUT_MS;
 
 // Length of the scroll-through animation. Long enough to read the page
 // at a comfortable scroll speed without inflating SVG file size.
@@ -285,6 +286,9 @@ async function ensureHarsRecorded(browser: Browser, jobs: PageJob[]): Promise<vo
     });
     await context.routeFromHAR(harPath, { url: "**/*", update: true, notFound: "fallback" });
     const page = await context.newPage();
+    // DM-479: standardise per-page Playwright operation timeouts at 90 s.
+    page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
+    page.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
     try {
       await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: GOTO_TIMEOUT_MS });
       await page.waitForTimeout(SETTLE_MS);
@@ -362,6 +366,9 @@ async function runJob(
   });
 
   const page = await context.newPage();
+  // DM-479: standardise per-page Playwright operation timeouts at 90 s.
+  page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
+  page.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
 
   let warnings: Array<{ selector: string; feature: string; detail: string }> = [];
   let captureError: string | undefined;
@@ -511,15 +518,17 @@ async function runJob(
     // DM-475: heavy real-world fixtures (Stripe etc.) have triggered an
     // intermittent `page.screenshot` timeout ("waiting for fonts to
     // load... fonts loaded") on the wrapper render. A single retry with
-    // `animations: "disabled"` and a shorter explicit timeout is enough
-    // to recover what's painted so far — better than discarding the
-    // run as 100% diff.
+    // `animations: "disabled"` is enough to recover what's painted so
+    // far — better than discarding the run as 100% diff. DM-479: both
+    // attempts use the standard 90 s timeout (was 25 s / 12 s); the
+    // retry's value is the `animations: "disabled"` flag, not a tighter
+    // deadline.
     try {
-      await page.screenshot({ path: actualPath, clip: actualClip, timeout: 25_000 });
+      await page.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); retrying with animations:disabled`);
-      await page.screenshot({ path: actualPath, clip: actualClip, timeout: 12_000, animations: "disabled" });
+      await page.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     }
     // Wrapper is purely a render harness — the .svg file is the artifact
     // reviewers/consumers care about.
