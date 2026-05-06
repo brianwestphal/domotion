@@ -325,7 +325,7 @@ function cardHtml(r) {
          <figure data-src="/img/\${r.suite}/\${r.name}-diff.png"><figcaption>diff</figcaption>\${img(\`/img/\${r.suite}/\${r.name}-diff.png\`)}</figure>
        </div>\`;
   // Link to the generated .svg so reviewers can open it directly
-  // (real-world `*-scroll` is a self-animating SVG; this is the only
+  // (real-world *-scroll is a self-animating SVG; this is the only
   // way to play it back). Suppressed for skipped tests where no SVG
   // was emitted.
   const svgLink = r.skipped

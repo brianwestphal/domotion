@@ -2629,12 +2629,27 @@ export async function captureElementTree(
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
 ): Promise<CapturedElement[]> {
-  // Inject and call the capture script to avoid tsx __name transform issues
+  const { tree } = await captureElementTreeWithWarnings(page, selector, viewport);
+  return tree;
+}
+
+/**
+ * Same capture as `captureElementTree` but returns the warnings inline so
+ * callers running multiple captures concurrently don't race on the
+ * `lastCaptureWarnings` module global. The global is still updated so
+ * single-capture callers using `getLastCaptureWarnings()` keep working.
+ */
+export async function captureElementTreeWithWarnings(
+  page: Page,
+  selector: string = "body",
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }> {
   const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}})`);
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
-  lastCaptureWarnings = typed.warnings ?? [];
+  const warnings = typed.warnings ?? [];
+  lastCaptureWarnings = warnings;
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
-  return typed.tree;
+  return { tree: typed.tree, warnings };
 }
 
 /**
@@ -3709,6 +3724,13 @@ export function elementTreeToSvg(
       // what Chrome painted, not the SVG document root's default black. DM-279.
       const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
       svgParts.push(`${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`);
+      // Close the wrappers opened above (animClass + opacity/transform/clip/mask
+      // group). Without these closes, an inline-SVG element with `opacity < 1`
+      // (or any other group-triggering style) emits an unbalanced `<g>` and
+      // breaks the document — observable on resend/stripe whose nav chevrons
+      // sit inside `opacity: 0.7` wrappers.
+      if (animClass !== "") svgParts.push(`${indent}</g>`);
+      if (opened) svgParts.push(`${indent}</g>`);
       return;
     }
 
@@ -3744,7 +3766,7 @@ export function elementTreeToSvg(
         const ty = iy + Math.min(iconSize - 2, fontSizePx);
         const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
         const escAlt = el.imageAlt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        svgParts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${el.styles.fontFamily}" fill="${fillCol}">${escAlt}</text>`);
+        svgParts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escAlt}</text>`);
       }
     } else
     // Image (<img> or <input type="image">)
@@ -3907,7 +3929,7 @@ export function elementTreeToSvg(
           const anchor = outside ? "end" : "start";
           const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
           svgParts.push(
-            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${markerFontFamily}" fill="${markerColor}">${escLabel}</text>`,
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}">${escLabel}</text>`,
           );
         } else if (lsType === "disc" || lsType === "circle" || lsType === "square") {
           // Chrome's `::marker` paints disc/circle/square at a hardcoded
@@ -3969,7 +3991,7 @@ export function elementTreeToSvg(
           const anchor = outside ? "end" : "start";
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
           svgParts.push(
-            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${markerFontFamily}" fill="${markerColor}">${label}</text>`,
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}">${label}</text>`,
           );
         }
       }
@@ -4185,7 +4207,7 @@ export function elementTreeToSvg(
         const bgBottomCap = el.y + el.height - bbBot;
         const bgH = Math.max(0, Math.min(fontSizePx * 1.4, bgBottomCap - bgY));
         svgParts.push(`${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`);
-        svgParts.push(`${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${el.styles.fontFamily}" fill="${fillCol}">${escMarker}</text>`);
+        svgParts.push(`${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`);
       }
     }
 

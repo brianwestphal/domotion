@@ -18,15 +18,16 @@
  * Usage: npx tsx tests/html-test-suite.tsx [--only 07-svg-shapes]
  */
 
-import { chromium } from "@playwright/test";
+import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
-import { captureElementTree, elementTreeToSvg, getLastCaptureWarnings } from "../src/dom-to-svg.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { raw } from "../src/jsx-runtime.js";
-import { comparePngs, passes, PASS_THRESHOLD_NON_AA_PIXELS, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
+import { comparePngs, PASS_THRESHOLD_NON_AA_PIXELS, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
+import { resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HTML_TEST_DIR = resolve(homedir(), "Documents/html-test");
@@ -86,6 +87,101 @@ function categoryOf(name: string): string {
   return "other";
 }
 
+interface HtmlTestWorker {
+  context: BrowserContext;
+  page: Page;
+  compareContext: BrowserContext;
+  comparePage: Page;
+}
+
+async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResult> {
+  const name = file.replace(/\.html$/, "");
+  const srcPath = resolve(HTML_TEST_DIR, file);
+  const expectedPath = resolve(OUTPUT_DIR, `${name}-expected.png`);
+  const actualPath = resolve(OUTPUT_DIR, `${name}-actual.png`);
+  const diffPath = resolve(OUTPUT_DIR, `${name}-diff.png`);
+  const svgPath = resolve(OUTPUT_DIR, `${name}.svg`);
+
+  let nonAaPixels = Number.MAX_SAFE_INTEGER;
+  let nonAaPixelPct = 100;
+  let diffPct = 100;
+  let sigPixelPct = 100;
+  let worstTilePct = 100;
+  let worstTileSignificantPct = 100;
+  let worstTileRect: { x: number; y: number; w: number; h: number } | undefined;
+  let bodyBg = "#ffffff";
+  let err: string | undefined;
+  let capWarnings: Array<{ selector: string; feature: string; detail: string }> = [];
+
+  try {
+    await w.page.goto(`file://${srcPath}`);
+    await w.page.waitForTimeout(150);
+
+    bodyBg = await w.page.evaluate(() => {
+      const cs = getComputedStyle(document.body);
+      const bg = cs.backgroundColor;
+      if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return "#ffffff";
+      return bg;
+    });
+
+    await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
+
+    // Pick up any @font-face rules — covers both url(...) downloads and
+    // local(...) aliases (DM-303). Without this, fixtures using
+    // `font-family: "MyFamily"` declared via @font-face render in the
+    // chain-fallback face (`serif` → Times) instead of the local() target.
+    try { await discoverAndRegisterWebfonts(w.page); } catch { /* best-effort */ }
+
+    // captureElementTreeWithWarnings returns warnings inline so concurrent
+    // workers don't race on the lastCaptureWarnings module global (DM-456).
+    const cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+    capWarnings = cap.warnings;
+    const svgContent = elementTreeToSvg(cap.tree, WIDTH, HEIGHT);
+    const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}"><rect width="${WIDTH}" height="${HEIGHT}" fill="${bodyBg}" />${svgContent}</svg>`;
+    writeFileSync(svgPath, svgDoc);
+
+    // Load the SVG directly as the top-level document. Wrapping it in <img>
+    // blocks external resource loads inside the SVG for security, which
+    // masked rendering fidelity for any test using background:url() or <img>.
+    // Loading the SVG as a document lets those external file:// refs resolve.
+    await w.page.goto(`file://${svgPath}`);
+    await w.page.waitForTimeout(200);
+    await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
+
+    const cmp = await comparePngs(w.comparePage, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST);
+    nonAaPixels = cmp.nonAaPixels;
+    nonAaPixelPct = cmp.nonAaPixelPct;
+    diffPct = cmp.diffPct;
+    sigPixelPct = cmp.sigPixelPct;
+    worstTilePct = cmp.worstTilePct;
+    worstTileSignificantPct = cmp.worstTileSignificantPct;
+    worstTileRect = cmp.worstTileRect;
+  } catch (e) {
+    err = e instanceof Error ? e.message : String(e);
+  }
+
+  const skipReason = SKIP_TESTS[name];
+  const skipped = skipReason != null;
+  const pass = !skipped && err == null && nonAaPixels <= PASS_THRESHOLD_NON_AA_PIXELS;
+  return {
+    name,
+    category: categoryOf(name),
+    nonAaPixels,
+    nonAaPixelPct,
+    diffPct,
+    sigPixelPct,
+    worstTilePct,
+    worstTileSignificantPct,
+    worstTileRect,
+    pass,
+    skipped,
+    skipReason,
+    bodyBg,
+    error: err,
+    warnings: capWarnings.length > 0 ? capWarnings : undefined,
+  };
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const onlyArg = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
@@ -102,112 +198,36 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT})...\n`);
+  const workerCount = resolveWorkerCount();
+  console.log(`Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT}) with ${workerCount} workers...\n`);
 
   const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
-  const page = await context.newPage();
 
-  const compareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
-  const comparePage = await compareContext.newPage();
-  await comparePage.goto("about:blank");
-
-  const results: TestResult[] = [];
-
-  for (const file of testFiles) {
-    const name = file.replace(/\.html$/, "");
-    const srcPath = resolve(HTML_TEST_DIR, file);
-    const expectedPath = resolve(OUTPUT_DIR, `${name}-expected.png`);
-    const actualPath = resolve(OUTPUT_DIR, `${name}-actual.png`);
-    const diffPath = resolve(OUTPUT_DIR, `${name}-diff.png`);
-    const svgPath = resolve(OUTPUT_DIR, `${name}.svg`);
-    const svgRenderPath = resolve(OUTPUT_DIR, `${name}-svg-render.html`);
-
-    let nonAaPixels = Number.MAX_SAFE_INTEGER;
-    let nonAaPixelPct = 100;
-    let diffPct = 100;
-    let sigPixelPct = 100;
-    let worstTilePct = 100;
-    let worstTileSignificantPct = 100;
-    let worstTileRect: { x: number; y: number; w: number; h: number } | undefined;
-    let bodyBg = "#ffffff";
-    let err: string | undefined;
-    let capWarnings: Array<{ selector: string; feature: string; detail: string }> = [];
-
-    try {
-      await page.goto(`file://${srcPath}`);
-      await page.waitForTimeout(150);
-
-      bodyBg = await page.evaluate(() => {
-        const cs = getComputedStyle(document.body);
-        const bg = cs.backgroundColor;
-        if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return "#ffffff";
-        return bg;
-      });
-
-      await page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
-
-      // Pick up any @font-face rules — covers both url(...) downloads and
-      // local(...) aliases (DM-303). Without this, fixtures using
-      // `font-family: "MyFamily"` declared via @font-face render in the
-      // chain-fallback face (`serif` → Times) instead of the local() target.
-      try { await discoverAndRegisterWebfonts(page); } catch { /* best-effort */ }
-
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
-      capWarnings = getLastCaptureWarnings();
-      const svgContent = elementTreeToSvg(tree, WIDTH, HEIGHT);
-      const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}"><rect width="${WIDTH}" height="${HEIGHT}" fill="${bodyBg}" />${svgContent}</svg>`;
-      writeFileSync(svgPath, svgDoc);
-
-      // Load the SVG directly as the top-level document. Wrapping it in <img>
-      // blocks external resource loads inside the SVG for security, which
-      // masked rendering fidelity for any test using background:url() or <img>.
-      // Loading the SVG as a document lets those external file:// refs resolve.
-      // svgRenderPath is kept around only for debug parity — not used anymore.
-      void svgRenderPath;
-      await page.goto(`file://${svgPath}`);
-      await page.waitForTimeout(200);
-      await page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
-
-      const cmp = await comparePngs(comparePage, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST);
-      nonAaPixels = cmp.nonAaPixels;
-      nonAaPixelPct = cmp.nonAaPixelPct;
-      diffPct = cmp.diffPct;
-      sigPixelPct = cmp.sigPixelPct;
-      worstTilePct = cmp.worstTilePct;
-      worstTileSignificantPct = cmp.worstTileSignificantPct;
-      worstTileRect = cmp.worstTileRect;
-    } catch (e) {
-      err = e instanceof Error ? e.message : String(e);
-    }
-
-    const skipReason = SKIP_TESTS[name];
-    const skipped = skipReason != null;
-    const pass = !skipped && err == null && nonAaPixels <= PASS_THRESHOLD_NON_AA_PIXELS;
-    const result: TestResult = {
-      name,
-      category: categoryOf(name),
-      nonAaPixels,
-      nonAaPixelPct,
-      diffPct,
-      sigPixelPct,
-      worstTilePct,
-      worstTileSignificantPct,
-      worstTileRect,
-      pass,
-      skipped,
-      skipReason,
-      bodyBg,
-      error: err,
-      warnings: capWarnings.length > 0 ? capWarnings : undefined,
-    };
-    results.push(result);
-    const status = skipped ? "- SKIP" : pass ? "✓ PASS" : "✗ FAIL";
-    const warnBadge = result.warnings != null ? ` (${result.warnings.length}w)` : "";
-    const nonAaBadge = !skipped ? ` [non-AA ${nonAaPixels} px (${nonAaPixelPct.toFixed(3)}%)]` : "";
-    const tileBadge = !skipped ? ` [sig ${sigPixelPct.toFixed(1)}% · tile avg ${worstTilePct.toFixed(1)}% / sig ${worstTileSignificantPct.toFixed(1)}%]` : "";
-    console.log(`  ${status}  ${name.padEnd(40)} (${diffPct.toFixed(2)}% avg${nonAaBadge}${tileBadge})${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
-  }
+  const results = await runJobsInPool<string, HtmlTestWorker, TestResult>({
+    jobs: testFiles,
+    workers: workerCount,
+    setup: async () => {
+      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
+      const page = await context.newPage();
+      const compareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
+      const comparePage = await compareContext.newPage();
+      await comparePage.goto("about:blank");
+      return { context, page, compareContext, comparePage };
+    },
+    teardown: async (w) => {
+      await w.context.close();
+      await w.compareContext.close();
+    },
+    runJob: async (file, w) => runOneHtmlTest(file, w),
+    onResult: (result) => {
+      const { name, pass, skipped, error: err, warnings, nonAaPixels, nonAaPixelPct, diffPct, sigPixelPct, worstTilePct, worstTileSignificantPct } = result;
+      const status = skipped ? "- SKIP" : pass ? "✓ PASS" : "✗ FAIL";
+      const warnBadge = warnings != null ? ` (${warnings.length}w)` : "";
+      const nonAaBadge = !(skipped ?? false) ? ` [non-AA ${nonAaPixels} px (${nonAaPixelPct.toFixed(3)}%)]` : "";
+      const tileBadge = !(skipped ?? false) ? ` [sig ${sigPixelPct.toFixed(1)}% · tile avg ${worstTilePct.toFixed(1)}% / sig ${worstTileSignificantPct.toFixed(1)}%]` : "";
+      console.log(`  ${status}  ${name.padEnd(40)} (${diffPct.toFixed(2)}% avg${nonAaBadge}${tileBadge})${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
+    },
+  });
 
   await browser.close();
 

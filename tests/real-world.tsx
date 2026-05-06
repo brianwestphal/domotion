@@ -31,16 +31,22 @@
  * Usage: npx tsx tests/real-world.tsx [--only google-desktop-fold]
  */
 
-import { chromium, type Browser, type Page } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTree, elementTreeToSvg, getLastCaptureWarnings } from "../src/dom-to-svg.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { comparePngs } from "./compare-pngs.js";
+import { resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
+// Persistent HTTP-Archive (HAR) cache. First run for a (site × viewport)
+// records every network request to disk; subsequent runs replay from the
+// HAR so the suite doesn't keep hammering real production sites. Wipe a
+// HAR (or the whole dir) to force a re-fetch.
+const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");
 
 interface Site { name: string; url: string }
 const SITES: Site[] = [
@@ -128,11 +134,17 @@ function buildJobs(): PageJob[] {
   return out;
 }
 
+interface RealWorldWorker {
+  comparePage: Page;
+  compareContext: BrowserContext;
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
 
   mkdirSync(OUTPUT_DIR, { recursive: true });
+  mkdirSync(CACHE_DIR, { recursive: true });
 
   const allJobs = buildJobs();
   const jobs = only != null ? allJobs.filter((j) => j.test.startsWith(only)) : allJobs;
@@ -141,33 +153,44 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`Running ${jobs.length} real-world capture jobs (${VIEWPORTS.length} viewports × ${MODES.length} modes × ${SITES.length} sites)...\n`);
-
   const browser = await chromium.launch();
 
-  // One compare context shared across all jobs so we don't keep tearing
-  // down/recreating canvases. Sized at the worst-case width.
-  const compareContext = await browser.newContext({
-    viewport: { width: 1280 * 2, height: 800 },
-  });
-  const comparePage = await compareContext.newPage();
-  await comparePage.goto("about:blank");
+  // First-time HAR recording can't run concurrently for the same (site,
+  // viewport) — `routeFromHAR({ update: true })` writes the .har file, and
+  // two contexts hammering the same path corrupt it. Pre-record any
+  // missing HARs serially before opening the worker pool, then every
+  // pooled job is a pure replay (concurrent-safe). DM-454 / DM-456.
+  await ensureHarsRecorded(browser, jobs);
 
-  const newResults: Result[] = [];
-  for (const job of jobs) {
-    const result = await runJob(browser, comparePage, job);
-    newResults.push(result);
-    const status = result.skipped ? "- SKIP"
-      : result.error != null    ? "✗ ERROR"
-      : result.pass             ? "✓ PASS"
-      :                            "✗ FAIL";
-    const note = result.error != null
-      ? `  ERR: ${result.error}`
-      : result.skipped
-        ? `  (${result.skipReason ?? "skipped"})`
-        : ` (${result.diffPct.toFixed(2)}% avg · ${result.width}×${result.height})`;
-    console.log(`  ${status}  ${job.test.padEnd(38)}${note}`);
-  }
+  const workerCount = resolveWorkerCount();
+  console.log(`Running ${jobs.length} real-world capture jobs (${VIEWPORTS.length} viewports × ${MODES.length} modes × ${SITES.length} sites) with ${workerCount} workers...\n`);
+
+  const newResults = await runJobsInPool<PageJob, RealWorldWorker, Result>({
+    jobs,
+    workers: workerCount,
+    setup: async () => {
+      const compareContext = await browser.newContext({
+        viewport: { width: 1280 * 2, height: 800 },
+      });
+      const comparePage = await compareContext.newPage();
+      await comparePage.goto("about:blank");
+      return { compareContext, comparePage };
+    },
+    teardown: async (w) => { await w.compareContext.close(); },
+    runJob: async (job, w) => runJob(browser, w.comparePage, job),
+    onResult: (result, job) => {
+      const status = result.skipped ? "- SKIP"
+        : result.error != null    ? "✗ ERROR"
+        : result.pass             ? "✓ PASS"
+        :                            "✗ FAIL";
+      const note = result.error != null
+        ? `  ERR: ${result.error}`
+        : result.skipped
+          ? `  (${result.skipReason ?? "skipped"})`
+          : ` (${result.diffPct.toFixed(2)}% avg · ${result.width}×${result.height})`;
+      console.log(`  ${status}  ${job.test.padEnd(38)}${note}`);
+    },
+  });
 
   await browser.close();
 
@@ -222,6 +245,75 @@ function mergeResults(newResults: Result[]): Result[] {
   });
 }
 
+/**
+ * For every (site, viewport) referenced by `jobs`, make sure the HAR cache
+ * file exists on disk. Missing HARs are recorded serially with one context
+ * per site — concurrent record-mode writes to the same .har file would
+ * corrupt it (DM-454). After this returns every job in the pool can open
+ * its context in pure-replay mode safely in parallel.
+ *
+ * Records by visiting the site at the larger of the (site, viewport)'s
+ * desktop / mobile heights and scrolling end-to-end so lazy-loaded assets
+ * are captured once. The pool's per-job goto then replays from the HAR.
+ */
+async function ensureHarsRecorded(browser: Browser, jobs: PageJob[]): Promise<void> {
+  const missing = new Map<string, { site: Site; viewport: Viewport; harPath: string }>();
+  for (const job of jobs) {
+    const harPath = resolve(CACHE_DIR, `${job.site.name}-${job.viewport.name}.har`);
+    if (existsSync(harPath)) continue;
+    const key = `${job.site.name}|${job.viewport.name}`;
+    if (missing.has(key)) continue;
+    missing.set(key, { site: job.site, viewport: job.viewport, harPath });
+  }
+  if (missing.size === 0) return;
+
+  console.log(`Recording ${missing.size} missing HAR file(s) before opening pool...`);
+  for (const { site, viewport, harPath } of missing.values()) {
+    const t0 = Date.now();
+    process.stdout.write(`  recording ${site.name}-${viewport.name}.har ...`);
+    const context = await browser.newContext({
+      viewport: { width: viewport.width, height: viewport.height },
+      deviceScaleFactor: 1,
+      isMobile: viewport.isMobile,
+      hasTouch: viewport.isMobile,
+      colorScheme: "light",
+      userAgent: viewport.isMobile
+        ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+        : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    });
+    await context.routeFromHAR(harPath, { url: "**/*", update: true, notFound: "fallback" });
+    const page = await context.newPage();
+    try {
+      await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: GOTO_TIMEOUT_MS });
+      await page.waitForTimeout(SETTLE_MS);
+      // Stretch to full document height + scroll end-to-end so the
+      // entire-page / scroll modes find their lazy-loaded assets in the
+      // HAR on the next pass.
+      const rawHeight = await page.evaluate(() => Math.max(
+        document.documentElement.scrollHeight,
+        document.body?.scrollHeight ?? 0,
+      ));
+      const fullH = Math.min(FULL_PAGE_MAX_H, Math.max(viewport.height, rawHeight));
+      await page.setViewportSize({ width: viewport.width, height: fullH });
+      await page.waitForTimeout(400);
+      await page.evaluate(async (h) => {
+        window.scrollTo(0, h);
+        await new Promise((r) => setTimeout(r, 400));
+        window.scrollTo(0, 0);
+      }, fullH);
+      await page.waitForTimeout(800);
+    } catch (e) {
+      console.log(` failed: ${e instanceof Error ? e.message : String(e)}`);
+      // Even on failure, close() flushes whatever was captured so the next
+      // run replays partial responses rather than re-fetching from scratch.
+    } finally {
+      await context.close();
+    }
+    console.log(` ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  }
+  console.log("");
+}
+
 async function runJob(
   browser: Browser,
   comparePage: Page,
@@ -238,6 +330,13 @@ async function runJob(
     deviceScaleFactor: 1,
     isMobile: viewport.isMobile,
     hasTouch: viewport.isMobile,
+    // Force light color-scheme so sites that ship a dark variant via
+    // `prefers-color-scheme: dark` render their light theme. Domotion does
+    // not yet support emitting a dark-mode SVG (tracked separately), and
+    // the SVG always paints with light defaults — so without this, the
+    // expected/actual diff is dominated by light-vs-dark rather than
+    // capture fidelity.
+    colorScheme: "light",
     // A current-ish desktop / mobile UA so sites don't redirect us to a
     // legacy page. (Headless Chromium's default UA confuses some servers
     // into serving cut-down templates.)
@@ -245,6 +344,21 @@ async function runJob(
       ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
       : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   });
+
+  // HAR cache: keyed by (site, viewport) since responses can vary by UA /
+  // device. First run records, subsequent runs replay. `notFound: 'fallback'`
+  // lets a record-mode run fetch newly-required assets through to the network;
+  // replay-mode runs fall through to the network for anything not in the HAR
+  // (which generally means the page made a new request that didn't exist
+  // before — rare). To force a fresh capture, delete the HAR file.
+  const harPath = resolve(CACHE_DIR, `${site.name}-${viewport.name}.har`);
+  const harExists = existsSync(harPath);
+  await context.routeFromHAR(harPath, {
+    url: "**/*",
+    update: !harExists,
+    notFound: "fallback",
+  });
+
   const page = await context.newPage();
 
   let warnings: Array<{ selector: string; feature: string; detail: string }> = [];
@@ -318,9 +432,11 @@ async function runJob(
     try { await discoverAndRegisterWebfonts(page); } catch { /* best-effort */ }
 
     const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };
-    const tree = await captureElementTree(page, "body", captureClip);
-    warnings = getLastCaptureWarnings();
-    const svgInner = elementTreeToSvg(tree, viewport.width, canvasH);
+    // captureElementTreeWithWarnings returns warnings inline so concurrent
+    // workers don't race on the lastCaptureWarnings module global (DM-456).
+    const cap = await captureElementTreeWithWarnings(page, "body", captureClip);
+    warnings = cap.warnings;
+    const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH);
     const bodyBg = await page.evaluate(() => {
       const cs = getComputedStyle(document.body);
       const bg = cs.backgroundColor;
@@ -341,18 +457,33 @@ async function runJob(
         + `</svg>`;
     writeFileSync(svgPath, svgDoc);
 
-    // Render the SVG by loading it as a top-level document so file://
-    // asset refs (if any) resolve. `scroll` mode renders inside the
-    // viewport-sized wrapper, so the actual screenshot is the t=0 frame
-    // of the animation — good enough for a reviewer to spot-check
-    // top-of-page fidelity. The animation itself plays when the .svg
-    // is opened from the review tool (link in each card).
+    // Render the SVG via an HTML wrapper rather than navigating directly
+    // to the .svg file. On mobile contexts (`isMobile: true`), Chromium
+    // treats a standalone SVG as a non-responsive document and applies
+    // mobile layout scaling (default 980 px virtual viewport), squashing
+    // the SVG into the top-left quadrant of the screenshot. The HTML
+    // wrapper carries an explicit `<meta viewport>` so the page lays out
+    // at our device-pixel dimensions and the embedded SVG renders 1:1.
+    // `scroll` mode renders inside the viewport-sized wrapper, so the
+    // actual screenshot is the t=0 frame of the animation — good enough
+    // for a reviewer to spot-check top-of-page fidelity. The animation
+    // itself plays when the .svg is opened from the review tool.
     const actualClip = mode === "entire-page"
       ? { x: 0, y: 0, width: viewport.width, height: canvasH }
       : { x: 0, y: 0, width: viewport.width, height: viewport.height };
-    await page.goto(`file://${svgPath}`);
+    const wrapperHtml = `<!doctype html><html><head>`
+      + `<meta charset="utf-8">`
+      + `<meta name="viewport" content="width=${viewport.width}, initial-scale=1, maximum-scale=1, user-scalable=no">`
+      + `<style>html,body{margin:0;padding:0;background:${bodyBg};}svg{display:block;}</style>`
+      + `</head><body>${svgDoc.replace(/^<\?xml[^?]*\?>/, "")}</body></html>`;
+    const wrapperPath = svgPath.replace(/\.svg$/, ".wrapper.html");
+    writeFileSync(wrapperPath, wrapperHtml);
+    await page.goto(`file://${wrapperPath}`);
     await page.waitForTimeout(300);
     await page.screenshot({ path: actualPath, clip: actualClip });
+    // Wrapper is purely a render harness — the .svg file is the artifact
+    // reviewers/consumers care about.
+    try { unlinkSync(wrapperPath); } catch { /* best-effort */ }
   } catch (e) {
     captureError = e instanceof Error ? e.message : String(e);
   } finally {

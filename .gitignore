@@ -1,4 +1,5 @@
 tests/output/
+tests/cache/
 node_modules/
 dist/
 .release-state.json

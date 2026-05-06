@@ -1,4 +1,4 @@
-export { captureElementTree, elementTreeToSvg, wrapSvg, getLastCaptureWarnings, logCaptureWarnings } from "./dom-to-svg.js";
+export { captureElementTree, captureElementTreeWithWarnings, elementTreeToSvg, wrapSvg, getLastCaptureWarnings, logCaptureWarnings } from "./dom-to-svg.js";
 export type { CapturedElement, CaptureWarning } from "./dom-to-svg.js";
 export { generateAnimatedSvg } from "./animator.js";
 export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverlay, SvgOverlay, IntraFrameAnimation } from "./animator.js";
