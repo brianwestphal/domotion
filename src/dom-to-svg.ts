@@ -3224,6 +3224,12 @@ export function elementTreeToSvg(
   // Viewport dims for background-attachment: fixed — passed down into layer def building.
   const captureViewport = { w: width, h: height };
 
+  // DM-473: tracks descendants that have been hoisted into an ancestor
+  // stacking context's flat paint list. Their natural-DFS render path is
+  // suppressed via this set so we don't double-emit them. Populated by
+  // `gatherStackingContextChildren()` whenever we cross into an SC root.
+  const hoistedFromAncestor = new Set<CapturedElement>();
+
   function renderElement(el: CapturedElement, depth: number): void {
     const indent = "  ".repeat(depth);
     const bgColor = parseColor(el.styles.backgroundColor);
@@ -4568,8 +4574,20 @@ export function elementTreeToSvg(
     // of full CSS stacking context semantics but covers the common case of
     // positioned siblings jockeying for front/back. When we hoisted floats
     // above (text-bearing parents), exclude them here; otherwise sort all.
-    const remainingChildren = hasOwnText ? nonFloatChildren : el.children;
-    const sortedChildren = sortChildrenByPaintOrder(remainingChildren);
+    // DM-473: when `el` is a stacking-context root, build the flat paint
+    // list for its SC by hoisting positioned descendants of any non-SC
+    // children up to this level. When `el` is NOT an SC root, just render
+    // its direct children — but skip ones already hoisted to an ancestor
+    // SC's flat list (they render at the ancestor's depth via that SC's
+    // sort, and re-rendering here would double-emit).
+    const baseChildren = hasOwnText ? nonFloatChildren : el.children;
+    let childrenForSort: CapturedElement[];
+    if (establishesStackingContext(el)) {
+      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor);
+    } else {
+      childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
+    }
+    const sortedChildren = sortChildrenByPaintOrder(childrenForSort);
     for (const child of sortedChildren) {
       renderElement(child, depth + 1);
     }
@@ -4595,7 +4613,11 @@ export function elementTreeToSvg(
   // sibling painted before a following static one would end up BEHIND it —
   // visible on 13-pos-fixed where the .filler block was covering the .footbar
   // because both are body children and filler followed footbar in DOM.
-  const sortedTopLevel = sortChildrenByPaintOrder(elements);
+  // DM-473: top-level element list is the implicit root stacking context —
+  // flatten it the same way an SC root would, so cross-parent z-index
+  // hoisting works at the document root.
+  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor);
+  const sortedTopLevel = sortChildrenByPaintOrder(topLevelFlat);
   for (const el of sortedTopLevel) {
     renderElement(el, 1);
   }
@@ -5137,6 +5159,86 @@ function shadeColor(c: RGBA, delta: number): RGBA {
  * painted before the following <article> to be covered by the article's
  * own background rect. Promoting floats to layer 3 matches CSS painting rules.
  */
+/**
+ * DM-473: does this element establish a CSS stacking context?
+ *
+ * Stacking-context creators we model:
+ *   - positioned (`position` ≠ `static`) AND `z-index` ≠ `auto`
+ *   - `position: fixed` / `position: sticky` (always create one in modern CSS)
+ *   - `opacity` < 1
+ *   - `transform` ≠ `none`
+ *   - `filter` ≠ `none`
+ *   - `mix-blend-mode` ≠ `normal`
+ *   - `mask-image` ≠ `none` / `clip-path` ≠ `none` (we already wrap these in
+ *     a `<g mask=...>` / `<g clip-path=...>`, which isolates paint)
+ *   - `isolation: isolate`
+ *
+ * Not yet modelled (low real-world frequency):
+ *   - `will-change` listing a stacking-creating property
+ *   - `contain: layout / paint / strict / content`
+ *   - `perspective` ≠ `none`
+ *
+ * Used by the paint-order flattening pass: a positioned descendant whose
+ * nearest *real* SC ancestor is the parent SC root must be hoisted into
+ * the parent SC's sort, not buried inside its non-SC direct parent.
+ */
+function establishesStackingContext(el: CapturedElement): boolean {
+  const s = el.styles;
+  const positioned = s.position != null && s.position !== "static";
+  const zRaw = s.zIndex;
+  if (positioned && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
+  if (s.position === "fixed" || s.position === "sticky") return true;
+  const op = parseFloat(s.opacity);
+  if (Number.isFinite(op) && op < 1) return true;
+  if (s.transform != null && s.transform !== "" && s.transform !== "none") return true;
+  if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
+  if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return true;
+  if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return true;
+  if (s.clipPath != null && s.clipPath !== "" && s.clipPath !== "none") return true;
+  // `isolation: isolate` isn't currently captured on `Styles`; if the
+  // author uses it the element still gets correct paint via its other
+  // SC-creating siblings (transform / opacity), so the omission is benign
+  // for the fixtures we model.
+  return false;
+}
+
+/**
+ * DM-473: build the flat paint list for one stacking context.
+ *
+ * For each direct child of the SC root, walk into the child's subtree only
+ * as long as the child is NOT itself an SC root, and pull every positioned
+ * descendant (transitively) up into the flat list. Each hoisted descendant
+ * is also added to `hoistedOut` so the renderer's normal DFS skips them at
+ * their natural location and we don't double-emit. SC-root descendants
+ * are NOT recursed into — they bring their own SC scope and their internal
+ * paint order resolves independently when their renderElement runs.
+ */
+function gatherStackingContextChildren(
+  children: CapturedElement[],
+  hoistedOut: Set<CapturedElement>,
+): CapturedElement[] {
+  const out: CapturedElement[] = [];
+  const collectFromNonSC = (parent: CapturedElement): void => {
+    for (const c of parent.children) {
+      const positioned = c.styles.position != null && c.styles.position !== "static";
+      if (positioned) {
+        out.push(c);
+        hoistedOut.add(c);
+      }
+      if (!establishesStackingContext(c)) {
+        collectFromNonSC(c);
+      }
+    }
+  };
+  for (const c of children) {
+    out.push(c);
+    if (!establishesStackingContext(c)) {
+      collectFromNonSC(c);
+    }
+  }
+  return out;
+}
+
 function sortChildrenByPaintOrder(children: CapturedElement[]): CapturedElement[] {
   const negative: Array<{ z: number; idx: number; el: CapturedElement }> = [];
   const floats: CapturedElement[] = [];

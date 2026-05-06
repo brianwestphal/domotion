@@ -205,6 +205,80 @@ const tests: FeatureTest[] = [
     height: 140,
   },
 
+  // ── DM-473: cross-stacking-context z-index ──
+  // A positioned descendant whose nearest positioned ancestor has z-index:auto
+  // does NOT join that ancestor's "fake" stacking context — it joins the
+  // nearest REAL stacking-context ancestor (here, the root). So blue
+  // (z-index:1) inside red (z-index:auto) must paint ABOVE green (z-index:auto)
+  // even though red comes before green in DOM order, because blue's effective
+  // stack key (1) > green's (auto/0).
+  {
+    name: "z-index-cross-parent-non-context",
+    html: `<div style="position:relative;width:240px;height:160px;background:#0d1117;">
+      <div style="position:absolute;left:10px;top:10px;width:120px;height:120px;background:#dc2626;">
+        <div style="position:absolute;left:30px;top:30px;width:140px;height:90px;background:#58a6ff;z-index:1;"></div>
+      </div>
+      <div style="position:absolute;left:80px;top:50px;width:140px;height:80px;background:#3fb950;"></div>
+    </div>`,
+    width: 260,
+    height: 180,
+  },
+
+  // ── DM-473: stacking-context boundary blocks escape ──
+  // Red establishes a real stacking context (positioned + z-index:1). Blue
+  // (z-index:5) inside red is trapped at red's z-level. Green (z-index:2)
+  // in the root context paints ABOVE red and therefore above blue, even
+  // though blue's nominal z-index is higher. Without context-aware sorting
+  // we'd hoist blue above green, which is the opposite of correct.
+  {
+    name: "z-index-stacking-context-boundary",
+    html: `<div style="position:relative;width:240px;height:160px;background:#0d1117;">
+      <div style="position:absolute;left:10px;top:10px;width:120px;height:120px;background:#dc2626;z-index:1;">
+        <div style="position:absolute;left:30px;top:30px;width:140px;height:90px;background:#58a6ff;z-index:5;"></div>
+      </div>
+      <div style="position:absolute;left:80px;top:50px;width:140px;height:80px;background:#3fb950;z-index:2;"></div>
+    </div>`,
+    width: 260,
+    height: 180,
+  },
+
+  // ── DM-473: negative z-index escapes non-stacking-context parent ──
+  // A z-index:-1 child of a positioned-but-z-auto parent paints BEHIND the
+  // nearest stacking context's other content — it bubbles up. Here the gray
+  // in-flow block paints first, blue (z:-1) escapes red and paints between
+  // the gray block and red itself, so blue covers gray but red still sits
+  // on top of blue.
+  {
+    name: "z-index-negative-escapes",
+    html: `<div style="position:relative;width:240px;height:160px;background:#0d1117;">
+      <div style="position:absolute;left:10px;top:10px;width:220px;height:50px;background:#94a3b8;"></div>
+      <div style="position:absolute;left:60px;top:40px;width:120px;height:80px;background:#dc2626;">
+        <div style="position:absolute;left:-30px;top:-20px;width:200px;height:120px;background:#58a6ff;z-index:-1;"></div>
+      </div>
+    </div>`,
+    width: 260,
+    height: 180,
+  },
+
+  // ── DM-473: transform creates a stacking context ──
+  // `transform` ≠ none creates a stacking context even without z-index. So
+  // blue (z-index:5) inside a transformed parent is trapped at the parent's
+  // z-level (auto). Green (z-index:1) in the root context paints above the
+  // transformed parent and therefore above blue. Uses `translate(0)` so the
+  // transform has no visible position effect — only its SC-creating role
+  // matters for this fixture.
+  {
+    name: "z-index-transform-stacking-context",
+    html: `<div style="position:relative;width:240px;height:160px;background:#0d1117;">
+      <div style="position:absolute;left:10px;top:10px;width:120px;height:120px;background:#dc2626;transform:translate(0);">
+        <div style="position:absolute;left:30px;top:30px;width:140px;height:90px;background:#58a6ff;z-index:5;"></div>
+      </div>
+      <div style="position:absolute;left:80px;top:50px;width:140px;height:80px;background:#3fb950;z-index:1;"></div>
+    </div>`,
+    width: 260,
+    height: 180,
+  },
+
   // ── Regression: CSS gradients translated to SVG linear/radial gradients (SK-432) ──
   {
     name: "gradient-linear",
