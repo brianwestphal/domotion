@@ -328,17 +328,27 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const pathText = reordered.text;
   const xOffsetsRel = reordered.xOffsets;
   const features = resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps);
-  const result = renderTextAsPath(pathText, tl, tt, fontSize, fontFamily, fontWeight, fillColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, el.fontAscent, features, el.styles.lang);
+  // DM-495: when the only segment is a pseudo with its own typography
+  // overrides (color / fontSize / fontWeight / fontAscent), prefer those
+  // over the host element's values. The capture layer carries pseudo-
+  // specific overrides on the segment, but the singleSeg path was reading
+  // host-level fields exclusively, so a `.marker::after { color: white }`
+  // pseudo painted in the marker's own color (typically inherited black).
+  const segColor = singleSeg?.color ?? fillColor;
+  const segFontSize = singleSeg?.fontSize ?? fontSize;
+  const segFontWeight = singleSeg?.fontWeight ?? fontWeight;
+  const segAscent = singleSeg?.fontAscent ?? el.fontAscent;
+  const result = renderTextAsPath(pathText, tl, tt, segFontSize, fontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, segAscent, features, el.styles.lang);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-      ? el.styles.textDecorationColor : fillColor;
+      ? el.styles.textDecorationColor : segColor;
     // baselineY = textTop + fontAscent. Using fontSize here would put the
     // underline ~1px too low (fontSize includes descent; baseline sits at
     // ascent above textTop, not at the line-bottom). DM-265.
     // Round to integer px so Chrome's pixel-aligned decoration paint
     // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
-    const decoBaselineY = Math.round(tt + (el.fontAscent ?? fontSize));
-    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, fontSize, fontFamily, fontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, pathText, el.styles.textDecorationSkipInk, features);
+    const decoBaselineY = Math.round(tt + (segAscent ?? segFontSize));
+    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, pathText, el.styles.textDecorationSkipInk, features);
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
     const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";

@@ -1432,19 +1432,57 @@ const CAPTURE_SCRIPT = `
       const elLeft = rect.left - vp.x + (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.borderLeftWidth) || 0);
       const elFontSize = parseFloat(pcs.fontSize) || 14;
       const lineH = parseFloat(pcs.lineHeight) || elFontSize * 1.2;
-      const yPos = elTop + (lineH - elFontSize) / 2;
-      // For ::before: place at the element's content left. The main text that
-      // follows is already shifted right by the pseudo's width per Chromium layout.
-      // For ::after: place at the END of the element's content — we approximate by
-      // using elLeft + (element's intrinsic text width) but we don't know that
-      // precisely; Chromium positions ::after right after the last text node.
+      // Position: ::before sits at the START of the element's text/content.
+      // ::after sits at the END. We use the element's textLeft/textWidth if
+      // available, otherwise fall back to (el.x, el.y + padTop).
       // Capture pseudos baseline metric — CSS lets ::before / ::after override
       // font-size independent of the host, so the captured ascent must come
       // from the pseudo's computed font, not the element's. Renderer uses
       // seg.fontAscent when present and falls back to el.fontAscent otherwise.
       const _pseudoMetrics = _measureFontMetrics(pcs);
+      // DM-495: when the pseudo itself is positioned (absolute / fixed /
+      // relative offsets), it does NOT participate in the parent's inline
+      // flow — it paints at its own coordinates anchored to its containing
+      // block. Use pcs.left / pcs.top (resolved px values) relative to the
+      // parent's padding box for absolute/fixed, and as an offset from the
+      // in-flow position for relative.
+      var xPos, yPos;
+      var pseudoIsPositioned = false;
+      if (pcs.position === 'absolute' || pcs.position === 'fixed') {
+        // Containing block for absolute is the nearest positioned ancestor's
+        // padding box; for the pseudo, that ancestor is el itself when el is
+        // positioned, otherwise the chain Chromium resolved. The simple case
+        // we handle: the pseudo left/top are resolved against el padding
+        // box (true when el is the offsetParent — the common case since
+        // authors typically position the host to anchor the pseudo).
+        var pcsLeft = parseFloat(pcs.left);
+        var pcsTop = parseFloat(pcs.top);
+        var pcsRight = parseFloat(pcs.right);
+        var pcsBottom = parseFloat(pcs.bottom);
+        var paddingBoxLeft = rect.left - vp.x + (parseFloat(cs.borderLeftWidth) || 0);
+        var paddingBoxTop = rect.top - vp.y + (parseFloat(cs.borderTopWidth) || 0);
+        var paddingBoxRight = rect.right - vp.x - (parseFloat(cs.borderRightWidth) || 0);
+        var paddingBoxBottom = rect.bottom - vp.y - (parseFloat(cs.borderBottomWidth) || 0);
+        if (!isNaN(pcsLeft)) xPos = paddingBoxLeft + pcsLeft;
+        else if (!isNaN(pcsRight)) xPos = paddingBoxRight - pcsRight - pseudoWidth;
+        else xPos = paddingBoxLeft;
+        if (!isNaN(pcsTop)) yPos = paddingBoxTop + pcsTop;
+        else if (!isNaN(pcsBottom)) yPos = paddingBoxBottom - pcsBottom - lineH;
+        else yPos = paddingBoxTop;
+        // Pseudo's own padding shifts the content inside its box.
+        xPos += parseFloat(pcs.paddingLeft) || 0;
+        xPos += parseFloat(pcs.borderLeftWidth) || 0;
+        yPos += parseFloat(pcs.paddingTop) || 0;
+        yPos += parseFloat(pcs.borderTopWidth) || 0;
+        // Center within the line box (vertical-align baseline approximation).
+        yPos += (lineH - elFontSize) / 2;
+        pseudoIsPositioned = true;
+      } else {
+        yPos = elTop + (lineH - elFontSize) / 2;
+        xPos = pseudo === '::before' ? elLeft : elLeft + rect.width - pseudoWidth - 2 * (parseFloat(cs.paddingRight) || 0);
+      }
       const pseudoSeg = {
-        text, x: pseudo === '::before' ? elLeft : elLeft + rect.width - pseudoWidth - 2 * (parseFloat(cs.paddingRight) || 0),
+        text, x: xPos,
         y: yPos, width: pseudoWidth, height: elFontSize,
         // Carry pseudo-specific typography so the renderer can respect
         // per-pseudo color, font-size, font-weight (CSS lets pseudos style
@@ -1472,7 +1510,7 @@ const CAPTURE_SCRIPT = `
           height: lineH,
         };
       }
-      pseudoSegments.push({ isBefore: pseudo === '::before', seg: pseudoSeg, color: pcs.color });
+      pseudoSegments.push({ isBefore: pseudo === '::before', seg: pseudoSeg, color: pcs.color, isPositioned: pseudoIsPositioned });
     }
 
     // Skip text capture for elements where the child text is fallback content
@@ -1900,7 +1938,12 @@ const CAPTURE_SCRIPT = `
         });
         continue;
       }
-      if (p.isBefore && textSegments.length > 0) {
+      if (p.isPositioned) {
+        // Positioned pseudo paints at its own anchor — do NOT realign to the
+        // parent's text flow (DM-495).
+        if (p.isBefore) textSegments.unshift(p.seg);
+        else textSegments.push(p.seg);
+      } else if (p.isBefore && textSegments.length > 0) {
         // Offset by measured width before the first real segment's x.
         const firstSeg = textSegments[0];
         p.seg.x = firstSeg.x - p.seg.width;
@@ -1916,6 +1959,18 @@ const CAPTURE_SCRIPT = `
       } else {
         // No main text — just place at element origin.
         textSegments.push(p.seg);
+      }
+      // DM-495: when the pseudo is the only text on the element, propagate
+      // its bounds up to el.textLeft/textTop/etc. so the renderer's single-
+      // segment path positions and sizes the text from the pseudo (without
+      // this, textLeft / textTop default to 0 and the text paints at the
+      // SVG origin).
+      if (textSegments.length === 1 && textSegments[0] === p.seg) {
+        textLeft = p.seg.x;
+        textTop = p.seg.y;
+        textWidth = p.seg.width;
+        textHeight = p.seg.height;
+        if (p.seg.fontAscent != null) fontAscent = p.seg.fontAscent;
       }
       // If we flagged this pseudo for raster, re-anchor the screenshot rect
       // to the final (post-injection) x/y. Its x was computed against the
