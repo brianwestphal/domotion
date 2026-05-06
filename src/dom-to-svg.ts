@@ -4,7 +4,7 @@
  * Uses Playwright to inspect DOM elements and recreate them as native SVG.
  */
 
-import type { Page } from "@playwright/test";
+import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text-renderer.js";
@@ -505,6 +505,18 @@ export interface CapturedElement {
    */
   elementRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
   /**
+   * For <canvas> / <video> / <iframe> / <object> / <embed>: a viewport-relative
+   * content-box rect (border-box minus border + padding) that
+   * rasterizeReplacedElements should screenshot via Playwright and stash on
+   * dataUri. The renderer then emits an <image> at the same rect to cover what
+   * Chrome actually painted in that element's content area, so these element
+   * types stop leaving blank holes in real-world captures. The capture warning
+   * is still emitted because these types are out of the spirit of the path-
+   * based rendering contract — the snapshot is a frozen raster, not a faithful
+   * re-render. See docs/17-replaced-element-snapshots.md (DM-457).
+   */
+  replacedSnapshot?: { x: number; y: number; width: number; height: number; rid: string; dataUri?: string };
+  /**
    * <fieldset> with a top-aligned <legend>: Chrome's UA paints the fieldset's
    * top border at the legend's vertical center (not at fs.y) and notches the
    * border across the legend's horizontal extent. The captured x/y/width/
@@ -531,6 +543,13 @@ const CAPTURE_SCRIPT = `
   const _normProbe = document.createElement('div');
   _normProbe.style.position = 'absolute'; _normProbe.style.visibility = 'hidden';
   document.body.appendChild(_normProbe);
+
+  // DM-457: per-capture counter for replaced-element snapshots
+  // (canvas / video / iframe / object / embed). Each marked element gets
+  // data-domotion-rid set on the live DOM so rasterizeReplacedElements can
+  // toggle the "snapshot target" attribute one element at a time. Resets to 0
+  // on every captureElementTree call, overwriting any prior rid attributes.
+  let _replacedIdx = 0;
 
   // Walk document.styleSheets and collect rules that target any of the
   // supported WebKit form-control shadow pseudos (SK-1131, SK-1138, SK-1222).
@@ -2475,6 +2494,38 @@ const CAPTURE_SCRIPT = `
       _captured.pseudoImages = undefined;
       _captured.elementRaster = undefined;
     }
+    // DM-457: <canvas> / <video> / <iframe> / <object> / <embed> have no DOM
+    // we can re-render — capture the content-box rect and tag the live
+    // element so the post-pass can hide-everything-else and screenshot just
+    // its painted pixels. The warning logged earlier in this function still
+    // stands (these are out of the spirit of the path-rendering contract); the
+    // snapshot exists only to avoid blank holes. See docs/17.
+    if ((tag === 'iframe' || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed')
+        && !bordersOnlyCell
+        && cs.display !== 'none'
+        && rect.width > 0 && rect.height > 0) {
+      const _bl = parseFloat(cs.borderLeftWidth) || 0;
+      const _br = parseFloat(cs.borderRightWidth) || 0;
+      const _bt = parseFloat(cs.borderTopWidth) || 0;
+      const _bb = parseFloat(cs.borderBottomWidth) || 0;
+      const _pl = parseFloat(cs.paddingLeft) || 0;
+      const _pr = parseFloat(cs.paddingRight) || 0;
+      const _pt = parseFloat(cs.paddingTop) || 0;
+      const _pb = parseFloat(cs.paddingBottom) || 0;
+      const _cw = rect.width - _bl - _br - _pl - _pr;
+      const _ch = rect.height - _bt - _bb - _pt - _pb;
+      if (_cw > 0 && _ch > 0) {
+        const _rid = 'dr' + (_replacedIdx++);
+        el.setAttribute('data-domotion-rid', _rid);
+        _captured.replacedSnapshot = {
+          x: rect.left - vp.x + _bl + _pl,
+          y: rect.top - vp.y + _bt + _pt,
+          width: _cw,
+          height: _ch,
+          rid: _rid,
+        };
+      }
+    }
     return _captured;
   };
 
@@ -2649,6 +2700,7 @@ export async function captureElementTreeWithWarnings(
   const warnings = typed.warnings ?? [];
   lastCaptureWarnings = warnings;
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
+  await rasterizeReplacedElements(page, typed.tree, viewport);
   return { tree: typed.tree, warnings };
 }
 
@@ -2853,6 +2905,105 @@ async function rasterizeBitmapGlyphs(
       }
     }
     cand.setDataUri(dataUri);
+  }
+}
+
+/**
+ * DM-457: rasterize each <canvas> / <video> / <iframe> / <object> / <embed>
+ * captured in the tree. CAPTURE_SCRIPT tagged the live DOM nodes with
+ * `data-domotion-rid="dr<n>"` and recorded the matching content-box rect on
+ * `el.replacedSnapshot`. We hide everything else on the page via a temporary
+ * stylesheet so the screenshot of each target rect contains only that
+ * element's painted pixels (not overlays, sticky chrome, sibling positioned
+ * elements, or non-ancestor `::before`/`::after` pseudos), then attach the PNG
+ * back to the captured tree as a data URI for the renderer to emit as an
+ * <image>. See `docs/17-replaced-element-snapshots.md` for the contract.
+ */
+async function rasterizeReplacedElements(
+  page: Page,
+  tree: CapturedElement[],
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<void> {
+  interface Target {
+    rid: string;
+    rect: { x: number; y: number; width: number; height: number };
+    setDataUri: (uri: string) => void;
+  }
+  const targets: Target[] = [];
+  const walk = (els: CapturedElement[]): void => {
+    for (const el of els) {
+      if (el.replacedSnapshot != null) {
+        const rs = el.replacedSnapshot;
+        targets.push({
+          rid: rs.rid,
+          rect: { x: rs.x, y: rs.y, width: rs.width, height: rs.height },
+          setDataUri: (uri) => { rs.dataUri = uri; },
+        });
+      }
+      if (el.children.length > 0) walk(el.children);
+    }
+  };
+  walk(tree);
+  if (targets.length === 0) return;
+
+  // Inject hide-everything-else stylesheet. Two rules: hide every element by
+  // default; revive only the element bearing data-domotion-snapshot-target
+  // (and its descendants, since visibility:visible on a descendant overrides
+  // the inherited hidden from an ancestor). Body/html backgrounds are forced
+  // transparent so partially-transparent canvases composite cleanly via
+  // omitBackground: true. Restored unconditionally in finally.
+  const HIDE_CSS = [
+    "*, *::before, *::after { visibility: hidden !important; }",
+    "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
+    "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
+    "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
+    "html, body { background: transparent !important; }",
+  ].join("\n");
+  let styleHandle: ElementHandle | null = null;
+  try {
+    styleHandle = await page.addStyleTag({ content: HIDE_CSS });
+    for (const t of targets) {
+      // Move the snapshot-target marker to this element.
+      await page.evaluate((rid) => {
+        const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
+        prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+        const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
+        if (next != null) next.setAttribute("data-domotion-snapshot-target", "");
+      }, t.rid);
+      // rect is viewport-relative; page.screenshot clip wants page-absolute.
+      // Snap to integer pixels outward so the full content box is captured.
+      const clip = {
+        x: Math.max(0, Math.floor(t.rect.x + viewport.x)),
+        y: Math.max(0, Math.floor(t.rect.y + viewport.y)),
+        width: Math.max(1, Math.ceil(t.rect.width)),
+        height: Math.max(1, Math.ceil(t.rect.height)),
+      };
+      try {
+        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
+        t.setDataUri(`data:image/png;base64,${Buffer.from(buf).toString("base64")}`);
+      } catch {
+        // Screenshot failed (e.g. clip went off-page after a layout shift).
+        // Leave dataUri undefined; the renderer falls back to the bare box.
+      }
+    }
+  } finally {
+    // Strip both attributes from every element we may have touched, plus
+    // remove the hide stylesheet so the live page is back to its original
+    // visual state (matters when the same page is captured again, or when
+    // tests inspect the page after capture).
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
+          (el) => el.removeAttribute("data-domotion-snapshot-target"),
+        );
+        document.querySelectorAll("[data-domotion-rid]").forEach(
+          (el) => el.removeAttribute("data-domotion-rid"),
+        );
+      });
+    } catch {}
+    if (styleHandle != null) {
+      try { await styleHandle.evaluate((node) => { (node as Element).remove(); }); } catch {}
+    }
   }
 }
 
@@ -3808,6 +3959,21 @@ export function elementTreeToSvg(
           `${indent}<image href="${esc(embedAsDataUri(el.imageSrc))}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${par}" />`,
         );
       }
+    }
+
+    // DM-457: rasterized snapshot for <canvas> / <video> / <iframe> /
+    // <object> / <embed>. The post-capture rasterizeReplacedElements pass
+    // hid everything else on the page and screenshot the element's content
+    // box, so the data URI is exactly the painted pixels Chrome put inside
+    // the element's borders + padding. Painted on top of the normal bg/border
+    // and inside the element's own borders, mirroring how <img> sits inside
+    // its element box. preserveAspectRatio="none" matches the captured
+    // content-box rect dimensions exactly.
+    if (el.replacedSnapshot != null && el.replacedSnapshot.dataUri != null) {
+      const rs = el.replacedSnapshot;
+      svgParts.push(
+        `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none" />`,
+      );
     }
 
     // List marker — render list-style-image at the marker position for <li>

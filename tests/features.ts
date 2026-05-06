@@ -347,6 +347,48 @@ const tests: FeatureTest[] = [
     width: 360,
     height: 100,
   },
+
+  // ── DM-457: replaced-element static snapshots ──
+  // <canvas> / <video> / <iframe> / <object> / <embed> are captured as a
+  // per-element page.screenshot under a hide-everything-else stylesheet, then
+  // emitted as <image> at the element's content-box rect. See docs/17.
+  {
+    name: "replaced-canvas-shape",
+    html: `<div style="padding:20px;"><canvas id="c1" width="200" height="100" style="display:block;background:#222;"></canvas></div><script>(function(){var c=document.getElementById('c1').getContext('2d');c.fillStyle='#fff';c.fillRect(40,20,120,60);c.fillStyle='#3fb950';c.beginPath();c.arc(100,50,15,0,Math.PI*2);c.fill();})();</script>`,
+    width: 240,
+    height: 140,
+  },
+  {
+    name: "replaced-video-poster",
+    html: `<div style="padding:20px;"><video poster="data:image/svg+xml;utf8,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 120'><rect width='200' height='120' fill='%23222'/><polygon points='80,40 80,80 120,60' fill='white'/></svg>")}" width="200" height="120" style="display:block;background:#000;"></video></div>`,
+    width: 240,
+    height: 160,
+  },
+  {
+    name: "replaced-canvas-overlay",
+    html: `<div style="padding:20px;"><div style="position:relative;width:200px;height:100px;"><canvas id="c3" width="200" height="100" style="display:block;background:#444;position:absolute;left:0;top:0;z-index:1;"></canvas><div style="position:absolute;left:60px;top:30px;width:80px;height:40px;background:rgba(220,38,38,0.7);z-index:10;"></div></div></div><script>(function(){var c=document.getElementById('c3').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);c.fillRect(150,50,30,30);})();</script>`,
+    width: 240,
+    height: 140,
+  },
+  {
+    // Sibling div above canvas via a fixed-position ancestor — exercises the
+    // hide-everything-else stylesheet's ability to suppress out-of-tree
+    // overlays during the snapshot. Pseudo-element overlays (::before/::after
+    // with content:"") are also suppressed by the same CSS visibility
+    // inheritance but the renderer doesn't synthesize their backgrounds onto
+    // the SVG, so a fixture that exercises them comparably is deferred — the
+    // snapshot isolation itself is the same property as this test.
+    name: "replaced-canvas-fixed-overlay",
+    html: `<div style="padding:20px;position:relative;"><canvas id="c4" width="200" height="100" style="display:block;background:#888;"></canvas><div style="position:absolute;left:70px;top:50px;width:100px;height:40px;background:#22c55e;"></div></div><script>(function(){var c=document.getElementById('c4').getContext('2d');c.fillStyle='#1f6feb';c.fillRect(0,0,200,100);})();</script>`,
+    width: 240,
+    height: 140,
+  },
+  {
+    name: "replaced-iframe-same-origin",
+    html: `<div style="padding:20px;"><iframe srcdoc="<html><body style='margin:0;background:#225;color:#fff;font-family:sans-serif;'><div style='padding:14px;font-size:18px;'>Hello iframe</div></body></html>" width="240" height="100" style="display:block;border:0;"></iframe></div>`,
+    width: 280,
+    height: 140,
+  },
 ];
 
 void runFeatureTests(tests, "features");

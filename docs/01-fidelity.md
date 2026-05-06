@@ -96,9 +96,12 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [x] z-index for positioned siblings (paint order sorted: negative, base, auto/0, positive)
 - [~] Nested stacking contexts (trapped z-index inside opacity/transform context) — flattened; may paint above outside sibling
 
+### Rasterized as static snapshot
+
+- `<canvas>`, `<video>`, `<iframe>`, `<object>`, `<embed>` — DM-457. Each element's content-box is screenshot via Playwright under a hide-everything-else stylesheet and embedded as an `<image>` at the captured rect. The result is pixel-faithful to whatever Chromium painted at t=0 (drawn canvas pixels, video poster/current frame, iframe document, plug-in content). Live playback / interaction is still out of scope. The capture warning is still emitted because these element types are out of the spirit of the path-based contract — the snapshot is a frozen raster, not a faithful re-render. See `17-replaced-element-snapshots.md`.
+
 ### Out of scope
 
-- `<canvas>`, `<video>`, `<iframe>`, `<object>`, `<embed>` — element bodies are not rendered; warning logged.
 - CSS animations / transitions — domotion captures a static frame; multi-frame animation is composed at a higher layer (see `src/animator.ts`).
 - `@page` print-media rules — screen capture only.
 

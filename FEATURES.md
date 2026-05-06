@@ -46,6 +46,13 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 ### SVG
 - [ ] **svg-inline**: Inline SVG elements (icons) positioned correctly
 
+### Replaced elements (rasterized as static snapshot — DM-457)
+- [x] **replaced-canvas-shape**: `<canvas>` with drawn shapes — bitmap survives via `page.screenshot`
+- [x] **replaced-video-poster**: `<video poster=…>` paused — poster image captured
+- [x] **replaced-canvas-overlay**: `<canvas>` under a positioned `<div z-index:10>` overlay — overlay does NOT bleed into the canvas snapshot
+- [x] **replaced-canvas-fixed-overlay**: `<canvas>` under a sibling-positioned `<div>` painting on top — sibling does NOT bleed into the canvas snapshot
+- [x] **replaced-iframe-same-origin**: same-origin `<iframe>` (srcdoc) — iframe content paints into the snapshot
+
 ### Showcase Integration Tests
 - [x] **showcase-typography**: Full-page layout with headings, badges, code blocks, inline code, status text
 - [x] **showcase-cards**: Card list with badges, buttons, metadata

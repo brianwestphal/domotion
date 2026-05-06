@@ -21,5 +21,6 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [13-cursor-overlay.md](13-cursor-overlay.md) | Cursor / touch / click overlay simulation API — proposed design, awaiting feedback (DM-277). |
 | [14-per-corner-border-radius.md](14-per-corner-border-radius.md) | Per-corner border-radius (asymmetric `10px 30px 50px 70px` and elliptical `50px / 20px`) — capture format, corner-overlap clamp, inner-radius derivation, path geometry. |
 | [16-coretext-glyph-extraction.md](16-coretext-glyph-extraction.md) | Native glyph-outline extraction via CoreText / Pango / DirectWrite for fonts whose outlines fontkit can't parse (PingFang's `hvgl`, Apple-private formats). Helper-binary architecture, IPC protocol, cross-platform plan. |
+| [17-replaced-element-snapshots.md](17-replaced-element-snapshots.md) | Static-snapshot rasterization for `<canvas>` / `<video>` / `<iframe>` / `<object>` / `<embed>` — hide-everything-else stylesheet + per-element `page.screenshot` so replaced elements no longer leave blank holes. |
 
 The docs preserve their historical SK-XXXX references — those are the slicekit Hot Sheet tickets that originally drove each feature. Treat the ticket numbers as opaque pointers to design context, not as live work tracking.
