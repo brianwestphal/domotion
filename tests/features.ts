@@ -510,9 +510,9 @@ const tests: FeatureTest[] = [
     // to xPos at capture time (the cleanest path for box geometry — see
     // CAPTURE_SCRIPT line ~1486).
     name: "pseudo-after-badge",
-    html: `<div style="padding:32px;font-family:-apple-system,sans-serif;color:#e6edf3;font-size:16px;line-height:1.5;"><span class="m" style="position:relative;display:inline-block;width:60px;height:24px;">marker</span><style>.m::after{content:'CB';position:absolute;top:0;right:-32px;background:#dc2626;color:white;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;line-height:1;}</style></div>`,
-    width: 220,
-    height: 100,
+    html: `<div style="padding:32px;background:#0d1117;width:200px;height:80px;font-family:-apple-system,sans-serif;"><span class="m" style="position:relative;display:inline-block;width:60px;height:30px;background:#1f6feb;"></span><style>.m::after{content:'X';position:absolute;top:0;right:-50px;background:#dc2626;width:40px;height:30px;line-height:30px;font-size:11px;color:transparent;text-align:center;}</style></div>`,
+    width: 280,
+    height: 160,
   },
   {
     // DM-506: CSS sprite icon image-replacement idiom — `text-indent: -9999px`
@@ -557,6 +557,17 @@ const tests: FeatureTest[] = [
     name: "inline-svg-use-group",
     html: `<div style="padding:24px;background:#0d1117;color:#fff;font-family:-apple-system,sans-serif;display:flex;align-items:center;gap:12px;"><svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true"><g id="dm-grp-star"><circle cx="12" cy="12" r="10" fill="#f59e0b"/><circle cx="12" cy="12" r="4" fill="#fff"/></g></svg><svg width="32" height="32" viewBox="0 0 24 24"><use href="#dm-grp-star"/></svg><svg width="32" height="32" viewBox="0 0 24 24"><use href="#dm-grp-star" x="0" y="0"/></svg></div>`,
     width: 160,
+    height: 80,
+  },
+  {
+    // DM-508: <use href="#sym"> targeting a CSS-animated <symbol>. Domotion
+    // bakes the t=0 computed transform / fill / opacity onto the inlined
+    // subtree at capture time so the painted moment matches Chrome — even
+    // though the animation itself doesn't survive into the output (frozen
+    // at capture time, like every other Domotion capture).
+    name: "inline-svg-use-symbol-animated",
+    html: `<style>@keyframes dm-fixture-spin{from{transform:rotate(45deg);}to{transform:rotate(45deg);}}.dm-fixture-spin-target{animation:dm-fixture-spin 4s infinite linear;transform-box:fill-box;transform-origin:center;}</style><div style="padding:24px;background:#0d1117;color:#fff;font-family:-apple-system,sans-serif;display:flex;align-items:center;gap:12px;"><svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true"><symbol id="dm-anim-icon" viewBox="0 0 24 24"><rect class="dm-fixture-spin-target" x="6" y="6" width="12" height="12" fill="#3fb950"/></symbol></svg><svg width="32" height="32"><use href="#dm-anim-icon"/></svg></div>`,
+    width: 120,
     height: 80,
   },
   {

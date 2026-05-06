@@ -358,6 +358,18 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const segFontSize = singleSeg?.fontSize ?? fontSize;
   const segFontWeight = singleSeg?.fontWeight ?? fontWeight;
   const segAscent = singleSeg?.fontAscent ?? el.fontAscent;
+  // DM-507: when the single segment is a pseudo with its own paint box
+  // (background-color / border-radius / border), emit a <rect> behind the
+  // glyphs. Same as the multi-segment path; without this the badge / pill
+  // bg never paints when the pseudo is the only text on the host.
+  const singleSegBoxMarkup = (singleSeg?.pseudoBox != null) ? (() => {
+    const pb = singleSeg.pseudoBox!;
+    const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
+    const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
+    const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
+      ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
+    return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>`;
+  })() : "";
   const result = renderTextAsPath(pathText, tl, tt, segFontSize, fontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, segAscent, features, el.styles.lang);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
@@ -378,9 +390,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // an earlier draft over-cut text on `word-wrap: break-word` paragraphs
     // whose last char measured a fraction of a px past `el.x + el.width`.
     if (opts.overflowClip) {
-      return `<g clip-path="url(#${clipId})">${result}${decoMarkup}${rasterOverlay}</g>`;
+      return `<g clip-path="url(#${clipId})">${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}</g>`;
     }
-    return `${result}${decoMarkup}${rasterOverlay}`;
+    return `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}`;
   }
 
   // DM-490 / DM-500: when the text is entirely Private Use Area codepoints

@@ -1357,11 +1357,6 @@ const CAPTURE_SCRIPT = `
     let text = '';
     let imageSrc = undefined;
     let svgContent = undefined;
-    // DM-499: when an inline SVG hosts <use href="#id"> refs whose targets
-    // carry CSS animations we cannot inline declaratively, set this so the
-    // post-construction block routes the host SVG element through the
-    // rasterise-replaced-elements pipeline instead of emitting svgContent.
-    let _svgRasterFallback = false;
 
     let textTop = 0;
     let textLeft = 0;
@@ -1579,7 +1574,20 @@ const CAPTURE_SCRIPT = `
       const measureCanvas = document.createElement('canvas');
       const mctx = measureCanvas.getContext('2d');
       mctx.font = fontSpec;
-      const pseudoWidth = mctx.measureText(text).width;
+      // DM-507: prefer Chrome's resolved layout width over canvas.measureText
+      // when available. For position:absolute pseudos with auto-width Chrome
+      // shrink-to-fits the box and getComputedStyle returns the resolved
+      // content-box width (assumes box-sizing: content-box, the default).
+      // canvas.measureText drifts ~1-2px from Chrome's actual layout in
+      // common bold/symbol-mix fixtures because the canvas font-shaping path
+      // differs slightly from Chrome's HarfBuzz paint pipeline. Falling back
+      // to canvas measurement when pcs.width is unavailable (typical for
+      // non-positioned inline pseudos) keeps the existing path.
+      var pseudoWidth = mctx.measureText(text).width;
+      if (pcs.position === 'absolute' || pcs.position === 'fixed') {
+        var _pcsW = parseFloat(pcs.width);
+        if (!isNaN(_pcsW) && _pcsW > 0) pseudoWidth = _pcsW;
+      }
       // Position: ::before sits at the START of the element's text/content.
       // ::after sits at the END. We use the element's textLeft/textWidth if
       // available, otherwise fall back to (el.x, el.y + padTop).
@@ -1618,17 +1626,35 @@ const CAPTURE_SCRIPT = `
         var paddingBoxTop = rect.top - vp.y + (parseFloat(cs.borderTopWidth) || 0);
         var paddingBoxRight = rect.right - vp.x - (parseFloat(cs.borderRightWidth) || 0);
         var paddingBoxBottom = rect.bottom - vp.y - (parseFloat(cs.borderBottomWidth) || 0);
+        // DM-507: anchor xPos / yPos at the pseudo BOX edge, not the text
+        // edge. Box width = textWidth + padL + padR + borL + borR; box height
+        // = lineH + padT + padB + borT + borB. For left/top-anchored, box-
+        // left/top = paddingBoxX + pcsLeft/Top — the unconditional
+        // xPos += padL + borL below converts box-left to text-left. For
+        // right/bottom-anchored, box-right/bottom = paddingBoxOpposite -
+        // pcsRight/Bottom; subtract the FULL box dimension here so the
+        // unconditional += padL/T + borL/T lands xPos/yPos on the text
+        // edge. Previously we subtracted only textWidth/lineH, which left
+        // xPos too far right by (padL + padR + borL + borR).
+        var _pPadL = parseFloat(pcs.paddingLeft) || 0;
+        var _pPadR = parseFloat(pcs.paddingRight) || 0;
+        var _pPadT = parseFloat(pcs.paddingTop) || 0;
+        var _pPadB = parseFloat(pcs.paddingBottom) || 0;
+        var _pBorL = parseFloat(pcs.borderLeftWidth) || 0;
+        var _pBorR = parseFloat(pcs.borderRightWidth) || 0;
+        var _pBorT = parseFloat(pcs.borderTopWidth) || 0;
+        var _pBorB = parseFloat(pcs.borderBottomWidth) || 0;
         if (!isNaN(pcsLeft)) xPos = paddingBoxLeft + pcsLeft;
-        else if (!isNaN(pcsRight)) xPos = paddingBoxRight - pcsRight - pseudoWidth;
+        else if (!isNaN(pcsRight)) xPos = paddingBoxRight - pcsRight - pseudoWidth - _pPadL - _pPadR - _pBorL - _pBorR;
         else xPos = paddingBoxLeft;
         if (!isNaN(pcsTop)) yPos = paddingBoxTop + pcsTop;
-        else if (!isNaN(pcsBottom)) yPos = paddingBoxBottom - pcsBottom - lineH;
+        else if (!isNaN(pcsBottom)) yPos = paddingBoxBottom - pcsBottom - lineH - _pPadT - _pPadB - _pBorT - _pBorB;
         else yPos = paddingBoxTop;
         // Pseudo's own padding shifts the content inside its box.
-        xPos += parseFloat(pcs.paddingLeft) || 0;
-        xPos += parseFloat(pcs.borderLeftWidth) || 0;
-        yPos += parseFloat(pcs.paddingTop) || 0;
-        yPos += parseFloat(pcs.borderTopWidth) || 0;
+        xPos += _pPadL;
+        xPos += _pBorL;
+        yPos += _pPadT;
+        yPos += _pBorT;
         // Center within the line box (vertical-align baseline approximation).
         yPos += (lineH - elFontSize) / 2;
         pseudoIsPositioned = true;
@@ -2327,6 +2353,42 @@ const CAPTURE_SCRIPT = `
               cloneNode.setAttribute(attr, val);
             }
           }
+          // DM-508: bake CSS-animated transforms at t=0. CSS animation /
+          // transition declarations mean the computed transform reflects the
+          // animation's current frame at capture time — getComputedStyle
+          // returns e.g. matrix(0.707, 0.707, -0.707, 0.707, 0, 0) for a 45-
+          // deg rotated rect. The SVG transform attribute applies around
+          // (0,0) by default, so a CSS transform-origin: center has to be
+          // composed into the matrix manually:
+          //   final = translate(ox, oy) * css_transform * translate(-ox, -oy)
+          // For transform-box: fill-box (and the new CSS default for SVG),
+          // origin px values are relative to the element's bounding box. We
+          // read those from getComputedStyle().transformOrigin and compose.
+          var transformVal = ocs.transform;
+          if (transformVal != null && transformVal !== '' && transformVal !== 'none') {
+            var transformOriginVal = ocs.transformOrigin || '0 0';
+            var originParts = transformOriginVal.trim().split(/\\s+/);
+            var ox = parseFloat(originParts[0] || '0') || 0;
+            var oy = parseFloat(originParts[1] || '0') || 0;
+            // For transform-box: fill-box (Chrome default for SVG since CSS
+            // Transforms 2), origin coords are relative to the element's bbox.
+            // We need them in the parent's user space — add the bbox origin.
+            // getBBox() works on rendered SVG nodes.
+            try {
+              if (typeof origNode.getBBox === 'function') {
+                var bbox = origNode.getBBox();
+                ox += bbox.x;
+                oy += bbox.y;
+              }
+            } catch (e) { /* element not yet in render tree, fall through */ }
+            var composed;
+            if (ox === 0 && oy === 0) {
+              composed = transformVal;
+            } else {
+              composed = 'translate(' + ox + ',' + oy + ') ' + transformVal + ' translate(' + (-ox) + ',' + (-oy) + ')';
+            }
+            cloneNode.setAttribute('transform', composed);
+          }
         }
         const oChildren = origNode.children;
         const cChildren = cloneNode.children;
@@ -2356,18 +2418,21 @@ const CAPTURE_SCRIPT = `
           var target = document.getElementById(targetId);
           if (target == null) continue;
           if (target.namespaceURI !== _svgNS) continue;
-          // Detect CSS-animated subtree -> raster fallback (DM-508 covers
-          // declarative keyframe extraction). getAnimations({subtree:true})
-          // is supported in modern Chromium; guard for older runtimes.
+          // DM-508: animated subtrees no longer trigger raster fallback. The
+          // _walkBake pass above bakes computed presentation attrs and
+          // transforms at the moment of capture, so the t=0 paint state is
+          // captured declaratively in the inlined SVG. Animation timing /
+          // future frames don't survive — the icon is frozen at t=0 — but the
+          // drawing is correct for the captured moment, which is the
+          // contract Domotion provides for any other time-varying content.
+          // We still warn so consumers know the snapshot is one frame.
           if (typeof target.getAnimations === 'function') {
             try {
               var anims = target.getAnimations({ subtree: true });
               if (anims != null && anims.length > 0) {
-                _svgRasterFallback = true;
-                warn(sel, 'inline-svg', '<use href="#' + targetId + '"> resolved to a CSS-animated subtree; falling back to t=0 raster (DM-508)');
-                return;
+                warn(sel, 'inline-svg', '<use href="#' + targetId + '"> resolved to a CSS-animated subtree; the inlined SVG carries the t=0 computed paint state (no animation in the output)');
               }
-            } catch (e) { /* getAnimations({subtree}) not supported, fall through */ }
+            } catch (e) { /* getAnimations not supported — fall through, no warning */ }
           }
           var ux = parseFloat(useEl.getAttribute('x') || '0') || 0;
           var uy = parseFloat(useEl.getAttribute('y') || '0') || 0;
@@ -2390,7 +2455,14 @@ const CAPTURE_SCRIPT = `
             if (vb !== '') replacement.setAttribute('viewBox', vb);
             if (par !== '') replacement.setAttribute('preserveAspectRatio', par);
             for (var ci = 0; ci < target.children.length; ci++) {
-              replacement.appendChild(target.children[ci].cloneNode(true));
+              var clonedChild = target.children[ci].cloneNode(true);
+              replacement.appendChild(clonedChild);
+              // DM-508: bake t=0 computed styles on the inlined subtree.
+              // The hidden-defs symbol's children carry CSS animations whose
+              // computed values (transform, fill, opacity, etc.) reflect the
+              // animation's current frame at capture time. Walking with the
+              // original DOM as source captures those values.
+              _walkBake(target.children[ci], clonedChild);
             }
           } else {
             // <g>, <path>, <circle>, <svg>, etc. — wrap in <g translate(x,y)>.
@@ -2406,6 +2478,8 @@ const CAPTURE_SCRIPT = `
             // either way).
             if (clonedTarget.removeAttribute) clonedTarget.removeAttribute('id');
             replacement.appendChild(clonedTarget);
+            // DM-508: bake t=0 computed styles on the inlined target subtree.
+            _walkBake(target, clonedTarget);
           }
           // Carry over any presentation attrs from the <use> element. CSS
           // spec: attributes on <use> override the same attribute on the
@@ -3068,26 +3142,6 @@ const CAPTURE_SCRIPT = `
         _captured.text = '';
         _captured.textSegments = undefined;
       }
-    }
-    // DM-499: inline SVG with a CSS-animated <use> target — fall back to a
-    // page-screenshot raster of the host SVG element. Declarative keyframe
-    // extraction is tracked in DM-508; this path keeps the icon visible (one
-    // frame) instead of emitting unresolved fragment refs. We discard
-    // svgContent so the renderer skips the broken inline SVG path and the
-    // post-pass (rasterizeReplacedElements) populates the data URI.
-    if (_svgRasterFallback && tag === 'svg' && cs.display !== 'none'
-        && rect.width > 0 && rect.height > 0
-        && _captured.replacedSnapshot == null) {
-      const _rid3 = 'dr' + (_replacedIdx++);
-      el.setAttribute('data-domotion-rid', _rid3);
-      _captured.replacedSnapshot = {
-        x: rect.left - vp.x,
-        y: rect.top - vp.y,
-        width: rect.width,
-        height: rect.height,
-        rid: _rid3,
-      };
-      _captured.svgContent = undefined;
     }
     return _captured;
   };
