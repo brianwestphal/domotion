@@ -418,6 +418,21 @@ async function runJob(
       await page.waitForTimeout(800);
     }
 
+    // DM-461: @font-face discovery happens BEFORE the expected screenshot
+    // so the expected and the capture see the same DOM moment. When this
+    // ran BETWEEN the two reads, several seconds of webfont fetch / parse
+    // let the page mutate further (carousels rotated, lazy images inserted,
+    // sticky CTAs re-anchored, ads loaded), which made the captured tree
+    // describe a different snapshot than the expected.png reference.
+    // Observed as 41.70% diff on `nytimes-mobile-entire-page`; reordering
+    // alone drops that to ~6%. We considered also pausing JS via CDP
+    // `Emulation.setScriptExecutionDisabled` between the two reads to
+    // close the remaining gap, but on at least one site (resend.com,
+    // mobile fold) that crashed the page-side WebGL/canvas during the
+    // subsequent rasterize pass — fragile, not worth the marginal
+    // 0.5-1pp diff improvement. Order alone is the robust fix.
+    try { await discoverAndRegisterWebfonts(page); } catch { /* best-effort */ }
+
     // Expected PNG: for `fold` and `scroll` we screenshot the viewport-
     // sized fold (the scroll mode uses this as the t=0 reference). For
     // `entire-page` we screenshot the full document.
@@ -425,11 +440,6 @@ async function runJob(
       ? { x: 0, y: 0, width: viewport.width, height: canvasH }
       : { x: 0, y: 0, width: viewport.width, height: viewport.height };
     await page.screenshot({ path: expectedPath, clip: expectedClip });
-
-    // @font-face discovery: real sites near-universally use webfonts;
-    // without this the SVG falls back to the chain default and looks
-    // nothing like Chrome's paint.
-    try { await discoverAndRegisterWebfonts(page); } catch { /* best-effort */ }
 
     const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };
     // captureElementTreeWithWarnings returns warnings inline so concurrent
@@ -487,7 +497,13 @@ async function runJob(
   } catch (e) {
     captureError = e instanceof Error ? e.message : String(e);
   } finally {
-    await context.close();
+    // Defensive: a failed page.screenshot can leave the underlying
+    // Chromium target in a half-closed state (DM-460), so the implicit
+    // session teardown throws "Target page, context or browser has been
+    // closed". Swallow that — the worker pool's onResult/onError logic
+    // is what we want to surface, not a teardown error that masks the
+    // real captureError.
+    try { await context.close(); } catch { /* best-effort */ }
   }
 
   if (captureError != null) {
