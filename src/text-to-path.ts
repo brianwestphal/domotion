@@ -434,11 +434,18 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
     if (localeKey != null) return [localeKey, "pingfang-sc", "cjk"];
     return ["pingfang-sc", "cjk"];
   }
-  // Box Drawing / Block Elements → Menlo. Apple Symbols' versions are
-  // proportional (~6.98px @13px) and don't fill a Courier monospace cell
-  // (~7.80px), leaving visible gaps in ASCII-art tables. Menlo's are
-  // designed at full monospace cell width (~7.83px @13px). DM-241.
-  if (codepoint >= 0x2500 && codepoint <= 0x259F) return ["menlo"];
+  // Box Drawing / Block Elements → Hiragino Kaku Gothic, then Menlo. Hiragino
+  // has all 128 box-drawing glyphs at em-width (`adv = 1000` at `em = 1000`),
+  // so they fill the full painted cell and connect seamlessly. Helvetica has
+  // some of them (─ ┌ ┐ │) but is missing ┬ ┴ ┼ — when those fall through
+  // to Menlo, Menlo's narrower advance (1233 / 2048 ≈ 0.6 em) leaves a gap
+  // and Menlo's horizontal stroke sits at a different y than Helvetica's, so
+  // the box edges don't connect to the corner pieces. Routing the entire
+  // block to a single font with em-wide glyphs eliminates both mismatches.
+  // Menlo stays as a final fallback for installations missing Hiragino.
+  // DM-442. (Earlier `["menlo"]` per DM-241 — addressed Apple Symbols's
+  // proportional glyphs but didn't account for the Helvetica/Menlo split.)
+  if (codepoint >= 0x2500 && codepoint <= 0x259F) return ["hiragino-jp", "menlo"];
   // Dingbats → Zapf Dingbats. macOS Chrome paints ✂✈✏✔✘✚✦❄❤❶ via Zapf
   // Dingbats; Apple Symbols has the same codepoints but at different (often
   // narrower) widths — empirical match shows Chrome consistently picks Zapf.
@@ -497,17 +504,23 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
   //              captured bounding box; Apple Symbols paints them at
   //              9.86/10.28px and Hiragino paints at 22/24px, both wrong
   //              (DM-369).
-  // ← → ↑ ↓ ↗ ↙ — re-probed via CDP `CSS.getPlatformFontsForNode`
-  // (DM-405): Chrome paints all four cardinal + the two ↗ ↙ diagonals
-  // via Lucida Grande at every size (12 → 32 px). Earlier DM-296 routed
-  // ← → ↗ ↙ to cjk (Hiragino), but the painted glyph is the chunkier
-  // LucidaGrande arrow shape — visible on the `→` in `11-box-margin-collapse`
-  // where our thin Hiragino outline was clearly different from Chrome'\\'s
-  // thick filled arrow. Consolidate all six on the LucidaGrande route.
+  // ← → ↑ ↓ — Lucida Grande at every size (12 → 32 px), per CDP
+  // `CSS.getPlatformFontsForNode` (DM-405). The painted glyph is the
+  // chunkier LucidaGrande arrow; CJK Hiragino's thin outline visibly
+  // diverges (DM-296 reverted by DM-405).
   if (codepoint === 0x2190 || codepoint === 0x2192
-      || codepoint === 0x2197 || codepoint === 0x2199
       || codepoint === 0x2191 || codepoint === 0x2193) {
     return ["lucida-grande", "symbols"];
+  }
+  // ↗ ↙ — Lucida Grande LACKS these codepoints (verified via fontkit
+  // `glyphForCodePoint(0x2197).id === 0` on the system .ttc, all four
+  // faces). The earlier consolidation onto "lucida-grande" silently fell
+  // through to Apple Symbols at ~10 px advance — visibly half the width
+  // Chrome paints (16 px at 16 px font). Hiragino Sans GB has them at
+  // em-width (adv=1000 / em=1000 → 16 px), matching Chrome's painted
+  // advance. (DM-441.)
+  if (codepoint === 0x2197 || codepoint === 0x2199) {
+    return ["cjk", "hiragino-jp", "symbols"];
   }
   // Mathematical Alphanumeric Symbols (𝐀 𝒜 𝕊 𝟬 𝔄 𝛼 etc.) — Chrome paints
   // via STIX Two Math (the system math-coverage font); Apple Symbols

@@ -343,19 +343,25 @@ describe("Math Operators primary-font handling (DM-332)", () => {
   });
 });
 
-describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405)", () => {
-  // Re-probed via CDP `CSS.getPlatformFontsForNode` for DM-405: at every
-  // font-size 12 → 32 px, Chrome paints ← → ↑ ↓ ↗ ↙ via LucidaGrande
-  // — NOT Hiragino as DM-296 originally measured. The earlier Hiragino
-  // route produced thin outlined arrows where Chrome paints chunky
-  // filled arrows (visible on the `→` in `11-box-margin-collapse`).
-  it("routes ← → ↑ ↓ ↗ ↙ to LucidaGrande (matches Chrome's painted glyph shape)", () => {
+describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM-441)", () => {
+  // ← → ↑ ↓ — Lucida Grande, per CDP `CSS.getPlatformFontsForNode` (DM-405).
+  // Chrome paints these chunky filled arrows; Hiragino's thin outline visibly
+  // diverges (DM-296 reverted by DM-405).
+  it("routes ← → ↑ ↓ to LucidaGrande (matches Chrome's painted glyph shape)", () => {
     expect(fallbackFontChain(0x2190)).toEqual(["lucida-grande", "symbols"]); // ←
     expect(fallbackFontChain(0x2192)).toEqual(["lucida-grande", "symbols"]); // →
     expect(fallbackFontChain(0x2191)).toEqual(["lucida-grande", "symbols"]); // ↑
     expect(fallbackFontChain(0x2193)).toEqual(["lucida-grande", "symbols"]); // ↓
-    expect(fallbackFontChain(0x2197)).toEqual(["lucida-grande", "symbols"]); // ↗
-    expect(fallbackFontChain(0x2199)).toEqual(["lucida-grande", "symbols"]); // ↙
+  });
+
+  // ↗ ↙ — Lucida Grande LACKS these codepoints (verified via fontkit on all
+  // four faces of LucidaGrande.ttc). Routing them to "lucida-grande" silently
+  // fell through to Apple Symbols at ~10 px advance, half the width Chrome
+  // paints. Hiragino Sans GB has them at em-width (16 px @ 16 px font),
+  // matching Chrome. (DM-441.)
+  it("routes ↗ ↙ to Hiragino — Lucida Grande lacks the diagonal-arrow glyphs", () => {
+    expect(fallbackFontChain(0x2197)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↗
+    expect(fallbackFontChain(0x2199)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↙
   });
 
   // ↑ ↓ are not at CJK em-square width and not at Apple Symbols' narrow

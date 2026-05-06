@@ -145,48 +145,65 @@ function renderTextDecoration(
   // (DM-345.) For wavy: build a sin-wave path. For double: two parallel
   // lines with a 1×thickness gap. For solid/dashed/dotted: a single
   // <line> with optional stroke-dasharray.
+  const explicitThickness = thicknessOverride != null && thicknessOverride !== ""
+    && thicknessOverride !== "auto" && thicknessOverride !== "from-font";
   function emitLine(y: number, t: number, isUnderline: boolean = false): string {
     if (style === "wavy") {
-      // Match Chromium's `decoration_line_painter.cc::MakeWave`:
+      // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
       //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
-      //   control_point_distance = 0.5 + round(3 * thickness + 0.5)
-      // Thickness is clamped to a 1px minimum first. The wave is a series of
-      // quadratic curves alternating above/below the baseline at half-period
-      // intervals — visually equivalent to Chrome's cubic-Bezier composition
-      // at the thicknesses we typically render. (DM-446.)
-      const tc = Math.max(1, t);
+      //   cp_distance = 0.5 + round(3 * thickness + 0.5)
+      // Each wavelength is one cubic Bezier with both control points at
+      // `wavelength/2` x — `cp1.y = +cp_distance`, `cp2.y = -cp_distance` —
+      // producing an S-curve from `(0, 0)` through a peak / trough back to
+      // `(wavelength, 0)`. Total visual amplitude ≈ `cp_distance * 0.289`.
+      //
+      // Earlier we rendered as quadratic Q curves with the control point at
+      // `±cp_distance` directly; that paints visual amplitude `cp_distance/2`
+      // — about 70% taller than Chrome — making 18 px wavy underlines look
+      // exaggerated. Switch to cubic to reproduce Chrome's geometry. (DM-446.)
+      //
+      // Thickness uses Chromium's auto-rule `max(1, fontSize/10)` rather than
+      // `getDecorationMetrics`'s `fontSize/20` empirical formula. The
+      // empirical rule compensates for an SVG-vs-HTML pixel-grid mismatch on
+      // axis-aligned solid strokes; curves don't hit that artifact, and the
+      // smaller value paints a visibly thinner stroke than Chrome.
+      const tc = explicitThickness ? Math.max(1, t) : Math.max(1, fontSize / 10);
       const wavelength = 1 + 2 * Math.round(2 * tc + 0.5);
-      const amp = 0.5 + Math.round(3 * tc + 0.5);
-      const halfPeriod = wavelength / 2;
+      const cpDist = 0.5 + Math.round(3 * tc + 0.5);
       let d = `M ${r(segX)} ${r(y)}`;
       let x = segX;
-      let dir = 1;
       while (x < segX + segWidth) {
-        const nx = Math.min(x + halfPeriod, segX + segWidth);
-        const cy = y + dir * amp;
-        d += ` Q ${r((x + nx) / 2)} ${r(cy)} ${r(nx)} ${r(y)}`;
+        const nx = Math.min(x + wavelength, segX + segWidth);
+        const cpX = x + wavelength / 2;
+        d += ` C ${r(cpX)} ${r(y + cpDist)} ${r(cpX)} ${r(y - cpDist)} ${r(nx)} ${r(y)}`;
         x = nx;
-        dir = -dir;
       }
       return `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`;
     }
     if (style === "double") {
-      // Double: two parallel lines. Chrome's spec for `text-decoration-style:
-      // double` paints two strokes spanning the full text-decoration-thickness
-      // (each = thickness, separated by thickness gap). Chromium's actual
-      // paint: bottom line at the underline position, top line `thickness`
-      // pixels above; total height = 3×thickness. Use minimum 1px stroke
-      // and 2px center-to-center spacing so thin underlines stay visible.
+      // Double: two parallel lines. Per Chromium's `decoration_line_painter
+      // .cc::DrawLineAsRect`, kDouble extends the single-underline rect to
+      // 3×thickness tall and emits a stroke at each end — i.e., the TOP
+      // stroke sits at the single-underline position and the BOTTOM stroke
+      // sits 2×thickness below it. Total height = 3×thickness.
+      //
+      // Earlier we centered the double on the single-underline position,
+      // which placed the top of the top stroke AT the baseline. The skip-ink
+      // intercept band then began at y_rel=0 and false-triggered on every
+      // baseline-resting glyph (d / o / u / b / l / e ...) producing the
+      // shredded-line artifact reported in DM-446.
       const stroke = Math.max(1, t);
-      const sep = Math.max(2, t * 2);
-      // Skip-ink for double: gaps are computed against the union span [top
-      // line top, bottom line bottom] = ±(sep/2 + stroke/2) around y.
+      const top = y;
+      const bot = y + 2 * stroke;
+      // Skip-ink band spans both strokes plus their stroke widths:
+      // [top - stroke/2, bot + stroke/2] = 3×stroke tall, centered at
+      // (top + bot) / 2.
+      const bandCenter = (top + bot) / 2;
+      const bandThickness = (bot - top) + stroke;
       const dblGaps = isUnderline
-        ? computeGapsAt(y - baselineY, sep + stroke)
+        ? computeGapsAt(bandCenter - baselineY, bandThickness)
         : [];
       const subs = subSegments(dblGaps);
-      const top = y - sep / 2;
-      const bot = y + sep / 2;
       return subs.map(({ x0, x1 }) =>
         `<line x1="${r(x0)}" y1="${r(top)}" x2="${r(x1)}" y2="${r(top)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
         + `<line x1="${r(x0)}" y1="${r(bot)}" x2="${r(x1)}" y2="${r(bot)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
