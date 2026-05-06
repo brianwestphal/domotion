@@ -9,14 +9,37 @@
  * print sooner without scrambling the line per-job. DM-456.
  */
 
+import os from "node:os";
+
+/**
+ * Number of CPU cores the host exposes. Prefers
+ * `os.availableParallelism()` (respects cgroup quotas / `taskset` masks
+ * since Node 19) and falls back to `os.cpus().length` on older runtimes.
+ */
+export function detectCoreCount(): number {
+  const fn = (os as { availableParallelism?: () => number }).availableParallelism;
+  const n = typeof fn === "function" ? fn() : os.cpus().length;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+/**
+ * Default worker count for the visual-regression pool: leave one core free
+ * for the OS / editor / Playwright's own browser process when the host has
+ * more than one core. On a single-core box we run one worker. DM-459.
+ */
+export function defaultWorkerCount(coreCount: number = detectCoreCount()): number {
+  return coreCount > 1 ? coreCount - 1 : 1;
+}
+
 /**
  * Resolve the worker count from CLI args (`--workers N`) or env var
- * (`DOMOTION_TEST_WORKERS`). Falls back to `defaultWorkers`. Clamps to
- * [1, 32]; values outside the range are silently coerced.
+ * (`DOMOTION_TEST_WORKERS`). Falls back to `defaultWorkerCount()` —
+ * `cpus - 1`, leaving one core free for other work (DM-459). Clamps the
+ * final value to [1, 32]; values outside the range are silently coerced.
  *
  * Recognised CLI form: `--workers 6` or `--workers=6` anywhere in argv.
  */
-export function resolveWorkerCount(defaultWorkers: number = 6): number {
+export function resolveWorkerCount(defaultWorkers: number = defaultWorkerCount()): number {
   const argv = process.argv.slice(2);
   let raw: string | undefined;
   for (let i = 0; i < argv.length; i++) {
@@ -25,9 +48,9 @@ export function resolveWorkerCount(defaultWorkers: number = 6): number {
     if (a.startsWith("--workers=")) { raw = a.slice("--workers=".length); break; }
   }
   if (raw == null) raw = process.env["DOMOTION_TEST_WORKERS"];
-  if (raw == null) return defaultWorkers;
+  if (raw == null) return Math.min(32, Math.max(1, defaultWorkers));
   const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) return defaultWorkers;
+  if (!Number.isFinite(n) || n <= 0) return Math.min(32, Math.max(1, defaultWorkers));
   return Math.min(32, Math.max(1, n));
 }
 

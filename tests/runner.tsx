@@ -140,8 +140,9 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
  * review tool). Otherwise results are only printed. Returns the raw results
  * in case the caller wants to do extra post-processing.
  *
- * Jobs run in a bounded-concurrency worker pool (default 6 workers,
- * overridable via `--workers N` or `DOMOTION_TEST_WORKERS`). Each worker
+ * Jobs run in a bounded-concurrency worker pool (default `cpus - 1`
+ * workers, overridable via `--workers N` or `DOMOTION_TEST_WORKERS`).
+ * Leaving one core free keeps the host responsive (DM-459). Each worker
  * owns its own capture context+page and compare canvas page so the runs
  * don't serialize behind a single Playwright tab. DM-456.
  */

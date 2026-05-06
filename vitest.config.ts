@@ -15,7 +15,7 @@ export default defineConfig({
   test: {
     pool: "forks",
     testTimeout: 30_000,
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts", "tests/**/*.test.tsx"],
     exclude: ["**/node_modules/**", "**/dist/**", "**/tests/output/**"],
   },
 });
