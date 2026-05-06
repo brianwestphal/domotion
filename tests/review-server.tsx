@@ -37,16 +37,18 @@ import { raw } from "../src/jsx-runtime.js";
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output");
 const HTML_TEST_DIR = resolve(OUTPUT_DIR, "html-test");
+const REAL_WORLD_DIR = resolve(OUTPUT_DIR, "real-world");
 const PROJECT_ROOT = resolve(TESTS_DIR, "..");
 const SETTINGS_PATH = resolve(PROJECT_ROOT, ".hotsheet/settings.json");
 
 const MANIFEST_FILES: Array<{ suite: SuiteName; path: string; imagesDir: string; isBareArray: boolean }> = [
-  { suite: "features",  path: resolve(OUTPUT_DIR, "features-results.json"),  imagesDir: OUTPUT_DIR,    isBareArray: false },
-  { suite: "showcase",  path: resolve(OUTPUT_DIR, "showcase-results.json"),  imagesDir: OUTPUT_DIR,    isBareArray: false },
-  { suite: "html-test", path: resolve(HTML_TEST_DIR, "results.json"),        imagesDir: HTML_TEST_DIR, isBareArray: true  },
+  { suite: "features",   path: resolve(OUTPUT_DIR,     "features-results.json"), imagesDir: OUTPUT_DIR,     isBareArray: false },
+  { suite: "showcase",   path: resolve(OUTPUT_DIR,     "showcase-results.json"), imagesDir: OUTPUT_DIR,     isBareArray: false },
+  { suite: "html-test",  path: resolve(HTML_TEST_DIR,  "results.json"),          imagesDir: HTML_TEST_DIR,  isBareArray: true  },
+  { suite: "real-world", path: resolve(REAL_WORLD_DIR, "results.json"),          imagesDir: REAL_WORLD_DIR, isBareArray: false },
 ];
 
-type SuiteName = "features" | "showcase" | "html-test";
+type SuiteName = "features" | "showcase" | "html-test" | "real-world";
 
 // ── Config ──
 
@@ -86,9 +88,10 @@ interface ReviewManifest {
 function loadManifest(): ReviewManifest {
   const tests: ReviewTest[] = [];
   const suites: ReviewManifest["suites"] = {
-    features:  { present: false, count: 0 },
-    showcase:  { present: false, count: 0 },
+    features:    { present: false, count: 0 },
+    showcase:    { present: false, count: 0 },
     "html-test": { present: false, count: 0 },
+    "real-world":{ present: false, count: 0 },
   };
   const timestamps: string[] = [];
 
@@ -137,7 +140,9 @@ function loadManifest(): ReviewManifest {
 }
 
 function imagePathFor(t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
-  const dir = t.suite === "html-test" ? HTML_TEST_DIR : OUTPUT_DIR;
+  const dir = t.suite === "html-test"  ? HTML_TEST_DIR
+            : t.suite === "real-world" ? REAL_WORLD_DIR
+            :                            OUTPUT_DIR;
   return resolve(dir, `${t.name}-${kind}.png`);
 }
 
@@ -234,6 +239,8 @@ const REVIEW_CSS = `
   .lightbox.open { display: flex; }
   .lightbox img { max-width: 96vw; max-height: 96vh; }
   .suite-summary { font-size: 12px; color: #8b949e; margin-top: 4px; }
+  .svg-link { font-size: 11px; color: #58a6ff; text-decoration: none; margin-left: auto; }
+  .svg-link:hover { text-decoration: underline; }
 `;
 
 const REVIEW_SCRIPT_TEMPLATE = (payload: string) => `
@@ -317,12 +324,20 @@ function cardHtml(r) {
          <figure data-src="/img/\${r.suite}/\${r.name}-actual.png"><figcaption>actual</figcaption>\${img(\`/img/\${r.suite}/\${r.name}-actual.png\`)}</figure>
          <figure data-src="/img/\${r.suite}/\${r.name}-diff.png"><figcaption>diff</figcaption>\${img(\`/img/\${r.suite}/\${r.name}-diff.png\`)}</figure>
        </div>\`;
+  // Link to the generated .svg so reviewers can open it directly
+  // (real-world `*-scroll` is a self-animating SVG; this is the only
+  // way to play it back). Suppressed for skipped tests where no SVG
+  // was emitted.
+  const svgLink = r.skipped
+    ? ''
+    : \`<a class="svg-link" href="/img/\${r.suite}/\${r.name}.svg" target="_blank" rel="noopener">view svg ↗</a>\`;
   return \`<section class="card \${cardCls}" data-name="\${r.name}" data-suite="\${r.suite}">
     <div class="head">
       <strong>\${r.name}</strong>
       <span class="badge suite">\${r.suite}</span>
       <span class="badge \${statusClass}">\${badge} · \${r.diffPct.toFixed(2)}%</span>
       \${extraMetrics(r)}
+      \${svgLink}
     </div>
     \${imagesHtml}
     <textarea class="comment" placeholder="What's wrong or worth a ticket? (Ticket will include the three images, metrics, and your comment.)"></textarea>
@@ -434,6 +449,7 @@ function Layout({ payload }: { payload: string }) {
               <option value="features">features</option>
               <option value="showcase">showcase</option>
               <option value="html-test">html-test</option>
+              <option value="real-world">real-world</option>
             </select></label>
             <label>Sort: <select id="sort">
               <option value="diff-desc">Diff % (worst first)</option>
@@ -481,13 +497,15 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.error("No test results found. Run a suite first:");
     // eslint-disable-next-line no-console
-    console.error("  npm run demos:test          # features only");
+    console.error("  npm run demos:test            # features only");
     // eslint-disable-next-line no-console
-    console.error("  npm run demos:test:showcase # showcase");
+    console.error("  npm run demos:test:showcase   # showcase");
     // eslint-disable-next-line no-console
-    console.error("  npm run demos:test:html     # html-test (~147)");
+    console.error("  npm run demos:test:html       # html-test (~147)");
     // eslint-disable-next-line no-console
-    console.error("  npm run demos:test:all      # all three");
+    console.error("  npm run demos:test:real-world # real public sites (DM-454)");
+    // eslint-disable-next-line no-console
+    console.error("  npm run demos:test:all        # all four");
     process.exit(1);
   }
 
@@ -511,7 +529,9 @@ async function main(): Promise<void> {
           send(res, 400, "text/plain", "bad path");
           return;
         }
-        const baseDir = suite === "html-test" ? HTML_TEST_DIR : OUTPUT_DIR;
+        const baseDir = suite === "html-test"  ? HTML_TEST_DIR
+                      : suite === "real-world" ? REAL_WORLD_DIR
+                      :                          OUTPUT_DIR;
         const filePath = resolve(baseDir, fname);
         if (!existsSync(filePath)) {
           send(res, 404, "text/plain", "not found");
@@ -543,13 +563,19 @@ async function main(): Promise<void> {
           comment !== "" ? comment : "_(no comment provided)_",
         ];
         if (!match.skipped) {
-          const relPath = match.suite === "html-test" ? "tests/output/html-test" : "tests/output";
+          const relPath = match.suite === "html-test"  ? "tests/output/html-test"
+                        : match.suite === "real-world" ? "tests/output/real-world"
+                        :                                "tests/output";
           detailsParts.push(
             "",
             "Source files:",
-            `- ${relPath}/${name}.html (input)`,
-            `- ${relPath}/${name}.svg (generated)`,
           );
+          // Real-world tests don't have a local .html input — the source
+          // is a remote URL, captured live each run. Other suites do.
+          if (match.suite !== "real-world") {
+            detailsParts.push(`- ${relPath}/${name}.html (input)`);
+          }
+          detailsParts.push(`- ${relPath}/${name}.svg (generated)`);
         }
         const details = detailsParts.join("\n");
 
