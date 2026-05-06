@@ -52,6 +52,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **replaced-canvas-overlay**: `<canvas>` under a positioned `<div z-index:10>` overlay — overlay does NOT bleed into the canvas snapshot
 - [x] **replaced-canvas-fixed-overlay**: `<canvas>` under a sibling-positioned `<div>` painting on top — sibling does NOT bleed into the canvas snapshot
 - [x] **replaced-iframe-same-origin**: same-origin `<iframe>` (srcdoc) — iframe content paints into the snapshot
+- [x] **snapshot-isolation-pseudo-overlay** (DM-458, `tests/snapshot-isolation.tsx`): canvas covered by a sibling's `::after` pseudo overlay. Inspection-style — decodes the captured snapshot's PNG data URI and asserts no overlay-color pixels leaked through. Catches regressions in the hide-everything-else stylesheet that a comparison-style fixture wouldn't.
 
 ### Showcase Integration Tests
 - [x] **showcase-typography**: Full-page layout with headings, badges, code blocks, inline code, status text
