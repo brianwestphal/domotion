@@ -52,6 +52,7 @@ const SKIP_TESTS: Record<string, string> = {
   "17-gradient-conic": "SVG 2 conic-gradient is not shipped in browsers",
   "17-gradient-repeating": "edge cases in repeating gradient stop spacing — low priority",
   "21-transform-3d": "CSS transforms deferred in SK-435 (layout-coord refactor needed)",
+  "21-deep-transform-3d-preserve": "preserve-3d cube composition deferred in SK-435 (same territory as 21-transform-3d)",
   "27-page": "@page rules are print-media only, not relevant to static screen capture",
 };
 

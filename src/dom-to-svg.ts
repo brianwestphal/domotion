@@ -5224,6 +5224,16 @@ function establishesStackingContext(el: CapturedElement): boolean {
   if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return true;
   if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return true;
   if (s.clipPath != null && s.clipPath !== "" && s.clipPath !== "none") return true;
+  // DM-487: `overflow != visible` (scroll container) creates a stacking
+  // context — any of overflow / overflow-x / overflow-y in {auto, scroll,
+  // hidden, clip}. Without this, sticky / positioned descendants of an
+  // overflow:auto scroller get hoisted PAST the scroller's clip-path
+  // wrapper into the implicit root SC, leaking out of the scroller's
+  // viewport (observable on `13-deep-sticky-edges`: scroller 1's deep
+  // sticky headers painted into scroller 2's area).
+  const ox = s.overflowX;
+  const oy = s.overflowY;
+  if ((ox != null && ox !== "visible") || (oy != null && oy !== "visible")) return true;
   // `isolation: isolate` isn't currently captured on `Styles`; if the
   // author uses it the element still gets correct paint via its other
   // SC-creating siblings (transform / opacity), so the omission is benign
