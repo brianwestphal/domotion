@@ -3332,7 +3332,10 @@ export function elementTreeToSvg(
     const styleParts: string[] = [];
     if (filterCss !== "") styleParts.push(`filter:${filterCss}`);
     if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
-    if (styleParts.length > 0) groupAttrs.push(`style="${styleParts.join(";")}"`);
+    // DM-486: HTML-escape the style attribute value. Chromium normalises
+    // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
+    // produced `style="filter:url("#id")"` and broke the SVG parser.
+    if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
     const opened = needsGroup;
     if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
     // Inner anim-class wrapper sits INSIDE any visibility/transform group so
