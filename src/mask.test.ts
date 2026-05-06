@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMaskDef } from "./dom-to-svg.js";
+import { buildMaskDef, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./dom-to-svg.js";
 
 // Locks the SVG <mask> emission for the cases exercised by the html-test
 // suite's 23-mask.html fixture (DM-395).
@@ -96,6 +96,94 @@ describe("buildMaskDef — composite (DM-395)", () => {
     expect(r.def).toContain('id="mi1"');
     // The outer mask's painted rect should reference the inner mask.
     expect(r.def).toMatch(/fill="url\(#mg0\)"\s*mask="url\(#mi1\)"/);
+  });
+});
+
+describe("rewriteFragmentMaskDef — DM-493 same-document mask fragment refs", () => {
+  it("rewrites the outer mask id to the requested output id", () => {
+    const out = rewriteFragmentMaskDef(
+      `<mask id="m1"><rect width="50" height="50" fill="white"/></mask>`,
+      "f0-mkfrag0",
+      "f0-",
+    );
+    expect(out).toContain('id="f0-mkfrag0"');
+    expect(out).not.toContain('id="m1"');
+  });
+
+  it("rewrites nested ids with the idPrefix to keep them unique across captures", () => {
+    const out = rewriteFragmentMaskDef(
+      `<mask id="m1"><linearGradient id="g1"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/></linearGradient><rect fill="url(#g1)" width="50" height="50"/></mask>`,
+      "f0-mkfrag0",
+      "f0-",
+    );
+    expect(out).toContain('id="f0-mkfrag0"');
+    expect(out).toContain('id="f0-fragid-g1"');
+    expect(out).toContain('fill="url(#f0-fragid-g1)"');
+    expect(out).not.toContain('id="g1"');
+    expect(out).not.toContain("url(#g1)");
+  });
+
+  it("rewrites href / xlink:href fragment refs (transitive <use> targets)", () => {
+    const out = rewriteFragmentMaskDef(
+      `<mask id="m1"><defs><circle id="dot" r="10"/></defs><use href="#dot" x="20" y="20"/></mask>`,
+      "f1-mkfrag2",
+      "f1-",
+    );
+    expect(out).toContain('id="f1-mkfrag2"');
+    expect(out).toContain('id="f1-fragid-dot"');
+    expect(out).toContain('href="#f1-fragid-dot"');
+    expect(out).not.toContain("#dot\"");
+  });
+
+  it("does not touch fragment refs that point at ids outside the captured subtree", () => {
+    // External-to-mask url(#somethingElse) should pass through unchanged so
+    // the renderer doesn't accidentally rewrite refs we didn't define.
+    const out = rewriteFragmentMaskDef(
+      `<mask id="m1"><rect fill="url(#externalGrad)" width="50" height="50"/></mask>`,
+      "f0-mkfrag0",
+      "f0-",
+    );
+    expect(out).toContain("url(#externalGrad)");
+  });
+
+  it("multiple references to the same captured fragment share a single output id (deduped)", () => {
+    // Sanity check the rewrite is stable: invoking twice with the same
+    // outputId yields identical markup. Stable mapping is what lets the
+    // renderer dedupe when many elements reference the same fragment.
+    const a = rewriteFragmentMaskDef(`<mask id="m1"><rect width="10" height="10" fill="white"/></mask>`, "f-mkfrag0", "f-");
+    const b = rewriteFragmentMaskDef(`<mask id="m1"><rect width="10" height="10" fill="white"/></mask>`, "f-mkfrag0", "f-");
+    expect(a).toBe(b);
+  });
+});
+
+describe("positionFragmentMaskDef — DM-493 per-element mask placement", () => {
+  it("translates the mask content into the masked element's user-space", () => {
+    // CSS mask-image positions the mask source at the masked element's
+    // content-box origin. The captured <mask> has its content in its own
+    // local coordinates; we wrap the children in a translate(elX, elY) and
+    // rewrite the mask's own bounds to match the masked element's box.
+    const out = positionFragmentMaskDef(
+      `<mask id="mkfrag0" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect x="0" y="0" width="100" height="100" fill="white"/></mask>`,
+      236, 20, 200, 120,
+    );
+    expect(out).toContain('x="236"');
+    expect(out).toContain('y="20"');
+    expect(out).toContain('width="200"');
+    expect(out).toContain('height="120"');
+    expect(out).toContain("transform=\"translate(236, 20)\"");
+    // Original captured bounds (x=0/y=0/width=100/height=100) should not
+    // remain on the outer mask — those were the source-mask bounds, not the
+    // target element's.
+    expect(out).not.toMatch(/<mask[^>]*\sx="0"/);
+  });
+
+  it("forces maskUnits=userSpaceOnUse so the rewritten coords are interpreted absolutely", () => {
+    const out = positionFragmentMaskDef(
+      `<mask id="m" maskUnits="objectBoundingBox" x="0" y="0" width="1" height="1"><rect x="0.1" y="0.1" width="0.8" height="0.8" fill="white"/></mask>`,
+      0, 0, 200, 120,
+    );
+    expect(out).toContain('maskUnits="userSpaceOnUse"');
+    expect(out).not.toContain('maskUnits="objectBoundingBox"');
   });
 });
 

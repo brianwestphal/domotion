@@ -473,6 +473,16 @@ const tests: FeatureTest[] = [
     width: 280,
     height: 140,
   },
+  {
+    // DM-493: mask-image: url("#id") referencing an inline <mask> defined in
+    // the same document. Capture resolves the fragment, serialises the mask's
+    // outerHTML, and the renderer copies it into the output <defs> with id
+    // rewriting. Two boxes share one mask def to exercise dedupe.
+    name: "mask-fragment-url",
+    html: `<div style="padding:20px;background:#0d1117;font-family:-apple-system,sans-serif;color:#e6edf3;"><svg width="0" height="0" style="position:absolute;"><defs><mask id="diag-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="120"><rect x="0" y="0" width="200" height="120" fill="white"/><polygon points="0,0 200,0 200,40 0,120" fill="black"/></mask></defs></svg><div style="display:flex;gap:16px;"><div style="width:200px;height:120px;background:linear-gradient(135deg,#22d3ee,#a855f7);mask-image:url(#diag-mask);-webkit-mask-image:url(#diag-mask);"></div><div style="width:200px;height:120px;background:#f97316;mask-image:url(#diag-mask);-webkit-mask-image:url(#diag-mask);"></div></div></div>`,
+    width: 480,
+    height: 180,
+  },
 ];
 
 void runFeatureTests(tests, "features");

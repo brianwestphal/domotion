@@ -546,6 +546,25 @@ export interface CapturedElement {
    * even-odd clipPath. DM-342 / DM-343.
    */
   fieldsetLegendNotch?: { x: number; y: number; w: number; h: number };
+  /**
+   * Top-level (root only) collection of `<mask>` definitions referenced by
+   * fragment URLs (`mask-image: url("#id")`) anywhere in the captured tree.
+   * CAPTURE_SCRIPT resolves each fragment id to the corresponding inline
+   * `<mask>` element via `document.getElementById` and serialises its
+   * `outerHTML` here. The renderer copies these into the output `<defs>`
+   * with id rewriting so a captured `<mask id="m1">` becomes a
+   * domotion-prefixed mask def referenced by elements that point at `#m1`.
+   * Same-document only — external `.svg#fragment` refs are deferred (DM-496).
+   * See `docs/21-mask-fragment-references.md`.
+   */
+  maskDefs?: MaskFragmentDef[];
+}
+
+export interface MaskFragmentDef {
+  /** Original DOM id of the captured `<mask>` element. */
+  id: string;
+  /** Verbatim `outerHTML` of the captured `<mask>` element. */
+  outerHTML: string;
 }
 
 // Browser-side capture code as a string to avoid tsx __name transform issues
@@ -1013,6 +1032,11 @@ const CAPTURE_SCRIPT = `
   // Node-side caller. Deduped by (feature, selector). See SK-465.
   const _warnings = [];
   const _warnKeys = new Set();
+  // Mask fragment definitions collected during capture (DM-493): when an
+  // element uses 'mask-image: url("#id")', resolve the referenced inline
+  // <mask> via document.getElementById and stash its outerHTML keyed by id.
+  // Same-document only — external '.svg#frag' refs are deferred (DM-496).
+  const _maskDefs = new Map();
   const warn = (sel, feature, detail) => {
     const k = feature + '|' + sel;
     if (_warnKeys.has(k)) return;
@@ -1132,10 +1156,33 @@ const CAPTURE_SCRIPT = `
       // fragment URLs are the actual gaps; flag those instead.
       // See docs/20-css-mask-emission.md.
       var miSrc = cs.maskImage || cs.webkitMaskImage || '';
-      var supported = /^(?:repeating-)?(?:linear|radial)-gradient\\(/i.test(miSrc)
-        || /^url\\(/i.test(miSrc);
-      if (!supported) {
-        warn(sel, 'mask', 'non-gradient/non-url() mask source — element() refs and inline-SVG fragment masks are not yet emitted');
+      // DM-493: same-document fragment refs (mask-image: url("#id")) are
+      // resolved at capture time and emitted as inline <mask> defs. Detect
+      // them here so we (a) don't warn unnecessarily and (b) collect the
+      // referenced mask's outerHTML for the renderer.
+      var fragMatch = /^url\\(\\s*(?:"|')?#([^"')\\s]+)(?:"|')?\\s*\\)$/i.exec(miSrc);
+      if (fragMatch != null) {
+        var fragId = fragMatch[1];
+        if (!_maskDefs.has(fragId)) {
+          var target = document.getElementById(fragId);
+          if (target != null && target.tagName.toLowerCase() === 'mask') {
+            _maskDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
+          } else {
+            warn(sel, 'mask', 'mask-image fragment "#' + fragId + '" did not resolve to an inline <mask> element');
+          }
+        }
+      } else {
+        // External-file fragment refs (url("./file.svg#id")) — deferred to DM-496.
+        var extFragMatch = /^url\\(\\s*(?:"|')?[^"')#]+#[^"')\\s]+(?:"|')?\\s*\\)$/i.exec(miSrc);
+        if (extFragMatch != null) {
+          warn(sel, 'mask', 'external-file SVG fragment refs (url("./file.svg#id")) are not yet emitted (DM-496)');
+        } else {
+          var supported = /^(?:repeating-)?(?:linear|radial)-gradient\\(/i.test(miSrc)
+            || /^url\\(/i.test(miSrc);
+          if (!supported) {
+            warn(sel, 'mask', 'non-gradient/non-url() mask source — element() refs are not yet emitted');
+          }
+        }
       }
     }
     if (cs.borderImageSource && cs.borderImageSource !== 'none') {
@@ -2697,6 +2744,12 @@ const CAPTURE_SCRIPT = `
       if (c) result.push(c);
     }
   }
+  // DM-493: attach the collected mask fragment defs to the first root element
+  // as a top-level payload. Renderer reads tree[0].maskDefs to emit the mask
+  // defs into the output SVG.
+  if (_maskDefs.size > 0 && result.length > 0) {
+    result[0].maskDefs = Array.from(_maskDefs.values());
+  }
   return { tree: result, warnings: _warnings };
 }
 `;
@@ -3230,6 +3283,52 @@ export function elementTreeToSvg(
   // `gatherStackingContextChildren()` whenever we cross into an SC root.
   const hoistedFromAncestor = new Set<CapturedElement>();
 
+  // DM-493: top-level mask fragment defs collected at capture time. Map keyed
+  // by the original DOM id; the renderer mints a per-element mask def whose
+  // content is translated into the masked element's user-space coordinates,
+  // so two elements at different positions both render the mask correctly.
+  // Per-element copies are necessary because CSS mask-image positions the
+  // mask source at the masked element's content-box origin, while SVG
+  // `maskUnits=userSpaceOnUse` interprets coordinates absolutely against the
+  // root SVG. We dedupe identical (fragId, elX, elY, elW, elH) tuples to
+  // keep the output compact when many elements share a position.
+  const fragmentMaskDefs = new Map<string, MaskFragmentDef>();
+  for (const root of elements) {
+    if (root.maskDefs == null) continue;
+    for (const def of root.maskDefs) {
+      if (!fragmentMaskDefs.has(def.id)) fragmentMaskDefs.set(def.id, def);
+    }
+  }
+  let fragmentMaskCounter = 0;
+  const fragmentMaskOutputId = new Map<string, string>();
+  function resolveFragmentMaskRef(
+    maskImage: string,
+    elX: number, elY: number, elW: number, elH: number,
+  ): string | null {
+    const m = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(maskImage);
+    if (m == null) return null;
+    const fragId = m[1];
+    const def = fragmentMaskDefs.get(fragId);
+    if (def == null) return null;
+    const cacheKey = `${fragId}|${r(elX)}|${r(elY)}|${r(elW)}|${r(elH)}`;
+    const cached = fragmentMaskOutputId.get(cacheKey);
+    if (cached != null) return cached;
+    const outId = `${idPrefix}mkfrag${fragmentMaskCounter++}`;
+    fragmentMaskOutputId.set(cacheKey, outId);
+    // Rewrite the captured <mask>'s outerHTML: mint our output id, prefix
+    // descendant ids and url(#…) refs to the domotion namespace, then
+    // translate the mask's content into user-space at (elX, elY) so the
+    // mask region aligns with the masked element. We do this by extracting
+    // the mask's children, wrapping them in <g transform="translate(elX, elY)">
+    // and re-emitting as a fresh <mask maskUnits="userSpaceOnUse">. The
+    // captured mask's own x/y/width/height become the <mask> element's
+    // bounds, shifted by (elX, elY).
+    const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
+    const positioned = positionFragmentMaskDef(rewritten, elX, elY, elW, elH);
+    defsParts.push(positioned);
+    return outId;
+  }
+
   function renderElement(el: CapturedElement, depth: number): void {
     const indent = "  ".repeat(depth);
     const bgColor = parseColor(el.styles.backgroundColor);
@@ -3284,19 +3383,27 @@ export function elementTreeToSvg(
     const maskImage = el.styles.maskImage;
     let maskUrlId: string | null = null;
     if (maskImage != null && maskImage !== "none" && maskImage !== "") {
-      const maskDef = buildMaskDef(
-        `${idPrefix}mk${clipIdx++}`,
-        maskImage,
-        el.x, el.y, el.width, el.height,
-        el.styles.maskMode ?? "match-source",
-        el.styles.maskSize ?? "auto",
-        el.styles.maskPosition ?? "0% 0%",
-        el.styles.maskRepeat ?? "repeat",
-        el.styles.maskComposite ?? "add",
-      );
-      if (maskDef.def !== "") {
-        maskUrlId = maskDef.id;
-        defsParts.push(maskDef.def);
+      // DM-493: same-document fragment refs (mask-image: url("#id")) emit the
+      // captured inline <mask> verbatim with id rewriting, bypassing the
+      // gradient/url() emission path.
+      const fragRef = resolveFragmentMaskRef(maskImage, el.x, el.y, el.width, el.height);
+      if (fragRef != null) {
+        maskUrlId = fragRef;
+      } else {
+        const maskDef = buildMaskDef(
+          `${idPrefix}mk${clipIdx++}`,
+          maskImage,
+          el.x, el.y, el.width, el.height,
+          el.styles.maskMode ?? "match-source",
+          el.styles.maskSize ?? "auto",
+          el.styles.maskPosition ?? "0% 0%",
+          el.styles.maskRepeat ?? "repeat",
+          el.styles.maskComposite ?? "add",
+        );
+        if (maskDef.def !== "") {
+          maskUrlId = maskDef.id;
+          defsParts.push(maskDef.def);
+        }
       }
     }
     // CSS 2D transform (SK-1134): wrap the elements rendered group in
@@ -5937,6 +6044,104 @@ function cssDirectionToAngle(dir: string, w: number = 1, h: number = 1): number 
   if (hasBottom && hasLeft) return 180 + cornerAngle;
   if (hasTop && hasLeft) return 360 - cornerAngle;
   return 180;
+}
+
+/**
+ * Rewrite a captured `<mask>` element's `outerHTML` so it can be safely
+ * inlined in the output SVG's `<defs>`. The mask's own `id` becomes
+ * `outputId`, and every other DOM id referenced inside the subtree gets
+ * prefixed with `idPrefix` so it can't collide with ids elsewhere in the
+ * output (multi-frame animated SVGs reuse the same prefix model). Every
+ * `url(#X)` reference inside the subtree is updated to point at the
+ * rewritten id. DM-493.
+ */
+export function rewriteFragmentMaskDef(
+  outerHTML: string,
+  outputId: string,
+  idPrefix: string,
+): string {
+  // Discover all ids defined inside the subtree (the outer <mask>'s own id
+  // plus any descendants that carry an id="…"). The outer mask id maps to
+  // `outputId`; every other id maps to `${idPrefix}fragid-${original}` so the
+  // mapping is stable across multiple references and unique across captures.
+  const idMap = new Map<string, string>();
+  const idDefRe = /\sid\s*=\s*"([^"]+)"|\sid\s*=\s*'([^']+)'/g;
+  let firstId: string | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = idDefRe.exec(outerHTML)) != null) {
+    const id = m[1] ?? m[2] ?? "";
+    if (id === "") continue;
+    if (firstId == null) {
+      firstId = id;
+      idMap.set(id, outputId);
+    } else if (!idMap.has(id)) {
+      idMap.set(id, `${idPrefix}fragid-${id}`);
+    }
+  }
+  // Substitute id="X" — only ids we discovered, to avoid touching id strings
+  // that happen to appear inside attribute values that aren't id attributes.
+  let out = outerHTML.replace(/(\sid\s*=\s*)("([^"]+)"|'([^']+)')/g, (_, prefix, _full, dq, sq) => {
+    const original = dq ?? sq ?? "";
+    const replaced = idMap.get(original);
+    if (replaced == null) return prefix + (dq != null ? `"${original}"` : `'${original}'`);
+    return prefix + `"${replaced}"`;
+  });
+  // Substitute url(#X) refs throughout the subtree.
+  out = out.replace(/url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)/g, (full, ref) => {
+    const replaced = idMap.get(ref);
+    return replaced == null ? full : `url(#${replaced})`;
+  });
+  // Substitute href="#X" / xlink:href="#X" refs (e.g. <use href="#…">).
+  out = out.replace(/(\s(?:xlink:)?href\s*=\s*)("#([^"]+)"|'#([^']+)')/g, (full, prefix, _q, dq, sq) => {
+    const original = dq ?? sq ?? "";
+    const replaced = idMap.get(original);
+    return replaced == null ? full : prefix + `"#${replaced}"`;
+  });
+  return out;
+}
+
+/**
+ * Reposition a (previously rewritten) `<mask>` outerHTML so its content lives
+ * in the masked element's absolute user-space. CSS `mask-image: url("#id")`
+ * positions the mask source at the masked element's content-box origin, but
+ * SVG `<mask>` with `maskUnits="userSpaceOnUse"` interprets its content
+ * absolutely against the root SVG — so the captured mask coords (which are
+ * relative to the original `<mask>` element) need shifting by `(elX, elY)`.
+ * We do this by:
+ *   1. Forcing `maskUnits="userSpaceOnUse"` on the outer `<mask>`.
+ *   2. Replacing the mask's `x/y/width/height` with the masked element's
+ *      absolute box (so the mask region matches the element).
+ *   3. Wrapping the mask's children in `<g transform="translate(elX, elY)">`.
+ * DM-493.
+ */
+export function positionFragmentMaskDef(
+  rewrittenOuterHTML: string,
+  elX: number, elY: number, elW: number, elH: number,
+): string {
+  // Find the opening <mask …> tag (anchored at start of string, since
+  // rewriteFragmentMaskDef preserves the outerHTML structure of the captured
+  // <mask> element).
+  const openMatch = /^<mask\b([^>]*)>/i.exec(rewrittenOuterHTML);
+  if (openMatch == null) return rewrittenOuterHTML;
+  const closeIdx = rewrittenOuterHTML.lastIndexOf("</mask>");
+  if (closeIdx < 0) return rewrittenOuterHTML;
+  const inner = rewrittenOuterHTML.slice(openMatch[0].length, closeIdx);
+  // Strip existing maskUnits / x / y / width / height — we replace them.
+  let attrs = openMatch[1]
+    .replace(/\smaskUnits\s*=\s*"[^"]*"/gi, "")
+    .replace(/\smaskUnits\s*=\s*'[^']*'/gi, "")
+    .replace(/\smaskContentUnits\s*=\s*"[^"]*"/gi, "")
+    .replace(/\smaskContentUnits\s*=\s*'[^']*'/gi, "")
+    .replace(/\sx\s*=\s*"[^"]*"/gi, "")
+    .replace(/\sx\s*=\s*'[^']*'/gi, "")
+    .replace(/\sy\s*=\s*"[^"]*"/gi, "")
+    .replace(/\sy\s*=\s*'[^']*'/gi, "")
+    .replace(/\swidth\s*=\s*"[^"]*"/gi, "")
+    .replace(/\swidth\s*=\s*'[^']*'/gi, "")
+    .replace(/\sheight\s*=\s*"[^"]*"/gi, "")
+    .replace(/\sheight\s*=\s*'[^']*'/gi, "");
+  attrs += ` maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(elW)}" height="${r(elH)}"`;
+  return `<mask${attrs}><g transform="translate(${r(elX)}, ${r(elY)})">${inner}</g></mask>`;
 }
 
 /**
