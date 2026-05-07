@@ -34,6 +34,24 @@ export interface CaptureOptions {
    * fetch from file:// pages but not in offline viewers).
    */
   selfContained?: boolean;
+  /**
+   * DM-528: per-URL fetch timeout (ms) for the `selfContained` pre-pass.
+   * Caps the time a stalled CDN host can hold up the capture; total
+   * pre-pass time is bounded by `embedRemoteImagesTimeoutMs` (fetches run
+   * in parallel) rather than the sum across all URLs. Default 10000.
+   */
+  embedRemoteImagesTimeoutMs?: number;
+  /**
+   * DM-529: number of retry attempts for transient failures (5xx /
+   * network-error / timeout) in the `selfContained` pre-pass. 4xx
+   * responses are not retried. Default 1.
+   */
+  embedRemoteImagesRetries?: number;
+  /**
+   * DM-529: backoff delay (ms) between retry attempts in the
+   * `selfContained` pre-pass. Default 500.
+   */
+  embedRemoteImagesRetryBackoffMs?: number;
 }
 
 /**
@@ -80,12 +98,18 @@ export class DemoRecorder {
   private height: number;
   private baseUrl: string;
   private selfContained: boolean;
+  private embedRemoteImagesTimeoutMs: number | undefined;
+  private embedRemoteImagesRetries: number | undefined;
+  private embedRemoteImagesRetryBackoffMs: number | undefined;
 
   constructor(baseUrl: string, opts: CaptureOptions) {
     this.baseUrl = baseUrl;
     this.width = opts.width;
     this.height = opts.height;
     this.selfContained = opts.selfContained ?? false;
+    this.embedRemoteImagesTimeoutMs = opts.embedRemoteImagesTimeoutMs;
+    this.embedRemoteImagesRetries = opts.embedRemoteImagesRetries;
+    this.embedRemoteImagesRetryBackoffMs = opts.embedRemoteImagesRetryBackoffMs;
   }
 
   async init(opts: CaptureOptions): Promise<void> {
@@ -147,7 +171,11 @@ export class DemoRecorder {
     const tree = await captureElementTree(this.page, "body", {
       x: 0, y: 0, width: this.width, height: this.height,
     });
-    if (this.selfContained) await embedRemoteImages(tree);
+    if (this.selfContained) await embedRemoteImages(tree, {
+      timeoutMs: this.embedRemoteImagesTimeoutMs,
+      retries: this.embedRemoteImagesRetries,
+      retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
+    });
     return elementTreeToSvg(tree, this.width, this.height, idPrefix);
   }
 
@@ -161,7 +189,11 @@ export class DemoRecorder {
     const tree = await captureElementTree(this.page, "body", {
       x: 0, y: 0, width: this.width, height: pageHeight,
     });
-    if (this.selfContained) await embedRemoteImages(tree);
+    if (this.selfContained) await embedRemoteImages(tree, {
+      timeoutMs: this.embedRemoteImagesTimeoutMs,
+      retries: this.embedRemoteImagesRetries,
+      retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
+    });
     const svgContent = elementTreeToSvg(tree, this.width, pageHeight, idPrefix);
     return { svgContent, pageHeight };
   }

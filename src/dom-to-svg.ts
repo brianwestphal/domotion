@@ -57,6 +57,44 @@ function mimeFromExtension(path: string): string | null {
   return null;
 }
 
+export interface EmbedRemoteImagesOptions {
+  /**
+   * DM-527: append per-URL fetch failures here as `CaptureWarning` entries.
+   * If omitted, warnings push to the module-global `lastCaptureWarnings`
+   * (visible via `getLastCaptureWarnings` / `logCaptureWarnings`). Concurrent
+   * captures should pass an explicit array to avoid racing on the global.
+   */
+  warnings?: CaptureWarning[];
+  /**
+   * DM-528: per-URL fetch timeout in ms. A stalled CDN host (slow DNS, slow
+   * first-byte, unresponsive origin) would otherwise hang the capture
+   * indefinitely — the parallel `Promise.all` won't resolve until every
+   * fetch settles. With this timeout the slowest fetch caps total pre-pass
+   * time at ~`timeoutMs * (retries + 1) + retryBackoffMs * retries` (since
+   * fetches run in parallel). Timed-out fetches produce a `remote-image`
+   * warning and the URL stays as-is in the SVG. Default 10000.
+   */
+  timeoutMs?: number;
+  /**
+   * DM-529: number of retry attempts for transient failures (5xx response,
+   * network error, or timeout). 4xx responses are not retried — those are
+   * deterministic and a retry would just consume time. The originating
+   * fetch + retries together can take up to
+   * `(retries + 1) * timeoutMs + retries * retryBackoffMs` per URL, so keep
+   * this small. Default 1.
+   */
+  retries?: number;
+  /**
+   * DM-529: delay (ms) between attempts when retrying a transient failure.
+   * Default 500.
+   */
+  retryBackoffMs?: number;
+}
+
+const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
+const DEFAULT_FETCH_RETRIES = 1;
+const DEFAULT_FETCH_RETRY_BACKOFF_MS = 500;
+
 /**
  * DM-512: fetch every http(s) image URL referenced by the captured tree and
  * stash the resolved bytes as a data: URI in the renderer's data-URI cache.
@@ -70,64 +108,136 @@ function mimeFromExtension(path: string): string | null {
  * `url(...)` tokens inside `styles.backgroundImage` / `.maskImage` /
  * `.borderImageSource` / `.listStyleImage`. Dedupes per call.
  *
- * Failures (network error, non-2xx, missing Content-Type) are swallowed —
- * the URL is left in the tree as-is, so the SVG still references it. The
- * caller can `getLastCaptureWarnings()` to inspect any fetch errors.
+ * Per-URL fetch failures (network error, non-2xx, missing Content-Type) leave
+ * the URL in the tree as-is, so the SVG still references it. DM-527: each
+ * failure is surfaced as a `CaptureWarning` (feature: `remote-image`) carrying
+ * the URL and the HTTP status / error class, so callers can trace which images
+ * didn't inline. The warning is appended to `options.warnings` if supplied,
+ * otherwise to `getLastCaptureWarnings()`.
  */
-export async function embedRemoteImages(tree: CapturedElement[]): Promise<void> {
-  const urls = new Set<string>();
-  const collectFromCss = (cssVal: string | undefined): void => {
+export async function embedRemoteImages(
+  tree: CapturedElement[],
+  options: EmbedRemoteImagesOptions = {},
+): Promise<void> {
+  const warnings = options.warnings ?? lastCaptureWarnings;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+  const retries = options.retries ?? DEFAULT_FETCH_RETRIES;
+  const retryBackoffMs = options.retryBackoffMs ?? DEFAULT_FETCH_RETRY_BACKOFF_MS;
+  // Map URL -> best-effort selector of the first element that referenced it.
+  // The selector is a path of captured tag names ("body > div > img"); not
+  // unique, but enough for a developer to locate the offending element.
+  const refs = new Map<string, string>();
+  const collectFromCss = (cssVal: string | undefined, selector: string): void => {
     if (cssVal == null || cssVal === "" || cssVal === "none") return;
     const re = /url\(\s*(?:"([^"]+)"|'([^']+)'|([^)\s]+))\s*\)/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(cssVal)) != null) {
       const u = (m[1] ?? m[2] ?? m[3] ?? "").trim();
-      if (u.startsWith("http://") || u.startsWith("https://")) urls.add(u);
+      if ((u.startsWith("http://") || u.startsWith("https://")) && !refs.has(u)) {
+        refs.set(u, selector);
+      }
     }
   };
-  const walk = (els: CapturedElement[]): void => {
+  const walk = (els: CapturedElement[], parentPath: string): void => {
     for (const el of els) {
+      const sel = parentPath === "" ? el.tag : `${parentPath} > ${el.tag}`;
       if (el.imageSrc != null && (el.imageSrc.startsWith("http://") || el.imageSrc.startsWith("https://"))) {
-        urls.add(el.imageSrc);
+        if (!refs.has(el.imageSrc)) refs.set(el.imageSrc, sel);
       }
       if (el.pseudoImages != null) {
         for (const pi of el.pseudoImages) {
           if (pi.url != null && (pi.url.startsWith("http://") || pi.url.startsWith("https://"))) {
-            urls.add(pi.url);
+            if (!refs.has(pi.url)) refs.set(pi.url, sel);
           }
         }
       }
-      collectFromCss(el.styles.backgroundImage);
-      collectFromCss(el.styles.maskImage);
-      collectFromCss(el.styles.borderImageSource);
-      collectFromCss(el.styles.listStyleImage);
-      if (el.children.length > 0) walk(el.children);
+      collectFromCss(el.styles.backgroundImage, sel);
+      collectFromCss(el.styles.maskImage, sel);
+      collectFromCss(el.styles.borderImageSource, sel);
+      collectFromCss(el.styles.listStyleImage, sel);
+      if (el.children.length > 0) walk(el.children, sel);
     }
   };
-  walk(tree);
-  if (urls.size === 0) return;
+  walk(tree, "");
+  if (refs.size === 0) return;
   // Fetch all unique URLs in parallel. Fetch failures don't reject the
   // overall pass — a single broken image shouldn't fail the whole capture.
-  const tasks = Array.from(urls, async (url) => {
+  const tasks = Array.from(refs, async ([url, selector]) => {
     if (_dataUriCache.has(url)) return;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const buf = Buffer.from(await res.arrayBuffer());
-      // Prefer Content-Type, fall back to URL-suffix sniff. NYT-style URLs
-      // often carry a `?format=pjpg&...` suffix that would defeat extension
-      // sniffing on its own.
-      const ctype = res.headers.get("content-type");
-      const mime = (ctype != null && ctype.startsWith("image/"))
-        ? ctype.split(";")[0].trim()
-        : (mimeFromExtension(url.split("?")[0]) ?? "application/octet-stream");
-      _dataUriCache.set(url, `data:${mime};base64,${buf.toString("base64")}`);
-    } catch {
-      // Swallow — URL stays as-is in the SVG, consumer can decide whether
-      // to retry or surface the error.
+    // DM-529: retry transient failures (5xx, network error, timeout). Track
+    // the most recent failure so the surfaced warning describes the FINAL
+    // outcome rather than the first attempt.
+    let lastFailure: { kind: "status"; status: number } | { kind: "error"; err: unknown } | null = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (attempt > 0) await delay(retryBackoffMs);
+      try {
+        const res = await fetchWithTimeout(url, timeoutMs);
+        if (!res.ok) {
+          // 4xx is deterministic — retrying won't help, so bail immediately.
+          if (res.status < 500) {
+            lastFailure = { kind: "status", status: res.status };
+            break;
+          }
+          lastFailure = { kind: "status", status: res.status };
+          continue;
+        }
+        const buf = Buffer.from(await res.arrayBuffer());
+        // Prefer Content-Type, fall back to URL-suffix sniff. NYT-style URLs
+        // often carry a `?format=pjpg&...` suffix that would defeat extension
+        // sniffing on its own.
+        const ctype = res.headers.get("content-type");
+        const mime = (ctype != null && ctype.startsWith("image/"))
+          ? ctype.split(";")[0].trim()
+          : (mimeFromExtension(url.split("?")[0]) ?? "application/octet-stream");
+        _dataUriCache.set(url, `data:${mime};base64,${buf.toString("base64")}`);
+        return;
+      } catch (err) {
+        lastFailure = { kind: "error", err };
+      }
+    }
+    if (lastFailure != null) {
+      const detail = lastFailure.kind === "status"
+        ? `failed to fetch ${url} — HTTP ${lastFailure.status}`
+        : `failed to fetch ${url} — ${describeFetchError(lastFailure.err)}`;
+      warnings.push({ selector, feature: "remote-image", detail });
     }
   });
   await Promise.all(tasks);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * DM-528: wrap `fetch` with `AbortController` so a stalled host can't hang
+ * the capture indefinitely. AbortError thrown on timeout is normalised to a
+ * named `RemoteImageTimeoutError` so the warning detail tells consumers
+ * "this URL didn't respond in time" rather than the generic AbortError.
+ */
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      const e = new Error(`timed out after ${timeoutMs}ms`);
+      e.name = "RemoteImageTimeoutError";
+      throw e;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function describeFetchError(err: unknown): string {
+  if (err instanceof Error) {
+    const name = err.name !== "" ? err.name : err.constructor.name;
+    return err.message !== "" ? `${name}: ${err.message}` : name;
+  }
+  return String(err);
 }
 
 export interface TextSegment {
@@ -4003,7 +4113,7 @@ export function elementTreeToSvg(
     return outId;
   }
 
-  function renderElement(el: CapturedElement, depth: number): void {
+  function renderElement(el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
     const indent = "  ".repeat(depth);
     const bgColor = parseColor(el.styles.backgroundColor);
     const textColor = parseColor(el.styles.color);
@@ -5087,7 +5197,7 @@ export function elementTreeToSvg(
         else nonFloatChildren.push(c);
       }
       for (const child of floatChildren) {
-        renderElement(child, depth + 1);
+        renderElement(child, depth + 1, el.styles.display);
       }
     }
 
@@ -5414,14 +5524,18 @@ export function elementTreeToSvg(
     // sort, and re-rendering here would double-emit).
     const baseChildren = hasOwnText ? nonFloatChildren : el.children;
     let childrenForSort: CapturedElement[];
-    if (establishesStackingContext(el)) {
-      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor);
+    // DM-525: pass `el.styles.display` to flex/grid-aware checks so direct
+    // children that are flex/grid items honor z-index ≠ auto as a stacking
+    // context creator and z-sort accordingly.
+    const childParentDisplay = el.styles.display;
+    if (establishesStackingContext(el, parentDisplayForEl)) {
+      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay);
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
-    const sortedChildren = sortChildrenByPaintOrder(childrenForSort);
+    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay);
     for (const child of sortedChildren) {
-      renderElement(child, depth + 1);
+      renderElement(child, depth + 1, childParentDisplay);
     }
 
     if (overflowClipId != null) svgParts.push(`${indent}</g>`);
@@ -5992,10 +6106,24 @@ function shadeColor(c: RGBA, delta: number): RGBA {
  * own background rect. Promoting floats to layer 3 matches CSS painting rules.
  */
 /**
+ * DM-525: parent's `display` decides whether this element is a flex/grid
+ * item, which extends the z-index → stacking-context rule even when the
+ * item is `position: static` (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
+ */
+function isFlexOrGridContainerDisplay(display: string | undefined | null): boolean {
+  if (display == null) return false;
+  return display === "flex" || display === "inline-flex"
+      || display === "grid" || display === "inline-grid";
+}
+
+/**
  * DM-473: does this element establish a CSS stacking context?
  *
  * Stacking-context creators we model:
  *   - positioned (`position` ≠ `static`) AND `z-index` ≠ `auto`
+ *   - flex/grid item AND `z-index` ≠ `auto` (DM-525 — per CSS Flexbox 1 §5.4 /
+ *     CSS Grid 1: z-index on a flex/grid item creates an SC even when
+ *     position:static, behaving as if position were relative)
  *   - `position: fixed` / `position: sticky` (always create one in modern CSS)
  *   - `opacity` < 1
  *   - `transform` ≠ `none`
@@ -6012,11 +6140,15 @@ function shadeColor(c: RGBA, delta: number): RGBA {
  * nearest *real* SC ancestor is the parent SC root must be hoisted into
  * the parent SC's sort, not buried inside its non-SC direct parent.
  */
-function establishesStackingContext(el: CapturedElement): boolean {
+function establishesStackingContext(el: CapturedElement, parentDisplay?: string): boolean {
   const s = el.styles;
   const positioned = s.position != null && s.position !== "static";
   const zRaw = s.zIndex;
   if (positioned && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
+  // DM-525: flex/grid item with explicit z-index — Chrome treats this as a
+  // stacking context root even at position:static.
+  if (isFlexOrGridContainerDisplay(parentDisplay)
+      && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
   if (s.position === "fixed" || s.position === "sticky") return true;
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return true;
@@ -6079,30 +6211,38 @@ function establishesStackingContext(el: CapturedElement): boolean {
 function gatherStackingContextChildren(
   children: CapturedElement[],
   hoistedOut: Set<CapturedElement>,
+  parentDisplay?: string,
 ): CapturedElement[] {
   const out: CapturedElement[] = [];
   const collectFromNonSC = (parent: CapturedElement): void => {
+    const childParentDisplay = parent.styles.display;
     for (const c of parent.children) {
       const positioned = c.styles.position != null && c.styles.position !== "static";
       if (positioned) {
         out.push(c);
         hoistedOut.add(c);
       }
-      if (!establishesStackingContext(c)) {
+      if (!establishesStackingContext(c, childParentDisplay)) {
         collectFromNonSC(c);
       }
     }
   };
   for (const c of children) {
     out.push(c);
-    if (!establishesStackingContext(c)) {
+    if (!establishesStackingContext(c, parentDisplay)) {
       collectFromNonSC(c);
     }
   }
   return out;
 }
 
-function sortChildrenByPaintOrder(children: CapturedElement[]): CapturedElement[] {
+function sortChildrenByPaintOrder(
+  children: CapturedElement[],
+  parentDisplay?: string,
+): CapturedElement[] {
+  // DM-525: flex/grid items with z-index ≠ auto sort as if position:relative
+  // even when position:static (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
+  const isFlexGrid = isFlexOrGridContainerDisplay(parentDisplay);
   const negative: Array<{ z: number; idx: number; el: CapturedElement }> = [];
   const floats: CapturedElement[] = [];
   const zeroOrAuto: CapturedElement[] = [];
@@ -6115,9 +6255,10 @@ function sortChildrenByPaintOrder(children: CapturedElement[]): CapturedElement[
     const zRaw = c.styles.zIndex;
     const positioned = pos != null && pos !== "static";
     const z = zRaw === "auto" || zRaw === "" || zRaw == null ? NaN : parseInt(zRaw, 10);
-    if (!positioned && flt !== "none") {
+    const treatAsZSorted = positioned || (isFlexGrid && !isNaN(z));
+    if (!treatAsZSorted && flt !== "none") {
       floats.push(c);
-    } else if (!positioned) {
+    } else if (!treatAsZSorted) {
       base.push(c);
     } else if (isNaN(z)) {
       zeroOrAuto.push(c);

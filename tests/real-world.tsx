@@ -474,9 +474,10 @@ async function runJob(
     // DM-512: real-world captures of public sites reference image URLs on
     // the host CDN. Inline them as data: URIs so the produced SVGs load in
     // Preview / QuickLook / chat-client previewers (which don't fetch
-    // remote resources from local files). Per-URL fetch failures are
-    // swallowed inside embedRemoteImages — captures continue regardless.
-    await embedRemoteImages(cap.tree);
+    // remote resources from local files). DM-527: per-URL fetch failures
+    // are appended to the same `warnings` array we collected from capture
+    // so concurrent workers don't race on the lastCaptureWarnings global.
+    await embedRemoteImages(cap.tree, { warnings });
     const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH);
     const bodyBg = await page.evaluate(() => {
       const cs = getComputedStyle(document.body);

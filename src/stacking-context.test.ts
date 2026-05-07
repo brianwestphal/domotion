@@ -465,3 +465,121 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
     ]);
   });
 });
+
+describe("DM-525 flex/grid item z-index — stacking context without explicit positioning", () => {
+  // CSS Flexbox 1 §5.4 / CSS Grid 1: a flex/grid item with z-index ≠ auto
+  // creates a stacking context even when position:static, behaving as if
+  // position were relative. Without this, a static-positioned flex item
+  // with z-index:10 would NOT z-sort, and DOM order alone would decide
+  // overlapping paint — visible on `15-deep-flex-order-vs-z` (DM-525) where
+  // `<div class="item a" style="z-index: 10">A</div>` should pop above its
+  // overlapping siblings but Domotion painted it underneath.
+  it("paints a flex item with z-index:10 ABOVE its later DOM-order siblings (default position:static)", () => {
+    // Tree: a flex container with three static-positioned children.
+    // The first child has z-index:10 — per spec, it should paint LAST.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" }, // red, z:10
+        }),
+        makeElement({
+          x: 100, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" }, // green, z:auto
+        }),
+        makeElement({
+          x: 200, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" }, // blue, z:auto
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)"]);
+    expect(order).toEqual([
+      "rgb(22,163,74)", // green (auto)
+      "rgb(37,99,235)", // blue (auto)
+      "rgb(220,38,38)", // red z:10 — paints LAST
+    ]);
+  });
+
+  it("z-sorts multiple flex items by their z-index, regardless of DOM order", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        // a: z:5 — should paint last
+        makeElement({
+          x: 0, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, zIndex: "5", backgroundColor: "rgb(220,38,38)" },
+        }),
+        // b: z:1 — paints between auto-bucket and z:5
+        makeElement({
+          x: 100, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, zIndex: "1", backgroundColor: "rgb(22,163,74)" },
+        }),
+        // c: z:auto — paints first (before any explicit-z item per CSS)
+        makeElement({
+          x: 200, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" },
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)"]);
+    expect(order).toEqual([
+      "rgb(37,99,235)", // c: auto-bucket
+      "rgb(22,163,74)", // b: z:1
+      "rgb(220,38,38)", // a: z:5 — last
+    ]);
+  });
+
+  it("does NOT z-sort children of a non-flex/grid container with z-index (DOM order preserved)", () => {
+    // Sanity check: a regular block container ignores z-index on static
+    // children — they paint in DOM order.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, display: "block", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" }, // red, z:10 IGNORED
+        }),
+        makeElement({
+          x: 0, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" }, // green
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
+    expect(order).toEqual([
+      "rgb(220,38,38)", // DOM order: red first
+      "rgb(22,163,74)", // green second
+    ]);
+  });
+
+  it("treats grid items the same as flex items (display: grid)", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, display: "grid", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, zIndex: "10", backgroundColor: "rgb(220,38,38)" },
+        }),
+        makeElement({
+          x: 100, y: 0, width: 100, height: 100,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" },
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
+    expect(order).toEqual([
+      "rgb(22,163,74)", // green (auto)
+      "rgb(220,38,38)", // red z:10 — last
+    ]);
+  });
+});

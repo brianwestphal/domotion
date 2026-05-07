@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { embedRemoteImages, elementTreeToSvg, type CapturedElement } from "./dom-to-svg.js";
+import {
+  embedRemoteImages,
+  elementTreeToSvg,
+  getLastCaptureWarnings,
+  type CapturedElement,
+  type CaptureWarning,
+} from "./dom-to-svg.js";
 
 /**
  * DM-512: regression tests for `embedRemoteImages` — verifies that http(s)
@@ -176,17 +182,20 @@ describe("embedRemoteImages — DM-512", () => {
     ];
     await embedRemoteImages(tree);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(url);
+    // DM-528: fetch now receives an init bag with an AbortSignal alongside the URL.
+    expect(fetchMock.mock.calls[0][0]).toBe(url);
   });
 
   it("leaves the URL unchanged when fetch fails (non-ok response)", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
+      status: 404,
       arrayBuffer: async () => new ArrayBuffer(0),
       headers: { get: () => null },
     } as unknown as Response);
     const url = "https://example.com/dm-512-missing.png";
     const tree = [makeElement({ tag: "img", imageSrc: url })];
+    // 404 is a 4xx — the retry path doesn't touch it (DM-529).
     await embedRemoteImages(tree);
     const svg = elementTreeToSvg(tree, 100, 100);
     // URL passes through verbatim — the SVG still references the remote
@@ -203,5 +212,250 @@ describe("embedRemoteImages — DM-512", () => {
     ];
     await embedRemoteImages(tree);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // DM-527: failed fetches must surface via the capture-warnings pipeline so
+  // consumers can identify which images didn't inline. Without this, a
+  // produced SVG that looks broken in Preview gives no signal about which
+  // CDN URL silently failed.
+  describe("DM-527 — surfaces fetch failures as warnings", () => {
+    it("emits a remote-image warning with URL + HTTP status on non-ok response", async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 503,
+        arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      const url = "https://example.com/dm-527-503.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retryBackoffMs: 0 });
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].feature).toBe("remote-image");
+      expect(warnings[0].detail).toContain(url);
+      expect(warnings[0].detail).toContain("503");
+      expect(warnings[0].selector).toBe("img");
+    });
+
+    it("emits a remote-image warning when fetch throws (DNS / network error)", async () => {
+      fetchMock.mockRejectedValue(Object.assign(new Error("getaddrinfo ENOTFOUND host"), { name: "TypeError" }));
+      const url = "https://nope.invalid/dm-527-dns.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retryBackoffMs: 0 });
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].detail).toContain(url);
+      expect(warnings[0].detail).toContain("TypeError");
+      expect(warnings[0].detail).toContain("ENOTFOUND");
+    });
+
+    it("includes a selector path identifying the originating element", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      const url = "https://example.com/dm-527-selector.png";
+      const tree = [
+        makeElement({
+          tag: "body",
+          children: [
+            makeElement({
+              tag: "section",
+              children: [makeElement({ tag: "img", imageSrc: url })],
+            }),
+          ],
+        }),
+      ];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings });
+      expect(warnings[0].selector).toBe("body > section > img");
+    });
+
+    it("falls back to getLastCaptureWarnings() when no array is provided", async () => {
+      // Reset the module global by running embedRemoteImages once with an
+      // empty tree (no-op) and snapshotting the array — we then mutate the
+      // same array, so all earlier warnings remain in front.
+      const before = getLastCaptureWarnings().length;
+      fetchMock.mockResolvedValue({
+        ok: false, status: 500, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      const url = "https://example.com/dm-527-global.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      await embedRemoteImages(tree, { retryBackoffMs: 0 });
+      const after = getLastCaptureWarnings();
+      expect(after.length).toBe(before + 1);
+      expect(after[after.length - 1].detail).toContain(url);
+    });
+
+    it("does NOT emit a warning when the fetch succeeds", async () => {
+      const url = "https://example.com/dm-527-ok.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings });
+      expect(warnings).toHaveLength(0);
+    });
+  });
+
+  // DM-528: a stalled CDN host can't hang the capture indefinitely. Each
+  // fetch is bounded by a per-URL AbortController; timed-out fetches surface
+  // as `RemoteImageTimeoutError` warnings.
+  describe("DM-528 — per-fetch timeout", () => {
+    it("aborts a stalled fetch after timeoutMs and emits a timeout warning", async () => {
+      // Mock fetch to never resolve unless aborted via the passed signal.
+      // Use mockImplementation (not …Once) so the DM-529 retry attempt also
+      // sees a stalled fetch — we want both attempts to time out so the
+      // warning surfaces.
+      fetchMock.mockImplementation((_url: string, init?: { signal?: AbortSignal }) => {
+        return new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal == null) return; // never resolves
+          if (signal.aborted) {
+            const e = new Error("aborted") as Error & { name: string };
+            e.name = "AbortError";
+            reject(e);
+            return;
+          }
+          signal.addEventListener("abort", () => {
+            const e = new Error("aborted") as Error & { name: string };
+            e.name = "AbortError";
+            reject(e);
+          });
+        });
+      });
+      const url = "https://example.com/dm-528-stalled.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      const t0 = Date.now();
+      await embedRemoteImages(tree, { warnings, timeoutMs: 50, retryBackoffMs: 0 });
+      const elapsed = Date.now() - t0;
+      expect(elapsed).toBeLessThan(2000); // we should NOT have hung
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].feature).toBe("remote-image");
+      expect(warnings[0].detail).toContain(url);
+      expect(warnings[0].detail).toContain("RemoteImageTimeoutError");
+      expect(warnings[0].detail).toContain("50ms");
+      // URL stays as-is — the SVG still references the remote image.
+      const svg = elementTreeToSvg(tree, 100, 100);
+      expect(svg).toContain(url);
+    });
+
+    it("passes an AbortSignal to fetch", async () => {
+      const url = "https://example.com/dm-528-signal-check.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      await embedRemoteImages(tree);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const call = fetchMock.mock.calls[0];
+      const init = call[1] as { signal?: AbortSignal } | undefined;
+      expect(init?.signal).toBeDefined();
+      expect(init!.signal).toBeInstanceOf(AbortSignal);
+    });
+  });
+
+  // DM-529: retry once on transient failures (5xx, network error, timeout).
+  // Success on retry replaces the URL with the inlined data URI; failure on
+  // retry behaves the same as today (URL stays as-is, warning surfaces).
+  describe("DM-529 — retry transient failures", () => {
+    it("retries on a 5xx response and inlines on the second attempt's success", async () => {
+      const okResponse = {
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => ONE_PX_PNG.buffer.slice(
+          ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength,
+        ),
+        headers: { get: (n: string) => n.toLowerCase() === "content-type" ? "image/png" : null },
+      } as unknown as Response;
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      fetchMock.mockResolvedValueOnce(okResponse);
+      const url = "https://example.com/dm-529-503-then-200.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retryBackoffMs: 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const svg = elementTreeToSvg(tree, 100, 100);
+      expect(svg).toContain(ONE_PX_PNG_DATA_URI);
+      expect(svg).not.toContain(url);
+      expect(warnings).toHaveLength(0); // success on retry → no warning
+    });
+
+    it("retries on a thrown network error and inlines on success", async () => {
+      const okResponse = {
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => ONE_PX_PNG.buffer.slice(
+          ONE_PX_PNG.byteOffset, ONE_PX_PNG.byteOffset + ONE_PX_PNG.byteLength,
+        ),
+        headers: { get: (n: string) => n.toLowerCase() === "content-type" ? "image/png" : null },
+      } as unknown as Response;
+      fetchMock.mockRejectedValueOnce(new TypeError("ECONNRESET"));
+      fetchMock.mockResolvedValueOnce(okResponse);
+      const url = "https://example.com/dm-529-reset-then-200.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retryBackoffMs: 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(warnings).toHaveLength(0);
+    });
+
+    it("emits a warning describing the FINAL failure when the retry also fails", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 502, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      const url = "https://example.com/dm-529-double-fail.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retryBackoffMs: 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(warnings).toHaveLength(1);
+      // The most recent failure (502) is what we report.
+      expect(warnings[0].detail).toContain("502");
+    });
+
+    it("does NOT retry on 4xx (deterministic client errors)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      const url = "https://example.com/dm-529-404.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retryBackoffMs: 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(1); // no retry
+      expect(warnings[0].detail).toContain("404");
+    });
+
+    it("respects retries: 0 (no retry attempts)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      const url = "https://example.com/dm-529-no-retry.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retries: 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(warnings).toHaveLength(1);
+    });
+
+    it("respects retries > 1 (e.g. retries: 2 → up to 3 attempts)", async () => {
+      fetchMock.mockResolvedValue({
+        ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0),
+        headers: { get: () => null },
+      } as unknown as Response);
+      const url = "https://example.com/dm-529-three-attempts.png";
+      const tree = [makeElement({ tag: "img", imageSrc: url })];
+      const warnings: CaptureWarning[] = [];
+      await embedRemoteImages(tree, { warnings, retries: 2, retryBackoffMs: 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(warnings).toHaveLength(1);
+    });
   });
 });

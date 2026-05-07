@@ -138,7 +138,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     const cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
     capWarnings = cap.warnings;
     // DM-512: demos always emit self-contained SVGs.
-    await embedRemoteImages(cap.tree);
+    // DM-527: thread the per-suite warnings array so concurrent workers
+    // don't race on the lastCaptureWarnings module global.
+    await embedRemoteImages(cap.tree, { warnings: capWarnings });
     const svgContent = elementTreeToSvg(cap.tree, WIDTH, HEIGHT);
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}"><rect width="${WIDTH}" height="${HEIGHT}" fill="${bodyBg}" />${svgContent}</svg>`;
     writeFileSync(svgPath, svgDoc);
