@@ -23,7 +23,7 @@ import { mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
-import { captureElementTreeWithWarnings, elementTreeToSvg } from "../src/dom-to-svg.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { raw } from "../src/jsx-runtime.js";
 import { comparePngs, PASS_THRESHOLD_NON_AA_PIXELS, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
@@ -137,6 +137,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // workers don't race on the lastCaptureWarnings module global (DM-456).
     const cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
     capWarnings = cap.warnings;
+    // DM-512: demos always emit self-contained SVGs.
+    await embedRemoteImages(cap.tree);
     const svgContent = elementTreeToSvg(cap.tree, WIDTH, HEIGHT);
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}"><rect width="${WIDTH}" height="${HEIGHT}" fill="${bodyBg}" />${svgContent}</svg>`;
     writeFileSync(svgPath, svgDoc);

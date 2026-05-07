@@ -35,7 +35,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "@playwri
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTreeWithWarnings, elementTreeToSvg } from "../src/dom-to-svg.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { comparePngs } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
@@ -471,6 +471,12 @@ async function runJob(
     // workers don't race on the lastCaptureWarnings module global (DM-456).
     const cap = await captureElementTreeWithWarnings(page, "body", captureClip);
     warnings = cap.warnings;
+    // DM-512: real-world captures of public sites reference image URLs on
+    // the host CDN. Inline them as data: URIs so the produced SVGs load in
+    // Preview / QuickLook / chat-client previewers (which don't fetch
+    // remote resources from local files). Per-URL fetch failures are
+    // swallowed inside embedRemoteImages — captures continue regardless.
+    await embedRemoteImages(cap.tree);
     const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH);
     const bodyBg = await page.evaluate(() => {
       const cs = getComputedStyle(document.body);

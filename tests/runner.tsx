@@ -16,7 +16,7 @@ import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTree, elementTreeToSvg } from "../src/dom-to-svg.js";
+import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { raw } from "../src/jsx-runtime.js";
 import { comparePngs, passes } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
@@ -109,6 +109,8 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
 
   // Step 2: Capture DOM -> SVG
   const tree = await captureElementTree(w.page, "body", { x: 0, y: 0, width, height });
+  // DM-512: demos always emit self-contained SVGs.
+  await embedRemoteImages(tree);
   const svgContent = elementTreeToSvg(tree, width, height);
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);
