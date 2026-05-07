@@ -95,11 +95,16 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   const htmlPath = resolve(OUTPUT_DIR, `${test.name}.html`);
   const svgPath = resolve(OUTPUT_DIR, `${test.name}.svg`);
 
-  // Step 1: Render HTML -> PNG
+  // Step 1: Render HTML -> PNG. DM-509: replaced the prior 100ms
+  // waitForTimeout with document.fonts.ready — the wait existed to let
+  // -apple-system / Inter / monospace fonts finish resolving before the
+  // screenshot, but a fixed 100ms is both wasteful when fonts are cached
+  // and racy when they aren't. document.fonts.ready resolves exactly when
+  // every active FontFace has loaded.
   writeFileSync(htmlPath, renderDoc(<FixturePage body={test.html} />));
   await w.page.setViewportSize({ width, height });
   await w.page.goto(`file://${htmlPath}`);
-  await w.page.waitForTimeout(100);
+  await w.page.evaluate(() => document.fonts.ready);
   await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width, height } });
 
   // Step 2: Capture DOM -> SVG
@@ -108,11 +113,14 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);
 
-  // Step 3: Render SVG -> PNG
-  const svgHtmlPath = resolve(OUTPUT_DIR, `${test.name}-svg-render.html`);
-  writeFileSync(svgHtmlPath, renderDoc(<SvgRenderPage svgUrl={`file://${svgPath}`} width={width} height={height} />));
-  await w.page.goto(`file://${svgHtmlPath}`);
-  await w.page.waitForTimeout(200);
+  // Step 3: Render SVG -> PNG. DM-509: setContent skips the file:// round-
+  // trip (no extra HTML write, no goto re-parse) and waitUntil: 'load'
+  // already includes the <img> resource load, so the prior 200ms wait is
+  // redundant. Wait once more on document.fonts.ready in case the embedded
+  // SVG carries text that triggers font resolution in this context too.
+  const svgRenderHtml = renderDoc(<SvgRenderPage svgUrl={`file://${svgPath}`} width={width} height={height} />);
+  await w.page.setContent(svgRenderHtml, { waitUntil: "load" });
+  await w.page.evaluate(() => document.fonts.ready);
   await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width, height } });
 
   // Step 4: Compare. Pass criterion (DM-383): every differing pixel must be
