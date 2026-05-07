@@ -29,6 +29,7 @@ import { resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { raw } from "kerfjs";
+import * as esbuild from "esbuild";
 
 // ── Paths ──
 
@@ -243,191 +244,34 @@ const REVIEW_CSS = `
   .svg-link:hover { text-decoration: underline; }
 `;
 
-const REVIEW_SCRIPT_TEMPLATE = (payload: string) => `
-const MANIFEST = ${payload};
-const filterEl = document.getElementById("filter");
-const suiteEl = document.getElementById("suite");
-const sortEl = document.getElementById("sort");
-const cards = document.getElementById("cards");
-const stats = document.getElementById("stats");
-const summary = document.getElementById("suite-summary");
-const lb = document.getElementById("lightbox");
-const lbImg = document.getElementById("lb-img");
-
-// Track the currently-focused lightbox figure so arrow keys can step to the
-// previous/next image (in DOM order across all visible cards). Populated
-// when a figure is clicked; cleared when the lightbox closes.
-let lbFigures = [];
-let lbIndex = -1;
-
-function closeLightbox() {
-  lb.classList.remove("open");
-  lbFigures = [];
-  lbIndex = -1;
+// Bundle the kerfjs client (`tests/review-client.tsx`) once at server start
+// and serve it at /client.js. The manifest is shipped separately as a JSON
+// `<script>` block so manifest changes don't require rebundling.
+async function bundleClient(): Promise<string> {
+  const result = await esbuild.build({
+    entryPoints: [resolve(TESTS_DIR, "review-client.tsx")],
+    bundle: true,
+    format: "esm",
+    target: "es2022",
+    write: false,
+    sourcemap: "inline",
+    jsx: "automatic",
+    jsxImportSource: "kerfjs",
+    logLevel: "warning",
+  });
+  if (result.outputFiles.length === 0) throw new Error("esbuild produced no output");
+  return result.outputFiles[0].text;
 }
 
-function showLightboxAt(idx) {
-  if (idx < 0 || idx >= lbFigures.length) return;
-  lbIndex = idx;
-  lbImg.src = lbFigures[idx].dataset.src;
-  lb.classList.add("open");
-  // Scroll the underlying page so the figure's card is centered in the
-  // viewport — invisible while the lightbox is over the page, but means
-  // closing the lightbox lands you on the test you were just inspecting
-  // instead of wherever you opened the lightbox from. (DM-412)
-  const card = lbFigures[idx].closest(".card");
-  if (card != null) card.scrollIntoView({ block: "center", behavior: "auto" });
+// Inline JSON inside a `<script>` is unsafe if the payload contains the
+// substring `</script` — escape `<` to `\u003c` so the parser can't be
+// tricked into closing the tag early. (No user-controlled strings reach the
+// manifest today, but the cost is trivial.)
+function safeJsonForScript(payload: unknown): string {
+  return JSON.stringify(payload).replace(/</g, "\\u003c");
 }
 
-lb.addEventListener("click", closeLightbox);
-
-document.addEventListener("keydown", (e) => {
-  if (!lb.classList.contains("open")) return;
-  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-    e.preventDefault();
-    const next = lbIndex + 1 < lbFigures.length ? lbIndex + 1 : 0;
-    showLightboxAt(next);
-  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-    e.preventDefault();
-    const prev = lbIndex - 1 >= 0 ? lbIndex - 1 : lbFigures.length - 1;
-    showLightboxAt(prev);
-  } else if (e.key === "Escape") {
-    e.preventDefault();
-    closeLightbox();
-  }
-});
-
-function img(url) { return \`<img src="\${url}" loading="lazy" alt=""/>\`; }
-
-function extraMetrics(r) {
-  if (r.sigPixelPct == null) return "";
-  const parts = [
-    \`sig \${r.sigPixelPct.toFixed(1)}%\`,
-    r.worstTilePct != null ? \`tile avg \${r.worstTilePct.toFixed(1)}%\` : null,
-    r.worstTileSignificantPct != null ? \`tile sig \${r.worstTileSignificantPct.toFixed(1)}%\` : null,
-    r.warningCount ? \`\${r.warningCount} warn\` : null,
-  ].filter(Boolean).join(" · ");
-  return \`<span class="metrics">\${parts}</span>\`;
-}
-
-function cardHtml(r) {
-  let badge, statusClass;
-  if (r.skipped)       { badge = 'SKIP'; statusClass = 'skip'; }
-  else if (r.error)    { badge = 'ERROR'; statusClass = 'err'; }
-  else if (r.pass)     { badge = 'PASS'; statusClass = 'pass'; }
-  else                 { badge = 'FAIL'; statusClass = 'fail'; }
-  const cardCls = r.skipped ? 'skipped' : (r.pass ? 'pass' : '');
-  const imagesHtml = r.skipped
-    ? \`<div class="skip-note">Skipped: \${r.skipReason ?? '(no reason given)'}</div>\`
-    : \`<div class="imgs">
-         <figure data-src="/img/\${r.suite}/\${r.name}-expected.png"><figcaption>expected</figcaption>\${img(\`/img/\${r.suite}/\${r.name}-expected.png\`)}</figure>
-         <figure data-src="/img/\${r.suite}/\${r.name}-actual.png"><figcaption>actual</figcaption>\${img(\`/img/\${r.suite}/\${r.name}-actual.png\`)}</figure>
-         <figure data-src="/img/\${r.suite}/\${r.name}-diff.png"><figcaption>diff</figcaption>\${img(\`/img/\${r.suite}/\${r.name}-diff.png\`)}</figure>
-       </div>\`;
-  // Link to the generated .svg so reviewers can open it directly
-  // (real-world *-scroll is a self-animating SVG; this is the only
-  // way to play it back). Suppressed for skipped tests where no SVG
-  // was emitted.
-  const svgLink = r.skipped
-    ? ''
-    : \`<a class="svg-link" href="/img/\${r.suite}/\${r.name}.svg" target="_blank" rel="noopener">view svg ↗</a>\`;
-  return \`<section class="card \${cardCls}" data-name="\${r.name}" data-suite="\${r.suite}">
-    <div class="head">
-      <strong>\${r.name}</strong>
-      <span class="badge suite">\${r.suite}</span>
-      <span class="badge \${statusClass}">\${badge} · \${r.diffPct.toFixed(2)}%</span>
-      \${extraMetrics(r)}
-      \${svgLink}
-    </div>
-    \${imagesHtml}
-    <textarea class="comment" placeholder="What's wrong or worth a ticket? (Ticket will include the three images, metrics, and your comment.)"></textarea>
-    <div class="actions">
-      <button class="file-btn">File ticket</button>
-      <span class="status-msg"></span>
-    </div>
-  </section>\`;
-}
-
-function render() {
-  const filter = filterEl.value;
-  const suite = suiteEl.value;
-  const sort = sortEl.value;
-  let list = [...MANIFEST.tests];
-  if (filter === "fail") list = list.filter((r) => !r.pass && !r.skipped);
-  else if (filter === "pass") list = list.filter((r) => r.pass);
-  if (suite !== "all") list = list.filter((r) => r.suite === suite);
-  if (sort === "diff-desc") list.sort((a, b) => b.diffPct - a.diffPct);
-  else if (sort === "diff-asc") list.sort((a, b) => a.diffPct - b.diffPct);
-  else if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
-  cards.innerHTML = list.map(cardHtml).join("");
-  const total = MANIFEST.tests.length;
-  const failing = MANIFEST.tests.filter((r) => !r.pass && !r.skipped).length;
-  const skipped = MANIFEST.tests.filter((r) => r.skipped).length;
-  stats.textContent = \`\${list.length} shown · \${failing}/\${total} failing\${skipped ? \` · \${skipped} skipped\` : ''}\`;
-}
-
-function renderSummary() {
-  const parts = Object.entries(MANIFEST.suites).map(([name, info]) => {
-    if (!info.present) return \`<span style="color:#5a5a5a">\${name}: (not run)</span>\`;
-    const when = info.generatedAt ? new Date(info.generatedAt).toLocaleString() : "(no timestamp)";
-    return \`<span><strong>\${name}</strong>: \${info.count} tests · \${when}</span>\`;
-  }).join(" · ");
-  summary.innerHTML = parts;
-}
-
-filterEl.addEventListener("change", render);
-suiteEl.addEventListener("change", render);
-sortEl.addEventListener("change", render);
-
-cards.addEventListener("click", (e) => {
-  const fig = e.target.closest("figure[data-src]");
-  if (fig != null) {
-    // Snapshot every visible figure in DOM order so arrow keys walk the
-    // whole currently-filtered set (not just the clicked card's three).
-    lbFigures = Array.from(cards.querySelectorAll("figure[data-src]"));
-    lbIndex = lbFigures.indexOf(fig);
-    showLightboxAt(lbIndex);
-    return;
-  }
-  const btn = e.target.closest(".file-btn");
-  if (btn != null) void fileTicket(btn);
-});
-
-async function fileTicket(btn) {
-  const card = btn.closest(".card");
-  const name = card.dataset.name;
-  const suite = card.dataset.suite;
-  const comment = card.querySelector(".comment").value.trim();
-  const msg = card.querySelector(".status-msg");
-  msg.className = "status-msg";
-  msg.textContent = "";
-  btn.disabled = true;
-  btn.textContent = "Filing...";
-  try {
-    const res = await fetch("/api/file-ticket", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ suite, name, comment }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || \`HTTP \${res.status}\`);
-    msg.className = "status-msg ok";
-    msg.textContent = \`Filed \${json.ticket_number}\`;
-    card.querySelector(".comment").value = "";
-  } catch (err) {
-    msg.className = "status-msg err";
-    msg.textContent = "Failed: " + (err instanceof Error ? err.message : String(err));
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "File ticket";
-  }
-}
-
-renderSummary();
-render();
-`;
-
-function Layout({ payload }: { payload: string }) {
+function Layout({ manifestJson }: { manifestJson: string }) {
   return (
     <html lang="en">
       <head>
@@ -462,15 +306,16 @@ function Layout({ payload }: { payload: string }) {
         </header>
         <main id="cards"></main>
         <div className="lightbox" id="lightbox"><img id="lb-img" alt="" /></div>
-        <script>{raw(REVIEW_SCRIPT_TEMPLATE(payload))}</script>
+        <script type="application/json" id="manifest-data">{raw(manifestJson)}</script>
+        <script type="module" src="/client.js"></script>
       </body>
     </html>
   );
 }
 
 function renderReviewPage(manifest: ReviewManifest): string {
-  const payload = JSON.stringify(manifest);
-  return `<!DOCTYPE html>\n${(<Layout payload={payload} />).toString()}`;
+  const manifestJson = safeJsonForScript(manifest);
+  return `<!DOCTYPE html>\n${(<Layout manifestJson={manifestJson} />).toString()}`;
 }
 
 // ── MIME ──
@@ -493,6 +338,7 @@ async function main(): Promise<void> {
 
   const settings = loadSettings();
   const manifest = loadManifest();
+  const clientJs = await bundleClient();
   if (manifest.tests.length === 0) {
     // eslint-disable-next-line no-console
     console.error("No test results found. Run a suite first:");
@@ -515,6 +361,11 @@ async function main(): Promise<void> {
 
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
         send(res, 200, "text/html; charset=utf-8", renderReviewPage(manifest));
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/client.js") {
+        send(res, 200, "application/javascript; charset=utf-8", clientJs);
         return;
       }
 
