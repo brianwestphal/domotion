@@ -1,7 +1,7 @@
 /** @jsxRuntime automatic */
-/** @jsxImportSource #jsx */
+/** @jsxImportSource kerfjs */
 
-import { raw, type SafeHtml } from "../../../src/jsx-runtime.js";
+import { raw, type SafeHtml } from "kerfjs";
 
 export const meta = {
   slug: "start/cli",

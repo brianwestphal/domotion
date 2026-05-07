@@ -10,7 +10,7 @@
     "declaration": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "#jsx"
+    "jsxImportSource": "kerfjs"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

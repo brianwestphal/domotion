@@ -14,7 +14,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ALL_PAGES } from "./structure.js";
 import { renderPage, type PageMeta } from "./layout.js";
-import { SafeHtml } from "../src/jsx-runtime.js";
+import { SafeHtml } from "kerfjs";
 
 const SITE_DIR = dirname(fileURLToPath(import.meta.url));
 const PAGES_DIR = resolve(SITE_DIR, "pages");

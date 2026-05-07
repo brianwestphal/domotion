@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-/** @jsxImportSource #jsx */
+/** @jsxImportSource kerfjs */
 
 /**
  * Real-World Test Suite (DM-454)

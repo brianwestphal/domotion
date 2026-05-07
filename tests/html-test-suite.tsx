@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-/** @jsxImportSource #jsx */
+/** @jsxImportSource kerfjs */
 
 /**
  * HTML Test Suite Runner
@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
-import { raw } from "../src/jsx-runtime.js";
+import { raw } from "kerfjs";
 import { comparePngs, PASS_THRESHOLD_NON_AA_PIXELS, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 

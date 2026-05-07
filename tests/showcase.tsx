@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-/** @jsxImportSource #jsx */
+/** @jsxImportSource kerfjs */
 
 /**
  * Showcase integration tests.
@@ -10,7 +10,7 @@
  * Usage: npx tsx tests/showcase.tsx [--only frame-name]
  */
 
-import { raw } from "../src/jsx-runtime.js";
+import { raw } from "kerfjs";
 import { runFeatureTests, type FeatureTest } from "./runner.js";
 
 const WIDTH = 800;

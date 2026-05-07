@@ -1,12 +1,12 @@
 /** @jsxRuntime automatic */
-/** @jsxImportSource #jsx */
+/** @jsxImportSource kerfjs */
 
 /**
  * Page layout renderer. Wraps a page's HTML body in the shared chrome
  * (`<head>`, sidebar nav, breadcrumb, prev/next).
  */
 
-import { raw, type SafeHtml } from "../src/jsx-runtime.js";
+import { raw, type SafeHtml } from "kerfjs";
 import { findPrevNext, findSection, HOME, SECTIONS, type PageRef, type Section } from "./structure.js";
 
 export interface PageMeta {

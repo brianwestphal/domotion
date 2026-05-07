@@ -1,16 +1,9 @@
-import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   esbuild: {
     jsx: "automatic",
-    jsxImportSource: "#jsx",
-  },
-  resolve: {
-    alias: {
-      "#jsx/jsx-runtime": resolve(__dirname, "src/jsx-runtime.ts"),
-      "#jsx/jsx-dev-runtime": resolve(__dirname, "src/jsx-runtime.ts"),
-    },
+    jsxImportSource: "kerfjs",
   },
   test: {
     pool: "forks",

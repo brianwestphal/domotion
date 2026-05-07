@@ -7,10 +7,6 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "imports": {
-    "#jsx/jsx-runtime": "./src/jsx-runtime.ts",
-    "#jsx/jsx-dev-runtime": "./src/jsx-runtime.ts"
-  },
   "bin": {
     "domotion": "dist/cli.js"
   },
@@ -42,6 +38,7 @@
     "@playwright/test": "^1.59.1",
     "bidi-js": "^1.0.3",
     "fontkit": "^2.0.4",
+    "kerfjs": "^0.2.1",
     "svgo": "^4.0.1",
     "wawoff2": "^2.0.1"
   },

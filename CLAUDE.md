@@ -84,12 +84,9 @@ The capture function is serialized to a string and executed inside the captured 
 
 ### JSX Runtime
 
-The project uses a custom JSX runtime (`src/jsx-runtime.ts`) instead of React. It renders JSX to HTML strings via the `SafeHtml` class. This runtime is shared by both the server-side components and client-side modules. Configured via:
-- `tsconfig.json`: `"jsx": "react-jsx"`, `"jsxImportSource": "#jsx"`
-- `package.json` imports map: `"#jsx/jsx-runtime": "./src/jsx-runtime.ts"`
-- `tsup.config.ts`: esbuild alias resolves `#jsx/jsx-runtime` at build time (both server and client configs)
+The project uses [`kerfjs`](https://github.com/brianwestphal/kerf) for JSX. JSX renders to HTML strings via the `SafeHtml` class — same SSR-only contract we used to ship in-repo. Configured via `tsconfig.json` (`"jsx": "react-jsx"`, `"jsxImportSource": "kerfjs"`); .tsx files outside `src/` (e.g. `tests/`, `site/`) carry a per-file `/** @jsxImportSource kerfjs */` pragma so `tsx`/vitest pick it up.
 
-When writing TSX components, they return `SafeHtml` (which is `JSX.Element`). Use `raw()` to inject pre-escaped HTML strings. All string children are auto-escaped. In client code, convert JSX to DOM elements with `toElement()` from `src/client/dom.ts`, or to string for `innerHTML` with `.toString()`.
+When writing TSX, components return `SafeHtml` (which is `JSX.Element`). Use `raw()` to inject pre-escaped HTML strings; all string children are auto-escaped. Render to a string with `.toString()`. Import `SafeHtml`, `raw`, and `Fragment` from the `"kerfjs"` barrel. (kerfjs ≤0.1.2 had a duplicate-`SafeHtml` bug between the barrel and the jsx-runtime entry that required importing from `"kerfjs/jsx-runtime"`; fixed in 0.2.0 via a shared chunk — DM-533.) kerfjs's `signal`/`mount`/`delegate`/`toElement` (browser-side) are also available from `"kerfjs"` directly — no current call sites in this repo.
 
 ## Git
 

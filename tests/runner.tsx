@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-/** @jsxImportSource #jsx */
+/** @jsxImportSource kerfjs */
 
 /**
  * Visual Regression Test Runner
@@ -17,7 +17,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
-import { raw } from "../src/jsx-runtime.js";
+import { raw } from "kerfjs";
 import { comparePngs, passes } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 

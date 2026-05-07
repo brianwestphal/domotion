@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-/** @jsxImportSource #jsx */
+/** @jsxImportSource kerfjs */
 
 /**
  * SVG Demo Test Review Tool (SK-728)
@@ -28,7 +28,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { raw } from "../src/jsx-runtime.js";
+import { raw } from "kerfjs";
 
 // ── Paths ──
 
