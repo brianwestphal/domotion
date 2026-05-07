@@ -10,7 +10,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg } from "../src/dom-to-svg.js";
+import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { optimizeSvg } from "./shared.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animator.js";
 
@@ -98,8 +98,10 @@ async function main(): Promise<void> {
     await page.goto(`file://${tmpPath}`);
     await page.waitForTimeout(100);
 
-    // Capture DOM as SVG (text converted to path outlines)
+    // Capture DOM as SVG (text converted to path outlines). DM-512: demos
+    // emit self-contained SVGs so they load in offline image viewers.
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+    await embedRemoteImages(tree);
     const svgContent = elementTreeToSvg(tree, WIDTH, HEIGHT, `f${i}-`);
 
     const animFrame: AnimationFrame = {

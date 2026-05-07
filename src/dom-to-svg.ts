@@ -22,9 +22,12 @@ import { renderFormControl } from "./form-controls.js";
 const _dataUriCache = new Map<string, string>();
 function embedAsDataUri(url: string): string {
   if (url == null || url === "") return url;
-  if (url.startsWith("data:") || url.startsWith("http://") || url.startsWith("https://")) return url;
+  // Cache check FIRST: a prior `embedRemoteImages` call (DM-512) may have
+  // pre-fetched http(s) URLs and stashed the resolved data: URI here. Falling
+  // through to the data:/http(s) pass-through would discard that work.
   const cached = _dataUriCache.get(url);
   if (cached != null) return cached;
+  if (url.startsWith("data:") || url.startsWith("http://") || url.startsWith("https://")) return url;
   let path = url;
   if (path.startsWith("file://")) path = decodeURIComponent(path.slice("file://".length));
   if (!existsSync(path)) {
@@ -33,14 +36,7 @@ function embedAsDataUri(url: string): string {
   }
   try {
     const buf = readFileSync(path);
-    let mime = "application/octet-stream";
-    const lower = path.toLowerCase();
-    if (lower.endsWith(".png")) mime = "image/png";
-    else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) mime = "image/jpeg";
-    else if (lower.endsWith(".gif")) mime = "image/gif";
-    else if (lower.endsWith(".webp")) mime = "image/webp";
-    else if (lower.endsWith(".svg")) mime = "image/svg+xml";
-    else if (lower.endsWith(".avif")) mime = "image/avif";
+    const mime = mimeFromExtension(path) ?? "application/octet-stream";
     const dataUri = `data:${mime};base64,${buf.toString("base64")}`;
     _dataUriCache.set(url, dataUri);
     return dataUri;
@@ -48,6 +44,90 @@ function embedAsDataUri(url: string): string {
     _dataUriCache.set(url, url);
     return url;
   }
+}
+
+function mimeFromExtension(path: string): string | null {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".avif")) return "image/avif";
+  return null;
+}
+
+/**
+ * DM-512: fetch every http(s) image URL referenced by the captured tree and
+ * stash the resolved bytes as a data: URI in the renderer's data-URI cache.
+ * Subsequent calls to `embedAsDataUri` for those URLs return the cached data
+ * URI instead of passing the URL through verbatim — yielding a self-contained
+ * SVG that loads correctly in image viewers (Preview, Finder QuickLook, etc.)
+ * that don't fetch remote resources from local files.
+ *
+ * Walks the captured tree once collecting URLs from: `imageSrc` (for `<img>`),
+ * `pseudoImages[].url` (for `::before`/`::after` content: url(...)), and CSS
+ * `url(...)` tokens inside `styles.backgroundImage` / `.maskImage` /
+ * `.borderImageSource` / `.listStyleImage`. Dedupes per call.
+ *
+ * Failures (network error, non-2xx, missing Content-Type) are swallowed —
+ * the URL is left in the tree as-is, so the SVG still references it. The
+ * caller can `getLastCaptureWarnings()` to inspect any fetch errors.
+ */
+export async function embedRemoteImages(tree: CapturedElement[]): Promise<void> {
+  const urls = new Set<string>();
+  const collectFromCss = (cssVal: string | undefined): void => {
+    if (cssVal == null || cssVal === "" || cssVal === "none") return;
+    const re = /url\(\s*(?:"([^"]+)"|'([^']+)'|([^)\s]+))\s*\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(cssVal)) != null) {
+      const u = (m[1] ?? m[2] ?? m[3] ?? "").trim();
+      if (u.startsWith("http://") || u.startsWith("https://")) urls.add(u);
+    }
+  };
+  const walk = (els: CapturedElement[]): void => {
+    for (const el of els) {
+      if (el.imageSrc != null && (el.imageSrc.startsWith("http://") || el.imageSrc.startsWith("https://"))) {
+        urls.add(el.imageSrc);
+      }
+      if (el.pseudoImages != null) {
+        for (const pi of el.pseudoImages) {
+          if (pi.url != null && (pi.url.startsWith("http://") || pi.url.startsWith("https://"))) {
+            urls.add(pi.url);
+          }
+        }
+      }
+      collectFromCss(el.styles.backgroundImage);
+      collectFromCss(el.styles.maskImage);
+      collectFromCss(el.styles.borderImageSource);
+      collectFromCss(el.styles.listStyleImage);
+      if (el.children.length > 0) walk(el.children);
+    }
+  };
+  walk(tree);
+  if (urls.size === 0) return;
+  // Fetch all unique URLs in parallel. Fetch failures don't reject the
+  // overall pass — a single broken image shouldn't fail the whole capture.
+  const tasks = Array.from(urls, async (url) => {
+    if (_dataUriCache.has(url)) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const buf = Buffer.from(await res.arrayBuffer());
+      // Prefer Content-Type, fall back to URL-suffix sniff. NYT-style URLs
+      // often carry a `?format=pjpg&...` suffix that would defeat extension
+      // sniffing on its own.
+      const ctype = res.headers.get("content-type");
+      const mime = (ctype != null && ctype.startsWith("image/"))
+        ? ctype.split(";")[0].trim()
+        : (mimeFromExtension(url.split("?")[0]) ?? "application/octet-stream");
+      _dataUriCache.set(url, `data:${mime};base64,${buf.toString("base64")}`);
+    } catch {
+      // Swallow — URL stays as-is in the SVG, consumer can decide whether
+      // to retry or surface the error.
+    }
+  });
+  await Promise.all(tasks);
 }
 
 export interface TextSegment {

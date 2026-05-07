@@ -7,7 +7,7 @@
 
 import { spawnSync } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg } from "./dom-to-svg.js";
+import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "./dom-to-svg.js";
 import { registerLocalFontAlias, registerWebfont } from "./text-to-path.js";
 
 export interface CaptureOptions {
@@ -22,6 +22,18 @@ export interface CaptureOptions {
   colorScheme?: "light" | "dark" | "no-preference";
   /** Authenticate via dev-login API before capturing */
   devUser?: string;
+  /**
+   * DM-512: when true, fetch every http(s) image URL referenced by the
+   * captured tree and inline it as a `data:` URI in the output SVG. The
+   * resulting SVG loads correctly in image viewers (Preview, QuickLook,
+   * Finder thumbnail, etc.) that don't fetch remote resources from local
+   * files. Adds capture-time network I/O proportional to the number of
+   * unique referenced URLs; per-URL fetch failures are logged via the
+   * capture-warnings pipeline but don't fail the overall capture.
+   * Default: false (URLs pass through verbatim — works in browsers that
+   * fetch from file:// pages but not in offline viewers).
+   */
+  selfContained?: boolean;
 }
 
 /**
@@ -67,11 +79,13 @@ export class DemoRecorder {
   private width: number;
   private height: number;
   private baseUrl: string;
+  private selfContained: boolean;
 
   constructor(baseUrl: string, opts: CaptureOptions) {
     this.baseUrl = baseUrl;
     this.width = opts.width;
     this.height = opts.height;
+    this.selfContained = opts.selfContained ?? false;
   }
 
   async init(opts: CaptureOptions): Promise<void> {
@@ -133,6 +147,7 @@ export class DemoRecorder {
     const tree = await captureElementTree(this.page, "body", {
       x: 0, y: 0, width: this.width, height: this.height,
     });
+    if (this.selfContained) await embedRemoteImages(tree);
     return elementTreeToSvg(tree, this.width, this.height, idPrefix);
   }
 
@@ -146,6 +161,7 @@ export class DemoRecorder {
     const tree = await captureElementTree(this.page, "body", {
       x: 0, y: 0, width: this.width, height: pageHeight,
     });
+    if (this.selfContained) await embedRemoteImages(tree);
     const svgContent = elementTreeToSvg(tree, this.width, pageHeight, idPrefix);
     return { svgContent, pageHeight };
   }

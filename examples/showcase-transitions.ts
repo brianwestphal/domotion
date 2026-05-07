@@ -12,7 +12,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg } from "../src/dom-to-svg.js";
+import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animator.js";
 import { optimizeSvg } from "./shared.js";
 
@@ -161,7 +161,9 @@ async function main(): Promise<void> {
   writeFileSync(tmpHome, HOME_HTML);
   await pg.goto(`file://${tmpHome}`);
   await pg.waitForTimeout(200);
+  // DM-512: demos emit self-contained SVGs.
   let tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+  await embedRemoteImages(tree);
   frames.push({
     svgContent: elementTreeToSvg(tree, WIDTH, HEIGHT, "f0-"),
     duration: 3500,
@@ -186,6 +188,7 @@ async function main(): Promise<void> {
   await pg.goto(`file://${tmpSearch}`);
   await pg.waitForTimeout(200);
   tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+  await embedRemoteImages(tree);
   frames.push({
     svgContent: elementTreeToSvg(tree, WIDTH, HEIGHT, "f1-"),
     duration: 3000,
