@@ -19,7 +19,20 @@ import { renderFormControl } from "./form-controls.js";
  * for http(s):// and existing data: URLs. Returns the original string on any
  * error so failures degrade gracefully.
  */
-const _dataUriCache = new Map<string, string>();
+/**
+ * @internal — exposed for `resize-embedded-images.ts` (DM-539). The resize
+ * pre-pass reads source bytes from this cache (populated by `embedRemoteImages`)
+ * and writes per-(URL, size) resized variants into `_resizedDataUriCache`.
+ */
+export const _dataUriCache = new Map<string, string>();
+/**
+ * @internal — DM-539. Per-source-URL map of sizeKey → resized data URI. The
+ * sizeKey is `${ceil(targetW * hiDPI)}x${ceil(targetH * hiDPI)}`. Populated by
+ * `resizeEmbeddedImages` (only when `embedRemoteImagesResize: true`); read by
+ * `embedResizedDataUri` (DM-540) when the renderer emits an `<image href>`.
+ * Empty at module load — first capture with the resize flag fills it.
+ */
+export const _resizedDataUriCache = new Map<string, Map<string, string>>();
 function embedAsDataUri(url: string): string {
   if (url == null || url === "") return url;
   // Cache check FIRST: a prior `embedRemoteImages` call (DM-512) may have
@@ -44,6 +57,48 @@ function embedAsDataUri(url: string): string {
     _dataUriCache.set(url, url);
     return url;
   }
+}
+
+/**
+ * DM-540 — active hiDPI multiplier used by `embedResizedDataUri` lookups
+ * during a single `elementTreeToSvg` invocation. Set at entry to that
+ * function and reset on exit. Must match the value passed to
+ * `resizeEmbeddedImages` for the same tree, otherwise the lookup misses
+ * and the renderer falls back to the source-resolution data URI.
+ *
+ * Module-scoped because the resize lookup is buried in a dozen helper
+ * functions (border-image, repeat-pattern, list marker, pseudo-image,
+ * background-layer); threading the factor through every signature would
+ * touch every call site and grow the renderer surface area for no
+ * functional benefit. Captures run sequentially per Node event loop so
+ * there's no concurrency hazard.
+ */
+let _activeHiDPIFactor = 2;
+
+/**
+ * DM-540 — renderer-side lookup for the image-resize-on-embed pipeline.
+ * Returns the resized PNG data URI for `(url, ceil(w * hiDPI), ceil(h * hiDPI))`
+ * when the resize pre-pass populated `_resizedDataUriCache` for that key;
+ * otherwise falls back to `embedAsDataUri(url)` so the renderer behaves
+ * identically to today when resize is disabled (no entries in the resized
+ * cache → source-resolution data URI returned).
+ */
+export function embedResizedDataUri(
+  url: string,
+  consumerW: number,
+  consumerH: number,
+  hiDPIFactor: number = _activeHiDPIFactor,
+): string {
+  if (url == null || url === "") return url;
+  const sizeCache = _resizedDataUriCache.get(url);
+  if (sizeCache != null && sizeCache.size > 0) {
+    const hiDPI = Math.max(1, hiDPIFactor);
+    const w = Math.max(1, Math.ceil(consumerW * hiDPI));
+    const h = Math.max(1, Math.ceil(consumerH * hiDPI));
+    const resized = sizeCache.get(`${w}x${h}`);
+    if (resized != null) return resized;
+  }
+  return embedAsDataUri(url);
 }
 
 function mimeFromExtension(path: string): string | null {
@@ -4080,7 +4135,15 @@ export function elementTreeToSvg(
    * hoisted to the top-level SVG <defs> and shared across frames.
    */
   includeGlyphDefs: boolean = true,
+  /**
+   * DM-540: hiDPI multiplier the renderer uses when looking up resized
+   * variants in `_resizedDataUriCache`. Must match the value passed to
+   * `resizeEmbeddedImages` for the same tree, or the lookup misses and
+   * the renderer falls back to the source-resolution data URI. Default 2.
+   */
+  hiDPIFactor: number = 2,
 ): string {
+  _activeHiDPIFactor = hiDPIFactor;
   const svgParts: string[] = [];
   const defsParts: string[] = [];
   let clipIdx = 0;
@@ -4997,12 +5060,12 @@ export function elementTreeToSvg(
         const clipId = `${idPrefix}ifn${clipIdx++}`;
         defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
         svgParts.push(
-          `${indent}<image href="${esc(embedAsDataUri(el.imageSrc))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
+          `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
         );
       } else {
         const par = preserveAspectRatioFor(fit, el.styles.objectPosition);
         svgParts.push(
-          `${indent}<image href="${esc(embedAsDataUri(el.imageSrc))}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${par}" />`,
+          `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, contentW, contentH))}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${par}" />`,
         );
       }
     }
@@ -5068,7 +5131,7 @@ export function elementTreeToSvg(
           const mx = outside ? el.x - markerW - 7 : el.x;
           const my = outside ? el.y : el.y + (el.height - markerH) / 2;
           svgParts.push(
-            `${indent}<image href="${esc(embedAsDataUri(urlMatch[1]))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
+            `${indent}<image href="${esc(embedResizedDataUri(urlMatch[1], markerW, markerH))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
           );
         }
       } else if (lsType !== "none" && lsType !== "") {
@@ -5255,7 +5318,7 @@ export function elementTreeToSvg(
     // emit ahead of the text block so text reliably wins z.
     if (el.pseudoImages != null) {
       for (const pi of el.pseudoImages) {
-        svgParts.push(`${indent}<image href="${esc(embedAsDataUri(pi.url))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
+        svgParts.push(`${indent}<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
       }
     }
 
@@ -6002,7 +6065,7 @@ function renderBorderImage(
     const imgY = dySlot - sy * scaleY;
     const imgW = natW * scaleX;
     const imgH = natH * scaleY;
-    parts.push(`${indent}<image href="${esc(embedAsDataUri(url))}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
+    parts.push(`${indent}<image href="${esc(embedResizedDataUri(url, imgW, imgH))}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
   };
 
   // For edge slots with repeat/round/space, we tile along one axis. Simplest
@@ -6059,7 +6122,7 @@ function renderBorderImage(
     const inImgY = -sy * imgScaleY;
     const inImgW = natW * imgScaleX;
     const inImgH = natH * imgScaleY;
-    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(patternW)}" height="${r(patternH)}"><image href="${esc(embedAsDataUri(url))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none" /></pattern>`);
+    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(patternW)}" height="${r(patternH)}"><image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none" /></pattern>`);
     parts.push(`${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
   };
 
@@ -6679,7 +6742,7 @@ function buildImagePatternDef(
   const patX = originX + posX;
   const patY = originY + posY;
 
-  return `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${r(patX)}" y="${r(patY)}" width="${r(periodW)}" height="${r(periodH)}"><image href="${esc(embedAsDataUri(href))}" x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" preserveAspectRatio="none" /></pattern>`;
+  return `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${r(patX)}" y="${r(patY)}" width="${r(periodW)}" height="${r(periodH)}"><image href="${esc(embedResizedDataUri(href, tileW, tileH))}" x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" preserveAspectRatio="none" /></pattern>`;
 }
 
 interface GradientStop { color: RGBA; pos: number }
@@ -7374,7 +7437,7 @@ export function buildMaskDef(
         };
         const ix = elX + resolveH(posTok[0] ?? "0%");
         const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-        contents.push(`<image href="${esc(embedAsDataUri(url[1]))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${layerSize === "contain" ? "meet" : layerSize === "cover" ? "slice" : "meet"}" />`);
+        contents.push(`<image href="${esc(embedResizedDataUri(url[1], imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${layerSize === "contain" ? "meet" : layerSize === "cover" ? "slice" : "meet"}" />`);
       } else {
         // Repeating mask: fall back to pattern. Since mask-type=alpha, the
         // pattern itself needs to be backed by an <image> that's clipped to

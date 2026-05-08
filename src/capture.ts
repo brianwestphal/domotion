@@ -8,6 +8,7 @@
 import { spawnSync } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "./dom-to-svg.js";
+import { resizeEmbeddedImages } from "./resize-embedded-images.js";
 import { registerLocalFontAlias, registerWebfont } from "./text-to-path.js";
 
 export interface CaptureOptions {
@@ -52,6 +53,24 @@ export interface CaptureOptions {
    * `selfContained` pre-pass. Default 500.
    */
   embedRemoteImagesRetryBackoffMs?: number;
+  /**
+   * DM-526 / DM-539: when true, run the `resizeEmbeddedImages` pre-pass
+   * after `embedRemoteImages` to downscale each inlined image to its
+   * consumer's render rect × `embedRemoteImagesHiDPIFactor`, re-encoded as
+   * PNG. Yields 50–80 % SVG size reduction on news-site captures with no
+   * visible diff at the captured viewport. No-op unless `selfContained` is
+   * also true (resize only acts on what the embed pass already inlined).
+   * Default false. See `docs/27-image-resize-on-embed.md`.
+   */
+  embedRemoteImagesResize?: boolean;
+  /**
+   * DM-526 / DM-539: hiDPI multiplier applied to each consumer's render rect
+   * before resizing. `2.0` (default) leaves headroom for retina viewing /
+   * zoom; `1.0` produces the smallest output (matches Chromium's painted
+   * resolution at devicePixelRatio: 1); `3.0` covers iPhone-Pro density.
+   * Values < 1 are clamped to 1.
+   */
+  embedRemoteImagesHiDPIFactor?: number;
 }
 
 /**
@@ -101,6 +120,8 @@ export class DemoRecorder {
   private embedRemoteImagesTimeoutMs: number | undefined;
   private embedRemoteImagesRetries: number | undefined;
   private embedRemoteImagesRetryBackoffMs: number | undefined;
+  private embedRemoteImagesResize: boolean;
+  private embedRemoteImagesHiDPIFactor: number | undefined;
 
   constructor(baseUrl: string, opts: CaptureOptions) {
     this.baseUrl = baseUrl;
@@ -110,6 +131,8 @@ export class DemoRecorder {
     this.embedRemoteImagesTimeoutMs = opts.embedRemoteImagesTimeoutMs;
     this.embedRemoteImagesRetries = opts.embedRemoteImagesRetries;
     this.embedRemoteImagesRetryBackoffMs = opts.embedRemoteImagesRetryBackoffMs;
+    this.embedRemoteImagesResize = opts.embedRemoteImagesResize ?? false;
+    this.embedRemoteImagesHiDPIFactor = opts.embedRemoteImagesHiDPIFactor;
   }
 
   async init(opts: CaptureOptions): Promise<void> {
@@ -176,7 +199,10 @@ export class DemoRecorder {
       retries: this.embedRemoteImagesRetries,
       retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
     });
-    return elementTreeToSvg(tree, this.width, this.height, idPrefix);
+    if (this.selfContained && this.embedRemoteImagesResize) {
+      await resizeEmbeddedImages(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
+    }
+    return elementTreeToSvg(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
   }
 
   /**
@@ -194,7 +220,10 @@ export class DemoRecorder {
       retries: this.embedRemoteImagesRetries,
       retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
     });
-    const svgContent = elementTreeToSvg(tree, this.width, pageHeight, idPrefix);
+    if (this.selfContained && this.embedRemoteImagesResize) {
+      await resizeEmbeddedImages(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
+    }
+    const svgContent = elementTreeToSvg(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
     return { svgContent, pageHeight };
   }
 

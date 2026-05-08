@@ -36,6 +36,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
+import { resizeEmbeddedImages } from "../src/resize-embedded-images.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { comparePngs } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
@@ -145,6 +146,13 @@ async function main(): Promise<void> {
   lowerProcessPriority();
   const args = process.argv.slice(2);
   const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
+  // DM-542: opt-in resize pre-pass for size-vs-fidelity validation.
+  const enableResize = args.includes("--resize");
+  const hiDPIArg = args.indexOf("--hi-dpi") >= 0 ? parseFloat(args[args.indexOf("--hi-dpi") + 1]) : NaN;
+  const resizeHiDPI = Number.isFinite(hiDPIArg) ? hiDPIArg : 2;
+  if (enableResize) {
+    console.log(`[DM-542] resizeEmbeddedImages: ON (hiDPIFactor=${resizeHiDPI})`);
+  }
 
   mkdirSync(OUTPUT_DIR, { recursive: true });
   mkdirSync(CACHE_DIR, { recursive: true });
@@ -180,7 +188,7 @@ async function main(): Promise<void> {
       return { compareContext, comparePage };
     },
     teardown: async (w) => { await w.compareContext.close(); },
-    runJob: async (job, w) => runJob(browser, w.comparePage, job),
+    runJob: async (job, w) => runJob(browser, w.comparePage, job, { resize: enableResize, hiDPI: resizeHiDPI }),
     onResult: (result, job) => {
       const status = result.skipped ? "- SKIP"
         : result.error != null    ? "✗ ERROR"
@@ -324,6 +332,7 @@ async function runJob(
   browser: Browser,
   comparePage: Page,
   job: PageJob,
+  resizeOpts: { resize: boolean; hiDPI: number } = { resize: false, hiDPI: 2 },
 ): Promise<Result> {
   const { test, site, viewport, mode } = job;
   const expectedPath = resolve(OUTPUT_DIR, `${test}-expected.png`);
@@ -478,7 +487,10 @@ async function runJob(
     // are appended to the same `warnings` array we collected from capture
     // so concurrent workers don't race on the lastCaptureWarnings global.
     await embedRemoteImages(cap.tree, { warnings });
-    const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH);
+    if (resizeOpts.resize) {
+      await resizeEmbeddedImages(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
+    }
+    const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI);
     const bodyBg = await page.evaluate(() => {
       const cs = getComputedStyle(document.body);
       const bg = cs.backgroundColor;
