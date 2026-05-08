@@ -1383,12 +1383,22 @@ const CAPTURE_SCRIPT = `
     // CSSStyleDeclaration is LIVE — snapshot the original transform value
     // BEFORE clearing or our captured tree would record transform: 'none'
     // and the renderer would skip emitting the SVG transform.
+    //
+    // DM-523: substitute the cleared transform with 'translate(0)' rather
+    // than 'none' so the element still establishes a containing block for
+    // any position:fixed descendants. Setting it to 'none' would let those
+    // descendants escape to the viewport (the .pin in 13-deep-fixed-in-
+    // transform pinned to viewport bottom-right instead of staying trapped
+    // in the .frame). Per CSS Transforms 2, any non-none transform value
+    // creates a CB; a no-op translate(0) preserves the CB while ensuring
+    // getBoundingClientRect returns un-rotated/un-scaled coords identical
+    // to what 'none' produced. See SK-1134.
     const cs = window.getComputedStyle(el);
     const originalTransform = cs.transform;
     const originalTransformOrigin = cs.transformOrigin;
     const hasTransform = originalTransform && originalTransform !== 'none';
     const savedInlineTransform = hasTransform ? el.style.transform : null;
-    if (hasTransform) el.style.transform = 'none';
+    if (hasTransform) el.style.transform = 'translate(0)';
     const result = captureInner(el, cs, hasTransform ? originalTransform : null, hasTransform ? originalTransformOrigin : null);
     if (hasTransform) el.style.transform = savedInlineTransform;
     return result;
@@ -2527,9 +2537,24 @@ const CAPTURE_SCRIPT = `
       const svgStrokeWidth = cs.strokeWidth;
       const svgFontFamily = cs.fontFamily;
       const clone = el.cloneNode(true);
-      if (svgFill && svgFill !== '' && !el.hasAttribute('fill')) clone.setAttribute('fill', svgFill);
-      if (svgStroke && svgStroke !== '' && svgStroke !== 'none' && !el.hasAttribute('stroke')) clone.setAttribute('stroke', svgStroke);
-      if (svgStrokeWidth && svgStrokeWidth !== '' && !el.hasAttribute('stroke-width')) clone.setAttribute('stroke-width', svgStrokeWidth);
+      // DM-524: an attribute literal like fill="var(--hds-color-text-solid)"
+      // (Stripe's nav rects) parses as a presentation-attribute value that
+      // resolves only against the source page's custom-property cascade.
+      // Outside that cascade — i.e. in our extracted SVG — the var is
+      // unresolved and the rect paints with the SVG default black (or
+      // currentColor), not the intended HDS palette color. Treat such
+      // unresolved CSS-function values as "no concrete attribute" so we bake
+      // the resolved computed value over them.
+      const _unresolvedCssExprRe = /\\b(?:var|calc|env|attr)\\s*\\(/;
+      function _isUnresolvedCssExpr(v) {
+        return v != null && _unresolvedCssExprRe.test(v);
+      }
+      function _hasConcreteAttr(node, attr) {
+        return node.hasAttribute(attr) && !_isUnresolvedCssExpr(node.getAttribute(attr));
+      }
+      if (svgFill && svgFill !== '' && !_hasConcreteAttr(el, 'fill')) clone.setAttribute('fill', svgFill);
+      if (svgStroke && svgStroke !== '' && svgStroke !== 'none' && !_hasConcreteAttr(el, 'stroke')) clone.setAttribute('stroke', svgStroke);
+      if (svgStrokeWidth && svgStrokeWidth !== '' && !_hasConcreteAttr(el, 'stroke-width')) clone.setAttribute('stroke-width', svgStrokeWidth);
       // Bake the inherited font-family onto the root <svg> so any <text>
       // descendants without their own font-family inherit it when the SVG
       // is re-embedded outside the page's cascade. Without this, SVG <text>
@@ -2552,7 +2577,12 @@ const CAPTURE_SCRIPT = `
           for (const attr of _bakeSvgAttrs) {
             const camel = attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
             const val = ocs[camel];
-            if (val != null && val !== '' && !origNode.hasAttribute(attr)) {
+            // DM-524: see _hasConcreteAttr comment above. Skip the bake only
+            // when the source attr value is a concrete literal — var() /
+            // calc() / env() / attr() references resolve against the source
+            // cascade and lose their resolution outside it, so we replace
+            // them with the resolved computed value.
+            if (val != null && val !== '' && !_hasConcreteAttr(origNode, attr)) {
               cloneNode.setAttribute(attr, val);
             }
           }
@@ -5513,7 +5543,19 @@ export function elementTreeToSvg(
     // remains visible above the clipped children.
     const ox = el.styles.overflowX;
     const oy = el.styles.overflowY;
-    const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible");
+    // DM-522: `contain: paint | strict | content` clips descendants to the
+    // principal (padding) box per the CSS Containment spec — same effective
+    // clip as overflow:hidden, so route it through the same machinery. Without
+    // this, a `contain:paint` ancestor lets descendants overflow visually
+    // (regression observable on `13-deep-stacking-context-creators`'s
+    // contain:paint stage: the blue inner z:9999 box paints past the dashed
+    // ancestor instead of being trapped). The `containClips` test deliberately
+    // excludes `contain: layout` / `size` / `inline-size` since those don't
+    // imply paint clipping.
+    const containVal = el.styles.contain;
+    const containClips = containVal != null && containVal !== "" && containVal !== "none"
+      && /\b(?:paint|strict|content)\b/i.test(containVal);
+    const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible") || containClips;
     let overflowClipId: string | null = null;
     if (clipsOverflow && el.children.length > 0) {
       overflowClipId = `${idPrefix}ov${clipIdx++}`;
@@ -5578,6 +5620,39 @@ export function elementTreeToSvg(
   // flatten it the same way an SC root would, so cross-parent z-index
   // hoisting works at the document root.
   const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor);
+  // DM-543: position:fixed elements paint relative to the viewport stacking
+  // context and escape ALL ancestor overflow clips. The standard SC-by-SC
+  // hoist halts at any SC ancestor (e.g. an overflow:auto section creates an
+  // SC, so its fixed descendants get buried inside the section's <g
+  // clip-path> wrapper and disappear). Pull viewport-anchored fixed
+  // descendants up to the root SC so they paint at document root.
+  // Constraint: stop bubbling at fixed-CB ancestors — when an ancestor
+  // creates a containing block for fixed (transform / filter / will-change:
+  // <transform|filter|perspective> / contain: <paint|strict|content|layout>),
+  // the descendant is effectively absolute-positioned to that ancestor and
+  // must respect the ancestor's clipping. See `13-deep-fixed-in-transform`:
+  // the reference section's pin should hit the viewport; the pins under
+  // .frame-transform / .frame-filter / .frame-will / .frame-contain stay
+  // trapped to .frame.
+  const collectViewportFixed = (parent: CapturedElement): void => {
+    for (const c of parent.children) {
+      if (c.styles.position === "fixed") {
+        if (!hoistedFromAncestor.has(c)) {
+          topLevelFlat.push(c);
+          hoistedFromAncestor.add(c);
+        }
+        // c is its own SC root; descendants render via c's renderElement.
+      } else if (!isFixedContainingBlock(c)) {
+        collectViewportFixed(c);
+      }
+      // else: c is a fixed-CB; fixed descendants stay within c's subtree.
+    }
+  };
+  for (const e of elements) {
+    if (e.styles.position !== "fixed" && !isFixedContainingBlock(e)) {
+      collectViewportFixed(e);
+    }
+  }
   const sortedTopLevel = sortChildrenByPaintOrder(topLevelFlat);
   for (const el of sortedTopLevel) {
     renderElement(el, 1);
@@ -6232,6 +6307,10 @@ function gatherStackingContextChildren(
   const collectFromNonSC = (parent: CapturedElement): void => {
     const childParentDisplay = parent.styles.display;
     for (const c of parent.children) {
+      // DM-543: skip elements already hoisted by a higher SC pass (e.g. a
+      // root-level position:fixed pre-pass added this pin to topLevelFlat;
+      // re-pushing it here would double-emit it inside the local clip group).
+      if (hoistedOut.has(c)) continue;
       const positioned = c.styles.position != null && c.styles.position !== "static";
       if (positioned) {
         out.push(c);
@@ -6243,12 +6322,41 @@ function gatherStackingContextChildren(
     }
   };
   for (const c of children) {
+    if (hoistedOut.has(c)) continue;
     out.push(c);
     if (!establishesStackingContext(c, parentDisplay)) {
       collectFromNonSC(c);
     }
   }
   return out;
+}
+
+/**
+ * DM-543: returns true when `el` creates a containing block for
+ * position:fixed descendants. Per CSS Containment 1 / Transforms 2 / Will
+ * Change 1: any non-trivial `transform`, `filter`, `will-change` listing
+ * `transform` / `filter` / `perspective`, or `contain` value with `paint` /
+ * `strict` / `content` / `layout` traps fixed descendants.
+ *
+ * `perspective` ≠ `none` also creates a fixed CB but `perspective` is not
+ * captured today (low real-world frequency — see `establishesStackingContext`
+ * comment); add to the captured-styles list when a fixture demands it.
+ */
+function isFixedContainingBlock(el: CapturedElement): boolean {
+  const s = el.styles;
+  if (s.transform != null && s.transform !== "" && s.transform !== "none") return true;
+  if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
+  if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
+    const tokens = s.willChange.split(/[\s,]+/);
+    for (const t of tokens) {
+      const lt = t.toLowerCase();
+      if (lt === "transform" || lt === "filter" || lt === "perspective") return true;
+    }
+  }
+  if (s.contain != null && s.contain !== "" && s.contain !== "none") {
+    if (/\b(?:paint|strict|content|layout)\b/i.test(s.contain)) return true;
+  }
+  return false;
 }
 
 function sortChildrenByPaintOrder(

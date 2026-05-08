@@ -738,3 +738,148 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
     ]);
   });
 });
+
+describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
+  // CSS painting order: position:fixed paints in the viewport stacking
+  // context and escapes ALL ancestor overflow clips — UNLESS an ancestor
+  // creates a containing block for fixed (transform / filter / will-change:
+  // <transform|filter|perspective> / contain: <paint|strict|content|layout>),
+  // in which case the descendant is anchored to that ancestor and respects
+  // its clipping.
+
+  // The renderer wraps an overflow-clipping ancestor's children in
+  // `<g clip-path="url(#ovN)">`. We verify "escaped" vs "trapped" by
+  // checking whether the pin's fill appears AFTER the closing </g> of the
+  // clip group (escaped) or before it (trapped).
+
+  function clipState(svg: string, pinFill: string): "escaped" | "trapped" | "missing" {
+    const pinIdx = svg.indexOf(`fill="${pinFill}"`);
+    if (pinIdx < 0) return "missing";
+    // Walk all <g.../</g> tokens up to pinIdx, tracking the open-tag stack.
+    // The pin is "trapped" if any frame on the stack at pinIdx is a
+    // clip-path group; "escaped" otherwise.
+    const tokens = svg.slice(0, pinIdx).matchAll(/<g\b[^>]*>|<\/g>/g);
+    const stack: string[] = [];
+    for (const t of tokens) {
+      const s = t[0];
+      if (s === "</g>") stack.pop();
+      else stack.push(s);
+    }
+    return stack.some((s) => s.includes('clip-path="url(#ov')) ? "trapped" : "escaped";
+  }
+
+  it("hoists position:fixed inside an overflow:auto SC ancestor to the root SC", () => {
+    // Tree:
+    //   section (overflow:auto SC, NOT a fixed CB)
+    //     innerDiv (static, no CB)
+    //       pin (position:fixed)  ← should escape section's clip-path group
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 300, height: 200,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)" },
+          children: [
+            makeElement({
+              x: 250, y: 80, width: 40, height: 16,
+              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
+  });
+
+  it("traps position:fixed inside a transform-CB ancestor (does not over-escape)", () => {
+    // Tree:
+    //   section (overflow:auto SC, NOT a fixed CB)
+    //     frame (transform:translate(0) — IS a fixed CB)
+    //       pin (position:fixed)  ← stays trapped under frame inside section's clip
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 300, height: 200,
+          styles: { ...makeElement().styles, position: "relative", transform: "matrix(1, 0, 0, 1, 0, 0)", backgroundColor: "rgb(254,243,199)" },
+          children: [
+            makeElement({
+              x: 250, y: 180, width: 40, height: 16,
+              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
+  });
+
+  it("traps position:fixed inside a contain:paint ancestor", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 300, height: 200,
+          styles: { ...makeElement().styles, position: "relative", contain: "paint", backgroundColor: "rgb(254,243,199)" },
+          children: [
+            makeElement({
+              x: 250, y: 180, width: 40, height: 16,
+              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
+  });
+
+  it("traps position:fixed inside a will-change:transform ancestor", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 300, height: 200,
+          styles: { ...makeElement().styles, position: "relative", willChange: "transform", backgroundColor: "rgb(254,243,199)" },
+          children: [
+            makeElement({
+              x: 250, y: 180, width: 40, height: 16,
+              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
+  });
+
+  it("hoists position:fixed past nested non-CB SC ancestors (overflow scroller inside overflow scroller)", () => {
+    // section1 (overflow:auto) > section2 (overflow:auto) > pin (fixed)
+    // Both scrollers are SCs but neither is a fixed-CB; pin escapes to root.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, backgroundColor: "rgb(248,250,252)", overflowX: "auto", overflowY: "auto" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 300, height: 200,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(241,245,249)", overflowX: "auto", overflowY: "auto" },
+          children: [
+            makeElement({
+              x: 250, y: 80, width: 40, height: 16,
+              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
+  });
+});

@@ -571,6 +571,79 @@ const tests: FeatureTest[] = [
     height: 80,
   },
   {
+    // DM-524: inline SVG with `var(--token)` / `calc()` / `env()` references
+    // baked directly into presentation attributes (Stripe's nav-button
+    // <rect fill="var(--hds-color-text-solid)"> idiom). Chrome resolves these
+    // against the source page's custom-property cascade; outside that
+    // cascade — i.e. in our extracted SVG — the var is unresolved and the
+    // rect paints black/currentColor instead of the intended palette color.
+    // Capture-time fix overwrites the literal with the resolved computed
+    // value when the source attribute is a CSS function ref.
+    name: "inline-svg-css-var-attr",
+    html: `<div style="--btn-bg:#1f6feb;--btn-stroke:#22d3ee;--btn-thick:calc(2px + 1px);padding:24px;background:#0d1117;display:flex;gap:12px;align-items:center;"><svg width="60" height="40"><rect x="2" y="2" width="56" height="36" fill="var(--btn-bg)" stroke="var(--btn-stroke)" stroke-width="var(--btn-thick)" rx="6"/></svg><svg width="60" height="40"><circle cx="30" cy="20" r="14" fill="var(--btn-stroke)" opacity="0.5"/></svg></div>`,
+    width: 180,
+    height: 80,
+  },
+  {
+    // DM-523: position:fixed inside a transformed ancestor pins to that
+    // ancestor (CSS Transforms 2: any non-none transform creates a
+    // containing block for fixed-positioned descendants). When capturing,
+    // we used to clear the ancestor's inline transform to read its
+    // un-transformed rect — but transform: none destroys the CB, letting
+    // the fixed descendant escape to the viewport. The fix substitutes
+    // transform: translate(0), preserving the CB while still producing the
+    // un-rotated/un-scaled rect we need for the SVG group wrapper.
+    //
+    // The fixture: ancestor has transform: translate(0,0) (a no-op);
+    // descendant pin is position: fixed with bottom/right offsets that
+    // anchor it to the ancestor's bottom-right corner. If the CB-preserve
+    // bug regressed, the pin would jump to viewport bottom-right.
+    name: "fixed-in-transform-cb",
+    html: `<div style="padding:24px;background:#0d1117;"><div style="position:relative;width:280px;height:140px;background:#1f2937;transform:translate(0,0);"><div style="position:fixed;bottom:8px;right:8px;width:40px;height:24px;background:#dc2626;"></div></div></div>`,
+    width: 360,
+    height: 200,
+  },
+  {
+    // DM-522: `contain: paint` must clip descendants to the principal box
+    // per the CSS Containment spec. Before the fix the renderer treated
+    // contain:paint as stacking-context-only and emitted no clip, so
+    // descendants leaked past the ancestor box (regression observable on
+    // 13-deep-stacking-context-creators's contain:paint stage).
+    //
+    // Fixture: ancestor is contain:paint with width:120 / height:60. A
+    // child rect at top:30 left:60 width:120 height:60 would overflow the
+    // ancestor's right and bottom edges by 60px each in a non-clipping
+    // context. With contain:paint clipping, only the top-left quadrant
+    // (60x30) of the child should be visible.
+    name: "contain-paint-clips",
+    html: `<div style="padding:24px;background:#0d1117;"><div style="position:relative;width:120px;height:60px;background:#1f2937;contain:paint;"><div style="position:absolute;top:30px;left:60px;width:120px;height:60px;background:#2563eb;"></div></div></div>`,
+    width: 240,
+    height: 120,
+  },
+  {
+    // DM-543: position:fixed paints in the viewport stacking context and
+    // escapes ALL ancestor overflow clips. The bug: the renderer hoisted
+    // fixed pins only up to the nearest stacking-context ancestor — and an
+    // overflow:auto scroller IS an SC. So a pin captured at viewport
+    // bottom-right got buried inside the section's <g clip-path> wrapper
+    // and was clipped out (invisible).
+    //
+    // Fixture: a section with overflow:hidden and NO fixed-CB ancestor
+    // contains a position:fixed pin at viewport bottom-right. The pin's
+    // captured x/y are the viewport coordinates (bottom-right of the
+    // 280x180 viewport here, anchored 8px in). With the fix, the pin is
+    // hoisted to the root SC and renders at viewport bottom-right
+    // regardless of the section's clip.
+    //
+    // Constraint check (covered by `fixed-in-transform-cb` above): when
+    // the ancestor IS a fixed CB (transform / filter / will-change /
+    // contain), the pin stays trapped — don't over-escape.
+    name: "fixed-escapes-overflow",
+    html: `<div style="padding:0;margin:0;"><section style="border:2px solid #475569;background:#f8fafc;height:120px;overflow:hidden;padding:8px;"><div style="border:2px dashed #94a3b8;padding:8px;height:200px;"><div style="position:fixed;bottom:8px;right:8px;background:#dc2626;color:#fff;padding:4px 8px;font:bold 12px sans-serif;">PIN</div></div></section></div>`,
+    width: 280,
+    height: 180,
+  },
+  {
     // DM-499 regression: plain self-contained inline SVG (paths declared
     // inline) must keep round-tripping via the existing DM-279 path.
     name: "inline-svg-self-contained",
