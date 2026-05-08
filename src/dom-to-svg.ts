@@ -461,6 +461,19 @@ export interface CapturedElement {
     zIndex: string;
     position: string;
     float: string;
+    /** CSS `order` (flex/grid items). Per CSS Flexbox 1 §5.4.1 and CSS Grid 1
+     *  §17, paint order is order-modified document order — items are painted
+     *  in ascending `order` value, ties broken by source (DOM) order. The
+     *  property has no effect on non-flex/non-grid items but Chrome still
+     *  reports it on every computed style, so we capture unconditionally. */
+    order: string;
+    /** CSS `flex-direction` on a flex container (`row` / `row-reverse` /
+     *  `column` / `column-reverse`). Empirically Chrome paints children of a
+     *  `*-reverse` flex container in REVERSE of their order-modified document
+     *  order, so the rightmost (or bottommost) item paints LAST in every
+     *  flex-direction — matching what users expect from a visually-reordered
+     *  layout. Captured on the parent so the child sorter can read it. */
+    flexDirection: string;
     /** For <td>/<th> with empty-cells: hide — suppress bg + border. */
     emptyCellsHidden?: boolean;
     /** Form-control state captured so we can synthesize native chrome. */
@@ -2929,6 +2942,8 @@ const CAPTURE_SCRIPT = `
         zIndex: cs.zIndex,
         position: cs.position,
         float: cs.float,
+        order: cs.order,
+        flexDirection: cs.flexDirection,
         emptyCellsHidden: (tag === 'td' || tag === 'th') && cs.emptyCells === 'hide' && (el.textContent || '').trim() === '' && el.children.length === 0,
         inputType: tag === 'input' ? (el.type || 'text') : undefined,
         // Captured CSS appearance / -webkit-appearance longhand for inputs.
@@ -5533,7 +5548,7 @@ export function elementTreeToSvg(
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
-    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay);
+    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection);
     for (const child of sortedChildren) {
       renderElement(child, depth + 1, childParentDisplay);
     }
@@ -6239,17 +6254,41 @@ function gatherStackingContextChildren(
 function sortChildrenByPaintOrder(
   children: CapturedElement[],
   parentDisplay?: string,
+  parentFlexDirection?: string,
 ): CapturedElement[] {
   // DM-525: flex/grid items with z-index ≠ auto sort as if position:relative
   // even when position:static (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
   const isFlexGrid = isFlexOrGridContainerDisplay(parentDisplay);
+  // DM-537: flex/grid items paint in order-modified document order. Reorder
+  // by ascending `order` (default 0), ties broken by source order, BEFORE
+  // bucketing — the resulting indices then drive both base-bucket order and
+  // z-index tie-breaking (CSS Flexbox 1 §5.4.1 / CSS Grid 1 §17).
+  //
+  // When the flex container's flex-direction is `row-reverse` or
+  // `column-reverse`, Chrome reverses paint order so the visually-rightmost
+  // (or visually-bottommost) item still paints LAST — matching what users
+  // intuit from the reversed visual layout. Implement by reversing the
+  // order-modified sequence when *-reverse is set; this preserves correct
+  // ordering when both `order` AND a *-reverse direction are combined.
+  const reverseFlex = isFlexGrid && parentFlexDirection != null
+    && (parentFlexDirection === "row-reverse" || parentFlexDirection === "column-reverse");
+  let orderedChildren: CapturedElement[];
+  if (isFlexGrid) {
+    const sorted = children
+      .map((c, idx) => ({ c, idx, ord: parseInt(c.styles.order ?? "0", 10) || 0 }))
+      .sort((a, b) => a.ord - b.ord || a.idx - b.idx)
+      .map((x) => x.c);
+    orderedChildren = reverseFlex ? sorted.slice().reverse() : sorted;
+  } else {
+    orderedChildren = children;
+  }
   const negative: Array<{ z: number; idx: number; el: CapturedElement }> = [];
   const floats: CapturedElement[] = [];
   const zeroOrAuto: CapturedElement[] = [];
   const positive: Array<{ z: number; idx: number; el: CapturedElement }> = [];
   const base: CapturedElement[] = [];
-  for (let i = 0; i < children.length; i++) {
-    const c = children[i];
+  for (let i = 0; i < orderedChildren.length; i++) {
+    const c = orderedChildren[i];
     const pos = c.styles.position;
     const flt = c.styles.float ?? "none";
     const zRaw = c.styles.zIndex;

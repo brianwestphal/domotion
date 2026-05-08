@@ -125,6 +125,8 @@ function makeElement(overrides: Partial<CapturedElement> = {}): CapturedElement 
       zIndex: "auto",
       position: "static",
       float: "none",
+      order: "0",
+      flexDirection: "row",
       ...(overrides.styles ?? {}),
     } as CapturedElement["styles"],
   };
@@ -580,6 +582,159 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
     expect(order).toEqual([
       "rgb(22,163,74)", // green (auto)
       "rgb(220,38,38)", // red z:10 — last
+    ]);
+  });
+});
+
+describe("DM-537 flex/grid `order` property — paint follows order-modified document order", () => {
+  // CSS Flexbox 1 §5.4.1 / CSS Grid 1 §17: flex/grid items paint in
+  // order-modified document order (ascending `order`, ties broken by source
+  // order). The `order` property reorders both the visual layout AND the
+  // paint stack. This is the residual bug in `15-deep-flex-order-vs-z`
+  // section 2 after DM-525 fixed the explicit-z-index portion: items
+  // `order: 5,4,3,2,1` reverse the visual layout so E (order:1) is leftmost
+  // and A (order:5) is rightmost; with default z:auto Chrome paints E first
+  // and A last (visual L-to-R order). Domotion was painting in DOM order
+  // (A first, E last), which matched the source order rather than the
+  // order-modified one — visible as colored stripes at the box-overlap
+  // zones since the wrong sibling covered each overlap.
+
+  it("paints flex items in ascending `order` value (default z:auto)", () => {
+    // Tree: 5 flex items, A first in DOM with order:5 (visually rightmost)
+    // through E last in DOM with order:1 (visually leftmost). Paint must
+    // be E, D, C, B, A — visual L-to-R / order-modified.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 600, height: 60,
+      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({ x: 480, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "5", backgroundColor: "rgb(220,38,38)" } }), // A
+        makeElement({ x: 360, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "4", backgroundColor: "rgb(22,163,74)" } }),  // B
+        makeElement({ x: 240, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "3", backgroundColor: "rgb(37,99,235)" } }),  // C
+        makeElement({ x: 120, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "2", backgroundColor: "rgb(234,88,12)" } }),  // D
+        makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(124,58,237)" } }), // E
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 600, 60);
+    const order = fillOrder(svg, [
+      "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)", "rgb(124,58,237)",
+    ]);
+    expect(order).toEqual([
+      "rgb(124,58,237)", // E (order:1) first
+      "rgb(234,88,12)",  // D (order:2)
+      "rgb(37,99,235)",  // C (order:3)
+      "rgb(22,163,74)",  // B (order:4)
+      "rgb(220,38,38)",  // A (order:5) last/top
+    ]);
+  });
+
+  it("breaks `order` ties with source (DOM) order", () => {
+    // Two items share order:0, two share order:1. Within each bucket the
+    // painted-first is the one earlier in DOM order.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 400, height: 60,
+      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({ x: 0,   y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(220,38,38)" } }), // red, order:1, DOM 0
+        makeElement({ x: 100, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "0", backgroundColor: "rgb(22,163,74)" } }), // green, order:0, DOM 1
+        makeElement({ x: 200, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(37,99,235)" } }), // blue, order:1, DOM 2
+        makeElement({ x: 300, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "0", backgroundColor: "rgb(234,88,12)" } }), // orange, order:0, DOM 3
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 400, 60);
+    const order = fillOrder(svg, [
+      "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)",
+    ]);
+    expect(order).toEqual([
+      "rgb(22,163,74)",  // green (order:0, DOM 1) — first
+      "rgb(234,88,12)",  // orange (order:0, DOM 3)
+      "rgb(220,38,38)",  // red (order:1, DOM 0)
+      "rgb(37,99,235)",  // blue (order:1, DOM 2) — last
+    ]);
+  });
+
+  it("ignores `order` on children of a non-flex/non-grid container (DOM order preserved)", () => {
+    // Plain block container — `order` has no effect.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 200, height: 60,
+      styles: { ...makeElement().styles, display: "block", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({ x: 0,   y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "5", backgroundColor: "rgb(220,38,38)" } }),
+        makeElement({ x: 100, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(22,163,74)" } }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 200, 60);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
+    expect(order).toEqual([
+      "rgb(220,38,38)", // DOM order — `order` ignored
+      "rgb(22,163,74)",
+    ]);
+  });
+
+  it("reverses paint order for flex-direction:row-reverse (visually-rightmost paints last)", () => {
+    // Section 3 of `15-deep-flex-order-vs-z`: 5 items in DOM order A,B,C,D,E
+    // inside `flex-direction: row-reverse` with no `order` on items. Items
+    // pack from main-start (right) so visual L-to-R is E,D,C,B,A. Chrome
+    // empirically paints in REVERSE DOM order — E first, A last — which
+    // ends up matching visual L-to-R. Without this rule Domotion painted
+    // in source order (A first, E last) and the colored stripes at the
+    // box-overlap zones diff'd because the wrong sibling owned each
+    // overlap (DM-537 follow-up to DM-525).
+    const tree = [makeElement({
+      x: 0, y: 0, width: 600, height: 60,
+      styles: { ...makeElement().styles, display: "flex", flexDirection: "row-reverse", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({ x: 480, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(220,38,38)" } }), // A — DOM 0, visually rightmost
+        makeElement({ x: 360, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(22,163,74)" } }),  // B
+        makeElement({ x: 240, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(37,99,235)" } }),  // C
+        makeElement({ x: 120, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(234,88,12)" } }),  // D
+        makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" } }), // E — DOM 4, visually leftmost
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 600, 60);
+    const order = fillOrder(svg, [
+      "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)", "rgb(124,58,237)",
+    ]);
+    expect(order).toEqual([
+      "rgb(124,58,237)", // E (DOM-last) paints first under row-reverse
+      "rgb(234,88,12)",  // D
+      "rgb(37,99,235)",  // C
+      "rgb(22,163,74)",  // B
+      "rgb(220,38,38)",  // A (DOM-first, visually rightmost) paints last/top
+    ]);
+  });
+
+  it("does NOT reverse paint order for flex-direction:row (default — DOM order)", () => {
+    // Section 1 sanity: same items but `flex-direction: row` (default) with
+    // no `order` set → paint = source/DOM order, A first, E last.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 600, height: 60,
+      styles: { ...makeElement().styles, display: "flex", flexDirection: "row", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(220,38,38)" } }),
+        makeElement({ x: 120, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" } }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 600, 60);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(124,58,237)"]);
+    expect(order).toEqual(["rgb(220,38,38)", "rgb(124,58,237)"]);
+  });
+
+  it("combines `order` reordering with explicit z-index buckets (z-index wins)", () => {
+    // green has order:5 (visually last) but z:1 — should paint AFTER red
+    // (z:auto) regardless of order. Red is order:1 (visually first) z:auto.
+    const tree = [makeElement({
+      x: 0, y: 0, width: 200, height: 60,
+      styles: { ...makeElement().styles, display: "flex", backgroundColor: "rgb(13,17,23)" },
+      children: [
+        makeElement({ x: 100, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "5", zIndex: "1", backgroundColor: "rgb(22,163,74)" } }), // green
+        makeElement({ x: 0,   y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(220,38,38)" } }), // red
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 200, 60);
+    const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
+    expect(order).toEqual([
+      "rgb(220,38,38)", // red (auto bucket — paints before any explicit-z item)
+      "rgb(22,163,74)", // green (z:1 — last)
     ]);
   });
 });

@@ -17,7 +17,7 @@
  *  - Lightbox toggling is a single imperative `effect` since it's just a
  *    classList toggle plus an `<img src>` swap.
  */
-import { signal, computed, effect, mount, delegate } from "kerfjs";
+import { signal, computed, each, effect, mount, delegate } from "kerfjs";
 
 type SuiteName = "features" | "showcase" | "html-test" | "real-world";
 
@@ -172,7 +172,7 @@ function SuiteSummary() {
 
 // ── Mounts ──
 
-mount(cardsEl, () => <>{visible.value.map((r) => <Card r={r} />)}</>);
+mount(cardsEl, () => <>{each(visible.value, (r) => <Card r={r} />, (r) => `${r.suite}/${r.name}`)}</>);
 mount(statsEl, () => <Stats />);
 mount(summaryEl, () => <SuiteSummary />);
 
