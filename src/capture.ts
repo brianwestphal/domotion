@@ -309,7 +309,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   // Pass 1 names match CSS exactly (good when authors rename a face);
   // pass 2 catches fonts that pass 1 missed and uses the font's internal
   // name (good for Google Fonts which keep names in sync).
-  type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string };
+  type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[] };
   type ResourceUrl = { kind: "resource"; url: string };
   type DiscoveredItem = FaceRule | ResourceUrl;
   const fromPage = await page.evaluate(() => {
@@ -320,7 +320,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     if (typeof (window as any).__name === "undefined") {
       (window as any).__name = function (fn: any) { return fn; };
     }
-    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string }
+    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[] }
     interface ResourceUrl { kind: "resource"; url: string }
     const out: (FaceRule | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
@@ -361,7 +361,33 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         const weight = r.style.getPropertyValue("font-weight") || "400";
         const style = r.style.getPropertyValue("font-style") || "normal";
         const src = r.style.getPropertyValue("src");
-        const m = /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(src);
+        // DM-513: parse ALL `url(...) format(...)` pairs and return them in
+        // priority order (woff2 > woff > ttf/otf > unknown). Sites like
+        // Slashdot list legacy `eot`/`svg` (fontkit can't parse) alongside
+        // `woff` — without ordering, we'd grab the eot, fail to register,
+        // and lose every `::before` icon glyph. The Node side iterates the
+        // ranked list and uses the first URL whose response fontkit parses.
+        const srcEntries: { url: string; format: string }[] = [];
+        const urlRe = /url\(\s*["']?([^"')]+)["']?\s*\)(?:\s*format\(\s*["']?([^"')]+)["']?\s*\))?/g;
+        let urlMatch;
+        while ((urlMatch = urlRe.exec(src)) !== null) {
+          srcEntries.push({ url: urlMatch[1], format: (urlMatch[2] ?? "").toLowerCase() });
+        }
+        const formatRank = (fmt: string, url: string): number => {
+          const lower = fmt.toLowerCase();
+          if (/embedded-opentype|svg/.test(lower)) return -1;
+          if (lower.includes("woff2") || /\.woff2(\?|$)/i.test(url)) return 4;
+          if (lower === "woff" || /\.woff(\?|$)/i.test(url)) return 3;
+          if (/truetype|opentype/.test(lower) || /\.(ttf|otf)(\?|$)/i.test(url)) return 2;
+          if (/\.eot(\?|$)/i.test(url) || /\.svg(\?|$)/i.test(url)) return -1;
+          return 1;
+        };
+        const rankedUrls: string[] = srcEntries
+          .map((e) => ({ url: e.url, rank: formatRank(e.format, e.url) }))
+          .filter((e) => e.rank >= 0)
+          .sort((a, b) => b.rank - a.rank)
+          .map((e) => e.url);
+        const m = rankedUrls.length > 0 ? [src, rankedUrls[0]] : null;
         if (m == null) {
           // No url() — but src may carry one or more local() entries. Capture
           // the local names so the Node side can register an alias to the
@@ -397,8 +423,16 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
         const base = sheet.href ?? document.baseURI;
         let absUrl: string;
         try { absUrl = new URL(m[1], base).href; } catch { continue; }
-        seenUrls.add(absUrl);
-        out.push({ kind: "font-face", family, weight, style, url: absUrl });
+        // Resolve the full ranked URL list to absolute URLs for the Node-side
+        // iterator (DM-513). The first entry IS `absUrl`; the rest are
+        // fallback candidates the Node side tries if fontkit rejects a
+        // higher-priority URL's bytes.
+        const absUrls: string[] = [];
+        for (const ru of rankedUrls) {
+          try { absUrls.push(new URL(ru, base).href); } catch { /* skip */ }
+        }
+        for (const u of absUrls) seenUrls.add(u);
+        out.push({ kind: "font-face", family, weight, style, url: absUrl, urls: absUrls });
       }
     }
 
@@ -451,31 +485,54 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
       }
       continue;
     }
-    try {
-      const resp = await page.context().request.get(item.url);
-      if (!resp.ok()) {
-        report.push({ family: "", weight: 400, style: "normal", url: item.url, source: item.kind, ok: false, error: `HTTP ${resp.status()}` });
-        continue;
-      }
-      const fetched = Buffer.from(await resp.body());
-      const buf = await ensureNonWoff2(fetched);
-
-      if (item.kind === "font-face") {
-        const weightNum = parseWeightDescriptor(item.weight);
-        registerWebfont(item.family, weightNum, item.style, buf);
-        report.push({ family: item.family, weight: weightNum, style: item.style, url: item.url, source: "font-face", ok: true });
-      } else {
-        // Resource-only path: read family + weight + italic from the font itself.
-        const meta = await readFontMetadata(buf);
-        if (meta == null) {
-          report.push({ family: "", weight: 400, style: "normal", url: item.url, source: "resource", ok: false, error: "fontkit could not parse" });
+    // DM-513: try each URL in the ranked list (highest-priority format first)
+    // until one fetches AND fontkit can parse the bytes. Falls through eot/svg-
+    // first cascades like Slashdot's sdicon font where the woff is the 3rd or
+    // 4th `url()` in `src:`.
+    const candidates: string[] = item.kind === "font-face" && Array.isArray((item as any).urls) && (item as any).urls.length > 0
+      ? (item as any).urls
+      : [item.url];
+    let lastError: string | undefined;
+    let registered = false;
+    for (const candidateUrl of candidates) {
+      try {
+        const resp = await page.context().request.get(candidateUrl);
+        if (!resp.ok()) {
+          lastError = `HTTP ${resp.status()}`;
           continue;
         }
-        registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf);
-        report.push({ family: meta.family, weight: meta.weight, style: meta.italic ? "italic" : "normal", url: item.url, source: "resource", ok: true });
+        const fetched = Buffer.from(await resp.body());
+        const buf = await ensureNonWoff2(fetched);
+
+        if (item.kind === "font-face") {
+          // Verify fontkit can actually parse the bytes before registering;
+          // otherwise the registry holds an unusable entry and `pickWebfontVariant`
+          // returns it without scoring against later candidates.
+          const meta = await readFontMetadata(buf);
+          if (meta == null) {
+            lastError = "fontkit could not parse";
+            continue;
+          }
+          const weightNum = parseWeightDescriptor(item.weight);
+          registerWebfont(item.family, weightNum, item.style, buf);
+          report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
+        } else {
+          const meta = await readFontMetadata(buf);
+          if (meta == null) {
+            lastError = "fontkit could not parse";
+            continue;
+          }
+          registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf);
+          report.push({ family: meta.family, weight: meta.weight, style: meta.italic ? "italic" : "normal", url: candidateUrl, source: "resource", ok: true });
+        }
+        registered = true;
+        break;
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : String(e);
       }
-    } catch (e) {
-      report.push({ family: "", weight: 400, style: "normal", url: item.url, source: item.kind, ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    if (!registered) {
+      report.push({ family: item.kind === "font-face" ? item.family : "", weight: item.kind === "font-face" ? parseWeightDescriptor(item.weight) : 400, style: item.kind === "font-face" ? item.style : "normal", url: item.url, source: item.kind, ok: false, error: lastError ?? "no candidates" });
     }
   }
   return report;

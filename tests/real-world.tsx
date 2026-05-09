@@ -380,6 +380,21 @@ async function runJob(
   page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
   page.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
 
+  // DM-513: track every font URL the page fetches so cross-origin webfonts
+  // (e.g. Slashdot's sdicon.woff on a.fsdn.com) are discoverable. Without
+  // this, page-side `performance.getEntriesByType("resource")` only sees
+  // same-origin entries (cross-origin entries are gated by the third-party
+  // server's `Timing-Allow-Origin` header) and `discoverAndRegisterWebfonts`
+  // misses them entirely. The listener fires for every fetched resource;
+  // we filter to font-shaped URLs.
+  const fontUrls = new Set<string>();
+  page.on("requestfinished", (req) => {
+    const url = req.url();
+    if (/\.(woff2?|ttf|otf)(\?|$)/i.test(url)) {
+      fontUrls.add(url);
+    }
+  });
+
   let warnings: Array<{ selector: string; feature: string; detail: string }> = [];
   let captureError: string | undefined;
 
@@ -466,7 +481,7 @@ async function runJob(
     // mobile fold) that crashed the page-side WebGL/canvas during the
     // subsequent rasterize pass — fragile, not worth the marginal
     // 0.5-1pp diff improvement. Order alone is the robust fix.
-    try { await discoverAndRegisterWebfonts(page); } catch { /* best-effort */ }
+    try { await discoverAndRegisterWebfonts(page, fontUrls); } catch { /* best-effort */ }
 
     // DM-510 / DM-556: freeze the DOM so the Chromium reference screenshot
     // and Domotion's captureElementTree see the SAME state. Without this,

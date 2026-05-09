@@ -329,6 +329,10 @@ export interface TextSegment {
   fontWeight?: string;
   /** Override font-style (e.g. ::first-line { font-style: italic }). */
   fontStyle?: string;
+  /** Override font-family (e.g. `.icon-angle-right { font-family: 'sdicon' }`
+   *  with `::before { content: '\\e87a' }` — the icon glyph routes through
+   *  the icon webfont, not the parent element's body font). DM-513. */
+  fontFamily?: string;
   /** Override font-variant (e.g. ::first-line { font-variant: small-caps }).
    *  When 'small-caps', renderer applies the OpenType `smcp` feature so
    *  lowercase letters shape as small uppercase forms — Chrome paints them
@@ -1955,10 +1959,13 @@ const CAPTURE_SCRIPT = `
         text, x: xPos,
         y: yPos, width: pseudoWidth, height: elFontSize,
         // Carry pseudo-specific typography so the renderer can respect
-        // per-pseudo color, font-size, font-weight (CSS lets pseudos style
-        // independently of their parent — see .stamp::after green check,
-        // li[data-badge]::before purple bold badge, etc.).
+        // per-pseudo color, font-size, font-weight, font-family (CSS lets
+        // pseudos style independently of their parent — see .stamp::after
+        // green check, li[data-badge]::before purple bold badge, and icon-
+        // font pseudos like Slashdots .icon-angle-right with
+        // font-family: sdicon + ::before content U+e87a (DM-513).
         color: pcs.color, fontSize: elFontSize, fontWeight: pcs.fontWeight,
+        fontFamily: pcs.fontFamily,
         fontAscent: _pseudoMetrics.ascent,
       };
       // DM-497: stash pseudos own background / border-radius on the wrapper

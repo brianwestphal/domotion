@@ -358,6 +358,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const segFontSize = singleSeg?.fontSize ?? fontSize;
   const segFontWeight = singleSeg?.fontWeight ?? fontWeight;
   const segAscent = singleSeg?.fontAscent ?? el.fontAscent;
+  // DM-513: pseudo-element font-family override (e.g. icon font on
+  // `[class^="icon-"]:before { font-family: "sdicon" }`).
+  const segFontFamily = singleSeg?.fontFamily ?? fontFamily;
   // DM-507: when the single segment is a pseudo with its own paint box
   // (background-color / border-radius / border), emit a <rect> behind the
   // glyphs. Same as the multi-segment path; without this the badge / pill
@@ -370,7 +373,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
     return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>`;
   })() : "";
-  const result = renderTextAsPath(pathText, tl, tt, segFontSize, fontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, segAscent, features, el.styles.lang);
+  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, segAscent, features, el.styles.lang);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : segColor;
@@ -380,7 +383,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // Round to integer px so Chrome's pixel-aligned decoration paint
     // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
     const decoBaselineY = Math.round(tt + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, pathText, el.styles.textDecorationSkipInk, features);
+    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, segFontSize, segFontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, pathText, el.styles.textDecorationSkipInk, features);
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
     const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";
@@ -404,10 +407,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   if (isAllPrivateUseArea(el.text)) return "";
 
   // Fallback to CSS <text> if path rendering fails
-  const ff = fontFamily.replace(/"/g, "'");
+  const ff = segFontFamily.replace(/"/g, "'");
   const lsCss = el.styles.letterSpacing !== "normal" && el.styles.letterSpacing !== "0px"
     ? `letter-spacing:${el.styles.letterSpacing};` : "";
-  const baseStyle = `font-family:${ff};font-size:${r(fontSize)}px;font-weight:${fontWeight};font-kerning:normal;font-optical-sizing:auto;${lsCss}`;
+  const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;${lsCss}`;
 
   const textY = (el.textTop != null && el.textHeight != null && el.textHeight > 0)
     ? el.textTop + el.textHeight / 2 : el.y + el.height / 2;
@@ -476,6 +479,9 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segFontSize = seg.fontSize ?? elFontSize;
     const segFontWeight = seg.fontWeight ?? elFontWeight;
     const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
+    // DM-513: pseudos with `font-family: 'sdicon'` etc. need their icon font
+    // routed through the renderer, not the parent element's body font.
+    const segFontFamily = seg.fontFamily ?? fontFamily;
     // Honor either segment-level font-variant override (::first-line) or
     // the element-level font-variant-caps. (DM-294, DM-361, DM-444). See
     // resolveCapsFeatures (module scope) for the full spec mapping.
@@ -485,7 +491,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
     const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang);
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang);
     if (result != null) { parts.push(result); }
     else if (!isAllPrivateUseArea(seg.text)) {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
@@ -493,13 +499,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       // we couldn't resolve to a real glyph), suppress the <text> fallback
       // too — Chromium's UA fallback paints the same notdef tofu we already
       // suppressed at the path level, defeating the point.
-      const ff = fontFamily.replace(/"/g, "'");
+      const ff = segFontFamily.replace(/"/g, "'");
       const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;`;
       const sy = seg.y + seg.height / 2;
       parts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, fontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, reordered.text, el.styles.textDecorationSkipInk, segFeatures);
+    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, segFontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, reordered.text, el.styles.textDecorationSkipInk, segFeatures);
     if (decoMarkup !== "") parts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
     // text get their actual Chrome-painted pixels stamped over the position.
