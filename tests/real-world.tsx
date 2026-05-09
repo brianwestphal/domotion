@@ -468,6 +468,58 @@ async function runJob(
     // 0.5-1pp diff improvement. Order alone is the robust fix.
     try { await discoverAndRegisterWebfonts(page); } catch { /* best-effort */ }
 
+    // DM-510 / DM-556: freeze the DOM so the Chromium reference screenshot
+    // and Domotion's captureElementTree see the SAME state. Without this,
+    // sites that JS-inject content after a delay (NYT paywall popup,
+    // intersection-observer-driven loaders, sticky-CTA re-anchors) produce
+    // expected.png and actual.svg from different DOM snapshots — the
+    // reference shows the modal, the capture doesn't, and the diff is
+    // dominated by timing race rather than rendering fidelity.
+    //
+    // The earlier comment block (DM-461) ruled out `Emulation.setScript-
+    // ExecutionDisabled` because it crashed resend.com's WebGL/canvas
+    // during rasterize. Same constraint here:
+    //
+    // - `window.stop()` would close the NYT paywall race (timer-injected
+    //   modal that appears between screenshot and capture) — empirically
+    //   takes nytimes-mobile-fold from 36.96% to 1.44% — but it ALSO
+    //   breaks Stripe-mobile-scroll's renderer pipeline (subsequent
+    //   `Page.captureScreenshot` fails with `Unable to capture`).
+    // - `requestAnimationFrame` cancellation / no-op breaks sites with
+    //   active WebGL render loops (same Stripe-mobile-scroll symptom).
+    //
+    // So this freeze is INTENTIONALLY conservative: only `setTimeout` /
+    // `setInterval` cancel + no-op + Web Animations pause. This catches
+    // the common DOM-jitter sources (carousel rotators, sticky-CTA
+    // re-anchors, animation jiggles) but leaves the NYT paywall race
+    // untouched (filed as DM-556 for a per-site or smarter approach).
+    try {
+      await page.evaluate(() => {
+        try {
+          if (typeof document.getAnimations === "function") {
+            for (const a of document.getAnimations()) {
+              try { a.pause(); } catch { /* */ }
+            }
+          }
+        } catch { /* */ }
+        // Cancel pending setTimeout handles (probe next handle, then iterate).
+        try {
+          const probe = window.setTimeout(() => {}, 0) as unknown as number;
+          window.clearTimeout(probe);
+          for (let i = 1; i <= probe; i++) {
+            try { window.clearTimeout(i); } catch { /* */ }
+            try { window.clearInterval(i); } catch { /* */ }
+          }
+        } catch { /* */ }
+        // No-op future setTimeout / setInterval. Don't touch rAF.
+        try {
+          const noop = (() => 0) as any;
+          window.setTimeout = noop;
+          window.setInterval = noop;
+        } catch { /* */ }
+      });
+    } catch { /* best-effort */ }
+
     // Expected PNG: for `fold` and `scroll` we screenshot the viewport-
     // sized fold (the scroll mode uses this as the t=0 reference). For
     // `entire-page` we screenshot the full document.
