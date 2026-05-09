@@ -1412,13 +1412,25 @@ const CAPTURE_SCRIPT = `
     }
     return parts.join(' > ');
   };
-  const normColor = (c) => {
+  const normColor = (c, elColor) => {
     if (c == null || c === '' || c === 'transparent' || c === 'currentcolor' || c === 'auto') return c;
     // Fast path: already in rgb/rgba/#hex form.
     if (/^(rgba?\\(|#[0-9a-f]{3,8}$)/i.test(c)) return c;
+    // DM-519: \`currentcolor\` inside a color-mix expression resolves at used
+    // value time against the element's own \`color\`. Our probe element has
+    // its own (default black) \`color\`, so probing \`color-mix(in srgb,
+    // currentcolor 10%, transparent)\` against the probe returns the wrong
+    // tint (10% black instead of 10% of the source element's color). When
+    // the caller passes the source element's \`cs.color\`, substitute
+    // currentcolor with that value before probing so the result reflects
+    // the actual cascade.
+    var probeIn = c;
+    if (elColor != null && elColor !== '' && /\\bcurrentcolor\\b/i.test(c)) {
+      probeIn = c.replace(/\\bcurrentcolor\\b/gi, elColor);
+    }
     try {
       _normProbe.style.color = '';
-      _normProbe.style.color = 'color-mix(in srgb, ' + c + ' 100%, transparent 0%)';
+      _normProbe.style.color = 'color-mix(in srgb, ' + probeIn + ' 100%, transparent 0%)';
       const v = getComputedStyle(_normProbe).color;
       if (v != null && v !== '') return v;
     } catch (e) { /* fall through */ }
@@ -2867,9 +2879,9 @@ const CAPTURE_SCRIPT = `
             const psBg = _resolvePlaceholderShownBg(el);
             if (psBg !== '') return normColor(psBg);
           }
-          return normColor(cs.backgroundColor);
+          return normColor(cs.backgroundColor, cs.color);
         })(),
-        borderColor: normColor(cs.borderColor),
+        borderColor: normColor(cs.borderColor, cs.color),
         borderWidth: cs.borderWidth,
         borderRadius: cs.borderRadius,
         // Resolve any % border-radius to pixels here — Chromes computed
@@ -2900,10 +2912,10 @@ const CAPTURE_SCRIPT = `
         // _isUaColorBorder strips whitespace before comparing since
         // getComputedStyle returns 'rgb(0, 0, 0)' with spaces but normColor
         // passes such canonical forms through unchanged.
-        borderTopColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderTopColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderTopColor),
-        borderRightColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderRightColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderRightColor),
-        borderBottomColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderBottomColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderBottomColor),
-        borderLeftColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderLeftColor).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderLeftColor),
+        borderTopColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderTopColor, cs.color).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderTopColor, cs.color),
+        borderRightColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderRightColor, cs.color).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderRightColor, cs.color),
+        borderBottomColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderBottomColor, cs.color).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderBottomColor, cs.color),
+        borderLeftColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderLeftColor, cs.color).replace(/\\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderLeftColor, cs.color),
         borderCollapse: cs.borderCollapse,
         overflowX: cs.overflowX,
         overflowY: cs.overflowY,
@@ -2926,7 +2938,7 @@ const CAPTURE_SCRIPT = `
         frostedBgFallback: (function () {
           var bdf = cs.backdropFilter || cs.webkitBackdropFilter || '';
           if (bdf === '' || bdf === 'none') return undefined;
-          var bgCol = normColor(cs.backgroundColor);
+          var bgCol = normColor(cs.backgroundColor, cs.color);
           // Parse alpha out of "rgba(r,g,b,a)" / "rgb(r,g,b)" / "rgb(r g b / a)".
           // normColor canonicalises to one of these forms.
           var a = 1;
@@ -4316,7 +4328,26 @@ export function elementTreeToSvg(
     const tOriginX = el.x + (Number.isFinite(parsedOX) ? parsedOX : el.width / 2);
     const tOriginY = el.y + (Number.isFinite(parsedOY) ? parsedOY : el.height / 2);
     const transformAttr = cssTransformToSvg(el.styles.transform, tOriginX, tOriginY);
-    const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "";
+    // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
+    // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
+    // contain:paint, transform, filter…) must form an isolated group for
+    // mix-blend-mode descendants. SVG2 honors `isolation:isolate` natively on
+    // <g>, so emit it as inline style. Don't apply when this element ITSELF
+    // uses mix-blend-mode — that group is the blender, not an isolator. The
+    // explicit `isolation: isolate` value must always apply (even with
+    // mix-blend-mode the group can be both blender and isolator for its own
+    // descendants); but for implicit isolators, only honor when no blend mode
+    // is set on the group, otherwise we'd convert intentional blends into
+    // no-ops.
+    const explicitIsolate = el.styles.isolation === "isolate";
+    const implicitIsolate = blendCss === "" && (
+      opacity < 1
+      || (el.styles.position != null && el.styles.position !== "static"
+          && el.styles.zIndex != null && el.styles.zIndex !== "" && el.styles.zIndex !== "auto")
+      || (el.styles.contain != null && /\b(?:paint|strict|content)\b/i.test(el.styles.contain))
+    );
+    const needsIsolation = explicitIsolate || implicitIsolate;
+    const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation;
     const groupAttrs: string[] = [];
     if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
     if (opacity < 1) groupAttrs.push(`opacity="${r(opacity)}"`);
@@ -4332,6 +4363,7 @@ export function elementTreeToSvg(
     const styleParts: string[] = [];
     if (filterCss !== "") styleParts.push(`filter:${filterCss}`);
     if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
+    if (needsIsolation) styleParts.push("isolation:isolate");
     // DM-486: HTML-escape the style attribute value. Chromium normalises
     // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
     // produced `style="filter:url("#id")"` and broke the SVG parser.
@@ -5747,7 +5779,12 @@ function parseColor(css: string): RGBA | null {
   // wide-gamut inputs (oklch/lab/color(display-p3)/color-mix). Values are 0..1
   // floats, sometimes negative or >1 when the source was out-of-srgb-gamut;
   // clamp before scaling to 0..255.
-  const cs = /^color\(srgb\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)(?:\s*\/\s*([\d.]+))?\)$/i.exec(css);
+  // DM-519: float pattern allows scientific notation (e.g. `-6.85e-9`).
+  // Chromium emits these for color-mix interpolations whose intermediate
+  // value is near zero in some channel; without `[eE][+-]?\d+`, parseColor
+  // returns null and the renderer drops the fill (visible on
+  // `19-deep-color-mix` srgb-linear swatch — bg silently empty).
+  const cs = /^color\(srgb\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(css);
   if (cs != null) {
     const clamp = (v: number): number => Math.max(0, Math.min(1, v));
     return {
@@ -5755,6 +5792,27 @@ function parseColor(css: string): RGBA | null {
       g: Math.round(clamp(+cs[2]) * 255),
       b: Math.round(clamp(+cs[3]) * 255),
       a: cs[4] != null ? +cs[4] : 1,
+    };
+  }
+  // DM-519: color(srgb-linear r g b [/ a]) — Chromium returns this form for
+  // `color-mix(in srgb-linear, ...)` even after our srgb-wrapped normalize
+  // probe (the probe converts to srgb, but Chromium's serialization can keep
+  // the original space when it was in the source). Apply the inverse-EOTF
+  // transform (linear → sRGB) so 0.215 in linear becomes 0.5 in srgb (i.e.
+  // ~128/255), matching Chromium's painted output for `color-mix(in
+  // srgb-linear, red, blue)`.
+  const csl = /^color\(srgb-linear\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(css);
+  if (csl != null) {
+    const clamp = (v: number): number => Math.max(0, Math.min(1, v));
+    const linToSrgb = (lin: number): number => {
+      const l = clamp(lin);
+      return l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
+    };
+    return {
+      r: Math.round(linToSrgb(+csl[1]) * 255),
+      g: Math.round(linToSrgb(+csl[2]) * 255),
+      b: Math.round(linToSrgb(+csl[3]) * 255),
+      a: csl[4] != null ? +csl[4] : 1,
     };
   }
   return null;
