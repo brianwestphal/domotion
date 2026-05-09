@@ -37,6 +37,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { resizeEmbeddedImages } from "../src/resize-embedded-images.js";
+import { rasterizeConicGradients } from "../src/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { comparePngs } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
@@ -490,6 +491,8 @@ async function runJob(
     if (resizeOpts.resize) {
       await resizeEmbeddedImages(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
     }
+    // DM-549: rasterize conic-gradient layers (no-op when tree has none).
+    await rasterizeConicGradients(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
     const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI);
     const bodyBg = await page.evaluate(() => {
       const cs = getComputedStyle(document.body);

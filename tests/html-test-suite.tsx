@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
+import { rasterizeConicGradients } from "../src/conic-raster.js";
 import { raw } from "kerfjs";
 import { comparePngs, PASS_THRESHOLD_NON_AA_PIXELS, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
@@ -141,6 +142,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // DM-527: thread the per-suite warnings array so concurrent workers
     // don't race on the lastCaptureWarnings module global.
     await embedRemoteImages(cap.tree, { warnings: capWarnings });
+    // DM-549: rasterize conic-gradient layers (no-op when tree has none).
+    await rasterizeConicGradients(cap.tree);
     const svgContent = elementTreeToSvg(cap.tree, WIDTH, HEIGHT);
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}"><rect width="${WIDTH}" height="${HEIGHT}" fill="${bodyBg}" />${svgContent}</svg>`;
     writeFileSync(svgPath, svgDoc);

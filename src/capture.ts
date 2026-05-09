@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "./dom-to-svg.js";
 import { resizeEmbeddedImages } from "./resize-embedded-images.js";
+import { rasterizeConicGradients } from "./conic-raster.js";
 import { registerLocalFontAlias, registerWebfont } from "./text-to-path.js";
 
 export interface CaptureOptions {
@@ -202,6 +203,10 @@ export class DemoRecorder {
     if (this.selfContained && this.embedRemoteImagesResize) {
       await resizeEmbeddedImages(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     }
+    // DM-549: rasterize conic-gradient layers into PNG tiles. No-op when the
+    // tree contains no conic content; otherwise the renderer (DM-550) emits
+    // <pattern><image href="data:..."/></pattern> instead of dropping the layer.
+    await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     return elementTreeToSvg(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
   }
 
@@ -223,6 +228,8 @@ export class DemoRecorder {
     if (this.selfContained && this.embedRemoteImagesResize) {
       await resizeEmbeddedImages(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     }
+    // DM-549: rasterize conic-gradient layers — see captureCurrent above.
+    await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     const svgContent = elementTreeToSvg(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
     return { svgContent, pageHeight };
   }

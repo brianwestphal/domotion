@@ -33,6 +33,14 @@ export const _dataUriCache = new Map<string, string>();
  * Empty at module load — first capture with the resize flag fills it.
  */
 export const _resizedDataUriCache = new Map<string, Map<string, string>>();
+/**
+ * @internal — DM-549. Per-conic-gradient-layer-text map of `${tileW}x${tileH}` →
+ * data URI containing rasterized PNG bytes. Populated by `rasterizeConicGradients`
+ * (the conic raster pre-pass) and read by `buildConicGradientDef` (DM-550) when
+ * the renderer emits a `<pattern><image>` for a conic background layer. Empty
+ * at module load — first capture with conic content fills it.
+ */
+export const _conicTileCache = new Map<string, Map<string, string>>();
 function embedAsDataUri(url: string): string {
   if (url == null || url === "") return url;
   // Cache check FIRST: a prior `embedRemoteImages` call (DM-512) may have
@@ -1626,10 +1634,11 @@ const CAPTURE_SCRIPT = `
         && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) {
       warn(sel, 'scrollbar', 'native scrollbar chrome not emulated yet (SK-468); content is clipped but no scroll indicator');
     }
-    // Conic gradients have no SVG equivalent.
-    if (cs.backgroundImage && /conic-gradient/i.test(cs.backgroundImage)) {
-      warn(sel, 'conic-gradient', 'SVG has no conic gradient; layer falls back to nothing');
-    }
+    // DM-547/549/550: conic-gradient layers are rasterized into PNG tiles by
+    // the capture pre-pass (rasterizeConicGradients) and emitted as
+    // <pattern><image> via buildConicGradientDef. The previous unconditional
+    // warning fired even when the layer rendered correctly — moved to
+    // rasterizeConicGradients (DM-549) which warns only on parse failure.
     // text-align: justify combined with wrapping — renderer doesn't space-stretch.
     if (cs.textAlign === 'justify') {
       warn(sel, 'text-align:justify', 'path-mode renderer does not space-stretch justified text');
@@ -5762,19 +5771,37 @@ export function elementTreeToSvg(
   return defs + svgParts.join("\n");
 }
 
-interface RGBA { r: number; g: number; b: number; a: number }
+export interface RGBA { r: number; g: number; b: number; a: number }
 
-function parseColor(css: string): RGBA | null {
+export function parseColor(css: string): RGBA | null {
   if (css === "" || css === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
   // rgb()/rgba() — Chromium uses this form for srgb colors.
   const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(css);
   if (m != null) return { r: +m[1], g: +m[2], b: +m[3], a: m[4] != null ? +m[4] : 1 };
-  // #rrggbb / #rrggbbaa — hex fallbacks.
+  // #rrggbb / #rrggbbaa — hex.
   const h = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(css);
   if (h != null) {
     const a = h[2] != null ? parseInt(h[2], 16) / 255 : 1;
     return { r: parseInt(h[1].slice(0, 2), 16), g: parseInt(h[1].slice(2, 4), 16), b: parseInt(h[1].slice(4, 6), 16), a };
   }
+  // #rgb / #rgba — short hex (each digit doubles per CSS spec: #abc → #aabbcc).
+  const hs = /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/i.exec(css);
+  if (hs != null) {
+    const a = hs[4] != null ? parseInt(hs[4] + hs[4], 16) / 255 : 1;
+    return {
+      r: parseInt(hs[1] + hs[1], 16),
+      g: parseInt(hs[2] + hs[2], 16),
+      b: parseInt(hs[3] + hs[3], 16),
+      a,
+    };
+  }
+  // CSS named colors (subset). Chromium's computed-style serializer normalises
+  // these to rgb()/rgba(), so this branch only fires for raw author input
+  // reaching `parseColor` (e.g. test fixtures using `parseConicGradient`
+  // directly, or any non-computed-style code path). Full CSS named-color
+  // table is large; cover the common ones here.
+  const named = NAMED_COLORS[css.toLowerCase()];
+  if (named != null) return { ...named };
   // color(srgb r g b [/ a]) — produced by the capture-side normalizer for
   // wide-gamut inputs (oklch/lab/color(display-p3)/color-mix). Values are 0..1
   // floats, sometimes negative or >1 when the source was out-of-srgb-gamut;
@@ -5821,6 +5848,30 @@ function parseColor(css: string): RGBA | null {
 function colorStr(c: RGBA): string {
   return c.a < 1 ? `rgba(${c.r},${c.g},${c.b},${r(c.a)})` : `rgb(${c.r},${c.g},${c.b})`;
 }
+
+const NAMED_COLORS: Record<string, RGBA> = {
+  black: { r: 0, g: 0, b: 0, a: 1 },
+  white: { r: 255, g: 255, b: 255, a: 1 },
+  red: { r: 255, g: 0, b: 0, a: 1 },
+  green: { r: 0, g: 128, b: 0, a: 1 },
+  blue: { r: 0, g: 0, b: 255, a: 1 },
+  yellow: { r: 255, g: 255, b: 0, a: 1 },
+  cyan: { r: 0, g: 255, b: 255, a: 1 },
+  aqua: { r: 0, g: 255, b: 255, a: 1 },
+  magenta: { r: 255, g: 0, b: 255, a: 1 },
+  fuchsia: { r: 255, g: 0, b: 255, a: 1 },
+  silver: { r: 192, g: 192, b: 192, a: 1 },
+  gray: { r: 128, g: 128, b: 128, a: 1 },
+  grey: { r: 128, g: 128, b: 128, a: 1 },
+  maroon: { r: 128, g: 0, b: 0, a: 1 },
+  olive: { r: 128, g: 128, b: 0, a: 1 },
+  lime: { r: 0, g: 255, b: 0, a: 1 },
+  teal: { r: 0, g: 128, b: 128, a: 1 },
+  navy: { r: 0, g: 0, b: 128, a: 1 },
+  purple: { r: 128, g: 0, b: 128, a: 1 },
+  orange: { r: 255, g: 165, b: 0, a: 1 },
+  pink: { r: 255, g: 192, b: 203, a: 1 },
+};
 
 function r(n: number): string { return Number(n.toFixed(1)).toString(); }
 function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
@@ -6605,11 +6656,85 @@ function buildBackgroundLayerDef(
     const repeating = /^repeating-/i.test(layer);
     return { def: buildRadialGradientDef(id, radial[1], repeating, elX, elY, w, h) };
   }
+  // DM-550: conic. The raster pre-pass (DM-549) populated `_conicTileCache`
+  // with PNG bytes for `(layerText, "${tileW}x${tileH}")` tuples; we look up
+  // and embed as <pattern><image>. Parse failure or cache miss returns an
+  // empty def → caller skips this layer.
+  if (/^(?:repeating-)?conic-gradient\(/i.test(layer)) {
+    return { def: buildConicGradientDef(id, layer, elX, elY, w, h, sizeCss, posCss) };
+  }
   const urlContent = parseCssUrl(layer);
   if (urlContent != null) {
     return { def: buildImagePatternDef(id, urlContent, elX, elY, w, h, sizeCss, posCss, repeatCss, intrinsic, attachment, fixedViewport) };
   }
   return { def: "" };
+}
+
+/**
+ * DM-550: Emit a `<pattern><image href="data:image/png;base64,…"/></pattern>`
+ * for a single conic-gradient background layer. Looks up the PNG bytes in
+ * `_conicTileCache` (populated by `rasterizeConicGradients` in DM-549).
+ *
+ * Tile size resolves from `sizeCss` against the element rect (mirrors the
+ * tile-sizing logic in `conic-raster.ts computeTileSize` so cache lookups
+ * line up). Background-position offset is applied to the pattern's x/y attrs.
+ *
+ * Returns empty string when the cache misses (rasterizer didn't run, or
+ * parse failed) — caller skips emission so the warning at line 1631 fires.
+ */
+function buildConicGradientDef(
+  id: string, layer: string,
+  elX: number, elY: number, w: number, h: number,
+  sizeCss: string, posCss: string,
+): string {
+  // Tile size: mirrors `computeTileSize` in conic-raster.ts.
+  const trimmed = sizeCss.trim();
+  let tileW = w, tileH = h;
+  if (trimmed !== "" && trimmed !== "auto" && trimmed !== "cover" && trimmed !== "contain") {
+    const parts = trimmed.split(/\s+/);
+    const parseDim = (tok: string, basis: number): number => {
+      if (tok === "auto") return basis;
+      const m = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px)?$/.exec(tok);
+      if (m == null) return basis;
+      const v = parseFloat(m[1]);
+      const unit = m[2] ?? "px";
+      if (unit === "%") return (v / 100) * basis;
+      return v;
+    };
+    tileW = parseDim(parts[0], w);
+    tileH = parts.length > 1 ? parseDim(parts[1], h) : tileW;
+  }
+  const tileWInt = Math.max(1, Math.round(tileW));
+  const tileHInt = Math.max(1, Math.round(tileH));
+  const sizeKey = `${tileWInt}x${tileHInt}`;
+  const sizeCache = _conicTileCache.get(layer);
+  const dataUri = sizeCache?.get(sizeKey);
+  if (dataUri == null) return "";
+
+  // Background-position: shift the pattern origin so the first tile lands at
+  // the right offset on the element. Single-axis tokens default the missing
+  // axis to "center"; percent positions resolve against (elementSize - tileSize).
+  const posTokens = posCss.trim().split(/\s+/);
+  const resolvePos = (tok: string, basis: number, tile: number, axis: "h" | "v"): number => {
+    const t = tok.trim();
+    if (t === "" || t === "center") return (basis - tile) / 2;
+    if (axis === "h" && t === "left") return 0;
+    if (axis === "h" && t === "right") return basis - tile;
+    if (axis === "v" && t === "top") return 0;
+    if (axis === "v" && t === "bottom") return basis - tile;
+    const pm = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px)?$/.exec(t);
+    if (pm == null) return 0;
+    const v = parseFloat(pm[1]);
+    const unit = pm[2] ?? "px";
+    if (unit === "%") return ((basis - tile) * v) / 100;
+    return v;
+  };
+  const offX = resolvePos(posTokens[0] ?? "0%", w, tileWInt, "h");
+  const offY = resolvePos(posTokens[1] ?? posTokens[0] ?? "0%", h, tileHInt, "v");
+
+  const patX = elX + offX;
+  const patY = elY + offY;
+  return `<pattern id="${id}" x="${r(patX)}" y="${r(patY)}" width="${tileWInt}" height="${tileHInt}" patternUnits="userSpaceOnUse"><image href="${dataUri}" width="${tileWInt}" height="${tileHInt}" preserveAspectRatio="none"/></pattern>`;
 }
 
 /** Compute the tile size + origin offset + effective repeat unit for a url() background layer. */

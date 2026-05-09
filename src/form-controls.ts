@@ -40,6 +40,11 @@ function gradientFillFor(
   if (ctx == null || bgImage == null || bgImage === "" || bgImage === "none") return null;
   const grad = parseGradient(bgImage);
   if (grad == null) return null;
+  // Conic on a form-control pseudo (slider thumb / track / etc.) is rare and
+  // the pseudo doesn't flow through the captured-tree raster pre-pass that
+  // handles full-element conic backgrounds (DM-547). Fall back to the flat
+  // first-color path by returning null here.
+  if (grad.kind === "conic") return null;
   const key = gradientCacheKey(grad, rect);
   let id = ctx.gradientCache.get(key);
   if (id == null) {

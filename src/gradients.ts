@@ -64,11 +64,36 @@ export interface RadialGradient {
   repeating?: boolean;
 }
 
-export type AnyGradient = LinearGradient | RadialGradient;
+export interface ConicStop {
+  /** Resolved CSS color (Chromium serializes to rgb()/rgba() form). */
+  color: string;
+  /**
+   * Final fractional offset around the conic sweep (0..1). 0 = first stop,
+   * 1 = last stop. Populated by parseConicStop for percent and angle
+   * positions. Auto-distribution for missing offsets happens at rasterize
+   * time (the rasterizer needs the sweep period to interpolate).
+   */
+  offset?: number;
+  /** Original raw position token (debugging / inspection). */
+  rawPos?: string;
+}
+
+export interface ConicGradient {
+  kind: "conic";
+  /** `from <angle>` clause in CSS degrees. 0 = top per CSS spec, 90 = right. */
+  fromAngleDeg: number;
+  /** Center position. Default (50%, 50%). Reuses radial's PosValue grammar. */
+  position: { x: PosValue; y: PosValue };
+  stops: ConicStop[];
+  /** True when the source was `repeating-conic-gradient(...)`. */
+  repeating?: boolean;
+}
+
+export type AnyGradient = LinearGradient | RadialGradient | ConicGradient;
 
 /** Try every supported gradient type. Returns the first that parses or null. */
 export function parseGradient(text: string | undefined | null): AnyGradient | null {
-  return parseLinearGradient(text) ?? parseRadialGradient(text);
+  return parseLinearGradient(text) ?? parseRadialGradient(text) ?? parseConicGradient(text);
 }
 
 /** Parse `linear-gradient(...)` or `repeating-linear-gradient(...)` text. */
@@ -161,15 +186,20 @@ export function computeUserSpaceLine(
 /** Stable key for dedup. Same gradient + same rect = same def = same id. */
 export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w: number; h: number }): string {
   const stopsKey = g.stops.map((s) => {
-    const pos = s.offset != null ? num(s.offset)
-      : s.pxOffset != null ? `${num(s.pxOffset)}px`
-      : s.calcOffset != null ? `c${num(s.calcOffset.pct)}/${num(s.calcOffset.px)}`
-      : "?";
+    let pos: string;
+    if (s.offset != null) pos = num(s.offset);
+    else if ("pxOffset" in s && s.pxOffset != null) pos = `${num(s.pxOffset)}px`;
+    else if ("calcOffset" in s && s.calcOffset != null) pos = `c${num(s.calcOffset.pct)}/${num(s.calcOffset.px)}`;
+    else pos = "?";
     return `${s.color}@${pos}`;
   }).join(",");
   const rectKey = `${num(rect.x)},${num(rect.y)},${num(rect.w)},${num(rect.h)}`;
   const rep = g.repeating === true ? "r" : "n";
   if (g.kind === "linear") return `L|${rep}|${num(g.angleDeg)}|${rectKey}|${stopsKey}`;
+  if (g.kind === "conic") {
+    const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
+    return `C|${rep}|${num(g.fromAngleDeg)}|${posKey}|${rectKey}|${stopsKey}`;
+  }
   // Radial
   const sizeKey = g.size.kind === "extent" ? `e:${g.size.value}` : `p:${num(g.size.r1)}/${g.size.r2 != null ? num(g.size.r2) : ""}`;
   const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
@@ -233,6 +263,164 @@ export function parseRadialGradient(text: string | undefined | null): RadialGrad
   return repeating
     ? { kind: "radial", shape, size, position, stops, repeating: true }
     : { kind: "radial", shape, size, position, stops };
+}
+
+/**
+ * Parse a `conic-gradient(...)` text. Common authoring forms:
+ *   conic-gradient(red, yellow, green, blue)                // sweep starting at top
+ *   conic-gradient(from 45deg, red, blue)                   // rotate origin 45deg
+ *   conic-gradient(at 25% 75%, red, blue)                   // off-center
+ *   conic-gradient(from 0.25turn at top right, red, blue)   // both
+ *   repeating-conic-gradient(#ddd 0 25%, white 0 50%)       // alpha-checkerboard
+ *   conic-gradient(red 0deg, yellow 90deg, blue 180deg)     // angle-positioned stops
+ *
+ * Defaults: from=0deg (top), at center (50% 50%).
+ */
+export function parseConicGradient(text: string | undefined | null): ConicGradient | null {
+  if (text == null) return null;
+  const trimmed = text.trim();
+  const m = /^(repeating-)?conic-gradient\s*\(([\s\S]*)\)\s*$/.exec(trimmed);
+  if (m == null) return null;
+  const repeating = m[1] != null;
+  const tokens = splitTopLevelCommas(m[2]).map((t) => t.trim()).filter((t) => t !== "");
+  if (tokens.length < 2) return null;
+
+  let fromAngleDeg = 0;
+  let position: { x: PosValue; y: PosValue } = {
+    x: { kind: "frac", value: 0.5 },
+    y: { kind: "frac", value: 0.5 },
+  };
+  let stopsStart = 0;
+
+  // The first token may carry an optional "from <angle>" clause and/or an
+  // optional "at <position>" clause. Detect via leading keywords.
+  const first = tokens[0].toLowerCase();
+  if (first.startsWith("from ") || first.startsWith("at ") || /\bat\b/.test(first) && first.startsWith("from")) {
+    const parsed = parseConicPrefix(tokens[0]);
+    if (parsed == null) return null;
+    fromAngleDeg = parsed.fromAngleDeg;
+    position = parsed.position;
+    stopsStart = 1;
+  }
+
+  const stops: ConicStop[] = [];
+  for (let i = stopsStart; i < tokens.length; i++) {
+    const parsed = parseConicStopToken(tokens[i]);
+    if (parsed.length === 0) return null;
+    for (const s of parsed) stops.push(s);
+  }
+  if (stops.length < 2) return null;
+
+  return repeating
+    ? { kind: "conic", fromAngleDeg, position, stops, repeating: true }
+    : { kind: "conic", fromAngleDeg, position, stops };
+}
+
+/**
+ * Parse the optional `from <angle> at <position>` prefix of a conic gradient.
+ * Either clause is optional, in either order. Returns null on parse failure.
+ */
+function parseConicPrefix(tok: string): { fromAngleDeg: number; position: { x: PosValue; y: PosValue } } | null {
+  let fromAngleDeg = 0;
+  let position: { x: PosValue; y: PosValue } = {
+    x: { kind: "frac", value: 0.5 },
+    y: { kind: "frac", value: 0.5 },
+  };
+  // Split into "from <angle>" clause and "at <position>" clause. Either may
+  // appear at the start of the prefix; both are optional. The "at" keyword
+  // boundary is matched at the start of the string OR after whitespace, since
+  // a bare "at <pos>" prefix has no preceding "from" clause.
+  const atSplit = tok.split(/(?:^|\s+)at\s+/i);
+  const beforeAt = atSplit[0].trim();
+  const afterAt = atSplit.length > 1 ? atSplit.slice(1).join(" at ").trim() : "";
+  // Parse the "from <angle>" clause if present in the before-at portion.
+  const fromMatch = /^from\s+(.+)$/i.exec(beforeAt);
+  if (fromMatch != null) {
+    const angle = parseAngleToken(fromMatch[1].trim());
+    if (angle == null) return null;
+    fromAngleDeg = angle;
+  } else if (beforeAt !== "") {
+    // before-at must be empty (bare "at" prefix) or "from <angle>".
+    return null;
+  }
+  if (afterAt !== "") {
+    const pos = parsePositionPair(afterAt);
+    if (pos == null) return null;
+    position = pos;
+  }
+  return { fromAngleDeg, position };
+}
+
+/**
+ * Parse a single conic-gradient stop token. Returns 1 stop, or 2 for the
+ * double-position hard-stop form `<color> <pos1> <pos2>`. Conic stops accept
+ * both `<percentage>` (relative to the sweep) and `<angle>` (deg/turn/rad/grad,
+ * absolute around the sweep), normalized to [0, 1) at parse time.
+ */
+function parseConicStopToken(tok: string): ConicStop[] {
+  const parts = splitTopLevelSpaces(tok);
+  if (parts.length === 0) return [];
+  const isPos = (t: string) => isConicPositionToken(t);
+  const positions: string[] = [];
+  let cut = parts.length;
+  while (cut > 0 && isPos(parts[cut - 1])) {
+    positions.unshift(parts[cut - 1]);
+    cut--;
+  }
+  if (cut === 0) return [];
+  const colorText = parts.slice(0, cut).join(" ").trim();
+  if (colorText === "") return [];
+  if (positions.length === 0) return [{ color: colorText }];
+  if (positions.length === 1) {
+    return [makeConicStop(colorText, positions[0])];
+  }
+  if (positions.length === 2) {
+    return [makeConicStop(colorText, positions[0]), makeConicStop(colorText, positions[1])];
+  }
+  return [];
+}
+
+function isConicPositionToken(t: string): boolean {
+  // Plain percentage / bare number / 0 (special).
+  if (/^(-?\d+(?:\.\d+)?|-?\.\d+)(%)?$/.test(t)) return true;
+  // Angle units.
+  if (/^(-?\d+(?:\.\d+)?|-?\.\d+)(deg|grad|rad|turn)$/i.test(t)) return true;
+  return false;
+}
+
+function makeConicStop(color: string, posTok: string): ConicStop {
+  const offset = parseConicPosition(posTok);
+  if (offset == null) return { color, rawPos: posTok };
+  return { color, offset, rawPos: posTok };
+}
+
+/**
+ * Parse a conic stop position to a fractional sweep offset (0..1).
+ * - Percentage `25%` → 0.25.
+ * - Bare number `25` (lenient): same as `25%` → 0.25.
+ * - `0` → 0.
+ * - Angle `90deg` / `0.25turn` / `1.57rad` / `100grad` → fraction of 360deg.
+ *   Negative / >360 angles are not pre-normalized — the rasterizer applies
+ *   the same monotonicity / clamping rules as linear/radial.
+ */
+function parseConicPosition(tok: string): number | null {
+  // Percent / bare number.
+  const pm = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%)?$/.exec(tok);
+  if (pm != null) {
+    const v = parseFloat(pm[1]);
+    return v / 100;
+  }
+  // Angle units.
+  const am = /^(-?\d+(?:\.\d+)?|-?\.\d+)(deg|grad|rad|turn)$/i.exec(tok);
+  if (am != null) {
+    const v = parseFloat(am[1]);
+    const unit = am[2].toLowerCase();
+    if (unit === "deg") return v / 360;
+    if (unit === "turn") return v;
+    if (unit === "grad") return v / 400;
+    if (unit === "rad") return v / (Math.PI * 2);
+  }
+  return null;
 }
 
 /**

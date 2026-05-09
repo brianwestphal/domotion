@@ -17,6 +17,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
+import { rasterizeConicGradients } from "../src/conic-raster.js";
 import { raw } from "kerfjs";
 import { comparePngs, passes } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
@@ -33,6 +34,18 @@ export interface FeatureTest {
   html: string;
   width?: number;
   height?: number;
+  /**
+   * DM-551: per-test relaxation for raster-based features (conic-gradient
+   * tiles, replaced-element snapshots, etc.). The default-strict pass criterion
+   * `nonAaPixels === 0` assumes SVG-native primitives where Chromium re-rasters
+   * from the same vector def — which doesn't hold for features that ship a
+   * pre-rasterized PNG. When set, the test passes if BOTH:
+   *   - `cmp.diffPct <= relaxedDiffPct`
+   *   - `cmp.sigPixelPct === 0`  (no significant-distance pixels above the Yee threshold)
+   * The non-AA pixel count is reported but doesn't gate the pass.
+   * Typical relaxed value: 0.5 (% avg diff). Use sparingly.
+   */
+  relaxedDiffPct?: number;
 }
 
 /** Wrapper page used to render the test fixture HTML for the "expected" PNG. */
@@ -111,6 +124,8 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   const tree = await captureElementTree(w.page, "body", { x: 0, y: 0, width, height });
   // DM-512: demos always emit self-contained SVGs.
   await embedRemoteImages(tree);
+  // DM-549: rasterize conic-gradient layers (no-op when tree has none).
+  await rasterizeConicGradients(tree);
   const svgContent = elementTreeToSvg(tree, width, height);
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);
@@ -129,7 +144,9 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // classified as glyph anti-aliasing by the Yee detector. avg / sig / tile
   // metrics are diagnostic.
   const cmp = await comparePngs(w.comparePage, expectedPath, actualPath, diffPath);
-  const pass = passes(cmp);
+  const pass = test.relaxedDiffPct != null
+    ? cmp.diffPct <= test.relaxedDiffPct && cmp.sigPixelPct === 0
+    : passes(cmp);
 
   return {
     name: test.name,

@@ -53,6 +53,35 @@ const tests: FeatureTest[] = [
     name: "bg-nested",
     html: `<div style="padding: 20px; background: #161b22; width: 300px;"><div style="background: #0d1117; padding: 12px; margin: 8px; color: #e6edf3; font-family: -apple-system, sans-serif; font-size: 14px;">Nested darker box</div></div>`,
   },
+  {
+    // DM-547 / doc 28: smooth conic color wheel — 4-stop sweep covering the
+    // full circle. Pre-rasterized via the DM-549 pre-pass; uses relaxedDiffPct
+    // because Chromium's native conic compositor and our sharp lanczos pre-pass
+    // disagree by sub-pixel AA at the rect boundary and along angular stops.
+    name: "bg-conic-smooth",
+    html: `<div style="padding: 20px;"><div style="width: 200px; height: 200px; background: conic-gradient(red, yellow, green, blue, red);"></div></div>`,
+    relaxedDiffPct: 0.5,
+  },
+  {
+    // DM-547 / doc 28 / canonical use case from 19-deep-color-mix:
+    // hard-stop alpha checkerboard tile.
+    name: "bg-conic-checkerboard",
+    html: `<div style="padding: 20px;"><div style="width: 240px; height: 240px; background: repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px;"></div></div>`,
+    relaxedDiffPct: 0.5,
+  },
+  {
+    // DM-547: from <angle> + at <position> — pie-meter-like sweep with off-center origin.
+    name: "bg-conic-from-at",
+    html: `<div style="padding: 20px;"><div style="width: 200px; height: 200px; background: conic-gradient(from 90deg at 30% 70%, #4f46e5 0% 25%, #ec4899 25% 75%, #4f46e5 75% 100%);"></div></div>`,
+    relaxedDiffPct: 0.5,
+  },
+  {
+    // DM-547: multi-layer composition. Conic on top, linear-gradient under,
+    // solid color base. SVG paint-order should stack them top-to-bottom.
+    name: "bg-conic-multilayer",
+    html: `<div style="padding: 20px;"><div style="width: 220px; height: 220px; background: repeating-conic-gradient(rgba(255,255,255,0.15) 0 25%, transparent 0 50%) 0/40px 40px, linear-gradient(135deg, #4f46e5, #ec4899);"></div></div>`,
+    relaxedDiffPct: 0.5,
+  },
 
   // ── Borders ──
   {
