@@ -352,6 +352,14 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     };
     const out: (FaceRule | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
+    // DM-545: stylesheets whose `cssRules` access threw (cross-origin without
+    // CORS). The Node side fetches their text and parses `@font-face` rules
+    // server-side. Without this, sites that serve their CSS from a CDN
+    // different from the page origin (Stripe → b.stripecdn.com, Apple → many
+    // sub-CDNs, …) miss every CSS-declared font-family alias and the
+    // resource-fallback registers under fontkit's internal `familyName` —
+    // which for license-protected fonts (Sohne) is often a copyright string.
+    const crossOriginSheetUrls: string[] = [];
 
     interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null }
     // Width-probe helpers are defined inline below as needed. We avoid hoisting
@@ -381,7 +389,12 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     };
     for (const sheet of Array.from(document.styleSheets)) {
       let cssRules: CSSRuleList;
-      try { cssRules = sheet.cssRules; } catch { continue; }
+      try { cssRules = sheet.cssRules; } catch {
+        // Cross-origin sheet — record its URL so the Node side can fetch and
+        // parse it for @font-face rules. (DM-545)
+        if (sheet.href) crossOriginSheetUrls.push(sheet.href);
+        continue;
+      }
       for (const rule of Array.from(cssRules)) {
         if (rule.constructor.name !== "CSSFontFaceRule") continue;
         const r = rule as CSSFontFaceRule;
@@ -471,10 +484,35 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
       seenUrls.add(entry.name);
       out.push({ kind: "resource", url: entry.name });
     }
-    return { entries: out, seenUrls: Array.from(seenUrls) };
+    return { entries: out, seenUrls: Array.from(seenUrls), crossOriginSheetUrls };
   });
   const discovered = fromPage.entries as DiscoveredItem[];
   const seen = new Set(fromPage.seenUrls);
+  // DM-545: fetch each cross-origin stylesheet text and parse `@font-face`
+  // rules server-side. Cross-origin sheets throw on `cssRules` access from
+  // the page context, so without this the page-side walker misses every
+  // CDN-hosted CSS @font-face declaration. Sites affected (verified): Stripe
+  // (b.stripecdn.com), and likely most marketing sites whose CSS is served
+  // from a different host than the page. The resource-fallback path that
+  // ran in this scenario registers under fontkit's internal `familyName`,
+  // which for license-protected fonts (Sohne) is a copyright string —
+  // unmatchable against the CSS-declared `font-family: sohne-var` query.
+  for (const sheetUrl of (fromPage as any).crossOriginSheetUrls as string[] ?? []) {
+    let cssText: string;
+    try {
+      const resp = await page.context().request.get(sheetUrl);
+      if (!resp.ok()) continue;
+      cssText = await resp.text();
+    } catch { continue; }
+    for (const face of parseFontFaceRulesFromCssText(cssText, sheetUrl)) {
+      // De-dupe by all URLs in the ranked list — we may have already seen
+      // this src via the resource-fallback (whose entry registers under the
+      // wrong name); having BOTH a font-face entry (correct name) AND a
+      // resource entry (file's internal name) is fine — both will be tried.
+      for (const u of face.urls ?? [face.url]) seen.add(u);
+      discovered.push(face);
+    }
+  }
   for (const url of observedFontUrls) {
     if (seen.has(url)) continue;
     seen.add(url);
@@ -637,6 +675,88 @@ async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
   } catch {
     return buf; // fall through: register the WOFF2 anyway, variations just won't work
   }
+}
+
+/**
+ * DM-545: parse `@font-face` rules out of a raw CSS text fetched server-side.
+ * Used for cross-origin stylesheets that the page-side `cssRules` walker can't
+ * read. Tolerant scanner — handles top-level `@font-face` and rules nested
+ * inside any number of `@media` / `@supports` / `@layer` / `@container`
+ * blocks (recurses through balanced braces). Returns the same FaceRule shape
+ * the page-side walker emits so the downstream registration loop is uniform.
+ *
+ * Not a full CSS parser — comment-stripping handles `/* … *​/`, but exotic
+ * inputs (custom properties holding @font-face strings, CSSOM-injected rules
+ * that never serialised back to text) aren't covered. Adequate for the
+ * mainstream marketing-site case that motivated the change.
+ */
+export function parseFontFaceRulesFromCssText(cssText: string, baseUrl: string): Array<{ kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> }> {
+  const stripped = cssText.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: Array<{ kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> }> = [];
+  const re = /@font-face\s*\{/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(stripped)) !== null) {
+    const start = m.index + m[0].length;
+    let depth = 1;
+    let i = start;
+    while (i < stripped.length && depth > 0) {
+      const c = stripped[i];
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      i++;
+    }
+    if (depth !== 0) break;
+    const body = stripped.substring(start, i - 1);
+    const rule = parseFontFaceBody(body, baseUrl);
+    if (rule != null) out.push(rule);
+  }
+  return out;
+}
+
+function parseFontFaceBody(body: string, baseUrl: string): { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> } | null {
+  const familyMatch = /font-family\s*:\s*([^;}]+)/i.exec(body);
+  if (familyMatch == null) return null;
+  const family = familyMatch[1].trim().replace(/^["']|["']$/g, "").trim();
+  if (family === "") return null;
+  const weight = (/font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "400";
+  const style = (/font-style\s*:\s*([^;}]+)/i.exec(body)?.[1].trim()) ?? "normal";
+  const urMatch = /unicode-range\s*:\s*([^;}]+)/i.exec(body);
+  const unicodeRange = urMatch != null ? parseUnicodeRangeDescriptor(urMatch[1]) : undefined;
+  const srcMatch = /src\s*:\s*([\s\S]+?)(?:;|$)/i.exec(body);
+  if (srcMatch == null) return null;
+  const src = srcMatch[1];
+  const srcEntries: { url: string; format: string }[] = [];
+  const urlRe = /url\(\s*["']?([^"')]+)["']?\s*\)(?:\s*format\(\s*["']?([^"')]+)["']?\s*\))?/g;
+  let um: RegExpExecArray | null;
+  while ((um = urlRe.exec(src)) !== null) {
+    srcEntries.push({ url: um[1], format: (um[2] ?? "").toLowerCase() });
+  }
+  if (srcEntries.length === 0) return null;
+  // Same ranking as the page-side walker (woff2 > woff > ttf/otf, skip
+  // eot/svg). Keeping the two ranks identical means the Node-side iterator
+  // tries URLs in the same order whether they came from the page-side or
+  // server-side path.
+  const formatRank = (fmt: string, url: string): number => {
+    const lower = fmt.toLowerCase();
+    if (/embedded-opentype|svg/.test(lower)) return -1;
+    if (lower.includes("woff2") || /\.woff2(\?|$)/i.test(url)) return 4;
+    if (lower === "woff" || /\.woff(\?|$)/i.test(url)) return 3;
+    if (/truetype|opentype/.test(lower) || /\.(ttf|otf)(\?|$)/i.test(url)) return 2;
+    if (/\.eot(\?|$)/i.test(url) || /\.svg(\?|$)/i.test(url)) return -1;
+    return 1;
+  };
+  const ranked = srcEntries
+    .map((e) => ({ url: e.url, rank: formatRank(e.format, e.url) }))
+    .filter((e) => e.rank >= 0)
+    .sort((a, b) => b.rank - a.rank)
+    .map((e) => e.url);
+  if (ranked.length === 0) return null;
+  const absUrls: string[] = [];
+  for (const u of ranked) {
+    try { absUrls.push(new URL(u, baseUrl).href); } catch { /* skip */ }
+  }
+  if (absUrls.length === 0) return null;
+  return { kind: "font-face", family, weight, style, url: absUrls[0], urls: absUrls, unicodeRange };
 }
 
 /**
