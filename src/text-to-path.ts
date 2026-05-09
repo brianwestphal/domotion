@@ -37,7 +37,7 @@ const fontInstanceCache = new Map<string, FontInstance>();
 // family, we pick the variant whose (weight, style) is closest to the request.
 // This sidesteps the system-font fallback in `getFontInstance` entirely —
 // webfont glyphs come from the loaded buffer, not from disk.
-interface WebfontVariant { weight: number; italic: boolean; font: FontInstance }
+interface WebfontVariant { weight: number; italic: boolean; font: FontInstance; unicodeRange?: Array<[number, number]> }
 const webfontRegistry = new Map<string, WebfontVariant[]>();
 
 /**
@@ -46,11 +46,19 @@ const webfontRegistry = new Map<string, WebfontVariant[]>();
  * when omitted. `style` is "normal" / "italic" / "oblique"; treated as italic
  * for any non-normal value.
  *
+ * `unicodeRange` mirrors the `@font-face { unicode-range: ... }` descriptor as
+ * a list of inclusive `[from, to]` codepoint intervals. Google-Fonts-style
+ * partitioning declares the same `(family, weight)` pair across multiple
+ * `@font-face` rules, each with a distinct `unicode-range` (Latin, Latin Ext,
+ * Cyrillic, Greek, Vietnamese, …). Without honoring the descriptor,
+ * `pickWebfontVariant` may return the Cyrillic-only partition for a Latin
+ * text run — the run lays out as .notdef tofu (DM-517).
+ *
  * Buffers must be decompressed already — fontkit's `create()` reads TTF/OTF
  * directly. WOFF2/WOFF bytes are decompressed in `loadWebfont()` (capture.ts)
  * before they reach this function.
  */
-export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer): void {
+export function registerWebfont(family: string, weight: number, style: string, buffer: Buffer, unicodeRange?: Array<[number, number]>): void {
   const key = family.toLowerCase().replace(/^["']|["']$/g, "");
   let font: FontInstance;
   try {
@@ -60,8 +68,39 @@ export function registerWebfont(family: string, weight: number, style: string, b
   }
   const italic = style != null && style !== "" && style.toLowerCase() !== "normal";
   const list = webfontRegistry.get(key) ?? [];
-  list.push({ weight, italic, font });
+  list.push({ weight, italic, font, unicodeRange });
   webfontRegistry.set(key, list);
+}
+
+/** True iff `cp` falls in any of the inclusive `[from, to]` intervals. */
+export function unicodeRangeCovers(ranges: Array<[number, number]> | undefined, cp: number): boolean {
+  if (ranges == null) return true; // no range = U+0..U+10FFFF (CSS default)
+  for (const [from, to] of ranges) {
+    if (cp >= from && cp <= to) return true;
+  }
+  return false;
+}
+
+/**
+ * Test-only: return metadata for the variant `pickWebfontVariant` would
+ * choose, without resolving variation axes / returning a FontInstance. Lets
+ * unit tests verify scoring (weight, italic, unicode-range) without needing
+ * to introspect glyph paths.
+ */
+export function __pickWebfontVariantMetaForTest(family: string, weight: number, italic: boolean): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]> } | null {
+  const variants = webfontRegistry.get(family.toLowerCase());
+  if (variants == null || variants.length === 0) return null;
+  const LATIN_PROBE = 0x0041;
+  let best: WebfontVariant | null = null;
+  let bestScore = Infinity;
+  for (const v of variants) {
+    const styleMismatch = v.italic === italic ? 0 : 1000;
+    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : 2000;
+    const score = styleMismatch + rangeMismatch + Math.abs(v.weight - weight);
+    if (score < bestScore) { bestScore = score; best = v; }
+  }
+  if (best == null) return null;
+  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange };
 }
 
 /** Drop all registered webfonts. Call at the start of a fresh capture run. */
@@ -126,11 +165,28 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
   const variants = webfontRegistry.get(family);
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
+  // Tertiary preference: when multiple variants tie on (italic, weight) the
+  // one whose `unicode-range` covers Basic Latin (U+0020..U+007F) wins. Google-
+  // Fonts-style partitioning registers e.g. Geist@400 across 3 woff2 files
+  // (Cyrillic, Latin Ext, Latin Basic) — without this, the first registered
+  // partition wins regardless of whether it has glyphs for the rendered text,
+  // and Latin runs lay out as .notdef tofu (DM-517).
+  //
+  // We can't yet route per-codepoint (would require run-splitting upstream),
+  // so we bias toward the partition that covers the overwhelmingly common
+  // case: Latin text. Variants with no `unicode-range` declared (CSS default
+  // covers everything) match here trivially, so non-partitioned fonts are
+  // unaffected.
+  const LATIN_PROBE = 0x0041; // 'A'
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
   for (const v of variants) {
     const styleMismatch = v.italic === wantItalic ? 0 : 1000;
-    const score = styleMismatch + Math.abs(v.weight - weight);
+    // Range mismatch must outweigh italic mismatch: rendering tofu (no glyph)
+    // is far worse than rendering upright glyphs for an italic request, where
+    // the renderer can fall back to synthesized italic via `slant`.
+    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : 2000;
+    const score = styleMismatch + rangeMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;

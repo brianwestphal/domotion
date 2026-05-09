@@ -309,7 +309,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   // Pass 1 names match CSS exactly (good when authors rename a face);
   // pass 2 catches fonts that pass 1 missed and uses the font's internal
   // name (good for Google Fonts which keep names in sync).
-  type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[] };
+  type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> };
   type ResourceUrl = { kind: "resource"; url: string };
   type DiscoveredItem = FaceRule | ResourceUrl;
   const fromPage = await page.evaluate(() => {
@@ -320,8 +320,36 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     if (typeof (window as any).__name === "undefined") {
       (window as any).__name = function (fn: any) { return fn; };
     }
-    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[] }
+    interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> }
     interface ResourceUrl { kind: "resource"; url: string }
+    // Parse a CSS `unicode-range` descriptor value into inclusive [from, to]
+    // intervals. Accepts the three forms in CSS Fonts 4 §4.5: single codepoint
+    // (`U+26`), interval (`U+0-7F`), and wildcard (`U+4??`). Returns `null`
+    // when the value is missing/unparseable so the caller treats the variant
+    // as covering the default range U+0..U+10FFFF.
+    const parseUnicodeRangeInline = function (value: string): Array<[number, number]> | undefined {
+      const v = value.trim();
+      if (v === "") return undefined;
+      const out: Array<[number, number]> = [];
+      for (const raw of v.split(",")) {
+        const tok = raw.trim().replace(/^U\+/i, "");
+        if (tok === "") continue;
+        if (tok.includes("?")) {
+          const lo = parseInt(tok.replace(/\?/g, "0"), 16);
+          const hi = parseInt(tok.replace(/\?/g, "F"), 16);
+          if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
+        } else if (tok.includes("-")) {
+          const [a, b] = tok.split("-");
+          const lo = parseInt(a, 16);
+          const hi = parseInt(b, 16);
+          if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
+        } else {
+          const cp = parseInt(tok, 16);
+          if (Number.isFinite(cp)) out.push([cp, cp]);
+        }
+      }
+      return out.length > 0 ? out : undefined;
+    };
     const out: (FaceRule | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
 
@@ -432,7 +460,8 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
           try { absUrls.push(new URL(ru, base).href); } catch { /* skip */ }
         }
         for (const u of absUrls) seenUrls.add(u);
-        out.push({ kind: "font-face", family, weight, style, url: absUrl, urls: absUrls });
+        const unicodeRange = parseUnicodeRangeInline(r.style.getPropertyValue("unicode-range") || "");
+        out.push({ kind: "font-face", family, weight, style, url: absUrl, urls: absUrls, unicodeRange });
       }
     }
 
@@ -514,7 +543,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
             continue;
           }
           const weightNum = parseWeightDescriptor(item.weight);
-          registerWebfont(item.family, weightNum, item.style, buf);
+          registerWebfont(item.family, weightNum, item.style, buf, (item as any).unicodeRange);
           report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
         } else {
           const meta = await readFontMetadata(buf);
@@ -608,6 +637,42 @@ async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
   } catch {
     return buf; // fall through: register the WOFF2 anyway, variations just won't work
   }
+}
+
+/**
+ * Parse a CSS `unicode-range` descriptor value (CSS Fonts 4 §4.5) into a list
+ * of inclusive `[from, to]` codepoint intervals. Accepts the three forms:
+ * single (`U+26`), interval (`U+0-7F`), and wildcard (`U+4??`). Multiple
+ * ranges are comma-separated. Returns `undefined` for empty / unparseable
+ * input — callers treat that as the CSS default coverage (U+0..U+10FFFF).
+ *
+ * This is the Node-side twin of the in-page parser inlined inside
+ * `discoverAndRegisterWebfonts`'s `page.evaluate` body. The page-side copy
+ * can't import from here (it runs in the browser context), but the logic must
+ * stay aligned — covered by tests on this exported version.
+ */
+export function parseUnicodeRangeDescriptor(value: string): Array<[number, number]> | undefined {
+  const v = value.trim();
+  if (v === "") return undefined;
+  const out: Array<[number, number]> = [];
+  for (const raw of v.split(",")) {
+    const tok = raw.trim().replace(/^U\+/i, "");
+    if (tok === "") continue;
+    if (tok.includes("?")) {
+      const lo = parseInt(tok.replace(/\?/g, "0"), 16);
+      const hi = parseInt(tok.replace(/\?/g, "F"), 16);
+      if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
+    } else if (tok.includes("-")) {
+      const [a, b] = tok.split("-");
+      const lo = parseInt(a, 16);
+      const hi = parseInt(b, 16);
+      if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
+    } else {
+      const cp = parseInt(tok, 16);
+      if (Number.isFinite(cp)) out.push([cp, cp]);
+    }
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 function parseWeightDescriptor(value: string): number {
