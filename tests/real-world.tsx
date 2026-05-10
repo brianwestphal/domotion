@@ -651,8 +651,25 @@ async function runJob(
       + `</head><body>${svgDoc.replace(/^<\?xml[^?]*\?>/, "")}</body></html>`;
     const wrapperPath = svgPath.replace(/\.svg$/, ".wrapper.html");
     writeFileSync(wrapperPath, wrapperHtml);
-    await page.goto(`file://${wrapperPath}`);
-    await page.waitForTimeout(300);
+    // DM-518: rendering the SVG wrapper on the same context that did the
+    // production-site capture (routeFromHAR active, etc.) empirically
+    // produces actuals where some glyph paths render as background-coloured
+    // no-ops — even though the SVG renders correctly in librsvg and in a
+    // fresh isolated Chromium load of the same wrapper. Bypass that
+    // residual state by using a fresh disposable context just for the
+    // wrapper render. The HAR is irrelevant to the wrapper (file:// URL
+    // with inline SVG, no network).
+    const renderContext = await browser.newContext({
+      viewport: { width: viewport.width, height: canvasH },
+      deviceScaleFactor: 1,
+      isMobile: viewport.isMobile,
+      hasTouch: viewport.isMobile,
+    });
+    const renderPage = await renderContext.newPage();
+    renderPage.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
+    renderPage.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
+    await renderPage.goto(`file://${wrapperPath}`);
+    await renderPage.waitForTimeout(300);
     // DM-481: always pass `animations: "disabled"` so scroll/cross-fade
     // SVGs are screenshotted at frame 0 (the resting state Chromium also
     // captures for the expected). Without this, ~0.5–1 s elapses between
@@ -666,12 +683,13 @@ async function runJob(
     // it. The retry kept here mainly for the rare case where the first
     // call hits a transient timeout.
     try {
-      await page.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
+      await renderPage.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); retrying`);
-      await page.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
+      await renderPage.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     }
+    try { await renderContext.close(); } catch { /* best-effort */ }
     // Wrapper is purely a render harness — the .svg file is the artifact
     // reviewers/consumers care about.
     try { unlinkSync(wrapperPath); } catch { /* best-effort */ }
