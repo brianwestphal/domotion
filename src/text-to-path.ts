@@ -82,6 +82,39 @@ export function unicodeRangeCovers(ranges: Array<[number, number]> | undefined, 
 }
 
 /**
+ * DM-557: codepoint-aware variant pick for partitioned webfonts. Filters
+ * registered variants by whether their `unicode-range` covers `codepoint`
+ * (per CSS Fonts 4 §11.5 — a partition only declares it can shape glyphs
+ * within its declared range), then scores by (italic, weight) like
+ * `pickWebfontVariant`. Returns null when no registered variant covers the
+ * codepoint — the caller is expected to walk the system fallback chain in
+ * that case.
+ *
+ * Used by the run-splitter in `textToPathMarkup` to route per-codepoint
+ * within a Google-Fonts-style partitioned family (Geist@400 split across
+ * Latin/Latin-Ext/Cyrillic/etc.). Without this, the Latin-biased
+ * `pickWebfontVariant` is the single primary font for the whole text and
+ * codepoints outside its range fall straight to system fonts — losing the
+ * matching Cyrillic/Greek/Latin-Ext partition that's registered but
+ * unselected.
+ */
+export function pickWebfontVariantForCodepoint(family: string, weight: number, fontSize: number, slant: number, codepoint: number): FontInstance | null {
+  const variants = webfontRegistry.get(family.toLowerCase());
+  if (variants == null || variants.length === 0) return null;
+  const wantItalic = slant !== 0;
+  let best: WebfontVariant | null = null;
+  let bestScore = Infinity;
+  for (const v of variants) {
+    if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
+    const styleMismatch = v.italic === wantItalic ? 0 : 1000;
+    const score = styleMismatch + Math.abs(v.weight - weight);
+    if (score < bestScore) { bestScore = score; best = v; }
+  }
+  if (best == null) return null;
+  return applyVariationAxes(best.font, weight, fontSize, slant);
+}
+
+/**
  * Test-only: return metadata for the variant `pickWebfontVariant` would
  * choose, without resolving variation axes / returning a FontInstance. Lets
  * unit tests verify scoring (weight, italic, unicode-range) without needing
@@ -97,6 +130,22 @@ export function __pickWebfontVariantMetaForTest(family: string, weight: number, 
     const styleMismatch = v.italic === italic ? 0 : 1000;
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : 2000;
     const score = styleMismatch + rangeMismatch + Math.abs(v.weight - weight);
+    if (score < bestScore) { bestScore = score; best = v; }
+  }
+  if (best == null) return null;
+  return { weight: best.weight, italic: best.italic, unicodeRange: best.unicodeRange };
+}
+
+/** Test-only meta variant for `pickWebfontVariantForCodepoint` (DM-557). */
+export function __pickWebfontVariantMetaForCodepointForTest(family: string, weight: number, italic: boolean, codepoint: number): { weight: number; italic: boolean; unicodeRange?: Array<[number, number]> } | null {
+  const variants = webfontRegistry.get(family.toLowerCase());
+  if (variants == null || variants.length === 0) return null;
+  let best: WebfontVariant | null = null;
+  let bestScore = Infinity;
+  for (const v of variants) {
+    if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
+    const styleMismatch = v.italic === italic ? 0 : 1000;
+    const score = styleMismatch + Math.abs(v.weight - weight);
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
@@ -1036,6 +1085,7 @@ export function textToPathMarkup(
   const runs: Run[] = [];
   {
     let curKey = primaryFontKey;
+    let curFontOverride: FontInstance | null = null; // DM-557: per-codepoint webfont variant
     let curText = "";
     let curStart = 0;
     let i = 0;
@@ -1047,38 +1097,69 @@ export function textToPathMarkup(
       // Pro) at metrics that match Chrome's painted width. Use primary
       // whenever it has the glyph; only walk the fallback chain otherwise.
       let useKey = primaryFontKey;
+      let useFontOverride: FontInstance | null = null;
       if ((primaryFont as any).glyphForCodePoint(cp).id === 0) {
-        // Walk the chain in order, pick the first font that actually has
-        // the glyph. If nothing in the chain has it (e.g. an exotic emoji
-        // that even Apple Symbols lacks), fall through to the LAST chain
-        // entry anyway — its .notdef has a stable advance the rasterGlyph
-        // overlay can pin a captured emoji PNG against, where switching
-        // to primary's .notdef would shift glyph positions and drift the
-        // rest of the line.
-        const chain = fallbackFontChain(cp, primaryFontKey, lang);
-        let picked: string | null = null;
-        for (const candidate of chain) {
-          const cf = getFontInstance(candidate, weight, fontSize, slant);
-          if (cf != null && (cf as any).glyphForCodePoint != null
-              && (cf as any).glyphForCodePoint(cp).id !== 0) {
-            picked = candidate;
-            break;
+        // DM-557: for a partitioned webfont family (Geist split across
+        // Latin / Latin-Ext / Cyrillic / etc. by `unicode-range`), the
+        // Latin-biased `pickWebfontVariant` returns the Latin partition as
+        // primary. Codepoints outside that partition's range have no glyph
+        // in the primary, but they MAY be covered by another registered
+        // variant of the same family. Try a codepoint-aware variant lookup
+        // BEFORE walking the system fallback chain — picking the matching
+        // partition matches Chrome's @font-face cascade and preserves the
+        // family's typographic identity instead of falling to a body system
+        // font.
+        if (primaryFontKey.startsWith("webfont:")) {
+          const family = primaryFontKey.slice("webfont:".length);
+          const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp);
+          if (cpVariant != null && (cpVariant as any).glyphForCodePoint(cp).id !== 0) {
+            // Use the codepoint-aware variant. Keep `useKey` = primary so the
+            // run discriminator still groups with primary at the key level;
+            // the font instance override propagates through the run grouping
+            // below to give this codepoint its own (or coalesced) run.
+            useFontOverride = cpVariant;
           }
         }
-        useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+        if (useFontOverride == null) {
+          // Walk the chain in order, pick the first font that actually has
+          // the glyph. If nothing in the chain has it (e.g. an exotic emoji
+          // that even Apple Symbols lacks), fall through to the LAST chain
+          // entry anyway — its .notdef has a stable advance the rasterGlyph
+          // overlay can pin a captured emoji PNG against, where switching
+          // to primary's .notdef would shift glyph positions and drift the
+          // rest of the line.
+          const chain = fallbackFontChain(cp, primaryFontKey, lang);
+          let picked: string | null = null;
+          for (const candidate of chain) {
+            const cf = getFontInstance(candidate, weight, fontSize, slant);
+            if (cf != null && (cf as any).glyphForCodePoint != null
+                && (cf as any).glyphForCodePoint(cp).id !== 0) {
+              picked = candidate;
+              break;
+            }
+          }
+          useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+        }
       }
-      if (useKey !== curKey && curText.length > 0) {
-        const f = getFontInstance(curKey, weight, fontSize, slant);
+      // DM-557: a per-codepoint webfont variant is a different FontInstance
+      // even when its `useKey` matches `curKey` (both are the primary
+      // family's webfont:<key>). Discriminate runs by the (key, override)
+      // pair so a Latin-partition run and a Cyrillic-partition run within
+      // the same Geist family stay separate even though they share the key.
+      const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
+      if (runChanged && curText.length > 0) {
+        const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant);
         if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i });
         curText = "";
         curStart = i;
       }
       curKey = useKey;
+      curFontOverride = useFontOverride;
       curText += ch;
       i += ch.length;
     }
     if (curText.length > 0) {
-      const f = getFontInstance(curKey, weight, fontSize, slant) ?? primaryFont;
+      const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant) ?? primaryFont;
       runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length });
     }
   }

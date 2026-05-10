@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach } from "vitest";
 import { parseUnicodeRangeDescriptor } from "./capture.js";
-import { __pickWebfontVariantMetaForTest, clearWebfonts, registerWebfont, unicodeRangeCovers } from "./text-to-path.js";
+import { __pickWebfontVariantMetaForCodepointForTest, __pickWebfontVariantMetaForTest, clearWebfonts, registerWebfont, unicodeRangeCovers } from "./text-to-path.js";
 
 // DM-517: webfont registration honors the `@font-face { unicode-range: ... }`
 // descriptor. Google-Fonts-style partitioning declares the same `(family,
@@ -133,5 +133,75 @@ describe("pickWebfontVariant: unicode-range preference (DM-517)", () => {
     const picked = __pickWebfontVariantMetaForTest("geist", 400, false);
     expect(picked).not.toBeNull();
     expect(picked!.weight).toBe(400);
+  });
+});
+
+describe("pickWebfontVariantForCodepoint: per-codepoint partition routing (DM-557)", () => {
+  // Run-splitter calls this for codepoints the primary (Latin-biased)
+  // variant can't shape. The function filters variants by `unicode-range`
+  // coverage of the codepoint, then scores remaining variants by italic +
+  // weight match.
+  const helveticaBuf = require("fs").existsSync("/System/Library/Fonts/Helvetica.ttc")
+    ? require("fs").readFileSync("/System/Library/Fonts/Helvetica.ttc") : null;
+  const haveFontFixture = helveticaBuf != null;
+
+  beforeEach(() => {
+    clearWebfonts();
+  });
+
+  it.skipIf(!haveFontFixture)("returns the variant whose unicode-range covers the requested codepoint", () => {
+    // Multi-partition Geist: Latin + Cyrillic + Latin-Ext partitions all
+    // registered at weight=400. Asking for codepoint U+0410 (Cyrillic 'А')
+    // must return the Cyrillic partition.
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]);                  // Latin
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0400, 0x045f]]);                  // Cyrillic
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0100, 0x017f]]);                  // Latin Ext
+
+    const picked = __pickWebfontVariantMetaForCodepointForTest("geist", 400, false, 0x0410);
+    expect(picked).not.toBeNull();
+    expect(picked!.unicodeRange).toEqual([[0x0400, 0x045f]]);
+  });
+
+  it.skipIf(!haveFontFixture)("returns the Latin partition for ASCII codepoints", () => {
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]);
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0400, 0x045f]]);
+
+    const picked = __pickWebfontVariantMetaForCodepointForTest("geist", 400, false, 0x0041); // 'A'
+    expect(picked).not.toBeNull();
+    expect(picked!.unicodeRange).toEqual([[0x0000, 0x00ff]]);
+  });
+
+  it.skipIf(!haveFontFixture)("returns null when no registered variant covers the codepoint", () => {
+    // Only Cyrillic registered; ask for a CJK codepoint outside any range.
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0400, 0x045f]]);
+
+    const picked = __pickWebfontVariantMetaForCodepointForTest("geist", 400, false, 0x4e00); // CJK
+    expect(picked).toBeNull();
+  });
+
+  it.skipIf(!haveFontFixture)("variant with no unicode-range covers all codepoints (CSS default)", () => {
+    // Single non-partitioned registration; should match any codepoint.
+    registerWebfont("inter", 400, "normal", helveticaBuf!);
+
+    const picked = __pickWebfontVariantMetaForCodepointForTest("inter", 400, false, 0x4e00);
+    expect(picked).not.toBeNull();
+    expect(picked!.unicodeRange).toBeUndefined();
+  });
+
+  it.skipIf(!haveFontFixture)("scores by italic + weight when multiple variants cover the codepoint", () => {
+    // Two italic Latin variants at weights 400 and 700; ask for italic 600.
+    // Should pick weight=700 (closer to 600 than 400).
+    registerWebfont("geist", 400, "italic", helveticaBuf!, [[0x0000, 0x00ff]]);
+    registerWebfont("geist", 700, "italic", helveticaBuf!, [[0x0000, 0x00ff]]);
+    registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]);
+
+    const picked = __pickWebfontVariantMetaForCodepointForTest("geist", 600, true, 0x0041);
+    expect(picked).not.toBeNull();
+    expect(picked!.italic).toBe(true);
+    expect(picked!.weight).toBe(700);
+  });
+
+  it.skipIf(!haveFontFixture)("returns null when family is not registered at all", () => {
+    expect(__pickWebfontVariantMetaForCodepointForTest("nonexistent", 400, false, 0x0041)).toBeNull();
   });
 });
