@@ -509,11 +509,16 @@ async function runJob(
     // - `requestAnimationFrame` cancellation / no-op breaks sites with
     //   active WebGL render loops (same Stripe-mobile-scroll symptom).
     //
-    // So this freeze is INTENTIONALLY conservative: only `setTimeout` /
-    // `setInterval` cancel + no-op + Web Animations pause. This catches
-    // the common DOM-jitter sources (carousel rotators, sticky-CTA
-    // re-anchors, animation jiggles) but leaves the NYT paywall race
-    // untouched (filed as DM-556 for a per-site or smarter approach).
+    // DM-556: in addition to the conservative timer + Web-Animations freeze,
+    // no-op `window.fetch` and `XMLHttpRequest.prototype.send`. This catches
+    // the NYT-paywall class of races — timer- or network-completion-driven
+    // modals that DOM-inject AFTER the freeze step but BEFORE the screenshot
+    // — without halting the renderer pipeline (`window.stop()` does that,
+    // breaking Stripe's WebGL loop). Same-origin pre-fetched bytes already
+    // sitting in Chromium's network stack still resolve normally; only NEW
+    // network requests are silenced. Stripe's render loop doesn't fetch so
+    // it's unaffected; NYT's paywall script is loaded via fetch after page
+    // load and is silenced here.
     try {
       await page.evaluate(() => {
         try {
@@ -537,6 +542,29 @@ async function runJob(
           const noop = (() => 0) as any;
           window.setTimeout = noop;
           window.setInterval = noop;
+        } catch { /* */ }
+        // DM-556: no-op fetch / XHR.send so async-loaded modals can't inject
+        // DOM between the freeze and the screenshot. Returns a never-resolving
+        // promise so callers that `await` the fetch hang harmlessly (the page
+        // is going to be screenshotted within milliseconds anyway).
+        try {
+          window.fetch = (() => new Promise(() => {})) as typeof window.fetch;
+        } catch { /* */ }
+        try {
+          XMLHttpRequest.prototype.send = function() { /* no-op */ };
+        } catch { /* */ }
+        // DM-556: hide modal dialogs that were already injected during the
+        // settle window (e.g. NYT mobile paywall). These appear in the
+        // expected screenshot but not in the captured tree because they're
+        // network-fetched and DOM-injected at unpredictable timing, leaving
+        // the captured tree describing a different snapshot than expected.
+        // Removing them produces a deterministic 'no modal' state on both
+        // sides. Heuristic: `[role=dialog][aria-modal=true]` is the web
+        // standard for accessibility-flagged modals.
+        try {
+          for (const el of document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]')) {
+            try { (el as HTMLElement).style.display = "none"; } catch { /* */ }
+          }
         } catch { /* */ }
       });
     } catch { /* best-effort */ }
