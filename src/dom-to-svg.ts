@@ -688,6 +688,22 @@ export interface CapturedElement {
     contain?: string;
     /** CSS isolation (DM-498): `isolate` creates a stacking context. */
     isolation?: string;
+    /**
+     * DM-552: page-level color-scheme inferred from the capture context.
+     * Sourced from `matchMedia('(prefers-color-scheme: dark)').matches` at
+     * capture time and ONLY populated on the captured tree's root element
+     * (other elements omit it). Renderer reads this to decide whether to
+     * emit `color-scheme="dark"` on the root `<svg>`.
+     */
+    rootColorScheme?: "light" | "dark";
+    /**
+     * DM-552: `getComputedStyle(document.documentElement).backgroundColor`
+     * resolved by Chromium at capture time. Covers the transparent-root
+     * case where the page declares no background and Chromium fills its
+     * UA default per scheme (`#ffffff` for light, `rgb(28, 28, 28)`-ish
+     * for dark). ONLY populated on the captured tree's root element.
+     */
+    rootBgComputed?: string;
     /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
     transformOrigin?: string;
     /** CSS writing-mode (`horizontal-tb` | `vertical-rl` | `vertical-lr` | `sideways-rl` | `sideways-lr`). */
@@ -3585,6 +3601,17 @@ const CAPTURE_SCRIPT = `
     }
     if (rasterArr.length > 0) result[0].maskRasters = rasterArr;
   }
+  // DM-552: stamp page-level dark-mode signals on the captured tree's root
+  // element. The renderer reads these to emit color-scheme="dark" on the
+  // root <svg> (this slice) and to source the body-bg fallback in the
+  // transparent-root case (DM-554 wires up the second consumer).
+  if (result.length > 0) {
+    try {
+      var _isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      result[0].styles.rootColorScheme = _isDark ? 'dark' : 'light';
+      result[0].styles.rootBgComputed = window.getComputedStyle(document.documentElement).backgroundColor;
+    } catch (_e) { /* no-op — never block capture on this */ }
+  }
   return { tree: result, warnings: _warnings };
 }
 `;
@@ -4144,8 +4171,24 @@ export async function calibrateBaselines(
  * This is the boilerplate every standalone-capture user would otherwise write
  * themselves — call this when you want a self-contained SVG file.
  */
-export function wrapSvg(inner: string, width: number, height: number): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">${inner}</svg>`;
+export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[] }): string {
+  const schemeAttr = opts?.tree != null ? rootSvgColorSchemeAttr(opts.tree) : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}>${inner}</svg>`;
+}
+
+/**
+ * DM-552: returns ` color-scheme="dark"` (with leading space, suitable for
+ * direct concatenation into an `<svg ...>` opening tag) when the captured
+ * tree's root reports `rootColorScheme === "dark"`. Returns an empty string
+ * for the light / no-scheme case so today's SVG output is byte-identical at
+ * the default. Use from any code path that emits a root `<svg>` outside of
+ * `wrapSvg` (e.g., `tests/runner.tsx` and `tests/real-world.tsx` build their
+ * own opening tags so they can inject a body-bg `<rect>` underneath the
+ * captured content).
+ */
+export function rootSvgColorSchemeAttr(elements: CapturedElement[]): string {
+  if (elements.length === 0) return "";
+  return elements[0].styles?.rootColorScheme === "dark" ? ` color-scheme="dark"` : "";
 }
 
 /**

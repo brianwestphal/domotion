@@ -145,4 +145,6 @@ This doc fans out into the following sub-tickets:
 
 ## Status
 
-- Requirements doc landed (this file). No implementation yet — see follow-up sub-tickets DM-455a–d.
+- Requirements doc landed (this file).
+- Slice 1 (DM-552 — capture-side propagation) landed. CAPTURE_SCRIPT stamps `rootColorScheme` and `rootBgComputed` on the captured tree's root element. Renderer's `wrapSvg` accepts `{ tree }` and emits `color-scheme="dark"` when applicable. New `rootSvgColorSchemeAttr(elements)` exported helper for the call sites that build their own root `<svg>` (`tests/runner.tsx`, `tests/real-world.tsx`, `src/animator.ts`). 9 unit tests in `src/dark-mode-capture.test.ts`. **No dependents wired in this slice** — `tests/real-world.tsx` still uses the hardcoded `#ffffff` body-bg fallback (DM-554 will swap that to `rootBgComputed`); `tests/runner.tsx`/animator.ts still emit no color-scheme attr (will pass `{ tree }` to `wrapSvg` once dependents land). Today's SVG output is byte-identical at default light scheme.
+- Slices 2–4 (DM-553, DM-554, DM-555) pending.
