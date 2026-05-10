@@ -29,6 +29,17 @@ export interface DefCtx {
   gradientCache: Map<string, string>;
   /** Allocate a new gradient id like `${idPrefix}grad${N}`. */
   nextGradId: () => string;
+  /**
+   * DM-553: page-level color-scheme propagated from the captured tree's root
+   * (`elements[0].styles.rootColorScheme`). The form-control synthesizers
+   * resolve their stock palette via `stockPalette(defCtx?.colorScheme)` so
+   * unstyled controls under `colorScheme: 'dark'` paint with dark borders /
+   * fills / accent track instead of the light defaults. Author-styled paths
+   * are unchanged — only the no-author-CSS stock path picks scheme-aware
+   * colors. Defaults to `"light"` when missing for back-compat with pre-
+   * DM-552 captures.
+   */
+  colorScheme?: "light" | "dark";
 }
 
 /** Helper: parse a captured gradient text and register a gradient def, returning fill="url(#id)" or null. */
@@ -58,27 +69,107 @@ function gradientFillFor(
   return `url(#${id})`;
 }
 
-// ── Chromium macOS default colors (sampled from Playwright captures) ──
-// Re-calibrated against headless Chromium-on-macOS screenshots in DM-284.
-// Probe methodology: paint each control with default chrome on a 1x viewport,
-// `magick info:` pixel-pick from a known position inside the fill region.
-const UA_BORDER = "rgb(118,118,118)";
-const UA_FILL = "rgb(255,255,255)";
-const ACCENT_BLUE = "rgb(0,117,255)";
-const TRACK_BG = "rgb(239,239,239)";
-const TRACK_FG = "rgb(118,118,118)";
-const METER_GREEN = "rgb(16,124,16)";
-const METER_YELLOW = "rgb(255,185,0)";
-const METER_RED = "rgb(216,59,1)";
-const DISABLED_BORDER = "rgba(118,118,118,0.5)";
+// ── Chromium macOS UA default palette (sampled from Playwright captures) ──
+// Light values re-calibrated in DM-284; dark values added in DM-553.
+// Probe methodology: paint each control with default chrome on a 1x viewport
+// (with the page opted into the right scheme via `<meta name="color-scheme">`
+// or `:root { color-scheme: dark }`), pixel-pick from a known position
+// inside each painted region.
+//
+// Cross-platform (per CLAUDE.md): both palettes are macOS-only literals.
+// Linux + Windows dark palettes are tracked under DM-258+ — Chromium's UA
+// chrome differs slightly per platform (Linux uses Adwaita-ish defaults;
+// Windows uses a cooler-toned dark palette), and each needs its own probe.
+interface StockPalette {
+  /** Border ring on unstyled checkbox / radio / text input. */
+  border: string;
+  /** Fill bg on unchecked checkbox / radio / text input. */
+  fill: string;
+  /** Accent (filled checkbox/radio, range thumb, range filled track, progress filled). */
+  accent: string;
+  /** Range track unfilled, progress unfilled. */
+  trackBg: string;
+  /** Track foreground (rare — used for dashes / overlays on the track). */
+  trackFg: string;
+  /** Meter optimum (green). */
+  meterGreen: string;
+  /** Meter sub-optimum (yellow). */
+  meterYellow: string;
+  /** Meter poor (red). */
+  meterRed: string;
+  /** Disabled-state border (alpha-blended with bg in light mode). */
+  disabledBorder: string;
+}
+
+const STOCK_LIGHT: StockPalette = {
+  border: "rgb(118,118,118)",
+  fill: "rgb(255,255,255)",
+  accent: "rgb(0,117,255)",
+  trackBg: "rgb(239,239,239)",
+  trackFg: "rgb(118,118,118)",
+  meterGreen: "rgb(16,124,16)",
+  meterYellow: "rgb(255,185,0)",
+  meterRed: "rgb(216,59,1)",
+  disabledBorder: "rgba(118,118,118,0.5)",
+};
+
+// DM-553: dark-mode UA defaults sampled from headless Chromium on macOS with
+// `colorScheme: 'dark'` AND `:root { color-scheme: dark }` on the page (just
+// the Playwright option isn't enough — it sets prefers-color-scheme but not
+// the effective UA scheme). Border/fill/track all collapse to a single dark
+// gray (rgb(59,59,59)), the accent shifts to a lighter blue
+// (rgb(153,200,255)) for visibility against the dark canvas, and the meter
+// states are desaturated. Disabled-border alpha increases to 0.7 to stay
+// visible against the darker fill.
+const STOCK_DARK: StockPalette = {
+  border: "rgb(59,59,59)",
+  fill: "rgb(59,59,59)",
+  accent: "rgb(153,200,255)",
+  trackBg: "rgb(59,59,59)",
+  trackFg: "rgb(178,178,178)",
+  meterGreen: "rgb(116,179,116)",
+  meterYellow: "rgb(242,200,18)",
+  meterRed: "rgb(232,107,86)",
+  disabledBorder: "rgba(178,178,178,0.5)",
+};
+
+/**
+ * DM-553: dispatch the per-scheme stock palette. `"light"` (default), missing,
+ * or any value other than `"dark"` returns the light palette so today's
+ * output stays byte-identical at default settings. `"dark"` returns the
+ * dark palette for the form-control synthesizers to consume when rendering
+ * an unstyled control on a page captured under `color-scheme: dark`.
+ */
+export function stockPalette(scheme: "light" | "dark" | undefined): StockPalette {
+  return scheme === "dark" ? STOCK_DARK : STOCK_LIGHT;
+}
+
+// Back-compat aliases — the synthesizers below still reference the old
+// constant names. These resolve to the LIGHT palette so any code that
+// hasn't been routed through `stockPalette(defCtx?.colorScheme)` yet
+// continues to behave as today. New synthesizer code should call
+// `stockPalette(defCtx?.colorScheme)` directly and read from the returned
+// object instead of importing these aliases.
+const UA_BORDER = STOCK_LIGHT.border;
+const UA_FILL = STOCK_LIGHT.fill;
+const ACCENT_BLUE = STOCK_LIGHT.accent;
+const TRACK_BG = STOCK_LIGHT.trackBg;
+const TRACK_FG = STOCK_LIGHT.trackFg;
+const METER_GREEN = STOCK_LIGHT.meterGreen;
+const METER_YELLOW = STOCK_LIGHT.meterYellow;
+const METER_RED = STOCK_LIGHT.meterRed;
+const DISABLED_BORDER = STOCK_LIGHT.disabledBorder;
+void UA_BORDER; void UA_FILL; void ACCENT_BLUE; void TRACK_BG; void TRACK_FG;
+void METER_GREEN; void METER_YELLOW; void METER_RED; void DISABLED_BORDER;
 
 function r(n: number): string { return Number(n.toFixed(1)).toString(); }
 
 /** Resolve CSS accent-color to a concrete fill. 'auto' (or missing) falls back
- *  to the Chromium macOS default blue. Author-set values pass through. */
-function resolveAccent(el: CapturedElement): string {
+ *  to the Chromium macOS default blue (DM-553: scheme-aware via defCtx).
+ *  Author-set values pass through. */
+function resolveAccent(el: CapturedElement, defCtx?: DefCtx): string {
   const ac = el.styles.accentColor;
-  if (ac == null || ac === "" || ac === "auto" || ac === "currentcolor") return ACCENT_BLUE;
+  if (ac == null || ac === "" || ac === "auto" || ac === "currentcolor") return stockPalette(defCtx?.colorScheme).accent;
   return ac;
 }
 
@@ -95,17 +186,20 @@ function resolveAccent(el: CapturedElement): string {
  * variant when the accent is bright enough, and the original `TRACK_BG`
  * fallback when the color string can't be parsed.
  */
-function unfilledTrackColor(accentCss: string | undefined): string {
-  if (accentCss == null || accentCss === "" || accentCss === "auto" || accentCss === "currentcolor") return TRACK_BG;
+function unfilledTrackColor(accentCss: string | undefined, defCtx?: DefCtx): string {
+  // DM-553: scheme-aware default — under dark mode the track is already
+  // dark (rgb(59,59,59)), so the contrast-flip path collapses.
+  const palette = stockPalette(defCtx?.colorScheme);
+  if (accentCss == null || accentCss === "" || accentCss === "auto" || accentCss === "currentcolor") return palette.trackBg;
   // Extract sRGB triplet from rgb()/rgba() (Chrome canonicalises hex etc.).
   const m = /rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(accentCss);
-  if (m == null) return TRACK_BG;
+  if (m == null) return palette.trackBg;
   const lin = (c: number) => {
     const s = c / 255;
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   };
   const Y = 0.2126 * lin(parseFloat(m[1])) + 0.7152 * lin(parseFloat(m[2])) + 0.0722 * lin(parseFloat(m[3]));
-  return Y > 0.26 ? "rgb(59,59,59)" : TRACK_BG;
+  return Y > 0.26 ? "rgb(59,59,59)" : palette.trackBg;
 }
 
 export function renderFormControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
@@ -118,7 +212,7 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
   // using `appearance: none` + a CSS background-image arrow get just the
   // text — the page's CSS chevron paints separately via the background-image
   // pipeline. (DM-308)
-  if (tag === "select" && el.styles.selectDisplayText != null) return renderSelectChevron(el, indent);
+  if (tag === "select" && el.styles.selectDisplayText != null) return renderSelectChevron(el, indent, defCtx);
   if (tag === "select" && el.styles.selectListboxOptions != null) return renderListbox(el, indent);
   if (tag === "details") return renderDetailsMarker(el, indent);
   return "";
@@ -126,11 +220,11 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
 
 function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   const t = el.styles.inputType ?? "text";
-  if (t === "checkbox") return renderCheckbox(el, indent);
-  if (t === "radio") return renderRadio(el, indent);
+  if (t === "checkbox") return renderCheckbox(el, indent, defCtx);
+  if (t === "radio") return renderRadio(el, indent, defCtx);
   if (t === "range") return renderRange(el, indent, defCtx);
   if (t === "color") return renderColorSwatch(el, indent, defCtx);
-  if (t === "file") return renderFileInput(el, indent);
+  if (t === "file") return renderFileInput(el, indent, defCtx);
   if (t === "number") return renderNumberInput(el, indent, defCtx);
   if (t === "search") return renderSearchInput(el, indent, defCtx);
   if (t === "date" || t === "time" || t === "datetime-local" || t === "month" || t === "week") {
@@ -140,22 +234,23 @@ function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx
   return "";
 }
 
-function renderCheckbox(el: CapturedElement, indent: string): string {
+function renderCheckbox(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   // appearance: none → author has opted out of UA chrome. The host's normal
   // element-rendering path already painted its bg + border with the captured
   // styles; we just overlay the :checked indicator. Switch-shape (wide,
   // pill-radius) renders as a toggle thumb instead of a checkmark. DM-285.
   if (el.styles.inputAppearance === "none") return renderCustomCheckboxOrSwitch(el, indent);
   // 13x13 square with 2px radius, blue+check when checked, dash when indeterminate.
+  const palette = stockPalette(defCtx?.colorScheme);
   const size = Math.min(el.width, el.height);
   const cx = el.x + el.width / 2;
   const cy = el.y + el.height / 2;
   const x = cx - size / 2;
   const y = cy - size / 2;
   const parts: string[] = [];
-  const stroke = el.styles.disabled ? DISABLED_BORDER : UA_BORDER;
+  const stroke = el.styles.disabled ? palette.disabledBorder : palette.border;
 
-  const accent = resolveAccent(el);
+  const accent = resolveAccent(el, defCtx);
   if (el.styles.indeterminate === true) {
     parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(size)}" height="${r(size)}" rx="2" fill="${accent}" />`);
     parts.push(`${indent}<rect x="${r(x + size * 0.2)}" y="${r(cy - size * 0.08)}" width="${r(size * 0.6)}" height="${r(size * 0.16)}" fill="#fff" />`);
@@ -165,7 +260,7 @@ function renderCheckbox(el: CapturedElement, indent: string): string {
     const p = (dx: number, dy: number): string => `${r(x + dx * size)},${r(y + dy * size)}`;
     parts.push(`${indent}<polyline points="${p(0.22, 0.55)} ${p(0.42, 0.74)} ${p(0.78, 0.3)}" fill="none" stroke="#fff" stroke-width="${r(size * 0.14)}" stroke-linecap="round" stroke-linejoin="round" />`);
   } else {
-    parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(size)}" height="${r(size)}" rx="2" fill="${UA_FILL}" stroke="${stroke}" stroke-width="1" />`);
+    parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(size)}" height="${r(size)}" rx="2" fill="${palette.fill}" stroke="${stroke}" stroke-width="1" />`);
   }
   return parts.join("\n");
 }
@@ -211,7 +306,7 @@ function renderCustomCheckboxOrSwitch(el: CapturedElement, indent: string): stri
   return `${indent}<polyline points="${p(0.22, 0.55)} ${p(0.42, 0.74)} ${p(0.78, 0.3)}" fill="none" stroke="${indicatorColor}" stroke-width="${r(Math.max(1.5, size * 0.14))}" stroke-linecap="round" stroke-linejoin="round" />`;
 }
 
-function renderRadio(el: CapturedElement, indent: string): string {
+function renderRadio(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   // appearance: none → host rect already painted with author bg/border;
   // overlay only the :checked dot in the captured border color. DM-285.
   if (el.styles.inputAppearance === "none") {
@@ -219,16 +314,17 @@ function renderRadio(el: CapturedElement, indent: string): string {
     const size = Math.min(el.width, el.height);
     const cx = el.x + el.width / 2;
     const cy = el.y + el.height / 2;
-    const dotColor = el.styles.borderTopColor ?? resolveAccent(el);
+    const dotColor = el.styles.borderTopColor ?? resolveAccent(el, defCtx);
     return `${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(size * 0.25)}" fill="${dotColor}" />`;
   }
+  const palette = stockPalette(defCtx?.colorScheme);
   const size = Math.min(el.width, el.height);
   const cx = el.x + el.width / 2;
   const cy = el.y + el.height / 2;
   const rr = size / 2;
   const parts: string[] = [];
-  const stroke = el.styles.disabled ? DISABLED_BORDER : UA_BORDER;
-  const accent = resolveAccent(el);
+  const stroke = el.styles.disabled ? palette.disabledBorder : palette.border;
+  const accent = resolveAccent(el, defCtx);
   if (el.styles.checked === true) {
     // Chrome's checked native radio is a donut: thin accent-colored outer
     // ring (~1px at 13px diameter), white middle, accent-colored center dot
@@ -237,12 +333,15 @@ function renderRadio(el: CapturedElement, indent: string): string {
     parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr - 1)}" fill="#fff" />`);
     parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr * 0.5)}" fill="${accent}" />`);
   } else {
-    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr - 0.5)}" fill="${UA_FILL}" stroke="${stroke}" stroke-width="1" />`);
+    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr - 0.5)}" fill="${palette.fill}" stroke="${stroke}" stroke-width="1" />`);
   }
   return parts.join("\n");
 }
 
 function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  // DM-553: scheme-aware UA defaults — rangeUA fill / track inherit dark
+  // palette when the page was captured under color-scheme: dark.
+  const palette = stockPalette(defCtx?.colorScheme);
   // Horizontal track + circular thumb (UA default), or author-styled track
   // and thumb when CAPTURE_SCRIPT detected ::-webkit-slider-runnable-track
   // / ::-webkit-slider-thumb diverging from the unstyled-range reference
@@ -268,11 +367,11 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // Unfilled-track color: author-set when the slider is `appearance: none` +
   // styled track, otherwise the UA default which depends on `accent-color`
   // (Chrome darkens the unfilled track when the accent is bright — DM-320).
-  const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : unfilledTrackColor(s.accentColor);
+  const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : unfilledTrackColor(s.accentColor, defCtx);
   const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 16;
   const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 16;
   const thumbRadius = styledThumb ? (parseFloat(s.rangeThumbRadius ?? "") || thumbW / 2) : thumbW / 2;
-  const accent = resolveAccent(el);
+  const accent = resolveAccent(el, defCtx);
   const valStr = s.inputValue;
   const minStr = s.inputMin;
   const maxStr = s.inputMax;
@@ -366,7 +465,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // Author-styled non-square thumb: render as a rect (matches rectangular
   // and pill-shaped thumbs). Default UA thumb is a circle.
   if (styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2)) {
-    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : UA_FILL;
+    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : palette.fill;
     const thumbRect = { x: thumbCx - thumbW / 2, y: thumbCy - thumbH / 2, w: thumbW, h: thumbH };
     const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
     const thumbFill = thumbGradFill ?? thumbBgColor;
@@ -374,7 +473,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(`${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}"${strokeAttrs} />`);
   } else if (styledThumb) {
     const halfThumb = thumbW / 2;
-    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : UA_FILL;
+    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : palette.fill;
     const thumbRect = { x: thumbCx - halfThumb, y: thumbCy - halfThumb, w: thumbW, h: thumbW };
     const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
     const thumbFill = thumbGradFill ?? thumbBgColor;
@@ -459,6 +558,8 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
   // ::-webkit-color-swatch / ::-webkit-color-swatch-wrapper pseudos
   // (captured via the SK-1223 stylesheet walker) overrides the default
   // wrapper border/radius and inner swatch styling when present.
+  // DM-553: scheme-aware UA defaults.
+  const palette = stockPalette(defCtx?.colorScheme);
   const parts: string[] = [];
   const s = el.styles;
   const value = s.inputValue && /^#[0-9a-f]{6}$/i.test(s.inputValue) ? s.inputValue : "#000000";
@@ -473,7 +574,7 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
   // Author hasn't styled the wrapper via host CSS — paint UA defaults.
   const hostHasBg = (s.backgroundColor != null && s.backgroundColor !== "" && s.backgroundColor !== "transparent" && !/^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$/.test(s.backgroundColor));
   if (!hostHasBg) {
-    parts.push(`${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" rx="3" fill="${UA_FILL}" stroke="${UA_BORDER}" stroke-width="1" />`);
+    parts.push(`${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" rx="3" fill="${palette.fill}" stroke="${palette.border}" stroke-width="1" />`);
   }
   // Inner swatch: prefer ::-webkit-color-swatch background-color/image when
   // authored, otherwise paint the input's value color.
@@ -596,7 +697,9 @@ function renderSearchInput(el: CapturedElement, indent: string, defCtx?: DefCtx)
  * CSS (background, color, border, padding, border-radius) carries through.
  * Falls back to the Chromium UA defaults when the pseudo isn't customized.
  */
-function renderFileInput(el: CapturedElement, indent: string): string {
+function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  // DM-553: scheme-aware UA border default for the 'Choose File' chrome.
+  const palette = stockPalette(defCtx?.colorScheme);
   const parts: string[] = [];
   const s = el.styles;
   // Visually-hidden file inputs (label-wrapped pattern: opacity:0 or
@@ -611,7 +714,7 @@ function renderFileInput(el: CapturedElement, indent: string): string {
   const rawRadius = s.fileButtonBorderRadius != null ? (parseFloat(s.fileButtonBorderRadius) || 3) : 3;
   // Border: parse "Wpx <style> <color>" — only the width matters for our paint.
   let borderW = 1;
-  let borderColor = UA_BORDER;
+  let borderColor = palette.border;
   if (s.fileButtonBorder != null) {
     const m = /^([\d.]+)px\s+(\w+)\s+(.+)$/.exec(s.fileButtonBorder);
     if (m != null) {
@@ -801,18 +904,20 @@ function customPseudoFill(bg: string | undefined, bgImage: string | undefined): 
 }
 
 function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  // DM-553: scheme-aware UA default track + accent fill.
+  const palette = stockPalette(defCtx?.colorScheme);
   const value = el.styles.progressValue;
   const max = el.styles.progressMax ?? 1;
   const isIndeterminate = value == null;
   const ratio = !isIndeterminate && max > 0 ? Math.max(0, Math.min(1, (value as number) / max)) : 0;
   const parts: string[] = [];
-  const accent = resolveAccent(el);
+  const accent = resolveAccent(el, defCtx);
   // Custom pseudo-element fills override the UA defaults when present
   // (SK-1222: capture now flows through the stylesheet walker rather than
   // the broken getComputedStyle-on-pseudo path, so author rules round-trip).
   const customTrackFill = customPseudoFill(el.styles.progressBarBg, el.styles.progressBarBgImage);
   const customValueFill = customPseudoFill(el.styles.progressValueBg, el.styles.progressValueBgImage);
-  const trackFill = customTrackFill ?? TRACK_BG;
+  const trackFill = customTrackFill ?? palette.trackBg;
   const valueFill = customValueFill ?? accent;
   // UA-default <progress>: empirical Chrome-on-macOS paint is a centered bar
   // inset by floor(h/4) top and bottom, with a small pill radius that only
@@ -868,6 +973,8 @@ function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): s
 }
 
 function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  // DM-553: scheme-aware UA defaults — meter green/yellow/red palette + track.
+  const palette = stockPalette(defCtx?.colorScheme);
   const value = el.styles.meterValue ?? 0;
   const min = el.styles.meterMin ?? 0;
   const max = el.styles.meterMax ?? 1;
@@ -902,9 +1009,9 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     customValueFill = customPseudoFill(el.styles.meterEvenLessGoodBg, el.styles.meterEvenLessGoodBgImage);
     valueBgImage = el.styles.meterEvenLessGoodBgImage;
   }
-  const defaultFill = dist === 0 ? METER_GREEN : dist === 1 ? METER_YELLOW : METER_RED;
+  const defaultFill = dist === 0 ? palette.meterGreen : dist === 1 ? palette.meterYellow : palette.meterRed;
   const fill = customValueFill ?? defaultFill;
-  const trackFill = customTrackFill ?? TRACK_BG;
+  const trackFill = customTrackFill ?? palette.trackBg;
   // Same UA-default formula as <progress> (DM-354): inset=floor(h/4) top
   // and bottom, with a partial pill radius that only emerges past barH≈8.
   // Author-styled <meter> (appearance:none with custom pseudo) uses the
@@ -975,7 +1082,9 @@ function renderListbox(el: CapturedElement, indent: string): string {
   return parts.join("\n");
 }
 
-function renderSelectChevron(el: CapturedElement, indent: string): string {
+function renderSelectChevron(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  // DM-553: scheme-aware chevron stroke.
+  const palette = stockPalette(defCtx?.colorScheme);
   const parts: string[] = [];
   // Selected-option text inside the closed dropdown's content rect (DM-246).
   // Chrome paints `selectedOptions[0]?.textContent` here; option/optgroup
@@ -1008,7 +1117,7 @@ function renderSelectChevron(el: CapturedElement, indent: string): string {
     const cx = el.x + el.width - 10;
     const cy = el.y + el.height / 2;
     const p = (dx: number, dy: number): string => `${r(cx + dx * size)},${r(cy + dy * size)}`;
-    parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${TRACK_FG}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
+    parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${palette.trackFg}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
   }
   return parts.join("\n");
 }

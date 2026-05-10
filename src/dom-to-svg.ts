@@ -4254,6 +4254,11 @@ export function elementTreeToSvg(
     defsParts,
     gradientCache: new Map<string, string>(),
     nextGradId: () => `${idPrefix}grad${gradIdx++}`,
+    // DM-553: page-level color-scheme propagated to form-control synthesizers
+    // so unstyled checkboxes / radios / progress / meter / range / text
+    // inputs use scheme-aware UA defaults. Defaults to "light" (or undefined
+    // → light) when the captured tree pre-dates DM-552.
+    colorScheme: elements[0]?.styles?.rootColorScheme,
   };
   // Viewport dims for background-attachment: fixed — passed down into layer def building.
   const captureViewport = { w: width, h: height };
