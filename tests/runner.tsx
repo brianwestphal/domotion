@@ -17,6 +17,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
+import { discoverAndRegisterWebfonts } from "../src/capture.js";
+import { clearWebfonts } from "../src/text-to-path.js";
 import { rasterizeConicGradients } from "../src/conic-raster.js";
 import { raw } from "kerfjs";
 import { comparePngs, passes } from "./compare-pngs.js";
@@ -97,6 +99,10 @@ interface RunnerWorker {
   page: Page;
   compareContext: BrowserContext;
   comparePage: Page;
+  /** DM-559: cross-origin font URLs the worker's page has fetched since the
+   *  most recent test boundary. Reset per-test in `runOneTest` so font A
+   *  registered for test 1 doesn't leak into test 2. */
+  fontUrls: Set<string>;
 }
 
 async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResult> {
@@ -116,9 +122,24 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // every active FontFace has loaded.
   writeFileSync(htmlPath, renderDoc(<FixturePage body={test.html} />));
   await w.page.setViewportSize({ width, height });
+  // DM-559: reset webfont registry + per-test font-url accumulator before
+  // each test so a webfont registered for fixture A doesn't leak into
+  // fixture B. The `requestfinished` listener on `w.page` populates
+  // `w.fontUrls` as the test's HTML loads.
+  clearWebfonts();
+  w.fontUrls.clear();
   await w.page.goto(`file://${htmlPath}`);
   await w.page.evaluate(() => document.fonts.ready);
   await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width, height } });
+
+  // DM-559: discover and register any @font-face declarations the fixture
+  // uses (same-origin via the page-side walker, plus any cross-origin /
+  // data: font URLs caught by the requestfinished listener). Without this,
+  // a fixture with `@font-face { font-family: TestFont; src: url(...); }`
+  // would have TestFont loaded in Chromium's font cache for the expected
+  // screenshot but absent from Domotion's webfont registry — so the SVG
+  // would silently fall through to the system fallback chain.
+  await discoverAndRegisterWebfonts(w.page, w.fontUrls);
 
   // Step 2: Capture DOM -> SVG
   const tree = await captureElementTree(w.page, "body", { x: 0, y: 0, width, height });
@@ -200,12 +221,23 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
       // capture passes on heavier fixtures without paving over genuine hangs.
       page.setDefaultTimeout(90_000);
       page.setDefaultNavigationTimeout(90_000);
+      // DM-559: track every font URL the page fetches so cross-origin
+      // webfonts are visible to `discoverAndRegisterWebfonts` (mirrors the
+      // real-world suite's listener — same gap exists here for a fixture
+      // that loads a webfont from a different origin or via data: URL).
+      const fontUrls = new Set<string>();
+      page.on("requestfinished", (req) => {
+        const url = req.url();
+        if (/\.(woff2?|ttf|otf)(\?|$)/i.test(url) || url.startsWith("data:font/")) {
+          fontUrls.add(url);
+        }
+      });
       const compareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
       const comparePage = await compareContext.newPage();
       comparePage.setDefaultTimeout(90_000);
       comparePage.setDefaultNavigationTimeout(90_000);
       await comparePage.goto("about:blank");
-      return { context, page, compareContext, comparePage };
+      return { context, page, compareContext, comparePage, fontUrls };
     },
     teardown: async (w) => {
       await w.context.close();
