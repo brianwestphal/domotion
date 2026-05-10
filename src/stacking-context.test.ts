@@ -586,6 +586,88 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
   });
 });
 
+describe("DM-558 flex/grid item z-index — buried-inside-non-SC-ancestor hoist", () => {
+  // CSS Flexbox 1 §5.4 / CSS Grid 1 §17 promote a flex/grid item with
+  // explicit z-index to a stacking-context root even at position:static.
+  // When such an item is BURIED inside a non-SC ancestor's sub-tree (the
+  // flex item's parent is itself a non-SC element that's a child of the
+  // real SC root), the item must hoist into the real SC root's paint sort
+  // — otherwise it stays nested at its DOM-order depth and paints BEFORE
+  // a sibling positioned element that should be beneath it.
+  //
+  // Real-world case: apple.com hero `tile-wrapper > tile-content > tile-ctas
+  // > a.button` (button is a grid item of `tile-ctas` with z:4). Without
+  // this hoist, the captured background image (sibling of `tile-content`
+  // under `tile-wrapper`) painted on top of the button.
+
+  function fillOrder(svg: string, expectedColors: string[]): string[] {
+    const fillRe = /fill="(rgb\([^)]+\))"/g;
+    const found: string[] = [];
+    let m;
+    while ((m = fillRe.exec(svg)) !== null) {
+      if (expectedColors.includes(m[1]) && !found.includes(m[1])) {
+        found.push(m[1]);
+      }
+    }
+    return found;
+  }
+
+  it("hoists a buried flex/grid-item-with-z above its non-SC parent's later sibling", () => {
+    // Mirror apple's structure simplified:
+    //   tile-wrapper (display:flex + overflow:clip → SC root)
+    //     ├─ tile-content (position:relative, z:auto — non-SC) [DOM 0]
+    //     │    └─ tile-ctas (display:grid)
+    //     │         └─ a.button (position:static, z:4) — must paint LAST
+    //     └─ tile-image-wrapper (position:absolute, z:auto — non-SC) [DOM 1]
+    //          └─ image-bg (the bg that wrongly painted on top of button)
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: {
+        ...makeElement().styles,
+        display: "flex",
+        overflowX: "clip",
+        overflowY: "clip",
+        backgroundColor: "rgb(13,17,23)",
+      },
+      children: [
+        // tile-content
+        makeElement({
+          x: 0, y: 0, width: 300, height: 100,
+          styles: { ...makeElement().styles, display: "flex", position: "relative", backgroundColor: "rgb(255,255,255)" },
+          children: [
+            // tile-ctas (display:grid)
+            makeElement({
+              x: 100, y: 30, width: 100, height: 40,
+              styles: { ...makeElement().styles, display: "grid", backgroundColor: "rgb(255,255,255)" },
+              children: [
+                // a.button (grid-item with z:4, position:static)
+                makeElement({
+                  x: 100, y: 30, width: 100, height: 40,
+                  styles: { ...makeElement().styles, zIndex: "4", backgroundColor: "rgb(0,113,227)" }, // blue button
+                }),
+              ],
+            }),
+          ],
+        }),
+        // tile-image-wrapper (positioned, covers same x range)
+        makeElement({
+          x: 0, y: 0, width: 300, height: 100,
+          styles: { ...makeElement().styles, position: "absolute", backgroundColor: "rgb(220,38,38)" }, // red image bg
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvg(tree, 300, 100);
+    const order = fillOrder(svg, ["rgb(0,113,227)", "rgb(220,38,38)"]);
+    // tile-image-wrapper (red) must paint BEFORE the button (blue) so that
+    // the button is visible on top — matches Chromium for the real apple
+    // hero.
+    expect(order).toEqual([
+      "rgb(220,38,38)", // tile-image-wrapper
+      "rgb(0,113,227)", // a.button (hoisted past its non-SC ancestor)
+    ]);
+  });
+});
+
 describe("DM-537 flex/grid `order` property — paint follows order-modified document order", () => {
   // CSS Flexbox 1 §5.4.1 / CSS Grid 1 §17: flex/grid items paint in
   // order-modified document order (ascending `order`, ties broken by source

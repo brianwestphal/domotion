@@ -5697,7 +5697,7 @@ export function elementTreeToSvg(
     // context creator and z-sort accordingly.
     const childParentDisplay = el.styles.display;
     if (establishesStackingContext(el, parentDisplayForEl)) {
-      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay);
+      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true);
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
@@ -6481,17 +6481,42 @@ function gatherStackingContextChildren(
   children: CapturedElement[],
   hoistedOut: Set<CapturedElement>,
   parentDisplay?: string,
+  hoistTargetIsRealSC: boolean = false,
 ): CapturedElement[] {
   const out: CapturedElement[] = [];
   const collectFromNonSC = (parent: CapturedElement): void => {
     const childParentDisplay = parent.styles.display;
+    const parentIsFlexGrid = isFlexOrGridContainerDisplay(childParentDisplay);
     for (const c of parent.children) {
       // DM-543: skip elements already hoisted by a higher SC pass (e.g. a
       // root-level position:fixed pre-pass added this pin to topLevelFlat;
       // re-pushing it here would double-emit it inside the local clip group).
       if (hoistedOut.has(c)) continue;
       const positioned = c.styles.position != null && c.styles.position !== "static";
-      if (positioned) {
+      // DM-558: also hoist a flex/grid item with explicit z-index even when
+      // position:static — it's an SC root by CSS Flexbox 1 §5.4 / CSS Grid 1
+      // §17 (already detected by `establishesStackingContext`'s flex/grid
+      // branch), and SC roots paint atomically in their nearest parent SC
+      // sort. Without this hoist, the SC stays nested inside its non-SC
+      // ancestor's sub-tree and renders at that depth in DOM order — so a
+      // flex-item button with z:4 inside `<div style="position:relative">`
+      // ends up painting BEFORE a sibling positioned `<div>` that should be
+      // beneath it. (Apple hero `tile-wrapper > tile-content > tile-ctas >
+      // a.button` rendered BEHIND the captured background image because the
+      // button's z:4 hoist never fired — position:static + the legacy
+      // `if (positioned)` check skipped it.)
+      //
+      // Only hoist when the hoist target is a real SC: at the implicit
+      // top-level (no enclosing SC element captured), the eventual sort
+      // can't know `parentDisplay`, so a hoisted flex-item-z would lose
+      // its z-bucket and paint in DOM order. In that case we leave the
+      // element in place and let its parent's local flex sort handle the
+      // z-ordering naturally — DM-525's local-sort path covers the
+      // direct-flex-child case correctly.
+      const zRaw = c.styles.zIndex;
+      const hasExplicitZ = zRaw != null && zRaw !== "" && zRaw !== "auto";
+      const flexGridItemSC = hoistTargetIsRealSC && parentIsFlexGrid && hasExplicitZ;
+      if (positioned || flexGridItemSC) {
         out.push(c);
         hoistedOut.add(c);
       }
