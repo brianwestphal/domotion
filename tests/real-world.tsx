@@ -346,13 +346,19 @@ async function runJob(
     deviceScaleFactor: 1,
     isMobile: viewport.isMobile,
     hasTouch: viewport.isMobile,
-    // Force light color-scheme so sites that ship a dark variant via
-    // `prefers-color-scheme: dark` render their light theme. Domotion does
-    // not yet support emitting a dark-mode SVG (tracked separately), and
-    // the SVG always paints with light defaults — so without this, the
-    // expected/actual diff is dominated by light-vs-dark rather than
-    // capture fidelity.
-    colorScheme: "light",
+    // DM-555: previously this context forced `colorScheme: 'light'` because
+    // Domotion couldn't emit a dark-mode SVG and would have repainted every
+    // dark-rendering marketing page with light defaults — producing a
+    // near-100% sig-pixel diff dominated by inversion, not capture fidelity.
+    // Slices DM-552 / DM-553 / DM-554 have wired the dark-mode pipeline
+    // (capture-side scheme propagation, dark form-control palette,
+    // transparent-root fallback consuming `rootBgComputed`), so the suite
+    // can now drop the force. Playwright's default `colorScheme` for a
+    // newly-created context is `'light'` on all platforms (verified at
+    // playwright.dev/docs/api/class-browser#browser-new-context-option-color-scheme),
+    // so removing the explicit option keeps today's deterministic light
+    // baseline AND lets a future caller pass `colorScheme: 'dark'` to
+    // exercise the new dark pipeline without further plumbing changes.
     // A current-ish desktop / mobile UA so sites don't redirect us to a
     // legacy page. (Headless Chromium's default UA confuses some servers
     // into serving cut-down templates.)
