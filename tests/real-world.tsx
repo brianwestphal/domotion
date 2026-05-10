@@ -561,12 +561,27 @@ async function runJob(
     // DM-549: rasterize conic-gradient layers (no-op when tree has none).
     await rasterizeConicGradients(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
     const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI);
-    const bodyBg = await page.evaluate(() => {
+    // DM-554: when document.body is transparent, prefer the captured tree's
+    // `rootBgComputed` (Chromium-resolved `<html>` bg, which handles author-
+    // set roots AND the UA default per scheme — `#ffffff` for light,
+    // `rgb(28, 28, 28)`-ish for dark). Falls back to a scheme-aware
+    // hardcoded default when the captured tree predates DM-552 and lacks
+    // the field. The pre-DM-554 hardcoded `#ffffff` was scheme-blind, which
+    // produced a near-100% sig-pixel diff on every dark-rendered marketing
+    // page (paint dark, repaint light → invert).
+    const bodyBgFromPage = await page.evaluate(() => {
       const cs = getComputedStyle(document.body);
       const bg = cs.backgroundColor;
-      if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return "#ffffff";
+      if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return null;
       return bg;
     });
+    const rootStyles = cap.tree[0]?.styles;
+    const rootBg = rootStyles?.rootBgComputed;
+    const rootScheme = rootStyles?.rootColorScheme;
+    const transparentRootBg = (rootBg != null && rootBg !== "rgba(0, 0, 0, 0)" && rootBg !== "transparent")
+      ? rootBg
+      : (rootScheme === "dark" ? "#1c1c1c" : "#ffffff");
+    const bodyBg = bodyBgFromPage ?? transparentRootBg;
 
     // Build the SVG document. `scroll` mode wraps the captured content
     // inside a fixed-size animated viewport; the other modes emit the

@@ -1,4 +1,4 @@
-export { captureElementTree, captureElementTreeWithWarnings, elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, getLastCaptureWarnings, logCaptureWarnings, embedRemoteImages, embedResizedDataUri } from "./dom-to-svg.js";
+export { captureElementTree, captureElementTreeWithWarnings, elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, transparentRootBgRect, getLastCaptureWarnings, logCaptureWarnings, embedRemoteImages, embedResizedDataUri } from "./dom-to-svg.js";
 export { resizeEmbeddedImages } from "./resize-embedded-images.js";
 export type { ResizeEmbeddedImagesOptions } from "./resize-embedded-images.js";
 export type { CapturedElement, CaptureWarning } from "./dom-to-svg.js";

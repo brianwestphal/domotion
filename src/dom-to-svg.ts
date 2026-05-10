@@ -4173,7 +4173,12 @@ export async function calibrateBaselines(
  */
 export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[] }): string {
   const schemeAttr = opts?.tree != null ? rootSvgColorSchemeAttr(opts.tree) : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}>${inner}</svg>`;
+  // DM-554: when given the captured tree, emit a transparent-root body-bg
+  // rect using the tree's resolved-by-Chromium `rootBgComputed`. Skipped
+  // when `rootBgComputed` is missing (back-compat with pre-DM-552 trees) or
+  // explicitly transparent (the page intends a transparent SVG output).
+  const rootBgRect = opts?.tree != null ? transparentRootBgRect(opts.tree, width, height) : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}>${rootBgRect}${inner}</svg>`;
 }
 
 /**
@@ -4189,6 +4194,29 @@ export function wrapSvg(inner: string, width: number, height: number, opts?: { t
 export function rootSvgColorSchemeAttr(elements: CapturedElement[]): string {
   if (elements.length === 0) return "";
   return elements[0].styles?.rootColorScheme === "dark" ? ` color-scheme="dark"` : "";
+}
+
+/**
+ * DM-554: returns a body-bg `<rect>` markup string for the canvas when the
+ * captured tree's root provides a `rootBgComputed` (set by CAPTURE_SCRIPT
+ * from `getComputedStyle(document.documentElement).backgroundColor`).
+ * Returns an empty string when the field is missing (pre-DM-552 captures)
+ * or the resolved bg is transparent (pages that intend a transparent SVG).
+ *
+ * Used by `wrapSvg` and exported so external consumers that build their
+ * own `<svg>` opening tag (because they need to inject a body-bg rect at a
+ * specific position relative to other root-level rects, e.g. a frame
+ * overlay) can produce the same markup without re-implementing the
+ * fallback chain.
+ */
+export function transparentRootBgRect(elements: CapturedElement[], width: number, height: number): string {
+  if (elements.length === 0) return "";
+  const styles = elements[0].styles;
+  const rootBg = styles?.rootBgComputed;
+  if (rootBg == null || rootBg === "" || rootBg === "rgba(0, 0, 0, 0)" || rootBg === "transparent") {
+    return "";
+  }
+  return `<rect width="${width}" height="${height}" fill="${rootBg}" />`;
 }
 
 /**
