@@ -19,8 +19,11 @@
   ],
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "capture": "tsx src/cli.ts",
     "test": "vitest run",
+    "release": "bash scripts/release.sh",
+    "release:beta": "bash scripts/release.sh --beta",
     "test:watch": "vitest",
     "demos:test": "tsx tests/features.ts",
     "demos:test:showcase": "tsx tests/showcase.tsx",
