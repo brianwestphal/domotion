@@ -2,7 +2,7 @@
  * Build the redesigned install-demo animation (DM-207, refined in DM-212).
  *
  * Storyboard:
- *  1. Terminal with "$ npm install domotion" — typed-text element is wrapped
+ *  1. Terminal with "$ npm install domotion-svg" — typed-text element is wrapped
  *     in a `data-domotion-anim="cmd1"` span and revealed left-to-right via
  *     a `clipPath` intra-frame animation. Because the same captured glyph
  *     paths are reused in subsequent frames, there's no font-rendering
@@ -76,10 +76,10 @@ function dollar(): string {
 // (so the merge / per-frame paths render identical paths there), and the
 // keyframe lands `clip-path: inset(0 0 0 0)` after typing finishes — i.e.
 // fully visible — so later frames are visually unaffected.
-const CMD1 = `<span data-domotion-anim="cmd1">npm install domotion</span>`;
+const CMD1 = `<span data-domotion-anim="cmd1">npm install domotion-svg</span>`;
 const CMD2 = `<span data-domotion-anim="cmd2">domotion capture https://www.nytimes.com -o nytimes.svg</span>`;
 
-// Frame 0: prompt with "npm install domotion" present but clipped to width 0
+// Frame 0: prompt with "npm install domotion-svg" present but clipped to width 0
 // at the start of the scene; the cmd1 clipPath animation reveals it.
 const FRAME_0 = terminalDoc(`${shellHeader()}<div>${dollar()}${CMD1}</div>`);
 
@@ -209,7 +209,7 @@ async function main(): Promise<void> {
     // matches what real keyboard typing feels like. N is chosen as the
     // character count so each step exposes one glyph.
     const frames: AnimationFrame[] = [
-      // 0. type "npm install domotion" via clipPath reveal on cmd1.
+      // 0. type "npm install domotion-svg" via clipPath reveal on cmd1.
       // Hold = reveal duration + a beat of trailing pause.
       {
         svgContent: f0,

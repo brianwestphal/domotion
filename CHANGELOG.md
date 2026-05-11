@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **domotion** are documented in this file.
+All notable changes to **Domotion** are documented in this file.
 
 ## [0.1.0] - 2026-05-11
 

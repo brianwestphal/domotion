@@ -37,8 +37,8 @@ its output appearing.</p>
 <span class="tk-k">const</span> withOutput = <span class="tk-s">\`&lt;!doctype html&gt;
 &lt;html&gt;&lt;body style="margin:0;background:#1e1e2e;font-family:'SF Mono',monospace;color:#e6edf3"&gt;
   &lt;div style="padding:18px;font-size:13px;line-height:1.7;"&gt;
-    &lt;div&gt;&lt;span style="color:#28c840;font-weight:700;"&gt;$&lt;/span&gt; npm install domotion&lt;/div&gt;
-    &lt;div style="color:#56d364;"&gt;+ domotion@0.1.0&lt;/div&gt;
+    &lt;div&gt;&lt;span style="color:#28c840;font-weight:700;"&gt;$&lt;/span&gt; npm install domotion-svg&lt;/div&gt;
+    &lt;div style="color:#56d364;"&gt;+ domotion-svg@0.1.0&lt;/div&gt;
     &lt;div style="color:#8b8fa3;"&gt;added 12 packages in 1.4s&lt;/div&gt;
   &lt;/div&gt;
 &lt;/body&gt;&lt;/html&gt;\`</span>;
@@ -49,7 +49,7 @@ frames.<span class="tk-f">push</span>({
   duration: <span class="tk-n">2200</span>,
   overlays: [{
     kind: <span class="tk-s">"typing"</span>,
-    text: <span class="tk-s">"npm install domotion"</span>,
+    text: <span class="tk-s">"npm install domotion-svg"</span>,
     x: <span class="tk-n">36</span>, y: <span class="tk-n">35</span>,            <span class="tk-c">// just to the right of the $ prompt</span>
     fontSize: <span class="tk-n">13</span>,
     color: <span class="tk-s">"#e6edf3"</span>,

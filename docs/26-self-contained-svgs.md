@@ -20,7 +20,7 @@ Implemented in DM-512.
 A new public function `embedRemoteImages(tree)` walks the captured tree, collects every http(s) URL referenced by `imageSrc`, `pseudoImages[].url`, or `url(...)` tokens inside `styles.backgroundImage` / `.maskImage` / `.borderImageSource` / `.listStyleImage`, and fetches each unique URL in parallel. The resolved bytes are stashed in the renderer's data-URI cache as `data:<mime>;base64,…`, so subsequent calls to `elementTreeToSvg` emit the inline form.
 
 ```ts
-import { captureElementTree, embedRemoteImages, elementTreeToSvg } from "domotion";
+import { captureElementTree, embedRemoteImages, elementTreeToSvg } from "domotion-svg";
 
 const tree = await captureElementTree(page, "body", viewport);
 await embedRemoteImages(tree);                 // ← new pre-pass (DM-512)

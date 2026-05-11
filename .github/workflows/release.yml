@@ -110,7 +110,7 @@ jobs:
         if: needs.detect.outputs.is_beta == 'true'
         run: |
           {
-            echo "**Beta / pre-release** — install with \`npm install domotion@beta\`."
+            echo "**Beta / pre-release** — install with \`npm install domotion-svg@beta\`."
             echo
             echo "GitHub's \`releases/latest\` ignores prereleases, so this beta does not affect anyone tracking the stable channel."
             echo

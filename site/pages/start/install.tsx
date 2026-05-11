@@ -28,13 +28,13 @@ export const content: SafeHtml = raw(`
 
 <p>Most users want the <code>domotion</code> CLI globally:</p>
 
-<pre><code>npm install -g domotion</code></pre>
+<pre><code>npm install -g domotion-svg</code></pre>
 
 <p>If you'd rather scope it to a project (and run it via
 <code>npx domotion</code>), or if you plan to use the JS API too:</p>
 
 <pre><code><span class="tk-c"># With npm</span>
-npm install domotion
+npm install domotion-svg
 
 <span class="tk-c"># With pnpm</span>
 pnpm add domotion

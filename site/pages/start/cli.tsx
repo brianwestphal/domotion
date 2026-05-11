@@ -11,7 +11,7 @@ export const meta = {
 
 export const content: SafeHtml = raw(`
 <p>The <code>domotion</code> binary is installed when you
-<code>npm install domotion</code>. It exposes two commands:</p>
+<code>npm install domotion-svg</code>. It exposes two commands:</p>
 
 <ul>
   <li><code>domotion capture &lt;input&gt; [options]</code> — single-frame SVG.</li>

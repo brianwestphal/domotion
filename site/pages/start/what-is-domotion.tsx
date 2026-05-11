@@ -23,7 +23,7 @@ export const content: SafeHtml = raw(`
   Most users start with the CLI:
 </p>
 
-<pre><code>npm install -g domotion
+<pre><code>npm install -g domotion-svg
 domotion capture https://example.com -o example.svg</code></pre>
 
 <p>

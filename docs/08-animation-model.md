@@ -134,7 +134,7 @@ Desugars into:
 Storyboard — combines all of the above:
 
 1. Frame 1: terminal HTML, hold 0ms.
-   - `overlays: [{ kind: "typing", text: "npm install domotion", x: 28, y: 56, speed: 70 }]`
+   - `overlays: [{ kind: "typing", text: "npm install domotion-svg", x: 28, y: 56, speed: 70 }]`
 2. Frame 2: same terminal + the typed command baked in. Transition `cut`. Hold 150ms.
 3. Frame 3: terminal + "resolving dependencies" line + empty progress bar. Transition `cut`. Hold 2000ms.
    - `animations: [{ selector: ".progress-fill", property: "width", from: "0%", to: "100%", duration: 2000, easing: "ease-out" }]`

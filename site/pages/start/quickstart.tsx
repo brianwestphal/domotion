@@ -16,9 +16,9 @@ writes the SVG.</p>
 
 <h2>1. Install</h2>
 
-<pre><code>npm install -g domotion</code></pre>
+<pre><code>npm install -g domotion-svg</code></pre>
 
-<p>(Or <code>npm install domotion</code> in a project and use
+<p>(Or <code>npm install domotion-svg</code> in a project and use
 <code>npx domotion</code>.) Chromium auto-installs the first time you run a
 capture; nothing else to set up.</p>
 

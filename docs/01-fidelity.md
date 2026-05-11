@@ -111,7 +111,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 Every call to `captureElementTree()` collects warnings when it encounters a feature from the lists above that doesn't round-trip fully. After the call:
 
 ```ts
-import { captureElementTree, getLastCaptureWarnings, logCaptureWarnings } from "domotion/dom-to-svg";
+import { captureElementTree, getLastCaptureWarnings, logCaptureWarnings } from "domotion-svg/dom-to-svg";
 
 const tree = await captureElementTree(page, "body", viewport);
 logCaptureWarnings();      // stderr one-line-per-warning

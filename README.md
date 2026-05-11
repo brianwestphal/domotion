@@ -19,7 +19,7 @@ Early — extracted in 2026-04 from the slicekit project where it had been incub
 ## Install
 
 ```bash
-npm install domotion
+npm install domotion-svg
 ```
 
 That's it — Domotion auto-installs Playwright's Chromium binary on first use
@@ -29,7 +29,7 @@ yourself to keep the first job's runtime down.
 ## Usage
 
 ```ts
-import { captureElementTree, elementTreeToSvg, launchChromium, wrapSvg } from "domotion";
+import { captureElementTree, elementTreeToSvg, launchChromium, wrapSvg } from "domotion-svg";
 
 const browser = await launchChromium();
 const page = await browser.newPage();

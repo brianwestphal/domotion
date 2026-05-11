@@ -74,14 +74,14 @@ export const content: SafeHtml = (
     <section style="margin-top:48px;text-align:center;">
       <h2 style="border:none;font-size:18px;color:var(--fg-muted);font-weight:500;">Animated SVG, looping natively in your browser</h2>
       <figure style="margin:16px auto;max-width:640px;">
-        <img src="assets/img/install-demo.svg" alt="Three-frame terminal animation: 'npm install domotion' typing in, a progress bar resolving dependencies, then a green checkmark with the installed packages list." style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line);" />
+        <img src="assets/img/install-demo.svg" alt="Three-frame terminal animation: 'npm install domotion-svg' typing in, a progress bar resolving dependencies, then a green checkmark with the installed packages list." style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line);" />
         <figcaption style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Three captured HTML states stitched into one SVG with crossfades — no JavaScript at runtime.</figcaption>
       </figure>
     </section>
 
     <section style="margin-top:40px;text-align:center;">
       <h2 style="border:none;font-size:18px;color:var(--fg-muted);font-weight:500;">One install, one command</h2>
-      <pre style="display:inline-block;text-align:left;margin:0 auto;">{raw(`npm install -g domotion
+      <pre style="display:inline-block;text-align:left;margin:0 auto;">{raw(`npm install -g domotion-svg
 domotion capture https://example.com -o example.svg`)}</pre>
       <p style="margin-top:6px;font-size:13px;color:var(--fg-muted);">Chromium auto-installs on first capture. Drop down to the <a href="api/overview/">JS API</a> when you outgrow the CLI.</p>
       <p style="margin-top:12px;"><a href="start/quickstart/">Quick start →</a></p>

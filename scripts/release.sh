@@ -401,7 +401,7 @@ step_beta_tag_and_push() {
   echo -e "    3. Publish to npm with --tag beta --provenance"
   echo ""
   echo -e "  ${DIM}This is a beta — there is no auto-promote.${RESET}"
-  echo -e "  ${DIM}Users get it via:${RESET}  npm install domotion@beta"
+  echo -e "  ${DIM}Users get it via:${RESET}  npm install domotion-svg@beta"
   echo ""
   echo -e "  ${DIM}Monitor:${RESET} https://github.com/brianwestphal/domotion/actions"
 }

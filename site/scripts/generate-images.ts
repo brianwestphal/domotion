@@ -50,7 +50,7 @@ const SCENES: Scene[] = [
         </div>
       </div>
       <div style="margin:0 40px;padding:14px 18px;border:1px solid #30363d;border-radius:8px;background:#161b22;font-family:'SF Mono',monospace;font-size:13px;color:#79c0ff;">
-        $ npm install domotion
+        $ npm install domotion-svg
       </div>
     </body></html>`,
   },
@@ -208,14 +208,14 @@ async function captureAnimation(page: Page): Promise<string> {
   const stages = [
     {
       html: frame({
-        cmd: "npm install domotion",
+        cmd: "npm install domotion-svg",
         cursor: true,
         body: "",
       }),
     },
     {
       html: frame({
-        cmd: "npm install domotion",
+        cmd: "npm install domotion-svg",
         body: `
           <div style="color:#7dd3fc;margin-top:6px;">⠼ resolving dependencies…</div>
           <div style="margin-top:8px;height:6px;width:100%;border-radius:3px;background:#2a2a3a;overflow:hidden;">
@@ -225,7 +225,7 @@ async function captureAnimation(page: Page): Promise<string> {
     },
     {
       html: frame({
-        cmd: "npm install domotion",
+        cmd: "npm install domotion-svg",
         body: `
           <div style="color:#56d364;margin-top:6px;font-weight:700;">✓ added 12 packages in 1.4s</div>
           <div style="color:#8b949e;margin-top:4px;">  <span style="color:#79c0ff;">domotion</span>@<span style="color:#d2a8ff;">0.1.0</span></div>
