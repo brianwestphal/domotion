@@ -1532,6 +1532,34 @@ const CAPTURE_SCRIPT = `
     if (cs.display === 'none') return null;
     if ((cs.visibility === 'hidden' || cs.visibility === 'collapse') && !bordersOnlyCell) return null;
 
+    // DM-580: standard accessibility "visually-hidden" / "sr-only" idioms.
+    // Chrome paints nothing for these (clipped to zero), but the DOM text is
+    // still present for screen readers. Without this filter the captured tree
+    // emits stray text (skip-to-content links, country/section abbreviations,
+    // hidden tooltip labels) that the real page never paints. Three patterns:
+    //   1. Legacy: clip: rect(0,0,0,0) (still used across major news/CMS sites)
+    //   2. Modern: clip-path: inset(50%) or inset(100%) — collapses to 0 box
+    //   3. 1x1 sr-only: tiny absolutely-positioned box with overflow:hidden
+    const _clip = cs.clip || '';
+    if (_clip !== 'auto' && _clip !== '' && _clip !== 'normal') {
+      const _cm = _clip.match(/rect\\(\\s*([^,\\s]+)[ ,]+([^,\\s]+)[ ,]+([^,\\s]+)[ ,]+([^)\\s]+)\\s*\\)/);
+      if (_cm != null
+          && parseFloat(_cm[1]) === 0 && parseFloat(_cm[2]) === 0
+          && parseFloat(_cm[3]) === 0 && parseFloat(_cm[4]) === 0) {
+        return null;
+      }
+    }
+    const _cp = cs.clipPath || '';
+    if (_cp.indexOf('inset(') === 0) {
+      const _ipm = _cp.match(/inset\\(\\s*([0-9.]+)\\s*%/);
+      if (_ipm != null && parseFloat(_ipm[1]) >= 50) return null;
+    }
+    if (rect.width <= 1 && rect.height <= 1
+        && (cs.overflow === 'hidden' || cs.overflowX === 'hidden' || cs.overflowY === 'hidden')
+        && (cs.position === 'absolute' || cs.position === 'fixed')) {
+      return null;
+    }
+
     // Zero-sized elements — skip visual rendering of the element itself but
     // still walk children. Elements with all position:absolute children
     // collapse to 0 height (absolutes don't contribute to layout) — those

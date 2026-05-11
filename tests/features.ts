@@ -702,6 +702,26 @@ const tests: FeatureTest[] = [
     width: 480,
     height: 180,
   },
+  {
+    // DM-580: accessibility "visually-hidden" / "sr-only" patterns paint
+    // nothing in Chrome but the DOM still carries the text. Real-world
+    // captures of nytimes.com / slashdot etc. were leaking stray skip-link /
+    // section-abbreviation text into the SVG. Three patterns exercised:
+    //   1. `clip: rect(0,0,0,0)` (legacy)
+    //   2. `clip-path: inset(50%)` (modern, used by Tailwind's `sr-only`)
+    //   3. `width:1px;height:1px;overflow:hidden;position:absolute` (1×1 sr-only)
+    // The fixture wraps a normally-painted "Hello" so we can verify the box
+    // around it is unchanged while the hidden text drops out.
+    name: "visually-hidden-text",
+    html: `<div style="padding:20px;background:#fff;font-family:-apple-system,sans-serif;font-size:16px;color:#111;">
+      <a href="#main" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Skip to content</a>
+      <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;">Section: SK</span>
+      <span style="position:absolute;width:1px;height:1px;overflow:hidden;">Tooltip label</span>
+      <span>Hello</span>
+    </div>`,
+    width: 240,
+    height: 80,
+  },
 ];
 
 void runFeatureTests(tests, "features");
