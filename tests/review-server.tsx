@@ -227,6 +227,11 @@ const REVIEW_CSS = `
   .imgs figure { margin: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; overflow: hidden; cursor: zoom-in; }
   .imgs figcaption { font-size: 11px; color: #8b949e; padding: 4px 6px; border-bottom: 1px solid #30363d; text-align: center; letter-spacing: 0.3px; }
   .imgs img { display: block; width: 100%; height: auto; }
+  .region-stage { position: relative; }
+  .region-overlay { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+  .region-rect { fill: rgba(255,170,0,0.15); stroke: #ffaa00; stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .region-label-bg { fill: rgba(13,17,23,0.85); }
+  .region-label-text { fill: #ffaa00; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; dominant-baseline: alphabetic; }
   .skip-note { font-size: 12px; color: #8b949e; font-style: italic; padding: 10px 0; }
   .comment { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 8px; font: inherit; resize: vertical; min-height: 54px; }
   .actions { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
@@ -318,6 +323,53 @@ function renderReviewPage(manifest: ReviewManifest): string {
   return `<!DOCTYPE html>\n${(<Layout manifestJson={manifestJson} />).toString()}`;
 }
 
+// ── Regions (DM-572 / DM-573) ──
+
+interface ServerRect { index: number; image?: string; x: number; y: number; w: number; h: number; caption?: string }
+
+function sanitizeRegions(raw: unknown): ServerRect[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ServerRect[] = [];
+  let positional = 0;
+  for (const item of raw) {
+    if (typeof item !== "object" || item == null) continue;
+    const r = item as Record<string, unknown>;
+    const x = Number(r["x"]);
+    const y = Number(r["y"]);
+    const w = Number(r["w"]);
+    const h = Number(r["h"]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) continue;
+    if (w <= 0 || h <= 0 || x < 0 || y < 0) continue;
+    positional += 1;
+    const idx = Number(r["index"]);
+    const region: ServerRect = {
+      index: Number.isFinite(idx) && idx > 0 ? Math.floor(idx) : positional,
+      x: Math.floor(x),
+      y: Math.floor(y),
+      w: Math.floor(w),
+      h: Math.floor(h),
+    };
+    const image = typeof r["image"] === "string" ? r["image"].trim() : "";
+    if (image !== "") region.image = image;
+    const caption = typeof r["caption"] === "string" ? r["caption"].trim() : "";
+    if (caption !== "") region.caption = caption;
+    out.push(region);
+  }
+  return out.sort((a, b) => a.index - b.index);
+}
+
+function serializeRegions(rects: ServerRect[]): string {
+  if (rects.length === 0) return "";
+  const lines = ["REGIONS:"];
+  for (const r of rects) {
+    const pin = r.image != null ? `image=${r.image} ` : "";
+    const coords = `(x=${r.x} y=${r.y} w=${r.w} h=${r.h})`;
+    const caption = r.caption != null ? ` — ${r.caption}` : "";
+    lines.push(`- [${r.index}] ${pin}${coords}${caption}`);
+  }
+  return lines.join("\n");
+}
+
 // ── MIME ──
 
 function mimeFor(path: string): string {
@@ -394,16 +446,18 @@ async function main(): Promise<void> {
 
       if (req.method === "POST" && url.pathname === "/api/file-ticket") {
         const body = await readBody(req);
-        const parsed = JSON.parse(body) as { suite?: string; name?: string; comment?: string };
+        const parsed = JSON.parse(body) as { suite?: string; name?: string; comment?: string; regions?: unknown };
         const suite = parsed.suite as SuiteName | undefined;
         const name = parsed.name ?? "";
         const comment = parsed.comment ?? "";
+        const regions = sanitizeRegions(parsed.regions);
         const match = manifest.tests.find((r) => r.name === name && r.suite === suite);
         if (match == null) {
           sendJson(res, 400, { error: `Unknown test: ${suite}/${name}` });
           return;
         }
         const title = `SVG demo test [${match.suite}]: ${name} (${match.diffPct.toFixed(2)}% diff)`;
+        const regionsBlock = serializeRegions(regions);
         const detailsParts = [
           `Suite: \`${match.suite}\``,
           `Test: \`${name}\``,
@@ -413,6 +467,9 @@ async function main(): Promise<void> {
           "",
           comment !== "" ? comment : "_(no comment provided)_",
         ];
+        if (regionsBlock !== "") {
+          detailsParts.push("", regionsBlock);
+        }
         if (!match.skipped) {
           const relPath = match.suite === "html-test"  ? "tests/output/html-test"
                         : match.suite === "real-world" ? "tests/output/real-world"

@@ -19,6 +19,8 @@
  */
 import { signal, computed, each, effect, mount, delegate } from "kerfjs";
 
+import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./review-region-overlay.js";
+
 type SuiteName = "features" | "showcase" | "html-test" | "real-world";
 
 interface ReviewTest {
@@ -232,13 +234,63 @@ sortEl  .addEventListener("change", () => { sortS  .value = sortEl  .value as So
 
 // ── Card delegation ──
 
-delegate(cardsEl, "click", "figure[data-src]", (_event, target) => {
+delegate(cardsEl, "click", "figure[data-src]", (event, target) => {
+  // Drawing rectangles cancels the lightbox click — the overlay's pointerdown
+  // handler stops propagation, but a non-drawing click on the figure
+  // (caption area, image margin) still bubbles here. Skip the lightbox if the
+  // click originated on the SVG overlay so a quick interior-click delete or a
+  // resize-handle drag-end doesn't pop the lightbox over the user's work.
+  const origin = event.target as Element | null;
+  if (origin != null && origin.closest(".region-overlay") != null) return;
   // Snapshot every visible figure in DOM order so arrow keys walk the whole
   // currently-filtered set (not just the clicked card's three).
   lbFigures = Array.from(cardsEl.querySelectorAll<HTMLElement>("figure[data-src]"));
   const idx = lbFigures.indexOf(target as HTMLElement);
   if (idx >= 0) showLightboxAt(idx);
 });
+
+// ── Region overlays (DM-572 / DM-573 / DM-576) ──
+
+const overlayByCard = new WeakMap<HTMLElement, OverlayHandle>();
+
+function attachRegionOverlays(): void {
+  document.querySelectorAll<HTMLElement>(".card:not([data-rgn-init])").forEach((card) => {
+    if (card.querySelector(".imgs figure[data-src]") == null) return;
+    card.dataset["rgnInit"] = "1";
+    overlayByCard.set(card, enableRegionOverlays(card));
+  });
+}
+
+// kerfjs's each() preserves cards on filter / sort changes (data-morph-skip),
+// but new cards appear when the filter widens. Walk after every visible-list
+// update to wire up overlays on whichever cards are freshly mounted.
+effect(() => {
+  // Touch `visible` so this effect re-runs when the visible list changes,
+  // then drain to the next microtask so morphdom has finished mounting.
+  void visible.value;
+  queueMicrotask(attachRegionOverlays);
+});
+
+// DM-576: pressing Escape inside a card's textarea-or-elsewhere clears the
+// in-progress rectangles on that card without firing the lightbox or the
+// existing Esc-closes-lightbox handler.
+document.addEventListener(
+  "keydown",
+  (e) => {
+    if (e.key !== "Escape") return;
+    if (lbOpen.value) return;
+    const active = document.activeElement as HTMLElement | null;
+    const card = active != null ? active.closest<HTMLElement>(".card") : null;
+    if (card == null) return;
+    const handle = overlayByCard.get(card);
+    if (handle == null) return;
+    if (handle.getRegions().length === 0) return;
+    handle.clear();
+    e.preventDefault();
+    e.stopPropagation();
+  },
+  true,
+);
 
 delegate(cardsEl, "click", ".file-btn", (_event, target) => {
   void fileTicket(target as HTMLButtonElement);
@@ -253,6 +305,8 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
   const msg = card.querySelector<HTMLElement>(".status-msg");
   if (commentEl == null || msg == null) return;
   const comment = commentEl.value.trim();
+  const overlay = overlayByCard.get(card);
+  const regions: Rect[] = overlay != null ? overlay.getRegions() : [];
   msg.className = "status-msg";
   msg.textContent = "";
   btn.disabled = true;
@@ -261,13 +315,14 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
     const res = await fetch("/api/file-ticket", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ suite, name, comment }),
+      body: JSON.stringify({ suite, name, comment, regions }),
     });
     const json = await res.json() as { ticket_number?: string; error?: string };
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
     msg.className = "status-msg ok";
-    msg.textContent = `Filed ${json.ticket_number ?? ""}`;
+    msg.textContent = `Filed ${json.ticket_number ?? ""}${regions.length > 0 ? ` (with ${regions.length} region${regions.length === 1 ? "" : "s"})` : ""}`;
     commentEl.value = "";
+    overlay?.clear();
   } catch (err) {
     msg.className = "status-msg err";
     msg.textContent = "Failed: " + (err instanceof Error ? err.message : String(err));
@@ -276,3 +331,8 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
     btn.textContent = "File ticket";
   }
 }
+
+// `serializeRegions` is currently re-implemented server-side — re-export the
+// client-side helper so it's available for any future flow that needs to
+// render the block in the browser (e.g. inline preview).
+export { serializeRegions };
