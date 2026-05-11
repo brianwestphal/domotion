@@ -351,6 +351,31 @@ export function parseFontFeatureSettings(css: string | undefined): string[] | un
   return out.length > 0 ? out : undefined;
 }
 
+// DM-578: parse `font-variation-settings` into the `{ axisTag: value }` shape
+// fontkit's `font.getVariation()` expects. Pages built with next/font or
+// hand-tuned variable-font setups (framer.com body P captures
+// `font-variation-settings: "opsz" 30, "wght" 450`) drive `wght` / `opsz` /
+// custom axes directly, overriding the CSS-weight-derived defaults. Without
+// this the variable webfont renders at the wrong instance — slightly wrong
+// stem thickness and counter shapes vs Chromium.
+//
+// CSS syntax (per CSS Fonts 4 §6.3):
+//   font-variation-settings: <feature-tag-value> #
+//   <feature-tag-value> = <opentype-axis-tag> <number>
+//
+// Returns undefined when the value is missing / `normal`.
+export function parseFontVariationSettings(css: string | undefined): Record<string, number> | undefined {
+  if (css == null || css === "" || css === "normal") return undefined;
+  const out: Record<string, number> = {};
+  // Axis tags are 4-character codes (alphanumeric); values can be integer or float.
+  const re = /["']([a-zA-Z0-9]{4})["']\s*(-?\d+(?:\.\d+)?)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css)) != null) {
+    out[m[1]] = parseFloat(m[2]);
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function mergeFeatureLists(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
   if (a == null) return b;
   if (b == null) return a;
@@ -388,6 +413,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
     parseFontFeatureSettings(el.styles.fontFeatureSettings),
   );
+  const variationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
   // DM-495: when the only segment is a pseudo with its own typography
   // overrides (color / fontSize / fontWeight / fontAscent), prefer those
   // over the host element's values. The capture layer carries pseudo-
@@ -413,7 +439,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
     return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>`;
   })() : "";
-  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, segAscent, features, el.styles.lang);
+  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, segAscent, features, el.styles.lang, variationSettings);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : segColor;
@@ -485,6 +511,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
     ? el.styles.textDecorationColor : fillColor;
   const decoStyle = el.styles.textDecorationStyle;
+  const elVariationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
   for (const seg of segments) {
     // Color-bitmap glyph fallback (SK-1058): CAPTURE_SCRIPT marked this
     // segment with a Playwright screenshot of Chrome's actual raster (e.g.
@@ -536,7 +563,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
     const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang);
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings);
     if (result != null) { parts.push(result); }
     else if (!isAllPrivateUseArea(seg.text)) {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
@@ -593,6 +620,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   // (those land here with a single segment and a \n-bearing el.text — splitting
   // on `\n` would emit a phantom second line below the captured one).
   const ffsFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
+  const fvsAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
   if (el.textSegments != null && el.textSegments.length > 0) {
     const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
     for (const seg of el.textSegments) {
@@ -602,7 +630,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
       const segAscent = seg.fontAscent ?? el.fontAscent;
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang);
+      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes);
       if (result != null) parts.push(`  ${result}`);
     }
   } else {
@@ -611,7 +639,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const line = lines[li];
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
-      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang);
+      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang, fvsAxes);
       if (result != null) parts.push(`  ${result}`);
     }
   }
@@ -653,7 +681,8 @@ export function renderInputText(opts: RenderTextOpts): string {
   const xOffsetsRel = el.inputXOffsets != null
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
   const inputFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
-  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang);
+  const inputAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
+  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes);
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints

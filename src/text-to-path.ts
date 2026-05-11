@@ -98,7 +98,7 @@ export function unicodeRangeCovers(ranges: Array<[number, number]> | undefined, 
  * matching Cyrillic/Greek/Latin-Ext partition that's registered but
  * unselected.
  */
-export function pickWebfontVariantForCodepoint(family: string, weight: number, fontSize: number, slant: number, codepoint: number): FontInstance | null {
+export function pickWebfontVariantForCodepoint(family: string, weight: number, fontSize: number, slant: number, codepoint: number, variationSettings?: Record<string, number>): FontInstance | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
@@ -111,7 +111,7 @@ export function pickWebfontVariantForCodepoint(family: string, weight: number, f
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant);
+  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings);
 }
 
 /**
@@ -210,7 +210,7 @@ function pickLocalFontAliasVariant(family: string, weight: number, italic: boole
  * Used internally by `getFontInstance` for `webfont:<name>` keys; italic
  * match dominates the score so italic+regular beats upright+italic-mismatch.
  */
-function pickWebfontVariant(family: string, weight: number, fontSize: number, slant: number): FontInstance | null {
+function pickWebfontVariant(family: string, weight: number, fontSize: number, slant: number, variationSettings?: Record<string, number>): FontInstance | null {
   const variants = webfontRegistry.get(family);
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
@@ -239,7 +239,7 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
     if (score < bestScore) { bestScore = score; best = v; }
   }
   if (best == null) return null;
-  return applyVariationAxes(best.font, weight, fontSize, slant);
+  return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings);
 }
 
 /**
@@ -705,11 +705,11 @@ function isEmojiCodepoint(cp: number, nextCp: number): boolean {
   return false;
 }
 
-function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0): FontInstance | null {
+function getFontInstance(key: string, weight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
   if (key.startsWith("webfont:")) {
-    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant);
+    return pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings);
   }
   // `localalias:<family>` — the family was declared via @font-face local() and
   // we tracked one or more declared (weight, italic) variants pointing at base
@@ -722,7 +722,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
     const family = key.slice("localalias:".length);
     const variant = pickLocalFontAliasVariant(family, weight, slant !== 0);
     if (variant == null) return null;
-    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0);
+    return getFontInstance(variant.baseKey, variant.weight, fontSize, variant.italic ? slant : 0, variationSettings);
   }
   // SF Pro / SF Mono ship their italics as separate .ttf files rather than
   // exposing a `slnt` variable-axis on the upright file, so route italic
@@ -767,7 +767,13 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
       && weight >= 600) {
     effectiveKey = `${key}-bold`;
   }
-  const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}`;
+  // DM-578: include author-set variation settings in the cache key so two
+  // elements requesting the same (key, weight, size, slant) but with different
+  // axis overrides don't share a single cached instance.
+  const fvsKey = variationSettings != null
+    ? Object.keys(variationSettings).sort().map((t) => `${t}=${variationSettings[t]}`).join(",")
+    : "";
+  const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 
   const spec = FONT_PATHS[effectiveKey];
@@ -802,7 +808,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
         font = opened.fonts[0];
       }
     }
-    const instance = applyVariationAxes(font, weight, fontSize, slant);
+    const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings);
     fontInstanceCache.set(cacheKey, instance);
     return instance;
   } catch {
@@ -830,7 +836,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
  * Inter Variable or Roboto Flex render at the requested weight/size instead
  * of always producing the registered base instance.
  */
-function applyVariationAxes(font: any, weight: number, fontSize: number, slant: number): FontInstance {
+function applyVariationAxes(font: any, weight: number, fontSize: number, slant: number, variationSettings?: Record<string, number>): FontInstance {
   if (font.variationAxes == null || Object.keys(font.variationAxes).length === 0 || font.getVariation == null) {
     return font;
   }
@@ -838,6 +844,14 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
   if (font.variationAxes.wght != null) axes.wght = weight;
   if (font.variationAxes.opsz != null) axes.opsz = fontSize;
   if (slant !== 0 && font.variationAxes.slnt != null) axes.slnt = slant;
+  // DM-578: author-set `font-variation-settings` wins over the CSS-weight /
+  // font-size-derived defaults. Skip axes the font doesn't expose — fontkit
+  // would otherwise reject the variation entirely on an unknown tag.
+  if (variationSettings != null) {
+    for (const tag of Object.keys(variationSettings)) {
+      if (font.variationAxes[tag] != null) axes[tag] = variationSettings[tag];
+    }
+  }
   if (Object.keys(axes).length === 0) return font;
   let v: FontInstance;
   try {
@@ -960,8 +974,8 @@ export function resolveFontKey(fontFamily: string): string {
   return "times";
 }
 
-function resolveFont(fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0): FontInstance | null {
-  return getFontInstance(resolveFontKey(fontFamily), fontWeight, fontSize, slant);
+function resolveFont(fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
+  return getFontInstance(resolveFontKey(fontFamily), fontWeight, fontSize, slant, variationSettings);
 }
 
 // ── Glyph Registry (for <defs>/<use> deduplication) ──
@@ -1068,10 +1082,14 @@ export function textToPathMarkup(
    *  → PingFang TC, `zh-HK` → PingFang HK, `zh-MO` → PingFang MO, `ja` →
    *  Hiragino Kaku, otherwise PingFang SC. (DM-394) */
   lang?: string,
+  /** Author-set `font-variation-settings` axis overrides for variable webfonts
+   *  (e.g. `{ opsz: 30, wght: 450 }` from framer.com's body P). Wins over the
+   *  CSS-weight / font-size-derived defaults. DM-578. */
+  variationSettings?: Record<string, number>,
 ): TextPathResult | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (primaryFont == null) return null;
 
   const primaryFontKey = resolveFontKey(fontFamily);
@@ -1111,7 +1129,7 @@ export function textToPathMarkup(
         // font.
         if (primaryFontKey.startsWith("webfont:")) {
           const family = primaryFontKey.slice("webfont:".length);
-          const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp);
+          const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
           if (cpVariant != null && (cpVariant as any).glyphForCodePoint(cp).id !== 0) {
             // Use the codepoint-aware variant. Keep `useKey` = primary so the
             // run discriminator still groups with primary at the key level;
@@ -1148,7 +1166,11 @@ export function textToPathMarkup(
       // the same Geist family stay separate even though they share the key.
       const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
       if (runChanged && curText.length > 0) {
-        const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant);
+        // Variation settings apply to the primary requested font, not to
+        // system fallbacks reached for missing glyphs (CJK / emoji / symbols
+        // weren't declared by the page's @font-face).
+        const fvs = curKey === primaryFontKey ? variationSettings : undefined;
+        const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs);
         if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i });
         curText = "";
         curStart = i;
@@ -1159,7 +1181,8 @@ export function textToPathMarkup(
       i += ch.length;
     }
     if (curText.length > 0) {
-      const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant) ?? primaryFont;
+      const fvs = curKey === primaryFontKey ? variationSettings : undefined;
+      const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs) ?? primaryFont;
       runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length });
     }
   }
@@ -1509,13 +1532,15 @@ export function renderTextAsPath(
   /** BCP-47 language tag for locale-aware Han fallback variant routing
    *  (PingFang TC / HK / MO, or Hiragino Kaku for `ja`). DM-394. */
   lang?: string,
+  /** Author-set `font-variation-settings` axis overrides. DM-578. */
+  variationSettings?: Record<string, number>,
 ): string | null {
-  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang);
+  const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings);
   if (result == null || result.markup === "") return null;
 
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
-  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (font == null) return null;
 
   const scale = fontSize / font.unitsPerEm;

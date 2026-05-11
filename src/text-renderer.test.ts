@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFontFeatureSettings, rasterGlyphOverlays, renderSingleLineText } from "./text-renderer.js";
+import { parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText } from "./text-renderer.js";
 import type { CapturedElement } from "./dom-to-svg.js";
 
 describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
@@ -201,5 +201,48 @@ describe("parseFontFeatureSettings (DM-564)", () => {
 
   it("ignores garbage tokens between valid feature declarations", () => {
     expect(parseFontFeatureSettings(', , "cv11", junk, "ss03"')).toEqual(["cv11", "ss03"]);
+  });
+});
+
+// DM-578: variable-font axes set via CSS `font-variation-settings` must
+// override the CSS-weight / font-size-derived defaults. Without parsing the
+// declaration, Inter Variable / Geist / Roboto Flex etc. render at the
+// default instance (e.g. wght=400, opsz=fontSize) even when the page asked
+// for wght=450, opsz=30 — visible as slightly wrong stem thickness and
+// glyph spacing on framer.com / vercel.com / other next/font marketing pages.
+describe("parseFontVariationSettings (DM-578)", () => {
+  it("returns undefined for normal / empty / null", () => {
+    expect(parseFontVariationSettings(undefined)).toBeUndefined();
+    expect(parseFontVariationSettings("")).toBeUndefined();
+    expect(parseFontVariationSettings("normal")).toBeUndefined();
+  });
+
+  it("parses a single axis declaration", () => {
+    expect(parseFontVariationSettings('"wght" 450')).toEqual({ wght: 450 });
+  });
+
+  it("parses framer.com body P verbatim", () => {
+    // Captured live from www.framer.com body P `font-variation-settings`.
+    expect(parseFontVariationSettings('"opsz" 30, "wght" 450'))
+      .toEqual({ opsz: 30, wght: 450 });
+  });
+
+  it("parses fractional axis values", () => {
+    expect(parseFontVariationSettings('"wght" 437.5, "slnt" -9.99'))
+      .toEqual({ wght: 437.5, slnt: -9.99 });
+  });
+
+  it("parses negative slant values", () => {
+    expect(parseFontVariationSettings('"slnt" -10')).toEqual({ slnt: -10 });
+  });
+
+  it("supports both single and double quotes around tags", () => {
+    expect(parseFontVariationSettings(`'wght' 450, "opsz" 16`))
+      .toEqual({ wght: 450, opsz: 16 });
+  });
+
+  it("handles custom axis tags (e.g. Recursive's CASL, MONO, CRSV)", () => {
+    expect(parseFontVariationSettings('"CASL" 0.5, "MONO" 1, "CRSV" 0.5'))
+      .toEqual({ CASL: 0.5, MONO: 1, CRSV: 0.5 });
   });
 });
