@@ -7,6 +7,8 @@
  *   - mousedown-drag in empty space → draw a new rectangle
  *   - mousedown-drag on an edge or corner handle of an existing rectangle → resize
  *   - mousedown on the interior of an existing rectangle → delete it
+ *   - mousedown-up in empty space without crossing the drag threshold → click
+ *     falls through to the figure, popping the lightbox (DM-585).
  *
  * Rectangle state is shared across the three figures (the triplet is always
  * the same source-PNG dimensions in the real-world suite). Coordinates are
@@ -20,6 +22,7 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const EDGE_HIT = 6; // px hit-region around an edge / corner before promoted to resize handle
 const MIN_SIZE = 4; // px in source-PNG space — smaller rectangles snap-collapse and are dropped
+const DRAG_THRESHOLD = 4; // px in source-PNG space — below this on pointerup, treat as click, not draw
 
 export interface Rect {
   index: number;
@@ -39,6 +42,7 @@ export interface OverlayHandle {
 }
 
 type DragMode =
+  | { kind: "pending-draw"; originX: number; originY: number }
   | { kind: "draw"; originX: number; originY: number }
   | { kind: "resize"; rect: Rect; handles: ResizeHandles }
   | null;
@@ -248,20 +252,28 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
           return;
         }
       }
-      // Empty area → start drawing a new rect.
+      // Empty area → tentatively start drawing. We defer pushing a rect until
+      // pointermove crosses DRAG_THRESHOLD; a pointerup before then is a plain
+      // click and falls through to the lightbox (DM-585).
       ev.preventDefault();
       ev.stopPropagation();
       ctx.svg.setPointerCapture(ev.pointerId);
-      const newRect: Rect = { index: nextIndex(), x: p.x, y: p.y, w: 0, h: 0 };
-      rects.push(newRect);
-      drag = { kind: "draw", originX: p.x, originY: p.y };
-      repaintAll();
+      drag = { kind: "pending-draw", originX: p.x, originY: p.y };
     });
 
     ctx.svg.addEventListener("pointermove", (ev) => {
       if (drag == null) return;
       const p = clientToSource(ctx.img, ev.clientX, ev.clientY);
       if (p == null) return;
+      if (drag.kind === "pending-draw") {
+        const dx = Math.abs(p.x - drag.originX);
+        const dy = Math.abs(p.y - drag.originY);
+        if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) return;
+        // Promote the gesture: now we're actually drawing.
+        const newRect: Rect = { index: nextIndex(), x: drag.originX, y: drag.originY, w: 0, h: 0 };
+        rects.push(newRect);
+        drag = { kind: "draw", originX: drag.originX, originY: drag.originY };
+      }
       if (drag.kind === "draw") {
         const r = rects[rects.length - 1]!;
         r.x = Math.min(drag.originX, p.x);
@@ -298,9 +310,18 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
       repaintAll();
     });
 
+    const onClickThrough = (): void => {
+      // No drag happened — surface the click on the figure so the existing
+      // delegated handler in review-client.tsx pops the lightbox. The synthetic
+      // event's target is the figure itself, so the overlay-origin guard there
+      // doesn't see it as coming from .region-overlay.
+      ctx.figure.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    };
+
     const endDrag = (ev: PointerEvent): void => {
       if (drag == null) return;
       if (ctx.svg.hasPointerCapture(ev.pointerId)) ctx.svg.releasePointerCapture(ev.pointerId);
+      const wasPending = drag.kind === "pending-draw";
       if (drag.kind === "draw") {
         const r = rects[rects.length - 1]!;
         if (r.w < MIN_SIZE || r.h < MIN_SIZE) {
@@ -309,6 +330,7 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
         }
       }
       drag = null;
+      if (wasPending) onClickThrough();
     };
     ctx.svg.addEventListener("pointerup", endDrag);
     ctx.svg.addEventListener("pointercancel", endDrag);
