@@ -6,30 +6,30 @@ import { raw, type SafeHtml } from "kerfjs";
 export const meta = {
   slug: "css/colors-bg",
   title: "Colors & backgrounds",
-  subtitle: "Modern colour formats, layered backgrounds, image embedding — with a few caveats.",
+  subtitle: "Modern color formats, layered backgrounds, image embedding — with a few caveats.",
 };
 
 export const content: SafeHtml = raw(`
-<p>Every CSS colour format Chromium accepts as a computed style works —
+<p>Every CSS color format Chromium accepts as a computed style works —
 hex, <code>rgb()</code> / <code>rgba()</code>, <code>hsl()</code> / <code>hsla()</code>,
 <code>hwb()</code>, <code>lab()</code>, <code>lch()</code>, <code>oklab()</code>,
 <code>oklch()</code>, <code>color()</code> with display-p3 / sRGB, <code>color-mix(...)</code>,
-and <code>currentColor</code>. Domotion reads the resolved colour, not the
+and <code>currentColor</code>. Domotion reads the resolved color, not the
 source CSS, so notation differences don't matter.</p>
 
-<p>Backgrounds — solid colours, multiple stacked layers (first-on-top
+<p>Backgrounds — solid colors, multiple stacked layers (first-on-top
 semantics preserved), gradients (see <a href="../gradients/">Gradients</a>),
 URL-referenced images, <code>background-clip</code> in all four flavours
 including <code>text</code>, <code>background-origin</code>, and
 <code>background-attachment</code> — all round-trip. Alpha channels work
-everywhere a colour is accepted; <code>opacity</code> applies to the entire
+everywhere a color is accepted; <code>opacity</code> applies to the entire
 subtree (matches CSS); <code>opacity: 0</code> elements are skipped from output.</p>
 
 <h2>The exceptions</h2>
 
 <ul>
-  <li><strong>Wide-gamut colour output.</strong> Output is always <code>rgb()</code>
-    / <code>rgba()</code> in the SVG — wider colour spaces collapse to sRGB at
+  <li><strong>Wide-gamut color output.</strong> Output is always <code>rgb()</code>
+    / <code>rgba()</code> in the SVG — wider color spaces collapse to sRGB at
     write time. Invisible for most marketing use cases; if you're working with
     HDR / display-P3 source material and care about extended-gamut output,
     that's not yet supported.</li>

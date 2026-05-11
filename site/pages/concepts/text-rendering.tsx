@@ -77,7 +77,7 @@ own typographic tables — <code>post.underlinePosition</code>,
 — rather than as a fraction of font size. This matches what Chromium consults,
 so decorations land in the same place in the SVG as in the original render.</p>
 
-<h2>What gets rasterised</h2>
+<h2>What gets rasterized</h2>
 
 <p>Path mode covers everything that can be expressed as font outlines.
 Anything else falls back to a screenshot of that region:</p>

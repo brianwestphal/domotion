@@ -130,7 +130,7 @@ markup:</p>
 
 <h2>Inspecting capture warnings</h2>
 
-<p>Some CSS features fall back to a rasterised tile when there's no faithful
+<p>Some CSS features fall back to a rasterized tile when there's no faithful
 SVG representation (<code>backdrop-filter</code>, complex
 <code>clip-path: path(...)</code>, certain blend modes,
 <code>writing-mode: vertical-rl</code> for now). Domotion records a warning

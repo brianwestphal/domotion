@@ -7,8 +7,8 @@ import { elementTreeToSvg, type CapturedElement } from "./dom-to-svg.js";
  * These exercise `establishesStackingContext` + `gatherStackingContextChildren`
  * (both internal) by their observable effect on `elementTreeToSvg` output:
  * the relative DOM order of `fill="rgb(...)"` rect emissions in the SVG
- * string equals the paint order Chromium would use. The colours are unique
- * per scenario so the fixture under test only needs to verify each colour
+ * string equals the paint order Chromium would use. The colors are unique
+ * per scenario so the fixture under test only needs to verify each color
  * appears in the expected sequence.
  *
  * Pairs with the integration fixtures in `tests/features.ts` (see the

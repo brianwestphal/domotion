@@ -70,10 +70,10 @@ console.<span class="tk-f">log</span>(<span class="tk-s">\`\${svg.length} → \$
 
 <ul>
   <li><strong>While iterating</strong>, especially when diffing captures —
-    optimisation reduces decimal precision, which makes SVG diffs noisier.
+    optimization reduces decimal precision, which makes SVG diffs noisier.
     Save it for the final ship step.</li>
   <li><strong>If you need to post-process the SVG yourself</strong> (e.g. find
-    an element by ID, walk the markup), do that before optimisation. The IDs
+    an element by ID, walk the markup), do that before optimization. The IDs
     are preserved either way, but path data is much harder to reason about
     after compression.</li>
 </ul>

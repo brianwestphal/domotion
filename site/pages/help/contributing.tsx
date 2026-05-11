@@ -94,12 +94,12 @@ when the surrounding <code>evaluate()</code> injects its arguments.</p>
     properties, or <code>src/text-renderer.ts</code> for text-related ones.</li>
   <li><strong>Add a fixture</strong> to <code>tests/features.ts</code>: a
     minimal HTML snippet that exercises the feature and a single matching
-    expected behaviour. Run <code>npm run demos:test</code> to record the
+    expected behavior. Run <code>npm run demos:test</code> to record the
     expected PNG.</li>
   <li><strong>Update the support matrix</strong> in
     <code>site/pages/css/&lt;area&gt;.tsx</code> (the per-area page) and the
     top-level <code>FEATURES.md</code> checklist.</li>
-  <li><strong>Document any new fallback behaviour</strong> in
+  <li><strong>Document any new fallback behavior</strong> in
     <code>docs/</code> — these are the contract with consumers about what
     round-trips and what doesn't.</li>
 </ol>

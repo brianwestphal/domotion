@@ -61,7 +61,7 @@ When Claude is triggered on a ticket whose latest note contains a `REGIONS:` blo
    - Without `image=` → all three triplet members for the test the ticket is about.
 3. For each `(rectangle, attachment)` pair, produce **one crop per rectangle** (no union-bbox collation — separate crops, in draw order). Crops are tight to the rectangle with no extra padding.
 4. Write crops to `tests/output/region-crops/DM-{ticket-id}/{noteId}/[{rectIndex}]-{imageBasename}.png` so subsequent runs can locate the same crops deterministically. The `{noteId}` segment keeps historical comments addressable.
-5. Inject the crops into Claude's working context as **primary** visual evidence, **in addition to** the full attached PNGs (which the Hot Sheet ticket continues to carry as today). The crops are labelled with `[index]`, `image=<basename>`, and the optional caption so Claude can read them with the user's framing.
+5. Inject the crops into Claude's working context as **primary** visual evidence, **in addition to** the full attached PNGs (which the Hot Sheet ticket continues to carry as today). The crops are labeled with `[index]`, `image=<basename>`, and the optional caption so Claude can read them with the user's framing.
 
 ## Non-goals
 

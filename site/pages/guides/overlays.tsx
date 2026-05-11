@@ -76,7 +76,7 @@ frames.<span class="tk-f">push</span>({
   <li><strong>delay</strong> defaults to 300&nbsp;ms. Bump it if the captured
     frame should "rest" before the typing starts.</li>
   <li><strong>bgColor</strong> lets you mask placeholder text in the
-    captured input — set it to the input's background colour and pad
+    captured input — set it to the input's background color and pad
     <code>bgWidth</code> / <code>bgHeight</code> to cover the placeholder.</li>
 </ul>
 
@@ -91,7 +91,7 @@ crossfading to the "after" state.</p>
   duration: <span class="tk-n">1800</span>,
   overlays: [{
     kind: <span class="tk-s">"tap"</span>,
-    x: <span class="tk-n">320</span>, y: <span class="tk-n">760</span>,             <span class="tk-c">// centre of the FAB</span>
+    x: <span class="tk-n">320</span>, y: <span class="tk-n">760</span>,             <span class="tk-c">// center of the FAB</span>
     delay: <span class="tk-n">900</span>,                  <span class="tk-c">// fire ~halfway through the frame</span>
   }],
   transition: { type: <span class="tk-s">"crossfade"</span>, duration: <span class="tk-n">280</span> },

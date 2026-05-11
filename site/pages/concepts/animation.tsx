@@ -40,7 +40,7 @@ infinite loop.</p>
 
 <table>
   <thead>
-    <tr><th>Type</th><th>Behaviour</th><th>Best for</th></tr>
+    <tr><th>Type</th><th>Behavior</th><th>Best for</th></tr>
   </thead>
   <tbody>
     <tr>

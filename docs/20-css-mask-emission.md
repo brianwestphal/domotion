@@ -16,10 +16,10 @@ Until DM-470, the capture path warned `mask: captured but not emitted — mask s
 
 `buildMaskDef()` covers:
 
-- `mask-image: linear-gradient(...)` / `radial-gradient(...)` / `repeating-…-gradient(...)` — emitted as `<linearGradient>` / `<radialGradient>` painted into a sized `<rect>` inside the `<mask>`, with `mask-size` / `mask-position` honoured.
+- `mask-image: linear-gradient(...)` / `radial-gradient(...)` / `repeating-…-gradient(...)` — emitted as `<linearGradient>` / `<radialGradient>` painted into a sized `<rect>` inside the `<mask>`, with `mask-size` / `mask-position` honored.
 - `mask-image: url("…")` — emitted as `<image>` inside the `<mask>`, sized via `mask-size` (auto / contain / cover / explicit) and offset via `mask-position` (keywords + percentages).
 - Multi-layer `mask-image: a, b, c` — flattened into one `<mask>` for the additive composite (the common default). `mask-composite: intersect` chains nested masks.
-- `mask-mode: alpha | luminance` — translates to SVG `mask-type` on the `<mask>` element. Defaults to `alpha` for gradients / bitmaps (matches Chromium's practical behaviour for `mask-mode: match-source`).
+- `mask-mode: alpha | luminance` — translates to SVG `mask-type` on the `<mask>` element. Defaults to `alpha` for gradients / bitmaps (matches Chromium's practical behavior for `mask-mode: match-source`).
 
 Renderer wiring (`src/dom-to-svg.ts:3266-3284`): when `el.styles.maskImage` is non-empty, the mask def is pushed into `defsParts` and the rendered group gets `mask="url(#mkN)"`.
 
@@ -36,7 +36,7 @@ The misleading warning text is the most visible symptom of the gap between perce
 ## Requirement (this ticket)
 
 1. **Update the warning text** at `src/dom-to-svg.ts:1127`. The current text claims masks aren't emitted; the truth is emission works for the common url + gradient cases. Replace with: `"non-trivial mask source — emission may differ from Chromium's actual blur/composite for masks composed of element() references or unresolved url() fragments"`.
-2. **Suppress the warning** when `cs.maskImage` is a recognised gradient or `url()` form — those round-trip cleanly through `buildMaskDef()` and don't deserve a per-element warning at capture time.
+2. **Suppress the warning** when `cs.maskImage` is a recognized gradient or `url()` form — those round-trip cleanly through `buildMaskDef()` and don't deserve a per-element warning at capture time.
 3. **Document** (this file) what's supported, what isn't, and where the gap is so future regression triage stops mistaking \"mask warning\" for \"masks are completely broken\".
 
 ## What's deferred

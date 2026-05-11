@@ -135,7 +135,7 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 
 ## Acceptance criteria
 
-- `19-deep-color-mix` currentColor + transparent tinting row paints the intended grey/white checkerboard. Diff for that fixture drops from ~1 % avg to <0.5 % avg.
+- `19-deep-color-mix` currentColor + transparent tinting row paints the intended gray/white checkerboard. Diff for that fixture drops from ~1 % avg to <0.5 % avg.
 - A standalone fixture demonstrating `conic-gradient(red, yellow, green, blue, red)` at `200×200` renders a smooth color-wheel. New: `tests/features/<NN>-conic-gradient.html`.
 - A standalone fixture demonstrating `repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px` renders a 24×24 alpha-checkerboard tiled across a `300×300` div.
 - A multi-layer fixture (`background: conic-gradient(...), linear-gradient(...), url(bg.png)`) renders with all three layers in the right stacking order.

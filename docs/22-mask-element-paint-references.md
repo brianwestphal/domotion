@@ -2,14 +2,14 @@
 
 ## Context
 
-CSS `mask-image: element(#some-id)` references the *painted output* of another DOM element as the mask source. Unlike `url("#fragment")` (doc 21), the target need not be a `<mask>` — it can be any visible DOM node (`<div>`, `<canvas>`, `<img>`, an `<svg>` icon, etc.). Chromium rasterises the target's paint and uses that bitmap as the mask.
+CSS `mask-image: element(#some-id)` references the *painted output* of another DOM element as the mask source. Unlike `url("#fragment")` (doc 21), the target need not be a `<mask>` — it can be any visible DOM node (`<div>`, `<canvas>`, `<img>`, an `<svg>` icon, etc.). Chromium rasterizes the target's paint and uses that bitmap as the mask.
 
 Common patterns:
 - A spinning `<div>` with a CSS gradient as a "scanlines" mask source.
 - A `<canvas>` whose JS-driven contents drive a dynamic mask.
 - An icon `<svg>` reused as both decoration and mask source for a partner element.
 
-## Today's behaviour
+## Today's behavior
 
 Implemented in DM-494 (this doc).
 
@@ -23,7 +23,7 @@ This is fundamentally a rasterisation problem: we need a bitmap of how Chromium 
 
 1. **Capture-time pass**:
    - When CAPTURE_SCRIPT sees `mask-image: element(#id)`, record the referenced id and the element's bounding rect.
-   - Add the referenced element to a queue of "elements to rasterise as mask sources".
+   - Add the referenced element to a queue of "elements to rasterize as mask sources".
 2. **Post-capture pass**, after the main DOM walk completes:
    - For each queued (target-id, rect): `page.screenshot({ clip: rect, omitBackground: true })` → PNG buffer.
    - Encode as `data:image/png;base64,…`.
@@ -34,9 +34,9 @@ This is fundamentally a rasterisation problem: we need a bitmap of how Chromium 
 
 ## Open design questions
 
-- **Mask-mode for rasterised paint.** Chromium's default `mask-mode: match-source` for `element()` is luminance (the painted RGB drives the alpha). Confirm this empirically against an `element()` fixture before defaulting to `mask-type="luminance"` on the SVG `<mask>`.
-- **Animated source elements.** If the referenced element is itself animated (CSS animation, JS-driven canvas), the rasterised snapshot is one frame — domotion has no way to capture an animated mask source. Document this as a known limitation; warn at capture time when the source has a non-empty `getAnimations()` list.
-- **DPR / scale.** The rasterised PNG should be captured at the page's actual DPR so it's not blurry when the receiving element is HiDPI. Match the existing replaced-element raster's DPR strategy (doc 17).
+- **Mask-mode for rasterized paint.** Chromium's default `mask-mode: match-source` for `element()` is luminance (the painted RGB drives the alpha). Confirm this empirically against an `element()` fixture before defaulting to `mask-type="luminance"` on the SVG `<mask>`.
+- **Animated source elements.** If the referenced element is itself animated (CSS animation, JS-driven canvas), the rasterized snapshot is one frame — domotion has no way to capture an animated mask source. Document this as a known limitation; warn at capture time when the source has a non-empty `getAnimations()` list.
+- **DPR / scale.** The rasterized PNG should be captured at the page's actual DPR so it's not blurry when the receiving element is HiDPI. Match the existing replaced-element raster's DPR strategy (doc 17).
 
 ## Cost notes
 
@@ -46,7 +46,7 @@ Each `element()` mask costs one extra `page.screenshot` call (~50–200 ms each 
 
 ## What's deferred
 
-- `<canvas>` referenced via `element()` *while* JS is animating it. The rasterised snapshot is whatever was painted at capture time; for most marketing demos this is acceptable.
+- `<canvas>` referenced via `element()` *while* JS is animating it. The rasterized snapshot is whatever was painted at capture time; for most marketing demos this is acceptable.
 - `element()` references that recursively reference other `element()`-masked elements. Resolve in topological order; if a cycle is detected, emit no mask and warn.
 
 ## Test fixture

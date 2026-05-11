@@ -77,7 +77,7 @@ const FULL_PAGE_MAX_H = 6000;
 // beat after `domcontentloaded` before capturing.
 const SETTLE_MS = 3000;
 
-// Per-page Playwright operation timeout. DM-479: standardised at 90 s
+// Per-page Playwright operation timeout. DM-479: standardized at 90 s
 // (was a mix of 25 s / 30 s defaults / 60 s explicit). Real-world fixtures
 // pull tens of MB of CSS / fonts / images from third-party CDNs, and the
 // shorter timeouts were causing flaky failures on slow runs without
@@ -295,7 +295,7 @@ async function ensureHarsRecorded(browser: Browser, jobs: PageJob[]): Promise<vo
     });
     await context.routeFromHAR(harPath, { url: "**/*", update: true, notFound: "fallback" });
     const page = await context.newPage();
-    // DM-479: standardise per-page Playwright operation timeouts at 90 s.
+    // DM-479: standardize per-page Playwright operation timeouts at 90 s.
     page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
     page.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
     try {
@@ -382,7 +382,7 @@ async function runJob(
   });
 
   const page = await context.newPage();
-  // DM-479: standardise per-page Playwright operation timeouts at 90 s.
+  // DM-479: standardize per-page Playwright operation timeouts at 90 s.
   page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
   page.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
 

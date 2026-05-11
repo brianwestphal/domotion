@@ -274,7 +274,7 @@ function delay(ms: number): Promise<void> {
 
 /**
  * DM-528: wrap `fetch` with `AbortController` so a stalled host can't hang
- * the capture indefinitely. AbortError thrown on timeout is normalised to a
+ * the capture indefinitely. AbortError thrown on timeout is normalized to a
  * named `RemoteImageTimeoutError` so the warning detail tells consumers
  * "this URL didn't respond in time" rather than the generic AbortError.
  */
@@ -473,8 +473,8 @@ export interface CapturedElement {
      * DM-476 frosted-glass fallback: when the element has a non-trivial
      * `backdrop-filter` AND a near-transparent `background-color` (alpha
      * ≤ 0.1), CAPTURE_SCRIPT reads `document.body`'s computed background
-     * colour and stores it here as a normalised `rgb(...)` / `rgba(...)`
-     * string so the renderer can paint a synthesised opaque fill where
+     * color and stores it here as a normalized `rgb(...)` / `rgba(...)`
+     * string so the renderer can paint a synthesized opaque fill where
      * Chromium would have painted blurred underlying pixels. Undefined
      * when the element doesn't trigger the frosted condition. See
      * `docs/19-frosted-backdrop-fallback.md`.
@@ -865,12 +865,12 @@ export interface CapturedElement {
    * Image-replacement icon (DM-506): a CSS-sprite icon whose accessible label
    * is hidden via `text-indent: -9999px; overflow: hidden` (or the modern
    * `text-indent: <neg>; overflow: hidden; white-space: nowrap` variant). The
-   * element's painted box is rasterised through the `replacedSnapshot` path so
+   * element's painted box is rasterized through the `replacedSnapshot` path so
    * the sprite slice is captured as Chrome painted it; capture also clears
    * `text` / `textSegments` / `styles.backgroundImage` so the renderer doesn't
    * double-paint the sliced sprite or leak the off-screen text into the SVG.
    * `titleText` is the suppressed author text — emitted as an SVG `<title>`
-   * child of the rasterised `<image>` so screen readers and tooltips still
+   * child of the rasterized `<image>` so screen readers and tooltips still
    * surface the label. See `docs/23-css-sprite-icons.md`.
    */
   imageReplacement?: { titleText: string };
@@ -1412,7 +1412,7 @@ const CAPTURE_SCRIPT = `
   // Same-document only — external '.svg#frag' refs are deferred (DM-496).
   const _maskDefs = new Map();
   // DM-494: mask-image: element(#id) — record (id, rect, rid) per unique
-  // referenced element. Post-capture rasterise pass screenshots each unique
+  // referenced element. Post-capture rasterize pass screenshots each unique
   // ref and stashes the data URI on the root tree as maskRasters[]. Dedupe
   // by id so multiple consumers of the same element() share one screenshot.
   const _maskRasters = new Map();
@@ -1622,7 +1622,7 @@ const CAPTURE_SCRIPT = `
                       try {
                         var anims = refTarget.getAnimations();
                         if (anims != null && anims.length > 0) {
-                          warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has ' + anims.length + ' active animation(s); the rasterised snapshot is t=0 only');
+                          warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has ' + anims.length + ' active animation(s); the rasterized snapshot is t=0 only');
                         }
                       } catch (e) { /* getAnimations not supported, skip */ }
                     }
@@ -2975,7 +2975,7 @@ const CAPTURE_SCRIPT = `
         backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || '',
         // DM-476 frosted-glass fallback: when this element has both
         // backdrop-filter and an effectively-transparent background-color,
-        // capture the document body's bg colour as a synthesised opaque
+        // capture the document body's bg color as a synthesized opaque
         // fill that the renderer can paint behind the would-have-been-
         // frosted region. See docs/19-frosted-backdrop-fallback.md.
         frostedBgFallback: (function () {
@@ -3469,9 +3469,9 @@ const CAPTURE_SCRIPT = `
     // region; the text is offscreen. Domotion's bg-image pattern path can't
     // slice reliably (the synchronous naturalWidth read at capture-time often
     // returns 0 for url() backgrounds whose <img> cache hasn't loaded), so we
-    // route the element through the same rasterise-painted-rect path used for
+    // route the element through the same rasterize-painted-rect path used for
     // <canvas>/<video>/<iframe>. The captured text becomes an SVG <title> on
-    // the rasterised <image> so accessibility round-trips.
+    // the rasterized <image> so accessibility round-trips.
     // See docs/23-css-sprite-icons.md.
     if (!bordersOnlyCell
         && cs.display !== 'none'
@@ -3646,7 +3646,7 @@ const CAPTURE_SCRIPT = `
   }
   // DM-494: attach mask raster references (mask-image: element(#id)). Skip
   // null entries (display:none / zero-area / not-found targets). The post-
-  // capture rasterise pass on the Node side fills in dataUri.
+  // capture rasterize pass on the Node side fills in dataUri.
   if (_maskRasters.size > 0 && result.length > 0) {
     var rasterArr = [];
     for (var entry of _maskRasters.values()) {
@@ -4652,7 +4652,7 @@ export function elementTreeToSvg(
       // DM-476: backdrop-filter has no SVG equivalent, so when this element
       // would have read as a frosted-glass surface in Chromium (transparent
       // bg + non-trivial backdrop-filter), paint the captured body-bg
-      // colour as an opaque fill so the element at least covers what's
+      // color as an opaque fill so the element at least covers what's
       // behind it. See docs/19-frosted-backdrop-fallback.md.
       svgParts.push(
         `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${el.styles.frostedBgFallback}"`)}`,
@@ -5829,7 +5829,7 @@ export function elementTreeToSvg(
     // <textarea>, Chrome's UA stylesheet paints a small ~7×7 diagonal-line
     // pattern in the bottom-right corner indicating the user can drag to
     // resize. Empirical: 3 diagonal lines from the corner extending up-left,
-    // ~1.5px stroke, mid-grey (#999), inside the padding-box. Matches what
+    // ~1.5px stroke, mid-gray (#999), inside the padding-box. Matches what
     // Chrome paints across resize: vertical / horizontal / both / inline /
     // block (only `none` suppresses).
     if (el.tag === "textarea" && el.styles.resize != null && el.styles.resize !== "none") {
@@ -6609,7 +6609,7 @@ function isFlexOrGridContainerDisplay(display: string | undefined | null): boole
  *     a `<g mask=...>` / `<g clip-path=...>`, which isolates paint)
  *   - `isolation: isolate`
  *
- * Not yet modelled (low real-world frequency):
+ * Not yet modeled (low real-world frequency):
  *   - `perspective` ≠ `none`
  *
  * Used by the paint-order flattening pass: a positioned descendant whose
@@ -7749,7 +7749,7 @@ export function buildMaskDef(
       continue;
     }
     // DM-494: `element(#id)` paint reference — emit the post-capture
-    // rasterised <image> directly into the <mask>. Position + size honor
+    // rasterized <image> directly into the <mask>. Position + size honor
     // mask-position / mask-size on the consuming element; mask-size:auto
     // uses the referenced element's painted box dimensions (the spec's
     // "natural size" for element()).
@@ -8317,7 +8317,7 @@ function adjustedDashArray(style: string, width: number, sideLength: number): st
 
 /**
  * Returns the `stroke-dasharray` value AND the matching `stroke-dashoffset`
- * needed to centre the dash pattern within the side so it visually matches
+ * needed to center the dash pattern within the side so it visually matches
  * Chromium's BoxBorderPainter (DM-318).
  *
  * For dotted: Chromium centres each dot in its half-period slot — i.e. dots
@@ -8326,7 +8326,7 @@ function adjustedDashArray(style: string, width: number, sideLength: number): st
  *   "dash" renders as a single dot), and stroke-dashoffset is set to half a
  *   period so the line starts mid-gap and the first dot appears at period/2.
  *
- * For dashed: Chromium also tends to centre the dash pattern — the first
+ * For dashed: Chromium also tends to center the dash pattern — the first
  *   dash starts at gap/2 from the corner so each side has equal margin. The
  *   prior implementation started the cycle with a full dash flush at the
  *   corner, which left a visible phase offset vs Chrome's painted output.
@@ -8350,7 +8350,7 @@ function adjustedDashAttrs(style: string, width: number, sideLength: number): { 
     const scale = sideLength / (cycles * idealPeriod);
     const dash = idealDash * scale;
     const gap = idealGap * scale;
-    // Centre the dash pattern so each side has gap/2 of margin at each
+    // Center the dash pattern so each side has gap/2 of margin at each
     // corner. stroke-dashoffset specifies the distance into the cycle where
     // the line starts; cycle is `dash gap`, so an offset of `dash + gap/2`
     // places the line start mid-gap and the first dash visible at gap/2 —
@@ -8367,7 +8367,7 @@ function adjustedDashAttrs(style: string, width: number, sideLength: number): { 
     const cycles = Math.max(1, Math.ceil(sideLength / idealPeriod));
     const adjustedPeriod = sideLength / cycles;
     // Shift the cycle so the first dot is at adjustedPeriod / 2 from the
-    // start, matching Chrome's centred-dot painting. The cycle is
+    // start, matching Chrome's centered-dot painting. The cycle is
     // `0.01 adjustedPeriod`, total ≈ adjustedPeriod; an offset of
     // adjustedPeriod / 2 starts mid-gap.
     return { array: `0.01 ${r(adjustedPeriod)}`, offset: adjustedPeriod / 2 };

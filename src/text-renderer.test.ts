@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rasterGlyphOverlays, renderSingleLineText } from "./text-renderer.js";
+import { parseFontFeatureSettings, rasterGlyphOverlays, renderSingleLineText } from "./text-renderer.js";
 import type { CapturedElement } from "./dom-to-svg.js";
 
 describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
@@ -158,5 +158,48 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
       fillColor: "rgb(34, 139, 34)",
     });
     expect(out).toContain('fill="rgb(34, 139, 34)"');
+  });
+});
+
+// DM-564: `font-feature-settings` was captured but never threaded to
+// `font.layout()`, so brand fonts that set author features (Inter's `cv11`
+// single-story `a`, Geist's `cv09`, etc. via next/font marketing pages) shipped
+// the default glyph instead of the intended alternate — the visible "wrong
+// font" symptom on framer-mobile-fold.
+describe("parseFontFeatureSettings (DM-564)", () => {
+  it("returns undefined for normal / empty / null", () => {
+    expect(parseFontFeatureSettings(undefined)).toBeUndefined();
+    expect(parseFontFeatureSettings("")).toBeUndefined();
+    expect(parseFontFeatureSettings("normal")).toBeUndefined();
+  });
+
+  it("parses a single quoted feature tag", () => {
+    expect(parseFontFeatureSettings('"cv11"')).toEqual(["cv11"]);
+    expect(parseFontFeatureSettings("'cv11'")).toEqual(["cv11"]);
+  });
+
+  it("parses framer.com's Inter Variable feature stack verbatim", () => {
+    // Captured live from www.framer.com body P getComputedStyle().
+    expect(parseFontFeatureSettings('"cv01", "cv05", "cv09", "cv11", "ss03", "ss07"'))
+      .toEqual(["cv01", "cv05", "cv09", "cv11", "ss03", "ss07"]);
+  });
+
+  it("honors `on` / explicit value / `1` as enabled", () => {
+    expect(parseFontFeatureSettings('"cv11" on, "kern" 1')).toEqual(["cv11", "kern"]);
+  });
+
+  it("drops features with `off` or `0`", () => {
+    expect(parseFontFeatureSettings('"cv11", "kern" 0, "liga" off')).toEqual(["cv11"]);
+    expect(parseFontFeatureSettings('"kern" 0')).toBeUndefined();
+  });
+
+  it("supports stylistic-alternate selectors with numeric index", () => {
+    // `salt 2` picks alternate #2; we currently flatten to enabling the tag
+    // (fontkit's userFeatures is on/off only). Confirms we still emit the tag.
+    expect(parseFontFeatureSettings('"salt" 2')).toEqual(["salt"]);
+  });
+
+  it("ignores garbage tokens between valid feature declarations", () => {
+    expect(parseFontFeatureSettings(', , "cv11", junk, "ss03"')).toEqual(["cv11", "ss03"]);
   });
 });

@@ -324,6 +324,43 @@ function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | un
   return undefined;
 }
 
+// DM-564: parse `font-feature-settings` into the OpenType tag list fontkit
+// expects from `font.layout(text, features)`. Author-set tags like `cv11`
+// (Inter's single-story `a` alternate) drive lookup substitutions at shape
+// time; without applying them, Inter / Geist / Roboto Flex / etc. render their
+// default `a` instead of the brand's intended cv-alternate, and the page
+// looks like a different typeface entirely.
+//
+// CSS syntax (per CSS Fonts 4 §6.4):
+//   font-feature-settings: <feature-tag-value> #
+//   <feature-tag-value> = <opentype-tag> [ <integer [0,∞]> | on | off ]?
+//   Default value when omitted is 1 (enabled). 0 / `off` means disabled —
+//   omit from the list so fontkit's defaults / other enables aren't shadowed.
+export function parseFontFeatureSettings(css: string | undefined): string[] | undefined {
+  if (css == null || css === "" || css === "normal") return undefined;
+  const out: string[] = [];
+  // Match `"tag"` or `'tag'` optionally followed by integer/on/off.
+  const re = /["']([a-zA-Z0-9]{4})["']\s*(\d+|on|off)?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css)) != null) {
+    const tag = m[1];
+    const value = m[2];
+    const enabled = value == null || value === "on" || (value !== "off" && parseInt(value, 10) !== 0);
+    if (enabled) out.push(tag);
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function mergeFeatureLists(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
+  if (a == null) return b;
+  if (b == null) return a;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of a) { if (!seen.has(t)) { seen.add(t); out.push(t); } }
+  for (const t of b) { if (!seen.has(t)) { seen.add(t); out.push(t); } }
+  return out;
+}
+
 /**
  * Render a single-line text element.
  */
@@ -347,7 +384,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
   const pathText = reordered.text;
   const xOffsetsRel = reordered.xOffsets;
-  const features = resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps);
+  const features = mergeFeatureLists(
+    resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
+    parseFontFeatureSettings(el.styles.fontFeatureSettings),
+  );
   // DM-495: when the only segment is a pseudo with its own typography
   // overrides (color / fontSize / fontWeight / fontAscent), prefer those
   // over the host element's values. The capture layer carries pseudo-
@@ -484,8 +524,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segFontFamily = seg.fontFamily ?? fontFamily;
     // Honor either segment-level font-variant override (::first-line) or
     // the element-level font-variant-caps. (DM-294, DM-361, DM-444). See
-    // resolveCapsFeatures (module scope) for the full spec mapping.
-    const segFeatures = resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps);
+    // resolveCapsFeatures (module scope) for the full spec mapping. Merge with
+    // author-set `font-feature-settings` (DM-564) — e.g. Inter's `cv11`
+    // single-story `a` alternate is set by next/font marketing pages.
+    const segFeatures = mergeFeatureLists(
+      resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
+      parseFontFeatureSettings(el.styles.fontFeatureSettings),
+    );
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
@@ -547,6 +592,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   // where source HTML has internal `\n` whitespace that the browser collapses
   // (those land here with a single segment and a \n-bearing el.text — splitting
   // on `\n` would emit a phantom second line below the captured one).
+  const ffsFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
   if (el.textSegments != null && el.textSegments.length > 0) {
     const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
     for (const seg of el.textSegments) {
@@ -556,7 +602,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
       const segAscent = seg.fontAscent ?? el.fontAscent;
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent, undefined, el.styles.lang);
+      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang);
       if (result != null) parts.push(`  ${result}`);
     }
   } else {
@@ -565,7 +611,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const line = lines[li];
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
-      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, undefined, el.styles.lang);
+      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang);
       if (result != null) parts.push(`  ${result}`);
     }
   }
@@ -606,7 +652,8 @@ export function renderInputText(opts: RenderTextOpts): string {
   // which still uses the SK-1108 element raster path).
   const xOffsetsRel = el.inputXOffsets != null
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
-  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, undefined, el.styles.lang);
+  const inputFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
+  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang);
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints

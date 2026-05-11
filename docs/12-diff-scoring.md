@@ -52,7 +52,7 @@ The diff PNG is a **literal per-channel absolute difference** between expected a
 diff[i] = |expected[i] - actual[i]|       (per R/G/B channel, alpha=255)
 ```
 
-Black pixels are exact matches; brighter pixels show what changed and in which color (a red glyph that should have been blue paints magenta in the diff; a small anti-aliasing shift on a black-on-white edge paints dim grey). No thresholding, no red tint, no dimmed-source overlay — the image is uninterpreted (DM-379). Reviewers reading the diff see the same per-pixel difference the metric saw.
+Black pixels are exact matches; brighter pixels show what changed and in which color (a red glyph that should have been blue paints magenta in the diff; a small anti-aliasing shift on a black-on-white edge paints dim gray). No thresholding, no red tint, no dimmed-source overlay — the image is uninterpreted (DM-379). Reviewers reading the diff see the same per-pixel difference the metric saw.
 
 The **only** painted overlay is a yellow rectangle outlining the worst tile by `tileSig` (then `tileAvg` as tiebreak), drawn after the absolute-difference fill so the navigation hint stays visible against the dark background.
 

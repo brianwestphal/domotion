@@ -25,7 +25,7 @@ Pattern (1) round-trips through Domotion correctly today (DM-279 bakes computed 
 
 Pattern (2) is broken: the cloned consumer's `outerHTML` contains a `<use href="#icon-check">` whose target is in a *different* SVG that Domotion never emits. The reference dangles in the output — Chromium's SVG renderer falls back to nothing painted, and the icon disappears (or, worse, the host element's text label is captured and renders as PUA-glyph tofus where Chrome painted the icon).
 
-## Today's behaviour
+## Today's behavior
 
 Implemented in DM-499 (this doc). `CAPTURE_SCRIPT` clones the host `<svg>`'s outerHTML, walks the cloned subtree for `<use href="#id">` references, resolves each via `document.getElementById`, and inlines the resolved subtree:
 - `<symbol viewBox="…">` targets are inlined as a nested `<svg x y w h viewBox="…" preserveAspectRatio="…">{symbol.children}</svg>` — declarative form preserves SVG's own viewport scaling.

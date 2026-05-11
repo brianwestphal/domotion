@@ -8,11 +8,11 @@ Modern publishers (NYT, Apple, Stripe) serve images far larger than they render.
 
 A captured nytimes.com homepage with `selfContained: true` produces a ~1.5 MB SVG today; the same capture with images downscaled to render-rect × 2× targets ~300–500 KB. The 50–80 % size reduction matters for distribution / archival use and for any consumer that ingests the SVG over a network.
 
-## Today's behaviour (pre-DM-526)
+## Today's behavior (pre-DM-526)
 
 `embedRemoteImages` fetches each unique URL once, base64-encodes the response, and stashes the result in `_dataUriCache` keyed by source URL. `embedAsDataUri(url)` returns the cached entry on the next call. There is no awareness of how the URL is consumed, no link from cache entry back to the rendered element rect, and no decode/re-encode pipeline.
 
-## DM-526 behaviour (this doc)
+## DM-526 behavior (this doc)
 
 A new optional pre-pass — invoked alongside or after `embedRemoteImages` — walks the captured tree, computes the **render-rect target size** for every consumer of every inlined URL, downscales each image to that target, and writes the resized PNG bytes back into the data-URI cache.
 
@@ -74,7 +74,7 @@ Per consumer of each URL, the resize pass computes a target rect:
 
 Each target is multiplied by `hiDPIFactor`. The result is **rounded up** (`Math.ceil`) so the resized output never under-resolves the target box.
 
-For URLs referenced from CSS (`backgroundImage`, etc.) the same URL may appear on many elements at many sizes. The pass enumerates **all consumer rects per URL**, computes the resized bytes for each unique target size, and produces one cache entry per `(URL, outputW, outputH)` tuple. This is the *dedup-after-resizing* behaviour: identical target sizes share one PNG, distinct target sizes get distinct PNGs. The `_dataUriCache` is therefore re-keyed from `URL → string` to `URL → Map<sizeKey, string>` (where `sizeKey = "${w}x${h}"`).
+For URLs referenced from CSS (`backgroundImage`, etc.) the same URL may appear on many elements at many sizes. The pass enumerates **all consumer rects per URL**, computes the resized bytes for each unique target size, and produces one cache entry per `(URL, outputW, outputH)` tuple. This is the *dedup-after-resizing* behavior: identical target sizes share one PNG, distinct target sizes get distinct PNGs. The `_dataUriCache` is therefore re-keyed from `URL → string` to `URL → Map<sizeKey, string>` (where `sizeKey = "${w}x${h}"`).
 
 `embedAsDataUri(url)` no longer has the consumer rect on hand at call time, so the renderer side gains a sibling helper `embedResizedDataUri(url, targetW, targetH)` that the image-emitting paths use when resize is enabled. When resize is disabled (the default), the existing `embedAsDataUri` path is unchanged. See *Renderer integration* below.
 
@@ -87,7 +87,7 @@ For URLs referenced from CSS (`backgroundImage`, etc.) the same URL may appear o
 - Domotion already ships native dependencies via Playwright (Chromium binaries per OS/arch); adding sharp doesn't change the platform-support story.
 - Prebuilt binaries cover `darwin-x64`, `darwin-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`, `win32-x64` — full coverage of the platforms Domotion targets (DM-258 / DM-260).
 
-`sharp(buf).resize(w, h, { fit: "inside", withoutEnlargement: true }).png({ compressionLevel: 9 }).toBuffer()` is the call shape. `withoutEnlargement: true` is a defence-in-depth guard — the resize-threshold check above already prevents upscale, but if the threshold logic is ever wrong, sharp won't blow the source up to fit.
+`sharp(buf).resize(w, h, { fit: "inside", withoutEnlargement: true }).png({ compressionLevel: 9 }).toBuffer()` is the call shape. `withoutEnlargement: true` is a defense-in-depth guard — the resize-threshold check above already prevents upscale, but if the threshold logic is ever wrong, sharp won't blow the source up to fit.
 
 ## Renderer integration
 
@@ -130,13 +130,13 @@ A new test fixture `src/resize-embedded-images.test.ts` covers:
 
 - **Image format conversion to WebP / AVIF**. PNG is the only output format. If a future ticket revisits this for size-critical use cases, it should land as an additional `embedRemoteImagesFormat: "png" | "webp"` option.
 - **Animated GIF preservation**. The first frame is what gets emitted today.
-- **Preserving the source bytes when smaller than the resized PNG**. If the source JPEG happens to be smaller than the resized PNG (rare given the threshold check), the resized PNG still wins. A "keep whichever is smaller" optimisation could land in a follow-up.
+- **Preserving the source bytes when smaller than the resized PNG**. If the source JPEG happens to be smaller than the resized PNG (rare given the threshold check), the resized PNG still wins. A "keep whichever is smaller" optimization could land in a follow-up.
 - **CSS `image-set()`** — not currently parsed by the capture; if it lands later, the largest-dpr entry should feed into the same resize pipeline.
 
 ## Follow-ups
 
 - **Animated-GIF detection** to skip resize for animated sources (preserve animation).
 - **Smarter format selection** — opt-in WebP for photo-heavy captures where PNG bloat outweighs render-fidelity gains.
-- **Consumer-rect cache refactor** — generalise `_dataUriCache` to a shared `(URL, outputW, outputH)` keyed structure so `embedAsDataUri` and `embedResizedDataUri` can share machinery.
+- **Consumer-rect cache refactor** — generalize `_dataUriCache` to a shared `(URL, outputW, outputH)` keyed structure so `embedAsDataUri` and `embedResizedDataUri` can share machinery.
 - **Per-image budget** (`maxBytes`) — fall back to source URL if the resized PNG still exceeds a threshold.
 - **Worker pool** — for captures with hundreds of URLs, sharp invocations can saturate the event loop. A worker_threads pool would parallelise without blocking.

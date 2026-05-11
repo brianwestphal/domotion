@@ -6,18 +6,18 @@ import { raw, type SafeHtml } from "kerfjs";
 export const meta = {
   slug: "css/form-controls",
   title: "Form controls",
-  subtitle: "Inputs, checkboxes, range sliders, progress bars, color pickers — synthesised SVG that mimics Chromium.",
+  subtitle: "Inputs, checkboxes, range sliders, progress bars, color pickers — synthesized SVG that mimics Chromium.",
 };
 
 export const content: SafeHtml = raw(`
 <figure style="margin:0 0 24px;">
-  <img src="../../assets/img/form-controls.svg" alt="Six-tile gallery showing checkbox, radio, range slider, progress bar, meter, and colour input — each captured by Domotion." style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line);" />
+  <img src="../../assets/img/form-controls.svg" alt="Six-tile gallery showing checkbox, radio, range slider, progress bar, meter, and color input — each captured by Domotion." style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line);" />
   <figcaption style="margin-top:8px;font-size:13px;color:var(--fg-muted);">All six rendered by Domotion from the same plain-HTML inputs.</figcaption>
 </figure>
 
 <p>Form controls render their UI through Chromium's user-agent shadow DOM,
 which isn't directly captured by walking the visible DOM. Domotion handles
-this by detecting form-control tags and synthesising matching SVG markup
+this by detecting form-control tags and synthesizing matching SVG markup
 that mimics what Chromium paints, including support for the most common
 author-styled <code>::-webkit-*</code> pseudos.</p>
 
@@ -46,7 +46,7 @@ applied (it captures as a normal styled element).</p>
     so word-wrap is pixel-perfect to Chromium. Sharp at 1× but doesn't scale
     crisply like path-mode text.</li>
   <li><strong>Bare <code>&lt;button&gt;</code> / <code>&lt;select&gt;</code>
-    with no author CSS</strong> — the UA chrome is partially synthesised.
+    with no author CSS</strong> — the UA chrome is partially synthesized.
     Style the control with CSS for full fidelity.</li>
   <li><strong>Open <code>&lt;select&gt;</code> dropdowns</strong> — can't be
     captured. The open dropdown lives in OS chrome, not in the page DOM.
@@ -72,7 +72,7 @@ input into any state before capturing:</p>
 <code>::-webkit-progress-bar</code>, <code>::-webkit-progress-value</code>,
 <code>::-webkit-slider-runnable-track</code>,
 <code>::-webkit-slider-thumb</code>, and the input shadow pseudos. Rules
-matching the captured element are applied to the synthesised SVG so a
+matching the captured element are applied to the synthesized SVG so a
 custom-coloured progress bar or a styled slider thumb keeps its appearance
 in the SVG output.</p>
 
@@ -80,7 +80,7 @@ in the SVG output.</p>
 
 <ul>
   <li><code>docs/04-input-pseudos.md</code> in the repo — design notes on which
-    shadow pseudos are recognised.</li>
+    shadow pseudos are recognized.</li>
   <li><code>docs/05-progress-meter-pseudos.md</code> — progress / meter pseudos.</li>
 </ul>
 `);

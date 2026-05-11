@@ -116,7 +116,7 @@ Examples:
   # Capture the front page of example.com at 1280×720.
   domotion capture https://example.com --width 1280 --height 720 -o demo.svg
 
-  # Capture a local HTML file, optimised, only the .hero region.
+  # Capture a local HTML file, optimized, only the .hero region.
   domotion capture ./hero.html --selector ".hero" --optimize -o hero.svg
 
   # Capture HTML piped on stdin.

@@ -2,7 +2,7 @@
 
 The animation pipeline composes multiple captured frames into a single SVG with CSS keyframe transitions between frames, optional per-frame overlays, and (with this doc's additions) intra-frame property animations and SVG overlays.
 
-## Frame composition (existing behaviour)
+## Frame composition (existing behavior)
 
 A `generateAnimatedSvg` call takes a list of `AnimationFrame`s. Each frame has:
 
@@ -15,7 +15,7 @@ The composer emits one `<svg>` document with a `<style>` block of `@keyframes` d
 
 ## Transitions
 
-| Type | Behaviour | Path |
+| Type | Behavior | Path |
 |---|---|---|
 | `crossfade` | Outgoing fades out while incoming fades in (windows overlap). | Merged fast path when all frames use it. |
 | `push-left` | Outgoing slides off to the left, incoming slides in from the right. | Per-frame atomic. |

@@ -11,7 +11,7 @@ export const meta = {
 
 export const content: SafeHtml = raw(`
 <p>Domotion outputs are standard SVG, so they embed in every browser via the
-usual mechanisms. But "the usual mechanisms" each have different behaviour
+usual mechanisms. But "the usual mechanisms" each have different behavior
 around CSS animations, accessibility, and same-origin policies. This page
 covers the trade-offs.</p>
 
@@ -47,7 +47,7 @@ that ship several SVG demos.</p>
 
 <h2>Inline SVG — when you need CSS to reach in</h2>
 
-<p>If you want to style the SVG from the host page (e.g. swap colours via CSS
+<p>If you want to style the SVG from the host page (e.g. swap colors via CSS
 custom properties), inline it:</p>
 
 <pre><code>&lt;figure&gt;

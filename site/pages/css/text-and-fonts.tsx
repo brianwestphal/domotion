@@ -35,7 +35,7 @@ tables to match Chromium exactly, and <code>text-decoration-color</code> /
 
 <p>Pseudo-elements: <code>::before</code> / <code>::after</code> (captured as
 text segments with per-pseudo color / size / weight; <code>content: url(...)</code>
-honoured), <code>::first-letter</code> drop caps (rasterised when
+honored), <code>::first-letter</code> drop caps (rasterized when
 <code>font-size</code> differs), <code>::first-line</code>,
 <code>::placeholder</code> (color / font-style / font-weight applied to
 placeholder text), and <code>::marker</code> all work.</p>
@@ -63,7 +63,7 @@ pipeline (not in the regression suite, but the mechanism is the same).</p>
   <li><strong>Variable font axes other than weight</strong> — the weight axis
     works for variable SF Pro; other axes interpolate to the nearest static
     instance.</li>
-  <li><strong>Emoji and colour-bitmap glyphs</strong> — embedded as base64 PNGs
+  <li><strong>Emoji and color-bitmap glyphs</strong> — embedded as base64 PNGs
     (deduped per glyph). Vector emoji fonts (e.g. COLRv1) collapse to bitmap.</li>
   <li><strong><code>::selection</code></strong> — captures don't include user
     selection state.</li>

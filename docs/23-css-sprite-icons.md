@@ -18,7 +18,7 @@ The "image-replacement" idiom — a single CSS sprite sheet sliced into per-icon
 
 Chromium paints the 20×20 slice of the sprite at `(0, 0)` of the element and renders the text "RSS" 9999px to the left of the visible viewport — so the user sees only the icon. Domotion currently produces neither: the sprite is not sliced cleanly into the output and the offscreen text bleeds into the captured tree.
 
-## Today's behaviour
+## Today's behavior
 
 Two things go wrong:
 
@@ -76,7 +76,7 @@ We restrict the predicate to elements that have a `background-image`. Other "ico
 
 ## Accessibility
 
-The author text — typically the only accessible label for the icon — must round-trip through the SVG output. Emit an SVG `<title>` child of the rasterised `<image>`:
+The author text — typically the only accessible label for the icon — must round-trip through the SVG output. Emit an SVG `<title>` child of the rasterized `<image>`:
 
 ```svg
 <image href="…" …><title>RSS</title></image>

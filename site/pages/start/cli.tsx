@@ -55,7 +55,7 @@ export const content: SafeHtml = raw(`
 domotion capture https://example.com -o example.svg
 
 <span class="tk-c"># Capture only the .pricing-table at retina-friendly 1280×720,</span>
-<span class="tk-c"># wait for it to load, optimise.</span>
+<span class="tk-c"># wait for it to load, optimize.</span>
 domotion capture https://yoursite.com/pricing \\
   --width 1280 --height 720 \\
   --selector ".pricing-table" \\

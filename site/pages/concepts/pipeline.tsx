@@ -16,7 +16,7 @@ happens makes it easier to debug surprising output and to know which
 parts you can intercept or replace.</p>
 
 <figure style="margin:24px 0;">
-  <img src="../../assets/img/pipeline.svg" alt="Three labelled boxes connected by arrows: HTML/CSS, Element tree, SVG. The arrows are labelled captureElementTree() and elementTreeToSvg()." style="width:100%;height:auto;" />
+  <img src="../../assets/img/pipeline.svg" alt="Three labeled boxes connected by arrows: HTML/CSS, Element tree, SVG. The arrows are labeled captureElementTree() and elementTreeToSvg()." style="width:100%;height:auto;" />
   <figcaption style="font-size:13px;color:var(--fg-muted);text-align:center;margin-top:8px;">The capture pipeline at a glance. (This diagram itself is a Domotion-generated SVG.)</figcaption>
 </figure>
 
@@ -118,7 +118,7 @@ your script (<code>chromium.launch()</code> once, capture in a loop, then
     Playwright before <code>captureElementTree</code> works:
     <code>page.addStyleTag</code>, <code>page.evaluate</code>,
     <code>page.click</code>, etc. Hide a cookie banner, click a "show more"
-    toggle, swap a colour scheme.</li>
+    toggle, swap a color scheme.</li>
   <li><strong>Inspect or transform the tree.</strong> The
     <code>CapturedElement[]</code> returned from Stage 1 is a plain serialisable
     object. You can mutate it before passing to <code>elementTreeToSvg</code>

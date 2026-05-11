@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
+import * as fs from "fs";
+import { describe, expect, it, beforeEach } from "vitest";
+import { clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
@@ -14,7 +15,7 @@ describe("resolveFontKey: generic-family resolution", () => {
   it("skips bare ui-sans-serif so it falls through to Times (DM-290)", () => {
     // Empirical Chromium probe at 16px: `ui-sans-serif` paints at 376.38px
     // (UA-default Times metrics), not 410.03px (Helvetica). Like the other
-    // ui-* keywords, Chromium-on-macOS doesn't recognise this generic and
+    // ui-* keywords, Chromium-on-macOS doesn't recognize this generic and
     // walks past it to the next family in the stack — or falls through to
     // the Standard Font default if it's the only one. Mapping it to
     // Helvetica painted the 20-font-family fixture's `ui-sans-serif` row
@@ -60,7 +61,7 @@ describe("resolveFontKey: generic-family resolution", () => {
     // Chromium probe at 18px on "greet": `font-family: -apple-system` alone
     // paints at 35.98px (UA-default Times metrics), `font-family: sans-serif`
     // paints at 41.03px (Helvetica), and `font-family: -apple-system,
-    // sans-serif` paints at 41.03px — proving Chrome doesn't recognise
+    // sans-serif` paints at 41.03px — proving Chrome doesn't recognize
     // -apple-system in this build and falls through to the next family. We
     // mirror that by skipping it; the test fixture pinned this stack and the
     // SF Pro glyphs were ~1px wider than Chrome's Helvetica painted output.
@@ -247,7 +248,7 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     expect(fallbackFontChain(0x4F60, "helvetica")).toEqual(["pingfang-sc", "cjk"]);
     expect(fallbackFontChain(0x4F60, "sf-pro")).toEqual(["pingfang-sc", "cjk"]);
     expect(fallbackFontChain(0x4F60, "menlo")).toEqual(["pingfang-sc", "cjk"]);
-    // No primaryKey arg → default sans behaviour.
+    // No primaryKey arg → default sans behavior.
     expect(fallbackFontChain(0x4F60)).toEqual(["pingfang-sc", "cjk"]);
   });
   it("keeps the bare ['cjk'] route for non-Han CJK ranges (Hiragana / Katakana / Hangul)", () => {
@@ -635,5 +636,68 @@ describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
     const lastBaseline = baseline[baseline.length - 1];
     const lastStretched = stretched[stretched.length - 1];
     expect(lastStretched[1]).toBeGreaterThan(lastBaseline[1]);
+  });
+});
+
+// DM-564: framer.com (and other Next.js / next/font marketing sites) emit
+// `font-family` stacks of the form
+//
+//     "<Custom Name>", "<Custom Name> Placeholder", sans-serif
+//
+// where the first family is the real webfont and the "<Custom Name> Placeholder"
+// is a synthetic CSS @font-face that re-points a system font (Arial / Helvetica)
+// at the real font's metrics so layout doesn't shift between the placeholder
+// and the swap-in. When the custom font IS registered via `discoverAndRegister-
+// Webfonts`, `resolveFontKey` must return the webfont key — NOT fall through
+// to the Placeholder pseudo-family or to the trailing sans-serif fallback.
+// A regression here would paint marketing-site body / hero text in Helvetica
+// instead of the intended brand font.
+describe("resolveFontKey: registered webfonts win over Placeholder + sans-serif fallback (DM-564)", () => {
+  // Minimal valid TTF buffer — fontkit fails to `create()` an empty buffer, so
+  // we use a real macOS system font as a placeholder. The webfontRegistry
+  // doesn't care what the bytes are; it just stores the parsed FontInstance
+  // under the declared family key.
+  const HELVETICA_PATH = "/System/Library/Fonts/Helvetica.ttc";
+  const fontBuf = fs.existsSync(HELVETICA_PATH) ? fs.readFileSync(HELVETICA_PATH) : null;
+
+  beforeEach(() => {
+    clearWebfonts();
+  });
+
+  it("picks the registered 'Inter Framer Regular' webfont over the Placeholder/sans-serif tail", () => {
+    if (fontBuf == null) return; // skip on hosts without Helvetica.ttc (Linux CI — DM-258+)
+    registerWebfont("Inter Framer Regular", 400, "normal", fontBuf);
+    const family = '"Inter Framer Regular", "Inter Framer Regular Placeholder", sans-serif';
+    expect(resolveFontKey(family)).toBe("webfont:inter framer regular");
+  });
+
+  it("picks the registered 'GT Walsheim Framer Medium' webfont over the Placeholder/sans-serif tail", () => {
+    if (fontBuf == null) return;
+    registerWebfont("GT Walsheim Framer Medium", 500, "normal", fontBuf);
+    const family = '"GT Walsheim Framer Medium", "GT Walsheim Framer Medium Placeholder", sans-serif';
+    expect(resolveFontKey(family)).toBe("webfont:gt walsheim framer medium");
+  });
+
+  it("picks the registered 'Inter Variable' webfont (next/font naming convention)", () => {
+    if (fontBuf == null) return;
+    registerWebfont("Inter Variable", 400, "normal", fontBuf);
+    const family = '"Inter Variable", "Inter Variable Placeholder", sans-serif';
+    expect(resolveFontKey(family)).toBe("webfont:inter variable");
+  });
+
+  it("falls through to sans-serif (helvetica) when neither the custom family nor any later name is a registered webfont", () => {
+    // Sanity check: when nothing in the cascade matches a registered webfont
+    // we still resolve via the generic-family rules — confirming the
+    // webfont-match isn't masking the existing fallback chain.
+    expect(resolveFontKey('"Unregistered Custom Font", "Unregistered Custom Font Placeholder", sans-serif')).toBe("helvetica");
+  });
+
+  it("picks the registered family when it appears LATER in the cascade than an unregistered first name", () => {
+    // Mirrors Chromium's @font-face cascade walk: missing fonts fall through
+    // to the next family, and a hit lower in the list still wins.
+    if (fontBuf == null) return;
+    registerWebfont("Inter Variable", 400, "normal", fontBuf);
+    const family = '"Definitely Not Loaded", "Inter Variable", sans-serif';
+    expect(resolveFontKey(family)).toBe("webfont:inter variable");
   });
 });

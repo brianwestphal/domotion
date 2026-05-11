@@ -13,7 +13,7 @@
 // 'JSX.IntrinsicElements'`.
 //
 // This declaration merging adds a permissive index signature that accepts
-// any tag with any props — restoring the pre-0.5.0 catch-all behaviour. We
+// any tag with any props — restoring the pre-0.5.0 catch-all behavior. We
 // lose 0.5.0's typed-tag benefit (typos like `<dvi>` no longer fail to
 // compile), but the runtime is unaffected and we unblock the upgrade.
 //

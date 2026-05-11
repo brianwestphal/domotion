@@ -101,16 +101,16 @@ Per-character x offsets are stored to one decimal place after
 </ul>
 
 <p>Concretely: a 60&nbsp;KB SVG often arrives at the browser as ~12&nbsp;KB
-over Brotli. Don't over-optimise the source if your transport handles
+over Brotli. Don't over-optimize the source if your transport handles
 compression.</p>
 
 <h2>Measure first</h2>
 
-<p>If you're spending time on optimisation, instrument it:</p>
+<p>If you're spending time on optimization, instrument it:</p>
 
 <pre><code><span class="tk-k">const</span> raw = <span class="tk-f">elementTreeToSvg</span>(tree, w, h);
 <span class="tk-k">const</span> small = <span class="tk-f">optimizeSvg</span>(raw);
-console.<span class="tk-f">log</span>(<span class="tk-s">\`raw=\${raw.length} optimised=\${small.length} ratio=\${(small.length/raw.length).<span class="tk-f">toFixed</span>(<span class="tk-n">2</span>)}\`</span>);</code></pre>
+console.<span class="tk-f">log</span>(<span class="tk-s">\`raw=\${raw.length} optimized=\${small.length} ratio=\${(small.length/raw.length).<span class="tk-f">toFixed</span>(<span class="tk-n">2</span>)}\`</span>);</code></pre>
 
 <p>Then look at the structure of the SVG itself: which glyph defs are
 biggest, which gradients are unused, where the byte count concentrates.

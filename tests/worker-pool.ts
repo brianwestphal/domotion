@@ -93,7 +93,7 @@ export function lowerProcessPriority(nice: number = 19): void {
  * Clamps the final value to [1, 32]; values outside the range are silently
  * coerced.
  *
- * Recognised CLI form: `--workers 6` or `--workers=6` anywhere in argv.
+ * Recognized CLI form: `--workers 6` or `--workers=6` anywhere in argv.
  */
 export function resolveWorkerCount(defaultWorkers: number = defaultWorkerCount()): number {
   const argv = process.argv.slice(2);

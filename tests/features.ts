@@ -682,7 +682,7 @@ const tests: FeatureTest[] = [
   },
   {
     // DM-494: mask-image: element(#id) — paint-reference. The referenced
-    // element's actual painted output is rasterised at capture time and
+    // element's actual painted output is rasterized at capture time and
     // emitted as <image> inside <mask>. mask-mode: match-source → luminance
     // for element() refs (the RGB drives mask alpha). Source div has a
     // diagonal split (white on top-left half, black bottom-right) so the

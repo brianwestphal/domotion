@@ -260,7 +260,7 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
   });
 
   it("CSS `none` and empty values for url() consumers are ignored", async () => {
-    // Defence-in-depth: a `none` literal or empty string for any CSS url()
+    // Defense-in-depth: a `none` literal or empty string for any CSS url()
     // consumer should not raise nor populate the cache.
     const tree: CapturedElement[] = [{
       tag: "div",

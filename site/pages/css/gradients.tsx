@@ -11,7 +11,7 @@ export const meta = {
 
 export const content: SafeHtml = raw(`
 <p>CSS gradients convert to native SVG <code>&lt;linearGradient&gt;</code> and
-<code>&lt;radialGradient&gt;</code> elements. Stop colours, positions, and
+<code>&lt;radialGradient&gt;</code> elements. Stop colors, positions, and
 angles are emitted in pixels — there's no floating-point approximation in
 the output, and the gradient stays correct under any zoom level because
 the SVG <code>viewBox</code> handles proportional scaling.</p>
@@ -41,7 +41,7 @@ hint stops and double-position stops; gradients applied via
     (<code>linear-gradient(in oklch, ...)</code>); Domotion samples the resolved
     gradient at fixed positions and emits sRGB stops. The output is visually
     close but not identical for OKLCH-interpolated gradients with widely-separated
-    colours.</li>
+    colors.</li>
 </ul>
 
 <h2>Examples</h2>

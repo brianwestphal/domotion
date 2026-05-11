@@ -53,6 +53,6 @@ an SVG <code>&lt;image&gt;</code> — but it isn't yet wired up. See
 
 <ul>
   <li><a href="../../guides/fonts/">Fonts &amp; non-Latin scripts</a> — script
-    coverage and shaping behaviour.</li>
+    coverage and shaping behavior.</li>
 </ul>
 `);

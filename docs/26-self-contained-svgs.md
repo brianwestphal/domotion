@@ -13,7 +13,7 @@ That works in browsers when the SVG is hosted on the same origin (or with permis
 
 Symptom: most images appear as broken-image placeholders or just empty space. DM-512 (nytimes.com capture) was the canonical repro: 26 NYT image URLs in the captured SVG, none loaded by Preview.
 
-## Today's behaviour
+## Today's behavior
 
 Implemented in DM-512.
 

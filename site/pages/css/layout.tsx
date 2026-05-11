@@ -23,10 +23,10 @@ resolved layout.</p>
 Chromium has already done the line-breaking around the float, and the resulting
 line boxes are what Domotion records. Lists work end-to-end:
 <code>list-style-type</code> markers (disc / circle / square / decimal /
-lower-alpha / lower-roman / etc.) are synthesised as shapes or text,
+lower-alpha / lower-roman / etc.) are synthesized as shapes or text,
 <code>list-style-image: url(...)</code> renders as an
 <code>&lt;image&gt;</code> at the marker slot, <code>list-style-position</code>
-is honoured, and <code>::marker</code> styling (color, font-weight, font-size)
+is honored, and <code>::marker</code> styling (color, font-weight, font-size)
 flows through.</p>
 
 <h2>The exceptions</h2>
@@ -38,7 +38,7 @@ flows through.</p>
     nothing for it to follow.</li>
   <li><strong><code>overflow: scroll</code> and <code>auto</code></strong> —
     content is clipped to the visible region and the captured
-    <code>scrollTop</code> is honoured, but the native scrollbar chrome isn't
+    <code>scrollTop</code> is honored, but the native scrollbar chrome isn't
     yet emulated. The visible scroll region renders correctly.</li>
   <li><strong>Nested stacking contexts</strong> — a child with <code>z-index</code>
     that's "trapped" inside an opacity / transform stacking context may paint

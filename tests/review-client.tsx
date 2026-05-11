@@ -185,7 +185,7 @@ function showLightboxAt(idx: number): void {
   lbIndex.value = idx;
   lbOpen.value = true;
   // Scroll the underlying card into view so closing the lightbox lands you
-  // on the test you were just inspecting (DM-412 behaviour preserved).
+  // on the test you were just inspecting (DM-412 behavior preserved).
   const card = lbFigures[idx].closest(".card");
   if (card != null) card.scrollIntoView({ block: "center", behavior: "auto" });
 }

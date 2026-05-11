@@ -65,7 +65,7 @@ hints glyphs differently when their baseline isn't axis-aligned, the
 sub-pixel positioning rules change, and decoration metrics shift. Faithfully
 reproducing a rotated text run in SVG requires either applying a matched
 <code>transform</code> on the path elements (loses hinting parity) or
-rasterising the rotated region (loses vector benefits). Both paths are on
+rasterizing the rotated region (loses vector benefits). Both paths are on
 the roadmap; neither is shipped yet.</p>
 
 <p>Translation, by contrast, doesn't change glyph orientation — Chromium's

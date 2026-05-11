@@ -57,7 +57,7 @@ intermediate states.</p>
   <div class="row">
     <div class="name">color</div>
     <div class="type">string (default <code>#e6edf3</code>)</div>
-    <div class="desc">Text colour.</div>
+    <div class="desc">Text color.</div>
   </div>
   <div class="row">
     <div class="name">delay</div>
@@ -118,7 +118,7 @@ the text holds visible until the frame ends.</p>
   <div class="row">
     <div class="name">x, y</div>
     <div class="type">number</div>
-    <div class="desc">Centre of the ripple in SVG coordinates.</div>
+    <div class="desc">Center of the ripple in SVG coordinates.</div>
   </div>
   <div class="row">
     <div class="name">delay</div>

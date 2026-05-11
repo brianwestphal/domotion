@@ -22,7 +22,7 @@ the URL.</p>
 
 <pre><code>domotion capture https://example.com -o example.svg</code></pre>
 
-<p>Tighten the viewport, target a specific section, optimise:</p>
+<p>Tighten the viewport, target a specific section, optimize:</p>
 
 <pre><code>domotion capture https://example.com \\
   --width 1280 --height 720 \\

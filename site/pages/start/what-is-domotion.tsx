@@ -59,7 +59,7 @@ real cost:</p>
     </tr>
     <tr>
       <td>Animated GIF</td>
-      <td>Limited colour palette, large file size, no native scaling.</td>
+      <td>Limited color palette, large file size, no native scaling.</td>
     </tr>
   </tbody>
 </table>
@@ -76,7 +76,7 @@ real cost:</p>
   <li><strong>One file.</strong> A self-contained SVG with text as glyph paths or
     <code>&lt;text&gt;</code> elements, backgrounds and borders as native SVG
     primitives, gradients translated to <code>&lt;linearGradient&gt;</code> /
-    <code>&lt;radialGradient&gt;</code>, and any rasterised pieces (emoji,
+    <code>&lt;radialGradient&gt;</code>, and any rasterized pieces (emoji,
     bitmap glyphs) embedded as base64 PNG.</li>
   <li><strong>No external dependencies at runtime.</strong> Everything the SVG
     needs to paint is inside the file.</li>
@@ -93,7 +93,7 @@ real cost:</p>
 <ul>
   <li>Marketing landing pages that need a polished hero animation of your product UI.</li>
   <li>Documentation walk-throughs ("here's what happens when you click X").</li>
-  <li>Changelog entries showing before/after behaviour.</li>
+  <li>Changelog entries showing before/after behavior.</li>
   <li>Teaching material that needs to scale crisply on retina displays and at zoom.</li>
   <li>Anywhere you'd otherwise embed a screen recording but care about file size and embedding ergonomics.</li>
 </ul>

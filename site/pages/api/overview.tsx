@@ -121,7 +121,7 @@ under <a href="../overlays/">Overlay types</a>.</p>
 
 <p>Domotion is at <code>0.x</code>. Patch and minor releases may change return
 shapes (especially <code>CapturedElement</code>'s style fields, which track
-new CSS support) and tighten warning behaviour. The <em>functions and class
+new CSS support) and tighten warning behavior. The <em>functions and class
 listed above</em> are stable; the function signatures aren't expected to
 change before <code>1.0</code> without a deprecation notice.</p>
 `);

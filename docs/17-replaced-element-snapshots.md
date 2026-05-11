@@ -9,7 +9,7 @@ These element types host browsing contexts or canvas surfaces that domotion cann
 - `<iframe>` hosts a separate browsing context. Same-origin iframes are walkable in principle, but cross-origin iframes are not — and the cost of re-rendering iframe DOMs through the same pipeline isn't justified by the current use case.
 - `<object>` / `<embed>` host plug-in or document content (PDF viewers, SVG documents, etc.) the same way iframes do.
 
-Pre-DM-457 behaviour: CAPTURE_SCRIPT logged a `<canvas>` / `<video>` / `<iframe>` / `<object>` / `<embed>` warning per element and the renderer painted only the element's normal box (background + border + outline + shadow). The element's content area appeared blank — visible holes on real-world pages with hero videos, embedded chart canvases, or framed widgets.
+Pre-DM-457 behavior: CAPTURE_SCRIPT logged a `<canvas>` / `<video>` / `<iframe>` / `<object>` / `<embed>` warning per element and the renderer painted only the element's normal box (background + border + outline + shadow). The element's content area appeared blank — visible holes on real-world pages with hero videos, embedded chart canvases, or framed widgets.
 
 ## Requirement
 

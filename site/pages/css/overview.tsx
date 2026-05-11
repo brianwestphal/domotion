@@ -51,13 +51,13 @@ or aren't yet covered.</p>
   <li><a href="../writing-mode/"><strong>Writing mode</strong></a> — RTL (Arabic,
     Hebrew, etc.) is fully supported. Vertical writing modes (<code>vertical-rl</code>
     / <code>vertical-lr</code> / <code>sideways-*</code>) currently render as
-    horizontal (warning logged); rasterised fallback is on the roadmap.</li>
+    horizontal (warning logged); rasterized fallback is on the roadmap.</li>
   <li><a href="../form-controls/"><strong>Form controls</strong></a> —
     <code>&lt;input type=file&gt;</code> renders the button chrome only. Bare
     <code>&lt;button&gt;</code> / <code>&lt;select&gt;</code> with no author CSS
-    only partially synthesises the UA chrome. Open <code>&lt;select&gt;</code>
+    only partially synthesizes the UA chrome. Open <code>&lt;select&gt;</code>
     dropdowns can't be captured (they live in OS chrome). <code>&lt;textarea&gt;</code>
-    content is rasterised for pixel-perfect Chromium word-wrap.</li>
+    content is rasterized for pixel-perfect Chromium word-wrap.</li>
 </ul>
 
 <h2>Out of scope</h2>

@@ -121,7 +121,7 @@ export async function resizeEmbeddedImages(
         return;
       }
       // `fit: "inside"` preserves aspect ratio within the target box;
-      // `withoutEnlargement: true` is defence-in-depth in case the threshold
+      // `withoutEnlargement: true` is defense-in-depth in case the threshold
       // check above mis-fires.
       const out = await sharp(sourceBytes)
         .resize(w, h, { fit: "inside", withoutEnlargement: true })

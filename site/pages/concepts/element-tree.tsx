@@ -76,7 +76,7 @@ inside a paragraph). Segments carry:</p>
 <code>&lt;meter&gt;</code> and friends carry extra fields:
 <code>inputType</code>, <code>checked</code>, <code>indeterminate</code>,
 <code>disabled</code>, <code>progressValue</code>, etc. The renderer uses
-those to synthesise the SVG markup that mimics Chromium's user-agent
+those to synthesize the SVG markup that mimics Chromium's user-agent
 shadow DOM. See <a href="../../css/form-controls/">Form controls</a>.</p>
 
 <h2>Raster fall-back fields</h2>

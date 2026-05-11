@@ -6,7 +6,7 @@ DM-499 lands resolve-and-inline for `<use href="#sym">` references. Symbols whos
 
 Domotion's contract is: faithful capture of what Chrome painted at the moment of capture. Animation timing and future frames don't survive — every captured asset is one frame at t=0. DM-508 brings animated symbols in line with that contract: instead of falling back to a `page.screenshot` raster, we bake the t=0 computed paint state declaratively.
 
-## Today's behaviour
+## Today's behavior
 
 Implemented in DM-508 (this doc).
 

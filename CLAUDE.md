@@ -88,6 +88,10 @@ The project uses [`kerfjs`](https://github.com/brianwestphal/kerf) for JSX. JSX 
 
 When writing TSX, components return `SafeHtml` (which is `JSX.Element`). Use `raw()` to inject pre-escaped HTML strings; all string children are auto-escaped. Render to a string with `.toString()`. Import `SafeHtml`, `raw`, and `Fragment` from the `"kerfjs"` barrel. (kerfjs ≤0.1.2 had a duplicate-`SafeHtml` bug between the barrel and the jsx-runtime entry that required importing from `"kerfjs/jsx-runtime"`; fixed in 0.2.0 via a shared chunk — DM-533.) kerfjs's `signal`/`mount`/`delegate`/`toElement` (browser-side) are also available from `"kerfjs"` directly — no current call sites in this repo.
 
+## Language
+
+- **Always use American-English spelling and grammar** in code, comments, docs, commit messages, ticket notes, and UI copy. Prefer `color` over `colour`, `behavior` over `behaviour`, `optimize` over `optimise`, `synthesize` over `synthesise`, `rasterize` over `rasterise`, `center` over `centre`, `gray` over `grey`, `honor` over `honour`, `defense` over `defence`, `labeled` over `labelled`, etc. The one exception is when quoting a CSS keyword that the spec accepts in both forms (e.g. the `grey` color keyword in the CSS color-name map and its parsing regex) — those literals must match what Chromium accepts.
+
 ## Git
 
 - **Never commit unless explicitly asked.** Do not run `git commit`, `git add`, or any git write operations proactively. Only commit when the user directly asks.

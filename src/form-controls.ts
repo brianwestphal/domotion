@@ -1162,7 +1162,7 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
   // incorrect').
   const cy = el.y + padT + brT + lineH / 2;
   const open = el.styles.detailsOpen === true;
-  // Use the summary's text color when captured, else dark grey.
+  // Use the summary's text color when captured, else dark gray.
   const fill = (el.styles.color != null && el.styles.color !== "")
     ? el.styles.color : "rgb(0,0,0)";
   const half = size / 2;

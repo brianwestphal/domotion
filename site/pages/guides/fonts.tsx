@@ -76,7 +76,7 @@ the same pipeline.</p>
 fallback run is shaped as a unit, and the per-character anchor offsets keep
 the runs aligned with what Chromium painted.</p>
 
-<p>Emoji and colour-bitmap glyphs are the exception: each unique glyph is
+<p>Emoji and color-bitmap glyphs are the exception: each unique glyph is
 screenshotted once and embedded as a base64 PNG, then referenced via
 <code>&lt;use&gt;</code> for dedup.</p>
 
@@ -110,7 +110,7 @@ or <code>@import url(...)</code>:</p>
 <p>Underlines and strike-throughs are positioned using the font's own
 <code>post.underlinePosition</code> / <code>OS/2.yStrikeoutPosition</code>
 tables, not as a fraction of font size. This matches Chromium and avoids the
-slight "underline too low" effect you sometimes see in rasterised SVG
+slight "underline too low" effect you sometimes see in rasterized SVG
 output.</p>
 
 <h2>See also</h2>

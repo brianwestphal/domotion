@@ -92,7 +92,7 @@ Pre-fetch and inline manually if you need full self-containment for those.</p>
 
 <h2>Can I use this for snapshot testing my UI?</h2>
 
-<p>It's not what Domotion is optimised for, but yes — capture an HTML state,
+<p>It's not what Domotion is optimized for, but yes — capture an HTML state,
 hash the SVG output, compare. Two caveats: SVG output is sensitive to
 sub-pixel layout differences, so test runs on different machines may produce
 slightly different bytes; and Domotion's rendering invariants change in

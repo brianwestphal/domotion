@@ -15,13 +15,13 @@ Chromium resolves these by walking the DOM (or fetching the .svg file), locating
 
 Doc 20 covers the gradient + raster `url()` cases that already round-trip cleanly. This doc covers what to do for fragment URLs that point at SVG `<mask>` definitions.
 
-## Today's behaviour
+## Today's behavior
 
 DM-493 implemented same-document fragment refs (`url("#id")`). External-file refs (`url("./shapes.svg#id")`) are deferred to DM-496 and currently emit a capture-time warning (`external-file SVG fragment refs are not yet emitted`).
 
 For same-document refs, CAPTURE_SCRIPT resolves `document.getElementById(id)` to the inline `<mask>` element and serialises its `outerHTML` into a top-level `maskDefs` payload on the captured tree. The renderer copies the mask def into the output `<defs>` with id rewriting and per-element coordinate translation so the mask aligns with the element being masked. See `rewriteFragmentMaskDef` and `positionFragmentMaskDef` in `src/dom-to-svg.ts`.
 
-Prior behaviour: `buildMaskDef()` treated every `url(...)` as a raster image and emitted `<image href="…">` inside the SVG `<mask>` — wrong for fragment refs because there is no raster at that URL. Per DM-470's narrow-warning policy, fragment refs were warned. DM-493's path now bypasses `buildMaskDef()` entirely for `url("#id")` cases and emits the resolved inline mask instead.
+Prior behavior: `buildMaskDef()` treated every `url(...)` as a raster image and emitted `<image href="…">` inside the SVG `<mask>` — wrong for fragment refs because there is no raster at that URL. Per DM-470's narrow-warning policy, fragment refs were warned. DM-493's path now bypasses `buildMaskDef()` entirely for `url("#id")` cases and emits the resolved inline mask instead.
 
 ## Proposed approach
 

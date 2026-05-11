@@ -43,7 +43,7 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 
 ## Wiring
 
-1. **CAPTURE_SCRIPT** — in the per-element style capture path (`src/dom-to-svg.ts` around line 2037), after recording `backgroundColor` and `backdropFilter`, check the trigger conditions. When met, walk to `document.body` and read its `getComputedStyle(...).backgroundColor`, normalise via the existing `normColor()`, and store as `frostedBgFallback`. If body bg is also alpha-0, store `'rgb(255,255,255)'`.
+1. **CAPTURE_SCRIPT** — in the per-element style capture path (`src/dom-to-svg.ts` around line 2037), after recording `backgroundColor` and `backdropFilter`, check the trigger conditions. When met, walk to `document.body` and read its `getComputedStyle(...).backgroundColor`, normalize via the existing `normColor()`, and store as `frostedBgFallback`. If body bg is also alpha-0, store `'rgb(255,255,255)'`.
 
 2. **CapturedElement.styles** — add `frostedBgFallback?: string` to the `Styles` interface.
 
@@ -51,8 +51,8 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 
 ## What still doesn't work
 
-- **Per-element backdrop blur** — the synthesised fill is solid. Chromium's actual paint blends and saturates the underlying pixels. For dark-on-light or light-on-dark contrasts the colour mismatch is small; for navs over a saturated hero image the synthesised fill reads as a flat block where Chromium showed a tinted blur.
-- **Multi-themed pages** — pages that swap body bg colour mid-document (one section dark, the next light) get a single body-derived fallback. The previous best alternative (canvas readback under each frosted element) is parked behind option 3 above; revisit if real-world fidelity demands it.
+- **Per-element backdrop blur** — the synthesized fill is solid. Chromium's actual paint blends and saturates the underlying pixels. For dark-on-light or light-on-dark contrasts the color mismatch is small; for navs over a saturated hero image the synthesized fill reads as a flat block where Chromium showed a tinted blur.
+- **Multi-themed pages** — pages that swap body bg color mid-document (one section dark, the next light) get a single body-derived fallback. The previous best alternative (canvas readback under each frosted element) is parked behind option 3 above; revisit if real-world fidelity demands it.
 
 ## Test fixture
 
@@ -60,4 +60,4 @@ Added to `tests/features.ts`:
 
 - `frosted-nav-fallback` — a fixed nav with `background-color: rgba(255,255,255,0); backdrop-filter: blur(20px)` over a body with a coloured gradient. Asserts the SVG emits an opaque `<rect>` with `fill="rgb(...)"` matching the body bg, instead of the literal transparent fill.
 
-The fixture only verifies the *fallback colour is opaque* — not that the result is pixel-perfect to Chromium's blur, since that's the documented limit.
+The fixture only verifies the *fallback color is opaque* — not that the result is pixel-perfect to Chromium's blur, since that's the documented limit.
