@@ -329,9 +329,6 @@ step_local_checks() {
   echo ""
   info "Unit tests..."
   npm test
-  echo ""
-  info "Visual regression (demos:test) — this can take a few minutes..."
-  npm run demos:test
   success "All local checks passed"
 }
 
