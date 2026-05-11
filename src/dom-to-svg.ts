@@ -1500,7 +1500,18 @@ const CAPTURE_SCRIPT = `
   };
   const captureInner = (el, cs, frozenTransform, frozenTransformOrigin) => {
     const rect = el.getBoundingClientRect();
-    if (rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height) return null;
+    // DM-513: when an element's rect is outside the viewport, normally skip the
+    // whole subtree. But position:fixed / position:sticky descendants escape
+    // their containing-block flow and can paint INSIDE the viewport even when
+    // their DOM-tree parent is offscreen (e.g. slashdot's #mongo-stick-it ad
+    // bar is position:fixed at top:710px but its parent <footer id="ft"> is
+    // at y=7140 in the document flow). Don't return null for an ancestor that
+    // has at least one position:fixed/sticky descendant in-viewport — instead
+    // capture the element as a transparent container (no own paint, but walk
+    // children) so the in-viewport descendants are reached. _fixedAncestors
+    // is precomputed in the pre-pass below.
+    const outsideViewport = rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;
+    if (outsideViewport && !_fixedAncestors.has(el)) return null;
 
     // visibility: collapse on table-row/column/group collapses that section
     // (Chrome zero-sizes the row/col, so the zeroSized check below handles it).
@@ -3482,6 +3493,34 @@ const CAPTURE_SCRIPT = `
 
   const root = document.querySelector(sel);
   if (!root) return { tree: [], warnings: [] };
+
+  // DM-513: pre-pass to find position:fixed / position:sticky descendants
+  // whose rect intersects the viewport. Their DOM-tree parents may be far
+  // outside the viewport (e.g. slashdot's #mongo-stick-it ad bar pinned at
+  // top:710px while its <footer> ancestor sits at y=7140 in document flow),
+  // and the per-element viewport filter in captureInner would otherwise drop
+  // the whole subtree. We mark every ancestor of every in-viewport fixed/
+  // sticky element so captureInner knows to walk past those ancestors as
+  // transparent containers. position:absolute is NOT included because absolute
+  // elements are positioned relative to their containing block, so if their
+  // CB ancestor's rect is offscreen, so is the absolute child.
+  const _fixedAncestors = new Set();
+  const _allEls = root.getElementsByTagName('*');
+  for (let _i = 0; _i < _allEls.length; _i++) {
+    const _el = _allEls[_i];
+    const _pos = getComputedStyle(_el).position;
+    if (_pos !== 'fixed' && _pos !== 'sticky') continue;
+    const _r = _el.getBoundingClientRect();
+    const _outside = _r.right < vp.x || _r.bottom < vp.y || _r.left > vp.x + vp.width || _r.top > vp.y + vp.height;
+    if (_outside) continue;
+    // Walk up and mark every ancestor up to root.
+    let _cur = _el.parentElement;
+    while (_cur != null && _cur !== root.parentElement) {
+      if (_fixedAncestors.has(_cur)) break;
+      _fixedAncestors.add(_cur);
+      _cur = _cur.parentElement;
+    }
+  }
 
   // CSS counters pre-walk (DM-357). Walk the document in DOM order,
   // applying counter-reset / counter-set / counter-increment per the
