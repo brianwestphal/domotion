@@ -580,7 +580,15 @@ async function runJob(
     const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };
     // captureElementTreeWithWarnings returns warnings inline so concurrent
     // workers don't race on the lastCaptureWarnings module global (DM-456).
-    const cap = await captureElementTreeWithWarnings(page, "body", captureClip);
+    // DM-562: for `fold` and `entire-page` modes the expected.png already
+    // covers the same coordinate space as captureClip, so crop replaced-
+    // element rasters from that PNG instead of taking fresh per-rid
+    // screenshots — eliminates the timing drift between the expected and
+    // rotating cross-origin-iframe content (NYT Google Ads, etc.). For
+    // `scroll` mode the expected.png is only the viewport-sized t=0 fold,
+    // so we fall back to per-rid screenshots there.
+    const rasterizeFromImagePath = (mode === "fold" || mode === "entire-page") ? expectedPath : undefined;
+    const cap = await captureElementTreeWithWarnings(page, "body", captureClip, { rasterizeFromImagePath });
     warnings = cap.warnings;
     // DM-512: real-world captures of public sites reference image URLs on
     // the host CDN. Inline them as data: URIs so the produced SVGs load in

@@ -3725,13 +3725,21 @@ export async function captureElementTreeWithWarnings(
   page: Page,
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
+  opts?: {
+    /** DM-562: when provided, `rasterizeReplacedElements` crops replaced-
+     *  element rects from this PNG instead of taking fresh page.screenshot
+     *  calls. Eliminates timing drift between the expected screenshot and
+     *  rotating cross-origin-iframe content. Caller is responsible for
+     *  ensuring the source covers the same coordinate space as `viewport`. */
+    rasterizeFromImagePath?: string;
+  },
 ): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }> {
   const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}})`);
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   lastCaptureWarnings = warnings;
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
-  await rasterizeReplacedElements(page, typed.tree, viewport);
+  await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);
   return { tree: typed.tree, warnings };
 }
@@ -3955,9 +3963,11 @@ async function rasterizeReplacedElements(
   page: Page,
   tree: CapturedElement[],
   viewport: { x: number; y: number; width: number; height: number },
+  opts?: { sourceImagePath?: string },
 ): Promise<void> {
   interface Target {
     rid: string;
+    tag: string;
     rect: { x: number; y: number; width: number; height: number };
     setDataUri: (uri: string) => void;
   }
@@ -3968,6 +3978,7 @@ async function rasterizeReplacedElements(
         const rs = el.replacedSnapshot;
         targets.push({
           rid: rs.rid,
+          tag: el.tag,
           rect: { x: rs.x, y: rs.y, width: rs.width, height: rs.height },
           setDataUri: (uri) => { rs.dataUri = uri; },
         });
@@ -3977,6 +3988,73 @@ async function rasterizeReplacedElements(
   };
   walk(tree);
   if (targets.length === 0) return;
+
+  // DM-562: custom elements (hyphenated tag — DM-511 routed them through
+  // replacedSnapshot when they have shadow DOM) have light-DOM children that
+  // ALSO paint inside the rect. Cropping from expected.png captures both the
+  // shadow-DOM paint AND the overlapping light-DOM paint as a single image,
+  // and then the renderer composites that crop on top of its own rendering
+  // of the same light-DOM children — producing stacking artifacts (e.g.
+  // doubled video-controls or text seen through translucent custom-element
+  // backgrounds). For iframe / canvas / video / object / embed the rect is
+  // truly opaque-replaced — there's no light-DOM content to double-paint —
+  // so the image crop is clean. Split targets accordingly.
+  const _replacedTagSet = new Set(["iframe", "canvas", "video", "object", "embed"]);
+  const cropTargets: Target[] = [];
+  const screenshotTargets: Target[] = [];
+  for (const t of targets) {
+    if (opts?.sourceImagePath != null && _replacedTagSet.has(t.tag)) {
+      cropTargets.push(t);
+    } else {
+      screenshotTargets.push(t);
+    }
+  }
+
+  // DM-562: when the caller supplies a `sourceImagePath` (the expected.png
+  // already on disk), crop each rid's rect from it instead of taking fresh
+  // page.screenshot calls. The per-rid screenshots originally provided
+  // isolation via the hide-everything-else CSS trick, but they also happened
+  // hundreds of milliseconds after the expected screenshot — so cross-origin
+  // iframes with rotating carousels (Google Ads on NYT) ended up with
+  // rasterized content that drifted from the expected. Cropping from the
+  // SAME PNG that produced the expected eliminates the drift entirely. For
+  // typical replaced elements (iframe / canvas / video / custom-element with
+  // shadow DOM) the rid's content-box rect doesn't overlap with siblings, so
+  // the loss of CSS-trick isolation is a no-op visually.
+  if (cropTargets.length > 0 && opts?.sourceImagePath != null) {
+    const sharp = (await import("sharp")).default;
+    const srcMeta = await sharp(opts.sourceImagePath).metadata();
+    const srcW = srcMeta.width ?? 0;
+    const srcH = srcMeta.height ?? 0;
+    for (const t of cropTargets) {
+      const left = Math.max(0, Math.floor(t.rect.x + viewport.x));
+      const top = Math.max(0, Math.floor(t.rect.y + viewport.y));
+      const width = Math.max(1, Math.ceil(t.rect.width));
+      const height = Math.max(1, Math.ceil(t.rect.height));
+      const clippedW = Math.max(1, Math.min(width, srcW - left));
+      const clippedH = Math.max(1, Math.min(height, srcH - top));
+      if (left >= srcW || top >= srcH) continue;
+      try {
+        const buf = await sharp(opts.sourceImagePath)
+          .extract({ left, top, width: clippedW, height: clippedH })
+          .png()
+          .toBuffer();
+        t.setDataUri(`data:image/png;base64,${buf.toString("base64")}`);
+      } catch {
+        /* leave dataUri undefined; renderer falls back to the bare box. */
+      }
+    }
+  }
+  if (screenshotTargets.length === 0) {
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll("[data-domotion-rid]").forEach(
+          (el) => el.removeAttribute("data-domotion-rid"),
+        );
+      });
+    } catch {}
+    return;
+  }
 
   // Inject hide-everything-else stylesheet. Two rules: hide every element by
   // default; revive only the element bearing data-domotion-snapshot-target
@@ -3994,7 +4072,7 @@ async function rasterizeReplacedElements(
   let styleHandle: ElementHandle | null = null;
   try {
     styleHandle = await page.addStyleTag({ content: HIDE_CSS });
-    for (const t of targets) {
+    for (const t of screenshotTargets) {
       // Move the snapshot-target marker to this element.
       await page.evaluate((rid) => {
         const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
