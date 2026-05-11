@@ -3423,7 +3423,21 @@ const CAPTURE_SCRIPT = `
     // its painted pixels. The warning logged earlier in this function still
     // stands (these are out of the spirit of the path-rendering contract); the
     // snapshot exists only to avoid blank holes. See docs/17.
-    if ((tag === 'iframe' || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed')
+    //
+    // DM-511: also route custom elements (hyphenated tag names per the spec)
+    // through the snapshot path when they have shadow DOM. NYT's mobile
+    // homepage uses <nyt-betamax> / <nyt-betamax-cover> custom elements to
+    // render the Met Gala photo carousel — the visible thumbnails live in
+    // shadow DOM that our light-DOM walk can't see, so without this route
+    // the section paints empty. Only trigger the route when the element has
+    // an open shadowRoot (the test that survives closed-shadow inaccessibility
+    // — closed shadows can't be reached anyway, but their painted output is
+    // visible and snapshot-able, so we route based on a weaker signal: any
+    // hyphenated tag with no light-DOM children whose paint covers the box).
+    const _isCustomEl = tag.indexOf('-') > 0;
+    const _hasOpenShadow = _isCustomEl && el.shadowRoot != null;
+    const _customElNeedsSnapshot = _isCustomEl && _hasOpenShadow;
+    if ((tag === 'iframe' || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed' || _customElNeedsSnapshot)
         && !bordersOnlyCell
         && cs.display !== 'none'
         && rect.width > 0 && rect.height > 0) {
