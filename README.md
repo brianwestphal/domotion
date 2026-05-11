@@ -16,6 +16,14 @@ Domotion captures real HTML/CSS as it renders in Chromium, then emits a single i
 
 Early — extracted in 2026-04 from the slicekit project where it had been incubating as `tools/svg-demo-gen`. APIs may still shift while the project's external surface stabilizes.
 
+## Platform support
+
+Domotion ships as a normal npm package and is **designed** to work on macOS, Linux, and Windows — the captured SVG is meant to be pixel-faithful to Chromium on whichever platform the capture is running on (CoreText fallback on macOS, fontconfig on Linux, DirectWrite on Windows).
+
+**Today it's only actively tested and calibrated on macOS.** Linux and Windows are roadmap items: cross-platform path discovery, fallback-font chains, and CI coverage are tracked under DM-258 → DM-259 / DM-260 / DM-261 → DM-262. The package will install and run on Linux/Windows, but text rendering won't yet match the host Chromium as faithfully as it does on macOS.
+
+If you'd like to help with cross-platform support — testing on Linux or Windows, reporting issues you hit, or sending fixes — please open an issue or PR on [GitHub](https://github.com/brianwestphal/domotion). Bug reports against macOS are also welcome.
+
 ## Install
 
 ```bash

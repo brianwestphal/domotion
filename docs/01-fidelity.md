@@ -7,7 +7,7 @@ Requirements and support matrix for Domotion — the engine that converts captur
 - Faithful visual reproduction of captured DOM as SVG, targeting Chromium on the host platform as the canonical reference.
 - Predictable output: if a feature isn't fully supported, the tool says so (it doesn't silently drop content).
 - Self-contained SVG: renders identically when embedded in a page or loaded standalone.
-- **Cross-platform parity**: works on macOS, Linux, and Windows like any normal npm package, calibrated against Chromium's actual fallback behavior on each platform (CoreText / fontconfig / DirectWrite). Today fully calibrated only for macOS; Linux and Windows are roadmap items (tickets DM-258 → DM-259 / DM-260 / DM-261 → DM-262). New code must be platform-aware from the start, not macOS-hardcoded.
+- **Cross-platform parity**: works on macOS, Linux, and Windows like any normal npm package, calibrated against Chromium's actual fallback behavior on each platform (CoreText / fontconfig / DirectWrite). **Today the project is only actively tested on macOS** — Linux and Windows install and run, but text rendering is not yet calibrated to match Chromium on those platforms. Cross-platform path discovery, fallback chains, and CI coverage are roadmap items (tickets DM-258 → DM-259 / DM-260 / DM-261 → DM-262). New code must be platform-aware from the start, not macOS-hardcoded. **Help wanted**: bug reports, test runs, and fixes for Linux/Windows from the community are welcome — open an issue or PR on the GitHub repo.
 
 ## Support matrix
 
