@@ -7,12 +7,10 @@ import { cullFrame, decideCull } from "./viewbox-culling.js";
 // Helper to construct a CapturedElement with sensible defaults.
 function el(opts: Partial<CapturedElement> & { x: number; y: number; width: number; height: number }): CapturedElement {
   return {
-    tag: opts.tag ?? "div",
-    text: opts.text ?? "",
-    x: opts.x, y: opts.y, width: opts.width, height: opts.height,
-    animId: opts.animId,
-    styles: opts.styles ?? ({} as CapturedElement["styles"]),
-    children: opts.children ?? [],
+    tag: "div",
+    text: "",
+    styles: {} as CapturedElement["styles"],
+    children: [],
     ...opts,
   };
 }
