@@ -7,6 +7,7 @@ export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverla
 export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./cursor-overlay.js";
 export { DemoRecorder, launchChromium } from "./capture.js";
 export type { CaptureOptions } from "./capture.js";
-export { optimizeSvg } from "./optimize.js";
+export { optimizeSvg, gzipSvg } from "./optimize.js";
+export { cullFrame } from "./viewbox-culling.js";
 export { getGlyphDefs, clearGlyphDefs, registerWebfont, clearWebfonts } from "./text-to-path.js";
 export { discoverAndRegisterWebfonts, attachWebfontTracker } from "./capture.js";

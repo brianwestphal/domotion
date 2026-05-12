@@ -417,6 +417,22 @@ export interface CapturedElement {
    * data attribute on the live DOM before capture.
    */
   animId?: string;
+  /**
+   * DM-603 viewBox culling. Set to `true` by `cullFrame()` (or a single-frame
+   * static cull) when this element's bbox never intersects the viewBox during
+   * the scene cycle. The renderer surfaces it as `style="display:none"` on
+   * the element's outermost `<g>` wrapper.
+   */
+  displayNone?: boolean;
+  /**
+   * DM-603 viewBox culling. CSS class name (`cull-N`) that maps to a
+   * scene-wide keyframes block toggling `display: inline ↔ none` for the
+   * times when this element is partially visible (e.g. only after an
+   * `animation: translateY` brings it into the viewBox). The keyframes block
+   * is emitted by `cullFrame()`; the renderer just stamps the class onto the
+   * outer `<g>`.
+   */
+  cullClass?: string;
   styles: {
     backgroundColor: string;
     borderColor: string;
@@ -4598,7 +4614,11 @@ export function elementTreeToSvg(
       || (el.styles.contain != null && /\b(?:paint|strict|content)\b/i.test(el.styles.contain))
     );
     const needsIsolation = explicitIsolate || implicitIsolate;
-    const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation;
+    // DM-603: an element marked for viewBox culling forces a wrapping <g>
+    // even if none of the above attributes would otherwise have demanded one,
+    // since that's where `style="display:none"` / `class="cull-N"` lives.
+    const needsCullWrapper = el.displayNone === true || (el.cullClass != null && el.cullClass !== "");
+    const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation || needsCullWrapper;
     const groupAttrs: string[] = [];
     if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
     if (opacity < 1) groupAttrs.push(`opacity="${r(opacity)}"`);
@@ -4611,10 +4631,16 @@ export function elementTreeToSvg(
     // class (which gets applied to the outer group) so the two `animation`
     // declarations don't clobber each other.
     const animClass = el.animId != null && el.animId !== "" ? `anim-${el.animId}` : "";
+    // DM-603: viewBox-cull class (`cull-N`) goes on the OUTER group so it
+    // composes with any inner animation/transform wrappers cleanly. Likewise
+    // `style="display:none"` is on the outer group so the entire subtree is
+    // skipped from paint.
+    if (el.cullClass != null && el.cullClass !== "") groupAttrs.push(`class="${esc(el.cullClass)}"`);
     const styleParts: string[] = [];
     if (filterCss !== "") styleParts.push(`filter:${filterCss}`);
     if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
     if (needsIsolation) styleParts.push("isolation:isolate");
+    if (el.displayNone === true) styleParts.push("display:none");
     // DM-486: HTML-escape the style attribute value. Chromium normalises
     // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
     // produced `style="filter:url("#id")"` and broke the SVG parser.

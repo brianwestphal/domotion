@@ -10,10 +10,10 @@
  * Reactivity model (DM-535):
  *  - filter / suite / sort / lightbox state are kerfjs `signal`s.
  *  - The card grid, stats line, and suite-summary are `mount`ed and re-render
- *    when their dependent signals change. Cards carry `data-key` so morphdom
- *    moves them on sort change instead of churning DOM, and `data-morph-skip`
- *    so a typed comment / in-flight file-ticket button state is never
- *    overwritten.
+ *    when their dependent signals change. Cards carry `data-key` so kerfjs's
+ *    native keyed-list reconciler moves them on sort change instead of
+ *    churning DOM, and `data-morph-skip` so a typed comment / in-flight
+ *    file-ticket button state is never overwritten.
  *  - Lightbox toggling is a single imperative `effect` since it's just a
  *    classList toggle plus an `<img src>` swap.
  */

@@ -25,6 +25,8 @@ import {
   wrapSvg,
   generateAnimatedSvg,
   optimizeSvg,
+  gzipSvg,
+  cullFrame,
   launchChromium,
   logCaptureWarnings,
   discoverAndRegisterWebfonts,
@@ -62,6 +64,8 @@ capture options:
       --wait-for <css>     Wait for this selector to appear before capturing.
       --no-fonts-ready     Skip the document.fonts.ready wait (default: wait).
       --optimize           Run output through SVGO.
+      --no-optimize        Skip SVGO. Only meaningful when -o ends in
+                           .svgz (where --optimize is implied by default).
       --warnings           Log capture warnings to stderr after capture.
       --mobile             Emulate a mobile device (iOS UA, isMobile=true).
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
@@ -121,6 +125,10 @@ Examples:
 
   # Capture HTML piped on stdin.
   cat my.html | domotion capture - -o out.svg
+
+  # Capture as gzip-compressed .svgz (auto-detected from -o extension;
+  # implies --optimize unless --no-optimize is also passed).
+  domotion capture ./hero.html -o hero.svgz
 
   # Build a 3-frame animated demo from a config.
   domotion animate ./demo.json
@@ -191,6 +199,7 @@ async function runCapture(args: string[]): Promise<void> {
       "wait-for":    { type: "string" },
       "no-fonts-ready": { type: "boolean" },
       optimize:      { type: "boolean" },
+      "no-optimize": { type: "boolean" },
       warnings:      { type: "boolean" },
       mobile:        { type: "boolean" },
       "color-scheme": { type: "string" },
@@ -200,8 +209,14 @@ async function runCapture(args: string[]): Promise<void> {
   if (values.help === true) { process.stdout.write(HELP); process.exit(0); }
   if (positionals.length === 0) throw new Error("capture: missing <input> (URL, path, or '-')");
   if (positionals.length > 1) throw new Error(`capture: unexpected extra argument "${positionals[1]}"`);
+  if (values.optimize === true && values["no-optimize"] === true) {
+    throw new Error("capture: --optimize and --no-optimize are mutually exclusive");
+  }
 
   const input = positionals[0];
+  // svgz is auto-detected from the output filename extension; it implies
+  // --optimize unless the caller passed --no-optimize.
+  const svgz = isSvgzPath(values.output);
   const flags: CaptureFlags = {
     output:      values.output,
     width:       parseIntFlag(values.width, "width", 800),
@@ -212,7 +227,7 @@ async function runCapture(args: string[]): Promise<void> {
     wait:        parseIntFlag(values.wait, "wait", 200),
     waitFor:     values["wait-for"],
     fontsReady:  values["no-fonts-ready"] !== true,
-    optimize:    values.optimize === true,
+    optimize:    values.optimize === true || (svgz && values["no-optimize"] !== true),
     warnings:    values.warnings === true,
     mobile:      values.mobile === true,
     colorScheme: parseColorScheme(values["color-scheme"]),
@@ -252,6 +267,12 @@ async function runCapture(args: string[]): Promise<void> {
     const tree = await captureElementTree(page, flags.selector, {
       x: clip[0], y: clip[1], width: clip[2], height: clip[3],
     });
+    // DM-603: single-frame static cull — mark any captured element whose
+    // bbox doesn't intersect the clip viewBox. Capture already filters most
+    // off-viewport elements (`outsideViewport` early-return in CAPTURE_SCRIPT),
+    // so this is a defense-in-depth pass for the position:fixed-descendant
+    // escape cases where an off-viewport ancestor still gets captured.
+    cullFrame(tree, clip[2], clip[3], undefined, 0, 1);
     const inner = elementTreeToSvg(tree, clip[2], clip[3]);
     let svg = wrapSvg(inner, clip[2], clip[3]);
     if (flags.optimize) svg = optimizeSvg(svg);
@@ -259,12 +280,7 @@ async function runCapture(args: string[]): Promise<void> {
     if (flags.warnings) logCaptureWarnings("capture");
 
     const outPath = resolveOutputPath(flags.output, input, ".svg");
-    if (outPath === null) {
-      process.stdout.write(svg);
-    } else {
-      writeFileSync(outPath, svg);
-      process.stderr.write(`Wrote ${outPath} (${(svg.length / 1024).toFixed(1)} KB)\n`);
-    }
+    writeOutput(svg, outPath, svgz);
   } finally {
     await browser.close();
   }
@@ -319,14 +335,18 @@ async function runAnimate(args: string[]): Promise<void> {
     allowPositionals: true,
     strict: true,
     options: {
-      output:   { type: "string", short: "o" },
-      optimize: { type: "boolean" },
-      help:     { type: "boolean", short: "h" },
+      output:        { type: "string", short: "o" },
+      optimize:      { type: "boolean" },
+      "no-optimize": { type: "boolean" },
+      help:          { type: "boolean", short: "h" },
     },
   });
   if (values.help === true) { process.stdout.write(HELP); process.exit(0); }
   if (positionals.length === 0) throw new Error("animate: missing <config.json>");
   if (positionals.length > 1) throw new Error(`animate: unexpected extra argument "${positionals[1]}"`);
+  if (values.optimize === true && values["no-optimize"] === true) {
+    throw new Error("animate: --optimize and --no-optimize are mutually exclusive");
+  }
 
   const configPath = resolve(positionals[0]);
   if (!existsSync(configPath)) throw new Error(`animate: config not found: ${configPath}`);
@@ -407,6 +427,17 @@ async function runAnimate(args: string[]): Promise<void> {
       const tree = await captureElementTree(page, fc.selector ?? "body", {
         x: 0, y: 0, width: cfg.width, height: cfg.height,
       });
+      // DM-603: viewBox-cull pass — mutates the tree (sets `displayNone` /
+      // `cullClass` on elements that fall outside the viewBox during this
+      // frame's segment of the scene cycle) and returns the keyframes CSS
+      // mapping each `cull-N` class to its visible window. Must run BEFORE
+      // `elementTreeToSvg` so the renderer sees the mutated tree.
+      let frameStartMs = 0;
+      for (let pi = 0; pi < i; pi++) {
+        frameStartMs += cfg.frames[pi].duration + (cfg.frames[pi].transition?.type === "cut" ? 0 : (cfg.frames[pi].transition?.duration ?? 300));
+      }
+      const totalDurationMs = cfg.frames.reduce((sum, f) => sum + f.duration + (f.transition?.type === "cut" ? 0 : (f.transition?.duration ?? 300)), 0);
+      const { css: cullCss } = cullFrame(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
       const svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`);
 
       // Resolve SVG-kind overlays: read each `src` from disk, namespace its
@@ -416,6 +447,7 @@ async function runAnimate(args: string[]): Promise<void> {
 
       frames.push({
         svgContent,
+        cullCss: cullCss === "" ? undefined : cullCss,
         duration: fc.duration,
         transition: fc.transition,
         overlays,
@@ -425,16 +457,18 @@ async function runAnimate(args: string[]): Promise<void> {
     tracker.detach();
 
     let svg = generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames });
-    const optimize = values.optimize === true || cfg.optimize === true;
+    // svgz is auto-detected from the output filename; implies --optimize
+    // unless --no-optimize was passed.
+    const outputArg = values.output ?? cfg.output;
+    const svgz = isSvgzPath(outputArg);
+    const optimize =
+      values.optimize === true ||
+      (cfg.optimize === true && values["no-optimize"] !== true) ||
+      (svgz && values["no-optimize"] !== true);
     if (optimize) svg = optimizeSvg(svg);
 
-    const outPath = resolveOutputPath(values.output ?? cfg.output, configPath, ".svg");
-    if (outPath === null) {
-      process.stdout.write(svg);
-    } else {
-      writeFileSync(outPath, svg);
-      process.stderr.write(`Wrote ${outPath} (${(svg.length / 1024).toFixed(1)} KB, ${cfg.frames.length} frames)\n`);
-    }
+    const outPath = resolveOutputPath(outputArg, configPath, ".svg");
+    writeOutput(svg, outPath, svgz, `, ${cfg.frames.length} frames`);
   } finally {
     await browser.close();
   }
@@ -579,4 +613,33 @@ function resolveOutputPath(output: string | undefined, input: string, ext: strin
   // Local file → write next to it with the same basename.
   const stem = basename(input).replace(/\.[^.]+$/, "");
   return resolve(dirname(input), `${stem}${ext}`);
+}
+
+/** True iff the path's extension is `.svgz` (case-insensitive). */
+function isSvgzPath(path: string | undefined): boolean {
+  return path != null && path !== "-" && /\.svgz$/i.test(path);
+}
+
+/**
+ * Write the SVG out — gzip-compressed when `svgz` is true (always Buffer),
+ * raw text otherwise. Stdout gets the same payload kind. `extraInfo` is
+ * appended to the "Wrote ..." stderr line (e.g. frame count for animate).
+ */
+function writeOutput(svg: string, outPath: string | null, svgz: boolean, extraInfo: string = ""): void {
+  if (svgz) {
+    const buf = gzipSvg(svg);
+    if (outPath === null) {
+      process.stdout.write(buf);
+    } else {
+      writeFileSync(outPath, buf);
+      process.stderr.write(`Wrote ${outPath} (${(buf.length / 1024).toFixed(1)} KB svgz${extraInfo})\n`);
+    }
+    return;
+  }
+  if (outPath === null) {
+    process.stdout.write(svg);
+  } else {
+    writeFileSync(outPath, svg);
+    process.stderr.write(`Wrote ${outPath} (${(svg.length / 1024).toFixed(1)} KB${extraInfo})\n`);
+  }
 }

@@ -11,6 +11,18 @@ import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolve
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
   svgContent: string;
+  /**
+   * Per-element viewBox-cull keyframes CSS (DM-603). The caller runs
+   * `cullFrame()` on the captured tree before `elementTreeToSvg()` — that
+   * mutates `displayNone` / `cullClass` on each element (which the renderer
+   * surfaces) and returns the keyframes blocks that map each `cull-N` class
+   * to its visible window. The animator splices this CSS into the scene-wide
+   * `<style>` block.
+   *
+   * When omitted, no culling happens — callers passing pre-rendered
+   * `svgContent` strings without the cull CSS get unchanged behavior.
+   */
+  cullCss?: string;
   /** Duration this frame is shown (ms) */
   duration: number;
   /** Transition to next frame */
@@ -221,6 +233,14 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
         `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${frame.svgContent}\n  </g></g>`,
       );
 
+      // DM-599: parallel `fd-${i}` animation snaps `display` between none /
+      // inline at the visibility boundary so the browser can skip painting
+      // this frame's content while it's fully off-screen between cycles.
+      // Window is [enterStartPct .. transEndPct] (when the slide has fully
+      // exited the viewBox); 0.01% pad on each side keeps the snap inside the
+      // existing opacity:0 bookend.
+      const visStart = enterStartPct;
+      const visEnd = transEndPct;
       keyframes.push(`
     @keyframes fp-${i} {
       0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { transform: translateX(${entersViaPush ? width : 0}px); }
@@ -234,8 +254,8 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       ${enterStartPct}% { opacity: 1; }
       ${transEndPct}% { opacity: 1; }
       ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { opacity: 0; }
-    }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; }
+    }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
     .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`);
 
     } else if (transType === "scroll") {
@@ -247,12 +267,17 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       const fadeEndPct = pct(timeOffset + frame.duration + transDur + 200, totalDuration);
       const prevEnd = i > 0 ? `${Math.max(0, parseFloat(startPct) - 0.1).toFixed(2)}%,` : "";
 
+      // DM-599: display window covers the fade tail too so the element stays
+      // present while opacity interpolates 1 → 0 (the fade happens in
+      // [transEndPct .. fadeEndPct]; cutting display:none during that range
+      // would visually clip the fade).
+      const visStart = i > 0 ? `${Math.max(0, parseFloat(startPct) - 0.1).toFixed(2)}` : "0";
       keyframes.push(`
     @keyframes fv-${i} {
       0%, ${prevEnd} ${fadeEndPct}, 100% { opacity: 0; }
       ${startPct}, ${transEndPct} { opacity: 1; }
-    }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; }`);
+    }${buildDisplayKeyframes(`fd-${i}`, visStart, fadeEndPct)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
 
     } else {
       // Crossfade or cut: opacity in/out.
@@ -276,14 +301,16 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
         const endNum = parseFloat(transEndPct);
         const beforeStart = Math.max(0, startNum - 0.001).toFixed(3);
         const afterEnd = Math.min(100, endNum + 0.001).toFixed(3);
+        // DM-599: cut already uses step-end on the opacity animation, so we
+        // fold display into the same keyframes block — both snap together.
         keyframes.push(`
     @keyframes fv-${i} {
-      0% { opacity: 0; }
-      ${beforeStart}% { opacity: 0; }
-      ${startNum.toFixed(3)}% { opacity: 1; }
-      ${endNum.toFixed(3)}% { opacity: 1; }
-      ${afterEnd}% { opacity: 0; }
-      100% { opacity: 0; }
+      0% { opacity: 0; display: none; }
+      ${beforeStart}% { opacity: 0; display: none; }
+      ${startNum.toFixed(3)}% { opacity: 1; display: inline; }
+      ${endNum.toFixed(3)}% { opacity: 1; display: inline; }
+      ${afterEnd}% { opacity: 0; display: none; }
+      100% { opacity: 0; display: none; }
     }
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
       } else {
@@ -293,12 +320,14 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
         const prevEnd = i > 0
           ? `${Math.max(0, parseFloat(fadeInStartPct) - 0.01).toFixed(2)}%,`
           : "";
+        // DM-599: visible window spans the full fade — fadeInStart through
+        // transEnd (display stays `inline` while opacity interpolates).
         keyframes.push(`
     @keyframes fv-${i} {
       0%, ${prevEnd} ${transEndPct}, 100% { opacity: 0; }
       ${startPct}, ${holdEndPct} { opacity: 1; }
-    }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; }`);
+    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, transEndPct)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
       }
     }
 
@@ -333,6 +362,11 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   // Compose final SVG with XML declaration for proper UTF-8
   const sharedDefsMarkup = config.sharedDefs ?? "";
   const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
+  // DM-603: per-frame viewBox-cull keyframes — each frame's caller pre-ran
+  // `cullFrame()` and we splice the resulting blocks into the scene-wide
+  // <style>. The keyframes reference `var(--scene-dur)`; we expose that
+  // variable on the root selector below.
+  const cullCss = frames.map((f) => f.cullCss ?? "").filter((s) => s !== "").join("\n");
   // Cursor overlay (DM-277). The frame start times let the resolver pick
   // which frame's selector matches apply at each event's timestamp.
   let overlayMarkup = "";
@@ -357,8 +391,9 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}
   </defs>
   <style>
-    .f { opacity: 0; }
-    ${keyframes.join("\n")}${animationCss}
+    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
+    .f { opacity: 0; display: none; }
+    ${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">
   <rect width="${width}" height="${height}" fill="#0d1117" />
@@ -476,6 +511,33 @@ function pct(ms: number, total: number): string {
 }
 
 /**
+ * DM-599: build a step-end keyframes block that toggles `display` between
+ * `none` and `inline` around a visible window. Used in parallel with the
+ * opacity-controlling `fv-*` animation so the browser can skip painting the
+ * frame entirely while it's outside its show window (the dominant cost on
+ * long multi-frame demos with complex captured content).
+ *
+ * `visibleStartPct` / `visibleEndPct` accept either a numeric-style string
+ * (`"12.34"`) or one with a trailing `%` (`"12.34%"`) — `pct()` returns the
+ * latter and the unmerged-path keyframes feed either form.
+ */
+function buildDisplayKeyframes(name: string, visibleStartPct: string | number, visibleEndPct: string | number): string {
+  const start = parseFloat(String(visibleStartPct));
+  const end = parseFloat(String(visibleEndPct));
+  const startMinus = Math.max(0, start - 0.01).toFixed(3);
+  const endPlus = Math.min(100, end + 0.01).toFixed(3);
+  return `
+    @keyframes ${name} {
+      0% { display: none; }
+      ${startMinus}% { display: none; }
+      ${start.toFixed(3)}% { display: inline; }
+      ${end.toFixed(3)}% { display: inline; }
+      ${endPlus}% { display: none; }
+      100% { display: none; }
+    }`;
+}
+
+/**
  * Render a frame-local SVG overlay. The embedded SVG markup is wrapped in a
  * `<g transform="translate(x y)" clip-path="..."/>` and an inner
  * `<g class="ov-<id>">` so `enter`/`exit` / explicit animations can target
@@ -573,6 +635,8 @@ function composeMergedSvg(
   const { css, merged } = mergeFrames(framesSvg, frameTiming, "t");
   const sharedDefsMarkup = config.sharedDefs ?? "";
   const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
+  // DM-603: viewBox-cull keyframes from each frame's pre-pass (see unmerged path).
+  const cullCss = frames.map((f) => f.cullCss ?? "").filter((s) => s !== "").join("\n");
   // Cursor overlay (DM-277). Same emission as the unmerged path — the
   // overlay sits above the merged frame group, clipped to the viewport.
   const totalDuration = totalSec * 1000;
@@ -599,7 +663,7 @@ function composeMergedSvg(
   </defs>
   <style>
     :root { --scene-dur: ${totalSec.toFixed(2)}s; }
-${css}${animationCss}
+${css}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">
   <rect width="${width}" height="${height}" fill="#0d1117" />

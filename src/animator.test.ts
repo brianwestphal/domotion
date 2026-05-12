@@ -162,6 +162,77 @@ describe("animator", () => {
     expect(svg).toContain("transform: translateY(0px)");
   });
 
+  it("DM-599: push-left frame gets a paired fd-N display animation alongside fv-N", () => {
+    // push-left is unmergeable (the merge fast path only takes crossfade/cut),
+    // so it goes through the unmerged emit path that emits per-frame fv-/fp-
+    // blocks. The DM-599 optimization adds an fd-N keyframes block that
+    // toggles `display: none ↔ inline` so the frame is dropped from paint
+    // outside its show window.
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect/>`, duration: 1000, transition: { type: "push-left", duration: 200 } },
+        { svgContent: `<rect/>`, duration: 1000 },
+      ],
+    });
+    // Both frames get an fd-N keyframes block …
+    expect(svg).toMatch(/@keyframes fd-0\s*{/);
+    expect(svg).toMatch(/@keyframes fd-1\s*{/);
+    // … alongside the existing fv-N opacity block.
+    expect(svg).toMatch(/@keyframes fv-0\s*{/);
+    // The keyframes flip display between none and inline.
+    expect(svg).toMatch(/display:\s*none/);
+    expect(svg).toMatch(/display:\s*inline/);
+    // The frame's CSS rule lists BOTH animations, with the fd one tagged
+    // step-end so the display flip is instant (not snap-at-50% of segment).
+    expect(svg).toMatch(/\.f-0\s*{\s*animation:[^}]*fv-0[^}]*,[^}]*fd-0[^}]*step-end/);
+    // The base .f rule sets display:none so frames start hidden until the
+    // keyframe flips them in.
+    expect(svg).toMatch(/\.f\s*{[^}]*display:\s*none/);
+  });
+
+  it("DM-599: cut frames fold display into fv-N (same step-end timing)", () => {
+    // Three explicit `cut` frames — the all-mergeable check trips and these
+    // route through the MERGE pipeline. But a non-mergeable transition mixed
+    // in (e.g. push-left) would route this through the unmerged path. We
+    // verify the unmerged path's cut branch here by mixing.
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect fill="red"/>`,  duration: 1000, transition: { type: "push-left", duration: 100 } },
+        { svgContent: `<rect fill="blue"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        { svgContent: `<rect fill="green"/>`, duration: 1000 },
+      ],
+    });
+    // The "cut" frame's fv-N keyframes carry the display toggle inline (no
+    // separate fd-N block) since cut already uses step-end on fv-N.
+    const fv1Match = svg.match(/@keyframes fv-1\s*{[\s\S]*?\n\s*}/);
+    expect(fv1Match).not.toBeNull();
+    expect(fv1Match![0]).toMatch(/display:\s*none/);
+    expect(fv1Match![0]).toMatch(/display:\s*inline/);
+    // The "cut" frame uses ONLY fv-1 (no fd-1 — it's folded in).
+    expect(svg).not.toMatch(/@keyframes fd-1\s*{/);
+  });
+
+  it("DM-599: merged-path keyframes emit display alongside opacity", () => {
+    // Two crossfade frames with different content route through the merge
+    // pipeline. Per-element visibility classes (tN) now toggle BOTH opacity
+    // and display so the browser can skip painting hidden elements.
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect fill="red" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000 },
+      ],
+    });
+    // Each tN keyframe stop with opacity:1 also has display:inline; each
+    // opacity:0 stop has display:none.
+    const tN = svg.match(/@keyframes t\d+\s*{[\s\S]*?\n\s*}/);
+    expect(tN).not.toBeNull();
+    expect(tN![0]).toMatch(/opacity:\s*1;\s*display:\s*inline/);
+    expect(tN![0]).toMatch(/opacity:\s*0;\s*display:\s*none/);
+  });
+
   it("cut transition: timeline boundary is exactly at the frame edge", () => {
     // For two frames each held 1000ms with cut transitions and no overlap,
     // the visibility flip should land at exactly 50% of the scene.

@@ -13,6 +13,20 @@ A `generateAnimatedSvg` call takes a list of `AnimationFrame`s. Each frame has:
 
 The composer emits one `<svg>` document with a `<style>` block of `@keyframes` driving each frame's visibility timeline. All-crossfade sequences take the merged-fast-path (one element per visual identity, with per-element step-end opacity timelines); other sequences fall back to the per-frame-atomic path.
 
+## Out-of-frame paint suppression (DM-599)
+
+Frames not currently in their show window are dropped from paint via `display: none` keyframes that run in parallel with the existing opacity timeline. Always-on; no opt-in required.
+
+- **Unmerged path (push-left, scroll, mixed)**: each frame `i` gets a paired `fd-${i}` keyframes block that toggles `display` between `inline` and `none` at the visibility boundaries, applied to `.f-${i}` alongside the `fv-${i}` opacity animation. The `fd-${i}` animation always uses `step-end` timing so the `display` flip is instant, regardless of how `fv-${i}` is timed (linear for crossfade tails, step-end for cut). For `cut` frames the optimization is folded directly into `fv-${i}` since both properties already snap together. The base `.f { display: none; }` rule means frames start hidden until the keyframe flips them in.
+- **Merged path (crossfade-only and cut-only)**: `buildTimelineKeyframes` in `src/frame-merge.ts` emits `display: none|inline` alongside `opacity: 0|1` at every stop. Always-visible elements (no animation class) are unaffected.
+- **Scroll fade tail**: the visible window is extended through the 200 ms fade-out tail (`fadeEndPct`, not `transEndPct`) so the element stays `display: inline` while `opacity` interpolates from 1 to 0 — otherwise the discrete snap of `display: none` at 50% of the fade segment would visually clip the tail.
+
+The CSS spec interpolates discrete properties like `display` by snapping at 50% of a segment by default. We sidestep that by either using `step-end` timing on the parallel `fd-${i}` animation (frame path) or by placing the on/off pair 0.001 % apart with `step-end` timing on the timeline animation (merged path) — both yield instant flips at the desired boundary.
+
+**What this doesn't cover yet** (tracked separately):
+- **Element-level intersection inside a frame's hold time** (long-scroll captures where most rows are off-viewBox at any instant). Requires per-element bbox analysis at SVG-string composition time.
+- **Intra-frame animations** (`animations: [...]` declarations) whose `from`/`to` keep elements outside the viewBox. The rule: hide before / after the animation only, never during it (per DM-599 feedback). Requires bbox + transform analysis on the animated element.
+
 ## Transitions
 
 | Type | Behavior | Path |

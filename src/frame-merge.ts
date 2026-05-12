@@ -428,6 +428,9 @@ function buildTimelineKeyframes(name: string, visibleFrames: number[], timing: F
   if (rangeStart != null && prev != null) ranges.push([rangeStart, prev]);
 
   // Build keyframe stops. Use step-end so opacity switches instantly.
+  // DM-599: emit `display: none/inline` alongside opacity so the browser
+  // can skip painting elements that aren't currently in their visible-frames
+  // window. Both properties snap together under step-end timing.
   const stops: Array<[number, number]> = []; // (pct, opacity)
   stops.push([0, 0]);
   for (const [lo, hi] of ranges) {
@@ -442,6 +445,8 @@ function buildTimelineKeyframes(name: string, visibleFrames: number[], timing: F
   }
   stops.push([100, 0]);
 
-  const lines = stops.map(([p, o]) => `      ${p.toFixed(3)}% { opacity: ${o}; }`);
+  const lines = stops.map(([p, o]) =>
+    `      ${p.toFixed(3)}% { opacity: ${o}; display: ${o === 1 ? "inline" : "none"}; }`,
+  );
   return `    @keyframes ${name} {\n${lines.join("\n")}\n    }\n    .${name} { animation: ${name} var(--scene-dur) infinite; animation-timing-function: step-end; }`;
 }
