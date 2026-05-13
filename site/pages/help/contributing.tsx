@@ -39,7 +39,7 @@ should start at <a href="../../start/quickstart/">Quick start</a> instead.</p>
   </tbody>
 </table>
 
-<p>The CLI (<code>src/cli.ts</code>) is a thin shell over the public API
+<p>The CLI (<code>src/cli/</code>) is a thin shell over the public API
 (<code>src/index.ts</code>). The user manual under <code>site/</code> is a
 separate static-site generator that imports types and helpers from the
 library — it's a good source of \"how is this actually used\" examples.</p>

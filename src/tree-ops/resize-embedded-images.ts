@@ -21,7 +21,7 @@ import {
   _dataUriCache,
   _resizedDataUriCache,
   type CapturedElement,
-} from "./dom-to-svg.js";
+} from "../dom-to-svg.js";
 
 export interface ResizeEmbeddedImagesOptions {
   /**

@@ -26,7 +26,7 @@ import type {
   Action, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
   UntilClause,
 } from "./pattern.js";
-import { diffTrees, type TreeDiff } from "../tree-diff.js";
+import { diffTrees, type TreeDiff } from "../tree-ops/tree-diff.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 

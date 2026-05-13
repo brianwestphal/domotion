@@ -16,7 +16,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "domotion": "dist/cli.js"
+    "domotion": "dist/cli/index.js"
   },
   "files": [
     "dist",
@@ -28,7 +28,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "capture": "tsx src/cli.ts",
+    "capture": "tsx src/cli/index.ts",
     "test": "vitest run",
     "release": "bash scripts/release.sh",
     "release:beta": "bash scripts/release.sh --beta",

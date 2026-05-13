@@ -8,7 +8,7 @@
 import { spawnSync } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "./dom-to-svg.js";
-import { resizeEmbeddedImages } from "./resize-embedded-images.js";
+import { resizeEmbeddedImages } from "./tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "./conic-raster.js";
 import { registerLocalFontAlias, registerWebfont } from "./text-to-path.js";
 

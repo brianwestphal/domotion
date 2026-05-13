@@ -16,8 +16,8 @@
  * See `docs/33-element-out-of-viewbox-hiding.md`.
  */
 
-import type { CapturedElement } from "./dom-to-svg.js";
-import type { IntraFrameAnimation } from "./animator.js";
+import type { CapturedElement } from "../dom-to-svg.js";
+import type { IntraFrameAnimation } from "../animator.js";
 
 interface Bbox {
   x: number;

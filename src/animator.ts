@@ -5,7 +5,7 @@
  * animated SVG with CSS keyframe transitions.
  */
 
-import { mergeFrames } from "./frame-merge.js";
+import { mergeFrames } from "./tree-ops/frame-merge.js";
 import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 
 export interface AnimationFrame {

@@ -36,13 +36,13 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
-import { resizeEmbeddedImages } from "../src/resize-embedded-images.js";
+import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../src/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPattern } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
-import { cullFrame } from "../src/viewbox-culling.js";
+import { cullFrame } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 

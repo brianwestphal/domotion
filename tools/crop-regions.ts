@@ -22,7 +22,7 @@ import {
   parseRegionsBlock,
   planRegionCrops,
   type Region,
-} from "../src/region-feedback.js";
+} from "../src/utils/region-feedback.js";
 
 interface Settings { port: number; secret: string }
 

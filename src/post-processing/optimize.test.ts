@@ -2,7 +2,8 @@ import { gunzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
-import { gzipSvg, optimizeSvg } from "./optimize.js";
+import { optimizeSvg } from "./optimize.js";
+import { gzipSvg } from "./gzip.js";
 
 const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <!-- comment that svgo strips -->
