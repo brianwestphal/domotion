@@ -19,8 +19,8 @@
 
 import type { Page } from "@playwright/test";
 
-import type { CapturedElement } from "../dom-to-svg.js";
-import { captureElementTree } from "../dom-to-svg.js";
+import type { CapturedElement } from "../render/element-tree-to-svg.js";
+import { captureElementTree } from "../render/element-tree-to-svg.js";
 import type {
   Pattern, Segment, FlatSegment, BracketedSegment,
   Action, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,

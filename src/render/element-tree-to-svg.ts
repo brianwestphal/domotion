@@ -7,13 +7,13 @@
 import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
 import * as fontkit from "fontkit";
-import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text-renderer.js";
+import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { getGlyphDefs } from "./text-to-path.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
-import { CAPTURE_SCRIPT } from "./capture-script.generated.js";
-import { r, esc, stopFmt } from "./render/format.js";
-import { parseColor, colorStr, sameColor, shadeColor, type RGBA } from "./render/colors.js";
+import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
+import { r, esc, stopFmt } from "./format.js";
+import { parseColor, colorStr, sameColor, shadeColor, type RGBA } from "./colors.js";
 import {
   parseCornerRadii,
   insetCornerRadii,
@@ -24,10 +24,10 @@ import {
   type CornerRadii,
   type CornerRadiusPair,
   type BorderSide,
-} from "./render/borders.js";
-import { parseBoxShadow, type BoxShadow } from "./render/box-shadow.js";
-import { cssTransformToSvg } from "./render/transforms.js";
-import { parseCssUrl, splitTopLevelCommas } from "./render/css-tokens.js";
+} from "./borders.js";
+import { parseBoxShadow, type BoxShadow } from "./box-shadow.js";
+import { cssTransformToSvg } from "./transforms.js";
+import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 
 /**
  * Convert a `file://` (or absolute filesystem) URL to a base64 data URI so the

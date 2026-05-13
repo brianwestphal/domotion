@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach } from "vitest";
-import { parseUnicodeRangeDescriptor } from "./capture.js";
-import { __pickWebfontVariantMetaForCodepointForTest, __pickWebfontVariantMetaForTest, clearWebfonts, registerWebfont, unicodeRangeCovers } from "./text-to-path.js";
+import { parseUnicodeRangeDescriptor } from "./capture/index.js";
+import { __pickWebfontVariantMetaForCodepointForTest, __pickWebfontVariantMetaForTest, clearWebfonts, registerWebfont, unicodeRangeCovers } from "./render/text-to-path.js";
 
 // DM-517: webfont registration honors the `@font-face { unicode-range: ... }`
 // descriptor. Google-Fonts-style partitioning declares the same `(family,

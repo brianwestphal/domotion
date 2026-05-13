@@ -12,7 +12,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
+import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animator.js";
 import { optimizeSvg } from "./shared.js";
 

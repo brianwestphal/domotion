@@ -14,7 +14,7 @@ import {
   _resizedDataUriCache,
   embedResizedDataUri,
   type CapturedElement,
-} from "../dom-to-svg.js";
+} from "../render/element-tree-to-svg.js";
 import { resizeEmbeddedImages } from "./resize-embedded-images.js";
 
 // Build a minimal CapturedElement. Only the fields the resize walker reads

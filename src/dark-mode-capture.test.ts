@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rootSvgColorSchemeAttr, transparentRootBgRect, wrapSvg, type CapturedElement } from "./dom-to-svg.js";
+import { rootSvgColorSchemeAttr, transparentRootBgRect, wrapSvg, type CapturedElement } from "./render/element-tree-to-svg.js";
 
 // DM-552: capture-side propagation of `rootColorScheme` and `rootBgComputed`
 // stamped on the captured tree's root element by CAPTURE_SCRIPT, plus the

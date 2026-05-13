@@ -22,7 +22,7 @@
  */
 
 import type { ScrollSegmentCapture } from "./executor.js";
-import { elementTreeToSvg } from "../dom-to-svg.js";
+import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
 
 export interface ScrollComposerOptions {
   /** Visible viewport width (output SVG width). */

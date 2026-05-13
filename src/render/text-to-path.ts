@@ -8,7 +8,7 @@
  */
 
 import * as fontkit from "fontkit";
-import { createCoretextFont, isCoretextHelperAvailable } from "./coretext-helper.js";
+import { createCoretextFont, isCoretextHelperAvailable } from "./coretext.js";
 
 interface FontInstance {
   layout(text: string, features?: string[]): {

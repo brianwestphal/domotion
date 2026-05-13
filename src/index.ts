@@ -1,12 +1,12 @@
-export { captureElementTree, captureElementTreeWithWarnings, elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, transparentRootBgRect, getLastCaptureWarnings, logCaptureWarnings, embedRemoteImages, embedResizedDataUri } from "./dom-to-svg.js";
+export { captureElementTree, captureElementTreeWithWarnings, elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, transparentRootBgRect, getLastCaptureWarnings, logCaptureWarnings, embedRemoteImages, embedResizedDataUri } from "./render/element-tree-to-svg.js";
 export { resizeEmbeddedImages } from "./tree-ops/resize-embedded-images.js";
 export type { ResizeEmbeddedImagesOptions } from "./tree-ops/resize-embedded-images.js";
-export type { CapturedElement, CaptureWarning } from "./dom-to-svg.js";
+export type { CapturedElement, CaptureWarning } from "./render/element-tree-to-svg.js";
 export { generateAnimatedSvg } from "./animator.js";
 export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverlay, SvgOverlay, IntraFrameAnimation } from "./animator.js";
-export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./cursor-overlay.js";
-export { DemoRecorder, launchChromium } from "./capture.js";
-export type { CaptureOptions } from "./capture.js";
+export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./render/cursor-overlay.js";
+export { DemoRecorder, launchChromium } from "./capture/index.js";
+export type { CaptureOptions } from "./capture/index.js";
 export { optimizeSvg } from "./post-processing/optimize.js";
 export { gzipSvg } from "./post-processing/gzip.js";
 export { cullFrame } from "./tree-ops/viewbox-culling.js";
@@ -50,5 +50,5 @@ export type {
   PositionUntil,
   CountUntil,
 } from "./scroll/index.js";
-export { getGlyphDefs, clearGlyphDefs, registerWebfont, clearWebfonts } from "./text-to-path.js";
-export { discoverAndRegisterWebfonts, attachWebfontTracker } from "./capture.js";
+export { getGlyphDefs, clearGlyphDefs, registerWebfont, clearWebfonts } from "./render/text-to-path.js";
+export { discoverAndRegisterWebfonts, attachWebfontTracker } from "./capture/index.js";

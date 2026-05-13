@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { stockPalette, type DefCtx } from "./form-controls.js";
-import { elementTreeToSvg, type CapturedElement } from "./dom-to-svg.js";
+import { stockPalette, type DefCtx } from "./render/form-controls.js";
+import { elementTreeToSvg, type CapturedElement } from "./render/element-tree-to-svg.js";
 
 // DM-553: form-control synthesizers consume `defCtx.colorScheme` to pick the
 // stock palette. Tests verify (1) the `stockPalette(scheme)` dispatcher

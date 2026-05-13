@@ -7,10 +7,10 @@
 
 import { spawnSync } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "./dom-to-svg.js";
-import { resizeEmbeddedImages } from "./tree-ops/resize-embedded-images.js";
-import { rasterizeConicGradients } from "./conic-raster.js";
-import { registerLocalFontAlias, registerWebfont } from "./text-to-path.js";
+import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../render/element-tree-to-svg.js";
+import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
+import { rasterizeConicGradients } from "../render/conic-raster.js";
+import { registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 
 export interface CaptureOptions {
   width: number;

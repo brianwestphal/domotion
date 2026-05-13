@@ -35,10 +35,10 @@ import { chromium, type Browser, type BrowserContext, type Page } from "@playwri
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/dom-to-svg.js";
+import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js";
-import { rasterizeConicGradients } from "../src/conic-raster.js";
-import { discoverAndRegisterWebfonts } from "../src/capture.js";
+import { rasterizeConicGradients } from "../src/render/conic-raster.js";
+import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPattern } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";

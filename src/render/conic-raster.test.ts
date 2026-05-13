@@ -134,7 +134,7 @@ describe("rasterizeConic: from <angle> rotates the origin (DM-549)", () => {
 describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (DM-549/550)", () => {
   it("populates the conic tile cache and the renderer emits <pattern><image>", async () => {
     const { rasterizeConicGradients } = await import("./conic-raster.js");
-    const { _conicTileCache } = await import("./dom-to-svg.js");
+    const { _conicTileCache } = await import("./element-tree-to-svg.js");
     _conicTileCache.clear();
 
     // Minimal captured-tree shape with a conic-gradient bg layer.
@@ -160,7 +160,7 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
 
   it("dedupes (layerText, tileSize) tuples — multiple consumers share one cache entry", async () => {
     const { rasterizeConicGradients } = await import("./conic-raster.js");
-    const { _conicTileCache } = await import("./dom-to-svg.js");
+    const { _conicTileCache } = await import("./element-tree-to-svg.js");
     _conicTileCache.clear();
 
     const layer = "conic-gradient(red, blue)";
@@ -180,7 +180,7 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
 
   it("skips trees with no conic content (no cache pollution)", async () => {
     const { rasterizeConicGradients } = await import("./conic-raster.js");
-    const { _conicTileCache } = await import("./dom-to-svg.js");
+    const { _conicTileCache } = await import("./element-tree-to-svg.js");
     _conicTileCache.clear();
 
     const tree: any = [{

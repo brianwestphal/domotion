@@ -5,7 +5,7 @@ import {
   getLastCaptureWarnings,
   type CapturedElement,
   type CaptureWarning,
-} from "./dom-to-svg.js";
+} from "./render/element-tree-to-svg.js";
 
 /**
  * DM-512: regression tests for `embedRemoteImages` — verifies that http(s)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CapturedElement } from "../dom-to-svg.js";
+import type { CapturedElement } from "../render/element-tree-to-svg.js";
 import type { ScrollSegmentCapture } from "./executor.js";
 import { composeScrollSvg } from "./composer.js";
 

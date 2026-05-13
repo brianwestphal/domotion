@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { preserveAspectRatioFor } from "./dom-to-svg.js";
+import { preserveAspectRatioFor } from "./render/element-tree-to-svg.js";
 
 describe("preserveAspectRatioFor — CSS object-fit/object-position → SVG preserveAspectRatio (DM-472)", () => {
   it("object-fit:fill → none (stretch both axes)", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFontFaceRulesFromCssText } from "./capture.js";
+import { parseFontFaceRulesFromCssText } from "./capture/index.js";
 
 // DM-545: cross-origin stylesheets throw on `cssRules` access from the page
 // context, so we fetch them server-side and parse `@font-face` rules with

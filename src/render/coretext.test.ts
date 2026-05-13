@@ -13,6 +13,7 @@ import * as fontkit from "fontkit";
 const HELPER = path.resolve(
   path.dirname(new URL(import.meta.url).pathname),
   "..",
+  "..",
   "tools",
   "macos-glyph-extractor",
   "domotion-glyph-paths"

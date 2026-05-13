@@ -10,8 +10,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = resolve(ROOT, "src/capture-script.ts");
-const OUT = resolve(ROOT, "src/capture-script.generated.ts");
+const SRC = resolve(ROOT, "src/capture/script.ts");
+const OUT = resolve(ROOT, "src/capture/script.generated.ts");
 
 const source = readFileSync(SRC, "utf8");
 

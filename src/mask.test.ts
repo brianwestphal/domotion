@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMaskDef, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./dom-to-svg.js";
+import { buildMaskDef, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./render/element-tree-to-svg.js";
 
 // Locks the SVG <mask> emission for the cases exercised by the html-test
 // suite's 23-mask.html fixture (DM-395).
@@ -247,7 +247,7 @@ describe("buildMaskDef — element() paint refs (DM-494)", () => {
   });
 
   it("element() with no resolved raster (no dataUri) skips emission", () => {
-    const empty = new Map<string, import("./dom-to-svg.js").MaskRasterRef>();
+    const empty = new Map<string, import("./render/element-tree-to-svg.js").MaskRasterRef>();
     const r = buildMaskDef("m", "element(#src)",
       0, 0, 200, 100, "match-source", "auto", "0% 0%", "no-repeat", "add", empty);
     expect(r.def).toBe("");

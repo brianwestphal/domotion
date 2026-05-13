@@ -6,7 +6,7 @@
  */
 
 import { mergeFrames } from "./tree-ops/frame-merge.js";
-import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
+import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./render/cursor-overlay.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */

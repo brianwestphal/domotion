@@ -6,7 +6,7 @@
 
 import bidiFactory from "bidi-js";
 import { computeSkipInkGaps, getDecorationMetrics, renderTextAsPath } from "./text-to-path.js";
-import type { CapturedElement, TextSegment } from "./dom-to-svg.js";
+import type { CapturedElement, TextSegment } from "./element-tree-to-svg.js";
 
 // ── Rendering helpers ──
 
