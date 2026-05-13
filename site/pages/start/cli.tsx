@@ -38,7 +38,11 @@ export const content: SafeHtml = raw(`
     <tr><td><code>--height &lt;n&gt;</code></td><td><code>600</code></td><td>Viewport height in CSS pixels.</td></tr>
     <tr><td><code>--selector &lt;css&gt;</code></td><td><code>"body"</code></td><td>Element to capture; the SVG will be the size of this element's bounding box (clipped by <code>--clip</code> if present).</td></tr>
     <tr><td><code>--clip x,y,w,h</code></td><td>full viewport</td><td>Capture only this rectangle. Useful for cropping just one card or section out of a larger page.</td></tr>
-    <tr><td><code>--scroll x,y</code></td><td><code>0,0</code></td><td>Scroll the page to this offset before capturing — for capturing below-the-fold content.</td></tr>
+    <tr><td><code>--scroll-to x,y</code></td><td><code>0,0</code></td><td>Scroll the page to this offset before capturing — for capturing below-the-fold content.</td></tr>
+    <tr><td><code>--scroll &lt;pattern&gt;</code></td><td>—</td><td>Generate an animated scroll demo from the page. Captures at multiple scroll positions and composes one animated SVG (DM-604). Examples: <code>"down:bottom/8s"</code>, <code>"720px,2s until bottom"</code>.</td></tr>
+    <tr><td><code>--scroll-speed &lt;n&gt;</code></td><td><code>1500</code></td><td>Default scroll speed in px/s for tokens in <code>--scroll</code> that don't specify <code>/&lt;duration&gt;</code>.</td></tr>
+    <tr><td><code>--scroll-selector &lt;css&gt;</code></td><td>window</td><td>Scroll a specific element instead of the window, for the <code>--scroll</code> animated-demo flow.</td></tr>
+    <tr><td><code>--no-prescroll</code></td><td>off</td><td>Skip the pre-scroll-to-bottom-then-top step used to wake lazy-loaded content before the <code>--scroll</code> demo records.</td></tr>
     <tr><td><code>--wait &lt;ms&gt;</code></td><td><code>200</code></td><td>Sleep this long after the page settles. Bump up if you have lazy-loaded images or CSS transitions in flight.</td></tr>
     <tr><td><code>--wait-for &lt;css&gt;</code></td><td>—</td><td>Wait for the matching element to become visible before capturing. Most reliable for SPA-driven content.</td></tr>
     <tr><td><code>--no-fonts-ready</code></td><td>off</td><td>Skip the <code>document.fonts.ready</code> wait. By default Domotion waits for web fonts.</td></tr>

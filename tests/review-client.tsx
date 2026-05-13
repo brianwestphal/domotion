@@ -139,6 +139,17 @@ function Card({ r }: { r: ReviewTest }) {
               </figure>
             );
           })}
+          {/* DM-611: scroll-mode demos get a live-SVG tile alongside the
+              expected/actual/diff PNGs. Naming convention: real-world tests
+              suffixed `-scroll` are scroll demos (see tests/real-world.tsx).
+              The browser renders the animated SVG directly via <img>, so the
+              animation plays right in the review grid. */}
+          {r.suite === "real-world" && r.name.endsWith("-scroll") && (
+            <figure className="live-svg">
+              <figcaption>live svg</figcaption>
+              <img src={`/img/${r.suite}/${r.name}.svg`} loading="lazy" alt="" />
+            </figure>
+          )}
         </div>
       )}
       <textarea className="comment" placeholder="What's wrong or worth a ticket? (Ticket will include the three images, metrics, and your comment.)"></textarea>

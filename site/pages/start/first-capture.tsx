@@ -110,7 +110,7 @@ layout.</p>
 <p>If the content you want is below the fold, scroll first:</p>
 
 <pre><code>domotion capture https://example.com \\
-  --scroll 0,800 \\
+  --scroll-to 0,800 \\
   -o below-the-fold.svg</code></pre>
 
 <p>The viewport rectangle is captured at its post-scroll position.</p>

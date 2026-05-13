@@ -27,7 +27,9 @@ The \`domotion\` CLI renders HTML/CSS to a self-contained, scalable SVG.
 Single capture:
   domotion capture &lt;input&gt; -o out.svg [--width N] [--height N]
                                        [--selector ".foo"] [--clip x,y,w,h]
-                                       [--scroll x,y] [--wait-for ".ready"]
+                                       [--scroll-to x,y] [--wait-for ".ready"]
+                                       [--scroll &lt;pattern&gt;] [--scroll-speed N]
+                                       [--scroll-selector .panel] [--no-prescroll]
                                        [--optimize] [--warnings]
 
   &lt;input&gt; is a URL, a path to an HTML file, or "-" for stdin.

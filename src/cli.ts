@@ -27,6 +27,9 @@ import {
   optimizeSvg,
   gzipSvg,
   cullFrame,
+  parseScrollPattern,
+  executeScrollPattern,
+  composeScrollSvg,
   launchChromium,
   logCaptureWarnings,
   discoverAndRegisterWebfonts,
@@ -59,13 +62,28 @@ capture options:
       --height <n>         Viewport height in CSS pixels (default 600).
       --selector <css>     Element selector to capture (default "body").
       --clip <x,y,w,h>     Capture only this region (default: full viewport).
-      --scroll <x,y>       Scroll the page to this offset before capturing.
+      --scroll-to <x,y>    Scroll the page to this offset before capturing
+                           (use --scroll for an animated scroll demo).
       --wait <ms>          Sleep this long after the page settles (default 200).
       --wait-for <css>     Wait for this selector to appear before capturing.
       --no-fonts-ready     Skip the document.fonts.ready wait (default: wait).
       --optimize           Run output through SVGO.
       --no-optimize        Skip SVGO. Only meaningful when -o ends in
                            .svgz (where --optimize is implied by default).
+      --scroll <pattern>   Generate an animated scroll demo. Captures the
+                           page at multiple scroll positions per the
+                           pattern grammar (see docs) and composes one
+                           animated SVG. Examples:
+                             --scroll "down:bottom/8s"
+                             --scroll "720px,2s until bottom"
+                             --scroll "(720px,2s until bottom - 1000px), (200px,3s until bottom)"
+      --scroll-speed <n>   Default scroll speed in px/s (used by pattern
+                           tokens that don't specify their own /<duration>).
+                           Default: 1500.
+      --scroll-selector <s> CSS selector for an inner scrollable element
+                           to scroll (default: window).
+      --no-prescroll       Skip the pre-scroll-to-bottom-then-top step
+                           that wakes lazy-loaded content. Default: on.
       --warnings           Log capture warnings to stderr after capture.
       --mobile             Emulate a mobile device (iOS UA, isMobile=true).
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
@@ -194,16 +212,20 @@ async function runCapture(args: string[]): Promise<void> {
       height:        { type: "string" },
       selector:      { type: "string" },
       clip:          { type: "string" },
-      scroll:        { type: "string" },
+      "scroll-to":   { type: "string" },
       wait:          { type: "string" },
       "wait-for":    { type: "string" },
       "no-fonts-ready": { type: "boolean" },
-      optimize:      { type: "boolean" },
-      "no-optimize": { type: "boolean" },
-      warnings:      { type: "boolean" },
-      mobile:        { type: "boolean" },
-      "color-scheme": { type: "string" },
-      help:          { type: "boolean", short: "h" },
+      optimize:           { type: "boolean" },
+      "no-optimize":      { type: "boolean" },
+      warnings:           { type: "boolean" },
+      mobile:             { type: "boolean" },
+      "color-scheme":     { type: "string" },
+      scroll:             { type: "string" },
+      "scroll-speed":     { type: "string" },
+      "scroll-selector":  { type: "string" },
+      "no-prescroll":     { type: "boolean" },
+      help:               { type: "boolean", short: "h" },
     },
   });
   if (values.help === true) { process.stdout.write(HELP); process.exit(0); }
@@ -223,7 +245,7 @@ async function runCapture(args: string[]): Promise<void> {
     height:      parseIntFlag(values.height, "height", 600),
     selector:    values.selector ?? "body",
     clip:        values.clip != null ? parseTuple(values.clip, 4, "clip") as [number, number, number, number] : undefined,
-    scroll:      values.scroll != null ? parseTuple(values.scroll, 2, "scroll") as [number, number] : undefined,
+    scroll:      values["scroll-to"] != null ? parseTuple(values["scroll-to"], 2, "scroll-to") as [number, number] : undefined,
     wait:        parseIntFlag(values.wait, "wait", 200),
     waitFor:     values["wait-for"],
     fontsReady:  values["no-fonts-ready"] !== true,
@@ -264,17 +286,43 @@ async function runCapture(args: string[]): Promise<void> {
     tracker.detach();
 
     const clip = flags.clip ?? [0, 0, flags.width, flags.height];
-    const tree = await captureElementTree(page, flags.selector, {
-      x: clip[0], y: clip[1], width: clip[2], height: clip[3],
-    });
-    // DM-603: single-frame static cull — mark any captured element whose
-    // bbox doesn't intersect the clip viewBox. Capture already filters most
-    // off-viewport elements (`outsideViewport` early-return in CAPTURE_SCRIPT),
-    // so this is a defense-in-depth pass for the position:fixed-descendant
-    // escape cases where an off-viewport ancestor still gets captured.
-    cullFrame(tree, clip[2], clip[3], undefined, 0, 1);
-    const inner = elementTreeToSvg(tree, clip[2], clip[3]);
-    let svg = wrapSvg(inner, clip[2], clip[3]);
+    let svg: string;
+    if (values.scroll != null) {
+      // DM-609: scroll-demo mode. Parse the pattern, run the executor against
+      // the live page (which captures + diffs per segment), compose the
+      // multi-capture animated SVG.
+      const pattern = parseScrollPattern(values.scroll);
+      const speedRaw = values["scroll-speed"];
+      const speed = speedRaw != null ? Number(speedRaw) : undefined;
+      if (speed != null && (!Number.isFinite(speed) || speed <= 0)) {
+        throw new Error(`--scroll-speed expects a positive number (px/s), got "${speedRaw}"`);
+      }
+      const segments = await executeScrollPattern(page, pattern, {
+        selector: values["scroll-selector"],
+        viewportW: clip[2],
+        viewportH: clip[3],
+        defaultSpeed: speed,
+        prescroll: values["no-prescroll"] !== true,
+      });
+      // Cull each segment's tree (DM-603) before composition so off-viewBox
+      // elements don't contribute paint cost in the animated output.
+      for (const seg of segments) {
+        cullFrame(seg.tree, clip[2], clip[3], undefined, 0, 1);
+      }
+      svg = composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3] });
+    } else {
+      const tree = await captureElementTree(page, flags.selector, {
+        x: clip[0], y: clip[1], width: clip[2], height: clip[3],
+      });
+      // DM-603: single-frame static cull — mark any captured element whose
+      // bbox doesn't intersect the clip viewBox. Capture already filters most
+      // off-viewport elements (`outsideViewport` early-return in CAPTURE_SCRIPT),
+      // so this is a defense-in-depth pass for the position:fixed-descendant
+      // escape cases where an off-viewport ancestor still gets captured.
+      cullFrame(tree, clip[2], clip[3], undefined, 0, 1);
+      const inner = elementTreeToSvg(tree, clip[2], clip[3]);
+      svg = wrapSvg(inner, clip[2], clip[3]);
+    }
     if (flags.optimize) svg = optimizeSvg(svg);
 
     if (flags.warnings) logCaptureWarnings("capture");

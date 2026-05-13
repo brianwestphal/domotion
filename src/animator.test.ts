@@ -55,6 +55,27 @@ describe("animator", () => {
     expect((svg.match(/<rect width="50" height="50" fill="green"\/>/g) ?? []).length).toBe(1);
   });
 
+  it("DM-609: scroll transition is now a vertical push (translateY), not opacity-only", () => {
+    // The `scroll` transition used to be opacity-only (a misnomer). Per
+    // DM-604 §10a, it's been replaced with real geometric semantics: the
+    // outgoing frame slides up off the top while the next slides up from
+    // the bottom. We verify by checking for translateY in the emitted CSS.
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect/>`, duration: 1000, transition: { type: "scroll", duration: 200 } },
+        { svgContent: `<rect/>`, duration: 1000 },
+      ],
+    });
+    expect(svg).toContain("translateY");
+    // The clipPath wrapper is added too (frames are clipped to viewport
+    // during the slide so they don't show outside their region).
+    expect(svg).toMatch(/<clipPath id="fc-\d+">/);
+    // The fp-N keyframes (transform animation) get emitted alongside fv-N
+    // (opacity) and fd-N (display) — mirrors the push-left structure.
+    expect(svg).toMatch(/@keyframes fp-0/);
+  });
+
   it("non-crossfade transitions are unaffected", () => {
     const svg = generateAnimatedSvg({
       width: 100,

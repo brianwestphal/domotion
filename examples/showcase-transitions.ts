@@ -201,6 +201,13 @@ async function main(): Promise<void> {
   });
 
   // Frame 3: Snippet detail — tall page for scroll
+  // NOTE (DM-609): the `scroll` transition now means real geometric vertical
+  // push between two frames (outgoing slides up off the top while incoming
+  // slides up from the bottom), not opacity-only as it used to be. This
+  // frame's tall (900 px) content visually pushes off when the cycle wraps;
+  // if you want the page CONTENT to scroll within a fixed viewport, capture
+  // via `domotion capture --scroll "<pattern>"` (the new scroll-demo CLI
+  // flow) or use an intra-frame `translateY` animation on the body subtree.
   const tmpDetail = resolve(OUT_DIR, "trans-tmp-2.html");
   writeFileSync(tmpDetail, DETAIL_HTML);
   await pg.goto(`file://${tmpDetail}`);

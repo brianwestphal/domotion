@@ -222,8 +222,14 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 
     const prevFrame = i > 0 ? frames[i - 1] : null;
     const entersViaPush = prevFrame?.transition?.type === "push-left";
+    const entersViaScroll = prevFrame?.transition?.type === "scroll";
+    // Both push-left and scroll overlap their transition with the next
+    // frame's entry — the next frame is already sliding in while the current
+    // one slides out, so its show window starts at `timeOffset - prevTransDur`
+    // rather than at `startPct`.
+    const entersViaOverlap = entersViaPush || entersViaScroll;
     const prevTransDur = prevFrame != null ? transitionDuration(prevFrame) : 300;
-    const enterStartPct = entersViaPush
+    const enterStartPct = entersViaOverlap
       ? pct(timeOffset - prevTransDur, totalDuration)
       : startPct;
 
@@ -259,25 +265,36 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`);
 
     } else if (transType === "scroll") {
-      // Scroll: keep visible, no fade during scroll, fade only at end
+      // DM-609: `scroll` now means real geometric scroll between two frames
+      // (was opacity-only — see DM-604 §10a "replace with new geometric
+      // semantics"). Vertical equivalent of `push-left`: incoming frame
+      // slides up from the bottom of the viewport, outgoing slides up off
+      // the top. Uses height instead of width and translateY instead of
+      // translateX, otherwise identical machinery (incl. the cull-friendly
+      // `fd-${i}` display animation).
+      const entersViaScroll = prevFrame?.transition?.type === "scroll";
       frameGroups.push(
-        `  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`,
+        `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${frame.svgContent}\n  </g></g>`,
       );
 
-      const fadeEndPct = pct(timeOffset + frame.duration + transDur + 200, totalDuration);
-      const prevEnd = i > 0 ? `${Math.max(0, parseFloat(startPct) - 0.1).toFixed(2)}%,` : "";
-
-      // DM-599: display window covers the fade tail too so the element stays
-      // present while opacity interpolates 1 → 0 (the fade happens in
-      // [transEndPct .. fadeEndPct]; cutting display:none during that range
-      // would visually clip the fade).
-      const visStart = i > 0 ? `${Math.max(0, parseFloat(startPct) - 0.1).toFixed(2)}` : "0";
+      const visStart = enterStartPct;
+      const visEnd = transEndPct;
       keyframes.push(`
+    @keyframes fp-${i} {
+      0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { transform: translateY(${entersViaScroll ? height : 0}px); }
+      ${startPct}% { transform: translateY(0); }
+      ${holdEndPct}% { transform: translateY(0); }
+      ${transEndPct}% { transform: translateY(-${height}px); }
+      ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { transform: translateY(-${height}px); }
+    }
     @keyframes fv-${i} {
-      0%, ${prevEnd} ${fadeEndPct}, 100% { opacity: 0; }
-      ${startPct}, ${transEndPct} { opacity: 1; }
-    }${buildDisplayKeyframes(`fd-${i}`, visStart, fadeEndPct)}
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
+      0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { opacity: 0; }
+      ${enterStartPct}% { opacity: 1; }
+      ${transEndPct}% { opacity: 1; }
+      ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { opacity: 0; }
+    }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
+    .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`);
 
     } else {
       // Crossfade or cut: opacity in/out.
