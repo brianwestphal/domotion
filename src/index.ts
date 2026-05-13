@@ -9,21 +9,26 @@ export { DemoRecorder, launchChromium } from "./capture.js";
 export type { CaptureOptions } from "./capture.js";
 export { optimizeSvg, gzipSvg } from "./optimize.js";
 export { cullFrame } from "./viewbox-culling.js";
-export { parseScrollPattern, ScrollPatternError } from "./scroll-pattern.js";
 export { diffTrees, dominantTranslate, entriesOfKind } from "./tree-diff.js";
 export type { TreeDiff, DiffEntry, DiffEntryKind } from "./tree-diff.js";
-export { executeScrollPattern, ScrollExecutionError, axisOfScroll, resolveAbsoluteTarget, resolveScrollAction } from "./scroll-executor.js";
-export { composeScrollSvg } from "./scroll-composer.js";
-export type { ScrollComposerOptions } from "./scroll-composer.js";
+export {
+  parseScrollPattern,
+  ScrollPatternError,
+  executeScrollPattern,
+  ScrollExecutionError,
+  axisOfScroll,
+  resolveAbsoluteTarget,
+  resolveScrollAction,
+  composeScrollSvg,
+} from "./scroll/index.js";
 export type {
+  ScrollComposerOptions,
   ScrollExecutorOptions,
   ScrollSegmentCapture,
   Axis as ScrollAxis,
   PageStateSnapshot,
   SelectorBbox,
   PageQuery,
-} from "./scroll-executor.js";
-export type {
   Pattern as ScrollPattern,
   Segment as ScrollPatternSegment,
   BracketedSegment,
@@ -43,6 +48,6 @@ export type {
   UntilClause,
   PositionUntil,
   CountUntil,
-} from "./scroll-pattern.js";
+} from "./scroll/index.js";
 export { getGlyphDefs, clearGlyphDefs, registerWebfont, clearWebfonts } from "./text-to-path.js";
 export { discoverAndRegisterWebfonts, attachWebfontTracker } from "./capture.js";

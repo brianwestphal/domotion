@@ -19,14 +19,14 @@
 
 import type { Page } from "@playwright/test";
 
-import type { CapturedElement } from "./dom-to-svg.js";
-import { captureElementTree } from "./dom-to-svg.js";
+import type { CapturedElement } from "../dom-to-svg.js";
+import { captureElementTree } from "../dom-to-svg.js";
 import type {
   Pattern, Segment, FlatSegment, BracketedSegment,
   Action, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
   UntilClause,
-} from "./scroll-pattern.js";
-import { diffTrees, type TreeDiff } from "./tree-diff.js";
+} from "./pattern.js";
+import { diffTrees, type TreeDiff } from "../tree-diff.js";
 
 // ── Public types ───────────────────────────────────────────────────────────
 

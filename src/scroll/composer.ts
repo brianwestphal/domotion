@@ -21,8 +21,8 @@
  * shrinking output size on mostly-static-content pages.
  */
 
-import type { ScrollSegmentCapture } from "./scroll-executor.js";
-import { elementTreeToSvg } from "./dom-to-svg.js";
+import type { ScrollSegmentCapture } from "./executor.js";
+import { elementTreeToSvg } from "../dom-to-svg.js";
 
 export interface ScrollComposerOptions {
   /** Visible viewport width (output SVG width). */

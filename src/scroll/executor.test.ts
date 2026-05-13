@@ -6,8 +6,8 @@ import {
   resolveScrollAction,
   type PageQuery,
   type PageStateSnapshot,
-} from "./scroll-executor.js";
-import type { ScrollAction, AbsoluteTarget } from "./scroll-pattern.js";
+} from "./executor.js";
+import type { ScrollAction, AbsoluteTarget } from "./pattern.js";
 
 // ── Fake PageQuery for the pure helpers' tests ─────────────────────────────
 

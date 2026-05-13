@@ -8,7 +8,7 @@ import {
   type FlatSegment,
   type PauseAction,
   type ScrollAction,
-} from "./scroll-pattern.js";
+} from "./pattern.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
