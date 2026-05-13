@@ -102,7 +102,13 @@ animate config (JSON):
         "selector":   "body",                       // optional
         "wait":       200,                          // optional ms
         "waitFor":    ".ready",                     // optional CSS selector
-        "scroll":     [0, 0],                       // optional [x, y]
+        "scrollTo":   [0, 0],                       // optional [x, y] — scroll to here BEFORE capture
+        "scroll":     {                             // optional — scroll-demo block (DM-612)
+          "pattern":  "down:bottom/8s",             //   pattern grammar (see docs)
+          "speed":    1500,                         //   optional default px/s
+          "selector": ".panel",                     //   optional inner-element to scroll
+          "prescroll": true                         //   optional, default true
+        },
         "actions": [                                // optional, run before capture
           { "type": "click",     "selector": ".btn" },
           { "type": "fill",      "selector": "input", "value": "hi" },
@@ -351,12 +357,38 @@ interface AnimateFrameConfig {
   selector?: string;
   wait?: number;
   waitFor?: string;
-  scroll?: [number, number];
+  /**
+   * Scroll the page (or `selector`'s element) to this offset BEFORE the
+   * capture. For static positioning before a fold-style capture. See
+   * `scroll` (below) for the new pattern-based animated-scroll demo flow.
+   */
+  scrollTo?: [number, number];
+  /**
+   * DM-612: pattern-based scroll-demo block. When present, the frame's
+   * `input` is loaded normally and the scroll executor runs against it; the
+   * resulting per-segment captures are composed into one animated SVG that
+   * becomes this frame's content. Set the frame's `duration` to ≈ the
+   * pattern's total scroll time so the outer scene cycle matches the inner
+   * scroll's infinite loop (the two animations are independent; mismatched
+   * durations desync visibly).
+   */
+  scroll?: AnimateFrameScrollConfig;
   actions?: AnimateAction[];
   // Overlays passed through verbatim — typed as unknown[] here, validated by AnimationFrame at runtime.
   overlays?: unknown[];
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
   animations?: AnimateFrameAnimationConfig[];
+}
+
+interface AnimateFrameScrollConfig {
+  /** Required. Pattern string per the DM-604 grammar (`docs/...`). */
+  pattern: string;
+  /** Default scroll speed in px/s for tokens without explicit `/<duration>`. */
+  speed?: number;
+  /** CSS selector for an inner scrollable element (default: window). */
+  selector?: string;
+  /** Skip the pre-scroll-to-bottom-then-top step. Default: false. */
+  prescroll?: boolean;
 }
 
 interface AnimateFrameAnimationConfig {
@@ -435,8 +467,8 @@ async function runAnimate(args: string[]): Promise<void> {
         fontsReady: true,
       });
       await discoverAndRegisterWebfonts(page, tracker.urls);
-      if (fc.scroll != null) {
-        const sx = fc.scroll[0], sy = fc.scroll[1];
+      if (fc.scrollTo != null) {
+        const sx = fc.scrollTo[0], sy = fc.scrollTo[1];
         await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
       }
       if (fc.actions != null) await runActions(page, fc.actions);
@@ -472,21 +504,52 @@ async function runAnimate(args: string[]): Promise<void> {
         }
       }
 
-      const tree = await captureElementTree(page, fc.selector ?? "body", {
-        x: 0, y: 0, width: cfg.width, height: cfg.height,
-      });
-      // DM-603: viewBox-cull pass — mutates the tree (sets `displayNone` /
-      // `cullClass` on elements that fall outside the viewBox during this
-      // frame's segment of the scene cycle) and returns the keyframes CSS
-      // mapping each `cull-N` class to its visible window. Must run BEFORE
-      // `elementTreeToSvg` so the renderer sees the mutated tree.
-      let frameStartMs = 0;
-      for (let pi = 0; pi < i; pi++) {
-        frameStartMs += cfg.frames[pi].duration + (cfg.frames[pi].transition?.type === "cut" ? 0 : (cfg.frames[pi].transition?.duration ?? 300));
+      let svgContent: string;
+      let frameCullCss: string;
+      if (fc.scroll != null) {
+        // DM-612: scroll-demo block. Run the executor against the loaded
+        // page, cull each segment's tree (DM-603), compose into one
+        // animated SVG, and use as this frame's svgContent. The composed
+        // SVG carries its own internal keyframes loop (animation-duration =
+        // pattern's total scroll time) — caller is expected to size the
+        // frame's `duration` to match so the outer scene cycle aligns with
+        // the inner scroll loop.
+        const scrollPattern = parseScrollPattern(fc.scroll.pattern);
+        const segments = await executeScrollPattern(page, scrollPattern, {
+          selector: fc.scroll.selector,
+          viewportW: cfg.width,
+          viewportH: cfg.height,
+          defaultSpeed: fc.scroll.speed,
+          prescroll: fc.scroll.prescroll !== false,
+        });
+        for (const seg of segments) {
+          cullFrame(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
+        }
+        const composed = composeScrollSvg(segments, { viewportW: cfg.width, viewportH: cfg.height });
+        // The composer emits a full `<?xml ...><svg>...</svg>` document. The
+        // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
+        // happily contains a nested `<svg>` element — strip just the XML
+        // prolog so we don't end up with `<?xml ...>` inside a `<g>`.
+        svgContent = composed.replace(/^<\?xml[^>]*\?>\s*/, "");
+        frameCullCss = "";
+      } else {
+        const tree = await captureElementTree(page, fc.selector ?? "body", {
+          x: 0, y: 0, width: cfg.width, height: cfg.height,
+        });
+        // DM-603: viewBox-cull pass — mutates the tree (sets `displayNone` /
+        // `cullClass` on elements that fall outside the viewBox during this
+        // frame's segment of the scene cycle) and returns the keyframes CSS
+        // mapping each `cull-N` class to its visible window. Must run BEFORE
+        // `elementTreeToSvg` so the renderer sees the mutated tree.
+        let frameStartMs = 0;
+        for (let pi = 0; pi < i; pi++) {
+          frameStartMs += cfg.frames[pi].duration + (cfg.frames[pi].transition?.type === "cut" ? 0 : (cfg.frames[pi].transition?.duration ?? 300));
+        }
+        const totalDurationMs = cfg.frames.reduce((sum, f) => sum + f.duration + (f.transition?.type === "cut" ? 0 : (f.transition?.duration ?? 300)), 0);
+        const result = cullFrame(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
+        frameCullCss = result.css;
+        svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`);
       }
-      const totalDurationMs = cfg.frames.reduce((sum, f) => sum + f.duration + (f.transition?.type === "cut" ? 0 : (f.transition?.duration ?? 300)), 0);
-      const { css: cullCss } = cullFrame(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
-      const svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`);
 
       // Resolve SVG-kind overlays: read each `src` from disk, namespace its
       // ids, and replace with `innerSvg`. Other overlay kinds pass through
@@ -495,7 +558,7 @@ async function runAnimate(args: string[]): Promise<void> {
 
       frames.push({
         svgContent,
-        cullCss: cullCss === "" ? undefined : cullCss,
+        cullCss: frameCullCss === "" ? undefined : frameCullCss,
         duration: fc.duration,
         transition: fc.transition,
         overlays,
@@ -572,6 +635,22 @@ function validateAnimateConfig(cfg: AnimateConfig): void {
     const f = cfg.frames[i];
     if (typeof f.input !== "string") throw new Error(`animate: frames[${i}].input must be a string`);
     if (typeof f.duration !== "number") throw new Error(`animate: frames[${i}].duration must be a number`);
+    if (f.scroll != null) {
+      if (typeof f.scroll.pattern !== "string" || f.scroll.pattern.trim() === "") {
+        throw new Error(`animate: frames[${i}].scroll.pattern must be a non-empty string`);
+      }
+      // Parse the pattern eagerly so config errors surface before the run
+      // starts (instead of mid-Playwright session). Throws on invalid
+      // grammar with the original error including source position.
+      try {
+        parseScrollPattern(f.scroll.pattern);
+      } catch (e) {
+        throw new Error(`animate: frames[${i}].scroll.pattern is invalid: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      if (f.scroll.speed != null && (!Number.isFinite(f.scroll.speed) || f.scroll.speed <= 0)) {
+        throw new Error(`animate: frames[${i}].scroll.speed must be a positive number (px/s)`);
+      }
+    }
   }
 }
 

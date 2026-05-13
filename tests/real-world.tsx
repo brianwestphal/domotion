@@ -39,6 +39,10 @@ import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } f
 import { resizeEmbeddedImages } from "../src/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../src/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture.js";
+import { parseScrollPattern } from "../src/scroll-pattern.js";
+import { executeScrollPattern } from "../src/scroll-executor.js";
+import { composeScrollSvg } from "../src/scroll-composer.js";
+import { cullFrame } from "../src/viewbox-culling.js";
 import { comparePngs } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
@@ -447,30 +451,22 @@ async function runJob(
       // second per entire-page / scroll capture).
       await page.waitForTimeout(1800);
     } else if (mode === "scroll") {
-      // For the scroll-animated SVG we capture the full document but
-      // render the SVG inside a viewport-sized animated wrapper, so the
-      // capture canvas matches the document height — same setup as
-      // entire-page.
-      const rawHeight = await page.evaluate(() => Math.max(
-        document.documentElement.scrollHeight,
-        document.body?.scrollHeight ?? 0,
-      ));
-      canvasH = Math.min(FULL_PAGE_MAX_H, Math.max(viewport.height, rawHeight));
-      await page.setViewportSize({ width: viewport.width, height: canvasH });
-      await page.waitForTimeout(400);
-      await page.evaluate(async (h) => {
+      // DM-613: scroll mode now uses the new multi-capture pipeline
+      // (executor + composer). The viewport stays at `viewport.height`
+      // (each segment is captured at viewport size), so `canvasH` keeps its
+      // default. We still do a pre-scroll-to-bottom-then-top to wake
+      // lazy-loaded content; the executor's own prescroll is disabled
+      // below since we've already done it here.
+      await page.evaluate(async () => {
+        const h = Math.max(
+          document.documentElement.scrollHeight,
+          document.body?.scrollHeight ?? 0,
+        );
         window.scrollTo(0, h);
         await new Promise((r) => setTimeout(r, 400));
         window.scrollTo(0, 0);
-      }, canvasH);
-      // DM-471: third-party iframe ads (Slashdot footer, etc.) often start
-      // loading only after the parent scrolls past their slot, and the
-      // 800 ms post-scroll settle wasn't enough for the network round-trip
-      // + iframe layout to finish before rasterizeReplacedElements ran —
-      // resulting in 0×0 / empty snapshots and missing ad regions in the
-      // actual SVG. Bumping to 1800 ms covers most ad-load latencies on
-      // the recorded HARs without materially slowing the suite (one extra
-      // second per entire-page / scroll capture).
+      });
+      // Same 1800 ms iframe-ad settle as the entire-page mode.
       await page.waitForTimeout(1800);
     }
 
@@ -625,17 +621,55 @@ async function runJob(
       : (rootScheme === "dark" ? "#1c1c1c" : "#ffffff");
     const bodyBg = bodyBgFromPage ?? transparentRootBg;
 
-    // Build the SVG document. `scroll` mode wraps the captured content
-    // inside a fixed-size animated viewport; the other modes emit the
-    // captured tree at full canvas size.
-    const svgDoc = mode === "scroll"
-      ? buildScrollAnimatedSvg(svgInner, viewport.width, viewport.height, canvasH, bodyBg)
-      : `<?xml version="1.0" encoding="UTF-8"?>`
+    // Build the SVG document. `scroll` mode (DM-613) now uses the new
+    // multi-capture executor + composer pipeline: it runs the scroll
+    // pattern against the live page, captures+diffs per segment, applies
+    // the same post-processing per segment (embed remote images, resize,
+    // rasterize conic gradients, viewBox-cull), and composes into one
+    // animated SVG. The other modes emit the single captured tree at full
+    // canvas size.
+    let svgDoc: string;
+    if (mode === "scroll") {
+      // Pattern: scroll down to bottom over SCROLL_ANIM_MS. The 5%-hold-at-top
+      // / 90%-scroll / 5%-hold-at-bottom timing from the old bespoke wrapper
+      // isn't directly expressible in the v1 grammar; the composer's linear
+      // keyframes through the segment-end percentages give a clean linear
+      // scroll. We can refine pacing once profiling shows it matters.
+      const scrollSec = SCROLL_ANIM_MS / 1000;
+      const pattern = parseScrollPattern(`down:bottom/${scrollSec}s`);
+      const segments = await executeScrollPattern(page, pattern, {
+        viewportW: viewport.width,
+        viewportH: viewport.height,
+        // We already did the pre-scroll wake-up above; don't repeat it.
+        prescroll: false,
+      });
+      // Per-segment post-processing: every tree needs the same passes the
+      // single-capture path runs above (embed images, optional resize,
+      // conic-gradient rasterise, viewBox cull). embedRemoteImages uses a
+      // shared cache across calls, so repeated invocations on overlapping
+      // image sets are cheap.
+      for (const seg of segments) {
+        await embedRemoteImages(seg.tree, { warnings });
+        if (resizeOpts.resize) {
+          await resizeEmbeddedImages(seg.tree, { hiDPIFactor: resizeOpts.hiDPI });
+        }
+        await rasterizeConicGradients(seg.tree, { hiDPIFactor: resizeOpts.hiDPI });
+        cullFrame(seg.tree, viewport.width, viewport.height, undefined, 0, 1);
+      }
+      svgDoc = composeScrollSvg(segments, {
+        viewportW: viewport.width,
+        viewportH: viewport.height,
+        bgColor: bodyBg,
+        hiDPIFactor: resizeOpts.hiDPI,
+      });
+    } else {
+      svgDoc = `<?xml version="1.0" encoding="UTF-8"?>`
         + `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewport.width} ${canvasH}" `
         + `width="${viewport.width}" height="${canvasH}">`
         + `<rect width="${viewport.width}" height="${canvasH}" fill="${bodyBg}" />`
         + `${svgInner}`
         + `</svg>`;
+    }
     writeFileSync(svgPath, svgDoc);
 
     // Render the SVG via an HTML wrapper rather than navigating directly
@@ -771,58 +805,6 @@ function makeErrorResult(
     width, height, error,
     warnings: warnings.length > 0 ? warnings : undefined,
   };
-}
-
-/**
- * Wrap captured page content in a viewport-sized SVG that scrolls the
- * content over time via a CSS keyframe `translateY` animation. The result
- * is a fully self-contained animated SVG: open it in any browser and the
- * page scrolls from top to bottom and loops.
- *
- * Timing: 5% hold at the top, linear scroll for the next 90%, 5% hold at
- * the bottom — gives the eye time to land before motion starts and a
- * beat at the end before the loop restarts.
- */
-function buildScrollAnimatedSvg(
-  innerSvgContent: string,
-  viewportWidth: number,
-  viewportHeight: number,
-  fullHeight: number,
-  bg: string,
-): string {
-  const distance = Math.max(0, fullHeight - viewportHeight);
-  const totalSec = SCROLL_ANIM_MS / 1000;
-  // Use a unique class name so the keyframes don't collide if the SVG
-  // ends up inlined alongside other Domotion-generated SVGs in a page.
-  const animClass = `dm-scroll-${Math.random().toString(36).slice(2, 8)}`;
-  return `<?xml version="1.0" encoding="UTF-8"?>`
-    + `<svg xmlns="http://www.w3.org/2000/svg" `
-    + `viewBox="0 0 ${viewportWidth} ${viewportHeight}" `
-    + `width="${viewportWidth}" height="${viewportHeight}">`
-    + `<defs>`
-    +   `<clipPath id="${animClass}-clip">`
-    +     `<rect width="${viewportWidth}" height="${viewportHeight}"/>`
-    +   `</clipPath>`
-    +   `<style>`
-    +     `.${animClass} { animation: ${animClass} ${totalSec}s linear infinite; }`
-    +     `@keyframes ${animClass} {`
-    +       `0% { transform: translateY(0); }`
-    +       `5% { transform: translateY(0); }`
-    +       `95% { transform: translateY(-${distance}px); }`
-    +       `100% { transform: translateY(-${distance}px); }`
-    +     `}`
-    +   `</style>`
-    + `</defs>`
-    + `<rect width="${viewportWidth}" height="${viewportHeight}" fill="${bg}"/>`
-    + `<g clip-path="url(#${animClass}-clip)">`
-    +   `<g class="${animClass}">`
-    +     `<svg x="0" y="0" width="${viewportWidth}" height="${fullHeight}" viewBox="0 0 ${viewportWidth} ${fullHeight}">`
-    +       `<rect width="${viewportWidth}" height="${fullHeight}" fill="${bg}"/>`
-    +       `${innerSvgContent}`
-    +     `</svg>`
-    +   `</g>`
-    + `</g>`
-    + `</svg>`;
 }
 
 void main();

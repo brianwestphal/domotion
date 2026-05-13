@@ -329,22 +329,44 @@ export async function executeScrollPattern(
       return;
     }
     // op.kind === "scroll"
-    const segStart = sceneTime;
-    await scrollTo(page, selector, op.destX, op.destY, op.durationMs);
-    sceneTime += op.durationMs;
-    const snap = await pageQuery.snapshot();
-    const nextTree = await captureElementTree(page, "body", {
-      x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
-    });
-    const diff = diffTrees(prevTree, nextTree);
-    captures.push({
-      scrollX: snap.scrollX, scrollY: snap.scrollY,
-      segmentStartMs: segStart,
-      segmentEndMs: sceneTime,
-      tree: nextTree,
-      diffFromPrev: diff,
-    });
-    prevTree = nextTree;
+    // DM-604 §4(a): for smooth-mode scrolls (single long action covering
+    // multiple viewport-heights), subdivide into viewport-height chunks so
+    // the composer has enough anchor points to stack contiguously. Without
+    // this, a `down:bottom/30s` action on a 10000-tall page produces only
+    // two captures (initial + post-scroll), and the composite ends up with
+    // 9400 px of empty space between them. Pattern-mode scrolls with
+    // explicit per-token magnitudes ≤ viewport height naturally produce
+    // one chunk per token — no over-subdivision there.
+    const snap0 = await pageQuery.snapshot();
+    const dx = op.destX - snap0.scrollX;
+    const dy = op.destY - snap0.scrollY;
+    const totalDelta = op.axis === "x" ? dx : dy;
+    const viewportSize = op.axis === "x" ? opts.viewportW : opts.viewportH;
+    const numChunks = Math.max(1, Math.ceil(Math.abs(totalDelta) / viewportSize));
+    for (let ci = 1; ci <= numChunks; ci++) {
+      const frac = ci / numChunks;
+      const chunkDestX = snap0.scrollX + dx * frac;
+      const chunkDestY = snap0.scrollY + dy * frac;
+      const chunkDur = ci === numChunks
+        ? op.durationMs - Math.round(op.durationMs * (ci - 1) / numChunks)
+        : Math.round(op.durationMs / numChunks);
+      const segStart = sceneTime;
+      await scrollTo(page, selector, chunkDestX, chunkDestY, chunkDur);
+      sceneTime += chunkDur;
+      const snap = await pageQuery.snapshot();
+      const nextTree = await captureElementTree(page, "body", {
+        x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
+      });
+      const diff = diffTrees(prevTree, nextTree);
+      captures.push({
+        scrollX: snap.scrollX, scrollY: snap.scrollY,
+        segmentStartMs: segStart,
+        segmentEndMs: sceneTime,
+        tree: nextTree,
+        diffFromPrev: diff,
+      });
+      prevTree = nextTree;
+    }
   };
 
   await walkPattern(pattern, pageQuery, defaultSpeed, runOp, checkTimeout);

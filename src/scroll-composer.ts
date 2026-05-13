@@ -33,6 +33,13 @@ export interface ScrollComposerOptions {
   axis?: "x" | "y";
   /** Background colour painted behind the captures (visible at seams). */
   bgColor?: string;
+  /**
+   * hiDPI multiplier passed through to `elementTreeToSvg` when rendering
+   * each segment's captured tree. Must match what was passed to
+   * `resizeEmbeddedImages` for the same trees, or the renderer falls back
+   * to source-resolution data URIs. Default 2 (matches `elementTreeToSvg`).
+   */
+  hiDPIFactor?: number;
 }
 
 const DEFAULT_BG = "#0d1117";
@@ -54,6 +61,7 @@ export function composeScrollSvg(
   const W = opts.viewportW;
   const VH = opts.viewportH;
   const bg = opts.bgColor ?? DEFAULT_BG;
+  const hiDPIFactor = opts.hiDPIFactor ?? 2;
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -77,7 +85,7 @@ export function composeScrollSvg(
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const offset = (axis === "y" ? seg.scrollY : seg.scrollX) - minPos;
-    const inner = elementTreeToSvg(seg.tree, W, VH, `seg${i}-`);
+    const inner = elementTreeToSvg(seg.tree, W, VH, `seg${i}-`, true, hiDPIFactor);
     const tx = axis === "x" ? offset : 0;
     const ty = axis === "y" ? offset : 0;
     captureGroups.push(
