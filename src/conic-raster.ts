@@ -18,9 +18,8 @@ import sharp from "sharp";
 import {
   _conicTileCache,
   type CapturedElement,
-  type RGBA,
-  parseColor,
 } from "./dom-to-svg.js";
+import { type RGBA, parseColor } from "./render/colors.js";
 import { parseConicGradient, type ConicGradient, type ConicStop, type PosValue } from "./gradients.js";
 
 export interface RasterizeConicOptions {

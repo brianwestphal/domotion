@@ -12,6 +12,22 @@ import { getGlyphDefs } from "./text-to-path.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "./capture-script.generated.js";
+import { r, esc, stopFmt } from "./render/format.js";
+import { parseColor, colorStr, sameColor, shadeColor, type RGBA } from "./render/colors.js";
+import {
+  parseCornerRadii,
+  insetCornerRadii,
+  roundedRectPath,
+  roundedRectSvg,
+  parseSide,
+  dashArrayForStyle,
+  type CornerRadii,
+  type CornerRadiusPair,
+  type BorderSide,
+} from "./render/borders.js";
+import { parseBoxShadow, type BoxShadow } from "./render/box-shadow.js";
+import { cssTransformToSvg } from "./render/transforms.js";
+import { parseCssUrl, splitTopLevelCommas } from "./render/css-tokens.js";
 
 /**
  * Convert a `file://` (or absolute filesystem) URL to a base64 data URI so the
@@ -3284,234 +3300,7 @@ export function elementTreeToSvg(
   return defs + svgParts.join("\n");
 }
 
-export interface RGBA { r: number; g: number; b: number; a: number }
 
-export function parseColor(css: string): RGBA | null {
-  if (css === "" || css === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
-  // rgb()/rgba() — Chromium uses this form for srgb colors.
-  const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(css);
-  if (m != null) return { r: +m[1], g: +m[2], b: +m[3], a: m[4] != null ? +m[4] : 1 };
-  // #rrggbb / #rrggbbaa — hex.
-  const h = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(css);
-  if (h != null) {
-    const a = h[2] != null ? parseInt(h[2], 16) / 255 : 1;
-    return { r: parseInt(h[1].slice(0, 2), 16), g: parseInt(h[1].slice(2, 4), 16), b: parseInt(h[1].slice(4, 6), 16), a };
-  }
-  // #rgb / #rgba — short hex (each digit doubles per CSS spec: #abc → #aabbcc).
-  const hs = /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/i.exec(css);
-  if (hs != null) {
-    const a = hs[4] != null ? parseInt(hs[4] + hs[4], 16) / 255 : 1;
-    return {
-      r: parseInt(hs[1] + hs[1], 16),
-      g: parseInt(hs[2] + hs[2], 16),
-      b: parseInt(hs[3] + hs[3], 16),
-      a,
-    };
-  }
-  // CSS named colors (subset). Chromium's computed-style serializer normalises
-  // these to rgb()/rgba(), so this branch only fires for raw author input
-  // reaching `parseColor` (e.g. test fixtures using `parseConicGradient`
-  // directly, or any non-computed-style code path). Full CSS named-color
-  // table is large; cover the common ones here.
-  const named = NAMED_COLORS[css.toLowerCase()];
-  if (named != null) return { ...named };
-  // color(srgb r g b [/ a]) — produced by the capture-side normalizer for
-  // wide-gamut inputs (oklch/lab/color(display-p3)/color-mix). Values are 0..1
-  // floats, sometimes negative or >1 when the source was out-of-srgb-gamut;
-  // clamp before scaling to 0..255.
-  // DM-519: float pattern allows scientific notation (e.g. `-6.85e-9`).
-  // Chromium emits these for color-mix interpolations whose intermediate
-  // value is near zero in some channel; without `[eE][+-]?\d+`, parseColor
-  // returns null and the renderer drops the fill (visible on
-  // `19-deep-color-mix` srgb-linear swatch — bg silently empty).
-  const cs = /^color\(srgb\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(css);
-  if (cs != null) {
-    const clamp = (v: number): number => Math.max(0, Math.min(1, v));
-    return {
-      r: Math.round(clamp(+cs[1]) * 255),
-      g: Math.round(clamp(+cs[2]) * 255),
-      b: Math.round(clamp(+cs[3]) * 255),
-      a: cs[4] != null ? +cs[4] : 1,
-    };
-  }
-  // DM-519: color(srgb-linear r g b [/ a]) — Chromium returns this form for
-  // `color-mix(in srgb-linear, ...)` even after our srgb-wrapped normalize
-  // probe (the probe converts to srgb, but Chromium's serialization can keep
-  // the original space when it was in the source). Apply the inverse-EOTF
-  // transform (linear → sRGB) so 0.215 in linear becomes 0.5 in srgb (i.e.
-  // ~128/255), matching Chromium's painted output for `color-mix(in
-  // srgb-linear, red, blue)`.
-  const csl = /^color\(srgb-linear\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)(?:\s*\/\s*([\d.]+(?:[eE][+-]?\d+)?))?\)$/i.exec(css);
-  if (csl != null) {
-    const clamp = (v: number): number => Math.max(0, Math.min(1, v));
-    const linToSrgb = (lin: number): number => {
-      const l = clamp(lin);
-      return l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
-    };
-    return {
-      r: Math.round(linToSrgb(+csl[1]) * 255),
-      g: Math.round(linToSrgb(+csl[2]) * 255),
-      b: Math.round(linToSrgb(+csl[3]) * 255),
-      a: csl[4] != null ? +csl[4] : 1,
-    };
-  }
-  return null;
-}
-
-function colorStr(c: RGBA): string {
-  return c.a < 1 ? `rgba(${c.r},${c.g},${c.b},${r(c.a)})` : `rgb(${c.r},${c.g},${c.b})`;
-}
-
-const NAMED_COLORS: Record<string, RGBA> = {
-  black: { r: 0, g: 0, b: 0, a: 1 },
-  white: { r: 255, g: 255, b: 255, a: 1 },
-  red: { r: 255, g: 0, b: 0, a: 1 },
-  green: { r: 0, g: 128, b: 0, a: 1 },
-  blue: { r: 0, g: 0, b: 255, a: 1 },
-  yellow: { r: 255, g: 255, b: 0, a: 1 },
-  cyan: { r: 0, g: 255, b: 255, a: 1 },
-  aqua: { r: 0, g: 255, b: 255, a: 1 },
-  magenta: { r: 255, g: 0, b: 255, a: 1 },
-  fuchsia: { r: 255, g: 0, b: 255, a: 1 },
-  silver: { r: 192, g: 192, b: 192, a: 1 },
-  gray: { r: 128, g: 128, b: 128, a: 1 },
-  grey: { r: 128, g: 128, b: 128, a: 1 },
-  maroon: { r: 128, g: 0, b: 0, a: 1 },
-  olive: { r: 128, g: 128, b: 0, a: 1 },
-  lime: { r: 0, g: 255, b: 0, a: 1 },
-  teal: { r: 0, g: 128, b: 128, a: 1 },
-  navy: { r: 0, g: 0, b: 128, a: 1 },
-  purple: { r: 128, g: 0, b: 128, a: 1 },
-  orange: { r: 255, g: 165, b: 0, a: 1 },
-  pink: { r: 255, g: 192, b: 203, a: 1 },
-};
-
-function r(n: number): string { return Number(n.toFixed(1)).toString(); }
-function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
-
-/** Per-corner border-radius axis-pair (h = horizontal, v = vertical).
- *  An elliptical corner has h ≠ v; a circular corner has h = v. */
-export type CornerRadiusPair = { h: number; v: number };
-
-/** Resolved per-corner border-radius for the four corners of a rect, with
- *  CSS-spec corner-overlap scaling already applied. `uniform` is true when
- *  all four corners are circular AND share the same radius, which lets the
- *  renderer emit a single `<rect rx>` instead of a per-corner `<path>`. */
-export type CornerRadii = {
-  tl: CornerRadiusPair;
-  tr: CornerRadiusPair;
-  br: CornerRadiusPair;
-  bl: CornerRadiusPair;
-  uniform: boolean;
-};
-
-/** Parse a captured "h v" axis-pair (e.g. "30px 30px" or "50px 20px"). */
-function _parsePair(v: string | undefined): CornerRadiusPair {
-  if (!v) return { h: 0, v: 0 };
-  const parts = v.split(/\s+/);
-  return {
-    h: parseFloat(parts[0]) || 0,
-    v: parseFloat(parts[1] != null ? parts[1] : parts[0]) || 0,
-  };
-}
-
-/** Resolve the four per-corner radii for a captured element, applying CSS's
- *  corner-overlap scale-down (https://www.w3.org/TR/css-backgrounds-3/#corner-overlap):
- *  if any edge's two corner radii would together exceed the edge length, all
- *  four corners are scaled down uniformly. This is what produces the pill
- *  shape for `border-radius:999px` on a short element — without the spec
- *  clamp, two adjacent 999-px corners would overlap visibly. Falls back to
- *  the legacy single `borderRadius` shorthand when the per-corner longhands
- *  weren't captured (older snapshots). */
-export function parseCornerRadii(
-  styles: { borderTopLeftRadius?: string; borderTopRightRadius?: string; borderBottomRightRadius?: string; borderBottomLeftRadius?: string; borderRadius?: string },
-  width: number,
-  height: number,
-): CornerRadii {
-  let tl = _parsePair(styles.borderTopLeftRadius);
-  let tr = _parsePair(styles.borderTopRightRadius);
-  let br = _parsePair(styles.borderBottomRightRadius);
-  let bl = _parsePair(styles.borderBottomLeftRadius);
-  // Legacy fallback: a capture without per-corner longhands gets the shorthand
-  // applied to all four corners as circular radii.
-  if (!styles.borderTopLeftRadius && styles.borderRadius) {
-    const fallback = parseFloat(styles.borderRadius) || 0;
-    tl = tr = br = bl = { h: fallback, v: fallback };
-  }
-  // CSS corner-overlap scale-down: if rTL.h + rTR.h > width, scale all by
-  // width / (rTL.h + rTR.h) (and similarly for the other three edges). We
-  // take the smallest f across the four edges and apply it once.
-  const sums = [
-    { s: tl.h + tr.h, lim: width },
-    { s: tr.v + br.v, lim: height },
-    { s: br.h + bl.h, lim: width },
-    { s: bl.v + tl.v, lim: height },
-  ];
-  let f = 1;
-  for (const { s, lim } of sums) {
-    if (s > 0 && lim > 0) f = Math.min(f, lim / s);
-  }
-  if (f < 1) {
-    tl = { h: tl.h * f, v: tl.v * f };
-    tr = { h: tr.h * f, v: tr.v * f };
-    br = { h: br.h * f, v: br.v * f };
-    bl = { h: bl.h * f, v: bl.v * f };
-  }
-  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
-    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform };
-}
-
-/** Inset each corner radius by the matching border-side widths, clamping to 0.
- *  Use this to derive the inner radii used by background clips (where the
- *  border has eaten into the corner) and inner border strokes. CSS specifies
- *  that the inner corner is the outer corner pulled in by the adjacent border
- *  widths (top + left for TL, top + right for TR, etc.). */
-export function insetCornerRadii(c: CornerRadii, top: number, right: number, bottom: number, left: number): CornerRadii {
-  const tl = { h: Math.max(0, c.tl.h - left), v: Math.max(0, c.tl.v - top) };
-  const tr = { h: Math.max(0, c.tr.h - right), v: Math.max(0, c.tr.v - top) };
-  const br = { h: Math.max(0, c.br.h - right), v: Math.max(0, c.br.v - bottom) };
-  const bl = { h: Math.max(0, c.bl.h - left), v: Math.max(0, c.bl.v - bottom) };
-  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
-    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
-  return { tl, tr, br, bl, uniform };
-}
-
-/** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
- *  Path goes clockwise from the top-left, using elliptical arc commands at each
- *  corner. Zero-radius corners collapse to a sharp 90° join. */
-export function roundedRectPath(x: number, y: number, w: number, h: number, c: CornerRadii): string {
-  // Each corner is at most clamped to fit; the spec scale-down already handled
-  // edge-overlap, but clamp per-axis to half-extent as a safety net.
-  const tl = { h: Math.min(c.tl.h, w), v: Math.min(c.tl.v, h) };
-  const tr = { h: Math.min(c.tr.h, w), v: Math.min(c.tr.v, h) };
-  const br = { h: Math.min(c.br.h, w), v: Math.min(c.br.v, h) };
-  const bl = { h: Math.min(c.bl.h, w), v: Math.min(c.bl.v, h) };
-  return [
-    `M${r(x + tl.h)},${r(y)}`,
-    `L${r(x + w - tr.h)},${r(y)}`,
-    tr.h > 0 || tr.v > 0 ? `A${r(tr.h)},${r(tr.v)} 0 0 1 ${r(x + w)},${r(y + tr.v)}` : "",
-    `L${r(x + w)},${r(y + h - br.v)}`,
-    br.h > 0 || br.v > 0 ? `A${r(br.h)},${r(br.v)} 0 0 1 ${r(x + w - br.h)},${r(y + h)}` : "",
-    `L${r(x + bl.h)},${r(y + h)}`,
-    bl.h > 0 || bl.v > 0 ? `A${r(bl.h)},${r(bl.v)} 0 0 1 ${r(x)},${r(y + h - bl.v)}` : "",
-    `L${r(x)},${r(y + tl.v)}`,
-    tl.h > 0 || tl.v > 0 ? `A${r(tl.h)},${r(tl.v)} 0 0 1 ${r(x + tl.h)},${r(y)}` : "",
-    `Z`,
-  ].filter(s => s !== "").join(" ");
-}
-
-/** Emit a rounded-rect SVG element. Uses `<rect rx>` when the corners are
- *  uniform (cheaper, less markup); falls back to `<path>` for asymmetric or
- *  elliptical corners. The `attrs` string is injected verbatim — pass in
- *  fill/stroke/etc. */
-export function roundedRectSvg(x: number, y: number, w: number, h: number, c: CornerRadii, attrs: string): string {
-  if (c.uniform) {
-    const rx = Math.min(c.tl.h, w / 2, h / 2);
-    return `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" rx="${r(rx)}" ${attrs} />`;
-  }
-  return `<path d="${roundedRectPath(x, y, w, h, c)}" ${attrs} />`;
-}
 
 /**
  * Force inline `<svg ...>` width/height to the captured layout size. Inline
@@ -3535,19 +3324,6 @@ function injectSvgSize(svgHtml: string, w: number, h: number): string {
   return `<svg${attrs} width="${r(w)}" height="${r(h)}">` + svgHtml.slice(m[0].length);
 }
 
-interface BorderSide { w: number; style: string; color: RGBA }
-
-function parseSide(widthCss: string | undefined, styleCss: string | undefined, colorCss: string | undefined): BorderSide | null {
-  if (widthCss == null || styleCss == null || colorCss == null) return null;
-  const w = parseFloat(widthCss) || 0;
-  const color = parseColor(colorCss);
-  if (color == null) return null;
-  return { w, style: styleCss, color };
-}
-
-function sameColor(a: RGBA, b: RGBA): boolean {
-  return a.r === b.r && a.g === b.g && a.b === b.b && Math.abs(a.a - b.a) < 0.01;
-}
 
 /**
  * Render a CSS border-image 9-slice around the element's border box.
@@ -3823,50 +3599,6 @@ function renderScrollbarChrome(el: CapturedElement, indent: string): string {
   return parts.join("\n");
 }
 
-/**
- * Shade an RGBA color by adjusting lightness in HSL space. delta is in -100..100.
- * Used for border-style groove/ridge/inset/outset where the border color is
- * lightened or darkened per side to produce the 3D bevel look Chromium paints.
- */
-function shadeColor(c: RGBA, delta: number): RGBA {
-  const r255 = c.r / 255, g255 = c.g / 255, b255 = c.b / 255;
-  const max = Math.max(r255, g255, b255);
-  const min = Math.min(r255, g255, b255);
-  const l = (max + min) / 2;
-  const d = max - min;
-  let h = 0;
-  let s = 0;
-  if (d !== 0) {
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r255: h = ((g255 - b255) / d + (g255 < b255 ? 6 : 0)) / 6; break;
-      case g255: h = ((b255 - r255) / d + 2) / 6; break;
-      default:   h = ((r255 - g255) / d + 4) / 6;
-    }
-  }
-  const newL = Math.max(0, Math.min(1, l + delta / 100));
-  // HSL -> RGB.
-  if (s === 0) {
-    const v = Math.round(newL * 255);
-    return { r: v, g: v, b: v, a: c.a };
-  }
-  const q = newL < 0.5 ? newL * (1 + s) : newL + s - newL * s;
-  const p = 2 * newL - q;
-  const hueToRgb = (t: number): number => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  return {
-    r: Math.round(hueToRgb(h + 1 / 3) * 255),
-    g: Math.round(hueToRgb(h) * 255),
-    b: Math.round(hueToRgb(h - 1 / 3) * 255),
-    a: c.a,
-  };
-}
 
 /**
  * Sort children into approximate paint order (CSS 2.1 §9.9 + §9.5):
@@ -4130,42 +3862,6 @@ function sortChildrenByPaintOrder(
   return [...negative.map((x) => x.el), ...base, ...floats, ...zeroOrAuto, ...positive.map((x) => x.el)];
 }
 
-/**
- * Extract the URL contents from a CSS `url(...)` token, handling double-
- * quoted, single-quoted, and unquoted variants — including data: URLs whose
- * contents carry embedded `"` characters that the prior `[^"')]+` regex
- * tripped on. CSS escape sequences (`\"` → `"`, `\\` → `\`) are unescaped.
- * Returns null when the input isn't a `url(...)` token. (DM-308)
- */
-function parseCssUrl(token: string): string | null {
-  const m = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)\s*$/.exec(token);
-  if (m == null) return null;
-  const raw = m[1] ?? m[2] ?? m[3];
-  if (raw == null) return null;
-  return raw.replace(/\\(.)/g, "$1");
-}
-
-/**
- * Split a comma-separated list respecting parentheses nesting. Used to split
- * multiple CSS background layers like:
- *   'linear-gradient(red, blue), url("x.png")'
- */
-function splitTopLevelCommas(s: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (c === "(") depth++;
-    else if (c === ")") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(s.slice(start, i));
-      start = i + 1;
-    }
-  }
-  out.push(s.slice(start));
-  return out;
-}
 
 /**
  * Turn a single background-image layer into an SVG <defs> entry. Returns
@@ -4536,7 +4232,6 @@ function buildLinearGradientDef(id: string, args: string, repeating: boolean, w:
   return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(x1)}" y1="${stopFmt(y1)}" x2="${stopFmt(x2)}" y2="${stopFmt(y2)}"${spread}>${stopsMarkup}</linearGradient>`;
 }
 
-function stopFmt(n: number): string { return Number(n.toFixed(4)).toString(); }
 
 /** Parse radial-gradient args and emit an SVG <radialGradient>.
  *
@@ -5478,123 +5173,8 @@ function romanMarker(n: number): string {
   return s;
 }
 
-/**
- * Parse a single computed box-shadow component (already split on top-level
- * commas). getComputedStyle returns shadows as `<color> <x> <y> <blur>
- * <spread> inset?`, with the color in either rgb()/rgba() or color(srgb …).
- * Returns null when the input is "none" or unparseable. See SK-1111.
- */
-interface BoxShadow {
-  inset: boolean;
-  x: number;
-  y: number;
-  blur: number;
-  spread: number;
-  color: string;
-}
-function parseBoxShadow(value: string): BoxShadow[] {
-  if (value == null || value === "" || value === "none") return [];
-  const out: BoxShadow[] = [];
-  for (const raw of splitTopLevelCommas(value)) {
-    const s = raw.trim();
-    if (s === "") continue;
-    // Pull the color out first (rgb/rgba/hsl/color/oklab/etc + bracket-wrapped).
-    // The color block may sit anywhere in the value but typically comes at the
-    // start in computed form. Match `<funcname>(...)` greedy.
-    let color = "";
-    let rest = s;
-    const colorMatch = /^(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\([^)]*\)/i.exec(s);
-    if (colorMatch != null) {
-      color = colorMatch[0];
-      rest = s.slice(colorMatch[0].length).trim();
-    }
-    const tokens = rest.split(/\s+/).filter((t) => t !== "");
-    let inset = false;
-    const lengths: number[] = [];
-    for (const t of tokens) {
-      if (t === "inset") { inset = true; continue; }
-      const n = parseFloat(t);
-      if (!isNaN(n)) lengths.push(n);
-    }
-    // CSS allows the color anywhere; if it wasn't at the start, scan tokens.
-    if (color === "" && tokens.length > 0) {
-      // Last token that doesn't parse as length and isn't "inset" is the color.
-      for (let i = tokens.length - 1; i >= 0; i--) {
-        const t = tokens[i];
-        if (t === "inset" || !isNaN(parseFloat(t))) continue;
-        color = t;
-        break;
-      }
-    }
-    if (color === "") color = "currentcolor";
-    out.push({
-      inset,
-      x: lengths[0] ?? 0,
-      y: lengths[1] ?? 0,
-      blur: lengths[2] ?? 0,
-      spread: lengths[3] ?? 0,
-      color,
-    });
-  }
-  return out;
-}
 
-/**
- * Convert a CSS computed transform string to an SVG `transform` attribute
- * value, composed around (originX, originY) so the transform pivots there
- * (matches CSS's transform-origin semantics). Returns "" when the transform
- * is none or unparseable. See SK-1134.
- *
- * Chrome's getComputedStyle.transform always resolves to either
- * `matrix(a,b,c,d,e,f)` (2D) or `matrix3d(m11,m12,…m44)` (3D), so we don't
- * need to handle each named CSS function — just the matrix forms. 3D is
- * downgraded to its 2D submatrix (m11, m12, m21, m22, m41, m42 → SVG matrix
- * a, b, c, d, e, f), which loses perspective/depth but preserves x/y rotate
- * and scale. SK-1135 tracks the warning emission for 3D.
- */
-function cssTransformToSvg(transform: string | undefined, originX: number, originY: number): string {
-  if (transform == null || transform === "" || transform === "none") return "";
-  const m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(transform);
-  let a = 1, b = 0, c = 0, d = 1, e = 0, f = 0;
-  if (m2 != null) {
-    a = parseFloat(m2[1]); b = parseFloat(m2[2]); c = parseFloat(m2[3]); d = parseFloat(m2[4]); e = parseFloat(m2[5]); f = parseFloat(m2[6]);
-  } else {
-    const m3 = /^matrix3d\(([^)]+)\)$/.exec(transform);
-    if (m3 == null) return "";
-    const parts = m3[1].split(",").map((s) => parseFloat(s.trim()));
-    if (parts.length !== 16 || parts.some((n) => !isFinite(n))) return "";
-    // CSS matrix3d is column-major: m11..m14, m21..m24, m31..m34, m41..m44.
-    // The 2D submatrix is m11, m12, m21, m22, m41, m42 → a, b, c, d, e, f.
-    a = parts[0]; b = parts[1]; c = parts[4]; d = parts[5]; e = parts[12]; f = parts[13];
-  }
-  // Identity short-circuit: don't emit a no-op transform.
-  if (a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0) return "";
-  // Compose around (originX, originY) so the rotate/scale pivots at the CSS
-  // origin: SVG `translate(ox,oy) matrix(...) translate(-ox,-oy)`. When the
-  // CSS matrix has a translation component (e, f), that already shifts; the
-  // outer translate-origin pair makes the rotate/scale pivot correct.
-  const ox = Number(originX.toFixed(2));
-  const oy = Number(originY.toFixed(2));
-  const matrixStr = `matrix(${Number(a.toFixed(5))} ${Number(b.toFixed(5))} ${Number(c.toFixed(5))} ${Number(d.toFixed(5))} ${Number(e.toFixed(2))} ${Number(f.toFixed(2))})`;
-  if (ox === 0 && oy === 0) return matrixStr;
-  return `translate(${ox} ${oy}) ${matrixStr} translate(${-ox} ${-oy})`;
-}
 
-/** Map CSS border-style to an SVG stroke-dasharray. Returns "" for solid (no dash).
- *  Blink (BoxBorderPainter / OutlinePainter PaintDottedOrDashedOutline) paints:
- *   - dashed: dash = 2 * width, gap = width (a 2:1 ratio). DM-267.
- *   - dotted: SQUARE dots of side = width, gap = width — NOT round dots.
- *     Skia's kDottedStroke uses [width, width] dash pattern with butt caps,
- *     so each dash is a w×w square. (DM-368.)
- *  Caller should NOT add `stroke-linecap="round"` for dotted — square caps
- *  (the SVG default `butt`) match Chrome's painted output. */
-function dashArrayForStyle(style: string, width: number): string {
-  switch (style) {
-    case "dashed": return `${r(width * 2)} ${r(width)}`;
-    case "dotted": return `${r(width)} ${r(width)}`;
-    default: return "";
-  }
-}
 
 /**
  * Per-side adjusted dash array. Chrome'\''s dashed/dotted border rasterizer

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { insetCornerRadii, parseCornerRadii, roundedRectPath, roundedRectSvg } from "./dom-to-svg.js";
+import { insetCornerRadii, parseCornerRadii, roundedRectPath, roundedRectSvg } from "./render/borders.js";
 
 describe("parseCornerRadii: shorthand and longhand", () => {
   it("treats four equal circular corners as uniform", () => {
