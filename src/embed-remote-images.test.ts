@@ -3,9 +3,8 @@ import {
   embedRemoteImages,
   elementTreeToSvg,
   getLastCaptureWarnings,
-  type CapturedElement,
-  type CaptureWarning,
 } from "./render/element-tree-to-svg.js";
+import type { CapturedElement, CaptureWarning } from "./capture/types.js";
 
 /**
  * DM-512: regression tests for `embedRemoteImages` — verifies that http(s)

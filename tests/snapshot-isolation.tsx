@@ -22,7 +22,8 @@ import { chromium } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTreeWithWarnings, type CapturedElement } from "../src/render/element-tree-to-svg.js";
+import { captureElementTreeWithWarnings } from "../src/render/element-tree-to-svg.js";
+import type { CapturedElement } from "../src/capture/types.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output");

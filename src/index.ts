@@ -1,7 +1,7 @@
 export { captureElementTree, captureElementTreeWithWarnings, elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, transparentRootBgRect, getLastCaptureWarnings, logCaptureWarnings, embedRemoteImages, embedResizedDataUri } from "./render/element-tree-to-svg.js";
 export { resizeEmbeddedImages } from "./tree-ops/resize-embedded-images.js";
 export type { ResizeEmbeddedImagesOptions } from "./tree-ops/resize-embedded-images.js";
-export type { CapturedElement, CaptureWarning } from "./render/element-tree-to-svg.js";
+export type { CapturedElement, CaptureWarning } from "./capture/types.js";
 export { generateAnimatedSvg } from "./animator.js";
 export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverlay, SvgOverlay, IntraFrameAnimation } from "./animator.js";
 export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./render/cursor-overlay.js";

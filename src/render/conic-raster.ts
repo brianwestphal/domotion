@@ -15,10 +15,8 @@
  */
 
 import sharp from "sharp";
-import {
-  _conicTileCache,
-  type CapturedElement,
-} from "./element-tree-to-svg.js";
+import { _conicTileCache } from "./element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
 import { type RGBA, parseColor } from "./colors.js";
 import { parseConicGradient, type ConicGradient, type ConicStop, type PosValue } from "./gradients.js";
 

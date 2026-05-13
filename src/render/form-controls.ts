@@ -11,7 +11,7 @@
  * the captured element's appearance is essentially the UA default.
  */
 
-import type { CapturedElement } from "./element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 
 /**

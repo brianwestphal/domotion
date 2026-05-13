@@ -247,7 +247,7 @@ describe("buildMaskDef — element() paint refs (DM-494)", () => {
   });
 
   it("element() with no resolved raster (no dataUri) skips emission", () => {
-    const empty = new Map<string, import("./render/element-tree-to-svg.js").MaskRasterRef>();
+    const empty = new Map<string, import("./capture/types.js").MaskRasterRef>();
     const r = buildMaskDef("m", "element(#src)",
       0, 0, 200, 100, "match-source", "auto", "0% 0%", "no-repeat", "add", empty);
     expect(r.def).toBe("");

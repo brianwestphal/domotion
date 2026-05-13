@@ -17,11 +17,8 @@
  */
 
 import sharp from "sharp";
-import {
-  _dataUriCache,
-  _resizedDataUriCache,
-  type CapturedElement,
-} from "../render/element-tree-to-svg.js";
+import { _dataUriCache, _resizedDataUriCache } from "../render/element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
 
 export interface ResizeEmbeddedImagesOptions {
   /**

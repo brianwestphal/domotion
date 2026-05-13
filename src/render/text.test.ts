@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText } from "./text.js";
-import type { CapturedElement } from "./element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
 
 describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
   // The captured per-char rect spans the line-box height (~lineHeight) and

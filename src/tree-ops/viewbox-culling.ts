@@ -16,7 +16,7 @@
  * See `docs/33-element-out-of-viewbox-hiding.md`.
  */
 
-import type { CapturedElement } from "../render/element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
 import type { IntraFrameAnimation } from "../animator.js";
 
 interface Bbox {

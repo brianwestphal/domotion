@@ -25,7 +25,7 @@
  * we can layer scoring on later if needed.
  */
 
-import type { CapturedElement } from "../render/element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
 
 export type DiffEntryKind =
   | "static"      // matched, bbox identical (within tolerance)

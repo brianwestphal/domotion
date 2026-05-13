@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { elementTreeToSvg, type CapturedElement } from "./render/element-tree-to-svg.js";
+import { elementTreeToSvg } from "./render/element-tree-to-svg.js";
+import type { CapturedElement } from "./capture/types.js";
 
 /**
  * DM-473: cross-stacking-context z-index unit tests.

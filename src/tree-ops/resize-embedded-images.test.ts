@@ -13,8 +13,8 @@ import {
   _dataUriCache,
   _resizedDataUriCache,
   embedResizedDataUri,
-  type CapturedElement,
 } from "../render/element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
 import { resizeEmbeddedImages } from "./resize-embedded-images.js";
 
 // Build a minimal CapturedElement. Only the fields the resize walker reads
