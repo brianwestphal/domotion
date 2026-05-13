@@ -6,11 +6,17 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../render/element-tree-to-svg.js";
+import sharp from "sharp";
+import { chromium, type Browser, type BrowserContext, type ElementHandle, type LaunchOptions, type Page } from "@playwright/test";
+import { elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr } from "../render/element-tree-to-svg.js";
+import { embedRemoteImages } from "./embed.js";
 import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
+import { CAPTURE_SCRIPT } from "./script.generated.js";
+import { rasterizeBitmapGlyphs } from "./emoji.js";
+import { _resetLastCaptureWarnings } from "./warnings.js";
+import type { CapturedElement, CaptureWarning } from "./types.js";
 
 export interface CaptureOptions {
   width: number;
@@ -807,4 +813,405 @@ function parseWeightDescriptor(value: string): number {
     if (Number.isFinite(n) && n >= 1 && n <= 1000) return n;
   }
   return 400;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// CAPTURE ENTRY POINT — moved from src/render/element-tree-to-svg.ts (DM-619d follow-up).
+// `captureElementTree*` orchestrate the page.evaluate(CAPTURE_SCRIPT) call,
+// then run the three post-capture passes (bitmap-glyph raster, replaced-element
+// raster, mask-source raster) that need Node-side state. `calibrateBaselines`
+// is a development-only round-trip helper that re-renders the captured tree
+// and measures glyph-baseline drift for the per-font ascent table.
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Capture the visual tree of elements within a viewport region. Warnings about
+ * unsupported features encountered during capture are stored and accessible
+ * via getLastCaptureWarnings() / logCaptureWarnings().
+ */
+export async function captureElementTree(
+  page: Page,
+  selector: string = "body",
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<CapturedElement[]> {
+  const { tree } = await captureElementTreeWithWarnings(page, selector, viewport);
+  return tree;
+}
+
+/**
+ * Same capture as `captureElementTree` but returns the warnings inline so
+ * callers running multiple captures concurrently don't race on the
+ * `lastCaptureWarnings` module global. The global is still updated so
+ * single-capture callers using `getLastCaptureWarnings()` keep working.
+ */
+export async function captureElementTreeWithWarnings(
+  page: Page,
+  selector: string = "body",
+  viewport: { x: number; y: number; width: number; height: number },
+  opts?: {
+    /** DM-562: when provided, `rasterizeReplacedElements` crops replaced-
+     *  element rects from this PNG instead of taking fresh page.screenshot
+     *  calls. Eliminates timing drift between the expected screenshot and
+     *  rotating cross-origin-iframe content. Caller is responsible for
+     *  ensuring the source covers the same coordinate space as `viewport`. */
+    rasterizeFromImagePath?: string;
+  },
+): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }> {
+  const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}})`);
+  const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
+  const warnings = typed.warnings ?? [];
+  _resetLastCaptureWarnings(warnings);
+  await rasterizeBitmapGlyphs(page, typed.tree, viewport);
+  await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
+  await rasterizeMaskSources(page, typed.tree, viewport);
+  return { tree: typed.tree, warnings };
+}
+
+
+/**
+ * DM-457: rasterize each <canvas> / <video> / <iframe> / <object> / <embed>
+ * captured in the tree. CAPTURE_SCRIPT tagged the live DOM nodes with
+ * `data-domotion-rid="dr<n>"` and recorded the matching content-box rect on
+ * `el.replacedSnapshot`. We hide everything else on the page via a temporary
+ * stylesheet so the screenshot of each target rect contains only that
+ * element's painted pixels (not overlays, sticky chrome, sibling positioned
+ * elements, or non-ancestor `::before`/`::after` pseudos), then attach the PNG
+ * back to the captured tree as a data URI for the renderer to emit as an
+ * <image>. See `docs/17-replaced-element-snapshots.md` for the contract.
+ */
+async function rasterizeReplacedElements(
+  page: Page,
+  tree: CapturedElement[],
+  viewport: { x: number; y: number; width: number; height: number },
+  opts?: { sourceImagePath?: string },
+): Promise<void> {
+  interface Target {
+    rid: string;
+    tag: string;
+    rect: { x: number; y: number; width: number; height: number };
+    setDataUri: (uri: string) => void;
+  }
+  const targets: Target[] = [];
+  const walk = (els: CapturedElement[]): void => {
+    for (const el of els) {
+      if (el.replacedSnapshot != null) {
+        const rs = el.replacedSnapshot;
+        targets.push({
+          rid: rs.rid,
+          tag: el.tag,
+          rect: { x: rs.x, y: rs.y, width: rs.width, height: rs.height },
+          setDataUri: (uri) => { rs.dataUri = uri; },
+        });
+      }
+      if (el.children.length > 0) walk(el.children);
+    }
+  };
+  walk(tree);
+  if (targets.length === 0) return;
+
+  // DM-562: custom elements (hyphenated tag — DM-511 routed them through
+  // replacedSnapshot when they have shadow DOM) have light-DOM children that
+  // ALSO paint inside the rect. Cropping from expected.png captures both the
+  // shadow-DOM paint AND the overlapping light-DOM paint as a single image,
+  // and then the renderer composites that crop on top of its own rendering
+  // of the same light-DOM children — producing stacking artifacts (e.g.
+  // doubled video-controls or text seen through translucent custom-element
+  // backgrounds). For iframe / canvas / video / object / embed the rect is
+  // truly opaque-replaced — there's no light-DOM content to double-paint —
+  // so the image crop is clean. Split targets accordingly.
+  const _replacedTagSet = new Set(["iframe", "canvas", "video", "object", "embed"]);
+  const cropTargets: Target[] = [];
+  const screenshotTargets: Target[] = [];
+  for (const t of targets) {
+    if (opts?.sourceImagePath != null && _replacedTagSet.has(t.tag)) {
+      cropTargets.push(t);
+    } else {
+      screenshotTargets.push(t);
+    }
+  }
+
+  // DM-562: when the caller supplies a `sourceImagePath` (the expected.png
+  // already on disk), crop each rid's rect from it instead of taking fresh
+  // page.screenshot calls. The per-rid screenshots originally provided
+  // isolation via the hide-everything-else CSS trick, but they also happened
+  // hundreds of milliseconds after the expected screenshot — so cross-origin
+  // iframes with rotating carousels (Google Ads on NYT) ended up with
+  // rasterized content that drifted from the expected. Cropping from the
+  // SAME PNG that produced the expected eliminates the drift entirely. For
+  // typical replaced elements (iframe / canvas / video / custom-element with
+  // shadow DOM) the rid's content-box rect doesn't overlap with siblings, so
+  // the loss of CSS-trick isolation is a no-op visually.
+  if (cropTargets.length > 0 && opts?.sourceImagePath != null) {
+    const sharp = (await import("sharp")).default;
+    const srcMeta = await sharp(opts.sourceImagePath).metadata();
+    const srcW = srcMeta.width ?? 0;
+    const srcH = srcMeta.height ?? 0;
+    for (const t of cropTargets) {
+      const left = Math.max(0, Math.floor(t.rect.x + viewport.x));
+      const top = Math.max(0, Math.floor(t.rect.y + viewport.y));
+      const width = Math.max(1, Math.ceil(t.rect.width));
+      const height = Math.max(1, Math.ceil(t.rect.height));
+      const clippedW = Math.max(1, Math.min(width, srcW - left));
+      const clippedH = Math.max(1, Math.min(height, srcH - top));
+      if (left >= srcW || top >= srcH) continue;
+      try {
+        const buf = await sharp(opts.sourceImagePath)
+          .extract({ left, top, width: clippedW, height: clippedH })
+          .png()
+          .toBuffer();
+        t.setDataUri(`data:image/png;base64,${buf.toString("base64")}`);
+      } catch {
+        /* leave dataUri undefined; renderer falls back to the bare box. */
+      }
+    }
+  }
+  if (screenshotTargets.length === 0) {
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll("[data-domotion-rid]").forEach(
+          (el) => el.removeAttribute("data-domotion-rid"),
+        );
+      });
+    } catch {}
+    return;
+  }
+
+  // Inject hide-everything-else stylesheet. Two rules: hide every element by
+  // default; revive only the element bearing data-domotion-snapshot-target
+  // (and its descendants, since visibility:visible on a descendant overrides
+  // the inherited hidden from an ancestor). Body/html backgrounds are forced
+  // transparent so partially-transparent canvases composite cleanly via
+  // omitBackground: true. Restored unconditionally in finally.
+  const HIDE_CSS = [
+    "*, *::before, *::after { visibility: hidden !important; }",
+    "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
+    "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
+    "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
+    "html, body { background: transparent !important; }",
+  ].join("\n");
+  let styleHandle: ElementHandle | null = null;
+  try {
+    styleHandle = await page.addStyleTag({ content: HIDE_CSS });
+    for (const t of screenshotTargets) {
+      // Move the snapshot-target marker to this element.
+      await page.evaluate((rid) => {
+        const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
+        prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+        const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
+        if (next != null) next.setAttribute("data-domotion-snapshot-target", "");
+      }, t.rid);
+      // rect is viewport-relative; page.screenshot clip wants page-absolute.
+      // Snap to integer pixels outward so the full content box is captured.
+      const clip = {
+        x: Math.max(0, Math.floor(t.rect.x + viewport.x)),
+        y: Math.max(0, Math.floor(t.rect.y + viewport.y)),
+        width: Math.max(1, Math.ceil(t.rect.width)),
+        height: Math.max(1, Math.ceil(t.rect.height)),
+      };
+      try {
+        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
+        t.setDataUri(`data:image/png;base64,${Buffer.from(buf).toString("base64")}`);
+      } catch {
+        // Screenshot failed (e.g. clip went off-page after a layout shift).
+        // Leave dataUri undefined; the renderer falls back to the bare box.
+      }
+    }
+  } finally {
+    // Strip both attributes from every element we may have touched, plus
+    // remove the hide stylesheet so the live page is back to its original
+    // visual state (matters when the same page is captured again, or when
+    // tests inspect the page after capture).
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
+          (el) => el.removeAttribute("data-domotion-snapshot-target"),
+        );
+        document.querySelectorAll("[data-domotion-rid]").forEach(
+          (el) => el.removeAttribute("data-domotion-rid"),
+        );
+      });
+    } catch {}
+    if (styleHandle != null) {
+      try { await styleHandle.evaluate((node: Element) => { node.remove(); }); } catch {}
+    }
+  }
+}
+
+
+/**
+ * DM-494: Rasterise each element referenced by `mask-image: element(#id)`.
+ * Mirrors `rasterizeReplacedElements` (doc 17): hide-everything-else
+ * stylesheet → screenshot the target's painted box → encode as a data URI →
+ * stash on `tree[0].maskRasters[i].dataUri`. The renderer's `buildMaskDef`
+ * picks up the data URI from the root tree's lookup table when it sees an
+ * `element()` mask layer.
+ *
+ * Same-document only — CSS spec doesn't define cross-document `element()`.
+ * Always-on (no opt-in flag) — dedupe by referenced id (one screenshot per
+ * unique target regardless of how many consumers reference it). Targets that
+ * are display:none / 0-area are filtered at capture time and never reach
+ * here. See `docs/22-mask-element-paint-references.md`.
+ */
+async function rasterizeMaskSources(
+  page: Page,
+  tree: CapturedElement[],
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<void> {
+  if (tree.length === 0 || tree[0].maskRasters == null || tree[0].maskRasters.length === 0) return;
+  const rasters = tree[0].maskRasters;
+
+  const HIDE_CSS = [
+    "*, *::before, *::after { visibility: hidden !important; }",
+    "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
+    "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
+    "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
+    "html, body { background: transparent !important; }",
+  ].join("\n");
+  let styleHandle: ElementHandle | null = null;
+  try {
+    styleHandle = await page.addStyleTag({ content: HIDE_CSS });
+    for (const mr of rasters) {
+      await page.evaluate((rid) => {
+        const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
+        prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+        const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
+        if (next != null) next.setAttribute("data-domotion-snapshot-target", "");
+      }, mr.rid);
+      const clip = {
+        x: Math.max(0, Math.floor(mr.rect.x + viewport.x)),
+        y: Math.max(0, Math.floor(mr.rect.y + viewport.y)),
+        width: Math.max(1, Math.ceil(mr.rect.width)),
+        height: Math.max(1, Math.ceil(mr.rect.height)),
+      };
+      try {
+        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
+        mr.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
+      } catch {
+        // Screenshot failed — leave dataUri undefined; renderer skips emission.
+      }
+    }
+  } finally {
+    try {
+      await page.evaluate(() => {
+        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
+          (el) => el.removeAttribute("data-domotion-snapshot-target"),
+        );
+      });
+    } catch {}
+    if (styleHandle != null) {
+      try { await styleHandle.evaluate((node: Element) => { node.remove(); }); } catch {}
+    }
+  }
+}
+
+/**
+ * Calibrate `fontAscent` on text-bearing elements by scanning a reference
+ * PNG (Chrome's actual paint) for each element's painted ink top, then
+ * back-solving the sub-pixel baseline as
+ * `inkTop - textTop + actualBoundingBoxAscent(text)` where the cap-height
+ * comes from `canvas.measureText(text).actualBoundingBoxAscent` (sub-pixel
+ * accurate, unlike `fontBoundingBoxAscent` which Chrome integer-rounds).
+ *
+ * Closes the residual ±0.6 px text-baseline drift documented in DM-397 /
+ * DM-418. Empirical extraction at capture time — uses Chrome's actual
+ * painted output as ground truth instead of trying to mirror Chromium's
+ * per-platform LayoutNG strut math.
+ *
+ * Caller must provide PNG bytes from a Chrome screenshot of the same
+ * viewport that was captured. For the test pipeline this is the same
+ * `expected.png` we already write to disk for diffing.
+ */
+export async function calibrateBaselines(
+  page: Page,
+  elements: CapturedElement[],
+  pngBytes: Buffer | Uint8Array,
+): Promise<void> {
+  // Flatten the tree into a list of text-bearing elements with stable keys
+  const flat: Array<{ key: string; el: CapturedElement }> = [];
+  let counter = 0;
+  const walk = (els: CapturedElement[]) => {
+    for (const e of els) {
+      if ((e.text != null && e.text !== "") && e.textTop != null && e.textWidth != null && e.textWidth > 0 && e.textHeight != null && e.textHeight > 0) {
+        flat.push({ key: `c${counter++}`, el: e });
+      }
+      if (e.children != null && e.children.length > 0) walk(e.children);
+    }
+  };
+  walk(elements);
+  if (flat.length === 0) return;
+
+  const items = flat.map((f) => ({
+    key: f.key,
+    text: f.el.text!,
+    textTop: f.el.textTop!,
+    textLeft: f.el.textLeft ?? f.el.x,
+    textWidth: f.el.textWidth!,
+    textHeight: f.el.textHeight!,
+    fontSize: parseFloat(f.el.styles.fontSize) || 14,
+    fontFamily: f.el.styles.fontFamily,
+    fontWeight: f.el.styles.fontWeight,
+    fontStyle: f.el.styles.fontStyle,
+    color: f.el.styles.color,
+  }));
+
+  const b64 = `data:image/png;base64,${Buffer.from(pngBytes).toString("base64")}`;
+
+  // The body of this evaluate is sent to the browser as a string. Keep it
+  // free of TypeScript-only helpers that tsc/tsx might emit references to
+  // (notably `__name` for class metadata). Plain function expressions and
+  // var/let work; arrow functions are also fine, but explicit `function`
+  // declarations avoid edge-cases in the transpiler output.
+  const adjustments = await page.evaluate(async function (args: { b64: string; items: typeof items }) {
+    var img = new Image();
+    img.src = args.b64;
+    await img.decode();
+    var c = document.createElement("canvas");
+    c.width = img.width;
+    c.height = img.height;
+    var ctx = c.getContext("2d");
+    if (ctx == null) return [];
+    ctx.drawImage(img, 0, 0);
+    var pix = ctx.getImageData(0, 0, img.width, img.height).data;
+    var W = img.width;
+    var bgLum = 0.299 * pix[0] + 0.587 * pix[1] + 0.114 * pix[2];
+
+    var measureCv = document.createElement("canvas").getContext("2d");
+    var out: Array<{ key: string; ascent: number | null }> = [];
+
+    for (var ii = 0; ii < args.items.length; ii++) {
+      var it = args.items[ii];
+      var x0 = Math.max(0, Math.floor(it.textLeft));
+      var x1 = Math.min(W, Math.ceil(it.textLeft + it.textWidth));
+      var y0 = Math.max(0, Math.floor(it.textTop) - 2);
+      var y1 = Math.min(img.height, Math.ceil(it.textTop + it.textHeight) + 2);
+      var inkTop = -1;
+      for (var y = y0; y < y1 && inkTop < 0; y++) {
+        for (var x = x0; x < x1; x++) {
+          var i = (y * W + x) * 4;
+          var lum = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
+          if (Math.abs(lum - bgLum) > 30) { inkTop = y; break; }
+        }
+      }
+      if (inkTop < 0) { out.push({ key: it.key, ascent: null }); continue; }
+
+      if (measureCv == null) { out.push({ key: it.key, ascent: null }); continue; }
+      measureCv.font = (it.fontStyle || "normal") + " " + (it.fontWeight || "400") + " " + it.fontSize + "px " + it.fontFamily;
+      var tm = measureCv.measureText(it.text);
+      var subPixelAscent = tm.actualBoundingBoxAscent;
+      if (!isFinite(subPixelAscent) || subPixelAscent <= 0) { out.push({ key: it.key, ascent: null }); continue; }
+
+      var correctedAscent = (inkTop - it.textTop) + subPixelAscent;
+      if (correctedAscent < it.fontSize * 0.3 || correctedAscent > it.fontSize * 1.5) {
+        out.push({ key: it.key, ascent: null });
+        continue;
+      }
+      out.push({ key: it.key, ascent: correctedAscent });
+    }
+    return out;
+  }, { b64, items });
+
+  for (let i = 0; i < adjustments.length; i++) {
+    const adj = adjustments[i];
+    if (adj.ascent != null) flat[i].el.fontAscent = adj.ascent;
+  }
 }

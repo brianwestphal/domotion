@@ -1,4 +1,7 @@
-export { captureElementTree, captureElementTreeWithWarnings, elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, transparentRootBgRect, getLastCaptureWarnings, logCaptureWarnings, embedRemoteImages, embedResizedDataUri } from "./render/element-tree-to-svg.js";
+export { captureElementTree, captureElementTreeWithWarnings } from "./capture/index.js";
+export { elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, transparentRootBgRect } from "./render/element-tree-to-svg.js";
+export { embedRemoteImages, embedResizedDataUri } from "./capture/embed.js";
+export { getLastCaptureWarnings, logCaptureWarnings } from "./capture/warnings.js";
 export { resizeEmbeddedImages } from "./tree-ops/resize-embedded-images.js";
 export type { ResizeEmbeddedImagesOptions } from "./tree-ops/resize-embedded-images.js";
 export type { CapturedElement, CaptureWarning } from "./capture/types.js";
