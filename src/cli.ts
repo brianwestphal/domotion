@@ -84,6 +84,8 @@ capture options:
                            to scroll (default: window).
       --no-prescroll       Skip the pre-scroll-to-bottom-then-top step
                            that wakes lazy-loaded content. Default: on.
+      --quiet              Suppress per-phase progress messages on stderr.
+                           Default: progress messages are on.
       --warnings           Log capture warnings to stderr after capture.
       --mobile             Emulate a mobile device (iOS UA, isMobile=true).
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
@@ -231,6 +233,7 @@ async function runCapture(args: string[]): Promise<void> {
       "scroll-speed":     { type: "string" },
       "scroll-selector":  { type: "string" },
       "no-prescroll":     { type: "boolean" },
+      quiet:              { type: "boolean" },
       help:               { type: "boolean", short: "h" },
     },
   });
@@ -261,6 +264,8 @@ async function runCapture(args: string[]): Promise<void> {
     colorScheme: parseColorScheme(values["color-scheme"]),
   };
 
+  const log = makeLogger(values.quiet === true);
+  log(`Launching Chromium…`);
   const browser = await launchChromium();
   try {
     const ctx = await browser.newContext({
@@ -280,15 +285,16 @@ async function runCapture(args: string[]): Promise<void> {
     // tracker is how `discoverAndRegisterWebfonts` learns about them.
     const tracker = attachWebfontTracker(page);
 
-    await loadInputIntoPage(page, input);
-    await applyReadyWaits(page, flags);
+    log(`Loading ${input}…`);
+    await timed(log, "  loaded", () => loadInputIntoPage(page, input));
+    await timed(log, "  page settled", () => applyReadyWaits(page, flags));
 
     // Webfont discovery: now that document.fonts.ready resolved, walk the
     // page's @font-face rules, fetch the actual bytes via the browser's
     // request stack, and register them with text-to-path so the renderer
     // draws with the real webfont glyphs instead of a system substitute.
     clearWebfonts();
-    await discoverAndRegisterWebfonts(page, tracker.urls);
+    await timed(log, `  registered webfonts (${tracker.urls.size})`, () => discoverAndRegisterWebfonts(page, tracker.urls));
     tracker.detach();
 
     const clip = flags.clip ?? [0, 0, flags.width, flags.height];
@@ -303,23 +309,31 @@ async function runCapture(args: string[]): Promise<void> {
       if (speed != null && (!Number.isFinite(speed) || speed <= 0)) {
         throw new Error(`--scroll-speed expects a positive number (px/s), got "${speedRaw}"`);
       }
+      log(`Running scroll pattern: ${values.scroll}`);
       const segments = await executeScrollPattern(page, pattern, {
         selector: values["scroll-selector"],
         viewportW: clip[2],
         viewportH: clip[3],
         defaultSpeed: speed,
         prescroll: values["no-prescroll"] !== true,
+        log,
       });
       // Cull each segment's tree (DM-603) before composition so off-viewBox
       // elements don't contribute paint cost in the animated output.
-      for (const seg of segments) {
-        cullFrame(seg.tree, clip[2], clip[3], undefined, 0, 1);
-      }
-      svg = composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3] });
-    } else {
-      const tree = await captureElementTree(page, flags.selector, {
-        x: clip[0], y: clip[1], width: clip[2], height: clip[3],
+      await timed(log, `  culled ${segments.length} segments`, () => {
+        for (const seg of segments) {
+          cullFrame(seg.tree, clip[2], clip[3], undefined, 0, 1);
+        }
+        return Promise.resolve();
       });
+      svg = await timed(log, `  composed scroll SVG`, () =>
+        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3] })),
+      );
+    } else {
+      log(`Capturing element tree…`);
+      const tree = await timed(log, "  captured", () => captureElementTree(page, flags.selector, {
+        x: clip[0], y: clip[1], width: clip[2], height: clip[3],
+      }));
       // DM-603: single-frame static cull — mark any captured element whose
       // bbox doesn't intersect the clip viewBox. Capture already filters most
       // off-viewport elements (`outsideViewport` early-return in CAPTURE_SCRIPT),
@@ -329,7 +343,9 @@ async function runCapture(args: string[]): Promise<void> {
       const inner = elementTreeToSvg(tree, clip[2], clip[3]);
       svg = wrapSvg(inner, clip[2], clip[3]);
     }
-    if (flags.optimize) svg = optimizeSvg(svg);
+    if (flags.optimize) {
+      svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => Promise.resolve(optimizeSvg(svg)));
+    }
 
     if (flags.warnings) logCaptureWarnings("capture");
 
@@ -418,6 +434,7 @@ async function runAnimate(args: string[]): Promise<void> {
       output:        { type: "string", short: "o" },
       optimize:      { type: "boolean" },
       "no-optimize": { type: "boolean" },
+      quiet:         { type: "boolean" },
       help:          { type: "boolean", short: "h" },
     },
   });
@@ -435,6 +452,8 @@ async function runAnimate(args: string[]): Promise<void> {
   validateAnimateConfig(cfg);
   const configDir = dirname(configPath);
 
+  const log = makeLogger(values.quiet === true);
+  log(`Launching Chromium…`);
   const browser = await launchChromium();
   try {
     const ctx = await browser.newContext({
@@ -460,7 +479,8 @@ async function runAnimate(args: string[]): Promise<void> {
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
       const input = resolveFrameInput(fc.input, configDir);
-      await loadInputIntoPage(page, input);
+      log(`Frame ${i + 1}/${cfg.frames.length}: loading ${input}…`);
+      await timed(log, `  loaded`, () => loadInputIntoPage(page, input));
       await applyReadyWaits(page, {
         wait: fc.wait ?? 200,
         waitFor: fc.waitFor,
@@ -514,6 +534,7 @@ async function runAnimate(args: string[]): Promise<void> {
         // pattern's total scroll time) — caller is expected to size the
         // frame's `duration` to match so the outer scene cycle aligns with
         // the inner scroll loop.
+        log(`  scroll pattern: ${fc.scroll.pattern}`);
         const scrollPattern = parseScrollPattern(fc.scroll.pattern);
         const segments = await executeScrollPattern(page, scrollPattern, {
           selector: fc.scroll.selector,
@@ -521,6 +542,7 @@ async function runAnimate(args: string[]): Promise<void> {
           viewportH: cfg.height,
           defaultSpeed: fc.scroll.speed,
           prescroll: fc.scroll.prescroll !== false,
+          log,
         });
         for (const seg of segments) {
           cullFrame(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
@@ -567,7 +589,9 @@ async function runAnimate(args: string[]): Promise<void> {
     }
     tracker.detach();
 
-    let svg = generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames });
+    let svg = await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
+      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames })),
+    );
     // svgz is auto-detected from the output filename; implies --optimize
     // unless --no-optimize was passed.
     const outputArg = values.output ?? cfg.output;
@@ -576,7 +600,9 @@ async function runAnimate(args: string[]): Promise<void> {
       values.optimize === true ||
       (cfg.optimize === true && values["no-optimize"] !== true) ||
       (svgz && values["no-optimize"] !== true);
-    if (optimize) svg = optimizeSvg(svg);
+    if (optimize) {
+      svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => Promise.resolve(optimizeSvg(svg)));
+    }
 
     const outPath = resolveOutputPath(outputArg, configPath, ".svg");
     writeOutput(svg, outPath, svgz, `, ${cfg.frames.length} frames`);
@@ -745,6 +771,32 @@ function resolveOutputPath(output: string | undefined, input: string, ext: strin
 /** True iff the path's extension is `.svgz` (case-insensitive). */
 function isSvgzPath(path: string | undefined): boolean {
   return path != null && path !== "-" && /\.svgz$/i.test(path);
+}
+
+// ── Progress logging ──────────────────────────────────────────────────────
+
+/**
+ * Build a one-line stderr logger. When `quiet` is true, returns a no-op.
+ * The logger is passed to the scroll executor for per-segment progress and
+ * is also called directly from the CLI around each major phase (load,
+ * webfont registration, capture, cull, compose, optimize).
+ */
+function makeLogger(quiet: boolean): (message: string) => void {
+  if (quiet) return (_msg: string): void => { /* silent */ };
+  return (msg: string): void => { process.stderr.write(`${msg}\n`); };
+}
+
+/**
+ * Wrap an async operation with a "label … (N ms)" log on completion. The
+ * label is the FINAL message — useful when the phase already announced
+ * itself with a "Loading…" or "Capturing…" intro and we just want the
+ * timing on the completion line.
+ */
+async function timed<T>(log: (msg: string) => void, label: string, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  const out = await fn();
+  log(`${label} (${Date.now() - start} ms)`);
+  return out;
 }
 
 /**

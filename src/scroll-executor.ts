@@ -41,6 +41,13 @@ export interface ScrollExecutorOptions {
   prescroll?: boolean;
   /** Max execution time across the whole pattern. Default: 60 s. */
   maxTimeoutMs?: number;
+  /**
+   * Optional progress callback — called with one-line status messages at
+   * each milestone (pre-scroll start/end, every per-chunk capture, etc.).
+   * The CLI wires this to stderr by default; library callers can pass
+   * their own logger or omit to run silently.
+   */
+  log?: (message: string) => void;
 }
 
 export interface ScrollSegmentCapture {
@@ -275,8 +282,10 @@ export async function executeScrollPattern(
   const maxTimeoutMs = opts.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS;
   const selector = opts.selector ?? null;
   const pageQuery = realPageQuery(page, selector);
+  const log = opts.log ?? ((_msg: string): void => { /* silent */ });
 
   if (prescroll) {
+    log("  pre-scrolling page to wake lazy-loaded content...");
     await runPrescroll(page, selector);
   }
 
@@ -286,6 +295,7 @@ export async function executeScrollPattern(
 
   // Capture the initial state.
   const initialSnap = await pageQuery.snapshot();
+  log(`  captured frame 1 at scrollY=${initialSnap.scrollY} (initial)`);
   let prevTree = await captureElementTree(page, "body", {
     x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
   });
@@ -307,6 +317,7 @@ export async function executeScrollPattern(
   const runOp = async (op: ResolvedOp): Promise<void> => {
     checkTimeout();
     if (op.kind === "pause") {
+      log(`  pausing ${op.durationMs} ms`);
       // Wait. Then check whether the DOM changed (lazy-load may fire).
       await page.waitForTimeout(op.durationMs);
       sceneTime += op.durationMs;
@@ -325,6 +336,7 @@ export async function executeScrollPattern(
           diffFromPrev: diff,
         });
         prevTree = nextTree;
+        log(`  captured frame ${captures.length} (DOM changed during pause)`);
       }
       return;
     }
@@ -366,6 +378,7 @@ export async function executeScrollPattern(
         diffFromPrev: diff,
       });
       prevTree = nextTree;
+      log(`  captured frame ${captures.length} at scrollY=${Math.round(snap.scrollY)} (chunk ${ci}/${numChunks})`);
     }
   };
 
