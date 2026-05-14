@@ -1383,6 +1383,71 @@ export function elementTreeToSvg(
           const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
           svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="${pb.backgroundColor}" />`);
         }
+        // CSS triangle: 0×0 box with one solid border and adjacent borders
+        // transparent / zero. Borders meet at 45° corners and visually form
+        // a right triangle in the solid color. Detect + emit as <polygon>
+        // since per-side <line> emission would draw a stub the wrong shape.
+        const isOpaque = (c?: string): boolean =>
+          c != null && c !== "rgba(0, 0, 0, 0)" && c !== "transparent" && !/^rgba?\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*0\s*\)/i.test(c);
+        const bwT = pb.borderTopWidth ?? 0;
+        const bwR = pb.borderRightWidth ?? 0;
+        const bwB = pb.borderBottomWidth ?? 0;
+        const bwL = pb.borderLeftWidth ?? 0;
+        const opaqueSides = [
+          bwT > 0 && isOpaque(pb.borderTopColor),
+          bwR > 0 && isOpaque(pb.borderRightColor),
+          bwB > 0 && isOpaque(pb.borderBottomColor),
+          bwL > 0 && isOpaque(pb.borderLeftColor),
+        ];
+        const opaqueCount = opaqueSides.filter((s) => s).length;
+        const totalBorderCount = [bwT, bwR, bwB, bwL].filter((w) => w > 0).length;
+        // The content area (inside borders) collapses to ≤ 1px when borders
+        // sum across the dimension to ≥ box dim. That's the CSS triangle
+        // pattern. If the content area is non-trivial it's a normal box
+        // and we'd want per-side <line> emission instead.
+        const contentW = pb.width - bwL - bwR;
+        const contentH = pb.height - bwT - bwB;
+        const isTriangle = opaqueCount === 1
+          && totalBorderCount >= 2
+          && contentW <= 1 && contentH <= 1;
+        if (isTriangle) {
+          // Identify the solid side and compute the triangle vertices.
+          // Outer-box corners: (x,y), (x+w,y), (x+w,y+h), (x,y+h).
+          // The solid-border side's outer edge contributes two corners; the
+          // apex is the opposite-side outer corner where the adjacent
+          // transparent borders meet at 45°.
+          const X = pb.x;
+          const Y = pb.y;
+          const W = pb.width;
+          const H = pb.height;
+          let pts: Array<[number, number]> = [];
+          let color = "";
+          if (opaqueSides[0]) {
+            // Top solid: triangle pointing DOWN. The visible trapezoid
+            // collapses to a triangle when content collapses; apex is the
+            // inner-bottom corner where borderRight + borderLeft meet.
+            // With our 0×0 case, apex = (bwL, H) so the triangle is
+            // (0,0) → (W,0) → (bwL, H). But for symmetric tail (left=right
+            // borders equal), apex = (W/2, H). We use bwL when borders
+            // differ.
+            pts = [[X, Y], [X + W, Y], [X + bwL, Y + H]];
+            color = pb.borderTopColor!;
+          } else if (opaqueSides[1]) {
+            pts = [[X + W, Y], [X + W, Y + H], [X + W - bwR, Y + bwT]];
+            color = pb.borderRightColor!;
+          } else if (opaqueSides[2]) {
+            pts = [[X + W, Y + H], [X, Y + H], [X + W - bwR, Y + H - bwB]];
+            color = pb.borderBottomColor!;
+          } else if (opaqueSides[3]) {
+            pts = [[X, Y + H], [X, Y], [X + bwL, Y + bwT]];
+            color = pb.borderLeftColor!;
+          }
+          if (pts.length === 3 && color !== "") {
+            const polyPts = pts.map((p) => `${r(p[0])},${r(p[1])}`).join(" ");
+            svgParts.push(`${indent}<polygon points="${polyPts}" fill="${color}" />`);
+          }
+          continue;
+        }
         // Per-side borders. Each painted side gets one <line> across the
         // appropriate edge. For h=0 / w=0 boxes this collapses to a single
         // visible hairline — the separator case.

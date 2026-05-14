@@ -187,31 +187,52 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         const hasBorder = bwT > 0 || bwR > 0 || bwB > 0 || bwL > 0;
         const isBlockLike = pcs.display === 'block' || pcs.display === 'inline-block' || pcs.display === 'flex';
         if (isBlockLike && (hasBg || hasBorder)) {
-          // The pseudo flows at the host's content-box top-left (static
-          // positioning, before any other content). Apply the host's
-          // padding + pseudo's own margin.
           const hostPadL = parseFloat(cs.paddingLeft) || 0;
           const hostPadT = parseFloat(cs.paddingTop) || 0;
           const hostBorL = parseFloat(cs.borderLeftWidth) || 0;
           const hostBorT = parseFloat(cs.borderTopWidth) || 0;
+          const hostBorR = parseFloat(cs.borderRightWidth) || 0;
           const pMarL = parseFloat(pcs.marginLeft) || 0;
-          const pMarT = parseFloat(pcs.marginTop) || 0;
           const pPadL = parseFloat(pcs.paddingLeft) || 0;
           const pPadR = parseFloat(pcs.paddingRight) || 0;
           const pPadT = parseFloat(pcs.paddingTop) || 0;
           const pPadB = parseFloat(pcs.paddingBottom) || 0;
           // Pseudo width / height come from computed style. `width: 350px`
           // resolves directly; `auto` falls back to host content width
-          // (minus host padding) — close enough for the separator case.
-          const hostContentW = rect.width - hostBorL - (parseFloat(cs.borderRightWidth) || 0) - hostPadL - (parseFloat(cs.paddingRight) || 0);
+          // (minus host padding).
+          const hostContentW = rect.width - hostBorL - hostBorR - hostPadL - (parseFloat(cs.paddingRight) || 0);
           const pcsW = parseFloat(pcs.width);
           const pcsH = parseFloat(pcs.height);
           const contentW = !isNaN(pcsW) ? pcsW : hostContentW - pMarL - (parseFloat(pcs.marginRight) || 0);
           const contentH = !isNaN(pcsH) ? pcsH : 0;
-          const borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
-          const borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
           const borderBoxW = contentW + pPadL + pPadR + bwL + bwR;
           const borderBoxH = contentH + pPadT + pPadB + bwT + bwB;
+
+          // Position: absolute pseudos use pcs.left / pcs.top relative to
+          // the host's padding box (DM-594: speech-bubble tails). Static
+          // pseudos flow at the host's content-box top-left.
+          let borderBoxX;
+          let borderBoxY;
+          if (pcs.position === 'absolute' || pcs.position === 'fixed') {
+            const pcsLeft = parseFloat(pcs.left);
+            const pcsTop = parseFloat(pcs.top);
+            const pcsRight = parseFloat(pcs.right);
+            const pcsBottom = parseFloat(pcs.bottom);
+            const paddingBoxL = rect.left - vp.x + hostBorL;
+            const paddingBoxT = rect.top - vp.y + hostBorT;
+            const paddingBoxR = rect.right - vp.x - hostBorR;
+            const paddingBoxB = rect.bottom - vp.y - (parseFloat(cs.borderBottomWidth) || 0);
+            if (!isNaN(pcsLeft)) borderBoxX = paddingBoxL + pcsLeft;
+            else if (!isNaN(pcsRight)) borderBoxX = paddingBoxR - pcsRight - borderBoxW;
+            else borderBoxX = paddingBoxL;
+            if (!isNaN(pcsTop)) borderBoxY = paddingBoxT + pcsTop;
+            else if (!isNaN(pcsBottom)) borderBoxY = paddingBoxB - pcsBottom - borderBoxH;
+            else borderBoxY = paddingBoxT;
+          } else {
+            const pMarT = parseFloat(pcs.marginTop) || 0;
+            borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
+            borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
+          }
           if (borderBoxW > 0 && borderBoxH > 0) {
             pseudoBoxes.push({
               x: borderBoxX,
