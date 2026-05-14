@@ -31,7 +31,7 @@ import { createTransformsHandler } from "./walker/transforms.js";
 import { createBordersBackgroundsHandler } from "./walker/borders-backgrounds.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
-import { createTextSegmentsHandler } from "./walker/text-segments.js";
+import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
 
 export const captureScript =
@@ -696,32 +696,9 @@ export const captureScript =
       placeholderColor,
       placeholderFontStyle,
       placeholderFontWeight,
-      // Textarea soft-wrap: our path-mode input renderer paints el.value as a
-      // single line, which looks wrong for any textarea whose value is longer
-      // than one visual line. Rather than reimplement Chromes word-wrap (font
-      // metrics + kerning + break opportunities + CSS wrap=hard/soft), stamp
-      // the textareas exact rendered pixels by screenshotting its content box
-      // (minus border + padding). Scoped to textareas with a non-empty value
-      // so short/empty ones keep the cleaner path pipeline. See SK-1108.
-      elementRaster: ((tag === 'textarea' && el.value)
-        || (cs.writingMode && cs.writingMode !== 'horizontal-tb' && (el.textContent || '').trim() !== ''))
-        ? (function () {
-            const pl = parseFloat(cs.paddingLeft) || 0;
-            const pr = parseFloat(cs.paddingRight) || 0;
-            const pt = parseFloat(cs.paddingTop) || 0;
-            const pb = parseFloat(cs.paddingBottom) || 0;
-            const bl = parseFloat(cs.borderLeftWidth) || 0;
-            const br = parseFloat(cs.borderRightWidth) || 0;
-            const bt = parseFloat(cs.borderTopWidth) || 0;
-            const bb = parseFloat(cs.borderBottomWidth) || 0;
-            return {
-              x: rect.left - vp.x + bl + pl,
-              y: rect.top - vp.y + bt + pt,
-              width: Math.max(1, rect.width - bl - br - pl - pr),
-              height: Math.max(1, rect.height - bt - bb - pt - pb),
-            };
-          })()
-        : undefined,
+      // SK-1108 / SK-1128: textarea soft-wrap + writing-mode != horizontal-tb
+      // content-box raster rect — see walker/text-segments.ts.
+      elementRaster: computeElementRaster(el, cs, tag, rect, vp),
     };
     // DM-450: hidden/collapsed table cell — keep the cell's box + borders so
     // shared edges of the collapsed table grid still paint, but suppress

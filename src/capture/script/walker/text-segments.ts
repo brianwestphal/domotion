@@ -73,6 +73,41 @@
 // whether to keep the rect-based defaults its text-shaping locals were
 // initialised with.
 
+// `elementRaster`: textarea soft-wrap and writing-mode != horizontal-tb
+// both fall outside our path-mode rendering contract. Rather than
+// reimplement Chrome's word-wrap (font metrics + kerning + break
+// opportunities + CSS wrap=hard/soft) or vertical-text rotation, stamp
+// the element's painted pixels by screenshotting its content box (minus
+// border + padding). Scoped to textareas with a non-empty value (so
+// short / empty ones keep the cleaner path pipeline — SK-1108) and to
+// any element with `writing-mode != horizontal-tb` that carries text
+// content (SK-1128).
+//
+// Returns the content-box rect viewport-relative or `undefined` when
+// the host doesn't qualify.
+
+export const computeElementRaster = (el, cs, tag, rect, vp) => {
+  const hasTextareaValue = tag === 'textarea' && el.value;
+  const hasNonHorizontalText = cs.writingMode
+    && cs.writingMode !== 'horizontal-tb'
+    && (el.textContent || '').trim() !== '';
+  if (!hasTextareaValue && !hasNonHorizontalText) return undefined;
+  const pl = parseFloat(cs.paddingLeft) || 0;
+  const pr = parseFloat(cs.paddingRight) || 0;
+  const pt = parseFloat(cs.paddingTop) || 0;
+  const pb = parseFloat(cs.paddingBottom) || 0;
+  const bl = parseFloat(cs.borderLeftWidth) || 0;
+  const br = parseFloat(cs.borderRightWidth) || 0;
+  const bt = parseFloat(cs.borderTopWidth) || 0;
+  const bb = parseFloat(cs.borderBottomWidth) || 0;
+  return {
+    x: rect.left - vp.x + bl + pl,
+    y: rect.top - vp.y + bt + pt,
+    width: Math.max(1, rect.width - bl - br - pl - pr),
+    height: Math.max(1, rect.height - bt - bb - pt - pb),
+  };
+};
+
 export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster }) => {
   const captureTextSegments = (el, cs) => {
     const textSegments = [];
