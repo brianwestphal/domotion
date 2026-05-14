@@ -450,7 +450,29 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
       // Expand the height to the full line box: emoji glyphs often
       // extend above/below font-size, and the surrounding transparent
       // pixels are harmless under the omitBackground:true screenshot.
-      if (textNeedsRaster(text)) {
+      // Raster fallback (a) for codepoints Chrome paints via a color-
+      // bitmap font (emoji, U+2713, etc.) and (b) for icon-font glyphs
+      // whose CSS content is entirely in Unicode Private Use Area
+      // (U+E000–F8FF / U+F0000–FFFFD / U+100000–10FFFD).
+      // DM-583: apple.com's `<i class="icon-angle-right">::after { content:
+      // "\f303"; font-family: "SF Pro Icons" }` chevron — the font isn't
+      // available to fontkit, so path emission produces notdef which the
+      // renderer suppresses (DM-490 / DM-500). Without a raster fallback
+      // these icons disappear. Always rasterise PUA content so the post-
+      // capture screenshot pass stamps the exact pixels Chromium paints.
+      // (For fonts we DO have fontkit access to, like slashdot's sdicon,
+      // raster output is also pixel-faithful — slight payload cost vs.
+      // path emission, but a correct render trumps minor vector loss.)
+      let allPua = text.length > 0;
+      for (let _ci = 0; _ci < text.length;) {
+        const cp = text.codePointAt(_ci);
+        const inPua = (cp >= 0xE000 && cp <= 0xF8FF)
+          || (cp >= 0xF0000 && cp <= 0xFFFFD)
+          || (cp >= 0x100000 && cp <= 0x10FFFD);
+        if (!inPua) { allPua = false; break; }
+        _ci += cp > 0xFFFF ? 2 : 1;
+      }
+      if (textNeedsRaster(text) || allPua) {
         // Viewport-relative rect — matches the SVG coordinate system so
         // the renderer can emit <image x=…/> alongside other viewport-
         // local markup. Node-side raster adds vp.x/vp.y when calling
