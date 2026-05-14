@@ -54,7 +54,7 @@ const SKIP_VALUE_TYPES = new Set([
 
 const NOT_APPLIED = { applied: false };
 
-export const createInputValueHandler = ({ vp, measureFontMetrics }) => {
+export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) => {
   const captureInputValue = (el, cs, tag, rect) => {
     if (tag !== 'input' && tag !== 'textarea') return NOT_APPLIED;
     const inputType = tag === 'input' ? (el.type || 'text') : '';
@@ -143,6 +143,21 @@ export const createInputValueHandler = ({ vp, measureFontMetrics }) => {
       document.body.removeChild(probe);
     }
 
+    // SK-1099 + SK-1097 / SK-1100: when the captured text came from a
+    // placeholder attribute, the renderer paints it in `::placeholder`
+    // color (default muted gray) with optionally-overridden font-style /
+    // font-weight. Read the pseudo styles here so the dispatcher can stamp
+    // them on the captured element alongside `isPlaceholderText: true`.
+    let placeholderColor;
+    let placeholderFontStyle;
+    let placeholderFontWeight;
+    if (isPlaceholderCapture) {
+      const phCs = window.getComputedStyle(el, '::placeholder');
+      placeholderColor = normColor(phCs.color || cs.color);
+      placeholderFontStyle = phCs.fontStyle;
+      placeholderFontWeight = phCs.fontWeight;
+    }
+
     return {
       applied: true,
       text,
@@ -154,6 +169,9 @@ export const createInputValueHandler = ({ vp, measureFontMetrics }) => {
       fontDescent,
       inputXOffsets,
       isPlaceholderCapture,
+      placeholderColor,
+      placeholderFontStyle,
+      placeholderFontWeight,
     };
   };
 

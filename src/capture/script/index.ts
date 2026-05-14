@@ -63,7 +63,7 @@ export const captureScript =
     measureFontMetrics: _measureFontMetrics,
     textNeedsRaster,
   });
-  const { captureInputValue } = createInputValueHandler({ vp, measureFontMetrics: _measureFontMetrics });
+  const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
 
   const capture = (el) => {
     // Freeze the element's CSS transform for the duration of the capture
@@ -200,6 +200,9 @@ export const captureScript =
     let fontAscent = 0;
     let fontDescent = 0;
     let inputXOffsets;
+    let placeholderColor;
+    let placeholderFontStyle;
+    let placeholderFontWeight;
     const textSegments = [];
     // ::before / ::after generated content — capture each matched pseudo as
     // a TextSegment (or image pseudo) positioned relative to the host's
@@ -238,6 +241,9 @@ export const captureScript =
         fontDescent = _iv.fontDescent;
         inputXOffsets = _iv.inputXOffsets;
         isPlaceholderCapture = _iv.isPlaceholderCapture;
+        placeholderColor = _iv.placeholderColor;
+        placeholderFontStyle = _iv.placeholderFontStyle;
+        placeholderFontWeight = _iv.placeholderFontWeight;
       } else {
         // Capture each text node as one segment *per visual line*. For wrapped
         // paragraphs the browser produces multiple line boxes — we walk
@@ -1029,24 +1035,13 @@ export const captureScript =
       textTop, textLeft, textHeight, textWidth, fontAscent, fontDescent,
       inputXOffsets,
       textImageUri, textImageScale,
-      // Placeholder metadata (SK-1097 / SK-1100): when the captured text came
-      // from an input/textarea placeholder attribute, the renderer paints it
-      // in ::placeholder color (muted gray by default) instead of the normal
-      // text color.
+      // Placeholder metadata (SK-1097 / SK-1100 / SK-1099): captured in
+      // walker/input-value.ts when the host is a placeholder-shown input
+      // or textarea. Undefined elsewhere.
       isPlaceholderText: isPlaceholderCapture || undefined,
-      placeholderColor: isPlaceholderCapture
-        ? normColor(window.getComputedStyle(el, '::placeholder').color || cs.color)
-        : undefined,
-      // Author may also style the placeholders font (CSS lets ::placeholder
-      // override font-style / font-weight independently of the inputs own
-      // font). Pull both so renderInputText can pick italic + bold purple
-      // text instead of plain upright. See SK-1099.
-      placeholderFontStyle: isPlaceholderCapture
-        ? window.getComputedStyle(el, '::placeholder').fontStyle
-        : undefined,
-      placeholderFontWeight: isPlaceholderCapture
-        ? window.getComputedStyle(el, '::placeholder').fontWeight
-        : undefined,
+      placeholderColor,
+      placeholderFontStyle,
+      placeholderFontWeight,
       // Textarea soft-wrap: our path-mode input renderer paints el.value as a
       // single line, which looks wrong for any textarea whose value is longer
       // than one visual line. Rather than reimplement Chromes word-wrap (font
