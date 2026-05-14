@@ -26,6 +26,7 @@ import { createWarnings } from "./warnings.js";
 import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
+import { createFormControlsHandler } from "./walker/form-controls.js";
 
 export const captureScript =
 (args) => {
@@ -45,6 +46,7 @@ export const captureScript =
   const { captureListsCounters } = createListsCountersHandler({ normColor });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
   const { discoverMasks, maskDefs: _maskDefs, maskRasters: _maskRasters } = createMasksClipsHandler({ vp, warn });
+  const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
 
   const capture = (el) => {
     // For elements with a CSS transform, getBoundingClientRect (and per-char
@@ -1559,211 +1561,13 @@ export const captureScript =
         order: cs.order,
         flexDirection: cs.flexDirection,
         emptyCellsHidden: (tag === 'td' || tag === 'th') && cs.emptyCells === 'hide' && (el.textContent || '').trim() === '' && el.children.length === 0,
-        inputType: tag === 'input' ? (el.type || 'text') : undefined,
-        // Captured CSS appearance / -webkit-appearance longhand for inputs.
-        // When 'none' (the appearance:none custom-styled pattern), the
-        // renderer suppresses its UA-default checkbox / radio chrome so the
-        // host's author-styled border + background show through, with only
-        // the :checked indicator overlaid on top. DM-285.
-        inputAppearance: tag === 'input' ? (cs.webkitAppearance || cs.appearance || '') : undefined,
-        checked: (tag === 'input' && (el.type === 'checkbox' || el.type === 'radio')) ? !!el.checked : undefined,
-        indeterminate: (tag === 'input' && el.type === 'checkbox') ? !!el.indeterminate : undefined,
-        disabled: (tag === 'input' || tag === 'button' || tag === 'select' || tag === 'textarea') ? !!el.disabled : undefined,
-        progressValue: tag === 'progress' ? (el.hasAttribute('value') ? +el.value : undefined) : undefined,
-        progressMax: tag === 'progress' ? (el.max || 1) : undefined,
-        // ::-webkit-progress-bar / ::-webkit-progress-value pseudo styles —
-        // resolved via the same stylesheet walker the slider track/thumb
-        // use (SK-1222). getComputedStyle(el, pseudo) returns the host
-        // <progress>'s style for these UA pseudos, not the pseudo's
-        // cascaded value, so author rules like
-        // ::-webkit-progress-value { background: green } were silently
-        // dropped. Walking document.styleSheets restores them.
-        ...(tag === 'progress' ? (function () {
-          const bar = _resolvePseudo(el, 'progress-bar');
-          const val = _resolvePseudo(el, 'progress-value');
-          return {
-            progressBarBg: bar.matched && bar.backgroundColor !== '' ? normColor(bar.backgroundColor) : undefined,
-            progressBarBgImage: bar.matched && bar.backgroundImage !== '' ? bar.backgroundImage : undefined,
-            progressBarRadius: bar.matched && bar.borderRadius !== '' ? bar.borderRadius : undefined,
-            progressValueBg: val.matched && val.backgroundColor !== '' ? normColor(val.backgroundColor) : undefined,
-            progressValueBgImage: val.matched && val.backgroundImage !== '' ? val.backgroundImage : undefined,
-            progressValueRadius: val.matched && val.borderRadius !== '' ? val.borderRadius : undefined,
-          };
-        })() : {}),
-        meterValue: tag === 'meter' ? (el.value != null ? +el.value : undefined) : undefined,
-        meterMin: tag === 'meter' ? (el.min || 0) : undefined,
-        meterMax: tag === 'meter' ? (el.max || 1) : undefined,
-        meterLow: tag === 'meter' ? (el.low != null ? +el.low : undefined) : undefined,
-        meterHigh: tag === 'meter' ? (el.high != null ? +el.high : undefined) : undefined,
-        meterOptimum: tag === 'meter' ? (el.optimum != null ? +el.optimum : undefined) : undefined,
-        // <meter> pseudo styles via the stylesheet walker (SK-1222 — same
-        // Chromium quirk as <progress>).
-        ...(tag === 'meter' ? (function () {
-          const bar = _resolvePseudo(el, 'meter-bar');
-          const opt = _resolvePseudo(el, 'meter-optimum');
-          const sub = _resolvePseudo(el, 'meter-suboptimum');
-          const elg = _resolvePseudo(el, 'meter-even-less-good');
-          return {
-            meterBarBg: bar.matched && bar.backgroundColor !== '' ? normColor(bar.backgroundColor) : undefined,
-            meterBarBgImage: bar.matched && bar.backgroundImage !== '' ? bar.backgroundImage : undefined,
-            meterBarRadius: bar.matched && bar.borderRadius !== '' ? bar.borderRadius : undefined,
-            meterOptimumBg: opt.matched && opt.backgroundColor !== '' ? normColor(opt.backgroundColor) : undefined,
-            meterOptimumBgImage: opt.matched && opt.backgroundImage !== '' ? opt.backgroundImage : undefined,
-            meterSuboptimumBg: sub.matched && sub.backgroundColor !== '' ? normColor(sub.backgroundColor) : undefined,
-            meterSuboptimumBgImage: sub.matched && sub.backgroundImage !== '' ? sub.backgroundImage : undefined,
-            meterEvenLessGoodBg: elg.matched && elg.backgroundColor !== '' ? normColor(elg.backgroundColor) : undefined,
-            meterEvenLessGoodBgImage: elg.matched && elg.backgroundImage !== '' ? elg.backgroundImage : undefined,
-          };
-        })() : {}),
-        detailsOpen: tag === 'details' ? !!el.open : undefined,
-        // Detect if author CSS hid the summary's UA disclosure marker (e.g.
-        // ::marker { color: transparent }). If so, skip painting our own
-        // triangle — the author's custom marker (typically ::before) is the
-        // only one that should show. DM-448.
-        summaryMarkerSuppressed: tag === 'details' ? (() => {
-          const sum = el.querySelector(':scope > summary');
-          if (sum == null) return false;
-          const mc = window.getComputedStyle(sum, '::marker').color;
-          // 'transparent' or 'rgba(R, G, B, 0)' → alpha=0. 'rgb(R, G, B)'
-          // (no alpha component) is opaque and must NOT trigger suppression.
-          if (mc === 'transparent') return true;
-          const am = /^rgba\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*([0-9.]+)\s*\)$/.exec(mc);
-          if (am != null && parseFloat(am[1]) === 0) return true;
-          return false;
-        })() : undefined,
-        // Native chevron only when the select keeps UA chrome — appearance:
-        // none means the page draws its own arrow via background-image, and
-        // we should not stack our default chevron on top. (DM-308)
-        selectChevron: tag === 'select' && el.size <= 1 && !el.multiple
-          && cs.appearance !== 'none' && cs.webkitAppearance !== 'none',
-        selectDisplayText: tag === 'select' && el.size <= 1 && !el.multiple
-          ? (el.selectedOptions && el.selectedOptions.length > 0
-              ? (el.selectedOptions[0].textContent || '').trim()
-              : (el.options && el.options.length > 0 ? (el.options[0].textContent || '').trim() : ''))
-          : undefined,
-        // Listbox-mode selects (size > 1 or multiple) flatten their option/
-        // optgroup children into a captured row list. The renderer walks this
-        // list and paints one row per entry inside the select's content rect.
-        // Optgroup labels are emitted as italic+bold rows that don't count
-        // against selection. DM-282.
-        selectListboxOptions: tag === 'select' && (el.size > 1 || el.multiple)
-          ? (function () {
-              const out = [];
-              const kids = el.children;
-              for (let _ki = 0; _ki < kids.length; _ki++) {
-                const c = kids[_ki];
-                if (c.tagName === 'OPTGROUP') {
-                  out.push({ text: c.label || '', selected: false, disabled: !!c.disabled, isOptgroupLabel: true });
-                  const og = c.children;
-                  for (let _gi = 0; _gi < og.length; _gi++) {
-                    const o = og[_gi];
-                    if (o.tagName !== 'OPTION') continue;
-                    out.push({ text: (o.textContent || '').trim(), selected: !!o.selected, disabled: !!o.disabled, isOptgroupChild: true });
-                  }
-                } else if (c.tagName === 'OPTION') {
-                  out.push({ text: (c.textContent || '').trim(), selected: !!c.selected, disabled: !!c.disabled });
-                }
-              }
-              return out;
-            })()
-          : undefined,
-        accentColor: (tag === 'input' || tag === 'progress' || tag === 'meter') ? normColor(cs.accentColor || 'auto') : undefined,
-        caretColor: (tag === 'input' || tag === 'textarea') ? normColor(cs.caretColor || 'auto') : undefined,
-        inputValue: tag === 'input' ? (el.value || '') : undefined,
-        inputMin: tag === 'input' ? (el.min || '') : undefined,
-        inputMax: tag === 'input' ? (el.max || '') : undefined,
-        inputStep: tag === 'input' ? (el.step || '') : undefined,
-        inputMultiple: tag === 'input' ? !!el.multiple : undefined,
-        inputFileName: (tag === 'input' && el.type === 'file' && el.files && el.files.length > 0) ? el.files[0].name : undefined,
-        // ::-webkit-color-swatch / -wrapper / -inner-spin-button /
-        // -search-cancel-button pseudo styles via the stylesheet walker
-        // (SK-1223). Same Chromium quirk as slider/progress/meter — captured
-        // here as fields the renderer can pick up. v1: color-swatch is the
-        // most commonly authored; the others land their fields for future
-        // renderer work.
-        ...(tag === 'input' && el.type === 'color' ? (function () {
-          const swatch = _resolvePseudo(el, 'color-swatch');
-          const wrap = _resolvePseudo(el, 'color-swatch-wrapper');
-          return {
-            colorSwatchBg: swatch.matched && swatch.backgroundColor !== '' ? normColor(swatch.backgroundColor) : undefined,
-            colorSwatchBgImage: swatch.matched && swatch.backgroundImage !== '' ? swatch.backgroundImage : undefined,
-            colorSwatchBorder: swatch.matched && swatch.border !== '' ? swatch.border : undefined,
-            colorSwatchRadius: swatch.matched && swatch.borderRadius !== '' ? swatch.borderRadius : undefined,
-            colorSwatchWrapperPadding: wrap.matched && wrap.padding !== '' ? wrap.padding : undefined,
-          };
-        })() : {}),
-        ...(tag === 'input' && el.type === 'number' ? (function () {
-          const spin = _resolvePseudo(el, 'inner-spin-button');
-          return {
-            numberSpinButtonBg: spin.matched && spin.backgroundColor !== '' ? normColor(spin.backgroundColor) : undefined,
-            numberSpinButtonBorder: spin.matched && spin.border !== '' ? spin.border : undefined,
-            numberSpinButtonRadius: spin.matched && spin.borderRadius !== '' ? spin.borderRadius : undefined,
-          };
-        })() : {}),
-        ...(tag === 'input' && el.type === 'search' ? (function () {
-          const cancel = _resolvePseudo(el, 'search-cancel-button');
-          return {
-            searchCancelButtonBg: cancel.matched && cancel.backgroundColor !== '' ? normColor(cancel.backgroundColor) : undefined,
-            searchCancelButtonBorder: cancel.matched && cancel.border !== '' ? cancel.border : undefined,
-            searchCancelButtonRadius: cancel.matched && cancel.borderRadius !== '' ? cancel.borderRadius : undefined,
-          };
-        })() : {}),
-        // input[type=range] custom pseudo styles (SK-1131 / SK-1137 / SK-1138).
-        // Resolved by walking document.styleSheets — getComputedStyle(el, pseudo)
-        // is unreliable for these UA-internal pseudos in Chromium (returns the
-        // host element's style instead of the pseudo's). A pseudo is treated
-        // as author-styled when at least one matching rule was found OR the
-        // host has -webkit-appearance: none (the .r-custom pattern always
-        // pairs the two and we want the renderer to drop UA chrome even if
-        // only the track is rule-styled).
-        ...(tag === 'input' && el.type === 'range' ? (function () {
-          const ts = _resolvePseudo(el, 'track');
-          const ms = _resolvePseudo(el, 'thumb');
-          const elAppearance = cs.webkitAppearance || cs.appearance;
-          const customAppearance = elAppearance === 'none';
-          const styledTrack = ts.matched || customAppearance;
-          const styledThumb = ms.matched || customAppearance;
-          return {
-            rangeTrackBg: styledTrack && ts.backgroundColor !== '' ? normColor(ts.backgroundColor) : (styledTrack ? 'rgba(0, 0, 0, 0)' : undefined),
-            rangeTrackHeight: styledTrack ? ts.height : undefined,
-            rangeTrackRadius: styledTrack ? ts.borderRadius : undefined,
-            rangeTrackBgImage: styledTrack && ts.backgroundImage !== '' ? ts.backgroundImage : undefined,
-            rangeThumbBg: styledThumb && ms.backgroundColor !== '' ? normColor(ms.backgroundColor) : (styledThumb ? 'rgba(0, 0, 0, 0)' : undefined),
-            rangeThumbWidth: styledThumb ? ms.width : undefined,
-            rangeThumbHeight: styledThumb ? ms.height : undefined,
-            rangeThumbRadius: styledThumb ? ms.borderRadius : undefined,
-            rangeThumbBgImage: styledThumb && ms.backgroundImage !== '' ? ms.backgroundImage : undefined,
-            rangeTrackBorder: styledTrack && ts.border !== '' ? ts.border : undefined,
-            rangeThumbBorder: styledThumb && ms.border !== '' ? ms.border : undefined,
-            rangeThumbBoxShadow: styledThumb && ms.boxShadow !== '' ? ms.boxShadow : undefined,
-          };
-        })() : {}),
-        fileButtonBg: (tag === 'input' && el.type === 'file') ? normColor(window.getComputedStyle(el, '::file-selector-button').backgroundColor) : undefined,
-        fileButtonColor: (tag === 'input' && el.type === 'file') ? normColor(window.getComputedStyle(el, '::file-selector-button').color) : undefined,
-        fileButtonBorder: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').border : undefined,
-        fileButtonBorderRadius: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').borderRadius : undefined,
-        fileButtonPadding: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').padding : undefined,
-        fileButtonFontWeight: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').fontWeight : undefined,
-        fileButtonFontSize: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').fontSize : undefined,
-        fileButtonFontFamily: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').fontFamily : undefined,
-        fileButtonMarginRight: (tag === 'input' && el.type === 'file') ? window.getComputedStyle(el, '::file-selector-button').marginRight : undefined,
-        fileButtonLabelWidth: (tag === 'input' && el.type === 'file') ? (function () {
-          // Measure the button label's painted width via canvas.measureText
-          // using the resolved pseudo font. Chrome returns sub-pixel exact
-          // widths here; we use this to position the trailing 'No file
-          // chosen' placeholder at the same x Chrome paints rather than
-          // overestimating via the per-char ratio. DM-288.
-          var pseudoCs = window.getComputedStyle(el, '::file-selector-button');
-          var c = document.createElement('canvas');
-          var ctx = c.getContext('2d');
-          if (ctx == null) return undefined;
-          var weight = pseudoCs.fontWeight || '400';
-          var size = pseudoCs.fontSize || '13px';
-          var family = pseudoCs.fontFamily || 'sans-serif';
-          ctx.font = weight + ' ' + size + ' ' + family;
-          var label = el.multiple ? 'Choose Files' : 'Choose File';
-          return ctx.measureText(label).width;
-        })() : undefined,
+        // Form-control fields — input / progress / meter / select / details
+        // + ::-webkit-* pseudos for slider track/thumb, color swatch, number
+        // spin button, search cancel, file-selector button. See
+        // walker/form-controls.ts. Input value-capture-as-text and color-
+        // input border tinting deliberately stay inline (entangled with
+        // text-shaping and border-color emission respectively).
+        ...captureFormControls(el, cs, tag),
         outlineStyle: cs.outlineStyle,
         outlineWidth: cs.outlineWidth,
         outlineColor: normColor(cs.outlineColor),
