@@ -24,6 +24,7 @@ import { createPlaceholderShown } from "./placeholder-shown.js";
 import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
 import { createListsCountersHandler } from "./walker/lists-counters.js";
+import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 
 export const captureScript =
 (args) => {
@@ -41,13 +42,7 @@ export const captureScript =
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules();
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   const { captureListsCounters } = createListsCountersHandler({ normColor });
-
-  // DM-457: per-capture counter for replaced-element snapshots
-  // (canvas / video / iframe / object / embed). Each marked element gets
-  // data-domotion-rid set on the live DOM so rasterizeReplacedElements can
-  // toggle the "snapshot target" attribute one element at a time. Resets to 0
-  // on every captureElementTree call, overwriting any prior rid attributes.
-  let _replacedIdx = 0;
+  const { handleReplacedElement } = createReplacedElementsHandler({ vp });
 
   // Mask fragment definitions collected during capture (DM-493): when an
   // element uses 'mask-image: url("#id")', resolve the referenced inline
@@ -1989,98 +1984,12 @@ export const captureScript =
       _captured.pseudoImages = undefined;
       _captured.elementRaster = undefined;
     }
-    // DM-457: <canvas> / <video> / <iframe> / <object> / <embed> have no DOM
-    // we can re-render — capture the content-box rect and tag the live
-    // element so the post-pass can hide-everything-else and screenshot just
-    // its painted pixels. The warning logged earlier in this function still
-    // stands (these are out of the spirit of the path-rendering contract); the
-    // snapshot exists only to avoid blank holes. See docs/17.
-    //
-    // DM-511: also route custom elements (hyphenated tag names per the spec)
-    // through the snapshot path when they have shadow DOM. NYT's mobile
-    // homepage uses <nyt-betamax> / <nyt-betamax-cover> custom elements to
-    // render the Met Gala photo carousel — the visible thumbnails live in
-    // shadow DOM that our light-DOM walk can't see, so without this route
-    // the section paints empty. Only trigger the route when the element has
-    // an open shadowRoot (the test that survives closed-shadow inaccessibility
-    // — closed shadows can't be reached anyway, but their painted output is
-    // visible and snapshot-able, so we route based on a weaker signal: any
-    // hyphenated tag with no light-DOM children whose paint covers the box).
-    const _isCustomEl = tag.indexOf('-') > 0;
-    const _hasOpenShadow = _isCustomEl && el.shadowRoot != null;
-    const _customElNeedsSnapshot = _isCustomEl && _hasOpenShadow;
-    if ((tag === 'iframe' || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed' || _customElNeedsSnapshot)
-        && !bordersOnlyCell
-        && cs.display !== 'none'
-        && rect.width > 0 && rect.height > 0) {
-      const _bl = parseFloat(cs.borderLeftWidth) || 0;
-      const _br = parseFloat(cs.borderRightWidth) || 0;
-      const _bt = parseFloat(cs.borderTopWidth) || 0;
-      const _bb = parseFloat(cs.borderBottomWidth) || 0;
-      const _pl = parseFloat(cs.paddingLeft) || 0;
-      const _pr = parseFloat(cs.paddingRight) || 0;
-      const _pt = parseFloat(cs.paddingTop) || 0;
-      const _pb = parseFloat(cs.paddingBottom) || 0;
-      const _cw = rect.width - _bl - _br - _pl - _pr;
-      const _ch = rect.height - _bt - _bb - _pt - _pb;
-      if (_cw > 0 && _ch > 0) {
-        const _rid = 'dr' + (_replacedIdx++);
-        el.setAttribute('data-domotion-rid', _rid);
-        _captured.replacedSnapshot = {
-          x: rect.left - vp.x + _bl + _pl,
-          y: rect.top - vp.y + _bt + _pt,
-          width: _cw,
-          height: _ch,
-          rid: _rid,
-        };
-      }
-    }
-    // DM-506: CSS sprite icon image-replacement idiom — text-indent: -9999px
-    // (or text-indent: <neg> + overflow: hidden + white-space: nowrap) on an
-    // element with a background-image. Chrome paints only the sliced sprite
-    // region; the text is offscreen. Domotion's bg-image pattern path can't
-    // slice reliably (the synchronous naturalWidth read at capture-time often
-    // returns 0 for url() backgrounds whose <img> cache hasn't loaded), so we
-    // route the element through the same rasterize-painted-rect path used for
-    // <canvas>/<video>/<iframe>. The captured text becomes an SVG <title> on
-    // the rasterized <image> so accessibility round-trips.
-    // See docs/23-css-sprite-icons.md.
-    // DM-598: the sprite-icon path is for *text-bearing* elements using the
-    // image-replacement idiom (negative text-indent + bg-image). When the
-    // element is itself an <img> the renderer already emits the painted
-    // image with proper object-fit handling — adding a snapshot on top would
-    // stack two <image> tags at the same coordinates, and the snapshot's
-    // preserveAspectRatio="none" wins and stretches.
-    if (!bordersOnlyCell
-        && cs.display !== 'none'
-        && rect.width > 0 && rect.height > 0
-        && _captured.replacedSnapshot == null
-        && _captured.imageSrc == null) {
-      const _ti = parseFloat(cs.textIndent) || 0;
-      const _ovX = cs.overflowX === 'hidden' || cs.overflow === 'hidden';
-      const _hasBgImage = cs.backgroundImage != null && cs.backgroundImage !== 'none' && cs.backgroundImage !== '';
-      const _phark = _ti <= -1000;
-      const _modern = _ti < 0 && _ovX && cs.whiteSpace === 'nowrap';
-      if ((_phark || _modern) && _hasBgImage) {
-        const _rid2 = 'dr' + (_replacedIdx++);
-        el.setAttribute('data-domotion-rid', _rid2);
-        const _titleText = ((el.getAttribute && el.getAttribute('aria-label')) || _captured.text || '').trim();
-        _captured.replacedSnapshot = {
-          x: rect.left - vp.x,
-          y: rect.top - vp.y,
-          width: rect.width,
-          height: rect.height,
-          rid: _rid2,
-        };
-        _captured.imageReplacement = { titleText: _titleText };
-        // Suppress the broken bg-image emission and the off-screen text — the
-        // raster already covers both. Keep border + bg-color emission so a
-        // styled border around the icon (rare but supported) still paints.
-        _captured.styles.backgroundImage = undefined;
-        _captured.text = '';
-        _captured.textSegments = undefined;
-      }
-    }
+    // Replaced-element snapshot routing — <iframe>/<canvas>/<video>/<object>/
+    // <embed>, custom elements with open shadow DOM, and the CSS sprite-icon
+    // image-replacement idiom. Handler mutates _captured (.replacedSnapshot,
+    // .imageReplacement, and on the sprite-icon path .styles.backgroundImage /
+    // .text / .textSegments). See walker/replaced-elements.ts.
+    handleReplacedElement(el, cs, tag, rect, _captured, bordersOnlyCell);
     return _captured;
   };
 
