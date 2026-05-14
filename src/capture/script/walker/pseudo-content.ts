@@ -498,12 +498,34 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         // the renderer can emit <image x=…/> alongside other viewport-
         // local markup. Node-side raster adds vp.x/vp.y when calling
         // page.screenshot (which wants page-absolute pixels).
-        pseudoSeg.rasterRect = {
-          x: pseudoSeg.x,
-          y: elTop,
-          width: pseudoWidth,
-          height: lineH,
-        };
+        //
+        // DM-626: for all-PUA (icon-font) pseudos the visible glyph
+        // often paints outside the canvas-measured advance-width box
+        // because the font's glyph has a left-side bearing that
+        // positions the visible ink past the cursor origin. A narrow
+        // `pseudoWidth`-sized rect ends up capturing only the
+        // advance-width slice, cutting off most of the glyph. Use the
+        // host element's full painted rect for icon-font pseudos so
+        // the screenshot covers wherever Chromium painted the glyph
+        // (the empty area inside the host rect is harmless under
+        // `omitBackground: true`). For emoji / U+2713 etc. the
+        // textNeedsRaster path keeps its tighter rect since those
+        // glyphs sit inside their advance box.
+        if (allPua && !textNeedsRaster(text)) {
+          pseudoSeg.rasterRect = {
+            x: rect.left - vp.x,
+            y: rect.top - vp.y,
+            width: rect.width,
+            height: rect.height,
+          };
+        } else {
+          pseudoSeg.rasterRect = {
+            x: pseudoSeg.x,
+            y: elTop,
+            width: pseudoWidth,
+            height: lineH,
+          };
+        }
       }
       pseudoSegments.push({
         isBefore: pseudo === '::before',

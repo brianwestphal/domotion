@@ -134,10 +134,20 @@ export const createPseudoInjectHandler = () => {
       }
 
       // Re-anchor rasterRect to the final (post-injection) seg.x/y.
+      // DM-626: when the rasterRect was sized to the host element's full
+      // painted box (icon-font PUA case where the visible glyph paints
+      // outside the canvas advance-width — `walker/pseudo-content.ts`
+      // widens the rasterRect to the host rect for those), don't
+      // re-anchor — the rasterRect already covers the right viewport
+      // region and shifting it by margin-left+borderL+paddingL would
+      // displace the screenshot off Chromium's painted output.
       if (p.seg.rasterRect != null) {
-        p.seg.rasterRect.x = p.seg.x;
-        p.seg.rasterRect.y = p.seg.y;
-        p.seg.rasterRect.height = p.seg.height;
+        const isHostSized = p.seg.rasterRect.width > p.seg.width + 1;
+        if (!isHostSized) {
+          p.seg.rasterRect.x = p.seg.x;
+          p.seg.rasterRect.y = p.seg.y;
+          p.seg.rasterRect.height = p.seg.height;
+        }
       }
 
       // DM-497: compute the pseudo's own paint box for ::before /

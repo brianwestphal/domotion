@@ -391,6 +391,20 @@ function mergeFeatureLists(a: string[] | undefined, b: string[] | undefined): st
  */
 export function renderSingleLineText(opts: RenderTextOpts): string {
   const { el, clipId, fillColor } = opts;
+  // Raster fallback (DM-626 follow-up to DM-583): when the only segment
+  // is a pseudo whose codepoints fontkit can't shape (e.g. icon-font
+  // PUA codepoints in a font we don't have access to), CAPTURE_SCRIPT
+  // marks `rasterRect` and `rasterizeBitmapGlyphs` fills in
+  // `rasterDataUri` with a screenshot of Chromium's actual paint.
+  // Path emission for these glyphs strips the font's left-side
+  // bearing so the visible glyph drifts left of where Chrome paints
+  // it (DM-596). Use the screenshot instead — pixel-faithful and
+  // anchored at the position Chromium painted from.
+  const ssSeg = (el.textSegments != null && el.textSegments.length === 1) ? el.textSegments[0] : undefined;
+  if (ssSeg != null && ssSeg.rasterDataUri != null && ssSeg.rasterRect != null) {
+    const rr = ssSeg.rasterRect;
+    return `<image href="${ssSeg.rasterDataUri}" x="${r(rr.x)}" y="${r(rr.y)}" width="${r(rr.width)}" height="${r(rr.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
+  }
   const fontSize = parseFloat(el.styles.fontSize) || 14;
   const fontFamily = el.styles.fontFamily;
   const fontWeight = el.styles.fontWeight;
