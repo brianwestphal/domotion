@@ -20,7 +20,7 @@ Early — extracted in 2026-04 from the slicekit project where it had been incub
 
 Domotion ships as a normal npm package and is **designed** to work on macOS, Linux, and Windows — the captured SVG is meant to be pixel-faithful to Chromium on whichever platform the capture is running on (CoreText fallback on macOS, fontconfig on Linux, DirectWrite on Windows).
 
-**Today it's only actively tested and calibrated on macOS.** Linux and Windows are roadmap items: cross-platform path discovery, fallback-font chains, and CI coverage are tracked under DM-258 → DM-259 / DM-260 / DM-261 → DM-262. The package will install and run on Linux/Windows, but text rendering won't yet match the host Chromium as faithfully as it does on macOS.
+**Today it's only actively tested and calibrated on macOS.** Linux and Windows are roadmap items: cross-platform system-font path discovery, per-platform fallback-font chains calibrated against the host Chromium, optional bundled fallback fonts when no local match resolves, and CI coverage on both platforms. The package will install and run on Linux/Windows, but text rendering won't yet match the host Chromium as faithfully as it does on macOS.
 
 If you'd like to help with cross-platform support — testing on Linux or Windows, reporting issues you hit, or sending fixes — please open an issue or PR on [GitHub](https://github.com/brianwestphal/domotion). Bug reports against macOS are also welcome.
 
