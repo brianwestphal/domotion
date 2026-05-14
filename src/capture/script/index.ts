@@ -1,29 +1,44 @@
 // @ts-nocheck
 //
-// Source for the in-page capture script. The build step at
-// `scripts/build-capture-script.mjs` transforms this file (TS → JS via esbuild)
-// and embeds the function expression as the CAPTURE_SCRIPT string in
-// `src/capture-script.generated.ts`, which `dom-to-svg.ts` injects via
-// page.evaluate(). The IIFE runs in the captured page's context; it cannot
-// reach Node-side modules, and the runtime artefact must remain a single
-// self-contained script with no `import`s. All values it needs from Node come
-// through the `args` parameter. (DM-619e will split this file into per-concern
-// files; the bundler will stitch them back into one string.)
+// Source for the in-page capture script. The orchestrator of the per-concern
+// factory modules under `src/capture/script/`. The build step at
+// `scripts/build-capture-script.mjs` bundles this entry + its imports (esbuild
+// with bundle:true) into a single self-contained function expression that
+// becomes the `CAPTURE_SCRIPT` string in `src/capture/script.generated.ts`,
+// which `src/capture/index.ts` injects via page.evaluate(). The function runs
+// in the captured page's context — at runtime there are no imports left, just
+// one IIFE that takes `args` and returns `{ tree, warnings }`.
+//
+// Helpers that are self-contained pre-walk / per-call utilities live in
+// sibling files; this file owns the giant `captureInner` element walker, the
+// `_maskDefs` / `_maskRasters` collection state that walker writes into, and
+// the top-level orchestration (fixed-ancestor pre-pass, counter pre-walk,
+// root-element capture, mask-def + dark-mode attachment to the result tree).
+// The captureInner monolith is intentionally not split here — DM-619 part B
+// (separate ticket) is the place for that work.
+
+import { createColorNorm } from "./color-norm.js";
+import { createEmojiDetect } from "./emoji-detect.js";
+import { createFontMetrics } from "./font-metrics.js";
+import { createPlaceholderShown } from "./placeholder-shown.js";
+import { createPseudoRules } from "./pseudo-rules.js";
+import { createWarnings } from "./warnings.js";
 
 export const captureScript =
 (args) => {
   const sel = args.sel;
   const vp = args.vp;
 
-  // Normalize any CSS <color> value (named, #hex, hsl, hwb, lab/lch, oklab/oklch,
-  // color(), color-mix(), etc.) to an srgb form parseColor() can consume.
-  // We use a hidden probe element with 'color-mix(in srgb, <c> 100%, transparent 0%)'
-  // — a trick that forces getComputedStyle() to resolve wide-gamut inputs into
-  // 'color(srgb r g b / alpha)' or 'rgb()/rgba()' form. Canvas fillStyle works for
-  // srgb colors but silently rejects lab/lch/oklab/oklch/color(), so we avoid it.
-  const _normProbe = document.createElement('div');
-  _normProbe.style.position = 'absolute'; _normProbe.style.visibility = 'hidden';
-  document.body.appendChild(_normProbe);
+  // Wire up per-concern helpers. Each factory closes over its own state and
+  // returns the handles captureInner / the orchestration tail call. Renamed
+  // (e.g. `warnings: _warnings`) to keep captureInner's existing references
+  // unchanged.
+  const { normColor } = createColorNorm();
+  const { needsRaster, textNeedsRaster } = createEmojiDetect();
+  const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
+  const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
+  const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules();
+  const { warn, shortSelector, warnings: _warnings } = createWarnings();
 
   // DM-457: per-capture counter for replaced-element snapshots
   // (canvas / video / iframe / object / embed). Each marked element gets
@@ -32,448 +47,6 @@ export const captureScript =
   // on every captureElementTree call, overwriting any prior rid attributes.
   let _replacedIdx = 0;
 
-  // Walk document.styleSheets and collect rules that target any of the
-  // supported WebKit form-control shadow pseudos (SK-1131, SK-1138, SK-1222).
-  //
-  // Original problem: getComputedStyle(el, '::-webkit-slider-thumb') in
-  // Chromium returns the HOST element's computed style for these
-  // UA-internal pseudos rather than the pseudo's cascaded value — so
-  // width: 22px on the thumb rule came back as the host's width:100%
-  // (~544px) and the renderer drew a giant pill instead of a small thumb.
-  // SK-1193 confirmed the same quirk affects every WebKit-internal input,
-  // progress, and meter pseudo (the only exception is ::file-selector-button
-  // which is a real shadow-DOM element). Reading rules directly via
-  // document.styleSheets avoids the quirk uniformly.
-  //
-  // var() and calc() expressions are resolved at apply-time by probing the
-  // host element's inline style (SK-1191) — the host has the same custom
-  // properties in scope as the pseudo. State pseudos
-  // (:hover/:active/:focus/:focus-visible/:focus-within/:disabled) ARE
-  // supported (SK-1192) — rules with these in the host selector are
-  // collected like any other and el.matches(hostSel) at apply-time decides
-  // whether each rule applies given the element's current DOM state.
-  // Gradient backgrounds (linear + radial) round-trip via the renderer's
-  // gradient-def pipeline (SK-1224 / SK-1225 / SK-1226).
-  //
-  // Pseudo "kind" names are short stable identifiers used by the renderer
-  // to look up captured fields. The regex below maps each WebKit selector
-  // to its kind.
-  const _pseudoKindRe = /^(.*?)::?(-webkit-slider-runnable-track|-webkit-slider-thumb|-webkit-progress-bar|-webkit-progress-value|-webkit-meter-bar|-webkit-meter-optimum-value|-webkit-meter-suboptimum-value|-webkit-meter-even-less-good-value|-webkit-color-swatch|-webkit-color-swatch-wrapper|-webkit-inner-spin-button|-webkit-search-cancel-button)$/;
-  const _kindMap = {
-    '-webkit-slider-runnable-track': 'track',
-    '-webkit-slider-thumb': 'thumb',
-    '-webkit-progress-bar': 'progress-bar',
-    '-webkit-progress-value': 'progress-value',
-    '-webkit-meter-bar': 'meter-bar',
-    '-webkit-meter-optimum-value': 'meter-optimum',
-    '-webkit-meter-suboptimum-value': 'meter-suboptimum',
-    '-webkit-meter-even-less-good-value': 'meter-even-less-good',
-    '-webkit-color-swatch': 'color-swatch',
-    '-webkit-color-swatch-wrapper': 'color-swatch-wrapper',
-    '-webkit-inner-spin-button': 'inner-spin-button',
-    '-webkit-search-cancel-button': 'search-cancel-button',
-  };
-  const _pseudoRules = [];
-  const _collectPseudoRules = (rules) => {
-    if (rules == null) return;
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules[i];
-      if (rule == null) continue;
-      const selectorText = rule.selectorText;
-      if (typeof selectorText === 'string') {
-        const selectors = selectorText.split(',').map(function (s) { return s.trim(); });
-        for (let j = 0; j < selectors.length; j++) {
-          const sel = selectors[j];
-          const m = sel.match(_pseudoKindRe);
-          if (m == null) continue;
-          const kind = _kindMap[m[2]];
-          if (kind == null) continue;
-          const hostSel = m[1].trim();
-          _pseudoRules.push({ kind: kind, hostSel: hostSel, decl: rule.style });
-        }
-      }
-      if (rule.cssRules != null && rule.cssRules.length > 0) _collectPseudoRules(rule.cssRules);
-    }
-  };
-  for (let _si = 0; _si < document.styleSheets.length; _si++) {
-    try { _collectPseudoRules(document.styleSheets[_si].cssRules); } catch (e) { /* CORS — skip */ }
-  }
-  // Resolve a pseudo's cascaded declarations for an element by applying
-  // matching rules in source order (later rules win per property). Specificity
-  // is approximated as source order — adequate for a single author stylesheet.
-  const _firstColorRe = /(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|\b(?:white|black|red|green|blue|yellow|purple|orange|gray|grey|currentColor)\b)/;
-  const _isUnsetCssValue = (v) => v === '' || v === 'initial' || v === 'inherit' || v === 'unset' || v === 'revert';
-  // Walk all stylesheets for ':placeholder-shown' rules. Strip the pseudo from
-  // the selector to get a host selector that el.matches() can test even when
-  // the element isn't currently in the matched state. We capture the rule's
-  // bg-color and the renderer applies it conditionally on inputs whose value
-  // is empty + placeholder attribute is set. DM-283.
-  const _placeholderShownRules = [];
-  const _collectPlaceholderShownRules = (rules) => {
-    if (rules == null) return;
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules[i];
-      if (rule == null) continue;
-      const sel = rule.selectorText;
-      if (typeof sel === 'string' && sel.indexOf(':placeholder-shown') >= 0) {
-        const hostSel = sel.replace(/:placeholder-shown/g, '').trim() || '*';
-        const decl = rule.style;
-        let bg = '';
-        if (!_isUnsetCssValue(decl.backgroundColor)) bg = decl.backgroundColor;
-        else if (!_isUnsetCssValue(decl.background)) {
-          const cm = decl.background.match(_firstColorRe);
-          if (cm != null) bg = cm[1];
-        }
-        if (bg !== '') _placeholderShownRules.push({ hostSel: hostSel, bg: bg });
-      }
-      if (rule.cssRules != null && rule.cssRules.length > 0) _collectPlaceholderShownRules(rule.cssRules);
-    }
-  };
-  for (let _si = 0; _si < document.styleSheets.length; _si++) {
-    try { _collectPlaceholderShownRules(document.styleSheets[_si].cssRules); } catch (e) { /* CORS — skip */ }
-  }
-  // Resolve ':placeholder-shown' bg color for an empty-with-placeholder input.
-  // Returns the captured color or empty string. DM-283.
-  const _resolvePlaceholderShownBg = (el) => {
-    let bg = '';
-    for (let i = 0; i < _placeholderShownRules.length; i++) {
-      const r = _placeholderShownRules[i];
-      let isMatch = false;
-      try { isMatch = el.matches(r.hostSel); } catch (e) { /* invalid */ }
-      if (isMatch) bg = r.bg;
-    }
-    return bg;
-  };
-  // Resolve var() and calc() in a declared rule value by temporarily applying
-  // it to the host's inline style and reading the computed value back
-  // (SK-1191). The host has the same CSS variables in scope as the pseudo
-  // (custom props inherit through the shadow boundary), so values like
-  // var(--thumb-size) or calc(var(--track-h) * 2) resolve correctly.
-  // Limitations: percentage values resolve against the host's containing
-  // block, not the pseudo's, and width/height: 100% on a thumb especially can
-  // come out wrong — but the common authoring patterns (var-driven tokens,
-  // calc with px units) round-trip faithfully.
-  const _needsResolve = (v) => v != null && v !== '' && (v.indexOf('var(') >= 0 || v.indexOf('calc(') >= 0);
-  const _propMap = { backgroundColor: 'background-color', backgroundImage: 'background-image', borderRadius: 'border-radius', width: 'width', height: 'height' };
-  const _resolveOne = (host, propKey, value) => {
-    if (!_needsResolve(value)) return value;
-    const cssProp = _propMap[propKey] || propKey;
-    const saved = host.style.getPropertyValue(cssProp);
-    const savedPriority = host.style.getPropertyPriority(cssProp);
-    host.style.setProperty(cssProp, value);
-    const resolved = window.getComputedStyle(host).getPropertyValue(cssProp);
-    if (saved === '') host.style.removeProperty(cssProp);
-    else host.style.setProperty(cssProp, saved, savedPriority);
-    return resolved !== '' ? resolved : value;
-  };
-  // Resolve a single border-corner-radius value (e.g. "30px" or "50% 20%") to
-  // a px-based axis-pair the renderer can use. Chrome's longhand corner values
-  // come back already-resolved to px when the author used px, but a percent-
-  // valued radius is preserved as e.g. "50%" so we have to evaluate it against
-  // the box dimensions ourselves. Returns "h v" in px (two numbers separated
-  // by a space) — h is the horizontal axis (resolved against rect width) and
-  // v is the vertical axis (resolved against rect height). Per-corner radii
-  // can be elliptical; returning the pair lets the renderer emit per-axis arc
-  // commands without losing the elliptical shape (e.g. border-radius:50px/20px).
-  const _resolveCornerRadius = (v, w, h) => {
-    if (v == null || v === '') return '0px 0px';
-    const parts = v.split(/\s+/);
-    const a = parts[0] || '0';
-    const b = parts[1] != null ? parts[1] : a;
-    const aPx = a.endsWith('%') ? (parseFloat(a) || 0) * w / 100 : (parseFloat(a) || 0);
-    const bPx = b.endsWith('%') ? (parseFloat(b) || 0) * h / 100 : (parseFloat(b) || 0);
-    return aPx + 'px ' + bPx + 'px';
-  };
-  // Detect whether a value is a CSS gradient function (linear/radial/conic
-  // and their repeating variants). Used to capture rangeTrackBgImage etc.
-  // SK-1224: linear-gradient ships first; SK-1225 adds radial.
-  const _gradientRe = /^\s*(repeating-)?(linear|radial|conic)-gradient\s*\(/i;
-  // Extract gradient function calls from a CSS background-shorthand string,
-  // dropping any non-gradient layers (background-color, plain url(), etc.).
-  // Walks balanced parens to keep the gradient inner commas intact. Returns
-  // a comma-separated list of gradient calls suitable for assigning to
-  // background-image. DM-275.
-  const _extractGradients = (text) => {
-    const re = /(repeating-)?(linear|radial|conic)-gradient\s*\(/gi;
-    const out = [];
-    let m;
-    while ((m = re.exec(text)) != null) {
-      const start = m.index;
-      let depth = 0;
-      let i = start;
-      for (; i < text.length; i++) {
-        const c = text[i];
-        if (c === '(') depth++;
-        else if (c === ')') { depth--; if (depth === 0) { i++; break; } }
-      }
-      out.push(text.slice(start, i));
-      re.lastIndex = i;
-    }
-    return out.join(', ');
-  };
-  const _resolvePseudo = (el, kind) => {
-    let width = '', height = '', backgroundColor = '', borderRadius = '', backgroundImage = '';
-    let border = '', padding = '', boxShadow = '';
-    let matched = false;
-    for (let i = 0; i < _pseudoRules.length; i++) {
-      const r = _pseudoRules[i];
-      if (r.kind !== kind) continue;
-      let isMatch = false;
-      try { isMatch = el.matches(r.hostSel); } catch (e) { /* invalid selector */ }
-      if (!isMatch) continue;
-      matched = true;
-      const d = r.decl;
-      if (!_isUnsetCssValue(d.width)) width = d.width;
-      if (!_isUnsetCssValue(d.height)) height = d.height;
-      if (!_isUnsetCssValue(d.borderRadius)) borderRadius = d.borderRadius;
-      if (!_isUnsetCssValue(d.border)) border = d.border;
-      if (!_isUnsetCssValue(d.padding)) padding = d.padding;
-      if (!_isUnsetCssValue(d.boxShadow)) boxShadow = d.boxShadow;
-      // background-color longhand expands to 'initial' when the rule only
-      // declared the 'background' shorthand with a non-color value (e.g. a
-      // gradient). In that case fall through to extracting the first color
-      // stop from the shorthand string.
-      if (!_isUnsetCssValue(d.backgroundColor)) {
-        backgroundColor = d.backgroundColor;
-      } else if (!_isUnsetCssValue(d.background)) {
-        const cm = d.background.match(_firstColorRe);
-        if (cm != null) backgroundColor = cm[1];
-        // Shorthand of the form 'background: var(--accent)' that references a
-        // solid color via a custom property: the regex won't match var(), but
-        // probing the host's background-color longhand resolves it.
-        else if (_needsResolve(d.background)) backgroundColor = d.background;
-      }
-      // Gradient capture (SK-1224). Two sources: the background-image
-      // longhand, or a gradient function within the background shorthand.
-      // The shorthand commonly carries gradients in author CSS
-      // ('background: linear-gradient(...)'). Prefer longhand when set.
-      // When falling back to the shorthand, isolate the gradient call(s):
-      // a 'background:' value can carry a comma-separated layer list like
-      // '<gradient>, #cbd5e1' where the trailing color is the bg-color, not
-      // an additional image. Passing the whole shorthand to _resolveOne
-      // for background-image would fail validation and silently fall back
-      // to 'none'. DM-275.
-      if (!_isUnsetCssValue(d.backgroundImage) && _gradientRe.test(d.backgroundImage)) {
-        backgroundImage = _extractGradients(d.backgroundImage);
-      } else if (!_isUnsetCssValue(d.background) && _gradientRe.test(d.background)) {
-        backgroundImage = _extractGradients(d.background);
-      }
-    }
-    return {
-      matched: matched,
-      width: _resolveOne(el, 'width', width),
-      height: _resolveOne(el, 'height', height),
-      backgroundColor: _resolveOne(el, 'backgroundColor', backgroundColor),
-      borderRadius: _resolveOne(el, 'borderRadius', borderRadius),
-      // Resolve var()/calc() inside gradient text via the same host-probe
-      // (Chromium rewrites the gradient to fully-resolved rgb()/deg form).
-      backgroundImage: _resolveOne(el, 'backgroundImage', backgroundImage),
-      border: border,
-      padding: padding,
-      boxShadow: boxShadow,
-    };
-  };
-
-  // Codepoint predicate for glyphs Chrome paints via a color-bitmap font
-  // (Apple Color Emoji on macOS, Noto Color Emoji on Linux) even when a
-  // path-font has a glyph. fontkit cannot emit a <path> from CBDT/sbix bitmap
-  // tables, so these need to be rasterized via page.screenshot and embedded
-  // as <image>. See SK-1058.
-  //
-  // Narrow scope on purpose: the Miscellaneous-Symbols / Geometric-Shapes /
-  // Arrows blocks have path glyphs in Apple Symbols that render faithfully
-  // (e.g. ⚑ U+2691, → U+2192), so they stay on the path pipeline. The list
-  // below is codepoints we've observed Chrome routing to the emoji font
-  // despite path availability (checkmark family), plus the canonical emoji
-  // planes (U+1F300+).
-  // Codepoints in U+2700-27BF (Dingbats) that Chrome paints via Apple Color
-  // Emoji rather than the monochrome Zapf Dingbats / Apple Symbols glyph —
-  // confirmed empirically per DM-269 (✨ rendered as color emoji, not the
-  // Zapf glyph). Default emoji-presentation per Unicode emoji-data: ✨ ❌ ❎
-  // ❓ ❔ ❕ ❗ ➕ ➖ ➗ ➡ ➰ ➿ etc. Without explicit variation selectors,
-  // Chrome picks color presentation for these. The rasterGlyph system stamps
-  // the captured PNG over the path-mode glyph so this list lets the screen-
-  // shotter pick them up.
-  const _rasterCps = new Set([
-    0x2713, 0x2714, 0x2716, 0x2717, 0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
-    0x274C, 0x274E, 0x2795, 0x2796, 0x2797, 0x27A1, 0x27B0, 0x27BF,
-  ]);
-  // Codepoints in the U+2600-26FF Misc Symbols block with EmojiPresentation=Yes
-  // per Unicode emoji-data: Chrome paints these as color emoji by default
-  // (without needing the U+FE0F variation selector). Source: unicode.org
-  // emoji-data v15.1. DM-278.
-  const _emojiPresentation26 = new Set([
-    0x2614, 0x2615, 0x2648, 0x2649, 0x264A, 0x264B, 0x264C, 0x264D,
-    0x264E, 0x264F, 0x2650, 0x2651, 0x2652, 0x2653, 0x267F, 0x2693,
-    0x26A1, 0x26AA, 0x26AB, 0x26BD, 0x26BE, 0x26C4, 0x26C5, 0x26CE,
-    0x26D4, 0x26EA, 0x26F2, 0x26F3, 0x26F5, 0x26FA, 0x26FD,
-  ]);
-  // Codepoints in U+2600-26FF that are Emoji=Yes but default to text
-  // presentation. Authors typically pair these with U+FE0F (the emoji
-  // variation selector) to force the color emoji glyph. The FE0F-aware
-  // detection in textNeedsRaster catches that pairing; for cases where the
-  // codepoint appears bare (no VS), text presentation is correct and we
-  // still path-render.
-  const _emojiBaseCps = new Set([
-    0x2600, 0x2601, 0x2602, 0x2603, 0x2604, 0x260E, 0x2611, 0x2618,
-    0x261D, 0x2620, 0x2622, 0x2623, 0x2626, 0x262A, 0x262E, 0x262F,
-    0x2638, 0x2639, 0x263A, 0x2640, 0x2642, 0x265F, 0x2660, 0x2663,
-    0x2665, 0x2666, 0x2668, 0x267B, 0x267E, 0x2692, 0x2694, 0x2695,
-    0x2696, 0x2697, 0x2699, 0x269B, 0x269C, 0x26A0, 0x26A7, 0x26B0,
-    0x26B1, 0x26C8, 0x26CF, 0x26D1, 0x26D3, 0x26E9, 0x26F0, 0x26F1,
-    0x26F4, 0x26F7, 0x26F8, 0x26F9,
-  ]);
-  const needsRaster = (cp, nextCp) => {
-    if (_rasterCps.has(cp)) return true;
-    if (_emojiPresentation26.has(cp)) return true;
-    // U+FE0F (Variation Selector-16) after a base emoji codepoint requests
-    // emoji presentation — Chrome paints the colorful glyph instead of the
-    // text-mode path glyph. DM-278.
-    if (nextCp === 0xFE0F && (_emojiBaseCps.has(cp) || _emojiPresentation26.has(cp))) return true;
-    // Regional-indicator flags (pairs are joined into country flag emoji).
-    if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
-    // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
-    // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
-    // Extended-A, Symbols & Pictographs Extended-B.
-    if (cp >= 0x1F300 && cp <= 0x1FAFF) return true;
-    return false;
-  };
-  const textNeedsRaster = (s) => {
-    for (let i = 0; i < s.length; i++) {
-      const cp = s.codePointAt(i);
-      const step = cp > 0xFFFF ? 2 : 1;
-      const nextCp = i + step < s.length ? s.codePointAt(i + step) : 0;
-      if (needsRaster(cp, nextCp)) return true;
-      if (cp > 0xFFFF) i++;
-    }
-    return false;
-  };
-
-  // Per-font baseline metric cache. fontkit's font.ascent (HHEA) does not
-  // match where Chrome paints the baseline on macOS for the legacy MS-shipped
-  // fonts (Helvetica, Arial, Times, Georgia, Menlo, Courier) — Chrome uses
-  // OS/2.usWinAscent there, not HHEA. Reading the answer from
-  // canvas.measureText().fontBoundingBoxAscent dodges the per-font metric-
-  // selection rules entirely (the browser already applied them). Cached by
-  // resolved font spec to avoid recreating canvases per element.
-  //
-  // DM-418 sub-pixel-ascent attempt (reverted): tried probing
-  // canvas.fbAsc at fontSize=1600 to extract an unrounded ratio, then
-  // applying ratio * actualFontSize for sub-pixel ascent. Theoretically
-  // closes the integer-rounding ±0.5 px swing, but in practice produces
-  // mixed results — about half of test fixtures regressed (text-right
-  // 1494 → 1636, text-mono 1204 → 1330, layout-flex-center 681 → 857)
-  // because SVG rasterization actually prefers integer baselines for
-  // crisp glyph hinting. Sub-pixel baselines blur some glyphs more
-  // than the integer-rounding drift hurts. Stuck with integer fbAsc.
-  const _fontMetricsCache = new Map();
-  // Map of @font-face family-name (lowercased) → the local() candidate
-  // Chrome ACTUALLY resolved the alias to. Built once by walking
-  // document.styleSheets. Canvas measureText does NOT honor @font-face
-  // local() src (it falls back to the generic family), so without
-  // substituting the resolved local() name into the font string, the
-  // metrics probe sees Courier (the monospace fallback) instead of the
-  // painted face and reports a different ascent — putting glyphs
-  // above/below where Chrome painted them and leaving halos in the diff.
-  // (DM-445.)
-  //
-  // Important: Chrome's local() resolution only matches a font's full name
-  // or PostScript name, NOT its CSS family name (CSS Fonts 4 §11.2). So
-  // local("Menlo") does NOT match Menlo (whose PostScript name is
-  // "Menlo-Regular") — Chrome falls through to the next local() candidate.
-  // We cannot predict which candidate Chrome picked from name alone, so we
-  // probe by rendering the alias face and comparing its width to each
-  // candidate referenced by direct family name (which does match installed
-  // system fonts). Whichever width matches is the one Chrome resolved.
-  const _localFaceMap = new Map();
-  const _probeWidthCS = (familyExpr, weight, style) => {
-    const span = document.createElement('span');
-    span.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre';
-    span.style.fontFamily = familyExpr;
-    span.style.fontWeight = weight;
-    span.style.fontStyle = style;
-    span.textContent = 'mIw0';
-    document.body.appendChild(span);
-    const w = span.getBoundingClientRect().width;
-    document.body.removeChild(span);
-    return w;
-  };
-  for (const sheet of Array.from(document.styleSheets)) {
-    let cssRules;
-    try { cssRules = sheet.cssRules; } catch (e) { continue; }
-    for (const rule of Array.from(cssRules)) {
-      if (rule.constructor.name !== 'CSSFontFaceRule') continue;
-      const r = rule;
-      const family = r.style.getPropertyValue('font-family').trim().replace(/^["']|["']$/g, '').toLowerCase();
-      const weight = r.style.getPropertyValue('font-weight') || '400';
-      const styleDesc = r.style.getPropertyValue('font-style') || 'normal';
-      const src = r.style.getPropertyValue('src');
-      if (family === '' || /url\(/.test(src)) continue;
-      const matches = src.match(/local\(\s*["']?[^"')]+?["']?\s*\)/g);
-      if (matches == null) continue;
-      const locals = [];
-      for (const mm of matches) {
-        const inner = /local\(\s*["']?([^"')]+?)["']?\s*\)/.exec(mm);
-        if (inner != null) locals.push(inner[1].trim());
-      }
-      if (locals.length === 0) continue;
-      // Probe-by-width to find the local() candidate Chrome actually
-      // resolved this alias to. Cache only the first @font-face rule per
-      // family (matching how src precedence works inside one rule); the
-      // family-key collision case across multiple rules is handled by
-      // the caller using getComputedStyle to pick the right rule's face.
-      // Strip trailing variant suffix from a candidate name so the direct
-      // family-name probe hits the installed family. The alias rule's
-      // weight/style descriptors are applied separately, so the probe
-      // reaches the same face Chrome's local() lookup did.
-      const _stripVariant = (n) => n.replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, '').trim();
-      let resolved = null;
-      const aliasW = _probeWidthCS('"' + family + '"', weight, styleDesc);
-      for (const cand of locals) {
-        const candW = _probeWidthCS('"' + _stripVariant(cand) + '"', weight, styleDesc);
-        if (Math.abs(candW - aliasW) < 0.05) { resolved = cand; break; }
-      }
-      // Fall back to the first local() candidate when probing didn't find a
-      // match (keeps the previous behavior for cases the simple width
-      // sample can't disambiguate).
-      if (resolved == null) resolved = locals[0];
-      if (!_localFaceMap.has(family)) _localFaceMap.set(family, resolved);
-    }
-  }
-  const _substituteAliasedFamilies = (ff) => {
-    if (_localFaceMap.size === 0) return ff;
-    const parts = ff.split(',').map((s) => s.trim());
-    let changed = false;
-    const out = parts.map((p) => {
-      const bare = p.replace(/^["']|["']$/g, '').toLowerCase();
-      const local = _localFaceMap.get(bare);
-      if (local == null) return p;
-      changed = true;
-      return /\s/.test(local) ? '"' + local + '"' : local;
-    });
-    return changed ? out.join(', ') : ff;
-  };
-  const _measureFontMetrics = (cs) => {
-    const fs = cs.fontStyle || 'normal';
-    const fw = cs.fontWeight || '400';
-    const fz = cs.fontSize || '14px';
-    const ff = _substituteAliasedFamilies(cs.fontFamily || 'sans-serif');
-    const key = fs + '|' + fw + '|' + fz + '|' + ff;
-    let v = _fontMetricsCache.get(key);
-    if (v != null) return v;
-    const c = document.createElement('canvas');
-    const ctx = c.getContext('2d');
-    ctx.font = fs + ' ' + fw + ' ' + fz + ' ' + ff;
-    const m = ctx.measureText('Mxgp');
-    v = { ascent: m.fontBoundingBoxAscent, descent: m.fontBoundingBoxDescent };
-    _fontMetricsCache.set(key, v);
-    return v;
-  };
-
-  // Unsupported-feature warnings. Collected during capture and returned to the
-  // Node-side caller. Deduped by (feature, selector). See SK-465.
-  const _warnings = [];
-  const _warnKeys = new Set();
   // Mask fragment definitions collected during capture (DM-493): when an
   // element uses 'mask-image: url("#id")', resolve the referenced inline
   // <mask> via document.getElementById and stash its outerHTML keyed by id.
@@ -485,53 +58,6 @@ export const captureScript =
   // by id so multiple consumers of the same element() share one screenshot.
   const _maskRasters = new Map();
   let _maskRasterIdx = 0;
-  const warn = (sel, feature, detail) => {
-    const k = feature + '|' + sel;
-    if (_warnKeys.has(k)) return;
-    _warnKeys.add(k);
-    _warnings.push({ selector: sel, feature, detail });
-  };
-  // Build a short CSS-selectorish path for an element. Not guaranteed unique;
-  // just enough context for a developer to find it.
-  const shortSelector = (el) => {
-    const parts = [];
-    let cur = el;
-    while (cur != null && cur.nodeType === 1 && cur !== document.documentElement && parts.length < 5) {
-      let p = cur.tagName.toLowerCase();
-      if (cur.id) { p += '#' + cur.id; parts.unshift(p); break; }
-      if (cur.className && typeof cur.className === 'string') {
-        const cls = cur.className.trim().split(/\s+/).slice(0, 2).join('.');
-        if (cls !== '') p += '.' + cls;
-      }
-      parts.unshift(p);
-      cur = cur.parentElement;
-    }
-    return parts.join(' > ');
-  };
-  const normColor = (c, elColor) => {
-    if (c == null || c === '' || c === 'transparent' || c === 'currentcolor' || c === 'auto') return c;
-    // Fast path: already in rgb/rgba/#hex form.
-    if (/^(rgba?\(|#[0-9a-f]{3,8}$)/i.test(c)) return c;
-    // DM-519: \`currentcolor\` inside a color-mix expression resolves at used
-    // value time against the element's own \`color\`. Our probe element has
-    // its own (default black) \`color\`, so probing \`color-mix(in srgb,
-    // currentcolor 10%, transparent)\` against the probe returns the wrong
-    // tint (10% black instead of 10% of the source element's color). When
-    // the caller passes the source element's \`cs.color\`, substitute
-    // currentcolor with that value before probing so the result reflects
-    // the actual cascade.
-    var probeIn = c;
-    if (elColor != null && elColor !== '' && /\bcurrentcolor\b/i.test(c)) {
-      probeIn = c.replace(/\bcurrentcolor\b/gi, elColor);
-    }
-    try {
-      _normProbe.style.color = '';
-      _normProbe.style.color = 'color-mix(in srgb, ' + probeIn + ' 100%, transparent 0%)';
-      const v = getComputedStyle(_normProbe).color;
-      if (v != null && v !== '') return v;
-    } catch (e) { /* fall through */ }
-    return c;
-  };
 
   const capture = (el) => {
     // For elements with a CSS transform, getBoundingClientRect (and per-char

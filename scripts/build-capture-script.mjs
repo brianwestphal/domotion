@@ -1,60 +1,92 @@
 #!/usr/bin/env node
-// Pre-build: transform src/capture-script.ts (TS source for the in-page DOM
-// capture script) into a self-contained JS function-expression string and emit
-// src/capture-script.generated.ts. dom-to-svg.ts imports that const and feeds
-// it to page.evaluate() as the live capture code. See DM-619.
+// Pre-build: bundle `src/capture/script/index.ts` + its sibling factory modules
+// into a single self-contained function expression and emit
+// `src/capture/script.generated.ts`. `src/capture/index.ts` imports
+// CAPTURE_SCRIPT from there and feeds it to `page.evaluate()`.
+//
+// Why a separate bundle: the capture function runs inside the captured page's
+// context — it can't reach Node modules. Splitting the source across per-
+// concern files (DM-619e) only works if the runtime artefact remains one
+// self-contained chunk. esbuild's bundle:true resolves the `./*.js` imports
+// at build time and inlines them, so the final string is functionally
+// identical to a hand-written monolith.
+//
+// Output shape: an IIFE expression that evaluates to the capture function,
+// matching the existing call site `(${CAPTURE_SCRIPT})({...args})`. See
+// DM-619a for the original design + DM-619e for the multi-file move.
 
-import { transformSync } from "esbuild";
-import { readFileSync, writeFileSync } from "node:fs";
+import { build } from "esbuild";
+import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = resolve(ROOT, "src/capture/script.ts");
+const ENTRY = resolve(ROOT, "src/capture/script/index.ts");
 const OUT = resolve(ROOT, "src/capture/script.generated.ts");
 
-const source = readFileSync(SRC, "utf8");
-
-const { code } = transformSync(source, {
-  loader: "ts",
-  target: "es2020",
+const result = await build({
+  entryPoints: [ENTRY],
+  bundle: true,
+  write: false,
   format: "esm",
-  sourcemap: false,
+  target: "es2020",
+  platform: "browser",
+  legalComments: "none",
+  // Defaults for bundling: do NOT minify (readability of the generated file
+  // is a debug aid; ~3% size savings doesn't justify obfuscation). Do NOT
+  // keep names — that would inject `__name(fn, "...")` calls referencing a
+  // helper that doesn't exist in the page context.
   minify: false,
+  keepNames: false,
 });
 
-// esbuild's TS-loader output for `export const captureScript = (args) => {...};`
-// is a stable two-piece shape: the `const captureScript = ...` declaration
-// followed by an `export { captureScript }` block. Extract the function
-// expression by stripping the wrapper.
-const match = code.match(/^const captureScript = ([\s\S]+?);\nexport \{\n {2}captureScript\n\};\s*$/);
+if (result.outputFiles.length !== 1) {
+  throw new Error(`build-capture-script: expected 1 output file, got ${result.outputFiles.length}`);
+}
+const code = result.outputFiles[0].text;
+
+// esbuild's bundle output for ESM with one entry has a stable two-piece
+// structure: any number of top-level prelude statements (the inlined helper
+// modules), the `var captureScript = (args) => { ... };` declaration from the
+// entry, and a trailing `export { captureScript };` block. Extract the
+// function expression and the prelude separately so we can wrap them in an
+// IIFE that evaluates to the function.
+const match = code.match(/^([\s\S]*?)\nvar captureScript = ([\s\S]+?);\nexport \{\n {2}captureScript\n\};\s*$/);
 if (!match) {
   throw new Error(
     "build-capture-script: unexpected esbuild output shape — could not extract function expression.\n" +
-    "First/last 200 chars of output:\n---\n" + code.slice(0, 200) + "\n...\n" + code.slice(-200) + "\n---",
+    "First/last 400 chars of output:\n---\n" + code.slice(0, 400) + "\n...\n" + code.slice(-400) + "\n---",
   );
 }
-const fnExpr = match[1];
+const prelude = match[1];
+const fnExpr = match[2];
 
 // Sanity-check: the runtime artefact must not reference dev-time helpers
 // (`__name`, `__pow`, `__publicField`, etc.). esbuild only injects those when
 // targets force class-feature lowering or when `keepNames: true`. The page
 // context has no such globals; a leak would crash capture silently.
 const helperRegex = /\b__(name|pow|publicField|privateAdd|privateGet|privateSet|require|defProp|copyProps|toESM|toCommonJS)\b/;
-const helperHit = fnExpr.match(helperRegex);
+const combinedForCheck = prelude + "\n" + fnExpr;
+const helperHit = combinedForCheck.match(helperRegex);
 if (helperHit) {
   throw new Error(
     `build-capture-script: bundled script references dev-time helper '${helperHit[0]}' — would break in page context.`,
   );
 }
 
-// Reconstruct the exact shape the old template literal produced: a leading
-// newline, the function expression, and a trailing newline. Preserves call-site
-// compatibility with `page.evaluate(\`(\${CAPTURE_SCRIPT})({...})\`)`.
-const captureScriptText = "\n" + fnExpr + "\n";
+// Wrap the prelude + function expression in an IIFE that returns the function.
+// Call site `(${CAPTURE_SCRIPT})({...})` then evaluates to
+// `((() => { <prelude>; return (<fn-expr>); })())({...args})` — the IIFE runs
+// once per capture (cheap), produces the function, and the outer call invokes
+// it with `args`. Leading + trailing newline match the previous template-
+// literal shape so call-site behavior is unchanged.
+const captureScriptText =
+  "\n(() => {\n" +
+  prelude +
+  "\nreturn (" + fnExpr + ");\n})()\n";
 
 const generated =
-  "// AUTO-GENERATED by scripts/build-capture-script.mjs from src/capture-script.ts.\n" +
+  "// AUTO-GENERATED by scripts/build-capture-script.mjs from src/capture/script/.\n" +
   "// Do not edit by hand — your changes will be overwritten on the next build.\n" +
   "//\n" +
   "// Run `npm run build:capture-script` (or any of the npm scripts that depend on\n" +
@@ -63,4 +95,4 @@ const generated =
   "export const CAPTURE_SCRIPT: string = " + JSON.stringify(captureScriptText) + ";\n";
 
 writeFileSync(OUT, generated);
-console.log(`[build-capture-script] wrote ${OUT} (${generated.length} bytes; fn ${fnExpr.length} chars)`);
+console.log(`[build-capture-script] wrote ${OUT} (${generated.length} bytes; bundle ${captureScriptText.length} chars)`);
