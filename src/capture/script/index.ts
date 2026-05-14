@@ -10,12 +10,12 @@
 // one IIFE that takes `args` and returns `{ tree, warnings }`.
 //
 // Helpers that are self-contained pre-walk / per-call utilities live in
-// sibling files; this file owns the giant `captureInner` element walker, the
-// `_maskDefs` / `_maskRasters` collection state that walker writes into, and
-// the top-level orchestration (fixed-ancestor pre-pass, counter pre-walk,
-// root-element capture, mask-def + dark-mode attachment to the result tree).
-// The captureInner monolith is intentionally not split here — DM-619 part B
-// (separate ticket) is the place for that work.
+// sibling files (`color-norm.ts`, `emoji-detect.ts`, `font-metrics.ts`,
+// `placeholder-shown.ts`, `pseudo-rules.ts`, `warnings.ts`); per-concern
+// walker handlers live under `./walker/`. This file owns the remaining
+// `captureInner` walker body and the top-level orchestration (fixed-ancestor
+// pre-pass, counter pre-walk, root-element capture, mask-def + dark-mode
+// attachment to the result tree).
 
 import { createColorNorm } from "./color-norm.js";
 import { createEmojiDetect } from "./emoji-detect.js";
@@ -25,6 +25,7 @@ import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
 import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
+import { createMasksClipsHandler } from "./walker/masks-clips.js";
 
 export const captureScript =
 (args) => {
@@ -43,18 +44,7 @@ export const captureScript =
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   const { captureListsCounters } = createListsCountersHandler({ normColor });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
-
-  // Mask fragment definitions collected during capture (DM-493): when an
-  // element uses 'mask-image: url("#id")', resolve the referenced inline
-  // <mask> via document.getElementById and stash its outerHTML keyed by id.
-  // Same-document only — external '.svg#frag' refs are deferred (DM-496).
-  const _maskDefs = new Map();
-  // DM-494: mask-image: element(#id) — record (id, rect, rid) per unique
-  // referenced element. Post-capture rasterize pass screenshots each unique
-  // ref and stashes the data URI on the root tree as maskRasters[]. Dedupe
-  // by id so multiple consumers of the same element() share one screenshot.
-  const _maskRasters = new Map();
-  let _maskRasterIdx = 0;
+  const { discoverMasks, maskDefs: _maskDefs, maskRasters: _maskRasters } = createMasksClipsHandler({ vp, warn });
 
   const capture = (el) => {
     // For elements with a CSS transform, getBoundingClientRect (and per-char
@@ -180,99 +170,11 @@ export const captureScript =
     if (cs.position === 'fixed' || cs.position === 'sticky') {
       warn(sel, 'position:' + cs.position, 'rendered as a static snapshot at t=0; scroll-following behavior is not animated');
     }
-    if (cs.mask && cs.mask !== 'none' && cs.mask !== '') {
-      // DM-470: only warn for mask sources we can't emit. Gradient and
-      // url() mask-images round-trip cleanly through buildMaskDef() with
-      // size / position / repeat / composite — those don't deserve a
-      // per-element warning. element() paint references and inline-SVG
-      // fragment URLs are the actual gaps; flag those instead.
-      // See docs/20-css-mask-emission.md.
-      var miSrc = cs.maskImage || cs.webkitMaskImage || '';
-      // DM-493: same-document fragment refs (mask-image: url("#id")) are
-      // resolved at capture time and emitted as inline <mask> defs. Detect
-      // them here so we (a) don't warn unnecessarily and (b) collect the
-      // referenced mask's outerHTML for the renderer.
-      var fragMatch = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(miSrc);
-      if (fragMatch != null) {
-        var fragId = fragMatch[1];
-        if (!_maskDefs.has(fragId)) {
-          var target = document.getElementById(fragId);
-          if (target != null && target.tagName.toLowerCase() === 'mask') {
-            _maskDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
-          } else {
-            warn(sel, 'mask', 'mask-image fragment "#' + fragId + '" did not resolve to an inline <mask> element');
-          }
-        }
-      } else {
-        // External-file fragment refs (url("./file.svg#id")) — deferred to DM-496.
-        var extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(miSrc);
-        if (extFragMatch != null) {
-          warn(sel, 'mask', 'external-file SVG fragment refs (url("./file.svg#id")) are not yet emitted (DM-496)');
-        } else {
-          // DM-494: mask-image: element(#id) — record the referenced element
-          // for post-capture rasterisation. Same-document only (CSS spec
-          // doesn't define cross-document element()). Always-on (not opt-in)
-          // — dedupe by id so multiple consumers share one screenshot, and
-          // skip when the target is display:none / 0-area (painted output is
-          // empty so the screenshot would just hide the mask anyway).
-          var elementMatch = /^element\(\s*#([^)\s]+)\s*\)$/i.exec(miSrc);
-          if (elementMatch != null) {
-            var refId = elementMatch[1];
-            if (!_maskRasters.has(refId)) {
-              var refTarget = document.getElementById(refId);
-              if (refTarget == null) {
-                warn(sel, 'mask', 'mask-image: element(#' + refId + ') target not found in document');
-              } else {
-                var refCs = window.getComputedStyle(refTarget);
-                if (refCs.display === 'none' || refCs.visibility === 'hidden') {
-                  warn(sel, 'mask', 'mask-image: element(#' + refId + ') target is display:none / hidden — emitting empty mask');
-                  _maskRasters.set(refId, null);
-                } else {
-                  var refRect = refTarget.getBoundingClientRect();
-                  if (refRect.width <= 0 || refRect.height <= 0) {
-                    warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has zero-area painted box — emitting empty mask');
-                    _maskRasters.set(refId, null);
-                  } else {
-                    // Animated source warning — capture is one frame, no way
-                    // to keep the mask in sync with a JS-driven canvas / CSS
-                    // animation. Emit the snapshot anyway (better than the
-                    // alternative of empty mask hiding the consumer entirely).
-                    if (typeof refTarget.getAnimations === 'function') {
-                      try {
-                        var anims = refTarget.getAnimations();
-                        if (anims != null && anims.length > 0) {
-                          warn(sel, 'mask', 'mask-image: element(#' + refId + ') target has ' + anims.length + ' active animation(s); the rasterized snapshot is t=0 only');
-                        }
-                      } catch (e) { /* getAnimations not supported, skip */ }
-                    }
-                    var refRid = 'mr' + (_maskRasterIdx++);
-                    refTarget.setAttribute('data-domotion-rid', refRid);
-                    _maskRasters.set(refId, {
-                      id: refId,
-                      rid: refRid,
-                      width: refRect.width,
-                      height: refRect.height,
-                      rect: {
-                        x: refRect.left - vp.x,
-                        y: refRect.top - vp.y,
-                        width: refRect.width,
-                        height: refRect.height,
-                      },
-                    });
-                  }
-                }
-              }
-            }
-          } else {
-            var supported = /^(?:repeating-)?(?:linear|radial)-gradient\(/i.test(miSrc)
-              || /^url\(/i.test(miSrc);
-            if (!supported) {
-              warn(sel, 'mask', 'non-gradient/non-url()/non-element() mask source — not emitted');
-            }
-          }
-        }
-      }
-    }
+    // Mask discovery — same-document fragment refs (`url("#id")`), element
+    // refs (`element(#id)`), and warnings for unsupported mask sources.
+    // Handler owns the maskDefs / maskRasters Maps that the orchestration
+    // tail consumes. See walker/masks-clips.ts.
+    discoverMasks(el, cs, sel);
     if (cs.borderImageSource && cs.borderImageSource !== 'none') {
       warn(sel, 'border-image', '9-slice composition pending (SK-466); border-image-source ignored');
     }
