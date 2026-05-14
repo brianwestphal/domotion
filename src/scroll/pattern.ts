@@ -1,5 +1,5 @@
 /**
- * Scroll Pattern Grammar — parser (DM-605, design from DM-604).
+ * Scroll-pattern grammar — parser (DM-605, design from DM-604).
  *
  * Pure parser. Input string → AST. Does NOT evaluate `selector(...)` against
  * a DOM, nor execute the scroll plan — that's DM-607 (scroll executor).
@@ -25,25 +25,25 @@
 
 // ── AST types ───────────────────────────────────────────────────────────────
 
-export interface Pattern {
-  segments: Segment[];
+export interface ScrollPattern {
+  segments: ScrollPatternSegment[];
 }
 
-export type Segment = BracketedSegment | FlatSegment;
+export type ScrollPatternSegment = BracketedSegment | FlatSegment;
 
 export interface BracketedSegment {
   kind: "bracketed";
-  pattern: Pattern;
+  pattern: ScrollPattern;
   until?: UntilClause;
 }
 
 export interface FlatSegment {
   kind: "flat";
-  actions: Action[];
+  actions: ScrollPatternAction[];
   until?: UntilClause;
 }
 
-export type Action = ScrollAction | PauseAction;
+export type ScrollPatternAction = ScrollAction | PauseAction;
 
 export interface ScrollAction {
   kind: "scroll";
@@ -262,7 +262,7 @@ class Parser {
   private pos = 0;
   constructor(private readonly tokens: Token[], private readonly source: string) {}
 
-  parse(): Pattern {
+  parse(): ScrollPattern {
     const pattern = this.parsePattern();
     this.expect("eof");
     return pattern;
@@ -270,8 +270,8 @@ class Parser {
 
   // ── grammar productions ──
 
-  private parsePattern(): Pattern {
-    const segments: Segment[] = [this.parseTopSegment()];
+  private parsePattern(): ScrollPattern {
+    const segments: ScrollPatternSegment[] = [this.parseTopSegment()];
     while (this.peek().kind === "comma") {
       this.consume("comma");
       segments.push(this.parseTopSegment());
@@ -279,7 +279,7 @@ class Parser {
     return { segments };
   }
 
-  private parseTopSegment(): Segment {
+  private parseTopSegment(): ScrollPatternSegment {
     if (this.peek().kind === "lparen") {
       return this.parseBracketedSegment();
     }
@@ -296,7 +296,7 @@ class Parser {
   }
 
   private parseFlatSegment(): FlatSegment {
-    const actions: Action[] = [this.parseAction()];
+    const actions: ScrollPatternAction[] = [this.parseAction()];
     // Greedily consume more actions until we either:
     //  - hit the end of the segment (next thing is `until` or `)` or `eof`),
     //  - or hit a `,` followed by another action.
@@ -313,7 +313,7 @@ class Parser {
     return { kind: "flat", actions, until };
   }
 
-  private parseAction(): Action {
+  private parseAction(): ScrollPatternAction {
     const tok = this.peek();
     // `pause:` prefix (`pause` ident followed by `:`).
     if (tok.kind === "ident" && tok.text === "pause" && this.peekAhead(1).kind === "colon") {
@@ -537,7 +537,7 @@ function lengthTokenToSignedLength(t: Token, sign: 1 | -1): SignedLength {
  * `ScrollPatternError` on any tokenization or parse error, with `position`
  * pointing at the offending character in the source.
  */
-export function parseScrollPattern(source: string): Pattern {
+export function parseScrollPattern(source: string): ScrollPattern {
   if (source.trim() === "") {
     throw new ScrollPatternError("Empty pattern", source, 0);
   }

@@ -13,7 +13,7 @@ export interface AnimationFrame {
   svgContent: string;
   /**
    * Per-element viewBox-cull keyframes CSS (DM-603). The caller runs
-   * `cullFrame()` on the captured tree before `elementTreeToSvg()` — that
+   * `cullElementsOutsideViewBox()` on the captured tree before `elementTreeToSvg()` — that
    * mutates `displayNone` / `cullClass` on each element (which the renderer
    * surfaces) and returns the keyframes blocks that map each `cull-N` class
    * to its visible window. The animator splices this CSS into the scene-wide
@@ -37,7 +37,7 @@ export interface AnimationFrame {
     duration: number;
   };
   /** Overlays: typing, tap ripple */
-  overlays?: Overlay[];
+  overlays?: AnimationOverlay[];
   /**
    * Intra-frame property animations. Run during this frame's hold time.
    * The CLI / `DemoRecorder` resolves selectors against the DOM at capture
@@ -108,7 +108,7 @@ export interface SvgOverlay {
   exit?: { from: "top" | "bottom" | "left" | "right"; duration: number; easing?: string; delay?: number };
 }
 
-export type Overlay = TypingOverlay | TapOverlay | SvgOverlay;
+export type AnimationOverlay = TypingOverlay | TapOverlay | SvgOverlay;
 
 /**
  * Animate a CSS property on captured elements that match a selector, while
@@ -380,7 +380,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   const sharedDefsMarkup = config.sharedDefs ?? "";
   const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
   // DM-603: per-frame viewBox-cull keyframes — each frame's caller pre-ran
-  // `cullFrame()` and we splice the resulting blocks into the scene-wide
+  // `cullElementsOutsideViewBox()` and we splice the resulting blocks into the scene-wide
   // <style>. The keyframes reference `var(--scene-dur)`; we expose that
   // variable on the root selector below.
   const cullCss = frames.map((f) => f.cullCss ?? "").filter((s) => s !== "").join("\n");

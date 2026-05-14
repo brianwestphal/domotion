@@ -8,12 +8,10 @@
 
 import { parseArgs } from "node:util";
 import {
-  attachWebfontTracker,
   captureElementTree,
   clearWebfonts,
   composeScrollSvg,
-  cullFrame,
-  discoverAndRegisterWebfonts,
+  cullElementsOutsideViewBox,
   elementTreeToSvg,
   executeScrollPattern,
   launchChromium,
@@ -22,6 +20,7 @@ import {
   parseScrollPattern,
   wrapSvg,
 } from "../index.js";
+import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -164,7 +163,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // elements don't contribute paint cost in the animated output.
       await timed(log, `  culled ${segments.length} segments`, () => {
         for (const seg of segments) {
-          cullFrame(seg.tree, clip[2], clip[3], undefined, 0, 1);
+          cullElementsOutsideViewBox(seg.tree, clip[2], clip[3], undefined, 0, 1);
         }
         return Promise.resolve();
       });
@@ -181,7 +180,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // off-viewport elements (`outsideViewport` early-return in CAPTURE_SCRIPT),
       // so this is a defense-in-depth pass for the position:fixed-descendant
       // escape cases where an off-viewport ancestor still gets captured.
-      cullFrame(tree, clip[2], clip[3], undefined, 0, 1);
+      cullElementsOutsideViewBox(tree, clip[2], clip[3], undefined, 0, 1);
       const inner = elementTreeToSvg(tree, clip[2], clip[3]);
       svg = wrapSvg(inner, clip[2], clip[3]);
     }

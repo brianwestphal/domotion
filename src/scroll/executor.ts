@@ -22,8 +22,8 @@ import type { Page } from "@playwright/test";
 import type { CapturedElement } from "../capture/types.js";
 import { captureElementTree } from "../render/element-tree-to-svg.js";
 import type {
-  Pattern, Segment, FlatSegment, BracketedSegment,
-  Action, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
+  ScrollPattern, ScrollPatternSegment, FlatSegment, BracketedSegment,
+  ScrollPatternAction, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
   UntilClause,
 } from "./pattern.js";
 import { diffTrees, type TreeDiff } from "../tree-ops/tree-diff.js";
@@ -72,7 +72,7 @@ const PRESCROLL_TOP_WAIT_MS    = 800;
 
 // ── Pure helpers (no Playwright) ───────────────────────────────────────────
 
-export type Axis = "x" | "y";
+export type ScrollAxis = "x" | "y";
 
 /**
  * Derive the axis (x or y) of a scroll action.
@@ -82,7 +82,7 @@ export type Axis = "x" | "y";
  *   3. Otherwise, axis suffix (`.x` → x).
  *   4. Otherwise, default to y.
  */
-export function axisOfScroll(action: ScrollAction): Axis {
+export function axisOfScroll(action: ScrollAction): ScrollAxis {
   if (action.direction != null) {
     return action.direction === "up" || action.direction === "down" ? "y" : "x";
   }
@@ -144,7 +144,7 @@ export interface PageQuery {
  */
 export async function resolveAbsoluteTarget(
   target: AbsoluteTarget,
-  axis: Axis,
+  axis: ScrollAxis,
   pageQuery: PageQuery,
   snapshot: PageStateSnapshot,
 ): Promise<number> {
@@ -158,7 +158,7 @@ export async function resolveAbsoluteTarget(
       throw new ScrollExecutionError(`selector(${JSON.stringify(a.cssSelector)}) matched no element`);
     }
     // axisSuffix override: `.x` switches to x-coordinate
-    const useAxis: Axis = target.axisSuffix ?? axis;
+    const useAxis: ScrollAxis = target.axisSuffix ?? axis;
     base = useAxis === "x" ? bbox.x : bbox.y;
   }
   for (const { op, length } of target.offsets) {
@@ -168,7 +168,7 @@ export async function resolveAbsoluteTarget(
   return base;
 }
 
-function resolveNamedAnchor(name: string, axis: Axis, snap: PageStateSnapshot): number {
+function resolveNamedAnchor(name: string, axis: ScrollAxis, snap: PageStateSnapshot): number {
   if (name === "top") return 0;
   if (name === "bottom") return snap.maxScrollY;
   if (name === "left") return 0;
@@ -179,7 +179,7 @@ function resolveNamedAnchor(name: string, axis: Axis, snap: PageStateSnapshot): 
   throw new ScrollExecutionError(`Unknown anchor name "${name}"`);
 }
 
-function percentOf(pct: number, axis: Axis, snap: PageStateSnapshot): number {
+function percentOf(pct: number, axis: ScrollAxis, snap: PageStateSnapshot): number {
   return (pct / 100) * (axis === "x" ? snap.maxScrollX : snap.maxScrollY);
 }
 
@@ -192,7 +192,7 @@ export async function resolveScrollAction(
   pageQuery: PageQuery,
   snapshot: PageStateSnapshot,
   defaultSpeed: number,
-): Promise<{ axis: Axis; destX: number; destY: number; scrollDurationMs: number }> {
+): Promise<{ axis: ScrollAxis; destX: number; destY: number; scrollDurationMs: number }> {
   const axis = axisOfScroll(action);
   const sign = directionSign(action);
   let delta: number;
@@ -223,7 +223,7 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
-// ── Pattern-walker plan ─────────────────────────────────────────────────────
+// ── ScrollPattern-walker plan ─────────────────────────────────────────────────────
 // Walks the AST once and produces a flat plan of `(scroll | pause)` ops with
 // resolved durations and destinations. Loops are unrolled per-iteration with
 // re-resolution of `until` conditions inside the executor's outer loop.
@@ -234,7 +234,7 @@ function clamp(n: number, lo: number, hi: number): number {
 
 interface ResolvedScrollOp {
   kind: "scroll";
-  axis: Axis;
+  axis: ScrollAxis;
   destX: number;
   destY: number;
   durationMs: number;
@@ -274,7 +274,7 @@ export class ScrollExecutionError extends Error {
  */
 export async function executeScrollPattern(
   page: Page,
-  pattern: Pattern,
+  pattern: ScrollPattern,
   opts: ScrollExecutorOptions,
 ): Promise<ScrollSegmentCapture[]> {
   const defaultSpeed = opts.defaultSpeed ?? DEFAULT_SPEED_PX_PER_SEC;
@@ -346,7 +346,7 @@ export async function executeScrollPattern(
     // the composer has enough anchor points to stack contiguously. Without
     // this, a `down:bottom/30s` action on a 10000-tall page produces only
     // two captures (initial + post-scroll), and the composite ends up with
-    // 9400 px of empty space between them. Pattern-mode scrolls with
+    // 9400 px of empty space between them. ScrollPattern-mode scrolls with
     // explicit per-token magnitudes ≤ viewport height naturally produce
     // one chunk per token — no over-subdivision there.
     const snap0 = await pageQuery.snapshot();
@@ -386,10 +386,10 @@ export async function executeScrollPattern(
   return captures;
 }
 
-// ── Pattern walker (recursive AST traversal with until loops) ──────────────
+// ── ScrollPattern walker (recursive AST traversal with until loops) ──────────────
 
 async function walkPattern(
-  pattern: Pattern,
+  pattern: ScrollPattern,
   pageQuery: PageQuery,
   defaultSpeed: number,
   runOp: (op: ResolvedOp) => Promise<void>,
@@ -401,7 +401,7 @@ async function walkPattern(
 }
 
 async function walkSegment(
-  seg: Segment,
+  seg: ScrollPatternSegment,
   pageQuery: PageQuery,
   defaultSpeed: number,
   runOp: (op: ResolvedOp) => Promise<void>,
@@ -479,7 +479,7 @@ async function isUntilConditionMet(
 }
 
 async function runAction(
-  a: Action,
+  a: ScrollPatternAction,
   pageQuery: PageQuery,
   defaultSpeed: number,
   runOp: (op: ResolvedOp) => Promise<void>,

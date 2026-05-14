@@ -131,7 +131,7 @@ export interface CapturedElement {
    */
   animId?: string;
   /**
-   * DM-603 viewBox culling. Set to `true` by `cullFrame()` (or a single-frame
+   * DM-603 viewBox culling. Set to `true` by `cullElementsOutsideViewBox()` (or a single-frame
    * static cull) when this element's bbox never intersects the viewBox during
    * the scene cycle. The renderer surfaces it as `style="display:none"` on
    * the element's outermost `<g>` wrapper.
@@ -142,7 +142,7 @@ export interface CapturedElement {
    * scene-wide keyframes block toggling `display: inline ↔ none` for the
    * times when this element is partially visible (e.g. only after an
    * `animation: translateY` brings it into the viewBox). The keyframes block
-   * is emitted by `cullFrame()`; the renderer just stamps the class onto the
+   * is emitted by `cullElementsOutsideViewBox()`; the renderer just stamps the class onto the
    * outer `<g>`.
    */
   cullClass?: string;

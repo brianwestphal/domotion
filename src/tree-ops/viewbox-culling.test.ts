@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CapturedElement } from "../capture/types.js";
 import type { IntraFrameAnimation } from "../animation/animator.js";
-import { cullFrame, decideCull } from "./viewbox-culling.js";
+import { cullElementsOutsideViewBox, decideCull } from "./viewbox-culling.js";
 
 // Helper to construct a CapturedElement with sensible defaults.
 function el(opts: Partial<CapturedElement> & { x: number; y: number; width: number; height: number }): CapturedElement {
@@ -128,7 +128,7 @@ describe("decideCull — under a translate animation", () => {
   });
 });
 
-describe("cullFrame — tree walk", () => {
+describe("cullElementsOutsideViewBox — tree walk", () => {
   it("hides off-viewBox static elements and recurses into in-viewBox parents", () => {
     const tree: CapturedElement = el({
       x: 0, y: 0, width: 800, height: 600, tag: "body",
@@ -138,7 +138,7 @@ describe("cullFrame — tree walk", () => {
         el({ x: 1000, y: 100, width: 100, height: 100, tag: "div" }),        // right of viewBox
       ],
     });
-    const { css } = cullFrame(tree, VW, VH, undefined, 0, 1000);
+    const { css } = cullElementsOutsideViewBox(tree, VW, VH, undefined, 0, 1000);
     expect(tree.displayNone).toBeFalsy();
     expect(tree.children![0].displayNone).toBeFalsy();
     expect(tree.children![1].displayNone).toBe(true);
@@ -164,7 +164,7 @@ describe("cullFrame — tree walk", () => {
       ],
     });
     // frameStart 0, totalDur 2000 → animStart=0, animEnd=50%.
-    const { css } = cullFrame(tree, VW, VH, [anim], 0, 2000);
+    const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 0, 2000);
     // Both children inherit the parent's translateY animation. From-position
     // (y=1800-2000=-200) is off-top (height=50, so bottom = -150 < 0, still
     // off). To-position (y=1800+0=1800) is below viewBox (h=600). So both
@@ -204,7 +204,7 @@ describe("cullFrame — tree walk", () => {
         el({ x: 100, y: 2000, width: 100, height: 50, tag: "div" }),  // static at y=2000, far below 600
       ],
     });
-    const { css } = cullFrame(tree, VW, VH, [anim], 0, 2000);
+    const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 0, 2000);
     expect(tree.children![0].displayNone).toBe(true);
     expect(tree.children![0].cullClass).toBeUndefined();
     expect(css).toBe("");
@@ -227,7 +227,7 @@ describe("cullFrame — tree walk", () => {
         el({ x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "toast" }),
       ],
     });
-    const { css } = cullFrame(tree, VW, VH, [parentAnim, childAnim], 0, 2000);
+    const { css } = cullElementsOutsideViewBox(tree, VW, VH, [parentAnim, childAnim], 0, 2000);
     // Child should be hidden BEFORE its own toast animation (it starts off-left).
     // The child's `cullClass` should be set; not `displayNone`.
     expect(tree.children![0].displayNone).toBeFalsy();
@@ -236,7 +236,7 @@ describe("cullFrame — tree walk", () => {
   });
 });
 
-describe("cullFrame — keyframes structure", () => {
+describe("cullElementsOutsideViewBox — keyframes structure", () => {
   it("keyframes use step-end timing and var(--scene-dur)", () => {
     const anim: IntraFrameAnimation = {
       animId: "a", property: "translateY", from: "-1000px", to: "0px",
@@ -245,7 +245,7 @@ describe("cullFrame — keyframes structure", () => {
     const tree: CapturedElement = el({
       x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "a",
     });
-    const { css } = cullFrame(tree, VW, VH, [anim], 0, 1000);
+    const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 0, 1000);
     expect(css).toContain("animation-timing-function: step-end");
     expect(css).toContain("var(--scene-dur)");
     // 0% bookend with display:none.

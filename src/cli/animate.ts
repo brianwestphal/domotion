@@ -11,12 +11,10 @@ import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Page } from "@playwright/test";
 import {
-  attachWebfontTracker,
   captureElementTree,
   clearWebfonts,
   composeScrollSvg,
-  cullFrame,
-  discoverAndRegisterWebfonts,
+  cullElementsOutsideViewBox,
   elementTreeToSvg,
   executeScrollPattern,
   generateAnimatedSvg,
@@ -25,9 +23,10 @@ import {
   parseScrollPattern,
   type AnimationFrame,
   type IntraFrameAnimation,
-  type Overlay,
+  type AnimationOverlay,
   type SvgOverlay,
 } from "../index.js";
+import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -227,7 +226,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
           log,
         });
         for (const seg of segments) {
-          cullFrame(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
+          cullElementsOutsideViewBox(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
         }
         const composed = composeScrollSvg(segments, { viewportW: cfg.width, viewportH: cfg.height });
         // The composer emits a full `<?xml ...><svg>...</svg>` document. The
@@ -250,7 +249,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
           frameStartMs += cfg.frames[pi].duration + (cfg.frames[pi].transition?.type === "cut" ? 0 : (cfg.frames[pi].transition?.duration ?? 300));
         }
         const totalDurationMs = cfg.frames.reduce((sum, f) => sum + f.duration + (f.transition?.type === "cut" ? 0 : (f.transition?.duration ?? 300)), 0);
-        const result = cullFrame(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
+        const result = cullElementsOutsideViewBox(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
         frameCullCss = result.css;
         svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`);
       }
@@ -340,9 +339,9 @@ function validateAnimateConfig(cfg: AnimateConfig): void {
  * referenced SVG file, namespacing its ids, and replacing `src` with the
  * inlined `innerSvg`. Other overlay kinds pass through verbatim.
  */
-function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: string, frameIdx: number): Overlay[] | undefined {
+function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: string, frameIdx: number): AnimationOverlay[] | undefined {
   if (rawOverlays == null) return undefined;
-  const out: Overlay[] = [];
+  const out: AnimationOverlay[] = [];
   let svgIdx = 0;
   for (const ov of rawOverlays) {
     if (ov != null && typeof ov === "object" && (ov as { kind?: string }).kind === "svg") {
@@ -360,7 +359,7 @@ function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: strin
         enter: raw.enter, exit: raw.exit,
       });
     } else {
-      out.push(ov as Overlay);
+      out.push(ov as AnimationOverlay);
     }
   }
   return out;

@@ -8,8 +8,8 @@
 
 export { parseScrollPattern, ScrollPatternError } from "./pattern.js";
 export type {
-  Pattern, Segment, BracketedSegment, FlatSegment,
-  Action, ScrollAction, PauseAction,
+  ScrollPattern, ScrollPatternSegment, BracketedSegment, FlatSegment,
+  ScrollPatternAction, ScrollAction, PauseAction,
   ScrollTarget, DeltaTarget, AbsoluteTarget,
   Anchor, NamedAnchor, SelectorAnchor,
   SignedLength, Length, Easing,
@@ -26,7 +26,7 @@ export {
 export type {
   ScrollExecutorOptions,
   ScrollSegmentCapture,
-  Axis,
+  ScrollAxis,
   PageStateSnapshot,
   SelectorBbox,
   PageQuery,

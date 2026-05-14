@@ -8,7 +8,7 @@ import { composeScrollSvg } from "./composer.js";
 
 /**
  * Build a CapturedElement with a complete-enough `styles` object for the
- * renderer not to crash on undefined property lookups. Pattern lifted from
+ * renderer not to crash on undefined property lookups. ScrollPattern lifted from
  * `stacking-context.test.ts`'s `makeElement`.
  */
 function el(opts: Partial<CapturedElement> & { tag: string; x: number; y: number }): CapturedElement {

@@ -234,7 +234,7 @@ function r3(n: number): string {
  * / `totalDurationMs` map an animation's frame-relative `delay`+`duration`
  * onto the global scene cycle.
  */
-export function cullFrame(
+export function cullElementsOutsideViewBox(
   tree: CapturedElement | CapturedElement[],
   viewportW: number,
   viewportH: number,

@@ -1,43 +1,62 @@
-export { captureElementTree, captureElementTreeWithWarnings } from "./capture/index.js";
-export { elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr, transparentRootBgRect } from "./render/element-tree-to-svg.js";
-export { embedRemoteImages, embedResizedDataUri } from "./capture/embed.js";
-export { getLastCaptureWarnings, logCaptureWarnings } from "./capture/warnings.js";
-export { resizeEmbeddedImages } from "./tree-ops/resize-embedded-images.js";
-export type { ResizeEmbeddedImagesOptions } from "./tree-ops/resize-embedded-images.js";
-export type { CapturedElement, CaptureWarning } from "./capture/types.js";
-export { generateAnimatedSvg } from "./animation/animator.js";
-export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverlay, SvgOverlay, IntraFrameAnimation } from "./animation/animator.js";
-export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./animation/cursor-overlay.js";
-export { DemoRecorder, launchChromium } from "./capture/index.js";
+// Public API surface for the `domotion-svg` npm package.
+//
+// Every export below is intentionally public. Anything not re-exported here is
+// internal — consumers should not import from `domotion-svg/dist/*` directly.
+// See `docs/api.md` for the canonical list with one-line descriptions.
+//
+// DM-622: the previous shape included ~14 internal helpers (test utilities,
+// scroll executor internals, root-svg attribute helpers, etc.). Those were
+// culled to reduce the surface and to make the package version (0.2.0+) honest
+// about what's stable. Per-feature barrels (`./capture`, `./render`,
+// `./animation`, `./scroll`, `./tree-ops`, `./post-processing`) each define
+// their own curated public surface — this file is the consumer-facing
+// aggregation of those barrels.
+
+// ── Capture ────────────────────────────────────────────────────────────────
+// Note: `./capture/index.ts` also re-exports several internal helpers used
+// across the package (warning buffer, webfont tracker, embed pipeline). We
+// import the curated subset by name rather than `export *` to keep the
+// public surface honest. (DM-622 — leaving an audit of `capture/index.ts` as
+// follow-up; for now `src/index.ts` is the source of truth.)
+export {
+  captureElementTree,
+  captureElementTreeWithWarnings,
+  DemoRecorder,
+  launchChromium,
+} from "./capture/index.js";
 export type { CaptureOptions } from "./capture/index.js";
-export { optimizeSvg } from "./post-processing/optimize.js";
-export { gzipSvg } from "./post-processing/gzip.js";
-export { cullFrame } from "./tree-ops/viewbox-culling.js";
-export { diffTrees, dominantTranslate, entriesOfKind } from "./tree-ops/tree-diff.js";
-export type { TreeDiff, DiffEntry, DiffEntryKind } from "./tree-ops/tree-diff.js";
+export {
+  getLastCaptureWarnings,
+  logCaptureWarnings,
+} from "./capture/warnings.js";
+export { embedRemoteImages } from "./capture/embed.js";
+export type { CapturedElement, CaptureWarning } from "./capture/types.js";
+
+// ── Render ─────────────────────────────────────────────────────────────────
+export * from "./render/index.js";
+
+// ── Animation ──────────────────────────────────────────────────────────────
+export * from "./animation/index.js";
+
+// ── Scroll ─────────────────────────────────────────────────────────────────
+// `./scroll/index.ts` also re-exports internal executor helpers
+// (`axisOfScroll`, `resolveAbsoluteTarget`, `resolveScrollAction`, plus
+// page-state types). We import the curated subset by name to keep them
+// internal-only.
 export {
   parseScrollPattern,
   ScrollPatternError,
   executeScrollPattern,
   ScrollExecutionError,
-  axisOfScroll,
-  resolveAbsoluteTarget,
-  resolveScrollAction,
   composeScrollSvg,
 } from "./scroll/index.js";
 export type {
-  ScrollComposerOptions,
-  ScrollExecutorOptions,
-  ScrollSegmentCapture,
-  Axis as ScrollAxis,
-  PageStateSnapshot,
-  SelectorBbox,
-  PageQuery,
-  Pattern as ScrollPattern,
-  Segment as ScrollPatternSegment,
+  ScrollPattern,
+  ScrollPatternSegment,
+  ScrollPatternAction,
+  ScrollAxis,
   BracketedSegment,
   FlatSegment,
-  Action as ScrollPatternAction,
   ScrollAction,
   PauseAction,
   ScrollTarget,
@@ -52,6 +71,12 @@ export type {
   UntilClause,
   PositionUntil,
   CountUntil,
+  ScrollExecutorOptions,
+  ScrollComposerOptions,
 } from "./scroll/index.js";
-export { getGlyphDefs, clearGlyphDefs, registerWebfont, clearWebfonts } from "./render/text-to-path.js";
-export { discoverAndRegisterWebfonts, attachWebfontTracker } from "./capture/index.js";
+
+// ── Tree ops ───────────────────────────────────────────────────────────────
+export * from "./tree-ops/index.js";
+
+// ── Post-processing ────────────────────────────────────────────────────────
+export * from "./post-processing/index.js";

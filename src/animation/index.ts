@@ -8,7 +8,7 @@ export {
   generateAnimatedSvg,
   type AnimationConfig,
   type AnimationFrame,
-  type Overlay,
+  type AnimationOverlay,
   type TypingOverlay,
   type TapOverlay,
   type SvgOverlay,
