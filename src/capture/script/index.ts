@@ -23,6 +23,7 @@ import { createFontMetrics } from "./font-metrics.js";
 import { createPlaceholderShown } from "./placeholder-shown.js";
 import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
+import { createListsCountersHandler } from "./walker/lists-counters.js";
 
 export const captureScript =
 (args) => {
@@ -39,6 +40,7 @@ export const captureScript =
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules();
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
+  const { captureListsCounters } = createListsCountersHandler({ normColor });
 
   // DM-457: per-capture counter for replaced-element snapshots
   // (canvas / video / iframe / object / embed). Each marked element gets
@@ -1210,55 +1212,7 @@ export const captureScript =
       // already reflects width/height attributes or the image's natural size.
       imageSrc = el.src;
     }
-    // Capture list-style-image intrinsic dims on <li> so the renderer paints
-    // markers at their natural size (CSS default).
-    let listMarkerIntrinsic = undefined;
-    let listItemIndex = undefined;
-    // CSS treats any element with display:list-item as a list item — the
-    // tag alone isn't enough. An <li> with display:inline-block (slashdot's
-    // social-icon strip) does NOT paint a marker per spec. Conversely a
-    // <div>/<span>/<section> with `display: list-item` DOES paint one and
-    // contributes to the implicit counter.
-    const isListItem = cs.display != null && cs.display.includes('list-item');
-    if (isListItem) {
-      if (cs.listStyleImage && cs.listStyleImage !== 'none') {
-        const u = /^url\((?:"|')?([^"')]+)/.exec(cs.listStyleImage);
-        if (u != null) {
-          const img = new Image();
-          img.src = u[1];
-          if (img.naturalWidth > 0) listMarkerIntrinsic = { w: img.naturalWidth, h: img.naturalHeight };
-        }
-      }
-      // Compute 1-based index for numeric/alpha markers. For <li> respect
-      // <ol start>, <ol reversed>, <li value>. For non-<li> display:list-item
-      // elements, just count display:list-item siblings in DOM order.
-      const parent = el.parentElement;
-      if (parent != null) {
-        if (tag === 'li') {
-          const siblings = Array.from(parent.children).filter((c) => c.tagName.toLowerCase() === 'li');
-          const parentTag = parent.tagName.toLowerCase();
-          const reversed = parentTag === 'ol' && parent.hasAttribute('reversed');
-          let start = 1;
-          if (parentTag === 'ol' && parent.hasAttribute('start')) start = parseInt(parent.getAttribute('start'), 10) || 1;
-          if (reversed) start = siblings.length;
-          let cur = start;
-          for (const s of siblings) {
-            if (s.hasAttribute('value')) cur = parseInt(s.getAttribute('value'), 10) || cur;
-            if (s === el) { listItemIndex = cur; break; }
-            cur += reversed ? -1 : 1;
-          }
-        } else {
-          let cur = 1;
-          for (const s of parent.children) {
-            const sd = window.getComputedStyle(s).display;
-            if (sd != null && sd.includes('list-item')) {
-              if (s === el) { listItemIndex = cur; break; }
-              cur += 1;
-            }
-          }
-        }
-      }
-    }
+    const _listsCounters = captureListsCounters(el, cs, tag);
     if (tag === 'svg') {
       // Inline SVG icons styled by external CSS (e.g. '.icon-btn svg { fill:none;
       // stroke: currentColor; stroke-width: 2 }') need their resolved presentation
@@ -1968,15 +1922,10 @@ export const captureScript =
         textUnderlineOffset: cs.textUnderlineOffset,
         textDecorationSkipInk: cs.textDecorationSkipInk,
       },
-      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, listMarkerIntrinsic, listItemIndex, svgContent, pseudoImages,
-      // ::marker pseudo styles (SK-1115). Only meaningful on <li>; rest of
-      // the time the values come back equal to the elements own font and
-      // are quietly ignored at render time.
-      markerColor: isListItem ? normColor(window.getComputedStyle(el, '::marker').color) : undefined,
-      markerFontWeight: isListItem ? window.getComputedStyle(el, '::marker').fontWeight : undefined,
-      markerFontSize: isListItem ? window.getComputedStyle(el, '::marker').fontSize : undefined,
-      markerContent: isListItem ? window.getComputedStyle(el, '::marker').content : undefined,
-      markerFontFamily: isListItem ? window.getComputedStyle(el, '::marker').fontFamily : undefined,
+      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, svgContent, pseudoImages,
+      // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
+      // list-item index — see walker/lists-counters.ts.
+      ..._listsCounters,
       textSegments: textSegments.length > 0 ? textSegments : undefined,
       textTop, textLeft, textHeight, textWidth, fontAscent, fontDescent,
       inputXOffsets,
