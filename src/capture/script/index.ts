@@ -31,6 +31,7 @@ import { createTransformsHandler } from "./walker/transforms.js";
 import { createBordersBackgroundsHandler } from "./walker/borders-backgrounds.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
+import { createTextSegmentsHandler } from "./walker/text-segments.js";
 
 export const captureScript =
 (args) => {
@@ -64,6 +65,7 @@ export const captureScript =
     textNeedsRaster,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
+  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster });
 
   const capture = (el) => {
     // Freeze the element's CSS transform for the duration of the capture
@@ -245,259 +247,20 @@ export const captureScript =
         placeholderFontStyle = _iv.placeholderFontStyle;
         placeholderFontWeight = _iv.placeholderFontWeight;
       } else {
-        // Capture each text node as one segment *per visual line*. For wrapped
-        // paragraphs the browser produces multiple line boxes — we walk
-        // character-by-character and group runs with matching rect.top into
-        // separate segments so the renderer emits one <text>/path row per line.
-        // This also handles bidi visual ordering: chars in RTL runs come back
-        // right-to-left from getBoundingClientRect, so we sort runs by x within
-        // each line.
-        let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
-        // ::first-letter detection (SK-1114). Compare the pseudos computed
-        // font-size against the elements own font-size — when they differ
-        // the author has styled ::first-letter (drop cap pattern), and we
-        // raster the very first character as a glyph image so its bigger
-        // size + custom color paint correctly. Other ::first-letter delta
-        // signals (color, weight, etc.) come along for free since the
-        // screenshot captures whatever Chrome painted.
-        const flStyle = window.getComputedStyle(el, '::first-letter');
-        const elFsRaw = parseFloat(cs.fontSize) || 0;
-        const flFsRaw = parseFloat(flStyle.fontSize) || 0;
-        const firstLetterStyled = flFsRaw > 0 && Math.abs(flFsRaw - elFsRaw) > 0.5;
-        let firstCharSeen = false;
-        for (const node of el.childNodes) {
-          if (node.nodeType === Node.TEXT_NODE) {
-            // Apply CSS text-transform — Chrome paints transformed glyphs and
-            // measures them at the transformed advance. Range.getBoundingClientRect
-            // returns the transformed-glyph rect even though node.textContent
-            // is the un-transformed source string, so we must mirror the
-            // transform on our text content for the path renderer to draw the
-            // matching glyphs at the captured x positions. Capitalize uses an
-            // ASCII word-boundary heuristic — sufficient for current fixtures;
-            // a CSS-spec-compliant Unicode word break would need ICU.
-            let raw = node.textContent || '';
-            const tt = cs.textTransform;
-            if (tt === 'uppercase') raw = raw.toUpperCase();
-            else if (tt === 'lowercase') raw = raw.toLowerCase();
-            else if (tt === 'capitalize') raw = raw.replace(/\b\p{L}/gu, (ch) => ch.toUpperCase());
-            if (!raw.trim()) continue;
-            text += raw.trim() + ' ';
-
-            // Group characters by their laid-out line (matching rect.top).
-            // Record each char's rect.left so we can sort by visual x within
-            // the line at the end — this handles bidi/RTL where chars in a
-            // logical sequence are painted right-to-left within a line. Also
-            // keep xOffsets so the text renderer can anchor each glyph at the
-            // exact viewport x Chrome used (closes per-char advance drift).
-            const lines = [];
-            let cur = null;
-            for (let i = 0; i < raw.length; i++) {
-              // Handle UTF-16 surrogate pairs as a single code point so
-              // supplementary-plane emoji (🚀 U+1F680, 📈 U+1F4C8, …) get
-              // one char record with the emoji's full rect — otherwise the
-              // pair splits into a two-char tofu sequence and codePointAt on
-              // the low surrogate returns the surrogate value (never matches
-              // needsRaster).
-              const code = raw.charCodeAt(i);
-              const isHighSurrogate = code >= 0xD800 && code <= 0xDBFF && i + 1 < raw.length;
-              const step = isHighSurrogate ? 2 : 1;
-              const r = document.createRange();
-              r.setStart(node, i);
-              r.setEnd(node, i + step);
-              const cr = r.getBoundingClientRect();
-              // Skip whitespace chars Chrome collapsed away (e.g. the second
-              // space at a line wrap, where HTML normal whitespace collapsing
-              // leaves only one painted space). Such chars report rect.width
-              // === 0 even when rect.height matches the line box. Non-
-              // whitespace zero-width chars (combining marks like the acute
-              // on é) MUST stay in the stream — they pair with the preceding
-              // base char during shaping.
-              const isWs = step === 1 && /\s/.test(raw[i]);
-              if (cr.width === 0 && (cr.height === 0 || isWs)) { i += step - 1; continue; }
-              const ch = raw.slice(i, i + step);
-              // Carry each chars full per-char rect so the line-emission
-              // pass can build rasterGlyphs for codepoints Chrome paints via
-              // a color-bitmap font (emoji, U+2713 check, etc.).
-              const charRec = { ch, left: cr.left, top: cr.top, right: cr.right, bottom: cr.bottom };
-              if (cur == null || Math.abs(cr.top - cur.top) > 1) {
-                if (cur != null) lines.push(cur);
-                cur = { chars: [charRec], top: cr.top, bottom: cr.bottom, left: cr.left, right: cr.right };
-              } else {
-                cur.chars.push(charRec);
-                cur.left = Math.min(cur.left, cr.left);
-                cur.right = Math.max(cur.right, cr.right);
-                cur.bottom = Math.max(cur.bottom, cr.bottom);
-              }
-              i += step - 1;
-            }
-            if (cur != null) lines.push(cur);
-            // BiDi visual-fragment splitting (DM-323). When a single DOM text
-            // node lands inside a dir=rtl paragraph, Chrome can split it
-            // into multiple visually-separate chunks — most commonly trailing
-            // punctuation reorders to the visual-left while the rest of the
-            // run paints on the visual-right. Detect those large xOffset
-            // discontinuities here (gap between consecutive chars > 80 px in
-            // either direction) and split the line into multiple fragments,
-            // each with its own xOffset min so the segment downstream renders
-            // at the correct anchor. Without this, our min(xOffsets) for
-            // the whole line collapses the visually-rightmost run onto the
-            // visually-leftmost char x and the chars overlap.
-            const fragmentedLines = [];
-            for (const ln of lines) {
-              if (ln.chars.length <= 1) { fragmentedLines.push(ln); continue; }
-              let frag = { chars: [ln.chars[0]], top: ln.top, bottom: ln.bottom };
-              const fragments = [frag];
-              for (let ci = 1; ci < ln.chars.length; ci++) {
-                const prev = ln.chars[ci - 1];
-                const cur = ln.chars[ci];
-                // Big leftward jump (cur starts well to the LEFT of prev's
-                // left edge) OR big rightward jump (cur starts well to the
-                // RIGHT of prev's right edge) — either is a reordered
-                // fragment boundary that Chrome paints at a discontinuous x.
-                const leftJump = cur.left < prev.left - 80;
-                const rightJump = cur.left > prev.right + 80;
-                if (leftJump || rightJump) {
-                  frag = { chars: [cur], top: ln.top, bottom: ln.bottom };
-                  fragments.push(frag);
-                } else {
-                  frag.chars.push(cur);
-                }
-              }
-              for (const f of fragments) {
-                let l = Infinity, r = -Infinity;
-                for (const c of f.chars) {
-                  if (c.left < l) l = c.left;
-                  if (c.right > r) r = c.right;
-                }
-                f.left = l;
-                f.right = r;
-                fragmentedLines.push(f);
-              }
-            }
-            lines.length = 0;
-            for (const fl of fragmentedLines) lines.push(fl);
-            // Preserve DOM/logical order. For an LTR paragraph that's also
-            // visual order. For RTL runs Chrome paints chars at non-monotonic
-            // x (logical-first goes to visual-right), so xOffsets may zig-zag
-            // — the renderer uses per-char anchoring to place each shaped
-            // glyph at its captured x. Keeping logical order lets bidi-js's
-            // paired-bracket mirroring find matching pairs (BD16 can't
-            // recognize pairs in visual-sorted text where a closer may
-            // precede its opener).
-            for (const ln of lines) {
-              // Build text as a straight concatenation of char.ch (each may
-              // be 1 or 2 UTF-16 units for surrogate-paired emoji), and
-              // expand xOffsets to keep one entry per UTF-16 code unit —
-              // downstream text-to-path checks xOffsets.length === text.length,
-              // so the low surrogate of an emoji needs a duplicate xOffset
-              // entry to preserve that invariant.
-              ln.text = ln.chars.map((c) => c.ch).join('');
-              const xo = [];
-              for (const c of ln.chars) {
-                for (let k = 0; k < c.ch.length; k++) xo.push(c.left);
-              }
-              ln.xOffsets = xo;
-            }
-
-            for (const line of lines) {
-              // Keep text and xOffsets aligned char-for-char so the renderer's
-              // per-char path stays active. Trimming whitespace would drop
-              // chars from text while leaving them in xOffsets, breaking the
-              // length-equality check and forcing fallback to native fontkit
-              // advances (which drift wide vs Chrome). Browser-collapsed
-              // whitespace already has zero rect width and is excluded above;
-              // any whitespace still present here is real layout space.
-              const visualText = line.text.replace(/[\t\n\r]/g, ' ');
-              if (visualText.replace(/\s/g, '') === '') continue;
-              // Per-char raster candidates (SK-1090): emoji / color-bitmap
-              // codepoints in the middle of a plain-text run. Each entry
-              // carries the chars viewport-relative rect; rasterizeBitmapGlyphs
-              // fills in dataUri post-capture and the renderer stamps an
-              // <image> over the chars xOffset. charIndex is a UTF-16 position
-              // into segment.text (not a code-point index) so
-              // text.codePointAt(charIndex) resolves correctly for surrogate-
-              // paired emoji.
-              const rasterGlyphs = [];
-              let utf16Idx = 0;
-              for (let _ci = 0; _ci < line.chars.length; _ci++) {
-                const cRec = line.chars[_ci];
-                const cp = cRec.ch.codePointAt(0);
-                const nextCh = _ci + 1 < line.chars.length ? line.chars[_ci + 1].ch : '';
-                const nextCp = nextCh ? nextCh.codePointAt(0) : 0;
-                const isFirstLetter = firstLetterStyled && !firstCharSeen && /\S/.test(cRec.ch);
-                if (isFirstLetter) firstCharSeen = true;
-                if ((cp != null && needsRaster(cp, nextCp)) || isFirstLetter) {
-                  rasterGlyphs.push({
-                    charIndex: utf16Idx,
-                    rect: {
-                      x: cRec.left - vp.x,
-                      y: cRec.top - vp.y,
-                      width: cRec.right - cRec.left,
-                      height: cRec.bottom - cRec.top,
-                    },
-                    // ::first-letter drop caps: suppress the path glyph so
-                    // only the rasterized big letter paints (DM-439).
-                    suppressGlyph: isFirstLetter ? true : undefined,
-                  });
-                }
-                utf16Idx += cRec.ch.length;
-              }
-              textSegments.push({
-                text: visualText,
-                x: line.left - vp.x,
-                y: line.top - vp.y,
-                width: line.right - line.left,
-                height: line.bottom - line.top,
-                xOffsets: line.xOffsets.map((v) => v - vp.x),
-                rasterGlyphs: rasterGlyphs.length > 0 ? rasterGlyphs : undefined,
-              });
-              minLeft = Math.min(minLeft, line.left);
-              minTop = Math.min(minTop, line.top);
-              maxRight = Math.max(maxRight, line.right);
-              maxBottom = Math.max(maxBottom, line.bottom);
-            }
-          }
-        }
-        // ::first-line detection (DM-294). The first visual line of an element
-        // can carry styles different from the rest via the ::first-line pseudo
-        // (font-variant: small-caps, color, font-style, font-weight, font-size,
-        // letter-spacing). Chrome's getComputedStyle(el, '::first-line')
-        // resolves the actual computed values for us — we don't need to walk
-        // the stylesheet or implement the CSS cascade ourselves. When the
-        // pseudo's resolved style differs from the element's base, attach the
-        // overrides to textSegments[0] (= the first visual line) so the
-        // renderer applies them only there. Letter-spacing already comes
-        // through in the captured xOffsets so we don't propagate it.
-        if (textSegments.length > 0) {
-          const flLineStyle = window.getComputedStyle(el, '::first-line');
-          const firstSeg = textSegments[0];
-          if (flLineStyle.fontVariant !== '' && flLineStyle.fontVariant !== cs.fontVariant) {
-            firstSeg.fontVariant = flLineStyle.fontVariant;
-          }
-          if (flLineStyle.color !== '' && flLineStyle.color !== cs.color) {
-            firstSeg.color = flLineStyle.color;
-          }
-          if (flLineStyle.fontWeight !== '' && flLineStyle.fontWeight !== cs.fontWeight) {
-            firstSeg.fontWeight = flLineStyle.fontWeight;
-          }
-          if (flLineStyle.fontStyle !== '' && flLineStyle.fontStyle !== cs.fontStyle) {
-            firstSeg.fontStyle = flLineStyle.fontStyle;
-          }
-          const flFs = parseFloat(flLineStyle.fontSize);
-          const elFs2 = parseFloat(cs.fontSize);
-          if (flFs > 0 && Math.abs(flFs - elFs2) > 0.1) {
-            firstSeg.fontSize = flFs;
-          }
-        }
-        text = text.trim();
-        if (minLeft < Infinity) {
-          textLeft = minLeft - vp.x;
-          textTop = minTop - vp.y;
-          textWidth = maxRight - minLeft;
-          textHeight = maxBottom - minTop;
-          const _textMetrics = _measureFontMetrics(cs);
-          fontAscent = _textMetrics.ascent;
-          fontDescent = _textMetrics.descent;
+        // Text-node walker — per-line textSegments via per-character
+        // getClientRects, BiDi visual-fragment splitting, rasterGlyph
+        // detection, ::first-letter / ::first-line overrides. See
+        // walker/text-segments.ts.
+        const _ts = captureTextSegments(el, cs);
+        text = _ts.text;
+        for (const seg of _ts.textSegments) textSegments.push(seg);
+        if (_ts.textLeft != null) {
+          textLeft = _ts.textLeft;
+          textTop = _ts.textTop;
+          textWidth = _ts.textWidth;
+          textHeight = _ts.textHeight;
+          fontAscent = _ts.fontAscent;
+          fontDescent = _ts.fontDescent;
         }
       }
     }
