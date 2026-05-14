@@ -120,7 +120,8 @@ The Hot Sheet workflow (`.hotsheet/`, `DM-XXX` ticket numbers) is a local develo
 
 - **Never tell readers to "see DM-123" / "see `.hotsheet/`" or imply the ticket itself is the documentation.** Anything important enough to reference belongs in code or in `docs/`.
 - **A bare `DM-XXX` is not a citation.** If you mention one, pair it with a short, self-contained summary that's understandable without opening the ticket. The summary is the substance; the ticket id is just provenance for the local reader.
-- This applies to **commit messages, source comments, `docs/` files, and `README.md`** — everywhere outside `.hotsheet/` itself.
+- This applies to **commit messages, source comments, `docs/` files, and `README.md`** — everywhere outside Hot Sheet itself.
+- **Within Hot Sheet ticket notes / details, bare ticket references are fine.** If you're reading a ticket, Hot Sheet is by definition available — so `see DM-275` or `blocked on DM-619` inside a ticket is a working link, not a dangling one. The rule above is about reaching audiences who *don't* have Hot Sheet.
 
 Examples:
 
