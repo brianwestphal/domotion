@@ -30,6 +30,7 @@ import { createFormControlsHandler } from "./walker/form-controls.js";
 import { createTransformsHandler } from "./walker/transforms.js";
 import { createBordersBackgroundsHandler } from "./walker/borders-backgrounds.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
+import { createInputValueHandler } from "./walker/input-value.js";
 
 export const captureScript =
 (args) => {
@@ -62,6 +63,7 @@ export const captureScript =
     measureFontMetrics: _measureFontMetrics,
     textNeedsRaster,
   });
+  const { captureInputValue } = createInputValueHandler({ vp, measureFontMetrics: _measureFontMetrics });
 
   const capture = (el) => {
     // Freeze the element's CSS transform for the duration of the capture
@@ -220,117 +222,22 @@ export const captureScript =
     // styles.selectListboxOptions (DM-282).
     const textIsHiddenFallback = tag === 'meter' || tag === 'progress' || tag === 'datalist' || tag === 'option' || tag === 'optgroup';
     if (tag !== 'svg' && tag !== 'img' && !textIsHiddenFallback) {
-      // Capture input/textarea values (not in text nodes). For input types
-      // whose value is rendered as native chrome (range thumb, color swatch,
-      // checkbox tick, radio dot, file button, date picker formatted text)
-      // we suppress the raw text capture — form-controls.ts paints those
-      // visuals separately, and capturing the raw value here would produce
-      // text that overlaps the synthesized chrome with the wrong content
-      // (e.g. raw '2026-04-21' under a 'MM/DD/YYYY' date picker).
-      const inputType = (tag === 'input') ? (el.type || 'text') : '';
-      const skipValueCapture = inputType === 'range' || inputType === 'color'
-        || inputType === 'checkbox' || inputType === 'radio'
-        || inputType === 'file' || inputType === 'image' || inputType === 'hidden'
-        || inputType === 'date' || inputType === 'time' || inputType === 'datetime-local'
-        || inputType === 'month' || inputType === 'week';
-      // Placeholder fallback: when an input or textarea has no user-typed
-      // value but carries a 'placeholder' attribute, Chrome renders the
-      // attribute text inside the control in the computed ::placeholder color
-      // (default is a muted gray). Capture it the same way we capture the
-      // value so the renderer produces the same visible string — just with
-      // the placeholder color. See SK-1097 / SK-1100.
+      // Input / textarea value capture (incl. placeholder fallback, password
+      // masking, sub-pixel inputXOffsets probe, text-align shift). See
+      // walker/input-value.ts. When the handler `applied`, copy its locals
+      // out and skip the text-node walker for this element.
+      const _iv = captureInputValue(el, cs, tag, rect);
       var isPlaceholderCapture = false;
-      if ((tag === 'input' || tag === 'textarea') && !el.value && !skipValueCapture) {
-        const placeholder = el.getAttribute && el.getAttribute('placeholder');
-        if (placeholder != null && placeholder !== '') {
-          isPlaceholderCapture = true;
-          text = placeholder;
-        }
-      }
-      if (((tag === 'input' || tag === 'textarea') && el.value && !skipValueCapture) || isPlaceholderCapture) {
-        // For password inputs replace the raw value with a bullet string the
-        // same length so the field reads like Chrome's masked view instead
-        // of leaking the plaintext password. (Placeholder text is rendered
-        // as-is even on password inputs — Chrome doesn't mask placeholders.)
-        if (!isPlaceholderCapture) {
-          text = inputType === 'password' ? '•'.repeat(el.value.length) : el.value;
-        }
-        const pl = parseFloat(cs.paddingLeft) || 0;
-        const pt = parseFloat(cs.paddingTop) || 0;
-        const bl = parseFloat(cs.borderLeftWidth) || 0;
-        const bt = parseFloat(cs.borderTopWidth) || 0;
-        textLeft = rect.left - vp.x + bl + pl;
-        textTop = rect.top - vp.y + bt + pt;
-        textHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
-        textWidth = rect.width - bl * 2 - pl * 2;
-        const _inputMetrics = _measureFontMetrics(cs);
-        fontAscent = _inputMetrics.ascent;
-        fontDescent = _inputMetrics.descent;
-        // Per-char xOffsets via a hidden probe span (SK-1234). Without these
-        // the renderer falls back to fontkit's native advances which drift
-        // ~0.5px/char vs Chromium's HarfBuzz shaping. The probe replicates
-        // the input's font properties (family/size/weight/style/letter-spacing)
-        // so per-char Range rects produce the same shaping Chrome would paint.
-        if (text.length > 0 && tag === 'input') {
-          const probe = document.createElement('span');
-          probe.style.position = 'absolute';
-          probe.style.left = '-9999px';
-          probe.style.top = '-9999px';
-          probe.style.visibility = 'hidden';
-          probe.style.whiteSpace = 'pre';
-          probe.style.fontFamily = cs.fontFamily;
-          probe.style.fontSize = cs.fontSize;
-          probe.style.fontWeight = cs.fontWeight;
-          probe.style.fontStyle = cs.fontStyle;
-          probe.style.letterSpacing = cs.letterSpacing;
-          probe.style.fontKerning = cs.fontKerning;
-          probe.style.fontVariationSettings = cs.fontVariationSettings;
-          probe.style.fontFeatureSettings = cs.fontFeatureSettings;
-          probe.textContent = text;
-          document.body.appendChild(probe);
-          const probeNode = probe.firstChild;
-          if (probeNode != null) {
-            const probeBox = probe.getBoundingClientRect();
-            const probeOriginX = probeBox.left;
-            const xs = [];
-            let i = 0;
-            while (i < text.length) {
-              const code = text.charCodeAt(i);
-              const isHigh = code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length;
-              const step = isHigh ? 2 : 1;
-              const rng = document.createRange();
-              rng.setStart(probeNode, i);
-              rng.setEnd(probeNode, i + step);
-              const cr = rng.getBoundingClientRect();
-              const left = cr.left - probeOriginX + textLeft;
-              for (let k = 0; k < step; k++) xs.push(left);
-              i += step;
-            }
-            // Honor text-align inside an <input> (Chrome centers / right-aligns
-            // the value within the content box; the probe is an inline-level
-            // span so its xOffsets are flush-left and need post-shift). DM-353:
-            // .spin input with text-align center left "3" against the left
-            // padding instead of centered between the +/- buttons.
-            const pr = parseFloat(cs.paddingRight) || 0;
-            const br = parseFloat(cs.borderRightWidth) || 0;
-            const contentBoxW = rect.width - bl - br - pl - pr;
-            const probeW = probeBox.width;
-            const slack = contentBoxW - probeW;
-            const align = cs.textAlign;
-            const dir = cs.direction;
-            let shift = 0;
-            if (slack > 0) {
-              if (align === 'center') shift = slack / 2;
-              else if (align === 'right' || (align === 'end' && dir !== 'rtl') || (align === 'start' && dir === 'rtl')) shift = slack;
-            }
-            if (shift !== 0) {
-              textLeft += shift;
-              for (let k = 0; k < xs.length; k++) xs[k] += shift;
-            }
-            inputXOffsets = xs;
-          }
-          document.body.removeChild(probe);
-        }
+      if (_iv.applied) {
+        text = _iv.text;
+        textLeft = _iv.textLeft;
+        textTop = _iv.textTop;
+        textHeight = _iv.textHeight;
+        textWidth = _iv.textWidth;
+        fontAscent = _iv.fontAscent;
+        fontDescent = _iv.fontDescent;
+        inputXOffsets = _iv.inputXOffsets;
+        isPlaceholderCapture = _iv.isPlaceholderCapture;
       } else {
         // Capture each text node as one segment *per visual line*. For wrapped
         // paragraphs the browser produces multiple line boxes — we walk
