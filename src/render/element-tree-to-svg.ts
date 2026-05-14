@@ -1138,8 +1138,15 @@ export function elementTreeToSvg(
     // `disclosure-closed`/`disclosure-open` — those are painted by the
     // renderDetailsMarker pipeline on the <details> parent (DM-448), so
     // skip the generic list-item marker here to avoid double-painting.
+    //
+    // DM-597: marker paints when the element's `display` is `list-item` —
+    // NOT just because the tag is `<li>`. Slashdot's social-icon strip uses
+    // `<li>` with `display: inline-block` (no marker per CSS spec). The
+    // previous `tag === "li" || ...` check painted spurious bullets in
+    // front of every social icon.
     const isListItem = el.tag !== "summary"
-      && (el.tag === "li" || (el.styles.display != null && el.styles.display.includes("list-item")));
+      && el.styles.display != null
+      && el.styles.display.includes("list-item");
     if (isListItem) {
       const lsImage = el.styles.listStyleImage;
       const lsType = el.styles.listStyleType ?? "disc";

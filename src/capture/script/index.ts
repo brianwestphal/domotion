@@ -1214,11 +1214,12 @@ export const captureScript =
     // markers at their natural size (CSS default).
     let listMarkerIntrinsic = undefined;
     let listItemIndex = undefined;
-    // CSS treats any element with display:list-item as a list item, not
-    // just li. divs / spans / sections etc. with the property paint a
-    // marker per list-style-type and contribute to the implicit counter.
-    // (DM-451)
-    const isListItem = tag === 'li' || (cs.display != null && cs.display.includes('list-item'));
+    // CSS treats any element with display:list-item as a list item — the
+    // tag alone isn't enough. An <li> with display:inline-block (slashdot's
+    // social-icon strip) does NOT paint a marker per spec. Conversely a
+    // <div>/<span>/<section> with `display: list-item` DOES paint one and
+    // contributes to the implicit counter.
+    const isListItem = cs.display != null && cs.display.includes('list-item');
     if (isListItem) {
       if (cs.listStyleImage && cs.listStyleImage !== 'none') {
         const u = /^url\((?:"|')?([^"')]+)/.exec(cs.listStyleImage);
