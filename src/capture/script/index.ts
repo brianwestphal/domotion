@@ -32,6 +32,7 @@ import { createBordersBackgroundsHandler } from "./walker/borders-backgrounds.js
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler } from "./walker/text-segments.js";
+import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
 
 export const captureScript =
 (args) => {
@@ -66,6 +67,7 @@ export const captureScript =
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
   const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster });
+  const { injectPseudoSegments } = createPseudoInjectHandler();
 
   const capture = (el) => {
     // Freeze the element's CSS transform for the duration of the capture
@@ -264,132 +266,21 @@ export const captureScript =
         }
       }
     }
-    // Inject pseudo-element segments now that we have the main text boundaries.
-    // ::before is prepended; ::after is appended. Adjust the ::before x to sit
-    // just left of the first main segment, since that's where Chromium painted
-    // it (el.textLeft already excludes the pseudo's width).
-    // Image pseudos (content: url(...)) are collected separately for rendering
-    // as <image> elements at the appropriate position.
-    const pseudoImages = [];
-    for (const p of pseudoSegments) {
-      if (p.imageUrl) {
-        // Position: before = at element content-left, shifting main text right.
-        // Browsers already shifted the main text right by the pseudos LAYOUT
-        // width (p.seg.width), so we place the layout anchor at
-        // (firstSeg.x - layoutWidth). The image itself then paints at
-        // renderWidth/Height from that anchor and can overflow right/down.
-        // The image paints at the inline-blocks CONTENT-BOX top-left. The
-        // following text is shifted by the full outer-box advance
-        // (marginL + borderL + paddingL + width + paddingR + borderR +
-        // marginR). For ::before that means
-        //   contentBoxLeft = firstSeg.x - (paddingR + borderR + marginR + width)
-        // For ::after the leading text ends at lastSeg.x + lastSeg.width, then
-        //   contentBoxLeft = lastSegEnd + marginL + borderL + paddingL
-        const mL = p.boxMarginLeft || 0;
-        const mR = p.boxMarginRight || 0;
-        const bL = p.boxBorderLeft || 0;
-        const bR = p.boxBorderRight || 0;
-        const pL = p.boxPaddingLeft || 0;
-        const pR = p.boxPaddingRight || 0;
-        if (p.isBefore && textSegments.length > 0) {
-          const firstSeg = textSegments[0];
-          p.seg.x = firstSeg.x - p.seg.width - pR - bR - mR;
-          p.seg.y = firstSeg.y + (firstSeg.height - p.seg.height) / 2;
-        } else if (!p.isBefore && textSegments.length > 0) {
-          const lastSeg = textSegments[textSegments.length - 1];
-          p.seg.x = lastSeg.x + lastSeg.width + mL + bL + pL;
-          p.seg.y = lastSeg.y + (lastSeg.height - p.seg.height) / 2;
-        }
-        pseudoImages.push({
-          url: p.imageUrl,
-          x: p.seg.x, y: p.seg.y,
-          width: p.renderWidth, height: p.renderHeight,
-        });
-        continue;
-      }
-      if (p.isPositioned) {
-        // Positioned pseudo paints at its own anchor — do NOT realign to the
-        // parent's text flow (DM-495).
-        if (p.isBefore) textSegments.unshift(p.seg);
-        else textSegments.push(p.seg);
-      } else if (p.isBefore && textSegments.length > 0) {
-        // Offset by measured width before the first real segment's x. When
-        // the pseudo carries its own margin / border / padding (DM-497 badge
-        // pattern), the text content is inset further so subtract the right-
-        // side outer-box advance from the anchor.
-        const firstSeg = textSegments[0];
-        const _bs = p.boxStyles || {};
-        const _mR = parseFloat(window.getComputedStyle(el, '::before').marginRight) || 0;
-        p.seg.x = firstSeg.x - p.seg.width - (_bs.padR || 0) - (_bs.borR || 0) - _mR;
-        p.seg.y = firstSeg.y;
-        p.seg.height = firstSeg.height;
-        textSegments.unshift(p.seg);
-      } else if (!p.isBefore && textSegments.length > 0) {
-        // ::after sits to the right of the parents trailing text. When the
-        // pseudo has its own margin / padding / border (DM-497), the text
-        // content is offset by margin-left + border-left + padding-left from
-        // the parents text right edge.
-        const lastSeg = textSegments[textSegments.length - 1];
-        const _bs = p.boxStyles || {};
-        const _mL = parseFloat(window.getComputedStyle(el, '::after').marginLeft) || 0;
-        p.seg.x = lastSeg.x + lastSeg.width + _mL + (_bs.borL || 0) + (_bs.padL || 0);
-        p.seg.y = lastSeg.y;
-        p.seg.height = lastSeg.height;
-        textSegments.push(p.seg);
-      } else {
-        // No main text — just place at element origin.
-        textSegments.push(p.seg);
-      }
-      // DM-495: when the pseudo is the only text on the element, propagate
-      // its bounds up to el.textLeft/textTop/etc. so the renderer's single-
-      // segment path positions and sizes the text from the pseudo (without
-      // this, textLeft / textTop default to 0 and the text paints at the
-      // SVG origin).
-      if (textSegments.length === 1 && textSegments[0] === p.seg) {
-        textLeft = p.seg.x;
-        textTop = p.seg.y;
-        textWidth = p.seg.width;
-        textHeight = p.seg.height;
-        if (p.seg.fontAscent != null) fontAscent = p.seg.fontAscent;
-      }
-      // If we flagged this pseudo for raster, re-anchor the screenshot rect
-      // to the final (post-injection) x/y. Its x was computed against the
-      // elements right edge for ::after / content-left for ::before, but the
-      // injection above moves it to sit flush against the main text — the
-      // rasterRect has to follow or we screenshot empty space.
-      if (p.seg.rasterRect != null) {
-        p.seg.rasterRect.x = p.seg.x;
-        p.seg.rasterRect.y = p.seg.y;
-        p.seg.rasterRect.height = p.seg.height;
-      }
-      // DM-497: now that seg.x/y is in its final viewport-relative position,
-      // compute the pseudos own paint box (for ::before/::after with their
-      // own background-color or border-radius — badge / pill / chip patterns).
-      // The text anchor is treated as the content-box origin; expand outward
-      // by padding + border on all sides to get the box rect.
-      if (p.boxStyles != null) {
-        const bs = p.boxStyles;
-        // Inline-box bg paints at lineH + padding (not fontSize). Vertical
-        // anchor: text top is at (lineCenter - fontSize/2); box top should
-        // be at (lineCenter - lineH/2 - padT - borT). Solve for lineCenter
-        // from p.seg.y (text-top) and project the box top from that.
-        const _lineCenter = p.seg.y + bs.fontSize / 2;
-        const _boxTop = _lineCenter - bs.lineH / 2 - bs.padT - bs.borT;
-        const _bx = p.seg.x - bs.padL - bs.borL;
-        const _bw = p.seg.width + bs.padL + bs.padR + bs.borL + bs.borR;
-        const _bh = bs.lineH + bs.padT + bs.padB + bs.borT + bs.borB;
-        if (_bw > 0 && _bh > 0) {
-          p.seg.pseudoBox = {
-            x: _bx, y: _boxTop, width: _bw, height: _bh,
-            backgroundColor: bs.backgroundColor,
-            borderRadius: bs.borderRadius,
-            borderWidth: bs.borderWidth,
-            borderColor: bs.borderColor,
-          };
-        }
-      }
-      text = (p.isBefore ? p.seg.text + ' ' : ' ' + p.seg.text) + text;
-    }
+    // Inject pseudo-element segments now that the main text boundaries
+    // are known. See walker/pseudo-inject.ts. Mutates textSegments in
+    // place; returns the new pseudoImages + updated text-shaping locals
+    // (pseudos can override the host's textLeft/Top/Width/Height when
+    // they're the only segment — DM-495).
+    const _pi = injectPseudoSegments(el, pseudoSegments, textSegments, {
+      text, textLeft, textTop, textWidth, textHeight, fontAscent,
+    });
+    const pseudoImages = _pi.pseudoImages;
+    text = _pi.text;
+    textLeft = _pi.textLeft;
+    textTop = _pi.textTop;
+    textWidth = _pi.textWidth;
+    textHeight = _pi.textHeight;
+    fontAscent = _pi.fontAscent;
 
     let textImageUri = undefined;
     const textImageScale = 2;
