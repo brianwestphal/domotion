@@ -3093,49 +3093,161 @@ export function buildMaskDef(
   }
 
   // Resolve per-layer composite operator. CSS accepts one value applied to
-  // all layers or a comma-separated list. Only `intersect` needs special
-  // handling — add is the SVG default, subtract/exclude aren't representable
-  // with nested masks alone (would need filter feComposite) so we fall back
-  // to add for those and warn via the captureWarnings pipeline.
-  const composite = (compositeLayers[0] ?? "add").trim();
+  // all layers or a comma-separated list. Chromium's `mask-composite`
+  // standard property maps to the same keyword names; the legacy
+  // `-webkit-mask-composite` form uses source-over / source-in / source-
+  // out / xor. We accept both by normalising via `normaliseComposite()`
+  // because Chromium's getComputedStyle reports whichever longhand the
+  // author last set, and the capture falls back to the webkit alias when
+  // the standard property is empty (e.g. on older Chromium builds that
+  // haven't shipped the unprefixed property).
+  //
+  // Only `intersect` and `subtract` / `exclude` need special handling —
+  // `add` is the SVG default (layers stack additively in a single
+  // <mask>). `intersect` chains nested masks; `subtract` / `exclude`
+  // emit SVG filters with `feComposite` since neither is directly
+  // expressible by stacking mask layers (DM-586).
+  const normaliseComposite = (raw: string): string => {
+    const t = raw.trim().toLowerCase();
+    if (t === "source-over") return "add";
+    if (t === "source-in") return "intersect";
+    if (t === "source-out") return "subtract";
+    if (t === "xor") return "exclude";
+    return t;
+  };
+  const composite = normaliseComposite(compositeLayers[0] ?? "add");
   const isIntersect = composite === "intersect"
-    && compositeLayers.every((c) => c.trim() === "intersect");
+    && compositeLayers.every((c) => normaliseComposite(c) === "intersect");
+  const isSubtract = composite === "subtract"
+    && compositeLayers.every((c) => normaliseComposite(c) === "subtract");
+  const isExclude = composite === "exclude"
+    && compositeLayers.every((c) => normaliseComposite(c) === "exclude");
+
+  // Helper: inject `mask="url(#X)"` into the last self-closing tag of a
+  // layer's contents (the rect/image that PAINTS the mask source — earlier
+  // entries are supporting defs like <pattern>/<linearGradient>). Returns
+  // a new items array.
+  const gateLastWithMask = (items: string[], maskId: string): string[] => {
+    if (items.length === 0) return items;
+    const cloned = items.slice();
+    cloned[cloned.length - 1] = cloned[cloned.length - 1].replace(/\/>$/, ` mask="url(#${maskId})"/>`);
+    return cloned;
+  };
+
+  // Filter that inverts alpha — used by subtract/exclude to build per-layer
+  // "transparent where this layer is opaque" masks. The matrix maps alpha:
+  // A' = -1 * A + 1, leaving RGB at 0. Inserted once into the defs block
+  // when any subtract/exclude path needs it.
+  const buildInvertAlphaFilter = (filterId: string): string =>
+    `<filter id="${filterId}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`;
 
   // For the default add case (single layer OR all-add), flatten every
   // layer's contents into one <mask>. SVG stacks them additively — alpha
   // accumulates where layers overlap.
-  if (!isIntersect || nonEmpty.length === 1) {
+  if (!isIntersect && !isSubtract && !isExclude) {
     const flat = nonEmpty.flat().join("");
     const def = `<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${flat}</mask>`;
     return { id, def };
   }
-
-  // Intersect: chain N masks so each layer gates the next. Layer 0 is the
-  // outer mask (the one the element references); each layer's painted rect
-  // carries a mask="url(#inner)" attribute pointing at layer i+1, so its
-  // pixels only show where layer i+1 is also opaque. Walk from the innermost
-  // layer outward so we can reference already-built inner mask ids.
-  const defs: string[] = [];
-  let innerId: string | null = null;
-  for (let li = nonEmpty.length - 1; li >= 0; li--) {
-    const isOuter = li === 0;
-    const layerMaskId = isOuter ? id : `${id}i${li}`;
-    // The last item in each layer's contents is the rect/image that PAINTS
-    // the mask source (earlier entries are supporting defs like <pattern>
-    // or <linearGradient>). Attach mask=url(#innerId) to that paint so it's
-    // clipped by the inner mask.
-    const items = nonEmpty[li].slice();
-    if (innerId != null && items.length > 0) {
-      const last = items[items.length - 1];
-      // Inject mask="..." before the closing /> (works for <rect .../> and
-      // <image .../>). Safe because these are single self-closing tags we
-      // emit ourselves earlier in this function.
-      items[items.length - 1] = last.replace(/\/>$/, ` mask="url(#${innerId})"/>`);
-    }
-    defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${items.join("")}</mask>`);
-    innerId = layerMaskId;
+  if (nonEmpty.length === 1) {
+    // Single-layer composite is just the layer itself regardless of op.
+    const flat = nonEmpty[0].join("");
+    const def = `<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${flat}</mask>`;
+    return { id, def };
   }
-  return { id, def: defs.join("") };
+
+  if (isIntersect) {
+    // Intersect: chain N masks so each layer gates the next. Layer 0 is the
+    // outer mask (the one the element references); each layer's painted rect
+    // carries a mask="url(#inner)" attribute pointing at layer i+1, so its
+    // pixels only show where layer i+1 is also opaque. Walk from the innermost
+    // layer outward so we can reference already-built inner mask ids.
+    const defs: string[] = [];
+    let innerId: string | null = null;
+    for (let li = nonEmpty.length - 1; li >= 0; li--) {
+      const isOuter = li === 0;
+      const layerMaskId = isOuter ? id : `${id}i${li}`;
+      const items = innerId != null ? gateLastWithMask(nonEmpty[li], innerId) : nonEmpty[li];
+      defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${items.join("")}</mask>`);
+      innerId = layerMaskId;
+    }
+    return { id, def: defs.join("") };
+  }
+
+  if (isSubtract) {
+    // Subtract: result α = L0 * (1 - L1) * (1 - L2) * ... — each subsequent
+    // layer erases from the cumulative result. Implement via per-layer
+    // alpha-inverted inner masks chained together: layer i's paint is
+    // gated by mask=url(#layer_{i+1}-inverted), which is gated by
+    // mask=url(#layer_{i+2}-inverted), and so on. (Same chain structure
+    // as intersect, except each inner mask wraps its paint in a
+    // <g filter="url(#invertAlpha)"> so the inner mask's emitted alpha
+    // is `1 - layer_alpha` rather than `layer_alpha`.)
+    const defs: string[] = [];
+    const invFilterId = `${id}inv`;
+    defs.push(buildInvertAlphaFilter(invFilterId));
+    let innerId: string | null = null;
+    for (let li = nonEmpty.length - 1; li >= 1; li--) {
+      const layerMaskId = `${id}s${li}`;
+      const items = innerId != null ? gateLastWithMask(nonEmpty[li], innerId) : nonEmpty[li];
+      // Wrap the paint inside a filter-applying <g> so the emitted alpha
+      // is (1 - layer_alpha).
+      defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}"><g filter="url(#${invFilterId})">${items.join("")}</g></mask>`);
+      innerId = layerMaskId;
+    }
+    // Outer mask: layer 0's paint, gated by the inverted-subsequent-layers chain.
+    const outerItems = innerId != null ? gateLastWithMask(nonEmpty[0], innerId) : nonEmpty[0];
+    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${outerItems.join("")}</mask>`);
+    return { id, def: defs.join("") };
+  }
+
+  // Exclude: a XOR b = a * (1 - b) + b * (1 - a). Generalises to N layers as
+  // the symmetric difference, but CSS exclude is rarely authored with > 2
+  // layers — we handle the common 2-layer case and fall back to add-style
+  // for higher arity (paint stacks with the inverted chain applied to each
+  // contribution). Build:
+  //   - inv0 = invertAlpha(L0)
+  //   - inv1 = invertAlpha(L1)
+  //   - outer mask: L0-paint mask=url(#inv1), L1-paint mask=url(#inv0)
+  // For 3+ layers: each layer's paint is gated by the cumulative inverse of
+  // every OTHER layer (i.e. layer i paints where all layers j != i are
+  // transparent). Less common but follows the same pattern.
+  {
+    const defs: string[] = [];
+    const invFilterId = `${id}inv`;
+    defs.push(buildInvertAlphaFilter(invFilterId));
+    // Build one inverted mask per layer.
+    const invMaskIds: string[] = [];
+    for (let li = 0; li < nonEmpty.length; li++) {
+      const invMaskId = `${id}x${li}`;
+      defs.push(`<mask id="${invMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}"><g filter="url(#${invFilterId})">${nonEmpty[li].join("")}</g></mask>`);
+      invMaskIds.push(invMaskId);
+    }
+    // For N layers, chain the inverted masks of all other layers via
+    // intersect-style mask= attribute nesting. For N = 2 this collapses to
+    // a single mask= per layer.
+    const outerContents: string[] = [];
+    for (let li = 0; li < nonEmpty.length; li++) {
+      // Build a chain mask of all other layers' inversions.
+      let chainId: string | null = null;
+      for (let lj = nonEmpty.length - 1; lj >= 0; lj--) {
+        if (lj === li) continue;
+        if (chainId == null) { chainId = invMaskIds[lj]; continue; }
+        // Build a sub-mask that gates invMaskIds[lj]'s paint with chainId.
+        const subMaskId = `${id}x${li}c${lj}`;
+        // The inverted mask's paint is the filter-wrapped layer; gate it
+        // with the existing chainId by injecting a mask= onto its painted
+        // rect inside the filter wrapper. Easier: just inline another
+        // <g mask=url(#chainId)> wrapping the filter <g>.
+        defs.push(`<mask id="${subMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}"><g mask="url(#${chainId})"><g filter="url(#${invFilterId})">${nonEmpty[lj].join("")}</g></g></mask>`);
+        chainId = subMaskId;
+      }
+      const items = chainId != null ? gateLastWithMask(nonEmpty[li], chainId) : nonEmpty[li];
+      outerContents.push(items.join(""));
+    }
+    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${outerContents.join("")}</mask>`);
+    return { id, def: defs.join("") };
+  }
 }
 
 /**

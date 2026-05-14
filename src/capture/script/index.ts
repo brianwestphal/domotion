@@ -610,7 +610,7 @@ export const captureScript =
         maskSize: cs.maskSize || cs.webkitMaskSize || 'auto',
         maskPosition: cs.maskPosition || cs.webkitMaskPosition || '0% 0%',
         maskRepeat: cs.maskRepeat || cs.webkitMaskRepeat || 'repeat',
-        maskComposite: cs.maskComposite || 'add',
+        maskComposite: cs.maskComposite || cs.webkitMaskComposite || 'add',
         listStyleType: cs.listStyleType,
         listStyleImage: cs.listStyleImage,
         display: cs.display,
