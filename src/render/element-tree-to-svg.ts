@@ -1362,6 +1362,45 @@ export function elementTreeToSvg(
         svgParts.push(`${indent}<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
       }
     }
+    // Box-only pseudo-elements (DM-579): empty-content `::before` / `::after`
+    // with non-zero borders or background act as decorative separators /
+    // overlays. Capture pass records their effective rect + per-side
+    // borders; we emit one `<rect>` for the background fill (if any) plus
+    // up to four `<line>`s for the visible border sides. Per-side colors /
+    // widths can differ so we can't collapse them into a single
+    // stroke="..." attribute the way the regular-element border path does.
+    if ((el as any).pseudoBoxes != null) {
+      for (const pb of (el as any).pseudoBoxes as Array<{
+        x: number; y: number; width: number; height: number;
+        backgroundColor?: string;
+        borderTopWidth?: number; borderTopColor?: string; borderTopStyle?: string;
+        borderRightWidth?: number; borderRightColor?: string; borderRightStyle?: string;
+        borderBottomWidth?: number; borderBottomColor?: string; borderBottomStyle?: string;
+        borderLeftWidth?: number; borderLeftColor?: string; borderLeftStyle?: string;
+        borderRadius?: number;
+      }>) {
+        if (pb.backgroundColor) {
+          const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
+          svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="${pb.backgroundColor}" />`);
+        }
+        // Per-side borders. Each painted side gets one <line> across the
+        // appropriate edge. For h=0 / w=0 boxes this collapses to a single
+        // visible hairline — the separator case.
+        const side = (
+          x1: number, y1: number, x2: number, y2: number,
+          width: number | undefined, color: string | undefined, style: string | undefined,
+        ): void => {
+          if (!width || width <= 0 || !color || color === "rgba(0, 0, 0, 0)" || color === "transparent") return;
+          if (style === "none" || style === "hidden") return;
+          const dash = style === "dashed" ? ` stroke-dasharray="${r(width * 2)},${r(width * 2)}"` : style === "dotted" ? ` stroke-dasharray="${r(width)},${r(width)}"` : "";
+          svgParts.push(`${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${r(width)}"${dash} />`);
+        };
+        side(pb.x, pb.y + (pb.borderTopWidth ?? 0) / 2, pb.x + pb.width, pb.y + (pb.borderTopWidth ?? 0) / 2, pb.borderTopWidth, pb.borderTopColor, pb.borderTopStyle);
+        side(pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y, pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y + pb.height, pb.borderRightWidth, pb.borderRightColor, pb.borderRightStyle);
+        side(pb.x, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.x + pb.width, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.borderBottomWidth, pb.borderBottomColor, pb.borderBottomStyle);
+        side(pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y, pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y + pb.height, pb.borderLeftWidth, pb.borderLeftColor, pb.borderLeftStyle);
+      }
+    }
 
     // Text rendering — delegated to text-renderer.ts based on configured mode
     if (el.text !== "") {

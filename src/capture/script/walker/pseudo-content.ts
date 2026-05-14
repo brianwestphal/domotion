@@ -100,6 +100,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
 
   const capturePseudoContent = (el, cs, rect, counterSnapshot) => {
     const pseudoSegments = [];
+    const pseudoBoxes = [];
     for (const pseudo of ['::before', '::after']) {
       const pcs = window.getComputedStyle(el, pseudo);
       const content = pcs.content;
@@ -169,7 +170,65 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
           i++;
         }
       }
-      if (text === '' && imageUrl === '') continue;
+      if (text === '' && imageUrl === '') {
+        // Empty-content pseudo. The author might be using the pseudo as a
+        // decorative box — common pattern for inline separators (DM-579:
+        // `.css-mx1q46::before { content: ""; height: 0; border-bottom: 2px
+        // solid #121212 }` paints a hairline between sections). Capture
+        // the box rect + per-side border / background only when the
+        // pseudo is `display: block` and has at least one non-zero border
+        // side or a visible background.
+        const bgRaw = pcs.backgroundColor;
+        const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
+        const bwT = parseFloat(pcs.borderTopWidth) || 0;
+        const bwR = parseFloat(pcs.borderRightWidth) || 0;
+        const bwB = parseFloat(pcs.borderBottomWidth) || 0;
+        const bwL = parseFloat(pcs.borderLeftWidth) || 0;
+        const hasBorder = bwT > 0 || bwR > 0 || bwB > 0 || bwL > 0;
+        const isBlockLike = pcs.display === 'block' || pcs.display === 'inline-block' || pcs.display === 'flex';
+        if (isBlockLike && (hasBg || hasBorder)) {
+          // The pseudo flows at the host's content-box top-left (static
+          // positioning, before any other content). Apply the host's
+          // padding + pseudo's own margin.
+          const hostPadL = parseFloat(cs.paddingLeft) || 0;
+          const hostPadT = parseFloat(cs.paddingTop) || 0;
+          const hostBorL = parseFloat(cs.borderLeftWidth) || 0;
+          const hostBorT = parseFloat(cs.borderTopWidth) || 0;
+          const pMarL = parseFloat(pcs.marginLeft) || 0;
+          const pMarT = parseFloat(pcs.marginTop) || 0;
+          const pPadL = parseFloat(pcs.paddingLeft) || 0;
+          const pPadR = parseFloat(pcs.paddingRight) || 0;
+          const pPadT = parseFloat(pcs.paddingTop) || 0;
+          const pPadB = parseFloat(pcs.paddingBottom) || 0;
+          // Pseudo width / height come from computed style. `width: 350px`
+          // resolves directly; `auto` falls back to host content width
+          // (minus host padding) — close enough for the separator case.
+          const hostContentW = rect.width - hostBorL - (parseFloat(cs.borderRightWidth) || 0) - hostPadL - (parseFloat(cs.paddingRight) || 0);
+          const pcsW = parseFloat(pcs.width);
+          const pcsH = parseFloat(pcs.height);
+          const contentW = !isNaN(pcsW) ? pcsW : hostContentW - pMarL - (parseFloat(pcs.marginRight) || 0);
+          const contentH = !isNaN(pcsH) ? pcsH : 0;
+          const borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
+          const borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
+          const borderBoxW = contentW + pPadL + pPadR + bwL + bwR;
+          const borderBoxH = contentH + pPadT + pPadB + bwT + bwB;
+          if (borderBoxW > 0 && borderBoxH > 0) {
+            pseudoBoxes.push({
+              x: borderBoxX,
+              y: borderBoxY,
+              width: borderBoxW,
+              height: borderBoxH,
+              backgroundColor: hasBg ? normColor(bgRaw) : undefined,
+              borderTopWidth: bwT, borderTopColor: bwT > 0 ? normColor(pcs.borderTopColor) : undefined, borderTopStyle: pcs.borderTopStyle,
+              borderRightWidth: bwR, borderRightColor: bwR > 0 ? normColor(pcs.borderRightColor) : undefined, borderRightStyle: pcs.borderRightStyle,
+              borderBottomWidth: bwB, borderBottomColor: bwB > 0 ? normColor(pcs.borderBottomColor) : undefined, borderBottomStyle: pcs.borderBottomStyle,
+              borderLeftWidth: bwL, borderLeftColor: bwL > 0 ? normColor(pcs.borderLeftColor) : undefined, borderLeftStyle: pcs.borderLeftStyle,
+              borderRadius: parseFloat(pcs.borderRadius) || 0,
+            });
+          }
+        }
+        continue;
+      }
 
       // url() content -> emit as an image pseudo. Chrome decouples LAYOUT
       // from RENDER: the CSS box (pcs.width / pcs.height) drives how far
@@ -411,7 +470,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         boxStyles: pseudoBoxStyles,
       });
     }
-    return pseudoSegments;
+    return { pseudoSegments, pseudoBoxes };
   };
 
   return { capturePseudoContent };

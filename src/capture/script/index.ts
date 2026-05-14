@@ -213,7 +213,9 @@ export const captureScript =
     // padding box. The downstream text-segments assembler re-anchors
     // seg.x/y against the captured text once shaping completes. See
     // walker/pseudo-content.ts.
-    const pseudoSegments = capturePseudoContent(el, cs, rect, _counterSnapshot);
+    const _pcResult = capturePseudoContent(el, cs, rect, _counterSnapshot);
+    const pseudoSegments = _pcResult.pseudoSegments;
+    const pseudoBoxes = _pcResult.pseudoBoxes;
 
     // Skip text capture for elements where the child text is fallback content
     // hidden by the browser's shadow-DOM rendering (meter, progress, datalist,
@@ -682,6 +684,7 @@ export const captureScript =
         textDecorationSkipInk: cs.textDecorationSkipInk,
       },
       children, imageSrc, imageIntrinsic, imageBroken, imageAlt, svgContent, pseudoImages,
+      pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,
       // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
       // list-item index — see walker/lists-counters.ts.
       ..._listsCounters,
