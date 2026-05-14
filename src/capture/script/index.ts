@@ -27,6 +27,7 @@ import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
+import { createTransformsHandler } from "./walker/transforms.js";
 
 export const captureScript =
 (args) => {
@@ -47,39 +48,15 @@ export const captureScript =
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
   const { discoverMasks, maskDefs: _maskDefs, maskRasters: _maskRasters } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
+  const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
 
   const capture = (el) => {
-    // For elements with a CSS transform, getBoundingClientRect (and per-char
-    // Range rects, child rects, etc.) all return *post-transform* viewport
-    // coordinates. Re-applying our own transform on top would double-rotate.
-    // So when transform != none, clear the inline transform for the entire
-    // capture of this element (including children and per-char text rects),
-    // then restore at the end. CSS transforms dont participate in layout, so
-    // this doesnt reflow the document. The renderer applies the saved
-    // transform back via the SVG group wrapper. See SK-1134.
-    //
-    // CSSStyleDeclaration is LIVE — snapshot the original transform value
-    // BEFORE clearing or our captured tree would record transform: 'none'
-    // and the renderer would skip emitting the SVG transform.
-    //
-    // DM-523: substitute the cleared transform with 'translate(0)' rather
-    // than 'none' so the element still establishes a containing block for
-    // any position:fixed descendants. Setting it to 'none' would let those
-    // descendants escape to the viewport (the .pin in 13-deep-fixed-in-
-    // transform pinned to viewport bottom-right instead of staying trapped
-    // in the .frame). Per CSS Transforms 2, any non-none transform value
-    // creates a CB; a no-op translate(0) preserves the CB while ensuring
-    // getBoundingClientRect returns un-rotated/un-scaled coords identical
-    // to what 'none' produced. See SK-1134.
+    // Freeze the element's CSS transform for the duration of the capture
+    // so getBoundingClientRect returns un-transformed coords; the renderer
+    // re-applies the saved transform via an SVG group wrapper. See
+    // walker/transforms.ts for the rationale.
     const cs = window.getComputedStyle(el);
-    const originalTransform = cs.transform;
-    const originalTransformOrigin = cs.transformOrigin;
-    const hasTransform = originalTransform && originalTransform !== 'none';
-    const savedInlineTransform = hasTransform ? el.style.transform : null;
-    if (hasTransform) el.style.transform = 'translate(0)';
-    const result = captureInner(el, cs, hasTransform ? originalTransform : null, hasTransform ? originalTransformOrigin : null);
-    if (hasTransform) el.style.transform = savedInlineTransform;
-    return result;
+    return wrapWithFrozenTransform(el, cs, captureInner);
   };
   const captureInner = (el, cs, frozenTransform, frozenTransformOrigin) => {
     const rect = el.getBoundingClientRect();
@@ -1574,8 +1551,7 @@ export const captureScript =
         outlineOffset: cs.outlineOffset,
         boxShadow: cs.boxShadow,
         textShadow: cs.textShadow,
-        transform: frozenTransform != null ? frozenTransform : cs.transform,
-        transformOrigin: frozenTransformOrigin != null ? frozenTransformOrigin : cs.transformOrigin,
+        ...threadFrozenTransform(cs, frozenTransform, frozenTransformOrigin),
         willChange: cs.willChange,
         contain: cs.contain,
         isolation: cs.isolation,
