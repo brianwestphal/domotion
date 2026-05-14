@@ -28,6 +28,7 @@ import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
 import { createTransformsHandler } from "./walker/transforms.js";
+import { createBordersBackgroundsHandler } from "./walker/borders-backgrounds.js";
 
 export const captureScript =
 (args) => {
@@ -49,6 +50,11 @@ export const captureScript =
   const { discoverMasks, maskDefs: _maskDefs, maskRasters: _maskRasters } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
+  const { captureBordersBackgrounds } = createBordersBackgroundsHandler({
+    normColor,
+    resolvePlaceholderShownBg: _resolvePlaceholderShownBg,
+    resolveCornerRadius: _resolveCornerRadius,
+  });
 
   const capture = (el) => {
     // Freeze the element's CSS transform for the duration of the capture
@@ -1364,55 +1370,14 @@ export const captureScript =
       fieldsetLegendNotch,
       animId: _animId,
       styles: {
-        backgroundColor: (function () {
-          // For empty inputs with a placeholder, walk captured ':placeholder-shown'
-          // rules and apply the matched rule's bg-color in place of the cascade
-          // default (Chrome's getComputedStyle resolves backgroundColor to
-          // rgba(0,0,0,0) when only the 'background' shorthand was set, so the
-          // longhand reads white even though Chrome paints the rule's color).
-          // DM-283.
-          if (isPlaceholderCapture) {
-            const psBg = _resolvePlaceholderShownBg(el);
-            if (psBg !== '') return normColor(psBg);
-          }
-          return normColor(cs.backgroundColor, cs.color);
-        })(),
-        borderColor: normColor(cs.borderColor, cs.color),
-        borderWidth: cs.borderWidth,
-        borderRadius: cs.borderRadius,
-        // Resolve any % border-radius to pixels here — Chromes computed
-        // longhand still preserves percentages, so a 50% border-radius
-        // would otherwise come through as "50%" and parseFloat would read it
-        // as 50 px. CSS spec resolves percentage on horizontal axis against
-        // width and vertical against height; we average the corner-axis pair
-        // for a single rx value, which is fine for the common symmetric case
-        // (50% on a square box → circle). See SK-1093.
-        borderTopLeftRadius: _resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height),
-        borderTopRightRadius: _resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height),
-        borderBottomRightRadius: _resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height),
-        borderBottomLeftRadius: _resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height),
-        borderTopWidth: cs.borderTopWidth,
-        borderRightWidth: cs.borderRightWidth,
-        borderBottomWidth: cs.borderBottomWidth,
-        borderLeftWidth: cs.borderLeftWidth,
-        borderTopStyle: cs.borderTopStyle,
-        borderRightStyle: cs.borderRightStyle,
-        borderBottomStyle: cs.borderBottomStyle,
-        borderLeftStyle: cs.borderLeftStyle,
-        // For <input type=color>, Chromium's appearance:auto native paint
-        // uses rgb(118,118,118) for the border but getComputedStyle reports
-        // rgb(0,0,0) — the computed value doesn't reflect the painted UA
-        // chrome. Override at capture so the generic border-emit path paints
-        // what Chrome actually paints. DM-434 (probed via
-        // scripts/probe-color-input.mjs).
-        // _isUaColorBorder strips whitespace before comparing since
-        // getComputedStyle returns 'rgb(0, 0, 0)' with spaces but normColor
-        // passes such canonical forms through unchanged.
-        borderTopColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderTopColor, cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderTopColor, cs.color),
-        borderRightColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderRightColor, cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderRightColor, cs.color),
-        borderBottomColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderBottomColor, cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderBottomColor, cs.color),
-        borderLeftColor: (tag === 'input' && el.type === 'color' && normColor(cs.borderLeftColor, cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)') ? 'rgb(118,118,118)' : normColor(cs.borderLeftColor, cs.color),
-        borderCollapse: cs.borderCollapse,
+        // Border + background + outline + box-shadow fields — see
+        // walker/borders-backgrounds.ts. Includes the
+        // backgroundColor placeholder-shown fallback (DM-283), %-resolved
+        // corner radii (SK-1093), per-side color-input border tint
+        // workaround (DM-434), frosted-bg fallback (DM-476), per-layer
+        // background-image intrinsic dims (DM-308), and border-image
+        // intrinsic dims.
+        ...captureBordersBackgrounds(el, cs, tag, rect, isPlaceholderCapture),
         overflowX: cs.overflowX,
         overflowY: cs.overflowY,
         scrollbarGutter: cs.scrollbarGutter || 'auto',
@@ -1426,34 +1391,6 @@ export const captureScript =
         objectPosition: cs.objectPosition,
         filter: cs.filter,
         backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || '',
-        // DM-476 frosted-glass fallback: when this element has both
-        // backdrop-filter and an effectively-transparent background-color,
-        // capture the document body's bg color as a synthesized opaque
-        // fill that the renderer can paint behind the would-have-been-
-        // frosted region. See docs/19-frosted-backdrop-fallback.md.
-        frostedBgFallback: (function () {
-          var bdf = cs.backdropFilter || cs.webkitBackdropFilter || '';
-          if (bdf === '' || bdf === 'none') return undefined;
-          var bgCol = normColor(cs.backgroundColor, cs.color);
-          // Parse alpha out of "rgba(r,g,b,a)" / "rgb(r,g,b)" / "rgb(r g b / a)".
-          // normColor canonicalises to one of these forms.
-          var a = 1;
-          var m = /rgba?\(\s*[^,)\s]+[ ,]+[^,)\s]+[ ,]+[^,)\s]+(?:[ ,/]+([^)]+))?\)/.exec(bgCol);
-          if (m != null && m[1] != null) {
-            var av = parseFloat(m[1]);
-            if (!isNaN(av)) a = av;
-          }
-          if (a > 0.1) return undefined;
-          var bodyBg = normColor(window.getComputedStyle(document.body).backgroundColor);
-          // If body itself is transparent (rare on real pages), default to white.
-          var bodyA = 1;
-          var bm = /rgba?\(\s*[^,)\s]+[ ,]+[^,)\s]+[ ,]+[^,)\s]+(?:[ ,/]+([^)]+))?\)/.exec(bodyBg);
-          if (bm != null && bm[1] != null) {
-            var bav = parseFloat(bm[1]);
-            if (!isNaN(bav)) bodyA = bav;
-          }
-          return bodyA <= 0.1 ? 'rgb(255,255,255)' : bodyBg;
-        })(),
         mixBlendMode: cs.mixBlendMode,
         clipPath: cs.clipPath,
         mask: cs.mask || cs.webkitMask || '',
@@ -1467,71 +1404,10 @@ export const captureScript =
         listStyleImage: cs.listStyleImage,
         display: cs.display,
         listStylePosition: cs.listStylePosition,
-        backgroundImage: cs.backgroundImage,
-        backgroundSize: cs.backgroundSize,
-        backgroundPosition: cs.backgroundPosition,
-        backgroundRepeat: cs.backgroundRepeat,
-        backgroundClip: cs.backgroundClip,
-        // DM-462: -webkit-text-fill-color is the property that actually
-        // makes the headline text transparent in the background-clip:text
-        // idiom (cs.color may still report a normal value).
-        webkitTextFillColor: cs.webkitTextFillColor || cs.WebkitTextFillColor || undefined,
-        backgroundOrigin: cs.backgroundOrigin,
-        backgroundAttachment: cs.backgroundAttachment,
         paddingTop: cs.paddingTop,
         paddingRight: cs.paddingRight,
         paddingBottom: cs.paddingBottom,
         paddingLeft: cs.paddingLeft,
-        backgroundIntrinsic: (() => {
-          const bgImage = cs.backgroundImage;
-          if (bgImage == null || bgImage === 'none' || bgImage === '') return undefined;
-          // Split on top-level commas respecting nested parens.
-          const layers = [];
-          {
-            let depth = 0, start = 0;
-            for (let i = 0; i < bgImage.length; i++) {
-              const c = bgImage[i];
-              if (c === '(') depth++;
-              else if (c === ')') depth--;
-              else if (c === ',' && depth === 0) { layers.push(bgImage.slice(start, i)); start = i + 1; }
-            }
-            layers.push(bgImage.slice(start));
-          }
-          return layers.map((layer) => {
-            // Match all three url() forms: "...", '...', and bare. Data: URLs
-            // with embedded HTML attribute quotes (escaped as \") were silently
-            // truncated by the prior single regex. (DM-308)
-            const u = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(layer);
-            if (u == null) return null;
-            const raw = u[1] || u[2] || u[3] || '';
-            if (raw === '') return null;
-            const url = raw.replace(/\\(.)/g, '$1');
-            const img = new Image();
-            img.src = url;
-            const w = img.naturalWidth || 0;
-            const h = img.naturalHeight || 0;
-            return w > 0 && h > 0 ? { w, h } : null;
-          });
-        })(),
-        borderImageSource: cs.borderImageSource,
-        borderImageSlice: cs.borderImageSlice,
-        borderImageWidth: cs.borderImageWidth,
-        borderImageOutset: cs.borderImageOutset,
-        borderImageRepeat: cs.borderImageRepeat,
-        borderImageIntrinsicWidth: (() => {
-          const m = /^url\((?:"|')?([^"')]+)/.exec(cs.borderImageSource || '');
-          if (m == null) return undefined;
-          const img = new Image();
-          img.src = m[1];
-          return img.naturalWidth || undefined;
-        })(),
-        borderImageIntrinsicHeight: (() => {
-          const m = /^url\((?:"|')?([^"')]+)/.exec(cs.borderImageSource || '');
-          if (m == null) return undefined;
-          const img = new Image();
-          img.src = m[1];
-          return img.naturalHeight || undefined;
-        })(),
         zIndex: cs.zIndex,
         position: cs.position,
         float: cs.float,
@@ -1545,11 +1421,6 @@ export const captureScript =
         // input border tinting deliberately stay inline (entangled with
         // text-shaping and border-color emission respectively).
         ...captureFormControls(el, cs, tag),
-        outlineStyle: cs.outlineStyle,
-        outlineWidth: cs.outlineWidth,
-        outlineColor: normColor(cs.outlineColor),
-        outlineOffset: cs.outlineOffset,
-        boxShadow: cs.boxShadow,
         textShadow: cs.textShadow,
         ...threadFrozenTransform(cs, frozenTransform, frozenTransformOrigin),
         willChange: cs.willChange,
