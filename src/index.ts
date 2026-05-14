@@ -5,9 +5,9 @@ export { getLastCaptureWarnings, logCaptureWarnings } from "./capture/warnings.j
 export { resizeEmbeddedImages } from "./tree-ops/resize-embedded-images.js";
 export type { ResizeEmbeddedImagesOptions } from "./tree-ops/resize-embedded-images.js";
 export type { CapturedElement, CaptureWarning } from "./capture/types.js";
-export { generateAnimatedSvg } from "./animator.js";
-export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverlay, SvgOverlay, IntraFrameAnimation } from "./animator.js";
-export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./render/cursor-overlay.js";
+export { generateAnimatedSvg } from "./animation/animator.js";
+export type { AnimationConfig, AnimationFrame, Overlay, TypingOverlay, TapOverlay, SvgOverlay, IntraFrameAnimation } from "./animation/animator.js";
+export type { CursorOverlay, CursorEvent, CursorMoveEvent, CursorClickEvent, CursorShowEvent, CursorHideEvent, CursorStyle, SelectorResolver } from "./animation/cursor-overlay.js";
 export { DemoRecorder, launchChromium } from "./capture/index.js";
 export type { CaptureOptions } from "./capture/index.js";
 export { optimizeSvg } from "./post-processing/optimize.js";

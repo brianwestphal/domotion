@@ -17,7 +17,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
-import type { IntraFrameAnimation } from "../animator.js";
+import type { IntraFrameAnimation } from "../animation/animator.js";
 
 interface Bbox {
   x: number;

@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { optimizeSvg } from "./shared.js";
-import { generateAnimatedSvg, type AnimationFrame } from "../src/animator.js";
+import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
 
 const WIDTH = 720;
 const HEIGHT = 420;
