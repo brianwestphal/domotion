@@ -3196,11 +3196,22 @@ function translateClipPath(value: string, x: number, y: number, w: number, h: nu
     const mAt = /\bat\b/i.exec(inner);
     const radiusPart = (mAt != null ? inner.slice(0, mAt.index) : inner).trim();
     const atPart = mAt != null ? inner.slice(mAt.index + 2).trim() : "50% 50%";
-    const radiusBasis = Math.sqrt((w * w + h * h) / 2);
-    const radius = radiusPart === "" ? Math.min(w, h) / 2 : resolvePx(radiusPart, radiusBasis);
     const atTokens = atPart.split(/\s+/);
     const cx = resolvePx(atTokens[0] ?? "50%", w);
     const cy = resolvePx(atTokens[1] ?? "50%", h);
+    let radius: number;
+    if (radiusPart === "" || /^closest-side$/i.test(radiusPart)) {
+      // CSS default radius is closest-side (which for a centred circle equals
+      // Math.min(w, h) / 2 but differs once the centre moves).
+      radius = Math.min(cx, cy, w - cx, h - cy);
+    } else if (/^farthest-side$/i.test(radiusPart)) {
+      radius = Math.max(cx, cy, w - cx, h - cy);
+    } else {
+      // <length-percentage>; spec's basis for percentages is
+      // sqrt(w² + h²) / √2.
+      const radiusBasis = Math.sqrt((w * w + h * h) / 2);
+      radius = resolvePx(radiusPart, radiusBasis);
+    }
     return `<circle cx="${r(x + cx)}" cy="${r(y + cy)}" r="${r(radius)}" />`;
   }
   const ellipse = /^ellipse\(([^)]*)\)$/i.exec(value);
@@ -3209,11 +3220,26 @@ function translateClipPath(value: string, x: number, y: number, w: number, h: nu
     const mAt = /\bat\b/i.exec(inner);
     const radiiPart = (mAt != null ? inner.slice(0, mAt.index) : inner).trim();
     const atPart = mAt != null ? inner.slice(mAt.index + 2).trim() : "50% 50%";
-    const radii = radiiPart === "" ? [w / 2, h / 2] : radiiPart.split(/\s+/).map((s, i) => resolvePx(s, i === 0 ? w : h));
     const atTokens = atPart.split(/\s+/);
     const cx = resolvePx(atTokens[0] ?? "50%", w);
     const cy = resolvePx(atTokens[1] ?? "50%", h);
-    return `<ellipse cx="${r(x + cx)}" cy="${r(y + cy)}" rx="${r(radii[0])}" ry="${r(radii[1] ?? radii[0])}" />`;
+    const resolveRadius = (tok: string, axis: "x" | "y"): number => {
+      const t = tok.trim();
+      if (/^closest-side$/i.test(t)) return axis === "x" ? Math.min(cx, w - cx) : Math.min(cy, h - cy);
+      if (/^farthest-side$/i.test(t)) return axis === "x" ? Math.max(cx, w - cx) : Math.max(cy, h - cy);
+      return resolvePx(t, axis === "x" ? w : h);
+    };
+    let rx: number;
+    let ry: number;
+    if (radiiPart === "") {
+      rx = w / 2;
+      ry = h / 2;
+    } else {
+      const radiiTokens = radiiPart.split(/\s+/);
+      rx = resolveRadius(radiiTokens[0] ?? "50%", "x");
+      ry = resolveRadius(radiiTokens[1] ?? radiiTokens[0] ?? "50%", "y");
+    }
+    return `<ellipse cx="${r(x + cx)}" cy="${r(y + cy)}" rx="${r(rx)}" ry="${r(ry)}" />`;
   }
   const polygon = /^polygon\(([^)]+)\)$/i.exec(value);
   if (polygon != null) {
