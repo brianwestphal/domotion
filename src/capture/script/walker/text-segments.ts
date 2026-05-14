@@ -91,7 +91,22 @@ export const computeElementRaster = (el, cs, tag, rect, vp) => {
   const hasNonHorizontalText = cs.writingMode
     && cs.writingMode !== 'horizontal-tb'
     && (el.textContent || '').trim() !== '';
-  if (!hasTextareaValue && !hasNonHorizontalText) return undefined;
+  // DM-628: `<input type="text" | "search" | "email" | "tel" | "url" |
+  // "password" | "number">` text shaped via fontkit doesn't match
+  // Chromium's painted glyph widths (different system Arial / fallback),
+  // producing visible glyph overdraw. Screenshot the input's content
+  // box so the rasterized output stamps Chromium's actual paint.
+  // Scoped to inputs with either a placeholder or a value; checkboxes /
+  // radios / range / color etc. are skipped (no text to raster). Skip
+  // when the input is a sub-pixel size or has display:none — captureInner
+  // already excludes those earlier.
+  const isTextInput = tag === 'input' && (
+    el.type === 'text' || el.type === 'search' || el.type === 'email'
+    || el.type === 'tel' || el.type === 'url' || el.type === 'password'
+    || el.type === 'number' || el.type === '' || el.type == null
+  );
+  const hasInputText = isTextInput && (el.value || (el.getAttribute && el.getAttribute('placeholder')));
+  if (!hasTextareaValue && !hasNonHorizontalText && !hasInputText) return undefined;
   const pl = parseFloat(cs.paddingLeft) || 0;
   const pr = parseFloat(cs.paddingRight) || 0;
   const pt = parseFloat(cs.paddingTop) || 0;

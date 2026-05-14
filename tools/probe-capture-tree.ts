@@ -88,6 +88,11 @@ async function main() {
         isPlaceholderText: el.isPlaceholderText,
         textLeft: el.textLeft,
         textTop: el.textTop,
+        elementRaster: el.elementRaster ? {
+          x: el.elementRaster.x, y: el.elementRaster.y,
+          width: el.elementRaster.width, height: el.elementRaster.height,
+          dataUriBytes: el.elementRaster.dataUri ? el.elementRaster.dataUri.length : null,
+        } : undefined,
       };
       // Drop noisy huge fields
       hits.push(summary);
