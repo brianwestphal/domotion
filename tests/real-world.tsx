@@ -42,7 +42,7 @@ import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPattern } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
-import { cullFrame } from "../src/tree-ops/viewbox-culling.js";
+import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
@@ -654,7 +654,7 @@ async function runJob(
           await resizeEmbeddedImages(seg.tree, { hiDPIFactor: resizeOpts.hiDPI });
         }
         await rasterizeConicGradients(seg.tree, { hiDPIFactor: resizeOpts.hiDPI });
-        cullFrame(seg.tree, viewport.width, viewport.height, undefined, 0, 1);
+        cullElementsOutsideViewBox(seg.tree, viewport.width, viewport.height, undefined, 0, 1);
       }
       svgDoc = composeScrollSvg(segments, {
         viewportW: viewport.width,

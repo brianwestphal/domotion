@@ -2095,10 +2095,17 @@ export const captureScript =
     // <canvas>/<video>/<iframe>. The captured text becomes an SVG <title> on
     // the rasterized <image> so accessibility round-trips.
     // See docs/23-css-sprite-icons.md.
+    // DM-598: the sprite-icon path is for *text-bearing* elements using the
+    // image-replacement idiom (negative text-indent + bg-image). When the
+    // element is itself an <img> the renderer already emits the painted
+    // image with proper object-fit handling — adding a snapshot on top would
+    // stack two <image> tags at the same coordinates, and the snapshot's
+    // preserveAspectRatio="none" wins and stretches.
     if (!bordersOnlyCell
         && cs.display !== 'none'
         && rect.width > 0 && rect.height > 0
-        && _captured.replacedSnapshot == null) {
+        && _captured.replacedSnapshot == null
+        && _captured.imageSrc == null) {
       const _ti = parseFloat(cs.textIndent) || 0;
       const _ovX = cs.overflowX === 'hidden' || cs.overflow === 'hidden';
       const _hasBgImage = cs.backgroundImage != null && cs.backgroundImage !== 'none' && cs.backgroundImage !== '';

@@ -1106,7 +1106,13 @@ export function elementTreeToSvg(
     // and inside the element's own borders, mirroring how <img> sits inside
     // its element box. preserveAspectRatio="none" matches the captured
     // content-box rect dimensions exactly.
-    if (el.replacedSnapshot != null && el.replacedSnapshot.dataUri != null) {
+    //
+    // DM-598: skip when the element ALSO has imageSrc — that means it's an
+    // <img> that picked up a sprite-icon snapshot, and the imageSrc branch
+    // above already emitted the correctly aspected <image>. Capture-side has
+    // the same guard, but the render-side check protects against any other
+    // future path that sets both.
+    if (el.replacedSnapshot != null && el.replacedSnapshot.dataUri != null && el.imageSrc == null) {
       const rs = el.replacedSnapshot;
       // DM-506: when this is an image-replacement icon (sprite + off-screen
       // text), wrap the painted raster with an SVG <title> so screen readers

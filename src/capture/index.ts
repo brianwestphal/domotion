@@ -890,6 +890,12 @@ async function rasterizeReplacedElements(
     tag: string;
     rect: { x: number; y: number; width: number; height: number };
     setDataUri: (uri: string) => void;
+    // DM-598: when the bitmap is smaller than the requested rect (e.g. cropped
+    // from a viewport-sized expected.png and the element overflows the
+    // viewport), narrow the rendered rect to match the bitmap so the renderer
+    // doesn't stretch with preserveAspectRatio="none". Receives the bitmap's
+    // actual dimensions and writes them back to the captured replacedSnapshot.
+    setRect: (w: number, h: number) => void;
   }
   const targets: Target[] = [];
   const walk = (els: CapturedElement[]): void => {
@@ -901,6 +907,7 @@ async function rasterizeReplacedElements(
           tag: el.tag,
           rect: { x: rs.x, y: rs.y, width: rs.width, height: rs.height },
           setDataUri: (uri) => { rs.dataUri = uri; },
+          setRect: (w, h) => { rs.width = w; rs.height = h; },
         });
       }
       if (el.children.length > 0) walk(el.children);
@@ -960,6 +967,14 @@ async function rasterizeReplacedElements(
           .png()
           .toBuffer();
         t.setDataUri(`data:image/png;base64,${buf.toString("base64")}`);
+        // DM-598: if the source clipped the rect (element overflowed the
+        // expected.png viewport), narrow the captured rect so the renderer
+        // doesn't stretch the bitmap. The renderer keeps `preserveAspectRatio
+        // = "none"` for replacedSnapshots, so any width/height mismatch
+        // distorts visibly.
+        if (clippedW !== width || clippedH !== height) {
+          t.setRect(clippedW, clippedH);
+        }
       } catch {
         /* leave dataUri undefined; renderer falls back to the bare box. */
       }
