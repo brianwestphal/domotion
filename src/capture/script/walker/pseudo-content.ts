@@ -309,7 +309,22 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         pseudoIsPositioned = true;
       } else {
         yPos = elTop + (lineH - elFontSize) / 2;
-        xPos = pseudo === '::before' ? elLeft : elLeft + rect.width - pseudoWidth - 2 * (parseFloat(cs.paddingRight) || 0);
+        // In-flow pseudo: the painted text sits inside the pseudo's content
+        // box. Shift from the host's left edge past the pseudo's own
+        // margin-left + border-left + padding-left (DM-596: Slashdot's
+        // .icon-angle-right ::before uses margin-left: 0.2em to space the
+        // chevron away from the preceding text). For ::after the existing
+        // rect-width-based anchor is the host's right edge minus the
+        // pseudo's text width and twice the host's padding-right (legacy
+        // behavior preserved — no fixture currently exposes a gap).
+        const pcsMarginL = parseFloat(pcs.marginLeft) || 0;
+        const pcsBorderL = parseFloat(pcs.borderLeftWidth) || 0;
+        const pcsPaddingL = parseFloat(pcs.paddingLeft) || 0;
+        if (pseudo === '::before') {
+          xPos = elLeft + pcsMarginL + pcsBorderL + pcsPaddingL;
+        } else {
+          xPos = elLeft + rect.width - pseudoWidth - 2 * (parseFloat(cs.paddingRight) || 0);
+        }
       }
 
       const pseudoSeg = {
