@@ -159,6 +159,22 @@ const tests: FeatureTest[] = [
     width: 300,
     height: 100,
   },
+  // DM-581: button-typed inputs (and buttons styled as flex with align-items:
+  // center) center their value text vertically within the rect — not anchored
+  // at content-box top like a plain text input. The framer-mobile-fold "Okay"
+  // button surfaced this. Three variants: UA-default `<input type=button>`,
+  // padded button-input, and a flex/centered button-input mirroring the framer
+  // shape. Chrome paints all three with vertically-centered baselines.
+  {
+    name: "comp-input-button",
+    html: `<div style="padding: 20px; display: flex; gap: 12px; align-items: flex-start; font-family: -apple-system, sans-serif;">
+      <input type="button" value="Okay" style="font-size: 14px;" />
+      <input type="button" value="Submit" style="font-size: 14px; padding: 12px 16px; background: #2563eb; color: white; border: 0; border-radius: 6px;" />
+      <input type="button" value="Okay" style="display: flex; align-items: center; justify-content: center; width: 58px; height: 45px; font-size: 14px; background: white; border: 1px solid #d4d4d8; border-radius: 8px; color: #18181b;" />
+    </div>`,
+    width: 320,
+    height: 80,
+  },
   {
     name: "text-pre-multiline",
     html: `<div style="padding: 20px;"><pre style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px 16px; font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 13px; color: #e6edf3; width: 350px; margin: 0; white-space: pre;">## Error Handling

@@ -76,15 +76,46 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
 
     const pl = parseFloat(cs.paddingLeft) || 0;
     const pt = parseFloat(cs.paddingTop) || 0;
+    const pr = parseFloat(cs.paddingRight) || 0;
+    const pb = parseFloat(cs.paddingBottom) || 0;
     const bl = parseFloat(cs.borderLeftWidth) || 0;
     const bt = parseFloat(cs.borderTopWidth) || 0;
+    const br = parseFloat(cs.borderRightWidth) || 0;
+    const bb = parseFloat(cs.borderBottomWidth) || 0;
     let textLeft = rect.left - vp.x + bl + pl;
-    const textTop = rect.top - vp.y + bt + pt;
+    let textTop = rect.top - vp.y + bt + pt;
     const textHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
     const textWidth = rect.width - bl * 2 - pl * 2;
+    // DM-581: when the input is laid out as a flex/grid container with
+    // `align-items: center`, Chrome paints the value text vertically
+    // centered within the content box rather than anchored at content-top.
+    // The renderer treats `textTop` as the line-box top (baseline = textTop
+    // + ascent), so without this adjustment the text shows up at the top
+    // of the button instead of centered. Surfaced by framer-mobile-fold's
+    // "Okay" button (display: flex; align-items: center; height: 45px).
+    const display = cs.display;
+    const isFlexLike = display === 'flex' || display === 'inline-flex' || display === 'grid' || display === 'inline-grid';
+    if (isFlexLike && cs.alignItems === 'center') {
+      const contentH = rect.height - bt - bb - pt - pb;
+      if (contentH > textHeight + 0.5) {
+        textTop = (rect.top - vp.y + bt + pt) + (contentH - textHeight) / 2;
+      }
+    }
     const metrics = measureFontMetrics(cs);
     const fontAscent = metrics.ascent;
     const fontDescent = metrics.descent;
+    // DM-581: when CSS `line-height` is shorter than the font's natural
+    // ascent+descent (e.g. framer's `font-size:14;line-height:14` button
+    // with Inter SemiBold whose natural fontHeight is 17), Chrome paints
+    // the line box with negative half-leading on each side — so the line
+    // box top sits ~(fontHeight - lineHeight)/2 above the content-box top.
+    // The renderer treats `textTop` as the line-box top, so without this
+    // adjustment the rendered baseline ends up ~(fontHeight - lineHeight)/2
+    // below where Chrome paints it.
+    const fontH = fontAscent + fontDescent;
+    if (fontH > textHeight + 0.5) {
+      textTop -= (fontH - textHeight) / 2;
+    }
 
     let inputXOffsets;
     if (text.length > 0 && tag === 'input') {
@@ -122,8 +153,6 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
           for (let k = 0; k < step; k++) xs.push(left);
           i += step;
         }
-        const pr = parseFloat(cs.paddingRight) || 0;
-        const br = parseFloat(cs.borderRightWidth) || 0;
         const contentBoxW = rect.width - bl - br - pl - pr;
         const probeW = probeBox.width;
         const slack = contentBoxW - probeW;
