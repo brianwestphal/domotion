@@ -347,6 +347,58 @@ const tests: FeatureTest[] = [
     relaxedDiffPct: 0.05,
   },
 
+  // DM-589: per CSS Transforms 2 §4, `transform-style` != `flat` creates a
+  // stacking context. The outer card has `transform-style: preserve-3d`
+  // (commonly applied to keep child cards in a 3D flip / parallax layout) and
+  // a white background. A nested `position:relative; z-index:-1` child paints
+  // at step 2 of the card's local SC — ABOVE the card's bg but below the
+  // card's content. Without the preserve-3d SC, the z=-1 would hoist up to
+  // the section-container SC and end up BEHIND the white card bg (hidden).
+  // Real-world example: stripe.com's speaker-card uses preserve-3d to flip
+  // the speaker photo on top of the card; our renderer missed the SC trigger
+  // and rendered the photo behind the white bg.
+  {
+    name: "z-index-transform-style-preserve-3d-sc",
+    html: `<div style="position:relative;width:300px;height:300px;background:#222;z-index:1;">
+      <div>
+        <div style="position:absolute;left:50px;top:50px;width:200px;height:200px;background:white;transform-style:preserve-3d;">
+          <div style="position:relative;z-index:-1;width:120px;height:120px;left:40px;top:40px;background:#58a6ff;"></div>
+        </div>
+      </div>
+    </div>`,
+    width: 320,
+    height: 320,
+  },
+
+  // DM-589: negative-z-index descendant of a non-SC parent inside a real SC
+  // ancestor. The blue square has `position:relative; z-index:-1`, sitting
+  // inside a `position:absolute; z-index:auto; background:white` card. Per
+  // CSS 2.1 Appendix E, z-index:-1 paints at the parent stacking-context's
+  // step 2 (negative z descendants), BELOW the SC's other content. The
+  // closest SC ancestor here is the outer dark `position:relative; z-index:1`
+  // box. Chrome paints: dark bg → blue at z=-1 → white card (z=auto) on top.
+  // So in Chrome, blue is HIDDEN by the white card. The diff a viewer sees
+  // is just the white card.
+  //
+  // This fixture pins the spec-compliant behavior in case anyone tries to
+  // "make z=-1 always visible" by skipping the hoist or sort. It is also a
+  // counter-example to a wrong hypothesis on Stripe DM-589: a negative-z
+  // image whose card sibling has white bg ought to be hidden — Chrome's
+  // expected showing the image must be due to a DIFFERENT mechanism than
+  // a missing hoist (likely a transparency or clip on the card).
+  {
+    name: "z-index-negative-under-card-bg",
+    html: `<div style="position:relative;width:300px;height:300px;background:#222;z-index:1;">
+      <div>
+        <div style="position:absolute;left:50px;top:50px;width:200px;height:200px;background:white;">
+          <div style="position:relative;z-index:-1;width:120px;height:120px;left:40px;top:40px;background:#58a6ff;"></div>
+        </div>
+      </div>
+    </div>`,
+    width: 320,
+    height: 320,
+  },
+
   // DM-588: per CSS 2.1 Appendix E §6, positioned siblings with z-index:0 and
   // z-index:auto paint at the SAME stack level in tree order — z-index:0
   // does NOT paint above z-index:auto. The previous bucketing sorted z=0

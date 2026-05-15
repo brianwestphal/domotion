@@ -435,6 +435,8 @@ export interface CapturedElement {
     rootBgComputed?: string;
     /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
     transformOrigin?: string;
+    /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
+    transformStyle?: string;
     /** CSS writing-mode (`horizontal-tb` | `vertical-rl` | `vertical-lr` | `sideways-rl` | `sideways-lr`). */
     writingMode?: string;
     /** CSS text-orientation (`mixed` | `upright` | `sideways`). Used in vertical writing-modes. */

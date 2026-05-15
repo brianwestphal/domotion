@@ -1979,6 +1979,12 @@ function establishesStackingContext(el: CapturedElement, parentDisplay?: string)
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return true;
   if (s.transform != null && s.transform !== "" && s.transform !== "none") return true;
+  // DM-589: CSS Transforms 2 §4 — any `transform-style` value != `flat`
+  // (typically `preserve-3d`) creates a stacking context. Real-world hit:
+  // stripe.com's speaker-card uses preserve-3d so its z-index:-1 speaker
+  // photo can paint at the card's local SC step 2 (above the white bg)
+  // instead of hoisting to a higher SC where it'd render behind the card.
+  if (s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return true;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
   if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return true;
   if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return true;

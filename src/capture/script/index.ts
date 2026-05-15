@@ -636,6 +636,11 @@ export const captureScript =
         ...captureFormControls(el, cs, tag),
         textShadow: cs.textShadow,
         ...threadFrozenTransform(cs, frozenTransform, frozenTransformOrigin),
+        // CSS Transforms 2 §4: `transform-style` != `flat` (i.e. `preserve-3d`)
+        // creates a stacking context. Captured so the renderer's SC detection
+        // sees it; otherwise z-index:-1 descendants hoist past their intended
+        // SC and end up behind the wrong background (DM-589).
+        transformStyle: cs.transformStyle,
         willChange: cs.willChange,
         contain: cs.contain,
         isolation: cs.isolation,
