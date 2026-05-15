@@ -349,17 +349,37 @@ export async function executeScrollPattern(
     // 9400 px of empty space between them. ScrollPattern-mode scrolls with
     // explicit per-token magnitudes ≤ viewport height naturally produce
     // one chunk per token — no over-subdivision there.
+    //
+    // DM-633: chunks MUST land at exact viewport-height multiples (not
+    // evenly-distributed fractions of totalDelta). Each segment's captured
+    // tree fills the entire viewport at its scrollY, so the composer stacks
+    // each VH-tall slice at composite y = scrollY. If consecutive scrollYs
+    // are closer than VH (e.g. 784 px increments when VH = 844), segments
+    // overlap by `VH - delta` and the upper segment's `position: fixed`
+    // header bleeds into the lower segment's tail — visible as a duplicate
+    // nav bar at the bottom of the viewport at t=0.
     const snap0 = await pageQuery.snapshot();
     const dx = op.destX - snap0.scrollX;
     const dy = op.destY - snap0.scrollY;
     const totalDelta = op.axis === "x" ? dx : dy;
     const viewportSize = op.axis === "x" ? opts.viewportW : opts.viewportH;
     const numChunks = Math.max(1, Math.ceil(Math.abs(totalDelta) / viewportSize));
+    const dir = totalDelta >= 0 ? 1 : -1;
     for (let ci = 1; ci <= numChunks; ci++) {
-      const frac = ci / numChunks;
-      const chunkDestX = snap0.scrollX + dx * frac;
-      const chunkDestY = snap0.scrollY + dy * frac;
-      const chunkDur = ci === numChunks
+      // Advance by exactly `viewportSize` per chunk so adjacent segments
+      // tile contiguously (no overlap, no gap) in the composer. The final
+      // chunk clamps to op.destX/op.destY so the scroll completes at the
+      // intended target — that single clamped step may overlap the prior
+      // chunk by < VH, but it only affects the last animation frame and
+      // never the much-more-common mid-scroll frames.
+      const isLast = ci === numChunks;
+      const chunkDestX = op.axis === "x"
+        ? (isLast ? op.destX : snap0.scrollX + dir * ci * viewportSize)
+        : op.destX;
+      const chunkDestY = op.axis === "y"
+        ? (isLast ? op.destY : snap0.scrollY + dir * ci * viewportSize)
+        : op.destY;
+      const chunkDur = isLast
         ? op.durationMs - Math.round(op.durationMs * (ci - 1) / numChunks)
         : Math.round(op.durationMs / numChunks);
       const segStart = sceneTime;

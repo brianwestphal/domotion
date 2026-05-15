@@ -239,6 +239,9 @@ const REVIEW_CSS = `
   .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .controls label { font-size: 13px; color: #8b949e; }
   .controls select { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; padding: 4px 8px; border-radius: 4px; }
+  .controls label.toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+  .controls label.toggle input { margin: 0; cursor: pointer; }
+  body.hide-live-svg .live-svg { display: none; }
   .stats { margin-left: auto; font-size: 13px; color: #8b949e; text-align: right; }
   main { padding: 20px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(620px, 1fr)); gap: 16px; }
   .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 14px; }
@@ -277,7 +280,13 @@ const REVIEW_CSS = `
   .suite-summary { font-size: 12px; color: #8b949e; margin-top: 4px; }
   .svg-link { font-size: 11px; color: #58a6ff; text-decoration: none; margin-left: auto; }
   .svg-link:hover { text-decoration: underline; }
-  .chunk-strip { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .chunk-strip-details { margin-top: 10px; }
+  .chunk-strip-details > summary { font-size: 12px; color: #8b949e; cursor: pointer; user-select: none; padding: 4px 0; list-style: none; display: inline-flex; align-items: center; gap: 6px; }
+  .chunk-strip-details > summary::-webkit-details-marker { display: none; }
+  .chunk-strip-details > summary::before { content: "▸"; display: inline-block; font-size: 10px; color: #58a6ff; transition: transform 0.1s ease-out; }
+  .chunk-strip-details[open] > summary::before { transform: rotate(90deg); }
+  .chunk-strip-details > summary:hover { color: #e6edf3; }
+  .chunk-strip { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
   .chunk { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 8px; }
   .chunk-head { font-size: 11px; color: #8b949e; font-family: ui-monospace, monospace; margin-bottom: 4px; }
   .chunk-imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
@@ -341,6 +350,7 @@ function Layout({ manifestJson }: { manifestJson: string }) {
               <option value="diff-asc">Diff % (best first)</option>
               <option value="name">Name (A→Z)</option>
             </select></label>
+            <label className="toggle"><input type="checkbox" id="show-live-svg" /> Live SVG</label>
             <span className="stats" id="stats"></span>
           </div>
           <div className="suite-summary" id="suite-summary"></div>

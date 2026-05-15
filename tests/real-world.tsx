@@ -728,34 +728,41 @@ async function runJob(
     // residual state by using a fresh disposable context just for the
     // wrapper render. The HAR is irrelevant to the wrapper (file:// URL
     // with inline SVG, no network).
-    const renderContext = await browser.newContext({
-      viewport: { width: viewport.width, height: canvasH },
-      deviceScaleFactor: 1,
-      isMobile: viewport.isMobile,
-      hasTouch: viewport.isMobile,
-    });
-    const renderPage = await renderContext.newPage();
-    renderPage.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
-    renderPage.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
-    await renderPage.goto(`file://${wrapperPath}`);
-    await renderPage.waitForTimeout(300);
+    const openRenderPage = async (): Promise<{ context: BrowserContext, page: Page }> => {
+      const c = await browser.newContext({
+        viewport: { width: viewport.width, height: canvasH },
+        deviceScaleFactor: 1,
+        isMobile: viewport.isMobile,
+        hasTouch: viewport.isMobile,
+      });
+      const p = await c.newPage();
+      p.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
+      p.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
+      await p.goto(`file://${wrapperPath}`);
+      await p.waitForTimeout(300);
+      return { context: c, page: p };
+    };
+    let { context: renderContext, page: renderPage } = await openRenderPage();
     // DM-481: always pass `animations: "disabled"` so scroll/cross-fade
     // SVGs are screenshotted at frame 0 (the resting state Chromium also
     // captures for the expected). Without this, ~0.5–1 s elapses between
     // page.goto and the screenshot, and a 12-second scroll animation has
     // already advanced ~80 px — that's why the Stripe nav bar appeared
     // missing in the actual (DM-481).
-    // DM-475: heavy real-world fixtures (Stripe etc.) have triggered an
-    // intermittent `page.screenshot` timeout ("waiting for fonts to
-    // load... fonts loaded"). The retry with `animations: "disabled"`
-    // was originally only on the failure path; now both attempts share
-    // it. The retry kept here mainly for the rare case where the first
-    // call hits a transient timeout.
+    // DM-475 / DM-631: heavy real-world fixtures (Stripe / resend-mobile-
+    // scroll's 32 MB SVG) have triggered intermittent screenshot failures
+    // including `Protocol error (Page.captureScreenshot): Unable to
+    // capture screenshot`. After such a failure the render page/context is
+    // often in a half-broken state, so retrying on the same context just
+    // hits the same protocol error again. Retry on a fresh context — the
+    // wrapper HTML is on disk, so reopening it costs little.
     try {
       await renderPage.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); retrying`);
+      console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); recreating context and retrying`);
+      try { await renderContext.close(); } catch { /* best-effort */ }
+      ({ context: renderContext, page: renderPage } = await openRenderPage());
       await renderPage.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     }
 

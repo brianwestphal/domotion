@@ -67,6 +67,7 @@ const statsEl = document.getElementById("stats") as HTMLElement;
 const summaryEl = document.getElementById("suite-summary") as HTMLElement;
 const lb = document.getElementById("lightbox") as HTMLElement;
 const lbImg = document.getElementById("lb-img") as HTMLImageElement;
+const showLiveSvgEl = document.getElementById("show-live-svg") as HTMLInputElement;
 
 // ── Signals ──
 
@@ -77,6 +78,18 @@ type Sort = "diff-desc" | "diff-asc" | "name";
 const filterS = signal<Filter>("fail");
 const suiteS  = signal<Suite>("all");
 const sortS   = signal<Sort>("diff-desc");
+
+// Live-SVG visibility (DM-632). The animated SVGs the live-svg figure embeds
+// keep running and chew enough CPU to make the review grid feel sluggish, so
+// default to hidden; users opt in via the toolbar checkbox and the choice
+// persists via localStorage.
+const SHOW_LIVE_SVG_KEY = "review.showLiveSvg";
+const showLiveSvgS = signal<boolean>(
+  (() => {
+    try { return localStorage.getItem(SHOW_LIVE_SVG_KEY) === "true"; }
+    catch { return false; }
+  })(),
+);
 
 const lbOpen  = signal(false);
 const lbIndex = signal(-1);
@@ -111,27 +124,37 @@ function ExtraMetrics({ r }: { r: ReviewTest }) {
 
 function ChunkStrip({ r }: { r: ReviewTest }) {
   const chunks = r.chunks ?? [];
+  // DM-634: collapse the per-chunk strip behind a <details> disclosure so
+  // long scroll-mode tests don't crowd the grid by default. The summary
+  // shows how many chunks are hidden and the worst per-chunk diff, so
+  // reviewers can decide whether expanding is worth it without opening.
+  const worstDiff = chunks.reduce((m, c) => Math.max(m, c.diffPct), 0);
   return (
-    <div className="chunk-strip">
-      {chunks.map((c) => {
-        const suffix = c.index === 0 ? "" : `-${c.index}`;
-        const expected = `/img/${r.suite}/${r.name}-expected${suffix}.png`;
-        const actual = `/img/${r.suite}/${r.name}-actual${suffix}.png`;
-        const diff = `/img/${r.suite}/${r.name}-diff${suffix}.png`;
-        return (
-          <div className="chunk">
-            <div className="chunk-head">
-              chunk {c.index} · scrollY {Math.round(c.scrollY)} · {(c.segmentEndMs / 1000).toFixed(1)}s · {c.diffPct.toFixed(2)}%
+    <details className="chunk-strip-details">
+      <summary>
+        {chunks.length} chunks · worst {worstDiff.toFixed(2)}%
+      </summary>
+      <div className="chunk-strip">
+        {chunks.map((c) => {
+          const suffix = c.index === 0 ? "" : `-${c.index}`;
+          const expected = `/img/${r.suite}/${r.name}-expected${suffix}.png`;
+          const actual = `/img/${r.suite}/${r.name}-actual${suffix}.png`;
+          const diff = `/img/${r.suite}/${r.name}-diff${suffix}.png`;
+          return (
+            <div className="chunk">
+              <div className="chunk-head">
+                chunk {c.index} · scrollY {Math.round(c.scrollY)} · {(c.segmentEndMs / 1000).toFixed(1)}s · {c.diffPct.toFixed(2)}%
+              </div>
+              <div className="chunk-imgs">
+                <figure data-src={expected}><img src={expected} loading="lazy" alt="" /></figure>
+                <figure data-src={actual}><img src={actual} loading="lazy" alt="" /></figure>
+                <figure data-src={diff}><img src={diff} loading="lazy" alt="" /></figure>
+              </div>
             </div>
-            <div className="chunk-imgs">
-              <figure data-src={expected}><img src={expected} loading="lazy" alt="" /></figure>
-              <figure data-src={actual}><img src={actual} loading="lazy" alt="" /></figure>
-              <figure data-src={diff}><img src={diff} loading="lazy" alt="" /></figure>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
@@ -183,7 +206,10 @@ function Card({ r }: { r: ReviewTest }) {
             {r.suite === "real-world" && r.name.endsWith("-scroll") && (
               <figure className="live-svg">
                 <figcaption>live svg</figcaption>
-                <img src={`/img/${r.suite}/${r.name}.svg`} loading="lazy" alt="" />
+                {/* DM-632: src is populated by applyLiveSvgVisibility() only
+                    when the toolbar toggle is on, so the SVG isn't fetched
+                    or animated by default. */}
+                <img data-svg-src={`/img/${r.suite}/${r.name}.svg`} loading="lazy" alt="" />
               </figure>
             )}
           </div>
@@ -286,6 +312,34 @@ document.addEventListener("keydown", (e) => {
 filterEl.addEventListener("change", () => { filterS.value = filterEl.value as Filter; });
 suiteEl .addEventListener("change", () => { suiteS .value = suiteEl .value as Suite;  });
 sortEl  .addEventListener("change", () => { sortS  .value = sortEl  .value as Sort;   });
+
+// ── Live-SVG toggle (DM-632) ──
+
+showLiveSvgEl.checked = showLiveSvgS.value;
+showLiveSvgEl.addEventListener("change", () => { showLiveSvgS.value = showLiveSvgEl.checked; });
+
+function applyLiveSvgVisibility(): void {
+  const show = showLiveSvgS.value;
+  document.body.classList.toggle("hide-live-svg", !show);
+  document.querySelectorAll<HTMLImageElement>(".live-svg img").forEach((img) => {
+    const src = img.dataset["svgSrc"];
+    if (src == null) return;
+    if (show) {
+      if (img.getAttribute("src") !== src) img.setAttribute("src", src);
+    } else if (img.hasAttribute("src")) {
+      img.removeAttribute("src");
+    }
+  });
+}
+
+effect(() => {
+  // Persist toggle and re-apply visibility whenever it flips or when new
+  // cards mount (via `visible.value`).
+  const show = showLiveSvgS.value;
+  void visible.value;
+  try { localStorage.setItem(SHOW_LIVE_SVG_KEY, String(show)); } catch { /* ignore */ }
+  queueMicrotask(applyLiveSvgVisibility);
+});
 
 // ── Card delegation ──
 
