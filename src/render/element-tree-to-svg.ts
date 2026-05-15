@@ -2168,7 +2168,13 @@ function sortChildrenByPaintOrder(
       floats.push(c);
     } else if (!treatAsZSorted) {
       base.push(c);
-    } else if (isNaN(z)) {
+    } else if (isNaN(z) || z === 0) {
+      // DM-588: per CSS 2.1 Appendix E §6, z-index:0 and z-index:auto paint
+      // at the SAME stack level in tree order. z-index:0 does NOT paint
+      // above z-index:auto; only z-index >= 1 does. Treating z=0 as positive
+      // caused stripe's billing-plan-graphic background gradient SC (z=0)
+      // to render on top of its sibling white-card descendants (z=auto)
+      // instead of beneath them.
       zeroOrAuto.push(c);
     } else if (z < 0) {
       negative.push({ z, idx: i, el: c });

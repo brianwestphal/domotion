@@ -324,6 +324,50 @@ const tests: FeatureTest[] = [
     height: 180,
   },
 
+  // DM-587: Verifies that nested descendants of a scale-transformed parent
+  // composite correctly. Mirrors the Stripe Payment Element pattern: outer
+  // wrapper with `transform: scale(0.69)`, flex column of child rows, with
+  // some rows carrying their own `transform: translateY(...)`. If the
+  // renderer's <g transform> composition is right, the child rows should
+  // appear at the same positions Chrome paints them; if descendants' rects
+  // are treated as viewport-post-transform, rows will overlap.
+  {
+    name: "transform-scale-flex-descendants",
+    html: `<div style="width:300px;height:400px;background:#0d1117;padding:20px;">
+      <div style="width:200px;height:300px;background:#161b22;transform:scale(0.69);transform-origin:0 0;display:flex;flex-direction:column;gap:10px;padding:10px;">
+        <div style="height:40px;background:#dc2626;"></div>
+        <div style="height:40px;background:#3fb950;transform:translateY(-5px);"></div>
+        <div style="height:40px;background:#58a6ff;"></div>
+        <div style="height:40px;background:#d29922;transform:translateY(10px);"></div>
+        <div style="height:40px;background:#a371f7;"></div>
+      </div>
+    </div>`,
+    width: 320,
+    height: 420,
+    relaxedDiffPct: 0.05,
+  },
+
+  // DM-588: per CSS 2.1 Appendix E §6, positioned siblings with z-index:0 and
+  // z-index:auto paint at the SAME stack level in tree order — z-index:0
+  // does NOT paint above z-index:auto. The previous bucketing sorted z=0
+  // into the "positive" group and painted it last, which caused stripe's
+  // billing-plan-graphic background gradients (z-index:0 SC) to render ON
+  // TOP of the sibling white card (z-index:auto) instead of underneath it.
+  //
+  // Fixture: red box (z-index:0) appears first in DOM; blue box (z-index:auto)
+  // appears second. Both have position:absolute with the same coordinates.
+  // Chrome paints blue on top (later in tree order); a correct renderer must
+  // match. If z-index:0 is treated as "positive", red ends up on top.
+  {
+    name: "z-index-zero-equals-auto",
+    html: `<div style="position:relative;width:200px;height:200px;background:#0d1117;">
+      <div style="position:absolute;left:10px;top:10px;width:100px;height:100px;background:#dc2626;z-index:0;"></div>
+      <div style="position:absolute;left:50px;top:50px;width:100px;height:100px;background:#58a6ff;"></div>
+    </div>`,
+    width: 220,
+    height: 220,
+  },
+
   // ── Regression: CSS gradients translated to SVG linear/radial gradients (SK-432) ──
   {
     name: "gradient-linear",
