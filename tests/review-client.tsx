@@ -36,6 +36,15 @@ interface ReviewTest {
   worstTileSignificantPct?: number;
   warningCount?: number;
   category?: string;
+  chunks?: Array<{
+    index: number;
+    scrollY: number;
+    segmentEndMs: number;
+    diffPct: number;
+    sigPixelPct: number;
+    worstTilePct: number;
+    worstTileSignificantPct: number;
+  }>;
 }
 
 interface ReviewManifest {
@@ -100,6 +109,32 @@ function ExtraMetrics({ r }: { r: ReviewTest }) {
   return <span className="metrics">{parts}</span>;
 }
 
+function ChunkStrip({ r }: { r: ReviewTest }) {
+  const chunks = r.chunks ?? [];
+  return (
+    <div className="chunk-strip">
+      {chunks.map((c) => {
+        const suffix = c.index === 0 ? "" : `-${c.index}`;
+        const expected = `/img/${r.suite}/${r.name}-expected${suffix}.png`;
+        const actual = `/img/${r.suite}/${r.name}-actual${suffix}.png`;
+        const diff = `/img/${r.suite}/${r.name}-diff${suffix}.png`;
+        return (
+          <div className="chunk">
+            <div className="chunk-head">
+              chunk {c.index} · scrollY {Math.round(c.scrollY)} · {(c.segmentEndMs / 1000).toFixed(1)}s · {c.diffPct.toFixed(2)}%
+            </div>
+            <div className="chunk-imgs">
+              <figure data-src={expected}><img src={expected} loading="lazy" alt="" /></figure>
+              <figure data-src={actual}><img src={actual} loading="lazy" alt="" /></figure>
+              <figure data-src={diff}><img src={diff} loading="lazy" alt="" /></figure>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Card({ r }: { r: ReviewTest }) {
   let badge: string;
   let statusClass: string;
@@ -129,28 +164,37 @@ function Card({ r }: { r: ReviewTest }) {
       {r.skipped ? (
         <div className="skip-note">Skipped: {r.skipReason ?? "(no reason given)"}</div>
       ) : (
-        <div className="imgs">
-          {(["expected", "actual", "diff"] as const).map((kind) => {
-            const src = `/img/${r.suite}/${r.name}-${kind}.png`;
-            return (
-              <figure data-src={src}>
-                <figcaption>{kind}</figcaption>
-                <img src={src} loading="lazy" alt="" />
+        <>
+          <div className="imgs">
+            {(["expected", "actual", "diff"] as const).map((kind) => {
+              const src = `/img/${r.suite}/${r.name}-${kind}.png`;
+              return (
+                <figure data-src={src}>
+                  <figcaption>{kind}</figcaption>
+                  <img src={src} loading="lazy" alt="" />
+                </figure>
+              );
+            })}
+            {/* DM-611: scroll-mode demos get a live-SVG tile alongside the
+                expected/actual/diff PNGs. Naming convention: real-world tests
+                suffixed `-scroll` are scroll demos (see tests/real-world.tsx).
+                The browser renders the animated SVG directly via <img>, so the
+                animation plays right in the review grid. */}
+            {r.suite === "real-world" && r.name.endsWith("-scroll") && (
+              <figure className="live-svg">
+                <figcaption>live svg</figcaption>
+                <img src={`/img/${r.suite}/${r.name}.svg`} loading="lazy" alt="" />
               </figure>
-            );
-          })}
-          {/* DM-611: scroll-mode demos get a live-SVG tile alongside the
-              expected/actual/diff PNGs. Naming convention: real-world tests
-              suffixed `-scroll` are scroll demos (see tests/real-world.tsx).
-              The browser renders the animated SVG directly via <img>, so the
-              animation plays right in the review grid. */}
-          {r.suite === "real-world" && r.name.endsWith("-scroll") && (
-            <figure className="live-svg">
-              <figcaption>live svg</figcaption>
-              <img src={`/img/${r.suite}/${r.name}.svg`} loading="lazy" alt="" />
-            </figure>
+            )}
+          </div>
+          {/* Per-chunk diff strip for scroll-mode real-world tests.
+              The 3 tiles above show chunk 0 (t=0); the strip below adds
+              the rest of the executor's segments. See
+              docs/34-scroll-mode-per-chunk-diff.md. */}
+          {r.chunks != null && r.chunks.length > 1 && (
+            <ChunkStrip r={r} />
           )}
-        </div>
+        </>
       )}
       <textarea className="comment" placeholder="What's wrong or worth a ticket? (Ticket will include the three images, metrics, and your comment.)"></textarea>
       <div className="actions">

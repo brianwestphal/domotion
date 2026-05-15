@@ -40,7 +40,7 @@ import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js"
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
-import { executeScrollPattern } from "../src/scroll/executor.js";
+import { executeScrollPattern, type ScrollSegmentCapture } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
 import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs } from "./compare-pngs.js";
@@ -96,6 +96,23 @@ const SCROLL_ANIM_MS = 12_000;
 type Mode = "fold" | "entire-page" | "scroll";
 const MODES: Mode[] = ["fold", "entire-page", "scroll"];
 
+interface ChunkResult {
+  /** 0-based chunk index. Chunk 0 is the t=0 frame, also written to the
+   *  canonical {expected,actual,diff}.png paths for backwards compat. */
+  index: number;
+  /** Page scrollY at which the executor captured this chunk. */
+  scrollY: number;
+  /** SVG-animation timepoint (ms) this chunk anchors. Used to seek the
+   *  composed SVG animation when capturing the actual screenshot. */
+  segmentEndMs: number;
+  diffPct: number;
+  sigPixelPct: number;
+  worstTilePct: number;
+  worstTileSignificantPct: number;
+  nonAaPixels: number;
+  nonAaPixelPct: number;
+}
+
 interface Result {
   name: string;
   site: string;
@@ -120,6 +137,11 @@ interface Result {
   /** Capture warnings (unsupported features). Stored as an array so the
    *  review-server's `Array.isArray(r["warnings"])` count is correct. */
   warnings?: Array<{ selector: string; feature: string; detail: string }>;
+  /** Per-chunk metrics for `scroll` mode. Chunk 0 is the t=0 anchor (same
+   *  as the canonical {expected,actual,diff}.png); chunks 1+ correspond to
+   *  the additional `<name>-{expected,actual,diff}-N.png` files. Absent
+   *  for `fold` / `entire-page` modes. See docs/34-scroll-mode-per-chunk-diff.md. */
+  chunks?: ChunkResult[];
 }
 
 interface PageJob {
@@ -412,6 +434,11 @@ async function runJob(
   // `entire-page` resizes to the document scroll height after measuring.
   let canvasH = viewport.height;
 
+  // Scroll-mode segments (only populated when mode === "scroll"). Lifted
+  // here so the per-chunk diff loop after the canonical comparePngs can
+  // walk the same anchors. Stays undefined for fold / entire-page.
+  let segments: ScrollSegmentCapture[] | undefined;
+
   try {
     // `domcontentloaded` is more reliable than `load` on real-world pages
     // — `load` waits for every <img>, including beacons that never settle.
@@ -637,7 +664,7 @@ async function runJob(
       // scroll. We can refine pacing once profiling shows it matters.
       const scrollSec = SCROLL_ANIM_MS / 1000;
       const pattern = parseScrollPattern(`down:bottom/${scrollSec}s`);
-      const segments = await executeScrollPattern(page, pattern, {
+      segments = await executeScrollPattern(page, pattern, {
         viewportW: viewport.width,
         viewportH: viewport.height,
         // We already did the pre-scroll wake-up above; don't repeat it.
@@ -731,6 +758,57 @@ async function runJob(
       console.warn(`  ${test}: screenshot failed (${msg.split("\n")[0]}); retrying`);
       await renderPage.screenshot({ path: actualPath, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
     }
+
+    // Per-chunk screenshots for `scroll` mode. The canonical screenshot
+    // above is the t=0 frame (chunk 0). For each subsequent segment the
+    // executor visited, take an expected screenshot of the live page at
+    // that scrollY, then seek the composed SVG animation to the same
+    // timepoint and screenshot the actual. Comparison happens later
+    // (after the canonical comparePngs) once the renderContext is closed.
+    // See docs/34-scroll-mode-per-chunk-diff.md.
+    if (mode === "scroll" && segments != null && segments.length > 1) {
+      for (let i = 1; i < segments.length; i++) {
+        const seg = segments[i];
+        const expectedChunk = expectedPath.replace(/\.png$/, `-${i}.png`);
+        const actualChunk = actualPath.replace(/\.png$/, `-${i}.png`);
+        try {
+          await page.evaluate((y) => window.scrollTo(0, y), seg.scrollY);
+          await page.waitForTimeout(150);
+          // Re-pause any animations that intersection observers may have
+          // started on the scroll-back (the original freeze pass only
+          // paused animations active at that moment).
+          await page.evaluate(() => {
+            for (const a of document.getAnimations()) {
+              try { a.pause(); } catch { /* */ }
+            }
+          });
+          await page.waitForTimeout(50);
+          await page.screenshot({ path: expectedChunk, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS, animations: "disabled" });
+        } catch (e) {
+          console.warn(`  ${test}: chunk ${i} expected screenshot failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        try {
+          // Seek the composed SVG's CSS animation to this segment's
+          // anchor timepoint. document.getAnimations() reaches CSS
+          // animations defined inside the inline SVG's <style> block.
+          // NOTE: do NOT pass `animations: "disabled"` to screenshot here —
+          // Playwright's docs say that flag CANCELS infinite animations
+          // back to their initial state, which would undo this seek and
+          // leave every chunk's actual screenshot stuck on the t=0 frame.
+          // The pause() above is sufficient to freeze the moment.
+          await renderPage.evaluate((timeMs) => {
+            for (const a of document.getAnimations()) {
+              try { a.currentTime = timeMs; a.pause(); } catch { /* */ }
+            }
+          }, seg.segmentEndMs);
+          await renderPage.waitForTimeout(50);
+          await renderPage.screenshot({ path: actualChunk, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS });
+        } catch (e) {
+          console.warn(`  ${test}: chunk ${i} actual screenshot failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    }
+
     try { await renderContext.close(); } catch { /* best-effort */ }
     // Wrapper is purely a render harness — the .svg file is the artifact
     // reviewers/consumers care about.
@@ -769,6 +847,47 @@ async function runJob(
     );
   }
 
+  // Per-chunk diffs for scroll mode. Chunk 0's metrics mirror the
+  // canonical cmp above (same pixels). Chunks 1+ run comparePngs against
+  // the per-chunk PNGs written during the renderPage loop above.
+  let chunks: ChunkResult[] | undefined;
+  if (mode === "scroll" && segments != null && segments.length > 0) {
+    chunks = [{
+      index: 0,
+      scrollY: segments[0].scrollY,
+      segmentEndMs: segments[0].segmentEndMs,
+      diffPct: cmp.diffPct,
+      sigPixelPct: cmp.sigPixelPct,
+      worstTilePct: cmp.worstTilePct,
+      worstTileSignificantPct: cmp.worstTileSignificantPct,
+      nonAaPixels: cmp.nonAaPixels,
+      nonAaPixelPct: cmp.nonAaPixelPct,
+    }];
+    for (let i = 1; i < segments.length; i++) {
+      const seg = segments[i];
+      const expectedChunk = expectedPath.replace(/\.png$/, `-${i}.png`);
+      const actualChunk = actualPath.replace(/\.png$/, `-${i}.png`);
+      const diffChunk = diffPath.replace(/\.png$/, `-${i}.png`);
+      if (!existsSync(expectedChunk) || !existsSync(actualChunk)) continue;
+      try {
+        const ccmp = await comparePngs(comparePage, expectedChunk, actualChunk, diffChunk);
+        chunks.push({
+          index: i,
+          scrollY: seg.scrollY,
+          segmentEndMs: seg.segmentEndMs,
+          diffPct: ccmp.diffPct,
+          sigPixelPct: ccmp.sigPixelPct,
+          worstTilePct: ccmp.worstTilePct,
+          worstTileSignificantPct: ccmp.worstTileSignificantPct,
+          nonAaPixels: ccmp.nonAaPixels,
+          nonAaPixelPct: ccmp.nonAaPixelPct,
+        });
+      } catch (e) {
+        console.warn(`  ${test}: chunk ${i} compare failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+
   // Pass criterion: identical to the rest of the suites — every differing
   // pixel must be classified as glyph anti-aliasing. Real sites virtually
   // never hit that bar; the metric is informational on every mode.
@@ -789,6 +908,7 @@ async function runJob(
     width: viewport.width,
     height: diffH,
     warnings: warnings.length > 0 ? warnings : undefined,
+    chunks,
   };
 }
 

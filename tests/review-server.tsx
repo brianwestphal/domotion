@@ -78,6 +78,18 @@ interface ReviewTest {
   worstTileSignificantPct?: number;
   warningCount?: number;
   category?: string;
+  // real-world scroll-mode per-chunk metrics (undefined for non-scroll tests).
+  // Each chunk has matching `<name>-{expected,actual,diff}-N.png` files
+  // (chunk 0 is the canonical no-suffix triplet).
+  chunks?: Array<{
+    index: number;
+    scrollY: number;
+    segmentEndMs: number;
+    diffPct: number;
+    sigPixelPct: number;
+    worstTilePct: number;
+    worstTileSignificantPct: number;
+  }>;
 }
 
 interface ReviewManifest {
@@ -119,6 +131,23 @@ function loadManifest(): ReviewManifest {
     for (const r of records as Array<Record<string, unknown>>) {
       const name = String(r["name"] ?? "");
       if (name === "") continue;
+      const rawChunks = r["chunks"];
+      let chunks: ReviewTest["chunks"];
+      if (Array.isArray(rawChunks)) {
+        chunks = [];
+        for (const c of rawChunks as Array<Record<string, unknown>>) {
+          if (typeof c["index"] !== "number") continue;
+          chunks.push({
+            index: c["index"],
+            scrollY: typeof c["scrollY"] === "number" ? c["scrollY"] : 0,
+            segmentEndMs: typeof c["segmentEndMs"] === "number" ? c["segmentEndMs"] : 0,
+            diffPct: typeof c["diffPct"] === "number" ? c["diffPct"] : 0,
+            sigPixelPct: typeof c["sigPixelPct"] === "number" ? c["sigPixelPct"] : 0,
+            worstTilePct: typeof c["worstTilePct"] === "number" ? c["worstTilePct"] : 0,
+            worstTileSignificantPct: typeof c["worstTileSignificantPct"] === "number" ? c["worstTileSignificantPct"] : 0,
+          });
+        }
+      }
       tests.push({
         suite: m.suite,
         name,
@@ -132,6 +161,7 @@ function loadManifest(): ReviewManifest {
         worstTileSignificantPct: typeof r["worstTileSignificantPct"] === "number" ? r["worstTileSignificantPct"] : undefined,
         warningCount: Array.isArray(r["warnings"]) ? r["warnings"].length : undefined,
         category: typeof r["category"] === "string" ? r["category"] : undefined,
+        chunks: chunks != null && chunks.length > 0 ? chunks : undefined,
       });
     }
   }
@@ -247,6 +277,12 @@ const REVIEW_CSS = `
   .suite-summary { font-size: 12px; color: #8b949e; margin-top: 4px; }
   .svg-link { font-size: 11px; color: #58a6ff; text-decoration: none; margin-left: auto; }
   .svg-link:hover { text-decoration: underline; }
+  .chunk-strip { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .chunk { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 8px; }
+  .chunk-head { font-size: 11px; color: #8b949e; font-family: ui-monospace, monospace; margin-bottom: 4px; }
+  .chunk-imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .chunk-imgs figure { margin: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 3px; overflow: hidden; cursor: zoom-in; }
+  .chunk-imgs img { display: block; width: 100%; height: auto; }
 `;
 
 // Bundle the kerfjs client (`tests/review-client.tsx`) once at server start
