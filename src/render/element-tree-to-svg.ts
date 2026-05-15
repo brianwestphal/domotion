@@ -269,6 +269,30 @@ export function elementTreeToSvg(
         defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
       }
     }
+    // DM-587: overflow != visible on either axis clips painted descendants
+    // at the element's box. Chrome's captured tree faithfully records every
+    // descendant rect even when it extends past an ancestor's box (e.g. the
+    // Stripe `payments-graphic__checkout-payment-methods-item-label--card`
+    // is a 22×6 box that flex-stacks multiple language-variant siblings
+    // horizontally under `transform: scale(0.69)`; only the active-language
+    // variant is meant to be visible). Without this clip the SVG painted
+    // every variant on top of one another. clip-path takes priority when
+    // both are present (CSS clip-path replaces overflow clipping per CSS
+    // Masking 1 §5.1); border-radius rounding of the overflow rect is a
+    // deliberate omission — rare in practice on elements small enough for
+    // the bug to matter.
+    if (clipPathUrlId == null) {
+      const oxV = el.styles.overflowX;
+      const oyV = el.styles.overflowY;
+      const oxClips = oxV != null && oxV !== "visible";
+      const oyClips = oyV != null && oyV !== "visible";
+      if (oxClips || oyClips) {
+        clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
+        defsParts.push(
+          `<clipPath id="${clipPathUrlId}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}"/></clipPath>`,
+        );
+      }
+    }
     // mask: if mask-image is a gradient or url(), translate it to an SVG <mask>.
     const maskImage = el.styles.maskImage;
     let maskUrlId: string | null = null;
