@@ -2003,6 +2003,13 @@ function establishesStackingContext(el: CapturedElement, parentDisplay?: string)
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return true;
   if (s.transform != null && s.transform !== "" && s.transform !== "none") return true;
+  // DM-587: the capture script now records `styles.transform = 'none'` for
+  // every element (live rects are baked in, no wrap needed), but tracks the
+  // original "was non-none at capture time" bit in `transformCreatesSc` so
+  // SC detection still works. Without this, e.g. a `<div style="transform:
+  // translate(0)">` with z-indexed descendants would stop trapping their
+  // z-index resolution and the descendants would hoist to a higher SC.
+  if (s.transformCreatesSc) return true;
   // DM-589: CSS Transforms 2 §4 — any `transform-style` value != `flat`
   // (typically `preserve-3d`) creates a stacking context. Real-world hit:
   // stripe.com's speaker-card uses preserve-3d so its z-index:-1 speaker
@@ -2136,6 +2143,12 @@ function gatherStackingContextChildren(
 function isFixedContainingBlock(el: CapturedElement): boolean {
   const s = el.styles;
   if (s.transform != null && s.transform !== "" && s.transform !== "none") return true;
+  // DM-587: see establishesStackingContext — transform info is split between
+  // `styles.transform` (always 'none' after the live-rect-capture switch) and
+  // `transformCreatesSc` (preserves the original "was non-none" bit). A
+  // transformed element creates a containing block for its fixed-positioned
+  // descendants regardless of the transform value, so honor the bit here too.
+  if (s.transformCreatesSc) return true;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const tokens = s.willChange.split(/[\s,]+/);

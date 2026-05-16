@@ -435,6 +435,15 @@ export interface CapturedElement {
     rootBgComputed?: string;
     /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
     transformOrigin?: string;
+    /** DM-587: true when the live CSS transform was non-none at capture
+     *  time. We record `transform: 'none'` in this struct (because captured
+     *  rects are in live viewport coords post-transforms and the renderer
+     *  must not wrap them in a duplicate transform `<g>`), but CSS Transforms
+     *  2 §4 says any non-none transform creates a stacking context, and
+     *  `establishesStackingContext` needs that bit to keep z-index ordering
+     *  correct (e.g. `transform: translate(0)` on a positioned element traps
+     *  its descendants' z-indices). */
+    transformCreatesSc?: boolean;
     /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
     transformStyle?: string;
     /** CSS writing-mode (`horizontal-tb` | `vertical-rl` | `vertical-lr` | `sideways-rl` | `sideways-lr`). */
