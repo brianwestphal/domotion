@@ -653,7 +653,22 @@ export const captureScript =
         textOverflow: cs.textOverflow,
         whiteSpace: cs.whiteSpace,
         color: normColor(cs.color),
-        fontSize: cs.fontSize,
+        // DM-587: live-rect capture records text bboxes at scaled (live)
+        // viewport coords, but `cs.fontSize` and `canvas.measureText` are in
+        // CSS px (unscaled). Multiply by the cumulative ancestor scale so
+        // the renderer's text-Y math (baseline = top + ascent) lands the
+        // baseline inside the scaled bbox — without this, glyphs inside e.g.
+        // a `transform: scale(0.7)` container overflow their captured cell
+        // and escape per-label `overflow: hidden` clip-paths. _cumulativeScale
+        // is pre-computed in the pre-pass above. Defaults to 1 for elements
+        // outside any scaled ancestor (the common case).
+        fontSize: (function() {
+          var _fs = parseFloat(cs.fontSize);
+          if (!isFinite(_fs)) return cs.fontSize;
+          var _s = _cumulativeScale.get(el) || 1;
+          if (_s === 1) return cs.fontSize;
+          return (_fs * _s).toFixed(4) + 'px';
+        })(),
         fontFamily: cs.fontFamily,
         fontWeight: cs.fontWeight,
         fontStyle: cs.fontStyle,
@@ -694,7 +709,14 @@ export const captureScript =
       // list-item index — see walker/lists-counters.ts.
       ..._listsCounters,
       textSegments: textSegments.length > 0 ? textSegments : undefined,
-      textTop, textLeft, textHeight, textWidth, fontAscent, fontDescent,
+      textTop, textLeft, textHeight, textWidth,
+      // DM-587: fontAscent + fontDescent come from `canvas.measureText` using
+      // the unscaled `cs.fontSize`, so scale them to match the also-scaled
+      // captured fontSize. Otherwise the renderer's baseline math reads
+      // unscaled ascent values, and glyphs sit too far below their captured
+      // bbox top inside a `transform: scale(<1)` container.
+      fontAscent: fontAscent != null ? fontAscent * (_cumulativeScale.get(el) || 1) : fontAscent,
+      fontDescent: fontDescent != null ? fontDescent * (_cumulativeScale.get(el) || 1) : fontDescent,
       inputXOffsets,
       textImageUri, textImageScale,
       // Placeholder metadata (SK-1097 / SK-1100 / SK-1099): captured in
@@ -784,6 +806,55 @@ export const captureScript =
     for (let _tj = 0; _tj < _tdescs.length; _tj++) {
       _transformInfluenced.add(_tdescs[_tj]);
     }
+  }
+
+  // DM-587: every element's cumulative ancestor scale. The live-rect capture
+  // model records every rect in scaled (live) viewport coords — but text
+  // metrics from `getComputedStyle.fontSize` and `canvas.measureText` are in
+  // CSS px (unscaled). Inside a `transform: scale(0.7)` container, glyphs
+  // would be painted at full CSS size into a scaled-down captured bbox,
+  // overflowing it. Pre-compute the cumulative scale here so the captureInner
+  // pass can multiply font-size + font-ascent + font-descent at capture time.
+  // Walk top-down so each element sees its ancestor's already-folded scale.
+  // For non-scale transforms (rotate, skew, perspective) we approximate by
+  // sqrt(|a*d|) which is exact for pure scale and 1 for pure rotation — the
+  // error grows for combined rotate+scale but no real-world fixture exercises
+  // that on text-bearing elements. Translations contribute scale=1.
+  const _cumulativeScale = new Map();
+  const _computeOwnScale = (_tt) => {
+    if (_tt == null || _tt === 'none' || _tt === '') return 1;
+    // matrix(a, b, c, d, e, f) — a/d are the scale-along-x / scale-along-y
+    // diagonal entries. matrix3d(...) downgrades to its 2D submatrix elements
+    // m11/m22 (indexes 0 / 5) — same as a / d.
+    const _m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/.exec(_tt);
+    let _sa = 1, _sd = 1;
+    if (_m2 != null) { _sa = parseFloat(_m2[1]); _sd = parseFloat(_m2[4]); }
+    else {
+      const _m3 = /^matrix3d\(([^)]+)\)/.exec(_tt);
+      if (_m3 != null) {
+        const _parts = _m3[1].split(',');
+        _sa = parseFloat(_parts[0]); _sd = parseFloat(_parts[5]);
+      }
+    }
+    if (!isFinite(_sa) || !isFinite(_sd)) return 1;
+    // Geometric mean of x-scale + y-scale magnitudes. Exact for uniform
+    // scale; reasonable approximation for non-uniform scale on text.
+    const _s = Math.sqrt(Math.abs(_sa * _sd));
+    return _s > 0 ? _s : 1;
+  };
+  // Map every transformed element to its own scale, then walk descendants
+  // multiplying. Doing this top-down via parentNode + memoization avoids the
+  // O(n*depth) cost of querying ancestors per element.
+  for (let _si = 0; _si < _allEls.length; _si++) {
+    const _el = _allEls[_si];
+    let _cum = 1;
+    const _pe = _el.parentElement;
+    if (_pe != null && _cumulativeScale.has(_pe)) _cum = _cumulativeScale.get(_pe);
+    const _ownT = getComputedStyle(_el).transform;
+    if (_ownT != null && _ownT !== 'none' && _ownT !== '') {
+      _cum *= _computeOwnScale(_ownT);
+    }
+    if (_cum !== 1) _cumulativeScale.set(_el, _cum);
   }
 
   // CSS counters pre-walk (DM-357). Walk the document in DOM order,
