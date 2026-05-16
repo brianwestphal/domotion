@@ -90,7 +90,7 @@ export const captureScript =
     // children) so the in-viewport descendants are reached. _fixedAncestors
     // is precomputed in the pre-pass below.
     const outsideViewport = rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;
-    if (outsideViewport && !_fixedAncestors.has(el)) return null;
+    if (outsideViewport && !_fixedAncestors.has(el) && !_transformInfluenced.has(el)) return null;
 
     // visibility: collapse on table-row/column/group collapses that section
     // (Chrome zero-sizes the row/col, so the zeroSized check below handles it).
@@ -759,6 +759,30 @@ export const captureScript =
       if (_fixedAncestors.has(_cur)) break;
       _fixedAncestors.add(_cur);
       _cur = _cur.parentElement;
+    }
+  }
+
+  // DM-587: every descendant of a transformed ancestor must escape the
+  // outsideViewport early-return in captureInner. Because the per-element
+  // freeze pass clears each ancestor's CSS transform before descending,
+  // getBoundingClientRect on a descendant returns its NATURAL-layout
+  // position (no ancestor translates / scales). For a carousel-style
+  // widget where the "current slide" is brought into the viewport by a
+  // parent `transform: translate(-Npx, 0)` (Stripe's connect-platform
+  // payment-card-content does exactly this), the descendant's natural
+  // rect is offscreen — without this set the cull drops it and the
+  // renderer never sees the slide at all. The renderer re-applies the
+  // saved transform when drawing, so descendants captured here will be
+  // painted at the correct post-transform position.
+  const _transformInfluenced = new Set();
+  for (let _ti = 0; _ti < _allEls.length; _ti++) {
+    const _tel = _allEls[_ti];
+    const _tt = getComputedStyle(_tel).transform;
+    if (_tt === 'none' || _tt === '') continue;
+    // Mark every descendant of this transformed element.
+    const _tdescs = _tel.getElementsByTagName('*');
+    for (let _tj = 0; _tj < _tdescs.length; _tj++) {
+      _transformInfluenced.add(_tdescs[_tj]);
     }
   }
 
