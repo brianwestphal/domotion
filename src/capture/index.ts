@@ -1020,24 +1020,83 @@ async function rasterizeReplacedElements(
   try {
     styleHandle = await page.addStyleTag({ content: HIDE_CSS });
     for (const t of screenshotTargets) {
-      // Move the snapshot-target marker to this element.
-      await page.evaluate((rid) => {
+      // Move the snapshot-target marker to this element and read the LIVE
+      // getBoundingClientRect at the same time. DM-584: the captured t.rect
+      // is the freeze-pass rect (transforms cleared), but by the time we
+      // reach rasterize, the freeze wrapper has restored every element's
+      // transform — so the page now paints the element at its live post-
+      // transform position. Screenshotting at the frozen page clip captures
+      // the wrong region (typically blank where the element WOULD have been
+      // if no transform applied, e.g. apple.com's hero `<video>` at frozen
+      // x=195 / live x=-172 with `transform: matrix(1,0,0,1,-367,0)`).
+      //
+      // The renderer will wrap the resulting `<image>` in the same captured
+      // transform `<g>` as the element's other children, so the snapshot's
+      // stored rect must STAY in pre-transform (frozen) coords. We keep
+      // t.rect in frozen coords but offset by the live-clamp delta so the
+      // bitmap dimensions match — for pure translations (the common case),
+      // a left/top delta in live coords applies identically in frozen coords.
+      const liveRect = await page.evaluate((rid) => {
         const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
         prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
         const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
-        if (next != null) next.setAttribute("data-domotion-snapshot-target", "");
+        if (next == null) return null;
+        next.setAttribute("data-domotion-snapshot-target", "");
+        const r = next.getBoundingClientRect();
+        const cs = getComputedStyle(next as HTMLElement);
+        const bl = parseFloat(cs.borderLeftWidth) || 0;
+        const br = parseFloat(cs.borderRightWidth) || 0;
+        const bt = parseFloat(cs.borderTopWidth) || 0;
+        const bb = parseFloat(cs.borderBottomWidth) || 0;
+        const pl = parseFloat(cs.paddingLeft) || 0;
+        const pr = parseFloat(cs.paddingRight) || 0;
+        const pt = parseFloat(cs.paddingTop) || 0;
+        const pb = parseFloat(cs.paddingBottom) || 0;
+        return {
+          x: r.left + bl + pl,
+          y: r.top + bt + pt,
+          width: Math.max(0, r.width - bl - br - pl - pr),
+          height: Math.max(0, r.height - bt - bb - pt - pb),
+        };
       }, t.rid);
-      // rect is viewport-relative; page.screenshot clip wants page-absolute.
-      // Snap to integer pixels outward so the full content box is captured.
-      const clip = {
-        x: Math.max(0, Math.floor(t.rect.x + viewport.x)),
-        y: Math.max(0, Math.floor(t.rect.y + viewport.y)),
-        width: Math.max(1, Math.ceil(t.rect.width)),
-        height: Math.max(1, Math.ceil(t.rect.height)),
-      };
+      // Live rect used for the screenshot clip; frozen rect stays for the
+      // stored snapshot. Fall back to frozen for both when the live read
+      // fails (rare — page mutated and the rid element vanished).
+      const clipRect = liveRect != null && liveRect.width > 0 && liveRect.height > 0
+        ? liveRect
+        : t.rect;
+      // page.screenshot clip wants page-absolute pixels, snapped outward.
+      const reqLeft = Math.floor(clipRect.x + viewport.x);
+      const reqTop = Math.floor(clipRect.y + viewport.y);
+      const reqW = Math.max(1, Math.ceil(clipRect.width));
+      const reqH = Math.max(1, Math.ceil(clipRect.height));
+      // Clamp to page bounds (Playwright errors if clip extends past the
+      // page; same logic as the cropTargets path above). Track left/top
+      // deltas so we can shift the stored frozen rect by the same amount.
+      const pageW = viewport.x + viewport.width;
+      const pageH = viewport.y + viewport.height;
+      const left = Math.max(0, reqLeft);
+      const top = Math.max(0, reqTop);
+      const leftDelta = left - reqLeft;
+      const topDelta = top - reqTop;
+      const clippedW = Math.max(1, Math.min(reqW - leftDelta, pageW - left));
+      const clippedH = Math.max(1, Math.min(reqH - topDelta, pageH - top));
+      if (left >= pageW || top >= pageH) continue;
+      const clip = { x: left, y: top, width: clippedW, height: clippedH };
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
         t.setDataUri(`data:image/png;base64,${Buffer.from(buf).toString("base64")}`);
+        // Adjust the FROZEN rect by the same delta as the live clip so the
+        // renderer's `<image>` is sized to the bitmap (preventing the
+        // stretched-bytes artifact when the page clipped the screenshot to
+        // its boundaries). For pure translations the delta applies
+        // identically in both coord spaces; for scaled/rotated transforms
+        // on the element itself this approximation may misposition the
+        // snapshot, but no currently-supported real-world fixture exercises
+        // that combination on a `<video>` / `<canvas>` / `<iframe>`.
+        if (clippedW !== reqW || clippedH !== reqH || leftDelta !== 0 || topDelta !== 0) {
+          t.setRect(t.rect.x + leftDelta, t.rect.y + topDelta, clippedW, clippedH);
+        }
       } catch {
         // Screenshot failed (e.g. clip went off-page after a layout shift).
         // Leave dataUri undefined; the renderer falls back to the bare box.
