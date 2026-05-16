@@ -894,8 +894,12 @@ async function rasterizeReplacedElements(
     // from a viewport-sized expected.png and the element overflows the
     // viewport), narrow the rendered rect to match the bitmap so the renderer
     // doesn't stretch with preserveAspectRatio="none". Receives the bitmap's
-    // actual dimensions and writes them back to the captured replacedSnapshot.
-    setRect: (w: number, h: number) => void;
+    // viewport-relative position + dimensions and writes them back to the
+    // captured replacedSnapshot — including x/y shifts when the element
+    // overflowed the LEFT or TOP edge (framer-mobile tile videos at
+    // x=-115 cropped from expected.png at x=0; without shifting x the
+    // snapshot painted with a 115-px content offset).
+    setRect: (x: number, y: number, w: number, h: number) => void;
   }
   const targets: Target[] = [];
   const walk = (els: CapturedElement[]): void => {
@@ -907,7 +911,7 @@ async function rasterizeReplacedElements(
           tag: el.tag,
           rect: { x: rs.x, y: rs.y, width: rs.width, height: rs.height },
           setDataUri: (uri) => { rs.dataUri = uri; },
-          setRect: (w, h) => { rs.width = w; rs.height = h; },
+          setRect: (x, y, w, h) => { rs.x = x; rs.y = y; rs.width = w; rs.height = h; },
         });
       }
       if (el.children.length > 0) walk(el.children);
@@ -954,12 +958,18 @@ async function rasterizeReplacedElements(
     const srcW = srcMeta.width ?? 0;
     const srcH = srcMeta.height ?? 0;
     for (const t of cropTargets) {
-      const left = Math.max(0, Math.floor(t.rect.x + viewport.x));
-      const top = Math.max(0, Math.floor(t.rect.y + viewport.y));
-      const width = Math.max(1, Math.ceil(t.rect.width));
-      const height = Math.max(1, Math.ceil(t.rect.height));
-      const clippedW = Math.max(1, Math.min(width, srcW - left));
-      const clippedH = Math.max(1, Math.min(height, srcH - top));
+      // Requested viewport-relative crop region (may extend off any edge).
+      const reqLeft = Math.floor(t.rect.x + viewport.x);
+      const reqTop = Math.floor(t.rect.y + viewport.y);
+      const reqW = Math.max(1, Math.ceil(t.rect.width));
+      const reqH = Math.max(1, Math.ceil(t.rect.height));
+      // Clamp to the source image bounds.
+      const left = Math.max(0, reqLeft);
+      const top = Math.max(0, reqTop);
+      const leftDelta = left - reqLeft;
+      const topDelta = top - reqTop;
+      const clippedW = Math.max(1, Math.min(reqW - leftDelta, srcW - left));
+      const clippedH = Math.max(1, Math.min(reqH - topDelta, srcH - top));
       if (left >= srcW || top >= srcH) continue;
       try {
         const buf = await sharp(opts.sourceImagePath)
@@ -967,13 +977,15 @@ async function rasterizeReplacedElements(
           .png()
           .toBuffer();
         t.setDataUri(`data:image/png;base64,${buf.toString("base64")}`);
-        // DM-598: if the source clipped the rect (element overflowed the
-        // expected.png viewport), narrow the captured rect so the renderer
-        // doesn't stretch the bitmap. The renderer keeps `preserveAspectRatio
-        // = "none"` for replacedSnapshots, so any width/height mismatch
-        // distorts visibly.
-        if (clippedW !== width || clippedH !== height) {
-          t.setRect(clippedW, clippedH);
+        // DM-598 / DM-582: if the source clipped on any edge (element
+        // overflowed left/top/right/bottom of the expected.png viewport),
+        // narrow the captured rect AND shift x/y so the renderer paints the
+        // bitmap at the corresponding viewport position. Without the shift,
+        // a video at x=-115 cropped from x=0 would still paint at x=-115,
+        // sliding the cropped content 115 px to the left of where Chrome
+        // painted it.
+        if (clippedW !== reqW || clippedH !== reqH || leftDelta !== 0 || topDelta !== 0) {
+          t.setRect(t.rect.x + leftDelta, t.rect.y + topDelta, clippedW, clippedH);
         }
       } catch {
         /* leave dataUri undefined; renderer falls back to the bare box. */
