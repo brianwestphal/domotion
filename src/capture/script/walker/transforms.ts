@@ -66,29 +66,70 @@
 // break any rotated-container fixture. None exist in the current real-world
 // suite or the feature suite (`inline-svg-use-symbol-animated` rotates an
 // SVG `<rect>`, not an HTML element).
+// Detect whether a CSS computed `transform` matrix string contains rotation or
+// skew components. Pure-translate / pure-scale matrices have b=c=0 in the 2D
+// form `matrix(a, b, c, d, e, f)`; rotation/skew produces non-zero b or c.
+// matrix3d (12 values for the 4×4 matrix major-column layout) carries the
+// 2D submatrix in positions 0, 1, 4, 5 (= a, b, c, d in 2D form).
+const transformHasRotationOrSkew = (transformStr) => {
+  if (!transformStr || transformStr === 'none') return false;
+  const m2 = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(transformStr);
+  if (m2) {
+    const b = parseFloat(m2[2]);
+    const c = parseFloat(m2[3]);
+    return Math.abs(b) > 1e-6 || Math.abs(c) > 1e-6;
+  }
+  const m3 = /^matrix3d\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*[-\d.eE]+\s*,\s*[-\d.eE]+\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(transformStr);
+  if (m3) {
+    const b = parseFloat(m3[2]);
+    const c = parseFloat(m3[3]);
+    return Math.abs(b) > 1e-6 || Math.abs(c) > 1e-6;
+  }
+  return false;
+};
+
 export const createTransformsHandler = () => {
   const wrapWithFrozenTransform = (el, cs, captureInner) => {
-    // DM-587: for elements with a transform, DO NOT clear (no more
-    // `translate(0)` substitution). Read the element's rect as Chrome
-    // currently paints it. Thread the original transform string through so
-    // threadFrozenTransform can flag transform-induced stacking-context
-    // creation; the rect itself is already in live viewport coords, so the
-    // renderer must not wrap with a duplicate transform `<g>` — we
-    // accomplish that by always recording `styles.transform = 'none'` (see
-    // threadFrozenTransform below), but the SC bit is preserved via a
-    // separate flag.
+    // DM-587: for pure translate/scale transforms, do NOT clear — read the
+    // rect as Chrome currently paints it (the new live-rect model). For
+    // transforms that include rotation or skew, fall back to the older
+    // freeze-then-restore model so the captured rect represents the
+    // un-rotated layout box and the renderer can re-apply the rotation via
+    // an SVG `<g transform=...>` wrapper. Without this fallback, rotated
+    // HTML elements would paint as their axis-aligned bounding boxes (and
+    // overlap their neighbors) since `getBoundingClientRect` post-rotation
+    // returns the rotated AABB, not the original 160×160 layout box.
     const originalTransform = cs.transform;
     const hasTransform = originalTransform && originalTransform !== 'none';
-    return captureInner(el, cs, hasTransform ? originalTransform : null, hasTransform ? cs.transformOrigin : null);
+    if (!hasTransform) {
+      return captureInner(el, cs, null, null);
+    }
+    if (transformHasRotationOrSkew(originalTransform)) {
+      // Old model: clear so getBoundingClientRect returns the un-rotated
+      // layout box; renderer re-applies the original transform.
+      const inline = el.style.transform;
+      el.style.transform = 'translate(0)';
+      try {
+        return captureInner(el, cs, originalTransform, cs.transformOrigin);
+      } finally {
+        el.style.transform = inline;
+      }
+    }
+    // Pure translate/scale: keep new live-rect model (no clear, no wrap).
+    return captureInner(el, cs, originalTransform, cs.transformOrigin);
   };
 
   const threadFrozenTransform = (cs, frozenTransform, _frozenTransformOrigin) => ({
-    // DM-587: always record `transform: 'none'`. Captured rects are now in
-    // live viewport coords (the live transforms were never cleared during
-    // capture), so the renderer must not wrap with another transform `<g>`.
-    // cssTransformToSvg returns "" for "none", so the renderer skips the
-    // wrap.
-    transform: 'none',
+    // For elements with rotation/skew, record the ORIGINAL transform so the
+    // renderer wraps a `<g transform=...>` around the (un-rotated) captured
+    // rect. For pure translate/scale (or no transform), record `'none'` so
+    // the renderer skips the wrap and paints the rect at its captured (=live)
+    // position directly. frozenTransform is non-null whenever the element
+    // originally had a non-none transform; we only stash the rotation/skew
+    // string back into styles.transform.
+    transform: frozenTransform != null && transformHasRotationOrSkew(frozenTransform)
+      ? frozenTransform
+      : 'none',
     transformOrigin: cs.transformOrigin,
     // DM-587: separately flag elements that ORIGINALLY had a non-none
     // transform — even though we discard the value to suppress the wrap,

@@ -63,6 +63,17 @@ const tests: FeatureTest[] = [
     relaxedDiffPct: 0.5,
   },
   {
+    // Regression guard: repeating-linear-gradient with px-positioned stops.
+    // The earlier emitter treated px positions as raw fractions, so the SVG
+    // `<stop offset="8">` clamped to 1 and the stripe pattern collapsed to a
+    // single solid color. Fixed by normalizing px positions to fractions of
+    // the gradient line length and scaling the SVG gradient vector to span
+    // exactly one tile period (`spreadMethod="repeat"` then tiles outward).
+    name: "bg-repeating-linear-px-stops",
+    html: `<div style="padding: 20px;"><div style="width: 160px; height: 160px; background: repeating-linear-gradient(45deg, #fef3c7 0 8px, #fde68a 8px 16px); border: 1px solid #b45309;"></div></div>`,
+    relaxedDiffPct: 0.5,
+  },
+  {
     // DM-547 / doc 28 / canonical use case from 19-deep-color-mix:
     // hard-stop alpha checkerboard tile.
     name: "bg-conic-checkerboard",

@@ -287,9 +287,22 @@ export function elementTreeToSvg(
       const oxClips = oxV != null && oxV !== "visible";
       const oyClips = oyV != null && oyV !== "visible";
       if (oxClips || oyClips) {
+        // The CSS `outline` is painted OUTSIDE the border box and is NOT
+        // affected by the element's own overflow per CSS Backgrounds 3 §3 +
+        // Basic UI 4 §8 — outline isn't part of the element's content area.
+        // Inflate the overflow-clip rect by (outline-offset + outline-width)
+        // so the outline rect (emitted later inside this same group) doesn't
+        // get clipped out. Otherwise inputs with `:valid` / `:invalid`
+        // outlines under the UA's implicit `overflow: clip` lose the entire
+        // colored outline (DM-640 / 06-forms-validation-ui).
+        const ow_ = parseFloat(el.styles.outlineWidth ?? "0") || 0;
+        const ostyle_ = el.styles.outlineStyle ?? "none";
+        const ohas = ow_ > 0 && ostyle_ !== "none" && ostyle_ !== "hidden";
+        const oOffset_ = ohas ? (parseFloat(el.styles.outlineOffset ?? "0") || 0) : 0;
+        const inflate_ = ohas ? Math.max(0, oOffset_ + ow_) : 0;
         clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
         defsParts.push(
-          `<clipPath id="${clipPathUrlId}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}"/></clipPath>`,
+          `<clipPath id="${clipPathUrlId}"><rect x="${r(el.x - inflate_)}" y="${r(el.y - inflate_)}" width="${r(el.width + 2 * inflate_)}" height="${r(el.height + 2 * inflate_)}"/></clipPath>`,
         );
       }
     }
@@ -2110,7 +2123,17 @@ function gatherStackingContextChildren(
       const zRaw = c.styles.zIndex;
       const hasExplicitZ = zRaw != null && zRaw !== "" && zRaw !== "auto";
       const flexGridItemSC = hoistTargetIsRealSC && parentIsFlexGrid && hasExplicitZ;
-      if (positioned || flexGridItemSC) {
+      // DM-639: per CSS 2.1 §9.9 paint order, ALL floats in a stacking
+      // context paint at step 4 — AFTER all block-level non-positioned
+      // descendants (step 3) of the SC. Floats are not confined to their
+      // immediate parent's sort. Without this hoist, a float that extends
+      // beyond its parent (e.g. `<div>{floats}</div>` whose parent has zero
+      // height because floats are out of flow) gets covered by later block
+      // siblings of the float's ancestors instead of painting on top of them.
+      // Real-world hit: 14-deep-float-bfc section 1's float-left FL extends
+      // ~60 px below the .frame and is covered by section 2's gray bar.
+      const isFloat = !positioned && (c.styles.float ?? "none") !== "none";
+      if (positioned || flexGridItemSC || isFloat) {
         out.push(c);
         hoistedOut.add(c);
       }
@@ -2554,7 +2577,16 @@ function buildLinearGradientDef(id: string, args: string, repeating: boolean, w:
       stopsStart = 1;
     }
   }
-  const stops = parseGradientStops(parts.slice(stopsStart));
+  // Compute the gradient line length up front so px stop positions can be
+  // resolved to fractions before auto-distribution / monotonic clamp. Without
+  // this, px-positioned stops (e.g. `repeating-linear-gradient(45deg,
+  // #fef3c7 0 8px, #fde68a 8px 16px)`) would emit raw `offset="8"` values that
+  // SVG clamps to 1, collapsing the stripe pattern. parseGradientStops divides
+  // px by L to get a fraction; auto-distribute and monotonic clamp then work
+  // in fraction space alongside any `%` stops in the same gradient.
+  const preRad = (angleDeg * Math.PI) / 180;
+  const lineLength = Math.abs(w * Math.sin(preRad)) + Math.abs(h * Math.cos(preRad));
+  const stops = parseGradientStops(parts.slice(stopsStart), lineLength);
   if (stops.length === 0) return "";
 
   // CSS: 0deg points up. SVG coords: y grows down. Vector for CSS angle α is
@@ -2574,10 +2606,9 @@ function buildLinearGradientDef(id: string, args: string, repeating: boolean, w:
   // probe of `mask-mode: alpha` / `mask-mode: luminance` cells in 23-mask
   // (180×120 boxes); 81% of pixels differed because the 45° gradient rotated
   // toward atan(W/H) ≈ 56.3° instead of staying at 45°.
-  const rad = (angleDeg * Math.PI) / 180;
-  const dx = Math.sin(rad);
-  const dy = -Math.cos(rad);
-  const length = Math.abs(w * dx) + Math.abs(h * dy);
+  const dx = Math.sin(preRad);
+  const dy = -Math.cos(preRad);
+  const length = lineLength;
   const halfL = length / 2;
   // Endpoints in absolute SVG coordinates. We emit `gradientUnits=
   // "userSpaceOnUse"` because the SVG default `objectBoundingBox` rescales
@@ -2593,11 +2624,32 @@ function buildLinearGradientDef(id: string, args: string, repeating: boolean, w:
   const x2 = elX + w / 2 + halfL * dx;
   const y2 = elY + h / 2 + halfL * dy;
 
+  // For repeating gradients, scale the SVG gradient vector to span exactly one
+  // tile period along the gradient line, then let `spreadMethod="repeat"` tile
+  // it across the rest of the box. SVG's repeat mode only repeats *outside*
+  // the [0,1] range of the gradient vector, so a tile defined inside [0, 0.07]
+  // of the full L would leave most of the box solid. Setting the vector to
+  // one period instead makes the entire [0,1] range one tile.
+  let vx1 = x1, vy1 = y1, vx2 = x2, vy2 = y2;
+  let emitStops = stops;
+  if (repeating && stops.length >= 2) {
+    const first = stops[0].pos;
+    const last = stops[stops.length - 1].pos;
+    const period = last - first;
+    if (period > 0 && period < 1) {
+      vx1 = x1 + first * (x2 - x1);
+      vy1 = y1 + first * (y2 - y1);
+      vx2 = x1 + last * (x2 - x1);
+      vy2 = y1 + last * (y2 - y1);
+      emitStops = stops.map((s) => ({ ...s, pos: (s.pos - first) / period }));
+    }
+  }
+
   const spread = repeating ? ` spreadMethod="repeat"` : "";
   // Stop offsets need 4 decimals of precision — rounding 0.33 to 0.3 would turn
   // three equal thirds into uneven bands. Use stopFmt, not r(), here.
-  const stopsMarkup = stops.map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
-  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(x1)}" y1="${stopFmt(y1)}" x2="${stopFmt(x2)}" y2="${stopFmt(y2)}"${spread}>${stopsMarkup}</linearGradient>`;
+  const stopsMarkup = emitStops.map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
+  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(vx1)}" y1="${stopFmt(vy1)}" x2="${stopFmt(vx2)}" y2="${stopFmt(vy2)}"${spread}>${stopsMarkup}</linearGradient>`;
 }
 
 
@@ -2682,7 +2734,12 @@ function buildRadialGradientDef(
       shape = "circle";
     }
   }
-  const stops = parseGradientStops(parts.slice(stopsStart));
+  // Compute the gradient ray length for px-stop normalization. Use the
+  // half-diagonal of the box as a conservative pre-estimate; the actual ray
+  // length (rx, computed below from size keyword + center) is the correct
+  // basis, so re-normalize stops once rx is known.
+  const radialLineLength = Math.sqrt(w * w + h * h) / 2;
+  const stops = parseGradientStops(parts.slice(stopsStart), radialLineLength);
   if (stops.length === 0) return "";
 
   // Compute center in absolute user-space coords.
@@ -2764,7 +2821,7 @@ function resolvePosFraction(token: string, axis: "h" | "v"): number {
   return 0.5;
 }
 
-function parseGradientStops(tokens: string[]): GradientStop[] {
+function parseGradientStops(tokens: string[], gradientLength: number = 0): GradientStop[] {
   // First pass: parse each token into {color, explicitPositions[]} OR {hint}.
   // A color-hint is a bare percentage between two color stops that shifts the
   // midpoint of the interpolation between them. We record hints inline so
@@ -2785,6 +2842,7 @@ function parseGradientStops(tokens: string[]): GradientStop[] {
       colorStr = tok.slice(0, posMatch.index).trim();
       for (const pt of posMatch[0].trim().split(/\s+/)) {
         if (/%$/.test(pt)) positions.push(parseFloat(pt) / 100);
+        else if (/px$/i.test(pt) && gradientLength > 0) positions.push(parseFloat(pt) / gradientLength);
         else positions.push(parseFloat(pt));
       }
     }
