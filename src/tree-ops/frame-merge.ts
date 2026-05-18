@@ -152,11 +152,24 @@ function parseAttrs(s: string): Record<string, string> {
  * including `id`, those two defs would collapse into one and `<use href="#g198"/>`
  * references would break — see frame-merge.test.ts "preserves distinct ids
  * for paths with identical d".
+ *
+ * Resource references (`clip-path`, `mask`, `filter`) are included because
+ * they point at frame-scoped defs whose IDs are unique per frame. Two
+ * wrappers with different clip-path ids are NOT the same logical element
+ * even if every other attribute matches — merging them would (a) drop one
+ * frame's clip-path entirely, and (b) push that frame's unique content
+ * into the merge bucket of a different frame, which then sorts as one
+ * earlier-firstFrame group and lets later-frame siblings (e.g. solid
+ * background rects) emit *after* the content they should sit underneath.
+ * See frame-merge.test.ts "keeps per-frame body bg ordered before content".
  */
 export function structuralFingerprint(n: ParsedNode): string {
   if (n.kind === "text") return `T:${n.text}`;
   const a = n.attrs ?? {};
-  const keyAttrs = ["id", "transform", "href", "x", "y", "d", "width", "height", "fill", "role", "class"];
+  const keyAttrs = [
+    "id", "transform", "href", "x", "y", "d", "width", "height",
+    "fill", "role", "class", "clip-path", "mask", "filter",
+  ];
   const pairs = keyAttrs.filter((k) => a[k] != null).map((k) => `${k}=${a[k]}`);
   return `${n.tag}|${pairs.join(",")}`;
 }

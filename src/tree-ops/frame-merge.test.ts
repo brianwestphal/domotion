@@ -82,6 +82,38 @@ describe("frame-merge: mergeFrames", () => {
     expect(kfCount).toBe(2);
   });
 
+  it("keeps per-frame body bg ordered before content (DM-644)", () => {
+    // Each frame has a body bg <rect> at top-level position 0 followed by
+    // a body-content wrapper <g clip-path="url(#vN-ov)"> at position 1.
+    // The bg fill changes per frame (so each bg is its own group); each
+    // wrapper carries a frame-scoped clip-path id (so each wrapper is also
+    // its own group). The merge must emit them so for *every* frame the
+    // bg precedes that frame's content in document order; otherwise the
+    // later-frame bgs paint over the earlier-frame content slot, hiding
+    // it during the later frame's time window.
+    const frames = [
+      `<rect width="100" height="100" fill="rgb(10,0,20)"/><g clip-path="url(#v0-ov)"><use href="#tA"/></g>`,
+      `<rect width="100" height="100" fill="rgb(0,30,0)"/><g clip-path="url(#v1-ov)"><use href="#tB"/></g>`,
+      `<rect width="100" height="100" fill="rgb(16,0,32)"/><g clip-path="url(#v2-ov)"><use href="#tC"/></g>`,
+    ];
+    const r = mergeFrames(frames, simpleTiming(3));
+    // For each frame, the bg fill must occur in the merged output before
+    // that frame's clip-path id.
+    const findIdx = (needle: string): number => r.merged.indexOf(needle);
+    const fills = ["rgb(10,0,20)", "rgb(0,30,0)", "rgb(16,0,32)"];
+    const clips = ["url(#v0-ov)", "url(#v1-ov)", "url(#v2-ov)"];
+    for (let i = 0; i < 3; i++) {
+      const bgIdx = findIdx(fills[i]);
+      const contentIdx = findIdx(clips[i]);
+      expect(bgIdx, `frame ${i}: bg should appear`).toBeGreaterThanOrEqual(0);
+      expect(contentIdx, `frame ${i}: content wrapper should appear`).toBeGreaterThanOrEqual(0);
+      expect(
+        bgIdx < contentIdx,
+        `frame ${i}: bg fill ${fills[i]} (idx ${bgIdx}) must precede content clip ${clips[i]} (idx ${contentIdx})`,
+      ).toBe(true);
+    }
+  });
+
   it("merges wrappers with same fingerprint but differing children (typing case)", () => {
     // Simulates capturing a text input as text is typed: the wrapper <g> at the
     // same transform is logically the same text field; children accumulate.
@@ -135,6 +167,25 @@ describe("frame-merge: structuralFingerprint", () => {
     const r = mergeFrames(frames, simpleTiming(2));
     expect(r.merged).toContain(`id="g113"`);
     expect(r.merged).toContain(`id="g198"`);
+  });
+
+  it("does not match wrappers with different clip-path ids", () => {
+    // DM-644: per-frame body wrappers carry frame-scoped clip-path ids
+    // (`url(#v0-ov1)`, `url(#v1-ov1)`, ...). If clip-path is omitted from
+    // the fingerprint they merge into one group, and frame-1+ siblings
+    // (e.g. body bg rects) end up sorted *after* the merged content.
+    const a = parseSiblings(`<g clip-path="url(#v0-ov1)"/>`)[0];
+    const b = parseSiblings(`<g clip-path="url(#v1-ov1)"/>`)[0];
+    expect(structuralFingerprint(a)).not.toBe(structuralFingerprint(b));
+  });
+
+  it("does not match wrappers with different mask/filter refs", () => {
+    const mA = parseSiblings(`<g mask="url(#mA)"/>`)[0];
+    const mB = parseSiblings(`<g mask="url(#mB)"/>`)[0];
+    expect(structuralFingerprint(mA)).not.toBe(structuralFingerprint(mB));
+    const fA = parseSiblings(`<g filter="url(#fA)"/>`)[0];
+    const fB = parseSiblings(`<g filter="url(#fB)"/>`)[0];
+    expect(structuralFingerprint(fA)).not.toBe(structuralFingerprint(fB));
   });
 
   it("does not apply visibility classes to defs children", () => {
