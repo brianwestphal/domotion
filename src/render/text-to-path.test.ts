@@ -1,6 +1,7 @@
 import * as fs from "fs";
-import { describe, expect, it, beforeEach } from "vitest";
-import { clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import * as fontkit from "fontkit";
+import { clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -723,8 +724,12 @@ describe("resolveFontKey: registered webfonts win over Placeholder + sans-serif 
 // `font-variation-settings` was dropped, so wght/opsz/slnt axis state was
 // always at the variable font's default. These tests pin the fix.
 describe("renderTextAsPath: embedded-font emission carries captured weight/style/variation-settings", () => {
-  const HELVETICA_PATH = "/System/Library/Fonts/Helvetica.ttc";
-  const fontBuf = fs.existsSync(HELVETICA_PATH) ? fs.readFileSync(HELVETICA_PATH) : null;
+  // Use a real single-font TTF (not a TTC). SFNS.ttf is a variable font on
+  // macOS — its bytes parse straight into one fontkit Font instance, which
+  // the embedded-font path can call glyphForCodePoint / layout on. Helvetica.ttc
+  // would parse to a TTCFont wrapper that lacks those glyph methods.
+  const SFNS_PATH = "/System/Library/Fonts/SFNS.ttf";
+  const fontBuf = fs.existsSync(SFNS_PATH) ? fs.readFileSync(SFNS_PATH) : null;
 
   beforeEach(() => {
     clearWebfonts();
@@ -732,12 +737,16 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
     setRenderTextMode("embedded-font");
   });
 
+  afterEach(() => {
+    setRenderTextMode("paths");
+  });
+
   it("emits the captured font-weight, not the @font-face declared variant weight", () => {
     if (fontBuf == null) return;
     // Register a 'variable' webfont as parseWeightDescriptor("100 900") = 100
     // would: a single variant at the start of the declared weight range.
-    registerWebfont("InterVariable", 100, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "500", "#000");
+    registerWebfont("SFTest", 100, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "500", "#000");
     expect(out).not.toBeNull();
     expect(out!).toContain('font-weight="500"');
     expect(out!).not.toContain('font-weight="100"');
@@ -745,17 +754,17 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
 
   it("omits font-weight when captured weight is 400 (CSS default)", () => {
     if (fontBuf == null) return;
-    registerWebfont("InterVariable", 100, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000");
+    registerWebfont("SFTest", 100, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000");
     expect(out).not.toBeNull();
     expect(out!).not.toContain("font-weight=");
   });
 
   it("emits the captured font-style, not the @font-face declared italic", () => {
     if (fontBuf == null) return;
-    registerWebfont("InterVariable", 400, "normal", fontBuf);
+    registerWebfont("SFTest", 400, "normal", fontBuf);
     // Page applies italic via CSS; engine synthesizes from upright variant.
-    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000",
+    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000",
       undefined, undefined, undefined, "italic");
     expect(out).not.toBeNull();
     expect(out!).toContain('font-style="italic"');
@@ -763,8 +772,8 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
 
   it("forwards font-variation-settings onto the <text> style attribute", () => {
     if (fontBuf == null) return;
-    registerWebfont("InterVariable", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000",
+    registerWebfont("SFTest", 400, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000",
       undefined, undefined, undefined, undefined, undefined, undefined, undefined,
       { wght: 540, opsz: 32 });
     expect(out).not.toBeNull();
@@ -773,10 +782,133 @@ describe("renderTextAsPath: embedded-font emission carries captured weight/style
 
   it("omits style attribute when no variation-settings were captured", () => {
     if (fontBuf == null) return;
-    registerWebfont("InterVariable", 400, "normal", fontBuf);
-    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000");
+    registerWebfont("SFTest", 400, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "SFTest", "400", "#000");
     expect(out).not.toBeNull();
     expect(out!).not.toContain("font-variation-settings");
     expect(out!).not.toContain('style="');
+  });
+});
+
+// ── DM-655: embedded-font mode emits <text> against custom-built TTFs that
+// contain the exact shaped glyphs the run uses. Tests below validate
+// the custom-TTF pipeline: text emits as PUA codepoints, the @font-face
+// data: URL parses back as a valid TTF, the cmap maps PUA codepoints to
+// glyph ids, and the glyph outlines match what fontkit gave us for the
+// source font. ────────────────────────────────────────────────────────
+describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () => {
+  const SFNS_PATH = "/System/Library/Fonts/SFNS.ttf";
+  const fontBuf = fs.existsSync(SFNS_PATH) ? fs.readFileSync(SFNS_PATH) : null;
+
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFonts();
+    setRenderTextMode("embedded-font");
+  });
+
+  afterEach(() => {
+    setRenderTextMode("paths");
+  });
+
+  // Extract all PUA codepoints out of the <tspan> bodies in a render output.
+  // Each <tspan> contains exactly one PUA codepoint (one shaped glyph).
+  function puaCodepointsFromMarkup(out: string): number[] {
+    const cps: number[] = [];
+    const re = /<tspan[^>]*>([^<]*)<\/tspan>/g;
+    let m;
+    while ((m = re.exec(out)) != null) {
+      for (let i = 0; i < m[1].length; ) {
+        const cp = m[1].codePointAt(i)!;
+        cps.push(cp);
+        i += cp > 0xFFFF ? 2 : 1;
+      }
+    }
+    return cps;
+  }
+
+  it("emits <text>/<tspan> with PUA codepoints (not the original text)", async () => {
+    if (fontBuf == null) return;
+    registerWebfont("CustomFontA", 400, "normal", fontBuf);
+    const out = renderTextAsPath("Hello", 0, 0, 24, "CustomFontA", "400", "#000");
+    expect(out).not.toBeNull();
+    // The literal "Hello" must NOT appear in any tspan/text body — only in
+    // the accessibility title/aria-label.
+    const bodyMatches = [...out!.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)];
+    expect(bodyMatches.length).toBeGreaterThan(0);
+    for (const m of bodyMatches) {
+      expect(m[1]).not.toContain("Hello");
+      for (let i = 0; i < m[1].length; ) {
+        const cp = m[1].codePointAt(i)!;
+        expect(cp).toBeGreaterThanOrEqual(0xE000);
+        expect(cp).toBeLessThanOrEqual(0xF8FF);
+        i += cp > 0xFFFF ? 2 : 1;
+      }
+    }
+    // Accessible label preserves the original text.
+    expect(out!).toContain('aria-label="Hello"');
+    expect(out!).toContain("<title>Hello</title>");
+  });
+
+  it("emitted @font-face data: URI parses as a valid TTF with the registered PUA codepoints", async () => {
+    if (fontBuf == null) return;
+    registerWebfont("CustomFontB", 400, "normal", fontBuf);
+    const out = renderTextAsPath("Hi!", 0, 0, 24, "CustomFontB", "400", "#000");
+    expect(out).not.toBeNull();
+    const css = getEmbeddedFontFaceCss();
+    expect(css).toContain("@font-face");
+    expect(css).toContain('src: url("data:font/ttf;base64,');
+    const b64Match = /base64,([A-Za-z0-9+/=]+)"\)/.exec(css);
+    expect(b64Match).not.toBeNull();
+    const ttf = Buffer.from(b64Match![1], "base64");
+    const reparsed = fontkit.create(ttf) as any;
+    expect(reparsed.numGlyphs).toBeGreaterThan(1); // notdef + per-shaped-glyph
+    const cps = puaCodepointsFromMarkup(out!);
+    expect(cps.length).toBeGreaterThan(0);
+    for (const cp of cps) {
+      const glyph = reparsed.glyphForCodePoint(cp);
+      expect(glyph.id).not.toBe(0); // 0 = .notdef → reparsed cmap missing this PUA
+      expect(glyph.path.commands.length).toBeGreaterThan(0); // real outline present
+    }
+  });
+
+  it("emits one <tspan x=...> per shaped glyph for sub-pixel-accurate per-glyph positioning", async () => {
+    if (fontBuf == null) return;
+    registerWebfont("CustomFontE", 400, "normal", fontBuf);
+    const out = renderTextAsPath("AB", 0, 0, 24, "CustomFontE", "400", "#000");
+    expect(out).not.toBeNull();
+    // Two shaped glyphs → two <tspan x=...> entries, each with one PUA codepoint.
+    const tspans = [...out!.matchAll(/<tspan x="([\d.-]+)">([^<]+)<\/tspan>/g)];
+    expect(tspans.length).toBe(2);
+    // Glyph x's must be monotonic-increasing (text flows L→R).
+    expect(parseFloat(tspans[1][1])).toBeGreaterThan(parseFloat(tspans[0][1]));
+  });
+
+  it("each unique (font, axes) combo gets its own custom @font-face entry", async () => {
+    if (fontBuf == null) return;
+    registerWebfont("CustomFontC", 400, "normal", fontBuf);
+    // Same family, no axes → one entry.
+    renderTextAsPath("AB", 0, 0, 24, "CustomFontC", "400", "#000");
+    // Same family, distinct axes tuple → second entry.
+    renderTextAsPath("CD", 0, 0, 24, "CustomFontC", "400", "#000",
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { wght: 540 });
+    // Same family, third distinct axes tuple → third entry.
+    renderTextAsPath("EF", 0, 0, 24, "CustomFontC", "400", "#000",
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { wght: 100 });
+    const css = getEmbeddedFontFaceCss();
+    const faceCount = (css.match(/@font-face/g) ?? []).length;
+    expect(faceCount).toBe(3);
+  });
+
+  it("the same (font, axes) combo across calls shares one @font-face entry", async () => {
+    if (fontBuf == null) return;
+    registerWebfont("CustomFontD", 400, "normal", fontBuf);
+    renderTextAsPath("AB", 0, 0, 24, "CustomFontD", "400", "#000");
+    renderTextAsPath("CD", 0, 0, 24, "CustomFontD", "400", "#000");
+    renderTextAsPath("EF", 0, 0, 24, "CustomFontD", "400", "#000");
+    const css = getEmbeddedFontFaceCss();
+    const faceCount = (css.match(/@font-face/g) ?? []).length;
+    expect(faceCount).toBe(1);
   });
 });

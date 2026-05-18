@@ -9,6 +9,7 @@
 
 import * as fontkit from "fontkit";
 import { createCoretextFont, isCoretextHelperAvailable } from "./coretext.js";
+import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 
 interface FontInstance {
   layout(text: string, features?: string[]): {
@@ -76,6 +77,7 @@ let embeddedFontIdCounter = 0;
 export function clearEmbeddedFonts(): void {
   embeddedFonts.clear();
   embeddedFontIdCounter = 0;
+  clearEmbeddedFontBuilder();
 }
 
 /**
@@ -120,13 +122,12 @@ function registerEmbeddedFont(key: string, buffer: Buffer): string {
  * registered (e.g. `renderText: "paths"`).
  */
 export function getEmbeddedFontFaceCss(): string {
-  if (embeddedFonts.size === 0) return "";
-  const rules: string[] = [];
-  for (const e of embeddedFonts.values()) {
-    const b64 = e.buffer.toString("base64");
-    rules.push(`@font-face { font-family: "${e.cssFamily}"; src: url("data:${e.mime};base64,${b64}"); }`);
-  }
-  return rules.join("\n");
+  // DM-655: the registerEmbeddedFont(...) path that emitted whole webfont
+  // buffers is gone — every embedded font now goes through the custom-TTF
+  // builder. Keep the legacy `embeddedFonts` map drained-and-ignored for
+  // a release so any in-flight callers don't crash on the missing path;
+  // delete the legacy map entirely once nothing references it.
+  return getBuiltEmbeddedFontFaceCss();
 }
 
 /**
@@ -1628,6 +1629,256 @@ function singleFontMarkup(
   };
 }
 
+// DM-655: split text into per-codepoint font runs the same way
+// textToPathMarkup does — primary font first, fall back to per-codepoint
+// webfont partitions, then the system fallback chain. Shared between the
+// glyph-path emission path (textToPathMarkup) and the embedded-font path
+// (renderTextAsEmbedded) so both make the SAME per-codepoint font
+// decisions. Returns one run per consecutive same-font segment.
+interface FontRun { fontKey: string; font: FontInstance; text: string; startIdx: number; endIdx: number; isPrimary: boolean }
+function splitTextIntoFontRuns(
+  text: string,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
+): FontRun[] {
+  const runs: FontRun[] = [];
+  let curKey = primaryFontKey;
+  let curFontOverride: FontInstance | null = null;
+  let curText = "";
+  let curStart = 0;
+  let i = 0;
+  while (i < text.length) {
+    const cp = text.codePointAt(i)!;
+    const ch = String.fromCodePoint(cp);
+    let useKey = primaryFontKey;
+    let useFontOverride: FontInstance | null = null;
+    if ((primaryFont as any).glyphForCodePoint(cp).id === 0) {
+      if (primaryFontKey.startsWith("webfont:")) {
+        const family = primaryFontKey.slice("webfont:".length);
+        const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+        if (cpVariant != null && (cpVariant as any).glyphForCodePoint(cp).id !== 0) {
+          useFontOverride = cpVariant;
+        }
+      }
+      if (useFontOverride == null) {
+        const chain = fallbackFontChain(cp, primaryFontKey, lang);
+        let picked: string | null = null;
+        for (const candidate of chain) {
+          const cf = getFontInstance(candidate, weight, fontSize, slant);
+          if (cf != null && (cf as any).glyphForCodePoint != null
+              && (cf as any).glyphForCodePoint(cp).id !== 0) {
+            picked = candidate;
+            break;
+          }
+        }
+        useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+      }
+    }
+    const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
+    if (runChanged && curText.length > 0) {
+      const fvs = curKey === primaryFontKey ? variationSettings : undefined;
+      const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs);
+      if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey && curFontOverride == null });
+      curText = "";
+      curStart = i;
+    }
+    curKey = useKey;
+    curFontOverride = useFontOverride;
+    curText += ch;
+    i += ch.length;
+  }
+  if (curText.length > 0) {
+    const fvs = curKey === primaryFontKey ? variationSettings : undefined;
+    const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs) ?? primaryFont;
+    runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey && curFontOverride == null });
+  }
+  return runs;
+}
+
+/**
+ * DM-655: emit text as `<text>` elements backed by custom-built TTFs that
+ * contain just the shaped glyphs the run uses. Mirrors textToPathMarkup's
+ * per-codepoint run splitting, then for each run runs fontkit's
+ * `font.layout()` to get the shaped glyph stream, registers each shaped
+ * glyph in the embedded-font-builder, and emits `<text>` with a synthetic
+ * PUA codepoint string. The consumer browser performs ZERO shaping — each
+ * PUA codepoint maps via cmap to one pre-shaped glyph outline. So Arabic
+ * init/medi/fina, Devanagari clusters, fi/ffi ligatures, and contextual
+ * substitutions all survive across the embedded round-trip because we
+ * shape capture-side and bake the result into glyph IDs.
+ *
+ * Positioning: each font run becomes one `<text>` at `x + xOffsets[runStart]`
+ * (or accumulated CSS x when xOffsets aren't available). The browser then
+ * places glyphs WITHIN each `<text>` using the embedded font's hmtx —
+ * which carries fontkit's shaped advance widths — so intra-run kerning
+ * and cluster spacing matches what Chrome painted.
+ *
+ * Returns null when the run can't be rendered (resolveFont failed, a glyph
+ * outline is missing, or the PUA-A block ran out). The caller falls
+ * through to paths-mode emission in that case.
+ */
+function renderTextAsEmbedded(
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string,
+  fill: string,
+  xOffsets: number[] | undefined,
+  fontStyle: string | undefined,
+  ascentOverride: number | undefined,
+  features: string[] | undefined,
+  lang: string | undefined,
+  variationSettings: Record<string, number> | undefined,
+): string | null {
+  const weight = parseInt(fontWeight) || 400;
+  const slant = slantForStyle(fontStyle);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  if (primaryFont == null) return null;
+  const primaryFontKey = resolveFontKey(fontFamily);
+
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+  if (runs.length === 0) return null;
+
+  // Per-run baseline: SVG `<text y=...>` puts the BASELINE at y. Use the
+  // captured Chrome `fontBoundingBoxAscent` when provided (matches what
+  // Chrome's text engine measured on the original page); else fall back
+  // to the primary font's HHEA ascent scaled to fontSize.
+  const scale = fontSize / primaryFont.unitsPerEm;
+  const baselineAscent = ascentOverride != null ? ascentOverride : Math.round(primaryFont.ascent * scale);
+  const baselineY = y + baselineAscent;
+
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const segments: string[] = [];
+  let cssX = 0;
+  for (const run of runs) {
+    const runScale = fontSize / run.font.unitsPerEm;
+    let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }> };
+    try {
+      layout = features != null && features.length > 0 ? run.font.layout(run.text, features) : run.font.layout(run.text);
+    } catch {
+      return null;
+    }
+
+    // Per-instance key: a stable identifier for (resolved font, axes). Two
+    // text runs that resolve to the same font at the same axis values share
+    // one custom TTF; runs at a different `wght`/`opsz` get their own TTF
+    // because the baked glyph outlines differ.
+    const fvsTuple = run.isPrimary && variationSettings != null
+      ? "|" + Object.keys(variationSettings).sort().map((k) => `${k}=${variationSettings[k]}`).join(",")
+      : "";
+    const instanceKey = `${run.fontKey}|w=${weight}|s=${slant}${fvsTuple}`;
+
+    // Ascent/descent are font-wide metrics that drive baseline placement
+    // when the consumer browser lays out our PUA codepoints. Use the run
+    // font's own metrics so glyphs from this run sit on their natural
+    // baseline (matching what Chrome would render with the original font).
+    const runAscent = run.font.ascent;
+    const runDescent = run.font.descent;
+
+    // Resolve cssFamily + PUA codepoints for every shaped glyph in this
+    // run. We also need each glyph's anchor x in CSS pixels so we can
+    // emit one `<tspan x="...">` per glyph — without explicit per-glyph
+    // x the consumer browser would re-flow each glyph using the embedded
+    // font's hmtx alone, losing the GPOS kerning the original font
+    // applied (very visible at headline sizes — 110px `<h1>` accumulates
+    // multi-pixel drift across a 12-glyph run). We anchor at the captured
+    // xOffsets where available (Chrome's actual paint position, subpixel-
+    // accurate); else use fontkit's shaped advances cumulatively.
+    interface PerGlyph { pua: string; xCss: number }
+    const perGlyph: PerGlyph[] = [];
+    let runCssFamily: string | null = null;
+    let runCursorFontUnits = 0;
+    let glyphFailed = false;
+    // Walk the shaped glyph stream. For each glyph: convert its cluster's
+    // first-codepoint xOffset to a CSS pixel x, OR fall back to the
+    // accumulated cursor when no xOffsets are present (or the cluster
+    // boundary doesn't have one). Cluster span = sum of per-codepoint
+    // UTF-16 lengths in glyph.codePoints (BMP=1, astral=2). When the
+    // codePoints array is missing or empty (decomposed glyphs) span=1
+    // so the cursor still advances.
+    let textIdx = 0; // index within run.text
+    for (let i = 0; i < layout.glyphs.length; i++) {
+      const glyph = layout.glyphs[i];
+      const pos = layout.positions[i];
+      const cmds = glyph.path?.commands ?? [];
+      const placement = trackGlyphInEmbedFont(instanceKey, run.font.unitsPerEm, runAscent, runDescent, glyph.id, cmds, glyph.advanceWidth);
+      if (placement == null) { glyphFailed = true; break; }
+      if (runCssFamily == null) runCssFamily = placement.cssFamily;
+      // Glyph x anchor: captured xOffset at the cluster's first char
+      // (relative to the whole-text origin), else cumulative fontkit
+      // advance from the run start. xOffsets is indexed against `text`
+      // (the whole captured string), so we use the run's startIdx +
+      // intra-run textIdx to look it up.
+      let xCss: number;
+      const wholeTextIdx = run.startIdx + textIdx;
+      if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
+        xCss = xOffsets[wholeTextIdx];
+      } else {
+        // Cursor sits in font units; convert to CSS using the run's scale.
+        // Anchored at run.startIdx + 0 if xOffsets exists for the run's
+        // first char (so subsequent glyphs in the run remain run-relative
+        // when xOffsets gap mid-run).
+        const runOriginCss = (xOffsets != null && xOffsets[run.startIdx] != null)
+          ? xOffsets[run.startIdx] : cssX;
+        xCss = runOriginCss + runCursorFontUnits * runScale;
+      }
+      perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss });
+      runCursorFontUnits += pos.xAdvance;
+      // Advance textIdx by the cluster's char span.
+      const cps = glyph.codePoints;
+      let span = 0;
+      if (cps != null && cps.length > 0) {
+        for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
+      } else {
+        span = 1;
+      }
+      textIdx += span;
+    }
+    if (glyphFailed || perGlyph.length === 0 || runCssFamily == null) return null;
+
+    // Emit captured weight / style / variation-settings on the `<text>` —
+    // not the picked variant's @font-face descriptors. For a variable
+    // webfont registered as `font-weight: 100 900`, parseWeightDescriptor
+    // collapses the range to 100; emitting that as the run's weight would
+    // render hairline. The captured fontWeight comes straight from the
+    // page's computed style.
+    //
+    // FVS forwarding is now redundant for the embedded-font path (the
+    // glyph outlines are already baked at the captured axis values in
+    // trackGlyphInEmbedFont above), but keep it on the element anyway —
+    // costs nothing and helps when the custom TTF is opened by a tool
+    // that does honor variation tables.
+    const italicAttr = (fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal")
+      ? ` font-style="${esc(fontStyle)}"` : "";
+    const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
+    const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
+      ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
+
+    // Build one <tspan x=...> per shaped glyph. We rely on per-glyph x
+    // rather than letting the consumer browser advance within the run
+    // because the custom TTF has no GPOS — emitting xOffsets explicitly
+    // makes the consumer pixel-faithful to Chrome's captured paint.
+    const tspans = perGlyph.map((g) => `<tspan x="${r(x + g.xCss)}">${g.pua}</tspan>`).join("");
+    segments.push(`<text y="${r(baselineY)}" font-family="${runCssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}">${tspans}</text>`);
+    cssX += runCursorFontUnits * runScale;
+  }
+
+  if (segments.length === 0) return null;
+
+  // Accessibility: wrap the per-font `<text>` segments in a labeled <g>
+  // so screen readers + Find-In-Page see the ORIGINAL text. The visible
+  // glyph stream is PUA codepoints, which AT would otherwise read as
+  // garbage. The aria-label / <title> carry the human-readable form.
+  return `<g role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${segments.join("")}</g>`;
+}
+
 /**
  * Render text as SVG markup using path outlines with <defs>/<use> deduplication.
  * Returns a <g> element containing <use> references, positioned at (x, y) top.
@@ -1691,38 +1942,19 @@ export function renderTextAsPath(
   // the engine's atlas cache. Acceptable per the opt-in tradeoff: some
   // sub-pixel kerning drift vs. Chromium-shaped output.
   if (currentRenderTextMode === "embedded-font") {
-    const webfontFamily = firstWebfontFamilyInStack(fontFamily);
-    if (webfontFamily != null) {
-      const picked = pickWebfontVariantWithBuffer(webfontFamily, weight, slant);
-      if (picked != null) {
-        const variantFont = picked.variant.font as { unitsPerEm: number; ascent: number };
-        const scale = fontSize / variantFont.unitsPerEm;
-        const ascent = ascentOverride != null ? ascentOverride : Math.round(variantFont.ascent * scale);
-        const baselineY = y + ascent;
-        const key = `wf:${webfontFamily}:${picked.variant.weight}:${picked.variant.italic ? "i" : "r"}`;
-        const cssFamily = registerEmbeddedFont(key, picked.buffer);
-        // Emit the *captured* font-weight / font-style — not the picked
-        // variant's @font-face descriptor values. Variable fonts declare
-        // `font-weight: 100 900` which `parseWeightDescriptor` collapses
-        // to 100, so using `picked.variant.weight` would render the run
-        // at hairline weight regardless of what the page actually paints.
-        // Same shape for italic: the page may apply `font-style: italic`
-        // to an upright variant and rely on the engine's synthesis.
-        const italicAttr = (fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal")
-          ? ` font-style="${esc(fontStyle)}"` : "";
-        const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
-        // Forward `font-variation-settings` so variable-font axis state
-        // (wght, opsz, slnt, GRAD, …) matches the captured paint. Without
-        // this, InterVariable / SF Pro / Geist Variable always render at
-        // their default axis location even when the page sets wght=540 or
-        // opsz=32.
-        const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
-          ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
-        return `<text x="${r(x)}" y="${r(baselineY)}" font-family="${cssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}" role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${esc(text)}</text>`;
-      }
-    }
-    // Fall through to paths mode for system-font runs and webfonts
-    // without retained buffers.
+    // DM-655: emit `<text>` against a custom-built TTF that contains the
+    // exact shaped glyphs Chrome painted with — webfont or system font,
+    // variable-axis instance included. The renderTextAsEmbedded path
+    // mirrors textToPathMarkup's per-codepoint font-resolution so
+    // partitioned webfonts (Geist split across Latin/Cyrillic), fallback-
+    // chain runs (Helvetica → Apple Symbols), and primary-only runs all
+    // get the SAME font decision the path-mode renderer would have made.
+    // Returns null to fall through to glyph-path emission when the run
+    // can't be embedded (font failed to resolve, layout threw, PUA-A
+    // exhausted, etc.) — paths-mode is the safe always-correct fallback.
+    const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
+      xOffsets, fontStyle, ascentOverride, features, lang, variationSettings);
+    if (embedded != null) return embedded;
   }
 
   const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings);
