@@ -2,6 +2,16 @@ import * as fs from "fs";
 import { describe, expect, it, beforeEach } from "vitest";
 import { clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
 
+// Tests that exercise glyph emission (renderTextAsPath returning markup,
+// fontkit-driven small-caps shaping, descender skip-ink probing, ligature
+// collapse) need the macOS system fonts. On Linux CI the FONT_PATHS map
+// (currently macOS-calibrated only — Linux / Windows are roadmap per
+// CLAUDE.md) can't resolve "Helvetica" / "Times" / "cursive", so the
+// renderer returns null and these tests would assert against null. Skip
+// them on hosts without the macOS system fonts so the suite stays green on
+// Ubuntu runners.
+const MACOS_FONTS = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
+
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
 // font_cache_mac.mm) — substituting any of these silently shifts every
@@ -152,7 +162,7 @@ describe("renderTextAsPath: ascentOverride threading", () => {
     return m != null ? parseFloat(m[1]) : null;
   };
 
-  it("uses ascentOverride verbatim for baselineY when provided", () => {
+  it.skipIf(!MACOS_FONTS)("uses ascentOverride verbatim for baselineY when provided", () => {
     const top = 100;
     const ascent = 30; // simulates Chrome's fontBoundingBoxAscent for fs=32 Helvetica bold
     const out = renderTextAsPath("Hi", 0, top, 32, "Helvetica", "700", "#000",
@@ -160,7 +170,7 @@ describe("renderTextAsPath: ascentOverride threading", () => {
     expect(baselineY(out)).toBe(top + ascent);
   });
 
-  it("falls back to fontkit ascent when no override given", () => {
+  it.skipIf(!MACOS_FONTS)("falls back to fontkit ascent when no override given", () => {
     const top = 100;
     // No override — falls back to round(font.ascent * scale). The exact value
     // depends on the resolved font; we just assert the answer is *different*
@@ -172,7 +182,7 @@ describe("renderTextAsPath: ascentOverride threading", () => {
     expect(baselineY(native)).not.toBe(baselineY(overridden));
   });
 
-  it("scales the override correctly across font sizes", () => {
+  it.skipIf(!MACOS_FONTS)("scales the override correctly across font sizes", () => {
     // Same font, different sizes → override is applied verbatim, no extra math.
     const a = renderTextAsPath("Hi", 0, 0, 14, "Helvetica", "400", "#000",
       undefined, undefined, undefined, undefined, 13);
@@ -391,7 +401,7 @@ describe("ligature handling with captured xOffsets (DM-287 / DM-331)", () => {
   // advances (which loses Chrome's captured xOffsets). DM-287 was the
   // original justify-spacing bug; DM-331 was Apple Chancery painting
   // disconnected per-char Th/th instead of the connected ligature glyphs.
-  it("emits ligature glyphs when font.layout collapses chars (Apple Chancery Th/th)", () => {
+  it.skipIf(!MACOS_FONTS)("emits ligature glyphs when font.layout collapses chars (Apple Chancery Th/th)", () => {
     // 43-char text with two Apple Chancery ligatures: Th at start, th in
     // "the lazy". Chrome captures 43 per-char xOffsets but font.layout
     // returns 41 glyphs. Each of the 2 ligature clusters covers 2
@@ -447,7 +457,7 @@ describe("Emoji codepoints suppress .notdef tofu emission (DM-334)", () => {
     );
     expect(out).toBeNull();
   });
-  it("emits text-but-no-emoji-tofu in mixed runs (Smile 😀)", () => {
+  it.skipIf(!MACOS_FONTS)("emits text-but-no-emoji-tofu in mixed runs (Smile 😀)", () => {
     // Mixed text: "Smile 😀" — the "Smile " chars emit Times glyphs, the
     // 😀 codepoint suppresses its tofu. Without the suppression we'd see
     // 7 <use>s (S, m, i, l, e, space, tofu); with it we see 6 (no tofu).
@@ -467,7 +477,7 @@ describe("synthesized small-caps (DM-294)", () => {
   // path: lowercase letters render as uppercase glyphs at ~0.7× the font
   // size, while uppercase letters stay at full size. The renderer mirrors
   // this when it sees `features: ['smcp']` and the font lacks the feature.
-  it("renders lowercase letters as uppercase glyphs at the small-cap scale", () => {
+  it.skipIf(!MACOS_FONTS)("renders lowercase letters as uppercase glyphs at the small-cap scale", () => {
     // Render "abc" at 16px Helvetica with smcp.
     const out = renderTextAsPath(
       "abc", 0, 0, 16, "Helvetica", "400", "#000",
@@ -489,7 +499,7 @@ describe("synthesized small-caps (DM-294)", () => {
     }
   });
 
-  it("keeps uppercase letters at full size in a smcp run", () => {
+  it.skipIf(!MACOS_FONTS)("keeps uppercase letters at full size in a smcp run", () => {
     // "ABC" all uppercase — synth path must NOT shrink them.
     const out = renderTextAsPath(
       "ABC", 0, 0, 16, "Helvetica", "400", "#000",
@@ -602,7 +612,7 @@ describe("computeSkipInkGaps: text-decoration-skip-ink (DM-446)", () => {
   const Y = 1.5;
   const T = 1;
 
-  it("produces gaps for descender-bearing glyphs", () => {
+  it.skipIf(!MACOS_FONTS)("produces gaps for descender-bearing glyphs", () => {
     const gaps = computeSkipInkGaps("jumping", FS, FF, FW, undefined, Y, T);
     // 'j', 'p', 'g' all have stems crossing the underline band.
     expect(gaps.length).toBeGreaterThanOrEqual(2);

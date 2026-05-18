@@ -1,6 +1,14 @@
+import * as fs from "fs";
 import { describe, expect, it } from "vitest";
 import { parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText } from "./text.js";
 import type { CapturedElement } from "../capture/types.js";
+
+// Tests that exercise glyph emission via the macOS-only FONT_PATHS map
+// (Linux / Windows are roadmap per CLAUDE.md) skip on hosts without
+// /System/Library/Fonts/Helvetica.ttc — otherwise renderSingleLineText
+// returns an empty string and the per-character assertions assert against
+// nothing on Ubuntu CI runners.
+const MACOS_FONTS = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 
 describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
   // The captured per-char rect spans the line-box height (~lineHeight) and
@@ -82,7 +90,7 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
     styles: baseStyles,
   } as any);
 
-  it("renders the pseudo's own color, not the host's color", () => {
+  it.skipIf(!MACOS_FONTS)("renders the pseudo's own color, not the host's color", () => {
     const seg = {
       text: "TAG",
       x: 108, y: 56, width: 22, height: 11,
@@ -101,7 +109,7 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
     expect(out).not.toContain('fill="rgb(0,0,0)"');
   });
 
-  it("anchors the path at the pseudo's x/y, not at the SVG origin", () => {
+  it.skipIf(!MACOS_FONTS)("anchors the path at the pseudo's x/y, not at the SVG origin", () => {
     const seg = {
       text: "TAG",
       x: 108, y: 56, width: 22, height: 11,
@@ -121,7 +129,7 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
     expect(out).not.toContain('translate(0,0)');
   });
 
-  it("uses the pseudo's fontSize when set, not the host's", () => {
+  it.skipIf(!MACOS_FONTS)("uses the pseudo's fontSize when set, not the host's", () => {
     const seg = {
       text: "T",
       x: 108, y: 56, width: 8, height: 11,
