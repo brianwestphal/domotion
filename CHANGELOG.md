@@ -2,6 +2,16 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.2.2] - 2026-05-18
+
+
+- Fix framer chevron icons rendering via data:URI mask support
+- Fix brand logos disappearing due to off-screen transformed ancestor culling
+- Fix rotated/skewed element AABB calculation for correct bounding boxes
+- Fix px-positioned gradient stops rendering at wrong offsets
+- Fix outline clipping at element edges
+- Fix paint order for floated elements
+
 ## [0.2.1] - 2026-05-18
 
 
