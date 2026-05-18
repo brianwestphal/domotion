@@ -37,8 +37,97 @@ const fontInstanceCache = new Map<string, FontInstance>();
 // family, we pick the variant whose (weight, style) is closest to the request.
 // This sidesteps the system-font fallback in `getFontInstance` entirely —
 // webfont glyphs come from the loaded buffer, not from disk.
-interface WebfontVariant { weight: number; italic: boolean; font: FontInstance; unicodeRange?: Array<[number, number]> }
+interface WebfontVariant { weight: number; italic: boolean; font: FontInstance; unicodeRange?: Array<[number, number]>; buffer?: Buffer }
 const webfontRegistry = new Map<string, WebfontVariant[]>();
+
+// ── DM-652: opt-in embedded-font render mode ──
+// When enabled, the text renderer emits `<text>` elements with a CSS
+// `font-family` pointing at a `@font-face`-declared subset font, instead
+// of the default `<use href="#gN">` glyph references. The default
+// (`"paths"`) is unchanged and preserves Chromium-faithful per-pixel
+// output. The embedded-font mode trades pixel fidelity (each browser's
+// text engine applies its own hinting / kerning / subpixel positioning)
+// for WebKit perf — text-heavy scroll composites that ran at 14.7 fps
+// in WebKit (paths mode) jump back toward Chromium's 119 fps because the
+// engine caches the rasterized glyph atlas at the compositor layer.
+export type RenderTextMode = "paths" | "embedded-font";
+let currentRenderTextMode: RenderTextMode = "paths";
+export function setRenderTextMode(mode: RenderTextMode): void { currentRenderTextMode = mode; }
+export function getRenderTextMode(): RenderTextMode { return currentRenderTextMode; }
+
+/**
+ * Per-render-pass tracker for fonts that text emission asked us to embed.
+ * Keyed by a stable string identifier per (fontPath × postscriptName) so
+ * the same font referenced from multiple text runs collapses to one
+ * `@font-face` declaration. `getEmbeddedFontFaceCss()` reads the source
+ * bytes for each entry and emits one rule per font.
+ */
+interface EmbeddedFontEntry {
+  /** CSS family name the renderer assigns to this entry — references it from `<text font-family="…">`. */
+  cssFamily: string;
+  /** Source TTF/OTF/WOFF bytes ready to base64-encode into the `data:` URI. */
+  buffer: Buffer;
+  /** MIME type for the data URI — `font/ttf`, `font/otf`, `font/woff2`, etc. */
+  mime: string;
+}
+const embeddedFonts = new Map<string, EmbeddedFontEntry>();
+let embeddedFontIdCounter = 0;
+
+export function clearEmbeddedFonts(): void {
+  embeddedFonts.clear();
+  embeddedFontIdCounter = 0;
+}
+
+/**
+ * Read the source bytes for a registered or system font and return them
+ * paired with a content type that matches the on-disk container. WOFF2
+ * webfonts arrive at the capture pipeline already-decompressed to raw
+ * TTF/OTF bytes (capture.ts/loadWebfont), so the data we have is what we
+ * embed — we don't re-compress to WOFF2 even though we have wawoff2
+ * available, to keep the MVP path simple. File-size optimisation via
+ * compression is a follow-up.
+ */
+function fontBufferAndMime(buffer: Buffer): { buffer: Buffer; mime: string } {
+  if (buffer.length >= 4) {
+    const sig = buffer.subarray(0, 4).toString("hex");
+    if (sig === "774f4632") return { buffer, mime: "font/woff2" };  // 'wOF2'
+    if (sig === "774f4646") return { buffer, mime: "font/woff" };   // 'wOFF'
+    if (sig === "4f54544f") return { buffer, mime: "font/otf" };    // 'OTTO'
+    if (sig === "74746366") return { buffer, mime: "font/collection" }; // 'ttcf'
+  }
+  return { buffer, mime: "font/ttf" };
+}
+
+/**
+ * Register a font for embedding under a renderer-assigned CSS family
+ * name. Idempotent on (key) — the same key returns the same css family
+ * across calls so multiple text runs over the same font collapse to one
+ * `@font-face` block.
+ */
+function registerEmbeddedFont(key: string, buffer: Buffer): string {
+  const existing = embeddedFonts.get(key);
+  if (existing != null) return existing.cssFamily;
+  const cssFamily = `dmf${embeddedFontIdCounter++}`;
+  const { buffer: outBuf, mime } = fontBufferAndMime(buffer);
+  embeddedFonts.set(key, { cssFamily, buffer: outBuf, mime });
+  return cssFamily;
+}
+
+/**
+ * Emit one `@font-face` rule per font the embedded-font path registered
+ * during this render pass. Returns the CSS to inject into the SVG's
+ * `<style>` block (or `<defs><style>`). Empty string when no fonts were
+ * registered (e.g. `renderText: "paths"`).
+ */
+export function getEmbeddedFontFaceCss(): string {
+  if (embeddedFonts.size === 0) return "";
+  const rules: string[] = [];
+  for (const e of embeddedFonts.values()) {
+    const b64 = e.buffer.toString("base64");
+    rules.push(`@font-face { font-family: "${e.cssFamily}"; src: url("data:${e.mime};base64,${b64}"); }`);
+  }
+  return rules.join("\n");
+}
 
 /**
  * Open a webfont buffer with fontkit and register it under the given family
@@ -68,7 +157,10 @@ export function registerWebfont(family: string, weight: number, style: string, b
   }
   const italic = style != null && style !== "" && style.toLowerCase() !== "normal";
   const list = webfontRegistry.get(key) ?? [];
-  list.push({ weight, italic, font, unicodeRange });
+  // DM-652: retain the raw buffer so embedded-font mode can `@font-face`
+  // it as a `data:` URI without re-reading from disk (webfonts have no
+  // on-disk source path — they came down from a CDN during capture).
+  list.push({ weight, italic, font, unicodeRange, buffer });
   webfontRegistry.set(key, list);
 }
 
@@ -240,6 +332,46 @@ function pickWebfontVariant(family: string, weight: number, fontSize: number, sl
   }
   if (best == null) return null;
   return applyVariationAxes(best.font, weight, fontSize, slant, variationSettings);
+}
+
+/**
+ * DM-652: pick a registered webfont variant and return both the FontInstance
+ * (for metric computation) AND the original buffer (for `@font-face`
+ * embedding). Mirrors `pickWebfontVariant`'s scoring so embedded-mode
+ * selection lines up with the path-mode selection a paths-mode capture
+ * would have used. Returns null when the family isn't registered or the
+ * matched variant has no retained buffer.
+ */
+function pickWebfontVariantWithBuffer(family: string, weight: number, slant: number): { variant: WebfontVariant; buffer: Buffer } | null {
+  const variants = webfontRegistry.get(family);
+  if (variants == null || variants.length === 0) return null;
+  const wantItalic = slant !== 0;
+  const LATIN_PROBE = 0x0041;
+  let best: WebfontVariant | null = null;
+  let bestScore = Infinity;
+  for (const v of variants) {
+    if (v.buffer == null) continue;
+    const styleMismatch = v.italic === wantItalic ? 0 : 1000;
+    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : 2000;
+    const score = styleMismatch + rangeMismatch + Math.abs(v.weight - weight);
+    if (score < bestScore) { bestScore = score; best = v; }
+  }
+  if (best == null || best.buffer == null) return null;
+  return { variant: best, buffer: best.buffer };
+}
+
+/**
+ * DM-652: resolve the first font in a CSS font-family stack that's
+ * registered as a webfont with a retained buffer. Returns the lowercased
+ * key suitable for `webfontRegistry.get`, or null when no name in the
+ * stack matches a registered webfont (e.g. all generic / system fallbacks).
+ */
+function firstWebfontFamilyInStack(fontFamily: string): string | null {
+  const names = fontFamily.split(",").map((n) => n.trim().replace(/^["']|["']$/g, "").toLowerCase());
+  for (const n of names) {
+    if (webfontRegistry.has(n)) return n;
+  }
+  return null;
 }
 
 /**
@@ -1535,11 +1667,52 @@ export function renderTextAsPath(
   /** Author-set `font-variation-settings` axis overrides. DM-578. */
   variationSettings?: Record<string, number>,
 ): string | null {
+  const weight = parseInt(fontWeight) || 400;
+  const slant = slantForStyle(fontStyle);
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  // DM-652: opt-in embedded-font path. When `setRenderTextMode("embedded-font")`
+  // is active AND we hold a webfont buffer that matches the requested
+  // (family, weight, italic), bypass glyph-path emission and emit a single
+  // `<text>` element instead. The browser's native text engine then
+  // rasters the run, caches the glyph atlas at the compositor layer, and
+  // skips the per-frame path-rasterization cost that bottlenecks WebKit
+  // on text-heavy scroll composites (DM-651: 14.7 fps → ~Chromium parity).
+  //
+  // Falls through to paths mode in two cases:
+  //   1. No webfont in the family stack has a retained buffer — system
+  //      fonts (SF Pro / Helvetica / etc.) aren't embeddable from this
+  //      path yet, so they keep using `<use href="#gN">`.
+  //   2. `textToPathMarkup` would have returned null below (unrenderable).
+  //
+  // Positioning: a single `<text x= y=>` lets the browser shape natively.
+  // We don't pass the captured `xOffsets` — they're fontkit-shaped
+  // positions, and forwarding them as per-glyph `<tspan dx=>` would defeat
+  // the engine's atlas cache. Acceptable per the opt-in tradeoff: some
+  // sub-pixel kerning drift vs. Chromium-shaped output.
+  if (currentRenderTextMode === "embedded-font") {
+    const webfontFamily = firstWebfontFamilyInStack(fontFamily);
+    if (webfontFamily != null) {
+      const picked = pickWebfontVariantWithBuffer(webfontFamily, weight, slant);
+      if (picked != null) {
+        const variantFont = picked.variant.font as { unitsPerEm: number; ascent: number };
+        const scale = fontSize / variantFont.unitsPerEm;
+        const ascent = ascentOverride != null ? ascentOverride : Math.round(variantFont.ascent * scale);
+        const baselineY = y + ascent;
+        const key = `wf:${webfontFamily}:${picked.variant.weight}:${picked.variant.italic ? "i" : "r"}`;
+        const cssFamily = registerEmbeddedFont(key, picked.buffer);
+        const italicAttr = picked.variant.italic ? ' font-style="italic"' : "";
+        const weightAttr = picked.variant.weight !== 400 ? ` font-weight="${picked.variant.weight}"` : "";
+        return `<text x="${r(x)}" y="${r(baselineY)}" font-family="${cssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr} fill="${fill}" role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${esc(text)}</text>`;
+      }
+    }
+    // Fall through to paths mode for system-font runs and webfonts
+    // without retained buffers.
+  }
+
   const result = textToPathMarkup(text, fontSize, fontFamily, fontWeight, targetWidth, xOffsets, fontStyle, features, lang, variationSettings);
   if (result == null || result.markup === "") return null;
 
-  const weight = parseInt(fontWeight) || 400;
-  const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (font == null) return null;
 
@@ -1551,8 +1724,6 @@ export function renderTextAsPath(
   // legacy MS fonts on macOS, where Chrome reads winAscent.
   const ascent = ascentOverride != null ? ascentOverride : Math.round(font.ascent * scale);
   const baselineY = y + ascent;
-
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   return `<g transform="translate(${r(x)},${r(baselineY)})" fill="${fill}" role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
 }

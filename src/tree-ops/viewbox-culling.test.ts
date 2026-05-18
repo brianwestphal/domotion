@@ -211,6 +211,42 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     expect(css).toBe("");
   });
 
+  it("DM-650: parent bbox outside viewBox, child bbox inside — parent kept, child kept, all visible", () => {
+    // Reproduces NYT-mobile-scroll: at scrollY=844 the body element has
+    // height: 100vh (height=844) and rect.top=-844, so its bbox sits
+    // exactly above the viewport (b.y + b.h = 0). Children are at their
+    // own viewport-relative coordinates and ARE in-viewport. Before the
+    // fix, the bottom-up walk culled the body and skipped recursion,
+    // hiding the whole subtree → seg renders white.
+    const tree: CapturedElement = el({
+      x: 0, y: -844, width: 390, height: 844, tag: "body",
+      children: [
+        el({ x: 0, y: 100, width: 390, height: 200, tag: "div", text: "headline" }),
+        el({ x: 0, y: 400, width: 390, height: 100, tag: "p", text: "body copy" }),
+      ],
+    });
+    cullElementsOutsideViewBox(tree, 390, 844, undefined, 0, 1000);
+    expect(tree.displayNone).toBeFalsy();
+    expect(tree.children![0].displayNone).toBeFalsy();
+    expect(tree.children![1].displayNone).toBeFalsy();
+  });
+
+  it("DM-650: parent bbox outside, every child also outside — parent AND children all hidden", () => {
+    // Same shape as above but with children also outside viewBox. Now it
+    // IS safe to mark the parent displayNone (and every descendant too).
+    const tree: CapturedElement = el({
+      x: 0, y: -844, width: 390, height: 844, tag: "body",
+      children: [
+        el({ x: 0, y: -800, width: 390, height: 100, tag: "div" }),     // above viewBox
+        el({ x: 0, y: -700, width: 390, height: 200, tag: "p" }),       // above viewBox
+      ],
+    });
+    cullElementsOutsideViewBox(tree, 390, 844, undefined, 0, 1000);
+    expect(tree.displayNone).toBe(true);
+    expect(tree.children![0].displayNone).toBe(true);
+    expect(tree.children![1].displayNone).toBe(true);
+  });
+
   it("respects child's own animId over inherited animation", () => {
     // Parent has a scroll animation; child has its OWN slide-in animation.
     // Child's culling should use its OWN animation, not the parent's.

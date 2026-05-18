@@ -286,7 +286,21 @@ export function elementTreeToSvg(
       const oyV = el.styles.overflowY;
       const oxClips = oxV != null && oxV !== "visible";
       const oyClips = oyV != null && oyV !== "visible";
-      if (oxClips || oyClips) {
+      // DM-650: per CSS Overflow Module Level 3 §3.3, when <body>'s overflow
+      // is non-visible and <html>'s overflow is visible (the default), the
+      // body's overflow is propagated to the viewport — i.e. body itself
+      // renders WITHOUT clipping, and the page-level scroll handles the
+      // overflow. This is what NYT desktop relies on: body { height: 100vh;
+      // overflow: hidden auto } but the page scrolls at the document level
+      // because <html> has overflow: visible. If we applied body's overflow
+      // as a clip on body's own bbox, scroll-mode segments at scrollY > 0
+      // would clip every descendant out (body.y becomes -scrollY < 0; the
+      // clip rect ends at body.y + 100vh = 0, so anything below would be
+      // hidden). We don't capture <html>'s computed style, so this skip is
+      // a conservative match against the overwhelmingly common case of
+      // html { overflow: visible }.
+      const isBodyOverflowPropagated = el.tag === "body";
+      if ((oxClips || oyClips) && !isBodyOverflowPropagated) {
         // The CSS `outline` is painted OUTSIDE the border box and is NOT
         // affected by the element's own overflow per CSS Backgrounds 3 §3 +
         // Basic UI 4 §8 — outline isn't part of the element's content area.
@@ -1801,8 +1815,15 @@ export function elementTreeToSvg(
     const containClips = containVal != null && containVal !== "" && containVal !== "none"
       && /\b(?:paint|strict|content)\b/i.test(containVal);
     const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible") || containClips;
+    // DM-650: same body-overflow-propagation rule as the earlier clip-path
+    // emission — when body has non-visible overflow it propagates to the
+    // viewport rather than clipping body itself; skip the children-overflow
+    // clip too so descendants positioned outside body's bbox (e.g. NYT
+    // desktop's content wrapper, which extends below body's height: 100vh
+    // box) stay visible after the document scroll moves body off-viewport.
+    const isBodyOverflowPropagatedHere = el.tag === "body";
     let overflowClipId: string | null = null;
-    if (clipsOverflow && el.children.length > 0) {
+    if (clipsOverflow && !isBodyOverflowPropagatedHere && el.children.length > 0) {
       overflowClipId = `${idPrefix}ov${clipIdx++}`;
       const cbt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
       const cbr = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
@@ -1906,6 +1927,12 @@ export function elementTreeToSvg(
   // Prepend defs block: clipPaths + optional glyph path definitions. For
   // animated multi-frame SVGs the caller passes includeGlyphDefs=false and
   // collects glyph defs once at the top level via getGlyphDefs().
+  // DM-652: embedded-font `@font-face` rules are NOT emitted here — the
+  // base64-encoded font bytes can be megabytes each, so duplicating them
+  // per-segment in a multi-frame SVG would balloon file size unmanageably.
+  // Callers that drive embedded-font mode must call
+  // `getEmbeddedFontFaceCss()` themselves once at the top level (see how
+  // `composeScrollSvg` injects it into the outer <style>).
   const glyphDefsMarkup = includeGlyphDefs ? getGlyphDefs() : "";
   const allDefs = defsParts.join("") + glyphDefsMarkup;
   const defs = allDefs !== "" ? `  <defs>${allDefs}</defs>\n` : "";

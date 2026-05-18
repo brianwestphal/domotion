@@ -19,9 +19,11 @@
  *     [--cycle-ms 12000] [--segments 8] [--cycles 2] [--warmup-ms 1000]
  */
 
-import { chromium } from "@playwright/test";
+import { chromium, webkit, firefox, type BrowserType } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
+
+type BrowserName = "chromium" | "webkit" | "firefox";
 
 interface ProbeOptions {
   cycleMs: number;
@@ -29,6 +31,15 @@ interface ProbeOptions {
   cycles: number;
   warmupMs: number;
   headless: boolean;
+  browser: BrowserName;
+}
+
+function browserType(name: BrowserName): BrowserType {
+  switch (name) {
+    case "chromium": return chromium;
+    case "webkit":   return webkit;
+    case "firefox":  return firefox;
+  }
 }
 
 interface SegmentStat {
@@ -109,7 +120,7 @@ ${svgText}
 <\/script>
 </body></html>`;
 
-  const browser = await chromium.launch({ headless: opts.headless });
+  const browser = await browserType(opts.browser).launch({ headless: opts.headless });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   await page.setContent(html, { waitUntil: "load" });
@@ -190,17 +201,27 @@ async function main(): Promise<void> {
     const i = args.indexOf(flag);
     return i >= 0 ? Number(args[i + 1]) : dflt;
   };
+  const strArg = (flag: string, dflt: string): string => {
+    const i = args.indexOf(flag);
+    return i >= 0 ? args[i + 1] : dflt;
+  };
+  const browserName = strArg("--browser", "chromium") as BrowserName;
+  if (browserName !== "chromium" && browserName !== "webkit" && browserName !== "firefox") {
+    console.error(`Invalid --browser '${browserName}'. Use chromium | webkit | firefox.`);
+    process.exit(1);
+  }
   const opts: ProbeOptions = {
     cycleMs: numArg("--cycle-ms", 12000),
     segments: numArg("--segments", 8),
     cycles: numArg("--cycles", 2),
     warmupMs: numArg("--warmup-ms", 1000),
     headless: args.includes("--headless"),
+    browser: browserName,
   };
 
   const files = args.filter((a) => a.endsWith(".svg"));
   if (files.length === 0) {
-    console.error("Usage: tools/measure-scroll-fps.ts <file1.svg> [file2.svg ...] [--cycle-ms N] [--segments N] [--cycles N] [--warmup-ms N]");
+    console.error("Usage: tools/measure-scroll-fps.ts <file1.svg> [file2.svg ...] [--browser chromium|webkit|firefox] [--cycle-ms N] [--segments N] [--cycles N] [--warmup-ms N]");
     process.exit(1);
   }
   for (const f of files) {
@@ -209,9 +230,12 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
-  console.error(`Settings: cycle=${opts.cycleMs}ms, segments=${opts.segments}, cycles=${opts.cycles}, warmup=${opts.warmupMs}ms, headless=${opts.headless}`);
+  console.error(`Settings: browser=${opts.browser}, cycle=${opts.cycleMs}ms, segments=${opts.segments}, cycles=${opts.cycles}, warmup=${opts.warmupMs}ms, headless=${opts.headless}`);
   if (opts.headless) {
-    console.error("Note: headless Chromium uses a software compositor that won't reflect real-Chrome GPU paint cost. Pass without --headless for representative numbers.");
+    console.error("Note: headless rendering uses a software compositor that won't reflect real-browser GPU paint cost. Pass without --headless for representative numbers.");
+  }
+  if (opts.browser === "webkit") {
+    console.error("Note: WebKit's PerformanceObserver does not support 'long-animation-frame' as of 2026-05; expect loafCount=0. Per-segment fps + frame-ms quantiles are still meaningful.");
   }
 
   const results: Stats[] = [];

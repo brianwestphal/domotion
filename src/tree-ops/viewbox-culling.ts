@@ -262,12 +262,25 @@ export function cullElementsOutsideViewBox(
   const windowToClass = new Map<string, string>();
   const cssBlocks: string[] = [];
 
-  const walk = (el: CapturedElement, inheritedCtx: AnimationFrameContext | null): void => {
+  // Walk bottom-up: recurse FIRST, then decide the element's own cull. A
+  // parent can only safely inherit `displayNone` if every descendant is
+  // also fully hidden — children of an `overflow: visible` parent paint
+  // outside the parent's bbox and stay in-viewport even when the parent's
+  // bbox is entirely above/below the viewBox (DM-650: NYT body is
+  // height: 100vh, so at scrollY > 0 the body bbox sits exactly above
+  // the viewport but its descendants are in-viewport). Returns true if
+  // any element in the subtree (including `el` itself) is visible.
+  const walk = (el: CapturedElement, inheritedCtx: AnimationFrameContext | null): boolean => {
     const { ctx, decision } = decideForElement(el, viewportW, viewportH, inheritedCtx, animsById);
-    if (decision.alwaysHidden) {
+    let anyDescendantVisible = false;
+    if (el.children != null) {
+      for (const child of el.children) {
+        if (walk(child, ctx)) anyDescendantVisible = true;
+      }
+    }
+    if (decision.alwaysHidden && !anyDescendantVisible) {
       el.displayNone = true;
-      // Children inherit displayNone implicitly; don't recurse.
-      return;
+      return false;
     }
     if (decision.visStartPct != null && decision.visEndPct != null) {
       const key = `${r3(decision.visStartPct)},${r3(decision.visEndPct)}`;
@@ -277,14 +290,9 @@ export function cullElementsOutsideViewBox(
         windowToClass.set(key, className);
         cssBlocks.push(buildCullKeyframes(className, decision.visStartPct, decision.visEndPct));
       }
-      // Merge with any existing cullClass (shouldn't happen — each pass
-      // assigns at most one — but be defensive).
       el.cullClass = el.cullClass == null || el.cullClass === "" ? className : `${el.cullClass} ${className}`;
     }
-    // Recurse into children with the (possibly newly inherited) animation context.
-    if (el.children != null) {
-      for (const child of el.children) walk(child, ctx);
-    }
+    return true;
   };
   for (const root of roots) walk(root, null);
 

@@ -688,6 +688,7 @@ async function runJob(
         viewportH: viewport.height,
         bgColor: bodyBg,
         hiDPIFactor: resizeOpts.hiDPI,
+        ...(process.env.RENDER_TEXT === "embedded-font" ? { renderText: "embedded-font" as const } : {}),
       });
     } else {
       svgDoc = `<?xml version="1.0" encoding="UTF-8"?>`

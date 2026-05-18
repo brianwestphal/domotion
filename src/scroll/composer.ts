@@ -23,6 +23,12 @@
 
 import type { ScrollSegmentCapture } from "./executor.js";
 import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
+import {
+  clearEmbeddedFonts,
+  getEmbeddedFontFaceCss,
+  setRenderTextMode,
+  type RenderTextMode,
+} from "../render/text-to-path.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
 
@@ -54,6 +60,17 @@ export interface ScrollComposerOptions {
    * See `docs/36-scroll-composite-layer-chunking.md`.
    */
   chunkSize?: number;
+  /**
+   * DM-652: opt-in text rendering mode. Default `"paths"` preserves
+   * Chromium-faithful per-pixel output by emitting `<use href="#gN">`
+   * references to glyph path defs. `"embedded-font"` switches to
+   * `<text>` elements + a single `@font-face` per used webfont — much
+   * faster in WebKit (≈8× perf gain on text-heavy fixtures per DM-651)
+   * at the cost of slight inter-engine drift in text positioning. System-
+   * font runs and fallback-chain runs always stay in `"paths"` mode
+   * regardless of this flag (MVP scope).
+   */
+  renderText?: RenderTextMode;
 }
 
 const DEFAULT_BG = "#0d1117";
@@ -80,6 +97,16 @@ export function composeScrollSvg(
   if (chunkSize < 1 || !Number.isInteger(chunkSize)) {
     throw new Error(`composeScrollSvg: chunkSize must be a positive integer, got ${chunkSize}`);
   }
+
+  // DM-652: arm the embedded-font lifecycle for this composition. Default
+  // mode is "paths" — unchanged Chromium-faithful output. When opts asks
+  // for "embedded-font", the per-segment text renderer registers webfont
+  // bytes via `registerEmbeddedFont` and we collect one `@font-face` rule
+  // per font at the bottom of this function. State is module-global so
+  // every segment's `elementTreeToSvg` call shares the same registry.
+  const renderTextMode: RenderTextMode = opts.renderText ?? "paths";
+  clearEmbeddedFonts();
+  setRenderTextMode(renderTextMode);
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -286,13 +313,22 @@ export function composeScrollSvg(
     chunks.push(`<g style="will-change: transform">\n${slice.join("\n")}\n      </g>`);
   }
 
+  // DM-652: collect every `@font-face` rule the embedded-font path
+  // registered during segment + overlay rendering above, into a single
+  // top-level <style> block. Each font appears once (registry is keyed
+  // per (family, weight, italic)) — segments referencing the same font
+  // collapse onto one rule. Restore the default render mode now that
+  // all per-segment rendering has finished.
+  const fontFaceCss = getEmbeddedFontFaceCss();
+  setRenderTextMode("paths");
+
   // ── Compose final SVG ──
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}">
   <defs>
     <clipPath id="${animClass}-clip"><rect width="${W}" height="${VH}"/></clipPath>
     <style>
-      .${animClass} { animation: ${animClass} ${totalSec.toFixed(3)}s linear infinite; will-change: transform; }
+${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}      .${animClass} { animation: ${animClass} ${totalSec.toFixed(3)}s linear infinite; will-change: transform; }
       @keyframes ${animClass} {
 ${keyframes}
       }

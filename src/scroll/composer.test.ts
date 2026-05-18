@@ -464,3 +464,28 @@ describe("composeScrollSvg: background colour", () => {
     expect(svg).toContain('fill="#ffffff"');
   });
 });
+
+// ── DM-652: embedded-font render mode ──────────────────────────────────────
+
+describe("composeScrollSvg: renderText option", () => {
+  it("default (renderText omitted): no @font-face block emitted", () => {
+    const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600 });
+    expect(svg).not.toContain("@font-face");
+    // Default Chromium-faithful path must still render — the outer <svg>
+    // and viewport bg should be present.
+    expect(svg).toMatch(/<svg [^>]*viewBox="0 0 800 600"/);
+  });
+
+  it("renderText: 'paths' (explicit default): no @font-face block emitted", () => {
+    const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600, renderText: "paths" });
+    expect(svg).not.toContain("@font-face");
+  });
+
+  it("renderText: 'embedded-font' with no registered webfonts: still no @font-face (system fonts stay on paths fallback)", () => {
+    // No registerWebfont call → the embedded-font branch in renderTextAsPath
+    // can't find a webfont buffer, so the fixture text falls through to
+    // glyph-path rendering exactly as if renderText="paths" were set.
+    const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600, renderText: "embedded-font" });
+    expect(svg).not.toContain("@font-face");
+  });
+});
