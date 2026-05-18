@@ -801,7 +801,15 @@ export const captureScript =
     const _tel = _allEls[_ti];
     const _tt = getComputedStyle(_tel).transform;
     if (_tt === 'none' || _tt === '') continue;
-    // Mark every descendant of this transformed element.
+    // Mark the transformed element itself AND every descendant. The element
+    // itself needs the exemption because its own post-transform rect may be
+    // entirely outside the viewport (e.g. framer's marquee `<ul>` is
+    // `transform: translateX(-1000px)` at some animation frames), and the
+    // `outsideViewport` cull would drop the ul + abort recursion before its
+    // (in-viewport) descendant lis ever get walked. Including the transformed
+    // element keeps the recursion alive so its descendants are captured.
+    // (DM-637 / framer brand-logo carousel.)
+    _transformInfluenced.add(_tel);
     const _tdescs = _tel.getElementsByTagName('*');
     for (let _tj = 0; _tj < _tdescs.length; _tj++) {
       _transformInfluenced.add(_tdescs[_tj]);

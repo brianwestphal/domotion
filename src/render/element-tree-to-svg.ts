@@ -3222,22 +3222,34 @@ export function buildMaskDef(
       contents.push(`<image href="${raster.dataUri}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${par}" />`);
       continue;
     }
-    const url = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(layer);
-    if (url != null) {
-      // Chrome hides the element entirely for `mask-image: url(*.svg)` —
-      // whether no-repeat + contain (SK-860) or repeat + sized (SK-859). The
-      // likely cause is mask-mode: match-source resolving to luminance for
-      // SVG sources and the common icon SVG (transparent background + a
-      // colored shape) computing near-zero luminance over most of the tile,
-      // so the mask alpha is effectively zero. Reproducing that ourselves
-      // would need embedding an <image> inside the mask with mask-type
-      // sampling logic that matches Chrome's exact source-type resolution,
-      // which is complex and variable across renderer versions. User
+    // Use parseCssUrl (which handles quoted/unquoted and data: URIs with
+    // embedded quotes) rather than a primitive `[^"')]+` regex that breaks on
+    // data: URIs whose contents contain `"` or `)` — common in mask-image
+    // values like `url("data:image/svg+xml,<svg display=\"block\" ...>...</svg>")`
+    // (DM-638 framer chevrons).
+    const urlHref = parseCssUrl(layer);
+    if (urlHref != null) {
+      // Chrome hides the element entirely for `mask-image: url(*.svg)` (the
+      // remote SVG case — DM SK-859/SK-860). The likely cause is mask-mode:
+      // match-source resolving to luminance for SVG sources and the common
+      // icon SVG (transparent background + colored shape) computing near-zero
+      // luminance, so the mask alpha is effectively zero. Reproducing that
+      // ourselves would need embedding an <image> inside the mask with
+      // mask-type sampling logic that matches Chrome's exact source-type
+      // resolution, complex and variable across renderer versions. User
       // guidance on SK-859/SK-860: match Chrome by rendering nothing.
       // Contribute no mask content for this layer — the element gets hidden
       // wherever an SVG url() mask layer claims it, matching Chrome.
-      const urlHref = url[1];
-      if (/\.svg(\?|#|$)/i.test(urlHref)) { forceHide = true; continue; }
+      //
+      // EXCEPTION: data:image/svg+xml URIs containing a single icon path. The
+      // framer marketing site renders chevrons / icons by setting
+      // `background: white` + `mask-image: url("data:image/svg+xml,<svg><path
+      // stroke=...></svg>")` on a small <div>. mask-mode: alpha is explicit,
+      // so the path's painted stroke IS the mask. Falling through to the
+      // generic image-mask branch produces the correct alpha. The remote-SVG
+      // hide rule above doesn't fit the data:URI case — the data SVG is
+      // small, self-contained, and authored as a mask.
+      if (/\.svg(\?|#|$)/i.test(urlHref) && !/^data:image\/svg/i.test(urlHref)) { forceHide = true; continue; }
       // For no-repeat mask images, emit the image DIRECTLY inside the mask —
       // not wrapped in a pattern + filled rect. The pattern+rect path paints
       // the rect opaque where the pattern is transparent, defeating alpha
@@ -3279,13 +3291,13 @@ export function buildMaskDef(
         };
         const ix = elX + resolveH(posTok[0] ?? "0%");
         const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-        contents.push(`<image href="${esc(embedResizedDataUri(url[1], imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${layerSize === "contain" ? "meet" : layerSize === "cover" ? "slice" : "meet"}" />`);
+        contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${layerSize === "contain" ? "meet" : layerSize === "cover" ? "slice" : "meet"}" />`);
       } else {
         // Repeating mask: fall back to pattern. Since mask-type=alpha, the
         // pattern itself needs to be backed by an <image> that's clipped to
         // the tile size so outside-tile pixels are transparent.
         const patId = `${id}p${li}`;
-        const patDef = buildImagePatternDef(patId, url[1], elX, elY, w, h, layerSize, layerPos, layerRepeat, null);
+        const patDef = buildImagePatternDef(patId, urlHref, elX, elY, w, h, layerSize, layerPos, layerRepeat, null);
         if (patDef === "") continue;
         contents.push(patDef);
         contents.push(`<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="url(#${patId})" />`);
