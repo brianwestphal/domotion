@@ -24,6 +24,7 @@
 import type { ScrollSegmentCapture } from "./executor.js";
 import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
+import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
 
 export interface ScrollComposerOptions {
   /** Visible viewport width (output SVG width). */
@@ -41,6 +42,18 @@ export interface ScrollComposerOptions {
    * to source-resolution data URIs. Default 2 (matches `elementTreeToSvg`).
    */
   hiDPIFactor?: number;
+  /**
+   * DM-648: number of consecutive segments to group inside one
+   * `<g style="will-change: transform">` chunk wrapper. Each chunk gets its
+   * own GPU backing store so tall composites don't blow Chromium's
+   * per-layer raster budget (the 1280 × 6015 px apple-desktop-scroll capture
+   * at hi-DPI 2 was ~30 MB of raster on a single layer). Default `2` —
+   * meaning every two segments share one layer; a 16-segment scroll yields
+   * 8 layers. `1` puts each segment on its own layer (more layers, smaller
+   * each); higher values trade layer count for layer size. Must be ≥ 1.
+   * See `docs/36-scroll-composite-layer-chunking.md`.
+   */
+  chunkSize?: number;
 }
 
 const DEFAULT_BG = "#0d1117";
@@ -63,6 +76,10 @@ export function composeScrollSvg(
   const VH = opts.viewportH;
   const bg = opts.bgColor ?? DEFAULT_BG;
   const hiDPIFactor = opts.hiDPIFactor ?? 2;
+  const chunkSize = opts.chunkSize ?? 2;
+  if (chunkSize < 1 || !Number.isInteger(chunkSize)) {
+    throw new Error(`composeScrollSvg: chunkSize must be a positive integer, got ${chunkSize}`);
+  }
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -91,14 +108,21 @@ export function composeScrollSvg(
   // viewport — so the consumer sees the header "scroll" once per segment.
   // Strip the fixed subtrees from every segment and hoist them onto a single
   // viewport-level overlay below.
-  const strippedTrees: typeof segments[number]["tree"][] = [];
+  const fixedStripped: typeof segments[number]["tree"][] = [];
   const perSegFixed: typeof segments[number]["tree"][] = [];
   for (const seg of segments) {
     const { stripped, fixed } = extractFixedSubtrees(seg.tree);
-    strippedTrees.push(stripped);
+    fixedStripped.push(stripped);
     perSegFixed.push(fixed);
   }
   const fixedOverlay = dedupeFixedAcrossSegments(perSegFixed);
+
+  // ── Sticky overlays (DM-647) ──
+  // For each `position: sticky` element, find the runs of consecutive
+  // segments where it stays at the same viewport-y (stuck windows) and
+  // hoist each run onto the same overlay layer as the fixed overlay. The
+  // element stays inline in segments where it's still scrolling.
+  const { stripped: strippedTrees, overlays: stickyOverlays } = extractStickyWindows(fixedStripped);
 
   // ── Per-segment visibility windows (DM-642) ──
   // Each segment K is anchored at scroll-y = offsetK. Reading the keyframe
@@ -187,6 +211,35 @@ export function composeScrollSvg(
       );
     }
   }
+  // ── Sticky overlay markup + visibility keyframes ──
+  // Each overlay is one stuck window for one sticky element. Wrap the
+  // rendered subtree in a <g class="…"> whose visibility keyframe shows it
+  // only during [firstSegmentStart, lastSegmentEnd] of the cycle and hides
+  // it otherwise. DM-641 convention: visibility, never display.
+  const stickyMarkup: string[] = [];
+  const stickyCullCss: string[] = [];
+  for (let i = 0; i < stickyOverlays.length; i++) {
+    const o: StickyOverlay = stickyOverlays[i];
+    const visStartPct = (segments[o.firstSegmentIdx].segmentStartMs / totalMs) * 100;
+    const visEndPct = (segments[o.lastSegmentIdx].segmentEndMs / totalMs) * 100;
+    const alwaysVisible = visStartPct <= 0 && visEndPct >= 100;
+    const inner = elementTreeToSvg([o.subtree], W, VH, `stk${i}-`, true, hiDPIFactor);
+    if (alwaysVisible) {
+      stickyMarkup.push(
+        `\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
+      );
+    } else {
+      const cls = `${animClass}-k${i}`;
+      stickyCullCss.push(
+        `      @keyframes ${cls} { 0% { visibility: hidden } ${Math.max(0, visStartPct - 0.001).toFixed(3)}% { visibility: hidden } ${visStartPct.toFixed(3)}% { visibility: visible } ${visEndPct.toFixed(3)}% { visibility: visible } ${Math.min(100, visEndPct + 0.001).toFixed(3)}% { visibility: hidden } 100% { visibility: hidden } }
+      .${cls} { animation: ${cls} ${totalSec.toFixed(3)}s infinite; animation-timing-function: step-end; }`,
+      );
+      stickyMarkup.push(
+        `\n  <g class="${cls}"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
+      );
+    }
+  }
+
   const fixedMarkup = fixedOverlay.length === 0
     ? ""
     : `\n  <g>` +
@@ -194,6 +247,7 @@ export function composeScrollSvg(
           elementTreeToSvg(fixedOverlay, W, VH, "fix-", true, hiDPIFactor) +
         `</svg>` +
       `</g>`;
+  const overlayMarkup = fixedMarkup + stickyMarkup.join("");
 
   // ── Keyframes — one stop per segment ──
   // Each segment anchors a (time-percent, position-offset) pair. Linear
@@ -219,6 +273,19 @@ export function composeScrollSvg(
     )
     .join("\n");
 
+  // ── DM-648: chunked compositing layers ──
+  // Group consecutive segment wrappers into chunks of `chunkSize`. Each
+  // chunk wrapper carries `style="will-change: transform"` so Chromium gives
+  // it its own GPU backing store, letting tall composites stay under the
+  // per-layer raster cap. The chunk wrapper itself has NO `transform` (would
+  // double-translate); the inner per-segment `translate(0 Y)` still places
+  // content. The DM-642 cull classes on each inner segment are untouched.
+  const chunks: string[] = [];
+  for (let i = 0; i < captureGroups.length; i += chunkSize) {
+    const slice = captureGroups.slice(i, i + chunkSize);
+    chunks.push(`<g style="will-change: transform">\n${slice.join("\n")}\n      </g>`);
+  }
+
   // ── Compose final SVG ──
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}">
@@ -230,6 +297,7 @@ export function composeScrollSvg(
 ${keyframes}
       }
 ${segmentCullCss.join("\n")}
+${stickyCullCss.join("\n")}
     </style>
   </defs>
   <rect width="${W}" height="${VH}" fill="${bg}"/>
@@ -237,9 +305,9 @@ ${segmentCullCss.join("\n")}
     <g class="${animClass}">
       <svg x="0" y="0" width="${compositeW}" height="${compositeH}" viewBox="0 0 ${compositeW} ${compositeH}">
         <rect width="${compositeW}" height="${compositeH}" fill="${bg}"/>
-${captureGroups.join("\n")}
+      ${chunks.join("\n      ")}
       </svg>
     </g>
-  </g>${fixedMarkup}
+  </g>${overlayMarkup}
 </svg>`;
 }

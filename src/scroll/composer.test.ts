@@ -241,6 +241,83 @@ describe("composeScrollSvg: runtime-perf optimisations", () => {
   });
 });
 
+// ── Chunked compositing layers (DM-648) ────────────────────────────────────
+
+describe("composeScrollSvg: chunked composite layers", () => {
+  function manySegs(count: number, viewportH: number = 600): ScrollSegmentCapture[] {
+    const out: ScrollSegmentCapture[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push(makeSeg(i * viewportH, i * 1000, (i + 1) * 1000));
+    }
+    return out;
+  }
+
+  it("8 segments produce 4 chunk wrappers, 2 inner segments each (default chunkSize=2)", () => {
+    const svg = composeScrollSvg(manySegs(8), { viewportW: 800, viewportH: 600 });
+    const chunkOpens = (svg.match(/<g style="will-change: transform">/g) ?? []).length;
+    expect(chunkOpens).toBe(4);
+    // Each chunk should have 2 inner segment wrappers; total inner segments = 8.
+    const innerSegs = (svg.match(/<g (?:class="[^"]+" )?transform="translate\(0 \d+\)">/g) ?? []).length;
+    expect(innerSegs).toBe(8);
+  });
+
+  it("2 segments stay in a single chunk wrapper", () => {
+    const svg = composeScrollSvg(manySegs(2), { viewportW: 800, viewportH: 600 });
+    const chunkOpens = (svg.match(/<g style="will-change: transform">/g) ?? []).length;
+    expect(chunkOpens).toBe(1);
+  });
+
+  it("chunkSize: 1 puts each segment on its own layer", () => {
+    const svg = composeScrollSvg(manySegs(5), { viewportW: 800, viewportH: 600, chunkSize: 1 });
+    const chunkOpens = (svg.match(/<g style="will-change: transform">/g) ?? []).length;
+    expect(chunkOpens).toBe(5);
+  });
+
+  it("trailing partial chunk: 7 segments at chunkSize=2 produce 4 chunks (3 full + 1 of size 1)", () => {
+    const svg = composeScrollSvg(manySegs(7), { viewportW: 800, viewportH: 600 });
+    const chunkOpens = (svg.match(/<g style="will-change: transform">/g) ?? []).length;
+    expect(chunkOpens).toBe(4);
+    const innerSegs = (svg.match(/<g (?:class="[^"]+" )?transform="translate\(0 \d+\)">/g) ?? []).length;
+    expect(innerSegs).toBe(7);
+  });
+
+  it("DM-642 cull classes still emit on inner segments inside chunks", () => {
+    // 5 segments at uniform 600px spacing → segments 2, 3 should be off-window
+    // most of the cycle and get cull classes.
+    const svg = composeScrollSvg(manySegs(5), { viewportW: 800, viewportH: 600 });
+    // At least one `scrl-…-sN` cull class appears, and at least one
+    // appears INSIDE a chunk wrapper (substring after the first chunk
+    // open before that chunk's close).
+    expect(svg).toMatch(/<g style="will-change: transform">[\s\S]*<g class="scrl-\w+-s\d+"/);
+  });
+
+  it("chunkSize must be a positive integer", () => {
+    const segs = manySegs(2);
+    expect(() => composeScrollSvg(segs, { viewportW: 800, viewportH: 600, chunkSize: 0 })).toThrow(/positive integer/);
+    expect(() => composeScrollSvg(segs, { viewportW: 800, viewportH: 600, chunkSize: -1 })).toThrow(/positive integer/);
+    expect(() => composeScrollSvg(segs, { viewportW: 800, viewportH: 600, chunkSize: 1.5 })).toThrow(/positive integer/);
+  });
+
+  it("fixed overlay is emitted OUTSIDE chunk wrappers (after the scrolling composite)", () => {
+    const headerFixed = el({
+      tag: "header", x: 0, y: 0, width: 800, height: 60,
+      text: "BRAND",
+      styles: { position: "fixed" } as CapturedElement["styles"],
+    });
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0,   0,    1000, [headerFixed, el({ tag: "section", x: 0, y: 100 })]),
+      makeSeg(600, 1000, 2000, [headerFixed, el({ tag: "section", x: 0, y: 100 })]),
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    // BRAND appears in the overlay; it must come AFTER the last
+    // will-change chunk wrapper.
+    const lastChunkIdx = svg.lastIndexOf('style="will-change: transform"');
+    const brandIdx = svg.indexOf("BRAND");
+    expect(lastChunkIdx).toBeGreaterThan(-1);
+    expect(brandIdx).toBeGreaterThan(lastChunkIdx);
+  });
+});
+
 // ── Fixed element hoisting (DM-643) ────────────────────────────────────────
 
 describe("composeScrollSvg: position:fixed hoisting", () => {
@@ -298,6 +375,79 @@ describe("composeScrollSvg: position:fixed hoisting", () => {
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
     // No `fix-` id prefix (used only by the hoisted overlay).
     expect(svg).not.toContain('id="fix-');
+  });
+});
+
+// ── Sticky element hoisting (DM-647) ───────────────────────────────────────
+
+describe("composeScrollSvg: position:sticky hoisting", () => {
+  it("mid-scroll sticky: element renders inline for in-flow segs AND on overlay for stuck segs (with visibility class)", () => {
+    // Seg 0–1: nav is in flow (y decreases). Seg 2–3: stuck at y=0.
+    const stickyNav = (y: number): CapturedElement => el({
+      tag: "nav", x: 0, y, width: 800, height: 50, text: "STICKY-NAV",
+      styles: { position: "sticky" } as CapturedElement["styles"],
+    });
+    const body = (y: number): CapturedElement => el({
+      tag: "section", x: 0, y: 60, text: "main",
+    });
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0,    0,    1000, [stickyNav(300), body(0)]),
+      makeSeg(600,  1000, 2000, [stickyNav(150), body(0)]),
+      makeSeg(1200, 2000, 3000, [stickyNav(0),   body(0)]),
+      makeSeg(1800, 3000, 4000, [stickyNav(0),   body(0)]),
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    // The nav text appears at MOST twice from segs 0–1 (inline inside the
+    // composite) plus twice from a single overlay render (aria-label +
+    // <title>) — total ≥ 6 substring hits.
+    // Critically, an overlay class for the sticky window has been
+    // emitted: a `scrl-…-kN` keyframe is present.
+    expect(svg).toMatch(/@keyframes scrl-\w+-k\d+ \{/);
+    expect(svg).toMatch(/\.scrl-\w+-k\d+ \{ animation:/);
+    // DM-641: no display-toggles slipped in via the sticky path.
+    expect(svg).not.toMatch(/display: none/);
+    expect(svg).not.toMatch(/display: inline/);
+  });
+
+  it("mixed fixed + sticky in one fixture: both overlays emit, no regression on DM-643", () => {
+    const fixedHeader = (): CapturedElement => el({
+      tag: "header", x: 0, y: 0, width: 800, height: 60, text: "FIXED-HEADER",
+      styles: { position: "fixed" } as CapturedElement["styles"],
+    });
+    const stickyNav = (y: number): CapturedElement => el({
+      tag: "nav", x: 0, y, width: 800, height: 50, text: "STICKY-NAV",
+      styles: { position: "sticky" } as CapturedElement["styles"],
+    });
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0,    0,    1000, [fixedHeader(), stickyNav(300), el({ tag: "main", x: 0, y: 100 })]),
+      makeSeg(600,  1000, 2000, [fixedHeader(), stickyNav(150), el({ tag: "main", x: 0, y: 100 })]),
+      makeSeg(1200, 2000, 3000, [fixedHeader(), stickyNav(60),  el({ tag: "main", x: 0, y: 100 })]),
+      makeSeg(1800, 3000, 4000, [fixedHeader(), stickyNav(60),  el({ tag: "main", x: 0, y: 100 })]),
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    // DM-643 fixed-header path: present once.
+    expect(svg).toContain("FIXED-HEADER");
+    // DM-647 sticky overlay: keyframe class emitted.
+    expect(svg).toMatch(/@keyframes scrl-\w+-k\d+ \{/);
+    // The fixed-header BRAND substring (`fix-` prefix) and the sticky-nav
+    // prefix `stk0-` both end up inside the overlay block AFTER the
+    // last chunk wrapper (DM-648 didn't move overlays into chunks).
+    const lastChunkIdx = svg.lastIndexOf('style="will-change: transform"');
+    expect(svg.lastIndexOf("FIXED-HEADER")).toBeGreaterThan(lastChunkIdx);
+    // The sticky nav appears INLINE in the in-flow segments (early in the
+    // SVG, inside chunks) AND on the overlay (after all chunks). The
+    // overlay occurrence is what we're checking for here.
+    expect(svg.lastIndexOf("STICKY-NAV")).toBeGreaterThan(lastChunkIdx);
+  });
+
+  it("no sticky elements: no `scrl-…-k` keyframes, no `stk0-` markup", () => {
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0,   0,    1000, [el({ tag: "main", x: 0, y: 0 })]),
+      makeSeg(600, 1000, 2000, [el({ tag: "main", x: 0, y: 0 })]),
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    expect(svg).not.toMatch(/scrl-\w+-k\d+/);
+    expect(svg).not.toContain('id="stk0-');
   });
 });
 
