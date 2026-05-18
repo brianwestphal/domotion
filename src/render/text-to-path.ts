@@ -1701,9 +1701,24 @@ export function renderTextAsPath(
         const baselineY = y + ascent;
         const key = `wf:${webfontFamily}:${picked.variant.weight}:${picked.variant.italic ? "i" : "r"}`;
         const cssFamily = registerEmbeddedFont(key, picked.buffer);
-        const italicAttr = picked.variant.italic ? ' font-style="italic"' : "";
-        const weightAttr = picked.variant.weight !== 400 ? ` font-weight="${picked.variant.weight}"` : "";
-        return `<text x="${r(x)}" y="${r(baselineY)}" font-family="${cssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr} fill="${fill}" role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${esc(text)}</text>`;
+        // Emit the *captured* font-weight / font-style — not the picked
+        // variant's @font-face descriptor values. Variable fonts declare
+        // `font-weight: 100 900` which `parseWeightDescriptor` collapses
+        // to 100, so using `picked.variant.weight` would render the run
+        // at hairline weight regardless of what the page actually paints.
+        // Same shape for italic: the page may apply `font-style: italic`
+        // to an upright variant and rely on the engine's synthesis.
+        const italicAttr = (fontStyle != null && fontStyle !== "" && fontStyle.toLowerCase() !== "normal")
+          ? ` font-style="${esc(fontStyle)}"` : "";
+        const weightAttr = weight !== 400 ? ` font-weight="${weight}"` : "";
+        // Forward `font-variation-settings` so variable-font axis state
+        // (wght, opsz, slnt, GRAD, …) matches the captured paint. Without
+        // this, InterVariable / SF Pro / Geist Variable always render at
+        // their default axis location even when the page sets wght=540 or
+        // opsz=32.
+        const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
+          ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
+        return `<text x="${r(x)}" y="${r(baselineY)}" font-family="${cssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}" role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${esc(text)}</text>`;
       }
     }
     // Fall through to paths mode for system-font runs and webfonts

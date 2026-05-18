@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach } from "vitest";
-import { clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey } from "./text-to-path.js";
+import { clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -709,5 +709,74 @@ describe("resolveFontKey: registered webfonts win over Placeholder + sans-serif 
     registerWebfont("Inter Variable", 400, "normal", fontBuf);
     const family = '"Definitely Not Loaded", "Inter Variable", sans-serif';
     expect(resolveFontKey(family)).toBe("webfont:inter variable");
+  });
+});
+
+// ── DM-655: embedded-font emission carries the *captured* weight / style /
+// variation-settings, not the @font-face descriptor values ─────────────
+//
+// The first cut of the embedded-font path emitted the picked variant's
+// declared @font-face descriptors as the `<text>` font-weight / font-style.
+// For a variable font registered as `font-weight: 100 900`, that collapsed
+// to weight=100 — so every run rendered hairline regardless of the page's
+// computed font-weight. Same for variation-settings: the captured
+// `font-variation-settings` was dropped, so wght/opsz/slnt axis state was
+// always at the variable font's default. These tests pin the fix.
+describe("renderTextAsPath: embedded-font emission carries captured weight/style/variation-settings", () => {
+  const HELVETICA_PATH = "/System/Library/Fonts/Helvetica.ttc";
+  const fontBuf = fs.existsSync(HELVETICA_PATH) ? fs.readFileSync(HELVETICA_PATH) : null;
+
+  beforeEach(() => {
+    clearWebfonts();
+    clearEmbeddedFonts();
+    setRenderTextMode("embedded-font");
+  });
+
+  it("emits the captured font-weight, not the @font-face declared variant weight", () => {
+    if (fontBuf == null) return;
+    // Register a 'variable' webfont as parseWeightDescriptor("100 900") = 100
+    // would: a single variant at the start of the declared weight range.
+    registerWebfont("InterVariable", 100, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "500", "#000");
+    expect(out).not.toBeNull();
+    expect(out!).toContain('font-weight="500"');
+    expect(out!).not.toContain('font-weight="100"');
+  });
+
+  it("omits font-weight when captured weight is 400 (CSS default)", () => {
+    if (fontBuf == null) return;
+    registerWebfont("InterVariable", 100, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000");
+    expect(out).not.toBeNull();
+    expect(out!).not.toContain("font-weight=");
+  });
+
+  it("emits the captured font-style, not the @font-face declared italic", () => {
+    if (fontBuf == null) return;
+    registerWebfont("InterVariable", 400, "normal", fontBuf);
+    // Page applies italic via CSS; engine synthesizes from upright variant.
+    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000",
+      undefined, undefined, undefined, "italic");
+    expect(out).not.toBeNull();
+    expect(out!).toContain('font-style="italic"');
+  });
+
+  it("forwards font-variation-settings onto the <text> style attribute", () => {
+    if (fontBuf == null) return;
+    registerWebfont("InterVariable", 400, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000",
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { wght: 540, opsz: 32 });
+    expect(out).not.toBeNull();
+    expect(out!).toMatch(/style="font-variation-settings: 'wght' 540, 'opsz' 32"/);
+  });
+
+  it("omits style attribute when no variation-settings were captured", () => {
+    if (fontBuf == null) return;
+    registerWebfont("InterVariable", 400, "normal", fontBuf);
+    const out = renderTextAsPath("Hi", 0, 0, 24, "InterVariable", "400", "#000");
+    expect(out).not.toBeNull();
+    expect(out!).not.toContain("font-variation-settings");
+    expect(out!).not.toContain('style="');
   });
 });
