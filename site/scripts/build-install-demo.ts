@@ -254,17 +254,7 @@ async function main(): Promise<void> {
     // Collect ALL glyph defs accumulated across the frame captures and the
     // phone-overlay capture so they're available at the top of the final SVG.
     const sharedDefs = getGlyphDefs();
-    // Frame-visibility keyframes emitted by the animator toggle BOTH
-    // `opacity` and `display` (intended as a paint-skip optimisation). When
-    // the base `.f { display: none }` lands together with infinite animations
-    // whose first keyframe is `display: inline`, Chromium leaves the element
-    // out of the render tree from t=0 and never ticks the animation — every
-    // frame stays hidden. Strip the `display` toggles so visibility runs on
-    // opacity only, matching the install-demo as shipped in v0.2.2.
-    const rawSvg = optimizeSvg(generateAnimatedSvg({ width: W, height: H, frames, sharedDefs }));
-    const svg = rawSvg
-      .replace(/;display:(?:none|inline)/g, "")
-      .replace(/\.f\{opacity:0;display:none\}/g, ".f{opacity:0}");
+    const svg = optimizeSvg(generateAnimatedSvg({ width: W, height: H, frames, sharedDefs }));
     writeFileSync(resolve(ASSETS, "install-demo.svg"), svg);
     console.log(`Wrote install-demo.svg (${(svg.length / 1024).toFixed(1)} KB, ${frames.length} frames)`);
   } finally {

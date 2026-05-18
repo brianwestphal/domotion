@@ -183,12 +183,15 @@ describe("animator", () => {
     expect(svg).toContain("transform: translateY(0px)");
   });
 
-  it("DM-599: push-left frame gets a paired fd-N display animation alongside fv-N", () => {
+  it("DM-599/DM-641: push-left frame gets a paired fd-N visibility animation alongside fv-N", () => {
     // push-left is unmergeable (the merge fast path only takes crossfade/cut),
     // so it goes through the unmerged emit path that emits per-frame fv-/fp-
     // blocks. The DM-599 optimization adds an fd-N keyframes block that
-    // toggles `display: none ↔ inline` so the frame is dropped from paint
-    // outside its show window.
+    // toggles a paint-skip property so the frame is dropped from paint
+    // outside its show window. DM-641 changed that toggle from `display`
+    // (which parks the CSS-animations engine when an element starts out of
+    // the render tree) to `visibility` (which keeps the element rendered
+    // but skips painting it).
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
@@ -201,18 +204,21 @@ describe("animator", () => {
     expect(svg).toMatch(/@keyframes fd-1\s*{/);
     // … alongside the existing fv-N opacity block.
     expect(svg).toMatch(/@keyframes fv-0\s*{/);
-    // The keyframes flip display between none and inline.
-    expect(svg).toMatch(/display:\s*none/);
-    expect(svg).toMatch(/display:\s*inline/);
+    // The keyframes flip visibility (DM-641 — formerly display).
+    expect(svg).toMatch(/visibility:\s*hidden/);
+    expect(svg).toMatch(/visibility:\s*visible/);
+    // DM-641: must NOT emit display toggles anywhere — those broke the
+    // infinite animation in Chromium.
+    expect(svg).not.toMatch(/display:\s*none/);
+    expect(svg).not.toMatch(/display:\s*inline/);
     // The frame's CSS rule lists BOTH animations, with the fd one tagged
-    // step-end so the display flip is instant (not snap-at-50% of segment).
+    // step-end so the visibility flip is instant.
     expect(svg).toMatch(/\.f-0\s*{\s*animation:[^}]*fv-0[^}]*,[^}]*fd-0[^}]*step-end/);
-    // The base .f rule sets display:none so frames start hidden until the
-    // keyframe flips them in.
-    expect(svg).toMatch(/\.f\s*{[^}]*display:\s*none/);
+    // The base .f rule sets visibility:hidden (was display:none pre-DM-641).
+    expect(svg).toMatch(/\.f\s*{[^}]*visibility:\s*hidden/);
   });
 
-  it("DM-599: cut frames fold display into fv-N (same step-end timing)", () => {
+  it("DM-599/DM-641: cut frames fold visibility into fv-N (same step-end timing)", () => {
     // Three explicit `cut` frames — the all-mergeable check trips and these
     // route through the MERGE pipeline. But a non-mergeable transition mixed
     // in (e.g. push-left) would route this through the unmerged path. We
@@ -225,20 +231,20 @@ describe("animator", () => {
         { svgContent: `<rect fill="green"/>`, duration: 1000 },
       ],
     });
-    // The "cut" frame's fv-N keyframes carry the display toggle inline (no
-    // separate fd-N block) since cut already uses step-end on fv-N.
+    // The "cut" frame's fv-N keyframes carry the visibility toggle inline
+    // (no separate fd-N block) since cut already uses step-end on fv-N.
     const fv1Match = svg.match(/@keyframes fv-1\s*{[\s\S]*?\n\s*}/);
     expect(fv1Match).not.toBeNull();
-    expect(fv1Match![0]).toMatch(/display:\s*none/);
-    expect(fv1Match![0]).toMatch(/display:\s*inline/);
+    expect(fv1Match![0]).toMatch(/visibility:\s*hidden/);
+    expect(fv1Match![0]).toMatch(/visibility:\s*visible/);
     // The "cut" frame uses ONLY fv-1 (no fd-1 — it's folded in).
     expect(svg).not.toMatch(/@keyframes fd-1\s*{/);
   });
 
-  it("DM-599: merged-path keyframes emit display alongside opacity", () => {
+  it("DM-599/DM-641: merged-path keyframes emit visibility alongside opacity", () => {
     // Two crossfade frames with different content route through the merge
     // pipeline. Per-element visibility classes (tN) now toggle BOTH opacity
-    // and display so the browser can skip painting hidden elements.
+    // and visibility so the browser can skip painting hidden elements.
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
@@ -246,12 +252,41 @@ describe("animator", () => {
         { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000 },
       ],
     });
-    // Each tN keyframe stop with opacity:1 also has display:inline; each
-    // opacity:0 stop has display:none.
+    // Each tN keyframe stop with opacity:1 also has visibility:visible; each
+    // opacity:0 stop has visibility:hidden.
     const tN = svg.match(/@keyframes t\d+\s*{[\s\S]*?\n\s*}/);
     expect(tN).not.toBeNull();
-    expect(tN![0]).toMatch(/opacity:\s*1;\s*display:\s*inline/);
-    expect(tN![0]).toMatch(/opacity:\s*0;\s*display:\s*none/);
+    expect(tN![0]).toMatch(/opacity:\s*1;\s*visibility:\s*visible/);
+    expect(tN![0]).toMatch(/opacity:\s*0;\s*visibility:\s*hidden/);
+  });
+
+  it("DM-641: never emits `display: none` keyframes (would park Chromium's animation engine)", () => {
+    // Regression. The repro from the ticket: a multi-frame animation with
+    // `cut` transitions produced `@keyframes fv-0 { 0% { opacity:0; display:none } … }`
+    // plus `.f { display: none }`, which Chromium would never tick — so
+    // EVERY frame stayed permanently hidden when the SVG was loaded into a
+    // browser. The fix swapped both sites onto `visibility`. This test pins
+    // the fix on every code path that emits keyframes for the animator.
+    const cutSvg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        { svgContent: `<rect/>`, duration: 1000 },
+      ],
+    });
+    expect(cutSvg).not.toMatch(/display:\s*none/);
+    expect(cutSvg).not.toMatch(/display:\s*inline/);
+
+    const pushSvg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect/>`, duration: 1000, transition: { type: "push-left", duration: 100 } },
+        { svgContent: `<rect/>`, duration: 1000 },
+      ],
+    });
+    expect(pushSvg).not.toMatch(/display:\s*none/);
+    expect(pushSvg).not.toMatch(/display:\s*inline/);
   });
 
   it("cut transition: timeline boundary is exactly at the frame edge", () => {

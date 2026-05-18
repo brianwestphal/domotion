@@ -319,15 +319,22 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
         const beforeStart = Math.max(0, startNum - 0.001).toFixed(3);
         const afterEnd = Math.min(100, endNum + 0.001).toFixed(3);
         // DM-599: cut already uses step-end on the opacity animation, so we
-        // fold display into the same keyframes block — both snap together.
+        // fold visibility into the same keyframes block — both snap together.
+        // DM-641: this used to toggle `display`. The base `.f { display: none }`
+        // rule kept the element out of the render tree at t=0, and Chromium
+        // doesn't tick infinite animations on out-of-tree elements — so the
+        // 0% keyframe never ran and the frame stayed permanently hidden.
+        // Switching to `visibility` leaves the element in the render tree
+        // (still skips painting, which was the DM-599 goal) so the animation
+        // ticks normally.
         keyframes.push(`
     @keyframes fv-${i} {
-      0% { opacity: 0; display: none; }
-      ${beforeStart}% { opacity: 0; display: none; }
-      ${startNum.toFixed(3)}% { opacity: 1; display: inline; }
-      ${endNum.toFixed(3)}% { opacity: 1; display: inline; }
-      ${afterEnd}% { opacity: 0; display: none; }
-      100% { opacity: 0; display: none; }
+      0% { opacity: 0; visibility: hidden; }
+      ${beforeStart}% { opacity: 0; visibility: hidden; }
+      ${startNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${endNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${afterEnd}% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
     }
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
       } else {
@@ -409,7 +416,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   </defs>
   <style>
     :root { --scene-dur: ${totalSec.toFixed(2)}s; }
-    .f { opacity: 0; display: none; }
+    .f { opacity: 0; visibility: hidden; }
     ${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">
@@ -539,18 +546,22 @@ function pct(ms: number, total: number): string {
  * latter and the unmerged-path keyframes feed either form.
  */
 function buildDisplayKeyframes(name: string, visibleStartPct: string | number, visibleEndPct: string | number): string {
+  // DM-641: kept the function name for callers but the toggle is now on
+  // `visibility`, not `display`, for the same reason as `fv-${i}` above —
+  // animating `display` away from an element starting `display: none` never
+  // ticks in Chromium.
   const start = parseFloat(String(visibleStartPct));
   const end = parseFloat(String(visibleEndPct));
   const startMinus = Math.max(0, start - 0.01).toFixed(3);
   const endPlus = Math.min(100, end + 0.01).toFixed(3);
   return `
     @keyframes ${name} {
-      0% { display: none; }
-      ${startMinus}% { display: none; }
-      ${start.toFixed(3)}% { display: inline; }
-      ${end.toFixed(3)}% { display: inline; }
-      ${endPlus}% { display: none; }
-      100% { display: none; }
+      0% { visibility: hidden; }
+      ${startMinus}% { visibility: hidden; }
+      ${start.toFixed(3)}% { visibility: visible; }
+      ${end.toFixed(3)}% { visibility: visible; }
+      ${endPlus}% { visibility: hidden; }
+      100% { visibility: hidden; }
     }`;
 }
 

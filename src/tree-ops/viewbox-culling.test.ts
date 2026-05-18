@@ -187,8 +187,9 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     expect(tree.children![1].cullClass).toBe("cull-0");
     // One coalesced keyframes block, not two.
     expect((css.match(/@keyframes cull-\d+/g) ?? []).length).toBe(1);
-    expect(css).toContain("display: inline");
-    expect(css).toContain("display: none");
+    // DM-641: keyframes now toggle visibility instead of display.
+    expect(css).toContain("visibility: visible");
+    expect(css).toContain("visibility: hidden");
   });
 
   it("element fully outside viewBox under an animation that never reaches it: alwaysHidden", () => {
@@ -248,9 +249,8 @@ describe("cullElementsOutsideViewBox — keyframes structure", () => {
     const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 0, 1000);
     expect(css).toContain("animation-timing-function: step-end");
     expect(css).toContain("var(--scene-dur)");
-    // 0% bookend with display:none.
-    expect(css).toMatch(/0% \{ display: none/);
-    // 100% bookend with display:none.
-    expect(css).toMatch(/100% \{ display: none/);
+    // 0% / 100% bookends with visibility:hidden (DM-641 — was display:none).
+    expect(css).toMatch(/0% \{ visibility: hidden/);
+    expect(css).toMatch(/100% \{ visibility: hidden/);
   });
 });

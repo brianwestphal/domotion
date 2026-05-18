@@ -105,9 +105,14 @@ export function composeScrollSvg(
   // schedule, find the % of cycle at which the composite's scroll-y reaches
   // (offsetK - VH) [segment K enters viewport from below] and (offsetK + VH)
   // [segment K leaves viewport off the top]. Outside that window the segment
-  // is `display: none` so the browser skips painting it. With ~8 segments
+  // is `visibility: hidden` so the browser skips painting it. With ~8 segments
   // for an apple.com-style page only ~2 segments are visible at any moment;
   // hiding the other ~6 cuts per-frame paint cost dramatically.
+  //
+  // DM-641: we use `visibility` (not `display`) for the same reason the
+  // animator does — an element whose 0% keyframe is `display: none`
+  // never enters Chromium's render tree, so the animation engine never
+  // ticks the keyframe that would bring it back in.
   // The full-cycle anchors come from `dedupedStops` below; build a temporary
   // helper here that mirrors the same data shape.
   const segOffsets: number[] = segments.map((s) =>
@@ -170,7 +175,7 @@ export function composeScrollSvg(
       // step-end so the segment snaps in/out at the boundary, no fractional
       // opacity that would force the browser to keep compositing it.
       segmentCullCss.push(
-        `      @keyframes ${cls} { 0% { display: none } ${Math.max(0, enterPct - 0.001).toFixed(3)}% { display: none } ${enterPct.toFixed(3)}% { display: inline } ${leavePct.toFixed(3)}% { display: inline } ${Math.min(100, leavePct + 0.001).toFixed(3)}% { display: none } 100% { display: none } }
+        `      @keyframes ${cls} { 0% { visibility: hidden } ${Math.max(0, enterPct - 0.001).toFixed(3)}% { visibility: hidden } ${enterPct.toFixed(3)}% { visibility: visible } ${leavePct.toFixed(3)}% { visibility: visible } ${Math.min(100, leavePct + 0.001).toFixed(3)}% { visibility: hidden } 100% { visibility: hidden } }
       .${cls} { animation: ${cls} ${totalSec.toFixed(3)}s infinite; animation-timing-function: step-end; }`,
       );
       captureGroups.push(

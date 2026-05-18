@@ -292,22 +292,28 @@ export function cullElementsOutsideViewBox(
 }
 
 /**
- * Step-end `@keyframes` block + class rule that toggles `display: inline`
- * during [visStart, visEnd] and `display: none` outside. The 0.001 % gap
+ * Step-end `@keyframes` block + class rule that toggles `visibility: visible`
+ * during [visStart, visEnd] and `visibility: hidden` outside. The 0.001 % gap
  * pattern keeps the discrete snap point inside a sliver-thin keyframe pair
  * regardless of how the animation timing function is configured on the
  * element.
+ *
+ * DM-641: toggling `display` here breaks the same way `fv-${i}` did — when
+ * a culled element starts the cycle at `display: none` the animation engine
+ * never starts ticking and the element stays hidden forever. Using
+ * `visibility` keeps the element in the render tree (still skips painting)
+ * so the animation runs every cycle.
  */
 function buildCullKeyframes(name: string, visStartPct: number, visEndPct: number): string {
   const startMinus = Math.max(0, visStartPct - 0.001).toFixed(3);
   const endPlus = Math.min(100, visEndPct + 0.001).toFixed(3);
   return `    @keyframes ${name} {
-      0% { display: none; }
-      ${startMinus}% { display: none; }
-      ${visStartPct.toFixed(3)}% { display: inline; }
-      ${visEndPct.toFixed(3)}% { display: inline; }
-      ${endPlus}% { display: none; }
-      100% { display: none; }
+      0% { visibility: hidden; }
+      ${startMinus}% { visibility: hidden; }
+      ${visStartPct.toFixed(3)}% { visibility: visible; }
+      ${visEndPct.toFixed(3)}% { visibility: visible; }
+      ${endPlus}% { visibility: hidden; }
+      100% { visibility: hidden; }
     }
     .${name} { animation: ${name} var(--scene-dur) infinite; animation-timing-function: step-end; }`;
 }

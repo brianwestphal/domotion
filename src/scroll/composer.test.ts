@@ -205,9 +205,10 @@ describe("composeScrollSvg: runtime-perf optimisations", () => {
     expect(svg).toMatch(/animation: scrl-\w+ [\d.]+s linear infinite; will-change: transform;/);
   });
 
-  it("emits per-segment display-keyframes that hide off-window segments", () => {
+  it("emits per-segment visibility-keyframes that hide off-window segments", () => {
     // Five segments at uniform 600px (=VH) spacing means each segment is
-    // visible for at most ~2 segment-windows; the others are display: none.
+    // visible for at most ~2 segment-windows; the others are visibility:
+    // hidden (DM-641 — was `display: none`, broke infinite anims).
     const segs: ScrollSegmentCapture[] = [
       makeSeg(0,    0,    1000),
       makeSeg(600,  1000, 2000),
@@ -216,8 +217,11 @@ describe("composeScrollSvg: runtime-perf optimisations", () => {
       makeSeg(2400, 4000, 5000),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
-    // At least one segment is gated by a `display: none` keyframe.
-    expect(svg).toMatch(/display: none/);
+    // At least one segment is gated by a `visibility: hidden` keyframe.
+    expect(svg).toMatch(/visibility: hidden/);
+    // Must NOT use `display` toggles (DM-641).
+    expect(svg).not.toMatch(/display: none/);
+    expect(svg).not.toMatch(/display: inline/);
     // One `-sN` class per segment-with-cull.
     const cullClasses = svg.match(/scrl-\w+-s\d+/g) ?? [];
     expect(cullClasses.length).toBeGreaterThan(0);
