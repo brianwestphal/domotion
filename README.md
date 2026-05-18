@@ -36,6 +36,35 @@ yourself to keep the first job's runtime down.
 
 ## Usage
 
+The fastest way in is the `domotion` CLI — no TypeScript, no Playwright bring-up. Point it at a URL or HTML file:
+
+```bash
+# Capture a URL as SVG.
+domotion capture https://example.com -o example.svg
+
+# Capture a local HTML file at a specific viewport, only the .hero region, optimized.
+domotion capture ./demo.html \
+  --width 1200 --height 600 \
+  --selector ".hero" \
+  --optimize \
+  -o hero.svg
+
+# Capture HTML piped on stdin.
+cat demo.html | domotion capture - -o demo.svg
+```
+
+For a multi-frame animated SVG, write a small JSON config and run `domotion animate`:
+
+```bash
+domotion animate ./demo.json
+```
+
+The config describes each frame (input URL or HTML file, duration, transition, optional pre-capture actions like `click` / `fill` / `scroll` / `hover`). See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
+
+### Scripting API
+
+When you outgrow the CLI — custom interaction loops, programmatic frame composition, custom overlays — the same primitives are available as a library:
+
 ```ts
 import { captureElementTree, elementTreeToSvg, launchChromium, wrapSvg } from "domotion-svg";
 

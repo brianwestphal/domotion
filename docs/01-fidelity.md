@@ -51,7 +51,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 ### Transforms
 
 - [~] transform: translate(…) — renders correctly (bbox absorbs translation)
-- [ ] transform: rotate/scale/skew/matrix — renders as axis-aligned bbox (tracked SK-1127 — see `28-domotion-css-transforms.md`)
+- [ ] transform: rotate/scale/skew/matrix — renders as axis-aligned bbox (tracked SK-1127 — see `06-css-transforms.md`)
 - [ ] transform: 3D — out of scope; downgrade to 2D (SK-1127)
 
 ### Typography
@@ -66,7 +66,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [x] text-align: left/right/center/start/end
 - [~] text-align: justify — does not space-stretch (warning logged)
 - [~] RTL/bidi — visual order is preserved for Latin mixed with RTL scripts; complex-script shaping (Arabic contextual forms, Hebrew niqqud positioning) is not done (tracked SK-469)
-- [ ] writing-mode: vertical-rl/vertical-lr/sideways-* — render as horizontal (tracked SK-1123 — see `24-domotion-writing-mode.md`)
+- [ ] writing-mode: vertical-rl/vertical-lr/sideways-* — render as horizontal (tracked SK-1123 — see `02-writing-mode.md`)
 - [x] Color-bitmap glyphs (emoji, U+2713, etc.): rasterized via Playwright `page.screenshot` and embedded as `<image>` — SK-1058 / SK-1090
 - [x] ::first-letter drop caps (rasterized when font-size differs from element) — SK-1114
 - [x] `background-clip: text` (gradient/image-fill inside glyph shapes) — DM-462. Captured via `webkitTextFillColor`; rendered via SVG `<mask>` over a `<rect fill="url(#bg)">`. See `18-background-clip-text.md`.

@@ -1,27 +1,24 @@
 /**
- * Build the redesigned install-demo animation (DM-207, refined in DM-212).
+ * Build the install-demo animation shown on the consumer site landing page.
  *
  * Storyboard:
  *  1. Terminal with "$ npm install domotion-svg" — typed-text element is wrapped
  *     in a `data-domotion-anim="cmd1"` span and revealed left-to-right via
  *     a `clipPath` intra-frame animation. Because the same captured glyph
  *     paths are reused in subsequent frames, there's no font-rendering
- *     mismatch when the "typing" finishes (DM-212 fix).
+ *     mismatch when the "typing" finishes.
  *  2. Cut to "resolving dependencies…" + empty progress bar; intra-frame
  *     `transform: scaleX(0)→scaleX(1)` fills the bar over 2 s.
- *  3. Cut to install-complete state; hold 2 s.
+ *  3. Cut to install-complete state; hold.
  *  4. Same state + a second prompt "$ domotion capture …"; revealed via
  *     the same clipPath-reveal pattern (cmd2).
- *  5. Cut to terminal showing capture output. The new lines start below
- *     the viewport (pushed down by margin-top); a translateY animation on
- *     the wrapper slides everything UP so the new lines smoothly scroll
- *     into view (DM-212 fix — replaces the abrupt "all-content-appears"
- *     jump in the previous storyboard).
- *  6. A phone-framed nytimes.svg preview slides in from the bottom.
+ *  5. Cut to terminal showing capture output. A phone-framed nytimes
+ *     preview slides in from the bottom.
  *
- * The phone-framed preview is captured up front from `install-demo/example.html`
- * (a NYT-styled fragment) with `--chrome phone` and inlined as an SvgOverlay
- * on the final frame.
+ * The phone-framed preview is a pre-captured snapshot of nytimes.com mobile
+ * (see `tools/capture-nytimes-snapshot.ts`). The snapshot SVG is embedded
+ * directly inside the phone bezel as a nested `<svg>`. Re-run the capture
+ * tool periodically to refresh the snapshot.
  *
  * Run via `npx tsx site/scripts/build-install-demo.ts`.
  */
@@ -109,40 +106,20 @@ const FRAME_3 = terminalDoc(`${shellHeader()}
     <div style="color:#8b949e;">  └─ <span style="color:#79c0ff;">@playwright/test</span>@<span style="color:#d2a8ff;">1.59.1</span></div>
     <div style="margin-top:10px;">${dollar()}${CMD2}</div>`);
 
-// Frame 4: capture run — full transcript. The new lines (the [domotion]…
-// download chatter and the "Wrote" confirmation) sit inside an inner div
-// pushed down by margin-top so they START below the viewport bottom edge.
-// A translateY animation on the OUTER scroll wrapper slides everything up
-// over ~1.5s, smoothly revealing the new lines AND scrolling the older
-// install-complete chatter off the top — this replaces the previous
-// abrupt cut where all 13 lines appeared at once.
-//
-// Layout math (font-size 13 × line-height 1.7 ≈ 22 px/line):
-//   block 1 (shellHeader → "$ domotion capture") ends ~y=182.
-//   margin-top:130 pushes block 2 to start at y=312 (just past viewport
-//   bottom edge of 320, so it's hidden at translateY=0).
-//   At translateY=-240, block 1's last line is at y=-58 (off the top) and
-//   block 2 spans y≈72 to y≈204 — sitting in the upper-middle of the
-//   viewport like a real terminal that's just scrolled.
-//
-// Capture height is intentionally bumped (see captureFrame call below) so
-// the lines past y=320 aren't culled by the in-page viewport bounds check.
-const FRAME_4 = terminalDoc(`<div data-domotion-anim="scroll" style="transform:translateY(0);">
-${shellHeader()}
+// Frame 4: capture run — the new lines ("Capturing…", "Wrote…", next prompt)
+// appear directly under the typed `domotion capture` command, like normal
+// terminal output. The viewport (720×320) comfortably fits all of it, so
+// there's no scroll-into-view animation — the cut just shows the completed
+// transcript and the phone preview slides in over it.
+const FRAME_4 = terminalDoc(`${shellHeader()}
     <div>${dollar()}${CMD1}</div>
     <div style="color:#56d364;margin-top:6px;font-weight:700;">✓ added 12 packages in 1.4s</div>
     <div style="color:#8b949e;margin-top:4px;">  <span style="color:#79c0ff;">domotion</span>@<span style="color:#d2a8ff;">0.1.0</span></div>
     <div style="color:#8b949e;">  └─ <span style="color:#79c0ff;">@playwright/test</span>@<span style="color:#d2a8ff;">1.59.1</span></div>
     <div style="margin-top:10px;">${dollar()}${CMD2}</div>
-    <div style="margin-top:130px;">
-      <div style="color:#7dd3fc;">[domotion] Chromium binary not found — installing…</div>
-      <div style="color:#8b949e;">  Downloading Chromium 1217 (143 MB)…</div>
-      <div style="color:#56d364;">  ✓ Chromium installed in 8.2s</div>
-      <div style="color:#8b949e;margin-top:4px;">  Capturing https://www.nytimes.com (1280×720)…</div>
-      <div style="color:#56d364;margin-top:4px;">Wrote nytimes.svg (38.2 KB)</div>
-      <div style="margin-top:10px;">${dollar()}<span style="display:inline-block;width:8px;height:14px;background:#e6edf3;vertical-align:middle;margin-left:2px;"></span></div>
-    </div>
-</div>`);
+    <div style="color:#8b949e;margin-top:4px;">  Capturing https://www.nytimes.com (390×844)…</div>
+    <div style="color:#56d364;margin-top:4px;">Wrote nytimes.svg (38.2 KB)</div>
+    <div style="margin-top:10px;">${dollar()}<span style="display:inline-block;width:8px;height:14px;background:#e6edf3;vertical-align:middle;margin-left:2px;"></span></div>`);
 
 async function main(): Promise<void> {
   const browser = await launchChromium();
@@ -153,17 +130,11 @@ async function main(): Promise<void> {
     // Hoist glyph defs to the top-level <defs> so multiple frames can share
     // them without ID collisions in the per-frame-atomic render path.
     clearGlyphDefs();
-    // captureH defaults to the visible viewport (H), but Frame 4 needs a
-    // taller capture region: its scroll content extends past y=320 so the
-    // bottom transcript lines would otherwise be culled by the in-page
-    // viewport bounds check (see dom-to-svg.ts capture-side culling).
-    // The rendered SVG viewBox stays at W×H — off-screen elements still
-    // exist in the markup and become visible after the translateY scroll.
-    async function captureFrame(html: string, idPrefix: string, captureH: number = H): Promise<string> {
-      await page.setViewportSize({ width: W, height: captureH });
+    async function captureFrame(html: string, idPrefix: string): Promise<string> {
+      await page.setViewportSize({ width: W, height: H });
       await page.setContent(html);
       await page.evaluate(() => document.fonts.ready);
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: captureH });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       return elementTreeToSvg(tree, W, H, idPrefix, /* includeGlyphDefs */ false);
     }
 
@@ -172,33 +143,33 @@ async function main(): Promise<void> {
     const f1 = await captureFrame(FRAME_1, "f1-");
     const f2 = await captureFrame(FRAME_2, "f2-");
     const f3 = await captureFrame(FRAME_3, "f3-");
-    const f4 = await captureFrame(FRAME_4, "f4-", 500);
+    const f4 = await captureFrame(FRAME_4, "f4-");
 
-    // Pre-capture the phone preview separately and inline it inside a
-    // hand-rolled phone bezel. (DM-224 dropped the `wrapWithChrome` helper —
-    // device chrome is now the consumer's job, so the bezel lives here.)
-    const CONTENT_W = 240, CONTENT_H = 180;
-    const exampleHtml = readFileSync(resolve(FRAMES_DIR, "example.html"), "utf8");
-    const ctx2 = await browser.newContext({ viewport: { width: CONTENT_W, height: CONTENT_H } });
-    const page2 = await ctx2.newPage();
-    await page2.setContent(exampleHtml);
-    await page2.evaluate(() => document.fonts.ready);
-    const exampleTree = await captureElementTree(page2, "body", { x: 0, y: 0, width: CONTENT_W, height: CONTENT_H });
-    const exampleInner = elementTreeToSvg(exampleTree, CONTENT_W, CONTENT_H, "ex-", /* includeGlyphDefs */ false);
-    const PHONE_PAD = 12, PHONE_STATUS = 44, PHONE_HOME = 34;
+    // Embed the pre-captured nytimes.com snapshot inside a portrait phone
+    // bezel. The snapshot SVG (viewBox 390×600) is read from disk and nested
+    // inside the bezel; its width/height attributes are dropped so the
+    // `preserveAspectRatio` on the inner `<svg>` scales it to fit the phone
+    // screen. Refresh by re-running `tools/capture-nytimes-snapshot.ts`.
+    const SNAP_W = 390, SNAP_H = 600;
+    const snapshotRaw = readFileSync(resolve(FRAMES_DIR, "nytimes-snapshot.svg"), "utf8");
+    const snapshotInner = snapshotRaw.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
+    // Phone proportions tuned to fit the 720×320 install-demo canvas while
+    // preserving the snapshot's 390:600 (≈0.65:1) portrait aspect ratio.
+    const CONTENT_W = 162, CONTENT_H = 250;
+    const PHONE_PAD = 8, PHONE_STATUS = 18, PHONE_HOME = 14;
     const PHONE_OUTER_W = CONTENT_W + PHONE_PAD * 2;
     const PHONE_OUTER_H = CONTENT_H + PHONE_PAD * 2 + PHONE_STATUS + PHONE_HOME;
     const phoneOverlaySvg =
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PHONE_OUTER_W} ${PHONE_OUTER_H}" width="${PHONE_OUTER_W}" height="${PHONE_OUTER_H}">`
-      // Outer body, inner screen, notch, status-bar time, home indicator.
-      + `<rect width="${PHONE_OUTER_W}" height="${PHONE_OUTER_H}" rx="40" fill="#1a1a1a" />`
-      + `<rect x="${PHONE_PAD}" y="${PHONE_PAD}" width="${CONTENT_W}" height="${PHONE_OUTER_H - PHONE_PAD * 2}" rx="4" fill="#0d1117" />`
-      + `<rect x="${PHONE_OUTER_W / 2 - 60}" y="${PHONE_PAD}" width="120" height="28" rx="12" fill="#1a1a1a" />`
-      + `<text x="${PHONE_PAD + 16}" y="${PHONE_PAD + 28}" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#e6edf3">9:41</text>`
-      + `<rect x="${PHONE_OUTER_W / 2 - 67}" y="${PHONE_OUTER_H - PHONE_PAD - 20}" width="134" height="5" rx="2.5" fill="#e6edf3" opacity="0.3" />`
-      + `<g transform="translate(${PHONE_PAD}, ${PHONE_PAD + PHONE_STATUS})">${exampleInner}</g>`
+      // Outer body, inner screen, dynamic-island notch, home indicator.
+      + `<rect width="${PHONE_OUTER_W}" height="${PHONE_OUTER_H}" rx="22" fill="#1a1a1a" />`
+      + `<rect x="${PHONE_PAD}" y="${PHONE_PAD}" width="${CONTENT_W}" height="${PHONE_OUTER_H - PHONE_PAD * 2}" rx="3" fill="#fff" />`
+      + `<rect x="${PHONE_OUTER_W / 2 - 30}" y="${PHONE_PAD + 4}" width="60" height="12" rx="6" fill="#1a1a1a" />`
+      + `<rect x="${PHONE_OUTER_W / 2 - 28}" y="${PHONE_OUTER_H - PHONE_PAD - 6}" width="56" height="3" rx="1.5" fill="#1a1a1a" opacity="0.5" />`
+      // Nested snapshot — `xMidYMin slice` anchors to the top of the page and
+      // crops the bottom if the bezel aspect doesn't exactly match the snapshot.
+      + `<svg x="${PHONE_PAD}" y="${PHONE_PAD + PHONE_STATUS}" width="${CONTENT_W}" height="${CONTENT_H}" viewBox="0 0 ${SNAP_W} ${SNAP_H}" preserveAspectRatio="xMidYMin slice">${snapshotInner}</svg>`
       + `</svg>`;
-    await ctx2.close();
 
     // Compose frames. Cut transitions everywhere — the merge fast-path is
     // skipped because of the SVG overlay on the last frame, but cut keeps the
@@ -261,27 +232,12 @@ async function main(): Promise<void> {
           delay: 100,
         }],
       },
-      // 4. capture output streams in via the smooth-scroll animation; then
-      // mid-frame, the mobile preview slides in from the bottom over the
-      // scrolled-up terminal. Combined into one frame so the scroll
-      // translateY animation isn't trampled by a same-animId rule from a
-      // later frame (the animator emits one `.anim-scroll { animation: … }`
-      // declaration per (frame, animId) pair, and the cascade keeps only the
-      // last — splitting these states across two frames silently broke the
-      // first frame's scroll motion).
+      // 4. capture output is on-screen at frame entry; after a short pause the
+      // mobile preview slides in from the bottom over the static terminal.
       {
         svgContent: f4,
-        duration: 5500,
+        duration: 4500,
         transition: { type: "cut", duration: 0 },
-        animations: [{
-          animId: "scroll",
-          property: "translateY",
-          from: "0px",
-          to: "-240px",
-          duration: 1500,
-          easing: "ease-out",
-          delay: 600,
-        }],
         overlays: [{
           kind: "svg",
           innerSvg: phoneOverlaySvg,
@@ -290,7 +246,7 @@ async function main(): Promise<void> {
           width: PHONE_OUTER_W,
           height: PHONE_OUTER_H,
           animId: "preview",
-          enter: { from: "bottom", duration: 700, easing: "ease-out", delay: 2700 },
+          enter: { from: "bottom", duration: 700, easing: "ease-out", delay: 1500 },
         }],
       },
     ];
@@ -298,7 +254,17 @@ async function main(): Promise<void> {
     // Collect ALL glyph defs accumulated across the frame captures and the
     // phone-overlay capture so they're available at the top of the final SVG.
     const sharedDefs = getGlyphDefs();
-    const svg = optimizeSvg(generateAnimatedSvg({ width: W, height: H, frames, sharedDefs }));
+    // Frame-visibility keyframes emitted by the animator toggle BOTH
+    // `opacity` and `display` (intended as a paint-skip optimisation). When
+    // the base `.f { display: none }` lands together with infinite animations
+    // whose first keyframe is `display: inline`, Chromium leaves the element
+    // out of the render tree from t=0 and never ticks the animation — every
+    // frame stays hidden. Strip the `display` toggles so visibility runs on
+    // opacity only, matching the install-demo as shipped in v0.2.2.
+    const rawSvg = optimizeSvg(generateAnimatedSvg({ width: W, height: H, frames, sharedDefs }));
+    const svg = rawSvg
+      .replace(/;display:(?:none|inline)/g, "")
+      .replace(/\.f\{opacity:0;display:none\}/g, ".f{opacity:0}");
     writeFileSync(resolve(ASSETS, "install-demo.svg"), svg);
     console.log(`Wrote install-demo.svg (${(svg.length / 1024).toFixed(1)} KB, ${frames.length} frames)`);
   } finally {

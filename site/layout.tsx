@@ -53,7 +53,7 @@ export function renderPage(meta: PageMeta, body: SafeHtml): string {
             <a href={`${root}start/quickstart/`}>Quick start</a>
             <a href={`${root}api/overview/`}>API</a>
             <a href={`${root}css/overview/`}>CSS support</a>
-            <a href="https://github.com/" rel="noopener" target="_blank">GitHub</a>
+            <a href="https://github.com/brianwestphal/domotion" rel="noopener" target="_blank">GitHub</a>
           </nav>
         </header>
         <div className="layout">
@@ -146,7 +146,7 @@ function Footer({ root }: { root: string }): SafeHtml {
     <footer className="footer">
       <p>
         Domotion — DOM-to-animated-SVG renderer.{" "}
-        <a href="https://github.com/" rel="noopener">GitHub</a>
+        <a href="https://github.com/brianwestphal/domotion" rel="noopener">GitHub</a>
         {" · "}
         <a href={`${root}help/troubleshooting/`}>Help</a>
       </p>

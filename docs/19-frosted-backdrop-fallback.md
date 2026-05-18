@@ -58,6 +58,6 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 
 Added to `tests/features.ts`:
 
-- `frosted-nav-fallback` — a fixed nav with `background-color: rgba(255,255,255,0); backdrop-filter: blur(20px)` over a body with a coloured gradient. Asserts the SVG emits an opaque `<rect>` with `fill="rgb(...)"` matching the body bg, instead of the literal transparent fill.
+- `frosted-nav-fallback` — a fixed nav with `background-color: rgba(255,255,255,0); backdrop-filter: blur(20px)` over a body with a colored gradient. Asserts the SVG emits an opaque `<rect>` with `fill="rgb(...)"` matching the body bg, instead of the literal transparent fill.
 
 The fixture only verifies the *fallback color is opaque* — not that the result is pixel-perfect to Chromium's blur, since that's the documented limit.

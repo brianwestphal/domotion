@@ -95,7 +95,7 @@ for tooling that wants to embed the scroll machinery.
 | `SignedLength`, `Length` | type | Length tokens with sign and unit. |
 | `Easing` | type | Easing curves (named or `cubic-bezier`). |
 | `UntilClause`, `PositionUntil`, `CountUntil` | type | `until` loop variants. |
-| `ScrollExecutorOptions` | type | Options for `executeScrollPattern` (default speed, capture function, scroll behaviour). |
+| `ScrollExecutorOptions` | type | Options for `executeScrollPattern` (default speed, capture function, scroll behavior). |
 | `ScrollComposerOptions` | type | Options for `composeScrollSvg` (output viewport, optimization). |
 
 ## Tree ops
