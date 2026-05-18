@@ -468,15 +468,18 @@ describe("composeScrollSvg: background colour", () => {
 // ── DM-652: embedded-font render mode ──────────────────────────────────────
 
 describe("composeScrollSvg: renderText option", () => {
-  it("default (renderText omitted): no @font-face block emitted", () => {
+  // No webfonts registered in this fixture, so all three modes fall
+  // through to glyph-path emission — none of them produce a `@font-face`
+  // block. These tests pin the SVG-shape invariants rather than the
+  // observable mode-switching (which needs a fixture with a registered
+  // webfont; covered indirectly via the real-world suite).
+  it("default (renderText omitted): SVG renders without crashing", () => {
     const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600 });
-    expect(svg).not.toContain("@font-face");
-    // Default Chromium-faithful path must still render — the outer <svg>
-    // and viewport bg should be present.
     expect(svg).toMatch(/<svg [^>]*viewBox="0 0 800 600"/);
+    expect(svg).not.toContain("@font-face");
   });
 
-  it("renderText: 'paths' (explicit default): no @font-face block emitted", () => {
+  it("renderText: 'paths' explicit: no @font-face block emitted", () => {
     const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600, renderText: "paths" });
     expect(svg).not.toContain("@font-face");
   });

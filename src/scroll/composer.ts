@@ -61,14 +61,16 @@ export interface ScrollComposerOptions {
    */
   chunkSize?: number;
   /**
-   * DM-652: opt-in text rendering mode. Default `"paths"` preserves
-   * Chromium-faithful per-pixel output by emitting `<use href="#gN">`
-   * references to glyph path defs. `"embedded-font"` switches to
-   * `<text>` elements + a single `@font-face` per used webfont — much
-   * faster in WebKit (≈8× perf gain on text-heavy fixtures per DM-651)
-   * at the cost of slight inter-engine drift in text positioning. System-
-   * font runs and fallback-chain runs always stay in `"paths"` mode
-   * regardless of this flag (MVP scope).
+   * DM-652: text rendering mode. Default `"embedded-font"` emits `<text>`
+   * elements with a single `@font-face` per used webfont — much faster
+   * in WebKit (≈1.84× perf gain + 4.5× smaller file on text-heavy
+   * fixtures per DM-651) and visually equivalent in Chromium. `"paths"`
+   * is the legacy Chromium-faithful mode that emits `<use href="#gN">`
+   * references to glyph path defs, useful when the consumer needs
+   * per-pixel parity with the Chromium capture (e.g. visual-regression
+   * diffing against the live page). System-font runs and bidi /
+   * fallback-chain runs always stay in `"paths"` mode regardless of
+   * this flag (MVP scope).
    */
   renderText?: RenderTextMode;
 }
@@ -98,13 +100,16 @@ export function composeScrollSvg(
     throw new Error(`composeScrollSvg: chunkSize must be a positive integer, got ${chunkSize}`);
   }
 
-  // DM-652: arm the embedded-font lifecycle for this composition. Default
-  // mode is "paths" — unchanged Chromium-faithful output. When opts asks
-  // for "embedded-font", the per-segment text renderer registers webfont
-  // bytes via `registerEmbeddedFont` and we collect one `@font-face` rule
-  // per font at the bottom of this function. State is module-global so
-  // every segment's `elementTreeToSvg` call shares the same registry.
-  const renderTextMode: RenderTextMode = opts.renderText ?? "paths";
+  // DM-652: arm the text-render lifecycle. Default is "embedded-font" —
+  // the per-segment text renderer emits `<text>` runs against a single
+  // @font-face per used webfont, ~2× faster in WebKit and ~5× smaller
+  // SVG payload than the legacy glyph-path output, visually equivalent
+  // in Chromium. Callers that need per-pixel Chromium parity (e.g.
+  // visual-regression diffing) opt back into "paths" explicitly. State
+  // is module-global so every segment's `elementTreeToSvg` call shares
+  // the same `@font-face` registry; we collect everything into one
+  // top-level <style> block at the bottom of this function.
+  const renderTextMode: RenderTextMode = opts.renderText ?? "embedded-font";
   clearEmbeddedFonts();
   setRenderTextMode(renderTextMode);
 
