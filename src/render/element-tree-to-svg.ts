@@ -1129,6 +1129,21 @@ export function elementTreeToSvg(
       const contentY = el.y + _bwT + _padT;
       const contentW = Math.max(0, el.width - _bwL - _bwR - _padL - _padR);
       const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
+      // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
+      // image must clip to the rounded content area — otherwise a 40×40
+      // `border-radius: 50%` avatar paints as a square photo. Build a
+      // rounded-content-box clip once, reuse it whether we take the
+      // object-fit:none branch or the standard branch below.
+      const innerCorners = (borderRadius > 0 || (corners.tl.h + corners.tr.h + corners.bl.h + corners.br.h) > 0)
+        ? insetCornerRadii(corners, _bwT, _bwR, _bwB, _bwL)
+        : null;
+      const roundedClipId = innerCorners != null
+        ? `${idPrefix}irc${clipIdx++}` : null;
+      if (innerCorners != null && roundedClipId != null) {
+        defsParts.push(
+          `<clipPath id="${roundedClipId}">${roundedRectSvg(contentX, contentY, contentW, contentH, innerCorners, "")}</clipPath>`,
+        );
+      }
       if (fit === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
         // object-fit: none -> render image at intrinsic size, aligned via
         // object-position inside the element's content box, and clip overflow.
@@ -1137,15 +1152,24 @@ export function elementTreeToSvg(
         const { hPct, vPct } = parseObjectPosition(el.styles.objectPosition ?? "50% 50%");
         const ix = contentX + (contentW - iw) * (hPct / 100);
         const iy = contentY + (contentH - ih) * (vPct / 100);
-        const clipId = `${idPrefix}ifn${clipIdx++}`;
-        defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
+        // When a border-radius is present, prefer the rounded clip over the
+        // plain content-box rect (a rounded clip subsumes the rect clip:
+        // anything inside the rounded shape is also inside the box).
+        let clipId: string;
+        if (roundedClipId != null) {
+          clipId = roundedClipId;
+        } else {
+          clipId = `${idPrefix}ifn${clipIdx++}`;
+          defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
+        }
         svgParts.push(
           `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
         );
       } else {
         const par = preserveAspectRatioFor(fit, el.styles.objectPosition);
+        const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";
         svgParts.push(
-          `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, contentW, contentH))}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${par}" />`,
+          `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, contentW, contentH))}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${par}"${clipAttr} />`,
         );
       }
     }

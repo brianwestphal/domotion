@@ -105,6 +105,16 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
       const pcs = window.getComputedStyle(el, pseudo);
       const content = pcs.content;
       if (content == null || content === 'none' || content === 'normal' || content === '') continue;
+      // DM-665 / DM-677: pseudos with computed `opacity: 0` paint nothing in
+      // Chrome (Material-style ripple / hover overlays use this — Google's
+      // `a.gb_C::before` is the empty-content variant we already skipped;
+      // `a.gb_A::before` on the mobile "Sign in" pill is the same idea but
+      // with `content: " "` (a single space, non-empty) so it slipped past
+      // the previous gate). Skip ALL opacity-zero pseudos before doing any
+      // measurement / box-rect work; capturing them anyway would paint an
+      // opaque box over the host's actual content.
+      const opacityNum = parseFloat(pcs.opacity);
+      if (Number.isFinite(opacityNum) && opacityNum === 0) continue;
 
       let text = '';
       let imageUrl = '';

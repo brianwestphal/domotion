@@ -488,7 +488,14 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const singleSegBoxMarkup = (singleSeg?.pseudoBox != null) ? (() => {
     const pb = singleSeg.pseudoBox!;
     const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
-    const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
+    // Clamp the pseudo's border-radius to half the SHORTER side so a pill
+    // (e.g. `border-radius: 100px` on a 90×40 button) renders as a capsule
+    // — flat top/bottom + fully-rounded ends — instead of an ellipse with
+    // rx and ry capped independently. Mirrors the inset() clip-path fix
+    // (CSS Backgrounds 3 §5.5 uniform-scale rule) for the pseudo-box path.
+    const clampedBR = pb.borderRadius != null && pb.borderRadius > 0
+      ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
+    const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
     const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
       ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
     return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${renderPseudoBoxPerSideBorders(pb)}`;
@@ -585,7 +592,14 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     if (seg.pseudoBox != null) {
       const pb = seg.pseudoBox;
       const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
-      const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
+      // Clamp the pseudo's border-radius to half the SHORTER side so a pill
+    // (e.g. `border-radius: 100px` on a 90×40 button) renders as a capsule
+    // — flat top/bottom + fully-rounded ends — instead of an ellipse with
+    // rx and ry capped independently. Mirrors the inset() clip-path fix
+    // (CSS Backgrounds 3 §5.5 uniform-scale rule) for the pseudo-box path.
+    const clampedBR = pb.borderRadius != null && pb.borderRadius > 0
+      ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
+    const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
       const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
         ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
       parts.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${renderPseudoBoxPerSideBorders(pb)}`);
