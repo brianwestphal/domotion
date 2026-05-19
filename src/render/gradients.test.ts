@@ -1,6 +1,52 @@
 import { describe, expect, it } from "vitest";
 import { buildLinearGradientDef, parseConicGradient, parseGradient, parseLinearGradient } from "./gradients.js";
 
+describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", () => {
+  it("vertical top-to-bottom from()/to() form (slashdot mobile header)", () => {
+    // Slashdot's mobile header background, as Chromium serializes it.
+    const g = parseGradient(
+      "-webkit-gradient(linear, 0% 0%, 0% 100%, from(rgb(0, 0, 0)), to(rgb(32, 32, 32)))",
+    );
+    expect(g).not.toBeNull();
+    expect(g!.kind).toBe("linear");
+    const lg = g as { kind: "linear"; angleDeg: number; stops: Array<{ color: string; offset?: number }> };
+    expect(lg.angleDeg).toBe(180);
+    expect(lg.stops).toHaveLength(2);
+    expect(lg.stops[0].color).toBe("rgb(0, 0, 0)");
+    expect(lg.stops[0].offset).toBe(0);
+    expect(lg.stops[1].color).toBe("rgb(32, 32, 32)");
+    expect(lg.stops[1].offset).toBe(1);
+  });
+
+  it("horizontal with side keyword endpoints", () => {
+    const g = parseGradient(
+      "-webkit-gradient(linear, left top, right top, from(red), to(blue))",
+    );
+    expect(g).not.toBeNull();
+    expect(g!.kind).toBe("linear");
+    expect((g as { angleDeg: number }).angleDeg).toBe(90);
+  });
+
+  it("intermediate color-stop() entries pass through", () => {
+    const g = parseGradient(
+      "-webkit-gradient(linear, 0% 0%, 0% 100%, from(red), color-stop(0.5, green), to(blue))",
+    );
+    expect(g).not.toBeNull();
+    const lg = g as { kind: "linear"; stops: Array<{ color: string; offset?: number }> };
+    expect(lg.stops).toHaveLength(3);
+    expect(lg.stops[1].color).toBe("green");
+    expect(lg.stops[1].offset).toBe(0.5);
+  });
+
+  it("diagonal legacy webkit-gradient is skipped (returns null)", () => {
+    // Diagonal endpoints aren't axis-aligned; rare in real CSS — we don't
+    // try to solve a general angle from the endpoint pair.
+    expect(parseGradient(
+      "-webkit-gradient(linear, 0% 0%, 100% 100%, from(red), to(blue))",
+    )).toBeNull();
+  });
+});
+
 describe("parseLinearGradient: repeating support (DM-275)", () => {
   it("parses repeating-linear-gradient with the repeating flag set", () => {
     const g = parseLinearGradient("repeating-linear-gradient(90deg, red 0%, blue 10%)");

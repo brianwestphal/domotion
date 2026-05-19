@@ -108,10 +108,27 @@ export interface TextSegment {
     /** Resolved px border-radius (CSS shorthand — single value, four-corner
      *  symmetric). */
     borderRadius?: number;
-    /** Uniform border (single side-width + color). Per-side variation isn't
-     *  supported in this pass; mixed-style borders fall through. */
+    /** Uniform border (single side-width + color). When set, the renderer
+     *  emits `<rect stroke=... stroke-width=...>` around the box. */
     borderWidth?: number;
     borderColor?: string;
+    /** Per-side border widths (px). Always populated; zero when the side
+     *  carries no border. Renderer reads these together with the per-side
+     *  colors below when no `borderWidth` (uniform) is set. */
+    borL?: number;
+    borR?: number;
+    borT?: number;
+    borB?: number;
+    /** Per-side border colors. Set ONLY when the pseudo has a non-uniform
+     *  border (e.g. `border-bottom: 1px solid …` only). For uniform borders
+     *  the renderer uses `borderColor` + `borderWidth` and the per-side
+     *  fields are undefined. Slashdot's `.carouselHeading::after` is the
+     *  motivating fixture — a 1px translucent-white border-bottom on the
+     *  italic "Most Discussed" heading. */
+    borderTopColor?: string;
+    borderRightColor?: string;
+    borderBottomColor?: string;
+    borderLeftColor?: string;
   };
 }
 

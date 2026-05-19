@@ -30,6 +30,7 @@ import {
 import { parseBoxShadow, type BoxShadow } from "./box-shadow.js";
 import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
+import { convertLegacyWebkitGradient } from "./gradients.js";
 import type { CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, CaptureWarning } from "../capture/types.js";
 import {
   _dataUriCache,
@@ -2118,7 +2119,21 @@ function gatherStackingContextChildren(
   hoistTargetIsRealSC: boolean = false,
 ): CapturedElement[] {
   const out: CapturedElement[] = [];
-  const collectFromNonSC = (parent: CapturedElement): void => {
+  /**
+   * `floatHoistBlocked` is true once the recursion descends through a
+   * `position:relative` / `position:absolute` ancestor with `z-index: auto`
+   * (or `0`). Per CSS 2.1 Appendix E §6, such an element paints at step 6
+   * as if it were a stacking context, but its positioned + SC descendants
+   * still belong to the parent SC. Floats inside an atomic positioned
+   * ancestor stay with it (they paint at step 4 of the atomic group's
+   * internal paint order), not at the parent SC's step 4. Without this gate
+   * a float hoisted past its atomic positioned ancestor paints BENEATH
+   * the ancestor's atomic content — Slashdot's mobile `<a class="login">`
+   * float inside `.header { z-index:1000; position:static }` (descendant
+   * of `.stages { position:relative }`) was rendering before the white
+   * `.river-prop` page background and disappeared completely.
+   */
+  const collectFromNonSC = (parent: CapturedElement, floatHoistBlocked: boolean = false): void => {
     const childParentDisplay = parent.styles.display;
     const parentIsFlexGrid = isFlexOrGridContainerDisplay(childParentDisplay);
     for (const c of parent.children) {
@@ -2160,12 +2175,17 @@ function gatherStackingContextChildren(
       // Real-world hit: 14-deep-float-bfc section 1's float-left FL extends
       // ~60 px below the .frame and is covered by section 2's gray bar.
       const isFloat = !positioned && (c.styles.float ?? "none") !== "none";
-      if (positioned || flexGridItemSC || isFloat) {
+      if (positioned || flexGridItemSC || (isFloat && !floatHoistBlocked)) {
         out.push(c);
         hoistedOut.add(c);
       }
       if (!establishesStackingContext(c, childParentDisplay)) {
-        collectFromNonSC(c);
+        // Block float hoisting from this point downward if `c` itself is a
+        // positioned z=auto/0 element — its descendants' floats paint with
+        // it atomically, not at the parent SC. Existing float-block state
+        // propagates downward too.
+        const cBlocks = positioned && !hasExplicitZ;
+        collectFromNonSC(c, floatHoistBlocked || cBlocks);
       }
     }
   };
@@ -2173,7 +2193,13 @@ function gatherStackingContextChildren(
     if (hoistedOut.has(c)) continue;
     out.push(c);
     if (!establishesStackingContext(c, parentDisplay)) {
-      collectFromNonSC(c);
+      // If `c` is a `position:relative/absolute` with `z-index: auto/0` it
+      // paints atomically at step 6 — block float hoisting from its subtree
+      // (matches the `cBlocks` rule inside collectFromNonSC).
+      const cPositioned = c.styles.position != null && c.styles.position !== "static";
+      const cZRaw = c.styles.zIndex;
+      const cHasExplicitZ = cZRaw != null && cZRaw !== "" && cZRaw !== "auto";
+      collectFromNonSC(c, cPositioned && !cHasExplicitZ);
     }
   }
   return out;
@@ -2298,6 +2324,12 @@ function buildBackgroundLayerDef(
   attachment: string = "scroll",
   fixedViewport: { w: number; h: number } | null = null,
 ): { def: string } {
+  // Legacy `-webkit-gradient(linear, ...)` is still emitted by Chromium's
+  // computed-style serializer for old CSS that uses it (e.g. the Slashdot
+  // mobile header's black→#202020 titlebar). Normalize to modern
+  // `linear-gradient(...)` text first so the existing parsers can consume it.
+  const normalizedWebkit = convertLegacyWebkitGradient(layer);
+  if (normalizedWebkit != null) layer = normalizedWebkit;
   const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
   if (linear != null) {
     const repeating = /^repeating-/i.test(layer);

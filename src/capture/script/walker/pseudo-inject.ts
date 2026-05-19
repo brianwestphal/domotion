@@ -170,6 +170,15 @@ export const createPseudoInjectHandler = () => {
             borderRadius: bs.borderRadius,
             borderWidth: bs.borderWidth,
             borderColor: bs.borderColor,
+            // Per-side widths + colors for non-uniform borders (e.g. a
+            // bare `border-bottom` on a pseudo). Width fields are always
+            // emitted so the renderer doesn't have to fall back to zero
+            // when a `borderWidth` (uniform) shorthand is absent.
+            borL: bs.borL, borR: bs.borR, borT: bs.borT, borB: bs.borB,
+            borderTopColor: bs.borderTopColor,
+            borderRightColor: bs.borderRightColor,
+            borderBottomColor: bs.borderBottomColor,
+            borderLeftColor: bs.borderLeftColor,
           };
         }
       }

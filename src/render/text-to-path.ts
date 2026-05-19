@@ -1808,7 +1808,17 @@ function renderTextAsEmbedded(
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
       const cmds = glyph.path?.commands ?? [];
-      const placement = trackGlyphInEmbedFont(instanceKey, run.font.unitsPerEm, runAscent, runDescent, glyph.id, cmds, glyph.advanceWidth);
+      const placement = trackGlyphInEmbedFont(
+        instanceKey, run.font.unitsPerEm, runAscent, runDescent,
+        glyph.id, cmds, glyph.advanceWidth,
+        // Tag the custom-TTF entry with the variant we resolved. The `@font-face`
+        // rule then carries matching `font-style: italic` / `font-weight: N`
+        // descriptors so Chromium consumes the SVG's `font-style="italic"` /
+        // `font-weight=N` attributes as an EXACT match — no faux-italic /
+        // faux-bold synthesised on top of glyphs whose slant / weight is
+        // already baked in.
+        { italic: slant !== 0, weight },
+      );
       if (placement == null) { glyphFailed = true; break; }
       if (runCssFamily == null) runCssFamily = placement.cssFamily;
       // Glyph x anchor: captured xOffset at the cluster's first char

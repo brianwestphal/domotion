@@ -414,12 +414,15 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         width: pseudoWidth,
         height: elFontSize,
         // Carry pseudo-specific typography so the renderer can respect
-        // per-pseudo color, font-size, font-weight, font-family (CSS
-        // lets pseudos style independently of their parent).
+        // per-pseudo color, font-size, font-weight, font-family, font-style
+        // (CSS lets pseudos style independently of their parent — Slashdot's
+        // "Most Discussed" carousel heading is a ::after that's italic+bordered
+        // on a non-italic host div).
         color: pcs.color,
         fontSize: elFontSize,
         fontWeight: pcs.fontWeight,
         fontFamily: pcs.fontFamily,
+        fontStyle: pcs.fontStyle,
         fontAscent: pseudoMetrics.ascent,
       };
       // DM-497: stash pseudo's own background / border-radius on the
@@ -431,26 +434,39 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
       const pseudoBgColor = pseudoBgRaw && pseudoBgRaw !== '' && pseudoBgRaw !== 'rgba(0, 0, 0, 0)' && pseudoBgRaw !== 'transparent'
         ? normColor(pseudoBgRaw) : '';
       const pseudoBR = parseFloat(pcs.borderRadius) || 0;
-      // Capture a uniform border when all four sides match. Mixed-side
-      // styling is rare on pseudos in real-world fixtures and falls
-      // through.
-      const bw = parseFloat(pcs.borderTopWidth) || 0;
-      const bwUniform = bw > 0
-        && (parseFloat(pcs.borderRightWidth) || 0) === bw
-        && (parseFloat(pcs.borderBottomWidth) || 0) === bw
-        && (parseFloat(pcs.borderLeftWidth) || 0) === bw;
+      // Capture a uniform border when all four sides match (renders as
+      // `<rect stroke=…>`). When a single side carries a border (e.g.
+      // `border-bottom: 1px solid rgba(255,255,255,0.5)` on Slashdot's
+      // `.carouselHeading::after`) we still capture per-side widths +
+      // colors so the renderer can emit a `<line>` for the visible side.
+      const bwTop = parseFloat(pcs.borderTopWidth) || 0;
+      const bwRight = parseFloat(pcs.borderRightWidth) || 0;
+      const bwBottom = parseFloat(pcs.borderBottomWidth) || 0;
+      const bwLeft = parseFloat(pcs.borderLeftWidth) || 0;
+      const bwUniform = bwTop > 0 && bwRight === bwTop && bwBottom === bwTop && bwLeft === bwTop;
       const pseudoBC = bwUniform ? normColor(pcs.borderTopColor) : '';
+      const colorIsPaintable = (raw: string): boolean => raw !== '' && raw !== 'rgba(0, 0, 0, 0)' && raw !== 'transparent';
+      const sideBorderTopColor = bwTop > 0 ? normColor(pcs.borderTopColor) : '';
+      const sideBorderRightColor = bwRight > 0 ? normColor(pcs.borderRightColor) : '';
+      const sideBorderBottomColor = bwBottom > 0 ? normColor(pcs.borderBottomColor) : '';
+      const sideBorderLeftColor = bwLeft > 0 ? normColor(pcs.borderLeftColor) : '';
+      const hasPerSideBorder = !bwUniform && (
+        (bwTop > 0 && colorIsPaintable(sideBorderTopColor))
+        || (bwRight > 0 && colorIsPaintable(sideBorderRightColor))
+        || (bwBottom > 0 && colorIsPaintable(sideBorderBottomColor))
+        || (bwLeft > 0 && colorIsPaintable(sideBorderLeftColor))
+      );
       let pseudoBoxStyles = null;
-      if (pseudoBgColor !== '' || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)')) {
+      if (pseudoBgColor !== '' || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)') || hasPerSideBorder) {
         pseudoBoxStyles = {
           padL: parseFloat(pcs.paddingLeft) || 0,
           padR: parseFloat(pcs.paddingRight) || 0,
           padT: parseFloat(pcs.paddingTop) || 0,
           padB: parseFloat(pcs.paddingBottom) || 0,
-          borL: parseFloat(pcs.borderLeftWidth) || 0,
-          borR: parseFloat(pcs.borderRightWidth) || 0,
-          borT: parseFloat(pcs.borderTopWidth) || 0,
-          borB: parseFloat(pcs.borderBottomWidth) || 0,
+          borL: bwLeft,
+          borR: bwRight,
+          borT: bwTop,
+          borB: bwBottom,
           // Inline-box bg paints at line-height, not at font-size — so
           // the box's vertical extent is lineH + padding + border (not
           // fontSize). Capture lineH alongside the metrics; the post-
@@ -460,8 +476,16 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
           fontSize: elFontSize,
           backgroundColor: pseudoBgColor !== '' ? pseudoBgColor : undefined,
           borderRadius: pseudoBR > 0 ? pseudoBR : undefined,
-          borderWidth: bwUniform ? bw : undefined,
+          borderWidth: bwUniform ? bwTop : undefined,
           borderColor: bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)' ? pseudoBC : undefined,
+          // Per-side colors. Renderer reads these when no uniform border
+          // is set and emits a `<line>` for each side whose width > 0 and
+          // color is paintable. Undefined when the side has no visible
+          // border, keeping the captured tree compact in the common case.
+          borderTopColor: hasPerSideBorder && bwTop > 0 && colorIsPaintable(sideBorderTopColor) ? sideBorderTopColor : undefined,
+          borderRightColor: hasPerSideBorder && bwRight > 0 && colorIsPaintable(sideBorderRightColor) ? sideBorderRightColor : undefined,
+          borderBottomColor: hasPerSideBorder && bwBottom > 0 && colorIsPaintable(sideBorderBottomColor) ? sideBorderBottomColor : undefined,
+          borderLeftColor: hasPerSideBorder && bwLeft > 0 && colorIsPaintable(sideBorderLeftColor) ? sideBorderLeftColor : undefined,
         };
       }
       // If the pseudo contains any codepoint Chrome paints via a color-

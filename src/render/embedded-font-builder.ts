@@ -71,6 +71,18 @@ interface BuilderEntry {
   puaForGlyphId: Map<number, number>;
   /** Next available PUA codepoint for this entry. */
   nextPua: number;
+  /**
+   * Captured variant descriptors. Emitted on the `@font-face` rule so the
+   * consumer browser matches the rule EXACTLY when the `<text>` carries
+   * `font-style="italic"` / `font-weight="700"` — without these descriptors
+   * the rule defaults to `font-style: normal; font-weight: 400` and Chromium
+   * synthesizes faux italic / faux bold ON TOP of glyphs whose italic slant
+   * (or bold weight) is already baked in by the variant we resolved. Result
+   * pre-fix: double-italic (~2× slant) on `<i>` text against a non-bold
+   * upright fallback (the Slashdot mobile `<i>` river-story abstract).
+   */
+  italic: boolean;
+  weight: number;
 }
 
 const builderRegistry = new Map<string, BuilderEntry>();
@@ -111,6 +123,7 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
+  variant: { italic: boolean; weight: number } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -122,6 +135,8 @@ export function trackGlyphInEmbedFont(
       glyphs: new Map(),
       puaForGlyphId: new Map(),
       nextPua: PUA_START,
+      italic: variant.italic,
+      weight: variant.weight,
     };
     builderRegistry.set(instanceKey, entry);
   }
@@ -187,7 +202,14 @@ export function getBuiltEmbeddedFontFaceCss(): string {
     });
     const ttfBytes = Buffer.from(font.toArrayBuffer());
     const b64 = ttfBytes.toString("base64");
-    rules.push(`@font-face { font-family: "${entry.cssFamily}"; src: url("data:font/ttf;base64,${b64}"); }`);
+    // Emit explicit font-style / font-weight descriptors so the consumer
+    // browser matches this @font-face EXACTLY when the `<text>` element
+    // requests italic / bold. Without these the rule defaults to
+    // `font-style: normal; font-weight: 400` and Chromium synthesizes faux
+    // italic / faux bold on top of glyphs whose italic / bold shape is
+    // already baked into the custom TTF.
+    const styleDesc = entry.italic ? "italic" : "normal";
+    rules.push(`@font-face { font-family: "${entry.cssFamily}"; font-style: ${styleDesc}; font-weight: ${entry.weight}; src: url("data:font/ttf;base64,${b64}"); }`);
   }
   return rules.join("\n");
 }

@@ -93,7 +93,97 @@ export type AnyGradient = LinearGradient | RadialGradient | ConicGradient;
 
 /** Try every supported gradient type. Returns the first that parses or null. */
 export function parseGradient(text: string | undefined | null): AnyGradient | null {
-  return parseLinearGradient(text) ?? parseRadialGradient(text) ?? parseConicGradient(text);
+  const normalized = convertLegacyWebkitGradient(text) ?? text;
+  return parseLinearGradient(normalized) ?? parseRadialGradient(normalized) ?? parseConicGradient(normalized);
+}
+
+/**
+ * Normalize legacy `-webkit-gradient(linear, ...)` syntax (still emitted by
+ * Chromium's computed-style serializer for old CSS that uses it — e.g. the
+ * Slashdot mobile header) into the modern `linear-gradient(...)` form so the
+ * regular parser can consume it. Returns null when the input isn't a legacy
+ * linear webkit-gradient.
+ *
+ * Grammar (legacy):
+ *   -webkit-gradient(linear, <p1>, <p2>, from(<c>), [color-stop(<pos>, <c>)...], to(<c>))
+ * where <pN> is either a percentage pair `0% 0%` or a side keyword pair like
+ * `left top` / `right bottom`. Only axis-aligned cases (vertical / horizontal)
+ * are handled — diagonal legacy-syntax gradients are rare and would need a
+ * separate angle solve.
+ */
+export function convertLegacyWebkitGradient(text: string | undefined | null): string | null {
+  if (text == null) return null;
+  const trimmed = text.trim();
+  const m = /^-webkit-gradient\s*\(\s*linear\s*,\s*([\s\S]+)\)\s*$/i.exec(trimmed);
+  if (m == null) return null;
+  const parts = splitTopLevelCommas(m[1]).map((t) => t.trim()).filter((t) => t !== "");
+  if (parts.length < 4) return null;
+  const p1 = parsePointToFracPair(parts[0]);
+  const p2 = parsePointToFracPair(parts[1]);
+  if (p1 == null || p2 == null) return null;
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  // Only axis-aligned axes (vertical or horizontal). Skip diagonal cases.
+  let angleDeg: number;
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) > 1e-6) {
+    angleDeg = dy > 0 ? 180 : 0;
+  } else if (Math.abs(dy) < 1e-6 && Math.abs(dx) > 1e-6) {
+    angleDeg = dx > 0 ? 90 : 270;
+  } else {
+    return null;
+  }
+  const stopExprs: string[] = [];
+  for (let i = 2; i < parts.length; i++) {
+    const t = parts[i];
+    const fromMatch = /^from\s*\(\s*([\s\S]+?)\s*\)\s*$/i.exec(t);
+    const toMatch = /^to\s*\(\s*([\s\S]+?)\s*\)\s*$/i.exec(t);
+    const csMatch = /^color-stop\s*\(\s*([^,]+)\s*,\s*([\s\S]+?)\s*\)\s*$/i.exec(t);
+    if (fromMatch != null) {
+      stopExprs.push(`${fromMatch[1].trim()} 0%`);
+    } else if (toMatch != null) {
+      stopExprs.push(`${toMatch[1].trim()} 100%`);
+    } else if (csMatch != null) {
+      const pos = csMatch[1].trim();
+      // CSS color-stop accepts a 0..1 number or a percentage; normalize to %.
+      const pct = /^[0-9.]+%$/.test(pos) ? pos : `${parseFloat(pos) * 100}%`;
+      stopExprs.push(`${csMatch[2].trim()} ${pct}`);
+    } else {
+      return null;
+    }
+  }
+  if (stopExprs.length < 2) return null;
+  return `linear-gradient(${angleDeg}deg, ${stopExprs.join(", ")})`;
+}
+
+/**
+ * Parse a legacy webkit-gradient point token like `0% 0%`, `left top`, or
+ * `right bottom` into fractional 0..1 coordinates. Returns null on diagonal
+ * or unrecognised inputs (caller fails fast in that case).
+ */
+function parsePointToFracPair(tok: string): { x: number; y: number } | null {
+  const lower = tok.toLowerCase().trim();
+  // Keyword form: "left top", "right", "center bottom", etc.
+  const KW: Record<string, number> = { left: 0, top: 0, center: 0.5, right: 1, bottom: 1 };
+  const words = lower.split(/\s+/);
+  if (words.length > 0 && words.every((w) => w in KW)) {
+    // Determine which keyword maps to x vs y. "top/bottom" → y, "left/right" → x.
+    let x = 0.5, y = 0.5;
+    for (const w of words) {
+      if (w === "left" || w === "right") x = KW[w];
+      else if (w === "top" || w === "bottom") y = KW[w];
+      else if (w === "center") { /* leave default */ }
+    }
+    return { x, y };
+  }
+  // Percentage / pixel pair: "0% 0%", "50% 100%".
+  const m = /^([\d.]+)(%|px)\s+([\d.]+)(%|px)$/.exec(lower);
+  if (m != null) {
+    const ux = m[2] === "%" ? parseFloat(m[1]) / 100 : NaN;
+    const uy = m[4] === "%" ? parseFloat(m[3]) / 100 : NaN;
+    if (Number.isFinite(ux) && Number.isFinite(uy)) return { x: ux, y: uy };
+    // px-pair: can't resolve without rect dims. Skip — uncommon in real CSS.
+  }
+  return null;
 }
 
 /** Parse `linear-gradient(...)` or `repeating-linear-gradient(...)` text. */

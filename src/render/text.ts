@@ -14,6 +14,40 @@ function r(n: number): string { return Number(n.toFixed(1)).toString(); }
 function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
 /**
+ * Emit `<line>` markup for each non-zero side border on a pseudo-element box.
+ * Used for non-uniform pseudo borders (e.g. Slashdot's `.carouselHeading::after`
+ * with a bare `border-bottom`) where the surrounding `<rect>` already painted
+ * the box's fill/radius but its `stroke` shorthand can't represent a single-
+ * side border. Returns "" when the box has no per-side borders.
+ */
+function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>): string {
+  const lines: string[] = [];
+  // Stroke at the centre of the border-side, so half-width insets are
+  // applied to the rect's edges to keep the stroke pixel-aligned with what
+  // CSS paints (CSS paints borders inset to the box's outer edges, with the
+  // stroke centre offset by half the border width from the rect edge).
+  const x2 = pb.x + pb.width;
+  const y2 = pb.y + pb.height;
+  if (pb.borT != null && pb.borT > 0 && pb.borderTopColor != null) {
+    const cy = pb.y + pb.borT / 2;
+    lines.push(`<line x1="${r(pb.x)}" y1="${r(cy)}" x2="${r(x2)}" y2="${r(cy)}" stroke="${esc(pb.borderTopColor)}" stroke-width="${r(pb.borT)}"/>`);
+  }
+  if (pb.borR != null && pb.borR > 0 && pb.borderRightColor != null) {
+    const cx = x2 - pb.borR / 2;
+    lines.push(`<line x1="${r(cx)}" y1="${r(pb.y)}" x2="${r(cx)}" y2="${r(y2)}" stroke="${esc(pb.borderRightColor)}" stroke-width="${r(pb.borR)}"/>`);
+  }
+  if (pb.borB != null && pb.borB > 0 && pb.borderBottomColor != null) {
+    const cy = y2 - pb.borB / 2;
+    lines.push(`<line x1="${r(pb.x)}" y1="${r(cy)}" x2="${r(x2)}" y2="${r(cy)}" stroke="${esc(pb.borderBottomColor)}" stroke-width="${r(pb.borB)}"/>`);
+  }
+  if (pb.borL != null && pb.borL > 0 && pb.borderLeftColor != null) {
+    const cx = pb.x + pb.borL / 2;
+    lines.push(`<line x1="${r(cx)}" y1="${r(pb.y)}" x2="${r(cx)}" y2="${r(y2)}" stroke="${esc(pb.borderLeftColor)}" stroke-width="${r(pb.borL)}"/>`);
+  }
+  return lines.join("");
+}
+
+/**
  * Replace any UTF-16 code units flagged with `suppressGlyph` in the segment's
  * raster overlays with U+200B (zero-width space). The path renderer emits no
  * `<use>` for zero-contour glyphs, so this hides the underlying path glyph
@@ -441,6 +475,12 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // DM-513: pseudo-element font-family override (e.g. icon font on
   // `[class^="icon-"]:before { font-family: "sdicon" }`).
   const segFontFamily = singleSeg?.fontFamily ?? fontFamily;
+  // Pseudo-element font-style override (Slashdot's `.carouselHeading::after`
+  // is italic on a non-italic host). The multi-segment path already did the
+  // `seg.fontStyle ?? el.styles.fontStyle` fallback below; the single-segment
+  // path was reading host fontStyle exclusively, so a pseudo's italic was
+  // silently swallowed.
+  const segFontStyle = singleSeg?.fontStyle ?? el.styles.fontStyle;
   // DM-507: when the single segment is a pseudo with its own paint box
   // (background-color / border-radius / border), emit a <rect> behind the
   // glyphs. Same as the multi-segment path; without this the badge / pill
@@ -451,9 +491,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
     const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
       ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
-    return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>`;
+    return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${renderPseudoBoxPerSideBorders(pb)}`;
   })() : "";
-  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, el.styles.fontStyle, segAscent, features, el.styles.lang, variationSettings);
+  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, segAscent, features, el.styles.lang, variationSettings);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : segColor;
@@ -548,7 +588,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
       const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
         ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
-      parts.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>`);
+      parts.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${renderPseudoBoxPerSideBorders(pb)}`);
     }
     // Per-segment overrides from ::before / ::after pseudos (color, fontSize,
     // fontWeight). Fall back to the element's styles when the segment has no
