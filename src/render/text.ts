@@ -204,12 +204,24 @@ function renderTextDecoration(
       const tc = explicitThickness ? Math.max(1, t) : Math.max(1, fontSize / 10);
       const wavelength = 1 + 2 * Math.round(2 * tc + 0.5);
       const cpDist = 0.5 + Math.round(3 * tc + 0.5);
-      let d = `M ${r(segX)} ${r(y)}`;
+      // Chromium positions the wavy decoration so the entire wave sits BELOW
+      // where a solid underline would paint — its TOP edge sits at the
+      // solid-underline BOTTOM edge, leaving the descender region clear.
+      // Shift the wave centerline down by the full wave height (2*amplitude
+      // where amplitude ≈ 0.289 * cpDist for our cubic Bezier geometry).
+      // Probed against native Chromium at 16 px bold sans
+      // (`tools/probe-wavy-position.ts`): Chrome paints center ~4.5 px below
+      // baseline; with auto underline_y at +1.5 px below baseline and
+      // amplitude 1.59 px, 2*amplitude=3.18 lands center at +4.68 — closest
+      // visual match after SVG-vs-HTML re-rasterization.
+      const waveAmplitude = 0.289 * cpDist;
+      const yWave = y + 2 * waveAmplitude;
+      let d = `M ${r(segX)} ${r(yWave)}`;
       let x = segX;
       while (x < segX + segWidth) {
         const nx = Math.min(x + wavelength, segX + segWidth);
         const cpX = x + wavelength / 2;
-        d += ` C ${r(cpX)} ${r(y + cpDist)} ${r(cpX)} ${r(y - cpDist)} ${r(nx)} ${r(y)}`;
+        d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
         x = nx;
       }
       return `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`;
