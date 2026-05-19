@@ -210,13 +210,32 @@ export function composeScrollSvg(
     const inner = elementTreeToSvg(strippedTrees[i], W, VH, `seg${i}-`, true, hiDPIFactor);
     const tx = axis === "x" ? offset : 0;
     const ty = axis === "y" ? offset : 0;
-    // Visibility window: from when scroll-y first reaches (offset - VH) to
-    // when it last reaches (offset + VH). Add a small buffer to avoid
-    // popping at the exact boundary where compositor sub-pixel rounding
-    // could expose a 1-px seam.
+    // Visibility window: visible while scroll-y is in the rasterisation
+    // window for this segment. The strict mathematical bound is
+    // `offset ± VH` (segment content can intersect viewport), but using
+    // exactly that triggers a Chromium compositor pop: the segment is
+    // `visibility: hidden` until the moment its content first enters the
+    // viewport, then `visible` snaps it on — but the GPU has zero time to
+    // rasterise the segment before its first frame of "should be visible"
+    // content is displayed, so for one or two frames the segment paints
+    // empty while raster catches up. Users see "content pops in at the
+    // viewport bottom" (DM-668 — reproducible on the NYT-desktop-scroll
+    // fixture at the s5→s6 boundary, ~26.3% of cycle).
+    //
+    // Fix: make each segment visible one extra `dim` (viewport-height /
+    // -width) earlier on enter and later on leave. Browsers get a full
+    // viewport-height of scroll time to rasterise before the segment's
+    // content actually needs to paint, and the segment stays rasterised
+    // a viewport longer after it leaves so a rapid scroll reversal also
+    // hits a warm GPU layer. Peak segments-visible-at-once roughly
+    // doubles (2 → ~4 worst case), which doesn't materially affect file
+    // size (the wrappers are hidden, not omitted) but does increase
+    // resident raster memory by ~one extra viewport per layer chunk —
+    // acceptable on every device we've profiled.
     const dim = axis === "y" ? VH : W;
-    const enterPct = pctAtScrollY(offset - dim, "first");
-    const leavePct = pctAtScrollY(offset + dim, "last");
+    const rasterBuffer = dim;
+    const enterPct = pctAtScrollY(offset - dim - rasterBuffer, "first");
+    const leavePct = pctAtScrollY(offset + dim + rasterBuffer, "last");
     const fullyVisible = enterPct <= 0 && leavePct >= 100;
     if (fullyVisible) {
       captureGroups.push(

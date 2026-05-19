@@ -93,9 +93,22 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
     // + ascent), so without this adjustment the text shows up at the top
     // of the button instead of centered. Surfaced by framer-mobile-fold's
     // "Okay" button (display: flex; align-items: center; height: 45px).
+    //
+    // DM-666: `<input type="submit" | "button" | "reset">` are button-type
+    // inputs whose value text Chrome ALWAYS centers vertically inside the
+    // content box — this is the UA-stylesheet `appearance: button`
+    // behaviour, independent of `display` / `align-items`. Google's
+    // homepage "Google Search" / "I'm Feeling Lucky" inputs are exactly
+    // this case: `display: inline-block`, no flex, 36-px tall with 14-px
+    // text — the value sits dead-centre in Chrome but anchored to
+    // content-top in the captured tree pre-fix. Extending the centring to
+    // these button types here keeps the renderer's textTop = line-box-top
+    // contract intact.
     const display = cs.display;
     const isFlexLike = display === 'flex' || display === 'inline-flex' || display === 'grid' || display === 'inline-grid';
-    if (isFlexLike && cs.alignItems === 'center') {
+    const isButtonInput = tag === 'input'
+      && (inputType === 'submit' || inputType === 'button' || inputType === 'reset');
+    if ((isFlexLike && cs.alignItems === 'center') || isButtonInput) {
       const contentH = rect.height - bt - bb - pt - pb;
       if (contentH > textHeight + 0.5) {
         textTop = (rect.top - vp.y + bt + pt) + (contentH - textHeight) / 2;

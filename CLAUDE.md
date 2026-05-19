@@ -120,6 +120,12 @@ When you change capture, rendering, or animation behavior, update the relevant r
 
 The `FEATURES.md` checklist tracks per-feature support and links to fixtures; keep it in sync when fixtures land.
 
+### Always-in-sync docs
+
+A handful of docs ARE the canonical reference for a user-facing surface — if the code changes and the doc doesn't, consumers get a misleading contract. Update these in the same commit as any change that touches the surface they describe:
+
+- `docs/37-scroll-pattern-grammar.md` is the canonical EBNF + semantics reference for the scroll-pattern language. Any change to `src/scroll/pattern.ts` (tokeniser, parser, AST), `src/scroll/executor.ts` (axis resolution, speed-derived duration, `until` semantics), or scroll-related user-visible flags in `src/cli/capture.ts` / `src/cli/animate.ts` must update doc 37 too. The parser + executor headers carry pointers back to doc 37; keep those accurate as well.
+
 ### Hot Sheet tickets are local-only
 
 The Hot Sheet workflow (`.hotsheet/`, `DM-XXX` ticket numbers) is a local development tool. Outside this repo nobody can resolve those IDs. So when writing for any audience that isn't just the maintainer:

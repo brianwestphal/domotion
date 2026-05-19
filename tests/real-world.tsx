@@ -89,9 +89,15 @@ const SETTLE_MS = 3000;
 const PLAYWRIGHT_TIMEOUT_MS = 90_000;
 const GOTO_TIMEOUT_MS = PLAYWRIGHT_TIMEOUT_MS;
 
-// Length of the scroll-through animation. Long enough to read the page
-// at a comfortable scroll speed without inflating SVG file size.
-const SCROLL_ANIM_MS = 12_000;
+// Constant scroll speed for the scroll-through demo, in px/s. Picked so a
+// typical desktop marketing page (~6000–15000 px tall) lands in the 4–10 s
+// range — comfortable to read past, not so fast the eye blurs. DM-669:
+// switched from a fixed `SCROLL_ANIM_MS = 12_000` total duration to constant
+// speed so cadence is consistent across pages of different heights (the old
+// fixed-duration model scrolled a 5000 px page at 417 px/s and a 15000 px
+// page at 1250 px/s, three-times-faster, which read as inconsistent in
+// side-by-side demos).
+const SCROLL_SPEED_PX_PER_SEC = 1500;
 
 type Mode = "fold" | "entire-page" | "scroll";
 const MODES: Mode[] = ["fold", "entire-page", "scroll"];
@@ -657,13 +663,12 @@ async function runJob(
     // canvas size.
     let svgDoc: string;
     if (mode === "scroll") {
-      // Pattern: scroll down to bottom over SCROLL_ANIM_MS. The 5%-hold-at-top
-      // / 90%-scroll / 5%-hold-at-bottom timing from the old bespoke wrapper
-      // isn't directly expressible in the v1 grammar; the composer's linear
-      // keyframes through the segment-end percentages give a clean linear
-      // scroll. We can refine pacing once profiling shows it matters.
-      const scrollSec = SCROLL_ANIM_MS / 1000;
-      const pattern = parseScrollPattern(`down:bottom/${scrollSec}s`);
+      // Pattern: scroll down to bottom at a constant `SCROLL_SPEED_PX_PER_SEC`
+      // (DM-669) — animation length scales with page height so cadence stays
+      // consistent across pages of different sizes. The `@<n>pxps` suffix
+      // pins the speed for this single action; the executor computes the
+      // duration from the captured page's actual scroll height.
+      const pattern = parseScrollPattern(`down:bottom@${SCROLL_SPEED_PX_PER_SEC}pxps`);
       segments = await executeScrollPattern(page, pattern, {
         viewportW: viewport.width,
         viewportH: viewport.height,

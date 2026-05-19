@@ -201,6 +201,58 @@ describe("parseScrollPattern: /<duration> suffix", () => {
   });
 });
 
+// ── Speed suffix @<n>pxps ────────────────────────────────────────────────────
+
+describe("parseScrollPattern: @<speed> suffix", () => {
+  it("attaches to delta", () => {
+    const a = onlyAction("720px@800pxps") as ScrollAction;
+    expect(a.speedPxPerSec).toBe(800);
+    expect(a.durationMs).toBeUndefined();
+  });
+
+  it("attaches to absolute target with direction prefix", () => {
+    const a = onlyAction("down:bottom@1200pxps") as ScrollAction;
+    expect(a.speedPxPerSec).toBe(1200);
+    expect(a.target).toEqual({ kind: "absolute", anchor: { kind: "named", name: "bottom" }, offsets: [] });
+    expect(a.direction).toBe("down");
+  });
+
+  it("attaches to anchor with offset arithmetic", () => {
+    const a = onlyAction("up:top + 200px@500pxps") as ScrollAction;
+    expect(a.speedPxPerSec).toBe(500);
+    expect(a.durationMs).toBeUndefined();
+  });
+
+  it("speed and easing combine", () => {
+    const a = onlyAction("720px@600pxps[ease-in]") as ScrollAction;
+    expect(a.speedPxPerSec).toBe(600);
+    expect(a.easing).toEqual({ kind: "named", name: "ease-in" });
+  });
+
+  it("decimal speed accepted", () => {
+    const a = onlyAction("720px@1500.5pxps") as ScrollAction;
+    expect(a.speedPxPerSec).toBe(1500.5);
+  });
+
+  it("@<speed> AND /<duration> on same action throws", () => {
+    expect(() => parseScrollPattern("720px/3s@600pxps")).toThrow(ScrollPatternError);
+    expect(() => parseScrollPattern("720px@600pxps/3s")).toThrow(ScrollPatternError);
+  });
+
+  it("missing speed after @ throws", () => {
+    expect(() => parseScrollPattern("720px@")).toThrow(ScrollPatternError);
+  });
+
+  it("zero or negative speed rejected", () => {
+    expect(() => parseScrollPattern("720px@0pxps")).toThrow(ScrollPatternError);
+  });
+
+  it("unknown unit after @ throws", () => {
+    // `@800px` is invalid — only `pxps` is accepted after `@`.
+    expect(() => parseScrollPattern("720px@800px")).toThrow(ScrollPatternError);
+  });
+});
+
 // ── Easing suffix [...] ────────────────────────────────────────────────────
 
 describe("parseScrollPattern: [easing] suffix", () => {
@@ -463,8 +515,13 @@ describe("parseScrollPattern: error reporting", () => {
   });
 
   it("unexpected character", () => {
+    // `#` is not a token in the scroll grammar — must surface as
+    // "Unexpected character". (`720px@3s` USED to land here before DM-669
+    // wired `@` as the speed-suffix marker; it now errors with the more
+    // helpful `Expected speed, got duration` message — see the
+    // `@<speed> suffix` describe block above.)
     try {
-      parseScrollPattern("720px@3s");
+      parseScrollPattern("720px#");
       throw new Error("should have thrown");
     } catch (e) {
       expect(e).toBeInstanceOf(ScrollPatternError);

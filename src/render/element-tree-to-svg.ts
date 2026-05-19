@@ -3579,6 +3579,17 @@ function translateClipPath(value: string, x: number, y: number, w: number, h: nu
       const vTok = vPart.split(/\s+/);
       rx = resolvePx(hTok[0] ?? "0", w);
       ry = resolvePx(vTok[0] ?? hTok[0] ?? "0", h);
+      // CSS Backgrounds 3 §5.5: when border-radius values would overlap
+      // adjacent corners, all radii are scaled UNIFORMLY by a factor `f` so
+      // they exactly fit. SVG's `<rect rx ry>` instead caps rx and ry
+      // INDEPENDENTLY (rx → min(rx, w/2), ry → min(ry, h/2)) — for an
+      // `inset(... round 100px)` clip on a 94×32 box that produces an
+      // ellipse-cornered rect (rx=47, ry=16) instead of CSS's pill
+      // (rx=ry=16). DM-667: Google's AI-Mode button uses exactly this CSS
+      // and our clip-path was painting the ellipse shape under the rendered
+      // pill, exposing the corner difference at the boundary.
+      const f = Math.min(1, rx > 0 ? w / (2 * rx) : 1, ry > 0 ? h / (2 * ry) : 1);
+      if (f < 1) { rx *= f; ry *= f; }
     }
     const rectAttrs = `x="${r(x + left)}" y="${r(y + top)}" width="${r(w - left - right)}" height="${r(h - top - bottom)}"`;
     const radiusAttrs = rx > 0 || ry > 0 ? ` rx="${r(rx)}" ry="${r(ry)}"` : "";

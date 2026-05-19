@@ -14,7 +14,9 @@
  * a single `PageQuery` interface lets a test inject a fake page-state
  * provider in lieu of the real `Page`.
  *
- * Grammar reference: `dm604-scroll-grammar.txt` (signed-off draft on DM-604).
+ * Canonical grammar reference: `docs/37-scroll-pattern-grammar.md`. Keep
+ * this executor's axis/direction resolution, speed-derived duration math,
+ * and `until`-clause semantics in sync with what doc 37 describes.
  */
 
 import type { Page } from "@playwright/test";
@@ -215,7 +217,14 @@ export async function resolveScrollAction(
   const destX = axis === "x" ? clamp(snapshot.scrollX + delta, 0, snapshot.maxScrollX) : snapshot.scrollX;
   const destY = axis === "y" ? clamp(snapshot.scrollY + delta, 0, snapshot.maxScrollY) : snapshot.scrollY;
   const magnitude = Math.abs(axis === "x" ? destX - snapshot.scrollX : destY - snapshot.scrollY);
-  const scrollDurationMs = action.durationMs ?? Math.round((magnitude / defaultSpeed) * 1000);
+  // Duration resolution priority:
+  //   1. Explicit `/<duration>` on the action wins (the user pinned the time).
+  //   2. Else, action's `@<speed>` suffix (the user pinned constant speed for
+  //      this action only — magnitude / actionSpeed yields the duration).
+  //   3. Else, executor's inherited `defaultSpeed` (whole-pattern fallback).
+  // Cases 2 and 3 are mutually exclusive at parse time; safe to read both.
+  const effectiveSpeed = action.speedPxPerSec ?? defaultSpeed;
+  const scrollDurationMs = action.durationMs ?? Math.round((magnitude / effectiveSpeed) * 1000);
   return { axis, destX, destY, scrollDurationMs };
 }
 

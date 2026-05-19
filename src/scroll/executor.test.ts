@@ -174,6 +174,33 @@ describe("resolveScrollAction", () => {
     expect(r.scrollDurationMs).toBe(3000);
   });
 
+  it("explicit @<speed> overrides the executor's default speed", async () => {
+    const { query, snap } = fakePageQuery({ maxScrollY: 4000 });
+    const action: ScrollAction = {
+      kind: "scroll",
+      target: { kind: "delta", signedLength: { sign: 1, value: 720, unit: "px" } },
+      speedPxPerSec: 600,
+    };
+    // 720 / 600 * 1000 = 1200. Default speed of 1500 is ignored.
+    const r = await resolveScrollAction(action, query, snap, 1500);
+    expect(r.scrollDurationMs).toBe(1200);
+  });
+
+  it("@<speed> applies to the actual scroll magnitude, not the requested delta", async () => {
+    // Scroll request of 5000 px but page maxScrollY=4000 — actual magnitude
+    // is 4000 px after clamping. Speed math uses the clamped magnitude so
+    // the action lands at the boundary in the right amount of time.
+    const { query, snap } = fakePageQuery({ maxScrollY: 4000, scrollY: 0 });
+    const action: ScrollAction = {
+      kind: "scroll",
+      target: { kind: "delta", signedLength: { sign: 1, value: 5000, unit: "px" } },
+      speedPxPerSec: 1000,
+    };
+    const r = await resolveScrollAction(action, query, snap, 1500);
+    expect(r.destY).toBe(4000);
+    expect(r.scrollDurationMs).toBe(4000);
+  });
+
   it("`down:-100px` reverses direction (same as up:100px)", async () => {
     const { query, snap } = fakePageQuery({ maxScrollY: 4000, scrollY: 500 });
     const action: ScrollAction = {

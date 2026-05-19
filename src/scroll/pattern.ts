@@ -1,11 +1,17 @@
 /**
- * Scroll-pattern grammar — parser (DM-605, design from DM-604).
+ * Scroll-pattern grammar — parser.
  *
  * Pure parser. Input string → AST. Does NOT evaluate `selector(...)` against
- * a DOM, nor execute the scroll plan — that's DM-607 (scroll executor).
+ * a DOM, nor execute the scroll plan — that's the responsibility of
+ * `src/scroll/executor.ts`.
  *
- * Grammar reference: `dm604-scroll-grammar.txt` (signed-off draft attached
- * to DM-604). Key rules in brief:
+ * **Canonical grammar reference: `docs/37-scroll-pattern-grammar.md`.** That
+ * doc carries the full EBNF, axis-resolution rules, `until` semantics, speed
+ * / duration / easing handling, and worked examples. When changing this file
+ * (tokenizer, parser, AST shape, error reporting) update doc 37 in the same
+ * commit so the surface stays in sync.
+ *
+ * Key rules in brief:
  *
  *   pattern        = top-segment { "," top-segment }
  *   top-segment    = "(" pattern ")" [until]
@@ -50,8 +56,19 @@ export interface ScrollAction {
   /** Explicit direction prefix; absent when the action's direction is implied. */
   direction?: "up" | "down" | "left" | "right";
   target: ScrollTarget;
-  /** From the `/<duration>` suffix, in milliseconds. Absent → speed-derived. */
+  /**
+   * From the `/<duration>` suffix, in milliseconds. Absent → derived from
+   * speed (either `speedPxPerSec` below, or the executor's inherited
+   * `defaultSpeed`). Mutually exclusive with `speedPxPerSec` at parse time.
+   */
   durationMs?: number;
+  /**
+   * From the `@<n>pxps` suffix, in pixels-per-second. Overrides the
+   * executor's inherited `defaultSpeed` for THIS action only. Mutually
+   * exclusive with `durationMs` at parse time — the grammar accepts either
+   * `/<duration>` OR `@<speed>` on a single action, not both.
+   */
+  speedPxPerSec?: number;
   /** From the `[easing-name]` suffix. Absent → default (`ease-out`). */
   easing?: Easing;
 }
@@ -147,6 +164,7 @@ type TokenKind =
   | "comma"
   | "colon"
   | "slash"
+  | "at"         // @ — introduces a `speed-suffix` (e.g. `@800pxps`)
   | "lbracket"
   | "rbracket"
   | "plus"
@@ -155,6 +173,7 @@ type TokenKind =
   | "ident"      // identifier — direction names, anchor names, keywords, easing names
   | "length"     // <n>px | <n>%
   | "duration"   // <n>s | <n>ms
+  | "speed"      // <n>pxps (px/s; per-action speed override)
   | "number"     // bare number, used for `<n> times`
   | "string"     // "..."
   | "eof"
@@ -185,6 +204,7 @@ function tokenize(source: string): Token[] {
     if (ch === ",") { tokens.push({ kind: "comma",    text: ",", start: i, end: i + 1 }); i++; continue; }
     if (ch === ":") { tokens.push({ kind: "colon",    text: ":", start: i, end: i + 1 }); i++; continue; }
     if (ch === "/") { tokens.push({ kind: "slash",    text: "/", start: i, end: i + 1 }); i++; continue; }
+    if (ch === "@") { tokens.push({ kind: "at",       text: "@", start: i, end: i + 1 }); i++; continue; }
     if (ch === "[") { tokens.push({ kind: "lbracket", text: "[", start: i, end: i + 1 }); i++; continue; }
     if (ch === "]") { tokens.push({ kind: "rbracket", text: "]", start: i, end: i + 1 }); i++; continue; }
     if (ch === "+") { tokens.push({ kind: "plus",     text: "+", start: i, end: i + 1 }); i++; continue; }
@@ -228,6 +248,10 @@ function tokenize(source: string): Token[] {
         tokens.push({ kind: "length", text: numText + unit, num, unit, start: numStart, end: i });
       } else if (unit === "s" || unit === "ms") {
         tokens.push({ kind: "duration", text: numText + unit, num, unit, start: numStart, end: i });
+      } else if (unit === "pxps") {
+        // <n>pxps — per-action speed (pixels per second). Only valid after
+        // the `@` speed-suffix marker; the parser enforces that placement.
+        tokens.push({ kind: "speed", text: numText + unit, num, unit, start: numStart, end: i });
       } else if (unit === "") {
         tokens.push({ kind: "number", text: numText, num, start: numStart, end: i });
       } else {
@@ -345,16 +369,38 @@ class Parser {
     }
     const target = this.parseScrollTarget();
     let durationMs: number | undefined;
+    let speedPxPerSec: number | undefined;
     let easing: Easing | undefined;
+    // Duration suffix (`/<duration>`) and speed suffix (`@<n>pxps`) are
+    // mutually exclusive on a single action — either pin the action's time,
+    // or pin its speed, not both. The order in which they're tried doesn't
+    // matter since the OTHER branch fires an explicit error if it's seen.
     if (this.peek().kind === "slash") {
       this.consume("slash");
       const dur = this.consume("duration");
       durationMs = durationToMs(dur);
+      if (this.peek().kind === "at") {
+        const conflict = this.peek();
+        throw new ScrollPatternError(
+          "Scroll action cannot carry both a `/<duration>` and `@<speed>` suffix",
+          this.source, conflict.start,
+        );
+      }
+    } else if (this.peek().kind === "at") {
+      this.consume("at");
+      const sp = this.consume("speed");
+      if (!(sp.num != null && sp.num > 0)) {
+        throw new ScrollPatternError(
+          `Speed must be a positive number of px/s (got "${sp.text}")`,
+          this.source, sp.start,
+        );
+      }
+      speedPxPerSec = sp.num;
     }
     if (this.peek().kind === "lbracket") {
       easing = this.parseEasingSuffix();
     }
-    return { kind: "scroll", direction, target, durationMs, easing };
+    return { kind: "scroll", direction, target, durationMs, speedPxPerSec, easing };
   }
 
   private parseScrollTarget(): ScrollTarget {
