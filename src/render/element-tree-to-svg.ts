@@ -1876,12 +1876,13 @@ export function elementTreeToSvg(
     // children that are flex/grid items honor z-index ≠ auto as a stacking
     // context creator and z-sort accordingly.
     const childParentDisplay = el.styles.display;
+    const hoistedAsInlineForEl = new Set<CapturedElement>();
     if (establishesStackingContext(el, parentDisplayForEl)) {
-      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true);
+      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true, hoistedAsInlineForEl);
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
-    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection);
+    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl);
     for (const child of sortedChildren) {
       renderElement(child, depth + 1, childParentDisplay);
     }
@@ -1910,7 +1911,8 @@ export function elementTreeToSvg(
   // DM-473: top-level element list is the implicit root stacking context —
   // flatten it the same way an SC root would, so cross-parent z-index
   // hoisting works at the document root.
-  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor);
+  const topLevelHoistedAsInline = new Set<CapturedElement>();
+  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, false, topLevelHoistedAsInline);
   // DM-543: position:fixed elements paint relative to the viewport stacking
   // context and escape ALL ancestor overflow clips. The standard SC-by-SC
   // hoist halts at any SC ancestor (e.g. an overflow:auto section creates an
@@ -1944,7 +1946,7 @@ export function elementTreeToSvg(
       collectViewportFixed(e);
     }
   }
-  const sortedTopLevel = sortChildrenByPaintOrder(topLevelFlat);
+  const sortedTopLevel = sortChildrenByPaintOrder(topLevelFlat, undefined, undefined, topLevelHoistedAsInline);
   for (const el of sortedTopLevel) {
     renderElement(el, 1);
   }
@@ -2141,6 +2143,15 @@ function gatherStackingContextChildren(
   hoistedOut: Set<CapturedElement>,
   parentDisplay?: string,
   hoistTargetIsRealSC: boolean = false,
+  /**
+   * DM-683: out-parameter populated with elements that should paint at CSS
+   * 2.1 Appendix E step 5 (in-flow inline-level non-positioned) rather than
+   * step 3 (block). Currently only flex/grid items are tagged here — they
+   * paint as inline blocks per CSS Flexbox 1 §5.4 / CSS Grid 1 §17.
+   * `sortChildrenByPaintOrder` reads this set to route members into the
+   * inline bucket (between floats and zeroOrAuto).
+   */
+  hoistedAsInline?: Set<CapturedElement>,
 ): CapturedElement[] {
   const out: CapturedElement[] = [];
   /**
@@ -2199,9 +2210,28 @@ function gatherStackingContextChildren(
       // Real-world hit: 14-deep-float-bfc section 1's float-left FL extends
       // ~60 px below the .frame and is covered by section 2's gray bar.
       const isFloat = !positioned && (c.styles.float ?? "none") !== "none";
-      if (positioned || flexGridItemSC || (isFloat && !floatHoistBlocked)) {
+      // DM-683: per CSS Flexbox 1 §5.4 ("Flex items paint exactly the same
+      // as inline blocks"), flex items paint at CSS 2.1 Appendix E step 5
+      // (in-flow inline-level non-positioned descendants) — AFTER block
+      // siblings at step 3 + floats at step 4 within the same stacking
+      // context. When a flex item OVERFLOWS its flex container and the
+      // container has block-level following siblings (e.g. `15-deep-flex-
+      // aspect-ratio` section 2: `.row.col` with a `1:2` aspect-ratio item
+      // 388 px tall inside a 360 px tall container, followed by `.frame3`
+      // — Chrome paints the overflowing item ON TOP of `.frame3` because
+      // step 5 > step 3), our DOM-order paint covered the overflow with
+      // the following sibling. Hoist flex items to the SC root paint list
+      // so the post-sort places them after step-3 blocks, mirroring the
+      // float-hoist (DM-639) pattern. Same atomic-positioned-ancestor
+      // gate as floats: a `position:relative` z=auto ancestor scopes the
+      // item to its own atomic paint.
+      const isFlexItem = !positioned && parentIsFlexGrid;
+      if (positioned || flexGridItemSC || (isFloat && !floatHoistBlocked) || (isFlexItem && !floatHoistBlocked)) {
         out.push(c);
         hoistedOut.add(c);
+        if (isFlexItem && !positioned && !flexGridItemSC) {
+          hoistedAsInline?.add(c);
+        }
       }
       if (!establishesStackingContext(c, childParentDisplay)) {
         // Block float hoisting from this point downward if `c` itself is a
@@ -2267,6 +2297,13 @@ function sortChildrenByPaintOrder(
   children: CapturedElement[],
   parentDisplay?: string,
   parentFlexDirection?: string,
+  /**
+   * DM-683: Set of children to route into the inline bucket (CSS 2.1
+   * Appendix E step 5) rather than the block / base bucket (step 3).
+   * Populated by `gatherStackingContextChildren` for flex/grid items
+   * (which paint as inline blocks per CSS Flexbox 1 §5.4).
+   */
+  paintAsInline?: Set<CapturedElement>,
 ): CapturedElement[] {
   // DM-525: flex/grid items with z-index ≠ auto sort as if position:relative
   // even when position:static (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
@@ -2296,6 +2333,7 @@ function sortChildrenByPaintOrder(
   }
   const negative: Array<{ z: number; idx: number; el: CapturedElement }> = [];
   const floats: CapturedElement[] = [];
+  const inlines: CapturedElement[] = [];
   const zeroOrAuto: CapturedElement[] = [];
   const positive: Array<{ z: number; idx: number; el: CapturedElement }> = [];
   const base: CapturedElement[] = [];
@@ -2309,6 +2347,11 @@ function sortChildrenByPaintOrder(
     const treatAsZSorted = positioned || (isFlexGrid && !isNaN(z));
     if (!treatAsZSorted && flt !== "none") {
       floats.push(c);
+    } else if (!treatAsZSorted && paintAsInline?.has(c) === true) {
+      // DM-683: hoisted flex/grid items paint at step 5 (inline-level) of
+      // the SC, AFTER floats and AFTER step-3 blocks — matches CSS Flexbox
+      // 1 §5.4 "Flex items paint exactly the same as inline blocks".
+      inlines.push(c);
     } else if (!treatAsZSorted) {
       base.push(c);
     } else if (isNaN(z) || z === 0) {
@@ -2327,7 +2370,7 @@ function sortChildrenByPaintOrder(
   }
   negative.sort((a, b) => a.z - b.z || a.idx - b.idx);
   positive.sort((a, b) => a.z - b.z || a.idx - b.idx);
-  return [...negative.map((x) => x.el), ...base, ...floats, ...zeroOrAuto, ...positive.map((x) => x.el)];
+  return [...negative.map((x) => x.el), ...base, ...floats, ...inlines, ...zeroOrAuto, ...positive.map((x) => x.el)];
 }
 
 
