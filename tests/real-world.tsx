@@ -89,15 +89,15 @@ const SETTLE_MS = 3000;
 const PLAYWRIGHT_TIMEOUT_MS = 90_000;
 const GOTO_TIMEOUT_MS = PLAYWRIGHT_TIMEOUT_MS;
 
-// Constant scroll speed for the scroll-through demo, in px/s. Picked so a
-// typical desktop marketing page (~6000–15000 px tall) lands in the 4–10 s
-// range — comfortable to read past, not so fast the eye blurs. DM-669:
+// Constant scroll speed for the scroll-through demo, in px/s. DM-669:
 // switched from a fixed `SCROLL_ANIM_MS = 12_000` total duration to constant
 // speed so cadence is consistent across pages of different heights (the old
 // fixed-duration model scrolled a 5000 px page at 417 px/s and a 15000 px
 // page at 1250 px/s, three-times-faster, which read as inconsistent in
-// side-by-side demos).
-const SCROLL_SPEED_PX_PER_SEC = 1500;
+// side-by-side demos). 300 px/s is roughly a comfortable reading pace —
+// fast enough to traverse a long marketing page in ~30–50 s, slow enough
+// that body copy is legible as it passes through the viewport.
+const SCROLL_SPEED_PX_PER_SEC = 300;
 
 type Mode = "fold" | "entire-page" | "scroll";
 const MODES: Mode[] = ["fold", "entire-page", "scroll"];
