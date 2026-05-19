@@ -1847,25 +1847,44 @@ export function elementTreeToSvg(
       }
     }
 
-    // Textarea resize handle (DM-339): when CSS `resize` is non-none on a
-    // <textarea>, Chrome's UA stylesheet paints a small ~7×7 diagonal-line
-    // pattern in the bottom-right corner indicating the user can drag to
-    // resize. Empirical: 3 diagonal lines from the corner extending up-left,
-    // ~1.5px stroke, mid-gray (#999), inside the padding-box. Matches what
-    // Chrome paints across resize: vertical / horizontal / both / inline /
-    // block (only `none` suppresses).
-    if (el.tag === "textarea" && el.styles.resize != null && el.styles.resize !== "none") {
+    // Resize handle (DM-339): when CSS `resize` is non-none and the element
+    // is a resizable type, Chrome paints a small ~7×7 diagonal-line pattern
+    // in the bottom-right corner indicating the user can drag to resize.
+    // Empirical: 3 diagonal lines from the corner extending up-left, ~1.5px
+    // stroke, mid-gray (#999), inside the padding-box. Matches what Chrome
+    // paints across resize: vertical / horizontal / both / inline / block
+    // (only `none` suppresses).
+    //
+    // Per CSS UI spec §6.3 + Chrome's `LayoutBox::CanResize`: the handle
+    // paints on any replaced element OR any block-level element with
+    // `overflow` other than `visible` (the spec says `resize` only takes
+    // effect when overflow != visible, and Chrome only renders the grippy
+    // when the property is "in effect"). So textareas always qualify
+    // (textarea UA style sets overflow:auto), but plain divs with
+    // `overflow: auto; resize: both` qualify too.
+    const resizeInEffect = el.styles.resize != null && el.styles.resize !== "none"
+      && (el.tag === "textarea"
+        || (el.styles.overflowX != null && el.styles.overflowX !== "visible")
+        || (el.styles.overflowY != null && el.styles.overflowY !== "visible"));
+    if (resizeInEffect) {
       const handleColor = "rgb(153,153,153)";
       const handleSize = 7;
-      // Position the handle so its bottom-right corner sits at the textarea's
-      // border-box bottom-right minus a 2px inset (matches Chrome's painted
-      // offset).
-      const cx = el.x + el.width - 2;
-      const cy = el.y + el.height - 2;
+      // Position the handle so its bottom-right corner sits just INSIDE the
+      // inner (padding-box) corner — the diagonals then sweep up-left into
+      // the padding area where they're visible against the content
+      // background. Inset by the border widths plus a small 1 px gap.
+      // (Matches Chrome's painted offset; previously we used a fixed 2 px
+      // inset from the border-box which worked for thin-border textareas
+      // but parked the handle on top of the dark border on thicker-bordered
+      // divs in `30-resize`. DM-707.)
+      const borderR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const borderB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+      const cx = el.x + el.width - borderR;
+      const cy = el.y + el.height - borderB;
       // Three diagonal strokes 2px apart sloping from bottom-right to upper-left.
       for (let i = 0; i < 3; i++) {
         const off = i * 2.5;
-        svgParts.push(`${indent}<line x1="${r(cx - handleSize + off)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - handleSize + off)}" stroke="${handleColor}" stroke-width="0.7" />`);
+        svgParts.push(`${indent}<line x1="${r(cx - handleSize + off)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - handleSize + off)}" stroke="${handleColor}" stroke-width="1" />`);
       }
     }
 
