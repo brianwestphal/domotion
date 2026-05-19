@@ -97,6 +97,28 @@ export function insetCornerRadii(c: CornerRadii, top: number, right: number, bot
   return { tl, tr, br, bl, uniform };
 }
 
+/** Grow each corner radius outward by `spread` for an OUTSET box-shadow shape.
+ *  Per CSS Backgrounds 3 §6.4 and Chromium's `FloatRoundedRect::Outset`, a
+ *  corner whose source radius is zero STAYS sharp through any spread — only
+ *  pre-curved corners grow. A naive `corner + spread` produces visibly
+ *  rounded shadow corners on a sharp-cornered box (e.g. concentric outlines
+ *  built from `box-shadow: 0 0 0 Npx`). Use this for outset shadow shapes;
+ *  the dual inset case is already covered by `insetCornerRadii` shrinking to
+ *  zero when the border eats past the radius. */
+export function outsetCornerRadiiForShadow(c: CornerRadii, spread: number): CornerRadii {
+  const grow = (p: CornerRadiusPair): CornerRadiusPair => ({
+    h: p.h > 0 ? Math.max(0, p.h + spread) : 0,
+    v: p.v > 0 ? Math.max(0, p.v + spread) : 0,
+  });
+  const tl = grow(c.tl);
+  const tr = grow(c.tr);
+  const br = grow(c.br);
+  const bl = grow(c.bl);
+  const uniform = tl.h === tl.v && tl.h === tr.h && tl.h === tr.v
+    && tl.h === br.h && tl.h === br.v && tl.h === bl.h && tl.h === bl.v;
+  return { tl, tr, br, bl, uniform };
+}
+
 /** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
  *  Path goes clockwise from the top-left, using elliptical arc commands at each
  *  corner. Zero-radius corners collapse to a sharp 90° join. */

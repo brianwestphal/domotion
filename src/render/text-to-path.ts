@@ -1368,8 +1368,13 @@ export function textToPathMarkup(
   if (wantPcap && !hasFeature("pcap")) synthLowerScale = SMALL_CAP_SCALE;
   if (wantC2pc && !hasFeature("c2pc")) synthUpperScale = SMALL_CAP_SCALE;
   if (wantUnic && !hasFeature("unic")) {
-    // unicase: both cases render at small-cap height.
-    synthLowerScale = SMALL_CAP_SCALE;
+    // unicase synthesis per CSS Fonts 4 §3.5: "display lowercase letters in
+    // their usual lowercase glyphs and uppercase letters in their
+    // small-capitals form". So lowercase stays NORMAL; only uppercase
+    // shrinks. The previous code set both scales to 0.7 + the up-casing
+    // branch ran on lowercase too, producing all-small-caps output
+    // instead of the mixed-case unicase appearance Chrome paints.
+    synthLowerScale = null;
     synthUpperScale = SMALL_CAP_SCALE;
   }
   const synthSmallCaps = synthLowerScale != null || synthUpperScale != null;

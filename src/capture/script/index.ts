@@ -380,7 +380,16 @@ export const captureScript =
           // origin px values are relative to the element's bounding box. We
           // read those from getComputedStyle().transformOrigin and compose.
           var transformVal = ocs.transform;
-          if (transformVal != null && transformVal !== '' && transformVal !== 'none') {
+          // DM-676: only bake when the SOURCE node has no static `transform=`
+          // attribute. The bake exists to capture CSS-animated transforms at
+          // t=0 (DM-508). When the node already has a literal `transform=`
+          // attribute, the existing attribute IS the source of truth — Chrome
+          // resolves it through transform-origin/transform-box at paint time,
+          // and the consumer browser will apply the same resolution. Baking
+          // a composed origin-anchored matrix on top double-applies the
+          // origin and shifts the rect.
+          var hasStaticTransformAttr = origNode.hasAttribute('transform') && !_isUnresolvedCssExpr(origNode.getAttribute('transform'));
+          if (!hasStaticTransformAttr && transformVal != null && transformVal !== '' && transformVal !== 'none') {
             var transformOriginVal = ocs.transformOrigin || '0 0';
             var originParts = transformOriginVal.trim().split(/\s+/);
             var ox = parseFloat(originParts[0] || '0') || 0;
@@ -480,11 +489,21 @@ export const captureScript =
               _walkBake(target.children[ci], clonedChild);
             }
           } else {
-            // <g>, <path>, <circle>, <svg>, etc. — wrap in <g translate(x,y)>.
-            // Skip translate when ux/uy are zero to keep the markup tidy.
+            // <g>, <path>, <circle>, <svg>, etc. — wrap in <g transform>.
+            // Per SVG 2 §5.6 the `<use>` element's own `transform` attribute
+            // applies to the inlined shadow tree, with the use's x/y
+            // translate happening INSIDE that transform. So compose:
+            //   composedTransform = useTransform + translate(x, y)
+            // Skip pieces that are no-ops to keep the markup tidy. Without
+            // this, `<use transform="scale(1.2)" x="80" y="150">` would
+            // inline as plain `translate(80, 150)` and the scale would
+            // silently disappear (DM-675).
             replacement = document.createElementNS(_svgNS, 'g');
-            if (ux !== 0 || uy !== 0) {
-              replacement.setAttribute('transform', 'translate(' + ux + ',' + uy + ')');
+            var useTransformAttr = useEl.getAttribute('transform') || '';
+            var translatePart = (ux !== 0 || uy !== 0) ? ('translate(' + ux + ',' + uy + ')') : '';
+            var composedTransform = (useTransformAttr + ' ' + translatePart).trim();
+            if (composedTransform !== '') {
+              replacement.setAttribute('transform', composedTransform);
             }
             var clonedTarget = target.cloneNode(true);
             // Drop the id on the clone — keeping it would create a duplicate

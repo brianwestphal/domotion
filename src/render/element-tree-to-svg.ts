@@ -17,6 +17,7 @@ import { parseColor, colorStr, sameColor, shadeColor, type RGBA } from "./colors
 import {
   parseCornerRadii,
   insetCornerRadii,
+  outsetCornerRadiiForShadow,
   roundedRectPath,
   roundedRectSvg,
   parseSide,
@@ -434,18 +435,22 @@ export function elementTreeToSvg(
       for (let si = shadows.length - 1; si >= 0; si--) {
         const sh = shadows[si];
         if (sh.inset) continue;
-        if (sh.spread < 0) continue;
+        // Negative spread is allowed: per CSS Backgrounds 3 §6.4 the shadow
+        // shape's width/height = box + 2*spread (so spread < 0 shrinks the
+        // shadow). Chromium's `BoxShadowData::ApplyToBoxOuter` shrinks the
+        // outer rect by `-spread` on each side and zero-clamps the result.
         // Rect inflated by spread and shifted by (x, y).
         const sx = el.x + sh.x - sh.spread;
         const sy = el.y + sh.y - sh.spread;
         const sw = el.width + sh.spread * 2;
         const sh2 = el.height + sh.spread * 2;
         if (sw <= 0 || sh2 <= 0) continue;
-        // Outer shadow corners: each axis grows by `spread` (clamped at 0)
-        // since the shadow rect extends beyond the border-box by spread on
-        // every side. Per-corner radii grow uniformly so each corner stays
-        // proportional to its source.
-        const shadowCorners = insetCornerRadii(corners, -sh.spread, -sh.spread, -sh.spread, -sh.spread);
+        // Outer shadow corners per CSS Backgrounds 3 §6.4 / Chromium
+        // `FloatRoundedRect::Outset`: a non-zero source corner grows by
+        // `spread`; a zero source corner STAYS sharp. The naive grow-all
+        // path produced visibly rounded corners on the concentric-outline
+        // pattern (box-shadow: 0 0 0 Npx on a 0-radius box).
+        const shadowCorners = outsetCornerRadiiForShadow(corners, sh.spread);
         let filterAttr = "";
         if (sh.blur > 0) {
           const stdDev = sh.blur / 2;
@@ -563,64 +568,38 @@ export function elementTreeToSvg(
       }
     }
 
-    // Inset box-shadow (SK-1111): per CSS paint order this sits ON TOP of
-    // the background layers but BEHIND the border. Outset shadows would sit
-    // underneath the entire box and aren't supported in this pass — only
-    // inset, no blur, with non-negative spread is handled (sufficient for the
-    // common "padding visualizer" pattern: box-shadow: inset 0 0 0 NNpx
-    // <color>). Anything fancier falls through silently and becomes a
-    // follow-up. See SK-1111.
+    // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
+    // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
+    // box shifted by (x, y) and inset by `spread` on each side. The shadow
+    // paints inside the padding box BUT OUTSIDE the shadow shape — like a
+    // donut whose hole is the shadow shape. With offset, the donut becomes
+    // asymmetric (e.g. `inset 0 -16px 32px` darkens the bottom strip and
+    // fades upward); with pure spread, it becomes a uniform ring; with pure
+    // blur centered, it becomes a soft inner glow.
+    //
+    // Implementation: emit two subpaths with `fill-rule="evenodd"` — outer =
+    // padding box expanded outward by enough margin to contain the blur
+    // halo, inner = padding box shifted by (sh.x, sh.y) and inset by
+    // sh.spread on each side. Apply Gaussian blur (stdDev = blur/2). Clip
+    // the whole thing to the padding box so the outer-margin overflow and
+    // the parts of the halo outside the box don't leak.
     {
       const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
-      // Border widths — re-parse here because the bg-layer block above (where
-      // bwL/bwR/bwT/bwB are computed) is conditional on backgroundImage.
       const sbwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
       const sbwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
       const sbwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
       const sbwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-      // Border-inner box (where inset shadow paints).
       const ibLeft = el.x + sbwL;
       const ibTop = el.y + sbwT;
       const ibW = Math.max(0, el.width - sbwL - sbwR);
       const ibH = Math.max(0, el.height - sbwT - sbwB);
-      // Border-inner per-corner radii: each corner shrinks by the adjacent
-      // border-side widths. Used as the basis for the inset-shadow stroke
-      // path; the final ring radius will subtract sp/2 for stroke centering.
       const innerCorners = insetCornerRadii(corners, sbwT, sbwR, sbwB, sbwL);
       for (const sh of shadows) {
         if (!sh.inset) continue;
-        // Skip non-trivial shadows we cant emit accurately — anything with
-        // an x/y offset (asymmetric inset glow not supported), negative
-        // spread, or zero spread + zero blur (paints nothing).
-        if (sh.x !== 0 || sh.y !== 0) continue;
-        if (sh.spread < 0) continue;
         if (sh.spread === 0 && sh.blur === 0) continue;
         if (ibW <= 0 || ibH <= 0) continue;
-        // Render the inset shadow as a stroked rect at the inside-the-border
-        // edge, clipped to inside the border-box so the stroke (and the blur
-        // halo, if any) only show on the inner side of the edge. Stroke is
-        // centered on the path; the clipPath drops the outward half so the
-        // visible thickness is half the stroke width. For pure-spread (no
-        // blur) we want a sharp `spread`-wide ring, so stroke-width = 2 *
-        // spread. For pure-blur (no spread) we use a thin baseline ring of
-        // blur-width pixels — the blur then produces the visible falloff;
-        // a larger ring overpaints, smaller produces too-faint output.
-        // Combined spread + blur sums both: visible band = spread, with the
-        // blur softening the inner edge. Previously the code used
-        // max(spread, blur) as both stroke width AND inward offset, which
-        // conflated blur with spread and painted pure-blur insets as a
-        // thick solid ring. DM-304.
-        // For pure-blur (no spread) we use a `blur`-wide ring centered on the
-        // inner edge — half (blur/2) shows inside the clip, half is clipped
-        // away on the outer side. The Gaussian then softens that band into
-        // Chrome's characteristic inset glow falloff (DM-366). Previously the
-        // ring was 1px wide and the blur made it nearly invisible.
-        // For pure-blur (no spread) we use a `blur/2`-wide ring centered on
-        // the inner edge. Half (blur/4) shows inside the clip; the Gaussian
-        // (stdDev = blur/2) softens that band into Chrome's characteristic
-        // inset-glow falloff. A 1px ring is too faint; a `blur`-wide ring is
-        // too strong (DM-366).
-        const ringWidth = Math.max(2 * sh.spread, sh.blur / 2, 1);
+
+        const shadowColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
         let filterAttr = "";
         if (sh.blur > 0) {
           const stdDev = sh.blur / 2;
@@ -634,9 +613,48 @@ export function elementTreeToSvg(
         defsParts.push(
           `<clipPath id="${cid}">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, "")}</clipPath>`,
         );
-        const strokeColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
+
+        // Pure-blur-centered inset (x=0, y=0, spread=0, blur>0): the donut
+        // has zero area, so use the legacy stroked-rect approach which
+        // produces the right soft glow on all sides. Stroke width = blur/2;
+        // the Gaussian softens it into Chrome's inset-glow falloff. DM-366.
+        if (sh.x === 0 && sh.y === 0 && sh.spread === 0) {
+          const ringWidth = Math.max(sh.blur / 2, 1);
+          svgParts.push(
+            `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="none" stroke="${shadowColor}" stroke-width="${r(ringWidth)}"${filterAttr}`)}</g>`,
+          );
+          continue;
+        }
+
+        // Donut path: outer subpath = padding box expanded by a margin
+        // sized to contain the blur halo + spread; inner subpath = padding
+        // box shifted by (sh.x, sh.y) and inset by sh.spread on each side.
+        // Even-odd fill paints the frame between the two subpaths with the
+        // shadow color; blur softens; the clip-path keeps the result inside
+        // the padding box.
+        const innerL = ibLeft + sh.x + sh.spread;
+        const innerT = ibTop + sh.y + sh.spread;
+        const innerW = ibW - 2 * sh.spread;
+        const innerH = ibH - 2 * sh.spread;
+        if (innerW <= 0 || innerH <= 0) {
+          // Shadow shape collapsed: per spec the entire padding box fills
+          // with shadow color (with blur halo) — emit a solid rect.
+          svgParts.push(
+            `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="${shadowColor}"${filterAttr}`)}</g>`,
+          );
+          continue;
+        }
+        const innerC = insetCornerRadii(innerCorners, sh.spread, sh.spread, sh.spread, sh.spread);
+        const margin = Math.max(Math.abs(sh.x), Math.abs(sh.y), sh.spread, sh.blur, 1) * 4;
+        const outerX = Math.min(ibLeft, innerL) - margin;
+        const outerY = Math.min(ibTop, innerT) - margin;
+        const outerR = Math.max(ibLeft + ibW, innerL + innerW) + margin;
+        const outerB = Math.max(ibTop + ibH, innerT + innerH) + margin;
+        const sharp: CornerRadii = { tl: { h: 0, v: 0 }, tr: { h: 0, v: 0 }, br: { h: 0, v: 0 }, bl: { h: 0, v: 0 }, uniform: true };
+        const outerD = roundedRectPath(outerX, outerY, outerR - outerX, outerB - outerY, sharp);
+        const innerD = roundedRectPath(innerL, innerT, innerW, innerH, innerC);
         svgParts.push(
-          `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="none" stroke="${strokeColor}" stroke-width="${r(ringWidth)}"${filterAttr}`)}</g>`,
+          `${indent}<g clip-path="url(#${cid})"><path d="${outerD} ${innerD}" fill="${shadowColor}" fill-rule="evenodd"${filterAttr}/></g>`,
         );
       }
     }
@@ -1369,23 +1387,23 @@ export function elementTreeToSvg(
           }
         } else {
           // Text-based marker (decimal / lower-alpha / lower-roman / etc.).
-          // Chrome's default ::marker is right-aligned within the marker box
-          // with a small UA-defined gap to the content (~4px on macOS Chrome).
-          // Anchor to `el.x - smallGap` with text-anchor="end" so the marker's
-          // right edge sits just left of the principal block — guessing the
-          // marker's rendered width is unreliable across font fallbacks
-          // ("1." is 11.5px in Helvetica, 13.6px in Inter, 18px in Courier),
-          // and getting it ~10px wrong drives the entire visible offset.
+          // Chrome's painted ::marker right edge sits ~7px left of li.x for
+          // 16px sans-serif (pixel-probed on 03-lists-style-types DM-678 — the
+          // VISIBLE last-pixel-of-"." sits at li.x - 7).
+          //
+          // SVG `text-anchor="end"` aligns the END of the LAST GLYPH'S ADVANCE
+          // at `x`, not the visible right edge of that glyph. For "01." with
+          // trailing "." in Helvetica 16px the "." has ~4px advance with the
+          // visible dot only on the left ~1.5px — so the advance-end sits
+          // ~2.5-3px to the right of the visible dot. Compensate by anchoring
+          // ~3-4px to the right of where the visible right edge should go.
+          //
+          // target_visible_right = li.x - 7
+          // svg_anchor_x = target_visible_right + period_rsb (~3)
+          //              = li.x - 7 + 3
+          //              = li.x - 4
           const label = formatListMarker(lsType, idx) + ".";
-          // DM-447: numeric / alpha / roman markers are painted with a ~8px
-          // gap from the principal-block edge in Chrome (vs the previous
-          // 4px estimate, which placed the marker too far right). Empirical
-          // pixel measurement vs Chrome's painted output on the
-          // 03-lists-marker fixture (16px monospace bold "1.") shows the
-          // marker right edge sits ~7-8px left of li.x. The fixed-width
-          // approximation is safer than text_width × heuristic since
-          // monospace vs proportional font advance varies widely.
-          const smallGap = 8;
+          const smallGap = 4;
           const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
           const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
           const mx = outside ? el.x - smallGap : el.x + borderL + padL;
