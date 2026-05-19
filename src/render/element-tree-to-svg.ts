@@ -165,6 +165,23 @@ export function elementTreeToSvg(
   // `gatherStackingContextChildren()` whenever we cross into an SC root.
   const hoistedFromAncestor = new Set<CapturedElement>();
 
+  // DM-673: maps a hoisted positioned descendant to the
+  // `overflow != visible` ancestor it escaped through. Per CSS Overflow 3
+  // §2.2 such ancestors clip their content. When we hoist the descendant
+  // past the ancestor's `<g clip-path>` wrapper, we need to re-wrap the
+  // descendant's emission in the same clip-path so the visual effect is
+  // preserved. `position:fixed` descendants escape overflow clips per the
+  // spec, so they aren't added here.
+  const overflowClipForHoisted = new Map<CapturedElement, CapturedElement>();
+  // DM-673: maps an overflow-clip ancestor element to the clip-path id that
+  // its `renderElement` generated when emitting its own `<g clip-path>`
+  // wrapper. The hoisted-descendant emission re-uses the same id so the
+  // `<defs>` block isn't duplicated. The ancestor renders BEFORE its
+  // hoisted descendants in `topLevelFlat` order (sections paint at body's
+  // step 3 / base bucket; positioned descendants at step 6 / zeroOrAuto
+  // bucket), so the id is populated before lookup.
+  const overflowClipPathIds = new Map<CapturedElement, string>();
+
   // DM-493: top-level mask fragment defs collected at capture time. Map keyed
   // by the original DOM id; the renderer mints a per-element mask def whose
   // content is translated into the masked element's user-space coordinates,
@@ -219,6 +236,27 @@ export function elementTreeToSvg(
     const positioned = positionFragmentMaskDef(rewritten, elX, elY, elW, elH);
     defsParts.push(positioned);
     return outId;
+  }
+
+  // DM-673: wraps `renderElement` with a `<g clip-path>` group when `el`
+  // was hoisted past an overflow-clip ancestor. The ancestor's clip-path
+  // id is stashed in `overflowClipPathIds` by the ancestor's own
+  // renderElement call (which runs first because sections paint at body's
+  // step 3 / base bucket, BEFORE positioned descendants at step 6 /
+  // zeroOrAuto bucket). `position:fixed` descendants are never added to
+  // the map (CSS Overflow 3 §2.2 — fixed elements escape ancestor
+  // overflow clipping), so they aren't wrapped here.
+  function renderElementWithOverflowClip(el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
+    const overflowClipAncestor = overflowClipForHoisted.get(el);
+    const clipId = overflowClipAncestor != null ? overflowClipPathIds.get(overflowClipAncestor) : undefined;
+    if (clipId == null) {
+      renderElement(el, depth, parentDisplayForEl);
+      return;
+    }
+    const indent = "  ".repeat(depth);
+    svgParts.push(`${indent}<g clip-path="url(#${clipId})">`);
+    renderElement(el, depth, parentDisplayForEl);
+    svgParts.push(`${indent}</g>`);
   }
 
   function renderElement(el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
@@ -1874,6 +1912,9 @@ export function elementTreeToSvg(
       const cbl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
       defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(el.x + cbl, el.y + cbt, Math.max(0, el.width - cbl - cbr), Math.max(0, el.height - cbt - cbb), corners, "")}</clipPath>`);
       svgParts.push(`${indent}<g clip-path="url(#${overflowClipId})">`);
+      // DM-673: stash the clip-path id so hoisted descendants of this
+      // overflow scroller can re-wrap their emission in the same clip.
+      overflowClipPathIds.set(el, overflowClipId);
     }
 
     // Children — sorted by CSS paint order. Elements with position != static
@@ -1896,13 +1937,13 @@ export function elementTreeToSvg(
     const childParentDisplay = el.styles.display;
     const hoistedAsInlineForEl = new Set<CapturedElement>();
     if (establishesStackingContext(el, parentDisplayForEl)) {
-      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true, hoistedAsInlineForEl);
+      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true, hoistedAsInlineForEl, overflowClipForHoisted);
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
     const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl);
     for (const child of sortedChildren) {
-      renderElement(child, depth + 1, childParentDisplay);
+      renderElementWithOverflowClip(child, depth + 1, childParentDisplay);
     }
 
     if (overflowClipId != null) svgParts.push(`${indent}</g>`);
@@ -1930,7 +1971,7 @@ export function elementTreeToSvg(
   // flatten it the same way an SC root would, so cross-parent z-index
   // hoisting works at the document root.
   const topLevelHoistedAsInline = new Set<CapturedElement>();
-  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, false, topLevelHoistedAsInline);
+  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, false, topLevelHoistedAsInline, overflowClipForHoisted);
   // DM-543: position:fixed elements paint relative to the viewport stacking
   // context and escape ALL ancestor overflow clips. The standard SC-by-SC
   // hoist halts at any SC ancestor (e.g. an overflow:auto section creates an
@@ -1966,7 +2007,7 @@ export function elementTreeToSvg(
   }
   const sortedTopLevel = sortChildrenByPaintOrder(topLevelFlat, undefined, undefined, topLevelHoistedAsInline);
   for (const el of sortedTopLevel) {
-    renderElement(el, 1);
+    renderElementWithOverflowClip(el, 1);
   }
 
   // Prepend defs block: clipPaths + optional glyph path definitions. For
@@ -2170,6 +2211,15 @@ function gatherStackingContextChildren(
    * inline bucket (between floats and zeroOrAuto).
    */
   hoistedAsInline?: Set<CapturedElement>,
+  /**
+   * DM-673: when set, this map is populated with `{ hoistedDescendant →
+   * overflow-clip ancestor }` for any positioned descendant that escapes an
+   * `overflow != visible` ancestor whose ONLY SC-creating property is the
+   * overflow. The renderer reads this map to re-wrap the descendant's
+   * emission in the same `<g clip-path>` the ancestor would have wrapped
+   * it in had it stayed nested.
+   */
+  overflowClipForHoisted?: Map<CapturedElement, CapturedElement>,
 ): CapturedElement[] {
   const out: CapturedElement[] = [];
   /**
@@ -2186,7 +2236,7 @@ function gatherStackingContextChildren(
    * of `.stages { position:relative }`) was rendering before the white
    * `.river-prop` page background and disappeared completely.
    */
-  const collectFromNonSC = (parent: CapturedElement, floatHoistBlocked: boolean = false): void => {
+  const collectFromNonSC = (parent: CapturedElement, floatHoistBlocked: boolean = false, currentOverflowAncestor: CapturedElement | null = null): void => {
     const childParentDisplay = parent.styles.display;
     const parentIsFlexGrid = isFlexOrGridContainerDisplay(childParentDisplay);
     for (const c of parent.children) {
@@ -2250,31 +2300,109 @@ function gatherStackingContextChildren(
         if (isFlexItem && !positioned && !flexGridItemSC) {
           hoistedAsInline?.add(c);
         }
+        // DM-673: if we hoisted `c` past an overflow-clip ancestor (and
+        // `c` isn't `position:fixed` — which escapes overflow per CSS
+        // Overflow 3 §2.2), remember the ancestor so the renderer can
+        // re-wrap `c` in its clip-path.
+        if (currentOverflowAncestor != null && c.styles.position !== "fixed") {
+          overflowClipForHoisted?.set(c, currentOverflowAncestor);
+        }
       }
-      if (!establishesStackingContext(c, childParentDisplay)) {
+      // DM-673: also recurse THROUGH `overflow != visible` SCs whose ONLY
+      // SC-creating property is the overflow (per `isOverflowOnlySC`). Per
+      // Chrome's paint model these scroll containers paint atomically only
+      // for their bg/border at step 3, while positioned descendants escape
+      // to the parent SC's step 6 — intermixed in tree order with sibling
+      // positioned descendants. Mark `c` as the overflow ancestor so any
+      // descendant we hoist further down gets the clip-path applied.
+      const cIsOverflowOnly = isOverflowOnlySC(c);
+      if (!establishesStackingContext(c, childParentDisplay) || cIsOverflowOnly) {
         // Block float hoisting from this point downward if `c` itself is a
         // positioned z=auto/0 element — its descendants' floats paint with
         // it atomically, not at the parent SC. Existing float-block state
         // propagates downward too.
         const cBlocks = positioned && !hasExplicitZ;
-        collectFromNonSC(c, floatHoistBlocked || cBlocks);
+        const nextOverflowAncestor = cIsOverflowOnly ? c : currentOverflowAncestor;
+        collectFromNonSC(c, floatHoistBlocked || cBlocks, nextOverflowAncestor);
       }
     }
   };
   for (const c of children) {
     if (hoistedOut.has(c)) continue;
     out.push(c);
-    if (!establishesStackingContext(c, parentDisplay)) {
+    const cIsOverflowOnly = isOverflowOnlySC(c);
+    if (!establishesStackingContext(c, parentDisplay) || cIsOverflowOnly) {
       // If `c` is a `position:relative/absolute` with `z-index: auto/0` it
       // paints atomically at step 6 — block float hoisting from its subtree
       // (matches the `cBlocks` rule inside collectFromNonSC).
       const cPositioned = c.styles.position != null && c.styles.position !== "static";
       const cZRaw = c.styles.zIndex;
       const cHasExplicitZ = cZRaw != null && cZRaw !== "" && cZRaw !== "auto";
-      collectFromNonSC(c, cPositioned && !cHasExplicitZ);
+      // DM-673: if `c` is an overflow-only SC, mark `c` as the overflow
+      // ancestor for any positioned descendant we hoist out of it.
+      const nextOverflowAncestor = cIsOverflowOnly ? c : null;
+      collectFromNonSC(c, cPositioned && !cHasExplicitZ, nextOverflowAncestor);
     }
   }
   return out;
+}
+
+/**
+ * DM-673: returns true when `el` is a stacking context whose ONLY reason
+ * for being one is `overflow != visible`. Such elements are scroll
+ * containers but not "real" SCs in Chrome's paint model — their bg/border
+ * paint in normal flow at CSS 2.1 Appendix E step 3, while their
+ * positioned descendants escape to the parent SC's step 6 (intermixed in
+ * tree order with positioned descendants from sibling overflow scrollers
+ * and `position:fixed` descendants that escape their CBs).
+ *
+ * Pixel-probed evidence from `13-deep-fixed-in-transform`: pin 0 (escaped
+ * fixed-to-viewport) is visible BELOW `.frame`'s bottom at y=748-758 over
+ * section 2's bg (so pin 0 paints AFTER section 2 bg), but `.frame`'s
+ * beige bg covers pin 0 at y=737-746 (so `.frame` paints AFTER pin 0).
+ * That interleaving is only possible if section 2 is non-atomic and
+ * `.frame` hoists to body's step 6 alongside pin 0.
+ *
+ * For SCs that have ANY other SC-creating property (positioned, transform,
+ * filter, opacity, etc.), we still keep them atomic — their descendants
+ * are contained by the layer, matching Chrome's behavior.
+ */
+function isOverflowOnlySC(el: CapturedElement): boolean {
+  const s = el.styles;
+  // Must actually create an SC via overflow
+  const ox = s.overflowX;
+  const oy = s.overflowY;
+  const overflowIsSC = (ox != null && ox !== "visible") || (oy != null && oy !== "visible");
+  if (!overflowIsSC) return false;
+  // Must have NO other SC-creating property
+  const positioned = s.position != null && s.position !== "static";
+  if (positioned) return false;
+  if (s.transform != null && s.transform !== "" && s.transform !== "none") return false;
+  if (s.transformCreatesSc) return false;
+  if (s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return false;
+  const op = parseFloat(s.opacity);
+  if (Number.isFinite(op) && op < 1) return false;
+  if (s.filter != null && s.filter !== "" && s.filter !== "none") return false;
+  if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return false;
+  if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return false;
+  if (s.clipPath != null && s.clipPath !== "" && s.clipPath !== "none") return false;
+  if (s.isolation === "isolate") return false;
+  if (s.contain != null && s.contain !== "" && s.contain !== "none") {
+    if (/\b(?:paint|strict|content)\b/i.test(s.contain)) return false;
+  }
+  if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
+    const _scWcProps: ReadonlySet<string> = new Set([
+      "transform", "opacity", "filter", "backdrop-filter",
+      "mask", "mask-image", "clip-path", "perspective",
+      "top", "right", "bottom", "left",
+      "position", "z-index", "isolation", "mix-blend-mode", "contain",
+    ]);
+    const tokens = s.willChange.split(/[\s,]+/);
+    for (const t of tokens) {
+      if (_scWcProps.has(t.toLowerCase())) return false;
+    }
+  }
+  return true;
 }
 
 /**

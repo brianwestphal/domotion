@@ -33,18 +33,23 @@ describe("buildMaskDef — single-layer gradient masks (DM-395)", () => {
   it("radial-gradient mask centers correctly when sized + positioned", () => {
     // mask-image: radial-gradient(circle, black 40%, transparent 40%);
     // mask-size: 80px; mask-position: 25% 25%
-    // Element at (680, 240); mask should be at gx=680+25, gy=240+10, 80x80.
+    // Element at (680, 240, 180x120). DM-679: single-length mask-size is
+    // `width=80, height=auto`. For gradient layers (no intrinsic size)
+    // `auto` resolves to the container's corresponding axis per CSS
+    // Backgrounds 3 §3.7 + CSS Images 3 §6.2 — so the gradient box is
+    // 80×120 (height = container 120), not 80×80. Position 25% 25% then
+    // gives gx=680 + 0.25*(180-80)=705 and gy=240 + 0.25*(120-120)=240.
     const r = buildMaskDef("m", "radial-gradient(circle, black 40%, transparent 40%)",
       680, 240, 180, 120, "match-source", "80px", "25% 25%", "no-repeat", "add");
     expect(r.def).toContain('x="705"');
-    expect(r.def).toContain('y="250"');
+    expect(r.def).toContain('y="240"');
     expect(r.def).toContain('width="80"');
-    expect(r.def).toContain('height="80"');
-    // Center of the 80x80 mask box: cx=745, cy=290.
+    expect(r.def).toContain('height="120"');
+    // Center of the 80x120 mask box: cx=745, cy=300.
     expect(r.def).toMatch(/cx="745"/);
-    expect(r.def).toMatch(/cy="290"/);
-    // farthest-corner radius = sqrt(40^2 + 40^2) ≈ 56.5685.
-    expect(r.def).toMatch(/r="56\.5685"/);
+    expect(r.def).toMatch(/cy="300"/);
+    // farthest-corner radius = sqrt(40^2 + 60^2) ≈ 72.111.
+    expect(r.def).toMatch(/r="72\.111"/);
   });
 
   it("mask-mode: alpha emits mask-type='alpha'", () => {
