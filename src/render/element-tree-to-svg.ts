@@ -3282,7 +3282,14 @@ export function buildMaskDef(
         gradW = w; gradH = h;
       } else {
         gradW = resolveSize(sizeTok[0], w, w);
-        gradH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : gradW;
+        // DM-679: single-length mask-size per CSS Backgrounds 3 §3.7
+        // means `width=N, height=auto`. For gradient layers (no intrinsic
+        // size) `auto` resolves to the container's corresponding axis, not
+        // to the width again. Previously we squared the box (gradH = gradW)
+        // which made `radial-gradient(circle, …) mask-size: 80px` paint a
+        // smaller hard circle than Chrome (radius derived from 80×80 farthest-
+        // corner ≈ 56.6 vs Chrome's 80×containerH farthest-corner ≈ 72).
+        gradH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : h;
       }
       const posTok = layerPos.trim().split(/\s+/);
       const resolveH = (t: string): number => {
