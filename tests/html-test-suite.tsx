@@ -19,7 +19,7 @@
  */
 
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdirSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -109,9 +109,44 @@ interface TestResult {
 
 
 function categoryOf(name: string): string {
+  // Subdir-prefixed names (e.g. `niche-foo`) take their subdir as the
+  // category. DM-714: added 19 fixtures under `~/Documents/html-test/niche/`
+  // for experimental/Chrome-only CSS coverage; bucketed separately so the
+  // category breakdown shows their pass rate next to the spec-bucket tests.
+  // Subdirectory names must start with a letter so they don't collide with
+  // the digit-prefixed spec buckets (`14-float-*` etc). Match only the
+  // FIRST hyphen-bounded segment so `niche-text-box-trim` lands in the
+  // `niche` bucket rather than `niche-text-box`.
+  const sub = /^([a-z][a-z0-9]*)-/.exec(name);
+  if (sub != null) return sub[1];
   const m = /^(\d+)-([a-z]+)/.exec(name);
   if (m != null) return `${m[1]}-${m[2]}`;
   return "other";
+}
+
+/** DM-714: walk HTML_TEST_DIR recursively. Returns relative paths with `/`
+ *  separator (e.g. `niche/foo.html`). Subdirs whose name starts with `.` or
+ *  `_` are skipped; everything else under the root is walked. */
+function walkHtmlFiles(rootDir: string): string[] {
+  const out: string[] = [];
+  function visit(dir: string, prefix: string): void {
+    let entries: string[];
+    try { entries = readdirSync(dir); } catch { return; }
+    for (const name of entries) {
+      if (name.startsWith(".") || name.startsWith("_")) continue;
+      const fullPath = resolve(dir, name);
+      const relPath = prefix === "" ? name : `${prefix}/${name}`;
+      let isDir = false;
+      try { isDir = statSync(fullPath).isDirectory(); } catch { continue; }
+      if (isDir) {
+        visit(fullPath, relPath);
+      } else if (name.endsWith(".html") && relPath !== "index.html") {
+        out.push(relPath);
+      }
+    }
+  }
+  visit(rootDir, "");
+  return out.sort();
 }
 
 interface HtmlTestWorker {
@@ -122,7 +157,11 @@ interface HtmlTestWorker {
 }
 
 async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResult> {
-  const name = file.replace(/\.html$/, "");
+  // DM-714: `file` is a relative path under HTML_TEST_DIR (e.g. `01-foo.html`
+  // or `niche/foo.html`). Flatten subdir separators to `-` so the output
+  // PNGs and the visible "name" in results live at the top of OUTPUT_DIR;
+  // `srcPath` still resolves correctly through the un-flattened path.
+  const name = file.replace(/\.html$/, "").replace(/\//g, "-");
   const srcPath = resolve(HTML_TEST_DIR, file);
   const expectedPath = resolve(OUTPUT_DIR, `${name}-expected.png`);
   const actualPath = resolve(OUTPUT_DIR, `${name}-actual.png`);
@@ -251,11 +290,16 @@ async function main(): Promise<void> {
 
   mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const files = readdirSync(HTML_TEST_DIR)
-    .filter((f) => f.endsWith(".html") && f !== "index.html")
-    .sort();
+  // DM-714: walk recursively so subdir-grouped fixtures (`niche/*.html`,
+  // future additions) are picked up automatically.
+  const files = walkHtmlFiles(HTML_TEST_DIR);
 
-  const testFiles = onlyArg != null ? files.filter((f) => f.startsWith(onlyArg)) : files;
+  // --only is matched against the flattened name (with `/` → `-`) so callers
+  // can pass either form: `--only niche-foo` and `--only niche/foo` both work.
+  const onlyNorm = onlyArg != null ? onlyArg.replace(/\//g, "-") : null;
+  const testFiles = onlyNorm != null
+    ? files.filter((f) => f.replace(/\//g, "-").startsWith(onlyNorm))
+    : files;
   if (testFiles.length === 0) {
     console.log(`No test files matched (onlyArg=${onlyArg ?? "(none)"}).`);
     return;
