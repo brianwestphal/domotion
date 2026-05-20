@@ -351,6 +351,17 @@ export const captureScript =
       // lost when the SVG is re-embedded outside the original cascade —
       // computed style is resolved against the source DOM, not the clone.
       const _bakeSvgAttrs = ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'fill-opacity', 'opacity'];
+      // DM-720: SVG 2 promotes geometry properties (cx/cy/r/rx/ry/x/y/width/
+      // height/d) to CSS — modern Chrome resolves them from the cascade. When
+      // a fixture sets them entirely from CSS (no XML attrs on the element),
+      // the cloned subtree has no geometry and renders blank. Bake the
+      // computed values onto the clone so the emitted SVG stands on its own.
+      // We keep these in a separate list because (a) the per-tag applicability
+      // varies (circles want cx/cy/r, rects want x/y/width/height + rx/ry,
+      // paths want d) and (b) computed values need light normalisation
+      // (strip "px"; unwrap path("…") for d) before they're valid as XML
+      // presentation attributes.
+      const _bakeSvgGeomAttrs = ['cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'd'];
       const _walkBake = (origNode, cloneNode) => {
         if (origNode.nodeType !== 1) return;
         const ns = origNode.namespaceURI;
@@ -367,6 +378,28 @@ export const captureScript =
             if (val != null && val !== '' && !_hasConcreteAttr(origNode, attr)) {
               cloneNode.setAttribute(attr, val);
             }
+          }
+          // DM-720: bake CSS-driven geometry. Skip when the source has a
+          // concrete XML attr — Chrome's per-property precedence is "CSS wins
+          // over the presentation attribute" since SVG 2, but the computed
+          // value reflects that already, so writing it to the clone preserves
+          // the same painted geometry. Strip "px" suffixes and unwrap d's
+          // path() wrapper so the values parse as XML presentation attrs.
+          for (const gattr of _bakeSvgGeomAttrs) {
+            if (_hasConcreteAttr(origNode, gattr)) continue;
+            let gval = ocs.getPropertyValue(gattr);
+            if (gval == null) continue;
+            gval = gval.trim();
+            if (gval === '' || gval === 'auto' || gval === 'none' || gval === 'normal') continue;
+            if (gattr === 'd') {
+              // Computed `d` is wrapped as `path("M …")`. Unwrap to bare data.
+              const m = /^path\(\s*(?:"([^"]*)"|'([^']*)')\s*\)$/.exec(gval);
+              if (m) gval = m[1] != null ? m[1] : m[2];
+              else continue; // not a recognized path() form
+            } else if (/^-?\d+(?:\.\d+)?px$/.test(gval)) {
+              gval = gval.slice(0, -2);
+            }
+            cloneNode.setAttribute(gattr, gval);
           }
           // DM-508: bake CSS-animated transforms at t=0. CSS animation /
           // transition declarations mean the computed transform reflects the
