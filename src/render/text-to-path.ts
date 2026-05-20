@@ -1446,10 +1446,19 @@ export function textToPathMarkup(
             const upper = ch.toUpperCase();
             const isLower = upper !== ch && upper.length === ch.length;
             const isUpper = !isLower && ch.toLowerCase() !== ch && ch.toLowerCase().length === ch.length;
+            // DM-700: per CSS Fonts 4 §7.4, `all-small-caps` ALSO scales
+            // digits to small-cap height ("small caps are also applied to
+            // numerals…"). Synthesize that here when the c2sc branch is
+            // active. Use the c2sc scale (synthUpperScale) for digits since
+            // Chrome treats digits the same as upper for all-small-caps,
+            // not the lowercase smcp scale.
+            const isDigit = ch.length === 1 && ch >= "0" && ch <= "9";
             if (isLower && synthLowerScale != null) {
               ch = upper;
               chScale = Number((runScale * synthLowerScale).toFixed(5));
             } else if (isUpper && synthUpperScale != null) {
+              chScale = Number((runScale * synthUpperScale).toFixed(5));
+            } else if (isDigit && synthUpperScale != null) {
               chScale = Number((runScale * synthUpperScale).toFixed(5));
             }
           }
