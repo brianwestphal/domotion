@@ -257,6 +257,16 @@ export interface CapturedElement {
      * when the rendered text is actually transparent. DM-462.
      */
     webkitTextFillColor?: string;
+    /** `-webkit-text-stroke-width` (e.g. "2px"). DM-719. */
+    webkitTextStrokeWidth?: string;
+    /** `-webkit-text-stroke-color` (e.g. "rgb(220,38,38)"). DM-719. */
+    webkitTextStrokeColor?: string;
+    /** `paint-order` (e.g. "stroke fill"). Controls whether the text stroke
+     *  paints before or after the fill — `stroke fill` puts the stroke
+     *  UNDER the fill so the fill rests on top of half the stroke width,
+     *  eliminating the chunky "fill-on-top-of-stroke" artifact at large
+     *  stroke widths. DM-719. */
+    paintOrder?: string;
     paddingTop: string;
     paddingRight: string;
     paddingBottom: string;

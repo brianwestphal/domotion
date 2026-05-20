@@ -55,6 +55,26 @@ function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>
  * Used for ::first-letter drop caps (DM-439) where the body-size path glyph
  * would otherwise show through behind the styled rasterized big letter.
  */
+// DM-719: pull `-webkit-text-stroke-width / -color` + `paint-order` off the
+// element styles into the trio of args `renderTextAsPath` expects. Returns
+// `{ width: 0 }` when no stroke is set so the renderer keeps the unstroked
+// fast path.
+function textStrokeParams(styles: { webkitTextStrokeWidth?: string; webkitTextStrokeColor?: string; paintOrder?: string }): { width: number; color: string; paintOrder: string } {
+  const widthCss = styles.webkitTextStrokeWidth;
+  if (widthCss == null || widthCss === "" || widthCss === "0px" || widthCss === "0") {
+    return { width: 0, color: "", paintOrder: "" };
+  }
+  const width = parseFloat(widthCss);
+  if (!Number.isFinite(width) || width <= 0) {
+    return { width: 0, color: "", paintOrder: "" };
+  }
+  return {
+    width,
+    color: styles.webkitTextStrokeColor ?? "currentColor",
+    paintOrder: styles.paintOrder ?? "",
+  };
+}
+
 function suppressGlyphChars(text: string, seg: TextSegment | undefined): string {
   // DM-692: Chrome paints a visible hyphen at line-break points marked by
   // a soft-hyphen (U+00AD); SHYs not at the break paint nothing. Our
@@ -482,6 +502,7 @@ function anisotropicCorrectionWrap(el: { cumScaleX?: number; cumScaleY?: number;
  * Render a single-line text element.
  */
 export function renderSingleLineText(opts: RenderTextOpts): string {
+  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   // Raster fallback (DM-626 follow-up to DM-583): when the only segment
   // is a pseudo whose codepoints fontkit can't shape (e.g. icon-font
@@ -558,7 +579,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
     return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${renderPseudoBoxPerSideBorders(pb)}`;
   })() : "";
-  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, segAscent, features, el.styles.lang, variationSettings);
+  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, segAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : segColor;
@@ -619,6 +640,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
  * Render multi-segment text (mixed content like: <p>Text <code>x</code> more</p>).
  */
 export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegment[]): string {
+  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   const elFontSize = parseFloat(el.styles.fontSize) || 14;
   const fontFamily = el.styles.fontFamily;
@@ -689,7 +711,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
     const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings);
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder);
     if (result != null) { parts.push(result); }
     else if (!isAllPrivateUseArea(seg.text)) {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
@@ -724,6 +746,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
  * Render multi-line text (pre blocks).
  */
 export function renderMultiLineText(opts: RenderTextOpts): string {
+  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   const fontSize = parseFloat(el.styles.fontSize) || 14;
   const fontFamily = el.styles.fontFamily;
@@ -756,7 +779,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
       const segAscent = seg.fontAscent ?? el.fontAscent;
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes);
+      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder);
       if (result != null) parts.push(`  ${result}`);
     }
   } else {
@@ -765,7 +788,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const line = lines[li];
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
-      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang, fvsAxes);
+      const result = renderTextAsPath(line, startX, lineY, fontSize, fontFamily, fontWeight, fillColor, undefined, undefined, undefined, el.styles.fontStyle, el.fontAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder);
       if (result != null) parts.push(`  ${result}`);
     }
   }
@@ -777,6 +800,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
  * Render input/textarea text.
  */
 export function renderInputText(opts: RenderTextOpts): string {
+  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   // Textarea content was rasterized via page.screenshot (SK-1108) — stamp the
   // PNG at the content rect and skip the path pipeline. This bypasses our
@@ -808,7 +832,7 @@ export function renderInputText(opts: RenderTextOpts): string {
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
   const inputFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
   const inputAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
-  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes);
+  const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder);
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints

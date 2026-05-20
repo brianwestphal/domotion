@@ -1958,6 +1958,15 @@ export function renderTextAsPath(
   lang?: string,
   /** Author-set `font-variation-settings` axis overrides. DM-578. */
   variationSettings?: Record<string, number>,
+  /** DM-719: `-webkit-text-stroke-width` (px). When > 0, the emitted text
+   *  group gets a `stroke` attribute so each glyph paints with an outline. */
+  textStrokeWidth?: number,
+  /** DM-719: `-webkit-text-stroke-color`. Required when `textStrokeWidth > 0`. */
+  textStrokeColor?: string,
+  /** DM-719: `paint-order` (e.g. "stroke fill"). When `stroke fill`, the
+   *  stroke paints UNDER the fill so half the stroke is covered, eliminating
+   *  the chunky fill-on-stroke look at large widths. */
+  paintOrder?: string,
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -2013,7 +2022,25 @@ export function renderTextAsPath(
   const ascent = ascentOverride != null ? ascentOverride : Math.round(font.ascent * scale);
   const baselineY = y + ascent;
 
-  return `<g transform="translate(${r(x)},${r(baselineY)})" fill="${fill}" role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
+  // DM-719: -webkit-text-stroke. Glyphs paint inside inner
+  // `<g transform="scale(s,-s)">` groups where s = fontSize/unitsPerEm — a
+  // tiny number (≈ 0.03 at 64px on a 2048-UPEM font). SVG strokes scale
+  // with the transform, so a literal `stroke-width="2"` on the outer group
+  // would render at 2 × 0.03 ≈ 0.06 user units. `vector-effect:
+  // non-scaling-stroke` must be set on the actual graphics element, not a
+  // parent (it doesn't inherit through `<use>` consistently). Instead,
+  // pre-multiply the stroke width by the inverse scale so the post-
+  // transform paint matches the requested CSS width.
+  let strokeAttr = "";
+  if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
+    const inverseScale = font.unitsPerEm / fontSize;
+    const swInEm = textStrokeWidth * inverseScale;
+    strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r(swInEm)}"`;
+    if (paintOrder != null && /\bstroke\b\s+\bfill\b/.test(paintOrder)) {
+      strokeAttr += ` paint-order="stroke fill"`;
+    }
+  }
+  return `<g transform="translate(${r(x)},${r(baselineY)})" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
 }
 
 /**

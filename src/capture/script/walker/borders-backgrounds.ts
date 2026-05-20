@@ -202,6 +202,12 @@ export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderS
     // the headline text transparent in the background-clip:text idiom
     // (cs.color may still report a normal value).
     webkitTextFillColor: cs.webkitTextFillColor || cs.WebkitTextFillColor || undefined,
+    // DM-719: `-webkit-text-stroke-width` / `-webkit-text-stroke-color` paint a
+    // stroke around each glyph outline. Captured so the renderer can add a
+    // `stroke` attribute to the text-path emission.
+    webkitTextStrokeWidth: cs.webkitTextStrokeWidth || cs.WebkitTextStrokeWidth || undefined,
+    webkitTextStrokeColor: cs.webkitTextStrokeColor || cs.WebkitTextStrokeColor || undefined,
+    paintOrder: cs.paintOrder || undefined,
     backgroundOrigin: cs.backgroundOrigin,
     backgroundAttachment: cs.backgroundAttachment,
     backgroundIntrinsic: computeBackgroundIntrinsic(cs),
