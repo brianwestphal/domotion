@@ -2711,15 +2711,29 @@ function buildBackgroundLayerDef(
   // `linear-gradient(...)` text first so the existing parsers can consume it.
   const normalizedWebkit = convertLegacyWebkitGradient(layer);
   if (normalizedWebkit != null) layer = normalizedWebkit;
+  // DM-695: `background-attachment: fixed` anchors the bg image (gradient or
+  // raster) to the viewport rather than the element. For gradients this
+  // means the gradient axis spans the VIEWPORT box (0,0 → vw,vh); the
+  // element rect with `fill="url(#…)"` then shows the portion of that
+  // gradient that intersects the element. Previously we always computed
+  // gradient axes off the element rect, so a `bg-attachment: fixed`
+  // gradient looked identical to a `scroll` one — different from Chrome
+  // which only shows a slice through the element's window onto the
+  // viewport-spanning gradient (visible color-vibrancy diff on
+  // `17-deep-bg-attachment-fixed` panel 1).
+  const gradX = (attachment === "fixed" && fixedViewport != null) ? 0 : elX;
+  const gradY = (attachment === "fixed" && fixedViewport != null) ? 0 : elY;
+  const gradW = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.w : w;
+  const gradH = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.h : h;
   const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
   if (linear != null) {
     const repeating = /^repeating-/i.test(layer);
-    return { def: buildLinearGradientDef(id, linear[1], repeating, w, h, elX, elY) };
+    return { def: buildLinearGradientDef(id, linear[1], repeating, gradW, gradH, gradX, gradY) };
   }
   const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
   if (radial != null) {
     const repeating = /^repeating-/i.test(layer);
-    return { def: buildRadialGradientDef(id, radial[1], repeating, elX, elY, w, h) };
+    return { def: buildRadialGradientDef(id, radial[1], repeating, gradX, gradY, gradW, gradH) };
   }
   // DM-550: conic. The raster pre-pass (DM-549) populated `_conicTileCache`
   // with PNG bytes for `(layerText, "${tileW}x${tileH}")` tuples; we look up
