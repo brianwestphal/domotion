@@ -27,7 +27,7 @@ import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } f
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { raw } from "kerfjs";
-import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX } from "./compare-pngs.js";
+import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -92,6 +92,11 @@ interface TestResult {
    *  shape differences). They aren't real structural change. */
   shiftyRegionCount: number;
   shiftyRegionArea: number;
+  /** Surviving area as a percentage of the image (more intuitive than the
+   *  raw pixel count). */
+  coveragePct: number;
+  /** Qualitative tier — `clean`/`trivial`/`minor`/`moderate`/`major`. */
+  verdict: DiffVerdict;
   /** Per-region breakdown (top 32 by area). */
   regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }>;
   pass: boolean;
@@ -138,6 +143,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let shiftedPixels = 0;
   let shiftyRegionCount = 0;
   let shiftyRegionArea = 0;
+  let coveragePct = 100;
+  let verdict: DiffVerdict = "major";
   let regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }> = [];
   let bodyBg = "#ffffff";
   let err: string | undefined;
@@ -199,6 +206,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     shiftedPixels = cmp.shiftedPixels;
     shiftyRegionCount = cmp.shiftyRegionCount;
     shiftyRegionArea = cmp.shiftyRegionArea;
+    coveragePct = cmp.coveragePct;
+    verdict = cmp.verdict;
     regions = cmp.regions;
   } catch (e) {
     err = e instanceof Error ? e.message : String(e);
@@ -224,6 +233,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     shiftedPixels,
     shiftyRegionCount,
     shiftyRegionArea,
+    coveragePct,
+    verdict,
     regions,
     pass,
     skipped,
@@ -279,13 +290,17 @@ async function main(): Promise<void> {
     },
     runJob: async (file, w) => runOneHtmlTest(file, w),
     onResult: (result) => {
-      const { name, pass, skipped, error: err, warnings, regionCount, totalChangedArea, maxRegionSeverity, scatteredPixels, shiftedPixels, shiftyRegionCount, nonAaPixels, diffPct } = result;
+      const { name, pass, skipped, error: err, warnings, verdict, regionCount, coveragePct } = result;
       const status = skipped ? "- SKIP" : pass ? "✓ PASS" : "✗ FAIL";
       const warnBadge = warnings != null ? ` (${warnings.length}w)` : "";
-      const regionBadge = !(skipped ?? false)
-        ? ` [regions ${regionCount} · area ${totalChangedArea} px · max ${maxRegionSeverity.toFixed(1)}% · shifty ${shiftyRegionCount} · shifted ${shiftedPixels} · scatter ${scatteredPixels}]`
-        : "";
-      console.log(`  ${status}  ${name.padEnd(40)} (${diffPct.toFixed(2)}% avg${regionBadge})${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
+      // Headline: verdict tier + region count + coverage %. Three things,
+      // each immediately interpretable: "minor" tells you it's small,
+      // "3 regions" tells you how many spots to look at, "0.28% of image"
+      // tells you how much area is wrong.
+      const headline = (skipped ?? false)
+        ? ""
+        : ` ${verdict} · ${regionCount} region${regionCount === 1 ? "" : "s"} · ${coveragePct.toFixed(2)}% of image`;
+      console.log(`  ${status}  ${name.padEnd(40)}${headline}${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
     },
   });
 
@@ -349,11 +364,10 @@ function ResultRow({ r }: { r: TestResult }) {
       <td className="name">{r.name}</td>
       <td className="status">{status}</td>
       <td className="diff">
-        <div><b>{`regions ${r.regionCount} · ${r.totalChangedArea} px`}</b></div>
-        <div className="tile">{`max ${r.maxRegionSeverity.toFixed(1)}%`}</div>
-        <div className="tile">{`shifty ${r.shiftyRegionCount} (${r.shiftyRegionArea} px)`}</div>
-        <div className="tile">{`shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels}`}</div>
-        <div className="tile">{`avg ${r.diffPct.toFixed(2)}% · non-AA ${r.nonAaPixels}`}</div>
+        <div><b>{`${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"}`}</b></div>
+        <div className="tile">{`${r.coveragePct.toFixed(2)}% of image`}</div>
+        <div className="tile">{`shifty ${r.shiftyRegionCount} · shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels}`}</div>
+        <div className="tile">{`raw avg ${r.diffPct.toFixed(2)}% · non-AA ${r.nonAaPixels} px`}</div>
       </td>
       <td className="imgs">
         <a href={`${r.name}-expected.png`}><img src={`${r.name}-expected.png`} /></a>
@@ -378,7 +392,7 @@ function ResultRow({ r }: { r: TestResult }) {
 function MetricsLegend() {
   return (
     <p className="legend">
-      {`DM-715 pass criterion: regions = 0. Pipeline: (1) raw RGB diff per pixel; (2) neighborhood-tolerant shift filter — if expected[x,y] has a near-match within ±${REGION_DILATE_PX} px in actual (and vice versa), the pixel is treated as a 1–2 px translation and reported as "shifted"; (3) Yee AA detector zeroes glyph anti-aliasing; (4) surviving "real diff" mask is dilated by ${REGION_DILATE_PX} px and flood-filled into connected components; (5) components with area < ${MIN_REGION_AREA} px or with low high-severity fraction (font-substitution/glyph-shape noise) are excluded from the region count. "Shifty" regions failed the high-severity gate; "scatter" is non-AA-diff pixels in sub-area components; "shifted" is pixels absorbed by step (2). Magenta outlines on diff.png mark surviving regions; the yellow box marks the worst tile.`}
+      {`Verdicts: clean (no regions) · trivial (≤2 regions, <0.05% coverage) · minor (≤5 regions, <0.5%) · moderate (≤15 regions, <2%) · major (everything past that). Pipeline (DM-715): neighborhood-tolerant shift filter → Yee AA filter → 3-px dilation + flood-fill → area + high-severity gates. "shifty" = font-substitution regions culled by the high-sev gate; "scatter" = sub-area components; "shifted" = pixels absorbed by neighborhood matching. Big shifty/shifted with low region count means the filters did real work. Magenta outlines on diff.png mark surviving regions; yellow box marks the worst tile.`}
     </p>
   );
 }

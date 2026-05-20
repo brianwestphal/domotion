@@ -61,6 +61,20 @@ export const SHIFT_MATCH_DIST = 35;
 export const HIGH_SEV_PCT = 50;
 export const MIN_HIGH_SEV_FRACTION = 0.15;
 
+/** Qualitative-tier bucket. Maps the per-fixture pair (regionCount,
+ *  coveragePct) onto a single short verdict reviewers can scan at a glance.
+ *  Anything past `major` is bundled into `major` — once an image is "lots
+ *  wrong" the gradations stop being useful. Coverage % is total-changed-area
+ *  / total-image-pixels * 100. */
+export type DiffVerdict = "clean" | "trivial" | "minor" | "moderate" | "major";
+export function classifyDiff(regionCount: number, coveragePct: number): DiffVerdict {
+  if (regionCount === 0) return "clean";
+  if (regionCount <= 2 && coveragePct < 0.05) return "trivial";
+  if (regionCount <= 5 && coveragePct < 0.5) return "minor";
+  if (regionCount <= 15 && coveragePct < 2.0) return "moderate";
+  return "major";
+}
+
 export interface CompareResult {
   /** Pixels that differ AND are not classified as glyph anti-aliasing by the
    *  Yee detector. Diagnostic only since DM-715 — see `regionCount` for
@@ -109,6 +123,14 @@ export interface CompareResult {
   shiftyRegionCount: number;
   /** Total area inside `shiftyRegionCount` regions. */
   shiftyRegionArea: number;
+  /** `totalChangedArea` expressed as a percentage of the image's pixels.
+   *  Use this rather than the raw count when summarizing — "0.28%" reads
+   *  more intuitively than "2858 px" without needing to know the canvas
+   *  size. */
+  coveragePct: number;
+  /** Qualitative severity tier derived from `regionCount` + `coveragePct`.
+   *  See `classifyDiff`. */
+  verdict: DiffVerdict;
   /** Per-region breakdown: area + max severity + high-sev fraction +
    *  bounding box. Sorted by `area` descending; capped at the top 32
    *  regions to keep payload small. */
@@ -502,6 +524,7 @@ export async function comparePngs(
         shiftedPixels: totalShifted,
         shiftyRegionCount,
         shiftyRegionArea,
+        coveragePct: (totalChangedArea / totalPixels) * 100,
         regions: trimmedRegions,
         diffDataUrl: diffCanvas.toDataURL("image/png"),
       };
@@ -521,6 +544,7 @@ export async function comparePngs(
     shiftedPixels: number;
     shiftyRegionCount: number;
     shiftyRegionArea: number;
+    coveragePct: number;
     regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }>;
     diffDataUrl: string;
   };
@@ -541,6 +565,8 @@ export async function comparePngs(
     shiftedPixels: result.shiftedPixels,
     shiftyRegionCount: result.shiftyRegionCount,
     shiftyRegionArea: result.shiftyRegionArea,
+    coveragePct: result.coveragePct,
+    verdict: classifyDiff(result.regionCount, result.coveragePct),
     regions: result.regions,
   };
 }

@@ -45,6 +45,8 @@ interface ReviewTest {
   shiftedPixels?: number;
   shiftyRegionCount?: number;
   shiftyRegionArea?: number;
+  coveragePct?: number;
+  verdict?: string;
   warningCount?: number;
   category?: string;
   chunks?: Array<{
@@ -88,15 +90,20 @@ const showLiveSvgEl = document.getElementById("show-live-svg") as HTMLInputEleme
 
 type Filter = "fail" | "all" | "pass";
 type Suite = "all" | SuiteName;
-type Sort = "regions-desc" | "area-desc" | "severity-desc" | "diff-desc" | "diff-asc" | "name";
+type Sort = "verdict-desc" | "coverage-desc" | "regions-desc" | "diff-desc" | "diff-asc" | "name";
 
 const filterS = signal<Filter>("fail");
 const suiteS  = signal<Suite>("all");
-// DM-715: default to sorting by region count (the primary pass/fail signal),
-// so the tests with the largest *localized* structural diff bubble to the
-// top — image-wide avg `diffPct` can stay low while a single critical
-// region paints completely wrong.
-const sortS   = signal<Sort>("regions-desc");
+// Default to the qualitative verdict tier (worst first). "Major" failures
+// rise above "moderate" and "minor"; image-wide avg `diffPct` is no longer
+// the primary signal because a tiny percentage routinely hides a localized
+// region in a critical area.
+const sortS   = signal<Sort>("verdict-desc");
+
+// Verdict tier ranking — higher is worse, used by the default sort.
+const VERDICT_RANK: Record<string, number> = {
+  major: 4, moderate: 3, minor: 2, trivial: 1, clean: 0,
+};
 
 // Live-SVG visibility (DM-632). The animated SVGs the live-svg figure embeds
 // keep running and chew enough CPU to make the review grid feel sluggish, so
@@ -122,28 +129,19 @@ const visible = computed(() => {
   const s = suiteS.value;
   if (s !== "all") list = list.filter((r) => r.suite === s);
   const so = sortS.value;
-  // DM-715: region-aware sorts. Tests without region metrics (legacy
-  // results.json) fall back to diff-desc so they still rank meaningfully.
   const regionCount = (r: ReviewTest) => r.regionCount ?? 0;
-  const totalChangedArea = (r: ReviewTest) => r.totalChangedArea ?? 0;
-  const maxRegionSeverity = (r: ReviewTest) => r.maxRegionSeverity ?? 0;
-  if (so === "regions-desc") {
+  const coverage = (r: ReviewTest) => r.coveragePct ?? r.diffPct;
+  const verdictRank = (r: ReviewTest) => VERDICT_RANK[r.verdict ?? ""] ?? -1;
+  if (so === "verdict-desc") {
     list.sort((a, b) =>
-      regionCount(b) - regionCount(a)
-      || totalChangedArea(b) - totalChangedArea(a)
-      || b.diffPct - a.diffPct,
+      verdictRank(b) - verdictRank(a)
+      || coverage(b) - coverage(a)
+      || regionCount(b) - regionCount(a),
     );
-  } else if (so === "area-desc") {
-    list.sort((a, b) =>
-      totalChangedArea(b) - totalChangedArea(a)
-      || regionCount(b) - regionCount(a)
-      || b.diffPct - a.diffPct,
-    );
-  } else if (so === "severity-desc") {
-    list.sort((a, b) =>
-      maxRegionSeverity(b) - maxRegionSeverity(a)
-      || totalChangedArea(b) - totalChangedArea(a),
-    );
+  } else if (so === "coverage-desc") {
+    list.sort((a, b) => coverage(b) - coverage(a) || regionCount(b) - regionCount(a));
+  } else if (so === "regions-desc") {
+    list.sort((a, b) => regionCount(b) - regionCount(a) || coverage(b) - coverage(a));
   } else if (so === "diff-desc") list.sort((a, b) => b.diffPct - a.diffPct);
   else if (so === "diff-asc") list.sort((a, b) => a.diffPct - b.diffPct);
   else if (so === "name") list.sort((a, b) => a.name.localeCompare(b.name));
@@ -172,17 +170,22 @@ function ExtraMetrics({ r }: { r: ReviewTest }) {
   return <span className="metrics">{parts}</span>;
 }
 
-// DM-715: primary status text — region count + area + severity. Falls back
-// to the legacy `diffPct` when region metrics are missing (older
-// results.json). The single-percentage diff is intentionally NOT shown
-// alongside regions: a tiny image-wide percentage routinely hides a
-// large localized region in a critical area, and reviewers should
-// navigate by what's actually painted differently.
+// Primary status text — qualitative verdict tier + region count + coverage
+// percentage of the image. Three things, each immediately interpretable:
+// "minor" at a glance says "small problem", "3 regions" says how many spots
+// to navigate to, "0.28% of image" gives scale without needing to know the
+// canvas dimensions. The image-wide `diffPct` and raw pixel counts move
+// to secondary diagnostics since they routinely mislead (tiny % can hide a
+// big localized problem; raw px depends on canvas size).
 function StatusScore({ r }: { r: ReviewTest }) {
+  if (r.verdict != null && r.regionCount != null && r.coveragePct != null) {
+    if (r.regionCount === 0) return <>clean</>;
+    return <>{`${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`}</>;
+  }
+  // Legacy manifest fallback.
   if (r.regionCount != null) {
     if (r.regionCount === 0) return <>0 regions</>;
-    const sev = r.maxRegionSeverity != null ? ` · max ${r.maxRegionSeverity.toFixed(1)}%` : "";
-    return <>{`${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.totalChangedArea ?? 0} px${sev}`}</>;
+    return <>{`${r.regionCount} region${r.regionCount === 1 ? "" : "s"}`}</>;
   }
   return <>{`${r.diffPct.toFixed(2)}% diff`}</>;
 }
@@ -193,13 +196,14 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
   // long scroll-mode tests don't crowd the grid by default. The summary
   // shows how many chunks are hidden and the worst per-chunk diff, so
   // reviewers can decide whether expanding is worth it without opening.
-  // DM-715: summarize by max region count across chunks when available;
-  // fall back to worst diff% for legacy data.
+  // Summarize by max region count + max coverage across chunks when
+  // available; fall back to worst diff% for legacy data.
   const haveRegions = chunks.some((c) => c.regionCount != null);
   const worstRegions = chunks.reduce((m, c) => Math.max(m, c.regionCount ?? 0), 0);
+  const worstCoverage = chunks.reduce((m, c: any) => Math.max(m, (c.coveragePct ?? 0)), 0);
   const worstDiff = chunks.reduce((m, c) => Math.max(m, c.diffPct), 0);
   const summary = haveRegions
-    ? `${chunks.length} chunks · worst ${worstRegions} region${worstRegions === 1 ? "" : "s"}`
+    ? `${chunks.length} chunks · worst ${worstRegions} region${worstRegions === 1 ? "" : "s"} · ${worstCoverage.toFixed(2)}%`
     : `${chunks.length} chunks · worst ${worstDiff.toFixed(2)}%`;
   return (
     <details className="chunk-strip-details">
@@ -210,11 +214,14 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
           const expected = `/img/${r.suite}/${r.name}-expected${suffix}.png`;
           const actual = `/img/${r.suite}/${r.name}-actual${suffix}.png`;
           const diff = `/img/${r.suite}/${r.name}-diff${suffix}.png`;
-          // Lead with regions for chunks that have them; legacy chunks
-          // fall back to diff%.
-          const chunkScore = c.regionCount != null
-            ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"} · ${c.totalChangedArea ?? 0} px${c.maxRegionSeverity != null ? ` · max ${c.maxRegionSeverity.toFixed(1)}%` : ""}`
-            : `${c.diffPct.toFixed(2)}%`;
+          // Lead with regions/coverage % when available; legacy chunks
+          // fall back to raw diff %.
+          const cAny = c as any;
+          const chunkScore = c.regionCount != null && cAny.coveragePct != null
+            ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"} · ${cAny.coveragePct.toFixed(2)}%`
+            : c.regionCount != null
+              ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"}`
+              : `${c.diffPct.toFixed(2)}%`;
           return (
             <div className="chunk">
               <div className="chunk-head">

@@ -89,6 +89,8 @@ interface ReviewTest {
   shiftedPixels?: number;
   shiftyRegionCount?: number;
   shiftyRegionArea?: number;
+  coveragePct?: number;
+  verdict?: string;
   // real-world scroll-mode per-chunk metrics (undefined for non-scroll tests).
   // Each chunk has matching `<name>-{expected,actual,diff}-N.png` files
   // (chunk 0 is the canonical no-suffix triplet).
@@ -185,6 +187,8 @@ function loadManifest(): ReviewManifest {
         shiftedPixels: typeof r["shiftedPixels"] === "number" ? r["shiftedPixels"] : undefined,
         shiftyRegionCount: typeof r["shiftyRegionCount"] === "number" ? r["shiftyRegionCount"] : undefined,
         shiftyRegionArea: typeof r["shiftyRegionArea"] === "number" ? r["shiftyRegionArea"] : undefined,
+        coveragePct: typeof r["coveragePct"] === "number" ? r["coveragePct"] : undefined,
+        verdict: typeof r["verdict"] === "string" ? r["verdict"] : undefined,
         warningCount: Array.isArray(r["warnings"]) ? r["warnings"].length : undefined,
         category: typeof r["category"] === "string" ? r["category"] : undefined,
         chunks: chunks != null && chunks.length > 0 ? chunks : undefined,
@@ -372,9 +376,9 @@ function Layout({ manifestJson }: { manifestJson: string }) {
               <option value="real-world">real-world</option>
             </select></label>
             <label>Sort: <select id="sort">
+              <option value="verdict-desc">Verdict (worst first)</option>
+              <option value="coverage-desc">Coverage % (largest first)</option>
               <option value="regions-desc">Regions (most first)</option>
-              <option value="area-desc">Region area (largest first)</option>
-              <option value="severity-desc">Max severity (highest first)</option>
               <option value="diff-desc">Avg diff % (worst first)</option>
               <option value="diff-asc">Avg diff % (best first)</option>
               <option value="name">Name (A→Z)</option>
@@ -531,16 +535,16 @@ async function main(): Promise<void> {
           sendJson(res, 400, { error: `Unknown test: ${suite}/${name}` });
           return;
         }
-        // DM-715: lead the title with region count (the real pass/fail signal)
-        // and append `diffPct` only as a fallback when region metrics are
-        // missing (older results.json files written pre-715).
-        const titleScore = match.regionCount != null
-          ? `${match.regionCount} regions · ${match.totalChangedArea ?? 0} px`
+        // Lead the title with the qualitative verdict (clean/trivial/minor/
+        // moderate/major) + region count + coverage %. Falls back to raw
+        // diff% only for manifests written before the verdict landed.
+        const titleScore = match.verdict != null && match.coveragePct != null && match.regionCount != null
+          ? `${match.verdict} · ${match.regionCount} regions · ${match.coveragePct.toFixed(2)}% of image`
           : `${match.diffPct.toFixed(2)}% diff`;
         const title = `SVG demo test [${match.suite}]: ${name} (${titleScore})`;
         const regionsBlock = serializeRegions(regions);
         const regionLine = match.regionCount != null
-          ? `Regions: ${match.regionCount} · area ${match.totalChangedArea ?? 0} px · max ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : "?"}% · scatter ${match.scatteredPixels ?? 0} px`
+          ? `Score: ${match.verdict ?? "?"} · ${match.regionCount} region${match.regionCount === 1 ? "" : "s"} · ${match.coveragePct != null ? match.coveragePct.toFixed(2) + "%" : "?"} of image · max severity ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : "?"}% · scatter ${match.scatteredPixels ?? 0} px`
           : null;
         const detailsParts = [
           `Suite: \`${match.suite}\``,

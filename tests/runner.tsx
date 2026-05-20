@@ -21,7 +21,7 @@ import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { clearWebfonts } from "../src/render/text-to-path.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { raw } from "kerfjs";
-import { comparePngs, passes } from "./compare-pngs.js";
+import { comparePngs, passes, type DiffVerdict } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 // Resolve against this script's dir so runs from any cwd write to the real
@@ -98,6 +98,8 @@ export interface SuiteResult {
   shiftedPixels: number;
   shiftyRegionCount: number;
   shiftyRegionArea: number;
+  coveragePct: number;
+  verdict: DiffVerdict;
   pass: boolean;
 }
 
@@ -192,6 +194,8 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
     shiftedPixels: cmp.shiftedPixels,
     shiftyRegionCount: cmp.shiftyRegionCount,
     shiftyRegionArea: cmp.shiftyRegionArea,
+    coveragePct: cmp.coveragePct,
+    verdict: cmp.verdict,
     pass,
   };
 }
@@ -260,7 +264,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
     runJob: async (test, w) => runOneTest(test, w),
     onResult: (r) => {
       const status = r.pass ? "✓ PASS" : "✗ FAIL";
-      console.log(`  ${status}  ${r.name}  (regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · shifty ${r.shiftyRegionCount} · shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels})`);
+      console.log(`  ${status}  ${r.name}  ${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`);
     },
   });
 
@@ -287,7 +291,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   if (failed > 0) {
     console.log("\nFailed tests — inspect diff images in:");
     for (const r of results.filter((r) => !r.pass)) {
-      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · shifty ${r.shiftyRegionCount} · shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels}`);
+      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  ${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.coveragePct.toFixed(2)}% of image`);
     }
     console.log("\nReview tool: npx tsx tests/review-server.tsx");
     process.exit(1);

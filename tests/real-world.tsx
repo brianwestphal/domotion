@@ -43,7 +43,7 @@ import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPattern, type ScrollSegmentCapture } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
 import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
-import { comparePngs } from "./compare-pngs.js";
+import { comparePngs, type DiffVerdict } from "./compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -124,6 +124,8 @@ interface ChunkResult {
   shiftedPixels: number;
   shiftyRegionCount: number;
   shiftyRegionArea: number;
+  coveragePct: number;
+  verdict: DiffVerdict;
 }
 
 interface Result {
@@ -145,6 +147,8 @@ interface Result {
   shiftedPixels: number;
   shiftyRegionCount: number;
   shiftyRegionArea: number;
+  coveragePct: number;
+  verdict: DiffVerdict;
   /** Captured canvas width (always the viewport width). */
   width: number;
   /** Captured canvas height. For `fold` and `scroll` this is the viewport
@@ -245,7 +249,7 @@ async function main(): Promise<void> {
         ? `  ERR: ${result.error}`
         : result.skipped
           ? `  (${result.skipReason ?? "skipped"})`
-          : ` (${result.diffPct.toFixed(2)}% avg · ${result.width}×${result.height})`;
+          : ` ${result.verdict} · ${result.regionCount} region${result.regionCount === 1 ? "" : "s"} · ${result.coveragePct.toFixed(2)}% of image · ${result.width}×${result.height}`;
       console.log(`  ${status}  ${job.test.padEnd(38)}${note}`);
     },
   });
@@ -895,6 +899,8 @@ async function runJob(
       shiftedPixels: cmp.shiftedPixels,
       shiftyRegionCount: cmp.shiftyRegionCount,
       shiftyRegionArea: cmp.shiftyRegionArea,
+      coveragePct: cmp.coveragePct,
+      verdict: cmp.verdict,
     }];
     for (let i = 1; i < segments.length; i++) {
       const seg = segments[i];
@@ -919,6 +925,10 @@ async function runJob(
           maxRegionSeverity: ccmp.maxRegionSeverity,
           scatteredPixels: ccmp.scatteredPixels,
           shiftedPixels: ccmp.shiftedPixels,
+          shiftyRegionCount: ccmp.shiftyRegionCount,
+          shiftyRegionArea: ccmp.shiftyRegionArea,
+          coveragePct: ccmp.coveragePct,
+          verdict: ccmp.verdict,
         });
       } catch (e) {
         console.warn(`  ${test}: chunk ${i} compare failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -949,6 +959,10 @@ async function runJob(
     maxRegionSeverity: cmp.maxRegionSeverity,
     scatteredPixels: cmp.scatteredPixels,
     shiftedPixels: cmp.shiftedPixels,
+    shiftyRegionCount: cmp.shiftyRegionCount,
+    shiftyRegionArea: cmp.shiftyRegionArea,
+    coveragePct: cmp.coveragePct,
+    verdict: cmp.verdict,
     width: viewport.width,
     height: diffH,
     warnings: warnings.length > 0 ? warnings : undefined,
@@ -966,7 +980,7 @@ function makeErrorResult(
     pass: false,
     diffPct: 100, sigPixelPct: 100, worstTilePct: 100, worstTileSignificantPct: 100,
     nonAaPixels: 0, nonAaPixelPct: 100,
-    regionCount: Number.MAX_SAFE_INTEGER, totalChangedArea: 0, maxRegionSeverity: 0, scatteredPixels: 0, shiftedPixels: 0, shiftyRegionCount: 0, shiftyRegionArea: 0,
+    regionCount: Number.MAX_SAFE_INTEGER, totalChangedArea: 0, maxRegionSeverity: 0, scatteredPixels: 0, shiftedPixels: 0, shiftyRegionCount: 0, shiftyRegionArea: 0, coveragePct: 100, verdict: "major" as DiffVerdict,
     width, height, error,
     warnings: warnings.length > 0 ? warnings : undefined,
   };
