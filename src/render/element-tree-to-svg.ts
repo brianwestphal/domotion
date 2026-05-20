@@ -996,6 +996,23 @@ export function elementTreeToSvg(
         [0, 1, 0, -1], // bottom: outer down, inner up
         [1, 0, -1, 0], // left: outer left, inner right
       ];
+      // DM-697: non-solid sides (double / dashed / dotted) need the same
+      // diagonal-miter clip at corners that solid sides get from the
+      // trapezoid emit. Per Blink's `BoxBorderPainter::PaintOneBorderSide`,
+      // each side paints into a 4-point clip region whose corners run from
+      // the border-box outer rect to the inner rect — i.e., the same
+      // trapezoid shape we use for solid sides. Without it our `<line>`
+      // strokes spill into adjacent sides' wedges and produce square
+      // corners instead of the diagonal cut Chrome paints. Build a
+      // clipPath per non-solid side and wrap its emission in it.
+      const sideClipForStyle = (i: number, side: typeof bt) => {
+        if (collapse || side == null || side.w <= 0) return "";
+        const cid = `${idPrefix}bs${clipIdx++}`;
+        defsParts.push(
+          `<clipPath id="${cid}"><polygon points="${trapezoids[i][1]}"/></clipPath>`,
+        );
+        return ` clip-path="url(#${cid})"`;
+      };
       for (let i = 0; i < sides.length; i++) {
         const [side, x1, y1, x2, y2, len] = sides[i];
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
@@ -1023,11 +1040,12 @@ export function elementTreeToSvg(
           const [oxN, oyN, ixN, iyN] = doubleSides[i];
           const ox = oxN * offset_, oy = oyN * offset_;
           const ix = ixN * offset_, iy = iyN * offset_;
+          const clipAttr = sideClipForStyle(i, side);
           svgParts.push(
-            `${indent}<line x1="${r(x1 + ox)}" y1="${r(y1 + oy)}" x2="${r(x2 + ox)}" y2="${r(y2 + oy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}" />`,
+            `${indent}<line x1="${r(x1 + ox)}" y1="${r(y1 + oy)}" x2="${r(x2 + ox)}" y2="${r(y2 + oy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
           );
           svgParts.push(
-            `${indent}<line x1="${r(x1 + ix)}" y1="${r(y1 + iy)}" x2="${r(x2 + ix)}" y2="${r(y2 + iy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}" />`,
+            `${indent}<line x1="${r(x1 + ix)}" y1="${r(y1 + iy)}" x2="${r(x2 + ix)}" y2="${r(y2 + iy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
           );
           continue;
         }
@@ -1039,8 +1057,9 @@ export function elementTreeToSvg(
         // butt caps so the dash:gap ratio paints flat-ended rectangles.
         const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
         const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+        const clipAttr = sideClipForStyle(i, side);
         svgParts.push(
-          `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap} />`,
+          `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
         );
       }
     } else if (borderWidth > 0 && borderColor != null && borderColor.a > 0.01) {
