@@ -2023,12 +2023,13 @@ export function elementTreeToSvg(
     // context creator and z-sort accordingly.
     const childParentDisplay = el.styles.display;
     const hoistedAsInlineForEl = new Set<CapturedElement>();
+    const hoistedAsZSortedForEl = new Set<CapturedElement>();
     if (establishesStackingContext(el, parentDisplayForEl)) {
-      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true, hoistedAsInlineForEl, overflowClipForHoisted);
+      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true, hoistedAsInlineForEl, overflowClipForHoisted, hoistedAsZSortedForEl);
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
-    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl);
+    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl);
     for (const child of sortedChildren) {
       renderElementWithOverflowClip(child, depth + 1, childParentDisplay);
     }
@@ -2059,7 +2060,8 @@ export function elementTreeToSvg(
   // flatten it the same way an SC root would, so cross-parent z-index
   // hoisting works at the document root.
   const topLevelHoistedAsInline = new Set<CapturedElement>();
-  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, false, topLevelHoistedAsInline, overflowClipForHoisted);
+  const topLevelHoistedAsZSorted = new Set<CapturedElement>();
+  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, false, topLevelHoistedAsInline, overflowClipForHoisted, topLevelHoistedAsZSorted);
   // DM-543: position:fixed elements paint relative to the viewport stacking
   // context and escape ALL ancestor overflow clips. The standard SC-by-SC
   // hoist halts at any SC ancestor (e.g. an overflow:auto section creates an
@@ -2093,7 +2095,7 @@ export function elementTreeToSvg(
       collectViewportFixed(e);
     }
   }
-  const sortedTopLevel = sortChildrenByPaintOrder(topLevelFlat, undefined, undefined, topLevelHoistedAsInline);
+  const sortedTopLevel = sortChildrenByPaintOrder(topLevelFlat, undefined, undefined, topLevelHoistedAsInline, topLevelHoistedAsZSorted);
   for (const el of sortedTopLevel) {
     renderElementWithOverflowClip(el, 1);
   }
@@ -2308,6 +2310,17 @@ function gatherStackingContextChildren(
    * it in had it stayed nested.
    */
   overflowClipForHoisted?: Map<CapturedElement, CapturedElement>,
+  /**
+   * DM-712: out-parameter populated with flex/grid items that were hoisted
+   * because they carry an explicit z-index. Once hoisted, the sort needs
+   * to know to z-bucket these (CSS Flexbox 1 §5.4 / CSS Grid 1 §17) — the
+   * sort's own `isFlexGrid` check fires off the immediate-parent display,
+   * which is the SC root after hoisting (typically `block`), losing the
+   * original "flex item with z" signal. `sortChildrenByPaintOrder` reads
+   * this set and routes members through the positive / zeroOrAuto buckets
+   * based on the captured z-index.
+   */
+  hoistedAsZSorted?: Set<CapturedElement>,
 ): CapturedElement[] {
   const out: CapturedElement[] = [];
   /**
@@ -2387,6 +2400,16 @@ function gatherStackingContextChildren(
         hoistedOut.add(c);
         if (isFlexItem && !positioned && !flexGridItemSC) {
           hoistedAsInline?.add(c);
+        }
+        // DM-712: a flex/grid item hoisted because of its explicit z-index
+        // (not because it's positioned) loses its z-bucket info once it's a
+        // child of the SC root for sort purposes. Tag it so the sort still
+        // bucket it by z. Without this, e.g. resend.com's "Contact
+        // management" card paints its z:10 content BEFORE its z:auto
+        // absolute-positioned gradient overlay sibling, so the gradient
+        // ends up on top and reads as solid black.
+        if (flexGridItemSC && !positioned) {
+          hoistedAsZSorted?.add(c);
         }
         // DM-673: if we hoisted `c` past an overflow-clip ancestor (and
         // `c` isn't `position:fixed` — which escapes overflow per CSS
@@ -2538,6 +2561,14 @@ function sortChildrenByPaintOrder(
    * (which paint as inline blocks per CSS Flexbox 1 §5.4).
    */
   paintAsInline?: Set<CapturedElement>,
+  /**
+   * DM-712: Set of children that should be z-sorted using their captured
+   * z-index, even when the immediate parent display isn't flex/grid
+   * (e.g. because the child was hoisted out of a flex parent into a real
+   * SC root for paint-order resolution). Populated by
+   * `gatherStackingContextChildren`'s `hoistedAsZSorted` out-parameter.
+   */
+  paintAsZSorted?: Set<CapturedElement>,
 ): CapturedElement[] {
   // DM-525: flex/grid items with z-index ≠ auto sort as if position:relative
   // even when position:static (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
@@ -2578,7 +2609,7 @@ function sortChildrenByPaintOrder(
     const zRaw = c.styles.zIndex;
     const positioned = pos != null && pos !== "static";
     const z = zRaw === "auto" || zRaw === "" || zRaw == null ? NaN : parseInt(zRaw, 10);
-    const treatAsZSorted = positioned || (isFlexGrid && !isNaN(z));
+    const treatAsZSorted = positioned || (isFlexGrid && !isNaN(z)) || (paintAsZSorted?.has(c) === true);
     if (!treatAsZSorted && flt !== "none") {
       floats.push(c);
     } else if (!treatAsZSorted && paintAsInline?.has(c) === true) {
