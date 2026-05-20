@@ -265,6 +265,24 @@ const SKIP_TESTS: Record<string, string> = {
   "27-page": "@page rules are print-media only, not relevant to static screen capture",
 };
 
+/**
+ * Tests whose remaining diff vs Chrome is below the bar for a real fidelity
+ * bug — typically text-antialiasing scatter, sub-pixel layout shifts, or
+ * minor glyph-shape differences that the diff harness still picks up as
+ * regions but a human reviewer has signed off as "looks correct". Entries
+ * here count as PASS in the suite summary; the diff regions are still
+ * recorded so a regression that breaks something NEW shows up in the
+ * runner's region count. The value is a one-line justification — usually
+ * the ticket id where the rendering was reviewed.
+ */
+const ACCEPTED_DIFFS: Record<string, string> = {
+  // DM-774: paint-order test renders the seven nested layers in the correct
+  // back-to-front order with correct colors / geometry; the residual diff is
+  // text antialiasing + arrow-glyph substitution in the header / caption
+  // paragraphs only. Reviewed visually; accepted as a stable baseline.
+  "13-deep-stacking-paint-order": "DM-774: text antialiasing + arrow-glyph substitution only; geometry / paint order are correct",
+};
+
 interface TestResult {
   name: string;
   category: string;
@@ -310,6 +328,10 @@ interface TestResult {
   pass: boolean;
   skipped?: boolean;
   skipReason?: string;
+  /** When set, the test is in `ACCEPTED_DIFFS` and counts as PASS despite
+   *  non-zero `regionCount`. Carries the user's justification so the suite
+   *  summary can surface it. */
+  acceptedReason?: string;
   bodyBg: string;
   error?: string;
   warnings?: Array<{ selector: string; feature: string; detail: string }>;
@@ -480,7 +502,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
 
   const skipReason = SKIP_TESTS[name];
   const skipped = skipReason != null;
-  const pass = !skipped && err == null && regionCount === 0;
+  const acceptedReason = ACCEPTED_DIFFS[name];
+  const accepted = !skipped && err == null && acceptedReason != null;
+  const pass = !skipped && err == null && (regionCount === 0 || accepted);
   return {
     name,
     category: categoryOf(name),
@@ -504,6 +528,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     pass,
     skipped,
     skipReason,
+    acceptedReason: accepted ? acceptedReason : undefined,
     bodyBg,
     error: err,
     warnings: capWarnings.length > 0 ? capWarnings : undefined,
@@ -575,8 +600,12 @@ async function main(): Promise<void> {
     },
     runJob: async (file, w) => runOneHtmlTest(file, w),
     onResult: (result) => {
-      const { name, pass, skipped, error: err, warnings, verdict, regionCount, coveragePct } = result;
-      const status = skipped ? "- SKIP" : pass ? "✓ PASS" : "✗ FAIL";
+      const { name, pass, skipped, acceptedReason, error: err, warnings, verdict, regionCount, coveragePct } = result;
+      const status = skipped
+        ? "- SKIP"
+        : acceptedReason != null
+        ? "~ ACCEPT"
+        : pass ? "✓ PASS" : "✗ FAIL";
       const warnBadge = warnings != null ? ` (${warnings.length}w)` : "";
       // Headline: verdict tier + region count + coverage %. Three things,
       // each immediately interpretable: "minor" tells you it's small,

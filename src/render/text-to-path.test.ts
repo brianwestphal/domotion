@@ -194,6 +194,34 @@ describe("renderTextAsPath: ascentOverride threading", () => {
   });
 });
 
+describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", () => {
+  // Box-drawing block (U+2500..U+259F) inside a <pre> / <code> / monospace
+  // primary needs to stay at the monospace cell width to align with the
+  // surrounding ASCII chars. Hiragino's em-wide glyphs (1.23× the mono cell)
+  // overran the ASCII-art table in 02-text-preformatted's <pre>.
+  it("routes box-drawing chars to the monospace primary when one is supplied", () => {
+    // Courier (CSS `monospace` keyword on macOS) gets box chars from itself.
+    expect(fallbackFontChain(0x2500, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]);
+    expect(fallbackFontChain(0x252C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┬
+    expect(fallbackFontChain(0x2534, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┴
+    expect(fallbackFontChain(0x253C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┼
+    // Author-named monospaces.
+    expect(fallbackFontChain(0x2500, "menlo")).toEqual(["menlo", "menlo", "hiragino-jp"]);
+    expect(fallbackFontChain(0x2500, "monaco")).toEqual(["monaco", "menlo", "hiragino-jp"]);
+    expect(fallbackFontChain(0x2500, "sf-mono")).toEqual(["sf-mono", "menlo", "hiragino-jp"]);
+  });
+
+  it("keeps Hiragino routing for non-monospace primaries", () => {
+    // Helvetica / SF Pro / Times body text: Chrome paints box chars from
+    // CoreText's Hiragino fallback at em-width (it's already off the mono
+    // cell grid anyway), so hiragino-jp stays first.
+    expect(fallbackFontChain(0x2500)).toEqual(["hiragino-jp", "menlo"]);
+    expect(fallbackFontChain(0x2500, "helvetica")).toEqual(["hiragino-jp", "menlo"]);
+    expect(fallbackFontChain(0x2500, "sf-pro")).toEqual(["hiragino-jp", "menlo"]);
+    expect(fallbackFontChain(0x2500, "times")).toEqual(["hiragino-jp", "menlo"]);
+  });
+});
+
 describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", () => {
   // Chrome on macOS paints chars like ◉◌◐◑ (U+25C9..D1) and ☀☁☂☃ (U+2600..03)
   // at em-square width (18px @18px font-size). HiraginoSansGB-W3 (the "cjk"

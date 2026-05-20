@@ -685,18 +685,31 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
     if (localeKey != null) return [localeKey, "pingfang-sc", "cjk"];
     return ["pingfang-sc", "cjk"];
   }
-  // Box Drawing / Block Elements → Hiragino Kaku Gothic, then Menlo. Hiragino
-  // has all 128 box-drawing glyphs at em-width (`adv = 1000` at `em = 1000`),
-  // so they fill the full painted cell and connect seamlessly. Helvetica has
-  // some of them (─ ┌ ┐ │) but is missing ┬ ┴ ┼ — when those fall through
-  // to Menlo, Menlo's narrower advance (1233 / 2048 ≈ 0.6 em) leaves a gap
-  // and Menlo's horizontal stroke sits at a different y than Helvetica's, so
-  // the box edges don't connect to the corner pieces. Routing the entire
-  // block to a single font with em-wide glyphs eliminates both mismatches.
-  // Menlo stays as a final fallback for installations missing Hiragino.
-  // DM-442. (Earlier `["menlo"]` per DM-241 — addressed Apple Symbols's
-  // proportional glyphs but didn't account for the Helvetica/Menlo split.)
-  if (codepoint >= 0x2500 && codepoint <= 0x259F) return ["hiragino-jp", "menlo"];
+  // Box Drawing / Block Elements (U+2500..U+259F).
+  //
+  // When the primary font is MONOSPACE (Courier / Menlo / Monaco / SF Mono),
+  // route box-drawing chars to the SAME primary font (with Menlo as a
+  // safety net for chars the primary lacks). Chrome paints these chars at
+  // monospace cell width — empirically Courier @13px paints `─ │ ┌ ┬ ┼ …`
+  // all at 7.827 px, matching `M` / `a` to the sub-px — so the ASCII-art
+  // box in `02-text-preformatted.html`'s `<pre>` aligns cleanly. Routing
+  // mono primaries through Hiragino's em-wide glyphs (16 px @ 13 px font
+  // = 1.23 em) overran the cell and broke the box alignment (DM-780).
+  //
+  // For non-monospace primaries (Helvetica / Arial / SF Pro body text)
+  // Chrome's CoreText fallback for missing box-drawing glyphs lands in
+  // Hiragino — those em-wide glyphs are what Chrome actually paints, and
+  // they connect seamlessly because the surrounding text isn't on a fixed
+  // cell grid anyway. The Helvetica/Menlo split that DM-442 fixed (some
+  // box chars in Helvetica, others falling through to Menlo's narrower
+  // glyphs and breaking corner joins) is exactly what we want to avoid
+  // here too. Menlo stays as the final safety net.
+  if (codepoint >= 0x2500 && codepoint <= 0x259F) {
+    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+      || primaryKey === "monaco" || primaryKey === "sf-mono";
+    if (monoPrimary) return [primaryKey, "menlo", "hiragino-jp"];
+    return ["hiragino-jp", "menlo"];
+  }
   // Dingbats → Zapf Dingbats. macOS Chrome paints ✂✈✏✔✘✚✦❄❤❶ via Zapf
   // Dingbats; Apple Symbols has the same codepoints but at different (often
   // narrower) widths — empirical match shows Chrome consistently picks Zapf.

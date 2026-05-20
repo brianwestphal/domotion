@@ -367,6 +367,29 @@ export const captureScript =
         const ns = origNode.namespaceURI;
         if (ns === 'http://www.w3.org/2000/svg' && origNode !== el) {
           const ocs = window.getComputedStyle(origNode);
+          // DM-778: detect whether the source's `fill` / `stroke` was driven
+          // by `currentColor`. When the symbol is defined in a hidden <defs>
+          // <svg> and the polygon/polyline's CSS rule is `fill:
+          // currentColor` (or `stroke: currentColor`), getComputedStyle on
+          // that node resolves the value against the DEFS's cascade —
+          // typically the document body's color = black. If we baked that
+          // black literal onto the clone, every <use> consumer would paint
+          // the icon black regardless of its own host color. Probe by
+          // temporarily flipping `style.color` on the source: if `fill` /
+          // `stroke` follows, the value was driven by `currentColor` and we
+          // should preserve the keyword so `_substCurrentColor` can resolve
+          // it against the consumer's color later. Restore the source's
+          // inline color so the live page state isn't disturbed.
+          const _usesCurrentColor = (camel) => {
+            const baseVal = ocs[camel];
+            if (baseVal !== ocs.color) return false;
+            const savedColor = origNode.style.color;
+            origNode.style.color = "rgb(1, 2, 3)";
+            const probeCs = window.getComputedStyle(origNode);
+            const matches = probeCs[camel] === probeCs.color;
+            origNode.style.color = savedColor;
+            return matches;
+          };
           for (const attr of _bakeSvgAttrs) {
             const camel = attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
             const val = ocs[camel];
@@ -376,7 +399,11 @@ export const captureScript =
             // cascade and lose their resolution outside it, so we replace
             // them with the resolved computed value.
             if (val != null && val !== '' && !_hasConcreteAttr(origNode, attr)) {
-              cloneNode.setAttribute(attr, val);
+              // DM-778: preserve `currentColor` for `fill` / `stroke` when
+              // the source rule uses it, so the consumer's color cascades
+              // through the inlined symbol.
+              const preserveCurrent = (attr === "fill" || attr === "stroke") && _usesCurrentColor(camel);
+              cloneNode.setAttribute(attr, preserveCurrent ? "currentColor" : val);
             }
           }
           // DM-720: bake CSS-driven geometry. Skip when the source has a
@@ -504,22 +531,38 @@ export const captureScript =
             // symbol target — we let SVG do the math.
             var vb = target.getAttribute('viewBox') || '';
             var par = target.getAttribute('preserveAspectRatio') || '';
-            replacement = document.createElementNS(_svgNS, 'svg');
-            if (ux !== 0) replacement.setAttribute('x', String(ux));
-            if (uy !== 0) replacement.setAttribute('y', String(uy));
-            if (uw != null) replacement.setAttribute('width', uw);
-            if (uh != null) replacement.setAttribute('height', uh);
-            if (vb !== '') replacement.setAttribute('viewBox', vb);
-            if (par !== '') replacement.setAttribute('preserveAspectRatio', par);
+            var innerSvg = document.createElementNS(_svgNS, 'svg');
+            if (ux !== 0) innerSvg.setAttribute('x', String(ux));
+            if (uy !== 0) innerSvg.setAttribute('y', String(uy));
+            if (uw != null) innerSvg.setAttribute('width', uw);
+            if (uh != null) innerSvg.setAttribute('height', uh);
+            if (vb !== '') innerSvg.setAttribute('viewBox', vb);
+            if (par !== '') innerSvg.setAttribute('preserveAspectRatio', par);
             for (var ci = 0; ci < target.children.length; ci++) {
               var clonedChild = target.children[ci].cloneNode(true);
-              replacement.appendChild(clonedChild);
+              innerSvg.appendChild(clonedChild);
               // DM-508: bake t=0 computed styles on the inlined subtree.
               // The hidden-defs symbol's children carry CSS animations whose
               // computed values (transform, fill, opacity, etc.) reflect the
               // animation's current frame at capture time. Walking with the
               // original DOM as source captures those values.
               _walkBake(target.children[ci], clonedChild);
+            }
+            // DM-778: thread the <use>'s own transform around the inlined
+            // nested <svg>. Per SVG 2 §5.6 the use's `transform` attribute
+            // applies to the inlined shadow tree; SVG's `<svg>` element does
+            // not directly take a `transform` attribute in legacy SVG 1.1
+            // renderers, so wrap in a `<g transform>` to be safe. Without
+            // this the `<use href="#badge" transform="scale(0.6)">` form in
+            // `07-deep-svg-use-href` rendered the badge at full size,
+            // duplicating the un-scaled pill on top of the in-place pill.
+            var useTransformAttrSym = useEl.getAttribute('transform') || '';
+            if (useTransformAttrSym !== '') {
+              replacement = document.createElementNS(_svgNS, 'g');
+              replacement.setAttribute('transform', useTransformAttrSym);
+              replacement.appendChild(innerSvg);
+            } else {
+              replacement = innerSvg;
             }
           } else {
             // <g>, <path>, <circle>, <svg>, etc. — wrap in <g transform>.
