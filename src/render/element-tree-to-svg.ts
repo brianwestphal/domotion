@@ -446,8 +446,16 @@ export function elementTreeToSvg(
     // `style="display:none"` is on the outer group so the entire subtree is
     // skipped from paint.
     if (el.cullClass != null && el.cullClass !== "") groupAttrs.push(`class="${esc(el.cullClass)}"`);
+    // DM-704: SVG applies `filter` BEFORE `clip-path` when both sit on the
+    // same `<g>` (the spec: "the filter is applied to the source graphic
+    // before the clip path"). For drop-shadow / blur, that means the
+    // filter's ink area extends beyond the element box but then gets
+    // clipped back to the box and never paints — the shadow vanishes. Hoist
+    // `filter` onto an OUTER wrapper so it processes already-clipped
+    // content; the unclipped ink area then renders.
+    const needsFilterOuter = filterCss !== "" && (clipPathUrlId != null || maskUrlId != null);
     const styleParts: string[] = [];
-    if (filterCss !== "") styleParts.push(`filter:${filterCss}`);
+    if (filterCss !== "" && !needsFilterOuter) styleParts.push(`filter:${filterCss}`);
     if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
     if (needsIsolation) styleParts.push("isolation:isolate");
     if (el.displayNone === true) styleParts.push("display:none");
@@ -456,6 +464,7 @@ export function elementTreeToSvg(
     // produced `style="filter:url("#id")"` and broke the SVG parser.
     if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
     const opened = needsGroup;
+    if (needsFilterOuter) svgParts.push(`${indent}<g style="${esc(`filter:${filterCss}`)}">`);
     if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
     // Inner anim-class wrapper sits INSIDE any visibility/transform group so
     // the merger's class (added on the outer group) and our anim class can
@@ -1111,6 +1120,7 @@ export function elementTreeToSvg(
       if (contentW <= 0 || contentH <= 0) {
         if (animClass !== "") svgParts.push(`${indent}</g>`);
         if (opened) svgParts.push(`${indent}</g>`);
+        if (needsFilterOuter) svgParts.push(`${indent}</g>`);
         return;
       }
       const sized = injectSvgSize(el.svgContent, contentW, contentH);
@@ -1121,12 +1131,14 @@ export function elementTreeToSvg(
       const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
       svgParts.push(`${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`);
       // Close the wrappers opened above (animClass + opacity/transform/clip/mask
-      // group). Without these closes, an inline-SVG element with `opacity < 1`
-      // (or any other group-triggering style) emits an unbalanced `<g>` and
-      // breaks the document — observable on resend/stripe whose nav chevrons
-      // sit inside `opacity: 0.7` wrappers.
+      // group, plus the DM-704 filter-outer wrapper when present). Without
+      // these closes, an inline-SVG element with `opacity < 1` (or any other
+      // group-triggering style) emits an unbalanced `<g>` and breaks the
+      // document — observable on resend/stripe whose nav chevrons sit
+      // inside `opacity: 0.7` wrappers.
       if (animClass !== "") svgParts.push(`${indent}</g>`);
       if (opened) svgParts.push(`${indent}</g>`);
+      if (needsFilterOuter) svgParts.push(`${indent}</g>`);
       return;
     }
 
@@ -1978,6 +1990,7 @@ export function elementTreeToSvg(
 
     if (animClass !== "") svgParts.push(`${indent}</g>`);
     if (opened) svgParts.push(`${indent}</g>`);
+    if (needsFilterOuter) svgParts.push(`${indent}</g>`);
   }
 
   // Sort top-level siblings by CSS paint order too. captureElementTree
