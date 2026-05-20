@@ -1,4 +1,5 @@
 import { chromium } from "@playwright/test";
+import path from "node:path";
 import fs from "node:fs";
 
 // For each fieldset, scan ALL y rows from fs.y to fs.y + 30 looking for the
@@ -6,7 +7,7 @@ import fs from "node:fs";
 // position vs fs.y (Chrome may paint the top border AT legend-center, not
 // at the box top).
 
-const HTML_PATH = "/Users/westphal/Documents/html-test/06-forms-style-fieldset.html";
+const HTML_PATH = path.resolve("external/html-test", "06-forms-style-fieldset.html");
 const html = fs.readFileSync(HTML_PATH, "utf8");
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ deviceScaleFactor: 1, viewport: { width: 1024, height: 1500 } });

@@ -1,6 +1,6 @@
 # Domotion: vertical `<input type=range>`
 
-Requirements for vertical-axis range sliders in Domotion. Origin: DM-276 (follow-up from DM-273). Section 5 of `~/Documents/html-test/06-forms-style-range.html` declares a vertical slider via `writing-mode: vertical-lr; direction: rtl`; before this work the renderer always laid the track + thumb on the horizontal axis, so the captured 30×150 element painted as a misshapen horizontal slider stuffed into a tall narrow box.
+Requirements for vertical-axis range sliders in Domotion. Origin: DM-276 (follow-up from DM-273). Section 5 of `external/html-test/06-forms-style-range.html` declares a vertical slider via `writing-mode: vertical-lr; direction: rtl`; before this work the renderer always laid the track + thumb on the horizontal axis, so the captured 30×150 element painted as a misshapen horizontal slider stuffed into a tall narrow box.
 
 ## Why now
 

@@ -1,4 +1,5 @@
 import { chromium } from "@playwright/test";
+import path from "node:path";
 import fs from "node:fs";
 
 // Find the actual top y where each fieldset's background fill begins. For
@@ -6,7 +7,7 @@ import fs from "node:fs";
 // rows starting at fs.y - 5 and find the first row where the fieldset's
 // bg-color is visible at the fieldset's center column.
 
-const HTML_PATH = "/Users/westphal/Documents/html-test/06-forms-style-fieldset.html";
+const HTML_PATH = path.resolve("external/html-test", "06-forms-style-fieldset.html");
 const html = fs.readFileSync(HTML_PATH, "utf8");
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ deviceScaleFactor: 1, viewport: { width: 1024, height: 1500 } });

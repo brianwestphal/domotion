@@ -3,8 +3,9 @@
 // and what `cs.maskComposite` / `cs.maskMode` look like for the styled cases.
 
 import { chromium } from "@playwright/test";
+import path from "node:path";
 
-const url = "file:///" + (process.env.HOME ?? "") + "/Documents/html-test/23-mask.html";
+const url = "file://" + path.resolve("external/html-test/") + "/23-mask.html";
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
 await page.goto(url);

@@ -1,6 +1,7 @@
 tests/output/
 tests/cache/
 node_modules/
+external/
 dist/
 .release-state.json
 .glassbox/

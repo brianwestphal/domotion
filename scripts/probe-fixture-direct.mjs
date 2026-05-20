@@ -1,9 +1,10 @@
 import { chromium } from "@playwright/test";
+import path from "node:path";
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ deviceScaleFactor: 1, viewport: { width: 1024, height: 768 } });
 const page = await ctx.newPage();
-await page.goto("file:///Users/westphal/Documents/html-test/06-forms-style-progress-meter.html");
+await page.goto("file://" + path.resolve("external/html-test") + "/06-forms-style-progress-meter.html");
 
 const buf = await page.screenshot({ omitBackground: false, fullPage: false });
 const b64 = buf.toString("base64");

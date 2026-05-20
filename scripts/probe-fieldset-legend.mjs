@@ -1,4 +1,5 @@
 import { chromium } from "@playwright/test";
+import path from "node:path";
 import fs from "node:fs";
 
 // Probe Chromium's painted fieldset+legend interaction. For each fieldset in
@@ -10,7 +11,7 @@ import fs from "node:fs";
 //     border-color signature.
 // Drives DM-342 (notched label position) / DM-343 (callout label / background).
 
-const HTML_PATH = "/Users/westphal/Documents/html-test/06-forms-style-fieldset.html";
+const HTML_PATH = path.resolve("external/html-test", "06-forms-style-fieldset.html");
 const html = fs.readFileSync(HTML_PATH, "utf8");
 
 const browser = await chromium.launch();

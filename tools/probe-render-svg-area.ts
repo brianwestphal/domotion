@@ -6,7 +6,7 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 6000 }, isMobile: true, hasTouch: true });
   // Use the wrapper HTML the test renderer produces
-  await page.goto("file:///Users/westphal/Documents/domotion/tests/output/real-world/stripe-mobile-entire-page.wrapper.html");
+  await page.goto("file://./tests/output/real-world/stripe-mobile-entire-page.wrapper.html");
   await page.waitForTimeout(500);
   await page.screenshot({ path: "/tmp/svg-card-row.png", clip: { x: 300, y: 1100, width: 90, height: 20 } });
   // Also screenshot a wider area

@@ -4,7 +4,7 @@ Requirements for vertical writing-mode rendering in Domotion. Origin: SK-1123 (f
 
 ## Why now
 
-Asian-language layouts (Japanese vertical novels, Chinese signage), Western magazine-style sidebars, and the CSS `writing-mode` test in `~/Documents/html-test/20-writing-mode.html` all need this. The failing test's diff dominates because text is fundamentally mis-oriented, not just slightly off.
+Asian-language layouts (Japanese vertical novels, Chinese signage), Western magazine-style sidebars, and the CSS `writing-mode` test in `external/html-test/20-writing-mode.html` all need this. The failing test's diff dominates because text is fundamentally mis-oriented, not just slightly off.
 
 ## Goals
 

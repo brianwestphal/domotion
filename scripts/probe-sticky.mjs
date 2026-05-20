@@ -6,9 +6,9 @@ const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } })
 const page = await ctx.newPage();
 
 // Compare OLD attachment-actual vs CURRENT actual (after recent commits) and against expected.
-const oldActual = fs.readFileSync("/Users/westphal/Documents/domotion/.hotsheet/attachments/DM-363_13-pos-sticky-actual.png");
-const newActual = fs.readFileSync("/Users/westphal/Documents/domotion/tests/output/html-test/13-pos-sticky-actual.png");
-const expected = fs.readFileSync("/Users/westphal/Documents/domotion/tests/output/html-test/13-pos-sticky-expected.png");
+const oldActual = fs.readFileSync("./.hotsheet/attachments/DM-363_13-pos-sticky-actual.png");
+const newActual = fs.readFileSync("./tests/output/html-test/13-pos-sticky-actual.png");
+const expected = fs.readFileSync("./tests/output/html-test/13-pos-sticky-expected.png");
 
 await page.setContent("<html><body></body></html>");
 const result = await page.evaluate(async ([oldB64, newB64, expB64]) => {

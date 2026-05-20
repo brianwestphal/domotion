@@ -18,7 +18,7 @@
  */
 import { readFileSync } from "node:fs";
 
-const svg = readFileSync("/Users/westphal/Documents/domotion/tests/output/real-world/framer-mobile-scroll.svg", "utf8");
+const svg = readFileSync("./tests/output/real-world/framer-mobile-scroll.svg", "utf8");
 
 // Find <g transform="translate(0 N)"> open tags + their containing <svg>.
 const re = /<g transform="translate\(0 (\d+(?:\.\d+)?)\)">/g;

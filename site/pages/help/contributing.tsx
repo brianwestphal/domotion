@@ -75,7 +75,7 @@ when the surrounding <code>evaluate()</code> injects its arguments.</p>
   <tbody>
     <tr><td><code>npm test</code></td><td>Vitest unit tests under <code>src/**/*.test.ts</code> — fast, no browser.</td></tr>
     <tr><td><code>npm run demos:test</code></td><td>The feature visual-regression suite (<code>tests/features.ts</code>). One fixture per CSS feature; each is rendered both via Chromium and via Domotion's pipeline and the PNG diff thresholded at 3%.</td></tr>
-    <tr><td><code>npm run demos:test:html</code></td><td>The broad-coverage sweep against <code>~/Documents/html-test/*.html</code>. Some failures are pre-existing and tracked separately; new code shouldn't introduce regressions here.</td></tr>
+    <tr><td><code>npm run demos:test:html</code></td><td>The broad-coverage sweep against <code>external/html-test/*.html</code> (a gitignored clone of <a href="https://github.com/brianwestphal/html-test">github.com/brianwestphal/html-test</a>). Clone with <code>git clone https://github.com/brianwestphal/html-test.git external/html-test</code> before first run. Some failures are pre-existing and tracked separately; new code shouldn't introduce regressions here.</td></tr>
     <tr><td><code>npm run demos:test:all</code></td><td>features + showcase + html-test-suite.</td></tr>
     <tr><td><code>npm run demos:review</code></td><td>Local web UI to compare expected / actual / diff PNGs from each suite by hand. Most useful when adding or updating fixtures.</td></tr>
   </tbody>

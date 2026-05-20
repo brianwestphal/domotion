@@ -1,4 +1,5 @@
 import { chromium } from "@playwright/test";
+import path from "node:path";
 import fs from "node:fs";
 
 // Probe Chromium's painted UA-default + author-styled range sliders from
@@ -7,7 +8,7 @@ import fs from "node:fs";
 // and `thumbW`/`thumbH` constants in src/form-controls.ts can be calibrated.
 // DM-338.
 
-const HTML_PATH = "/Users/westphal/Documents/html-test/06-forms-style-range.html";
+const HTML_PATH = path.resolve("external/html-test", "06-forms-style-range.html");
 const html = fs.readFileSync(HTML_PATH, "utf8");
 
 const browser = await chromium.launch();

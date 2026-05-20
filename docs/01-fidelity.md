@@ -132,4 +132,4 @@ Warnings are deduped by `(feature, selector)` within one capture. They're stored
 
 - `tests/features.ts` — 36 focused feature tests exercising one rendering property each. Target <3% pixel diff vs. captured HTML. Every change to fidelity must pass these.
 - `tests/showcase.ts` — 3 full-page integration tests derived from real product frames.
-- `tests/html-test-suite.ts` — 147-file external suite covering broadly-supported HTML5 + stable CSS (from `~/Documents/html-test`). Baseline tracked in `tests/output/html-test/results.json` and visualized via `tests/output/html-test/index.html`.
+- `tests/html-test-suite.tsx` — large external suite covering broadly-supported HTML5 + stable CSS, sourced from `external/html-test/` (clone of `github.com/brianwestphal/html-test`, gitignored). Baseline tracked in `tests/output/html-test/results.json` and visualized via `tests/output/html-test/index.html`. Bootstrap with `git clone https://github.com/brianwestphal/html-test.git external/html-test` (set `HTML_TEST_DIR` env to override).

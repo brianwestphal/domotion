@@ -35,7 +35,7 @@ Today the implementation is fully calibrated only for macOS — that's debt, not
 npm run build           # tsc compile to dist/
 npm test                # vitest run (unit tests in src/**/*.test.ts)
 npm run demos:test      # feature visual-regression suite (tests/features.ts)
-npm run demos:test:html # html-test-suite vs ~/Documents/html-test/*.html
+npm run demos:test:html # html-test-suite vs external/html-test/*.html
 npm run demos:test:all  # features + showcase + html-test-suite
 npm run demos:review    # local server to compare expected/actual/diff PNGs
 npm run demos:examples  # run the three example demo scripts
@@ -54,7 +54,7 @@ npm run demos:examples  # run the three example demo scripts
 - **`src/frame-merge.ts`** — combines per-frame element trees into one tree for animation, deduping shared static elements.
 - **`tests/features.ts`** — minimal HTML snippets, one per rendering feature. Each test renders both via Chromium and via Domotion's pipeline and diffs the PNGs (3% threshold).
 - **`tests/showcase.ts`** — three full-page integration tests.
-- **`tests/html-test-suite.tsx`** — sweeps every `*.html` under `~/Documents/html-test/` and reports per-tile diff metrics.
+- **`tests/html-test-suite.tsx`** — sweeps every `*.html` under `external/html-test/` (clone of `github.com/brianwestphal/html-test`, gitignored) and reports per-tile diff metrics. Bootstrap the clone with `git clone https://github.com/brianwestphal/html-test.git external/html-test`; set the `HTML_TEST_DIR` env var to override the path.
 - **`tests/runner.ts`** — shared visual-regression harness used by features.ts and showcase.ts.
 - **`tests/review-server.tsx`** — local web UI that loads the expected/actual/diff PNGs from each suite for human review.
 - **`examples/`** — three runnable demo scripts (`terminal-demo.ts`, `showcase-rendering.ts`, `showcase-transitions.ts`) that produce the SVGs shipped on the consumer site.
@@ -80,7 +80,7 @@ The capture function is serialized to a string and executed inside the captured 
 - **`npm run build`** must succeed (tsc with strict TypeScript). No `any` outside the fontkit/bidi-js boundary types.
 - **`npm test`** must pass (unit tests).
 - **`npm run demos:test`** is the primary regression signal — every feature has a fixture; new features need fixtures.
-- The `html-test-suite` against `~/Documents/html-test/*.html` is the broad-coverage signal. Some failures are pre-existing and tracked separately; new code shouldn't introduce regressions there.
+- The `html-test-suite` against `external/html-test/*.html` is the broad-coverage signal. Some failures are pre-existing and tracked separately; new code shouldn't introduce regressions there.
 
 ### JSX Runtime
 

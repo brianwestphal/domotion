@@ -6,7 +6,7 @@ async function main(): Promise<void> {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
-  await page.goto("file://" + resolve("/Users/westphal/Documents/html-test/03-lists-style-types.html"));
+  await page.goto("file://" + resolve("external/html-test/03-lists-style-types.html"));
   await page.waitForTimeout(200);
 
   const live = await page.evaluate(() => {

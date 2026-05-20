@@ -4,8 +4,9 @@
 // 😀 character — the actual top/left/right/bottom of any non-near-white pixel.
 
 import { chromium } from "@playwright/test";
+import path from "node:path";
 
-const url = "file:///" + (process.env.HOME ?? "") + "/Documents/html-test/02-text-entities.html";
+const url = "file://" + path.resolve("external/html-test/") + "/02-text-entities.html";
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
 await page.goto(url);

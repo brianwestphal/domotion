@@ -4,11 +4,19 @@
 /**
  * HTML Test Suite Runner
  *
- * Runs domotion against every HTML file in ~/Documents/html-test.
+ * Runs domotion against every HTML file under `external/html-test/`.
  * For each file:
  *   1. Render HTML in Playwright (Chromium) -> PNG ("expected")
  *   2. Capture element tree -> SVG -> render SVG -> PNG ("actual")
  *   3. Diff and record result
+ *
+ * The fixture tree is the `brianwestphal/html-test` GitHub repo; it lives at
+ * `external/html-test/` which is gitignored. Bootstrap with:
+ *
+ *   git clone https://github.com/brianwestphal/html-test.git external/html-test
+ *
+ * `HTML_TEST_DIR` can be overridden via the `HTML_TEST_DIR` env var if you
+ * want to run against a different checkout / branch.
  *
  * Outputs:
  *   - tests/output/html-test/<name>-{expected,actual,diff}.png
@@ -19,10 +27,9 @@
  */
 
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { mkdirSync, writeFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
 import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
@@ -31,7 +38,10 @@ import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST,
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HTML_TEST_DIR = resolve(homedir(), "Documents/html-test");
+const PACKAGE_ROOT = resolve(__dirname, "..");
+const HTML_TEST_DIR = process.env.HTML_TEST_DIR != null && process.env.HTML_TEST_DIR !== ""
+  ? resolve(process.env.HTML_TEST_DIR)
+  : resolve(PACKAGE_ROOT, "external/html-test");
 // Anchor output under this package's tests/ regardless of cwd so runs from
 // inside  don't create a stray 
 // subtree (the reason SK-991 was filed).
@@ -110,7 +120,7 @@ interface TestResult {
 
 function categoryOf(name: string): string {
   // Subdir-prefixed names (e.g. `niche-foo`) take their subdir as the
-  // category. DM-714: added 19 fixtures under `~/Documents/html-test/niche/`
+  // category. DM-714: added 19 fixtures under `external/html-test/niche/`
   // for experimental/Chrome-only CSS coverage; bucketed separately so the
   // category breakdown shows their pass rate next to the spec-bucket tests.
   // Subdirectory names must start with a letter so they don't collide with
@@ -290,6 +300,14 @@ async function main(): Promise<void> {
 
   mkdirSync(OUTPUT_DIR, { recursive: true });
 
+  if (!existsSync(HTML_TEST_DIR)) {
+    console.error(`html-test fixtures missing at ${HTML_TEST_DIR}`);
+    console.error(`Clone the fixture repo with:`);
+    console.error(`  git clone https://github.com/brianwestphal/html-test.git external/html-test`);
+    console.error(`(or set HTML_TEST_DIR to point at an existing checkout)`);
+    process.exitCode = 1;
+    return;
+  }
   // DM-714: walk recursively so subdir-grouped fixtures (`niche/*.html`,
   // future additions) are picked up automatically.
   const files = walkHtmlFiles(HTML_TEST_DIR);
