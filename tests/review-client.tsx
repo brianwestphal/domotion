@@ -42,6 +42,9 @@ interface ReviewTest {
   totalChangedArea?: number;
   maxRegionSeverity?: number;
   scatteredPixels?: number;
+  shiftedPixels?: number;
+  shiftyRegionCount?: number;
+  shiftyRegionArea?: number;
   warningCount?: number;
   category?: string;
   chunks?: Array<{
@@ -150,14 +153,18 @@ const visible = computed(() => {
 // ── Components ──
 
 function ExtraMetrics({ r }: { r: ReviewTest }) {
-  // DM-715: secondary diagnostics line — kept compact since the primary
-  // signal (regions / area / severity) is in the status badge now. Show the
-  // legacy image-wide percentages as a soft sanity-check but don't lead with
-  // them.
+  // Secondary diagnostics line — primary signal (regions / area / severity)
+  // is in the status badge. The "shifty / shifted / scatter" trio explains
+  // where the noise went: shifty = font-substitution / glyph-shape regions
+  // culled by the high-sev gate; shifted = pixels absorbed by neighborhood
+  // matching (1–2 px translations); scatter = sub-area connected components.
+  // If those numbers are big and `regionCount` is small, the filters did
+  // real work and the surviving regions are the actual signal.
   const parts = [
-    r.sigPixelPct != null ? `sig ${r.sigPixelPct.toFixed(1)}%` : null,
-    r.worstTilePct != null ? `tile avg ${r.worstTilePct.toFixed(1)}%` : null,
-    r.worstTileSignificantPct != null ? `tile sig ${r.worstTileSignificantPct.toFixed(1)}%` : null,
+    r.shiftyRegionCount != null && r.shiftyRegionCount > 0
+      ? `shifty ${r.shiftyRegionCount} (${r.shiftyRegionArea ?? 0} px)`
+      : null,
+    r.shiftedPixels != null && r.shiftedPixels > 0 ? `shifted ${r.shiftedPixels}` : null,
     r.scatteredPixels != null && r.scatteredPixels > 0 ? `scatter ${r.scatteredPixels}` : null,
     r.warningCount != null && r.warningCount > 0 ? `${r.warningCount} warn` : null,
   ].filter((p): p is string => p != null).join(" · ");

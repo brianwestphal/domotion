@@ -86,6 +86,9 @@ interface ReviewTest {
   totalChangedArea?: number;
   maxRegionSeverity?: number;
   scatteredPixels?: number;
+  shiftedPixels?: number;
+  shiftyRegionCount?: number;
+  shiftyRegionArea?: number;
   // real-world scroll-mode per-chunk metrics (undefined for non-scroll tests).
   // Each chunk has matching `<name>-{expected,actual,diff}-N.png` files
   // (chunk 0 is the canonical no-suffix triplet).
@@ -179,6 +182,9 @@ function loadManifest(): ReviewManifest {
         totalChangedArea: typeof r["totalChangedArea"] === "number" ? r["totalChangedArea"] : undefined,
         maxRegionSeverity: typeof r["maxRegionSeverity"] === "number" ? r["maxRegionSeverity"] : undefined,
         scatteredPixels: typeof r["scatteredPixels"] === "number" ? r["scatteredPixels"] : undefined,
+        shiftedPixels: typeof r["shiftedPixels"] === "number" ? r["shiftedPixels"] : undefined,
+        shiftyRegionCount: typeof r["shiftyRegionCount"] === "number" ? r["shiftyRegionCount"] : undefined,
+        shiftyRegionArea: typeof r["shiftyRegionArea"] === "number" ? r["shiftyRegionArea"] : undefined,
         warningCount: Array.isArray(r["warnings"]) ? r["warnings"].length : undefined,
         category: typeof r["category"] === "string" ? r["category"] : undefined,
         chunks: chunks != null && chunks.length > 0 ? chunks : undefined,

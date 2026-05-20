@@ -121,6 +121,9 @@ interface ChunkResult {
   totalChangedArea: number;
   maxRegionSeverity: number;
   scatteredPixels: number;
+  shiftedPixels: number;
+  shiftyRegionCount: number;
+  shiftyRegionArea: number;
 }
 
 interface Result {
@@ -139,6 +142,9 @@ interface Result {
   totalChangedArea: number;
   maxRegionSeverity: number;
   scatteredPixels: number;
+  shiftedPixels: number;
+  shiftyRegionCount: number;
+  shiftyRegionArea: number;
   /** Captured canvas width (always the viewport width). */
   width: number;
   /** Captured canvas height. For `fold` and `scroll` this is the viewport
@@ -886,6 +892,9 @@ async function runJob(
       totalChangedArea: cmp.totalChangedArea,
       maxRegionSeverity: cmp.maxRegionSeverity,
       scatteredPixels: cmp.scatteredPixels,
+      shiftedPixels: cmp.shiftedPixels,
+      shiftyRegionCount: cmp.shiftyRegionCount,
+      shiftyRegionArea: cmp.shiftyRegionArea,
     }];
     for (let i = 1; i < segments.length; i++) {
       const seg = segments[i];
@@ -909,6 +918,7 @@ async function runJob(
           totalChangedArea: ccmp.totalChangedArea,
           maxRegionSeverity: ccmp.maxRegionSeverity,
           scatteredPixels: ccmp.scatteredPixels,
+          shiftedPixels: ccmp.shiftedPixels,
         });
       } catch (e) {
         console.warn(`  ${test}: chunk ${i} compare failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -938,6 +948,7 @@ async function runJob(
     totalChangedArea: cmp.totalChangedArea,
     maxRegionSeverity: cmp.maxRegionSeverity,
     scatteredPixels: cmp.scatteredPixels,
+    shiftedPixels: cmp.shiftedPixels,
     width: viewport.width,
     height: diffH,
     warnings: warnings.length > 0 ? warnings : undefined,
@@ -955,7 +966,7 @@ function makeErrorResult(
     pass: false,
     diffPct: 100, sigPixelPct: 100, worstTilePct: 100, worstTileSignificantPct: 100,
     nonAaPixels: 0, nonAaPixelPct: 100,
-    regionCount: Number.MAX_SAFE_INTEGER, totalChangedArea: 0, maxRegionSeverity: 0, scatteredPixels: 0,
+    regionCount: Number.MAX_SAFE_INTEGER, totalChangedArea: 0, maxRegionSeverity: 0, scatteredPixels: 0, shiftedPixels: 0, shiftyRegionCount: 0, shiftyRegionArea: 0,
     width, height, error,
     warnings: warnings.length > 0 ? warnings : undefined,
   };

@@ -95,6 +95,9 @@ export interface SuiteResult {
   totalChangedArea: number;
   maxRegionSeverity: number;
   scatteredPixels: number;
+  shiftedPixels: number;
+  shiftyRegionCount: number;
+  shiftyRegionArea: number;
   pass: boolean;
 }
 
@@ -186,6 +189,9 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
     totalChangedArea: cmp.totalChangedArea,
     maxRegionSeverity: cmp.maxRegionSeverity,
     scatteredPixels: cmp.scatteredPixels,
+    shiftedPixels: cmp.shiftedPixels,
+    shiftyRegionCount: cmp.shiftyRegionCount,
+    shiftyRegionArea: cmp.shiftyRegionArea,
     pass,
   };
 }
@@ -254,7 +260,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
     runJob: async (test, w) => runOneTest(test, w),
     onResult: (r) => {
       const status = r.pass ? "✓ PASS" : "✗ FAIL";
-      console.log(`  ${status}  ${r.name}  (regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · scatter ${r.scatteredPixels} · avg ${r.diffPct.toFixed(2)}%)`);
+      console.log(`  ${status}  ${r.name}  (regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · shifty ${r.shiftyRegionCount} · shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels})`);
     },
   });
 
@@ -281,7 +287,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   if (failed > 0) {
     console.log("\nFailed tests — inspect diff images in:");
     for (const r of results.filter((r) => !r.pass)) {
-      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · scatter ${r.scatteredPixels} · avg ${r.diffPct.toFixed(2)}%`);
+      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · shifty ${r.shiftyRegionCount} · shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels}`);
     }
     console.log("\nReview tool: npx tsx tests/review-server.tsx");
     process.exit(1);

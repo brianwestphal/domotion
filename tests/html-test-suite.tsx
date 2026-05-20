@@ -85,8 +85,15 @@ interface TestResult {
   /** Non-AA-diff pixels that fell into culled (sub-`MIN_REGION_AREA`)
    *  components; treated as scatter and ignored by pass/fail. */
   scatteredPixels: number;
+  /** Pixels absorbed by the neighborhood-tolerant shift filter. */
+  shiftedPixels: number;
+  /** Connected components that passed the area floor but were culled for
+   *  low high-severity fraction (typical of font-substitution / glyph-
+   *  shape differences). They aren't real structural change. */
+  shiftyRegionCount: number;
+  shiftyRegionArea: number;
   /** Per-region breakdown (top 32 by area). */
-  regions: Array<{ area: number; maxSeverity: number; x: number; y: number; w: number; h: number }>;
+  regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }>;
   pass: boolean;
   skipped?: boolean;
   skipReason?: string;
@@ -128,7 +135,10 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let totalChangedArea = 0;
   let maxRegionSeverity = 0;
   let scatteredPixels = 0;
-  let regions: Array<{ area: number; maxSeverity: number; x: number; y: number; w: number; h: number }> = [];
+  let shiftedPixels = 0;
+  let shiftyRegionCount = 0;
+  let shiftyRegionArea = 0;
+  let regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }> = [];
   let bodyBg = "#ffffff";
   let err: string | undefined;
   let capWarnings: Array<{ selector: string; feature: string; detail: string }> = [];
@@ -186,6 +196,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     totalChangedArea = cmp.totalChangedArea;
     maxRegionSeverity = cmp.maxRegionSeverity;
     scatteredPixels = cmp.scatteredPixels;
+    shiftedPixels = cmp.shiftedPixels;
+    shiftyRegionCount = cmp.shiftyRegionCount;
+    shiftyRegionArea = cmp.shiftyRegionArea;
     regions = cmp.regions;
   } catch (e) {
     err = e instanceof Error ? e.message : String(e);
@@ -208,6 +221,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     totalChangedArea,
     maxRegionSeverity,
     scatteredPixels,
+    shiftedPixels,
+    shiftyRegionCount,
+    shiftyRegionArea,
     regions,
     pass,
     skipped,
@@ -263,13 +279,13 @@ async function main(): Promise<void> {
     },
     runJob: async (file, w) => runOneHtmlTest(file, w),
     onResult: (result) => {
-      const { name, pass, skipped, error: err, warnings, regionCount, totalChangedArea, maxRegionSeverity, scatteredPixels, nonAaPixels, diffPct } = result;
+      const { name, pass, skipped, error: err, warnings, regionCount, totalChangedArea, maxRegionSeverity, scatteredPixels, shiftedPixels, shiftyRegionCount, nonAaPixels, diffPct } = result;
       const status = skipped ? "- SKIP" : pass ? "✓ PASS" : "✗ FAIL";
       const warnBadge = warnings != null ? ` (${warnings.length}w)` : "";
       const regionBadge = !(skipped ?? false)
-        ? ` [regions ${regionCount} · area ${totalChangedArea} px · max ${maxRegionSeverity.toFixed(1)}% · scatter ${scatteredPixels}]`
+        ? ` [regions ${regionCount} · area ${totalChangedArea} px · max ${maxRegionSeverity.toFixed(1)}% · shifty ${shiftyRegionCount} · shifted ${shiftedPixels} · scatter ${scatteredPixels}]`
         : "";
-      console.log(`  ${status}  ${name.padEnd(40)} (${diffPct.toFixed(2)}% avg · non-AA ${nonAaPixels}${regionBadge})${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
+      console.log(`  ${status}  ${name.padEnd(40)} (${diffPct.toFixed(2)}% avg${regionBadge})${warnBadge}${err != null ? `  ERR: ${err}` : ""}`);
     },
   });
 
@@ -333,11 +349,11 @@ function ResultRow({ r }: { r: TestResult }) {
       <td className="name">{r.name}</td>
       <td className="status">{status}</td>
       <td className="diff">
-        <div><b>{`regions ${r.regionCount}`}</b></div>
-        <div className="tile">{`area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}%`}</div>
-        <div className="tile">{`scatter ${r.scatteredPixels} px · non-AA ${r.nonAaPixels}`}</div>
-        <div className="tile">{`avg ${r.diffPct.toFixed(2)}%`}</div>
-        <div className="tile">{`tile avg ${r.worstTilePct.toFixed(1)}% / sig ${r.worstTileSignificantPct.toFixed(1)}%`}</div>
+        <div><b>{`regions ${r.regionCount} · ${r.totalChangedArea} px`}</b></div>
+        <div className="tile">{`max ${r.maxRegionSeverity.toFixed(1)}%`}</div>
+        <div className="tile">{`shifty ${r.shiftyRegionCount} (${r.shiftyRegionArea} px)`}</div>
+        <div className="tile">{`shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels}`}</div>
+        <div className="tile">{`avg ${r.diffPct.toFixed(2)}% · non-AA ${r.nonAaPixels}`}</div>
       </td>
       <td className="imgs">
         <a href={`${r.name}-expected.png`}><img src={`${r.name}-expected.png`} /></a>
@@ -362,7 +378,7 @@ function ResultRow({ r }: { r: TestResult }) {
 function MetricsLegend() {
   return (
     <p className="legend">
-      {`DM-715 pass criterion: regions = 0. The non-AA diff mask (Yee detector — pixelmatch BSD) is dilated by ${REGION_DILATE_PX} px and flood-filled; surviving connected components with original-area ≥ ${MIN_REGION_AREA} px are counted. Scatter pixels (in culled sub-area components) are ignored. avg / non-AA / tile metrics are diagnostic; significant pixels are color distance > ${SIGNIFICANT_PIXEL_DIST}/441. Magenta outlines on diff.png mark surviving regions; the yellow box marks the worst tile. Warnings below list known feature gaps surfaced during capture.`}
+      {`DM-715 pass criterion: regions = 0. Pipeline: (1) raw RGB diff per pixel; (2) neighborhood-tolerant shift filter — if expected[x,y] has a near-match within ±${REGION_DILATE_PX} px in actual (and vice versa), the pixel is treated as a 1–2 px translation and reported as "shifted"; (3) Yee AA detector zeroes glyph anti-aliasing; (4) surviving "real diff" mask is dilated by ${REGION_DILATE_PX} px and flood-filled into connected components; (5) components with area < ${MIN_REGION_AREA} px or with low high-severity fraction (font-substitution/glyph-shape noise) are excluded from the region count. "Shifty" regions failed the high-severity gate; "scatter" is non-AA-diff pixels in sub-area components; "shifted" is pixels absorbed by step (2). Magenta outlines on diff.png mark surviving regions; the yellow box marks the worst tile.`}
     </p>
   );
 }

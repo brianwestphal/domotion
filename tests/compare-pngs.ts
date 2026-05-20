@@ -38,6 +38,29 @@ export const TILE_PX = 64;
 export const REGION_DILATE_PX = 3;
 export const MIN_REGION_AREA = 15;
 
+/** Neighborhood-tolerant matching for sub-pixel shifts (follow-up to DM-715).
+ *  For every diff pixel, sample the (2*SHIFT_MATCH_RADIUS+1)² neighborhood in
+ *  the opposite image; if both `expected[x,y]` finds a near-match in actual
+ *  AND `actual[x,y]` finds a near-match in expected (both within
+ *  `SHIFT_MATCH_DIST`), the pixel is treated as a shift artifact and excluded
+ *  from the diff mask BEFORE AA detection and region analysis run. Catches
+ *  cleanly the "whole text block translated 1 px" case where Yee's AA
+ *  detector can't help because each pixel is a correct rendering at the wrong
+ *  position. */
+export const SHIFT_MATCH_RADIUS = 2;
+export const SHIFT_MATCH_DIST = 35;
+
+/** Region high-severity gate. A connected component is treated as a "real"
+ *  structural change only when at least `MIN_HIGH_SEV_FRACTION` of its diff
+ *  pixels exceed `HIGH_SEV_PCT` per-pixel severity. Text-rendering /
+ *  font-substitution diffs concentrate in edge AA pixels (low individual
+ *  severity); a genuine image swap or recolor produces large runs of
+ *  high-severity pixels. Without this layer, every paragraph of text on a
+ *  page where our font substitution differs from Chrome's blows up the
+ *  region count even though no real structural change exists. */
+export const HIGH_SEV_PCT = 50;
+export const MIN_HIGH_SEV_FRACTION = 0.15;
+
 export interface CompareResult {
   /** Pixels that differ AND are not classified as glyph anti-aliasing by the
    *  Yee detector. Diagnostic only since DM-715 — see `regionCount` for
@@ -71,12 +94,28 @@ export interface CompareResult {
   /** Non-AA diff pixels that DIDN'T survive region culling (i.e. landed in
    *  components smaller than `MIN_REGION_AREA` after dilation). */
   scatteredPixels: number;
-  /** Per-region breakdown: area + max severity + bounding box. Useful for
-   *  pinpointing the change without re-running the comparison. Sorted by
-   *  `area` descending; capped at the top 32 regions to keep payload small. */
+  /** Pixels that differed BUT were absorbed by the neighborhood-tolerant
+   *  matching filter (subpixel-shift detector). These never reach the AA
+   *  detector or the region mask. Useful diagnostic for "how much of the
+   *  raw diff was just 1-px translation noise" — a number close to the
+   *  total raw-diff count means most of the visible change was sub-pixel
+   *  shift, not structural change. */
+  shiftedPixels: number;
+  /** Region count that passed the area floor but was culled by the
+   *  high-severity-fraction gate — i.e. shape diffs where most pixels are
+   *  low-distance edge AA (typical of font substitution / glyph shape
+   *  differences). They aren't pure shift artifacts (so the shift filter
+   *  didn't catch them) but they aren't real structural change either. */
+  shiftyRegionCount: number;
+  /** Total area inside `shiftyRegionCount` regions. */
+  shiftyRegionArea: number;
+  /** Per-region breakdown: area + max severity + high-sev fraction +
+   *  bounding box. Sorted by `area` descending; capped at the top 32
+   *  regions to keep payload small. */
   regions: Array<{
     area: number;
     maxSeverity: number;
+    highSevFraction: number;
     x: number; y: number; w: number; h: number;
   }>;
 }
@@ -130,6 +169,39 @@ export async function comparePngs(
       const SIG = ${significantDist};
       const DILATE = ${REGION_DILATE_PX};
       const MIN_AREA = ${MIN_REGION_AREA};
+      const SHIFT_R = ${SHIFT_MATCH_RADIUS};
+      const SHIFT_D2 = ${SHIFT_MATCH_DIST * SHIFT_MATCH_DIST};
+      const HIGH_SEV = ${HIGH_SEV_PCT};
+      const MIN_HSF = ${MIN_HIGH_SEV_FRACTION};
+      // Neighborhood-tolerant subpixel-shift detector. Returns true when the
+      // expected[x,y] color appears within SHIFT_R px in actual AND
+      // actual[x,y] appears within SHIFT_R px in expected (both within
+      // squared-distance SHIFT_D2). Both directions required so a one-sided
+      // recolor (new element appearing in only one image) doesn't get
+      // absorbed as a "shift".
+      function isShift(d1, d2, x, y) {
+        const i = (y * w + x) * 4;
+        const e0 = d1[i], e1 = d1[i+1], e2 = d1[i+2];
+        const a0 = d2[i], a1 = d2[i+1], a2 = d2[i+2];
+        const x0 = Math.max(0, x - SHIFT_R);
+        const x1 = Math.min(w - 1, x + SHIFT_R);
+        const y0 = Math.max(0, y - SHIFT_R);
+        const y1 = Math.min(h - 1, y + SHIFT_R);
+        let minE_in_actual = Infinity;
+        let minA_in_expected = Infinity;
+        for (let ny = y0; ny <= y1; ny++) {
+          for (let nx = x0; nx <= x1; nx++) {
+            const j = (ny * w + nx) * 4;
+            const dr1 = e0 - d2[j], dg1 = e1 - d2[j+1], db1 = e2 - d2[j+2];
+            const d1d = dr1*dr1 + dg1*dg1 + db1*db1;
+            if (d1d < minE_in_actual) minE_in_actual = d1d;
+            const dr2 = a0 - d1[j], dg2 = a1 - d1[j+1], db2 = a2 - d1[j+2];
+            const d2d = dr2*dr2 + dg2*dg2 + db2*db2;
+            if (d2d < minA_in_expected) minA_in_expected = d2d;
+          }
+        }
+        return minE_in_actual <= SHIFT_D2 && minA_in_expected <= SHIFT_D2;
+      }
       // Yee anti-aliasing detector ported from mapbox/pixelmatch (BSD).
       // A pixel is AA when it sits on an edge in either image (zeroes >= 2
       // around it + a contrasty neighbor) and that contrasty neighbor has
@@ -188,6 +260,7 @@ export async function comparePngs(
       let totalDist = 0;
       let totalSig = 0;
       let totalNonAa = 0;
+      let totalShifted = 0;
       const totalPixels = w * h;
       // DM-715: parallel non-AA-diff mask. 1 = pixel survived AA filtering
       // and counts as a real diff. Use this for the region pass below.
@@ -204,21 +277,29 @@ export async function comparePngs(
           const dg = d1[i+1] - d2[i+1];
           const db = d1[i+2] - d2[i+2];
           const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+          // Subpixel-shift filter (DM-715 follow-up). If the expected color
+          // appears within SHIFT_R px in actual AND vice versa, treat as a
+          // translation artifact, not a real diff. Runs BEFORE AA detection
+          // because it's strictly cheaper to short-circuit shift pixels
+          // (most real-world diff is 1-px-shifted antialiased glyphs).
+          let shifted = false;
+          if (dist > 0 && SHIFT_R > 0) shifted = isShift(d1, d2, x, y);
           let isAA = false;
-          if (dist > 0) isAA = antialiased(d1, x, y, d2) || antialiased(d2, x, y, d1);
-          const norm = isAA ? 0 : dist / maxDist;
+          if (dist > 0 && !shifted) isAA = antialiased(d1, x, y, d2) || antialiased(d2, x, y, d1);
+          const norm = (isAA || shifted) ? 0 : dist / maxDist;
           totalDist += norm;
           const ti = ty * tilesX + tx;
           tileDist[ti] += norm;
           tilePixCount[ti]++;
-          if (dist > 0 && !isAA) {
+          if (shifted) totalShifted++;
+          if (dist > 0 && !isAA && !shifted) {
             tileNonAa[ti]++;
             totalNonAa++;
             const px = y * w + x;
             nonAaMask[px] = 1;
             sevPct[px] = norm * 100;
           }
-          if (dist > SIG && !isAA) { tileSig[ti]++; totalSig++; }
+          if (dist > SIG && !isAA && !shifted) { tileSig[ti]++; totalSig++; }
           // Diff image is a literal per-channel absolute difference (DM-379).
           diffData.data[i]   = Math.abs(dr);
           diffData.data[i+1] = Math.abs(dg);
@@ -282,6 +363,7 @@ export async function comparePngs(
           labels[p] = nextLabel;
           let area = 0;
           let maxSev = 0;
+          let highSev = 0;
           let minX = x, maxX = x, minY = y, maxY = y;
           while (sp > 0) {
             const cur = stack[--sp];
@@ -291,6 +373,7 @@ export async function comparePngs(
               area++;
               const s = sevPct[cur];
               if (s > maxSev) maxSev = s;
+              if (s >= HIGH_SEV) highSev++;
             }
             if (cx < minX) minX = cx;
             if (cx > maxX) maxX = cx;
@@ -317,6 +400,7 @@ export async function comparePngs(
           regions.push({
             area,
             maxSeverity: maxSev,
+            highSevFraction: area > 0 ? highSev / area : 0,
             x: minX, y: minY,
             w: maxX - minX + 1,
             h: maxY - minY + 1,
@@ -324,8 +408,20 @@ export async function comparePngs(
           nextLabel++;
         }
       }
-      // Cull regions below the area floor.
-      const surviving = regions.filter((r) => r.area >= MIN_AREA);
+      // Cull regions below the area floor AND regions whose high-severity
+      // fraction is below the gate (text-rendering / glyph-shape diffs
+      // typical of font substitution).
+      const surviving = regions.filter((r) => r.area >= MIN_AREA && r.highSevFraction >= MIN_HSF);
+      // Count area in "shifty" regions (text-like) separately so we don't lose
+      // visibility into them — they go into scatter (below) by accounting.
+      let shiftyRegionArea = 0;
+      let shiftyRegionCount = 0;
+      for (const r of regions) {
+        if (r.area >= MIN_AREA && r.highSevFraction < MIN_HSF) {
+          shiftyRegionArea += r.area;
+          shiftyRegionCount++;
+        }
+      }
       surviving.sort((a, b) => b.area - a.area);
       let totalChangedArea = 0;
       let maxRegionSeverity = 0;
@@ -403,6 +499,9 @@ export async function comparePngs(
         totalChangedArea,
         maxRegionSeverity,
         scatteredPixels,
+        shiftedPixels: totalShifted,
+        shiftyRegionCount,
+        shiftyRegionArea,
         regions: trimmedRegions,
         diffDataUrl: diffCanvas.toDataURL("image/png"),
       };
@@ -419,7 +518,10 @@ export async function comparePngs(
     totalChangedArea: number;
     maxRegionSeverity: number;
     scatteredPixels: number;
-    regions: Array<{ area: number; maxSeverity: number; x: number; y: number; w: number; h: number }>;
+    shiftedPixels: number;
+    shiftyRegionCount: number;
+    shiftyRegionArea: number;
+    regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }>;
     diffDataUrl: string;
   };
 
@@ -436,6 +538,9 @@ export async function comparePngs(
     totalChangedArea: result.totalChangedArea,
     maxRegionSeverity: result.maxRegionSeverity,
     scatteredPixels: result.scatteredPixels,
+    shiftedPixels: result.shiftedPixels,
+    shiftyRegionCount: result.shiftyRegionCount,
+    shiftyRegionArea: result.shiftyRegionArea,
     regions: result.regions,
   };
 }
