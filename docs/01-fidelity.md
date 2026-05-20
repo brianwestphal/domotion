@@ -32,6 +32,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [~] background-size, -position, -repeat — url() layers approximate center/cover
 - [x] border (uniform) with border-radius
 - [x] border (per-side with different width/style/color)
+- [x] box-decoration-break (`slice` default + `clone`) on wrapped inline elements — per-line-fragment paint of background / border / shadow / image; in slice mode the first fragment owns the left edge and rounded TL/BL corners, the last owns the right edge and TR/BR, intermediate fragments paint only top + bottom; in clone mode every fragment paints a full box. Multi-column block fragmentation is not yet supported.
 - [x] border-style: solid, dashed, dotted
 - [x] border-style: double, groove, ridge, inset, outset — implemented in dom-to-svg.ts uniform-border path
 - [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093

@@ -304,9 +304,18 @@ const REVIEW_CSS = `
   .status-msg { font-size: 12px; color: #8b949e; }
   .status-msg.ok { color: #56d364; }
   .status-msg.err { color: #ffa198; }
-  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100; cursor: zoom-out; }
-  .lightbox.open { display: flex; }
-  .lightbox img { max-width: 96vw; max-height: 96vh; }
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; z-index: 100; cursor: zoom-out; }
+  .lightbox.open { display: flex; align-items: center; justify-content: center; }
+  /* Fit-to-screen for landscape / square images (the default). */
+  .lightbox .region-stage { position: relative; display: inline-block; max-width: 96vw; max-height: 96vh; }
+  .lightbox .region-stage img { display: block; max-width: 96vw; max-height: 96vh; width: auto; height: auto; }
+  /* Tall mode (DM-736): images taller than wide take the full viewport
+     width and the lightbox container scrolls vertically. Anchored to the
+     top so opening the lightbox lands you at the top of the image. */
+  .lightbox.tall { overflow-y: auto; align-items: flex-start; justify-content: center; }
+  .lightbox.tall .region-stage { max-width: none; max-height: none; width: 100vw; }
+  .lightbox.tall .region-stage img { max-width: none; max-height: none; width: 100vw; height: auto; }
+  .lightbox .region-overlay { cursor: crosshair; }
   .suite-summary { font-size: 12px; color: #8b949e; margin-top: 4px; }
   .svg-link { font-size: 11px; color: #58a6ff; text-decoration: none; margin-left: auto; }
   .svg-link:hover { text-decoration: underline; }
@@ -389,7 +398,18 @@ function Layout({ manifestJson }: { manifestJson: string }) {
           <div className="suite-summary" id="suite-summary"></div>
         </header>
         <main id="cards"></main>
-        <div className="lightbox" id="lightbox"><img id="lb-img" alt="" /></div>
+        {/* Lightbox: a region-stage wraps the maximised image so the SVG
+            overlay (id=`lb-overlay`) sits directly on top of it. The
+            overlay is wired to the source card's `OverlayHandle` via
+            `addView()` whenever the lightbox opens, so drag-add /
+            resize / delete inside the fullscreen view edits the same
+            rects rendered on the in-grid triplet. DM-736. */}
+        <div className="lightbox" id="lightbox">
+          <div className="region-stage" id="lb-stage">
+            <img id="lb-img" alt="" />
+            <svg className="region-overlay" id="lb-overlay" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
         <script type="application/json" id="manifest-data">{raw(manifestJson)}</script>
         <script type="module" src="/client.js"></script>
       </body>

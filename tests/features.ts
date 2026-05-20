@@ -845,6 +845,33 @@ const tests: FeatureTest[] = [
     width: 240,
     height: 80,
   },
+  {
+    // Inline elements that wrap across multiple line boxes need per-fragment
+    // paint of background + border (CSS Backgrounds 3 §3.7
+    // `box-decoration-break`). Without it the captured bbox covers the
+    // union of every line and the single rect paint smears across the full
+    // container width — text floats outside its highlight, and pill chips
+    // lose their per-line rounded corners. This fixture exercises:
+    //   1. slice (default): first fragment gets TL/BL + LEFT border,
+    //      last gets TR/BR + RIGHT, middle fragments paint only top + bottom.
+    //   2. clone: every fragment paints a full pill with all four corners,
+    //      including a `border-radius: 999px` chip that should keep its
+    //      rounded ends on every line.
+    name: "inline-box-decoration-break",
+    html: `<div style="font-family:-apple-system,sans-serif;font-size:14px;line-height:1.7;padding:20px;background:#fff;color:#111;">
+      <div style="max-width:320px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:12px;">
+        Default body text. <span style="background:#fef3c7;border:2px solid #b45309;padding:2px 8px;border-radius:6px;box-decoration-break:slice;-webkit-box-decoration-break:slice;">A highlighted span that wraps across multiple lines using slice.</span> After.
+      </div>
+      <div style="max-width:320px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:12px;">
+        Default body text. <span style="background:#fef3c7;border:2px solid #b45309;padding:2px 8px;border-radius:6px;box-decoration-break:clone;-webkit-box-decoration-break:clone;">A highlighted span that wraps across multiple lines using clone.</span> After.
+      </div>
+      <div style="max-width:320px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;">
+        <span style="background:#1d4ed8;color:white;padding:2px 10px;border-radius:999px;box-decoration-break:clone;-webkit-box-decoration-break:clone;">A pill-shaped chip wrapping across lines keeps rounded corners.</span>
+      </div>
+    </div>`,
+    width: 420,
+    height: 360,
+  },
 ];
 
 void runFeatureTests(tests, "features");

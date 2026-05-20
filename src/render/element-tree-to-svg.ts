@@ -259,6 +259,202 @@ export function elementTreeToSvg(
     svgParts.push(`${indent}</g>`);
   }
 
+  /**
+   * Per-fragment paint for inline elements that wrap onto multiple line
+   * boxes. Each entry in `el.inlineFragments` corresponds to one line-box
+   * fragment of the inline element. The painted shape per fragment depends
+   * on `box-decoration-break`:
+   *   - `slice` (default): the inline's box is "cut" at line-box boundaries.
+   *     The first fragment owns the LEFT side + TL/BL corners; the last owns
+   *     the RIGHT side + TR/BR corners; intermediate fragments paint only
+   *     top + bottom borders with no corner rounding.
+   *   - `clone`: every fragment paints a full box (all four sides, all four
+   *     corners). Outset box-shadow + background-image are also emitted
+   *     per-fragment.
+   * Matches Blink's `InlineBoxFragmentPainter::PaintBoxDecorationBackground`
+   * pattern: a per-fragment slice of the inline's logical box, with the
+   * non-edge sides suppressed in slice mode.
+   */
+  function renderInlineFragments(
+    el: CapturedElement,
+    indent: string,
+    bgColor: { r: number; g: number; b: number; a: number } | null,
+    corners: CornerRadii,
+  ): void {
+    const frags = el.inlineFragments!;
+    const clone = (el.styles.boxDecorationBreak ?? "slice") === "clone";
+    const bgImage = el.styles.backgroundImage;
+    const hasBgImage = bgImage != null && bgImage !== "none" && bgImage !== "";
+    const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
+
+    // Per-side captured borders. Uniformity tested for the simple stroke
+    // path; mixed-per-side borders on wrapped inlines are rare and fall
+    // back to the same per-side emit.
+    const sbt = parseSide(el.styles.borderTopWidth, el.styles.borderTopStyle, el.styles.borderTopColor);
+    const sbr = parseSide(el.styles.borderRightWidth, el.styles.borderRightStyle, el.styles.borderRightColor);
+    const sbb = parseSide(el.styles.borderBottomWidth, el.styles.borderBottomStyle, el.styles.borderBottomColor);
+    const sbl = parseSide(el.styles.borderLeftWidth, el.styles.borderLeftStyle, el.styles.borderLeftColor);
+
+    // Per-side border-image-source styling on wrapped inlines is rare enough
+    // that we skip it; the bbox path remains the only border-image-aware
+    // emitter and is gated off when `useInlineFragments` is set.
+
+    // Background-image layer setup — mirrors the bbox path but parameterised
+    // on per-fragment box. background-clip: text isn't supported on inline
+    // fragments here (uncommon and would require per-fragment glyph masks).
+    const bgImageLayers = hasBgImage ? splitTopLevelCommas(bgImage!) : [];
+    const bgSizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
+    const bgPosLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
+    const bgRepeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
+    const bgClipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+    const bgOriginLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
+    const bgAttachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+    const bgIntrinsicLayers = el.styles.backgroundIntrinsic ?? [];
+
+    for (let fi = 0; fi < frags.length; fi++) {
+      const f = frags[fi];
+      const isFirst = fi === 0;
+      const isLast = fi === frags.length - 1;
+      // In slice mode the corner radii belong only to the entry/exit edges:
+      // TL/BL on the first fragment, TR/BR on the last. Middle fragments
+      // (and the non-edge corners on first/last) collapse to sharp 90°.
+      // Clone treats every fragment as a complete box → keep all four
+      // corners.
+      const fragCorners: CornerRadii = clone ? corners : {
+        tl: isFirst ? corners.tl : { h: 0, v: 0 },
+        bl: isFirst ? corners.bl : { h: 0, v: 0 },
+        tr: isLast ? corners.tr : { h: 0, v: 0 },
+        br: isLast ? corners.br : { h: 0, v: 0 },
+        uniform: corners.uniform && isFirst && isLast,
+      };
+
+      // Outset box-shadow. Clone applies shadow to each fragment; slice
+      // applies it to the joined shape which would need per-fragment
+      // clipping to express in SVG — skip for slice (rare on wrapped
+      // inlines that aren't using `clone`).
+      if (clone) {
+        for (let si = shadows.length - 1; si >= 0; si--) {
+          const sh = shadows[si];
+          if (sh.inset) continue;
+          const sx = f.x + sh.x - sh.spread;
+          const sy = f.y + sh.y - sh.spread;
+          const sw = f.width + sh.spread * 2;
+          const sh2 = f.height + sh.spread * 2;
+          if (sw <= 0 || sh2 <= 0) continue;
+          const shadowCorners = outsetCornerRadiiForShadow(fragCorners, sh.spread);
+          let filterAttr = "";
+          if (sh.blur > 0) {
+            const stdDev = sh.blur / 2;
+            const fid = `${idPrefix}sh${clipIdx++}`;
+            defsParts.push(
+              `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
+            );
+            filterAttr = ` filter="url(#${fid})"`;
+          }
+          svgParts.push(
+            `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
+          );
+        }
+      }
+
+      // Background color.
+      if (bgColor != null && bgColor.a > 0.01) {
+        svgParts.push(
+          `${indent}${roundedRectSvg(f.x, f.y, f.width, f.height, fragCorners, `fill="${colorStr(bgColor)}"`)}`,
+        );
+      }
+
+      // Background image layers (clone only — slice would need cross-
+      // fragment continuation of the gradient/image which is out of scope
+      // here; the bbox path remains the slice-mode gradient owner via the
+      // fallback emit when fragmentation isn't detected).
+      if (clone && hasBgImage) {
+        for (let li = bgImageLayers.length - 1; li >= 0; li--) {
+          const layer = bgImageLayers[li].trim();
+          const layerSize = (bgSizeLayers[li] ?? bgSizeLayers[0] ?? "auto").trim();
+          const layerPos = (bgPosLayers[li] ?? bgPosLayers[0] ?? "0% 0%").trim();
+          const layerRepeat = (bgRepeatLayers[li] ?? bgRepeatLayers[0] ?? "repeat").trim();
+          const layerClip = (bgClipLayers[li] ?? bgClipLayers[0] ?? "border-box").trim();
+          const layerIntrinsic = bgIntrinsicLayers[li] ?? null;
+          const layerAttachment = (bgAttachmentLayers[li] ?? bgAttachmentLayers[0] ?? "scroll").trim();
+          if (layerClip === "text") continue;
+          const defId = `${idPrefix}bgf${clipIdx++}`;
+          const out = buildBackgroundLayerDef(
+            defId, layer, f.x, f.y, f.width, f.height,
+            layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport,
+          );
+          if (out.def === "") continue;
+          defsParts.push(out.def);
+          svgParts.push(
+            `${indent}${roundedRectSvg(f.x, f.y, f.width, f.height, fragCorners, `fill="url(#${defId})"`)}`,
+          );
+        }
+      }
+
+      // Per-side borders. Slice mode suppresses the LEFT side on non-first
+      // fragments and the RIGHT side on non-last fragments; clone keeps
+      // all four sides. Solid-style only (the wrapped-inline fixture and
+      // typical use cases are solid); fall back to a single inset stroke
+      // for the uniform-color case.
+      const wantLeft = clone || isFirst;
+      const wantRight = clone || isLast;
+      const wantTop = true;
+      const wantBottom = true;
+
+      const drawSide = (
+        side: typeof sbt,
+        x1: number, y1: number, x2: number, y2: number,
+      ) => {
+        if (side == null || side.w <= 0 || side.color.a < 0.01) return;
+        if (side.style === "none" || side.style === "hidden") return;
+        const dash = dashArrayForStyle(side.style, side.w);
+        const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+        const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+        svgParts.push(
+          `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttr}${linecap} />`,
+        );
+      };
+
+      // Uniform border with rounded corners: emit a clipped <path> stroke
+      // around the per-fragment outline (skipping the suppressed sides).
+      // To keep it simple, only emit the rounded-rect stroke path when all
+      // four sides are wanted (clone, or first-and-last). Otherwise fall
+      // back to four `<line>` strokes which work correctly for square
+      // corners (the slice path on middle fragments has square corners
+      // anyway).
+      const allFourWanted = wantTop && wantBottom && wantLeft && wantRight;
+      const sidesUniformColor = sbt != null && sbr != null && sbb != null && sbl != null
+        && sbt.w === sbr.w && sbr.w === sbb.w && sbb.w === sbl.w
+        && sbt.style === sbr.style && sbr.style === sbb.style && sbb.style === sbl.style
+        && sameColor(sbt.color, sbr.color) && sameColor(sbr.color, sbb.color) && sameColor(sbb.color, sbl.color);
+      const anyCorner = fragCorners.tl.h > 0 || fragCorners.tr.h > 0 || fragCorners.br.h > 0 || fragCorners.bl.h > 0;
+      if (sbt != null && sidesUniformColor && allFourWanted && anyCorner && sbt.w > 0 && sbt.style !== "none" && sbt.style !== "hidden") {
+        const half = sbt.w / 2;
+        const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
+        const dash = dashArrayForStyle(sbt.style, sbt.w);
+        const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+        const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
+        svgParts.push(
+          `${indent}${roundedRectSvg(f.x + half, f.y + half, Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners, `fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap}`)}`,
+        );
+      } else {
+        // Per-side strokes anchored at the inner half-width inset so they
+        // sit inside the border-box (matching Chrome). For slice-mode
+        // middle fragments there are no corners so straight lines suffice.
+        const tw = sbt?.w ?? 0;
+        const rw = sbr?.w ?? 0;
+        const bw = sbb?.w ?? 0;
+        const lw = sbl?.w ?? 0;
+        const xL = f.x, xR = f.x + f.width, yT = f.y, yB = f.y + f.height;
+        // Top / bottom span the full fragment width.
+        if (wantTop) drawSide(sbt, xL, yT + tw / 2, xR, yT + tw / 2);
+        if (wantBottom) drawSide(sbb, xL, yB - bw / 2, xR, yB - bw / 2);
+        if (wantLeft) drawSide(sbl, xL + lw / 2, yT, xL + lw / 2, yB);
+        if (wantRight) drawSide(sbr, xR - rw / 2, yT, xR - rw / 2, yB);
+      }
+    }
+  }
+
   function renderElement(el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
     const indent = "  ".repeat(depth);
     const bgColor = parseColor(el.styles.backgroundColor);
@@ -285,6 +481,14 @@ export function elementTreeToSvg(
     if (opacity === 0) return;
     // empty-cells: hide — suppress bg + border on empty <td>/<th>.
     const suppressEmptyCell = el.styles.emptyCellsHidden === true;
+    // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3
+    // §3.7 box-decoration-break): capture stashes per-fragment rects in
+    // `el.inlineFragments`. When set, paint the background + border per
+    // fragment instead of once across the bbox. `slice` (default) cuts the
+    // box at fragment boundaries — the first fragment owns the left side and
+    // the last owns the right; middle fragments paint only top + bottom.
+    // `clone` paints a complete box on every fragment.
+    const useInlineFragments = el.inlineFragments != null && el.inlineFragments.length > 1;
 
     // Element opacity applies to the background, border, text, and all descendants.
     // Emit a group wrapper when opacity < 1 so the whole subtree tints uniformly.
@@ -471,13 +675,25 @@ export function elementTreeToSvg(
     // each carry their own `animation` shorthand without clobbering.
     if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
 
+    // Inline-fragment paint: when the element wraps across multiple line
+    // boxes and the bbox-based paint would smear background + border across
+    // the whole logical inline (typically the full container width), paint
+    // each line fragment individually. The remaining bbox-based emissions
+    // (outset shadow, bg color, bg image, inset shadow, border-image,
+    // border) are gated below on `!useInlineFragments` so they don't double
+    // up. Outline still paints around the bbox — it's outside the box and
+    // CSS doesn't fragment it per inline line box.
+    if (useInlineFragments) {
+      renderInlineFragments(el, indent, bgColor, corners);
+    }
+
     // Outset box-shadow (SK-1101 + SK-1113): paints BENEATH the element box.
     // CSS spec says the first shadow in the list is closest to the element;
     // later shadows sit further behind. SVG paints later in document order,
     // so to get the same stacking we iterate the list in REVERSE (deepest
     // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
     // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
-    {
+    if (!useInlineFragments) {
       const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
       for (let si = shadows.length - 1; si >= 0; si--) {
         const sh = shadows[si];
@@ -521,7 +737,9 @@ export function elementTreeToSvg(
     // a comma-separated list of linear/radial gradients and url() images. The
     // first layer paints on top — we emit in reverse so the rect order matches
     // CSS layering. The background-color paints *under* all layers.
-    if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01) {
+    if (useInlineFragments) {
+      // background painted per-fragment in renderInlineFragments above
+    } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01) {
       svgParts.push(
         `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
       );
@@ -549,7 +767,7 @@ export function elementTreeToSvg(
     const textBgClipFills: string[] = [];
 
     const bgImage = el.styles.backgroundImage;
-    if (bgImage != null && bgImage !== "none" && bgImage !== "") {
+    if (!useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
       const layers = splitTopLevelCommas(bgImage);
       const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
       const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
@@ -638,7 +856,7 @@ export function elementTreeToSvg(
     // sh.spread on each side. Apply Gaussian blur (stdDev = blur/2). Clip
     // the whole thing to the padding box so the outer-margin overflow and
     // the parts of the halo outside the box don't leak.
-    {
+    if (!useInlineFragments) {
       const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
       const sbwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
       const sbwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
@@ -725,7 +943,9 @@ export function elementTreeToSvg(
     // Border-image: if a URL source with intrinsic dimensions is present,
     // emit a 9-slice composition and SKIP the plain-border fallback below.
     // Gradient sources are not supported in this pass (tracked as follow-up).
-    const borderImageMarkup = renderBorderImage(el, indent, idPrefix, defsParts, clipIdx);
+    const borderImageMarkup = useInlineFragments
+      ? { svg: "", usedIds: 0 }
+      : renderBorderImage(el, indent, idPrefix, defsParts, clipIdx);
     if (borderImageMarkup.usedIds > 0) clipIdx += borderImageMarkup.usedIds;
     const borderImagePainted = borderImageMarkup.svg !== "";
     if (borderImagePainted) svgParts.push(borderImageMarkup.svg);
@@ -756,6 +976,8 @@ export function elementTreeToSvg(
 
     if (suppressEmptyCell) {
       // empty-cells: hide — suppress the border too.
+    } else if (useInlineFragments) {
+      // Border painted per-fragment in renderInlineFragments above.
     } else if (borderImagePainted) {
       // Border visual came from border-image. Skip the plain-border emission.
     } else if (uniform && bt != null && bt.w > 0) {

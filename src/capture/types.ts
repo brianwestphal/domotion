@@ -534,7 +534,30 @@ export interface CapturedElement {
      *  `decoration_line_painter.cc`, only solid + double underlines honor
      *  skip-ink; dashed / dotted / wavy ignore it. DM-446. */
     textDecorationSkipInk?: string;
+    /**
+     * `box-decoration-break` — `slice` (default) or `clone`. Controls how
+     * inline elements that wrap across multiple line boxes paint their
+     * background / border / padding / shadow: `slice` paints the box once
+     * across all fragments (first fragment gets the left side, last gets the
+     * right side); `clone` paints a complete box on every fragment. Captured
+     * so the renderer can split the per-fragment paint at line-box boundaries
+     * when `inlineFragments` is present.
+     */
+    boxDecorationBreak?: string;
   };
+  /**
+   * Per-line-fragment rects (viewport-relative px) for inline elements that
+   * wrap across multiple line boxes. Populated by capture when the element
+   * is `display: inline` AND has a non-transparent background or non-zero
+   * border AND `el.getClientRects().length > 1`. When present, the renderer
+   * paints the background + border per-fragment instead of once across the
+   * element's bbox — without this, an inline span like `<span class="hl">…
+   * wrapping text …</span>` paints a single rectangle covering the whole
+   * logical inline (typically the full container width) and the text floats
+   * outside / behind the painted background. Slice vs clone semantics are
+   * driven by `styles.boxDecorationBreak`. See `docs/01-fidelity.md`.
+   */
+  inlineFragments?: Array<{ x: number; y: number; width: number; height: number }>;
   children: CapturedElement[];
   imageSrc?: string;
   /** Intrinsic pixel dimensions of <img>, used for object-fit: none. */

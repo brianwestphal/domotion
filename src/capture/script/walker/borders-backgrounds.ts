@@ -223,6 +223,9 @@ export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderS
     outlineColor: normColor(cs.outlineColor),
     outlineOffset: cs.outlineOffset,
     boxShadow: cs.boxShadow,
+    // box-decoration-break: 'slice' (default) vs 'clone'. Drives per-fragment
+    // paint of wrapped inline elements; see CapturedElement.inlineFragments.
+    boxDecorationBreak: cs.boxDecorationBreak || cs.webkitBoxDecorationBreak || 'slice',
   });
 
   return { captureBordersBackgrounds };

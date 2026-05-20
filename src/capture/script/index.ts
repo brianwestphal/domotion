@@ -794,6 +794,51 @@ export const captureScript =
         return {};
       })(),
     };
+    // Inline elements that wrap across multiple line boxes need per-fragment
+    // paint of background + border, not a single rect covering the bbox (the
+    // bbox is the union of every line and produces a giant container-wide
+    // shape that swallows the text). Trigger when:
+    //   1. `display` is `inline` (not inline-block / block / flex / grid),
+    //   2. the element has a non-transparent background OR a non-zero border
+    //      width on any side,
+    //   3. `el.getClientRects()` returns more than one rect (i.e. the inline
+    //      actually wrapped onto multiple lines).
+    // The renderer reads `inlineFragments` and walks per-fragment, applying
+    // `box-decoration-break` slice/clone semantics. See CapturedElement
+    // .inlineFragments + `src/render/element-tree-to-svg.ts`.
+    if (cs.display === 'inline') {
+      var _bgC = _captured.styles.backgroundColor;
+      var _hasBg = _bgC != null && _bgC !== '' && _bgC !== 'transparent' && _bgC !== 'rgba(0, 0, 0, 0)';
+      var _hasBgImage = _captured.styles.backgroundImage != null
+        && _captured.styles.backgroundImage !== '' && _captured.styles.backgroundImage !== 'none';
+      var _btw = parseFloat(_captured.styles.borderTopWidth || '0') || 0;
+      var _brw = parseFloat(_captured.styles.borderRightWidth || '0') || 0;
+      var _bbw = parseFloat(_captured.styles.borderBottomWidth || '0') || 0;
+      var _blw = parseFloat(_captured.styles.borderLeftWidth || '0') || 0;
+      var _hasBorder = _btw > 0 || _brw > 0 || _bbw > 0 || _blw > 0;
+      if (_hasBg || _hasBgImage || _hasBorder) {
+        var _cr = el.getClientRects();
+        if (_cr != null && _cr.length > 1) {
+          var _frags = [];
+          for (var _ci = 0; _ci < _cr.length; _ci++) {
+            var _f = _cr[_ci];
+            // Skip zero-area fragments — Chrome occasionally emits these for
+            // empty trailing inline runs.
+            if (_f.width <= 0 || _f.height <= 0) continue;
+            _frags.push({
+              x: _f.left - vp.x,
+              y: _f.top - vp.y,
+              width: _f.width,
+              height: _f.height,
+            });
+          }
+          if (_frags.length > 1) {
+            _captured.inlineFragments = _frags;
+          }
+        }
+      }
+    }
+
     // DM-450: hidden/collapsed table cell — keep the cell's box + borders so
     // shared edges of the collapsed table grid still paint, but suppress
     // text, children, and background fill (per CSS visibility:hidden).

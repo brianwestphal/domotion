@@ -28,6 +28,23 @@ This feature touches two surfaces and a metadata format that bridges them:
 - **Multiple**: the user can have any number of rectangles in flight before submitting.
 - **Numbering**: rectangles are auto-numbered `[1]`, `[2]`, … in the order drawn, with the badge rendered at the top-left corner of each overlay. The user can reference them by index in the comment text (*"the missing CTA in [1]"*).
 
+### Fullscreen / lightbox view
+
+Clicking any of the three thumbnails opens the image at full size in a lightbox. The lightbox supports drawing, resizing, and deleting the same rectangles as the in-grid triplet — every gesture on the maximised image edits the same shared rect array, so closing the lightbox returns to the card with the changes already reflected on all three thumbnails.
+
+Sizing:
+
+- Landscape / square images (height ≤ width) — fit-to-screen: the image scales so its longest axis is 96 vw / vh.
+- Portrait / scroll-mode images (height > width) — full-width: the image takes the entire viewport width and the lightbox container scrolls vertically. This trades the bird's-eye view for actual readable detail on demos whose source PNGs are 1280 × 4000+ pixels.
+
+Keyboard navigation:
+
+- Arrow keys step between every visible figure in DOM order (the same set the lightbox-open click captured), wrapping at the ends.
+- When the next figure shares the same card as the previous (the expected → actual → diff triplet, or its per-chunk siblings), the lightbox **preserves vertical scroll position**. Flipping between the three renderings of a tall scroll-mode test inspects the same vertical slice across all three without re-scrolling.
+- When the next figure is on a different card, scroll resets to the top of the new image.
+- Escape closes the lightbox; clicking the dark background closes it.
+- Clicking the image itself (without dragging) closes the lightbox — same as before.
+
 ### Submitting a comment
 
 - The comment composer in the review tool exposes a free-text field plus the in-progress rectangle list.

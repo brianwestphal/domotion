@@ -125,6 +125,48 @@ describe("region overlay — click vs drag (DM-585)", () => {
     expect(clickCount).toBe(0);
   });
 
+  it("addView lets a fullscreen surface edit the same rects as the card triplet (DM-736)", () => {
+    const { card, figures } = buildCard();
+    const handle = enableRegionOverlays(card);
+    // Build a separate fullscreen-style img + svg over the same source PNG.
+    const lbStage = document.createElement("div");
+    document.body.appendChild(lbStage);
+    const lbImg = document.createElement("img");
+    Object.defineProperty(lbImg, "naturalWidth", { value: 100, configurable: true });
+    Object.defineProperty(lbImg, "naturalHeight", { value: 100, configurable: true });
+    Object.defineProperty(lbImg, "complete", { value: true, configurable: true });
+    lbImg.getBoundingClientRect = () => ({ left: 0, top: 0, right: 200, bottom: 200, width: 200, height: 200, x: 0, y: 0, toJSON: () => "" });
+    lbStage.appendChild(lbImg);
+    const lbSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    lbStage.appendChild(lbSvg);
+    let clickThroughCount = 0;
+    const detach = handle.addView(lbImg, lbSvg, () => { clickThroughCount++; });
+
+    // Draw a rect on the fullscreen surface (note clientX=20 → source x=10 because of 2× scale).
+    pointer(lbSvg, "pointerdown", 20, 20);
+    pointer(lbSvg, "pointermove", 100, 100);
+    pointer(lbSvg, "pointerup", 100, 100);
+    expect(handle.getRegions()).toHaveLength(1);
+    expect(handle.getRegions()[0]).toMatchObject({ x: 10, y: 10, w: 40, h: 40 });
+    // The card triplet's SVGs should have rendered the same rect.
+    expect(overlaySvg(figures[0]!).querySelectorAll("rect.region-rect")).toHaveLength(1);
+
+    // A click with no drag fires the onClickThrough callback, NOT the
+    // figure-dispatched click that the card overlay uses.
+    pointer(lbSvg, "pointerdown", 5, 5);
+    pointer(lbSvg, "pointerup", 5, 5);
+    expect(clickThroughCount).toBe(1);
+
+    // Detach unwires pointer handlers on the fullscreen surface but leaves
+    // the card rects + overlays untouched.
+    detach();
+    pointer(lbSvg, "pointerdown", 20, 20);
+    pointer(lbSvg, "pointermove", 100, 100);
+    pointer(lbSvg, "pointerup", 100, 100);
+    // No new rect added — the listeners are gone.
+    expect(handle.getRegions()).toHaveLength(1);
+  });
+
   it("deletes a rectangle on interior click without firing a lightbox click", () => {
     const { card, figures } = buildCard();
     const handle = enableRegionOverlays(card);

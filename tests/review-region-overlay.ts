@@ -39,6 +39,22 @@ export interface OverlayHandle {
   getRegions(): Rect[];
   /** Drop every in-progress rectangle and repaint. */
   clear(): void;
+  /** Attach a secondary viewing + editing surface that shares the same
+   *  rects array as the in-grid triplet. Used by the fullscreen lightbox so
+   *  drag-add-resize-delete on the maximized image edits the same rectangles
+   *  that appear on the card's three thumbnails. The caller supplies an
+   *  `<img>` and an `<svg>` already positioned over it; this wires pointer
+   *  handlers and repaint into the shared pool. `onClickThrough` is invoked
+   *  when the user clicks on the overlay without crossing the drag
+   *  threshold (the lightbox uses this to close the maximized view).
+   *  Returns a `detach()` callback that removes pointer handlers and stops
+   *  re-rendering this view (the SVG element itself stays — the caller
+   *  owns it). */
+  addView(
+    img: HTMLImageElement,
+    svg: SVGSVGElement,
+    onClickThrough?: () => void,
+  ): () => void;
 }
 
 type DragMode =
@@ -100,7 +116,7 @@ function resizeCursor(h: ResizeHandles): string {
 export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
   const figureEls = Array.from(card.querySelectorAll<HTMLElement>(".imgs figure[data-src]"));
   if (figureEls.length === 0) {
-    return { getRegions: () => [], clear: () => {} };
+    return { getRegions: () => [], clear: () => {}, addView: () => () => {} };
   }
 
   const rects: Rect[] = [];
@@ -109,6 +125,16 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
   // Compute the source dimensions for hit-testing. Set once the first img loads.
   let sourceW = 0;
   let sourceH = 0;
+
+  const updateSourceFromImg = (img: HTMLImageElement, svg: SVGSVGElement): void => {
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      svg.setAttribute("viewBox", `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
+      if (sourceW === 0) {
+        sourceW = img.naturalWidth;
+        sourceH = img.naturalHeight;
+      }
+    }
+  };
 
   for (const figure of figureEls) {
     const img = figure.querySelector<HTMLImageElement>("img");
@@ -127,17 +153,8 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
     svg.setAttribute("preserveAspectRatio", "none");
     stage.appendChild(svg);
 
-    const updateViewBox = (): void => {
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        svg.setAttribute("viewBox", `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
-        if (sourceW === 0) {
-          sourceW = img.naturalWidth;
-          sourceH = img.naturalHeight;
-        }
-      }
-    };
-    if (img.complete) updateViewBox();
-    else img.addEventListener("load", updateViewBox);
+    if (img.complete) updateSourceFromImg(img, svg);
+    else img.addEventListener("load", () => updateSourceFromImg(img, svg));
 
     figures.push({ figure, img, svg });
   }
@@ -202,10 +219,16 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
 
   // ── Drag handling ──
 
-  for (const ctx of figures) {
+  // Wire pointer handlers on a single figure's SVG overlay. Returns a
+  // teardown callback that removes the listeners (used by addView() so the
+  // lightbox can detach its overlay cleanly on close). The card's three
+  // built-in figures don't need teardown (their lifecycle is the card's)
+  // but we route through the same helper so the behavior matches across
+  // surfaces.
+  function wireFigure(ctx: FigureContext, onClickThroughOverride?: () => void): () => void {
     let drag: DragMode = null;
 
-    ctx.svg.addEventListener("pointermove", (ev) => {
+    const onHoverMove = (ev: PointerEvent): void => {
       // Only update hover-cursor when not in a drag.
       if (drag != null) return;
       const p = clientToSource(ctx.img, ev.clientX, ev.clientY);
@@ -222,9 +245,9 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
         }
       }
       ctx.svg.style.cursor = cursor;
-    });
+    };
 
-    ctx.svg.addEventListener("pointerdown", (ev) => {
+    const onPointerDown = (ev: PointerEvent): void => {
       if (ev.button !== 0) return;
       const p = clientToSource(ctx.img, ev.clientX, ev.clientY);
       if (p == null) return;
@@ -259,9 +282,9 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
       ev.stopPropagation();
       ctx.svg.setPointerCapture(ev.pointerId);
       drag = { kind: "pending-draw", originX: p.x, originY: p.y };
-    });
+    };
 
-    ctx.svg.addEventListener("pointermove", (ev) => {
+    const onDragMove = (ev: PointerEvent): void => {
       if (drag == null) return;
       const p = clientToSource(ctx.img, ev.clientX, ev.clientY);
       if (p == null) return;
@@ -308,9 +331,13 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
         r.h = Math.min(r.h, sourceH - r.y);
       }
       repaintAll();
-    });
+    };
 
     const onClickThrough = (): void => {
+      if (onClickThroughOverride != null) {
+        onClickThroughOverride();
+        return;
+      }
       // No drag happened — surface the click on the figure so the existing
       // delegated handler in review-client.tsx pops the lightbox. The synthetic
       // event's target is the figure itself, so the overlay-origin guard there
@@ -332,15 +359,48 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
       drag = null;
       if (wasPending) onClickThrough();
     };
+
+    ctx.svg.addEventListener("pointermove", onHoverMove);
+    ctx.svg.addEventListener("pointerdown", onPointerDown);
+    ctx.svg.addEventListener("pointermove", onDragMove);
     ctx.svg.addEventListener("pointerup", endDrag);
     ctx.svg.addEventListener("pointercancel", endDrag);
+
+    return () => {
+      ctx.svg.removeEventListener("pointermove", onHoverMove);
+      ctx.svg.removeEventListener("pointerdown", onPointerDown);
+      ctx.svg.removeEventListener("pointermove", onDragMove);
+      ctx.svg.removeEventListener("pointerup", endDrag);
+      ctx.svg.removeEventListener("pointercancel", endDrag);
+    };
   }
+
+  for (const ctx of figures) wireFigure(ctx);
 
   return {
     getRegions: () => rects.map((r) => ({ ...r })),
     clear: () => {
       rects.length = 0;
       repaintAll();
+    },
+    addView: (img, svg, onClickThrough) => {
+      svg.setAttribute("preserveAspectRatio", "none");
+      if (img.complete) updateSourceFromImg(img, svg);
+      else img.addEventListener("load", () => updateSourceFromImg(img, svg));
+      // A synthetic figure host for the click-through path's
+      // legacy-fallback (the caller normally supplies an explicit override
+      // for the lightbox — close the maximised view on click — so the
+      // synthetic-click dispatch never fires for this surface).
+      const noopFigure = document.createElement("div");
+      const ctx: FigureContext = { figure: noopFigure, img, svg };
+      figures.push(ctx);
+      const teardown = wireFigure(ctx, onClickThrough);
+      repaint(ctx);
+      return () => {
+        teardown();
+        const idx = figures.indexOf(ctx);
+        if (idx >= 0) figures.splice(idx, 1);
+      };
     },
   };
 }

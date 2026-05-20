@@ -84,6 +84,7 @@ const statsEl = document.getElementById("stats") as HTMLElement;
 const summaryEl = document.getElementById("suite-summary") as HTMLElement;
 const lb = document.getElementById("lightbox") as HTMLElement;
 const lbImg = document.getElementById("lb-img") as HTMLImageElement;
+const lbOverlay = document.getElementById("lb-overlay") as unknown as SVGSVGElement;
 const showLiveSvgEl = document.getElementById("show-live-svg") as HTMLInputElement;
 
 // ── Signals ──
@@ -343,18 +344,79 @@ mount(summaryEl, () => <SuiteSummary />);
 
 // ── Lightbox ──
 
-function showLightboxAt(idx: number): void {
+// Track the currently-attached fullscreen overlay so we can detach when the
+// lightbox closes or hops to a figure on a different card.
+let lbOverlayDetach: (() => void) | null = null;
+let lbOverlayCard: HTMLElement | null = null;
+
+function attachLightboxOverlay(card: HTMLElement): void {
+  // Already attached to this card → leave it alone so the user's in-flight
+  // rectangles continue to live across arrow-key navigation within the same
+  // triplet.
+  if (lbOverlayCard === card) return;
+  detachLightboxOverlay();
+  const handle = overlayByCard.get(card);
+  if (handle == null) return;
+  // Clear any leftover children from a previous detach — addView() repaints
+  // fresh, but the SVG is the same node across openings.
+  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
+  lbOverlayDetach = handle.addView(lbImg, lbOverlay, closeLightbox);
+  lbOverlayCard = card;
+}
+
+function detachLightboxOverlay(): void {
+  if (lbOverlayDetach != null) lbOverlayDetach();
+  lbOverlayDetach = null;
+  lbOverlayCard = null;
+  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
+}
+
+// Apply the `.tall` class so taller-than-wide images take the full viewport
+// width and the lightbox container scrolls vertically (DM-736). Falls back
+// to the dataset width/height of the figure if the image hasn't loaded yet.
+function applyLightboxAspect(figure: HTMLElement): void {
+  const setAspect = (w: number, h: number): void => {
+    lb.classList.toggle("tall", h > w);
+  };
+  if (lbImg.naturalWidth > 0 && lbImg.naturalHeight > 0) {
+    setAspect(lbImg.naturalWidth, lbImg.naturalHeight);
+    return;
+  }
+  // Wait for the first load to know the aspect ratio.
+  lbImg.addEventListener(
+    "load",
+    () => setAspect(lbImg.naturalWidth, lbImg.naturalHeight),
+    { once: true },
+  );
+}
+
+function showLightboxAt(idx: number, opts: { preserveScroll?: boolean } = {}): void {
   if (idx < 0 || idx >= lbFigures.length) return;
+  const prevScrollTop = lb.scrollTop;
   lbIndex.value = idx;
   lbOpen.value = true;
   // Scroll the underlying card into view so closing the lightbox lands you
   // on the test you were just inspecting (DM-412 behavior preserved).
-  const card = lbFigures[idx].closest(".card");
+  const card = lbFigures[idx].closest<HTMLElement>(".card");
   if (card != null) card.scrollIntoView({ block: "center", behavior: "auto" });
+  // Restore scroll position. Useful when arrow-navigating between the
+  // expected/actual/diff triplet of a tall scroll-mode test — the user can
+  // flip between renderings at the same vertical position instead of
+  // re-scrolling each time (DM-736).
+  if (opts.preserveScroll === true) {
+    // Re-apply after the effect mutates `src` / classes. queueMicrotask
+    // settles after the effect's synchronous DOM writes; rAF gives the
+    // browser a frame to layout the new image first when it's the same
+    // dimensions (cached) so the scrollTop doesn't get clamped.
+    requestAnimationFrame(() => { lb.scrollTop = prevScrollTop; });
+  } else {
+    lb.scrollTop = 0;
+  }
 }
 
 function closeLightbox(): void {
   lbOpen.value = false;
+  detachLightboxOverlay();
   lbFigures = [];
   lbIndex.value = -1;
 }
@@ -363,26 +425,47 @@ effect(() => {
   const open = lbOpen.value;
   const idx = lbIndex.value;
   if (open && idx >= 0 && idx < lbFigures.length) {
-    const src = lbFigures[idx].dataset["src"];
+    const fig = lbFigures[idx];
+    const src = fig.dataset["src"];
     if (src != null) lbImg.src = src;
     lb.classList.add("open");
+    applyLightboxAspect(fig);
+    const card = fig.closest<HTMLElement>(".card");
+    if (card != null) attachLightboxOverlay(card);
   } else {
     lb.classList.remove("open");
+    lb.classList.remove("tall");
   }
 });
 
-lb.addEventListener("click", closeLightbox);
+// Close the lightbox on background click (NOT on overlay-region or image
+// clicks — the overlay's pointer handlers stop propagation, and the image
+// click is routed through the overlay's click-through path which calls
+// closeLightbox() explicitly).
+lb.addEventListener("click", (ev) => {
+  const t = ev.target as Element | null;
+  if (t === lb) closeLightbox();
+});
 
 document.addEventListener("keydown", (e) => {
   if (!lbOpen.value) return;
+  // Skip when keypress is heading to an input/textarea (e.g. typing a
+  // ticket comment with the lightbox accidentally open).
+  const active = document.activeElement as HTMLElement | null;
+  if (active != null && (active.tagName === "TEXTAREA" || active.tagName === "INPUT")) return;
   if (e.key === "ArrowRight" || e.key === "ArrowDown") {
     e.preventDefault();
     const next = lbIndex.value + 1 < lbFigures.length ? lbIndex.value + 1 : 0;
-    showLightboxAt(next);
+    // Preserve scroll position when stepping between figures of the same
+    // card (the expected/actual/diff triplet share dimensions). Hopping to
+    // a different card resets to top.
+    const sameCard = lbFigures[next]?.closest(".card") === lbFigures[lbIndex.value]?.closest(".card");
+    showLightboxAt(next, { preserveScroll: sameCard });
   } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
     e.preventDefault();
     const prev = lbIndex.value - 1 >= 0 ? lbIndex.value - 1 : lbFigures.length - 1;
-    showLightboxAt(prev);
+    const sameCard = lbFigures[prev]?.closest(".card") === lbFigures[lbIndex.value]?.closest(".card");
+    showLightboxAt(prev, { preserveScroll: sameCard });
   } else if (e.key === "Escape") {
     e.preventDefault();
     closeLightbox();
