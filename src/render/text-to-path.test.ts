@@ -246,10 +246,12 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     expect(fallbackFontChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]);
     expect(fallbackFontChain(0x4F60, "times-new-roman")).toEqual(["cjk-serif", "cjk"]);
     expect(fallbackFontChain(0x4F60, "georgia")).toEqual(["cjk-serif", "cjk"]);
-    // Hiragana / Katakana / Hangul also go through the serif route.
+    // Hiragana / Katakana also go through the serif route.
     expect(fallbackFontChain(0x3042, "times")).toEqual(["cjk-serif", "cjk"]);
     expect(fallbackFontChain(0x30A2, "times")).toEqual(["cjk-serif", "cjk"]);
-    expect(fallbackFontChain(0xAC00, "times")).toEqual(["cjk-serif", "cjk"]);
+    // Hangul does NOT — DM-691 routes it to Apple SD Gothic Neo first
+    // because neither HiraginoSansGB nor Songti contains Hangul codepoints.
+    expect(fallbackFontChain(0xAC00, "times")).toEqual(["korean", "cjk"]);
   });
   it("routes Han Unified Ideographs through pingfang-sc → cjk for non-serif primaries (DM-388)", () => {
     // U+4F60 is in CJK Unified Ideographs (the 你 in 你好). Sans-serif primary
@@ -262,14 +264,20 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     // No primaryKey arg → default sans behavior.
     expect(fallbackFontChain(0x4F60)).toEqual(["pingfang-sc", "cjk"]);
   });
-  it("keeps the bare ['cjk'] route for non-Han CJK ranges (Hiragana / Katakana / Hangul)", () => {
+  it("keeps the bare ['cjk'] route for non-Han CJK ranges (Hiragana / Katakana)", () => {
     // PingFang routing applies only to Han Unified Ideographs + Ext A + CJK
-    // Compatibility Ideographs. Hiragana (3040..309F), Katakana (30A0..30FF),
-    // and Hangul (AC00..D7AF) are what HiraginoSansGB / Apple's Hiragino
-    // chain paints; they don't go through PingFang.
+    // Compatibility Ideographs. Hiragana (3040..309F) and Katakana
+    // (30A0..30FF) are what HiraginoSansGB / Apple's Hiragino chain paints;
+    // they don't go through PingFang.
     expect(fallbackFontChain(0x3042, "helvetica")).toEqual(["cjk"]); // ぁ
     expect(fallbackFontChain(0x30A2, "helvetica")).toEqual(["cjk"]); // ア
-    expect(fallbackFontChain(0xAC00, "helvetica")).toEqual(["cjk"]); // 가
+  });
+  it("routes Hangul (Syllables + Jamo) through Apple SD Gothic Neo — DM-691", () => {
+    // HiraginoSansGB / Songti / PingFang don't contain Hangul codepoints,
+    // so the dedicated `korean` route is required to avoid tofu glyphs.
+    expect(fallbackFontChain(0xAC00, "helvetica")).toEqual(["korean", "cjk"]); // 가
+    expect(fallbackFontChain(0xD7A3, "helvetica")).toEqual(["korean", "cjk"]); // 힣
+    expect(fallbackFontChain(0x1100, "helvetica")).toEqual(["korean", "cjk"]); // ᄀ (Jamo)
   });
   it("routes Han through the lang-matching PingFang variant when lang is set (DM-394)", () => {
     // 你 is U+4F60 — Han ideograph.

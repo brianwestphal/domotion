@@ -484,6 +484,12 @@ const FONT_PATHS: Record<string, FontPath> = {
   // existing cjk → cjk-bold weight swap.
   "hiragino-jp":      { path: "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", postscriptName: "HiraKakuProN-W3" },
   "hiragino-jp-bold": { path: "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", postscriptName: "HiraKakuProN-W6" },
+  // Korean Hangul (U+AC00..D7AF Syllables, U+1100..11FF Jamo). Chrome on
+  // macOS paints Hangul via Apple SD Gothic Neo — neither Hiragino Sans GB
+  // (the `cjk` chain) nor PingFang SC includes Hangul codepoints, so a
+  // missing dedicated route leaves Korean text as tofu boxes. DM-691.
+  "korean":           { path: "/System/Library/Fonts/AppleSDGothicNeo.ttc", postscriptName: "AppleSDGothicNeo-Regular" },
+  "korean-bold":      { path: "/System/Library/Fonts/AppleSDGothicNeo.ttc", postscriptName: "AppleSDGothicNeo-Bold" },
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
@@ -638,16 +644,23 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
   if (codepoint >= 0x0900 && codepoint <= 0x097F) return ["devanagari"];
   // Thai (U+0E00..0E7F).
   if (codepoint >= 0x0E00 && codepoint <= 0x0E7F) return ["thai"];
+  // Hangul (Korean) — Syllables + Jamo. Route to Apple SD Gothic Neo FIRST
+  // because Hiragino Sans GB and PingFang SC don't carry Hangul codepoints;
+  // without this branch Korean text falls all the way through to tofu
+  // boxes. Keep `cjk` as a final fallback for the rare codepoint Apple SD
+  // Gothic Neo lacks. DM-691.
+  if ((codepoint >= 0xAC00 && codepoint <= 0xD7AF)
+    || (codepoint >= 0x1100 && codepoint <= 0x11FF)) {
+    return ["korean", "cjk"];
+  }
   // CJK: Unified Ideographs + Ext A, Hiragana, Katakana (+ phonetic exts),
-  // Hangul Syllables + Jamo, CJK Symbols & Punctuation.
+  // CJK Symbols & Punctuation. Hangul is handled above.
   if ((codepoint >= 0x3000 && codepoint <= 0x303F)
     || (codepoint >= 0x3040 && codepoint <= 0x309F)
     || (codepoint >= 0x30A0 && codepoint <= 0x30FF)
     || (codepoint >= 0x31F0 && codepoint <= 0x31FF)
     || (codepoint >= 0x3400 && codepoint <= 0x4DBF)
     || (codepoint >= 0x4E00 && codepoint <= 0x9FFF)
-    || (codepoint >= 0xAC00 && codepoint <= 0xD7AF)
-    || (codepoint >= 0x1100 && codepoint <= 0x11FF)
     || (codepoint >= 0xF900 && codepoint <= 0xFAFF)) {
     // Serif primary → SERIF CJK font first (DM-333). Keep `cjk`
     // (HiraginoSansGB) as a secondary so chars Songti SC Light lacks (a
@@ -891,6 +904,10 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   }
   if (key === "hiragino-jp" && weight >= 600) {
     effectiveKey = "hiragino-jp-bold";
+  }
+  // Apple SD Gothic Neo (Hangul). DM-691.
+  if (key === "korean" && weight >= 600) {
+    effectiveKey = "korean-bold";
   }
   // PingFang ships separate weight subfonts in PingFang.ttc — Regular for
   // body weight, Medium for semibold+. No italic. Same pattern across all
