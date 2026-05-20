@@ -111,6 +111,48 @@ export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderS
     return img[dim] || undefined;
   };
 
+  // DM-690: CSS 2.1 §17.6.2.1 — `border-style: hidden` has the highest
+  // precedence in `border-collapse: collapse` mode and SUPPRESSES the
+  // neighbor cell's matching border too. Walk the table grid neighbors and
+  // return per-side flags so the caller can rewrite this cell's border-side
+  // styles to `'hidden'` (which the renderer already skips). Scope: simple
+  // tables (no rowspan / colspan); good enough for the bug-report fixture
+  // `04-deep-border-conflict` and the common-case marketing tables.
+  const cellHiddenNeighbors = (el, tag, cs) => {
+    const out = { top: false, right: false, bottom: false, left: false };
+    if ((tag !== 'td' && tag !== 'th') || cs.borderCollapse !== 'collapse') return out;
+    const tr = el.parentElement;
+    if (tr == null || tr.tagName !== 'TR') return out;
+    const rowCells = Array.from(tr.children).filter((c) => c.tagName === 'TD' || c.tagName === 'TH');
+    const colIdx = rowCells.indexOf(el);
+    const hiddenSide = (cell, side) => {
+      if (cell == null) return false;
+      const cs2 = getComputedStyle(cell);
+      return cs2['border' + side + 'Style'] === 'hidden';
+    };
+    if (hiddenSide(rowCells[colIdx - 1], 'Right')) out.left = true;
+    if (hiddenSide(rowCells[colIdx + 1], 'Left')) out.right = true;
+    // Resolve the surrounding table to walk row-neighbors across
+    // thead/tbody/tfoot sections.
+    let table = tr.parentElement;
+    while (table != null && table.tagName !== 'TABLE') table = table.parentElement;
+    if (table != null) {
+      const allRows = Array.from(table.querySelectorAll('tr')).filter((t) => t.closest('table') === table);
+      const rowIdx = allRows.indexOf(tr);
+      const above = allRows[rowIdx - 1];
+      const below = allRows[rowIdx + 1];
+      if (above != null) {
+        const aboveCells = Array.from(above.children).filter((c) => c.tagName === 'TD' || c.tagName === 'TH');
+        if (hiddenSide(aboveCells[colIdx], 'Bottom')) out.top = true;
+      }
+      if (below != null) {
+        const belowCells = Array.from(below.children).filter((c) => c.tagName === 'TD' || c.tagName === 'TH');
+        if (hiddenSide(belowCells[colIdx], 'Top')) out.bottom = true;
+      }
+    }
+    return out;
+  };
+
   const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture) => ({
     backgroundColor: (function () {
       if (isPlaceholderCapture) {
@@ -130,10 +172,21 @@ export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderS
     borderRightWidth: cs.borderRightWidth,
     borderBottomWidth: cs.borderBottomWidth,
     borderLeftWidth: cs.borderLeftWidth,
-    borderTopStyle: cs.borderTopStyle,
-    borderRightStyle: cs.borderRightStyle,
-    borderBottomStyle: cs.borderBottomStyle,
-    borderLeftStyle: cs.borderLeftStyle,
+    // DM-690: when an adjacent collapsed-table cell declares its matching
+    // side as `border-style: hidden`, CSS 2.1 §17.6.2.1 says we MUST treat
+    // our side as hidden too (precedence: `hidden > widest > ...`). Override
+    // here at capture time so the renderer's existing `style === 'hidden'`
+    // skip suppresses the paint on this side. (Cells whose OWN side is
+    // already hidden are unaffected — they pass through.)
+    ...(function () {
+      const hn = cellHiddenNeighbors(el, tag, cs);
+      return {
+        borderTopStyle: hn.top ? 'hidden' : cs.borderTopStyle,
+        borderRightStyle: hn.right ? 'hidden' : cs.borderRightStyle,
+        borderBottomStyle: hn.bottom ? 'hidden' : cs.borderBottomStyle,
+        borderLeftStyle: hn.left ? 'hidden' : cs.borderLeftStyle,
+      };
+    })(),
     borderTopColor: tintedBorderColor(tag, el, cs, 'borderTopColor'),
     borderRightColor: tintedBorderColor(tag, el, cs, 'borderRightColor'),
     borderBottomColor: tintedBorderColor(tag, el, cs, 'borderBottomColor'),

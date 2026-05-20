@@ -749,9 +749,19 @@ export function elementTreeToSvg(
         // separated by 1/3 gap. Our captured rect is the border box (outer
         // edge), so strokes need their centerlines at 1/6*w (outer) and
         // 5/6*w (inner) inside the border box.
+        //
+        // DM-689: In `border-collapse: collapse` mode Chrome paints the
+        // border CENTERED on the cell's grid edge instead of inside the
+        // cell box — half the border width sits outside the cell, half
+        // inside. Match that by shifting the outer/inner offsets outward
+        // by bt.w/2 in collapse mode (Blink's
+        // `CollapsedBorderPainter::PaintCollapsedBorders` centers the
+        // collapsed-border rect on the grid line).
+        const collapse = el.styles.borderCollapse === "collapse";
+        const collapseShift = collapse ? bt.w / 2 : 0;
         const strokeW = bt.w / 3;
-        const outerInset = bt.w / 6;
-        const innerInset = bt.w * 5 / 6;
+        const outerInset = bt.w / 6 - collapseShift;
+        const innerInset = bt.w * 5 / 6 - collapseShift;
         const outerCorners = insetCornerRadii(corners, outerInset, outerInset, outerInset, outerInset);
         const innerCorners = insetCornerRadii(corners, innerInset, innerInset, innerInset, innerInset);
         svgParts.push(
@@ -997,10 +1007,17 @@ export function elementTreeToSvg(
           );
           continue;
         }
-        if (side.style === "double" && side.w >= 3 && !collapse) {
+        if (side.style === "double" && side.w >= 3) {
           // Two parallel strokes, each w/3 wide, separated by a w/3 gap.
           // Outer stroke center sits at (sideCenter + outerNormal * w/3),
           // inner at (sideCenter + innerNormal * w/3). Each stroke = w/3 thick.
+          // DM-689: works in both collapse and non-collapse modes — the
+          // `(x1, y1) → (x2, y2)` side endpoints are already collapse-aware
+          // upstream (inset=0 puts the side centerline ON the cell's grid
+          // edge in collapse mode), so adding the ±w/3 perpendicular
+          // offsets lands the outer stroke 1/3 of the way past the edge
+          // and the inner stroke 1/3 of the way inside — matching Blink's
+          // `CollapsedBorderPainter::PaintCollapsedDoubleBorder`.
           const strokeW = side.w / 3;
           const offset_ = side.w / 3;
           const [oxN, oyN, ixN, iyN] = doubleSides[i];
