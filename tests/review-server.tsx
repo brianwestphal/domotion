@@ -78,6 +78,14 @@ interface ReviewTest {
   worstTileSignificantPct?: number;
   warningCount?: number;
   category?: string;
+  // DM-715 region metrics (undefined on results.json files written before the
+  // scoring change). Pass/fail keys off `regionCount === 0`; `diffPct` is no
+  // longer the primary signal because a small image-wide percentage can hide
+  // a large localized region in a critical area.
+  regionCount?: number;
+  totalChangedArea?: number;
+  maxRegionSeverity?: number;
+  scatteredPixels?: number;
   // real-world scroll-mode per-chunk metrics (undefined for non-scroll tests).
   // Each chunk has matching `<name>-{expected,actual,diff}-N.png` files
   // (chunk 0 is the canonical no-suffix triplet).
@@ -89,6 +97,10 @@ interface ReviewTest {
     sigPixelPct: number;
     worstTilePct: number;
     worstTileSignificantPct: number;
+    regionCount?: number;
+    totalChangedArea?: number;
+    maxRegionSeverity?: number;
+    scatteredPixels?: number;
   }>;
 }
 
@@ -145,6 +157,10 @@ function loadManifest(): ReviewManifest {
             sigPixelPct: typeof c["sigPixelPct"] === "number" ? c["sigPixelPct"] : 0,
             worstTilePct: typeof c["worstTilePct"] === "number" ? c["worstTilePct"] : 0,
             worstTileSignificantPct: typeof c["worstTileSignificantPct"] === "number" ? c["worstTileSignificantPct"] : 0,
+            regionCount: typeof c["regionCount"] === "number" ? c["regionCount"] : undefined,
+            totalChangedArea: typeof c["totalChangedArea"] === "number" ? c["totalChangedArea"] : undefined,
+            maxRegionSeverity: typeof c["maxRegionSeverity"] === "number" ? c["maxRegionSeverity"] : undefined,
+            scatteredPixels: typeof c["scatteredPixels"] === "number" ? c["scatteredPixels"] : undefined,
           });
         }
       }
@@ -159,6 +175,10 @@ function loadManifest(): ReviewManifest {
         sigPixelPct: typeof r["sigPixelPct"] === "number" ? r["sigPixelPct"] : undefined,
         worstTilePct: typeof r["worstTilePct"] === "number" ? r["worstTilePct"] : undefined,
         worstTileSignificantPct: typeof r["worstTileSignificantPct"] === "number" ? r["worstTileSignificantPct"] : undefined,
+        regionCount: typeof r["regionCount"] === "number" ? r["regionCount"] : undefined,
+        totalChangedArea: typeof r["totalChangedArea"] === "number" ? r["totalChangedArea"] : undefined,
+        maxRegionSeverity: typeof r["maxRegionSeverity"] === "number" ? r["maxRegionSeverity"] : undefined,
+        scatteredPixels: typeof r["scatteredPixels"] === "number" ? r["scatteredPixels"] : undefined,
         warningCount: Array.isArray(r["warnings"]) ? r["warnings"].length : undefined,
         category: typeof r["category"] === "string" ? r["category"] : undefined,
         chunks: chunks != null && chunks.length > 0 ? chunks : undefined,
@@ -346,8 +366,11 @@ function Layout({ manifestJson }: { manifestJson: string }) {
               <option value="real-world">real-world</option>
             </select></label>
             <label>Sort: <select id="sort">
-              <option value="diff-desc">Diff % (worst first)</option>
-              <option value="diff-asc">Diff % (best first)</option>
+              <option value="regions-desc">Regions (most first)</option>
+              <option value="area-desc">Region area (largest first)</option>
+              <option value="severity-desc">Max severity (highest first)</option>
+              <option value="diff-desc">Avg diff % (worst first)</option>
+              <option value="diff-asc">Avg diff % (best first)</option>
               <option value="name">Name (A→Z)</option>
             </select></label>
             <label className="toggle"><input type="checkbox" id="show-live-svg" /> Live SVG</label>
@@ -502,12 +525,22 @@ async function main(): Promise<void> {
           sendJson(res, 400, { error: `Unknown test: ${suite}/${name}` });
           return;
         }
-        const title = `SVG demo test [${match.suite}]: ${name} (${match.diffPct.toFixed(2)}% diff)`;
+        // DM-715: lead the title with region count (the real pass/fail signal)
+        // and append `diffPct` only as a fallback when region metrics are
+        // missing (older results.json files written pre-715).
+        const titleScore = match.regionCount != null
+          ? `${match.regionCount} regions · ${match.totalChangedArea ?? 0} px`
+          : `${match.diffPct.toFixed(2)}% diff`;
+        const title = `SVG demo test [${match.suite}]: ${name} (${titleScore})`;
         const regionsBlock = serializeRegions(regions);
+        const regionLine = match.regionCount != null
+          ? `Regions: ${match.regionCount} · area ${match.totalChangedArea ?? 0} px · max ${match.maxRegionSeverity != null ? match.maxRegionSeverity.toFixed(1) : "?"}% · scatter ${match.scatteredPixels ?? 0} px`
+          : null;
         const detailsParts = [
           `Suite: \`${match.suite}\``,
           `Test: \`${name}\``,
-          `Diff: ${match.diffPct.toFixed(2)}% avg${match.sigPixelPct != null ? ` · sig ${match.sigPixelPct.toFixed(1)}%` : ""}${match.worstTilePct != null ? ` · tile avg ${match.worstTilePct.toFixed(1)}%` : ""}${match.worstTileSignificantPct != null ? ` · tile sig ${match.worstTileSignificantPct.toFixed(1)}%` : ""}`,
+          ...(regionLine != null ? [regionLine] : []),
+          `Diff (legacy): ${match.diffPct.toFixed(2)}% avg${match.sigPixelPct != null ? ` · sig ${match.sigPixelPct.toFixed(1)}%` : ""}${match.worstTilePct != null ? ` · tile avg ${match.worstTilePct.toFixed(1)}%` : ""}${match.worstTileSignificantPct != null ? ` · tile sig ${match.worstTileSignificantPct.toFixed(1)}%` : ""}`,
           `Status: ${match.skipped ? `SKIP (${match.skipReason ?? "no reason"})` : match.error != null ? `ERROR (${match.error})` : match.pass ? "PASS" : "FAIL"}`,
           `Recorded: ${new Date(manifest.generatedAt).toLocaleString()}`,
           "",

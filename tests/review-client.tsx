@@ -34,6 +34,14 @@ interface ReviewTest {
   sigPixelPct?: number;
   worstTilePct?: number;
   worstTileSignificantPct?: number;
+  // DM-715 region metrics — primary pass/fail signal. `regionCount === 0`
+  // means no surviving connected component on the AA-filtered+3px-dilated
+  // diff mask. `diffPct` is kept as a diagnostic but no longer drives
+  // pass/fail or default sort.
+  regionCount?: number;
+  totalChangedArea?: number;
+  maxRegionSeverity?: number;
+  scatteredPixels?: number;
   warningCount?: number;
   category?: string;
   chunks?: Array<{
@@ -44,6 +52,10 @@ interface ReviewTest {
     sigPixelPct: number;
     worstTilePct: number;
     worstTileSignificantPct: number;
+    regionCount?: number;
+    totalChangedArea?: number;
+    maxRegionSeverity?: number;
+    scatteredPixels?: number;
   }>;
 }
 
@@ -73,11 +85,15 @@ const showLiveSvgEl = document.getElementById("show-live-svg") as HTMLInputEleme
 
 type Filter = "fail" | "all" | "pass";
 type Suite = "all" | SuiteName;
-type Sort = "diff-desc" | "diff-asc" | "name";
+type Sort = "regions-desc" | "area-desc" | "severity-desc" | "diff-desc" | "diff-asc" | "name";
 
 const filterS = signal<Filter>("fail");
 const suiteS  = signal<Suite>("all");
-const sortS   = signal<Sort>("diff-desc");
+// DM-715: default to sorting by region count (the primary pass/fail signal),
+// so the tests with the largest *localized* structural diff bubble to the
+// top — image-wide avg `diffPct` can stay low while a single critical
+// region paints completely wrong.
+const sortS   = signal<Sort>("regions-desc");
 
 // Live-SVG visibility (DM-632). The animated SVGs the live-svg figure embeds
 // keep running and chew enough CPU to make the review grid feel sluggish, so
@@ -103,7 +119,29 @@ const visible = computed(() => {
   const s = suiteS.value;
   if (s !== "all") list = list.filter((r) => r.suite === s);
   const so = sortS.value;
-  if (so === "diff-desc") list.sort((a, b) => b.diffPct - a.diffPct);
+  // DM-715: region-aware sorts. Tests without region metrics (legacy
+  // results.json) fall back to diff-desc so they still rank meaningfully.
+  const regionCount = (r: ReviewTest) => r.regionCount ?? 0;
+  const totalChangedArea = (r: ReviewTest) => r.totalChangedArea ?? 0;
+  const maxRegionSeverity = (r: ReviewTest) => r.maxRegionSeverity ?? 0;
+  if (so === "regions-desc") {
+    list.sort((a, b) =>
+      regionCount(b) - regionCount(a)
+      || totalChangedArea(b) - totalChangedArea(a)
+      || b.diffPct - a.diffPct,
+    );
+  } else if (so === "area-desc") {
+    list.sort((a, b) =>
+      totalChangedArea(b) - totalChangedArea(a)
+      || regionCount(b) - regionCount(a)
+      || b.diffPct - a.diffPct,
+    );
+  } else if (so === "severity-desc") {
+    list.sort((a, b) =>
+      maxRegionSeverity(b) - maxRegionSeverity(a)
+      || totalChangedArea(b) - totalChangedArea(a),
+    );
+  } else if (so === "diff-desc") list.sort((a, b) => b.diffPct - a.diffPct);
   else if (so === "diff-asc") list.sort((a, b) => a.diffPct - b.diffPct);
   else if (so === "name") list.sort((a, b) => a.name.localeCompare(b.name));
   return list;
@@ -112,14 +150,34 @@ const visible = computed(() => {
 // ── Components ──
 
 function ExtraMetrics({ r }: { r: ReviewTest }) {
-  if (r.sigPixelPct == null) return <></>;
+  // DM-715: secondary diagnostics line — kept compact since the primary
+  // signal (regions / area / severity) is in the status badge now. Show the
+  // legacy image-wide percentages as a soft sanity-check but don't lead with
+  // them.
   const parts = [
-    `sig ${r.sigPixelPct.toFixed(1)}%`,
+    r.sigPixelPct != null ? `sig ${r.sigPixelPct.toFixed(1)}%` : null,
     r.worstTilePct != null ? `tile avg ${r.worstTilePct.toFixed(1)}%` : null,
     r.worstTileSignificantPct != null ? `tile sig ${r.worstTileSignificantPct.toFixed(1)}%` : null,
+    r.scatteredPixels != null && r.scatteredPixels > 0 ? `scatter ${r.scatteredPixels}` : null,
     r.warningCount != null && r.warningCount > 0 ? `${r.warningCount} warn` : null,
   ].filter((p): p is string => p != null).join(" · ");
+  if (parts === "") return <></>;
   return <span className="metrics">{parts}</span>;
+}
+
+// DM-715: primary status text — region count + area + severity. Falls back
+// to the legacy `diffPct` when region metrics are missing (older
+// results.json). The single-percentage diff is intentionally NOT shown
+// alongside regions: a tiny image-wide percentage routinely hides a
+// large localized region in a critical area, and reviewers should
+// navigate by what's actually painted differently.
+function StatusScore({ r }: { r: ReviewTest }) {
+  if (r.regionCount != null) {
+    if (r.regionCount === 0) return <>0 regions</>;
+    const sev = r.maxRegionSeverity != null ? ` · max ${r.maxRegionSeverity.toFixed(1)}%` : "";
+    return <>{`${r.regionCount} region${r.regionCount === 1 ? "" : "s"} · ${r.totalChangedArea ?? 0} px${sev}`}</>;
+  }
+  return <>{`${r.diffPct.toFixed(2)}% diff`}</>;
 }
 
 function ChunkStrip({ r }: { r: ReviewTest }) {
@@ -128,22 +186,32 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
   // long scroll-mode tests don't crowd the grid by default. The summary
   // shows how many chunks are hidden and the worst per-chunk diff, so
   // reviewers can decide whether expanding is worth it without opening.
+  // DM-715: summarize by max region count across chunks when available;
+  // fall back to worst diff% for legacy data.
+  const haveRegions = chunks.some((c) => c.regionCount != null);
+  const worstRegions = chunks.reduce((m, c) => Math.max(m, c.regionCount ?? 0), 0);
   const worstDiff = chunks.reduce((m, c) => Math.max(m, c.diffPct), 0);
+  const summary = haveRegions
+    ? `${chunks.length} chunks · worst ${worstRegions} region${worstRegions === 1 ? "" : "s"}`
+    : `${chunks.length} chunks · worst ${worstDiff.toFixed(2)}%`;
   return (
     <details className="chunk-strip-details">
-      <summary>
-        {chunks.length} chunks · worst {worstDiff.toFixed(2)}%
-      </summary>
+      <summary>{summary}</summary>
       <div className="chunk-strip">
         {chunks.map((c) => {
           const suffix = c.index === 0 ? "" : `-${c.index}`;
           const expected = `/img/${r.suite}/${r.name}-expected${suffix}.png`;
           const actual = `/img/${r.suite}/${r.name}-actual${suffix}.png`;
           const diff = `/img/${r.suite}/${r.name}-diff${suffix}.png`;
+          // Lead with regions for chunks that have them; legacy chunks
+          // fall back to diff%.
+          const chunkScore = c.regionCount != null
+            ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"} · ${c.totalChangedArea ?? 0} px${c.maxRegionSeverity != null ? ` · max ${c.maxRegionSeverity.toFixed(1)}%` : ""}`
+            : `${c.diffPct.toFixed(2)}%`;
           return (
             <div className="chunk">
               <div className="chunk-head">
-                chunk {c.index} · scrollY {Math.round(c.scrollY)} · {(c.segmentEndMs / 1000).toFixed(1)}s · {c.diffPct.toFixed(2)}%
+                chunk {c.index} · scrollY {Math.round(c.scrollY)} · {(c.segmentEndMs / 1000).toFixed(1)}s · {chunkScore}
               </div>
               <div className="chunk-imgs">
                 <figure data-src={expected}><img src={expected} loading="lazy" alt="" /></figure>
@@ -178,7 +246,7 @@ function Card({ r }: { r: ReviewTest }) {
       <div className="head">
         <strong>{r.name}</strong>
         <span className="badge suite">{r.suite}</span>
-        <span className={`badge ${statusClass}`}>{badge} · {r.diffPct.toFixed(2)}%</span>
+        <span className={`badge ${statusClass}`}>{badge} · <StatusScore r={r} /></span>
         <ExtraMetrics r={r} />
         {!r.skipped && (
           <a className="svg-link" href={`/img/${r.suite}/${r.name}.svg`} target="_blank" rel="noopener">view svg ↗</a>
