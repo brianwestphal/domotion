@@ -2711,6 +2711,41 @@ function buildBackgroundLayerDef(
   // `linear-gradient(...)` text first so the existing parsers can consume it.
   const normalizedWebkit = convertLegacyWebkitGradient(layer);
   if (normalizedWebkit != null) layer = normalizedWebkit;
+  // DM-717: `image-set(...)` / `-webkit-image-set(...)` resolution. Chrome's
+  // computed-style serializer returns the FULL image-set string rather than
+  // the single chosen candidate, so we have to pick one ourselves. Strategy:
+  // prefer the lowest-density candidate (1dppx) since the offscreen capture
+  // runs at deviceScaleFactor 1; among same-density candidates, prefer
+  // `type("image/webp")` then `png` then `jpeg` then `gif`, matching what
+  // Chrome would pick on a standard-density display. Falls back to the first
+  // url(...) it finds if no density/type metadata is present.
+  const imageSet = /^(?:-webkit-)?image-set\((.+)\)$/i.exec(layer);
+  if (imageSet != null) {
+    const args = splitTopLevelCommas(imageSet[1]);
+    type Cand = { url: string; dppx: number; type: string };
+    const cands: Cand[] = [];
+    for (const a of args) {
+      const t = a.trim();
+      // The arg shape is `url(...) [<resolution>] [type(...)]` in any order
+      // (per CSS Images 4); pull each piece out independently.
+      const urlBlob = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/i.exec(t);
+      if (urlBlob == null) continue;
+      const rawUrl = (urlBlob[1] ?? urlBlob[2] ?? urlBlob[3]).replace(/\\(.)/g, "$1");
+      const dppxMatch = /(?<![a-z])([0-9.]+)\s*(?:dppx|x)\b/i.exec(t);
+      const typeMatch = /type\(\s*["']?([^"')]+?)["']?\s*\)/i.exec(t);
+      cands.push({
+        url: `url("${rawUrl}")`,
+        dppx: dppxMatch != null ? parseFloat(dppxMatch[1]) : 1,
+        type: typeMatch != null ? typeMatch[1].toLowerCase() : "",
+      });
+    }
+    const TYPE_RANK: Record<string, number> = {
+      "image/webp": 4, "image/png": 3, "image/jpeg": 2, "image/jpg": 2, "image/gif": 1, "": 0,
+    };
+    cands.sort((a, b) => a.dppx - b.dppx || (TYPE_RANK[b.type] ?? 0) - (TYPE_RANK[a.type] ?? 0));
+    if (cands.length > 0) layer = cands[0].url;
+    else return { def: "" };
+  }
   // DM-695: `background-attachment: fixed` anchors the bg image (gradient or
   // raster) to the viewport rather than the element. For gradients this
   // means the gradient axis spans the VIEWPORT box (0,0 → vw,vh); the
