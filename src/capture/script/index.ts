@@ -958,14 +958,21 @@ export const captureScript =
       _activeScopes.push(scope);
       owned.push(scope);
     });
-    _parseCounterDecl(cs.counterSet, 0).forEach(({name, value}) => {
-      const s = _findInnermost(name);
-      if (s) s.value = value;
-      else { const ns = { name, value, owner: el }; _activeScopes.push(ns); owned.push(ns); }
-    });
+    // DM-705 / DM-706: CSS Lists 3 §2.3 ("Properties on a single element are
+    // processed in the order reset, increment, set") — increment runs BEFORE
+    // set. Our previous order (reset, set, increment) made
+    // `counter-set: section 99` followed by an implicit `counter-increment:
+    // section` paint as "100." instead of Chrome's "99." for the
+    // `.restart` h2 in `24-counters.html`. Same off-by-one (always +1) in
+    // `24-deep-counter-scope.html`.
     _parseCounterDecl(cs.counterIncrement, 1).forEach(({name, value}) => {
       const s = _findInnermost(name);
       if (s) s.value += value;
+      else { const ns = { name, value, owner: el }; _activeScopes.push(ns); owned.push(ns); }
+    });
+    _parseCounterDecl(cs.counterSet, 0).forEach(({name, value}) => {
+      const s = _findInnermost(name);
+      if (s) s.value = value;
       else { const ns = { name, value, owner: el }; _activeScopes.push(ns); owned.push(ns); }
     });
     // Snapshot the active scopes (shallow copy of name+value pairs).
