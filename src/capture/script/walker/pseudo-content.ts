@@ -251,7 +251,26 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
             borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
           }
-          if (borderBoxW > 0 && borderBoxH > 0) {
+          // DM-710: if the host has a CSS transform whose 2D submatrix is
+          // singular (zero determinant), the host's painted area collapses
+          // to a point / line and the pseudo paints nothing visible —
+          // Apple's `.globalnav-bag-badge` carries `transform: matrix(0, 0,
+          // 0, 0, 0, 0)` as the "no items in cart" state, and the empty
+          // ::before with `width: 13px; background: black; border-radius:
+          // 13px` would otherwise emit as a visible dot. Skip the pseudoBox
+          // in that case; the live-rect model already drops the host itself.
+          let degenerateHostTransform = false;
+          if (cs.transform && cs.transform !== 'none') {
+            const m2 = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(cs.transform);
+            if (m2) {
+              const a = parseFloat(m2[1]);
+              const b = parseFloat(m2[2]);
+              const c = parseFloat(m2[3]);
+              const d = parseFloat(m2[4]);
+              if (Math.abs(a * d - b * c) < 1e-9) degenerateHostTransform = true;
+            }
+          }
+          if (borderBoxW > 0 && borderBoxH > 0 && !degenerateHostTransform) {
             pseudoBoxes.push({
               x: borderBoxX,
               y: borderBoxY,
