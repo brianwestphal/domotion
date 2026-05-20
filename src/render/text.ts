@@ -433,6 +433,32 @@ function mergeFeatureLists(a: string[] | undefined, b: string[] | undefined): st
 }
 
 /**
+ * DM-680: anisotropic-ancestor scale correction. When the element sits inside
+ * a `transform: scale(sx, sy)` with sx ≠ sy, the capture script already
+ * folded the geometric mean of (sx, sy) into fontSize / fontAscent / fontDescent
+ * — that produces correct glyph metrics for the uniform / isotropic case but
+ * leaves an axis ratio still to apply (Chrome paints glyphs into post-transform
+ * device space, where width scales by sx and height by sy independently). Wrap
+ * the text emission in a per-axis correction `<g transform=...>` pivoted around
+ * the text origin so the net visual scale is exactly (sx, sy).
+ */
+function anisotropicCorrectionWrap(el: { cumScaleX?: number; cumScaleY?: number; textLeft?: number; textTop?: number; x: number; y: number }, body: string): string {
+  const sx = el.cumScaleX;
+  const sy = el.cumScaleY;
+  if (sx == null || sy == null || sx === sy) return body;
+  const geo = Math.sqrt(sx * sy);
+  if (geo === 0) return body;
+  const cx = sx / geo;
+  const cy = sy / geo;
+  if (Math.abs(cx - 1) < 1e-4 && Math.abs(cy - 1) < 1e-4) return body;
+  // Pivot around the text origin so the correction stretches glyphs in place
+  // rather than translating the whole block.
+  const px = el.textLeft ?? el.x;
+  const py = el.textTop ?? el.y;
+  return `<g transform="translate(${r(px)} ${r(py)}) scale(${r(cx)} ${r(cy)}) translate(${r(-px)} ${r(-py)})">${body}</g>`;
+}
+
+/**
  * Render a single-line text element.
  */
 export function renderSingleLineText(opts: RenderTextOpts): string {
@@ -532,9 +558,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // an earlier draft over-cut text on `word-wrap: break-word` paragraphs
     // whose last char measured a fraction of a px past `el.x + el.width`.
     if (opts.overflowClip) {
-      return `<g clip-path="url(#${clipId})">${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}</g>`;
+      return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}</g>`);
     }
-    return `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}`;
+    return anisotropicCorrectionWrap(el, `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}`);
   }
 
   // DM-490 / DM-500: when the text is entirely Private Use Area codepoints
@@ -669,9 +695,9 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   // element actually overflow-clips (DM-305) — see comment in
   // renderSingleLineText for why an unconditional clip is wrong.
   if (opts.overflowClip) {
-    return `<g clip-path="url(#${clipId})">${parts.join("\n")}</g>`;
+    return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${parts.join("\n")}</g>`);
   }
-  return parts.join("\n");
+  return anisotropicCorrectionWrap(el, parts.join("\n"));
 }
 
 /**
@@ -724,7 +750,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
     }
   }
   parts.push("</g>");
-  return parts.join("\n");
+  return anisotropicCorrectionWrap(el, parts.join("\n"));
 }
 
 /**
@@ -767,7 +793,7 @@ export function renderInputText(opts: RenderTextOpts): string {
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints
   // them, not extending past the right border. DM-245.
-  if (result != null) return `<g clip-path="url(#${clipId})">${result}</g>`;
+  if (result != null) return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${result}</g>`);
 
   // Fallback to CSS <text> if path rendering fails
   const textY = (el.textTop != null && el.textHeight != null && el.textHeight > 0)
@@ -775,5 +801,5 @@ export function renderInputText(opts: RenderTextOpts): string {
   const ff = fontFamily.replace(/"/g, "'");
   const baseStyle = `font-family:${ff};font-size:${r(fontSize)}px;font-weight:${fontWeight};font-kerning:normal;font-optical-sizing:auto;`;
 
-  return `<text x="${r(textX)}" y="${r(textY)}" dominant-baseline="central" fill="${textColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
+  return anisotropicCorrectionWrap(el, `<text x="${r(textX)}" y="${r(textY)}" dominant-baseline="central" fill="${textColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`);
 }

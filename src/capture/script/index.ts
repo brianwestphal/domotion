@@ -684,7 +684,7 @@ export const captureScript =
         fontSize: (function() {
           var _fs = parseFloat(cs.fontSize);
           if (!isFinite(_fs)) return cs.fontSize;
-          var _s = _cumulativeScale.get(el) || 1;
+          var _s = _scaleMag(el);
           if (_s === 1) return cs.fontSize;
           return (_fs * _s).toFixed(4) + 'px';
         })(),
@@ -734,8 +734,8 @@ export const captureScript =
       // captured fontSize. Otherwise the renderer's baseline math reads
       // unscaled ascent values, and glyphs sit too far below their captured
       // bbox top inside a `transform: scale(<1)` container.
-      fontAscent: fontAscent != null ? fontAscent * (_cumulativeScale.get(el) || 1) : fontAscent,
-      fontDescent: fontDescent != null ? fontDescent * (_cumulativeScale.get(el) || 1) : fontDescent,
+      fontAscent: fontAscent != null ? fontAscent * _scaleMag(el) : fontAscent,
+      fontDescent: fontDescent != null ? fontDescent * _scaleMag(el) : fontDescent,
       inputXOffsets,
       textImageUri, textImageScale,
       // Placeholder metadata (SK-1097 / SK-1100 / SK-1099): captured in
@@ -748,6 +748,18 @@ export const captureScript =
       // SK-1108 / SK-1128: textarea soft-wrap + writing-mode != horizontal-tb
       // content-box raster rect — see walker/text-segments.ts.
       elementRaster: computeElementRaster(el, cs, tag, rect, vp),
+      // DM-680: per-axis cumulative ancestor scale, exposed ONLY when
+      // anisotropic (sx ≠ sy within a small epsilon). The geometric mean is
+      // already folded into fontSize / fontAscent / fontDescent above, so
+      // the renderer's text-emission path only needs to apply a per-axis
+      // correction transform when the two axes diverge. Emitting these on
+      // every transformed element would add noise to the captured tree.
+      ...(function () {
+        const _s = _scaleXY(el);
+        const _sx = _s[0], _sy = _s[1];
+        if (Math.abs(_sx - _sy) > 1e-4) return { cumScaleX: _sx, cumScaleY: _sy };
+        return {};
+      })(),
     };
     // DM-450: hidden/collapsed table cell — keep the cell's box + borders so
     // shared edges of the collapsed table grid still paint, but suppress
@@ -847,12 +859,18 @@ export const captureScript =
   // sqrt(|a*d|) which is exact for pure scale and 1 for pure rotation — the
   // error grows for combined rotate+scale but no real-world fixture exercises
   // that on text-bearing elements. Translations contribute scale=1.
+  // DM-680: cumulative ancestor scale is captured PER AXIS (sx, sy). The
+  // map value is `[sx, sy]`. Geometric-mean magnitude is still used to
+  // pre-scale fontSize / fontAscent / fontDescent (so the SVG re-rasterizer
+  // sees Chrome-equivalent font metrics in the common uniform case). When
+  // the scale is anisotropic (sx ≠ sy, e.g. `transform: scale(1.3, 0.8)`),
+  // we also expose `cumScaleX` / `cumScaleY` on the captured element so the
+  // renderer can wrap text in a correction `<g transform="scale(cx, cy)">`
+  // pivoted around the text origin — matching how Chrome paints glyphs
+  // into the post-transform device space with per-axis scaling.
   const _cumulativeScale = new Map();
   const _computeOwnScale = (_tt) => {
-    if (_tt == null || _tt === 'none' || _tt === '') return 1;
-    // matrix(a, b, c, d, e, f) — a/d are the scale-along-x / scale-along-y
-    // diagonal entries. matrix3d(...) downgrades to its 2D submatrix elements
-    // m11/m22 (indexes 0 / 5) — same as a / d.
+    if (_tt == null || _tt === 'none' || _tt === '') return [1, 1];
     const _m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/.exec(_tt);
     let _sa = 1, _sd = 1;
     if (_m2 != null) { _sa = parseFloat(_m2[1]); _sd = parseFloat(_m2[4]); }
@@ -863,26 +881,37 @@ export const captureScript =
         _sa = parseFloat(_parts[0]); _sd = parseFloat(_parts[5]);
       }
     }
-    if (!isFinite(_sa) || !isFinite(_sd)) return 1;
-    // Geometric mean of x-scale + y-scale magnitudes. Exact for uniform
-    // scale; reasonable approximation for non-uniform scale on text.
-    const _s = Math.sqrt(Math.abs(_sa * _sd));
-    return _s > 0 ? _s : 1;
+    if (!isFinite(_sa) || !isFinite(_sd)) return [1, 1];
+    const _sx = Math.abs(_sa) > 0 ? Math.abs(_sa) : 1;
+    const _sy = Math.abs(_sd) > 0 ? Math.abs(_sd) : 1;
+    return [_sx, _sy];
   };
-  // Map every transformed element to its own scale, then walk descendants
-  // multiplying. Doing this top-down via parentNode + memoization avoids the
-  // O(n*depth) cost of querying ancestors per element.
   for (let _si = 0; _si < _allEls.length; _si++) {
     const _el = _allEls[_si];
-    let _cum = 1;
+    let _cumX = 1, _cumY = 1;
     const _pe = _el.parentElement;
-    if (_pe != null && _cumulativeScale.has(_pe)) _cum = _cumulativeScale.get(_pe);
+    if (_pe != null && _cumulativeScale.has(_pe)) {
+      const _p = _cumulativeScale.get(_pe);
+      _cumX = _p[0]; _cumY = _p[1];
+    }
     const _ownT = getComputedStyle(_el).transform;
     if (_ownT != null && _ownT !== 'none' && _ownT !== '') {
-      _cum *= _computeOwnScale(_ownT);
+      const _own = _computeOwnScale(_ownT);
+      _cumX *= _own[0]; _cumY *= _own[1];
     }
-    if (_cum !== 1) _cumulativeScale.set(_el, _cum);
+    if (_cumX !== 1 || _cumY !== 1) _cumulativeScale.set(_el, [_cumX, _cumY]);
   }
+  // Helper: read the per-axis scale for an element, defaulting to [1, 1].
+  const _scaleXY = (el) => _cumulativeScale.get(el) || [1, 1];
+  // Helper: geometric-mean magnitude (the value the old single-scalar code
+  // used). Drives fontSize / fontAscent / fontDescent pre-scaling so the
+  // SVG re-rasterizer sees Chrome-equivalent font metrics in the uniform
+  // case; the renderer applies a per-axis correction transform on top when
+  // sx ≠ sy.
+  const _scaleMag = (el) => {
+    const s = _scaleXY(el);
+    return Math.sqrt(s[0] * s[1]);
+  };
 
   // CSS counters pre-walk (DM-357). Walk the document in DOM order,
   // applying counter-reset / counter-set / counter-increment per the

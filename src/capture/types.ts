@@ -607,6 +607,18 @@ export interface CapturedElement {
    */
   elementRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
   /**
+   * DM-680: per-axis cumulative ancestor scale, present ONLY when the element
+   * sits inside an anisotropically scaled subtree (e.g. `transform: scale(1.3,
+   * 0.8)`). The geometric mean is already folded into fontSize / fontAscent /
+   * fontDescent at capture time — these fields drive a per-axis correction
+   * `<g transform="scale(cx, cy)">` around the text emission so glyphs render
+   * with the same width / height stretch Chrome paints. Absent when the
+   * cumulative scale is isotropic (uniform scale, or no scale) — the
+   * geometric-mean handling already produces a faithful result there.
+   */
+  cumScaleX?: number;
+  cumScaleY?: number;
+  /**
    * For <canvas> / <video> / <iframe> / <object> / <embed>: a viewport-relative
    * content-box rect (border-box minus border + padding) that
    * rasterizeReplacedElements should screenshot via Playwright and stash on
