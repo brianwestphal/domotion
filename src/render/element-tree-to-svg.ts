@@ -1997,7 +1997,16 @@ export function elementTreeToSvg(
       const cbr = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
       const cbb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
       const cbl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-      defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(el.x + cbl, el.y + cbt, Math.max(0, el.width - cbl - cbr), Math.max(0, el.height - cbt - cbb), corners, "")}</clipPath>`);
+      // DM-698: overflow clips to the inner border-radius (per CSS Backgrounds 3
+      // — the rounded clip on the padding box uses radii inset by each side's
+      // border width, clamped to zero). Previously we passed the OUTER `corners`
+      // which made the clip too generous near each corner, exposing a sliver of
+      // the parent's background between the border and the clipped child.
+      // (e.g. `18-deep-radius-overflow` `.card` border-radius:32 / border:4 +
+      // child `position:absolute inset:0`: 4 px gradient sliver visible inside
+      // each rounded corner.)
+      const overflowInnerCorners = insetCornerRadii(corners, cbt, cbr, cbb, cbl);
+      defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(el.x + cbl, el.y + cbt, Math.max(0, el.width - cbl - cbr), Math.max(0, el.height - cbt - cbb), overflowInnerCorners, "")}</clipPath>`);
       svgParts.push(`${indent}<g clip-path="url(#${overflowClipId})">`);
       // DM-673: stash the clip-path id so hoisted descendants of this
       // overflow scroller can re-wrap their emission in the same clip.
