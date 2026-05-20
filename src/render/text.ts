@@ -56,17 +56,37 @@ function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>
  * would otherwise show through behind the styled rasterized big letter.
  */
 function suppressGlyphChars(text: string, seg: TextSegment | undefined): string {
-  if (seg?.rasterGlyphs == null) return text;
+  // DM-692: Chrome paints a visible hyphen at line-break points marked by
+  // a soft-hyphen (U+00AD); SHYs not at the break paint nothing. Our
+  // capture's per-char Range loop keeps EVERY SHY in the captured line
+  // text (the height check at the line-break-pos doesn't zero them out),
+  // so we have to disambiguate at render time: ONLY the trailing SHY of a
+  // line is the visible hyphen — substitute with U+002D. Every other SHY
+  // gets U+200B (zero-width space) so it preserves UTF-16 indexing for
+  // xOffsets/rasterGlyphs but produces no glyph and no advance.
+  const SHY = String.fromCharCode(0x00AD);
+  const ZWSP = String.fromCharCode(0x200B);
+  let normalized = text;
+  if (text.indexOf(SHY) >= 0) {
+    const lastNonWs = normalized.replace(/\s+$/, "").length - 1;
+    let out = "";
+    for (let i = 0; i < normalized.length; i++) {
+      const ch = normalized[i];
+      if (ch === SHY) out += (i === lastNonWs ? "-" : ZWSP);
+      else out += ch;
+    }
+    normalized = out;
+  }
+  if (seg?.rasterGlyphs == null) return normalized;
   const suppress = seg.rasterGlyphs.filter((g) => g.suppressGlyph === true);
-  if (suppress.length === 0) return text;
+  if (suppress.length === 0) return normalized;
   // text is a UTF-16 string; charIndex is a UTF-16 position. U+200B is one
   // UTF-16 unit so the substitution preserves text length and xOffsets
   // alignment.
-  const ZWSP = String.fromCharCode(0x200B);
   let out = "";
-  for (let i = 0; i < text.length; i++) {
+  for (let i = 0; i < normalized.length; i++) {
     const drop = suppress.some((g) => g.charIndex === i);
-    out += drop ? ZWSP : text[i];
+    out += drop ? ZWSP : normalized[i];
   }
   return out;
 }
