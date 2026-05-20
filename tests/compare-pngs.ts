@@ -5,7 +5,20 @@ import { readFileSync, writeFileSync } from "node:fs";
  * Shared PNG comparator used by every visual-regression runner in `tests/`.
  * Compares two PNGs and writes a diff image. Pass/fail and diagnostic
  * metrics are computed identically across `tests/runner.tsx` (features /
- * showcase) and `tests/html-test-suite.tsx`. DM-383.
+ * showcase), `tests/html-test-suite.tsx`, and `tests/real-world.tsx`.
+ *
+ * Two layers of noise suppression run on top of the raw RGB pixel diff:
+ *
+ *   1. Pixelmatch-style AA detector — zeros out any pixel that looks like
+ *      sub-pixel glyph coverage (DM-281 / DM-383).
+ *   2. Connected-components on the surviving "non-AA" diff mask, dilated
+ *      by 3 px so nearby pixels merge into one region. Regions smaller
+ *      than `MIN_REGION_AREA` are dropped as residual scatter. (DM-715.)
+ *
+ * The remaining regions are taken as "real" change. The pass criterion is
+ * region-count zero. Scalar diagnostics (`diffPct`, `sigPixelPct`,
+ * worst-tile metrics, the raw `nonAaPixels` count) are still reported so
+ * reviewers can see how much pre-region noise survived AA filtering.
  *
  * The work runs inside `page.evaluate(...)` because the canvas APIs needed
  * to decode and walk the PNGs only exist in a browser context.
@@ -18,11 +31,19 @@ export const SIGNIFICANT_PIXEL_DIST = 40;
 /** Tile size in pixels for the per-tile diagnostic metrics. */
 export const TILE_PX = 64;
 
+/** Connected-components params (DM-715). Diff pixels surviving AA filtering
+ *  are dilated by `REGION_DILATE_PX` then flood-filled into regions. Regions
+ *  whose ORIGINAL diff-pixel area is below `MIN_REGION_AREA` are treated as
+ *  scatter and excluded from `regionCount` / `totalChangedArea`. */
+export const REGION_DILATE_PX = 3;
+export const MIN_REGION_AREA = 15;
+
 export interface CompareResult {
-  /** Pixels that differ between expected and actual AND are not classified as
-   *  glyph anti-aliasing by the Yee detector. Pass requires 0 (DM-383). */
+  /** Pixels that differ AND are not classified as glyph anti-aliasing by the
+   *  Yee detector. Diagnostic only since DM-715 — see `regionCount` for
+   *  pass/fail. */
   nonAaPixels: number;
-  /** `nonAaPixels / totalPixels * 100`. */
+  /** `nonAaPixels / totalPixels * 100`. Diagnostic. */
   nonAaPixelPct: number;
   /** Average normalized color distance %, AA pixels excluded. Diagnostic. */
   diffPct: number;
@@ -36,12 +57,34 @@ export interface CompareResult {
   /** Pixel rect of the worst tile (also drawn as a yellow box on the diff
    *  PNG so reviewers can navigate to it). */
   worstTileRect: { x: number; y: number; w: number; h: number };
+
+  // DM-715 region scoring ------------------------------------------------------
+
+  /** Number of surviving connected-components regions on the non-AA diff
+   *  mask (after 3-px dilation merge + small-region cull). Pass requires 0. */
+  regionCount: number;
+  /** Total original-diff-pixel area inside the surviving regions. */
+  totalChangedArea: number;
+  /** Max normalized color distance % (per-pixel `dist / maxDist * 100`)
+   *  inside any surviving region. */
+  maxRegionSeverity: number;
+  /** Non-AA diff pixels that DIDN'T survive region culling (i.e. landed in
+   *  components smaller than `MIN_REGION_AREA` after dilation). */
+  scatteredPixels: number;
+  /** Per-region breakdown: area + max severity + bounding box. Useful for
+   *  pinpointing the change without re-running the comparison. Sorted by
+   *  `area` descending; capped at the top 32 regions to keep payload small. */
+  regions: Array<{
+    area: number;
+    maxSeverity: number;
+    x: number; y: number; w: number; h: number;
+  }>;
 }
 
 /**
  * Compare `expectedPath` vs `actualPath` and write a literal absolute-difference
- * diff PNG to `diffPath`. Returns the full metric set. DM-383 pass criterion:
- * `nonAaPixels === 0`.
+ * diff PNG to `diffPath`. Returns the full metric set. DM-715 pass criterion:
+ * `regionCount === 0`.
  *
  * `comparePage` is any Playwright Page — it just needs to be navigable and to
  * support canvas. Callers typically dedicate a separate page so the run page
@@ -85,6 +128,8 @@ export async function comparePngs(
       const maxDist = Math.sqrt(255 * 255 * 3);
       const TILE = ${tilePx};
       const SIG = ${significantDist};
+      const DILATE = ${REGION_DILATE_PX};
+      const MIN_AREA = ${MIN_REGION_AREA};
       // Yee anti-aliasing detector ported from mapbox/pixelmatch (BSD).
       // A pixel is AA when it sits on an edge in either image (zeroes >= 2
       // around it + a contrasty neighbor) and that contrasty neighbor has
@@ -144,6 +189,12 @@ export async function comparePngs(
       let totalSig = 0;
       let totalNonAa = 0;
       const totalPixels = w * h;
+      // DM-715: parallel non-AA-diff mask. 1 = pixel survived AA filtering
+      // and counts as a real diff. Use this for the region pass below.
+      const nonAaMask = new Uint8Array(w * h);
+      // Per-pixel severity (norm * 100). We reuse this in region aggregation
+      // to compute maxRegionSeverity without rewalking the rgb data.
+      const sevPct = new Float32Array(w * h);
       for (let y = 0; y < h; y++) {
         const ty = (y / TILE) | 0;
         for (let x = 0; x < w; x++) {
@@ -160,7 +211,13 @@ export async function comparePngs(
           const ti = ty * tilesX + tx;
           tileDist[ti] += norm;
           tilePixCount[ti]++;
-          if (dist > 0 && !isAA) { tileNonAa[ti]++; totalNonAa++; }
+          if (dist > 0 && !isAA) {
+            tileNonAa[ti]++;
+            totalNonAa++;
+            const px = y * w + x;
+            nonAaMask[px] = 1;
+            sevPct[px] = norm * 100;
+          }
           if (dist > SIG && !isAA) { tileSig[ti]++; totalSig++; }
           // Diff image is a literal per-channel absolute difference (DM-379).
           diffData.data[i]   = Math.abs(dr);
@@ -169,9 +226,144 @@ export async function comparePngs(
           diffData.data[i+3] = 255;
         }
       }
-      // Worst tile keyed off non-AA % first (the pass/fail signal), with sig%
-      // then avg% as successive tiebreaks — yellow box in diff.png points at
-      // the tile most responsible for the verdict.
+      // DM-715 region pass: dilate the nonAaMask by DILATE pixels so glyph
+      // strokes (sparse runs of diff pixels) and near-by patches merge into
+      // single components, then flood-fill 8-connected. Each component's
+      // "area" tallies ORIGINAL nonAaMask pixels (not dilated) — that's
+      // the count we care about for pass/fail; dilation is only there to
+      // glue together pixels that visually belong together.
+      const dil = new Uint8Array(w * h);
+      if (totalNonAa > 0) {
+        // Two-pass separable dilation (horizontal then vertical) — O(w*h*DILATE)
+        // each pass.
+        const tmp = new Uint8Array(w * h);
+        for (let y = 0; y < h; y++) {
+          const row = y * w;
+          // Forward sweep tracking distance since last 1.
+          let lastOne = -DILATE - 1;
+          for (let x = 0; x < w; x++) {
+            if (nonAaMask[row + x]) lastOne = x;
+            if (x - lastOne <= DILATE) tmp[row + x] = 1;
+          }
+          // Backward sweep covering 1's encountered on the right side too.
+          lastOne = w + DILATE + 1;
+          for (let x = w - 1; x >= 0; x--) {
+            if (nonAaMask[row + x]) lastOne = x;
+            if (lastOne - x <= DILATE) tmp[row + x] = 1;
+          }
+        }
+        for (let x = 0; x < w; x++) {
+          let lastOne = -DILATE - 1;
+          for (let y = 0; y < h; y++) {
+            if (tmp[y * w + x]) lastOne = y;
+            if (y - lastOne <= DILATE) dil[y * w + x] = 1;
+          }
+          lastOne = h + DILATE + 1;
+          for (let y = h - 1; y >= 0; y--) {
+            if (tmp[y * w + x]) lastOne = y;
+            if (lastOne - y <= DILATE) dil[y * w + x] = 1;
+          }
+        }
+      }
+      // 4-connected flood fill on the dilated mask. Per-component stats track
+      // ORIGINAL nonAaMask hits (the area we report) AND the original pixel
+      // with the highest severity (for maxSeverity per region).
+      const labels = new Int32Array(w * h);
+      const regions = [];
+      const stack = new Int32Array(w * h);
+      let nextLabel = 1;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const p = y * w + x;
+          if (!dil[p] || labels[p] !== 0) continue;
+          // BFS-style fill using a stack of pixel indices.
+          let sp = 0;
+          stack[sp++] = p;
+          labels[p] = nextLabel;
+          let area = 0;
+          let maxSev = 0;
+          let minX = x, maxX = x, minY = y, maxY = y;
+          while (sp > 0) {
+            const cur = stack[--sp];
+            const cy = (cur / w) | 0;
+            const cx = cur - cy * w;
+            if (nonAaMask[cur]) {
+              area++;
+              const s = sevPct[cur];
+              if (s > maxSev) maxSev = s;
+            }
+            if (cx < minX) minX = cx;
+            if (cx > maxX) maxX = cx;
+            if (cy < minY) minY = cy;
+            if (cy > maxY) maxY = cy;
+            // 4-neighbors.
+            if (cx > 0) {
+              const np = cur - 1;
+              if (dil[np] && labels[np] === 0) { labels[np] = nextLabel; stack[sp++] = np; }
+            }
+            if (cx < w - 1) {
+              const np = cur + 1;
+              if (dil[np] && labels[np] === 0) { labels[np] = nextLabel; stack[sp++] = np; }
+            }
+            if (cy > 0) {
+              const np = cur - w;
+              if (dil[np] && labels[np] === 0) { labels[np] = nextLabel; stack[sp++] = np; }
+            }
+            if (cy < h - 1) {
+              const np = cur + w;
+              if (dil[np] && labels[np] === 0) { labels[np] = nextLabel; stack[sp++] = np; }
+            }
+          }
+          regions.push({
+            area,
+            maxSeverity: maxSev,
+            x: minX, y: minY,
+            w: maxX - minX + 1,
+            h: maxY - minY + 1,
+          });
+          nextLabel++;
+        }
+      }
+      // Cull regions below the area floor.
+      const surviving = regions.filter((r) => r.area >= MIN_AREA);
+      surviving.sort((a, b) => b.area - a.area);
+      let totalChangedArea = 0;
+      let maxRegionSeverity = 0;
+      for (const r of surviving) {
+        totalChangedArea += r.area;
+        if (r.maxSeverity > maxRegionSeverity) maxRegionSeverity = r.maxSeverity;
+      }
+      const scatteredPixels = totalNonAa - totalChangedArea;
+      // Draw a 1-px magenta outline around each surviving region on the diff
+      // PNG. The yellow worst-tile box is still painted below; the magenta
+      // outlines pinpoint the actual region(s) responsible for failure so
+      // reviewers can navigate straight to them without grid arithmetic.
+      function rect(x0, y0, ww, hh, r, g, b) {
+        if (ww <= 0 || hh <= 0) return;
+        for (let dx = 0; dx < ww; dx++) {
+          const top = (y0 * w + (x0 + dx)) * 4;
+          const bot = ((y0 + hh - 1) * w + (x0 + dx)) * 4;
+          diffData.data[top] = r; diffData.data[top+1] = g; diffData.data[top+2] = b; diffData.data[top+3] = 255;
+          diffData.data[bot] = r; diffData.data[bot+1] = g; diffData.data[bot+2] = b; diffData.data[bot+3] = 255;
+        }
+        for (let dy = 0; dy < hh; dy++) {
+          const lft = ((y0 + dy) * w + x0) * 4;
+          const rgt = ((y0 + dy) * w + (x0 + ww - 1)) * 4;
+          diffData.data[lft] = r; diffData.data[lft+1] = g; diffData.data[lft+2] = b; diffData.data[lft+3] = 255;
+          diffData.data[rgt] = r; diffData.data[rgt+1] = g; diffData.data[rgt+2] = b; diffData.data[rgt+3] = 255;
+        }
+      }
+      // Magenta outlines for regions (cap at top 32 so we don't spam huge
+      // images with dozens of low-area outlines).
+      const MAX_OUTLINES = 32;
+      for (let i = 0; i < Math.min(surviving.length, MAX_OUTLINES); i++) {
+        const r = surviving[i];
+        rect(r.x, r.y, r.w, r.h, 255, 0, 255);
+      }
+      // Worst tile keyed off non-AA % first (was the pass/fail signal pre-
+      // DM-715, still useful as the "where is the noise densest" navigator),
+      // with sig% then avg% as successive tiebreaks — yellow box in diff.png
+      // points at the tile most responsible for the residual scatter.
       let worstSigPct = 0, worstAvgPct = 0, worstNonAaPct = 0, worstIdx = 0;
       for (let i = 0; i < tileDist.length; i++) {
         if (tilePixCount[i] === 0) continue;
@@ -193,19 +385,12 @@ export async function comparePngs(
       const worstTy = (worstIdx / tilesX) | 0;
       const ox = worstTx * TILE, oy = worstTy * TILE;
       const ow = Math.min(TILE, w - ox), oh = Math.min(TILE, h - oy);
-      for (let dx = 0; dx < ow; dx++) {
-        const top = (oy * w + (ox + dx)) * 4;
-        const bot = ((oy + oh - 1) * w + (ox + dx)) * 4;
-        diffData.data[top] = 255; diffData.data[top+1] = 220; diffData.data[top+2] = 0; diffData.data[top+3] = 255;
-        diffData.data[bot] = 255; diffData.data[bot+1] = 220; diffData.data[bot+2] = 0; diffData.data[bot+3] = 255;
-      }
-      for (let dy = 0; dy < oh; dy++) {
-        const lft = ((oy + dy) * w + ox) * 4;
-        const rgt = ((oy + dy) * w + (ox + ow - 1)) * 4;
-        diffData.data[lft] = 255; diffData.data[lft+1] = 220; diffData.data[lft+2] = 0; diffData.data[lft+3] = 255;
-        diffData.data[rgt] = 255; diffData.data[rgt+1] = 220; diffData.data[rgt+2] = 0; diffData.data[rgt+3] = 255;
-      }
+      rect(ox, oy, ow, oh, 255, 220, 0);
       diffCtx.putImageData(diffData, 0, 0);
+      // Cap the returned regions payload at 32 to keep the JSON small;
+      // surviving array is already sorted area-desc.
+      const REGIONS_CAP = 32;
+      const trimmedRegions = surviving.slice(0, REGIONS_CAP);
       return {
         nonAaPixels: totalNonAa,
         nonAaPixelPct: (totalNonAa / totalPixels) * 100,
@@ -214,6 +399,11 @@ export async function comparePngs(
         worstTilePct: worstAvgPct,
         worstTileSignificantPct: worstSigPct,
         worstTileRect: { x: ox, y: oy, w: ow, h: oh },
+        regionCount: surviving.length,
+        totalChangedArea,
+        maxRegionSeverity,
+        scatteredPixels,
+        regions: trimmedRegions,
         diffDataUrl: diffCanvas.toDataURL("image/png"),
       };
     })()`,
@@ -225,6 +415,11 @@ export async function comparePngs(
     worstTilePct: number;
     worstTileSignificantPct: number;
     worstTileRect: { x: number; y: number; w: number; h: number };
+    regionCount: number;
+    totalChangedArea: number;
+    maxRegionSeverity: number;
+    scatteredPixels: number;
+    regions: Array<{ area: number; maxSeverity: number; x: number; y: number; w: number; h: number }>;
     diffDataUrl: string;
   };
 
@@ -237,12 +432,22 @@ export async function comparePngs(
     worstTilePct: result.worstTilePct,
     worstTileSignificantPct: result.worstTileSignificantPct,
     worstTileRect: result.worstTileRect,
+    regionCount: result.regionCount,
+    totalChangedArea: result.totalChangedArea,
+    maxRegionSeverity: result.maxRegionSeverity,
+    scatteredPixels: result.scatteredPixels,
+    regions: result.regions,
   };
 }
 
-/** Shared pass criterion: every differing pixel must be classified AA. */
+/** DM-715: pre-region pass criterion (every differing pixel must be classified
+ *  AA). Retained as a constant only for back-compat with callers that imported
+ *  it directly; pass/fail is `passes()` which now reads `regionCount`. */
 export const PASS_THRESHOLD_NON_AA_PIXELS = 0;
 
+/** DM-715 pass criterion: zero surviving region (every connected component
+ *  of non-AA-diff pixels was smaller than `MIN_REGION_AREA` after the 3-px
+ *  dilation merge). Scatter is allowed; structural change is not. */
 export function passes(cmp: CompareResult): boolean {
-  return cmp.nonAaPixels <= PASS_THRESHOLD_NON_AA_PIXELS;
+  return cmp.regionCount === 0;
 }

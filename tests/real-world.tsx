@@ -117,6 +117,10 @@ interface ChunkResult {
   worstTileSignificantPct: number;
   nonAaPixels: number;
   nonAaPixelPct: number;
+  regionCount: number;
+  totalChangedArea: number;
+  maxRegionSeverity: number;
+  scatteredPixels: number;
 }
 
 interface Result {
@@ -131,6 +135,10 @@ interface Result {
   worstTileSignificantPct: number;
   nonAaPixels: number;
   nonAaPixelPct: number;
+  regionCount: number;
+  totalChangedArea: number;
+  maxRegionSeverity: number;
+  scatteredPixels: number;
   /** Captured canvas width (always the viewport width). */
   width: number;
   /** Captured canvas height. For `fold` and `scroll` this is the viewport
@@ -874,6 +882,10 @@ async function runJob(
       worstTileSignificantPct: cmp.worstTileSignificantPct,
       nonAaPixels: cmp.nonAaPixels,
       nonAaPixelPct: cmp.nonAaPixelPct,
+      regionCount: cmp.regionCount,
+      totalChangedArea: cmp.totalChangedArea,
+      maxRegionSeverity: cmp.maxRegionSeverity,
+      scatteredPixels: cmp.scatteredPixels,
     }];
     for (let i = 1; i < segments.length; i++) {
       const seg = segments[i];
@@ -893,6 +905,10 @@ async function runJob(
           worstTileSignificantPct: ccmp.worstTileSignificantPct,
           nonAaPixels: ccmp.nonAaPixels,
           nonAaPixelPct: ccmp.nonAaPixelPct,
+          regionCount: ccmp.regionCount,
+          totalChangedArea: ccmp.totalChangedArea,
+          maxRegionSeverity: ccmp.maxRegionSeverity,
+          scatteredPixels: ccmp.scatteredPixels,
         });
       } catch (e) {
         console.warn(`  ${test}: chunk ${i} compare failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -900,10 +916,11 @@ async function runJob(
     }
   }
 
-  // Pass criterion: identical to the rest of the suites — every differing
-  // pixel must be classified as glyph anti-aliasing. Real sites virtually
-  // never hit that bar; the metric is informational on every mode.
-  const pass = mode === "fold" && cmp.nonAaPixels === 0;
+  // DM-715: pass criterion — zero surviving region after AA filter +
+  // 3-px-dilation flood-fill + min-area cull. Real sites still rarely
+  // hit zero in entire-page / scroll mode (third-party CDN content
+  // varies frame to frame); the metric is informational there.
+  const pass = mode === "fold" && cmp.regionCount === 0;
 
   return {
     name: test,
@@ -917,6 +934,10 @@ async function runJob(
     worstTileSignificantPct: cmp.worstTileSignificantPct,
     nonAaPixels: cmp.nonAaPixels,
     nonAaPixelPct: cmp.nonAaPixelPct,
+    regionCount: cmp.regionCount,
+    totalChangedArea: cmp.totalChangedArea,
+    maxRegionSeverity: cmp.maxRegionSeverity,
+    scatteredPixels: cmp.scatteredPixels,
     width: viewport.width,
     height: diffH,
     warnings: warnings.length > 0 ? warnings : undefined,
@@ -934,6 +955,7 @@ function makeErrorResult(
     pass: false,
     diffPct: 100, sigPixelPct: 100, worstTilePct: 100, worstTileSignificantPct: 100,
     nonAaPixels: 0, nonAaPixelPct: 100,
+    regionCount: Number.MAX_SAFE_INTEGER, totalChangedArea: 0, maxRegionSeverity: 0, scatteredPixels: 0,
     width, height, error,
     warnings: warnings.length > 0 ? warnings : undefined,
   };

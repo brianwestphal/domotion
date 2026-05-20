@@ -91,6 +91,10 @@ export interface SuiteResult {
   worstTilePct: number;
   worstTileSignificantPct: number;
   worstTileRect: { x: number; y: number; w: number; h: number };
+  regionCount: number;
+  totalChangedArea: number;
+  maxRegionSeverity: number;
+  scatteredPixels: number;
   pass: boolean;
 }
 
@@ -178,6 +182,10 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
     worstTilePct: cmp.worstTilePct,
     worstTileSignificantPct: cmp.worstTileSignificantPct,
     worstTileRect: cmp.worstTileRect,
+    regionCount: cmp.regionCount,
+    totalChangedArea: cmp.totalChangedArea,
+    maxRegionSeverity: cmp.maxRegionSeverity,
+    scatteredPixels: cmp.scatteredPixels,
     pass,
   };
 }
@@ -246,7 +254,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
     runJob: async (test, w) => runOneTest(test, w),
     onResult: (r) => {
       const status = r.pass ? "✓ PASS" : "✗ FAIL";
-      console.log(`  ${status}  ${r.name}  (non-AA ${r.nonAaPixels} px (${r.nonAaPixelPct.toFixed(3)}%) · avg ${r.diffPct.toFixed(2)}% · sig ${r.sigPixelPct.toFixed(1)}% · tile avg ${r.worstTilePct.toFixed(1)}% / sig ${r.worstTileSignificantPct.toFixed(1)}%)`);
+      console.log(`  ${status}  ${r.name}  (regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · scatter ${r.scatteredPixels} · avg ${r.diffPct.toFixed(2)}%)`);
     },
   });
 
@@ -273,7 +281,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   if (failed > 0) {
     console.log("\nFailed tests — inspect diff images in:");
     for (const r of results.filter((r) => !r.pass)) {
-      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  non-AA ${r.nonAaPixels} px (${r.nonAaPixelPct.toFixed(3)}%)  avg ${r.diffPct.toFixed(2)}%  tile sig ${r.worstTileSignificantPct.toFixed(1)}%`);
+      console.log(`  ${OUTPUT_DIR}/${r.name}-diff.png  regions ${r.regionCount} · area ${r.totalChangedArea} px · max ${r.maxRegionSeverity.toFixed(1)}% · scatter ${r.scatteredPixels} · avg ${r.diffPct.toFixed(2)}%`);
     }
     console.log("\nReview tool: npx tsx tests/review-server.tsx");
     process.exit(1);
