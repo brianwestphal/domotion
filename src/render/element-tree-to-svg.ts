@@ -1013,6 +1013,25 @@ export function elementTreeToSvg(
         );
         return ` clip-path="url(#${cid})"`;
       };
+      // DM-686: border-radius + per-side borders. The trapezoids and lines
+      // above hit the sharp outer-rect corners. When the element has a
+      // non-zero border-radius, wrap the per-side emit in a clip-path that
+      // is the rounded outer border-box, so each side's polygon / line is
+      // trimmed to follow the radius arc instead of squaring off. Matches
+      // Blink, which paints sides into the rounded border outline clip.
+      const hasOuterRadius = !collapse && (corners.tl.h > 0 || corners.tl.v > 0
+        || corners.tr.h > 0 || corners.tr.v > 0
+        || corners.br.h > 0 || corners.br.v > 0
+        || corners.bl.h > 0 || corners.bl.v > 0);
+      let roundedSideGroupOpen = false;
+      if (hasOuterRadius) {
+        const rcid = `${idPrefix}br${clipIdx++}`;
+        defsParts.push(
+          `<clipPath id="${rcid}"><path d="${roundedRectPath(el.x, el.y, el.width, el.height, corners)}"/></clipPath>`,
+        );
+        svgParts.push(`${indent}<g clip-path="url(#${rcid})">`);
+        roundedSideGroupOpen = true;
+      }
       for (let i = 0; i < sides.length; i++) {
         const [side, x1, y1, x2, y2, len] = sides[i];
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
@@ -1062,6 +1081,7 @@ export function elementTreeToSvg(
           `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
         );
       }
+      if (roundedSideGroupOpen) svgParts.push(`${indent}</g>`);
     } else if (borderWidth > 0 && borderColor != null && borderColor.a > 0.01) {
       // Legacy path for elements whose per-side captures weren't parsed cleanly.
       svgParts.push(
