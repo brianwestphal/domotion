@@ -649,7 +649,15 @@ export function elementTreeToSvg(
       const ibW = Math.max(0, el.width - sbwL - sbwR);
       const ibH = Math.max(0, el.height - sbwT - sbwB);
       const innerCorners = insetCornerRadii(corners, sbwT, sbwR, sbwB, sbwL);
-      for (const sh of shadows) {
+      // DM-699: CSS Backgrounds 3 §6.4 stacks shadows with the FIRST shadow
+      // ON TOP. The outer-shadow loop above already iterates in reverse so
+      // the topmost CSS shadow emits last; this inset loop was iterating
+      // FORWARD, so e.g. `box-shadow: inset 0 0 0 8px #b45309, inset 0 6px
+      // 24px rgba(0,0,0,.4)` (brown ring on top of a dark glow) painted the
+      // brown ring FIRST and the dark glow LAST — the glow then ended up on
+      // top, darkening the brown ring at the top of the box.
+      for (let si = shadows.length - 1; si >= 0; si--) {
+        const sh = shadows[si];
         if (!sh.inset) continue;
         if (sh.spread === 0 && sh.blur === 0) continue;
         if (ibW <= 0 || ibH <= 0) continue;
