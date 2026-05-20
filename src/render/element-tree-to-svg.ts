@@ -2442,6 +2442,16 @@ function gatherStackingContextChildren(
         if (flexGridItemSC && !positioned) {
           hoistedAsZSorted?.add(c);
         }
+        // DM-687: also bucket flex-items-with-z that fell through the
+        // `isFlexItem` branch (top-level hoist where `hoistTargetIsRealSC`
+        // is false so `flexGridItemSC` was false). Without the z-tag the
+        // top-level sort drops them into the inline bucket in DOM order —
+        // `13-deep-z-index-flex-grid` painted A z:4 BEHIND D z:2 because
+        // the flex container hung off `<body>` (the implicit root SC) and
+        // never picked up the z-sort signal.
+        if (isFlexItem && !positioned && !flexGridItemSC && hasExplicitZ) {
+          hoistedAsZSorted?.add(c);
+        }
         // DM-673: if we hoisted `c` past an overflow-clip ancestor (and
         // `c` isn't `position:fixed` — which escapes overflow per CSS
         // Overflow 3 §2.2), remember the ancestor so the renderer can
