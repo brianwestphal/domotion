@@ -540,7 +540,13 @@ export function elementTreeToSvg(
     // fill on the text glyph group (instead of painting it as a normal
     // <rect fill=url(#bg)> over the headline area). Initialized to null and
     // assigned in the bg-layer loop below.
-    let textBgClipFill: string | null = null;
+    // DM-696: multiple `background-clip: text` layers must all composite into
+    // the glyph shapes (top layer on top of lower layers, same as CSS bg
+    // layering on a normal box). Collect them in CSS-source order (layer 0
+    // = topmost) and emit each as its own masked rect at render time, in
+    // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
+    // on top.
+    const textBgClipFills: string[] = [];
 
     const bgImage = el.styles.backgroundImage;
     if (bgImage != null && bgImage !== "none" && bgImage !== "") {
@@ -598,7 +604,9 @@ export function elementTreeToSvg(
         // can use it as the glyph fill (the first text-clipped layer wins).
         // The non-text-clipped layers (if any) still emit normally.
         if (layerClip === "text") {
-          if (textBgClipFill == null) textBgClipFill = `url(#${defId})`;
+          // li counts down (loop iterates from layers.length-1 → 0). Storing at
+          // index li lets us emit topmost layer last regardless of loop dir.
+          textBgClipFills[li] = `url(#${defId})`;
           continue;
         }
         // Inner clip corners: subtract the corresponding border-side widths
@@ -1680,8 +1688,12 @@ export function elementTreeToSvg(
       const tfcRaw = el.styles.webkitTextFillColor;
       const tfc = tfcRaw != null ? parseColor(tfcRaw) : null;
       const textIsTransparent = (tfc != null ? tfc.a < 0.01 : (textColor != null && textColor.a < 0.01));
-      const fillColor = (textBgClipFill != null && textIsTransparent)
-        ? textBgClipFill
+      // Topmost text-clipped layer is the visible color over the glyphs when
+      // we fall into the non-mask path; in the mask path below ALL layers
+      // composite (DM-696). Find the topmost (lowest li) non-empty entry.
+      const topmostTextBgClipFill = textBgClipFills.find((s) => s != null) ?? null;
+      const fillColor = (topmostTextBgClipFill != null && textIsTransparent)
+        ? topmostTextBgClipFill
         : (textColor != null ? colorStr(textColor) : "#e6edf3");
       const cid = `${idPrefix}ct${clipIdx++}`;
       defsParts.push(`<clipPath id="${cid}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" /></clipPath>`);
@@ -1762,7 +1774,8 @@ export function elementTreeToSvg(
       const toy = el.styles.overflowY;
       const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
       const renderOpts = { el, idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip };
-      if (textBgClipFill != null && textIsTransparent) {
+      const hasTextBgClip = textBgClipFills.some((s) => s != null);
+      if (hasTextBgClip && textIsTransparent) {
         // DM-462: background-clip:text — the bg-image should fill the glyph
         // shapes, not the headline element rect. We render the text glyphs
         // INTO an SVG <mask> (with white fill so the mask reveals the bg
@@ -1782,9 +1795,18 @@ export function elementTreeToSvg(
         defsParts.push(
           `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}">${maskBody}</mask>`,
         );
-        svgParts.push(
-          `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${textBgClipFill}" mask="url(#${mid})" />`,
-        );
+        // Emit one masked rect per text-clipped layer, walking from BOTTOM
+        // (highest li) to TOP (li = 0) so the topmost CSS layer paints last.
+        // All rects share the same glyph mask; later rects paint over earlier
+        // ones inside the glyph silhouettes, matching Chrome's compositing of
+        // stacked `background-clip: text` layers (DM-696).
+        for (let li = textBgClipFills.length - 1; li >= 0; li--) {
+          const f = textBgClipFills[li];
+          if (f == null) continue;
+          svgParts.push(
+            `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${f}" mask="url(#${mid})" />`,
+          );
+        }
       } else {
         svgParts.push(`${indent}${renderOneText(renderOpts)}`);
       }
