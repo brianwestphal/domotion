@@ -2263,6 +2263,50 @@ export function getDecorationMetrics(
  * below baseline). Returns `[]` when font isn't resolvable, no glyphs cross
  * the rect, or shaping throws. (DM-446.)
  */
+/**
+ * Measure the right-side-bearing (rsb) of the last non-whitespace glyph in
+ * `text` when shaped through fontkit at the given font / size / weight /
+ * style. rsb = `advanceWidth − bbox.maxX`, in CSS px (already scaled by
+ * `fontSize / unitsPerEm`).
+ *
+ * Used by the list-marker emit path (DM-790): SVG `<text text-anchor="end">`
+ * places the anchor at the last glyph's advance-end, not its visible-right
+ * edge. To land the visible right at the target (Chromium's `el.x − 7` per
+ * `kCMarkerPaddingPx`), we have to shift the anchor right by `rsb`.
+ *
+ * Returns 0 when the font isn't resolvable, when shaping fails, when the
+ * text is empty / whitespace-only, or when the last glyph has no bbox. The
+ * built-in marker path's previous empirical 3 px offset for `.` is now
+ * font-metric-derived through this helper too.
+ */
+export function measureLastGlyphRsb(
+  text: string,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string | number,
+  fontStyle?: string,
+): number {
+  // Drop trailing whitespace — DM-789 probed that Chrome's SVG renderer
+  // collapses / drops trailing whitespace despite `xml:space="preserve"`,
+  // so the visible-rightmost glyph is the last NON-space character.
+  const trimmed = text.replace(/\s+$/, "");
+  if (trimmed === "") return 0;
+  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const slant = slantForStyle(fontStyle);
+  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  if (font == null) return 0;
+  let layout;
+  try { layout = font.layout(trimmed); } catch { return 0; }
+  if (layout.glyphs.length === 0) return 0;
+  const lastGlyph = layout.glyphs[layout.glyphs.length - 1] as { advanceWidth: number; bbox?: { maxX?: number } } | undefined;
+  if (lastGlyph == null) return 0;
+  const bboxMaxX = lastGlyph.bbox?.maxX;
+  if (typeof bboxMaxX !== "number") return 0;
+  const scale = fontSize / font.unitsPerEm;
+  const rsbUnits = lastGlyph.advanceWidth - bboxMaxX;
+  return rsbUnits * scale;
+}
+
 export function computeSkipInkGaps(
   text: string,
   fontSize: number, fontFamily: string, fontWeight: string | number, fontStyle?: string,

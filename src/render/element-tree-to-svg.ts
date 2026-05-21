@@ -8,7 +8,7 @@ import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
-import { getGlyphDefs } from "./text-to-path.js";
+import { getGlyphDefs, measureLastGlyphRsb } from "./text-to-path.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
@@ -1870,23 +1870,22 @@ export function elementTreeToSvg(
           const textPresDefault = /[➤]/g;
           label = label.replace(textPresDefault, (ch) => ch + "︎");
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
-          // Position: marker right-aligned just left of the li's content edge.
-          // The 4 px constant matches the built-in numeric branch below,
-          // which targets `visible_right = li.x − 7` and adds back ~3 px of
-          // period right-side-bearing because the SVG `<text text-anchor=
-          // "end">` anchor sits at the last character's advance-end, not
-          // its visible right edge. DM-789 probed `5`, `6`, `7`, and per-
-          // trailing-space advance shifts — all increased the diff on
-          // `counter-style-cyclic-and-prefixed-numeric` (`@counter-style`
-          // suffixes like `":  "` add measurable advance under
-          // `xml:space="preserve"` that the formula doesn't fully account
-          // for). Sticking with the constant 4 px; achieving Chrome-faithful
-          // marker positions across arbitrary custom-content suffixes would
-          // require per-trailing-character right-side-bearing metrics from
-          // fontkit at render time.
+          // DM-790: SVG `<text text-anchor="end">` places the anchor at the
+          // last glyph's advance-end, not its visible-right edge. Chromium
+          // paints the marker so its visible right sits ~7 px from the
+          // content edge (`kCMarkerPaddingPx` in
+          // `list_marker.cc::InlineMarginsForOutside`). Shape the label
+          // through fontkit and read the last non-whitespace glyph's rsb so
+          // the anchor compensates exactly: `mx = el.x − 7 + rsb`. The
+          // helper trims trailing whitespace before measuring because
+          // Chrome's SVG renderer collapses trailing whitespace under
+          // `xml:space="preserve"` (DM-789 probed this). Built-in numeric
+          // markers ending in `.` resolve back to `el.x − 4` via this same
+          // formula (period rsb ≈ 3 px in system-ui).
+          const markerLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
           const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
           const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          const mx = outside ? el.x - 4 : el.x + borderL + padL;
+          const mx = outside ? el.x - 7 + markerLastRsb : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
           const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
           // DM-770: `@counter-style` suffixes like `":  "` carry multiple
@@ -1939,23 +1938,21 @@ export function elementTreeToSvg(
           // VISIBLE last-pixel-of-"." sits at li.x - 7).
           //
           // SVG `text-anchor="end"` aligns the END of the LAST GLYPH'S ADVANCE
-          // at `x`, not the visible right edge of that glyph. For "01." with
-          // trailing "." in Helvetica 16px the "." has ~4px advance with the
-          // visible dot only on the left ~1.5px — so the advance-end sits
-          // ~2.5-3px to the right of the visible dot. Compensate by anchoring
-          // ~3-4px to the right of where the visible right edge should go.
-          //
-          // target_visible_right = li.x - 7
-          // svg_anchor_x = target_visible_right + period_rsb (~3)
-          //              = li.x - 7 + 3
-          //              = li.x - 4
+          // at `x`, not the visible right edge of that glyph. DM-790: measure
+          // the last glyph's right-side-bearing through fontkit and add it
+          // back to the visible-right target (`el.x − 7`, Chromium's
+          // `kCMarkerPaddingPx`). For "01." the `.` glyph has ~3 px rsb in
+          // system-ui Helvetica so `mx = el.x − 7 + 3 = el.x − 4` — the
+          // previous hardcoded constant; for other suffixes (e.g. Greek-
+          // marker styles ending in `)` or `α`) the rsb floats to whatever
+          // the actual last glyph dictates.
           const label = formatListMarker(lsType, idx) + ".";
-          const smallGap = 4;
+          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
+          const builtinLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
           const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
           const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          const mx = outside ? el.x - smallGap : el.x + borderL + padL;
+          const mx = outside ? el.x - 7 + builtinLastRsb : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
-          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
           svgParts.push(
             `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}">${label}</text>`,
           );
