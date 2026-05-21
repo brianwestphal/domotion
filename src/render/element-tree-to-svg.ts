@@ -557,10 +557,37 @@ export function elementTreeToSvg(
         const ostyle_ = el.styles.outlineStyle ?? "none";
         const ohas = ow_ > 0 && ostyle_ !== "none" && ostyle_ !== "hidden";
         const oOffset_ = ohas ? (parseFloat(el.styles.outlineOffset ?? "0") || 0) : 0;
-        const inflate_ = ohas ? Math.max(0, oOffset_ + ow_) : 0;
+        const outlineInflate = ohas ? Math.max(0, oOffset_ + ow_) : 0;
+        // DM-745: outset box-shadow paints OUTSIDE the element's box and is
+        // also unaffected by the element's own overflow per CSS Backgrounds
+        // 3 §6.4 — only the element's content / background is clipped to
+        // its overflow region, not the decorative shadow. The popover in
+        // `niche-command-invokers` has an implicit `overflow: auto` (UA
+        // popover rule) and a `box-shadow: 0 30px 60px rgba(15, 23, 42,
+        // 0.2)`; without inflating for the shadow's max extent, the clip
+        // rect cropped the shadow ink down to a thin sliver inside the
+        // popover box. Inflate per-side by `|offset| + spread + blur` so
+        // the shadow's full painted area survives.
+        const shadowsForClip = parseBoxShadow(el.styles.boxShadow ?? "none");
+        let shadowInflateT = 0, shadowInflateR = 0, shadowInflateB = 0, shadowInflateL = 0;
+        for (const sh of shadowsForClip) {
+          if (sh.inset) continue;
+          const reach = sh.spread + sh.blur;
+          // Per-side ink extent: spread + blur, plus the shadow's offset
+          // pushed in the matching direction. Clamp to 0 so an offset that
+          // pulls the shadow away from a side doesn't shrink the inflate.
+          shadowInflateT = Math.max(shadowInflateT, reach + Math.max(0, -sh.y));
+          shadowInflateR = Math.max(shadowInflateR, reach + Math.max(0, sh.x));
+          shadowInflateB = Math.max(shadowInflateB, reach + Math.max(0, sh.y));
+          shadowInflateL = Math.max(shadowInflateL, reach + Math.max(0, -sh.x));
+        }
+        const inflateT = Math.max(outlineInflate, shadowInflateT);
+        const inflateR = Math.max(outlineInflate, shadowInflateR);
+        const inflateB = Math.max(outlineInflate, shadowInflateB);
+        const inflateL = Math.max(outlineInflate, shadowInflateL);
         clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
         defsParts.push(
-          `<clipPath id="${clipPathUrlId}"><rect x="${r(el.x - inflate_)}" y="${r(el.y - inflate_)}" width="${r(el.width + 2 * inflate_)}" height="${r(el.height + 2 * inflate_)}"/></clipPath>`,
+          `<clipPath id="${clipPathUrlId}"><rect x="${r(el.x - inflateL)}" y="${r(el.y - inflateT)}" width="${r(el.width + inflateL + inflateR)}" height="${r(el.height + inflateT + inflateB)}"/></clipPath>`,
         );
       }
     }
