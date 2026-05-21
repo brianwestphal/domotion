@@ -224,6 +224,14 @@ export interface CapturedElement {
     borderCollapse: string;
     overflowX: string;
     overflowY: string;
+    /**
+     * CSS `overflow-clip-margin` shorthand value as computed by Chrome
+     * (e.g. `"20px"`, `"content-box 12px"`, or the empty string when the
+     * default `0px` resolves and the element doesn't paint outside its
+     * reference box). Only takes effect when `overflow: clip` (DM-761) —
+     * `hidden` ignores it per CSS Overflow 3.
+     */
+    overflowClipMargin?: string;
     scrollbarGutter: string;
     /** el.scrollHeight / scrollWidth vs client* — used to decide whether to paint a scrollbar. */
     scrollWidth: number;

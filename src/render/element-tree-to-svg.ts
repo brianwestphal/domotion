@@ -599,10 +599,42 @@ export function elementTreeToSvg(
           shadowInflateB = Math.max(shadowInflateB, reach + Math.max(0, sh.y));
           shadowInflateL = Math.max(shadowInflateL, reach + Math.max(0, -sh.x));
         }
-        const inflateT = Math.max(outlineInflate, shadowInflateT);
-        const inflateR = Math.max(outlineInflate, shadowInflateR);
-        const inflateB = Math.max(outlineInflate, shadowInflateB);
-        const inflateL = Math.max(outlineInflate, shadowInflateL);
+        // DM-761: when `overflow: clip` is set with `overflow-clip-margin`,
+        // the paint clip extends outward from a reference box (content /
+        // padding / border) by a length. The outer clip emitted here wraps
+        // the host's own paint (including overflow-clip-margin extension) so
+        // a child that overflows past the border-box stays visible up to
+        // (ref-box edge + margin). Inflate this outer rect by the part of
+        // the margin that falls OUTSIDE the border-box; the inner per-axis
+        // clip below applies the tight ref-box-relative bound.
+        let ocmInflate = 0;
+        const isClipOverflow_ = oxV === "clip" || oyV === "clip";
+        const ocmRaw_ = el.styles.overflowClipMargin;
+        if (isClipOverflow_ && ocmRaw_ != null && ocmRaw_ !== "" && ocmRaw_ !== "0px") {
+          const m = /^(?:(content-box|padding-box|border-box)\s+)?(-?\d*\.?\d+)px$/i.exec(ocmRaw_.trim());
+          if (m) {
+            const refBox = (m[1] ?? "padding-box").toLowerCase();
+            const margin = parseFloat(m[2]);
+            const cbtv = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+            const cbrv = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+            const cbbv = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+            const cblv = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+            let offT = 0, offR = 0, offB = 0, offL = 0;
+            if (refBox === "padding-box") {
+              offT = cbtv; offR = cbrv; offB = cbbv; offL = cblv;
+            } else if (refBox === "content-box") {
+              offT = cbtv + (parseFloat(el.styles.paddingTop ?? "0") || 0);
+              offR = cbrv + (parseFloat(el.styles.paddingRight ?? "0") || 0);
+              offB = cbbv + (parseFloat(el.styles.paddingBottom ?? "0") || 0);
+              offL = cblv + (parseFloat(el.styles.paddingLeft ?? "0") || 0);
+            }
+            ocmInflate = Math.max(0, margin - Math.min(offT, offR, offB, offL));
+          }
+        }
+        const inflateT = Math.max(outlineInflate, shadowInflateT, ocmInflate);
+        const inflateR = Math.max(outlineInflate, shadowInflateR, ocmInflate);
+        const inflateB = Math.max(outlineInflate, shadowInflateB, ocmInflate);
+        const inflateL = Math.max(outlineInflate, shadowInflateL, ocmInflate);
         clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
         defsParts.push(
           `<clipPath id="${clipPathUrlId}"><rect x="${r(el.x - inflateL)}" y="${r(el.y - inflateT)}" width="${r(el.width + inflateL + inflateR)}" height="${r(el.height + inflateT + inflateB)}"/></clipPath>`,
@@ -2486,7 +2518,47 @@ export function elementTreeToSvg(
       // child `position:absolute inset:0`: 4 px gradient sliver visible inside
       // each rounded corner.)
       const overflowInnerCorners = insetCornerRadii(corners, cbt, cbr, cbb, cbl);
-      defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(el.x + cbl, el.y + cbt, Math.max(0, el.width - cbl - cbr), Math.max(0, el.height - cbt - cbb), overflowInnerCorners, "")}</clipPath>`);
+      // Default clip = padding box (border-inset). DM-761: when `overflow: clip`
+      // (only — `hidden` ignores it) plus a non-zero `overflow-clip-margin`,
+      // the clip extends outward from a reference box. The shorthand resolves
+      // to either `"<length>"` (defaults to padding-box reference) or
+      // `"<ref-box> <length>"` where ref-box is content-box / padding-box /
+      // border-box. The clip rect grows by the length on every side from the
+      // chosen ref-box edge. Corner radii on the expanded clip are left at
+      // the inner-border-radius value — that's how Chrome paints it: the
+      // outset region is a rectangular extension, not a radial expansion.
+      let ocX = el.x + cbl;
+      let ocY = el.y + cbt;
+      let ocW = Math.max(0, el.width - cbl - cbr);
+      let ocH = Math.max(0, el.height - cbt - cbb);
+      const isClip = ox === "clip" || oy === "clip";
+      const ocmRaw = el.styles.overflowClipMargin;
+      if (isClip && ocmRaw != null && ocmRaw !== "" && ocmRaw !== "0px") {
+        const m = /^(?:(content-box|padding-box|border-box)\s+)?(-?\d*\.?\d+)px$/i.exec(ocmRaw.trim());
+        if (m) {
+          const refBox = (m[1] ?? "padding-box").toLowerCase();
+          const margin = parseFloat(m[2]);
+          // Reference-box edges relative to (el.x, el.y) border-box top-left:
+          //   border-box  → 0
+          //   padding-box → border width (cbl/cbt/cbr/cbb)
+          //   content-box → border + padding
+          let refL = 0, refT = 0, refR = 0, refB = 0;
+          if (refBox === "padding-box") {
+            refL = cbl; refT = cbt; refR = cbr; refB = cbb;
+          } else if (refBox === "content-box") {
+            const pT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+            const pR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+            const pB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+            const pL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+            refL = cbl + pL; refT = cbt + pT; refR = cbr + pR; refB = cbb + pB;
+          }
+          ocX = el.x + refL - margin;
+          ocY = el.y + refT - margin;
+          ocW = Math.max(0, el.width - refL - refR + margin * 2);
+          ocH = Math.max(0, el.height - refT - refB + margin * 2);
+        }
+      }
+      defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(ocX, ocY, ocW, ocH, overflowInnerCorners, "")}</clipPath>`);
       svgParts.push(`${indent}<g clip-path="url(#${overflowClipId})">`);
       // DM-673: stash the clip-path id so hoisted descendants of this
       // overflow scroller can re-wrap their emission in the same clip.

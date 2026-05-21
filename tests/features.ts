@@ -706,6 +706,18 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-761: `overflow: clip` with `overflow-clip-margin` extends the clip
+    // outward from a reference box (content / padding / border) by a length.
+    // Without margin support the SVG clipPath stays at the padding box, so a
+    // child wider than the parent's content area gets cut at the inner edge
+    // even though Chrome paints it 20 px past on every side. Verifies that
+    // `overflow-clip-margin: 20px` lets the gradient child overflow 20 px.
+    name: "overflow-clip-margin",
+    html: `<div style="padding:24px;background:#0d1117;font-family:-apple-system,sans-serif;display:flex;gap:32px;"><div style="width:140px;height:80px;background:#1e293b;border:2px solid #475569;overflow:clip;overflow-clip-margin:20px;position:relative;"><div style="width:220px;height:80px;background:linear-gradient(135deg,#1d4ed8,#ec4899);color:#fff;padding:8px;font-size:12px;">expands 20px outward</div></div></div>`,
+    width: 280,
+    height: 160,
+  },
+  {
     // DM-768: static `display: inline-block` pseudo with `vertical-align: middle`
     // — the CSS-triangle down-caret idiom (`width: 0; height: 0; border-left:
     // transparent; border-right: transparent; border-top: solid currentColor`).

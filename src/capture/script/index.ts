@@ -729,6 +729,12 @@ export const captureScript =
         ...captureBordersBackgrounds(el, cs, tag, rect, isPlaceholderCapture),
         overflowX: cs.overflowX,
         overflowY: cs.overflowY,
+        // DM-761: `overflow-clip-margin` extends the overflow clip outward
+        // from a reference box (content / padding / border) by a length.
+        // Only meaningful for `overflow: clip`; `hidden` ignores it. Captured
+        // as the resolved string ("20px" / "content-box 12px") so the renderer
+        // can parse the reference-box keyword + length together.
+        overflowClipMargin: cs.overflowClipMargin || undefined,
         scrollbarGutter: cs.scrollbarGutter || 'auto',
         scrollWidth: el.scrollWidth,
         scrollHeight: el.scrollHeight,
