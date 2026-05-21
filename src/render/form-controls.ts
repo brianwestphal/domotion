@@ -1158,24 +1158,30 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
   // previous 0.6em multiplier produced a triangle that read visibly small
   // vs Chrome's painted output.
   const size = Math.max(8, fontSizePx * 0.7);
-  const lineH = parseFloat(el.styles.lineHeight ?? "") || fontSizePx * 1.5;
-  // Position: marker sits inside the summary at its content-start, which
-  // is el.x + paddingL + borderL. Offset by half the marker size so the
-  // glyph's center sits ~half-marker-width past the summary's left edge,
-  // matching Chrome's painted offset (DM-448).
+  // DM-746: prefer the captured <summary> child's actual y / height when
+  // available — that's the line box Chrome paints the marker into. The
+  // previous fallback computed `cy` from `el.y + paddingT + borderT +
+  // lineH/2` with `lineH = parseFloat(lineHeight) || fontSize*1.5`, which
+  // overshoots by ~3 px when lineHeight is "normal" (Chrome's "normal"
+  // resolves to ~1.15× fontSize via the font's intrinsic ascent+descent
+  // +linegap, not the 1.5× literal). The drift was visible as a downward
+  // shift of the disclosure triangle on `niche-command-invokers`.
+  const summaryChild = el.children?.find((c) => c.tag === "summary");
   const padL = parseFloat(el.styles.paddingLeft ?? "") || 0;
   const brL = parseFloat(el.styles.borderLeftWidth ?? "") || 0;
   const padT = parseFloat(el.styles.paddingTop ?? "") || 0;
   const brT = parseFloat(el.styles.borderTopWidth ?? "") || 0;
-  const cx = el.x + padL + brL + size / 2;
-  // Vertical center: the summary is the first child of <details>; its
-  // first line-box top sits at el.y + paddingTop + borderTop, and its
-  // center is half a line-height below that. The previous `cy = el.y +
-  // lineH/2` ignored the details element's own padding/border, leaving
-  // the triangle painted ~paddingTop pixels above where Chrome paints
-  // it (DM-448 user feedback: 'disclosure arrow positions still
-  // incorrect').
-  const cy = el.y + padT + brT + lineH / 2;
+  // Position: marker sits inside the summary at its content-start, which
+  // is el.x + paddingL + borderL. Offset by half the marker size so the
+  // glyph's center sits ~half-marker-width past the summary's left edge,
+  // matching Chrome's painted offset (DM-448).
+  const cx = (summaryChild != null ? summaryChild.x : el.x + padL + brL) + size / 2;
+  // Vertical center: the summary is the first child of <details>; use its
+  // captured line-box center when available. Fallback computes from the
+  // details' padding/border + a corrected line-height ratio.
+  const cy = summaryChild != null
+    ? summaryChild.y + summaryChild.height / 2
+    : el.y + padT + brT + (parseFloat(el.styles.lineHeight ?? "") || fontSizePx * 1.15) / 2;
   const open = el.styles.detailsOpen === true;
   // Use the summary's text color when captured, else dark gray.
   const fill = (el.styles.color != null && el.styles.color !== "")
