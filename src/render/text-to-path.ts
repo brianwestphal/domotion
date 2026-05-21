@@ -854,8 +854,19 @@ function isEmojiCodepoint(cp: number, nextCp: number): boolean {
   if (cp === 0x2728 || cp === 0x2753 || cp === 0x2754 || cp === 0x2755 || cp === 0x2757
     || cp === 0x274C || cp === 0x274E || cp === 0x2795 || cp === 0x2796 || cp === 0x2797
     || cp === 0x27A1 || cp === 0x27B0 || cp === 0x27BF) return true;
+  // DM-728: Misc Symbols and Arrows (U+2B??) with default emoji presentation
+  // per Unicode emoji-data — Chrome paints these as Apple Color Emoji
+  // without needing the U+FE0F variation selector. ⭐ U+2B50 is the
+  // common case from `20-deep-font-palette.html`.
+  if (cp === 0x2B05 || cp === 0x2B06 || cp === 0x2B07
+    || cp === 0x2B1B || cp === 0x2B1C || cp === 0x2B50 || cp === 0x2B55) return true;
   // VS-16 (U+FE0F) after a base emoji codepoint requests color presentation.
   if (nextCp === 0xFE0F && cp >= 0x2600 && cp <= 0x26FF) return true;
+  // DM-728: VS-16 also flips Dingbats block (U+2700..U+27BF) codepoints
+  // with text-default presentation to color emoji. ❤️ U+2764 + VS-16 in
+  // the same fixture was rendering as a small monochrome path glyph
+  // because this branch was missing.
+  if (nextCp === 0xFE0F && cp >= 0x2700 && cp <= 0x27BF) return true;
   // Regional-indicator flags (pairs are joined into country flag emoji).
   if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
   // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport,

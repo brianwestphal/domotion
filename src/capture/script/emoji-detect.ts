@@ -25,6 +25,12 @@ export const createEmojiDetect = () => {
   const rasterCps = new Set([
     0x2713, 0x2714, 0x2716, 0x2717, 0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
     0x274C, 0x274E, 0x2795, 0x2796, 0x2797, 0x27A1, 0x27B0, 0x27BF,
+    // DM-728: U+2B?? "Miscellaneous Symbols and Arrows" block with default
+    // emoji presentation per Unicode emoji-data — Chrome paints these as
+    // Apple Color Emoji glyphs without needing the U+FE0F variation
+    // selector. The fixture's ⭐ U+2B50 in `20-deep-font-palette.html` was
+    // painting as a hollow tofu before this list was extended.
+    0x2B05, 0x2B06, 0x2B07, 0x2B1B, 0x2B1C, 0x2B50, 0x2B55,
   ]);
   // Codepoints in the U+2600-26FF Misc Symbols block with EmojiPresentation=Yes
   // per Unicode emoji-data: Chrome paints these as color emoji by default
@@ -50,6 +56,14 @@ export const createEmojiDetect = () => {
     0x2696, 0x2697, 0x2699, 0x269B, 0x269C, 0x26A0, 0x26A7, 0x26B0,
     0x26B1, 0x26C8, 0x26CF, 0x26D1, 0x26D3, 0x26E9, 0x26F0, 0x26F1,
     0x26F4, 0x26F7, 0x26F8, 0x26F9,
+    // DM-728: Dingbats block (U+27??) codepoints with text-default
+    // presentation that flip to color emoji when paired with U+FE0F. The
+    // fixture's ❤️ (U+2764 + U+FE0F) heart was painting as a small black
+    // monochrome glyph before this entry was added; with it, the VS-16
+    // pairing routes through the raster overlay path so Apple Color Emoji
+    // paints the red heart Chrome shows.
+    0x2702, 0x2708, 0x2709, 0x270C, 0x270D, 0x270F, 0x2712, 0x2716,
+    0x2733, 0x2734, 0x2744, 0x2747, 0x2763, 0x2764,
   ]);
 
   const needsRaster = (cp, nextCp) => {
