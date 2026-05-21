@@ -454,15 +454,31 @@ export const captureScript =
             var originParts = transformOriginVal.trim().split(/\s+/);
             var ox = parseFloat(originParts[0] || '0') || 0;
             var oy = parseFloat(originParts[1] || '0') || 0;
-            // For transform-box: fill-box (Chrome default for SVG since CSS
-            // Transforms 2), origin coords are relative to the element's bbox.
-            // We need them in the parent's user space — add the bbox origin.
-            // getBBox() works on rendered SVG nodes.
+            // DM-752: route through `transform-box` to convert origin px values
+            // from the reference box's local coord space into SVG user space.
+            // Chrome's `getComputedStyle().transformOrigin` returns px values
+            // relative to the resolved transform-box:
+            //   - `fill-box` (SVG default): bbox-local → add `bbox.x / bbox.y`.
+            //   - `stroke-box`: stroke-bbox-local. Stroke-bbox is the geometry
+            //     bbox extended by `stroke-width / 2` on each side, so
+            //     stroke-bbox.x = bbox.x - sw/2, stroke-bbox.y = bbox.y - sw/2.
+            //   - `view-box`: already in viewBox / user space coords; no shift.
+            //   - `content-box` / `border-box`: HTML-only; SVG-side bake doesn't
+            //     hit these (the HTML transform path applies them separately).
+            // Without this, `transform-box: view-box` rotated around the wrong
+            // anchor (the rect's bbox top-left instead of the viewBox center)
+            // and `transform-box: stroke-box` was off by `stroke-width / 2`.
+            var transformBoxVal = ocs.transformBox || 'fill-box';
             try {
-              if (typeof origNode.getBBox === 'function') {
+              if (typeof origNode.getBBox === 'function' && transformBoxVal !== 'view-box') {
                 var bbox = origNode.getBBox();
                 ox += bbox.x;
                 oy += bbox.y;
+                if (transformBoxVal === 'stroke-box') {
+                  var swPx = parseFloat(ocs.strokeWidth || '0') || 0;
+                  ox -= swPx / 2;
+                  oy -= swPx / 2;
+                }
               }
             } catch (e) { /* element not yet in render tree, fall through */ }
             var composed;
