@@ -87,10 +87,25 @@ export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderS
     layers.push(bgImage.slice(start));
 
     return layers.map((layer) => {
+      // DM-759: `image-set(url(...) 1x, url(...) 2x, ...)` layers wrap their
+      // url() candidates inside the function call; the top-level regex
+      // below only matches a bare `url(...)` at layer start. Probe the
+      // FIRST url() inside the image-set instead so the renderer's `cover`
+      // / `contain` math has the right aspect ratio. Picking any candidate
+      // works because Chrome's image-set candidates are conventionally the
+      // SAME image at different resolutions / formats, so the intrinsic
+      // aspect is consistent across them; the absolute scale may differ
+      // by the 1x/2x factor but `cover` / `contain` are aspect-driven.
+      let searchLayer = layer;
+      const imgSet = /^\s*(?:-webkit-)?image-set\(\s*([\s\S]+)\s*\)\s*$/i.exec(layer);
+      if (imgSet != null) searchLayer = imgSet[1];
       // Match all three url() forms: "...", '...', and bare. Data: URLs
       // with embedded HTML attribute quotes (escaped as \") were silently
       // truncated by a prior single-regex implementation. DM-308.
-      const u = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(layer);
+      // For image-set candidates the url() may appear anywhere in the
+      // inner string, so anchor at the start of the SEARCH LAYER but
+      // allow leading whitespace.
+      const u = /\burl\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(searchLayer);
       if (u == null) return null;
       const raw = u[1] || u[2] || u[3] || '';
       if (raw === '') return null;

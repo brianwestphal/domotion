@@ -300,6 +300,13 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // sub-pixel padding shift on the wrapping `<code>:user-invalid</code>`
   // span. Reviewed visually; accepted.
   "10-deep-form-state-pseudos": "DM-760: paragraph text + inline code chips render correctly; residual diff is antialiasing + sub-pixel wrap padding",
+  // DM-757: SVG markers + curve with directional marker + stroke
+  // dasharray / dashoffset / linecap / linejoin / miterlimit + paint-order
+  // + vector-effect: non-scaling-stroke + nested <svg> viewBox all render
+  // correctly to the eye. Residual diff is text-baseline antialiasing on
+  // the Pass-criteria paragraph and inline `<code>` annotations only.
+  // Reviewed visually; accepted.
+  "07-deep-svg-markers-strokes": "DM-757: SVG marker / stroke / paint-order rendering correct; residual diff is text antialiasing on the caption paragraph",
 };
 
 interface TestResult {
