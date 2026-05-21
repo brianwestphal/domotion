@@ -1261,8 +1261,65 @@ export function elementTreeToSvg(
         || corners.tr.h > 0 || corners.tr.v > 0
         || corners.br.h > 0 || corners.br.v > 0
         || corners.bl.h > 0 || corners.bl.v > 0);
+      // DM-773: when the box has rounded corners AND per-side mixed widths,
+      // the legacy trapezoid + outer-outline-clip approach paints each side
+      // as a straight rectangular strip clipped to the rounded outline. For
+      // large radii (`border-radius: 50%` / circle case, or any corner whose
+      // radius dominates the side's width) the rectangular strip sits
+      // entirely OUTSIDE the rounded outline at most y values — the clip
+      // erases the side, leaving only a thin sliver near the side's
+      // midpoint. Chrome's `BoxBorderPainter` paints each side as a wedge
+      // of the BORDER RING (outer outline minus inner outline) cut to the
+      // side's diagonal-to-center quadrant; that approach is geometry-
+      // correct for any radius. For solid sides we switch to that approach
+      // here when there's a rounded corner; the non-solid branches keep
+      // their existing line / double-stroke emit with the outer-outline
+      // clip wrapping.
+      const cxBox = (bxL + bxR) / 2;
+      const cyBox = (bxT + bxB) / 2;
+      const outerRoundedPath = hasOuterRadius
+        ? roundedRectPath(bxL, bxT, bxR - bxL, bxB - bxT, corners)
+        : "";
+      const innerCornersForAnnular = hasOuterRadius
+        ? insetCornerRadii(corners, tw, rw, bw, lw)
+        : corners;
+      const innerRoundedPath = hasOuterRadius
+        ? roundedRectPath(
+            bxL + lw, bxT + tw,
+            Math.max(0, bxR - bxL - lw - rw), Math.max(0, bxB - bxT - tw - bw),
+            innerCornersForAnnular,
+          )
+        : "";
+      const annularPath = hasOuterRadius
+        ? `${outerRoundedPath} ${innerRoundedPath}`
+        : "";
+      const annularWedges: string[] = hasOuterRadius ? [
+        `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(cxBox)},${r(cyBox)}`, // top
+        `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(cxBox)},${r(cyBox)}`, // right
+        `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(cxBox)},${r(cyBox)}`, // bottom
+        `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(cxBox)},${r(cyBox)}`, // left
+      ] : [];
+      // The outer-outline group still wraps the non-solid branches so their
+      // straight `<line>` strokes get trimmed to the rounded outline at the
+      // corners. Solid sides emit their own annular wedge BEFORE the group
+      // opens (and use their own per-side wedge clip), so they fall outside
+      // this wrapping — the wedge clip is tighter than the outer outline
+      // anyway.
       let roundedSideGroupOpen = false;
       if (hasOuterRadius) {
+        // Emit solid sides as annular wedges first.
+        for (let i = 0; i < sides.length; i++) {
+          const side = sides[i][0];
+          if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
+          if (side.style !== "solid") continue;
+          const wid = `${idPrefix}bw${clipIdx++}`;
+          defsParts.push(
+            `<clipPath id="${wid}"><polygon points="${annularWedges[i]}"/></clipPath>`,
+          );
+          svgParts.push(
+            `${indent}<path d="${annularPath}" fill="${colorStr(side.color)}" fill-rule="evenodd" clip-path="url(#${wid})"/>`,
+          );
+        }
         const rcid = `${idPrefix}br${clipIdx++}`;
         defsParts.push(
           `<clipPath id="${rcid}"><path d="${roundedRectPath(el.x, el.y, el.width, el.height, corners)}"/></clipPath>`,
@@ -1275,6 +1332,10 @@ export function elementTreeToSvg(
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
         if (side.style === "none" || side.style === "hidden") continue;
         if (useTrapezoid(side)) {
+          // DM-773: solid sides with rounded corners already emitted as
+          // annular wedges above (geometry-correct for any radius). Skip
+          // the legacy trapezoid emit so we don't double-paint.
+          if (hasOuterRadius) continue;
           // Emit as a polygon trapezoid that tapers correctly at corners.
           svgParts.push(
             `${indent}<polygon points="${trapezoids[i][1]}" fill="${colorStr(side.color)}" />`,

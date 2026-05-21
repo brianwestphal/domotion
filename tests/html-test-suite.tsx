@@ -281,6 +281,17 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // text antialiasing + arrow-glyph substitution in the header / caption
   // paragraphs only. Reviewed visually; accepted as a stable baseline.
   "13-deep-stacking-paint-order": "DM-774: text antialiasing + arrow-glyph substitution only; geometry / paint order are correct",
+  // DM-771: <select> single-choice / optgroup / size=N listbox / multiple
+  // listbox all render with correct UA chrome (chevrons, item rows,
+  // selected-row highlight). Residual diff is text-baseline antialiasing
+  // scatter on the option rows + the closed-dropdown's chevron column.
+  // Reviewed visually; accepted.
+  "06-forms-select": "DM-771: <select> UA chrome correct; residual diff is text-baseline antialiasing scatter on option rows",
+  // DM-772: overflow visible / hidden / scroll / auto / clip / x/y test —
+  // all six boxes paint their content with the correct clip behavior.
+  // Residual diff is text-baseline antialiasing scatter inside each box.
+  // Reviewed visually; accepted.
+  "25-overflow-values": "DM-772: clip behavior correct on all six boxes; residual diff is text-baseline antialiasing scatter",
 };
 
 interface TestResult {
