@@ -635,9 +635,20 @@ export function elementTreeToSvg(
         const inflateR = Math.max(outlineInflate, shadowInflateR, ocmInflate);
         const inflateB = Math.max(outlineInflate, shadowInflateB, ocmInflate);
         const inflateL = Math.max(outlineInflate, shadowInflateL, ocmInflate);
+        // DM-787: per-axis `overflow-x: clip; overflow-y: visible` (or the
+        // inverse) needs the outer clip to NOT bind on the visible axis. A
+        // huge ±100000 extension lets descendants paint past the border-box
+        // on that axis while the clipped axis stays bounded.
+        const UNBOUNDED_CP = 100000;
+        const xVisibleCp = oxV === "visible" && oyV === "clip";
+        const yVisibleCp = oyV === "visible" && oxV === "clip";
+        const cpX = xVisibleCp ? el.x - UNBOUNDED_CP : el.x - inflateL;
+        const cpW = xVisibleCp ? el.width + UNBOUNDED_CP * 2 : el.width + inflateL + inflateR;
+        const cpY = yVisibleCp ? el.y - UNBOUNDED_CP : el.y - inflateT;
+        const cpH = yVisibleCp ? el.height + UNBOUNDED_CP * 2 : el.height + inflateT + inflateB;
         clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
         defsParts.push(
-          `<clipPath id="${clipPathUrlId}"><rect x="${r(el.x - inflateL)}" y="${r(el.y - inflateT)}" width="${r(el.width + inflateL + inflateR)}" height="${r(el.height + inflateT + inflateB)}"/></clipPath>`,
+          `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,
         );
       }
     }
@@ -2532,6 +2543,16 @@ export function elementTreeToSvg(
       let ocW = Math.max(0, el.width - cbl - cbr);
       let ocH = Math.max(0, el.height - cbt - cbb);
       const isClip = ox === "clip" || oy === "clip";
+      // DM-787: CSS Overflow 3 allows mixing `overflow-x: clip; overflow-y:
+      // visible` (only `clip` permits this — `hidden + visible` coerces to
+      // `auto + hidden`). Chrome clips only the clipped axis; content can
+      // still escape on the visible axis. The SVG clipPath is a single rect,
+      // so to NOT clip on an axis we extend that axis past any plausible
+      // paint area with `±UNBOUNDED`. Apply before the `overflow-clip-margin`
+      // expansion so the per-axis grow happens AFTER ref-box adjustments.
+      const UNBOUNDED = 100000;
+      const xVisible = ox === "visible" && oy === "clip";
+      const yVisible = oy === "visible" && ox === "clip";
       const ocmRaw = el.styles.overflowClipMargin;
       if (isClip && ocmRaw != null && ocmRaw !== "" && ocmRaw !== "0px") {
         const m = /^(?:(content-box|padding-box|border-box)\s+)?(-?\d*\.?\d+)px$/i.exec(ocmRaw.trim());
@@ -2557,6 +2578,14 @@ export function elementTreeToSvg(
           ocW = Math.max(0, el.width - refL - refR + margin * 2);
           ocH = Math.max(0, el.height - refT - refB + margin * 2);
         }
+      }
+      if (xVisible) {
+        ocX = el.x - UNBOUNDED;
+        ocW = el.width + UNBOUNDED * 2;
+      }
+      if (yVisible) {
+        ocY = el.y - UNBOUNDED;
+        ocH = el.height + UNBOUNDED * 2;
       }
       defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(ocX, ocY, ocW, ocH, overflowInnerCorners, "")}</clipPath>`);
       svgParts.push(`${indent}<g clip-path="url(#${overflowClipId})">`);

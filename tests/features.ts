@@ -706,6 +706,18 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-787: per-axis `overflow-x: clip; overflow-y: visible` (and the
+    // inverse) — CSS Overflow 3 allows mixing `clip` with `visible` (only
+    // `clip` permits this; `hidden + visible` coerces to `auto + hidden`).
+    // Chrome paints only on the clipped axis; descendants escape on the
+    // visible axis. The SVG `clipPath` rect would otherwise cut on both
+    // axes, so the unclamped axis is extended by ±100000 px in the clip emit.
+    name: "overflow-per-axis-clip",
+    html: `<div style="padding:32px;background:#0d1117;font-family:-apple-system,sans-serif;display:flex;gap:32px;"><div style="width:140px;height:80px;background:#1e293b;border:2px solid #475569;overflow-x:clip;overflow-y:visible;position:relative;"><div style="width:120px;height:180px;background:linear-gradient(135deg,#1d4ed8,#ec4899);color:#fff;padding:8px;font-size:12px;">y can escape, x cannot</div></div></div>`,
+    width: 280,
+    height: 260,
+  },
+  {
     // DM-761: `overflow: clip` with `overflow-clip-margin` extends the clip
     // outward from a reference box (content / padding / border) by a length.
     // Without margin support the SVG clipPath stays at the padding box, so a
