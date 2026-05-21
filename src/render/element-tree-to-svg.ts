@@ -653,7 +653,35 @@ export function elementTreeToSvg(
       }
     }
     // mask: if mask-image is a gradient or url(), translate it to an SVG <mask>.
-    const maskImage = el.styles.maskImage;
+    // DM-758: `mask-border-source` (legacy `-webkit-mask-box-image`) layers on
+    // top of `mask-image`. Route through the simplified full-element mask
+    // path ONLY when the 9-slice degenerates to "use the entire source": both
+    // `mask-border-width` and `mask-border-outset` are `0`, AND the slice is
+    // `0 fill` (= no edge slices, just the full middle) or `1 fill` (= one
+    // unit-less slice = the whole image). For non-trivial 9-slice cases
+    // (`mb-1`, `mb-2`, `mb-3`, `mb-outset` in `niche-mask-border` — actual
+    // edge slicing with `round` / `space` / non-zero `width`), the proper
+    // mask would have to be constructed from 9 separate pieces; leaving the
+    // element unmasked is closer to the expected paint than naively
+    // stretching a non-mask-shaped source as a luminance mask (which clips
+    // the visible content to whatever the source's middle pixel happens to
+    // be). 9-slice mask-border is its own ticket.
+    const mbSrc = el.styles.maskBorderSource;
+    const mbHasSrc = mbSrc != null && mbSrc !== "" && mbSrc !== "none";
+    const mbWidth = (el.styles.maskBorderWidth ?? "0").trim();
+    const mbOutset = (el.styles.maskBorderOutset ?? "0").trim();
+    const mbSlice = (el.styles.maskBorderSlice ?? "").trim();
+    const mbWidthZero = mbWidth === "0" || mbWidth === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbWidth);
+    const mbOutsetZero = mbOutset === "0" || mbOutset === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbOutset);
+    const mbSliceFull = /^[01]\s+fill$/.test(mbSlice) || mbSlice === "1" || mbSlice === "0";
+    // Only route gradient sources through the simplified path. URL sources
+    // aren't designed as masks (the orange SVG asset in `niche-mask-border`
+    // has middle-luminance fill / 0-luminance text, so stretching it as a
+    // luminance mask produces a near-invisible element). Real 9-slice mask
+    // construction is needed for URL sources — separate ticket.
+    const mbIsGradient = mbHasSrc && /-gradient\(/i.test(mbSrc);
+    const usingMaskBorder = mbHasSrc && mbWidthZero && mbOutsetZero && mbSliceFull && mbIsGradient;
+    const maskImage = usingMaskBorder ? mbSrc : el.styles.maskImage;
     let maskUrlId: string | null = null;
     if (maskImage != null && maskImage !== "none" && maskImage !== "") {
       // DM-493: same-document fragment refs (mask-image: url("#id")) emit the
@@ -663,14 +691,24 @@ export function elementTreeToSvg(
       if (fragRef != null) {
         maskUrlId = fragRef;
       } else {
+        // DM-758: when the source comes from `mask-border-source`, force
+        // size 100% 100% / no-repeat so the mask stretches across the
+        // element — matches Chrome's paint for `slice: 1 / 0` and
+        // `slice: 0 fill / 0` patterns. The `mask-border-mode` defaults to
+        // alpha vs the regular `mask-mode` default of `match-source`, but
+        // `match-source` already does the right thing for gradient sources
+        // (alpha-mode on grayscale gradients).
+        const maskSize = usingMaskBorder ? "100% 100%" : (el.styles.maskSize ?? "auto");
+        const maskPosition = usingMaskBorder ? "0% 0%" : (el.styles.maskPosition ?? "0% 0%");
+        const maskRepeat = usingMaskBorder ? "no-repeat" : (el.styles.maskRepeat ?? "repeat");
         const maskDef = buildMaskDef(
           `${idPrefix}mk${clipIdx++}`,
           maskImage,
           el.x, el.y, el.width, el.height,
           el.styles.maskMode ?? "match-source",
-          el.styles.maskSize ?? "auto",
-          el.styles.maskPosition ?? "0% 0%",
-          el.styles.maskRepeat ?? "repeat",
+          maskSize,
+          maskPosition,
+          maskRepeat,
           el.styles.maskComposite ?? "add",
           elementMaskRasters,
         );

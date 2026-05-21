@@ -706,6 +706,16 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-758: `mask-border` (legacy `-webkit-mask-box-image`) with a
+    // gradient source + `slice 1 fill / 0 / 0` paints the entire element
+    // through the gradient as a mask. Verifies the gradient routes through
+    // the existing mask-image pipeline with `mask-size: 100% 100%` + no-repeat.
+    name: "mask-border-gradient-source",
+    html: `<div style="padding:24px;background:#0d1117;font-family:system-ui,sans-serif;"><div style="width:240px;height:120px;background:linear-gradient(135deg,#1d4ed8,#ec4899);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;-webkit-mask-box-image:linear-gradient(45deg,black 20%,transparent 50%,black 80%) 1 / 0 / 0;mask-border:linear-gradient(45deg,black 20%,transparent 50%,black 80%) 1 / 0 / 0;">diagonal fade</div></div>`,
+    width: 300,
+    height: 180,
+  },
+  {
     // DM-755: CSS `zoom` scales BOTH layout and paint. Chrome includes the
     // zoom factor in `getBoundingClientRect()` but NOT in
     // `getComputedStyle().fontSize` (which returns pre-zoom CSS pixels), so

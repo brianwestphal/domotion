@@ -264,6 +264,22 @@ export interface CapturedElement {
     maskPosition: string;
     maskRepeat: string;
     maskComposite: string;
+    /**
+     * CSS `mask-border-source` / legacy `-webkit-mask-box-image` source.
+     * Chrome exposes this only via the legacy webkit name (DM-758). The
+     * renderer routes it through the mask-image pipeline ONLY for the
+     * "simple" 9-slice cases (`slice 0 fill / 0 / 0` and `slice 1 fill / 0
+     * / 0`) where the entire source is used as a stretched full-element
+     * mask. Real 9-slice tiling (non-zero `width` / `outset`, `round` /
+     * `space` repeat) needs its own implementation.
+     */
+    maskBorderSource?: string;
+    /** Resolved `-webkit-mask-box-image-slice` (e.g. `"1 fill"`, `"30 fill"`). */
+    maskBorderSlice?: string;
+    /** Resolved `-webkit-mask-box-image-width` (e.g. `"0"`, `"20px"`). */
+    maskBorderWidth?: string;
+    /** Resolved `-webkit-mask-box-image-outset` (e.g. `"0"`, `"15px"`). */
+    maskBorderOutset?: string;
     listStyleType: string;
     listStyleImage: string;
     listStylePosition: string;

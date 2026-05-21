@@ -764,6 +764,17 @@ export const captureScript =
         maskPosition: cs.maskPosition || cs.webkitMaskPosition || '0% 0%',
         maskRepeat: cs.maskRepeat || cs.webkitMaskRepeat || 'repeat',
         maskComposite: cs.maskComposite || cs.webkitMaskComposite || 'add',
+        // DM-758: `mask-border-source` / legacy `-webkit-mask-box-image`. Chrome
+        // exposes only the legacy webkit name; modern `maskBorderSource`
+        // returns undefined. Capture source + slice / width / outset so the
+        // renderer can decide whether to route through the simplified
+        // full-element mask path (only safe when width / outset both `0`).
+        maskBorderSource: cs.webkitMaskBoxImageSource && cs.webkitMaskBoxImageSource !== 'none'
+          ? cs.webkitMaskBoxImageSource
+          : undefined,
+        maskBorderSlice: cs.webkitMaskBoxImageSlice || undefined,
+        maskBorderWidth: cs.webkitMaskBoxImageWidth || undefined,
+        maskBorderOutset: cs.webkitMaskBoxImageOutset || undefined,
         listStyleType: cs.listStyleType,
         listStyleImage: cs.listStyleImage,
         display: cs.display,
