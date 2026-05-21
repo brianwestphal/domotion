@@ -263,6 +263,12 @@ const SKIP_TESTS: Record<string, string> = {
   "21-transform-3d": "CSS transforms deferred in SK-435 (layout-coord refactor needed)",
   "21-deep-transform-3d-preserve": "preserve-3d cube composition deferred in SK-435 (same territory as 21-transform-3d)",
   "27-page": "@page rules are print-media only, not relevant to static screen capture",
+  // DM-725: `-webkit-box-reflect` paints a mirrored copy of the element box
+  // below / above / left / right of itself. SVG has no direct equivalent —
+  // would need a `<filter>` chain with feGaussianBlur + feImage or a
+  // duplicated subtree with transform-flip + opacity gradient. Author note
+  // says "skip for now".
+  "niche-webkit-box-reflect": "DM-725: -webkit-box-reflect has no direct SVG equivalent; user-flagged for skip until we ship a duplicated-subtree + gradient-mask approach",
 };
 
 /**
@@ -331,6 +337,22 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // boxes with overflow paint content inside the gutter). Residual diff
   // is text antialiasing inside the labeled boxes.
   "25-scrollbar-gutter": "DM-742: scrollbar-gutter reserve behavior correct; residual diff is text antialiasing inside the demo boxes",
+  // DM-735: font-family generics test — serif / sans-serif / monospace /
+  // cursive / fantasy / system-ui / ui-* / math / emoji / fangsong samples
+  // resolve to the right system font on macOS. Fallback stack chain ("DoesNotExist",
+  // Georgia, "Times New Roman", serif) demonstrates the chain falls through
+  // to Georgia / serif as expected. Residual diff is text antialiasing.
+  "20-font-family": "DM-735: font-family generics + fallback chain resolve correctly; residual diff is text antialiasing",
+  // DM-734: line-height / letter-spacing / word-spacing keyword + length +
+  // percentage + unitless. Sample paragraphs render with correct spacing
+  // and the inline labels show the active value. Residual diff is text
+  // antialiasing on the labels and demonstrators.
+  "20-text-line-spacing": "DM-734: line-height / letter-spacing / word-spacing values render correctly; residual diff is text antialiasing",
+  // DM-733: text-align (left / right / center / justify / start / end with
+  // RTL + last-line keywords) aligns correctly to spec; minor sub-pixel
+  // shifting on the justify variant + RTL start-as-right diff is below the
+  // bar for a fidelity bug. User-signed-off as a baseline.
+  "20-text-align": "DM-733: text-align variants align correctly; residual diff is sub-pixel shifting on justify + RTL labels",
 };
 
 interface TestResult {
