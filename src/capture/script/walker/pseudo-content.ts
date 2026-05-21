@@ -278,6 +278,14 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             }
           }
           if (borderBoxW > 0 && borderBoxH > 0 && !degenerateHostTransform) {
+            // DM-783: the pseudo's own `transform` (rotate/scale/translate/
+            // matrix) wraps the pseudoBox at render time. getComputedStyle
+            // returns the resolved matrix() form, and transformOrigin returns
+            // resolved px values relative to the pseudo's box top-left — both
+            // can be pasted directly into an SVG `<g>` wrapper. Captured only
+            // when non-`none` to keep the captured tree compact.
+            const pcsTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
+            const pcsTransformOrigin = pcsTransform != null ? (pcs.transformOrigin || undefined) : undefined;
             pseudoBoxes.push({
               x: borderBoxX,
               y: borderBoxY,
@@ -290,6 +298,8 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
               borderBottomWidth: bwB, borderBottomColor: bwB > 0 ? normColor(pcs.borderBottomColor) : undefined, borderBottomStyle: pcs.borderBottomStyle,
               borderLeftWidth: bwL, borderLeftColor: bwL > 0 ? normColor(pcs.borderLeftColor) : undefined, borderLeftStyle: pcs.borderLeftStyle,
               borderRadius: parseFloat(pcs.borderRadius) || 0,
+              transform: pcsTransform,
+              transformOrigin: pcsTransformOrigin,
             });
           }
         }
@@ -501,8 +511,20 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         || (bwBottom > 0 && colorIsPaintable(sideBorderBottomColor))
         || (bwLeft > 0 && colorIsPaintable(sideBorderLeftColor))
       );
+      // DM-782: background-image (linear-gradient / radial-gradient / url())
+      // on text-content pseudos. The empty-content path already plumbs this
+      // (DM-767); the text-content path was dropping it, so "gradient badge"
+      // patterns (`.tier.popular::before { content: "MOST POPULAR"; background:
+      // linear-gradient(135deg, ...) }`) lost the pill bg behind the white
+      // glyphs.
+      const pseudoBgImgRaw = pcs.backgroundImage;
+      const hasPseudoBgImg = pseudoBgImgRaw != null && pseudoBgImgRaw !== '' && pseudoBgImgRaw !== 'none';
+      // DM-783: pseudo's own `transform` (rotate/scale/translate/matrix)
+      // wraps both the paint box AND the glyph emit at render time.
+      const pseudoTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
+      const pseudoTransformOrigin = pseudoTransform != null ? (pcs.transformOrigin || undefined) : undefined;
       let pseudoBoxStyles = null;
-      if (pseudoBgColor !== '' || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)') || hasPerSideBorder) {
+      if (pseudoBgColor !== '' || hasPseudoBgImg || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)') || hasPerSideBorder || pseudoTransform != null) {
         pseudoBoxStyles = {
           padL: parseFloat(pcs.paddingLeft) || 0,
           padR: parseFloat(pcs.paddingRight) || 0,
@@ -520,9 +542,12 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
           lineH,
           fontSize: elFontSize,
           backgroundColor: pseudoBgColor !== '' ? pseudoBgColor : undefined,
+          backgroundImage: hasPseudoBgImg ? pseudoBgImgRaw : undefined,
           borderRadius: pseudoBR > 0 ? pseudoBR : undefined,
           borderWidth: bwUniform ? bwTop : undefined,
           borderColor: bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)' ? pseudoBC : undefined,
+          transform: pseudoTransform,
+          transformOrigin: pseudoTransformOrigin,
           // Per-side colors. Renderer reads these when no uniform border
           // is set and emits a `<line>` for each side whose width > 0 and
           // color is paintable. Undefined when the side has no visible

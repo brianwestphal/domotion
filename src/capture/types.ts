@@ -137,6 +137,19 @@ export interface TextSegment {
     borderRightColor?: string;
     borderBottomColor?: string;
     borderLeftColor?: string;
+    /** DM-783: pseudo's own `transform` (rotate/scale/translate/matrix/skew).
+     *  Captured verbatim from `getComputedStyle(host, '::before').transform`,
+     *  which Chrome returns in resolved `matrix(a,b,c,d,e,f)` form — pasteable
+     *  directly into an SVG `<g transform="…">` wrapper. Renderer wraps the
+     *  pseudoBox rect + glyph emit so rotate(45deg) on a `::before { border-
+     *  right; border-bottom }` paints as a check-mark (the rotation pivots
+     *  around the box center per `transformOrigin`). */
+    transform?: string;
+    /** Resolved px transform-origin (e.g. `"50px 50px"` for a 100×100 box's
+     *  default `50% 50%`). Renderer pre-bakes a translate-transform-translate
+     *  matrix so the rotation/scale pivots around the captured origin instead
+     *  of (0, 0). When undefined, renderer defaults to the box center. */
+    transformOrigin?: string;
   };
 }
 

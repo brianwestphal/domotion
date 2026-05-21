@@ -1,0 +1,116 @@
+# Pseudo-element paint
+
+`::before` and `::after` pseudo-elements are first-class paint surfaces in
+Domotion. The capture pass walks each host element's `::before` and `::after`
+computed styles, derives a box rect (or text segment) in viewport coordinates,
+and routes it through the same render machinery that paints regular elements
+— with the per-pseudo overrides described below.
+
+## Captured surfaces
+
+Each pseudo is one of four shapes, decided at capture time:
+
+1. **Image pseudo** — `content: url(...)`. Captured as a `pseudoImage` entry
+   on the host element; renders as `<image>` at the inline-block content-box.
+2. **Empty-content pseudo** — `content: ""` with a visible paint surface
+   (background, border, gradient). Captured as a `pseudoBoxes[]` entry on the
+   host; renders as `<rect>` + optional border lines / triangle polygon /
+   gradient layer rects.
+3. **Text-content pseudo** — `content: "…"` with literal text. Captured as a
+   `TextSegment` injected into the host's `textSegments[]`. When the pseudo
+   also has its own paint box (bg / border / gradient), the segment carries a
+   `pseudoBox` sub-record so the renderer paints box + glyphs together.
+4. **Raster pseudo** — text-content pseudo whose codepoints route through a
+   color bitmap font (emoji, `U+2713`, PUA icon-font glyphs). Captured with a
+   `rasterRect` for post-capture screenshot replacement.
+
+## Per-surface paint coverage
+
+Per-pseudo CSS properties Domotion honors:
+
+| Property              | Empty-content       | Text-content        | Image          | Notes |
+|-----------------------|---------------------|---------------------|----------------|-------|
+| `background-color`    | yes                 | yes                 | n/a            | Resolved to sRGB at capture time. |
+| `background-image`    | yes (gradients/url) | yes (gradients/url) | n/a            | Multiple comma-separated layers; emit in reverse order so layer 0 paints on top. |
+| `border-radius`       | yes (uniform)       | yes (uniform)       | n/a            | Single-value shorthand; clamped to `min(r, w/2, h/2)` for capsule shapes. |
+| `border` (uniform)    | yes                 | yes                 | n/a            | `<rect stroke=...>` with style: solid / dashed / dotted. |
+| `border` (per-side)   | yes (`<line>` per)  | yes (`<line>` per)  | n/a            | Single-side borders paint as a `<line>`; CSS triangles detected + emitted as `<polygon>`. |
+| `padding`             | yes                 | yes                 | yes            | Inflates the paint box around the text content. |
+| `transform`           | yes                 | yes                 | no             | See § Transform below. |
+| `transform-origin`    | yes                 | yes                 | no             | Pre-baked into a translate-transform-translate matrix at render time. |
+| `color`               | n/a                 | yes (overrides host)| n/a            | Pseudo glyphs paint in their own color, not the host's. |
+| `font-size` / `family`| n/a                 | yes (overrides host)| n/a            | Same as `color`. |
+| `position: absolute`  | yes                 | yes                 | yes (in flow)  | Resolves `left/top/right/bottom` against the host's padding box. |
+| `opacity: 0`          | suppresses paint    | suppresses paint    | suppresses paint | Skips the pseudo entirely (Material-ripple hover overlay pattern). |
+| Host degenerate xform | suppresses paint    | suppresses paint    | suppresses paint | When the host's `transform: matrix(...)` has determinant 0, the pseudo doesn't paint (Apple "empty cart" badge pattern). |
+
+## Transform
+
+The pseudo's own `transform` (rotate / scale / translate / matrix / skew) is
+captured verbatim from `getComputedStyle(host, '::before').transform`. Chrome
+always returns the resolved `matrix(a, b, c, d, e, f)` form, which pastes
+directly into an SVG `<g transform="…">` (column-major matrix convention
+matches between CSS and SVG).
+
+`transform-origin` resolves to absolute px values in the pseudo's box-local
+coordinate system (e.g. `"50px 50px"` for a 100×100 box's default `50% 50%`).
+Renderers pre-bake the rotation/scale around that origin as
+
+```svg
+<g transform="translate(tx ty) <css-transform> translate(-tx -ty)">…</g>
+```
+
+where `(tx, ty) = (pb.x + originX, pb.y + originY)` are viewport-absolute. The
+pre-baked form works across SVG consumers that don't support the modern
+`transform-origin="…"` attribute, and removes a class of compositor-quirk
+inconsistencies between renderers.
+
+The wrap covers the pseudo's entire paint set:
+
+- For empty-content `pseudoBoxes`: rect + per-side border `<line>`s +
+  triangle `<polygon>` + rounded-rect stroke — all share the wrapping `<g>`.
+- For text-content `pseudoBox`: the bg-color rect, gradient layer rects,
+  per-side border lines, **and** the glyph emit + text-decoration +
+  raster-glyph overlays — all rotate together so a `transform: rotate(-15deg)`
+  on a gradient pill keeps its label aligned to the pill, not to the host's
+  baseline.
+
+## What's NOT honored (known gaps)
+
+- **3D transforms** — `rotateX/Y/Z(…)`, `perspective(…)`, `translateZ(…)`.
+  The captured matrix is the resolved 2D `matrix(...)` form; 3D content
+  collapses to its 2D projection per CSS spec, so `rotateX(…)` looks
+  axis-aligned in Domotion's output. Filed as a follow-up.
+- **`::first-letter` / `::first-line`** — `::first-line` is partially
+  supported via the multi-segment override path (the first segment of a
+  paragraph carries the pseudo's font / weight / variant overrides);
+  `::first-letter` drop caps are not (see DM-779 — initial-letter / line-
+  wrap-around layout is a feature gap).
+- **`::marker`** — list markers paint via the host's marker emit path, not as
+  a pseudo. `@counter-style`-resolved markers fall back to the UA decimal
+  style (DM-770).
+- **`::placeholder`** — input placeholder text routes through the form-
+  controls renderer (`src/render/form-controls.ts`), not the pseudo path.
+
+## Capture-side reference
+
+- `src/capture/script/walker/pseudo-content.ts` — reads computed styles for
+  `::before` / `::after`; branches into image / empty-content / text-content
+  / raster cases. Produces `pseudoSegments[]` and `pseudoBoxes[]`.
+- `src/capture/script/walker/pseudo-inject.ts` — re-anchors each segment's
+  `x` / `y` against the host's real text boundaries (capture-time positions
+  were relative to the padding box), builds the `pseudoBox` sub-record for
+  text-content pseudos.
+- `src/capture/types.ts` — `TextSegment.pseudoBox` field definitions.
+
+## Render-side reference
+
+- `src/render/element-tree-to-svg.ts` (the `pseudoBoxes` loop) — empty-
+  content paint. Owns the gradient `<defs>` allocation + transform wrap.
+- `src/render/text.ts` — text-content paint. The bg / gradient / border
+  emit for `seg.pseudoBox` is duplicated between `renderSingleLineText` and
+  `renderMultiSegmentText`; the transform wrap covers box + glyphs + deco +
+  raster overlay together.
+- `RenderTextOpts.emitPseudoBoxBgLayers` — closure injected by the main
+  render loop so the text renderer can emit gradient layers without owning
+  the `defsParts` / `clipIdx` state directly.

@@ -48,6 +48,40 @@ function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>
 }
 
 /**
+ * DM-783: parse a resolved `transform-origin` string (`"50px 50px"`,
+ * `"50px 50px 0px"`) into an `(ox, oy)` pair in px relative to the pseudoBox's
+ * top-left. Chrome's getComputedStyle always returns px values (never
+ * keywords like "left top" or "%"), so we just split + parseFloat. The
+ * 3rd Z component is ignored — we only paint 2D. Falls back to the box
+ * center when the value is missing or unparseable, matching Chrome's
+ * `50% 50%` default.
+ */
+function parsePseudoTransformOrigin(originCss: string | undefined, width: number, height: number): { ox: number; oy: number } {
+  const center = { ox: width / 2, oy: height / 2 };
+  if (originCss == null || originCss === "") return center;
+  const parts = originCss.split(/\s+/).map((p) => parseFloat(p));
+  if (parts.length < 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return center;
+  return { ox: parts[0], oy: parts[1] };
+}
+
+/**
+ * DM-783: when the pseudoBox carries a `transform`, wrap `inner` in a
+ * `<g transform="…">` that pre-bakes the rotation/scale around the captured
+ * `transform-origin` — `translate(tx,ty) <css-transform> translate(-tx,-ty)`
+ * where `(tx, ty)` is the origin in viewport coords. SVG accepts the CSS
+ * matrix() / rotate() / scale() / translate() / skew() forms unchanged
+ * (column-major convention matches), so `pb.transform` pastes in verbatim.
+ * Returns `inner` unwrapped when no transform was captured.
+ */
+function pseudoBoxTransformWrap(pb: NonNullable<TextSegment["pseudoBox"]>, inner: string): string {
+  if (pb.transform == null || pb.transform === "" || pb.transform === "none") return inner;
+  const { ox, oy } = parsePseudoTransformOrigin(pb.transformOrigin, pb.width, pb.height);
+  const tx = pb.x + ox;
+  const ty = pb.y + oy;
+  return `<g transform="translate(${r(tx)} ${r(ty)}) ${pb.transform} translate(${r(-tx)} ${r(-ty)})">${inner}</g>`;
+}
+
+/**
  * Replace any UTF-16 code units flagged with `suppressGlyph` in the segment's
  * raster overlays with U+200B (zero-width space). The path renderer emits no
  * `<use>` for zero-contour glyphs, so this hides the underlying path glyph
@@ -365,6 +399,13 @@ interface RenderTextOpts {
    *  false, path-mode text renders without a clip-path so default
    *  `overflow: visible` text can spill past the box edge as Chrome paints. */
   overflowClip?: boolean;
+  /** DM-782: emit the pseudoBox's `background-image` (gradient / url() layers)
+   *  as SVG paint server defs + a covering `<rect>` per layer. Returned
+   *  markup is the rect string(s), inserted BEFORE the glyph emit so the
+   *  gradient paints under the text. Caller (main render loop) owns
+   *  `defsParts` / `clipIdx` and provides this closure; standalone callers
+   *  (unit tests) pass undefined and the gradient layers are skipped. */
+  emitPseudoBoxBgLayers?: (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }) => string;
 }
 
 /**
@@ -577,7 +618,14 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
     const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
       ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
-    return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${renderPseudoBoxPerSideBorders(pb)}`;
+    // DM-782: gradient/url() background-image layers paint BETWEEN the flat
+    // bg-color (bottom) and the text glyphs (top). Caller threads defsParts
+    // + clipIdx through `emitPseudoBoxBgLayers`; when that closure is absent
+    // (standalone callers / unit tests) we just skip the gradient layers.
+    const bgImageMarkup = (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "" && opts.emitPseudoBoxBgLayers != null)
+      ? opts.emitPseudoBoxBgLayers({ x: pb.x, y: pb.y, width: pb.width, height: pb.height, backgroundImage: pb.backgroundImage, borderRadius: clampedBR > 0 ? clampedBR : undefined })
+      : "";
+    return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`;
   })() : "";
   const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, segAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder);
   if (result != null) {
@@ -598,10 +646,18 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // lets text extend past the box edge, so the unconditional clip from
     // an earlier draft over-cut text on `word-wrap: break-word` paragraphs
     // whose last char measured a fraction of a px past `el.x + el.width`.
+    //
+    // DM-783: when the pseudo carries a CSS `transform`, wrap box + glyphs +
+    // decoration + raster overlay together so the rotation/scale pivots
+    // around the captured `transform-origin` and the text rotates WITH the
+    // box (e.g. a `::after { transform: rotate(-15deg) }` rotated pill keeps
+    // its label aligned to the pill, not the host's baseline).
+    const inner = `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}`;
+    const transformed = (singleSeg?.pseudoBox != null) ? pseudoBoxTransformWrap(singleSeg.pseudoBox, inner) : inner;
     if (opts.overflowClip) {
-      return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}</g>`);
+      return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${transformed}</g>`);
     }
-    return anisotropicCorrectionWrap(el, `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}`);
+    return anisotropicCorrectionWrap(el, transformed);
   }
 
   // DM-490 / DM-500: when the text is entirely Private Use Area codepoints
@@ -669,6 +725,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // background-color or border-radius (badges / pills / chips) need a
     // <rect> behind the text glyphs. Captured at CAPTURE_SCRIPT time once
     // seg.x/y is in its final viewport-relative position; we just emit it.
+    //
+    // DM-783: per-segment buffer so a pseudo's `transform` wraps box + glyphs
+    // + decoration + raster overlay together (the rotation/scale must pivot
+    // around the pseudo's box, not the host's baseline). Non-pseudo segments
+    // — and pseudos without a transform — flush straight into `parts` with no
+    // wrapping, preserving the prior emit order byte-for-byte.
+    const segParts: string[] = [];
     if (seg.pseudoBox != null) {
       const pb = seg.pseudoBox;
       const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
@@ -682,7 +745,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
       const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
         ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
-      parts.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${renderPseudoBoxPerSideBorders(pb)}`);
+      // DM-782: gradient/url() background-image layers paint between flat
+      // bg-color (bottom) and text glyphs (top). See `RenderTextOpts.
+      // emitPseudoBoxBgLayers` for the closure-injection rationale.
+      const bgImageMarkup = (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "" && opts.emitPseudoBoxBgLayers != null)
+        ? opts.emitPseudoBoxBgLayers({ x: pb.x, y: pb.y, width: pb.width, height: pb.height, backgroundImage: pb.backgroundImage, borderRadius: clampedBR > 0 ? clampedBR : undefined })
+        : "";
+      segParts.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`);
     }
     // Per-segment overrides from ::before / ::after pseudos (color, fontSize,
     // fontWeight). Fall back to the element's styles when the segment has no
@@ -712,7 +781,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
     const segAscent = seg.fontAscent ?? el.fontAscent;
     const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder);
-    if (result != null) { parts.push(result); }
+    if (result != null) { segParts.push(result); }
     else if (!isAllPrivateUseArea(seg.text)) {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
       // the segment text is entirely Private Use Area (icon-font codepoints
@@ -722,15 +791,25 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       const ff = segFontFamily.replace(/"/g, "'");
       const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;`;
       const sy = seg.y + seg.height / 2;
-      parts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
+      segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
     const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, segFontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, reordered.text, el.styles.textDecorationSkipInk, segFeatures);
-    if (decoMarkup !== "") parts.push(decoMarkup);
+    if (decoMarkup !== "") segParts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
     // text get their actual Chrome-painted pixels stamped over the position.
     const rasterOverlay = rasterGlyphOverlays(seg, segFontSize, clipId);
-    if (rasterOverlay !== "") parts.push(rasterOverlay);
+    if (rasterOverlay !== "") segParts.push(rasterOverlay);
+    // DM-783: when the segment's pseudo carries a CSS transform, wrap the
+    // accumulated box + glyphs + decoration + raster overlay so all four
+    // rotate together around the captured transform-origin. No-op for non-
+    // pseudo segments (`seg.pseudoBox == null`) and for pseudos without a
+    // transform — both flush through unchanged.
+    if (seg.pseudoBox != null && seg.pseudoBox.transform != null && seg.pseudoBox.transform !== "" && seg.pseudoBox.transform !== "none") {
+      parts.push(pseudoBoxTransformWrap(seg.pseudoBox, segParts.join("")));
+    } else {
+      for (const sp of segParts) parts.push(sp);
+    }
   }
 
   // Wrap the multi-segment output in the element's clip-path only when the

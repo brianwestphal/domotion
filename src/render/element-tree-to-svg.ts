@@ -1905,7 +1905,18 @@ export function elementTreeToSvg(
         borderBottomWidth?: number; borderBottomColor?: string; borderBottomStyle?: string;
         borderLeftWidth?: number; borderLeftColor?: string; borderLeftStyle?: string;
         borderRadius?: number;
+        transform?: string;
+        transformOrigin?: string;
       }>) {
+        // DM-783: snapshot svgParts.length so we can wrap THIS pb's emit in
+        // a `<g transform="…">` when pb.transform is present. The wrap pre-
+        // bakes the rotation/scale around the captured transform-origin so
+        // a rotate(45deg) on a `::before { border-right; border-bottom }`
+        // paints as a check-mark instead of a backwards-L (the rotation
+        // pivots around the box center, not the origin). When pb.transform
+        // is absent we splice nothing — the loop body's pushes flow through
+        // unchanged.
+        const pbStart = svgParts.length;
         if (pb.backgroundColor) {
           const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
           svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="${pb.backgroundColor}" />`);
@@ -1994,6 +2005,7 @@ export function elementTreeToSvg(
             const polyPts = pts.map((p) => `${r(p[0])},${r(p[1])}`).join(" ");
             svgParts.push(`${indent}<polygon points="${polyPts}" fill="${color}" />`);
           }
+          flushPbTransformWrap();
           continue;
         }
         // DM-765: when all four borders are uniform AND the pseudo has a
@@ -2026,6 +2038,7 @@ export function elementTreeToSvg(
             const sr = Math.max(0, pb.borderRadius - half);
             const dash = style === "dashed" ? ` stroke-dasharray="${r(w * 2)},${r(w * 2)}"` : style === "dotted" ? ` stroke-dasharray="${r(w)},${r(w)}"` : "";
             svgParts.push(`${indent}<rect x="${r(sx)}" y="${r(sy)}" width="${r(sw)}" height="${r(sh)}" rx="${r(sr)}" fill="none" stroke="${pb.borderTopColor}" stroke-width="${r(w)}"${dash} />`);
+            flushPbTransformWrap();
             continue;
           }
         }
@@ -2045,6 +2058,35 @@ export function elementTreeToSvg(
         side(pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y, pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y + pb.height, pb.borderRightWidth, pb.borderRightColor, pb.borderRightStyle);
         side(pb.x, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.x + pb.width, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.borderBottomWidth, pb.borderBottomColor, pb.borderBottomStyle);
         side(pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y, pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y + pb.height, pb.borderLeftWidth, pb.borderLeftColor, pb.borderLeftStyle);
+        // DM-783: wrap whatever this iteration emitted (rect / lines /
+        // polygon / per-side strokes) in a `<g transform="…">` that pre-
+        // bakes the rotation/scale around the captured transform-origin.
+        // Defined inline here so it closes over `pb` and `svgParts` /
+        // `pbStart` from the outer scope.
+        function flushPbTransformWrap() {
+          if (pb.transform == null || pb.transform === "" || pb.transform === "none") return;
+          const added = svgParts.splice(pbStart);
+          if (added.length === 0) return;
+          // transform-origin: resolved to px values relative to the
+          // pseudo's box top-left (Chrome's getComputedStyle normalises
+          // keywords / % to px). Default = box center (`50% 50%`).
+          let ox = pb.width / 2;
+          let oy = pb.height / 2;
+          if (pb.transformOrigin != null && pb.transformOrigin !== "") {
+            const oParts = pb.transformOrigin.split(/\s+/).map((p) => parseFloat(p));
+            if (oParts.length >= 2 && Number.isFinite(oParts[0]) && Number.isFinite(oParts[1])) {
+              ox = oParts[0]; oy = oParts[1];
+            }
+          }
+          const tx = pb.x + ox;
+          const ty = pb.y + oy;
+          // The inner emits were already indented; we keep the same
+          // indent for the wrapper and strip leading indent from each
+          // inner part so the wrapping `<g>` doesn't double-indent.
+          const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+          svgParts.push(`${indent}<g transform="translate(${r(tx)} ${r(ty)}) ${pb.transform} translate(${r(-tx)} ${r(-ty)})">${inner}</g>`);
+        }
+        flushPbTransformWrap();
       }
     }
 
@@ -2085,13 +2127,38 @@ export function elementTreeToSvg(
         svgParts.push(`${indent}<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${cid})"/>`);
       } else {
 
+      // DM-782: pseudoBox gradient/url() emitter. The text renderer can't
+      // own defsParts / clipIdx (those live in the element-tree render loop)
+      // so we hand it a closure that produces the gradient layer rects +
+      // appends each layer's `<linearGradient>` / `<radialGradient>` paint
+      // server to defsParts. Same emit shape as the empty-content pseudoBox
+      // path below — comma-separated layers walked in reverse so layer 0
+      // (first in CSS source) ends up on top.
+      const emitPseudoBoxBgLayers = (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }): string => {
+        const layers = splitTopLevelCommas(pb.backgroundImage);
+        const out: string[] = [];
+        for (let li = layers.length - 1; li >= 0; li--) {
+          const layer = layers[li].trim();
+          const defId = `${idPrefix}pbgt${clipIdx++}`;
+          const built = buildBackgroundLayerDef(
+            defId, layer, pb.x, pb.y, pb.width, pb.height,
+            "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
+          );
+          if (built.def === "") continue;
+          defsParts.push(built.def);
+          const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
+          out.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+        }
+        return out.join("");
+      };
       const renderOneText = (opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string; overflowClip?: boolean }): string => {
+        const optsWithEmit = { ...opts, emitPseudoBoxBgLayers };
         const hasMultipleSegments = opts.el.textSegments != null && opts.el.textSegments.length > 1;
         const isMultiLine = opts.el.text.includes("\n");
-        if (hasMultipleSegments) return renderMultiSegmentText(opts, opts.el.textSegments!);
-        if (isMultiLine) return renderMultiLineText(opts);
-        if (opts.el.tag === "input" || opts.el.tag === "textarea") return renderInputText(opts);
-        return renderSingleLineText(opts);
+        if (hasMultipleSegments) return renderMultiSegmentText(optsWithEmit, opts.el.textSegments!);
+        if (isMultiLine) return renderMultiLineText(optsWithEmit);
+        if (opts.el.tag === "input" || opts.el.tag === "textarea") return renderInputText(optsWithEmit);
+        return renderSingleLineText(optsWithEmit);
       };
 
       // text-shadow (SK-1113): render each shadow as a recolored copy of

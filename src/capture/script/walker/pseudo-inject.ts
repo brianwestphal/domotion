@@ -167,6 +167,11 @@ export const createPseudoInjectHandler = () => {
           p.seg.pseudoBox = {
             x: bx, y: boxTop, width: bw, height: bh,
             backgroundColor: bs.backgroundColor,
+            // DM-782: gradient/url() bg-image plumbing — renderer threads
+            // each comma-separated layer through `buildBackgroundLayerDef`
+            // and paints rect(s) behind the glyphs (mirrors the empty-
+            // content pseudoBox path in `element-tree-to-svg.ts`).
+            backgroundImage: bs.backgroundImage,
             borderRadius: bs.borderRadius,
             borderWidth: bs.borderWidth,
             borderColor: bs.borderColor,
@@ -179,6 +184,12 @@ export const createPseudoInjectHandler = () => {
             borderRightColor: bs.borderRightColor,
             borderBottomColor: bs.borderBottomColor,
             borderLeftColor: bs.borderLeftColor,
+            // DM-783: pseudo's `transform` + `transformOrigin`. Renderer
+            // wraps the box + glyphs in a pre-baked
+            // translate-(transform)-translate matrix so the rotation/scale
+            // pivots around the box-relative origin instead of (0,0).
+            transform: bs.transform,
+            transformOrigin: bs.transformOrigin,
           };
         }
       }

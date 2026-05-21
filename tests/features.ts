@@ -667,6 +667,32 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-783: CSS check-mark idiom — empty `::before` with a right + bottom
+    // border, sized 6×12, rotated 45° around its centre. Before the pseudo's
+    // own `transform` was captured + emitted as a `<g transform="…">` wrapper,
+    // the L-shape painted axis-aligned, reading as a backwards-L instead of a
+    // tick. Verifies (a) the per-side border emit for the empty-content
+    // pseudoBox, (b) transform-origin centring on the pseudo's own box (not
+    // the host's origin), (c) z-stacking — text + box wrap together so the
+    // tick lands inside the green circle.
+    name: "pseudo-before-checkmark-rotated",
+    html: `<div style="padding:24px;background:#0d1117;font-family:-apple-system,sans-serif;display:flex;align-items:center;gap:10px;color:#e6edf3;font-size:13px;"><span style="display:inline-block;position:relative;width:18px;height:18px;background:#22c55e;border-radius:50%;"><span style="position:absolute;left:6px;top:2px;width:5px;height:10px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(45deg);transform-origin:50% 50%;display:block;"></span></span>Completed</div>`,
+    width: 200,
+    height: 80,
+  },
+  {
+    // DM-782: text-content `::before` with `background: linear-gradient(...)`
+    // and white glyph text — the "gradient badge / pill / chip" pattern
+    // (`32-real-world-pricing-table` MOST POPULAR badge). Previously the
+    // background-image was dropped at capture-inject and the box painted with
+    // `fill="none"`, so only the white glyphs were visible. Verifies the
+    // gradient layer reaches the renderer and paints under the text.
+    name: "pseudo-before-gradient-badge",
+    html: `<div style="padding:40px;background:#0d1117;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;"><span class="badge" style="position:relative;display:inline-block;padding:28px 18px;background:#161b22;color:#e6edf3;font-size:13px;border-radius:6px;width:160px;text-align:center;">Pro Tier<style>.badge::before{content:'NEW';position:absolute;top:-10px;right:-12px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;}</style></span></div>`,
+    width: 280,
+    height: 140,
+  },
+  {
     // DM-506: CSS sprite icon image-replacement idiom — `text-indent: -9999px`
     // hides the accessible label off-screen and the visible icon is a slice of
     // a sprite sheet selected via `background-position`. Capture detects the

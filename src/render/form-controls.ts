@@ -787,8 +787,14 @@ function renderDatePicker(el: CapturedElement, indent: string): string {
   const parts: string[] = [];
   const t = el.styles.inputType ?? "date";
   const val = el.styles.inputValue ?? "";
+  // DM-723: Chrome's UA stylesheet sets date/time/month/week/datetime-local
+  // inputs to `font-family: monospace; font-size: ~13.333px` (small-control
+  // form-control metric). Read the captured font-size so we match Chrome's
+  // resolved metric instead of an under-scaled 11px literal — the previous
+  // hardcoded size emitted glyphs noticeably narrower than the expected paint.
+  const fontSize = parseFloat(el.styles.fontSize ?? "") || 13.333;
   const tx = el.x + 6;
-  const ty = el.y + el.height / 2 + 4;
+  const ty = el.y + el.height / 2 + fontSize * 0.35;
   // DM-731: pick up the input's resolved color so the value text matches
   // the active color-scheme. Hardcoding `rgb(0,0,0)` made dark-mode date
   // inputs render with invisible black text on a dark background. Falls
@@ -801,9 +807,7 @@ function renderDatePicker(el: CapturedElement, indent: string): string {
   // the canonical ISO form (`2026-04-21`). DM-263.
   const display = formatDateInputDisplay(t, val);
   if (display !== "") {
-    // Chrome paints date input values in a tabular monospaced face; we route
-    // through the system mono fallback so the segments don't kern.
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="${textFill}">${display.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="ui-monospace, Menlo, monospace" fill="${textFill}">${display.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
   }
   // Picker icon on the right edge: calendar for date / month / week / datetime-local,
   // clock for time. Chrome paints these monochrome at ~14px in the input's
