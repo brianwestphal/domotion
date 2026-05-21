@@ -837,19 +837,30 @@ export const captureScript =
         return {};
       })(),
     };
-    // Inline elements that wrap across multiple line boxes need per-fragment
-    // paint of background + border, not a single rect covering the bbox (the
-    // bbox is the union of every line and produces a giant container-wide
-    // shape that swallows the text). Trigger when:
-    //   1. `display` is `inline` (not inline-block / block / flex / grid),
-    //   2. the element has a non-transparent background OR a non-zero border
-    //      width on any side,
-    //   3. `el.getClientRects()` returns more than one rect (i.e. the inline
-    //      actually wrapped onto multiple lines).
-    // The renderer reads `inlineFragments` and walks per-fragment, applying
-    // `box-decoration-break` slice/clone semantics. See CapturedElement
-    // .inlineFragments + `src/render/element-tree-to-svg.ts`.
-    if (cs.display === 'inline') {
+    // Elements that fragment into multiple paint boxes need per-fragment
+    // paint of background + border, not a single rect covering the bbox
+    // (the bbox is the union of every fragment and produces an over-wide /
+    // over-tall shape that paints across the gap between fragments).
+    // Trigger when:
+    //   1. The element has a non-transparent background OR a non-zero border
+    //      width on any side, AND
+    //   2. `el.getClientRects()` returns more than one rect, AND
+    //   3. The element is either
+    //      (a) `display: inline` and wrapped onto multiple lines, OR
+    //      (b) DM-754: block-level (block / list-item / flex / grid /
+    //          flow-root) inside a multi-column container ancestor —
+    //          `column-count > 1` or `column-width: <length>` — where a
+    //          tall block fragments at the column boundary.
+    // Without the `display` / ancestor-column guard we'd trip on table cells
+    // and other layouts where Chrome legitimately reports multiple client
+    // rects for an axis-aligned bbox (e.g. SVG paint shapes); restrict to
+    // the two known fragmentation cases.
+    //
+    // The renderer reads `inlineFragments`, detects axis from frag geometry
+    // (block-axis when fragments stack vertically, inline-axis when they
+    // stack horizontally), and walks per-fragment with the right
+    // `box-decoration-break` slice/clone semantics for that axis.
+    {
       var _bgC = _captured.styles.backgroundColor;
       var _hasBg = _bgC != null && _bgC !== '' && _bgC !== 'transparent' && _bgC !== 'rgba(0, 0, 0, 0)';
       var _hasBgImage = _captured.styles.backgroundImage != null
@@ -859,7 +870,32 @@ export const captureScript =
       var _bbw = parseFloat(_captured.styles.borderBottomWidth || '0') || 0;
       var _blw = parseFloat(_captured.styles.borderLeftWidth || '0') || 0;
       var _hasBorder = _btw > 0 || _brw > 0 || _bbw > 0 || _blw > 0;
-      if (_hasBg || _hasBgImage || _hasBorder) {
+      var _hasPaint = _hasBg || _hasBgImage || _hasBorder;
+      var _isInline = cs.display === 'inline';
+      var _isBlockLevel = !_isInline && (
+        cs.display === 'block' || cs.display === 'list-item' || cs.display === 'flex'
+        || cs.display === 'grid' || cs.display === 'flow-root'
+        || cs.display === 'inline-block' || cs.display === 'inline-flex' || cs.display === 'inline-grid'
+      );
+      var _inMultiColumn = false;
+      if (_isBlockLevel && _hasPaint) {
+        // Walk ancestors looking for a multi-column container. `column-count`
+        // is the most common; `column-width: <length>` also creates columns.
+        // Stop at <body> (no column container above that level in practice).
+        var _a = el.parentElement;
+        while (_a != null) {
+          var _ac = window.getComputedStyle(_a);
+          var _cc = parseInt(_ac.columnCount, 10);
+          var _cw = _ac.columnWidth;
+          if ((Number.isFinite(_cc) && _cc > 1) || (_cw != null && _cw !== 'auto' && _cw !== '' && _cw !== 'normal')) {
+            _inMultiColumn = true;
+            break;
+          }
+          if (_a === document.body) break;
+          _a = _a.parentElement;
+        }
+      }
+      if (_hasPaint && (_isInline || _inMultiColumn)) {
         var _cr = el.getClientRects();
         if (_cr != null && _cr.length > 1) {
           var _frags = [];
@@ -877,6 +913,14 @@ export const captureScript =
           }
           if (_frags.length > 1) {
             _captured.inlineFragments = _frags;
+            // DM-754: stash the fragmentation axis derived from `display`.
+            // Inline-wrap (e.g. `<span>` wrapping across line boxes) slices
+            // horizontally — first owns the left side, last owns the right.
+            // Block-level fragmentation inside a multi-column container
+            // slices vertically — first owns the top, last owns the bottom.
+            // Both axes produce vertically-stacked frag rects so we can't
+            // distinguish them geometrically at render time.
+            _captured.fragmentAxis = _isInline ? 'inline' : 'block';
           }
         }
       }

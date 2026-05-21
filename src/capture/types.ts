@@ -579,6 +579,16 @@ export interface CapturedElement {
    * driven by `styles.boxDecorationBreak`. See `docs/01-fidelity.md`.
    */
   inlineFragments?: Array<{ x: number; y: number; width: number; height: number }>;
+  /** DM-754: the fragmentation axis that produced the `inlineFragments`
+   *  entries. `"inline"` — the element is `display: inline` and wrapped onto
+   *  multiple line boxes (the original DM-721 case); slice mode suppresses
+   *  the LEFT side on non-first fragments and the RIGHT side on non-last.
+   *  `"block"` — the element is block-level inside a multi-column container
+   *  ancestor (DM-754); slice mode suppresses TOP on non-first and BOTTOM on
+   *  non-last. Both axes produce vertically-stacked frag rects in practice,
+   *  so we can't distinguish them geometrically at render time. Defaults to
+   *  `"inline"` when undefined (backwards-compatible with pre-DM-754 captures). */
+  fragmentAxis?: "inline" | "block";
   children: CapturedElement[];
   imageSrc?: string;
   /** Intrinsic pixel dimensions of <img>, used for object-fit: none. */

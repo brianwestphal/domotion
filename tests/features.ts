@@ -693,6 +693,28 @@ const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-754: multi-column block-level `box-decoration-break`. The middle
+    // callout is tall enough to fragment at the column boundary. With slice
+    // (default) the first fragment owns TOP + LEFT + RIGHT borders and the
+    // second owns BOTTOM + LEFT + RIGHT (no border across the column gap);
+    // without per-fragment paint the bbox path would paint a single rect
+    // spanning both columns and bridging the gap.
+    name: "multi-column-block-decoration-slice",
+    html: `<div style="padding:16px;background:#0d1117;color:#e6edf3;font-family:-apple-system,sans-serif;font-size:12px;line-height:1.5;"><div style="column-count:2;column-gap:24px;padding:12px;background:#1e293b;border-radius:6px;"><div style="background:#312e81;border:2px solid #6366f1;border-radius:6px;padding:10px;margin-bottom:10px;">Short block in column 1.</div><div style="background:#312e81;border:2px solid #6366f1;border-radius:6px;padding:10px;margin-bottom:10px;">A tall block whose content runs past the bottom of the first column and continues into the second column — its border should not bridge the column gap. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.</div><div style="background:#312e81;border:2px solid #6366f1;border-radius:6px;padding:10px;">Final block.</div></div></div>`,
+    width: 480,
+    height: 280,
+  },
+  {
+    // DM-754 + DM-721: same multi-column container as the slice fixture but
+    // with `box-decoration-break: clone` on the fragmented block. Each
+    // fragment paints a complete bordered + rounded box (all four sides on
+    // both column ends, all four corners rounded).
+    name: "multi-column-block-decoration-clone",
+    html: `<div style="padding:16px;background:#0d1117;color:#e6edf3;font-family:-apple-system,sans-serif;font-size:12px;line-height:1.5;"><div style="column-count:2;column-gap:24px;padding:12px;background:#1e293b;border-radius:6px;"><div style="background:#312e81;border:2px solid #6366f1;border-radius:6px;padding:10px;margin-bottom:10px;box-decoration-break:clone;-webkit-box-decoration-break:clone;">Short clone block.</div><div style="background:#312e81;border:2px solid #6366f1;border-radius:6px;padding:10px;margin-bottom:10px;box-decoration-break:clone;-webkit-box-decoration-break:clone;">A tall clone block whose content fragments at the column boundary — each fragment paints its own complete border + rounded corners. Lorem ipsum dolor sit amet, consectetur adipiscing elit.</div><div style="background:#312e81;border:2px solid #6366f1;border-radius:6px;padding:10px;box-decoration-break:clone;-webkit-box-decoration-break:clone;">Final clone block.</div></div></div>`,
+    width: 480,
+    height: 280,
+  },
+  {
     // DM-506: CSS sprite icon image-replacement idiom — `text-indent: -9999px`
     // hides the accessible label off-screen and the visible icon is a slice of
     // a sprite sheet selected via `background-position`. Capture detects the

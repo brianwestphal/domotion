@@ -287,6 +287,14 @@ export function elementTreeToSvg(
     const hasBgImage = bgImage != null && bgImage !== "none" && bgImage !== "";
     const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
 
+    // DM-754: fragment axis comes from capture-side `display` inspection —
+    // both inline-wrap and multi-column block-level fragmentation produce
+    // vertically-stacked frag rects, so we can't reliably tell them apart
+    // by geometry. `inline`: first owns LEFT + TL/BL, last owns RIGHT +
+    // TR/BR, middle paints top + bottom only. `block`: first owns TOP +
+    // TL/TR, last owns BOTTOM + BL/BR, middle paints left + right only.
+    const fragsAxisIsBlock = el.fragmentAxis === "block";
+
     // Per-side captured borders. Uniformity tested for the simple stroke
     // path; mixed-per-side borders on wrapped inlines are rare and fall
     // back to the same per-side emit.
@@ -315,18 +323,25 @@ export function elementTreeToSvg(
       const f = frags[fi];
       const isFirst = fi === 0;
       const isLast = fi === frags.length - 1;
-      // In slice mode the corner radii belong only to the entry/exit edges:
-      // TL/BL on the first fragment, TR/BR on the last. Middle fragments
-      // (and the non-edge corners on first/last) collapse to sharp 90°.
-      // Clone treats every fragment as a complete box → keep all four
-      // corners.
-      const fragCorners: CornerRadii = clone ? corners : {
+      // In slice mode the corner radii belong only to the entry/exit edges
+      // — which edges, exactly, depends on the fragmentation axis:
+      //   • inline-axis (wrapped inline): TL/BL on first, TR/BR on last
+      //   • block-axis (multi-column block): TL/TR on first, BL/BR on last
+      // Middle fragments collapse to sharp 90° on all four corners. Clone
+      // treats every fragment as a complete box → keep all four corners.
+      const fragCorners: CornerRadii = clone ? corners : (fragsAxisIsBlock ? {
+        tl: isFirst ? corners.tl : { h: 0, v: 0 },
+        tr: isFirst ? corners.tr : { h: 0, v: 0 },
+        bl: isLast ? corners.bl : { h: 0, v: 0 },
+        br: isLast ? corners.br : { h: 0, v: 0 },
+        uniform: corners.uniform && isFirst && isLast,
+      } : {
         tl: isFirst ? corners.tl : { h: 0, v: 0 },
         bl: isFirst ? corners.bl : { h: 0, v: 0 },
         tr: isLast ? corners.tr : { h: 0, v: 0 },
         br: isLast ? corners.br : { h: 0, v: 0 },
         uniform: corners.uniform && isFirst && isLast,
-      };
+      });
 
       // Outset box-shadow. Clone applies shadow to each fragment; slice
       // applies it to the joined shape which would need per-fragment
@@ -391,15 +406,18 @@ export function elementTreeToSvg(
         }
       }
 
-      // Per-side borders. Slice mode suppresses the LEFT side on non-first
-      // fragments and the RIGHT side on non-last fragments; clone keeps
-      // all four sides. Solid-style only (the wrapped-inline fixture and
-      // typical use cases are solid); fall back to a single inset stroke
-      // for the uniform-color case.
-      const wantLeft = clone || isFirst;
-      const wantRight = clone || isLast;
-      const wantTop = true;
-      const wantBottom = true;
+      // Per-side borders. The suppressed sides depend on fragmentation axis:
+      //   • inline-axis slice: suppress LEFT on non-first, RIGHT on non-last;
+      //     keep TOP + BOTTOM on every fragment (wrapped-inline behavior).
+      //   • block-axis slice: suppress TOP on non-first, BOTTOM on non-last;
+      //     keep LEFT + RIGHT on every fragment (multi-column block-level).
+      // Clone always keeps all four sides. Solid-style only (the typical use
+      // cases are solid); fall back to a single inset stroke for the
+      // uniform-color case.
+      const wantTop = clone || (fragsAxisIsBlock ? isFirst : true);
+      const wantBottom = clone || (fragsAxisIsBlock ? isLast : true);
+      const wantLeft = clone || (fragsAxisIsBlock ? true : isFirst);
+      const wantRight = clone || (fragsAxisIsBlock ? true : isLast);
 
       const drawSide = (
         side: typeof sbt,
