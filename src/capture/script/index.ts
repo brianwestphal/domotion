@@ -111,6 +111,19 @@ export const captureScript =
     if (cs.display === 'none') return null;
     if ((cs.visibility === 'hidden' || cs.visibility === 'collapse') && !bordersOnlyCell) return null;
 
+    // DM-750: `content-visibility: hidden` skips paint AND layout of the
+    // subtree; Chrome treats the element as a sized placeholder (driven by
+    // `contain-intrinsic-size`) with no visible children. `getBoundingClientRect`
+    // on the host still returns the placeholder box, but child rects would
+    // re-trigger layout if asked, producing rects that don't match what Chrome
+    // actually paints. Capture the host (so background / border / placeholder
+    // box land in the output) but drop the entire subtree's text + children.
+    // `content-visibility: auto` is handled implicitly — Chrome paints in-
+    // viewport `auto` sections normally, and the live-rect capture inherits
+    // that. Out-of-viewport `auto` sections are already culled by the captured
+    // viewport's bbox filter.
+    const _contentVisHidden = cs.contentVisibility === 'hidden';
+
     // DM-580: standard accessibility "visually-hidden" / "sr-only" idioms.
     // Chrome paints nothing for these (clipped to zero), but the DOM text is
     // still present for screen readers. Without this filter the captured tree
@@ -213,7 +226,12 @@ export const captureScript =
     // padding box. The downstream text-segments assembler re-anchors
     // seg.x/y against the captured text once shaping completes. See
     // walker/pseudo-content.ts.
-    const _pcResult = capturePseudoContent(el, cs, rect, _counterSnapshot);
+    // DM-750: content-visibility:hidden hides the host's subtree, which
+    // includes generated content from ::before / ::after. Skip the pseudo
+    // capture too so the placeholder host is just an empty rect.
+    const _pcResult = _contentVisHidden
+      ? { pseudoSegments: [], pseudoBoxes: [] }
+      : capturePseudoContent(el, cs, rect, _counterSnapshot);
     const pseudoSegments = _pcResult.pseudoSegments;
     const pseudoBoxes = _pcResult.pseudoBoxes;
 
@@ -230,7 +248,7 @@ export const captureScript =
     // (DM-246); listbox-mode selects synthesize all rows via
     // styles.selectListboxOptions (DM-282).
     const textIsHiddenFallback = tag === 'meter' || tag === 'progress' || tag === 'datalist' || tag === 'option' || tag === 'optgroup';
-    if (tag !== 'svg' && tag !== 'img' && !textIsHiddenFallback) {
+    if (tag !== 'svg' && tag !== 'img' && !textIsHiddenFallback && !_contentVisHidden) {
       // Input / textarea value capture (incl. placeholder fallback, password
       // masking, sub-pixel inputXOffsets probe, text-align shift). See
       // walker/input-value.ts. When the handler `applied`, copy its locals
@@ -643,6 +661,13 @@ export const captureScript =
     }
 
     const children = [];
+    // DM-750: see the `content-visibility: hidden` note above — capture the
+    // host's own box (background / border / placeholder) but drop the subtree
+    // entirely. Skip the whole `for (child of el.children)` loop so neither
+    // children nor their text gets pushed.
+    if (_contentVisHidden) {
+      // fall through to the rest of the capture with `children = []`.
+    } else
     for (const child of el.children) {
       // Closed <details> hides non-<summary> children visually. getBoundingClientRect
       // still returns their rects and cs.display isn't 'none', so we explicitly
