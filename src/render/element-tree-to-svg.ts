@@ -1832,12 +1832,23 @@ export function elementTreeToSvg(
           const textPresDefault = /[➤]/g;
           label = label.replace(textPresDefault, (ch) => ch + "︎");
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
-          // Position: marker right-aligned just left of the li's content edge,
-          // mirroring the text-marker branch below.
-          const smallGap = 4;
+          // Position: marker right-aligned just left of the li's content edge.
+          // The 4 px constant matches the built-in numeric branch below,
+          // which targets `visible_right = li.x − 7` and adds back ~3 px of
+          // period right-side-bearing because the SVG `<text text-anchor=
+          // "end">` anchor sits at the last character's advance-end, not
+          // its visible right edge. DM-789 probed `5`, `6`, `7`, and per-
+          // trailing-space advance shifts — all increased the diff on
+          // `counter-style-cyclic-and-prefixed-numeric` (`@counter-style`
+          // suffixes like `":  "` add measurable advance under
+          // `xml:space="preserve"` that the formula doesn't fully account
+          // for). Sticking with the constant 4 px; achieving Chrome-faithful
+          // marker positions across arbitrary custom-content suffixes would
+          // require per-trailing-character right-side-bearing metrics from
+          // fontkit at render time.
           const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
           const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          const mx = outside ? el.x - smallGap : el.x + borderL + padL;
+          const mx = outside ? el.x - 4 : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
           const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
           // DM-770: `@counter-style` suffixes like `":  "` carry multiple
