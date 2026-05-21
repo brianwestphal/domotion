@@ -706,6 +706,15 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-791: Greek `<mi>` letters get the same mathvariant=italic
+    // substitution as Latin (α → 𝛼 U+1D6FC, Β → 𝛣 U+1D6E3, etc., with
+    // explicit fallbacks at the symbol-variant codepoints ∂ ϵ ϑ ϰ ϕ ϱ ϖ ∇).
+    name: "mathml-mi-greek-italic",
+    html: `<div style="padding:24px;background:#fff;font-family:system-ui,sans-serif;"><math display="block" style="font-size:24px"><mi>α</mi><mo>+</mo><mi>β</mi><mo>=</mo><mi>π</mi><mo>·</mo><msup><mi>r</mi><mn>2</mn></msup><mo>-</mo><msup><mi>e</mi><mi>θ</mi></msup></math></div>`,
+    width: 360,
+    height: 120,
+  },
+  {
     // DM-747: MathML `<mi>` with a single ASCII letter is painted by Chrome
     // using the Mathematical Italic alphabet (the mathvariant=italic mapping
     // from MathML Core). Chrome reports `font-style: normal` on `<mi>` even
