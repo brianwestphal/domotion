@@ -82,6 +82,49 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
     return w;
   };
 
+  // DM-768: when a static-flow pseudo declares `display: inline-block` (or
+  // inline-flex / inline-grid / inline-table) the box participates in Chrome's
+  // inline vertical-align math — `vertical-align: middle` aligns the pseudo's
+  // mid-point with the parent's baseline + 0.5 × x-height, `baseline` aligns
+  // the pseudo's bottom to the parent baseline, etc. The earlier formula
+  // (`rect.top + hostBorT + hostPadT + pMarT`) ignores that and places the
+  // pseudo at the host's content-area top — i.e. the line-box top — so an
+  // inline-block down-caret with `border-top: 5px solid` paints 6-7 px too
+  // high inside its parent button. Probe instead: insert a real sentinel
+  // mirroring the pseudo's box (display / size / borders / padding / margin /
+  // vertical-align) at the pseudo's logical position in the host and read its
+  // `getBoundingClientRect()`. Chrome lays out the sentinel exactly where the
+  // pseudo would have gone, so we get the correct x/y without re-deriving
+  // font metrics + vertical-align semantics ourselves.
+  const probePseudoStaticBoxRect = (el, pseudo, pcs) => {
+    const probe = document.createElement('span');
+    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box';
+    probe.style.display = pcs.display;
+    probe.style.width = pcs.width;
+    probe.style.height = pcs.height;
+    probe.style.paddingTop = pcs.paddingTop;
+    probe.style.paddingRight = pcs.paddingRight;
+    probe.style.paddingBottom = pcs.paddingBottom;
+    probe.style.paddingLeft = pcs.paddingLeft;
+    probe.style.borderTopWidth = pcs.borderTopWidth;
+    probe.style.borderRightWidth = pcs.borderRightWidth;
+    probe.style.borderBottomWidth = pcs.borderBottomWidth;
+    probe.style.borderLeftWidth = pcs.borderLeftWidth;
+    probe.style.borderStyle = 'solid';
+    probe.style.borderColor = 'transparent';
+    probe.style.marginTop = pcs.marginTop;
+    probe.style.marginRight = pcs.marginRight;
+    probe.style.marginBottom = pcs.marginBottom;
+    probe.style.marginLeft = pcs.marginLeft;
+    probe.style.verticalAlign = pcs.verticalAlign;
+    probe.style.font = ''; // inherit so line-box metrics match the pseudo's parent
+    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
+    else el.appendChild(probe);
+    const r = probe.getBoundingClientRect();
+    probe.remove();
+    return r;
+  };
+
   const pickQuoteChar = (forEl, isOpen) => {
     // Count q-element ancestors above this element (depth=0 = the first q
     // not inside another q). The pseudo lives ON forEl so when forEl IS a
@@ -285,6 +328,36 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             const pMarT = parseFloat(pcs.marginTop) || 0;
             borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
             borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
+            // DM-768: static `display: inline-block` (and inline-flex / inline-grid /
+            // inline-table) pseudos participate in Chrome's inline vertical-align
+            // math — the formula above ignores `vertical-align` and pins the box to
+            // the host's content-area top, which is 6-7 px too high for a typical
+            // `vertical-align: middle` down-caret. Probe with a real sentinel that
+            // mirrors the pseudo's box properties.
+            //
+            // CSS render order on the line is: ::before → real children → ::after.
+            // The sentinel is a real child:
+            //   - For ::before, the sentinel renders AFTER the pseudo. The
+            //     pseudo's own position is unchanged; the sentinel just shifts
+            //     subsequent content. So the pseudo's border-box left =
+            //     probe.left − pMarR − borderBoxW − pMarL (back out the sentinel
+            //     gap), and the pseudo's top equals probe.top (both lay out
+            //     on the same line with matching `vertical-align`).
+            //   - For ::after, the sentinel renders BEFORE the pseudo. Without
+            //     the sentinel, the pseudo would take the slot the sentinel
+            //     now occupies, so the pseudo's border-box left = probe.left
+            //     and top = probe.top.
+            const dispIsInline = pcs.display === 'inline-block' || pcs.display === 'inline-flex' || pcs.display === 'inline-grid' || pcs.display === 'inline-table';
+            if (dispIsInline) {
+              const pr = probePseudoStaticBoxRect(el, pseudo, pcs);
+              borderBoxY = pr.top - vp.y;
+              if (pseudo === '::after') {
+                borderBoxX = pr.left - vp.x;
+              } else {
+                const pMarR = parseFloat(pcs.marginRight) || 0;
+                borderBoxX = pr.left - vp.x - pMarR - borderBoxW - pMarL;
+              }
+            }
           }
           // DM-710: if the host has a CSS transform whose 2D submatrix is
           // singular (zero determinant), the host's painted area collapses

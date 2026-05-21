@@ -706,6 +706,20 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-768: static `display: inline-block` pseudo with `vertical-align: middle`
+    // — the CSS-triangle down-caret idiom (`width: 0; height: 0; border-left:
+    // transparent; border-right: transparent; border-top: solid currentColor`).
+    // The pseudo lands inside the inline flow at `baseline − 0.5 × x-height`,
+    // not at the line-box top, but the prior static-flow position formula used
+    // `rect.top + hostBorT + hostPadT + pMarT` and pinned the pseudo 6-7 px too
+    // high. Verifies that a sentinel-probed pseudo position correctly aligns
+    // the caret with the surrounding text.
+    name: "pseudo-after-down-caret-vertical-align",
+    html: `<div style="padding:24px;background:#fff;font-family:-apple-system,sans-serif;font-size:14px;"><style>.menu{display:inline-block;padding:6px 12px;border:1px solid #cbd5e1;background:#fff;border-radius:4px;}.caret::after{content:'';display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #0f172a;margin-left:8px;vertical-align:middle;}</style><span class="menu">Sort: Newest <span class="caret"></span></span></div>`,
+    width: 240,
+    height: 80,
+  },
+  {
     // DM-754: multi-column block-level `box-decoration-break`. The middle
     // callout is tall enough to fragment at the column boundary. With slice
     // (default) the first fragment owns TOP + LEFT + RIGHT borders and the
