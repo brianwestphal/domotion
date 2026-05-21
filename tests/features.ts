@@ -706,6 +706,18 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-788: `counter(name, custom-style)` / `counters(name, sep, custom-style)`
+    // inside pseudo `content` should run the counter value through the named
+    // `@counter-style`. Chrome's empirical paint includes the pad-applied
+    // value only — prefix / suffix are reserved for marker context, not the
+    // `counter()` function. Verifies `content: counter(step, padded2)`
+    // renders as `01Intro` / `02Body` (numeric system + `pad: 2 "0"`).
+    name: "counter-style-counter-function-with-pad",
+    html: `<div style="padding:24px;background:#fff;font-family:system-ui,sans-serif;font-size:16px;"><style>@counter-style padded2 { system: numeric; symbols: "0" "1" "2" "3" "4" "5" "6" "7" "8" "9"; pad: 2 "0"; } .sc { counter-reset: step; } .sc h3 { counter-increment: step; margin: 4px 0; font-size:16px; } .sc h3::before { content: counter(step, padded2); color:#1d4ed8; font-family: ui-monospace, monospace; margin-right: 8px; }</style><div class="sc"><h3>Intro</h3><h3>Body</h3><h3>Wrap</h3></div></div>`,
+    width: 320,
+    height: 180,
+  },
+  {
     // DM-770: `@counter-style` resolution at capture time. CSS exposes
     // computed `::marker { content }` as the literal `"normal"` even when
     // the painted marker is a custom symbol, so the capture walker re-

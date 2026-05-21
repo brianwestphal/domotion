@@ -53,7 +53,7 @@
 // element's own textSegments. Those depend on text shaping state that
 // hasn't been pulled out of captureInner yet — follow-up.
 
-export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster }) => {
+export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle }) => {
   // DM-785: Chrome's HarfBuzz-shaped layout width differs from
   // `canvas.measureText` by ~1-3px on bold uppercase short strings (the
   // gradient-pill / MOST POPULAR / NEW badge pattern). Measuring via an
@@ -226,15 +226,26 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
           });
           const cname = args[0];
           const sep = isCounters ? (args[1] ?? '') : '';
-          // counter-style argument (third arg of counters, second of
-          // counter) is currently ignored — decimal-only. Most fixtures
-          // use the default style; non-decimal can be added later.
+          // DM-788: third arg of counters() / second arg of counter() is a
+          // `<counter-style>` name. When that name matches a custom
+          // `@counter-style` rule captured in the pre-walk, run each value
+          // through the resolver so prefix / suffix / pad / negative / range
+          // / fallback descriptors apply — e.g. `counter(step, prefixed)`
+          // produces "Step 01:  " instead of plain decimal "1".
+          const styleArg = isCounters ? args[2] : args[1];
+          const useCustomStyle = styleArg != null && styleArg !== ''
+            && isCustomCounterStyle != null && isCustomCounterStyle(styleArg);
+          const format = (v) => {
+            if (!useCustomStyle) return String(v);
+            const out = resolveCounterValue(styleArg, v);
+            return out != null ? out : String(v);
+          };
           const snapshot = counterSnapshot.get(el) || [];
-          const matches = snapshot.filter((s) => s.name === cname).map((s) => String(s.value));
+          const matches = snapshot.filter((s) => s.name === cname).map((s) => format(s.value));
           if (isCounters) {
-            text += matches.length > 0 ? matches.join(sep) : '0';
+            text += matches.length > 0 ? matches.join(sep) : format(0);
           } else {
-            text += matches.length > 0 ? matches[matches.length - 1] : '0';
+            text += matches.length > 0 ? matches[matches.length - 1] : format(0);
           }
           i = closeIdx + 1;
         } else if (content.startsWith('open-quote', i)) {

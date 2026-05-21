@@ -23,6 +23,7 @@ import { createFontMetrics } from "./font-metrics.js";
 import { createPlaceholderShown } from "./placeholder-shown.js";
 import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
+import { createCounterStyleResolver } from "./walker/counter-style-resolver.js";
 import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
@@ -51,9 +52,11 @@ export const captureScript =
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   // DM-770: counter-style map is populated by the pre-walk below (which
   // reads @counter-style rules from document.styleSheets); declared here so
-  // the lists-counters handler closes over the same object reference.
+  // the lists-counters and pseudo-content handlers close over the same
+  // object reference via the shared counter-style resolver.
   const _counterStyles = {};
-  const { captureListsCounters } = createListsCountersHandler({ normColor, counterStyles: _counterStyles });
+  const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
+  const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
   const { discoverMasks, maskDefs: _maskDefs, maskRasters: _maskRasters } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
@@ -68,6 +71,8 @@ export const captureScript =
     normColor,
     measureFontMetrics: _measureFontMetrics,
     textNeedsRaster,
+    resolveCounterValue,
+    isCustomCounterStyle,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
   const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster });
