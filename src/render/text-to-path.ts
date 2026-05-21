@@ -1486,17 +1486,51 @@ export function textToPathMarkup(
           // tofu's outline. (DM-334.)
           const nextI = i + ch.length;
           const nextCp = nextI < text.length ? text.codePointAt(nextI)! : 0;
-          const skipNotdef = isEmojiCodepoint(cp, nextCp) || isPrivateUseCodepoint(cp);
+          const isPua = isPrivateUseCodepoint(cp);
+          const skipNotdef = isEmojiCodepoint(cp, nextCp) || isPua;
           const uses: string[] = [];
+          let suppressedNotdef = false;
           for (const g of layout.glyphs) {
-            if (g.path.commands.length > 0 && !(skipNotdef && g.id === 0)) {
-              const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, g.path.commands);
-              uses.push(`<use href="#${defId}" x="0" y="0"/>`);
-            }
+            if (g.path.commands.length === 0) continue;
+            if (skipNotdef && g.id === 0) { suppressedNotdef = true; continue; }
+            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, g.path.commands);
+            uses.push(`<use href="#${defId}" x="0" y="0"/>`);
           }
           if (uses.length > 0) {
             const cssX = Number(xOffsets[i].toFixed(3));
             groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})">${uses.join("")}</g>`);
+            if (cssX > rightEdge) rightEdge = cssX;
+          } else if (isPua && suppressedNotdef) {
+            // DM-769: see singleFontMarkup branch for the full rationale.
+            // Multi-run text path — the per-char Y-flip scale wrapping is
+            // applied here too, so emit a tofu path in font units inside
+            // the scale group. The hollow shape is a `<path>` with outer +
+            // inner sub-rectangles and `fill-rule="evenodd"` so the
+            // wrapping group's `fill="<textColor>"` paints the ring while
+            // leaving the inside transparent.
+            const cssX = Number(xOffsets[i].toFixed(3));
+            const advancePx = nextI < text.length
+              ? (xOffsets[nextI] - xOffsets[i])
+              : fontSize * 0.6;
+            const upem = run.font.unitsPerEm;
+            const advanceFu = (advancePx / chScale) * (upem / fontSize);
+            const tofuW = Math.max(2, advanceFu * 0.7);
+            const tofuH = upem * 0.65;
+            const cornerInsetX = (advanceFu - tofuW) / 2;
+            const borderFu = Math.max(upem / Math.max(4, fontSize), upem * 0.03);
+            const x0 = cornerInsetX;
+            const x1 = x0 + tofuW;
+            const y0 = 0;
+            const y1 = tofuH;
+            const ix0 = x0 + borderFu;
+            const ix1 = x1 - borderFu;
+            const iy0 = y0 + borderFu;
+            const iy1 = y1 - borderFu;
+            if (ix1 > ix0 && iy1 > iy0) {
+              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><path d="M${r(x0)} ${r(y0)} L${r(x1)} ${r(y0)} L${r(x1)} ${r(y1)} L${r(x0)} ${r(y1)} Z M${r(ix0)} ${r(iy0)} L${r(ix0)} ${r(iy1)} L${r(ix1)} ${r(iy1)} L${r(ix1)} ${r(iy0)} Z" fill-rule="evenodd"/></g>`);
+            } else {
+              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><rect x="${r(x0)}" y="${r(y0)}" width="${r(tofuW)}" height="${r(tofuH)}"/></g>`);
+            }
             if (cssX > rightEdge) rightEdge = cssX;
           }
           i += ch.length;
@@ -1664,6 +1698,48 @@ function singleFontMarkup(
       }
       const ty = -pos.yOffset;
       uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
+    } else if (skipNotdefHere) {
+      // DM-769: PUA codepoint with no glyph coverage in the host font. The
+      // glyph path is suppressed (to avoid painting a giant notdef tofu
+      // over surrounding text — DM-490 / DM-500) but Chrome paints a small
+      // hollow-rectangle tofu at the codepoint's advance width. Emit a
+      // matching tofu so positions like the inline `<span
+      // class="ic">&#xe5cd;</span>` rows aren't visually blank. Sized at
+      // ~0.7 × advance × ~0.65em centered in the advance, with a 1-device-
+      // pixel border thickness. Painted in font-units inside the wrapping
+      // `<g transform="scale(sc, -sc)">` (Y-up); the rect at y=0 height=H
+      // extends UP from the baseline after the Y-flip.
+      //
+      // To paint a hollow outline while inheriting the wrapping group's
+      // `fill="<textColor>"` (currentColor isn't available here — `fill`
+      // is the only color attribute that bubbles down), emit a `<path>`
+      // with TWO sub-rectangles and `fill-rule="evenodd"`: the outer rect
+      // fills, the inner rect punches a hole. Result is a rectangular
+      // ring filled in the text color.
+      const tx = usePerChar ? xOffsets![i] / scale : x;
+      const advanceFu = pos.xAdvance;
+      const tofuW = Math.max(2, advanceFu * 0.7);
+      const tofuH = font.unitsPerEm * 0.65;
+      const cornerInsetX = (advanceFu - tofuW) / 2;
+      // Border thickness in font units: target ~1 device pixel at the
+      // active fontSize. `scale = fontSize / unitsPerEm`, so 1 / scale =
+      // unitsPerEm / fontSize font units per device pixel. Clamped to a
+      // minimum so the border stays visible at very large font sizes.
+      const borderFu = Math.max(font.unitsPerEm / Math.max(4, fontSize), font.unitsPerEm * 0.03);
+      const x0 = tx + cornerInsetX;
+      const x1 = x0 + tofuW;
+      const y0 = 0;
+      const y1 = tofuH;
+      const ix0 = x0 + borderFu;
+      const ix1 = x1 - borderFu;
+      const iy0 = y0 + borderFu;
+      const iy1 = y1 - borderFu;
+      if (ix1 > ix0 && iy1 > iy0) {
+        uses.push(`<path d="M${r(x0)} ${r(y0)} L${r(x1)} ${r(y0)} L${r(x1)} ${r(y1)} L${r(x0)} ${r(y1)} Z M${r(ix0)} ${r(iy0)} L${r(ix0)} ${r(iy1)} L${r(ix1)} ${r(iy1)} L${r(ix1)} ${r(iy0)} Z" fill-rule="evenodd"/>`);
+      } else {
+        // Degenerate (very thin advance) — fall back to a solid filled rect.
+        uses.push(`<rect x="${r(x0)}" y="${r(y0)}" width="${r(tofuW)}" height="${r(tofuH)}"/>`);
+      }
     }
     x += pos.xAdvance;
   }
