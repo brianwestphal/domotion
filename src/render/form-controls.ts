@@ -789,6 +789,13 @@ function renderDatePicker(el: CapturedElement, indent: string): string {
   const val = el.styles.inputValue ?? "";
   const tx = el.x + 6;
   const ty = el.y + el.height / 2 + 4;
+  // DM-731: pick up the input's resolved color so the value text matches
+  // the active color-scheme. Hardcoding `rgb(0,0,0)` made dark-mode date
+  // inputs render with invisible black text on a dark background. Falls
+  // back to black when the capture didn't supply a color.
+  const textFill = (el.styles.color != null && el.styles.color !== "")
+    ? el.styles.color
+    : "rgb(0,0,0)";
   // Chrome renders date inputs with an en-US-formatted display value: dates
   // as MM/DD/YYYY, times as hh:mm AM/PM, etc. The captured `inputValue` is
   // the canonical ISO form (`2026-04-21`). DM-263.
@@ -796,18 +803,20 @@ function renderDatePicker(el: CapturedElement, indent: string): string {
   if (display !== "") {
     // Chrome paints date input values in a tabular monospaced face; we route
     // through the system mono fallback so the segments don't kern.
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="rgb(0,0,0)">${display.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="11" font-family="ui-monospace, Menlo, monospace" fill="${textFill}">${display.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
   }
   // Picker icon on the right edge: calendar for date / month / week / datetime-local,
   // clock for time. Chrome paints these monochrome at ~14px in the input's
   // line-height. DM-263.
+  // DM-731: pass the input's text color through so the icon picks up the
+  // dark-mode color (was hardcoded to TRACK_FG light-mode constant).
   const cx = el.x + el.width - 12;
   const cy = el.y + el.height / 2;
   const iconSize = Math.min(11, el.height - 6);
   if (t === "time") {
-    parts.push(renderClockIcon(indent, cx, cy, iconSize));
+    parts.push(renderClockIcon(indent, cx, cy, iconSize, textFill));
   } else {
-    parts.push(renderCalendarIcon(indent, cx, cy, iconSize));
+    parts.push(renderCalendarIcon(indent, cx, cy, iconSize, textFill));
   }
   return parts.join("\n");
 }
@@ -859,20 +868,22 @@ function formatDateInputDisplay(type: string, val: string): string {
   return val;
 }
 
-function renderCalendarIcon(indent: string, cx: number, cy: number, size: number): string {
+function renderCalendarIcon(indent: string, cx: number, cy: number, size: number, strokeOverride?: string): string {
   // Simple calendar glyph: rounded rect with two top "binders" and a grid line.
   const w = size;
   const h = size;
   const x = cx - w / 2;
   const y = cy - h / 2;
-  const stroke = TRACK_FG;
+  // DM-731: caller supplies the stroke color so the icon picks up the
+  // active color-scheme (was hardcoded to the light-mode `TRACK_FG`).
+  const stroke = strokeOverride ?? TRACK_FG;
   return `${indent}<g fill="none" stroke="${stroke}" stroke-width="1" stroke-linecap="round"><rect x="${r(x + 0.5)}" y="${r(y + 1.5)}" width="${r(w - 1)}" height="${r(h - 2)}" rx="1" /><line x1="${r(x + 0.5)}" y1="${r(y + 4)}" x2="${r(x + w - 0.5)}" y2="${r(y + 4)}" /><line x1="${r(x + 3)}" y1="${r(y + 0.5)}" x2="${r(x + 3)}" y2="${r(y + 2.5)}" /><line x1="${r(x + w - 3)}" y1="${r(y + 0.5)}" x2="${r(x + w - 3)}" y2="${r(y + 2.5)}" /></g>`;
 }
 
-function renderClockIcon(indent: string, cx: number, cy: number, size: number): string {
+function renderClockIcon(indent: string, cx: number, cy: number, size: number, strokeOverride?: string): string {
   // Simple clock glyph: circle with two hands.
   const r1 = size / 2;
-  const stroke = TRACK_FG;
+  const stroke = strokeOverride ?? TRACK_FG;
   return `${indent}<g fill="none" stroke="${stroke}" stroke-width="1" stroke-linecap="round"><circle cx="${r(cx)}" cy="${r(cy)}" r="${r(r1 - 0.5)}" /><line x1="${r(cx)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - r1 * 0.55)}" /><line x1="${r(cx)}" y1="${r(cy)}" x2="${r(cx + r1 * 0.4)}" y2="${r(cy)}" /></g>`;
 }
 
