@@ -2829,7 +2829,25 @@ function gatherStackingContextChildren(
   const collectFromNonSC = (parent: CapturedElement, floatHoistBlocked: boolean = false, currentOverflowAncestor: CapturedElement | null = null): void => {
     const childParentDisplay = parent.styles.display;
     const parentIsFlexGrid = isFlexOrGridContainerDisplay(childParentDisplay);
-    for (const c of parent.children) {
+    // DM-537: when the parent is a flex/grid container, flex items hoisted
+    // out of it into the parent SC's flat paint list must carry their
+    // order-modified document order with them. The post-hoist
+    // `sortChildrenByPaintOrder` runs with the parent SC's display (often
+    // `block`) so its own `isFlexGrid` check fires `false` and the inline
+    // bucket falls back to DOM order — losing the flex `order` reordering
+    // and the `flex-direction: *-reverse` paint reversal. Pre-sort the
+    // iteration here so the hoisted items land in the right order in `out`.
+    let iterChildren = parent.children;
+    if (parentIsFlexGrid && iterChildren.length > 1) {
+      const sorted = iterChildren
+        .map((c, idx) => ({ c, idx, ord: parseInt(c.styles.order ?? "0", 10) || 0 }))
+        .sort((a, b) => a.ord - b.ord || a.idx - b.idx)
+        .map((x) => x.c);
+      const fd = parent.styles.flexDirection;
+      const reverseFlex = fd === "row-reverse" || fd === "column-reverse";
+      iterChildren = reverseFlex ? sorted.slice().reverse() : sorted;
+    }
+    for (const c of iterChildren) {
       // DM-543: skip elements already hoisted by a higher SC pass (e.g. a
       // root-level position:fixed pre-pass added this pin to topLevelFlat;
       // re-pushing it here would double-emit it inside the local clip group).

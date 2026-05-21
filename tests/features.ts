@@ -693,6 +693,19 @@ const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-785: rotated gradient pill with `width: auto` absolute `::before`.
+    // The pseudo's shrink-to-fit width is taken from the painted text, which
+    // canvas.measureText drifted from by 1-3px on bold uppercase short strings
+    // — the badge box ended up undersized vs Chrome's paint, and the rotation
+    // amplified the visible mismatch (text overflowed the gradient on one
+    // side). Swapping the canvas measurement for an off-screen <span>
+    // getBoundingClientRect probe matches Chrome's HarfBuzz layout exactly.
+    name: "pseudo-before-rotated-gradient-badge",
+    html: `<div style="padding:40px;background:#0d1117;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;"><span class="ribbon" style="position:relative;display:inline-block;padding:30px 22px;background:#161b22;color:#e6edf3;font-size:13px;border-radius:6px;width:180px;text-align:center;">Premium<style>.ribbon::before{content:'MOST POPULAR';position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-8deg);background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:4px 12px;border-radius:999px;white-space:nowrap;}</style></span></div>`,
+    width: 320,
+    height: 160,
+  },
+  {
     // DM-754: multi-column block-level `box-decoration-break`. The middle
     // callout is tall enough to fragment at the column boundary. With slice
     // (default) the first fragment owns TOP + LEFT + RIGHT borders and the

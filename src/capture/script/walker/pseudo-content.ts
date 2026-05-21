@@ -54,6 +54,34 @@
 // hasn't been pulled out of captureInner yet — follow-up.
 
 export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster }) => {
+  // DM-785: Chrome's HarfBuzz-shaped layout width differs from
+  // `canvas.measureText` by ~1-3px on bold uppercase short strings (the
+  // gradient-pill / MOST POPULAR / NEW badge pattern). Measuring via an
+  // off-screen <span> with the pseudo's resolved font properties and reading
+  // `getBoundingClientRect().width` matches the painted width exactly because
+  // it goes through the same shaping pipeline Chrome uses for layout. Only
+  // matters for `width: auto` absolute pseudos — the DM-507 numeric `pcs.width`
+  // path is still authoritative when present.
+  const probePseudoTextWidth = (text, pcs) => {
+    const span = document.createElement('span');
+    span.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;left:-99999px;top:-99999px;white-space:pre;line-height:normal;margin:0;padding:0;border:0;text-indent:0';
+    span.style.fontFamily = pcs.fontFamily || '';
+    span.style.fontSize = pcs.fontSize || '';
+    span.style.fontWeight = pcs.fontWeight || '';
+    span.style.fontStyle = pcs.fontStyle || '';
+    span.style.fontStretch = pcs.fontStretch || '';
+    span.style.fontVariant = pcs.fontVariant || '';
+    span.style.fontFeatureSettings = pcs.fontFeatureSettings || '';
+    span.style.fontVariationSettings = pcs.fontVariationSettings || '';
+    span.style.letterSpacing = pcs.letterSpacing || '';
+    span.style.wordSpacing = pcs.wordSpacing || '';
+    span.textContent = text;
+    document.body.appendChild(span);
+    const w = span.getBoundingClientRect().width;
+    document.body.removeChild(span);
+    return w;
+  };
+
   const pickQuoteChar = (forEl, isOpen) => {
     // Count q-element ancestors above this element (depth=0 = the first q
     // not inside another q). The pseudo lives ON forEl so when forEl IS a
@@ -358,22 +386,12 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
       }
       if (text === '') continue;
 
-      // Measure via canvas using the pseudo's computed font.
-      const fontSpec = pcs.font || (pcs.fontWeight + ' ' + pcs.fontSize + ' ' + pcs.fontFamily);
-      const measureCanvas = document.createElement('canvas');
-      const mctx = measureCanvas.getContext('2d');
-      mctx.font = fontSpec;
-      // DM-507: prefer Chrome's resolved layout width over
-      // canvas.measureText when available. For position:absolute pseudos
-      // with auto-width Chrome shrink-to-fits the box and
-      // getComputedStyle returns the resolved content-box width.
-      // canvas.measureText drifts ~1-2px from Chrome's actual layout in
-      // common bold / symbol-mix fixtures because the canvas font-
-      // shaping path differs slightly from Chrome's HarfBuzz paint
-      // pipeline. Falling back to canvas measurement when pcs.width is
-      // unavailable (typical for non-positioned inline pseudos) keeps
-      // the existing path.
-      let pseudoWidth = mctx.measureText(text).width;
+      // DM-785: probe-span measurement matches Chrome's HarfBuzz-shaped
+      // layout width — canvas.measureText drifted ~1-3px on bold uppercase
+      // short strings (visible on rotated gradient pills as the text
+      // overflowing the badge). DM-507 numeric-pcs.width override still
+      // wins when the pseudo's box has an authored fixed width.
+      let pseudoWidth = probePseudoTextWidth(text, pcs);
       if (pcs.position === 'absolute' || pcs.position === 'fixed') {
         const pcsW = parseFloat(pcs.width);
         if (!isNaN(pcsW) && pcsW > 0) pseudoWidth = pcsW;
