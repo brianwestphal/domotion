@@ -706,6 +706,20 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-770: `@counter-style` resolution at capture time. CSS exposes
+    // computed `::marker { content }` as the literal `"normal"` even when
+    // the painted marker is a custom symbol, so the capture walker re-
+    // implements the resolution algorithm (cyclic / fixed / numeric /
+    // alphabetic / symbolic / additive systems, plus prefix / suffix / pad
+    // / negative / range / fallback / extends descriptors). Verifies the
+    // baseline cyclic + numeric paths against an emoji-bullet (cyclic) and
+    // a prefixed numeric counter with `pad: 2 "0"`.
+    name: "counter-style-cyclic-and-prefixed-numeric",
+    html: `<div style="padding:24px;background:#fff;font-family:system-ui,sans-serif;font-size:14px;line-height:1.7;"><style>@counter-style domo-emoji { system: cyclic; symbols: "🔵" "🟢" "🟡"; suffix: " "; } @counter-style domo-step { system: numeric; symbols: "0" "1" "2" "3" "4" "5" "6" "7" "8" "9"; prefix: "Step "; suffix: ":  "; pad: 2 "0"; } ul.a{list-style:domo-emoji;padding-left:32px;margin:0 0 12px;} ol.b{list-style:domo-step;padding-left:64px;margin:0;}</style><ul class="a"><li>First</li><li>Second</li><li>Third</li><li>Wraps to first</li></ul><ol class="b"><li>Initialize</li><li>Migrate</li><li>Seed</li></ol></div>`,
+    width: 320,
+    height: 260,
+  },
+  {
     // DM-787: per-axis `overflow-x: clip; overflow-y: visible` (and the
     // inverse) — CSS Overflow 3 allows mixing `clip` with `visible` (only
     // `clip` permits this; `hidden + visible` coerces to `auto + hidden`).

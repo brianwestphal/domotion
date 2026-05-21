@@ -1840,8 +1840,13 @@ export function elementTreeToSvg(
           const mx = outside ? el.x - smallGap : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
           const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          // DM-770: `@counter-style` suffixes like `":  "` carry multiple
+          // consecutive spaces that SVG would collapse to a single space by
+          // default. `xml:space="preserve"` keeps the marker label width
+          // matching Chrome's paint.
+          const xmlSpace = / {2,}/.test(label) ? ` xml:space="preserve"` : "";
           svgParts.push(
-            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}">${escLabel}</text>`,
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}"${xmlSpace}>${escLabel}</text>`,
           );
         } else if (lsType === "disc" || lsType === "circle" || lsType === "square") {
           // Chrome's `::marker` paints disc/circle/square at a hardcoded
