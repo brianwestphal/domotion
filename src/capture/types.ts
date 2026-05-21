@@ -105,6 +105,14 @@ export interface TextSegment {
     /** Pre-resolved srgb-form CSS color (or "transparent"). Renderer parses
      *  via parseColor and emits as the rect fill. */
     backgroundColor?: string;
+    /** Raw CSS `background-image` value (gradient / url() / multiple
+     *  layers) when the pseudo paints a gradient or image instead of (or in
+     *  addition to) a flat color. DM-767: `.corner::after` accent stripes
+     *  with `background: linear-gradient(...)` need this — without it the
+     *  pseudoBox emit was skipped entirely. Renderer threads through
+     *  `buildBackgroundLayerDef` the same way the regular-element
+     *  background-image path does. */
+    backgroundImage?: string;
     /** Resolved px border-radius (CSS shorthand — single value, four-corner
      *  symmetric). */
     borderRadius?: number;

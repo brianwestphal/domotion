@@ -190,6 +190,13 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         // side or a visible background.
         const bgRaw = pcs.backgroundColor;
         const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
+        // DM-767: capture background-image (linear-gradient / radial-gradient /
+        // url) on empty-content pseudos too. The `.corner::after` accent stripe
+        // pattern in `24-deep-pseudo-shapes` is an absolutely-positioned 4 px
+        // strip with a `linear-gradient` background and no color / border —
+        // without this check the pseudoBox emit was skipped entirely.
+        const bgImgRaw = pcs.backgroundImage;
+        const hasBgImg = bgImgRaw != null && bgImgRaw !== '' && bgImgRaw !== 'none';
         const bwT = parseFloat(pcs.borderTopWidth) || 0;
         const bwR = parseFloat(pcs.borderRightWidth) || 0;
         const bwB = parseFloat(pcs.borderBottomWidth) || 0;
@@ -204,7 +211,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         // pseudos whose `opacity: 0` makes them visually a no-op.
         const opacityNum = parseFloat(pcs.opacity);
         if (Number.isFinite(opacityNum) && opacityNum === 0) continue;
-        if (isBlockLike && (hasBg || hasBorder)) {
+        if (isBlockLike && (hasBg || hasBgImg || hasBorder)) {
           const hostPadL = parseFloat(cs.paddingLeft) || 0;
           const hostPadT = parseFloat(cs.paddingTop) || 0;
           const hostBorL = parseFloat(cs.borderLeftWidth) || 0;
@@ -277,6 +284,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
               width: borderBoxW,
               height: borderBoxH,
               backgroundColor: hasBg ? normColor(bgRaw) : undefined,
+              backgroundImage: hasBgImg ? bgImgRaw : undefined,
               borderTopWidth: bwT, borderTopColor: bwT > 0 ? normColor(pcs.borderTopColor) : undefined, borderTopStyle: pcs.borderTopStyle,
               borderRightWidth: bwR, borderRightColor: bwR > 0 ? normColor(pcs.borderRightColor) : undefined, borderRightStyle: pcs.borderRightStyle,
               borderBottomWidth: bwB, borderBottomColor: bwB > 0 ? normColor(pcs.borderBottomColor) : undefined, borderBottomStyle: pcs.borderBottomStyle,

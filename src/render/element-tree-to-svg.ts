@@ -1872,6 +1872,7 @@ export function elementTreeToSvg(
       for (const pb of (el as any).pseudoBoxes as Array<{
         x: number; y: number; width: number; height: number;
         backgroundColor?: string;
+        backgroundImage?: string;
         borderTopWidth?: number; borderTopColor?: string; borderTopStyle?: string;
         borderRightWidth?: number; borderRightColor?: string; borderRightStyle?: string;
         borderBottomWidth?: number; borderBottomColor?: string; borderBottomStyle?: string;
@@ -1881,6 +1882,27 @@ export function elementTreeToSvg(
         if (pb.backgroundColor) {
           const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
           svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="${pb.backgroundColor}" />`);
+        }
+        // DM-767: pseudoBox background-image (linear-/radial-gradient).
+        // Emit each comma-separated layer in reverse order so layer 0 (first
+        // in CSS source) ends up on top — same convention as the regular-
+        // element background-image path. Each layer goes through
+        // `buildBackgroundLayerDef` to produce an SVG paint server, then a
+        // covering `<rect>` references it.
+        if (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "") {
+          const pbLayers = splitTopLevelCommas(pb.backgroundImage);
+          for (let li = pbLayers.length - 1; li >= 0; li--) {
+            const layer = pbLayers[li].trim();
+            const defId = `${idPrefix}pbg${clipIdx++}`;
+            const out = buildBackgroundLayerDef(
+              defId, layer, pb.x, pb.y, pb.width, pb.height,
+              "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
+            );
+            if (out.def === "") continue;
+            defsParts.push(out.def);
+            const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
+            svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+          }
         }
         // CSS triangle: 0×0 box with one solid border and adjacent borders
         // transparent / zero. Borders meet at 45° corners and visually form
@@ -1946,6 +1968,39 @@ export function elementTreeToSvg(
             svgParts.push(`${indent}<polygon points="${polyPts}" fill="${color}" />`);
           }
           continue;
+        }
+        // DM-765: when all four borders are uniform AND the pseudo has a
+        // non-zero border-radius (e.g. the `.dot::before { width: 8px;
+        // height: 8px; border: 2px solid; border-radius: 50% }` chip in
+        // `24-deep-pseudo-shapes`), the four straight `<line>` strokes
+        // would form a SQUARE outline around the rounded background fill,
+        // making a green-square-with-darker-square instead of the
+        // green-circle-with-darker-ring Chrome paints. Emit a single
+        // stroked `<rect rx>` in that case so the outline follows the
+        // background's curve.
+        const uniformBorder = bwT > 0 && bwT === bwR && bwR === bwB && bwB === bwL
+          && pb.borderTopColor != null
+          && pb.borderTopColor === pb.borderRightColor
+          && pb.borderRightColor === pb.borderBottomColor
+          && pb.borderBottomColor === pb.borderLeftColor
+          && (pb.borderTopStyle == null || pb.borderTopStyle === pb.borderRightStyle);
+        if (uniformBorder && pb.borderRadius != null && pb.borderRadius > 0 && isOpaque(pb.borderTopColor)) {
+          const style = pb.borderTopStyle ?? "solid";
+          if (style !== "none" && style !== "hidden") {
+            const w = bwT;
+            const half = w / 2;
+            // Inset the stroke rect by half the stroke width so the stroke
+            // sits entirely inside the box (matches CSS, where borders paint
+            // inside the border box).
+            const sx = pb.x + half;
+            const sy = pb.y + half;
+            const sw = Math.max(0, pb.width - w);
+            const sh = Math.max(0, pb.height - w);
+            const sr = Math.max(0, pb.borderRadius - half);
+            const dash = style === "dashed" ? ` stroke-dasharray="${r(w * 2)},${r(w * 2)}"` : style === "dotted" ? ` stroke-dasharray="${r(w)},${r(w)}"` : "";
+            svgParts.push(`${indent}<rect x="${r(sx)}" y="${r(sy)}" width="${r(sw)}" height="${r(sh)}" rx="${r(sr)}" fill="none" stroke="${pb.borderTopColor}" stroke-width="${r(w)}"${dash} />`);
+            continue;
+          }
         }
         // Per-side borders. Each painted side gets one <line> across the
         // appropriate edge. For h=0 / w=0 boxes this collapses to a single
