@@ -292,6 +292,14 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // Residual diff is text-baseline antialiasing scatter inside each box.
   // Reviewed visually; accepted.
   "25-overflow-values": "DM-772: clip behavior correct on all six boxes; residual diff is text-baseline antialiasing scatter",
+  // DM-760: the original "text covered" issue (a gray rectangle obscuring
+  // the middle of the Pass-criteria paragraph) is fixed by the DM-721
+  // inline `box-decoration-break` work + DM-781 height override — the
+  // paragraph + inline `<code>` chips now wrap and paint correctly.
+  // Residual diff is text-baseline antialiasing on the paragraph + a
+  // sub-pixel padding shift on the wrapping `<code>:user-invalid</code>`
+  // span. Reviewed visually; accepted.
+  "10-deep-form-state-pseudos": "DM-760: paragraph text + inline code chips render correctly; residual diff is antialiasing + sub-pixel wrap padding",
 };
 
 interface TestResult {
