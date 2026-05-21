@@ -144,6 +144,31 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
     const firstLetterStyled = flFsRaw > 0 && Math.abs(flFsRaw - elFsRaw) > 0.5;
     let firstCharSeen = false;
 
+    // DM-747: MathML `<mi>` with a single ASCII letter is automatically
+    // painted with the Mathematical Italic alphabet (the mathvariant=italic
+    // mapping from MathML 4 / Core). Chrome paints `<mi>a</mi>` using U+1D44E
+    // (𝑎, MATHEMATICAL ITALIC SMALL A) rather than the literal `a`. The
+    // computed `font-style` stays `normal` and `font-family` stays `math`,
+    // so we can't detect this through CSS — we have to apply the mapping
+    // ourselves at capture time so the downstream text-shaping pipeline
+    // picks up the right glyphs from whatever math font the system has.
+    const elTag = el.tagName != null ? el.tagName.toLowerCase() : '';
+    const mathItalicizeMi = elTag === 'mi'
+      && (el.textContent || '').trim().length === 1
+      && /^[a-zA-Z]$/.test((el.textContent || '').trim());
+    const mathItalicChar = (ch) => {
+      const code = ch.charCodeAt(0);
+      // Mathematical Italic Capital A..Z = U+1D434..U+1D44D (offset −U+0041 + U+1D434).
+      if (code >= 0x41 && code <= 0x5A) return String.fromCodePoint(0x1D434 + (code - 0x41));
+      // Mathematical Italic Small a..z = U+1D44E..U+1D467 (offset −U+0061 + U+1D44E),
+      // except U+1D455 ("h") is reserved — Chrome paints U+210E (ℎ, PLANCK CONSTANT).
+      if (code >= 0x61 && code <= 0x7A) {
+        if (code === 0x68) return 'ℎ';
+        return String.fromCodePoint(0x1D44E + (code - 0x61));
+      }
+      return ch;
+    };
+
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
       // text-transform — see header comment.
@@ -153,7 +178,13 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
       else if (tt === 'lowercase') raw = raw.toLowerCase();
       else if (tt === 'capitalize') raw = raw.replace(/\b\p{L}/gu, (ch) => ch.toUpperCase());
       if (!raw.trim()) continue;
-      text += raw.trim() + ' ';
+      // DM-747: when `<mi>` math-italic substitution applies, the element's
+      // aggregate `text` field should carry the substituted codepoint too —
+      // it's used for aria-label / accessibility and matches the painted
+      // glyph. The per-character ranges still measure against the original
+      // textContent (see below).
+      const rawForText = mathItalicizeMi ? mathItalicChar(raw.trim()) : raw.trim();
+      text += rawForText + ' ';
 
       // Group characters by their laid-out line (matching rect.top).
       const lines = [];
@@ -168,7 +199,14 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
         const cr = r.getBoundingClientRect();
         const isWs = step === 1 && /\s/.test(raw[i]);
         if (cr.width === 0 && (cr.height === 0 || isWs)) { i += step - 1; continue; }
-        const ch = raw.slice(i, i + step);
+        let ch = raw.slice(i, i + step);
+        // DM-747: see `mathItalicizeMi` block above — apply the mathvariant=
+        // italic substitution AFTER the Range-based measurement so the Range
+        // offsets stay valid against the original textContent (`a`, 1 code
+        // unit) while the captured glyph string carries the surrogate-pair
+        // math-italic codepoint (`𝑎`, 2 code units) that the downstream
+        // shaping pipeline picks up.
+        if (mathItalicizeMi) ch = mathItalicChar(ch);
         const charRec = { ch, left: cr.left, top: cr.top, right: cr.right, bottom: cr.bottom };
         if (cur == null || Math.abs(cr.top - cur.top) > 1) {
           if (cur != null) lines.push(cur);

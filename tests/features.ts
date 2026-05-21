@@ -706,6 +706,19 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-747: MathML `<mi>` with a single ASCII letter is painted by Chrome
+    // using the Mathematical Italic alphabet (the mathvariant=italic mapping
+    // from MathML Core). Chrome reports `font-style: normal` on `<mi>` even
+    // when it paints `<mi>a</mi>` as U+1D44E (𝑎, MATHEMATICAL ITALIC SMALL
+    // A) — the substitution happens at paint time, not via CSS. Capture
+    // applies the mapping itself so the downstream shaping pipeline picks up
+    // the right glyphs from whatever math font the system has.
+    name: "mathml-mi-italic-letters",
+    html: `<div style="padding:24px;background:#fff;font-family:system-ui,sans-serif;"><math display="block" style="font-size: 22px;"><mrow><mo>(</mo><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable><mo>)</mo></mrow></math></div>`,
+    width: 320,
+    height: 180,
+  },
+  {
     // DM-788: `counter(name, custom-style)` / `counters(name, sep, custom-style)`
     // inside pseudo `content` should run the counter value through the named
     // `@counter-style`. Chrome's empirical paint includes the pad-applied
