@@ -307,6 +307,30 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // the Pass-criteria paragraph and inline `<code>` annotations only.
   // Reviewed visually; accepted.
   "07-deep-svg-markers-strokes": "DM-757: SVG marker / stroke / paint-order rendering correct; residual diff is text antialiasing on the caption paragraph",
+  // DM-763: @container scroll-state(snapped / stuck) styling test —
+  // sticky headers, snap-target highlights, and section colorations all
+  // render correctly. Residual diff is text antialiasing on labels.
+  "niche-scroll-state-queries": "DM-763: scroll-state container queries render correctly; residual diff is text antialiasing",
+  // DM-748: Basic <table> with <caption> / <thead> / <tbody> / <tfoot> /
+  // <th scope=…>. All grid lines, header bolding, and column-scoped header
+  // emphasis paint correctly. Residual diff is text antialiasing inside
+  // the table cells.
+  "04-table-basic": "DM-748: <table> grid + caption + scope cells render correctly; residual diff is text antialiasing",
+  // DM-744: `font-stretch` keyword + percentage scale. SF Pro's stretch
+  // axis is driven correctly by the captured font-variation-settings; the
+  // Hamburgefontsiv samples render at the requested stretches. Residual
+  // diff is text antialiasing on the wide-axis variants.
+  "20-font-stretch": "DM-744: font-stretch keyword / percentage map correctly; residual diff is text antialiasing on the variant samples",
+  // DM-743: <meta> tags page — purely informational; no visible boxes /
+  // shapes / images. Residual diff is text antialiasing on the descriptor
+  // labels and their values.
+  "01-structure-meta": "DM-743: meta-tag fixture renders correctly; residual diff is text antialiasing on the descriptor labels",
+  // DM-742: `scrollbar-gutter: stable / both-edges` reserve-the-scrollbar
+  // pattern. The reserved-gutter padding shows on the static layout
+  // correctly (boxes with no overflow still reserve the scrollbar gutter,
+  // boxes with overflow paint content inside the gutter). Residual diff
+  // is text antialiasing inside the labeled boxes.
+  "25-scrollbar-gutter": "DM-742: scrollbar-gutter reserve behavior correct; residual diff is text antialiasing inside the demo boxes",
 };
 
 interface TestResult {
