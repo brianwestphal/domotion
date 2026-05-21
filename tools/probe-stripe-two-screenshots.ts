@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * 2-screenshot diagnostic for the stripe-mobile-entire-page batch
  * (DM-587 / DM-590 / DM-591).

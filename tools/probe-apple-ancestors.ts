@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Walk the live ancestor chain of .start-frame, then compare to captured tree.
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

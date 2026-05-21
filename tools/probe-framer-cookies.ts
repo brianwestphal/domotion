@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe DM-582 — find the "We use cookies" popup and check for duplication.
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

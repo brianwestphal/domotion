@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe DM-637's REGIONs on framer-mobile-entire-page. Each region marks a
 // patch where the actual.png is solid black but the expected.png shows brand
 // logos, avatars, buttons, or imagery. Replays the cached HAR, resizes to

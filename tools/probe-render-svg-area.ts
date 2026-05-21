@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Render the actual stripe SVG output and screenshot only the label area.
 import { chromium } from "@playwright/test";
 import { resolve, dirname, readFileSync } from "node:fs";

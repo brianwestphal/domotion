@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe DM-583 — find the Philippines selector + body bg.
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

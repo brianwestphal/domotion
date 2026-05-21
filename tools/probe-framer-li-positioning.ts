@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { chromium } from "@playwright/test";
 import { resolve } from "node:path";
 

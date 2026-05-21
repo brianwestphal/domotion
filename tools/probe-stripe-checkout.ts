@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Probe stripe-mobile-entire-page at REGION coords (DM-587 / 588 / 589 / 590 / 591).
  *

@@ -1,4 +1,3 @@
-/* eslint-disable */
 // For each of DM-588/589/590/591's REGIONS, probe what's at that location
 // in the live DOM (post-pre-scroll + freeze), and what's at the same location
 // in our captured tree.

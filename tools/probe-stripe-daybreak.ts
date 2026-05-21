@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Investigate why "Daybreak Yoga" text isn't in our SVG for the
  * stripe-mobile-entire-page fixture. Walks the live DOM and reports the

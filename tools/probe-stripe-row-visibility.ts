@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Multiple payment-method rows live at the same y. Chrome shows only one.
 // Dump every visibility-related CSS prop on each overlapping row + each
 // ancestor up to .dom-graphic__content so we can spot the differentiator.

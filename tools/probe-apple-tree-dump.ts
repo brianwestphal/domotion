@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Dump the top-level structure of the captured tree to see what IS captured.
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

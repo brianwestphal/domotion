@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Investigate the multi-language-variant hypothesis for DM-587.
  *

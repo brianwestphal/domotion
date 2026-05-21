@@ -366,6 +366,7 @@ function Layout({ manifestJson }: { manifestJson: string }) {
       <head>
         <meta charset="utf-8" />
         <title>SVG Demo Test Review</title>
+        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constant */}
         <style>{raw(REVIEW_CSS)}</style>
       </head>
       <body>
@@ -410,6 +411,7 @@ function Layout({ manifestJson }: { manifestJson: string }) {
             <svg className="region-overlay" id="lb-overlay" preserveAspectRatio="none"></svg>
           </div>
         </div>
+        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- payload passes through safeJsonForScript() which escapes "<" so "</script" cannot terminate the tag */}
         <script type="application/json" id="manifest-data">{raw(manifestJson)}</script>
         <script type="module" src="/client.js"></script>
       </body>
@@ -491,17 +493,11 @@ async function main(): Promise<void> {
   const manifest = loadManifest();
   const clientJs = await bundleClient();
   if (manifest.tests.length === 0) {
-    // eslint-disable-next-line no-console
     console.error("No test results found. Run a suite first:");
-    // eslint-disable-next-line no-console
     console.error("  npm run demos:test            # features only");
-    // eslint-disable-next-line no-console
     console.error("  npm run demos:test:showcase   # showcase");
-    // eslint-disable-next-line no-console
     console.error("  npm run demos:test:html       # html-test (~147)");
-    // eslint-disable-next-line no-console
     console.error("  npm run demos:test:real-world # real public sites (DM-454)");
-    // eslint-disable-next-line no-console
     console.error("  npm run demos:test:all        # all four");
     process.exit(1);
   }
@@ -630,15 +626,11 @@ async function main(): Promise<void> {
     const url = `http://localhost:${port}/`;
     const failing = manifest.tests.filter((r) => !r.pass && !r.skipped).length;
     const skipped = manifest.tests.filter((r) => r.skipped).length;
-    // eslint-disable-next-line no-console
     console.log(`\nSVG Demo Test Review — ${failing} failing · ${skipped} skipped · ${manifest.tests.length} total`);
     for (const [suite, info] of Object.entries(manifest.suites)) {
-      // eslint-disable-next-line no-console
       console.log(`  ${suite.padEnd(10)} ${info.present ? `${info.count} tests` : "(not run)"}`);
     }
-    // eslint-disable-next-line no-console
     console.log(`  ${url}`);
-    // eslint-disable-next-line no-console
     console.log(`  (Ctrl+C to stop)`);
     try { spawn("open", [url], { stdio: "ignore", detached: true }).unref(); } catch { /* manual open works */ }
   });

@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Inspect the framer-mobile-scroll composed SVG: identify which segment
  * contributes content at composite y=762..844 (REGION [1] of DM-633).

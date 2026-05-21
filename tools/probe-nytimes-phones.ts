@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe DM-592 — find why the phone-mockup images are vertically squished.
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

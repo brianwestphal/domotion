@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Find what's actually painted at the visible-flower positions in expected.png.
 // At y=224 x=33 there's a pink flower visible. What element is that?
 import { chromium } from "@playwright/test";

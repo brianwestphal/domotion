@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Capture the element tree the same way the executor does (chunk 0) and look
 // for the .start-frame element + the .mday-icon flowers.
 import { chromium } from "@playwright/test";

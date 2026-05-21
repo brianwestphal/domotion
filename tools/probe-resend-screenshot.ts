@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Reproduce the "Page.captureScreenshot: Unable to capture screenshot"
  * error on `resend-mobile-scroll.svg`. Loads the same HTML wrapper

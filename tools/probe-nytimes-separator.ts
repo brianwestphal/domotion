@@ -1,4 +1,3 @@
-/* eslint-disable */
 // One-off probe for DM-579 — inspect the missing separator at y≈153 on
 // nytimes-mobile-entire-page. Find what element lives there and dump its
 // rect + computed style.

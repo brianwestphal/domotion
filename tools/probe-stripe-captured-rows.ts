@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Capture the tree and find each payment-method-item to see what opacity / clipPath
 // the capture preserved.
 import { chromium } from "@playwright/test";

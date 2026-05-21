@@ -56,7 +56,6 @@ async function main(): Promise<void> {
     try {
       const page = await loadPage(ref.slug);
       if (page.meta.slug !== ref.slug) {
-        // eslint-disable-next-line no-console
         console.warn(`  ⚠ ${ref.slug}: meta.slug "${page.meta.slug}" doesn't match structure entry`);
       }
       const html = renderPage(page.meta, page.content);
@@ -81,13 +80,10 @@ async function main(): Promise<void> {
   // and so paths starting with underscore work normally.
   writeFileSync(resolve(DIST_DIR, ".nojekyll"), "");
 
-  // eslint-disable-next-line no-console
   console.log(`\nBuilt ${written} page${written === 1 ? "" : "s"} → ${DIST_DIR}`);
   if (skipped > 0) {
-    // eslint-disable-next-line no-console
     console.warn(`\n${skipped} page${skipped === 1 ? "" : "s"} not yet authored:`);
     for (const m of missing) {
-      // eslint-disable-next-line no-console
       console.warn(`  - ${m}`);
     }
   }

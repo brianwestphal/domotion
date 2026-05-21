@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe parent element rect (cleared) + the WHOLE ancestor chain rect both live and cleared.
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Mimic real-world.tsx scroll-mode flow exactly, then dump flower state +
 // screenshot at the same moment captureElementTree runs (chunk 0).
 import { chromium } from "@playwright/test";

@@ -96,7 +96,6 @@ async function main(): Promise<void> {
     process.stdout.write(`  ${ref.slug || "(home)"}... `);
     const report = await checkPage(page, ref.slug);
     reports.push(report);
-    // eslint-disable-next-line no-console
     console.log(formatStatus(report));
   }
 
@@ -106,13 +105,10 @@ async function main(): Promise<void> {
     r.status !== 200 || !r.hasH1 || !r.hasSidebar || !r.hasBreadcrumb || !r.hasPrevNext
     || r.brokenImages.length > 0 || r.brokenLinks.length > 0 || r.consoleErrors.length > 0,
   );
-  // eslint-disable-next-line no-console
   console.log(`\n${reports.length - failures.length}/${reports.length} pages clean.`);
   if (failures.length > 0) {
-    // eslint-disable-next-line no-console
     console.log(`\nIssues:`);
     for (const r of failures) {
-      // eslint-disable-next-line no-console
       console.log(`\n  ${r.slug || "(home)"}  [${r.status}]`);
       if (!r.hasH1)         console.log(`    ⚠ missing h1`);
       if (!r.hasSidebar)    console.log(`    ⚠ missing #sidebar`);

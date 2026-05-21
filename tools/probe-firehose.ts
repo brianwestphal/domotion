@@ -1,4 +1,3 @@
-/* eslint-disable */
 // One-off probe for DM-596 — inspect the slashdot masthead "Firehose" link
 // and its chevron sibling. Loads the cached HAR (no network), walks the
 // nav, prints rects + computed styles for the offending region.

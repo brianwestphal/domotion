@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe the actual transform-origin on dom-graphic__content + verify the
 // round-trip math: live_y = scale_compose(cleared_y) ?
 import { chromium } from "@playwright/test";

@@ -58,6 +58,7 @@ function FixturePage({ body }: { body: string }) {
         <meta charset="utf-8" />
         <style>{raw(`* { margin: 0; padding: 0; box-sizing: border-box; } body { background: #0d1117; overflow: hidden; }`)}</style>
       </head>
+      {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- fixture HTML literals from tests/features.ts; no untrusted input */}
       <body>{raw(body)}</body>
     </html>
   );

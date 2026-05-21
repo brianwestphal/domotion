@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Dump the captured tree at REGION [1] (3, 994, 378, 68) of framer-mobile-
 // entire-page. Replays the HAR, resizes to 6000 high, runs captureElementTree,
 // then walks the captured tree filtering elements whose rect intersects the

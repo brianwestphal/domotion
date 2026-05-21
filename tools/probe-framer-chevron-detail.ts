@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Drill into framer's chevron-icon div (.framer-GHm6V.framer-zvmo1m at REGION [1]).
 // Dump every computed-style property that could shape it (mask*, clip-path, border*,
 // background*, transform, ::before / ::after pseudo) plus the outerHTML of the div

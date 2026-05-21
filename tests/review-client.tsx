@@ -338,7 +338,7 @@ function SuiteSummary() {
 
 // ── Mounts ──
 
-mount(cardsEl, () => <>{each(visible.value, (r) => <Card r={r} />, (r) => `${r.suite}/${r.name}`)}</>);
+mount(cardsEl, () => <>{each(visible.value, (r) => <Card r={r} data-key={`${r.suite}/${r.name}`} />, (r) => `${r.suite}/${r.name}`)}</>);
 mount(statsEl, () => <Stats />);
 mount(summaryEl, () => <SuiteSummary />);
 

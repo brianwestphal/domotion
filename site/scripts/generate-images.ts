@@ -247,7 +247,6 @@ async function captureAnimation(page: Page): Promise<string> {
     // inspected without the animation pipeline in the way.
     const standalone = optimizeSvg(wrapSvg(elementTreeToSvg(tree, W, H), W, H));
     writeFileSync(resolve(OUT_DIR, `install-demo-frame-${i + 1}.svg`), standalone);
-    // eslint-disable-next-line no-console
     console.log(`  install-demo-frame-${i + 1}.svg (${(standalone.length / 1024).toFixed(1)} KB)`);
 
     frames.push({
@@ -271,17 +270,14 @@ async function main(): Promise<void> {
     const svg = await captureScene(page, scene);
     const out = resolve(OUT_DIR, `${scene.name}.svg`);
     writeFileSync(out, svg);
-    // eslint-disable-next-line no-console
     console.log(`  ${scene.name}.svg (${(svg.length / 1024).toFixed(1)} KB)`);
   }
 
   const animatedSvg = await captureAnimation(page);
   writeFileSync(resolve(OUT_DIR, "install-demo.svg"), animatedSvg);
-  // eslint-disable-next-line no-console
   console.log(`  install-demo.svg (${(animatedSvg.length / 1024).toFixed(1)} KB, animated)`);
 
   await browser.close();
-  // eslint-disable-next-line no-console
   console.log(`\nWrote ${SCENES.length + 4} images to ${OUT_DIR}`);
 }
 

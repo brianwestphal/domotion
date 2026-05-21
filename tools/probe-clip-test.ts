@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { chromium } from "@playwright/test";
 async function main() {
   const browser = await chromium.launch({ headless: true });

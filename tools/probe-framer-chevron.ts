@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe the framer-mobile-entire-page chevron arrows at REGION [1] (253, 1063, 36, 30)
 // and REGION [2] (94, 1741, 37, 33). Replays the cached HAR at 390×844 mobile viewport,
 // then resizes to 6000 high to match the entire-page mode that recorded the test. Dumps

@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Runs the REAL capture function on a target page, then walks the captured
 // tree to find elements in a region of interest. Outputs full captured
 // state so we can see exactly what the walker produces (pseudoSegments,

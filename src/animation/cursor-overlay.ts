@@ -193,13 +193,11 @@ function resolveMoveTarget(
   if (ev.by != null) return { x: curX + ev.by.dx, y: curY + ev.by.dy };
   if (ev.selector != null) {
     if (resolveSelector == null) {
-      // eslint-disable-next-line no-console
       console.warn(`cursor-overlay: selector "${ev.selector}" used but no resolveSelector provided; skipping`);
       return null;
     }
     const rect = resolveSelector(ev.selector, frameIndex);
     if (rect == null) {
-      // eslint-disable-next-line no-console
       console.warn(`cursor-overlay: selector "${ev.selector}" matched no element in frame ${frameIndex}; skipping`);
       return null;
     }

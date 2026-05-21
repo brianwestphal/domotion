@@ -54,10 +54,12 @@ function wrap(body: string): string {
     <html>
       <head>
         <meta charset="utf-8" />
+        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constant */}
         <style>{raw(CSS)}</style>
       </head>
       <body>
         <div style={`padding: 32px; width: ${WIDTH}px; height: ${HEIGHT}px;`}>
+          {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- showcase HTML fragment from this file's literal templates; no untrusted input */}
           {raw(body)}
         </div>
       </body>

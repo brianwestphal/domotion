@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Walk the structure around a Card label to find the overflow:hidden ancestor.
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

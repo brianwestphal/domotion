@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Probe what's captured at the Collison portrait location (111, 4412, 200, 200).
 import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";

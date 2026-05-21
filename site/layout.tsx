@@ -71,6 +71,7 @@ export function renderPage(meta: PageMeta, body: SafeHtml): string {
           </main>
         </div>
         <Footer root={root} />
+        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static string constant defined below; no untrusted input */}
         {raw(MOBILE_TOGGLE_SCRIPT)}
       </body>
     </html>

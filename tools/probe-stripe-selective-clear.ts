@@ -1,4 +1,3 @@
-/* eslint-disable */
 // What if we cleared ONLY translation transforms (kept scales)? Probe what
 // row j=2 (and other rows) would measure as.
 import { chromium } from "@playwright/test";

@@ -77,7 +77,6 @@ function parseArgs(argv: string[]): { id: number; outputRoot: string } {
 }
 
 function printUsage(): void {
-  // eslint-disable-next-line no-console
   console.error("usage: tools/crop-regions.ts --ticket DM-{id} [--output-root tests/output/region-crops]");
 }
 
@@ -140,13 +139,11 @@ async function main(): Promise<void> {
   const ticket = await fetchTicket(settings, args.id);
   const picked = pickRegionsSource(ticket);
   if (picked == null) {
-    // eslint-disable-next-line no-console
     console.log(`No REGIONS: block found on ${ticket.ticket_number}. Nothing to crop.`);
     return;
   }
   const { regions, warnings: parseWarnings } = parseRegionsBlock(picked.body);
   if (regions.length === 0) {
-    // eslint-disable-next-line no-console
     console.log(`REGIONS: block on ${ticket.ticket_number} had no usable entries.`);
     for (const w of parseWarnings) console.warn(`  parse: ${w}`);
     return;
@@ -175,24 +172,19 @@ function reportRun(
   cropped: Array<{ region: Region; outputPath: string; imageBasename: string }>,
   warnings: string[],
 ): void {
-  // eslint-disable-next-line no-console
   console.log(`${ticket.ticket_number}: ${regions.length} region(s) from ${picked.source} → ${cropped.length} crop(s)`);
   for (const c of cropped) {
-    // eslint-disable-next-line no-console
     console.log(`  [${c.region.index}] ${c.imageBasename} → ${c.outputPath}${c.region.caption != null ? `  (${c.region.caption})` : ""}`);
   }
   for (const w of warnings) {
-    // eslint-disable-next-line no-console
     console.warn(`  ${w}`);
   }
   if (cropped.length === 0 && warnings.length === 0) {
-    // eslint-disable-next-line no-console
     console.warn(`No crops produced — check that ${basename(SETTINGS_PATH)} points at the right Hot Sheet instance.`);
   }
 }
 
 void main().catch((err: unknown) => {
-  // eslint-disable-next-line no-console
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

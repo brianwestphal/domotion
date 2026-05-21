@@ -1,4 +1,3 @@
-/* eslint-disable */
 // The .start-frame picture has a SIBLING <video> at the same rect. Maybe the
 // video's replacedSnapshot is painting OVER the start-frame img, hiding the
 // peripheral flowers.

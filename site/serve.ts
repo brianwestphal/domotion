@@ -45,6 +45,5 @@ const server = createServer((req, res) => {
 });
 
 server.listen(port, () => {
-  // eslint-disable-next-line no-console
   console.log(`Manual preview: http://localhost:${port}/`);
 });
