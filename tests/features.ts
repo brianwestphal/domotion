@@ -706,6 +706,19 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-755: CSS `zoom` scales BOTH layout and paint. Chrome includes the
+    // zoom factor in `getBoundingClientRect()` but NOT in
+    // `getComputedStyle().fontSize` (which returns pre-zoom CSS pixels), so
+    // text inside a `zoom: 2` box was painted at the base font size in a
+    // 2× layout box. Folding zoom into the same cumulative-scale map that
+    // already pre-scales fontSize for `transform: scale()` makes the text
+    // paint at the effective zoomed size.
+    name: "zoom-scaled-card-text",
+    html: `<div style="padding:24px;background:#0d1117;font-family:system-ui,sans-serif;display:flex;align-items:center;gap:16px;"><div style="zoom:1;background:#2563eb;color:white;padding:8px 14px;border-radius:4px;font-weight:700;font-size:13px;">zoom: 1</div><div style="zoom:2;background:#2563eb;color:white;padding:8px 14px;border-radius:4px;font-weight:700;font-size:13px;">zoom: 2</div></div>`,
+    width: 380,
+    height: 140,
+  },
+  {
     // DM-791: Greek `<mi>` letters get the same mathvariant=italic
     // substitution as Latin (α → 𝛼 U+1D6FC, Β → 𝛣 U+1D6E3, etc., with
     // explicit fallbacks at the symbol-variant codepoints ∂ ϵ ϑ ϰ ϕ ϱ ϖ ∇).

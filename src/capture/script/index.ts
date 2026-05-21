@@ -1115,10 +1115,25 @@ export const captureScript =
       const _p = _cumulativeScale.get(_pe);
       _cumX = _p[0]; _cumY = _p[1];
     }
-    const _ownT = getComputedStyle(_el).transform;
+    const _ownCs = getComputedStyle(_el);
+    const _ownT = _ownCs.transform;
     if (_ownT != null && _ownT !== 'none' && _ownT !== '') {
       const _own = _computeOwnScale(_ownT);
       _cumX *= _own[0]; _cumY *= _own[1];
+    }
+    // DM-755: CSS `zoom` is a legacy WebKit / IE property that Chrome still
+    // honors as a real layout-affecting scaler. `getComputedStyle().zoom`
+    // returns the resolved factor as a string ("1", "0.5", "2", "1.5" for
+    // 150%, "reset"); `getBoundingClientRect()` already includes the zoom
+    // in coordinates, but `getComputedStyle()` returns `fontSize` /
+    // `padding` etc. in PRE-zoom CSS pixels. Folding zoom into the same
+    // cumulative scale that handles `transform: scale()` re-uses the
+    // downstream `fontSize × cum` and `cumScaleX / cumScaleY` correction
+    // wrappers — text inside a `zoom: 2` box gets painted at 2× the
+    // captured font size, matching Chrome's effective paint.
+    const _ownZ = parseFloat(_ownCs.zoom);
+    if (Number.isFinite(_ownZ) && _ownZ > 0 && _ownZ !== 1) {
+      _cumX *= _ownZ; _cumY *= _ownZ;
     }
     if (_cumX !== 1 || _cumY !== 1) _cumulativeScale.set(_el, [_cumX, _cumY]);
   }
