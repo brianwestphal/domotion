@@ -1025,11 +1025,27 @@ export function elementTreeToSvg(
         const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
         const originBox = boxFor(layerOrigin);
         const clipBox = boxFor(layerClip);
+        // DM-821: `background-attachment: local` positions and sizes the
+        // layer against the element's full scrollable content area, not its
+        // visible viewport. `background-size: contain` on a 936×220 panel
+        // whose scroll content runs ~820px tall sizes the image to fit the
+        // 936×820 box (one width-filling tile), but using just the visible
+        // box sizes it to 660×220 instead and tiles horizontally with a
+        // visible second copy at the right edge. Substitute the scroll
+        // dimensions when the element actually scrolls.
+        let posOriginX = originBox.x, posOriginY = originBox.y;
+        let posOriginW = originBox.w, posOriginH = originBox.h;
+        if (layerAttachment === "local" && el.styles.scrollHeight != null && el.styles.scrollWidth != null) {
+          const sw = el.styles.scrollWidth as number;
+          const sh = el.styles.scrollHeight as number;
+          if (sw > posOriginW) posOriginW = sw;
+          if (sh > posOriginH) posOriginH = sh;
+        }
         const defId = `${idPrefix}bg${clipIdx++}`;
         // Pattern is positioned + sized relative to the origin box (where the image starts)
         // then painted into a rect clipped to the clip box. For fixed attachment
         // the origin is the viewport instead.
-        const out = buildBackgroundLayerDef(defId, layer, originBox.x, originBox.y, originBox.w, originBox.h, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+        const out = buildBackgroundLayerDef(defId, layer, posOriginX, posOriginY, posOriginW, posOriginH, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
         if (out.def === "") continue;
         defsParts.push(out.def);
         // DM-462: when this layer's clip is `text`, do NOT paint a rect over
