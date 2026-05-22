@@ -302,6 +302,15 @@ export interface CapturedElement {
      * when the rendered text is actually transparent. DM-462.
      */
     webkitTextFillColor?: string;
+    /**
+     * DM-749: Stripe / Resend pattern — when an element has
+     * `webkit-text-fill-color: transparent` but its own background-image is
+     * `none`, the gradient lives on an ANCESTOR with `background-clip:
+     * text`. Chrome's paint propagates that gradient through descendant
+     * glyphs. Captured as the resolved `background-image` string of the
+     * nearest ancestor with `background-clip: text` (walked up to 8 levels).
+     */
+    inheritedTextFillGradient?: string;
     /** `-webkit-text-stroke-width` (e.g. "2px"). DM-719. */
     webkitTextStrokeWidth?: string;
     /** `-webkit-text-stroke-color` (e.g. "rgb(220,38,38)"). DM-719. */

@@ -217,6 +217,35 @@ export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderS
     // the headline text transparent in the background-clip:text idiom
     // (cs.color may still report a normal value).
     webkitTextFillColor: cs.webkitTextFillColor || cs.WebkitTextFillColor || undefined,
+    // DM-749: Stripe's keynote-speaker headline pattern — a span with
+    // `background-image: <gradient>; background-clip: text; -webkit-text-
+    // fill-color: transparent` wraps a child div that holds the actual
+    // text. The gradient is on the parent but Chrome lets it paint through
+    // the child's glyphs because background-clip: text masks the gradient
+    // by the union of all descendant text shapes. When the element's own
+    // bg-image is none AND its text-fill-color is transparent AND an
+    // ancestor has background-clip: text with a gradient, capture that
+    // ancestor's gradient so the renderer can use it as the glyph fill.
+    inheritedTextFillGradient: (function () {
+      const ownTfc = cs.webkitTextFillColor || cs.WebkitTextFillColor || '';
+      // Only meaningful when our own text is transparent.
+      if (!/^(rgba\(0[^)]*?,\s*0\)|transparent)$/i.test(ownTfc.trim())) return undefined;
+      // Walk up at most 8 ancestors looking for `background-clip: text`
+      // + a non-none `background-image`. 8 covers the Stripe hds-heading
+      // depth-of-2 nesting comfortably without scanning the whole tree.
+      let p = el.parentElement;
+      let depth = 0;
+      while (p != null && depth < 8) {
+        const pcs = window.getComputedStyle(p);
+        const bc = (pcs.backgroundClip || '') + ' ' + (pcs.webkitBackgroundClip || '');
+        if (/\btext\b/i.test(bc) && pcs.backgroundImage && pcs.backgroundImage !== 'none' && pcs.backgroundImage !== '') {
+          return pcs.backgroundImage;
+        }
+        p = p.parentElement;
+        depth++;
+      }
+      return undefined;
+    })(),
     // DM-719: `-webkit-text-stroke-width` / `-webkit-text-stroke-color` paint a
     // stroke around each glyph outline. Captured so the renderer can add a
     // `stroke` attribute to the text-path emission.

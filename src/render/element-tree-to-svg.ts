@@ -2218,7 +2218,21 @@ export function elementTreeToSvg(
       // Topmost text-clipped layer is the visible color over the glyphs when
       // we fall into the non-mask path; in the mask path below ALL layers
       // composite (DM-696). Find the topmost (lowest li) non-empty entry.
-      const topmostTextBgClipFill = textBgClipFills.find((s) => s != null) ?? null;
+      // DM-749: when this element has no text-bg-clip layers of its own but
+      // an ancestor has `background-clip: text` + a gradient (the Stripe
+      // hds-heading pattern — span with gradient + bg-clip:text wraps a
+      // child div with the actual text), build a gradient def from the
+      // captured `inheritedTextFillGradient` and use it as the fill.
+      let topmostTextBgClipFill = textBgClipFills.find((s) => s != null) ?? null;
+      if (topmostTextBgClipFill == null && textIsTransparent && el.styles.inheritedTextFillGradient != null && el.styles.inheritedTextFillGradient !== "" && el.styles.inheritedTextFillGradient !== "none") {
+        const layer = el.styles.inheritedTextFillGradient;
+        const defId = `${idPrefix}bg${clipIdx++}`;
+        const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, "auto", "0% 0%", "no-repeat", null, "scroll", captureViewport);
+        if (out.def !== "") {
+          defsParts.push(out.def);
+          topmostTextBgClipFill = `url(#${defId})`;
+        }
+      }
       const fillColor = (topmostTextBgClipFill != null && textIsTransparent)
         ? topmostTextBgClipFill
         : (textColor != null ? colorStr(textColor) : "#e6edf3");

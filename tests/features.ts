@@ -706,6 +706,19 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-749: Stripe's keynote-speaker pattern — gradient + `background-clip:
+    // text` + `webkit-text-fill-color: transparent` lives on the PARENT
+    // span; the actual text is in a child div with no background of its
+    // own. Chrome's paint propagates the parent's gradient through the
+    // descendant text shapes because background-clip: text masks the
+    // gradient by the union of all descendant glyphs. Capture walks up the
+    // ancestor chain (up to 8 levels) looking for the gradient owner.
+    name: "background-clip-text-inherited-from-ancestor",
+    html: `<div style="padding:24px;background:#0d1117;font-family:system-ui,sans-serif;font-size:30px;font-weight:700;"><span style="display:inline-block;background-image:linear-gradient(0deg,#ff2ede,#d298ff);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:#061b31;"><div>Patrick</div><div>Collison</div></span></div>`,
+    width: 320,
+    height: 130,
+  },
+  {
     // DM-722: `border-image-source` with a CSS gradient. The 9-slice URL
     // path bails when the source is a gradient because it expects a fixed
     // intrinsic size. For the common `border-image: <grad> 1` case (slice 1,
