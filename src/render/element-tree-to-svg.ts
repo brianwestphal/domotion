@@ -2861,6 +2861,35 @@ export function elementTreeToSvg(
       svgParts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`);
     }
 
+    // DM-809: MathML `<msqrt>` / `<mroot>` need their radical sign + over-
+    // bar synthesised — Chrome's MathML layout paints them from internal
+    // layout (no border / glyph capture). The msqrt's first radicand
+    // child's `x` is inset from `el.x` by the radical-sign width, and
+    // its `y` is inset by the overbar height — derive the radical
+    // geometry from those rects. Stroke a 3-segment path: leftmost mid-
+    // height vertex → bottom-right of radical area → top of overbar; then
+    // a horizontal overbar from the radicand's left to msqrt's right edge.
+    // For `<mroot>` the structure is `<mroot><radicand><index></mroot>`
+    // (index is a small superscript inside the radical's "hook"); we only
+    // draw the radical + overbar — the index renders normally as a child
+    // glyph.
+    if ((el.tag === "msqrt" || el.tag === "mroot") && el.children.length >= 1) {
+      const radicand = el.children[0];
+      const strokeCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
+      const radX0 = el.x;
+      const radX1 = radicand.x;
+      const radTop = el.y;
+      const radBottom = el.y + el.height;
+      const radMid = el.y + el.height * 0.6;
+      const radRight = el.x + el.width;
+      // Radical checkmark: enter at (radX0, radMid), descend to bottom at
+      // 40% across the radical-sign zone, climb to top-right at radicand
+      // start. Then overbar across the top.
+      const vertexX = radX0 + (radX1 - radX0) * 0.4;
+      const path = `M${r(radX0)},${r(radMid)} L${r(vertexX)},${r(radBottom - 1)} L${r(radX1)},${r(radTop)} L${r(radRight)},${r(radTop)}`;
+      svgParts.push(`${indent}<path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="1" />`);
+    }
+
     if (overflowClipId != null) svgParts.push(`${indent}</g>`);
 
     // Scrollbar thumb indicator — only painted when the element has an
