@@ -2844,6 +2844,23 @@ export function elementTreeToSvg(
       renderElementWithOverflowClip(child, depth + 1, childParentDisplay);
     }
 
+    // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
+    // numerator (first child) and denominator (second child). Chrome's
+    // MathML layout paints this from internal layout — there's no CSS
+    // border on the children to capture. Synthesize the bar from the two
+    // children's rects: span the wider of the two horizontally, place at
+    // the midpoint between numerator bottom and denominator top, default
+    // 1px thickness (matches MathML's `mfrac@linethickness="medium"`).
+    if (el.tag === "mfrac" && el.children.length >= 2) {
+      const num = el.children[0];
+      const den = el.children[1];
+      const barX = Math.min(num.x, den.x);
+      const barRight = Math.max(num.x + num.width, den.x + den.width);
+      const barY = (num.y + num.height + den.y) / 2 - 0.5;
+      const fillCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
+      svgParts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`);
+    }
+
     if (overflowClipId != null) svgParts.push(`${indent}</g>`);
 
     // Scrollbar thumb indicator — only painted when the element has an
