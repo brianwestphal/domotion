@@ -706,6 +706,18 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-722: `border-image-source` with a CSS gradient. The 9-slice URL
+    // path bails when the source is a gradient because it expects a fixed
+    // intrinsic size. For the common `border-image: <grad> 1` case (slice 1,
+    // stretch), emit a "border ring" path filled with the gradient scoped to
+    // the border-image-area instead — matches Chrome's paint because slice 1
+    // + stretch effectively maps a continuous gradient along all four sides.
+    name: "border-image-gradient-source",
+    html: `<div style="padding:24px;background:#0d1117;font-family:system-ui,sans-serif;"><div style="display:inline-block;width:240px;height:60px;border:8px solid transparent;border-image:linear-gradient(45deg,#dc2626,#f59e0b,#10b981,#0ea5e9) 1;color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;">gradient border</div></div>`,
+    width: 320,
+    height: 130,
+  },
+  {
     // DM-758: `mask-border` (legacy `-webkit-mask-box-image`) with a
     // gradient source + `slice 1 fill / 0 / 0` paints the entire element
     // through the gradient as a mask. Verifies the gradient routes through

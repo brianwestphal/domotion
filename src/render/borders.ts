@@ -8,6 +8,7 @@ import { r, esc } from "./format.js";
 import { parseColor, type RGBA } from "./colors.js";
 import type { CapturedElement } from "../capture/types.js";
 import { embedResizedDataUri } from "../capture/embed.js";
+import { parseGradient, buildLinearGradientDef, buildRadialGradientDef } from "./gradients.js";
 
 /** Per-corner border-radius axis-pair (h = horizontal, v = vertical).
  *  An elliptical corner has h ≠ v; a circular corner has h = v. */
@@ -217,6 +218,87 @@ export function injectSvgSize(svgHtml: string, w: number, h: number): string {
  * Returns { svg, usedIds }. usedIds indicates how many clipIdx values were
  * consumed so the caller can keep its own counter in sync.
  */
+/**
+ * DM-722: render a `border-image-source` that's a CSS gradient. Builds a
+ * `<linearGradient>` or `<radialGradient>` def scoped to the border-image-
+ * area, then emits a "border ring" path (outer rect minus inner rect, with
+ * `fill-rule="evenodd"`) filled with the gradient. Handles the simple
+ * `border-image: <grad> 1` and `border-image: <grad> 0 fill` cases (the
+ * fixture's `.gradient-border` panel uses `border-image: linear-gradient(
+ * 45deg, …) 1`). For `fill` keyword the inner rect is omitted so the
+ * gradient covers the entire border-image-area including the center.
+ */
+function renderBorderImageGradient(
+  el: CapturedElement,
+  indent: string,
+  idPrefix: string,
+  defsParts: string[],
+  clipIdx: number,
+  src: string,
+): { svg: string; usedIds: number } {
+  const grad = parseGradient(src);
+  if (grad == null) return { svg: "", usedIds: 0 };
+  const sliceRaw = el.styles.borderImageSlice ?? "100%";
+  const fillCenter = /\bfill\b/i.test(sliceRaw);
+  const bwTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+  const bwRight = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+  const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+  const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+  // Outsets: same parsing as the URL path. Default 0.
+  const outsetTokens = (el.styles.borderImageOutset ?? "0").trim().split(/\s+/);
+  const parseOutset = (tok: string | undefined, basis: number, borderW: number): number => {
+    if (tok == null || tok === "") return 0;
+    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
+    const n = parseFloat(tok);
+    return Number.isFinite(n) ? n * borderW : 0;
+  };
+  const ot = parseOutset(outsetTokens[0], el.height, bwTop);
+  const or_ = parseOutset(outsetTokens[1] ?? outsetTokens[0], el.width, bwRight);
+  const ob = parseOutset(outsetTokens[2] ?? outsetTokens[0], el.height, bwBottom);
+  const ol = parseOutset(outsetTokens[3] ?? outsetTokens[1] ?? outsetTokens[0], el.width, bwLeft);
+  // Border-image-width override: same parsing as URL path but here only used
+  // to size the inner cutout. Default to the element's own border widths.
+  const parseBorderImageLen = (tok: string | undefined, basis: number, borderW: number): number => {
+    if (tok == null || tok === "" || tok === "auto") return borderW;
+    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
+    const n = parseFloat(tok);
+    return Number.isFinite(n) ? n * borderW : borderW;
+  };
+  const widthTokens = (el.styles.borderImageWidth ?? "").trim().split(/\s+/);
+  const wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
+  const wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
+  const wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
+  const wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
+  const boxX = el.x - ol;
+  const boxY = el.y - ot;
+  const boxW = el.width + ol + or_;
+  const boxH = el.height + ot + ob;
+  if (boxW <= 0 || boxH <= 0) return { svg: "", usedIds: 0 };
+  // Build the gradient def keyed to the border-image-area.
+  const gid = `${idPrefix}big${clipIdx}`;
+  const usedIds = 1;
+  const rect = { x: boxX, y: boxY, w: boxW, h: boxH };
+  let def: string;
+  if (grad.kind === "linear") def = buildLinearGradientDef(grad, gid, rect);
+  else if (grad.kind === "radial") def = buildRadialGradientDef(grad, gid, rect);
+  else return { svg: "", usedIds: 0 };
+  defsParts.push(def);
+  // Border ring path: outer rect then inner rect (anti-clockwise via reversed
+  // winding so even-odd cuts the hole). When `fill` is set, skip the inner
+  // rect so the gradient covers the entire border-image-area.
+  const x0 = boxX, y0 = boxY, x3 = boxX + boxW, y3 = boxY + boxH;
+  const x1 = boxX + wl, y1 = boxY + wt, x2 = boxX + boxW - wr, y2 = boxY + boxH - wb;
+  let d = `M${r(x0)} ${r(y0)} L${r(x3)} ${r(y0)} L${r(x3)} ${r(y3)} L${r(x0)} ${r(y3)} Z`;
+  if (!fillCenter && x2 > x1 && y2 > y1) {
+    // Inner cutout in opposite winding (counter-clockwise) for evenodd.
+    d += ` M${r(x1)} ${r(y1)} L${r(x1)} ${r(y2)} L${r(x2)} ${r(y2)} L${r(x2)} ${r(y1)} Z`;
+  }
+  const svg = `${indent}<path d="${d}" fill="url(#${gid})" fill-rule="evenodd" />`;
+  return { svg, usedIds };
+}
+
 export function renderBorderImage(
   el: CapturedElement,
   indent: string,
@@ -227,8 +309,25 @@ export function renderBorderImage(
   const src = el.styles.borderImageSource;
   if (src == null || src === "none" || src === "") return { svg: "", usedIds: 0 };
 
+  // DM-722: CSS gradient as `border-image-source`. The 9-slice machinery
+  // below is built around a fixed-size raster source. Per CSS Images 3, a
+  // gradient used as `border-image-source` resolves to a concrete-size image
+  // equal to the border-image-area (= border-box ± `border-image-outset`).
+  // For the common `border-image: <grad> 1` case (slice 1, stretch — the
+  // fixture's `.gradient-border` panel), emit a single "border ring" path
+  // (outer rect minus inner rect via even-odd fill rule) filled with the
+  // gradient scoped to the full border-image-area. This matches Chrome's
+  // paint because slice 1 + stretch effectively maps a continuous gradient
+  // along all four sides — exactly what painting the whole area with the
+  // gradient and clipping to the border donut produces. Slice values other
+  // than `1` or `1 fill` (with non-degenerate edge tiling) fall through
+  // unsupported for gradient sources; the rasterise-during-capture path is
+  // tracked separately for that.
   const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(src);
-  if (urlMatch == null) return { svg: "", usedIds: 0 };
+  if (urlMatch == null) {
+    if (!/-gradient\(/i.test(src)) return { svg: "", usedIds: 0 };
+    return renderBorderImageGradient(el, indent, idPrefix, defsParts, clipIdx, src);
+  }
   const url = urlMatch[1];
   const natW = el.styles.borderImageIntrinsicWidth ?? 0;
   const natH = el.styles.borderImageIntrinsicHeight ?? 0;
