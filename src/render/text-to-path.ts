@@ -1125,6 +1125,16 @@ export function resolveFontKey(fontFamily: string): string {
     // `-apple-system` fall through via the `continue` clause below.
     if (name === "system-ui" || name === "blinkmacsystemfont"
       || name === "sf pro" || name === "sf pro text" || name === "sf pro display") return "sf-pro";
+    // DM-806: author-named "Hiragino Sans" / "Hiragino Kaku Gothic ProN" /
+    // the underlying ヒラギノ角ゴシック native name maps to the JP variant
+    // we already ship under the `hiragino-jp` key (HiraKakuProN-W3 /
+    // -W6). Without this, the family falls through to `system-ui` →
+    // sf-pro, which paints Latin glyphs visibly differently from Hiragino
+    // Sans (wider letter spacing on a/c/p — the `niche-text-box-trim`
+    // fixture's "ideographic — 日本語テキスト" label exposes this).
+    if (name === "hiragino sans" || name === "hiragino kaku gothic pron"
+      || name === "hiragino kaku gothic pro" || name === "ヒラギノ角ゴシック"
+      || name === "hiragino maru gothic pron") return "hiragino-jp";
     // Other generic keywords Chrome on macOS does NOT recognize as system
     // fonts: `ui-monospace`, `ui-rounded`, `fantasy`, `math`, `emoji`,
     // `fangsong`. Chrome treats them as missing and walks past them to the
