@@ -742,6 +742,18 @@ const tests: FeatureTest[] = [
     height: 130,
   },
   {
+    // DM-794 follow-up to DM-722: `border-image-source: <gradient>` with a
+    // non-trivial slice value (here `25% fill` + `width: 16px`) must do a
+    // proper 9-slice — each corner / edge / center sees a different region
+    // of the gradient stretched to its destination slot, not a continuous
+    // ring fill of the whole area. Verifies the renderer's per-slot
+    // viewBox-into-source-gradient remap.
+    name: "border-image-gradient-source-sliced",
+    html: `<div style="padding:24px;background:#0d1117;font-family:system-ui,sans-serif;"><div style="display:inline-block;width:240px;height:80px;border:16px solid transparent;border-image:linear-gradient(45deg,#dc2626,#f59e0b,#10b981,#0ea5e9) 25% fill / 16px / 0 stretch;color:#fff;font-weight:600;font-size:13px;"></div></div>`,
+    width: 320,
+    height: 160,
+  },
+  {
     // DM-758: `mask-border` (legacy `-webkit-mask-box-image`) with a
     // gradient source + `slice 1 fill / 0 / 0` paints the entire element
     // through the gradient as a mask. Verifies the gradient routes through

@@ -219,14 +219,23 @@ export function injectSvgSize(svgHtml: string, w: number, h: number): string {
  * consumed so the caller can keep its own counter in sync.
  */
 /**
- * DM-722: render a `border-image-source` that's a CSS gradient. Builds a
- * `<linearGradient>` or `<radialGradient>` def scoped to the border-image-
- * area, then emits a "border ring" path (outer rect minus inner rect, with
- * `fill-rule="evenodd"`) filled with the gradient. Handles the simple
- * `border-image: <grad> 1` and `border-image: <grad> 0 fill` cases (the
- * fixture's `.gradient-border` panel uses `border-image: linear-gradient(
- * 45deg, …) 1`). For `fill` keyword the inner rect is omitted so the
- * gradient covers the entire border-image-area including the center.
+ * Render a `border-image-source` that's a CSS gradient as a proper 9-slice.
+ *
+ * Per CSS Images 3, a gradient used as `border-image-source` has the size of
+ * the border-image-area (= border-box ± `border-image-outset`). The 9-slice
+ * algorithm then applies just like for a raster source: corners stretched,
+ * edges tiled per `border-image-repeat`, optional fill center.
+ *
+ * Implementation: build a single `<linearGradient>` / `<radialGradient>` def
+ * positioned in source space `(0, 0) - (natW, natH)` where natW = boxW,
+ * natH = boxH. Each slot emits an inner `<svg x dx y dy width dw height dh
+ * viewBox="sx sy sw sh" preserveAspectRatio="none">` containing a `<rect
+ * width="natW" height="natH" fill="url(#g)" />`. The viewBox maps the source
+ * slice rect onto the destination slot; the gradient comes along because its
+ * `userSpaceOnUse` coordinates are interpreted in the viewBox space. Tiled
+ * edges (`repeat` / `round` / `space`) wrap that inner `<svg>` in a
+ * `<pattern>`. The single-def-per-element keeps SVG output small and matches
+ * how the URL path reuses one source asset.
  */
 function renderBorderImageGradient(
   el: CapturedElement,
@@ -238,13 +247,16 @@ function renderBorderImageGradient(
 ): { svg: string; usedIds: number } {
   const grad = parseGradient(src);
   if (grad == null) return { svg: "", usedIds: 0 };
+  if (grad.kind !== "linear" && grad.kind !== "radial") return { svg: "", usedIds: 0 };
+
   const sliceRaw = el.styles.borderImageSlice ?? "100%";
   const fillCenter = /\bfill\b/i.test(sliceRaw);
   const bwTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
   const bwRight = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
   const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
   const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-  // Outsets: same parsing as the URL path. Default 0.
+
+  // Outsets: default 0. Same parsing as URL path.
   const outsetTokens = (el.styles.borderImageOutset ?? "0").trim().split(/\s+/);
   const parseOutset = (tok: string | undefined, basis: number, borderW: number): number => {
     if (tok == null || tok === "") return 0;
@@ -257,8 +269,8 @@ function renderBorderImageGradient(
   const or_ = parseOutset(outsetTokens[1] ?? outsetTokens[0], el.width, bwRight);
   const ob = parseOutset(outsetTokens[2] ?? outsetTokens[0], el.height, bwBottom);
   const ol = parseOutset(outsetTokens[3] ?? outsetTokens[1] ?? outsetTokens[0], el.width, bwLeft);
-  // Border-image-width override: same parsing as URL path but here only used
-  // to size the inner cutout. Default to the element's own border widths.
+
+  // Border-image-width per side; default = element's border-width. Same as URL path.
   const parseBorderImageLen = (tok: string | undefined, basis: number, borderW: number): number => {
     if (tok == null || tok === "" || tok === "auto") return borderW;
     if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
@@ -271,32 +283,161 @@ function renderBorderImageGradient(
   const wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
   const wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
   const wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
+
   const boxX = el.x - ol;
   const boxY = el.y - ot;
   const boxW = el.width + ol + or_;
   const boxH = el.height + ot + ob;
   if (boxW <= 0 || boxH <= 0) return { svg: "", usedIds: 0 };
-  // Build the gradient def keyed to the border-image-area.
+
+  // Gradient sources have the size of the border-image-area.
+  const natW = boxW;
+  const natH = boxH;
+
+  // Slice: numbers = source pixels, percentages = of source dims, optional `fill`.
+  const sliceTokens = sliceRaw.replace(/\bfill\b/i, "").trim().split(/\s+/);
+  const sliceNums = sliceTokens.map((t) => {
+    if (/%$/.test(t)) return { pct: parseFloat(t) };
+    return { px: parseFloat(t) };
+  });
+  const resolveSlice = (tok: { pct?: number; px?: number }, basis: number): number => {
+    if (tok.pct != null) return (tok.pct / 100) * basis;
+    return tok.px ?? 0;
+  };
+  const st = resolveSlice(sliceNums[0] ?? { px: 0 }, natH);
+  const sr = resolveSlice(sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
+  const sb = resolveSlice(sliceNums[2] ?? sliceNums[0] ?? { px: 0 }, natH);
+  const sl = resolveSlice(sliceNums[3] ?? sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
+
+  // Repeat policy per axis.
+  const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
+  const rH = (repeatTokens[0] || "stretch").toLowerCase();
+  const rV = (repeatTokens[1] || rH).toLowerCase();
+
+  // Gradient def in source space (0, 0) - (natW, natH). Positioned at the
+  // border-image-area's element-absolute origin (boxX, boxY) so the inner
+  // <svg viewBox> remap below lands the gradient on the correct destination
+  // coordinates. Each <rect> inside an inner <svg viewBox="sx sy sw sh">
+  // paints the slice region by drawing the full natW × natH rect — the
+  // viewBox + preserveAspectRatio="none" map source slice → destination slot.
   const gid = `${idPrefix}big${clipIdx}`;
-  const usedIds = 1;
-  const rect = { x: boxX, y: boxY, w: boxW, h: boxH };
-  let def: string;
-  if (grad.kind === "linear") def = buildLinearGradientDef(grad, gid, rect);
-  else if (grad.kind === "radial") def = buildRadialGradientDef(grad, gid, rect);
-  else return { svg: "", usedIds: 0 };
+  let usedIds = 1;
+  const gradRect = { x: boxX, y: boxY, w: natW, h: natH };
+  const def = grad.kind === "linear"
+    ? buildLinearGradientDef(grad, gid, gradRect)
+    : buildRadialGradientDef(grad, gid, gradRect);
   defsParts.push(def);
-  // Border ring path: outer rect then inner rect (anti-clockwise via reversed
-  // winding so even-odd cuts the hole). When `fill` is set, skip the inner
-  // rect so the gradient covers the entire border-image-area.
-  const x0 = boxX, y0 = boxY, x3 = boxX + boxW, y3 = boxY + boxH;
-  const x1 = boxX + wl, y1 = boxY + wt, x2 = boxX + boxW - wr, y2 = boxY + boxH - wb;
-  let d = `M${r(x0)} ${r(y0)} L${r(x3)} ${r(y0)} L${r(x3)} ${r(y3)} L${r(x0)} ${r(y3)} Z`;
-  if (!fillCenter && x2 > x1 && y2 > y1) {
-    // Inner cutout in opposite winding (counter-clockwise) for evenodd.
-    d += ` M${r(x1)} ${r(y1)} L${r(x1)} ${r(y2)} L${r(x2)} ${r(y2)} L${r(x2)} ${r(y1)} Z`;
+
+  // Slot geometry in element-absolute coords.
+  const x0 = boxX, x1 = boxX + wl, x2 = boxX + boxW - wr, x3 = boxX + boxW;
+  const y0 = boxY, y1 = boxY + wt, y2 = boxY + boxH - wb, y3 = boxY + boxH;
+  // Source regions in source pixels (NB: corner rects + edge / center rects).
+  const sxL = 0, sxR = natW - sr, sxC = sl, sxW_C = natW - sl - sr;
+  const syT = 0, syB = natH - sb, syC = st, syH_C = natH - st - sb;
+
+  const parts: string[] = [];
+
+  // Inner <svg viewBox> that paints the source slice rect (sx, sy, sw, sh)
+  // into the destination slot (dx, dy, dw, dh). The gradient is positioned
+  // in source-space coords (boxX..boxX+natW, boxY..boxY+natH); to keep it
+  // aligned through the viewBox mapping, the viewBox is offset to start at
+  // (boxX + sx, boxY + sy) — so the gradient's userSpaceOnUse coordinates
+  // line up with the source rect we're sampling. Then a single <rect>
+  // covering (boxX, boxY) - (boxX+natW, boxY+natH) lets the gradient
+  // evaluate across the full source space; the viewBox crops to the slice.
+  const innerSvgForSlot = (
+    dx: number, dy: number, dw: number, dh: number,
+    sx: number, sy: number, sw: number, sh: number,
+  ): string => {
+    return `<svg x="${r(dx)}" y="${r(dy)}" width="${r(dw)}" height="${r(dh)}" viewBox="${r(boxX + sx)} ${r(boxY + sy)} ${r(sw)} ${r(sh)}" preserveAspectRatio="none"><rect x="${r(boxX)}" y="${r(boxY)}" width="${r(natW)}" height="${r(natH)}" fill="url(#${gid})" /></svg>`;
+  };
+
+  const emitStretchedSlot = (
+    dx: number, dy: number, dw: number, dh: number,
+    sx: number, sy: number, sw: number, sh: number,
+  ): void => {
+    if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
+    parts.push(`${indent}${innerSvgForSlot(dx, dy, dw, dh, sx, sy, sw, sh)}`);
+  };
+
+  // Tiled edges: wrap the inner <svg> in a <pattern> sized to one tile, then
+  // fill the destination rect with that pattern. round / space tile-count
+  // logic mirrors the URL path's `emitTiledSliceEdge`. For `space`, the
+  // pattern cell is the slot/N and the inner <svg> is centered inside the
+  // cell so each end has a half-gap; transparent gap is automatic because
+  // the inner <svg> is smaller than the pattern cell.
+  const emitTiledEdgeSlot = (
+    dx: number, dy: number, dw: number, dh: number,
+    sx: number, sy: number, sw: number, sh: number,
+    axis: "x" | "y", mode: "repeat" | "round" | "space",
+  ): void => {
+    if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
+    let tileW: number, tileH: number;
+    if (axis === "x") {
+      tileH = dh;
+      tileW = sw * (dh / sh);
+      if (mode === "round") {
+        const count = Math.max(1, Math.round(dw / tileW));
+        tileW = dw / count;
+      }
+    } else {
+      tileW = dw;
+      tileH = sh * (dw / sw);
+      if (mode === "round") {
+        const count = Math.max(1, Math.round(dh / tileH));
+        tileH = dh / count;
+      }
+    }
+    let patternW = tileW, patternH = tileH;
+    let tileOffX = 0, tileOffY = 0;
+    if (mode === "space") {
+      if (axis === "x") {
+        const count = Math.floor(dw / tileW);
+        if (count <= 0) return;
+        patternW = dw / count;
+        tileOffX = (patternW - tileW) / 2;
+      } else {
+        const count = Math.floor(dh / tileH);
+        if (count <= 0) return;
+        patternH = dh / count;
+        tileOffY = (patternH - tileH) / 2;
+      }
+    }
+    const patId = `${idPrefix}bip${clipIdx + usedIds}`;
+    usedIds++;
+    const inner = innerSvgForSlot(tileOffX, tileOffY, tileW, tileH, sx, sy, sw, sh);
+    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dx)}" y="${r(dy)}" width="${r(patternW)}" height="${r(patternH)}">${inner}</pattern>`);
+    parts.push(`${indent}<rect x="${r(dx)}" y="${r(dy)}" width="${r(dw)}" height="${r(dh)}" fill="url(#${patId})" />`);
+  };
+
+  // 4 corners — always stretched.
+  emitStretchedSlot(x0, y0, wl, wt, sxL, syT, sl, st);   // NW
+  emitStretchedSlot(x2, y0, wr, wt, sxR, syT, sr, st);   // NE
+  emitStretchedSlot(x0, y2, wl, wb, sxL, syB, sl, sb);   // SW
+  emitStretchedSlot(x2, y2, wr, wb, sxR, syB, sr, sb);   // SE
+  // Top + Bottom edges.
+  if (rH === "stretch") {
+    emitStretchedSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
+    emitStretchedSlot(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
+  } else {
+    emitTiledEdgeSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH as "repeat" | "round" | "space");
+    emitTiledEdgeSlot(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH as "repeat" | "round" | "space");
   }
-  const svg = `${indent}<path d="${d}" fill="url(#${gid})" fill-rule="evenodd" />`;
-  return { svg, usedIds };
+  // Left + Right edges.
+  if (rV === "stretch") {
+    emitStretchedSlot(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
+    emitStretchedSlot(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
+  } else {
+    emitTiledEdgeSlot(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV as "repeat" | "round" | "space");
+    emitTiledEdgeSlot(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV as "repeat" | "round" | "space");
+  }
+  // Center — only when `fill`.
+  if (fillCenter) {
+    emitStretchedSlot(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
+  }
+
+  if (parts.length === 0) return { svg: "", usedIds: 0 };
+  return { svg: parts.join("\n"), usedIds };
 }
 
 export function renderBorderImage(
