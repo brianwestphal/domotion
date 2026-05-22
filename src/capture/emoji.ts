@@ -148,23 +148,29 @@ export async function rasterizeBitmapGlyphs(
                 const sbixPng = extractEmojiBitmap(cp, g.rect.width);
                 if (sbixPng != null) {
                   g.dataUri = `data:image/png;base64,${sbixPng.toString("base64")}`;
-                  // sbix bitmaps are square. The captured rect uses the line-box
-                  // height (typically the advance width for emoji) which is
-                  // shorter than the advance width — Range.getBoundingClientRect
-                  // returns the line box, not the painted ink. Painting the
-                  // square bitmap into a non-square rect with preserveAspectRatio
-                  // ="none" squishes the glyph vertically (DM-438: smiley emoji
-                  // rendered 20×17 instead of 20×20). Chrome paints the bitmap
-                  // at em-square aspect with the BOTTOM aligned to the line-box
-                  // bottom, so extend the rect upward to a square. Scoped to
-                  // sbix-fed glyphs (Apple Color Emoji on macOS) so DM-401/411
-                  // /414's flag-emoji regression — driven by page.screenshot's
-                  // already-rectangular bitmaps — does not return.
-                  if (g.rect.width > g.rect.height) {
-                    const bottom = g.rect.y + g.rect.height;
-                    g.rect.height = g.rect.width;
-                    g.rect.y = bottom - g.rect.width;
-                  }
+                  // sbix bitmaps are square (em-square sized). Chrome paints
+                  // them centered horizontally on the glyph advance and bottom-
+                  // aligned to the line-box. The captured rect spans the
+                  // typographic line-box (advance × line-height), which is
+                  // bigger than the em-square on either axis when letter-spacing
+                  // or line-height add slack. DM-438: smiley rendered 20×17 in a
+                  // 20-wide / 17-tall rect (height shorter than width) — fixed
+                  // by extending the rect upward to a 20×20 square. DM-801: at
+                  // font-size 48 with letter-spacing 8, the rect was 56×63
+                  // (width INCLUDES letter-spacing, height bigger than em-
+                  // square), so emoji painted as 56×63 — vertically stretched
+                  // hearts and wide smileys. Snap to fontSize × fontSize
+                  // centered horizontally on the rect's advance and bottom-
+                  // aligned vertically; falls back to max(w,h) when fontSize
+                  // isn't carried on the segment (only the SVG path needs it,
+                  // not the existing screenshot path which already round-trips
+                  // a rectangular PNG).
+                  const elFs = parseFloat(el.styles.fontSize ?? "") || 0;
+                  const fs = seg.fontSize ?? (elFs > 0 ? elFs : Math.max(g.rect.width, g.rect.height));
+                  g.rect.x += (g.rect.width - fs) / 2;
+                  g.rect.y += (g.rect.height - fs) / 2;
+                  g.rect.width = fs;
+                  g.rect.height = fs;
                   continue;
                 }
               }

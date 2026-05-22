@@ -539,7 +539,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // DM-549: rasterize conic-gradient layers (no-op when tree has none).
     await rasterizeConicGradients(cap.tree);
     const svgContent = elementTreeToSvg(cap.tree, WIDTH, fixtureHeight);
-    const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${fixtureHeight}" width="${WIDTH}" height="${fixtureHeight}"><rect width="${WIDTH}" height="${fixtureHeight}" fill="${bodyBg}" />${svgContent}</svg>`;
+    const xlinkAttr = svgContent.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
+    const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${WIDTH} ${fixtureHeight}" width="${WIDTH}" height="${fixtureHeight}"><rect width="${WIDTH}" height="${fixtureHeight}" fill="${bodyBg}" />${svgContent}</svg>`;
     writeFileSync(svgPath, svgDoc);
 
     // Load the SVG directly as the top-level document. Wrapping it in <img>

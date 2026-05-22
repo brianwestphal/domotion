@@ -74,7 +74,12 @@ export function wrapSvg(inner: string, width: number, height: number, opts?: { t
   // when `rootBgComputed` is missing (back-compat with pre-DM-552 trees) or
   // explicitly transparent (the page intends a transparent SVG output).
   const rootBgRect = opts?.tree != null ? transparentRootBgRect(opts.tree, width, height) : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}>${rootBgRect}${inner}</svg>`;
+  // Captured inline SVG subtrees may carry `xlink:href` (gradient stop
+  // inheritance, `<use>`, mask/pattern refs). Without xmlns:xlink declared,
+  // XML parsing fails with "Namespace prefix xlink for href is not defined"
+  // and Chrome refuses to render past the first occurrence.
+  const xlinkAttr = inner.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}>${rootBgRect}${inner}</svg>`;
 }
 
 /**
@@ -723,10 +728,35 @@ export function elementTreeToSvg(
         const maskSize = usingMaskBorderGradient ? "100% 100%" : (el.styles.maskSize ?? "auto");
         const maskPosition = usingMaskBorderGradient ? "0% 0%" : (el.styles.maskPosition ?? "0% 0%");
         const maskRepeat = usingMaskBorderGradient ? "no-repeat" : (el.styles.maskRepeat ?? "repeat");
+        // DM-820: honor `mask-clip` by insetting the mask paint region.
+        // `border-box` (default) leaves the border-box rect; `padding-box`
+        // insets by border widths; `content-box` insets by border + padding.
+        // For uniform masks (e.g. `linear-gradient(black, black)`) this
+        // matches Chrome's "mask is transparent outside the clip box" rule
+        // exactly. For position-sensitive gradients the layer is still
+        // sized to the clip box rather than the origin box (mask-origin
+        // not yet captured), which is a visible diff only when both differ
+        // — no fixtures exercise that combination today.
+        const maskClip = el.styles.maskClip ?? "border-box";
+        let maskX = el.x, maskY = el.y, maskW = el.width, maskH = el.height;
+        if (maskClip === "padding-box" || maskClip === "content-box") {
+          const bt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+          const br = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+          const bb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+          const bl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          maskX += bl; maskY += bt; maskW -= bl + br; maskH -= bt + bb;
+          if (maskClip === "content-box") {
+            const pt = parseFloat(el.styles.paddingTop ?? "0") || 0;
+            const pr = parseFloat(el.styles.paddingRight ?? "0") || 0;
+            const pb = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+            const pl = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+            maskX += pl; maskY += pt; maskW -= pl + pr; maskH -= pt + pb;
+          }
+        }
         const maskDef = buildMaskDef(
           `${idPrefix}mk${clipIdx++}`,
           maskImage,
-          el.x, el.y, el.width, el.height,
+          maskX, maskY, Math.max(0, maskW), Math.max(0, maskH),
           el.styles.maskMode ?? "match-source",
           maskSize,
           maskPosition,
@@ -1739,8 +1769,19 @@ export function elementTreeToSvg(
       } else {
         const par = preserveAspectRatioFor(fit, el.styles.objectPosition);
         const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";
+        // DM-819: Chrome doesn't honor `preserveAspectRatio` on `<image>`
+        // when the href is an SVG data URI — the embedded SVG paints at its
+        // own intrinsic size (viewBox or width/height) regardless of the
+        // outer slice/meet directive. Workaround: rewrite the inner SVG's
+        // top-level attrs to bake in our consumer width / height and the
+        // matching preserveAspectRatio so the inner SVG self-aligns, then
+        // emit the outer `<image>` with `preserveAspectRatio="none"` (which
+        // Chrome does honor for SVG sources). Pass-through for raster images.
+        const finalSrc = embedResizedDataUri(el.imageSrc, contentW, contentH);
+        const reHomedSrc = rewriteSvgDataUriPreserveAspectRatio(finalSrc, contentW, contentH, par);
+        const outerPar = reHomedSrc !== finalSrc ? "none" : par;
         svgParts.push(
-          `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, contentW, contentH))}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${par}"${clipAttr} />`,
+          `${indent}<image href="${esc(reHomedSrc)}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${outerPar}"${clipAttr} />`,
         );
       }
     }
@@ -4998,6 +5039,44 @@ function translateClipPath(value: string, x: number, y: number, w: number, h: nu
  * map to xMin/xMid/xMax + yMin/yMid/yMax. Percentages are bucketed to thirds
  * since SVG has no finer-grained alignment.
  */
+/**
+ * DM-819: rewrite an SVG-source data URI so its top-level `<svg>` declares
+ * `width=consumerW height=consumerH preserveAspectRatio="<par>"`. Chrome
+ * ignores the outer `<image>`'s `preserveAspectRatio` when the source is
+ * SVG (paints at the SVG's own intrinsic size), but it does honor the
+ * embedded SVG's own preserveAspectRatio. Baking the alignment into the
+ * inner SVG lets `object-fit: cover` on an `<img>` referencing an SVG file
+ * actually slice. Returns the input unchanged for raster sources or when
+ * the inner SVG can't be parsed.
+ */
+export function rewriteSvgDataUriPreserveAspectRatio(
+  dataUri: string, w: number, h: number, par: string,
+): string {
+  if (!/^data:image\/svg\+xml/i.test(dataUri)) return dataUri;
+  // Decode payload: support base64 or URL-encoded forms.
+  const m = /^data:image\/svg\+xml(;base64)?,(.*)$/is.exec(dataUri);
+  if (m == null) return dataUri;
+  const isBase64 = m[1] != null;
+  let svgText: string;
+  try {
+    svgText = isBase64 ? Buffer.from(m[2], "base64").toString("utf8") : decodeURIComponent(m[2]);
+  } catch { return dataUri; }
+  // Find the first <svg ...> opening tag and rewrite its attrs.
+  const tagMatch = /<svg\b([^>]*)>/i.exec(svgText);
+  if (tagMatch == null) return dataUri;
+  let attrs = tagMatch[1];
+  const stripAttr = (name: string): void => {
+    const re = new RegExp(`\\s${name}\\s*=\\s*("[^"]*"|'[^']*')`, "i");
+    attrs = attrs.replace(re, "");
+  };
+  stripAttr("width");
+  stripAttr("height");
+  stripAttr("preserveAspectRatio");
+  const newAttrs = `${attrs.replace(/\s+$/, "")} width="${r(w)}" height="${r(h)}" preserveAspectRatio="${par}"`;
+  const newSvg = svgText.slice(0, tagMatch.index) + `<svg${newAttrs}>` + svgText.slice(tagMatch.index + tagMatch[0].length);
+  return `data:image/svg+xml;base64,${Buffer.from(newSvg, "utf8").toString("base64")}`;
+}
+
 export function preserveAspectRatioFor(fit: string | undefined, pos: string | undefined): string {
   const f = (fit ?? "fill").trim();
   if (f === "fill" || f === "none") return "none";

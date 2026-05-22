@@ -39,5 +39,42 @@ export const createColorNorm = () => {
     return c;
   };
 
-  return { normColor };
+  // DM-800: Chromium retains wide-gamut color functions verbatim inside
+  // computed gradient stops (e.g. `linear-gradient(90deg, oklch(0.89 0.04
+  // 264), …)`). The render-side `parseColor` doesn't speak oklch/lab/lch/
+  // oklab/hwb and falls back to black for any stop it can't decode,
+  // collapsing the tinted-gradient strip to mostly-black bars. Walk the
+  // gradient text and replace each wide-gamut color call with its
+  // normColor-resolved form so the renderer only sees rgb()/color(srgb).
+  // `color-mix(...)` doesn't appear here because Chromium pre-resolves it
+  // inside gradients to its target color space (e.g. `color-mix(in oklch,
+  // red, blue)` serializes as `oklch(...)`), but we match it defensively in
+  // case future Chromium versions change that.
+  const normGradientColors = (text, elColor) => {
+    if (text == null || text === '' || text === 'none') return text;
+    // Match a color-function identifier followed by a balanced (...) group.
+    const fnRe = /\b(oklch|oklab|lab|lch|hwb|hsl|hsla|color|color-mix)\(/gi;
+    var out = '';
+    var i = 0;
+    while (i < text.length) {
+      fnRe.lastIndex = i;
+      const m = fnRe.exec(text);
+      if (m == null) { out += text.slice(i); break; }
+      out += text.slice(i, m.index);
+      // Walk forward consuming balanced parens.
+      var depth = 1;
+      var j = m.index + m[0].length;
+      while (j < text.length && depth > 0) {
+        const ch = text[j++];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+      }
+      const call = text.slice(m.index, j);
+      out += normColor(call, elColor);
+      i = j;
+    }
+    return out;
+  };
+
+  return { normColor, normGradientColors };
 };

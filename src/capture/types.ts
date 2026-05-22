@@ -265,6 +265,13 @@ export interface CapturedElement {
     maskRepeat: string;
     maskComposite: string;
     /**
+     * CSS `mask-clip` — the box (border-box / padding-box / content-box / etc.)
+     * the mask painted area is clipped to. Defaults to `border-box`. Captured
+     * separately from `mask-origin` because Chromium retains both verbatim
+     * (mask-clip controls visibility, mask-origin controls layer positioning).
+     */
+    maskClip?: string;
+    /**
      * CSS `mask-border-source` / legacy `-webkit-mask-box-image` source.
      * Chrome exposes this only via the legacy webkit name (DM-758). The
      * renderer routes it through the mask-image pipeline ONLY for the

@@ -40,7 +40,7 @@
 //   - **borderImageIntrinsicWidth / Height**: same pattern for border-
 //     image-source url().
 
-export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderShownBg, resolveCornerRadius }) => {
+export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
     tag === 'input' && el.type === 'color'
     && normColor(cs[side], cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)';
@@ -208,7 +208,7 @@ export const createBordersBackgroundsHandler = ({ normColor, resolvePlaceholderS
     borderLeftColor: tintedBorderColor(tag, el, cs, 'borderLeftColor'),
     borderCollapse: cs.borderCollapse,
     frostedBgFallback: computeFrostedBgFallback(cs),
-    backgroundImage: cs.backgroundImage,
+    backgroundImage: normGradientColors(cs.backgroundImage, cs.color),
     backgroundSize: cs.backgroundSize,
     backgroundPosition: cs.backgroundPosition,
     backgroundRepeat: cs.backgroundRepeat,

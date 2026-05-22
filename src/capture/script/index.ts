@@ -44,7 +44,7 @@ export const captureScript =
   // returns the handles captureInner / the orchestration tail call. Renamed
   // (e.g. `warnings: _warnings`) to keep captureInner's existing references
   // unchanged.
-  const { normColor } = createColorNorm();
+  const { normColor, normGradientColors } = createColorNorm();
   const { needsRaster, textNeedsRaster } = createEmojiDetect();
   const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
@@ -63,6 +63,7 @@ export const captureScript =
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
   const { captureBordersBackgrounds } = createBordersBackgroundsHandler({
     normColor,
+    normGradientColors,
     resolvePlaceholderShownBg: _resolvePlaceholderShownBg,
     resolveCornerRadius: _resolveCornerRadius,
   });
@@ -764,6 +765,7 @@ export const captureScript =
         maskPosition: cs.maskPosition || cs.webkitMaskPosition || '0% 0%',
         maskRepeat: cs.maskRepeat || cs.webkitMaskRepeat || 'repeat',
         maskComposite: cs.maskComposite || cs.webkitMaskComposite || 'add',
+        maskClip: cs.maskClip || cs.webkitMaskClip || 'border-box',
         // DM-758: `mask-border-source` / legacy `-webkit-mask-box-image`. Chrome
         // exposes only the legacy webkit name; modern `maskBorderSource`
         // returns undefined. Capture source + slice / width / outset so the
