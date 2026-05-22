@@ -688,13 +688,85 @@ export function renderBorderImage(
     emitTiledSliceEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV as "repeat" | "round" | "space");
     emitTiledSliceEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV as "repeat" | "round" | "space");
   }
-  // Center (only if 'fill').
+  // Center (only if `fill`). Per CSS Backgrounds 3 §6.1.3 the middle slice
+  // is tiled in both directions when `border-image-repeat` is non-stretch,
+  // using the SAME tile sizing as the corresponding edge — horizontal axis
+  // matches the top edge derivation (tileW_natural = sxW_C × wt / st),
+  // vertical matches the left edge derivation (tileH_natural = syH_C × wl / sl).
+  // Single stretched <image> for stretch×stretch; otherwise a 2D <pattern>.
   if (fillCenter) {
+    const dwCenter = x2 - x1;
+    const dhCenter = y2 - y1;
     if (rH === "stretch" && rV === "stretch") {
-      emitStretchedSlice(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
-    } else {
-      // Center repeat is uncommon; fall back to stretch for simplicity.
-      emitStretchedSlice(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
+      emitStretchedSlice(x1, y1, dwCenter, dhCenter, sxC, syC, sxW_C, syH_C);
+    } else if (dwCenter > 0 && dhCenter > 0 && sxW_C > 0 && syH_C > 0 && st > 0 && sl > 0) {
+      // Per-axis tile size.
+      const tileWNatural = sxW_C * (wt / st);
+      const tileHNatural = syH_C * (wl / sl);
+      let tileW: number, tileH: number;
+      let patternW: number, patternH: number;
+      let tileOffX = 0, tileOffY = 0;
+      // Horizontal.
+      if (rH === "stretch") {
+        tileW = dwCenter;
+        patternW = dwCenter;
+      } else if (rH === "round") {
+        const count = Math.max(1, Math.round(dwCenter / tileWNatural));
+        tileW = dwCenter / count;
+        patternW = tileW;
+      } else if (rH === "space") {
+        const count = Math.floor(dwCenter / tileWNatural);
+        if (count <= 0) { tileW = 0; patternW = 0; } else {
+          tileW = tileWNatural;
+          patternW = dwCenter / count;
+          tileOffX = (patternW - tileW) / 2;
+        }
+      } else { // "repeat"
+        tileW = tileWNatural;
+        patternW = tileWNatural;
+      }
+      // Vertical.
+      if (rV === "stretch") {
+        tileH = dhCenter;
+        patternH = dhCenter;
+      } else if (rV === "round") {
+        const count = Math.max(1, Math.round(dhCenter / tileHNatural));
+        tileH = dhCenter / count;
+        patternH = tileH;
+      } else if (rV === "space") {
+        const count = Math.floor(dhCenter / tileHNatural);
+        if (count <= 0) { tileH = 0; patternH = 0; } else {
+          tileH = tileHNatural;
+          patternH = dhCenter / count;
+          tileOffY = (patternH - tileH) / 2;
+        }
+      } else {
+        tileH = tileHNatural;
+        patternH = tileHNatural;
+      }
+      if (tileW > 0 && tileH > 0 && patternW > 0 && patternH > 0) {
+        const imgScaleX = tileW / sxW_C;
+        const imgScaleY = tileH / syH_C;
+        const inImgX = -sxC * imgScaleX + tileOffX;
+        const inImgY = -syC * imgScaleY + tileOffY;
+        const inImgW = natW * imgScaleX;
+        const inImgH = natH * imgScaleY;
+        const patId = `${idPrefix}bipc${clipIdx + usedIds}`;
+        usedIds++;
+        // For `space` mode, clip the image to the visible tile region so
+        // gaps stay transparent (mirrors the edge-tile fix from DM-795).
+        const needsClip = rH === "space" || rV === "space";
+        let clipDef = "";
+        let imgClip = "";
+        if (needsClip) {
+          const clipBgId = `${idPrefix}bicc${clipIdx + usedIds}`;
+          usedIds++;
+          clipDef = `<clipPath id="${clipBgId}"><rect x="${r(tileOffX)}" y="${r(tileOffY)}" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`;
+          imgClip = ` clip-path="url(#${clipBgId})"`;
+        }
+        defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(x1)}" y="${r(y1)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
+        parts.push(`${indent}<rect x="${r(x1)}" y="${r(y1)}" width="${r(dwCenter)}" height="${r(dhCenter)}" fill="url(#${patId})" />`);
+      }
     }
   }
 

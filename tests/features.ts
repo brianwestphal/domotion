@@ -525,6 +525,19 @@ const tests: FeatureTest[] = [
   // Inline data-URI so the capture sees an image that loads synchronously.
   // 32x32 SVG with a red ring frame so the 9-slice corners/edges/center are visible.
   {
+    name: "border-image-round-fill",
+    // DM-730: `border-image-repeat: round` + `border-image-slice: N fill`
+    // must tile the center slice in BOTH directions (using top-edge
+    // horizontal-tile width and left-edge vertical-tile height — per CSS
+    // Backgrounds 3 §6.1.3). The old code stretched the center to fill the
+    // whole inner cell, masking the tile-count behavior Chrome paints.
+    // Source SVG is 3:1 (90×30); slice 10 + a 60×60 cell with 10px borders
+    // gives 4 vertical center tiles, 1 horizontal.
+    html: `<div style="padding:20px;background:#0d1117"><div style="display:inline-block;width:60px;height:60px;border:10px solid transparent;border-image-source:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 90 30%22 width=%2290%22 height=%2230%22><rect width=%2290%22 height=%2230%22 fill=%22%230891b2%22/><rect x=%2210%22 y=%2210%22 width=%2270%22 height=%2210%22 fill=%22%23fbbf24%22/></svg>');border-image-slice:10 fill;border-image-repeat:round;"></div></div>`,
+    width: 120,
+    height: 120,
+  },
+  {
     name: "border-image-stretch",
     html: `<div style="padding: 20px; background: #0d1117;">
       <div style="width: 150px; height: 90px; background: #161b22; border: 16px solid transparent;
