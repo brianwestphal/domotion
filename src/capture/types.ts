@@ -527,6 +527,14 @@ export interface CapturedElement {
     transformCreatesSc?: boolean;
     /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
     transformStyle?: string;
+    /**
+     * DM-751: extracted Z translation from `matrix3d(...)` when the
+     * element's transform has a non-zero translateZ component. Used by the
+     * paint-order sort when the parent has `transform-style: preserve-3d`
+     * (CSS Transforms 2 §6 sorts children by Z in 3D space, not z-index).
+     * SVG can't render perspective, so this is paint-order only.
+     */
+    translateZ?: number;
     /** CSS writing-mode (`horizontal-tb` | `vertical-rl` | `vertical-lr` | `sideways-rl` | `sideways-lr`). */
     writingMode?: string;
     /** CSS text-orientation (`mixed` | `upright` | `sideways`). Used in vertical writing-modes. */

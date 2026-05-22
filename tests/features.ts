@@ -706,6 +706,17 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-751: `transform-style: preserve-3d` creates a 3D rendering context
+    // where children sort by Z position in 3D space (`translateZ`), NOT by
+    // z-index (CSS Transforms 2 §6). Without honoring the Z, a child with
+    // a low z-index but a positive `translateZ` paints behind siblings with
+    // higher z-index, instead of in front of them where Chrome paints.
+    name: "preserve-3d-translatez-paint-order",
+    html: `<div style="padding:24px;background:#0d1117;font-family:system-ui,sans-serif;"><div style="transform-style:preserve-3d;perspective:600px;position:relative;width:300px;height:160px;background:#1e293b;"><div style="position:absolute;top:20px;left:40px;width:120px;height:120px;background:#6d28d9;z-index:5;color:white;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;">z=5 (purple)</div><div style="position:absolute;top:50px;left:90px;width:120px;height:120px;background:#ea580c;z-index:1;transform:translateZ(20px);color:white;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;">z=1 +Z (orange)</div><div style="position:absolute;top:80px;left:140px;width:120px;height:120px;background:#0ea5e9;z-index:10;color:white;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;">z=10 (sky)</div></div></div>`,
+    width: 380,
+    height: 230,
+  },
+  {
     // DM-749: Stripe's keynote-speaker pattern — gradient + `background-clip:
     // text` + `webkit-text-fill-color: transparent` lives on the PARENT
     // span; the actual text is in a child div with no background of its

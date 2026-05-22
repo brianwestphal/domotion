@@ -131,6 +131,20 @@ export const createTransformsHandler = () => {
       ? frozenTransform
       : 'none',
     transformOrigin: cs.transformOrigin,
+    // DM-751: extract `matrix3d` translateZ so the paint-order sort can
+    // honor 3D Z position when the parent element has
+    // `transform-style: preserve-3d` (which sorts children by Z in 3D
+    // space, not by z-index per CSS Transforms 2 §6). We can't represent
+    // perspective / actual 3D rendering in SVG; this is paint-order only.
+    translateZ: (function () {
+      const tt = cs.transform;
+      if (tt == null || tt === 'none' || tt === '') return undefined;
+      const m3 = /^matrix3d\(([^)]+)\)/.exec(tt);
+      if (m3 == null) return undefined;
+      const parts = m3[1].split(',').map((s) => parseFloat(s.trim()));
+      const tz = parts[14];
+      return Number.isFinite(tz) && tz !== 0 ? tz : undefined;
+    })(),
     // DM-587: separately flag elements that ORIGINALLY had a non-none
     // transform — even though we discard the value to suppress the wrap,
     // CSS Transforms 2 §4 says any non-none transform creates a stacking

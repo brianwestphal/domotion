@@ -2684,7 +2684,26 @@ export function elementTreeToSvg(
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
-    const sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl);
+    let sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl);
+    // DM-751: when this element establishes a 3D rendering context
+    // (`transform-style: preserve-3d`), CSS Transforms 2 §6 sorts children
+    // by their Z position in 3D space — translateZ — not by z-index. Re-
+    // sort the already-positioned children by extracted translateZ
+    // ascending, with DOM order tie-breaks, so a child with a small
+    // z-index but a positive translateZ paints above siblings with bigger
+    // z-index but translateZ=0. Approximation: ignore perspective effects
+    // (which would also shrink / shift the painted box) and just use the
+    // captured `matrix3d` `m43` translation. Without this the
+    // `transform-style: preserve-3d` panel in `13-deep-cross-sc-z-index`
+    // paints orange (`translateZ(20px)`, z=1) BEHIND purple (z=5) and sky
+    // (z=10), instead of in front of both as Chrome paints.
+    if (el.styles.transformStyle === "preserve-3d") {
+      const zOf = (c: CapturedElement) => c.styles.translateZ ?? 0;
+      sortedChildren = sortedChildren
+        .map((c, idx) => ({ c, idx, z: zOf(c) }))
+        .sort((a, b) => a.z - b.z || a.idx - b.idx)
+        .map((x) => x.c);
+    }
     for (const child of sortedChildren) {
       renderElementWithOverflowClip(child, depth + 1, childParentDisplay);
     }
