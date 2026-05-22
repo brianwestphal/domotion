@@ -530,7 +530,35 @@ export function elementTreeToSvg(
     const clipPathCss = el.styles.clipPath && el.styles.clipPath !== "none" ? el.styles.clipPath : "";
     let clipPathUrlId: string | null = null;
     if (clipPathCss !== "") {
-      const shape = translateClipPath(clipPathCss, el.x, el.y, el.width, el.height);
+      // DM-818: CSS clip-path accepts an optional `<geometry-box>` keyword
+      // (`content-box` / `padding-box` / `border-box` / `margin-box` /
+      // `fill-box` / `stroke-box` / `view-box`) that specifies which box
+      // the shape is positioned relative to. Strip it before passing the
+      // value to the shape translator and inset (x, y, w, h) accordingly.
+      // `border-box` is the default and matches the captured element rect
+      // — no inset. We don't model margin-box / fill-box / stroke-box /
+      // view-box explicitly; the first falls back to border-box (close
+      // enough for the html-test fixtures), the SVG-specific ones don't
+      // apply to HTML elements.
+      const geoBoxMatch = /\b(content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i.exec(clipPathCss);
+      const geoBox = geoBoxMatch != null ? geoBoxMatch[1].toLowerCase() : "border-box";
+      const shapeValue = geoBoxMatch != null ? (clipPathCss.slice(0, geoBoxMatch.index) + clipPathCss.slice(geoBoxMatch.index + geoBoxMatch[0].length)).trim() : clipPathCss;
+      const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+      const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+      const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+      const pdT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+      const pdR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+      const pdB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+      const pdL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+      let cpX = el.x, cpY = el.y, cpW = el.width, cpH = el.height;
+      if (geoBox === "padding-box" || geoBox === "content-box") {
+        cpX += bwL; cpY += bwT; cpW -= bwL + bwR; cpH -= bwT + bwB;
+        if (geoBox === "content-box") {
+          cpX += pdL; cpY += pdT; cpW -= pdL + pdR; cpH -= pdT + pdB;
+        }
+      }
+      const shape = translateClipPath(shapeValue, cpX, cpY, Math.max(0, cpW), Math.max(0, cpH));
       if (shape !== "") {
         clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
         defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
@@ -4951,33 +4979,57 @@ function translateClipPath(value: string, x: number, y: number, w: number, h: nu
     const right = resolvePx(parts[1] ?? parts[0], w);
     const bottom = resolvePx(parts[2] ?? parts[0], h);
     const left = resolvePx(parts[3] ?? parts[1] ?? parts[0], w);
-    let rx = 0, ry = 0;
-    if (radiusStr !== "") {
-      // border-radius shorthand here can be 1-4 values, optionally with a `/`
-      // separator for rx/ry pairs. Common cases: single value, two values.
-      // We collapse to a uniform rx=ry using the first horizontal radius.
-      const slashIdx = radiusStr.indexOf("/");
-      const hPart = (slashIdx >= 0 ? radiusStr.slice(0, slashIdx) : radiusStr).trim();
-      const vPart = (slashIdx >= 0 ? radiusStr.slice(slashIdx + 1) : hPart).trim();
-      const hTok = hPart.split(/\s+/);
-      const vTok = vPart.split(/\s+/);
-      rx = resolvePx(hTok[0] ?? "0", w);
-      ry = resolvePx(vTok[0] ?? hTok[0] ?? "0", h);
-      // CSS Backgrounds 3 §5.5: when border-radius values would overlap
-      // adjacent corners, all radii are scaled UNIFORMLY by a factor `f` so
-      // they exactly fit. SVG's `<rect rx ry>` instead caps rx and ry
-      // INDEPENDENTLY (rx → min(rx, w/2), ry → min(ry, h/2)) — for an
-      // `inset(... round 100px)` clip on a 94×32 box that produces an
-      // ellipse-cornered rect (rx=47, ry=16) instead of CSS's pill
-      // (rx=ry=16). DM-667: Google's AI-Mode button uses exactly this CSS
-      // and our clip-path was painting the ellipse shape under the rendered
-      // pill, exposing the corner difference at the boundary.
-      const f = Math.min(1, rx > 0 ? w / (2 * rx) : 1, ry > 0 ? h / (2 * ry) : 1);
-      if (f < 1) { rx *= f; ry *= f; }
+    const insetW = w - left - right;
+    const insetH = h - top - bottom;
+    if (radiusStr === "") {
+      const rectAttrs = `x="${r(x + left)}" y="${r(y + top)}" width="${r(insetW)}" height="${r(insetH)}"`;
+      return `<rect ${rectAttrs} />`;
     }
-    const rectAttrs = `x="${r(x + left)}" y="${r(y + top)}" width="${r(w - left - right)}" height="${r(h - top - bottom)}"`;
-    const radiusAttrs = rx > 0 || ry > 0 ? ` rx="${r(rx)}" ry="${r(ry)}"` : "";
-    return `<rect ${rectAttrs}${radiusAttrs} />`;
+    // CSS Backgrounds 3 §5.3 border-radius shorthand: 1-4 horizontal values,
+    // optionally `/` then 1-4 vertical values. Map to per-corner pairs:
+    //   1 value     → all 4 corners
+    //   2 values    → TL=BR=v0, TR=BL=v1
+    //   3 values    → TL=v0,  TR=BL=v1,  BR=v2
+    //   4 values    → TL=v0,  TR=v1,     BR=v2,  BL=v3
+    const slashIdx = radiusStr.indexOf("/");
+    const hPart = (slashIdx >= 0 ? radiusStr.slice(0, slashIdx) : radiusStr).trim();
+    const vPart = (slashIdx >= 0 ? radiusStr.slice(slashIdx + 1) : hPart).trim();
+    const hTok = hPart.split(/\s+/);
+    const vTok = vPart.split(/\s+/);
+    const pickCorner = (toks: string[], idx: number): string => {
+      if (toks.length === 1) return toks[0];
+      if (toks.length === 2) return toks[idx === 0 || idx === 2 ? 0 : 1];
+      if (toks.length === 3) return toks[idx === 0 ? 0 : idx === 2 ? 2 : 1];
+      return toks[idx];
+    };
+    const tlH = resolvePx(pickCorner(hTok, 0), insetW);
+    const trH = resolvePx(pickCorner(hTok, 1), insetW);
+    const brH = resolvePx(pickCorner(hTok, 2), insetW);
+    const blH = resolvePx(pickCorner(hTok, 3), insetW);
+    const tlV = resolvePx(pickCorner(vTok, 0), insetH);
+    const trV = resolvePx(pickCorner(vTok, 1), insetH);
+    const brV = resolvePx(pickCorner(vTok, 2), insetH);
+    const blV = resolvePx(pickCorner(vTok, 3), insetH);
+    // CSS Backgrounds 3 §5.5 corner-overlap scale-down: scale all four
+    // corners uniformly so no pair on the same edge exceeds the edge length.
+    const sums = [
+      [tlH + trH, insetW], [trV + brV, insetH],
+      [brH + blH, insetW], [blV + tlV, insetH],
+    ];
+    let scale = 1;
+    for (const [s, lim] of sums) if (s > 0 && lim > 0) scale = Math.min(scale, lim / s);
+    const corners = {
+      tl: { h: tlH * scale, v: tlV * scale },
+      tr: { h: trH * scale, v: trV * scale },
+      br: { h: brH * scale, v: brV * scale },
+      bl: { h: blH * scale, v: blV * scale },
+      uniform: tlH === trH && tlH === brH && tlH === blH && tlH === tlV && tlH === trV && tlH === brV && tlH === blV,
+    };
+    if (corners.uniform) {
+      const rxAttr = corners.tl.h > 0 ? ` rx="${r(corners.tl.h)}" ry="${r(corners.tl.v)}"` : "";
+      return `<rect x="${r(x + left)}" y="${r(y + top)}" width="${r(insetW)}" height="${r(insetH)}"${rxAttr} />`;
+    }
+    return `<path d="${roundedRectPath(x + left, y + top, insetW, insetH, corners)}" />`;
   }
   const circle = /^circle\(([^)]*)\)$/i.exec(value);
   if (circle != null) {
