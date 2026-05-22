@@ -782,12 +782,18 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segAscent = seg.fontAscent ?? el.fontAscent;
     const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder);
     if (result != null) { segParts.push(result); }
-    else if (!isAllPrivateUseArea(seg.text)) {
+    else if (!isAllPrivateUseArea(seg.text) && reordered.text.replace(/[\s​]/g, "") !== "") {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
       // the segment text is entirely Private Use Area (icon-font codepoints
       // we couldn't resolve to a real glyph), suppress the <text> fallback
       // too — Chromium's UA fallback paints the same notdef tofu we already
       // suppressed at the path level, defeating the point.
+      // DM-779: same logic for `::first-letter` drop caps — when every glyph
+      // in the segment was a `suppressGlyph` rasterGlyph target (e.g. the
+      // floated drop-cap letter sitting on its own line), `reordered.text`
+      // collapses to all-ZWSP and the raster overlay paints the visible
+      // glyph; emitting `seg.text` in the `<text>` fallback would paint a
+      // duplicate body-size copy of the letter behind the raster.
       const ff = segFontFamily.replace(/"/g, "'");
       const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;`;
       const sy = seg.y + seg.height / 2;
