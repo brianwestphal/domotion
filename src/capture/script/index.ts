@@ -456,6 +456,21 @@ export const captureScript =
             }
             cloneNode.setAttribute(gattr, gval);
           }
+          // DM-815: `<mask mask-type="…">` is a presentation attribute that
+          // CSS can override (e.g. `svg .alpha-test { mask-type: alpha }`).
+          // Bake the computed value as an attribute on cloned `<mask>` nodes
+          // so the emitted standalone SVG renders the mask with the
+          // intended semantics — without it, alpha-driven masks (gradient
+          // with stop-opacity transitions on solid black) decode as
+          // luminance and paint nothing.
+          if (origNode.tagName && origNode.tagName.toLowerCase() === 'mask') {
+            const mt = ocs.maskType || ocs.getPropertyValue('mask-type');
+            if (mt === 'alpha' || mt === 'luminance') {
+              if (!origNode.hasAttribute('mask-type') || origNode.getAttribute('mask-type') !== mt) {
+                cloneNode.setAttribute('mask-type', mt);
+              }
+            }
+          }
           // DM-508: bake CSS-animated transforms at t=0. CSS animation /
           // transition declarations mean the computed transform reflects the
           // animation's current frame at capture time — getComputedStyle
