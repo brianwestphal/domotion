@@ -2344,9 +2344,15 @@ export function elementTreeToSvg(
         const optsWithEmit = { ...opts, emitPseudoBoxBgLayers };
         const hasMultipleSegments = opts.el.textSegments != null && opts.el.textSegments.length > 1;
         const isMultiLine = opts.el.text.includes("\n");
+        // DM-799: input/textarea dispatch must come BEFORE the multi-line
+        // branch. A textarea with newline-bearing value (`\n` in `el.text`)
+        // would otherwise hit `renderMultiLineText`, which path-renders each
+        // source line without word-wrap — Lorem-ipsum lines overflowed the
+        // textarea's right edge instead of being painted from the captured
+        // `elementRaster` PNG (which carries Chrome's own wrapping).
+        if (opts.el.tag === "input" || opts.el.tag === "textarea") return renderInputText(optsWithEmit);
         if (hasMultipleSegments) return renderMultiSegmentText(optsWithEmit, opts.el.textSegments!);
         if (isMultiLine) return renderMultiLineText(optsWithEmit);
-        if (opts.el.tag === "input" || opts.el.tag === "textarea") return renderInputText(optsWithEmit);
         return renderSingleLineText(optsWithEmit);
       };
 
