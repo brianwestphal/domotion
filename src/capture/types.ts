@@ -308,6 +308,14 @@ export interface CapturedElement {
     backgroundOrigin: string;
     backgroundAttachment: string;
     /**
+     * CSS `background-blend-mode` — per-layer blend mode (comma-separated to
+     * match the layer count). Captured verbatim from `getComputedStyle`. The
+     * renderer applies each layer's mode as `style="mix-blend-mode:<mode>"`
+     * on the layer's `<rect>`, wrapped in a `<g style="isolation:isolate">`
+     * so the blend doesn't escape the element's bg-layer stack.
+     */
+    backgroundBlendMode?: string;
+    /**
      * CSS `-webkit-text-fill-color`. When `backgroundClip` is `text` the
      * common pattern is `webkit-text-fill-color: transparent` so the
      * background-image (gradient / url) shows through the glyph shapes —

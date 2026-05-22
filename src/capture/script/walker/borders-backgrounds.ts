@@ -213,6 +213,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     backgroundPosition: cs.backgroundPosition,
     backgroundRepeat: cs.backgroundRepeat,
     backgroundClip: cs.backgroundClip,
+    backgroundBlendMode: cs.backgroundBlendMode,
     // DM-462: -webkit-text-fill-color is the property that actually makes
     // the headline text transparent in the background-clip:text idiom
     // (cs.color may still report a normal value).

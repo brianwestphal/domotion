@@ -954,6 +954,16 @@ export function elementTreeToSvg(
       const originLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
       const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
       const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
+      // DM-817: background-blend-mode per CSS Compositing 2 §6.1 — each layer
+      // blends with the composite below using its mode. Single value applies
+      // to every layer; comma-separated values map per-layer. Capture
+      // emit-time bg-layer indexing is reversed (later index = lower in
+      // stack), so we look up by the ORIGINAL CSS layer index (`li`).
+      const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal").map((s) => s.trim());
+      const hasNonNormalBlend = blendLayers.some((m) => m !== "normal" && m !== "");
+      const bgGroupOpen = hasNonNormalBlend ? `${indent}<g style="isolation:isolate">\n` : "";
+      const bgGroupClose = hasNonNormalBlend ? `\n${indent}</g>` : "";
+      const bgGroupStart = svgParts.length;
       // Per-side borders + padding for clip/origin math.
       const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
       const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
@@ -1013,9 +1023,22 @@ export function elementTreeToSvg(
         const innerCorners = layerClip === "border-box"
           ? corners
           : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
+        // DM-817: per-layer mix-blend-mode. Bottom layer (CSS layer
+        // layers.length-1) always paints normal; upper layers blend.
+        const layerBlend = blendLayers[li] ?? blendLayers[0] ?? "normal";
+        const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
+          ? ` style="mix-blend-mode:${layerBlend}"` : "";
         svgParts.push(
-          `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"`)}`,
+          `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
         );
+      }
+      // DM-817: wrap the bg-layer rects we just emitted in an
+      // isolation-isolate group so the multiply / screen / etc. doesn't
+      // bleed into siblings painted above.
+      if (hasNonNormalBlend && svgParts.length > bgGroupStart) {
+        const wrapped = bgGroupOpen + svgParts.slice(bgGroupStart).join("\n") + bgGroupClose;
+        svgParts.length = bgGroupStart;
+        svgParts.push(wrapped);
       }
     }
 
