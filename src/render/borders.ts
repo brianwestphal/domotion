@@ -477,16 +477,29 @@ export function renderBorderImage(
         tileH = dhSlot / count;
       }
     }
-    // space: pad between tiles. Approximated here as a constant gap; exact
-    // placement depends on count math Chrome uses. Close-enough fallback.
+    // DM-795: `space` tiles the source N whole times with equal gaps between
+    // tiles AND half-gaps at each end (CSS Images 3 §6.1.3). Compute N =
+    // floor(slot / tile); if N === 0 the tile is too big for the slot and
+    // the spec says no border is drawn for that side, so bail. Otherwise set
+    // `patternW = dwSlot / N` so cells span the slot evenly, and offset the
+    // pattern start by half a gap. The `<image>` inside the cell needs a
+    // `<clipPath>` clipped to the slice region (0, 0, tileW, tileH) —
+    // otherwise the image extends past the slice into the gap, painting
+    // source pixels beyond the slice region instead of transparent gap.
     let patternW = tileW, patternH = tileH;
+    let patternX = dxSlot, patternY = dySlot;
     if (mode === "space") {
       if (axis === "x") {
-        const count = Math.max(1, Math.floor(dwSlot / tileW));
+        const count = Math.floor(dwSlot / tileW);
+        if (count <= 0) return;
         patternW = dwSlot / count;
+        // Per spec, half-gap at each end: shift pattern start by `(patternW − tileW) / 2`.
+        patternX = dxSlot + (patternW - tileW) / 2;
       } else {
-        const count = Math.max(1, Math.floor(dhSlot / tileH));
+        const count = Math.floor(dhSlot / tileH);
+        if (count <= 0) return;
         patternH = dhSlot / count;
+        patternY = dySlot + (patternH - tileH) / 2;
       }
     }
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
@@ -498,7 +511,17 @@ export function renderBorderImage(
     const inImgY = -sy * imgScaleY;
     const inImgW = natW * imgScaleX;
     const inImgH = natH * imgScaleY;
-    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(patternW)}" height="${r(patternH)}"><image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none" /></pattern>`);
+    // DM-795: clip the image to the slice region so `space` mode shows
+    // transparent gaps between tiles instead of bleeding adjacent source
+    // pixels into the gap. The clipPath is scoped to the pattern cell at
+    // (0, 0) - (tileW, tileH) and references the image inside the pattern.
+    const clipBgId = `${idPrefix}bic${clipIdx + usedIds}`;
+    usedIds++;
+    const clipDef = mode === "space"
+      ? `<clipPath id="${clipBgId}"><rect x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`
+      : "";
+    const imgClip = mode === "space" ? ` clip-path="url(#${clipBgId})"` : "";
+    defsParts.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
     parts.push(`${indent}<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
   };
 
