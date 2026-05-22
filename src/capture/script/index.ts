@@ -775,6 +775,30 @@ export const captureScript =
         maskBorderSlice: cs.webkitMaskBoxImageSlice || undefined,
         maskBorderWidth: cs.webkitMaskBoxImageWidth || undefined,
         maskBorderOutset: cs.webkitMaskBoxImageOutset || undefined,
+        // DM-793: legacy `-webkit-mask-box-image-repeat` keyword (stretch /
+        // repeat / round / space) per axis. Mirrors `border-image-repeat`.
+        maskBorderRepeat: cs.webkitMaskBoxImageRepeat || undefined,
+        // DM-793: intrinsic dimensions of the mask-border-source raster /
+        // SVG asset. Same probe pattern as `borderImageIntrinsic*` — a
+        // detached `<img>` resolves the URL against the document base and
+        // reports `naturalWidth` / `naturalHeight` for raster sources and
+        // the `<svg width/height>` attributes (or viewBox-derived size) for
+        // SVG sources. Captured at capture time so the renderer can compute
+        // 9-slice source rects without re-fetching the asset.
+        maskBorderIntrinsicWidth: (function() {
+          var _m = /^url\((?:"|')?([^"')]+)/.exec(cs.webkitMaskBoxImageSource || '');
+          if (_m == null) return undefined;
+          var _img = new Image();
+          _img.src = _m[1];
+          return _img.naturalWidth || undefined;
+        })(),
+        maskBorderIntrinsicHeight: (function() {
+          var _m = /^url\((?:"|')?([^"')]+)/.exec(cs.webkitMaskBoxImageSource || '');
+          if (_m == null) return undefined;
+          var _img = new Image();
+          _img.src = _m[1];
+          return _img.naturalHeight || undefined;
+        })(),
         listStyleType: cs.listStyleType,
         listStyleImage: cs.listStyleImage,
         display: cs.display,

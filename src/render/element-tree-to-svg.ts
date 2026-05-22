@@ -653,19 +653,19 @@ export function elementTreeToSvg(
       }
     }
     // mask: if mask-image is a gradient or url(), translate it to an SVG <mask>.
-    // DM-758: `mask-border-source` (legacy `-webkit-mask-box-image`) layers on
-    // top of `mask-image`. Route through the simplified full-element mask
-    // path ONLY when the 9-slice degenerates to "use the entire source": both
-    // `mask-border-width` and `mask-border-outset` are `0`, AND the slice is
-    // `0 fill` (= no edge slices, just the full middle) or `1 fill` (= one
-    // unit-less slice = the whole image). For non-trivial 9-slice cases
-    // (`mb-1`, `mb-2`, `mb-3`, `mb-outset` in `niche-mask-border` — actual
-    // edge slicing with `round` / `space` / non-zero `width`), the proper
-    // mask would have to be constructed from 9 separate pieces; leaving the
-    // element unmasked is closer to the expected paint than naively
-    // stretching a non-mask-shaped source as a luminance mask (which clips
-    // the visible content to whatever the source's middle pixel happens to
-    // be). 9-slice mask-border is its own ticket.
+    // DM-758 / DM-793: `mask-border-source` (legacy `-webkit-mask-box-image`)
+    // layers on top of `mask-image`. The two cases:
+    //   1. Simple full-image (slice 0/1 [fill] + width 0 + outset 0): emit a
+    //      single `<image preserveAspectRatio="none">` inside a `<mask>` so
+    //      the source stretches to the element rect (matches Chrome for the
+    //      `mb-grad` gradient case and the `mb-wide` URL case).
+    //   2. True 9-slice (mb-1 / mb-2 / mb-3 / mb-outset — non-zero `width`,
+    //      `outset`, or non-trivial `slice` with `round` / `space` / `stretch`
+    //      repeat): construct a 9-piece mask from corner / edge / center
+    //      slices, mirroring the existing `renderBorderImage` 9-slice logic
+    //      in `borders.ts` but emitting the pieces inside a `<mask>` instead
+    //      of as direct paint. `mask-border-mode` defaults to `alpha` per
+    //      spec, so the source's alpha channel drives the mask.
     const mbSrc = el.styles.maskBorderSource;
     const mbHasSrc = mbSrc != null && mbSrc !== "" && mbSrc !== "none";
     const mbWidth = (el.styles.maskBorderWidth ?? "0").trim();
@@ -674,16 +674,38 @@ export function elementTreeToSvg(
     const mbWidthZero = mbWidth === "0" || mbWidth === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbWidth);
     const mbOutsetZero = mbOutset === "0" || mbOutset === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbOutset);
     const mbSliceFull = /^[01]\s+fill$/.test(mbSlice) || mbSlice === "1" || mbSlice === "0";
-    // Only route gradient sources through the simplified path. URL sources
-    // aren't designed as masks (the orange SVG asset in `niche-mask-border`
-    // has middle-luminance fill / 0-luminance text, so stretching it as a
-    // luminance mask produces a near-invisible element). Real 9-slice mask
-    // construction is needed for URL sources — separate ticket.
     const mbIsGradient = mbHasSrc && /-gradient\(/i.test(mbSrc);
-    const usingMaskBorder = mbHasSrc && mbWidthZero && mbOutsetZero && mbSliceFull && mbIsGradient;
-    const maskImage = usingMaskBorder ? mbSrc : el.styles.maskImage;
+    const mbUrlHref = mbHasSrc ? parseCssUrl(mbSrc) : null;
+    const mbIsUrl = mbUrlHref != null;
+    const mbIsSimple = mbHasSrc && mbWidthZero && mbOutsetZero && mbSliceFull;
+    const usingMaskBorderUrlSimple = mbIsSimple && mbIsUrl && mbUrlHref != null;
+    const usingMaskBorderGradient = mbIsSimple && mbIsGradient;
+    const usingMaskBorder9Slice = mbHasSrc && mbIsUrl && mbUrlHref != null && !mbIsSimple
+      && el.styles.maskBorderIntrinsicWidth != null && el.styles.maskBorderIntrinsicHeight != null
+      && el.styles.maskBorderIntrinsicWidth > 0 && el.styles.maskBorderIntrinsicHeight > 0;
+    const maskImage = usingMaskBorderGradient ? mbSrc : el.styles.maskImage;
     let maskUrlId: string | null = null;
-    if (maskImage != null && maskImage !== "none" && maskImage !== "") {
+    if (usingMaskBorderUrlSimple && mbUrlHref != null) {
+      const dataUri = embedResizedDataUri(mbUrlHref, el.width, el.height);
+      const mid = `${idPrefix}mk${clipIdx++}`;
+      defsParts.push(
+        `<mask id="${mid}" maskUnits="userSpaceOnUse" mask-type="alpha">`
+          + `<image href="${esc(dataUri)}" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" preserveAspectRatio="none" />`
+          + `</mask>`,
+      );
+      maskUrlId = mid;
+    } else if (usingMaskBorder9Slice && mbUrlHref != null) {
+      const mid = `${idPrefix}mk${clipIdx++}`;
+      const built = buildMaskBorder9Slice(
+        el, mbUrlHref, mbSlice, mbWidth, mbOutset, el.styles.maskBorderRepeat ?? "stretch",
+        mid, idPrefix, clipIdx,
+      );
+      if (built != null) {
+        defsParts.push(built.def);
+        clipIdx = built.nextClipIdx;
+        maskUrlId = built.id;
+      }
+    } else if (maskImage != null && maskImage !== "none" && maskImage !== "") {
       // DM-493: same-document fragment refs (mask-image: url("#id")) emit the
       // captured inline <mask> verbatim with id rewriting, bypassing the
       // gradient/url() emission path.
@@ -698,9 +720,9 @@ export function elementTreeToSvg(
         // alpha vs the regular `mask-mode` default of `match-source`, but
         // `match-source` already does the right thing for gradient sources
         // (alpha-mode on grayscale gradients).
-        const maskSize = usingMaskBorder ? "100% 100%" : (el.styles.maskSize ?? "auto");
-        const maskPosition = usingMaskBorder ? "0% 0%" : (el.styles.maskPosition ?? "0% 0%");
-        const maskRepeat = usingMaskBorder ? "no-repeat" : (el.styles.maskRepeat ?? "repeat");
+        const maskSize = usingMaskBorderGradient ? "100% 100%" : (el.styles.maskSize ?? "auto");
+        const maskPosition = usingMaskBorderGradient ? "0% 0%" : (el.styles.maskPosition ?? "0% 0%");
+        const maskRepeat = usingMaskBorderGradient ? "no-repeat" : (el.styles.maskRepeat ?? "repeat");
         const maskDef = buildMaskDef(
           `${idPrefix}mk${clipIdx++}`,
           maskImage,
@@ -4208,6 +4230,208 @@ export function positionFragmentMaskDef(
  * differently depending on the source; we pick alpha for gradients and url()
  * (common case) and respect explicit mask-mode when given.
  */
+/**
+ * DM-793: build the SVG `<mask>` def for a `mask-border` URL source with
+ * non-trivial 9-slice values. Mirrors `renderBorderImage` (in `borders.ts`)
+ * but emits each corner / edge / center piece as a child of the `<mask>`
+ * rather than as direct paint, so the source's alpha channel becomes the
+ * element's mask. Per spec `mask-border-mode` defaults to `alpha`, so we
+ * always emit `mask-type="alpha"`.
+ *
+ * Returns `{ id, def, nextClipIdx }` so the caller can chain the next
+ * clip / mask id allocation. Returns `null` when the slice / width values
+ * resolve to a degenerate region (no mask painted).
+ */
+function buildMaskBorder9Slice(
+  el: CapturedElement,
+  url: string,
+  sliceRaw: string,
+  widthRaw: string,
+  outsetRaw: string,
+  repeatRaw: string,
+  maskId: string,
+  idPrefix: string,
+  clipIdxStart: number,
+): { id: string; def: string; nextClipIdx: number } | null {
+  const natW = el.styles.maskBorderIntrinsicWidth ?? 0;
+  const natH = el.styles.maskBorderIntrinsicHeight ?? 0;
+  if (natW <= 0 || natH <= 0) return null;
+
+  // Slice — numbers are source pixels, percentages of source dims, optional `fill`.
+  const fillCenter = /\bfill\b/i.test(sliceRaw);
+  const sliceTokens = sliceRaw.replace(/\bfill\b/i, "").trim().split(/\s+/);
+  const parseSliceTok = (t: string | undefined): { pct?: number; px?: number } => {
+    if (t == null || t === "") return { px: 0 };
+    if (/%$/.test(t)) return { pct: parseFloat(t) };
+    return { px: parseFloat(t) };
+  };
+  const sliceNums = sliceTokens.map(parseSliceTok);
+  const resolveSlice = (tok: { pct?: number; px?: number }, basis: number): number => {
+    if (tok.pct != null) return (tok.pct / 100) * basis;
+    return tok.px ?? 0;
+  };
+  const st = resolveSlice(sliceNums[0] ?? { px: 0 }, natH);
+  const sr = resolveSlice(sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
+  const sb = resolveSlice(sliceNums[2] ?? sliceNums[0] ?? { px: 0 }, natH);
+  const sl = resolveSlice(sliceNums[3] ?? sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
+
+  // Width — px / % / unitless multiplier of border-width (defaults to 0 for
+  // mask-border since masks usually have no element border).
+  const bwTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+  const bwRight = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+  const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+  const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+  const parseLen = (tok: string | undefined, basis: number, borderW: number): number => {
+    if (tok == null || tok === "" || tok === "auto") return borderW;
+    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
+    const n = parseFloat(tok);
+    return Number.isFinite(n) ? n * borderW : borderW;
+  };
+  const wTokens = widthRaw.trim().split(/\s+/);
+  const wt = parseLen(wTokens[0], el.height, bwTop);
+  const wr = parseLen(wTokens[1] ?? wTokens[0], el.width, bwRight);
+  const wb = parseLen(wTokens[2] ?? wTokens[0], el.height, bwBottom);
+  const wl = parseLen(wTokens[3] ?? wTokens[1] ?? wTokens[0], el.width, bwLeft);
+
+  // Outset — defaults to 0.
+  const parseOutset = (tok: string | undefined, basis: number, borderW: number): number => {
+    if (tok == null || tok === "") return 0;
+    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
+    const n = parseFloat(tok);
+    return Number.isFinite(n) ? n * borderW : 0;
+  };
+  const oTokens = outsetRaw.trim().split(/\s+/);
+  const ot = parseOutset(oTokens[0], el.height, bwTop);
+  const or_ = parseOutset(oTokens[1] ?? oTokens[0], el.width, bwRight);
+  const ob = parseOutset(oTokens[2] ?? oTokens[0], el.height, bwBottom);
+  const ol = parseOutset(oTokens[3] ?? oTokens[1] ?? oTokens[0], el.width, bwLeft);
+
+  // Mask region = border-box ± outset.
+  const boxX = el.x - ol;
+  const boxY = el.y - ot;
+  const boxW = el.width + ol + or_;
+  const boxH = el.height + ot + ob;
+  if (boxW <= 0 || boxH <= 0) return null;
+
+  // Repeat — `stretch` / `repeat` / `round` / `space` (per axis, optional).
+  const rTokens = repeatRaw.trim().toLowerCase().split(/\s+/);
+  const rH = rTokens[0] || "stretch";
+  const rV = rTokens[1] || rH;
+
+  const x0 = boxX, x1 = boxX + wl, x2 = boxX + boxW - wr, x3 = boxX + boxW;
+  const y0 = boxY, y1 = boxY + wt, y2 = boxY + boxH - wb, y3 = boxY + boxH;
+  const sxL = 0, sxR = natW - sr, sxC = sl, sxW_C = natW - sl - sr;
+  const syT = 0, syB = natH - sb, syC = st, syH_C = natH - st - sb;
+
+  const maskChildren: string[] = [];
+  const maskDefs: string[] = []; // patterns + clipPaths nested inside the <mask>
+  let clipIdx = clipIdxStart;
+
+  // For each piece, emit either an `<image>` (stretched) or a `<rect>` filled
+  // by a `<pattern>` that tiles the source slice. clipPath is needed to
+  // restrict the stretched-image emit to the destination rect.
+  const emitStretched = (
+    dxSlot: number, dySlot: number, dwSlot: number, dhSlot: number,
+    sx: number, sy: number, sw: number, sh: number,
+  ): void => {
+    if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0) return;
+    const clipId = `${idPrefix}mbic${clipIdx++}`;
+    maskDefs.push(`<clipPath id="${clipId}"><rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" /></clipPath>`);
+    const scaleX = dwSlot / sw;
+    const scaleY = dhSlot / sh;
+    const imgX = dxSlot - sx * scaleX;
+    const imgY = dySlot - sy * scaleY;
+    const imgW = natW * scaleX;
+    const imgH = natH * scaleY;
+    maskChildren.push(`<image href="${esc(embedResizedDataUri(url, imgW, imgH))}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`);
+  };
+
+  const emitTiledEdge = (
+    dxSlot: number, dySlot: number, dwSlot: number, dhSlot: number,
+    sx: number, sy: number, sw: number, sh: number,
+    axis: "x" | "y", mode: "repeat" | "round" | "space",
+  ): void => {
+    if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0) return;
+    let tileW: number, tileH: number;
+    if (axis === "x") {
+      tileH = dhSlot;
+      tileW = sw * (dhSlot / sh);
+      if (mode === "round") {
+        const count = Math.max(1, Math.round(dwSlot / tileW));
+        tileW = dwSlot / count;
+      }
+    } else {
+      tileW = dwSlot;
+      tileH = sh * (dwSlot / sw);
+      if (mode === "round") {
+        const count = Math.max(1, Math.round(dhSlot / tileH));
+        tileH = dhSlot / count;
+      }
+    }
+    let patternW = tileW, patternH = tileH;
+    let patternX = dxSlot, patternY = dySlot;
+    if (mode === "space") {
+      if (axis === "x") {
+        const count = Math.floor(dwSlot / tileW);
+        if (count <= 0) return;
+        patternW = dwSlot / count;
+        patternX = dxSlot + (patternW - tileW) / 2;
+      } else {
+        const count = Math.floor(dhSlot / tileH);
+        if (count <= 0) return;
+        patternH = dhSlot / count;
+        patternY = dySlot + (patternH - tileH) / 2;
+      }
+    }
+    const patId = `${idPrefix}mbip${clipIdx++}`;
+    const imgScaleX = tileW / sw;
+    const imgScaleY = tileH / sh;
+    const inImgX = -sx * imgScaleX;
+    const inImgY = -sy * imgScaleY;
+    const inImgW = natW * imgScaleX;
+    const inImgH = natH * imgScaleY;
+    const clipBgId = mode === "space" ? `${idPrefix}mbic${clipIdx++}` : "";
+    const clipDef = mode === "space"
+      ? `<clipPath id="${clipBgId}"><rect x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`
+      : "";
+    const imgClip = mode === "space" ? ` clip-path="url(#${clipBgId})"` : "";
+    maskDefs.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
+    maskChildren.push(`<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
+  };
+
+  // 4 corners — always stretched.
+  emitStretched(x0, y0, wl, wt, sxL, syT, sl, st);   // NW
+  emitStretched(x2, y0, wr, wt, sxR, syT, sr, st);   // NE
+  emitStretched(x0, y2, wl, wb, sxL, syB, sl, sb);   // SW
+  emitStretched(x2, y2, wr, wb, sxR, syB, sr, sb);   // SE
+  // Top + Bottom edges.
+  if (rH === "stretch") {
+    emitStretched(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
+    emitStretched(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
+  } else {
+    emitTiledEdge(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH as "repeat" | "round" | "space");
+    emitTiledEdge(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH as "repeat" | "round" | "space");
+  }
+  // Left + Right edges.
+  if (rV === "stretch") {
+    emitStretched(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
+    emitStretched(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
+  } else {
+    emitTiledEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV as "repeat" | "round" | "space");
+    emitTiledEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV as "repeat" | "round" | "space");
+  }
+  // Center — only when `fill`.
+  if (fillCenter) {
+    emitStretched(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
+  }
+
+  if (maskChildren.length === 0) return null;
+  const def = `<mask id="${maskId}" maskUnits="userSpaceOnUse" mask-type="alpha">${maskDefs.join("")}${maskChildren.join("")}</mask>`;
+  return { id: maskId, def, nextClipIdx: clipIdx };
+}
+
 export function buildMaskDef(
   id: string, maskImage: string,
   elX: number, elY: number, w: number, h: number,

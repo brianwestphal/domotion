@@ -280,6 +280,13 @@ export interface CapturedElement {
     maskBorderWidth?: string;
     /** Resolved `-webkit-mask-box-image-outset` (e.g. `"0"`, `"15px"`). */
     maskBorderOutset?: string;
+    /** Resolved `-webkit-mask-box-image-repeat` (`stretch` / `repeat` /
+     *  `round` / `space`, optionally one per axis). DM-793. */
+    maskBorderRepeat?: string;
+    /** Intrinsic dimensions of the `mask-border-source` asset (px). Same
+     *  probe pattern as `borderImageIntrinsicWidth`. DM-793. */
+    maskBorderIntrinsicWidth?: number;
+    maskBorderIntrinsicHeight?: number;
     listStyleType: string;
     listStyleImage: string;
     listStylePosition: string;
