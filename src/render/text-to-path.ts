@@ -792,6 +792,17 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
   if (codepoint >= 0x1D400 && codepoint <= 0x1D7FF) {
     return ["stix-math", "symbols"];
   }
+  // DM-807: Superscripts and Subscripts block (U+2070-U+209F). The label
+  // glyphs `aₙ` / `a₁` use the Latin subscript letters (U+2090-U+209C)
+  // and digit subscripts (U+2080-U+2089). STIX Two Math covers digit
+  // sub/super-scripts but LACKS the Latin subscript letters (verified by
+  // probe — `STIXTwoMath.glyphForCodePoint(0x2099).id === 0`). SF Pro is
+  // the macOS font that DOES cover U+2099 and the Latin subscript range
+  // (system-ui pulls in SFNS / SF Pro which has glyphs for these); put
+  // it first so `aₙ` paints instead of falling through to .notdef tofu.
+  if (codepoint >= 0x2070 && codepoint <= 0x209F) {
+    return ["sf-pro", "stix-math", "hiragino-jp", "symbols"];
+  }
   // Letterlike (ℝℕℤℂℚ™), Arrows residue, Math Operators, Pictographs, Transport.
   // The caller's primary-first check already routes chars Helvetica/Times
   // have (∑∏∫≠≤≥, ™, ●) to the primary; what reaches this fallback is the
