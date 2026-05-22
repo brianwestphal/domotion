@@ -215,7 +215,9 @@ export function entriesOfKind(diff: TreeDiff, ...kinds: DiffEntryKind[]): DiffEn
  * per-element keyframes.
  */
 export function dominantTranslate(diff: TreeDiff): { dx: number; dy: number; fraction: number } | null {
-  const movers = diff.entries.filter((e) => e.kind === "translated") as Array<DiffEntry & { dx: number; dy: number }>;
+  const movers = diff.entries.filter((e): e is DiffEntry & { dx: number; dy: number } =>
+    e.kind === "translated" && typeof e.dx === "number" && typeof e.dy === "number",
+  );
   if (movers.length === 0) return null;
   // Bucket by rounded (dx, dy) and pick the largest bucket.
   const buckets = new Map<string, { dx: number; dy: number; n: number }>();

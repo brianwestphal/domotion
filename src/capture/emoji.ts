@@ -34,7 +34,11 @@ function loadAppleColorEmojiFont(): any {
   if (process.platform !== "darwin" || !existsSync(APPLE_COLOR_EMOJI_PATH)) return null;
   try {
     const opened = (fontkit as any).openSync(APPLE_COLOR_EMOJI_PATH);
-    _aceFont = opened.fonts != null ? opened.fonts[0] : opened;
+    if (opened == null) {
+      _aceFont = null;
+    } else {
+      _aceFont = opened.fonts != null ? opened.fonts[0] : opened;
+    }
   } catch {
     _aceFont = null;
   }

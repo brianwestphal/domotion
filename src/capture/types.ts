@@ -805,6 +805,31 @@ export interface CapturedElement {
    * `docs/22-mask-element-paint-references.md`.
    */
   maskRasters?: MaskRasterRef[];
+  /**
+   * DM-579 box-only pseudo-elements: empty-content `::before` / `::after`
+   * whose effective rect + per-side borders + background are captured for
+   * decorative-separator emission. The renderer in `element-tree-to-svg.ts`
+   * emits one `<rect>` per pseudoBox plus up to four `<line>`s for visible
+   * borders. Captured per element (not just root). Optional — only emitted
+   * when at least one such pseudo exists on this element.
+   */
+  pseudoBoxes?: PseudoBox[];
+}
+
+export interface PseudoBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  backgroundColor?: string;
+  backgroundImage?: string;
+  borderTopWidth?: number; borderTopColor?: string; borderTopStyle?: string;
+  borderRightWidth?: number; borderRightColor?: string; borderRightStyle?: string;
+  borderBottomWidth?: number; borderBottomColor?: string; borderBottomStyle?: string;
+  borderLeftWidth?: number; borderLeftColor?: string; borderLeftStyle?: string;
+  borderRadius?: number;
+  transform?: string;
+  transformOrigin?: string;
 }
 
 export interface MaskFragmentDef {

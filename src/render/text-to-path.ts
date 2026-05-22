@@ -152,7 +152,9 @@ export function registerWebfont(family: string, weight: number, style: string, b
   const key = family.toLowerCase().replace(/^["']|["']$/g, "");
   let font: FontInstance;
   try {
-    font = fontkit.create(buffer) as any;
+    const created = fontkit.create(buffer) as unknown;
+    if (created == null) return;
+    font = created as FontInstance;
   } catch {
     return; // unparseable — silently skip; capture-side warning happens elsewhere
   }
@@ -982,6 +984,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
 
   try {
     const opened = fontkit.openSync(spec.path) as any;
+    if (opened == null) return null;
     // TTC collections expose .fonts + .getFont(postscriptName). Pick the
     // requested member; fall back to the first sub-font if the requested
     // one is missing (defensive against OS font updates renaming members).

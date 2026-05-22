@@ -317,7 +317,8 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   // name (good for Google Fonts which keep names in sync).
   type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> };
   type ResourceUrl = { kind: "resource"; url: string };
-  type DiscoveredItem = FaceRule | ResourceUrl;
+  type LocalFace = { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null };
+  type DiscoveredItem = FaceRule | LocalFace | ResourceUrl;
   const fromPage = await page.evaluate(() => {
     // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
     // stack traces. That helper isn't injected into page.evaluate's
@@ -328,6 +329,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     }
     interface FaceRule { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> }
     interface ResourceUrl { kind: "resource"; url: string }
+    interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null }
     // Parse a CSS `unicode-range` descriptor value into inclusive [from, to]
     // intervals. Accepts the three forms in CSS Fonts 4 §4.5: single codepoint
     // (`U+26`), interval (`U+0-7F`), and wildcard (`U+4??`). Returns `null`
@@ -356,7 +358,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
       }
       return out.length > 0 ? out : undefined;
     };
-    const out: (FaceRule | ResourceUrl)[] = [];
+    const out: (FaceRule | LocalFace | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
     // DM-545: stylesheets whose `cssRules` access threw (cross-origin without
     // CORS). The Node side fetches their text and parses `@font-face` rules
@@ -367,7 +369,6 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     // which for license-protected fonts (Sohne) is often a copyright string.
     const crossOriginSheetUrls: string[] = [];
 
-    interface LocalFace { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null }
     // Width-probe helpers are defined inline below as needed. We avoid hoisting
     // them into named arrow consts because tsx wraps such names in __name(...)
     // calls (a runtime helper for stack traces) that isn't available inside
@@ -463,7 +464,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
               // Tolerate sub-px FP noise; match if widths agree within 0.05px.
               if (Math.abs(candW - aliasW) < 0.05) { resolved = cand; break; }
             }
-            (out as any[]).push({ kind: "local", family, localNames: locals, weight, style, resolvedLocalName: resolved });
+            out.push({ kind: "local", family, localNames: locals, weight, style, resolvedLocalName: resolved });
           }
           continue;
         }
@@ -492,7 +493,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     }
     return { entries: out, seenUrls: Array.from(seenUrls), crossOriginSheetUrls };
   });
-  const discovered = fromPage.entries as DiscoveredItem[];
+  const discovered: DiscoveredItem[] = fromPage.entries;
   const seen = new Set(fromPage.seenUrls);
   // DM-545: fetch each cross-origin stylesheet text and parse `@font-face`
   // rules server-side. Cross-origin sheets throw on `cssRules` access from
@@ -503,7 +504,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   // ran in this scenario registers under fontkit's internal `familyName`,
   // which for license-protected fonts (Sohne) is a copyright string —
   // unmatchable against the CSS-declared `font-family: sohne-var` query.
-  for (const sheetUrl of (fromPage as any).crossOriginSheetUrls as string[] ?? []) {
+  for (const sheetUrl of fromPage.crossOriginSheetUrls) {
     let cssText: string;
     try {
       const resp = await page.context().request.get(sheetUrl);
@@ -526,7 +527,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   }
 
   const report: { family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string }[] = [];
-  for (const item of discovered as any[]) {
+  for (const item of discovered) {
     if (item.kind === "local") {
       // The page-side probe identified which local() candidate Chrome
       // actually resolved the alias to (by comparing rendered widths). We
@@ -544,11 +545,10 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
       // nothing, and preserves behavior for cases the probe can't resolve
       // (e.g. an alias whose width happened to disagree with all candidates
       // due to layout shaping that the simple sample didn't exercise).
-      const declaredWeight = parseWeightDescriptor((item as any).weight);
-      const declaredStyle = String((item as any).style ?? "normal").toLowerCase();
+      const declaredWeight = parseWeightDescriptor(item.weight);
+      const declaredStyle = item.style.toLowerCase();
       const declaredItalic = declaredStyle !== "" && declaredStyle !== "normal";
-      const resolved = (item as any).resolvedLocalName as string | null | undefined;
-      const candidates = resolved != null ? [resolved] : (item.localNames as string[]);
+      const candidates = item.resolvedLocalName != null ? [item.resolvedLocalName] : item.localNames;
       for (const localName of candidates) {
         const key = systemFontKeyForLocalName(localName);
         if (key != null) {
@@ -562,8 +562,8 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     // until one fetches AND fontkit can parse the bytes. Falls through eot/svg-
     // first cascades like Slashdot's sdicon font where the woff is the 3rd or
     // 4th `url()` in `src:`.
-    const candidates: string[] = item.kind === "font-face" && Array.isArray((item as any).urls) && (item as any).urls.length > 0
-      ? (item as any).urls
+    const candidates: string[] = item.kind === "font-face" && Array.isArray(item.urls) && item.urls.length > 0
+      ? item.urls
       : [item.url];
     let lastError: string | undefined;
     let registered = false;
@@ -587,7 +587,7 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
             continue;
           }
           const weightNum = parseWeightDescriptor(item.weight);
-          registerWebfont(item.family, weightNum, item.style, buf, (item as any).unicodeRange);
+          registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange);
           report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
         } else {
           const meta = await readFontMetadata(buf);
@@ -646,6 +646,7 @@ async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: 
   const fontkit = await import("fontkit");
   try {
     const f = (fontkit as any).create(buf);
+    if (f == null) return null;
     const family = f.familyName ?? "";
     if (family === "") return null;
     const weight = (f["OS/2"]?.usWeightClass) ?? 400;

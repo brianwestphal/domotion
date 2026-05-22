@@ -568,12 +568,29 @@ function durationToMs(t: Token): number {
   throw new ScrollPatternError(`Unknown duration unit "${t.unit}"`, "", t.start);
 }
 
+function lengthTokenUnit(t: Token): "px" | "%" {
+  // The tokenizer at `tokenize()` only emits `kind: "length"` when unit is
+  // exactly "px" or "%" — this check defends against tokenizer drift so a
+  // future unit-set change can't silently slip through as an `unknown` unit.
+  if (t.unit !== "px" && t.unit !== "%") {
+    throw new ScrollPatternError(`Internal: length token has non-length unit "${String(t.unit)}"`, "", t.start);
+  }
+  return t.unit;
+}
+
+function lengthTokenNum(t: Token): number {
+  if (typeof t.num !== "number" || !Number.isFinite(t.num)) {
+    throw new ScrollPatternError(`Internal: length token missing numeric value`, "", t.start);
+  }
+  return t.num;
+}
+
 function lengthTokenToLength(t: Token): Length {
-  return { value: t.num as number, unit: t.unit as "px" | "%" };
+  return { value: lengthTokenNum(t), unit: lengthTokenUnit(t) };
 }
 
 function lengthTokenToSignedLength(t: Token, sign: 1 | -1): SignedLength {
-  return { sign, value: t.num as number, unit: t.unit as "px" | "%" };
+  return { sign, value: lengthTokenNum(t), unit: lengthTokenUnit(t) };
 }
 
 // ── Public entry point ─────────────────────────────────────────────────────

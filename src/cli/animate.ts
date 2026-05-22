@@ -129,8 +129,8 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   const configPath = resolve(positionals[0]);
   if (!existsSync(configPath)) throw new Error(`animate: config not found: ${configPath}`);
 
-  const cfg = JSON.parse(readFileSync(configPath, "utf8")) as AnimateConfig;
-  validateAnimateConfig(cfg);
+  const cfgRaw: unknown = JSON.parse(readFileSync(configPath, "utf8"));
+  const cfg = validateAnimateConfig(cfgRaw);
   const configDir = dirname(configPath);
 
   const log = makeLogger(values.quiet === true);
@@ -304,33 +304,152 @@ async function runActions(page: Page, actions: AnimateAction[]): Promise<void> {
   }
 }
 
-function validateAnimateConfig(cfg: AnimateConfig): void {
-  if (typeof cfg.width !== "number" || typeof cfg.height !== "number") {
+const COLOR_SCHEMES = new Set(["light", "dark", "no-preference"] as const);
+const TRANSITION_TYPES = new Set(["crossfade", "push-left", "scroll", "cut"] as const);
+const OVERLAY_SLIDE_FROMS = new Set(["top", "bottom", "left", "right"] as const);
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function validateAnimateConfig(raw: unknown): AnimateConfig {
+  if (!isObject(raw)) throw new Error("animate: config must be an object");
+  if (typeof raw.width !== "number" || typeof raw.height !== "number") {
     throw new Error("animate: config requires numeric width and height");
   }
-  if (!Array.isArray(cfg.frames) || cfg.frames.length === 0) {
+  if (raw.output != null && typeof raw.output !== "string") {
+    throw new Error("animate: config.output must be a string when present");
+  }
+  if (raw.optimize != null && typeof raw.optimize !== "boolean") {
+    throw new Error("animate: config.optimize must be a boolean when present");
+  }
+  if (raw.mobile != null && typeof raw.mobile !== "boolean") {
+    throw new Error("animate: config.mobile must be a boolean when present");
+  }
+  if (raw.colorScheme != null && (typeof raw.colorScheme !== "string" || !COLOR_SCHEMES.has(raw.colorScheme as never))) {
+    throw new Error(`animate: config.colorScheme must be one of ${[...COLOR_SCHEMES].join(", ")}`);
+  }
+  if (!Array.isArray(raw.frames) || raw.frames.length === 0) {
     throw new Error("animate: config.frames must be a non-empty array");
   }
-  for (let i = 0; i < cfg.frames.length; i++) {
-    const f = cfg.frames[i];
+  for (let i = 0; i < raw.frames.length; i++) {
+    const f = raw.frames[i];
+    if (!isObject(f)) throw new Error(`animate: frames[${i}] must be an object`);
     if (typeof f.input !== "string") throw new Error(`animate: frames[${i}].input must be a string`);
     if (typeof f.duration !== "number") throw new Error(`animate: frames[${i}].duration must be a number`);
+    if (f.transition != null) {
+      if (!isObject(f.transition)) throw new Error(`animate: frames[${i}].transition must be an object`);
+      if (typeof f.transition.type !== "string" || !TRANSITION_TYPES.has(f.transition.type as never)) {
+        throw new Error(`animate: frames[${i}].transition.type must be one of ${[...TRANSITION_TYPES].join(", ")}`);
+      }
+      if (typeof f.transition.duration !== "number") {
+        throw new Error(`animate: frames[${i}].transition.duration must be a number`);
+      }
+    }
+    if (f.scrollTo != null) {
+      if (!Array.isArray(f.scrollTo) || f.scrollTo.length !== 2 || typeof f.scrollTo[0] !== "number" || typeof f.scrollTo[1] !== "number") {
+        throw new Error(`animate: frames[${i}].scrollTo must be a [number, number] tuple`);
+      }
+    }
     if (f.scroll != null) {
+      if (!isObject(f.scroll)) throw new Error(`animate: frames[${i}].scroll must be an object`);
       if (typeof f.scroll.pattern !== "string" || f.scroll.pattern.trim() === "") {
         throw new Error(`animate: frames[${i}].scroll.pattern must be a non-empty string`);
       }
-      // Parse the pattern eagerly so config errors surface before the run
-      // starts (instead of mid-Playwright session). Throws on invalid
-      // grammar with the original error including source position.
       try {
         parseScrollPattern(f.scroll.pattern);
       } catch (e) {
         throw new Error(`animate: frames[${i}].scroll.pattern is invalid: ${e instanceof Error ? e.message : String(e)}`);
       }
-      if (f.scroll.speed != null && (!Number.isFinite(f.scroll.speed) || f.scroll.speed <= 0)) {
+      if (f.scroll.speed != null && (typeof f.scroll.speed !== "number" || !Number.isFinite(f.scroll.speed) || f.scroll.speed <= 0)) {
         throw new Error(`animate: frames[${i}].scroll.speed must be a positive number (px/s)`);
       }
     }
+    if (f.actions != null) {
+      if (!Array.isArray(f.actions)) throw new Error(`animate: frames[${i}].actions must be an array`);
+      f.actions.forEach((a, ai) => validateAction(a, i, ai));
+    }
+    if (f.animations != null) {
+      if (!Array.isArray(f.animations)) throw new Error(`animate: frames[${i}].animations must be an array`);
+      f.animations.forEach((a, ai) => validateFrameAnimation(a, i, ai));
+    }
+    if (f.overlays != null && !Array.isArray(f.overlays)) {
+      throw new Error(`animate: frames[${i}].overlays must be an array`);
+    }
+    // Overlay shape is validated lazily in `resolveSvgOverlays` via
+    // `validateOverlay` — each entry checked at use-site.
+  }
+  return raw as unknown as AnimateConfig;
+}
+
+function validateAction(a: unknown, frameIdx: number, ai: number): void {
+  if (!isObject(a)) throw new Error(`animate: frames[${frameIdx}].actions[${ai}] must be an object`);
+  switch (a.type) {
+    case "click":
+    case "hover":
+      if (typeof a.selector !== "string") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (${a.type}) requires string selector`);
+      return;
+    case "fill":
+      if (typeof a.selector !== "string" || typeof a.value !== "string") {
+        throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (fill) requires string selector and value`);
+      }
+      return;
+    case "press":
+      if (typeof a.key !== "string") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (press) requires string key`);
+      return;
+    case "scroll":
+      if (a.x != null && typeof a.x !== "number") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (scroll) x must be a number`);
+      if (a.y != null && typeof a.y !== "number") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (scroll) y must be a number`);
+      return;
+    case "wait":
+      if (typeof a.ms !== "number") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (wait) requires numeric ms`);
+      return;
+    default:
+      throw new Error(`animate: frames[${frameIdx}].actions[${ai}].type "${String(a.type)}" is not a recognised action`);
+  }
+}
+
+function validateFrameAnimation(a: unknown, frameIdx: number, ai: number): void {
+  if (!isObject(a)) throw new Error(`animate: frames[${frameIdx}].animations[${ai}] must be an object`);
+  if (typeof a.selector !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].selector must be a string`);
+  if (typeof a.property !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].property must be a string`);
+  if (typeof a.from !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].from must be a string`);
+  if (typeof a.to !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].to must be a string`);
+  if (typeof a.duration !== "number") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].duration must be a number`);
+}
+
+function validateOverlay(ov: unknown, frameIdx: number, oi: number): AnimationOverlay {
+  if (!isObject(ov)) throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] must be an object`);
+  switch (ov.kind) {
+    case "typing":
+      if (typeof ov.text !== "string" || typeof ov.x !== "number" || typeof ov.y !== "number") {
+        throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] (typing) requires text/x/y`);
+      }
+      return ov as unknown as AnimationOverlay;
+    case "tap":
+      if (typeof ov.x !== "number" || typeof ov.y !== "number") {
+        throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] (tap) requires numeric x and y`);
+      }
+      return ov as unknown as AnimationOverlay;
+    case "svg":
+      if (typeof ov.src !== "string" || typeof ov.x !== "number" || typeof ov.y !== "number" || typeof ov.width !== "number" || typeof ov.height !== "number") {
+        throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] (svg) requires src/x/y/width/height`);
+      }
+      if (ov.enter != null) validateOverlaySlide(ov.enter, frameIdx, oi, "enter");
+      if (ov.exit != null) validateOverlaySlide(ov.exit, frameIdx, oi, "exit");
+      return ov as unknown as AnimationOverlay;
+    default:
+      throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].kind "${String(ov.kind)}" is not a recognised overlay`);
+  }
+}
+
+function validateOverlaySlide(s: unknown, frameIdx: number, oi: number, which: "enter" | "exit"): void {
+  if (!isObject(s)) throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].${which} must be an object`);
+  if (typeof s.from !== "string" || !OVERLAY_SLIDE_FROMS.has(s.from as never)) {
+    throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].${which}.from must be one of ${[...OVERLAY_SLIDE_FROMS].join(", ")}`);
+  }
+  if (typeof s.duration !== "number") {
+    throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].${which}.duration must be a number`);
   }
 }
 
@@ -343,9 +462,10 @@ function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: strin
   if (rawOverlays == null) return undefined;
   const out: AnimationOverlay[] = [];
   let svgIdx = 0;
-  for (const ov of rawOverlays) {
-    if (ov != null && typeof ov === "object" && (ov as { kind?: string }).kind === "svg") {
-      const raw = ov as { kind: "svg"; src: string; x: number; y: number; width: number; height: number; enter?: SvgOverlay["enter"]; exit?: SvgOverlay["exit"] };
+  for (let oi = 0; oi < rawOverlays.length; oi++) {
+    const validated = validateOverlay(rawOverlays[oi], frameIdx, oi);
+    if (validated.kind === "svg" && "src" in (rawOverlays[oi] as Record<string, unknown>)) {
+      const raw = rawOverlays[oi] as { src: string; x: number; y: number; width: number; height: number; enter?: SvgOverlay["enter"]; exit?: SvgOverlay["exit"] };
       const srcPath = resolve(configDir, raw.src);
       if (!existsSync(srcPath)) throw new Error(`animate: svg overlay file not found: ${srcPath}`);
       const fileText = readFileSync(srcPath, "utf8");
@@ -359,7 +479,7 @@ function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: strin
         enter: raw.enter, exit: raw.exit,
       });
     } else {
-      out.push(ov as AnimationOverlay);
+      out.push(validated);
     }
   }
   return out;

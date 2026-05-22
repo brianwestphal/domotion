@@ -2137,19 +2137,8 @@ export function elementTreeToSvg(
     // up to four `<line>`s for the visible border sides. Per-side colors /
     // widths can differ so we can't collapse them into a single
     // stroke="..." attribute the way the regular-element border path does.
-    if ((el as any).pseudoBoxes != null) {
-      for (const pb of (el as any).pseudoBoxes as Array<{
-        x: number; y: number; width: number; height: number;
-        backgroundColor?: string;
-        backgroundImage?: string;
-        borderTopWidth?: number; borderTopColor?: string; borderTopStyle?: string;
-        borderRightWidth?: number; borderRightColor?: string; borderRightStyle?: string;
-        borderBottomWidth?: number; borderBottomColor?: string; borderBottomStyle?: string;
-        borderLeftWidth?: number; borderLeftColor?: string; borderLeftStyle?: string;
-        borderRadius?: number;
-        transform?: string;
-        transformOrigin?: string;
-      }>) {
+    if (el.pseudoBoxes != null) {
+      for (const pb of el.pseudoBoxes) {
         // DM-783: snapshot svgParts.length so we can wrap THIS pb's emit in
         // a `<g transform="…">` when pb.transform is present. The wrap pre-
         // bakes the rotation/scale around the captured transform-origin so
@@ -4402,6 +4391,14 @@ export function positionFragmentMaskDef(
  * clip / mask id allocation. Returns `null` when the slice / width values
  * resolve to a degenerate region (no mask painted).
  */
+type MaskBorderRepeat = "stretch" | "repeat" | "round" | "space";
+const MASK_BORDER_REPEATS = new Set<string>(["stretch", "repeat", "round", "space"]);
+
+function normalizeMaskBorderRepeat(raw: string | undefined): MaskBorderRepeat {
+  if (raw != null && MASK_BORDER_REPEATS.has(raw)) return raw as MaskBorderRepeat;
+  return "stretch";
+}
+
 function buildMaskBorder9Slice(
   el: CapturedElement,
   url: string,
@@ -4477,8 +4474,8 @@ function buildMaskBorder9Slice(
 
   // Repeat — `stretch` / `repeat` / `round` / `space` (per axis, optional).
   const rTokens = repeatRaw.trim().toLowerCase().split(/\s+/);
-  const rH = rTokens[0] || "stretch";
-  const rV = rTokens[1] || rH;
+  const rH = normalizeMaskBorderRepeat(rTokens[0]);
+  const rV = rTokens[1] != null && rTokens[1] !== "" ? normalizeMaskBorderRepeat(rTokens[1]) : rH;
 
   const x0 = boxX, x1 = boxX + wl, x2 = boxX + boxW - wr, x3 = boxX + boxW;
   const y0 = boxY, y1 = boxY + wt, y2 = boxY + boxH - wb, y3 = boxY + boxH;
@@ -4571,16 +4568,16 @@ function buildMaskBorder9Slice(
     emitStretched(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
     emitStretched(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
   } else {
-    emitTiledEdge(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH as "repeat" | "round" | "space");
-    emitTiledEdge(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH as "repeat" | "round" | "space");
+    emitTiledEdge(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH);
+    emitTiledEdge(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH);
   }
   // Left + Right edges.
   if (rV === "stretch") {
     emitStretched(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
     emitStretched(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
   } else {
-    emitTiledEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV as "repeat" | "round" | "space");
-    emitTiledEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV as "repeat" | "round" | "space");
+    emitTiledEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV);
+    emitTiledEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV);
   }
   // Center — only when `fill`.
   if (fillCenter) {

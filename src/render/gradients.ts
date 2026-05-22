@@ -838,7 +838,9 @@ function resolveStops(stops: LinearStop[], gradientLineLength: number, opts?: { 
  */
 function tileRepeatingStops(stops: LinearStop[]): LinearStop[] {
   if (stops.length < 2) return stops;
-  const sorted = stops.filter((s) => s.offset != null) as Array<LinearStop & { offset: number }>;
+  const sorted = stops.filter((s): s is LinearStop & { offset: number } =>
+    typeof s.offset === "number" && Number.isFinite(s.offset),
+  );
   if (sorted.length < 2) return stops;
   const tileStart = sorted[0].offset;
   const tileEnd = sorted[sorted.length - 1].offset;

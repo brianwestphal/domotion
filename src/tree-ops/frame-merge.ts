@@ -325,7 +325,7 @@ function mergeNode(
   const parts: string[] = [];
   for (const g of groups) {
     const visibleFrames = g.occurrences.map((o, i) => (o != null ? i : -1)).filter((i) => i >= 0);
-    const contents = g.occurrences.filter((o) => o != null) as ParsedNode[];
+    const contents = g.occurrences.filter((o): o is ParsedNode => o != null);
 
     // Fast path: this element is byte-identical across all its occurrences.
     const raws = new Set(contents.map((c) => c.raw));

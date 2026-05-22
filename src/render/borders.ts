@@ -10,6 +10,15 @@ import type { CapturedElement } from "../capture/types.js";
 import { embedResizedDataUri } from "../capture/embed.js";
 import { parseGradient, buildLinearGradientDef, buildRadialGradientDef } from "./gradients.js";
 
+/** `border-image-repeat` per-axis keyword. */
+type BorderImageRepeat = "stretch" | "repeat" | "round" | "space";
+const BORDER_IMAGE_REPEATS = new Set<string>(["stretch", "repeat", "round", "space"]);
+
+function normalizeBorderImageRepeat(raw: string | undefined): BorderImageRepeat {
+  if (raw != null && BORDER_IMAGE_REPEATS.has(raw)) return raw as BorderImageRepeat;
+  return "stretch";
+}
+
 /** Per-corner border-radius axis-pair (h = horizontal, v = vertical).
  *  An elliptical corner has h ≠ v; a circular corner has h = v. */
 export type CornerRadiusPair = { h: number; v: number };
@@ -311,8 +320,8 @@ function renderBorderImageGradient(
 
   // Repeat policy per axis.
   const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
-  const rH = (repeatTokens[0] || "stretch").toLowerCase();
-  const rV = (repeatTokens[1] || rH).toLowerCase();
+  const rH = normalizeBorderImageRepeat((repeatTokens[0] ?? "stretch").toLowerCase());
+  const rV = repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
 
   // Gradient def in source space (0, 0) - (natW, natH). Positioned at the
   // border-image-area's element-absolute origin (boxX, boxY) so the inner
@@ -420,16 +429,16 @@ function renderBorderImageGradient(
     emitStretchedSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
     emitStretchedSlot(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
   } else {
-    emitTiledEdgeSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH as "repeat" | "round" | "space");
-    emitTiledEdgeSlot(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH as "repeat" | "round" | "space");
+    emitTiledEdgeSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH);
+    emitTiledEdgeSlot(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH);
   }
   // Left + Right edges.
   if (rV === "stretch") {
     emitStretchedSlot(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
     emitStretchedSlot(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
   } else {
-    emitTiledEdgeSlot(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV as "repeat" | "round" | "space");
-    emitTiledEdgeSlot(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV as "repeat" | "round" | "space");
+    emitTiledEdgeSlot(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV);
+    emitTiledEdgeSlot(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV);
   }
   // Center — only when `fill`.
   if (fillCenter) {
@@ -537,8 +546,8 @@ export function renderBorderImage(
 
   // Repeat policy per axis (tokens order: H V; fallback: single token applies to both).
   const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
-  const rH = (repeatTokens[0] || "stretch").toLowerCase();
-  const rV = (repeatTokens[1] || rH).toLowerCase();
+  const rH = normalizeBorderImageRepeat((repeatTokens[0] ?? "stretch").toLowerCase());
+  const rV = repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
 
   // Slot geometry (in element-absolute coords).
   const x0 = boxX, x1 = boxX + wl, x2 = boxX + boxW - wr, x3 = boxX + boxW;
@@ -677,16 +686,16 @@ export function renderBorderImage(
     emitStretchedSlice(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
     emitStretchedSlice(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
   } else {
-    emitTiledSliceEdge(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH as "repeat" | "round" | "space");
-    emitTiledSliceEdge(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH as "repeat" | "round" | "space");
+    emitTiledSliceEdge(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH);
+    emitTiledSliceEdge(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH);
   }
   // Left + Right edges (vertical axis).
   if (rV === "stretch") {
     emitStretchedSlice(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
     emitStretchedSlice(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
   } else {
-    emitTiledSliceEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV as "repeat" | "round" | "space");
-    emitTiledSliceEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV as "repeat" | "round" | "space");
+    emitTiledSliceEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV);
+    emitTiledSliceEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV);
   }
   // Center (only if `fill`). Per CSS Backgrounds 3 §6.1.3 the middle slice
   // is tiled in both directions when `border-image-repeat` is non-stretch,

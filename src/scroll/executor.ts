@@ -536,8 +536,8 @@ function realPageQuery(page: Page, selector: string | null): PageQuery {
         }));
       }
       return page.evaluate((sel) => {
-        const el = document.querySelector(sel) as HTMLElement | null;
-        if (el == null) return { maxScrollX: 0, maxScrollY: 0, scrollX: 0, scrollY: 0 };
+        const el = document.querySelector(sel);
+        if (!(el instanceof HTMLElement)) return { maxScrollX: 0, maxScrollY: 0, scrollX: 0, scrollY: 0 };
         return {
           maxScrollX: Math.max(0, el.scrollWidth  - el.clientWidth),
           maxScrollY: Math.max(0, el.scrollHeight - el.clientHeight),
@@ -562,8 +562,8 @@ async function scrollTo(page: Page, selector: string | null, destX: number, dest
     await page.evaluate(({ x, y }) => window.scrollTo(x, y), { x: destX, y: destY });
   } else {
     await page.evaluate(({ sel, x, y }) => {
-      const el = document.querySelector(sel) as HTMLElement | null;
-      if (el != null) { el.scrollLeft = x; el.scrollTop = y; }
+      const el = document.querySelector(sel);
+      if (el instanceof HTMLElement) { el.scrollLeft = x; el.scrollTop = y; }
     }, { sel: selector, x: destX, y: destY });
   }
   // Wait the action's nominal duration plus a small settle for layout.
@@ -579,13 +579,13 @@ async function runPrescroll(page: Page, selector: string | null): Promise<void> 
     await page.waitForTimeout(PRESCROLL_TOP_WAIT_MS);
   } else {
     await page.evaluate((sel) => {
-      const el = document.querySelector(sel) as HTMLElement | null;
-      if (el != null) el.scrollTop = el.scrollHeight;
+      const el = document.querySelector(sel);
+      if (el instanceof HTMLElement) el.scrollTop = el.scrollHeight;
     }, selector);
     await page.waitForTimeout(PRESCROLL_BOTTOM_WAIT_MS);
     await page.evaluate((sel) => {
-      const el = document.querySelector(sel) as HTMLElement | null;
-      if (el != null) el.scrollTop = 0;
+      const el = document.querySelector(sel);
+      if (el instanceof HTMLElement) el.scrollTop = 0;
     }, selector);
     await page.waitForTimeout(PRESCROLL_TOP_WAIT_MS);
   }
