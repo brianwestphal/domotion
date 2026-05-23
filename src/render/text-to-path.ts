@@ -556,6 +556,17 @@ const FONT_PATHS: Record<string, FontPath> = {
   "georgia-bold":        { path: "/System/Library/Fonts/Supplemental/Georgia Bold.ttf" },
   "georgia-italic":      { path: "/System/Library/Fonts/Supplemental/Georgia Italic.ttf" },
   "georgia-bold-italic": { path: "/System/Library/Fonts/Supplemental/Georgia Bold Italic.ttf" },
+  // Source Serif Pro — Adobe's open-source serif, often installed in
+  // `/Library/Fonts/` rather than as a base macOS face. Chrome picks it up
+  // when CSS specifies `font-family: 'Source Serif Pro'` AND the file is
+  // present; otherwise Chrome falls through to the next family in the
+  // stack. Domotion mirrors that: when the path doesn't exist on this
+  // host, `resolveFont` returns null for the SSP key and the family-chain
+  // walks to the next entry (typically `serif` → Times). DM-804.
+  "source-serif-pro":              { path: "/Library/Fonts/SourceSerifPro-Regular.ttf" },
+  "source-serif-pro-bold":         { path: "/Library/Fonts/SourceSerifPro-Bold.ttf" },
+  "source-serif-pro-italic":       { path: "/Library/Fonts/SourceSerifPro-Italic.ttf" },
+  "source-serif-pro-bold-italic":  { path: "/Library/Fonts/SourceSerifPro-BoldItalic.ttf" },
   // Generic cursive — Chrome on macOS resolves `cursive` to Apple Chancery
   // (NOT Snell Roundhand). Empirical probe at 16px on the sample "The quick
   // brown fox jumps over the lazy dog": Chrome cursive = 290.08px, Apple
@@ -924,7 +935,8 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // installed. Times/Georgia ship four sibling files (regular/bold/italic/
   // bold-italic) for headings + emphasis in serif content (DM-269).
   if (key === "helvetica" || key === "arial" || key === "courier" || key === "menlo"
-      || key === "times" || key === "times-new-roman" || key === "georgia") {
+      || key === "times" || key === "times-new-roman" || key === "georgia"
+      || key === "source-serif-pro") {
     const isBold = weight >= 600;
     const isItalic = slant !== 0;
     if (isBold && isItalic) effectiveKey = `${key}-bold-italic`;
@@ -1103,6 +1115,11 @@ export function resolveFontKey(fontFamily: string): string {
     if (name === "times new roman") return "times-new-roman";
     if (name === "serif" || name === "ui-serif" || name === "times") return "times";
     if (name === "georgia") return "georgia";
+    // Source Serif Pro (Adobe) — non-base macOS face, often present under
+    // `/Library/Fonts/`. Authors target it via `font-family: 'Source Serif Pro'`.
+    // When the file isn't installed on this host, `resolveFont` returns null
+    // and the chain falls through to the next family. DM-804.
+    if (name === "source serif pro" || name === "sourceserifpro") return "source-serif-pro";
     // Chrome on macOS resolves the CSS `cursive` generic keyword to Apple
     // Chancery (per the empirical probe — bare `cursive` paints at exactly
     // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).
