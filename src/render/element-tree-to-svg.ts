@@ -1597,11 +1597,40 @@ export function elementTreeToSvg(
       const annularPath = hasOuterRadius
         ? `${outerRoundedPath} ${innerRoundedPath}`
         : "";
+      // DM-803: per-side wedge apex = intersection of the two adjacent
+      // corner MITER lines (not box centre). Each corner's miter line goes
+      // from the outer corner inward along direction (lw_at_that_corner,
+      // tw_at_that_corner) — for uniform widths this gives a 45° diagonal
+      // and all 4 apices land at the box centre (matching the old behaviour);
+      // for mixed widths the diagonal tilts toward the thicker adjacent
+      // side, shifting where the colour-transition between adjacent sides
+      // lands on the rounded-corner arc. Matches Chromium's
+      // `box_border_painter.cc` miter-line construction (`miter_line` from
+      // `corner.outer.Outer()` to `corner.unadjusted_inner_edge`). Without
+      // this shift, e.g. the 8/2/8/2 border on a 50%-radius ellipse paints
+      // the top blue and bottom green arcs narrower than Chrome (because
+      // 45° diagonals from the rectangle corners hit the ellipse closer to
+      // the cardinal axes than the wider-top miter lines would).
+      const boxW = bxR - bxL;
+      const boxH = bxB - bxT;
+      const horizSum = lw + rw;
+      const vertSum = tw + bw;
+      // Top apex: NW miter (lw, tw) and NE miter (-rw, tw) meet at
+      // (bxL + lw*boxW/(lw+rw), bxT + tw*boxW/(lw+rw)). Fall back to box
+      // centre when the denominator is zero (no adjacent borders).
+      const apexTopX = horizSum > 0 ? bxL + lw * boxW / horizSum : cxBox;
+      const apexTopY = horizSum > 0 ? bxT + tw * boxW / horizSum : cyBox;
+      const apexRightX = vertSum > 0 ? bxR - rw * boxH / vertSum : cxBox;
+      const apexRightY = vertSum > 0 ? bxT + tw * boxH / vertSum : cyBox;
+      const apexBottomX = horizSum > 0 ? bxL + lw * boxW / horizSum : cxBox;
+      const apexBottomY = horizSum > 0 ? bxB - bw * boxW / horizSum : cyBox;
+      const apexLeftX = vertSum > 0 ? bxL + lw * boxH / vertSum : cxBox;
+      const apexLeftY = vertSum > 0 ? bxT + tw * boxH / vertSum : cyBox;
       const annularWedges: string[] = hasOuterRadius ? [
-        `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(cxBox)},${r(cyBox)}`, // top
-        `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(cxBox)},${r(cyBox)}`, // right
-        `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(cxBox)},${r(cyBox)}`, // bottom
-        `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(cxBox)},${r(cyBox)}`, // left
+        `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(apexTopX)},${r(apexTopY)}`, // top
+        `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(apexRightX)},${r(apexRightY)}`, // right
+        `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(apexBottomX)},${r(apexBottomY)}`, // bottom
+        `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(apexLeftX)},${r(apexLeftY)}`, // left
       ] : [];
       // The outer-outline group still wraps the non-solid branches so their
       // straight `<line>` strokes get trimmed to the rounded outline at the
