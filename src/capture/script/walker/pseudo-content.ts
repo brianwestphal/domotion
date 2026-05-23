@@ -125,6 +125,52 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
     return r;
   };
 
+  // For `position: absolute` / `position: fixed` pseudos, the containing block
+  // is the nearest positioned ancestor of the host (NOT the host itself when
+  // the host is `position: static`). NYT's mobile nav `.css-sdhjrl::after`
+  // fade-out is `position: absolute; right: 0; top:0; width: 24px; height: 40px`
+  // on a `position: static; display: flex; overflow: scroll` NAV — the pseudo's
+  // computed `top` / `left` resolve against a far-up ancestor, so naïvely adding
+  // them to the host's padding-box origin places the gradient ~3088px below the
+  // NAV (where there's no NAV to fade over). Instead, inject a real absolutely-
+  // positioned sentinel as a child of the host: it inherits the same containing
+  // block the pseudo would have, and Chrome lays it out at the exact rect the
+  // pseudo paints to. Read its `getBoundingClientRect` directly.
+  const probePseudoAbsoluteBoxRect = (el, pseudo, pcs) => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'pointer-events:none;visibility:hidden;box-sizing:content-box;margin:0';
+    probe.style.position = pcs.position;
+    probe.style.top = pcs.top;
+    probe.style.right = pcs.right;
+    probe.style.bottom = pcs.bottom;
+    probe.style.left = pcs.left;
+    probe.style.width = pcs.width;
+    probe.style.height = pcs.height;
+    probe.style.paddingTop = pcs.paddingTop;
+    probe.style.paddingRight = pcs.paddingRight;
+    probe.style.paddingBottom = pcs.paddingBottom;
+    probe.style.paddingLeft = pcs.paddingLeft;
+    probe.style.borderTopWidth = pcs.borderTopWidth;
+    probe.style.borderRightWidth = pcs.borderRightWidth;
+    probe.style.borderBottomWidth = pcs.borderBottomWidth;
+    probe.style.borderLeftWidth = pcs.borderLeftWidth;
+    probe.style.borderStyle = 'solid';
+    probe.style.borderColor = 'transparent';
+    probe.style.marginTop = pcs.marginTop;
+    probe.style.marginRight = pcs.marginRight;
+    probe.style.marginBottom = pcs.marginBottom;
+    probe.style.marginLeft = pcs.marginLeft;
+    probe.style.transform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : '';
+    probe.style.transformOrigin = pcs.transformOrigin || '';
+    // Pseudo lives logically inside the host; an absolute child of the host
+    // inherits the same containing-block lookup.
+    if (pseudo === '::before') el.insertBefore(probe, el.firstChild);
+    else el.appendChild(probe);
+    const r = probe.getBoundingClientRect();
+    probe.remove();
+    return r;
+  };
+
   const pickQuoteChar = (forEl, isOpen) => {
     // Count q-element ancestors above this element (depth=0 = the first q
     // not inside another q). The pseudo lives ON forEl so when forEl IS a
@@ -321,20 +367,20 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
           let borderBoxX;
           let borderBoxY;
           if (pcs.position === 'absolute' || pcs.position === 'fixed') {
-            const pcsLeft = parseFloat(pcs.left);
-            const pcsTop = parseFloat(pcs.top);
-            const pcsRight = parseFloat(pcs.right);
-            const pcsBottom = parseFloat(pcs.bottom);
-            const paddingBoxL = rect.left - vp.x + hostBorL;
-            const paddingBoxT = rect.top - vp.y + hostBorT;
-            const paddingBoxR = rect.right - vp.x - hostBorR;
-            const paddingBoxB = rect.bottom - vp.y - (parseFloat(cs.borderBottomWidth) || 0);
-            if (!isNaN(pcsLeft)) borderBoxX = paddingBoxL + pcsLeft;
-            else if (!isNaN(pcsRight)) borderBoxX = paddingBoxR - pcsRight - borderBoxW;
-            else borderBoxX = paddingBoxL;
-            if (!isNaN(pcsTop)) borderBoxY = paddingBoxT + pcsTop;
-            else if (!isNaN(pcsBottom)) borderBoxY = paddingBoxB - pcsBottom - borderBoxH;
-            else borderBoxY = paddingBoxT;
+            // Use a real positioned sentinel to find the pseudo's true painted
+            // rect. Chrome's containing-block lookup walks up from the host
+            // looking for a positioned ancestor (or a transformed / filtered
+            // / contained ancestor); the same lookup applies to a real child
+            // of the host. Probing avoids re-implementing that walk + all the
+            // containing-block-establishing properties. NYT mobile's nav fade-
+            // out `.css-sdhjrl::after` (`position: absolute; right: 0`) on a
+            // `position: static` NAV is the trigger case — the pseudo's
+            // resolved `top` / `left` are relative to a far-up positioned
+            // ancestor, not the NAV, so the prior additive math placed the
+            // gradient thousands of pixels off the NAV.
+            const pr = probePseudoAbsoluteBoxRect(el, pseudo, pcs);
+            borderBoxX = pr.left - vp.x;
+            borderBoxY = pr.top - vp.y;
           } else {
             const pMarT = parseFloat(pcs.marginTop) || 0;
             borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;

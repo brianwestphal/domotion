@@ -653,6 +653,28 @@ export const captureScript =
             replacement.appendChild(clonedTarget);
             // DM-508: bake t=0 computed styles on the inlined target subtree.
             _walkBake(target, clonedTarget);
+            // When the target itself is an `<svg>` (the framer.com toolbar
+            // pattern: `<use href="#svgID">` → `<svg viewBox="0 0 20 20"
+            // id="svgID"><path .../></svg>` living in a hidden defs container
+            // with `width: 0; height: 0`), the bake above writes `width="0"
+            // height="0"` onto the cloned svg from the source's computed
+            // style. That collapses the inlined inner viewport and the icon
+            // paints nothing inside its parent — even though Chrome paints
+            // it correctly because the live `<use>` consumer's viewport
+            // (the outer svg inside the page's regular flow) gives the icon
+            // its 14×14 / 20×20 space. Strip baked zero width/height on the
+            // cloned target so the nested svg defaults to 100%/100% of its
+            // parent viewport, matching Chrome's behavior. Don't touch non-
+            // zero baked values — those came from a legitimately-sized source
+            // and reflect Chrome's intent.
+            if (clonedTarget.tagName && clonedTarget.tagName.toLowerCase() === 'svg' && clonedTarget.removeAttribute) {
+              if (!_hasConcreteAttr(target, 'width') && /^0(?:\.0+)?$/.test(clonedTarget.getAttribute('width') || '')) {
+                clonedTarget.removeAttribute('width');
+              }
+              if (!_hasConcreteAttr(target, 'height') && /^0(?:\.0+)?$/.test(clonedTarget.getAttribute('height') || '')) {
+                clonedTarget.removeAttribute('height');
+              }
+            }
           }
           // Carry over any presentation attrs from the <use> element. CSS
           // spec: attributes on <use> override the same attribute on the
