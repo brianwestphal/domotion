@@ -280,18 +280,37 @@ function renderTextDecoration(
       const tc = explicitThickness ? Math.max(1, t) : Math.max(1, fontSize / 10);
       const wavelength = 1 + 2 * Math.round(2 * tc + 0.5);
       const cpDist = 0.5 + Math.round(3 * tc + 0.5);
-      // Chromium positions the wavy decoration so the entire wave sits BELOW
-      // where a solid underline would paint — its TOP edge sits at the
-      // solid-underline BOTTOM edge, leaving the descender region clear.
-      // Shift the wave centerline down by the full wave height (2*amplitude
-      // where amplitude ≈ 0.289 * cpDist for our cubic Bezier geometry).
-      // Probed against native Chromium at 16 px bold sans
-      // (`tools/probe-wavy-position.ts`): Chrome paints center ~4.5 px below
-      // baseline; with auto underline_y at +1.5 px below baseline and
-      // amplitude 1.59 px, 2*amplitude=3.18 lands center at +4.68 — closest
-      // visual match after SVG-vs-HTML re-rasterization.
-      const waveAmplitude = 0.289 * cpDist;
-      const yWave = y + 2 * waveAmplitude;
+      // DM-830: re-probed against native Chromium (`tools/probe-wavy-geom5.mjs`)
+      // at fs={12, 16, 24, 36} × thickness={1, 2, 3, 4, 6}, measuring wave
+      // centre-y and peak amplitude against the descender-less 'm' baseline.
+      // Two findings differed from the earlier DM-446 calibration:
+      //
+      //  (1) Chrome paints amplitude `~0.278 × cpDist` (was 0.289). Across the
+      //      sample matrix: t=1→1.25, t=2→2.00, t=3→3.00, t=4→3.75, t=6→5.50
+      //      — Chrome's `cpDist`-to-amplitude ratio is consistently 0.27-0.28,
+      //      NOT the cubic-Bezier-geometric 0.289 = √3/(2π/n) factor we'd
+      //      derived analytically. Either Chrome uses a different
+      //      bezier-flatness setting or its wavy is actually a different
+      //      curve family at the painted scale.
+      //
+      //  (2) Wave centre-y is INDEPENDENT of fontSize (the previous formula
+      //      `y + 2 * amplitude` produced wave-y identical across font sizes
+      //      because `y = baseline + 1.5×t` itself was thickness-only; the
+      //      empirical pattern just confirms this). Centre-y DOES depend on
+      //      thickness: yCenter - baseline ≈ 2 + t/2 + amplitude. This is
+      //      consistent with "the wave's TOP edge sits exactly at the solid-
+      //      underline BOTTOM edge, leaving descender region clear" — where
+      //      Chrome's auto solid underline at thickness `t` paints at
+      //      baseline + 2 - t/2 to baseline + 2 + t/2.
+      //
+      // `y` passed into `emitLine` already equals `baseline + 1.5×t + extra`
+      // (the extra is the author's text-underline-offset). The new formula
+      // `yWave = y + amp + 2 - t` algebraically reduces to
+      // `baseline + 2 + 0.5×t + amp + extra`, matching the probed wave centre.
+      // For uniform text-underline-offset = 0, errors stay ≤ 0.4 px across
+      // the probed thickness range.
+      const waveAmplitude = 0.278 * cpDist;
+      const yWave = y + waveAmplitude + 2 - tc;
       // DM-814: skip-ink for wavy. Compute gaps using the wave's full
       // vertical extent (2*amplitude + stroke thickness) so a descender that
       // pokes into the wave's PEAK or TROUGH zones breaks the wave, not just
