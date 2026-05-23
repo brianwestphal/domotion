@@ -218,11 +218,13 @@ function renderTextDecoration(
   const has = (k: string) => textDecorationLine.includes(k);
   const dash = (thick: number) => style === "dashed" ? ` stroke-dasharray="${thick * 2} ${thick * 2}"`
     : style === "dotted" ? ` stroke-dasharray="${thick} ${thick}"` : "";
-  // Skip-ink applies only to solid + double underlines per Chromium
-  // (`decoration_line_painter.cc::Paint` short-circuits on dashed / dotted /
-  // wavy). We compute gaps once if any underline emit needs them.
+  // Skip-ink applies to solid + double + wavy underlines per Chromium's
+  // current behaviour (`decoration_line_painter.cc::Paint`; verified against
+  // Chrome's painted output for the 20-deep-wavy-underline-descenders
+  // fixture — DM-814). Dashed / dotted still short-circuit. We compute gaps
+  // once if any underline emit needs them.
   const skipInkActive = (skipInk == null || skipInk === "auto") && runText != null && runText !== ""
-    && (style == null || style === "solid" || style === "double" || style === "");
+    && (style == null || style === "solid" || style === "double" || style === "wavy" || style === "");
   // Compute X-range gaps where the underline rect crosses glyph ink. Returned
   // gaps are run-relative (0 = segX); subSegments() splits the underline span
   // around them.
@@ -290,15 +292,32 @@ function renderTextDecoration(
       // visual match after SVG-vs-HTML re-rasterization.
       const waveAmplitude = 0.289 * cpDist;
       const yWave = y + 2 * waveAmplitude;
-      let d = `M ${r(segX)} ${r(yWave)}`;
-      let x = segX;
-      while (x < segX + segWidth) {
-        const nx = Math.min(x + wavelength, segX + segWidth);
-        const cpX = x + wavelength / 2;
-        d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
-        x = nx;
+      // DM-814: skip-ink for wavy. Compute gaps using the wave's full
+      // vertical extent (2*amplitude + stroke thickness) so a descender that
+      // pokes into the wave's PEAK or TROUGH zones breaks the wave, not just
+      // descenders that cross the centerline. Then emit one wave path per
+      // non-gap sub-segment. Each sub-segment's wave starts at phase 0 at
+      // its own x0 — adjacent segments aren't strictly phase-coherent with a
+      // hypothetical continuous wave, but the descender gap is usually wider
+      // than the discontinuity which makes the visual indistinguishable from
+      // Chrome's per-glyph break style.
+      const bandThickness = 2 * waveAmplitude + tc;
+      const wavyGaps = isUnderline ? computeGapsAt(yWave - baselineY, bandThickness) : [];
+      const subs = subSegments(wavyGaps);
+      const parts: string[] = [];
+      for (const { x0: sx0, x1: sx1 } of subs) {
+        if (sx1 - sx0 < 0.5) continue;
+        let d = `M ${r(sx0)} ${r(yWave)}`;
+        let x = sx0;
+        while (x < sx1) {
+          const nx = Math.min(x + wavelength, sx1);
+          const cpX = x + wavelength / 2;
+          d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
+          x = nx;
+        }
+        parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`);
       }
-      return `<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`;
+      return parts.join("");
     }
     if (style === "double") {
       // Double: two parallel lines. Per Chromium's `decoration_line_painter
