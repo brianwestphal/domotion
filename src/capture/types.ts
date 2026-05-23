@@ -793,6 +793,18 @@ export interface CapturedElement {
    */
   maskDefs?: MaskFragmentDef[];
   /**
+   * DM-826: Top-level (root only) collection of `<clipPath>` definitions
+   * referenced by fragment URLs (`clip-path: url("#id")`) anywhere in the
+   * captured tree. CAPTURE_SCRIPT resolves each fragment id via
+   * `document.getElementById` and serialises the `<clipPath>` element's
+   * `outerHTML` here. The renderer copies these into the output `<defs>`
+   * with id rewriting so a captured `<clipPath id="hex">` becomes a
+   * domotion-prefixed clip-path def referenced by elements that point at
+   * `#hex`. Same-document only — external `.svg#fragment` refs are
+   * deferred. See `docs/39-clip-path-fragment-references.md`.
+   */
+  clipPathDefs?: ClipPathFragmentDef[];
+  /**
    * DM-494: Raster snapshots of elements referenced by `mask-image:
    * element(#id)`. Top-level (root only) — same-document only (cross-document
    * `element()` is not in scope; CSS spec doesn't define it). Each raster is
@@ -836,6 +848,13 @@ export interface MaskFragmentDef {
   /** Original DOM id of the captured `<mask>` element. */
   id: string;
   /** Verbatim `outerHTML` of the captured `<mask>` element. */
+  outerHTML: string;
+}
+
+export interface ClipPathFragmentDef {
+  /** Original DOM id of the captured `<clipPath>` element. */
+  id: string;
+  /** Verbatim `outerHTML` of the captured `<clipPath>` element. */
   outerHTML: string;
 }
 

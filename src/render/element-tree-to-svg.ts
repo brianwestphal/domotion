@@ -32,7 +32,7 @@ import { parseBoxShadow, type BoxShadow } from "./box-shadow.js";
 import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { convertLegacyWebkitGradient } from "./gradients.js";
-import type { CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, CaptureWarning } from "../capture/types.js";
+import type { CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import {
   _dataUriCache,
   _resizedDataUriCache,
@@ -215,6 +215,46 @@ export function elementTreeToSvg(
   }
   let fragmentMaskCounter = 0;
   const fragmentMaskOutputId = new Map<string, string>();
+
+  // DM-826: top-level clip-path fragment defs (`clip-path: url("#id")`).
+  // Unlike masks, clipPath fragments don't need per-element positioning when
+  // `clipPathUnits="objectBoundingBox"` (SVG auto-scales into the masked
+  // element's bbox natively) — so the resolver returns ONE output id per
+  // source fragment and every consumer references the same def. For
+  // `userSpaceOnUse` clipPaths we currently emit the def verbatim too;
+  // faithful support across captured (x, y) origins is deferred (see
+  // docs/39).
+  const fragmentClipPathDefs = new Map<string, ClipPathFragmentDef>();
+  for (const root of elements) {
+    if (root.clipPathDefs == null) continue;
+    for (const def of root.clipPathDefs) {
+      if (!fragmentClipPathDefs.has(def.id)) fragmentClipPathDefs.set(def.id, def);
+    }
+  }
+  let fragmentClipPathCounter = 0;
+  const fragmentClipPathOutputId = new Map<string, string>();
+  function resolveFragmentClipPathRef(clipPathCss: string): string | null {
+    // Strip the optional <geometry-box> keyword so `url(#id) padding-box`
+    // matches; the box keyword doesn't affect bbox-relative clipPaths and
+    // the deferred userSpaceOnUse path will fold it in separately.
+    const stripped = clipPathCss.replace(/\b(?:content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i, "").trim();
+    const m = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(stripped);
+    if (m == null) return null;
+    const fragId = m[1];
+    const def = fragmentClipPathDefs.get(fragId);
+    if (def == null) return null;
+    const cached = fragmentClipPathOutputId.get(fragId);
+    if (cached != null) return cached;
+    const outId = `${idPrefix}cpfrag${fragmentClipPathCounter++}`;
+    fragmentClipPathOutputId.set(fragId, outId);
+    // Reuse the mask rewriter — it's element-name-agnostic at the
+    // implementation level (discovers ids, mints prefixed aliases, rewrites
+    // href / url() refs). The outer `<clipPath>` element's id becomes
+    // `outId`; descendants get the `${idPrefix}fragid-${original}` alias.
+    const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
+    defsParts.push(rewritten);
+    return outId;
+  }
   function resolveFragmentMaskRef(
     maskImage: string,
     elX: number, elY: number, elW: number, elH: number,
@@ -562,6 +602,14 @@ export function elementTreeToSvg(
       if (shape !== "") {
         clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
         defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
+      } else {
+        // DM-826: shape translator returned "" — try the inline-`<clipPath>`
+        // fragment-ref path next. `clip-path: url(#id)` resolves against the
+        // top-level `clipPathDefs` collected at capture time; the def is
+        // emitted into `<defs>` once and the masked element's wrapper `<g>`
+        // gets `clip-path="url(#${outId})"`. See docs/39.
+        const fragId = resolveFragmentClipPathRef(clipPathCss);
+        if (fragId != null) clipPathUrlId = fragId;
       }
     }
     // DM-587: overflow != visible on either axis clips painted descendants

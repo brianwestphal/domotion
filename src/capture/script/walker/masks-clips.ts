@@ -39,6 +39,7 @@
 export const createMasksClipsHandler = ({ vp, warn }) => {
   const maskDefs = new Map();
   const maskRasters = new Map();
+  const clipPathDefs = new Map();
   let maskRasterIdx = 0;
 
   const discoverMasks = (el, cs, sel) => {
@@ -138,5 +139,43 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     }
   };
 
-  return { discoverMasks, maskDefs, maskRasters };
+  // DM-826: clip-path: url("#id") same-document fragment ref. Resolves the
+  // fragment to an inline `<clipPath>` element and stashes its outerHTML so
+  // the renderer can emit it into the output SVG `<defs>`. See
+  // `docs/39-clip-path-fragment-references.md`.
+  //
+  // Scope (initial cut): same-document `<clipPath>` defs with
+  // `clipPathUnits="objectBoundingBox"` or the default `userSpaceOnUse`. The
+  // emitted def carries `clipPathUnits` through verbatim — SVG handles
+  // objectBoundingBox auto-scaling natively. userSpaceOnUse refs are recorded
+  // but the renderer currently passes coordinates through unchanged (best-
+  // effort; faithful support needs per-element translation, deferred).
+  const discoverClipPaths = (el, cs, sel) => {
+    const cp = cs.clipPath;
+    if (!cp || cp === 'none' || cp === '') return;
+    // Strip an optional <geometry-box> keyword (`padding-box` / `border-box` /
+    // …) before the url(...) check — `clip-path: url(#id) padding-box` is
+    // valid per CSS Masking 1 §3.1. The renderer's geo-box handling is
+    // shape-side; here we only care about the url() form.
+    const cpShape = cp.replace(/\b(?:content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i, '').trim();
+    const fragMatch = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(cpShape);
+    if (fragMatch != null) {
+      const fragId = fragMatch[1];
+      if (!clipPathDefs.has(fragId)) {
+        const target = document.getElementById(fragId);
+        if (target != null && target.tagName.toLowerCase() === 'clippath') {
+          clipPathDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
+        } else {
+          warn(sel, 'clip-path', 'clip-path fragment "#' + fragId + '" did not resolve to an inline <clipPath> element');
+        }
+      }
+      return;
+    }
+    const extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(cpShape);
+    if (extFragMatch != null) {
+      warn(sel, 'clip-path', 'external-file SVG fragment refs (url("./file.svg#id")) are not yet emitted');
+    }
+  };
+
+  return { discoverMasks, discoverClipPaths, maskDefs, maskRasters, clipPathDefs };
 };

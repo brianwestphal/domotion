@@ -58,7 +58,7 @@ export const captureScript =
   const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
   const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
-  const { discoverMasks, maskDefs: _maskDefs, maskRasters: _maskRasters } = createMasksClipsHandler({ vp, warn });
+  const { discoverMasks, discoverClipPaths, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
   const { captureBordersBackgrounds } = createBordersBackgroundsHandler({
@@ -196,6 +196,10 @@ export const captureScript =
     // Handler owns the maskDefs / maskRasters Maps that the orchestration
     // tail consumes. See walker/masks-clips.ts.
     discoverMasks(el, cs, sel);
+    // DM-826: clip-path: url("#id") same-document fragment refs. Sibling of
+    // the mask discovery above; collects inline <clipPath> defs the
+    // renderer copies into the output SVG. See docs/39.
+    discoverClipPaths(el, cs, sel);
     if (cs.borderImageSource && cs.borderImageSource !== 'none') {
       warn(sel, 'border-image', '9-slice composition pending (SK-466); border-image-source ignored');
     }
@@ -1448,6 +1452,11 @@ export const captureScript =
   // defs into the output SVG.
   if (_maskDefs.size > 0 && result.length > 0) {
     result[0].maskDefs = Array.from(_maskDefs.values());
+  }
+  // DM-826: same shape as maskDefs above — top-level collection of inline
+  // <clipPath> defs the renderer emits into the output SVG. See docs/39.
+  if (_clipPathDefs.size > 0 && result.length > 0) {
+    result[0].clipPathDefs = Array.from(_clipPathDefs.values());
   }
   // DM-494: attach mask raster references (mask-image: element(#id)). Skip
   // null entries (display:none / zero-area / not-found targets). The post-
