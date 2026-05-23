@@ -2,6 +2,20 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.3.0] - 2026-05-24
+
+
+- MathML now paints fraction bars, radical signs, and italic Latin/Greek identifiers
+- Floated `::first-letter` drop caps no longer clip; wavy underlines break around descenders
+- Custom `@counter-style` rules and `counter()`/`counters()` now resolve for markers and content
+- `border-image`/`mask-border` gain gradient sources, 9-slice tiling, and repeat/round/space
+- Dashed and dotted borders now align dashes at corners like Chrome
+- `clip-path: url(#id)`, `inset(... round ...)`, and `background-blend-mode` now honored
+- CSS `zoom` scales text correctly; `transform-style: preserve-3d` sorts children by depth
+- New Source Serif Pro / Hiragino Sans routing; star, heart, and icon-font fallback glyphs paint
+- Pseudo-element transforms (rotated badges, check-marks) and `vertical-align` positioning fixed
+- `content-visibility: hidden`, `overflow-clip-margin`, and box-shadows escaping overflow clips handled
+
 ## [0.2.2] - 2026-05-18
 
 

@@ -2893,7 +2893,7 @@ export function elementTreeToSvg(
     const hoistedAsInlineForEl = new Set<CapturedElement>();
     const hoistedAsZSortedForEl = new Set<CapturedElement>();
     if (establishesStackingContext(el, parentDisplayForEl)) {
-      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, true, hoistedAsInlineForEl, overflowClipForHoisted, hoistedAsZSortedForEl);
+      childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, hoistedAsInlineForEl, overflowClipForHoisted, hoistedAsZSortedForEl);
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
@@ -2994,7 +2994,7 @@ export function elementTreeToSvg(
   // hoisting works at the document root.
   const topLevelHoistedAsInline = new Set<CapturedElement>();
   const topLevelHoistedAsZSorted = new Set<CapturedElement>();
-  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, false, topLevelHoistedAsInline, overflowClipForHoisted, topLevelHoistedAsZSorted);
+  const topLevelFlat = gatherStackingContextChildren(elements, hoistedFromAncestor, undefined, topLevelHoistedAsInline, overflowClipForHoisted, topLevelHoistedAsZSorted);
   // DM-543: position:fixed elements paint relative to the viewport stacking
   // context and escape ALL ancestor overflow clips. The standard SC-by-SC
   // hoist halts at any SC ancestor (e.g. an overflow:auto section creates an
@@ -3224,7 +3224,6 @@ function gatherStackingContextChildren(
   children: CapturedElement[],
   hoistedOut: Set<CapturedElement>,
   parentDisplay?: string,
-  hoistTargetIsRealSC: boolean = false,
   /**
    * DM-683: out-parameter populated with elements that should paint at CSS
    * 2.1 Appendix E step 5 (in-flow inline-level non-positioned) rather than
@@ -3310,16 +3309,18 @@ function gatherStackingContextChildren(
       // button's z:4 hoist never fired — position:static + the legacy
       // `if (positioned)` check skipped it.)
       //
-      // Only hoist when the hoist target is a real SC: at the implicit
-      // top-level (no enclosing SC element captured), the eventual sort
-      // can't know `parentDisplay`, so a hoisted flex-item-z would lose
-      // its z-bucket and paint in DOM order. In that case we leave the
-      // element in place and let its parent's local flex sort handle the
-      // z-ordering naturally — DM-525's local-sort path covers the
-      // direct-flex-child case correctly.
+      // Both hoist targets are real stacking contexts: a per-element SC root
+      // (the `renderElement` call) and the implicit document root (the
+      // top-level call) — `gatherStackingContextChildren` only ever recurses
+      // through non-SC / overflow-only-SC ancestors, so a flex-item-z is only
+      // reached here when its nearest *real* SC ancestor is the hoist target.
+      // The z-bucket survives the hoist via the `hoistedAsZSorted` tag below,
+      // which `sortChildrenByPaintOrder` reads even when `parentDisplay` isn't
+      // flex/grid (e.g. the `block` document root) — so the item z-sorts
+      // correctly rather than falling into the inline bucket in DOM order.
       const zRaw = c.styles.zIndex;
       const hasExplicitZ = zRaw != null && zRaw !== "" && zRaw !== "auto";
-      const flexGridItemSC = hoistTargetIsRealSC && parentIsFlexGrid && hasExplicitZ;
+      const flexGridItemSC = parentIsFlexGrid && hasExplicitZ;
       // DM-639: per CSS 2.1 §9.9 paint order, ALL floats in a stacking
       // context paint at step 4 — AFTER all block-level non-positioned
       // descendants (step 3) of the SC. Floats are not confined to their
@@ -3352,24 +3353,16 @@ function gatherStackingContextChildren(
         if (isFlexItem && !positioned && !flexGridItemSC) {
           hoistedAsInline?.add(c);
         }
-        // DM-712: a flex/grid item hoisted because of its explicit z-index
-        // (not because it's positioned) loses its z-bucket info once it's a
-        // child of the SC root for sort purposes. Tag it so the sort still
-        // bucket it by z. Without this, e.g. resend.com's "Contact
+        // DM-712 / DM-687: a flex/grid item hoisted because of its explicit
+        // z-index (not because it's positioned) loses its z-bucket info once
+        // it's a child of the SC root for sort purposes. Tag it so the sort
+        // still buckets it by z. Without this, e.g. resend.com's "Contact
         // management" card paints its z:10 content BEFORE its z:auto
-        // absolute-positioned gradient overlay sibling, so the gradient
-        // ends up on top and reads as solid black.
+        // absolute-positioned gradient overlay sibling (gradient ends up on
+        // top and reads as solid black), and `13-deep-z-index-flex-grid`
+        // painted A z:4 BEHIND D z:2 because its flex container hung off the
+        // implicit root SC.
         if (flexGridItemSC && !positioned) {
-          hoistedAsZSorted?.add(c);
-        }
-        // DM-687: also bucket flex-items-with-z that fell through the
-        // `isFlexItem` branch (top-level hoist where `hoistTargetIsRealSC`
-        // is false so `flexGridItemSC` was false). Without the z-tag the
-        // top-level sort drops them into the inline bucket in DOM order —
-        // `13-deep-z-index-flex-grid` painted A z:4 BEHIND D z:2 because
-        // the flex container hung off `<body>` (the implicit root SC) and
-        // never picked up the z-sort signal.
-        if (isFlexItem && !positioned && !flexGridItemSC && hasExplicitZ) {
           hoistedAsZSorted?.add(c);
         }
         // DM-673: if we hoisted `c` past an overflow-clip ancestor (and
