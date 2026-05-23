@@ -508,7 +508,10 @@ effect(() => {
 
 // ── Card delegation ──
 
-delegate(cardsEl, "click", "figure[data-src]", (event, target) => {
+// Page-lifetime registration on the review-client's root cards container —
+// teardown happens only on full reload. Opt out of the disposer-capture
+// rule (kerfjs ≥ 0.13.0).
+void delegate(cardsEl, "click", "figure[data-src]", (event, target) => {
   // Drawing rectangles cancels the lightbox click — the overlay's pointerdown
   // handler stops propagation, but a non-drawing click on the figure
   // (caption area, image margin) still bubbles here. Skip the lightbox if the
@@ -566,7 +569,8 @@ document.addEventListener(
   true,
 );
 
-delegate(cardsEl, "click", ".file-btn", (_event, target) => {
+// Page-lifetime — see comment above the previous `void delegate(...)`.
+void delegate(cardsEl, "click", ".file-btn", (_event, target) => {
   void fileTicket(target as HTMLButtonElement);
 });
 
