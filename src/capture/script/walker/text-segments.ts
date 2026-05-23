@@ -299,13 +299,42 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
           const isFirstLetter = firstLetterStyled && !firstCharSeen && /\S/.test(cRec.ch);
           if (isFirstLetter) firstCharSeen = true;
           if ((cp != null && needsRaster(cp, nextCp)) || isFirstLetter) {
+            // DM-823: for floated ::first-letter drop caps (initial-letter:
+            // N M), `Range.getBoundingClientRect()` returns the line-box of
+            // the first character in the NORMAL flow — but Chrome paints the
+            // float at a much larger box (~N × parent-line-height tall). The
+            // bitmap captured at the Range rect gets vertically truncated,
+            // visible as a clipped W / B / T drop cap in the rendered SVG.
+            // Expand the rasterRect downward by the difference between
+            // (N × parent-line-height) and the natural-flow Range height so
+            // the screenshot includes the full painted glyph. Width stays
+            // unchanged — Chrome's drop cap matches the natural-flow
+            // first-char width.
+            let rasterTop = cRec.top - vp.y;
+            let rasterHeight = cRec.bottom - cRec.top;
+            if (isFirstLetter) {
+              const ilRaw = flStyle.initialLetter || flStyle.webkitInitialLetter || '';
+              const ilN = parseFloat(ilRaw);
+              const parentLineHeight = parseFloat(cs.lineHeight);
+              if (Number.isFinite(ilN) && ilN > 1 && Number.isFinite(parentLineHeight) && parentLineHeight > 0) {
+                const expectedHeight = ilN * parentLineHeight;
+                if (expectedHeight > rasterHeight) {
+                  // Extend downward only — Chrome aligns the cap-top at the
+                  // first line's cap-height position; extra space the
+                  // expansion captures past the actual ink is empty (will
+                  // raster as transparent, with `omitBackground: true`) and
+                  // doesn't paint anything visible.
+                  rasterHeight = expectedHeight;
+                }
+              }
+            }
             rasterGlyphs.push({
               charIndex: utf16Idx,
               rect: {
                 x: cRec.left - vp.x,
-                y: cRec.top - vp.y,
+                y: rasterTop,
                 width: cRec.right - cRec.left,
-                height: cRec.bottom - cRec.top,
+                height: rasterHeight,
               },
               // ::first-letter drop caps: suppress the path glyph so
               // only the rasterized big letter paints (DM-439).

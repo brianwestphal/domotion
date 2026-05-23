@@ -175,7 +175,19 @@ export function rasterGlyphOverlays(seg: TextSegment, fallbackFontSize: number, 
     // squished tall line-box rects horizontally — flag emoji and other
     // raster glyphs rendered visibly larger than Chrome's actual paint
     // (DM-401 / DM-411 / DM-414).
-    out.push(`<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`);
+    // DM-823: floated `::first-letter` drop caps (`float: left; font-size: Nem;
+    // initial-letter: N M`) paint OUTSIDE their parent paragraph's box —
+    // Chrome's float layout naturally extends the W / B / T above and to the
+    // left of the `<p>` border-box. Capture marks these per-char rasters with
+    // `suppressGlyph: true` so the underlying path glyph isn't double-emitted
+    // (DM-439). Use that same flag here as a signal to OMIT the parent's
+    // overflow-clip on the raster `<image>`: the parent's clip rect is the
+    // `<p>`'s own bounds, which clips off the top portion of the drop cap
+    // exactly where the float overflows. For non-drop-cap raster glyphs
+    // (emoji in the middle of text) the parent clip is still desirable.
+    const skipClip = g.suppressGlyph === true;
+    const clipAttr = skipClip ? "" : ` clip-path="url(#${clipId})"`;
+    out.push(`<image href="${g.dataUri}" x="${r(g.rect.x)}" y="${r(g.rect.y)}" width="${r(g.rect.width)}" height="${r(g.rect.height)}" preserveAspectRatio="none"${clipAttr}/>`);
   }
   return out.join("");
 }
