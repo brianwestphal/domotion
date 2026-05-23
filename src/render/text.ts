@@ -541,21 +541,48 @@ function mergeFeatureLists(a: string[] | undefined, b: string[] | undefined): st
  * device space, where width scales by sx and height by sy independently). Wrap
  * the text emission in a per-axis correction `<g transform=...>` pivoted around
  * the text origin so the net visual scale is exactly (sx, sy).
+ *
+ * DM-822: callers that emit per-char positions FROM CAPTURED xOffsets must
+ * also call `anisotropicCorrectionXOffsets` to pre-divide those xOffsets by
+ * (cx, cy). The captured xOffsets are post-transform (= native_x × sx)
+ * already; without the pre-division, the wrap's outer scale multiplies them
+ * a second time and inter-glyph spacing comes out 1.5×–2× too wide on
+ * fixtures like `21-deep-anisotropic-scale`'s `scale(1.6, 0.7)` box. The
+ * per-axis (cx, cy) factors are `sx/geo` and `sy/geo` so that geo×cx == sx
+ * exactly; dividing xOffsetsRel by cx (which is what the wrap is about to
+ * multiply by) is the exact inverse and leaves the post-wrap glyph
+ * positions equal to the captured xOffsets.
  */
-function anisotropicCorrectionWrap(el: { cumScaleX?: number; cumScaleY?: number; textLeft?: number; textTop?: number; x: number; y: number }, body: string): string {
+function getAnisotropicCorrectionFactors(el: { cumScaleX?: number; cumScaleY?: number }): { cx: number; cy: number } | null {
   const sx = el.cumScaleX;
   const sy = el.cumScaleY;
-  if (sx == null || sy == null || sx === sy) return body;
+  if (sx == null || sy == null || sx === sy) return null;
   const geo = Math.sqrt(sx * sy);
-  if (geo === 0) return body;
+  if (geo === 0) return null;
   const cx = sx / geo;
   const cy = sy / geo;
-  if (Math.abs(cx - 1) < 1e-4 && Math.abs(cy - 1) < 1e-4) return body;
+  if (Math.abs(cx - 1) < 1e-4 && Math.abs(cy - 1) < 1e-4) return null;
+  return { cx, cy };
+}
+
+function anisotropicCorrectionXOffsets(el: { cumScaleX?: number; cumScaleY?: number }, xOffsetsRel: number[] | undefined): number[] | undefined {
+  if (xOffsetsRel == null) return xOffsetsRel;
+  const f = getAnisotropicCorrectionFactors(el);
+  if (f == null) return xOffsetsRel;
+  // xOffsetsRel is in user-space, relative to the text origin (the wrap's
+  // pivot). Dividing by cx pre-shrinks the inter-glyph spacing so that the
+  // wrap's scale(cx, cy) multiplies it back to the captured xOffsets.
+  return xOffsetsRel.map((v) => v / f.cx);
+}
+
+function anisotropicCorrectionWrap(el: { cumScaleX?: number; cumScaleY?: number; textLeft?: number; textTop?: number; x: number; y: number }, body: string): string {
+  const f = getAnisotropicCorrectionFactors(el);
+  if (f == null) return body;
   // Pivot around the text origin so the correction stretches glyphs in place
   // rather than translating the whole block.
   const px = el.textLeft ?? el.x;
   const py = el.textTop ?? el.y;
-  return `<g transform="translate(${r(px)} ${r(py)}) scale(${r(cx)} ${r(cy)}) translate(${r(-px)} ${r(-py)})">${body}</g>`;
+  return `<g transform="translate(${r(px)} ${r(py)}) scale(${r(f.cx)} ${r(f.cy)}) translate(${r(-px)} ${r(-py)})">${body}</g>`;
 }
 
 /**
@@ -595,7 +622,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
   const pathText = reordered.text;
-  const xOffsetsRel = reordered.xOffsets;
+  // DM-822: pre-divide xOffsetsRel by cx when an anisotropic correction
+  // wrap will multiply positions on emit. No-op for uniform-scale text.
+  const xOffsetsRel = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
   const features = mergeFeatureLists(
     resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
     parseFontFeatureSettings(el.styles.fontFeatureSettings),
@@ -798,8 +827,10 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
     const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
+    // DM-822: anisotropic correction — see `anisotropicCorrectionXOffsets`.
+    const segXOffsets = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder);
+    const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, segFontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, segFontStyle, segAscent, segFeatures, el.styles.lang, elVariationSettings, _ts.width, _ts.color, _ts.paintOrder);
     if (result != null) { segParts.push(result); }
     else if (!isAllPrivateUseArea(seg.text) && reordered.text.replace(/[\s​]/g, "") !== "") {
       // Fallback to CSS <text> if path rendering fails. DM-490 / DM-500: when
@@ -879,11 +910,13 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
     for (const seg of el.textSegments) {
       const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
       const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
+      // DM-822: anisotropic correction — see `anisotropicCorrectionXOffsets`.
+      const segXOffsets = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
       const segFontSize = seg.fontSize ?? fontSize;
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
       const segAscent = seg.fontAscent ?? el.fontAscent;
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, reordered.xOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder);
+      const result = renderTextAsPath(reordered.text, seg.x, seg.y, segFontSize, fontFamily, segFontWeight, segColor, undefined, undefined, segXOffsets, el.styles.fontStyle, segAscent, ffsFeatures, el.styles.lang, fvsAxes, _ts.width, _ts.color, _ts.paintOrder);
       if (result != null) parts.push(`  ${result}`);
     }
   } else {
