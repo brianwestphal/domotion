@@ -1393,23 +1393,34 @@ export function elementTreeToSvg(
         const bT = collapse ? el.y : Math.round(el.y);
         const bR = collapse ? el.x + el.width : Math.round(el.x + el.width);
         const bB = collapse ? el.y + el.height : Math.round(el.y + el.height);
-        // For thick (≥ 5 px) dashed/dotted borders, shorten each side by
-        // `inset` (= half stroke width) at both ends so adjacent sides
-        // meet at corners without overlap. With butt linecaps the line
-        // ink stops at exactly the line endpoint, so top + left don'\\'t
-        // both paint the same corner pixel. Chrome'\\'s BoxBorderPainter
-        // does the equivalent via per-side clipping — without this trim
-        // our 4-line dashed/dotted emit double-paints the corners as a
-        // darker square (DM-402, visible on the 10 px dashed border in
-        // `17-bg-color-image`). Thin borders skip the trim because the
-        // half-stroke gap (~1.5 px on a 3 px border) leaves a visible
-        // hole at corners.
-        const cornerTrim = bt.w >= 8 ? inset : 0;
+        // Corner trim along the side's axis. Two reasons it applies:
+        //   • Dotted (always): Chromium's `DrawLineWithStyle` moves the
+        //     line endpoints IN by width/2 before stroking thick-dotted
+        //     lines so the round endcap fits inside the line. Matching
+        //     that is necessary for `adjustedDashAttrs` (which assumes a
+        //     post-move sideLength) to compute Chrome-equivalent dot
+        //     centres. The adjacent sides' first dots overlap at the
+        //     corner, producing one visible corner dot. (DM-805.)
+        //   • Dashed thick (≥ 8 px): legacy corner-overlap prevention so
+        //     butt-cap dashes don't double-paint the corner pixel as a
+        //     darker square (DM-402, visible on the 10 px dashed border
+        //     in `17-bg-color-image`). Thin dashed borders use 0 trim
+        //     so the dashes meet flush at the corner, matching Chrome
+        //     for the common 1-3 px cases.
+        const cornerTrim = style === "dotted" ? bt.w / 2 : (bt.w >= 8 ? inset : 0);
+        // Each entry: [x1, y1, x2, y2, naturalLen]. naturalLen is the
+        // PRE-cornerTrim side length — Chromium's `DrawLineWithStyle`
+        // computes the dash pattern from the original `info.path_length`
+        // BEFORE moving thick-dotted endpoints inward by width/2 (the move
+        // shifts the painted line but the dash math sees the original).
+        // For thin dashed borders cornerTrim = 0, so naturalLen == drawn
+        // length; for dotted (cornerTrim = width/2) and thick dashed
+        // (cornerTrim = width/2) the two differ.
         const sides: Array<[number, number, number, number, number]> = [
-          [bL + cornerTrim, bT + inset, bR - cornerTrim, bT + inset, bR - bL - 2 * cornerTrim],
-          [bR - inset, bT + cornerTrim, bR - inset, bB - cornerTrim, bB - bT - 2 * cornerTrim],
-          [bL + cornerTrim, bB - inset, bR - cornerTrim, bB - inset, bR - bL - 2 * cornerTrim],
-          [bL + inset, bT + cornerTrim, bL + inset, bB - cornerTrim, bB - bT - 2 * cornerTrim],
+          [bL + cornerTrim, bT + inset, bR - cornerTrim, bT + inset, bR - bL],
+          [bR - inset, bT + cornerTrim, bR - inset, bB - cornerTrim, bB - bT],
+          [bL + cornerTrim, bB - inset, bR - cornerTrim, bB - inset, bR - bL],
+          [bL + inset, bT + cornerTrim, bL + inset, bB - cornerTrim, bB - bT],
         ];
         for (const [x1, y1, x2, y2, len] of sides) {
           const { array: dash, offset } = adjustedDashAttrs(style, bt.w, len);
@@ -5543,41 +5554,69 @@ function adjustedDashArray(style: string, width: number, sideLength: number): st
  */
 function adjustedDashAttrs(style: string, width: number, sideLength: number): { array: string; offset: number } {
   if (sideLength <= 0 || width <= 0) return { array: "", offset: 0 };
+  // DM-805: faithful port of Chromium's `DashEffectFromStrokeStyle` +
+  // `SelectBestDashGap` from
+  // `third_party/blink/renderer/platform/graphics/styled_stroke_data.cc`.
+  // The previous implementation scaled the dash/gap pair to fit a whole
+  // number of cycles AND offset the start by gap/2 — visually close but not
+  // pixel-matching Chrome (Chrome keeps the natural dash size + only adjusts
+  // the gap + starts flush at the corner). Verified against painted output
+  // on the `18-border-styles` fixture: 6 px dashed on a 188 px side paints
+  // 11 dashes (dash=12 / gap=5.6, flush at corner), NOT 10 dashes (12.53 /
+  // 6.27 / mid-gap-offset) as the old algorithm emitted.
+  const selectBestDashGap = (strokeLength: number, dashLength: number, gapLength: number): number => {
+    // Open path only (closed_path = false in BoxBorderPainter — each side
+    // is drawn as a separate line, even for rounded-corner borders which
+    // use a curved path and handle that path-length math separately).
+    const availableLength = strokeLength + gapLength;
+    const minNumDashes = Math.floor(availableLength / (dashLength + gapLength));
+    const maxNumDashes = minNumDashes + 1;
+    const minNumGaps = Math.max(1, minNumDashes - 1);
+    const maxNumGaps = Math.max(1, maxNumDashes - 1);
+    const minGap = (strokeLength - minNumDashes * dashLength) / minNumGaps;
+    const maxGap = (strokeLength - maxNumDashes * dashLength) / maxNumGaps;
+    if (maxGap <= 0) return minGap;
+    return Math.abs(minGap - gapLength) < Math.abs(maxGap - gapLength) ? minGap : maxGap;
+  };
   if (style === "dashed") {
-    // Chromium's `StyledStrokeData::DashLengthRatio` / `DashGapRatio` (in
-    // `third_party/blink/renderer/platform/graphics/styled_stroke_data.cc`):
-    //   dash = thickness >= 3 ? 2.0 * width : 3.0 * width
-    //   gap  = thickness >= 3 ? 1.0 * width : 2.0 * width
-    // So thick borders (≥ 3 px) get 2:1 dash:gap, thin borders (1-2 px)
-    // get 3:2. Verified directly from Chromium source — DM-437 / DM-420.
-    const idealDash = width >= 3 ? width * 2 : width * 3;
-    const idealGap = width >= 3 ? width : width * 2;
-    const idealPeriod = idealDash + idealGap;
-    const cycles = Math.max(1, Math.round(sideLength / idealPeriod));
-    const scale = sideLength / (cycles * idealPeriod);
-    const dash = idealDash * scale;
-    const gap = idealGap * scale;
-    // Center the dash pattern so each side has gap/2 of margin at each
-    // corner. stroke-dashoffset specifies the distance into the cycle where
-    // the line starts; cycle is `dash gap`, so an offset of `dash + gap/2`
-    // places the line start mid-gap and the first dash visible at gap/2 —
-    // matching Chromium's BoxBorderPainter (DM-318).
-    return { array: `${r(dash)} ${r(gap)}`, offset: dash + gap / 2 };
+    // dash_length = width * (width >= 3 ? 2 : 3); gap_length similarly.
+    const dashLen = width * (width >= 3 ? 2 : 3);
+    const gapTarget = width * (width >= 3 ? 1 : 2);
+    if (sideLength <= dashLen * 2) {
+      // Chrome's "no space for dashes" branch — emit a continuous solid
+      // line (no dasharray). Below that, "exactly 2 dashes proportionally
+      // sized" is a sub-case but the visual is nearly identical to the
+      // pixel diff harness; collapse to solid here.
+      return { array: "", offset: 0 };
+    }
+    const gap = selectBestDashGap(sideLength, dashLen, gapTarget);
+    if (gap <= 0) return { array: "", offset: 0 };
+    // Start flush at the corner — matches Chrome's `MakeDash` with phase 0.
+    return { array: `${r(dashLen)} ${r(gap)}`, offset: 0 };
   }
   if (style === "dotted") {
-    // Dot diameter = width (round-cap on near-zero dash). Dot center spacing
-    // = `2 * width`, so each cycle (dot + gap) = 2 * width.
-    // Empirical re-probe (DM-419): Chrome paints `ceil(sideLength / period)`
-    // cycles, not `round`. For a 3 px dotted border on an 80 px side,
-    // Chrome paints 14 dots while our `round(80/6) = 13` was off-by-one.
-    const idealPeriod = width * 2;
-    const cycles = Math.max(1, Math.ceil(sideLength / idealPeriod));
-    const adjustedPeriod = sideLength / cycles;
-    // Shift the cycle so the first dot is at adjustedPeriod / 2 from the
-    // start, matching Chrome's centered-dot painting. The cycle is
-    // `0.01 adjustedPeriod`, total ≈ adjustedPeriod; an offset of
-    // adjustedPeriod / 2 starts mid-gap.
-    return { array: `0.01 ${r(adjustedPeriod)}`, offset: adjustedPeriod / 2 };
+    // Chrome's thick-dotted branch (`!StrokeIsDashed(width, kDottedStroke)`
+    // — true for width > 3):
+    //   1. The line endpoints are first moved IN by width/2 (round endcap
+    //      fits inside the line). Caller is responsible for that inward
+    //      move via cornerTrim = width/2 (see element-tree-to-svg's per-
+    //      side emit loop) so `sideLength` here is the POST-move length.
+    //   2. SelectBestDashGap with dash_length = gap_length = width.
+    //   3. dasharray = [0, gap + width - epsilon] with round caps —
+    //      produces a dot of diameter `width` per cycle.
+    // Note: the legacy `cornerTrim = bt.w >= 8 ? inset : 0` rule meant
+    // thin (< 8 px) dotted borders skipped the inward move; the per-side
+    // emit loop now insets dotted always so this entry point sees the
+    // chromy effective length.
+    if (sideLength < width * 2) {
+      // Chrome's "Not enough space for 2 dots" branch — single dot via a
+      // gap longer than the line.
+      return { array: `0.01 ${r(width * 2)}`, offset: 0 };
+    }
+    const gap = selectBestDashGap(sideLength, width, width);
+    if (gap <= 0) return { array: "", offset: 0 };
+    const kEpsilon = 0.01;
+    return { array: `0.01 ${r(gap + width - kEpsilon)}`, offset: 0 };
   }
   return { array: "", offset: 0 };
 }

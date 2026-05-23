@@ -1,0 +1,21 @@
+import { chromium } from '@playwright/test';
+import { resolve } from 'node:path';
+import { writeFileSync } from 'node:fs';
+const url = 'file://' + resolve('/Users/westphal/Documents/domotion/external/html-test/18-border-styles.html');
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1024, height: 800 }, deviceScaleFactor: 2 });
+const page = await ctx.newPage();
+await page.goto(url);
+await page.waitForLoadState('networkidle');
+// Find the .dashed box and screenshot it at 2x.
+const dashedEl = await page.$('.dashed');
+const dashedBox = await dashedEl.boundingBox();
+console.log('dashed box:', dashedBox);
+const dashedShot = await dashedEl.screenshot({ omitBackground: false });
+writeFileSync('/tmp/claude/dashed-chrome.png', dashedShot);
+const dottedEl = await page.$('.dotted');
+const dottedBox = await dottedEl.boundingBox();
+console.log('dotted box:', dottedBox);
+const dottedShot = await dottedEl.screenshot();
+writeFileSync('/tmp/claude/dotted-chrome.png', dottedShot);
+await browser.close();
