@@ -4606,6 +4606,89 @@ function buildMaskBorder9Slice(
     maskChildren.push(`<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
   };
 
+  // Center 9-piece tiler — handles 2D tiling (both `repeat` / `round` / `space`
+  // axes simultaneously). Mirrors Chromium's `NinePieceImageGrid::SetDrawInfoMiddle`
+  // + `ComputeTileParameters` in `third_party/blink/renderer/core/paint/`:
+  //   - The center's `tile_scale` is the SAME ratio as the adjacent edge:
+  //     `scaleX = top.Scale() = wt/st` (or `wb/sb` if no top); `scaleY = wl/sl` (or `wr/sr`).
+  //     Each tile in dest = source-center-slice scaled by that factor.
+  //   - `space` distributes (dst - tiles*tile_size) across (tiles + 1) gaps —
+  //     a half-spacing gap at each end and full spacing between tiles. (NOT
+  //     "flush with edges" as the spec text suggests; Chrome's impl is the
+  //     spec it ships.)
+  //   - `repeat` centres the pattern with phase = (dst - tile) / 2.
+  //   - `round` rescales the tile so a whole number fits exactly.
+  //   - `stretch` collapses to a single tile spanning the full slot — fall
+  //     through to the existing `emitStretched`.
+  const emitTiledCenter = (
+    dxSlot: number, dySlot: number, dwSlot: number, dhSlot: number,
+    sx: number, sy: number, sw: number, sh: number,
+    scaleX: number, scaleY: number,
+    modeH: MaskBorderRepeat, modeV: MaskBorderRepeat,
+  ): void => {
+    if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0 || scaleX <= 0 || scaleY <= 0) return;
+    let tileW = sw * scaleX;
+    let tileH = sh * scaleY;
+    if (tileW <= 0 || tileH <= 0) return;
+    let periodW = tileW, periodH = tileH;
+    let phaseX = 0, phaseY = 0;
+    if (modeH === "round") {
+      const c = Math.max(1, Math.round(dwSlot / tileW));
+      tileW = dwSlot / c;
+      periodW = tileW;
+    } else if (modeH === "space") {
+      const c = Math.floor(dwSlot / tileW);
+      if (c <= 0) return;
+      const sp = (dwSlot - c * tileW) / (c + 1);
+      periodW = tileW + sp;
+      phaseX = sp;
+    } else if (modeH === "repeat") {
+      phaseX = (dwSlot - tileW) / 2;
+      // Anchor the centered pattern at dxSlot for SVG's userSpaceOnUse so
+      // tiles step out symmetrically; phaseX may go negative, that's fine.
+    } else {
+      // stretch on x: one tile spans the full width.
+      tileW = dwSlot;
+      periodW = dwSlot;
+    }
+    if (modeV === "round") {
+      const c = Math.max(1, Math.round(dhSlot / tileH));
+      tileH = dhSlot / c;
+      periodH = tileH;
+    } else if (modeV === "space") {
+      const c = Math.floor(dhSlot / tileH);
+      if (c <= 0) return;
+      const sp = (dhSlot - c * tileH) / (c + 1);
+      periodH = tileH + sp;
+      phaseY = sp;
+    } else if (modeV === "repeat") {
+      phaseY = (dhSlot - tileH) / 2;
+    } else {
+      tileH = dhSlot;
+      periodH = dhSlot;
+    }
+    const imgScaleX = tileW / sw;
+    const imgScaleY = tileH / sh;
+    const inImgX = -sx * imgScaleX;
+    const inImgY = -sy * imgScaleY;
+    const inImgW = natW * imgScaleX;
+    const inImgH = natH * imgScaleY;
+    // Clip the in-pattern image to the tile bounds whenever the pattern
+    // period exceeds the tile size — i.e. when an axis has `space` (which
+    // introduces gaps between tiles) — so the source extends into the gap
+    // region don't paint into the spacing.
+    const needsClip = modeH === "space" || modeV === "space";
+    const patId = `${idPrefix}mbip${clipIdx++}`;
+    let clipDef = "", imgClip = "";
+    if (needsClip) {
+      const clipId = `${idPrefix}mbic${clipIdx++}`;
+      clipDef = `<clipPath id="${clipId}"><rect x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" /></clipPath>`;
+      imgClip = ` clip-path="url(#${clipId})"`;
+    }
+    maskDefs.push(`<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dxSlot + phaseX)}" y="${r(dySlot + phaseY)}" width="${r(periodW)}" height="${r(periodH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`);
+    maskChildren.push(`<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`);
+  };
+
   // 4 corners — always stretched.
   emitStretched(x0, y0, wl, wt, sxL, syT, sl, st);   // NW
   emitStretched(x2, y0, wr, wt, sxR, syT, sr, st);   // NE
@@ -4627,9 +4710,27 @@ function buildMaskBorder9Slice(
     emitTiledEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV);
     emitTiledEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV);
   }
-  // Center — only when `fill`.
+  // Center — when `fill` is present in the slice. Chrome's
+  // `-webkit-mask-box-image` parser implicitly adds `fill` even when CSS
+  // doesn't write it; the capture-side reads from the webkit-prefixed
+  // properties so that resolved `fill` flows through here. Per spec the
+  // center's tile_scale is Edge::Scale() from the adjacent edges (wt/st on
+  // x, wl/sl on y) — NOT a stretch-to-fill — so `space` / `round` / `repeat`
+  // modes tile the source-center subimage across the dest area at that
+  // scale, NOT one giant stretched tile. (See DM-825 + the `niche-mask-border`
+  // .mb-3 fixture: 5×3 grid of 32×32 source-center tiles with 2.67 px
+  // horizontal `space` gaps + 0 vertical gap, fused with the 16×96 left/
+  // right edge tiles + corners to paint 7 visible vertical slats.)
   if (fillCenter) {
-    emitStretched(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
+    if (rH === "stretch" && rV === "stretch") {
+      emitStretched(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
+    } else {
+      // Edge::Scale() for the adjacent edges; fall back to bottom/right
+      // when top/left are zero-width (degenerate but possible).
+      const scaleX = st > 0 && wt > 0 ? wt / st : (sb > 0 && wb > 0 ? wb / sb : 1);
+      const scaleY = sl > 0 && wl > 0 ? wl / sl : (sr > 0 && wr > 0 ? wr / sr : 1);
+      emitTiledCenter(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C, scaleX, scaleY, rH, rV);
+    }
   }
 
   if (maskChildren.length === 0) return null;
