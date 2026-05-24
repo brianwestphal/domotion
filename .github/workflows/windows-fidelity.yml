@@ -1,0 +1,65 @@
+name: Windows fidelity
+
+# Captures genuine Chromium-on-Windows signal (real DirectWrite font fallback +
+# real Windows system fonts) that we have no faithful way to obtain on a Mac or
+# in a Linux container — Wine's dwrite reimplementation does not match real
+# Windows fallback, and the Windows system fonts aren't redistributable.
+#
+# Manual-dispatch only: until the win32 font-fallback chain is calibrated the
+# regression diffs are expected to be large, so this is NOT wired to push/PR.
+# Run it from the Actions tab ("Run workflow") when you want fresh numbers.
+#
+# Produces two downloadable artifacts:
+#   - font-widths-windows  : Chromium-on-Windows painted advance widths (JSON),
+#                            the input for building the win32 fallback chain.
+#   - windows-fidelity-diffs : expected/actual/diff PNGs from the feature suite,
+#                            so you can eyeball where Windows output diverges.
+
+on:
+  workflow_dispatch:
+
+env:
+  # Match the Release workflow's pin (Node 22.22.x ships a broken bundled npm).
+  NODE_VERSION: '22.21.0'
+
+jobs:
+  font-width-probe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Probe Chromium-on-Windows painted advances
+        run: node scripts/probe-platform-font-widths.mjs --out font-widths-windows.json
+      - name: Show a summary in the run log
+        run: node -e "const d=require('./font-widths-windows.json');console.log('platform',d.platform,'chromium',d.chromiumVersion,'measurements',d.widths.length)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-widths-windows
+          path: font-widths-windows.json
+          if-no-files-found: error
+
+  regression:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Run feature visual-regression suite
+        # Expected to exit non-zero on Windows until the win32 chain is
+        # calibrated — we still want the diff PNGs, so don't fail the job.
+        continue-on-error: true
+        run: npm run demos:test
+      - name: Upload expected/actual/diff PNGs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-fidelity-diffs
+          path: tests/output/*.png
+          if-no-files-found: error
