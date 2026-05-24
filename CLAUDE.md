@@ -39,7 +39,10 @@ npm run demos:test:html # html-test-suite vs external/html-test/*.html
 npm run demos:test:all  # features + showcase + html-test-suite
 npm run demos:review    # local server to compare expected/actual/diff PNGs
 npm run demos:examples  # run the three example demo scripts
+npm run test:linux-docker  # run `npm test` inside the Linux container CI uses (reproduce Linux-only failures on a Mac)
 ```
+
+`npm run test:linux-docker` runs the suite inside `mcr.microsoft.com/playwright:v<locked-version>-noble` — the same Linux image CI's `test` job uses. Because the font-fallback chain is calibrated to the host platform's system fonts, text-rendering tests take a different code path on Linux (no `/System/Library/Fonts/...` → glyph-path rendering falls back to `<text>`), so some failures only surface in CI. This reproduces them without pushing a tag. Pass a file/`-t` filter (`npm run test:linux-docker -- src/scroll/composer.test.ts`) or set `CMD=` to run any other command (e.g. `CMD="npm run typecheck"`) in the container. `node_modules` is isolated in a Docker volume so the container's Linux install never clobbers your host's.
 
 ## Code Organization
 

@@ -35,6 +35,7 @@
     "release": "bash scripts/release.sh",
     "release:beta": "bash scripts/release.sh --beta",
     "test:watch": "npm run build:capture-script && vitest",
+    "test:linux-docker": "bash scripts/test-linux-docker.sh",
     "demos:test": "npm run build:capture-script && tsx tests/features.ts",
     "demos:test:showcase": "npm run build:capture-script && tsx tests/showcase.tsx",
     "demos:test:html": "npm run build:capture-script && tsx tests/html-test-suite.tsx",
