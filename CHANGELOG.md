@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.3.1] - 2026-05-25
+
+
+Linux CI test fix
+
 ## [0.3.0] - 2026-05-25
 
 
