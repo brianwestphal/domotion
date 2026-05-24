@@ -341,12 +341,23 @@ describe("composeScrollSvg: position:fixed hoisting", () => {
       makeSeg(1200, 2000, 3000, [headerEl(), el({ tag: "section", x: 0, y: 100, text: "gamma" })]),
     ];
     const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
-    // The renderer emits text content twice per render — once as <title>
-    // and once as `aria-label`. With hoisting working, ONE rendered copy
-    // of the header => 2 BRAND substring hits. Without the fix this would
-    // be 6 (one rendered header per segment × 2).
+    // The number of "BRAND" substrings emitted per rendered header is
+    // platform-dependent: glyph-path mode (system fonts present, e.g. macOS)
+    // emits the text twice — once as `aria-label` and once as <title> — while
+    // the `<text>` fallback (no host system fonts, e.g. Linux CI) emits it
+    // once. So pin the invariant to "rendered exactly once after hoisting"
+    // rather than to a fixed literal count: derive the per-render hit count
+    // from a single-segment baseline and assert the three-segment compose
+    // matches it. Without the fix this would be 3× the baseline (one rendered
+    // header per segment).
+    const baselineSvg = composeScrollSvg(
+      [makeSeg(0, 0, 1000, [headerEl(), el({ tag: "section", x: 0, y: 100, text: "alpha" })])],
+      { viewportW: 800, viewportH: 600 },
+    );
+    const perRenderHits = (baselineSvg.match(/BRAND/g) ?? []).length;
     const brandHits = (svg.match(/BRAND/g) ?? []).length;
-    expect(brandHits, "header should render once (aria-label + <title>) after hoisting").toBe(2);
+    expect(perRenderHits, "single-segment baseline should render the header at least once").toBeGreaterThan(0);
+    expect(brandHits, "header should render exactly once (not once per segment) after hoisting").toBe(perRenderHits);
     // Per-segment bodies still appear.
     expect(svg).toContain("alpha");
     expect(svg).toContain("beta");
