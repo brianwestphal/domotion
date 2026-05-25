@@ -2,7 +2,11 @@
 
 Requirements for honoring author-specified font-family chains in Domotion. Origin: SK-1124 (follow-up from SK-1095). Today `resolveFontKey` in `src/text-to-path.ts` only distinguishes mono from sans-serif, so a page declaring `font-family: "Helvetica Neue", "Times New Roman", monospace` always paints with SF Pro regardless of the requested family.
 
-> **Cross-platform note (DM-258 / DM-259 / DM-260)**: This doc describes the macOS calibration of the chain resolver and `FONT_PATHS`. The same logic must work on Linux (fontconfig — Noto / DejaVu / Liberation) and Windows (DirectWrite — Arial / Consolas / Times New Roman / Segoe UI Symbol / Cambria Math / Yu Gothic). The hardcoded `/System/Library/Fonts/...` paths below are platform-specific debt; replacement via per-platform path discovery is tracked in DM-258. The empirical-probe methodology used to calibrate macOS (DM-241 / DM-256 / DM-257) must be re-run on each target platform to populate per-platform fallback chains.
+> **Cross-platform note (DM-258 / DM-259 / DM-260)**: This doc describes the macOS calibration of the chain resolver and `FONT_PATHS`. The same logic must work on Linux (fontconfig — Noto / DejaVu / Liberation) and Windows (DirectWrite — Arial / Consolas / Times New Roman / Segoe UI Symbol / Cambria Math / Yu Gothic).
+>
+> **Path discovery is now platform-aware (DM-258, done).** `getFontInstance` no longer reads `FONT_PATHS` directly — it calls `resolveFontSpec(key)`, which on macOS returns the `FONT_PATHS` entry unchanged, on Linux resolves via canonical `/usr/share/fonts/...` paths + `fc-match`, and on Windows via `%WINDIR%\Fonts`. So each logical key resolves to a real face on every platform instead of tofu. See `docs/40-cross-platform-font-paths.md` for the full per-platform key→font mapping.
+>
+> **Fallback-chain *calibration* is still macOS-only.** `fallbackFontChain` (which logical key handles which Unicode block) is reverse-engineered from Chromium-on-macOS painted widths (DM-241 / DM-256 / DM-257). That empirical-probe methodology must be re-run on each target platform to populate per-platform chains: Linux is DM-259, Windows is DM-260. Until then, Linux/Windows render with macOS's *routing* over their *own* fonts — primaries are faithful, symbol/CJK/RTL blocks are approximate.
 
 ## Why now
 

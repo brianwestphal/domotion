@@ -7,6 +7,8 @@
  * everywhere it appears.
  */
 
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { createCoretextFont, isCoretextHelperAvailable } from "./coretext.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -391,9 +393,10 @@ function slantForStyle(style: string | undefined): number {
   return (s === "italic" || s.startsWith("oblique")) ? ITALIC_SLNT : 0;
 }
 
-// macOS system font paths. TTC collections require picking a sub-font by
-// postscript name — fontkit returns a TTCFont wrapper for .ttc files and
-// .getFont(name) extracts the member.
+// macOS system font paths (the `darwin` column of the per-platform path
+// tables — see DM-258 / resolveFontSpec below for Linux + Windows). TTC
+// collections require picking a sub-font by postscript name — fontkit returns
+// a TTCFont wrapper for .ttc files and .getFont(name) extracts the member.
 interface FontPath { path: string; postscriptName?: string; extractor?: "fontkit" | "coretext" }
 const FONT_PATHS: Record<string, FontPath> = {
   "sf-pro":          { path: "/System/Library/Fonts/SFNS.ttf" },
@@ -582,6 +585,285 @@ const FONT_PATHS: Record<string, FontPath> = {
   "papyrus":         { path: "/System/Library/Fonts/Supplemental/Papyrus.ttc", postscriptName: "Papyrus" },
 };
 
+// ── Cross-platform font path discovery (DM-258) ──
+//
+// FONT_PATHS above is the `darwin` table — its paths and the long
+// calibration comments are specific to Chromium-on-macOS's CoreText
+// fallback. Linux (fontconfig) and Windows (DirectWrite) ship an entirely
+// different font set, so the SAME logical keys (`helvetica`, `times`,
+// `courier`, `cjk`, `symbols`, …) resolve to different files there. The
+// tables below map those keys per platform; everything downstream of
+// `resolveFontSpec` (the weight/slant variant logic, the coretext route,
+// `fontkit.openSync`) is unchanged.
+//
+// SCOPE NOTE: this is *path discovery only*. The `fallbackFontChain` routing
+// — which logical key handles which Unicode block — stays calibrated to
+// macOS until per-platform calibration lands (Linux: DM-259, Windows:
+// DM-260). So on Linux/Windows the primary families resolve to real fonts
+// (no more universal .notdef tofu) but symbol / CJK / RTL block coverage is
+// not yet platform-faithful. The point of this layer is only that
+// `getFontInstance("helvetica")` returns *a* sans-serif face instead of null.
+
+/**
+ * A Linux font entry. `fcMatch` is a fontconfig pattern resolved via
+ * `fc-match` — robust across distro path conventions (Debian's
+ * `/usr/share/fonts/truetype/...` vs Arch/Fedora layouts). `path` is an
+ * optional canonical hint tried first when it exists on disk; when it
+ * doesn't, we fall through to `fc-match`. `postscriptName` selects the TTC
+ * member for collection files (Noto CJK).
+ */
+interface LinuxFontPath { fcMatch: string; path?: string; postscriptName?: string }
+
+const LIB = "/usr/share/fonts/truetype/liberation";
+const FREEFONT = "/usr/share/fonts/truetype/freefont";
+const WQY = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc";
+
+// Linux font map — calibrated to what Chromium-on-Linux actually PAINTS in the
+// Playwright `*-noble` CI image (DM-259), measured via CDP
+// `CSS.getPlatformFontsForNode` (tools/probe-fallbacks-linux.mjs). That image
+// has NO DejaVu and NO Noto (except Color Emoji) — the real faces are:
+//   sans-serif → Liberation Sans     serif → Liberation Serif
+//   monospace  → WenQuanYi Zen Hei Mono   (its fontconfig monospace alias)
+//   CJK (Han/Kana/Hangul) → WenQuanYi Zen Hei
+//   Arabic → FreeSerif   Devanagari → FreeSans   Thai → Loma   Japanese → IPAGothic
+//   symbol/geometric/arrows → Liberation Sans;  dingbats/letterlike/math → FreeSans/FreeSerif
+//   emoji → Noto Color Emoji (raster path — doc 15, not a glyph-path key)
+// `fc-match` stays the discovery fallback for other distros (Fedora/Arch); the
+// canonical paths below short-circuit it in the CI image. NOTE: this baseline
+// is the bare Playwright image (option A); if CI later `apt install`s Noto
+// (option B), the CJK/symbol routing must be re-probed. See doc 42.
+const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
+  // system-ui → sans (Liberation Sans).
+  "sf-pro":          { fcMatch: "Liberation Sans", path: `${LIB}/LiberationSans-Regular.ttf` },
+  "sf-pro-italic":   { fcMatch: "Liberation Sans:italic", path: `${LIB}/LiberationSans-Italic.ttf` },
+  // sans-serif primary → Liberation Sans (probe: latin-sans).
+  "helvetica":              { fcMatch: "Liberation Sans", path: `${LIB}/LiberationSans-Regular.ttf` },
+  "helvetica-bold":         { fcMatch: "Liberation Sans:bold", path: `${LIB}/LiberationSans-Bold.ttf` },
+  "helvetica-italic":       { fcMatch: "Liberation Sans:italic", path: `${LIB}/LiberationSans-Italic.ttf` },
+  "helvetica-bold-italic":  { fcMatch: "Liberation Sans:bold:italic", path: `${LIB}/LiberationSans-BoldItalic.ttf` },
+  "arial":                  { fcMatch: "Liberation Sans", path: `${LIB}/LiberationSans-Regular.ttf` },
+  "arial-bold":             { fcMatch: "Liberation Sans:bold", path: `${LIB}/LiberationSans-Bold.ttf` },
+  "arial-italic":           { fcMatch: "Liberation Sans:italic", path: `${LIB}/LiberationSans-Italic.ttf` },
+  "arial-bold-italic":      { fcMatch: "Liberation Sans:bold:italic", path: `${LIB}/LiberationSans-BoldItalic.ttf` },
+  "lucida-grande":          { fcMatch: "Liberation Sans", path: `${LIB}/LiberationSans-Regular.ttf` },
+  // monospace primary → WenQuanYi Zen Hei Mono (probe: latin-mono — this image's
+  // fontconfig resolves the `monospace` generic there, not to Liberation Mono).
+  // No separate bold/italic faces in the TTC.
+  "courier":              { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "courier-bold":         { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "courier-italic":       { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "courier-bold-italic":  { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "menlo":              { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "menlo-bold":         { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "menlo-italic":       { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "menlo-bold-italic":  { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "monaco":          { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "sf-mono":         { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  "sf-mono-italic":  { fcMatch: "WenQuanYi Zen Hei Mono", path: WQY, postscriptName: "WenQuanYiZenHeiMono" },
+  // serif primary → Liberation Serif (probe: latin-serif).
+  "times":              { fcMatch: "Liberation Serif", path: `${LIB}/LiberationSerif-Regular.ttf` },
+  "times-bold":         { fcMatch: "Liberation Serif:bold", path: `${LIB}/LiberationSerif-Bold.ttf` },
+  "times-italic":       { fcMatch: "Liberation Serif:italic", path: `${LIB}/LiberationSerif-Italic.ttf` },
+  "times-bold-italic":  { fcMatch: "Liberation Serif:bold:italic", path: `${LIB}/LiberationSerif-BoldItalic.ttf` },
+  "times-new-roman":              { fcMatch: "Liberation Serif", path: `${LIB}/LiberationSerif-Regular.ttf` },
+  "times-new-roman-bold":         { fcMatch: "Liberation Serif:bold", path: `${LIB}/LiberationSerif-Bold.ttf` },
+  "times-new-roman-italic":       { fcMatch: "Liberation Serif:italic", path: `${LIB}/LiberationSerif-Italic.ttf` },
+  "times-new-roman-bold-italic":  { fcMatch: "Liberation Serif:bold:italic", path: `${LIB}/LiberationSerif-BoldItalic.ttf` },
+  "georgia":             { fcMatch: "Liberation Serif", path: `${LIB}/LiberationSerif-Regular.ttf` },
+  "georgia-bold":        { fcMatch: "Liberation Serif:bold", path: `${LIB}/LiberationSerif-Bold.ttf` },
+  "georgia-italic":      { fcMatch: "Liberation Serif:italic", path: `${LIB}/LiberationSerif-Italic.ttf` },
+  "georgia-bold-italic": { fcMatch: "Liberation Serif:bold:italic", path: `${LIB}/LiberationSerif-BoldItalic.ttf` },
+  // FreeFont — Chromium's per-script fallback in this image for several blocks.
+  "free-sans":       { fcMatch: "FreeSans", path: `${FREEFONT}/FreeSans.ttf` },
+  "free-serif":      { fcMatch: "FreeSerif", path: `${FREEFONT}/FreeSerif.ttf` },
+  // CJK — WenQuanYi Zen Hei (single weight; bold/serif map to the same face).
+  // The macOS PingFang/Hiragino/Apple-SD logical keys all collapse here on
+  // Linux. `hiragino-jp` → IPAGothic (what Chromium picks for lang=ja).
+  "cjk":             { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "cjk-bold":        { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "cjk-serif":       { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "cjk-serif-bold":  { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-sc":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-sc-bold": { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-tc":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-tc-bold": { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-hk":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-hk-bold": { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-mo":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "pingfang-mo-bold": { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "korean":           { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "korean-bold":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "hiragino-jp":      { fcMatch: "IPAGothic", path: "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf" },
+  "hiragino-jp-bold": { fcMatch: "IPAGothic", path: "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf" },
+  // Indic / RTL / Thai — Chromium's lang-fallback faces in this image.
+  "thai":            { fcMatch: "Loma", path: "/usr/share/fonts/opentype/tlwg/Loma.otf" },
+  "devanagari":      { fcMatch: "FreeSans", path: `${FREEFONT}/FreeSans.ttf` },
+  "sf-arabic":       { fcMatch: "FreeSerif", path: `${FREEFONT}/FreeSerif.ttf` },
+  "sf-hebrew":       { fcMatch: "Liberation Sans", path: `${LIB}/LiberationSans-Regular.ttf` },
+  // Symbol blocks — FreeFont carries the dingbat/letterlike/math glyphs.
+  "symbols":         { fcMatch: "FreeSans", path: `${FREEFONT}/FreeSans.ttf` },
+  "zapf-dingbats":   { fcMatch: "FreeSans", path: `${FREEFONT}/FreeSans.ttf` },
+  "stix-math":       { fcMatch: "FreeSerif", path: `${FREEFONT}/FreeSerif.ttf` },
+  // cursive / fantasy — no dedicated face in the image; let fontconfig substitute.
+  "snell":           { fcMatch: "cursive" },
+  "apple-chancery":  { fcMatch: "cursive" },
+  "papyrus":         { fcMatch: "fantasy" },
+  // source-serif-pro intentionally omitted — when fontconfig has no match it
+  // resolves to a generic, which would mask the "not installed → fall through
+  // the family chain" behavior. Returning null lets the chain walk on, same
+  // as the macOS `/Library/Fonts/SourceSerifPro-*` absent case.
+};
+
+// Windows system fonts live in %WINDIR%\Fonts (almost always C:\Windows\Fonts).
+// Paths are stable across Windows 10/11, so unlike Linux we hardcode filenames
+// and check existence rather than shelling out. Generic mappings follow
+// Chromium-on-Windows defaults (sans → Arial, serif → Times New Roman, mono →
+// Courier New); CJK / symbol / math / Indic route to the DirectWrite system
+// faces. Exact per-block calibration is DM-260.
+const WINDOWS_FONTS_DIR = `${process.env.WINDIR ?? process.env.SystemRoot ?? "C:\\Windows"}\\Fonts`;
+function win(file: string, postscriptName?: string): FontPath {
+  return { path: `${WINDOWS_FONTS_DIR}\\${file}`, postscriptName };
+}
+const WIN32_FONT_PATHS: Record<string, FontPath> = {
+  "sf-pro":          win("segoeui.ttf"),
+  "sf-pro-italic":   win("segoeuii.ttf"),
+  "sf-mono":         win("consola.ttf"),
+  "sf-mono-italic":  win("consolai.ttf"),
+  "helvetica":              win("arial.ttf"),
+  "helvetica-bold":         win("arialbd.ttf"),
+  "helvetica-italic":       win("ariali.ttf"),
+  "helvetica-bold-italic":  win("arialbi.ttf"),
+  "arial":                  win("arial.ttf"),
+  "arial-bold":             win("arialbd.ttf"),
+  "arial-italic":           win("ariali.ttf"),
+  "arial-bold-italic":      win("arialbi.ttf"),
+  "courier":              win("cour.ttf"),
+  "courier-bold":         win("courbd.ttf"),
+  "courier-italic":       win("couri.ttf"),
+  "courier-bold-italic":  win("courbi.ttf"),
+  "menlo":              win("consola.ttf"),
+  "menlo-bold":         win("consolab.ttf"),
+  "menlo-italic":       win("consolai.ttf"),
+  "menlo-bold-italic":  win("consolaz.ttf"),
+  "monaco":          win("consola.ttf"),
+  "times":              win("times.ttf"),
+  "times-bold":         win("timesbd.ttf"),
+  "times-italic":       win("timesi.ttf"),
+  "times-bold-italic":  win("timesbi.ttf"),
+  "times-new-roman":              win("times.ttf"),
+  "times-new-roman-bold":         win("timesbd.ttf"),
+  "times-new-roman-italic":       win("timesi.ttf"),
+  "times-new-roman-bold-italic":  win("timesbi.ttf"),
+  "georgia":             win("georgia.ttf"),
+  "georgia-bold":        win("georgiab.ttf"),
+  "georgia-italic":      win("georgiai.ttf"),
+  "georgia-bold-italic": win("georgiaz.ttf"),
+  // CJK: Yu Gothic (ja), Microsoft YaHei (zh), Malgun Gothic (ko). The macOS
+  // PingFang/Hiragino logical keys map to the closest DirectWrite face.
+  "cjk":             win("msyh.ttc", "MicrosoftYaHei"),
+  "cjk-bold":        win("msyhbd.ttc", "MicrosoftYaHei-Bold"),
+  "cjk-serif":       win("simsun.ttc", "SimSun"),
+  "cjk-serif-bold":  win("simsun.ttc", "SimSun"),
+  "pingfang-sc":      win("msyh.ttc", "MicrosoftYaHei"),
+  "pingfang-sc-bold": win("msyhbd.ttc", "MicrosoftYaHei-Bold"),
+  "pingfang-tc":      win("msjh.ttc", "MicrosoftJhengHeiRegular"),
+  "pingfang-tc-bold": win("msjhbd.ttc", "MicrosoftJhengHeiBold"),
+  "pingfang-hk":      win("msjh.ttc", "MicrosoftJhengHeiRegular"),
+  "pingfang-hk-bold": win("msjhbd.ttc", "MicrosoftJhengHeiBold"),
+  "pingfang-mo":      win("msjh.ttc", "MicrosoftJhengHeiRegular"),
+  "pingfang-mo-bold": win("msjhbd.ttc", "MicrosoftJhengHeiBold"),
+  "hiragino-jp":      win("YuGothR.ttc", "YuGothic-Regular"),
+  "hiragino-jp-bold": win("YuGothB.ttc", "YuGothic-Bold"),
+  "korean":           win("malgun.ttf", "MalgunGothic"),
+  "korean-bold":      win("malgunbd.ttf", "MalgunGothicBold"),
+  "thai":            win("LeelaUIsl.ttf", "LeelawadeeUISemilight"),
+  "devanagari":      win("Nirmala.ttf", "NirmalaUI"),
+  "sf-arabic":       win("segoeui.ttf"),
+  "sf-hebrew":       win("segoeui.ttf"),
+  // Segoe UI Symbol covers Geometric Shapes, Misc Symbols, Dingbats, Arrows.
+  "symbols":         win("seguisym.ttf"),
+  "zapf-dingbats":   win("seguisym.ttf"),
+  "lucida-grande":   win("arial.ttf"),
+  // Cambria Math is the DirectWrite math-coverage font (Math Alpha block).
+  "stix-math":       win("cambria.ttc", "CambriaMath"),
+  // Windows cursive/fantasy generics historically resolve to Comic Sans MS /
+  // Impact in Chromium; mirror that for path discovery.
+  "snell":           win("comic.ttf"),
+  "apple-chancery":  win("comic.ttf"),
+  "papyrus":         win("impact.ttf"),
+};
+
+// Resolved-path cache, keyed by logical font key. Holds the platform-specific
+// FontPath (or null when the key has no mapping / file on this host). The
+// fc-match shell-out on Linux is the main thing this avoids repeating.
+const resolvedSpecCache = new Map<string, FontPath | null>();
+
+/**
+ * Run `fc-match` for a fontconfig pattern and return the resolved file plus
+ * its postscript name (for picking the right TTC member). Returns null when
+ * fc-match is missing, errors, or resolves to a file that doesn't exist.
+ * Only ever called on Linux.
+ */
+function fcMatch(pattern: string): { path: string; postscriptName?: string } | null {
+  try {
+    const out = execFileSync("fc-match", ["-f", "%{file}\t%{postscriptname}", pattern], {
+      encoding: "utf8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (out === "") return null;
+    const [file, postscriptName] = out.split("\t");
+    if (file == null || file === "" || !existsSync(file)) return null;
+    return { path: file, postscriptName: postscriptName || undefined };
+  } catch {
+    return null;
+  }
+}
+
+function resolveLinuxSpec(key: string): FontPath | null {
+  const entry = LINUX_FONT_PATHS[key];
+  if (entry == null) return null;
+  // Canonical path first when it exists, then fontconfig discovery.
+  if (entry.path != null && existsSync(entry.path)) {
+    return { path: entry.path, postscriptName: entry.postscriptName };
+  }
+  const matched = fcMatch(entry.fcMatch);
+  if (matched == null) return null;
+  return { path: matched.path, postscriptName: entry.postscriptName ?? matched.postscriptName };
+}
+
+function resolveWin32Spec(key: string): FontPath | null {
+  const spec = WIN32_FONT_PATHS[key];
+  if (spec == null || !existsSync(spec.path)) return null;
+  return spec;
+}
+
+/**
+ * Resolve a logical font key to a concrete on-disk spec for the current
+ * platform (DM-258). On macOS this is the unchanged `FONT_PATHS[key]` lookup —
+ * file existence is still handled downstream by `fontkit.openSync` / the
+ * coretext helper, preserving the family-chain fall-through for fonts that
+ * aren't installed (e.g. Source Serif Pro). On Linux / Windows it consults
+ * the per-platform tables above, verifying the file exists (and using
+ * `fc-match` discovery on Linux). Results are cached per key.
+ */
+function resolveFontSpec(key: string): FontPath | null {
+  if (resolvedSpecCache.has(key)) return resolvedSpecCache.get(key)!;
+  let resolved: FontPath | null;
+  switch (process.platform) {
+    case "linux": resolved = resolveLinuxSpec(key); break;
+    case "win32": resolved = resolveWin32Spec(key); break;
+    default:      resolved = FONT_PATHS[key] ?? null; break; // darwin + any other Unix with macOS-style paths
+  }
+  resolvedSpecCache.set(key, resolved);
+  return resolved;
+}
+
+/** Test-only window into the platform path resolver (DM-258). */
+export function __resolveFontSpecForTest(key: string): { path: string; postscriptName?: string; extractor?: string } | null {
+  return resolveFontSpec(key);
+}
+
 /**
  * Ordered list of fallback font keys to try when the primary font lacks a
  * glyph for `codepoint`. Caller iterates the chain and picks the first font
@@ -629,7 +911,83 @@ export function pingfangKeyForLang(lang: string | undefined): string | null {
   return null;
 }
 
+/**
+ * Linux fallback chain (DM-259) — calibrated to what Chromium-on-Linux paints
+ * in the Playwright `*-noble` CI image, measured via CDP
+ * `CSS.getPlatformFontsForNode` (tools/probe-fallbacks-linux.mjs). Returns
+ * logical keys that `LINUX_FONT_PATHS` maps to the image's real faces
+ * (Liberation / WenQuanYi / FreeFont / Loma / IPAGothic). As on macOS, the
+ * caller has already tried the primary font, so what reaches here is the
+ * residue the primary lacks. The comment after each branch names the face the
+ * probe showed Chromium using for that block.
+ */
+function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
+  const cp = codepoint;
+  // Hebrew — Liberation Sans covers it, so route to the sans key (probe: hebrew
+  // → Liberation Sans, i.e. the primary itself when sans-serif).
+  if ((cp >= 0x0590 && cp <= 0x05FF) || (cp >= 0xFB1D && cp <= 0xFB4F)) return ["helvetica"];
+  // Arabic core + presentation forms — FreeSerif (probe: arabic → FreeSerif).
+  if ((cp >= 0x0600 && cp <= 0x06FF) || (cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF)) {
+    return ["sf-arabic"]; // → FreeSerif on Linux
+  }
+  // Devanagari — FreeSans (probe: devanagari → FreeSans).
+  if (cp >= 0x0900 && cp <= 0x097F) return ["devanagari"]; // → FreeSans
+  // Thai — Loma (probe: thai → Loma).
+  if (cp >= 0x0E00 && cp <= 0x0E7F) return ["thai"];
+  // Hangul — WenQuanYi Zen Hei (probe: hangul → WenQuanYi).
+  if ((cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0x1100 && cp <= 0x11FF)) return ["cjk"];
+  // Box Drawing / Block — mono primary keeps the primary (WenQuanYi Zen Hei
+  // Mono covers them at cell width); non-mono falls to Liberation Sans, then CJK
+  // (probe: box-drawing mono → WQY Mono; box-drawing-sans → Liberation Sans).
+  if (cp >= 0x2500 && cp <= 0x259F) {
+    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+      || primaryKey === "monaco" || primaryKey === "sf-mono";
+    return monoPrimary ? [primaryKey!, "cjk"] : ["helvetica", "cjk"];
+  }
+  // Dingbats — FreeSans (probe: ✂✈❤ → FreeSans).
+  if (cp >= 0x2700 && cp <= 0x27BF) return ["free-sans", "free-serif"];
+  // Chess pieces — FreeSerif (probe: ♔♚ → FreeSerif).
+  if (cp >= 0x2654 && cp <= 0x265F) return ["free-serif", "free-sans"];
+  // Diagonal arrows ↗↙ — WenQuanYi (probe: arrows-diag → WenQuanYi); the rest of
+  // the Arrows block → Liberation Sans (probe: ←→↑↓↔ → Liberation Sans).
+  if (cp === 0x2197 || cp === 0x2199) return ["cjk", "helvetica"];
+  if (cp >= 0x2190 && cp <= 0x21FF) return ["helvetica", "free-sans"];
+  // Geometric Shapes — Liberation Sans, then WenQuanYi for what it lacks
+  // (probe: ▲●◆■□○ → Liberation Sans + WenQuanYi).
+  if (cp >= 0x25A0 && cp <= 0x25FF) return ["helvetica", "cjk"];
+  // Misc Symbols — Liberation Sans + IPAGothic (probe: ☀☂♠♥♦ → Liberation Sans
+  // + IPAGothic).
+  if (cp >= 0x2600 && cp <= 0x26FF) return ["helvetica", "hiragino-jp", "free-sans"];
+  // Mathematical Alphanumeric — FreeSans + FreeSerif (probe: 𝐀𝒜𝕊 → FreeSans/FreeSerif).
+  if (cp >= 0x1D400 && cp <= 0x1D7FF) return ["free-sans", "free-serif"];
+  // Superscripts / Subscripts — Liberation Sans + FreeSans (probe: aₙ₁).
+  if (cp >= 0x2070 && cp <= 0x209F) return ["helvetica", "free-sans"];
+  // Letterlike + Math Operators — FreeSans first, then Liberation Sans (probe:
+  // ℝ™ℕℤ → FreeSans + Liberation Sans; ∑∫≠ is covered by the Liberation Sans primary).
+  if ((cp >= 0x2100 && cp <= 0x214F) || (cp >= 0x2200 && cp <= 0x22FF)) return ["free-sans", "helvetica"];
+  // CJK Han / Kana / CJK Symbols & Punctuation — WenQuanYi Zen Hei (probe:
+  // 漢字/あ/ア → WenQuanYi). Japanese-tagged text prefers IPAGothic; left as a
+  // refinement (untagged probe resolved to WenQuanYi). DM-259 follow-up.
+  if ((cp >= 0x3000 && cp <= 0x303F) || (cp >= 0x3040 && cp <= 0x309F)
+    || (cp >= 0x30A0 && cp <= 0x30FF) || (cp >= 0x31F0 && cp <= 0x31FF)
+    || (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF)
+    || (cp >= 0xF900 && cp <= 0xFAFF)) {
+    return ["cjk"];
+  }
+  // Pictographs / Transport residue not caught by the color-emoji raster path
+  // (doc 15) — FreeSans as a monochrome last resort.
+  if ((cp >= 0x1F300 && cp <= 0x1F5FF) || (cp >= 0x1F680 && cp <= 0x1F6FF)) return ["free-sans"];
+  return [];
+}
+
 export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
+  // Platform-aware routing (DM-259 / DM-260). The body below is the macOS
+  // (CoreText) calibration — kept verbatim as the darwin path. Linux
+  // (fontconfig) cascades through entirely different faces, so it has its own
+  // empirically-probed chain. Windows (DirectWrite) is not yet calibrated
+  // (DM-260 / DM-836) — it falls through to the darwin routing over its own
+  // fonts (post-DM-258 status quo) until probed.
+  if (process.platform === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
   // When the primary family is a serif (Apple Times / Times New Roman /
   // Georgia, or fangsong/math/serif/ui-serif which all resolve to `times`),
   // CJK fallback should produce SERIF CJK glyphs (Songti SC Light) instead
@@ -975,7 +1333,9 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   const cacheKey = `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}`;
   if (fontInstanceCache.has(cacheKey)) return fontInstanceCache.get(cacheKey)!;
 
-  const spec = FONT_PATHS[effectiveKey];
+  // Platform-aware path discovery (DM-258): darwin → FONT_PATHS, linux →
+  // fc-match / DejaVu / Noto, win32 → C:\Windows\Fonts.
+  const spec = resolveFontSpec(effectiveKey);
   if (spec == null) return null;
 
   // CoreText-extractor route: route to the macOS Swift helper (DM-385 / DM-388).

@@ -1,16 +1,16 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
+import { __resolveFontSpecForTest, clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isTextToPathAvailable, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
-// collapse) need the macOS system fonts. On Linux CI the FONT_PATHS map
-// (currently macOS-calibrated only — Linux / Windows are roadmap per
-// CLAUDE.md) can't resolve "Helvetica" / "Times" / "cursive", so the
-// renderer returns null and these tests would assert against null. Skip
-// them on hosts without the macOS system fonts so the suite stays green on
-// Ubuntu runners.
+// collapse) assert against the *macOS* painted output specifically (Helvetica
+// glyph shapes, Courier metrics, etc.). Cross-platform path discovery
+// (DM-258) makes the renderer resolve SOMETHING on Linux/Windows (DejaVu /
+// Noto / Arial), but the glyph shapes differ, so these macOS-pinned
+// assertions still only hold on darwin. Skip them off-macOS so the suite
+// stays green on Ubuntu/Windows runners.
 const MACOS_FONTS = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
@@ -143,6 +143,50 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("emoji")).toBe("times");
     expect(resolveFontKey("fangsong")).toBe("times");
   });
+});
+
+// Cross-platform font path discovery (DM-258). The resolver maps each logical
+// font key to a real file on disk for the host platform — macOS keeps its
+// /System/Library/Fonts paths verbatim, Linux resolves via DejaVu/Noto +
+// `fc-match`, Windows via C:\Windows\Fonts. The fallbackFontChain ROUTING is
+// still macOS-calibrated (Linux=DM-259, Windows=DM-260); this layer only
+// guarantees the primaries resolve to *a* face instead of null.
+describe("resolveFontSpec: cross-platform font path discovery (DM-258)", () => {
+  it("maps the core logical keys to a spec on every platform", () => {
+    for (const key of ["helvetica", "times", "courier", "arial", "georgia", "cjk", "symbols", "stix-math"]) {
+      expect(__resolveFontSpecForTest(key), key).not.toBeNull();
+    }
+  });
+
+  it("returns null for an unmapped logical key so the family chain falls through", () => {
+    expect(__resolveFontSpecForTest("definitely-not-a-real-font-key")).toBeNull();
+  });
+
+  // The sans-serif primary must resolve to a file that actually exists on the
+  // current host — this is the acceptance criterion that fails pre-DM-258 on
+  // Linux/Windows (every /System/Library/Fonts path is absent there).
+  const sansSpec = __resolveFontSpecForTest("helvetica");
+  const SANS_AVAILABLE = sansSpec != null && fs.existsSync(sansSpec.path);
+
+  it.skipIf(!SANS_AVAILABLE)("resolves sans-serif to an on-disk font file", () => {
+    expect(fs.existsSync(sansSpec!.path)).toBe(true);
+  });
+
+  it.skipIf(!SANS_AVAILABLE)("makes the CSS generics renderable on this platform", () => {
+    expect(isTextToPathAvailable("sans-serif")).toBe(true);
+    expect(isTextToPathAvailable("serif")).toBe(true);
+    expect(isTextToPathAvailable("monospace")).toBe(true);
+  });
+
+  if (process.platform === "darwin") {
+    it("leaves the macOS paths unchanged — no regression", () => {
+      expect(__resolveFontSpecForTest("helvetica")?.path).toBe("/System/Library/Fonts/Helvetica.ttc");
+      expect(__resolveFontSpecForTest("courier")?.path).toBe("/System/Library/Fonts/Courier.ttc");
+      expect(__resolveFontSpecForTest("times")?.path).toBe("/System/Library/Fonts/Times.ttc");
+      // The CoreText extractor flag survives the resolver indirection (PingFang).
+      expect(__resolveFontSpecForTest("pingfang-sc")?.extractor).toBe("coretext");
+    });
+  }
 });
 
 // Baseline placement: when CAPTURE_SCRIPT records the browser's
