@@ -897,11 +897,12 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     setRenderTextMode("paths");
   });
 
-  // Extract all PUA codepoints out of the <tspan> bodies in a render output.
-  // Each <tspan> contains exactly one PUA codepoint (one shaped glyph).
+  // Extract all PUA codepoints out of the <text> bodies in a render output.
+  // DM-841: glyphs are positioned via the <text> `x` list (one value per
+  // glyph), so the body is the PUA stream — one PUA codepoint per shaped glyph.
   function puaCodepointsFromMarkup(out: string): number[] {
     const cps: number[] = [];
-    const re = /<tspan[^>]*>([^<]*)<\/tspan>/g;
+    const re = /<text[^>]*>([^<]*)<\/text>/g;
     let m;
     while ((m = re.exec(out)) != null) {
       for (let i = 0; i < m[1].length; ) {
@@ -913,14 +914,14 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     return cps;
   }
 
-  it("emits <text>/<tspan> with PUA codepoints (not the original text)", async () => {
+  it("emits <text> with PUA codepoints in the body (not the original text)", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontA", 400, "normal", fontBuf);
     const out = renderTextAsPath("Hello", 0, 0, 24, "CustomFontA", "400", "#000");
     expect(out).not.toBeNull();
-    // The literal "Hello" must NOT appear in any tspan/text body — only in
+    // The literal "Hello" must NOT appear in any <text> body — only in
     // the accessibility title/aria-label.
-    const bodyMatches = [...out!.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)];
+    const bodyMatches = [...out!.matchAll(/<text[^>]*>([^<]*)<\/text>/g)];
     expect(bodyMatches.length).toBeGreaterThan(0);
     for (const m of bodyMatches) {
       expect(m[1]).not.toContain("Hello");
@@ -958,16 +959,27 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     }
   });
 
-  it("emits one <tspan x=...> per shaped glyph for sub-pixel-accurate per-glyph positioning", async () => {
+  it("positions each shaped glyph via the <text> x list for sub-pixel-accurate placement (DM-841)", async () => {
     if (fontBuf == null) return;
     registerWebfont("CustomFontE", 400, "normal", fontBuf);
     const out = renderTextAsPath("AB", 0, 0, 24, "CustomFontE", "400", "#000");
     expect(out).not.toBeNull();
-    // Two shaped glyphs → two <tspan x=...> entries, each with one PUA codepoint.
-    const tspans = [...out!.matchAll(/<tspan x="([\d.-]+)">([^<]+)<\/tspan>/g)];
-    expect(tspans.length).toBe(2);
+    // Two shaped glyphs → a single <text> with a 2-value `x` list and a
+    // 2-codepoint PUA body (no per-glyph <tspan> wrappers).
+    expect(out!).not.toContain("<tspan");
+    const m = /<text x="([\d.\- ]+)"[^>]*>([^<]+)<\/text>/.exec(out!);
+    expect(m).not.toBeNull();
+    const xs = m![1].trim().split(/\s+/).map(Number);
+    expect(xs.length).toBe(2);
     // Glyph x's must be monotonic-increasing (text flows L→R).
-    expect(parseFloat(tspans[1][1])).toBeGreaterThan(parseFloat(tspans[0][1]));
+    expect(xs[1]).toBeGreaterThan(xs[0]);
+    // Body is exactly two PUA codepoints (one per glyph).
+    const bodyCps = [...m![2]].map((c) => c.codePointAt(0)!);
+    expect(bodyCps.length).toBe(2);
+    for (const cp of bodyCps) {
+      expect(cp).toBeGreaterThanOrEqual(0xE000);
+      expect(cp).toBeLessThanOrEqual(0xF8FF);
+    }
   });
 
   it("each unique (font, axes) combo gets its own custom @font-face entry", async () => {

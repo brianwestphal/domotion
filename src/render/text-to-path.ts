@@ -2413,12 +2413,18 @@ function renderTextAsEmbedded(
     const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
       ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
 
-    // Build one <tspan x=...> per shaped glyph. We rely on per-glyph x
-    // rather than letting the consumer browser advance within the run
-    // because the custom TTF has no GPOS — emitting xOffsets explicitly
-    // makes the consumer pixel-faithful to Chrome's captured paint.
-    const tspans = perGlyph.map((g) => `<tspan x="${r(x + g.xCss)}">${g.pua}</tspan>`).join("");
-    segments.push(`<text y="${r(baselineY)}" font-family="${runCssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}">${tspans}</text>`);
+    // Position each glyph with the `<text>` `x` positional list — one value
+    // per glyph — instead of wrapping each in its own `<tspan>` (DM-841). The
+    // explicit per-glyph x is still required: the custom subset TTF carries no
+    // GPOS/kern, so without it the consumer browser re-flows from hmtx alone
+    // and loses Chrome's kerning (multi-px drift at headline sizes). SVG
+    // applies x[i] to the i-th addressable character; our content is one BMP
+    // PUA codepoint per glyph (builder assigns U+E000..U+F8FF — single UTF-16
+    // unit), so the list aligns 1:1 with the PUA stream. Same pixel-faithful
+    // placement, ~2-3x less markup than per-glyph `<tspan>`s.
+    const xList = perGlyph.map((g) => r(x + g.xCss)).join(" ");
+    const puaStream = perGlyph.map((g) => g.pua).join("");
+    segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${runCssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}">${puaStream}</text>`);
     cssX += runCursorFontUnits * runScale;
   }
 
