@@ -81,13 +81,53 @@ const frameAnimationSchema = z.object({
   delay: z.number().optional(),
 });
 
+const insertPositionSchema = z.enum(["beforebegin", "afterbegin", "beforeend", "afterend"]);
+const scrollLogicalSchema = z.enum(["start", "center", "end", "nearest"]);
+
 const actionSchema = z.discriminatedUnion("type", [
+  // Interaction (Playwright-native).
   z.object({ type: z.literal("click"),  selector: z.string() }),
   z.object({ type: z.literal("fill"),   selector: z.string(), value: z.string() }),
   z.object({ type: z.literal("press"),  key: z.string() }),
   z.object({ type: z.literal("scroll"), x: z.number().optional(), y: z.number().optional() }),
   z.object({ type: z.literal("hover"),  selector: z.string() }),
   z.object({ type: z.literal("wait"),   ms: z.number() }),
+  // DM-848 §3 — interaction actions beyond click/fill.
+  z.object({ type: z.literal("scrollIntoView"), selector: z.string(), block: scrollLogicalSchema.optional(), inline: scrollLogicalSchema.optional() }),
+  z.object({ type: z.literal("dispatch"),       selector: z.string(), event: z.string(), bubbles: z.boolean().optional() }),
+  z.object({ type: z.literal("focus"),          selector: z.string() }),
+  z.object({ type: z.literal("blur"),           selector: z.string() }),
+  z.object({ type: z.literal("selectText"),     selector: z.string() }),
+  z.object({ type: z.literal("clear"),          selector: z.string() }),
+  // DM-847 §2 — declarative DOM mutations.
+  z.object({ type: z.literal("setText"),        selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("setHtml"),        selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("remove"),         selector: z.string() }),
+  z.object({ type: z.literal("setAttribute"),   selector: z.string(), name: z.string(), value: z.string() }),
+  z.object({ type: z.literal("removeAttribute"),selector: z.string(), name: z.string() }),
+  z.object({ type: z.literal("addClass"),       selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("removeClass"),    selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("toggleClass"),    selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("setStyle"),       selector: z.string(), props: z.record(z.string(), z.string()) }),
+  z.object({ type: z.literal("insert"),         selector: z.string(), position: insertPositionSchema, html: z.string() }),
+  z.object({ type: z.literal("setValue"),       selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("check"),          selector: z.string(), checked: z.boolean() }),
+  z.object({ type: z.literal("selectOption"),   selector: z.string(), value: z.string() }),
+  z.object({
+    type: z.literal("replaceText"),
+    selector: z.string(),
+    pattern: z.string().superRefine((val, ctx) => {
+      try {
+        new RegExp(val);
+      } catch (e) {
+        ctx.addIssue({ code: "custom", message: `is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}` });
+      }
+    }),
+    replacement: z.string(),
+    flags: z.string().optional(),
+  }),
+  // DM-853 §8 — last-resort escape hatch.
+  z.object({ type: z.literal("evaluate"), script: z.string() }),
 ]);
 
 const overlaySlideSchema = z.object({
@@ -134,7 +174,12 @@ const overlaySchema = z.discriminatedUnion("kind", [
 ]);
 
 const frameSchema = z.object({
-  input: z.string(),
+  // DM-846 §1 — `input` is optional. Frame 0 must load an input; a later frame
+  // that omits `input` (or sets `continue: true`) keeps the previous frame's
+  // live page. The frame-0 / continue+input rules are enforced in the
+  // config-level superRefine below (they need cross-frame context).
+  input: z.string().optional(),
+  continue: z.boolean().optional(),
   duration: z.number(),
   transition: transitionSchema.optional(),
   selector: z.string().optional(),
@@ -160,15 +205,32 @@ const frameSchema = z.object({
   animations: z.array(frameAnimationSchema).optional(),
 });
 
-const animateConfigSchema = z.object({
-  width: z.number(),
-  height: z.number(),
-  output: z.string().optional(),
-  optimize: z.boolean().optional(),
-  mobile: z.boolean().optional(),
-  colorScheme: z.enum(["light", "dark", "no-preference"]).optional(),
-  frames: z.array(frameSchema).min(1, "must be a non-empty array"),
-});
+const animateConfigSchema = z
+  .object({
+    width: z.number(),
+    height: z.number(),
+    output: z.string().optional(),
+    optimize: z.boolean().optional(),
+    mobile: z.boolean().optional(),
+    colorScheme: z.enum(["light", "dark", "no-preference"]).optional(),
+    /** DM-852 §7 — string vars interpolated into `${name}` in any string field. */
+    vars: z.record(z.string(), z.string()).optional(),
+    frames: z.array(frameSchema).min(1, "must be a non-empty array"),
+  })
+  .superRefine((cfg, ctx) => {
+    // DM-846 §1 cross-frame rules for the continuous-session model.
+    cfg.frames.forEach((f, i) => {
+      if (i === 0 && f.input == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", 0, "input"], message: "frame 0 must load an input" });
+      }
+      if (i === 0 && f.continue === true) {
+        ctx.addIssue({ code: "custom", path: ["frames", 0, "continue"], message: "frame 0 cannot continue — it has no predecessor" });
+      }
+      if (f.continue === true && f.input != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "continue"], message: "a frame cannot set both `continue` and `input` (reload or continue, not both)" });
+      }
+    });
+  });
 
 export type AnimateConfig = z.infer<typeof animateConfigSchema>;
 type AnimateAction = z.infer<typeof actionSchema>;
@@ -240,6 +302,8 @@ export async function composeAnimateConfig(
   configDir: string,
   log: (msg: string) => void,
 ): Promise<string> {
+  // DM-852: resolve `${vars}` across every string field before anything runs.
+  cfg = interpolateConfigVars(cfg);
   const ctx = await browser.newContext({
     viewport: { width: cfg.width, height: cfg.height },
     isMobile: cfg.mobile === true,
@@ -268,9 +332,20 @@ export async function composeAnimateConfig(
 
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
-      const input = resolveFrameInput(fc.input, configDir);
-      log(`Frame ${i + 1}/${cfg.frames.length}: loading ${input}…`);
-      await timed(log, `  loaded`, () => loadInputIntoPage(page, input));
+      // DM-846 §1: a continued frame (explicit `continue: true`, or a non-first
+      // frame that omits `input`) captures the previous frame's live page after
+      // running its own actions, instead of reloading. The page persists across
+      // the whole loop, so "continue" simply means "don't navigate".
+      const isContinue = i > 0 && (fc.continue === true || fc.input == null);
+      if (isContinue) {
+        log(`Frame ${i + 1}/${cfg.frames.length}: continuing live page…`);
+      } else {
+        const inputStr = fc.input;
+        if (inputStr == null) throw new Error(`animate: frames[${i}] has no input and is not a continue frame`);
+        const input = resolveFrameInput(inputStr, configDir);
+        log(`Frame ${i + 1}/${cfg.frames.length}: loading ${input}…`);
+        await timed(log, `  loaded`, () => loadInputIntoPage(page, input));
+      }
       await applyReadyWaits(page, {
         wait: fc.wait ?? 200,
         waitFor: fc.waitFor,
@@ -281,7 +356,7 @@ export async function composeAnimateConfig(
         const sx = fc.scrollTo[0], sy = fc.scrollTo[1];
         await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
       }
-      if (fc.actions != null) await runActions(page, fc.actions);
+      if (fc.actions != null) await runActions(page, fc.actions, log);
 
       // Intra-frame animations (DM-209): tag the live DOM with
       // `data-domotion-anim="<id>"` for each animation's selector. The capture
@@ -390,16 +465,116 @@ export async function composeAnimateConfig(
   }
 }
 
-async function runActions(page: Page, actions: AnimateAction[]): Promise<void> {
+async function runActions(page: Page, actions: AnimateAction[], log: (msg: string) => void): Promise<void> {
   for (const a of actions) {
-    if (a.type === "click")       await page.click(a.selector);
-    else if (a.type === "fill")   await page.fill(a.selector, a.value);
-    else if (a.type === "press")  await page.keyboard.press(a.key);
-    else if (a.type === "scroll") await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [a.x ?? 0, a.y ?? 0]);
-    else if (a.type === "hover")  await page.hover(a.selector);
-    else if (a.type === "wait")   await page.waitForTimeout(a.ms);
-    else throw new Error(`animate: unknown action type "${(a as { type: string }).type}"`);
+    switch (a.type) {
+      // Playwright-native interactions (handle actionability + waiting).
+      case "click":        await page.click(a.selector); break;
+      case "fill":         await page.fill(a.selector, a.value); break;
+      case "press":        await page.keyboard.press(a.key); break;
+      case "hover":        await page.hover(a.selector); break;
+      case "focus":        await page.focus(a.selector); break;
+      case "selectOption": await page.selectOption(a.selector, a.value); break;
+      case "scroll":       await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [a.x ?? 0, a.y ?? 0]); break;
+      case "wait":         await page.waitForTimeout(a.ms); break;
+      case "evaluate": {
+        // DM-853 §8: last resort. Nudge toward declarative actions / the API
+        // once a snippet outgrows a line or two, but don't block it.
+        if (a.script.length > 200 || a.script.split("\n").length > 2) {
+          log(`  warning: evaluate script is ${a.script.length} chars / ${a.script.split("\n").length} lines — more than a line or two means you've outgrown the config; consider the declarative actions or the programmatic API`);
+        }
+        await page.evaluate(a.script);
+        break;
+      }
+      // DM-847 §2 + DM-848 §3: DOM mutations and the remaining interactions run
+      // in page context against all matched elements.
+      default: await applyDomAction(page, a); break;
+    }
   }
+}
+
+/**
+ * Apply a DOM-mutation / interaction action (the cases not handled by a
+ * Playwright-native call in `runActions`) in page context, across every matched
+ * element. Throws if the selector matches nothing (a silently-skipped step
+ * usually means the demo is subtly wrong — see docs/43 → Selectors).
+ */
+async function applyDomAction(page: Page, action: AnimateAction): Promise<void> {
+  const selector = "selector" in action ? action.selector : undefined;
+  const matched = await page.evaluate((a) => {
+    const sel = "selector" in a ? a.selector : "";
+    const els = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+    for (const h of els) {
+      switch (a.type) {
+        case "setText":         h.textContent = a.value; break;
+        case "setHtml":         h.innerHTML = a.value; break;
+        case "remove":          h.remove(); break;
+        case "setAttribute":    h.setAttribute(a.name, a.value); break;
+        case "removeAttribute": h.removeAttribute(a.name); break;
+        case "addClass":        h.classList.add(a.class); break;
+        case "removeClass":     h.classList.remove(a.class); break;
+        case "toggleClass":     h.classList.toggle(a.class); break;
+        case "setStyle":        for (const [k, v] of Object.entries(a.props)) h.style.setProperty(k, v); break;
+        case "insert":          h.insertAdjacentHTML(a.position, a.html); break;
+        case "setValue":        (h as HTMLInputElement).value = a.value; break;
+        case "check":           (h as HTMLInputElement).checked = a.checked; break;
+        case "clear":           (h as HTMLInputElement).value = ""; break;
+        case "scrollIntoView":  h.scrollIntoView({ block: a.block ?? "center", inline: a.inline ?? "nearest" }); break;
+        case "blur":            h.blur(); break;
+        case "dispatch":        h.dispatchEvent(new Event(a.event, { bubbles: a.bubbles ?? true })); break;
+        case "selectText": {
+          const range = document.createRange();
+          range.selectNodeContents(h);
+          const sics = window.getSelection();
+          sics?.removeAllRanges();
+          sics?.addRange(range);
+          break;
+        }
+        case "replaceText": {
+          const re = new RegExp(a.pattern, a.flags ?? "");
+          const walk = (n: Node): void => {
+            if (n.nodeType === 3) n.textContent = (n.textContent ?? "").replace(re, a.replacement);
+            else n.childNodes.forEach(walk);
+          };
+          walk(h);
+          break;
+        }
+      }
+    }
+    return els.length;
+  }, action);
+  if (matched === 0) {
+    throw new Error(`animate: action "${action.type}" selector "${selector ?? "?"}" matched no elements`);
+  }
+}
+
+/**
+ * DM-852 §7: resolve `${name}` against `cfg.vars` in every string field of the
+ * config (recursively), returning a new config. `$${` escapes to a literal
+ * `${`; an unknown `${name}` is a hard error (typo-catching). No-op when there
+ * are no vars.
+ */
+export function interpolateConfigVars(cfg: AnimateConfig): AnimateConfig {
+  const vars = cfg.vars ?? {};
+  if (Object.keys(vars).length === 0) return cfg;
+  const sub = (s: string): string =>
+    s.replace(/\$\$\{|\$\{([^}]*)\}/g, (match, name: string | undefined) => {
+      if (match === "$${") return "${";
+      if (name == null || !(name in vars)) throw new Error(`animate: unknown variable \${${name ?? ""}}`);
+      return vars[name];
+    });
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") return sub(v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v != null && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      // Don't interpolate into the `vars` map itself (no nested vars in v1).
+      for (const [k, val] of Object.entries(v)) out[k] = k === "vars" ? val : walk(val);
+      return out;
+    }
+    return v;
+  };
+  return walk(cfg) as AnimateConfig;
 }
 
 /**
