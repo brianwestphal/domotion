@@ -70,53 +70,66 @@ animate config (JSON):
   {
     "width":  800,
     "height": 400,
-    "output": "demo.svg",
-    "optimize": true,
+    "output": "demo.svg",                           // optional
+    "optimize": true,                               // optional
+    "mobile": false,                                // optional — emulate a mobile device
+    "colorScheme": "light",                         // optional — light | dark | no-preference
+    "vars": { "base": "http://localhost:4188" },    // optional — \${name} interpolation in any string field
+    "cursor": "auto",                               // optional — on-screen pointer (see Cursor below)
     "frames": [
       {
-        "input":      "./frames/start.html",        // or a URL
+        "input":      "./frames/start.html",        // URL or path; OPTIONAL after frame 0 (see Continuous session)
+        "continue":   false,                        // optional — keep the previous frame's live page (no reload)
         "duration":   1500,                         // ms held on screen
         "transition": { "type": "crossfade", "duration": 300 },
         "selector":   "body",                       // optional
-        "wait":       200,                          // optional ms
-        "waitFor":    ".ready",                     // optional CSS selector
-        "scrollTo":   [0, 0],                       // optional [x, y] — scroll to here BEFORE capture
-        "scroll":     {                             // optional — scroll-demo block (DM-612)
-          "pattern":  "down:bottom/8s",             //   pattern grammar (see docs)
-          "speed":    1500,                         //   optional default px/s
-          "selector": ".panel",                     //   optional inner-element to scroll
-          "prescroll": true                         //   optional, default true
-        },
-        "actions": [                                // optional, run before capture
-          { "type": "click",     "selector": ".btn" },
-          { "type": "fill",      "selector": "input", "value": "hi" },
-          { "type": "press",     "key": "Enter" },
-          { "type": "scroll",    "y": 200 },
-          { "type": "hover",     "selector": ".tooltip" },
-          { "type": "wait",      "ms": 300 }
-        ],
-        "overlays": [                               // see Overlay types
-          { "kind": "tap",    "x": 100, "y": 50 },
-          { "kind": "typing", "text": "Hello", "x": 20, "y": 40 }
-        ],
+        "wait":       200,                          // optional ms settle
+        "waitFor":    ".ready",                     // optional — wait for selector visible
+        "waitForText":  { "selector": ".count", "equals": "1" },  // optional (or "contains")
+        "waitForGone":  ".spinner",                 // optional — wait until removed / hidden
+        "waitForCount": { "selector": ".row", "atLeast": 3 },     // optional (equals | atLeast | atMost)
+        "scrollTo":   [0, 0],                       // optional — scroll BEFORE capture
+        "scroll":     { "pattern": "down:bottom/8s", "speed": 1500, "selector": ".panel", "prescroll": true },
+        "actions":    [ /* run in order, before capture — see Actions */ ],
+        "overlays":   [ /* see Overlays */ ],
         "animations": [                             // intra-frame motion
-          {
-            "selector": ".bar",                     // CSS selector in source HTML
-            "property": "transform",                // or width/height/opacity/translateX/translateY
-            "from": "scaleX(0)",
-            "to":   "scaleX(1)",
-            "duration": 2000,
-            "easing": "ease-out",                   // optional, default "linear"
-            "delay": 150                            // optional ms after frame start
-          }
+          { "selector": ".bar", "property": "width", "from": "0%", "to": "100%",
+            "duration": 2000, "easing": "ease-out", "delay": 150,
+            "repeat": "infinite", "alternate": true }             // optional — loop (blink / pulse / breathe)
         ]
       }
     ]
   }
 
-  Transition types: "crossfade" | "push-left" | "scroll" | "cut".
-                  ("cut" = instant; duration is ignored.)
-  Paths in "input" are resolved relative to the config file's directory.
+  Transitions: "crossfade" | "push-left" | "scroll" | "cut" ("cut" = instant).
+  Continuous session: frame 0 must load an "input"; a later frame that omits
+    "input" (or sets "continue": true) captures the live page after its own
+    actions instead of reloading — for multi-step interaction demos.
+
+  Actions (each runs in order before capture; all but scroll/press/wait/evaluate take a "selector"):
+    Interaction:  click | fill {value} | press {key} | hover | scroll {x,y} | wait {ms}
+                  scrollIntoView {block?,inline?} | dispatch {event,bubbles?} | focus | blur | selectText | clear
+    DOM mutation: setText {value} | setHtml {value} | remove | setAttribute {name,value} | removeAttribute {name}
+                  addClass|removeClass|toggleClass {class} | setStyle {props} | insert {position,html}
+                  setValue {value} | check {checked} | selectOption {value} | replaceText {pattern,replacement,flags?}
+    Escape hatch: evaluate {script}   // runs via page.evaluate — last resort, small snippets only
+
+  Overlays:
+    { "kind": "typing", "text", "x", "y", "caret": true, "maxWidth": "anchor", ... }
+    { "kind": "tap",    "x", "y" }
+    { "kind": "svg",    "src": "./x.svg", "x", "y", "width", "height", "enter": {...} }
+    { "kind": "blink",  "x", "y", "width", "height", "periodMs", "color", "radius" }   // a blinking dot/bar
+    Any overlay may set "anchor": { "selector", "at", "dx", "dy" } to position by an
+    element's bounding box instead of x/y (at = top-left | top | ... | center | ... | bottom-right).
+
+  Cursor (on-screen pointer):
+    "auto"  — a move + click-pulse follows each click / hover / fill action.
+    { "style": { "scale": 1.5 }, "events": [
+        { "frame": 2, "at": 1600, "type": "moveClick", "selector": ".cta" },
+        { "frame": 6, "at": 0,    "type": "hide" } ] }
+
+  All string fields resolve \${vars}. "input" / overlay "src" paths are relative
+  to the config file's directory.
 
 Examples:
   # Capture the front page of example.com at 1280×720.

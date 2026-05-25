@@ -59,7 +59,7 @@ For a multi-frame animated SVG, write a small JSON config and run `domotion anim
 domotion animate ./demo.json
 ```
 
-The config describes each frame (input URL or HTML file, duration, transition, optional pre-capture actions like `click` / `fill` / `scroll` / `hover`). See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
+The config describes each frame (input, duration, transition) plus a declarative surface for interaction demos: continuous-session frames that carry client-side state across steps (omit `input` / set `"continue": true`), DOM-mutation and interaction actions, richer readiness waits (`waitForText` / `waitForGone` / `waitForCount`), typing / tap / svg / blink overlays that can anchor to an element's box, an on-screen `cursor` (explicit or `"auto"`), `vars` + `${}` interpolation, and a small `evaluate` escape hatch. See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
 
 ### Scripting API
 
