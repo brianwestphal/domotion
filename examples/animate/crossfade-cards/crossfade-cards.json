@@ -1,0 +1,16 @@
+{
+  "width": 600,
+  "height": 360,
+  "frames": [
+    {
+      "input": "./card-a.html",
+      "duration": 1400,
+      "transition": { "type": "crossfade", "duration": 500 }
+    },
+    {
+      "input": "./card-b.html",
+      "duration": 1400,
+      "transition": { "type": "crossfade", "duration": 500 }
+    }
+  ]
+}

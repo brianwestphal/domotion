@@ -1,0 +1,27 @@
+{
+  "width": 700,
+  "height": 200,
+  "frames": [
+    {
+      "input": "./frame-1-prompt.html",
+      "duration": 1400,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "typing", "text": "npm install domotion-svg", "x": 34, "y": 67, "fontSize": 14, "color": "#c9d1d9", "speed": 55 }
+      ]
+    },
+    {
+      "input": "./frame-2-progress.html",
+      "duration": 2200,
+      "transition": { "type": "cut", "duration": 0 },
+      "animations": [
+        { "selector": ".bar-fill", "property": "width", "from": "0%", "to": "100%", "duration": 1800, "easing": "ease-out", "delay": 200 }
+      ]
+    },
+    {
+      "input": "./frame-3-done.html",
+      "duration": 2400,
+      "transition": { "type": "cut", "duration": 0 }
+    }
+  ]
+}

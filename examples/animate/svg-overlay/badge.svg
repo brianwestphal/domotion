@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 140" width="260" height="140">
+  <defs>
+    <linearGradient id="badgeFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10b981" />
+      <stop offset="1" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+  <rect id="badge-card" x="2" y="2" width="256" height="136" rx="18" fill="url(#badgeFill)" />
+  <circle cx="60" cy="70" r="26" fill="#ffffff" />
+  <path d="M48 70 l9 9 l16 -18" fill="none" stroke="#059669" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="100" y="64" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#ffffff">Deployed</text>
+  <text x="100" y="90" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#d1fae5">build #128 · 2.4s</text>
+</svg>

@@ -1447,7 +1447,15 @@ export const captureScript =
     || (parseFloat(rootCs.borderBottomWidth) || 0) > 0
     || (parseFloat(rootCs.borderLeftWidth) || 0) > 0;
   const rootBg = rootCs.backgroundColor;
-  const rootHasBg = rootBg != null && rootBg !== 'rgba(0, 0, 0, 0)' && rootBg !== 'transparent';
+  // DM-855: also capture the root when it carries a gradient/image background,
+  // not just a solid color. `backgroundColor` is `transparent` for a
+  // gradient-only <body>, so checking it alone made us skip capturing the root
+  // element and drop its background entirely. Treating a non-`none`
+  // `background-image` as "has background" captures the root as a normal
+  // element, routing its gradient through the existing element-gradient path.
+  const rootBgImage = rootCs.backgroundImage;
+  const rootHasBgImage = rootBgImage != null && rootBgImage !== 'none' && rootBgImage !== '';
+  const rootHasBg = (rootBg != null && rootBg !== 'rgba(0, 0, 0, 0)' && rootBg !== 'transparent') || rootHasBgImage;
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
   // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
   // Chrome paints it; we'd miss it if we only walked root.children (Element

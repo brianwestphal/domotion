@@ -1,0 +1,14 @@
+{
+  "width": 460,
+  "height": 600,
+  "frames": [
+    {
+      "input": "./feed.html",
+      "duration": 6000,
+      "scroll": {
+        "pattern": "down:bottom/6s",
+        "prescroll": false
+      }
+    }
+  ]
+}

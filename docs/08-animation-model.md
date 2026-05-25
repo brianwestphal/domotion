@@ -2,6 +2,8 @@
 
 The animation pipeline composes multiple captured frames into a single SVG with CSS keyframe transitions between frames, optional per-frame overlays, and (with this doc's additions) intra-frame property animations and SVG overlays.
 
+> **Runnable examples.** `examples/animate/` has one self-contained config per feature in this doc — crossfade, `cut` + typing overlay + intra-frame progress fill, `push-left`, a `scroll` block, and a `kind: "svg"` overlay — each with a committed golden SVG you can open. They double as a regression suite (`npm run demos:test:animate`). See `examples/animate/README.md`.
+
 ## Frame composition (existing behavior)
 
 A `generateAnimatedSvg` call takes a list of `AnimationFrame`s. Each frame has:
@@ -11,7 +13,11 @@ A `generateAnimatedSvg` call takes a list of `AnimationFrame`s. Each frame has:
 - `transition` — how this frame transitions to the next.
 - `overlays` — typing/tap effects layered on top during the frame's hold.
 
-The composer emits one `<svg>` document with a `<style>` block of `@keyframes` driving each frame's visibility timeline. All-crossfade sequences take the merged-fast-path (one element per visual identity, with per-element step-end opacity timelines); other sequences fall back to the per-frame-atomic path.
+The composer emits one `<svg>` document with a `<style>` block of `@keyframes` driving each frame's timeline. Routing by transition:
+
+- **crossfade** (and the default) **composites** — each frame is emitted as a complete, independently z-ordered `<g class="f f-N">` sub-SVG and the frames cross-dissolve via interpolated opacity. This is what a crossfade *is*: two fully-realized scenes fading into each other. It deliberately does **not** flatten the frames into one tree (doing so loses per-frame stacking — a later frame's full-bleed background could occlude its own foreground — and degrades the fade into a step-end switch).
+- **push-left / scroll** use the same per-frame `<g>` groups plus a transform timeline (`translateX` / `translateY`) so the outgoing frame slides off while the incoming one slides in.
+- **`cut`-only sequences with no overlays** take the **element-merge fast path** (`mergeFrames`): adjacent frames are diffed at the element level and each element is emitted once with a visibility timeline. This is the right tool for accumulating/typing-style demos where most content is shared and held still while new content snaps in — it dedupes the shared markup and avoids re-fading stable elements. (A future refinement can extend this element reconciliation to smooth scroll captures.)
 
 ## Out-of-frame paint suppression (DM-599)
 

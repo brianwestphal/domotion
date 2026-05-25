@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
 import {
   captureElementTree,
   clearEmbeddedFonts,
@@ -39,7 +39,7 @@ import {
   writeOutput,
 } from "./common.js";
 
-interface AnimateConfig {
+export interface AnimateConfig {
   width: number;
   height: number;
   output?: string;
@@ -138,13 +138,49 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   const log = makeLogger(values.quiet === true);
   log(`Launching Chromium…`);
   const browser = await launchChromium();
+  let svg: string;
   try {
-    const ctx = await browser.newContext({
-      viewport: { width: cfg.width, height: cfg.height },
-      isMobile: cfg.mobile === true,
-      ...(cfg.mobile === true ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
-      ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
-    });
+    svg = await composeAnimateConfig(browser, cfg, configDir, log);
+  } finally {
+    await browser.close();
+  }
+
+  // svgz is auto-detected from the output filename; implies --optimize
+  // unless --no-optimize was passed.
+  const outputArg = values.output ?? cfg.output;
+  const svgz = isSvgzPath(outputArg);
+  const optimize =
+    values.optimize === true ||
+    (cfg.optimize === true && values["no-optimize"] !== true) ||
+    (svgz && values["no-optimize"] !== true);
+  if (optimize) {
+    svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => Promise.resolve(optimizeSvg(svg)));
+  }
+
+  const outPath = resolveOutputPath(outputArg, configPath, ".svg");
+  writeOutput(svg, outPath, svgz, `, ${cfg.frames.length} frames`);
+}
+
+/**
+ * Capture and compose every frame in `cfg` into one animated SVG string
+ * (unoptimized). Shared by the `animate` CLI and the example-regression
+ * harness so both exercise the exact same capture→compose path. Creates one
+ * browser context (sized / emulated per `cfg`) and closes it before returning;
+ * the caller owns the `browser` lifecycle.
+ */
+export async function composeAnimateConfig(
+  browser: Browser,
+  cfg: AnimateConfig,
+  configDir: string,
+  log: (msg: string) => void,
+): Promise<string> {
+  const ctx = await browser.newContext({
+    viewport: { width: cfg.width, height: cfg.height },
+    isMobile: cfg.mobile === true,
+    ...(cfg.mobile === true ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+    ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
+  });
+  try {
     const page = await ctx.newPage();
     // DM-479: 90 s instead of Playwright's 30 s default.
     page.setDefaultTimeout(90_000);
@@ -280,25 +316,11 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     // DM-839: collect the embedded-font @font-face rules accumulated across all
     // frames once, for the animator's top-level <style>.
     const fontFaceCss = getEmbeddedFontFaceCss();
-    let svg = await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
+    return await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
       Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss })),
     );
-    // svgz is auto-detected from the output filename; implies --optimize
-    // unless --no-optimize was passed.
-    const outputArg = values.output ?? cfg.output;
-    const svgz = isSvgzPath(outputArg);
-    const optimize =
-      values.optimize === true ||
-      (cfg.optimize === true && values["no-optimize"] !== true) ||
-      (svgz && values["no-optimize"] !== true);
-    if (optimize) {
-      svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => Promise.resolve(optimizeSvg(svg)));
-    }
-
-    const outPath = resolveOutputPath(outputArg, configPath, ".svg");
-    writeOutput(svg, outPath, svgz, `, ${cfg.frames.length} frames`);
   } finally {
-    await browser.close();
+    await ctx.close();
   }
 }
 
@@ -322,7 +344,7 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function validateAnimateConfig(raw: unknown): AnimateConfig {
+export function validateAnimateConfig(raw: unknown): AnimateConfig {
   if (!isObject(raw)) throw new Error("animate: config must be an object");
   if (typeof raw.width !== "number" || typeof raw.height !== "number") {
     throw new Error("animate: config requires numeric width and height");

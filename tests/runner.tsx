@@ -48,15 +48,23 @@ export interface FeatureTest {
    * Typical relaxed value: 0.5 (% avg diff). Use sparingly.
    */
   relaxedDiffPct?: number;
+  /**
+   * DM-855: extra CSS appended to the wrapper page's `body` rule, letting a
+   * fixture exercise root/`<body>`-level styling (e.g. a gradient background on
+   * the captured root, which propagates to the canvas in Chromium). Appended
+   * after the default `background: #0d1117`, so it can override it.
+   */
+  bodyStyle?: string;
 }
 
 /** Wrapper page used to render the test fixture HTML for the "expected" PNG. */
-function FixturePage({ body }: { body: string }) {
+function FixturePage({ body, bodyStyle }: { body: string; bodyStyle?: string }) {
   return (
     <html>
       <head>
         <meta charset="utf-8" />
-        <style>{raw(`* { margin: 0; padding: 0; box-sizing: border-box; } body { background: #0d1117; overflow: hidden; }`)}</style>
+        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- bodyStyle is a fixture literal from tests/features.ts; no untrusted input */}
+        <style>{raw(`* { margin: 0; padding: 0; box-sizing: border-box; } body { background: #0d1117; overflow: hidden; ${bodyStyle ?? ""} }`)}</style>
       </head>
       {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- fixture HTML literals from tests/features.ts; no untrusted input */}
       <body>{raw(body)}</body>
@@ -130,7 +138,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // screenshot, but a fixed 100ms is both wasteful when fonts are cached
   // and racy when they aren't. document.fonts.ready resolves exactly when
   // every active FontFace has loaded.
-  writeFileSync(htmlPath, renderDoc(<FixturePage body={test.html} />));
+  writeFileSync(htmlPath, renderDoc(<FixturePage body={test.html} bodyStyle={test.bodyStyle} />));
   await w.page.setViewportSize({ width, height });
   // DM-559: reset webfont registry + per-test font-url accumulator before
   // each test so a webfont registered for fixture A doesn't leak into

@@ -23,33 +23,41 @@ describe("animator", () => {
     expect(topDefs![0]).toContain(`id="g0"`);
   });
 
-  it("crossfade-only scenes route through the merge pipeline (no per-frame fv- groups)", () => {
-    // With the merge pipeline, an all-crossfade scene is reduced to a single
-    // element tree with per-element visibility timelines — NOT per-frame
-    // opacity groups. fv-N keyframes (the old model) should be absent;
-    // timeline classes (tN) should appear when frames differ.
+  it("crossfade transition composites full frames (per-frame opacity fade, not an element merge)", () => {
+    // A crossfade transition dissolves between two complete, independently
+    // z-ordered sub-SVGs. It must NOT flatten them into one deduped element
+    // tree — doing so loses per-frame stacking (a later frame's background can
+    // occlude its own foreground) and step-end-switches at the midpoint
+    // instead of fading. So a crossfade emits per-frame fv- groups with an
+    // interpolated opacity fade, and each frame's content survives intact —
+    // NOT the merge pipeline's tN timeline classes.
     const svg = generateAnimatedSvg({
       width: 100,
       height: 100,
       frames: [
         { svgContent: `<rect fill="red" width="50" height="50"/>`, duration: 1000, transition: { type: "crossfade", duration: 200 } },
-        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000 },
+        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000, transition: { type: "crossfade", duration: 200 } },
       ],
     });
-    expect(svg).not.toMatch(/@keyframes fv-/);
-    expect(svg).toMatch(/@keyframes t\d+/);
+    expect(svg).toMatch(/@keyframes fv-/);
+    expect(svg).not.toMatch(/@keyframes t\d+/);
+    expect(svg).toContain(`<rect fill="red" width="50" height="50"/>`);
+    expect(svg).toContain(`<rect fill="blue" width="50" height="50"/>`);
     expect(svg).toContain("--scene-dur");
   });
 
-  it("crossfade: identical content across frames is rendered once", () => {
+  it("cut: identical content across frames is rendered once (element-merge dedup)", () => {
     // Regression test for SK-662 — stable elements should not be re-drawn per
-    // frame. Two frames with the same <rect> should produce exactly one <rect>.
+    // frame. The element-merge fast path (cut-only) collapses two frames with
+    // the same <rect> into exactly one <rect>. Crossfade intentionally no
+    // longer merges (it composites — see the crossfade test above), so this
+    // dedup guarantee now lives on the cut path.
     const svg = generateAnimatedSvg({
       width: 100,
       height: 100,
       frames: [
-        { svgContent: `<rect width="50" height="50" fill="green"/>`, duration: 500, transition: { type: "crossfade", duration: 100 } },
-        { svgContent: `<rect width="50" height="50" fill="green"/>`, duration: 500 },
+        { svgContent: `<rect width="50" height="50" fill="green"/>`, duration: 500, transition: { type: "cut", duration: 0 } },
+        { svgContent: `<rect width="50" height="50" fill="green"/>`, duration: 500, transition: { type: "cut", duration: 0 } },
       ],
     });
     expect((svg.match(/<rect width="50" height="50" fill="green"\/>/g) ?? []).length).toBe(1);
@@ -242,14 +250,14 @@ describe("animator", () => {
   });
 
   it("DM-599/DM-641: merged-path keyframes emit visibility alongside opacity", () => {
-    // Two crossfade frames with different content route through the merge
+    // Two cut frames with different content route through the element-merge
     // pipeline. Per-element visibility classes (tN) now toggle BOTH opacity
     // and visibility so the browser can skip painting hidden elements.
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
         { svgContent: `<rect fill="red" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
-        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000 },
+        { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
       ],
     });
     // Each tN keyframe stop with opacity:1 also has visibility:visible; each

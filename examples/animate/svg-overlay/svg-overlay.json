@@ -1,0 +1,21 @@
+{
+  "width": 600,
+  "height": 360,
+  "frames": [
+    {
+      "input": "./base.html",
+      "duration": 2600,
+      "overlays": [
+        {
+          "kind": "svg",
+          "src": "./badge.svg",
+          "x": 170,
+          "y": 150,
+          "width": 260,
+          "height": 140,
+          "enter": { "from": "bottom", "duration": 600, "easing": "ease-out", "delay": 500 }
+        }
+      ]
+    }
+  ]
+}

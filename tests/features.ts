@@ -433,6 +433,19 @@ const tests: FeatureTest[] = [
 
   // ── Regression: CSS gradients translated to SVG linear/radial gradients (SK-432) ──
   {
+    // DM-855: a gradient applied directly to the captured root (<body>) must be
+    // emitted, not dropped. Previously the root was only captured-as-an-element
+    // when it had a solid background-color, so a gradient-only body (whose
+    // backgroundColor is `transparent`) fell through and lost its background —
+    // rendering as white-on-nothing. The 100vh child makes the body fill the
+    // viewport so its captured box matches Chromium's background propagation.
+    name: "root-gradient-background",
+    bodyStyle: "background: linear-gradient(135deg, #1e3a8a, #2563eb);",
+    html: `<div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: #ffffff; font-family: -apple-system, sans-serif; font-size: 24px; font-weight: 700;">Root gradient</div>`,
+    width: 320,
+    height: 200,
+  },
+  {
     name: "gradient-linear",
     html: `<div style="padding: 12px; display: flex; gap: 8px;">
       <div style="width: 80px; height: 80px; background: linear-gradient(#dc2626, #58a6ff);"></div>

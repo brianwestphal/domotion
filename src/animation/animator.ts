@@ -210,15 +210,19 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     }
   }
 
-  // Fast path: if every transition is crossfade (or default) or `cut`, merge
-  // all frames into a single de-duplicated tree with per-element visibility
-  // timelines. `cut` is just `crossfade` with duration 0 — same merge logic
-  // applies; it ends up as step-end keyframes flipping at exact frame
-  // boundaries.
-  const allMergeable = frames.every((f) => {
-    const type = f.transition?.type;
-    return type == null || type === "crossfade" || type === "cut";
-  });
+  // Element-merge fast path — ONLY for `cut`-only sequences. mergeFrames diffs
+  // adjacent frames at the element level and emits each element once with a
+  // visibility timeline; that's the right tool for accumulating/typing-style
+  // demos where most content is shared and held still while new content snaps
+  // in at a cut. It is the WRONG tool for a crossfade *transition*: a crossfade
+  // composites two complete, independently z-ordered sub-SVGs and dissolves
+  // between them by opacity. Flattening both frames into one deduped tree
+  // (a) loses per-frame stacking — a later frame's full-bleed background can
+  // land in front of its own text — and (b) emits a step-end switch at the
+  // midpoint instead of an actual fade. So crossfade (and the default, which
+  // is crossfade) falls through to the compositing path below; only an
+  // explicit all-`cut` sequence merges.
+  const allMergeable = frames.every((f) => f.transition?.type === "cut");
 
   const anyOverlays = frames.some((f) => f.overlays != null && f.overlays.length > 0);
   if (allMergeable && frames.length > 1 && !anyOverlays) {
@@ -268,15 +272,15 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       keyframes.push(`
     @keyframes fp-${i} {
       0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { transform: translateX(${entersViaPush ? width : 0}px); }
-      ${startPct}% { transform: translateX(0); }
-      ${holdEndPct}% { transform: translateX(0); }
-      ${transEndPct}% { transform: translateX(-${width}px); }
+      ${startPct} { transform: translateX(0); }
+      ${holdEndPct} { transform: translateX(0); }
+      ${transEndPct} { transform: translateX(-${width}px); }
       ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { transform: translateX(-${width}px); }
     }
     @keyframes fv-${i} {
       0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { opacity: 0; }
-      ${enterStartPct}% { opacity: 1; }
-      ${transEndPct}% { opacity: 1; }
+      ${enterStartPct} { opacity: 1; }
+      ${transEndPct} { opacity: 1; }
       ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { opacity: 0; }
     }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
@@ -300,15 +304,15 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       keyframes.push(`
     @keyframes fp-${i} {
       0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { transform: translateY(${entersViaScroll ? height : 0}px); }
-      ${startPct}% { transform: translateY(0); }
-      ${holdEndPct}% { transform: translateY(0); }
-      ${transEndPct}% { transform: translateY(-${height}px); }
+      ${startPct} { transform: translateY(0); }
+      ${holdEndPct} { transform: translateY(0); }
+      ${transEndPct} { transform: translateY(-${height}px); }
       ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { transform: translateY(-${height}px); }
     }
     @keyframes fv-${i} {
       0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { opacity: 0; }
-      ${enterStartPct}% { opacity: 1; }
-      ${transEndPct}% { opacity: 1; }
+      ${enterStartPct} { opacity: 1; }
+      ${transEndPct} { opacity: 1; }
       ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { opacity: 0; }
     }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }

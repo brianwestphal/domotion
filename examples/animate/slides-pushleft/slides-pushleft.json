@@ -1,0 +1,21 @@
+{
+  "width": 640,
+  "height": 360,
+  "frames": [
+    {
+      "input": "./slide-1.html",
+      "duration": 1500,
+      "transition": { "type": "push-left", "duration": 450 }
+    },
+    {
+      "input": "./slide-2.html",
+      "duration": 1500,
+      "transition": { "type": "push-left", "duration": 450 }
+    },
+    {
+      "input": "./slide-3.html",
+      "duration": 1500,
+      "transition": { "type": "push-left", "duration": 450 }
+    }
+  ]
+}
