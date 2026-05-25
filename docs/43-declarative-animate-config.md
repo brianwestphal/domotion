@@ -70,7 +70,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 
 **Replaces.** The "replay all prior actions every frame" workaround, and the inability to capture client-only states — both otherwise force the programmatic API.
 
-**Caveat (current).** Continued frames are structurally near-identical (the same DOM, evolved), which the element-merge fast path used for `cut`-only sequences currently mishandles — overlapping text variants and dropped elements. Until that's fixed, use a **`crossfade`** transition between continued frames (it composites each frame as a complete sub-SVG and renders correctly); a small `duration` reads almost like a cut. This is a limitation of the merge path, not of continuous-session capture itself (the per-frame captures are correct).
+**Rendering note.** Continued frames are structurally near-identical (the same DOM, evolved). The old element-merge fast path mishandled that (overlapping text, dropped elements), so it was removed — every sequence now composites each frame as a complete sub-SVG, which renders continued frames correctly under either `cut` or `crossfade`. `cut` ("the page just updated") is the natural transition between interaction steps.
 
 **Open questions.** (a) Spelling: support both `continue: true` *and* "omit `input`", or pick one? (Recommend: omitting `input` implies continue; `continue: true` is the explicit, self-documenting form — accept both, they mean the same.) (b) Do we ever want an explicit `reload` step within a session? (Defer.)
 

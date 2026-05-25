@@ -21,17 +21,18 @@ The composer emits one `<svg>` document with a `<style>` block of `@keyframes` d
 
 - **crossfade** (and the default) **composites** — each frame is emitted as a complete, independently z-ordered `<g class="f f-N">` sub-SVG and the frames cross-dissolve via interpolated opacity. This is what a crossfade *is*: two fully-realized scenes fading into each other. It deliberately does **not** flatten the frames into one tree (doing so loses per-frame stacking — a later frame's full-bleed background could occlude its own foreground — and degrades the fade into a step-end switch).
 - **push-left / scroll** use the same per-frame `<g>` groups plus a transform timeline (`translateX` / `translateY`) so the outgoing frame slides off while the incoming one slides in.
-- **`cut`-only sequences with no overlays** take the **element-merge fast path** (`mergeFrames`): adjacent frames are diffed at the element level and each element is emitted once with a visibility timeline. This is the right tool for accumulating/typing-style demos where most content is shared and held still while new content snaps in — it dedupes the shared markup and avoids re-fading stable elements. (A future refinement can extend this element reconciliation to smooth scroll captures.)
+- **cut** composites the same way, with a step-end `fv-${i}` opacity timeline so frames swap instantly (no fade). It does **not** merge.
+
+> **History.** There used to be an element-merge fast path (`mergeFrames`) that flattened cut/crossfade sequences into one de-duplicated tree to save bytes. It was removed: DM-854 (it dropped per-frame z-order and step-end-switched crossfades instead of fading) and DM-865 (it mis-rendered *near-identical* frames — the same DOM evolved, as continuous-session capture produces — because differing text in a shared element slot can't be gated per frame). Recovering the size win as `<defs>`/symbol-level glyph sharing across intact frame groups (which preserves each frame's layout) is future work. `mergeFrames` still lives in `src/tree-ops/frame-merge.ts` with its own unit tests, but the animator no longer calls it.
 
 ## Out-of-frame paint suppression (DM-599)
 
 Frames not currently in their show window are dropped from paint via `display: none` keyframes that run in parallel with the existing opacity timeline. Always-on; no opt-in required.
 
-- **Unmerged path (push-left, scroll, mixed)**: each frame `i` gets a paired `fd-${i}` keyframes block that toggles `display` between `inline` and `none` at the visibility boundaries, applied to `.f-${i}` alongside the `fv-${i}` opacity animation. The `fd-${i}` animation always uses `step-end` timing so the `display` flip is instant, regardless of how `fv-${i}` is timed (linear for crossfade tails, step-end for cut). For `cut` frames the optimization is folded directly into `fv-${i}` since both properties already snap together. The base `.f { display: none; }` rule means frames start hidden until the keyframe flips them in.
-- **Merged path (crossfade-only and cut-only)**: `buildTimelineKeyframes` in `src/frame-merge.ts` emits `display: none|inline` alongside `opacity: 0|1` at every stop. Always-visible elements (no animation class) are unaffected.
+- Each frame `i` gets a paired `fd-${i}` keyframes block that toggles `visibility` between `visible` and `hidden` at the visibility boundaries, applied to `.f-${i}` alongside the `fv-${i}` opacity animation. The `fd-${i}` animation always uses `step-end` timing so the flip is instant, regardless of how `fv-${i}` is timed (linear for crossfade tails, step-end for cut). For `cut` frames the toggle is folded directly into `fv-${i}` since both properties already snap together. The base `.f { display: none; }` rule means frames start hidden until the keyframe flips them in. (DM-641: the parallel toggle moved from `display` to `visibility` — animating away from a `display: none` start never ticks in Chromium.)
 - **Scroll fade tail**: the visible window is extended through the 200 ms fade-out tail (`fadeEndPct`, not `transEndPct`) so the element stays `display: inline` while `opacity` interpolates from 1 to 0 — otherwise the discrete snap of `display: none` at 50% of the fade segment would visually clip the tail.
 
-The CSS spec interpolates discrete properties like `display` by snapping at 50% of a segment by default. We sidestep that by either using `step-end` timing on the parallel `fd-${i}` animation (frame path) or by placing the on/off pair 0.001 % apart with `step-end` timing on the timeline animation (merged path) — both yield instant flips at the desired boundary.
+The CSS spec interpolates discrete properties by snapping at 50% of a segment by default. We sidestep that with `step-end` timing on the parallel `fd-${i}` animation, which yields an instant flip at the desired boundary.
 
 **What this doesn't cover yet** (tracked separately):
 - **Element-level intersection inside a frame's hold time** (long-scroll captures where most rows are off-viewBox at any instant). Requires per-element bbox analysis at SVG-string composition time.
@@ -41,10 +42,10 @@ The CSS spec interpolates discrete properties like `display` by snapping at 50% 
 
 | Type | Behavior | Path |
 |---|---|---|
-| `crossfade` | Outgoing fades out while incoming fades in (windows overlap). | Merged fast path when all frames use it. |
-| `push-left` | Outgoing slides off to the left, incoming slides in from the right. | Per-frame atomic. |
-| `scroll` | Vertical scroll between frames; both stay visible during the transition. | Per-frame atomic. |
-| `cut` | **New (DM-208).** Instant — no fade, no slide. `duration` ignored. | Merged fast path (subset of `crossfade` with `duration: 0`). |
+| `crossfade` | Outgoing fades out while incoming fades in (windows overlap). | Composited (per-frame `<g class="f f-N">`). |
+| `push-left` | Outgoing slides off to the left, incoming slides in from the right. | Composited + transform. |
+| `scroll` | Vertical scroll between frames; both stay visible during the transition. | Composited + transform. |
+| `cut` | **New (DM-208).** Instant — no fade, no slide. `duration` ignored. | Composited (step-end `fv-N`). |
 
 `cut` is the right pick for any case where adjacent frames represent "the page was just updated" rather than "we're transitioning between two screens" — e.g. progress-bar resizing, a new line appearing in a terminal, a panel toggling. It's also cleaner than the 0-duration-crossfade hack we currently use in the install-demo.
 
@@ -91,7 +92,7 @@ Per-frame `animations` array:
 
 - `width` / `height` animations work for elements with explicit `width` / `height` declared in the source HTML. CSS-percentage values stay percentages; px values stay px.
 - `transform` animations always go through `transform: <from>` → `transform: <to>` and stack with any captured `transform` on the element via a wrapper `<g>`.
-- `clipPath` animations are the cleanest way to do a typing-style left-to-right reveal of captured text: tag the element with `data-domotion-anim="<id>"` in two consecutive frames, then animate `clipPath` from `inset(0 100% 0 0)` to `inset(0 0 0 0)` on the first frame. Because both frames render the same captured glyph paths (the merge fast-path dedupes them), there's no visual shift between the "typing" reveal and the "after typing" hold — they're literally the same paths under different clip windows. Prefer this over the procedural `kind: "typing"` overlay when the typed text needs to align pixel-perfect with subsequent captured frames.
+- `clipPath` animations are the cleanest way to do a typing-style left-to-right reveal of captured text: tag the element with `data-domotion-anim="<id>"` in two consecutive frames, then animate `clipPath` from `inset(0 100% 0 0)` to `inset(0 0 0 0)` on the first frame. Because both frames render the same captured glyph paths at the same positions, there's no visual shift between the "typing" reveal and the "after typing" hold — they're literally the same paths under different clip windows. Prefer this over the procedural `kind: "typing"` overlay when the typed text needs to align pixel-perfect with subsequent captured frames.
 
 ## Frame-local SVG overlays (DM-210)
 

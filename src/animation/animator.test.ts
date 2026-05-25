@@ -46,12 +46,12 @@ describe("animator", () => {
     expect(svg).toContain("--scene-dur");
   });
 
-  it("cut: identical content across frames is rendered once (element-merge dedup)", () => {
-    // Regression test for SK-662 — stable elements should not be re-drawn per
-    // frame. The element-merge fast path (cut-only) collapses two frames with
-    // the same <rect> into exactly one <rect>. Crossfade intentionally no
-    // longer merges (it composites — see the crossfade test above), so this
-    // dedup guarantee now lives on the cut path.
+  it("cut: composites each frame as a complete sub-SVG (DM-865 — no element merge)", () => {
+    // DM-865: the element-merge fast path is gone — cut composites each frame
+    // like crossfade. So identical content across frames is emitted once PER
+    // frame (not deduped into one), gated by per-frame fv-N opacity. The merge
+    // mis-rendered near-identical (continuous-session) frames; compositing
+    // keeps each frame's layout intact.
     const svg = generateAnimatedSvg({
       width: 100,
       height: 100,
@@ -60,7 +60,9 @@ describe("animator", () => {
         { svgContent: `<rect width="50" height="50" fill="green"/>`, duration: 500, transition: { type: "cut", duration: 0 } },
       ],
     });
-    expect((svg.match(/<rect width="50" height="50" fill="green"\/>/g) ?? []).length).toBe(1);
+    expect((svg.match(/<rect width="50" height="50" fill="green"\/>/g) ?? []).length).toBe(2);
+    expect(svg).toMatch(/@keyframes fv-/);
+    expect(svg).not.toMatch(/@keyframes t\d+\s*{/);
   });
 
   it("DM-609: scroll transition is now a vertical push (translateY), not opacity-only", () => {
@@ -121,7 +123,7 @@ describe("animator", () => {
     expect(aDur).toBe(bDur);
   });
 
-  it("cut transition: routes through the merge fast path (no fv-N groups)", () => {
+  it("cut transition: composites with per-frame fv-N groups (DM-865 — no element merge)", () => {
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
@@ -130,8 +132,9 @@ describe("animator", () => {
         { svgContent: `<rect fill="green" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
       ],
     });
-    expect(svg).not.toMatch(/@keyframes fv-/);
-    expect(svg).toMatch(/@keyframes t\d+/);
+    expect(svg).toMatch(/@keyframes fv-/);
+    expect(svg).not.toMatch(/@keyframes t\d+\s*{/);
+    expect((svg.match(/class="f f-\d+"/g) ?? []).length).toBe(3);
     // 3 frames × 1000ms hold + 3 × 0ms cut transitions = 3000ms total.
     expect(svg).toMatch(/--scene-dur:\s*3\.00s/);
   });
@@ -249,10 +252,10 @@ describe("animator", () => {
     expect(svg).not.toMatch(/@keyframes fd-1\s*{/);
   });
 
-  it("DM-599/DM-641: merged-path keyframes emit visibility alongside opacity", () => {
-    // Two cut frames with different content route through the element-merge
-    // pipeline. Per-element visibility classes (tN) now toggle BOTH opacity
-    // and visibility so the browser can skip painting hidden elements.
+  it("DM-599/DM-641: cut fv-N keyframes emit visibility alongside opacity", () => {
+    // Cut composites (DM-865); its fv-N keyframes flip BOTH opacity and
+    // visibility at the frame boundary (step-end) so the browser can skip
+    // painting a frame that's off screen.
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
@@ -260,12 +263,10 @@ describe("animator", () => {
         { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
       ],
     });
-    // Each tN keyframe stop with opacity:1 also has visibility:visible; each
-    // opacity:0 stop has visibility:hidden.
-    const tN = svg.match(/@keyframes t\d+\s*{[\s\S]*?\n\s*}/);
-    expect(tN).not.toBeNull();
-    expect(tN![0]).toMatch(/opacity:\s*1;\s*visibility:\s*visible/);
-    expect(tN![0]).toMatch(/opacity:\s*0;\s*visibility:\s*hidden/);
+    const fv = svg.match(/@keyframes fv-\d+\s*{[\s\S]*?\n\s*}/);
+    expect(fv).not.toBeNull();
+    expect(fv![0]).toMatch(/opacity:\s*1;\s*visibility:\s*visible/);
+    expect(fv![0]).toMatch(/opacity:\s*0;\s*visibility:\s*hidden/);
   });
 
   it("DM-641: never emits `display: none` keyframes (would park Chromium's animation engine)", () => {

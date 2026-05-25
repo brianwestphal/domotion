@@ -1092,7 +1092,7 @@ function renderListbox(el: CapturedElement, indent: string): string {
     const fontWeightAttr = o.isOptgroupLabel ? ` font-weight="bold"` : "";
     const opacityAttr = o.disabled ? ` opacity="0.5"` : "";
     const escaped = o.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily}" fill="${color}"${fontStyleAttr}${fontWeightAttr}${opacityAttr}>${escaped}</text>`);
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}"${fontStyleAttr}${fontWeightAttr}${opacityAttr}>${escaped}</text>`);
   }
   return parts.join("\n");
 }
@@ -1121,7 +1121,7 @@ function renderSelectChevron(el: CapturedElement, indent: string, defCtx?: DefCt
     const tx = el.x + bwL + padL;
     const ty = el.y + el.height / 2 + fontSize * 0.35;
     const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily}" font-weight="${fontWeight}" fill="${color}">${escaped}</text>`);
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}">${escaped}</text>`);
   }
   // Chromium macOS default: small down-chevron near the right edge. Skip
   // when the page set appearance: none — the chevron is the page's

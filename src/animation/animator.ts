@@ -5,7 +5,6 @@
  * animated SVG with CSS keyframe transitions.
  */
 
-import { mergeFrames } from "../tree-ops/frame-merge.js";
 import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 
 export interface AnimationFrame {
@@ -210,25 +209,20 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     }
   }
 
-  // Element-merge fast path — ONLY for `cut`-only sequences. mergeFrames diffs
-  // adjacent frames at the element level and emits each element once with a
-  // visibility timeline; that's the right tool for accumulating/typing-style
-  // demos where most content is shared and held still while new content snaps
-  // in at a cut. It is the WRONG tool for a crossfade *transition*: a crossfade
-  // composites two complete, independently z-ordered sub-SVGs and dissolves
-  // between them by opacity. Flattening both frames into one deduped tree
-  // (a) loses per-frame stacking — a later frame's full-bleed background can
-  // land in front of its own text — and (b) emits a step-end switch at the
-  // midpoint instead of an actual fade. So crossfade (and the default, which
-  // is crossfade) falls through to the compositing path below; only an
-  // explicit all-`cut` sequence merges.
-  const allMergeable = frames.every((f) => f.transition?.type === "cut");
-
-  const anyOverlays = frames.some((f) => f.overlays != null && f.overlays.length > 0);
-  if (allMergeable && frames.length > 1 && !anyOverlays) {
-    return composeMergedSvg(config, frameTiming, totalSec);
-  }
-
+  // Every sequence composites: each frame is emitted as a complete, internally
+  // z-ordered `<g class="f f-N">` sub-SVG and switched/faded by opacity.
+  //
+  // There used to be an element-merge fast path (`mergeFrames`) for cut-only
+  // sequences that flattened all frames into one de-duplicated tree to save
+  // bytes. DM-854 took crossfade off it (it dropped per-frame z-order and
+  // step-end-switched instead of fading); DM-865 then showed it also mis-renders
+  // *near-identical* frames — the same DOM evolved across frames, as produced by
+  // continuous-session capture — because differing text in a shared element slot
+  // can't be gated per frame (a bare text node carries no class, and a `<tspan>`
+  // with `visibility:hidden` still advances layout, shifting the surviving
+  // glyph). Compositing has neither problem. The dedup size win can be recovered
+  // later as `<defs>`/symbol-level glyph sharing across intact frame groups,
+  // which preserves each frame's layout (tracked with DM-854/DM-865).
   const frameGroups: string[] = [];
   const keyframes: string[] = [];
   let timeOffset = 0;
@@ -728,60 +722,6 @@ function offsetForDirection(dir: "top" | "bottom" | "left" | "right", w: number,
   if (dir === "bottom") return `translate(0, ${h}px)`;
   if (dir === "left")   return `translate(-${w}px, 0)`;
   return `translate(${w}px, 0)`; // right
-}
-
-/**
- * Compose the animated SVG using the frame-merge pipeline. Every element in
- * every frame is reduced to one render with a visibility timeline. Stable
- * elements (prompt, background, typed characters that stay on screen) emit
- * once with opacity: 1 throughout; changing elements get step-end keyframes
- * that flip their opacity at the appropriate frame boundaries.
- */
-function composeMergedSvg(
-  config: AnimationConfig,
-  frameTiming: { startPct: number[]; holdEndPct: number[]; transEndPct: number[] },
-  totalSec: number,
-): string {
-  const { width, height, frames } = config;
-  const framesSvg = frames.map((f) => f.svgContent);
-  const { css, merged } = mergeFrames(framesSvg, frameTiming, "t");
-  const sharedDefsMarkup = config.sharedDefs ?? "";
-  const animationCss = buildIntraFrameAnimationCss(frames, frameTiming, totalSec);
-  // DM-603: viewBox-cull keyframes from each frame's pre-pass (see unmerged path).
-  const cullCss = frames.map((f) => f.cullCss ?? "").filter((s) => s !== "").join("\n");
-  // Cursor overlay (DM-277). Same emission as the unmerged path — the
-  // overlay sits above the merged frame group, clipped to the viewport.
-  const totalDuration = totalSec * 1000;
-  let overlayMarkup = "";
-  if (config.cursorOverlay != null && config.cursorOverlay.events.length > 0) {
-    const frameStarts: number[] = [];
-    let acc = 0;
-    for (const f of frames) {
-      frameStarts.push(acc);
-      acc += f.duration + transitionDuration(f);
-    }
-    const resolved = resolveCursorScript(
-      config.cursorOverlay,
-      totalDuration,
-      frameStarts,
-      config.resolveSelector ?? null,
-    );
-    overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration);
-  }
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
-  <defs>
-    <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}
-  </defs>
-  <style>
-${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss + "\n" : ""}    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
-${css}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
-  </style>
-  <g clip-path="url(#viewport-clip)">
-  <rect width="${width}" height="${height}" fill="#0d1117" />
-${merged}${overlayMarkup}
-  </g>
-</svg>`;
 }
 
 /**
