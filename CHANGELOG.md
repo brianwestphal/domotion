@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.4.2] - 2026-05-25
+
+
+- Typing-overlay text now wraps to the box width like a real textarea
+
 ## [0.4.1] - 2026-05-25
 
 
