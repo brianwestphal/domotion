@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __resolveFontSpecForTest, clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isTextToPathAvailable, linuxFallbackChain, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
+import { __resolveFontSpecForTest, clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -514,6 +514,54 @@ describe("fallbackFontChain: platform dispatch (DM-842)", () => {
       ? linuxFallbackChain(0x2500, "courier")
       : darwinFallbackChain(0x2500, "courier");
     expect(fallbackFontChain(0x2500, "courier")).toEqual(expected);
+  });
+});
+
+// Mathematical Alphanumeric Symbols (U+1D400–1D7FF) decomposition. On Linux
+// the system math faces lack the U+1D4xx block entirely, so Chromium paints
+// these by synthesizing from the base Latin/Greek letter; mathAlphaToBase
+// reverses the capture's mathvariant mapping so the renderer can do the same.
+// Pure mapping — host-platform-independent.
+describe("mathAlphaToBase: Math-Alphanumeric decomposition (DM-838)", () => {
+  it("decomposes the Latin italic block (the capture's <mi> mapping)", () => {
+    expect(mathAlphaToBase(0x1d434)).toEqual({ base: 0x41, bold: false, italic: true }); // 𝐴 → A
+    expect(mathAlphaToBase(0x1d44e)).toEqual({ base: 0x61, bold: false, italic: true }); // 𝑎 → a
+    expect(mathAlphaToBase(0x1d467)).toEqual({ base: 0x7a, bold: false, italic: true }); // 𝑧 → z
+    // The italic small-h slot is unassigned; the capture emits U+210E (ℎ).
+    expect(mathAlphaToBase(0x210e)).toEqual({ base: 0x68, bold: false, italic: true });  // ℎ → h
+  });
+
+  it("decomposes the Greek italic block including nabla and symbol variants", () => {
+    expect(mathAlphaToBase(0x1d6e2)).toEqual({ base: 0x391, bold: false, italic: true });  // 𝛢 → Α
+    expect(mathAlphaToBase(0x1d6fc)).toEqual({ base: 0x3b1, bold: false, italic: true });  // 𝛼 → α
+    expect(mathAlphaToBase(0x1d714)).toEqual({ base: 0x3c9, bold: false, italic: true });  // 𝜔 → ω
+    expect(mathAlphaToBase(0x1d6fb)).toEqual({ base: 0x2207, bold: false, italic: true }); // 𝛻 → ∇
+    expect(mathAlphaToBase(0x1d715)).toEqual({ base: 0x2202, bold: false, italic: true }); // 𝜕 → ∂
+    expect(mathAlphaToBase(0x1d716)).toEqual({ base: 0x3f5, bold: false, italic: true });  // 𝜖 → ϵ
+    expect(mathAlphaToBase(0x1d71b)).toEqual({ base: 0x3d6, bold: false, italic: true });  // 𝜛 → ϖ
+  });
+
+  it("carries the bold / bold-italic / sans-serif style toggles", () => {
+    expect(mathAlphaToBase(0x1d400)).toEqual({ base: 0x41, bold: true,  italic: false }); // 𝐀 bold A
+    expect(mathAlphaToBase(0x1d468)).toEqual({ base: 0x41, bold: true,  italic: true });  // 𝑨 bold-italic A
+    expect(mathAlphaToBase(0x1d5a0)).toEqual({ base: 0x41, bold: false, italic: false }); // 𝖠 sans A
+    expect(mathAlphaToBase(0x1d622)).toEqual({ base: 0x61, bold: false, italic: true });  // 𝘢 sans italic a
+    expect(mathAlphaToBase(0x1d670)).toEqual({ base: 0x41, bold: false, italic: false }); // 𝙰 mono A
+  });
+
+  it("decomposes the bold / sans digit blocks", () => {
+    expect(mathAlphaToBase(0x1d7ce)).toEqual({ base: 0x30, bold: true,  italic: false }); // 𝟎 bold 0
+    expect(mathAlphaToBase(0x1d7ff)).toEqual({ base: 0x39, bold: false, italic: false }); // 𝟿 mono 9
+    expect(mathAlphaToBase(0x1d7e2)).toEqual({ base: 0x30, bold: false, italic: false }); // 𝟢 sans 0
+  });
+
+  it("returns null for the script/fraktur/double-struck styles and non-math codepoints", () => {
+    expect(mathAlphaToBase(0x1d49c)).toBeNull(); // 𝒜 script A — distinct typeface, not synthesizable
+    expect(mathAlphaToBase(0x1d504)).toBeNull(); // 𝔄 fraktur A
+    expect(mathAlphaToBase(0x1d538)).toBeNull(); // 𝔸 double-struck A
+    expect(mathAlphaToBase(0x1d7d8)).toBeNull(); // 𝟘 double-struck digit 0
+    expect(mathAlphaToBase(0x0061)).toBeNull();  // plain 'a'
+    expect(mathAlphaToBase(0x1d800)).toBeNull(); // just past the block
   });
 });
 

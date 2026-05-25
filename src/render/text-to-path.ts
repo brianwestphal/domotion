@@ -686,6 +686,20 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   // FreeFont — Chromium's per-script fallback in this image for several blocks.
   "free-sans":       { fcMatch: "FreeSans", path: `${FREEFONT}/FreeSans.ttf` },
   "free-serif":      { fcMatch: "FreeSerif", path: `${FREEFONT}/FreeSerif.ttf` },
+  // FreeFont bold / oblique siblings. Used by the Math-Alphanumeric
+  // decomposition fallback (mathAlphaToBase): Chromium-on-Linux paints
+  // 𝑎/𝛼/𝐀 by synthesizing from the base Latin/Greek letters in the
+  // already-italic FreeSansOblique face (FreeSans's cmap has no U+1D4xx),
+  // so when a Math-Alpha codepoint resolves to .notdef across the chain we
+  // render the base letter in the matching weight/slant FreeFont file. The
+  // distinct key disambiguates the glyph-dedup cache from the upright face.
+  // (FreeSans names its slanted face "Oblique"; FreeSerif names it "Italic".)
+  "free-sans-bold":         { fcMatch: "FreeSans:bold", path: `${FREEFONT}/FreeSansBold.ttf` },
+  "free-sans-italic":       { fcMatch: "FreeSans:italic", path: `${FREEFONT}/FreeSansOblique.ttf` },
+  "free-sans-bold-italic":  { fcMatch: "FreeSans:bold:italic", path: `${FREEFONT}/FreeSansBoldOblique.ttf` },
+  "free-serif-bold":        { fcMatch: "FreeSerif:bold", path: `${FREEFONT}/FreeSerifBold.ttf` },
+  "free-serif-italic":      { fcMatch: "FreeSerif:italic", path: `${FREEFONT}/FreeSerifItalic.ttf` },
+  "free-serif-bold-italic": { fcMatch: "FreeSerif:bold:italic", path: `${FREEFONT}/FreeSerifBoldItalic.ttf` },
   // CJK — WenQuanYi Zen Hei (single weight; bold/serif map to the same face).
   // The macOS PingFang/Hiragino/Apple-SD logical keys all collapse here on
   // Linux. `hiragino-jp` → IPAGothic (what Chromium picks for lang=ja).
@@ -998,6 +1012,144 @@ export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?:
   // fonts (post-DM-258 status quo) until probed.
   if (process.platform === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
   return darwinFallbackChain(codepoint, primaryKey, lang);
+}
+
+/**
+ * Decompose a Mathematical Alphanumeric Symbols codepoint (U+1D400–U+1D7FF)
+ * into its base letter / digit plus the implied bold / italic style.
+ *
+ * Why: Chromium does NOT carry a dedicated glyph for every Math-Alpha
+ * codepoint on every platform. On the Linux Playwright image the system math
+ * faces (FreeSans / FreeSerif) have no U+1D4xx coverage at all — a probe
+ * confirmed `FreeSansOblique` lacks the entire block — so Chromium paints
+ * e.g. 𝑎 (U+1D44E) by synthesizing it from the *base* italic letter `a` in
+ * the already-oblique face. fontkit returns `.notdef` for the math codepoint
+ * for the same reason the cmap lacks it, so without this the renderer drops
+ * the glyph to a `<text>` element. When the whole fallback chain comes up
+ * empty for a Math-Alpha codepoint we map it back to its base char + style
+ * and render that base glyph in the matching weight / slant face — matching
+ * what Chromium actually painted. (macOS/Windows are unaffected: STIX Two
+ * Math / Cambria Math cover U+1D4xx, so the chain finds the glyph and this
+ * path never runs.)
+ *
+ * Covers the styles that reduce to a bold/italic toggle of a base Latin/Greek
+ * letter or digit: bold, italic, bold-italic, the four sans-serif variants,
+ * and monospace, plus the Greek symbol variants and the U+210E (ℎ) hole the
+ * capture emits for italic lowercase h. The script / fraktur / double-struck
+ * styles are distinct typefaces that can't be faithfully synthesized from a
+ * base letter, so they return `null` (the caller keeps the pre-existing
+ * chain behavior for those).
+ *
+ * Exported for unit tests.
+ */
+export function mathAlphaToBase(cp: number): { base: number; bold: boolean; italic: boolean } | null {
+  // PLANCK CONSTANT (U+210E): Unicode reuses this for Mathematical Italic
+  // small h (the U+1D455 slot is unassigned), and the capture emits it for
+  // `<mi>h</mi>`. Decompose it back to an italic `h`.
+  if (cp === 0x210e) return { base: 0x68, bold: false, italic: true };
+  if (cp < 0x1d400 || cp > 0x1d7ff) return null;
+
+  // Latin alphabet styles. Each is 52 contiguous codepoints (A–Z then a–z),
+  // except the styles flagged below that borrow letters from the Letterlike
+  // Symbols block (script / fraktur / double-struck) — those are skipped.
+  const latin: Array<{ start: number; bold: boolean; italic: boolean } | null> = [
+    { start: 0x1d400, bold: true,  italic: false }, // Bold
+    { start: 0x1d434, bold: false, italic: true  }, // Italic (small-h hole → U+210E, handled above)
+    { start: 0x1d468, bold: true,  italic: true  }, // Bold Italic
+    null,                                           // Script
+    null,                                           // Bold Script
+    null,                                           // Fraktur
+    null,                                           // Double-struck
+    null,                                           // Bold Fraktur
+    { start: 0x1d5a0, bold: false, italic: false }, // Sans-serif
+    { start: 0x1d5d4, bold: true,  italic: false }, // Sans-serif Bold
+    { start: 0x1d608, bold: false, italic: true  }, // Sans-serif Italic
+    { start: 0x1d63c, bold: true,  italic: true  }, // Sans-serif Bold Italic
+    { start: 0x1d670, bold: false, italic: false }, // Monospace
+  ];
+  for (const style of latin) {
+    if (style == null) continue;
+    const off = cp - style.start;
+    if (off < 0 || off > 51) continue;
+    const base = off < 26 ? 0x41 + off : 0x61 + (off - 26);
+    return { base, bold: style.bold, italic: style.italic };
+  }
+
+  // Greek styles. Each block is 58 (0x3A) contiguous codepoints with the same
+  // internal layout: 25 uppercase (Α…Ω), ∇, 25 lowercase (α…ω), then 7 symbol
+  // variants (∂ ϵ ϑ ϰ ϕ ϱ ϖ). The decomposition is the exact inverse of the
+  // capture's mathvariant=italic mapping for the italic block, applied to all
+  // five bold/italic/sans Greek styles.
+  const greek: Array<{ start: number; bold: boolean; italic: boolean }> = [
+    { start: 0x1d6a8, bold: true,  italic: false }, // Bold
+    { start: 0x1d6e2, bold: false, italic: true  }, // Italic
+    { start: 0x1d71c, bold: true,  italic: true  }, // Bold Italic
+    { start: 0x1d756, bold: true,  italic: false }, // Sans-serif Bold
+    { start: 0x1d790, bold: true,  italic: true  }, // Sans-serif Bold Italic
+  ];
+  const greekSymbols = [0x2202, 0x3f5, 0x3d1, 0x3f0, 0x3d5, 0x3f1, 0x3d6]; // ∂ ϵ ϑ ϰ ϕ ϱ ϖ
+  for (const style of greek) {
+    const off = cp - style.start;
+    if (off < 0 || off > 57) continue;
+    let base: number;
+    if (off <= 24) base = 0x391 + off;            // uppercase Α…Ω
+    else if (off === 25) base = 0x2207;            // ∇ nabla
+    else if (off <= 50) base = 0x3b1 + (off - 26); // lowercase α…ω
+    else base = greekSymbols[off - 51];            // symbol variants
+    return { base, bold: style.bold, italic: style.italic };
+  }
+
+  // Digit styles (U+1D7CE–U+1D7FF). Double-struck (1D7D8) is a distinct
+  // typeface → skipped; the rest reduce to a bold/normal toggle of 0–9.
+  const digits: Array<{ start: number; bold: boolean } | null> = [
+    { start: 0x1d7ce, bold: true  }, // Bold
+    null,                            // Double-struck
+    { start: 0x1d7e2, bold: false }, // Sans-serif
+    { start: 0x1d7ec, bold: true  }, // Sans-serif Bold
+    { start: 0x1d7f6, bold: false }, // Monospace
+  ];
+  for (const style of digits) {
+    if (style == null) continue;
+    const off = cp - style.start;
+    if (off < 0 || off > 9) continue;
+    return { base: 0x30 + off, bold: style.bold, italic: false };
+  }
+
+  return null;
+}
+
+/** FreeFont sibling key for a given base FreeFont key + bold/italic style. */
+function freeFontVariantKey(baseKey: string, bold: boolean, italic: boolean): string {
+  if (bold && italic) return `${baseKey}-bold-italic`;
+  if (bold) return `${baseKey}-bold`;
+  if (italic) return `${baseKey}-italic`;
+  return baseKey;
+}
+
+/**
+ * Math-Alphanumeric decomposition fallback, shared by both run splitters.
+ * Call only when NO font in `chain` could render `cp` directly. If `cp` is a
+ * synthesizable Math-Alpha symbol, returns the base letter/digit `ch` to
+ * render plus the FreeFont sibling key/instance (weight/slant baked into the
+ * file, so the resolved outline is already bold/oblique). Returns null when
+ * `cp` isn't Math-Alpha or no FreeFont sibling covers the base char — the
+ * caller then keeps the pre-existing chain behavior. See mathAlphaToBase.
+ */
+function decomposeMathAlphaRun(
+  cp: number, chain: string[], weight: number, fontSize: number,
+): { key: string; font: FontInstance; ch: string } | null {
+  const decomp = mathAlphaToBase(cp);
+  if (decomp == null) return null;
+  for (const candidate of chain) {
+    if (candidate !== "free-sans" && candidate !== "free-serif") continue;
+    const vKey = freeFontVariantKey(candidate, decomp.bold, decomp.italic);
+    const vFont = getFontInstance(vKey, weight, fontSize, 0);
+    if (vFont != null && (vFont as any).glyphForCodePoint != null
+        && (vFont as any).glyphForCodePoint(decomp.base).id !== 0) {
+      return { key: vKey, font: vFont, ch: String.fromCodePoint(decomp.base) };
+    }
+  }
+  return null;
 }
 
 /**
@@ -1695,17 +1847,28 @@ export function textToPathMarkup(
   // does NOT do BiDi reordering — that's tracked separately. startIdx/endIdx
   // are UTF-16 code-unit positions into `text` so the multi-font path can
   // slice xOffsets per run (SK-1255).
-  interface Run { fontKey: string; font: FontInstance; text: string; startIdx: number; endIdx: number }
+  // `decomposed` marks runs whose `text` holds Math-Alphanumeric base letters
+  // substituted for codepoints no font in the chain could render (see
+  // mathAlphaToBase). Those runs render through the run-text / min-x anchored
+  // branch — the substituted base char differs from the original astral
+  // codepoint at `text[startIdx]`, so the per-char path (which reads `text` by
+  // index) can't be used for them.
+  interface Run { fontKey: string; font: FontInstance; text: string; startIdx: number; endIdx: number; decomposed?: boolean }
   const runs: Run[] = [];
   {
     let curKey = primaryFontKey;
     let curFontOverride: FontInstance | null = null; // DM-557: per-codepoint webfont variant
+    let curDecomposed = false;
     let curText = "";
     let curStart = 0;
     let i = 0;
     while (i < text.length) {
       const cp = text.codePointAt(i)!;
       const ch = String.fromCodePoint(cp);
+      // The char appended to the current run's text. Normally the source char;
+      // for a Math-Alpha decomposition it's the substituted base letter/digit.
+      let emitCh = ch;
+      let useDecomposed = false;
       // Primary-first: many of the chars `fallbackFontChain` routes (∑ ∏ ≠ ●
       // ™ ←) are present in the requested primary font (Helvetica/Times/SF
       // Pro) at metrics that match Chrome's painted width. Use primary
@@ -1752,7 +1915,24 @@ export function textToPathMarkup(
               break;
             }
           }
-          useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+          if (picked == null) {
+            // Nothing in the chain has the glyph. If it's a Mathematical
+            // Alphanumeric Symbol, the system math font likely lacks the
+            // U+1D4xx block (true of FreeSans/FreeSerif on Linux) and Chromium
+            // synthesizes the letter from its base form. Decompose to the base
+            // char + bold/italic and render that in the matching FreeFont
+            // sibling (FreeSansOblique etc.), routed through the same chain.
+            const decomp = decomposeMathAlphaRun(cp, chain, weight, fontSize);
+            if (decomp != null) {
+              useKey = decomp.key;
+              useFontOverride = decomp.font;
+              emitCh = decomp.ch;
+              useDecomposed = true;
+            }
+          }
+          if (!useDecomposed) {
+            useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+          }
         }
       }
       // DM-557: a per-codepoint webfont variant is a different FontInstance
@@ -1760,26 +1940,28 @@ export function textToPathMarkup(
       // family's webfont:<key>). Discriminate runs by the (key, override)
       // pair so a Latin-partition run and a Cyrillic-partition run within
       // the same Geist family stay separate even though they share the key.
-      const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
+      const runChanged = useKey !== curKey || useFontOverride !== curFontOverride
+        || useDecomposed !== curDecomposed;
       if (runChanged && curText.length > 0) {
         // Variation settings apply to the primary requested font, not to
         // system fallbacks reached for missing glyphs (CJK / emoji / symbols
         // weren't declared by the page's @font-face).
         const fvs = curKey === primaryFontKey ? variationSettings : undefined;
         const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs);
-        if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i });
+        if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, decomposed: curDecomposed });
         curText = "";
         curStart = i;
       }
       curKey = useKey;
       curFontOverride = useFontOverride;
-      curText += ch;
+      curDecomposed = useDecomposed;
+      curText += emitCh;
       i += ch.length;
     }
     if (curText.length > 0) {
       const fvs = curKey === primaryFontKey ? variationSettings : undefined;
       const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs) ?? primaryFont;
-      runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length });
+      runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length, decomposed: curDecomposed });
     }
   }
   // Synthesized small-caps detection (DM-294). When `font-variant: small-caps`
@@ -1868,9 +2050,13 @@ export function textToPathMarkup(
     for (const run of runs) {
       const runScale = fontSize / run.font.unitsPerEm;
       const sc = Number(runScale.toFixed(5));
+      // Decomposed Math-Alpha runs render via the run-text branch too: their
+      // `text` carries the substituted base letters, which don't line up with
+      // the original astral codepoints the per-char branch reads from `text`.
       const isShapingRequired = run.fontKey === "sf-arabic"
         || run.fontKey === "devanagari"
-        || run.fontKey === "thai";
+        || run.fontKey === "thai"
+        || run.decomposed === true;
 
       if (!isShapingRequired) {
         // Per-char anchoring — primary runs and any fallback that's 1:1 char→
@@ -2217,6 +2403,11 @@ function splitTextIntoFontRuns(
   while (i < text.length) {
     const cp = text.codePointAt(i)!;
     const ch = String.fromCodePoint(cp);
+    // The char appended to the run's text — normally the source char; for a
+    // Math-Alpha decomposition the substituted base letter/digit. The run's
+    // startIdx/endIdx stay in source-text indices so xOffsets lookups remain
+    // aligned; the embedded loop reads the decomposed outline from run.text.
+    let emitCh = ch;
     let useKey = primaryFontKey;
     let useFontOverride: FontInstance | null = null;
     if ((primaryFont as any).glyphForCodePoint(cp).id === 0) {
@@ -2238,7 +2429,20 @@ function splitTextIntoFontRuns(
             break;
           }
         }
-        useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+        if (picked == null) {
+          // Math-Alphanumeric decomposition — same fallback the glyph-path
+          // splitter uses (mathAlphaToBase): render the base letter in the
+          // matching FreeFont oblique/bold sibling when the chain has nothing.
+          const decomp = decomposeMathAlphaRun(cp, chain, weight, fontSize);
+          if (decomp != null) {
+            useKey = decomp.key;
+            useFontOverride = decomp.font;
+            emitCh = decomp.ch;
+          }
+        }
+        if (useFontOverride == null) {
+          useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+        }
       }
     }
     const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
@@ -2251,7 +2455,7 @@ function splitTextIntoFontRuns(
     }
     curKey = useKey;
     curFontOverride = useFontOverride;
-    curText += ch;
+    curText += emitCh;
     i += ch.length;
   }
   if (curText.length > 0) {

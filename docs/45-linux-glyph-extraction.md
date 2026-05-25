@@ -19,19 +19,21 @@ every outline Chromium-on-Linux paints from. The concrete Linux forcing
 functions found during fallback calibration (DM-259, `docs/42`):
 
 - **GNU FreeFont (FreeSans / FreeSerif / FreeMono)** — the Linux Math-Alpha and
-  symbol fallback. `mathml-mi-italic-letters` and `mathml-mi-greek-italic`
-  currently render as `<text>` with **0 glyph paths** because fontkit's
+  symbol fallback. `mathml-mi-italic-letters` and `mathml-mi-greek-italic` used
+  to render as `<text>` with **0 glyph paths** because fontkit's
   `glyphForCodePoint` returns `.notdef` for the Mathematical Alphanumeric range
   (U+1D400–1D7FF) on FreeSans, even though Chromium paints those glyphs (verified
-  via CDP `CSS.getPlatformFontsForNode`). This is the open bug **DM-838** — and a
-  Linux-container probe (this session) **resolved it: a native FreeType walk does
-  NOT fix it.** FreeSans's cmap does not cover U+1D400–1D7FF at all
-  (`characterSet` excludes them; `glyphForCodePoint` and `FT_Get_Char_Index`
+  via CDP `CSS.getPlatformFontsForNode`). This was the bug **DM-838** — and a
+  Linux-container probe (this session) **resolved the open question: a native
+  FreeType walk does NOT fix it.** FreeSans's cmap does not cover U+1D400–1D7FF at
+  all (`characterSet` excludes them; `glyphForCodePoint` and `FT_Get_Char_Index`
   alike return `.notdef`); Chromium paints the math letters by *synthesizing*
   from the base Latin/Greek letters (the matched face is `FreeSansOblique`,
-  already italic). So DM-838's fix is a capture/render-side Math-Alpha→base-letter
-  decomposition (tracked separately), **not** this extractor. The CJK / other
-  fallback faces below — where fontkit's outline walk genuinely diverges — remain
+  already italic). DM-838 was therefore fixed by a capture/render-side
+  Math-Alpha→base-letter decomposition (`mathAlphaToBase` in
+  `src/render/text-to-path.ts` — both fixtures now emit 0 `<text>`), **not** this
+  extractor. The CJK / other fallback faces below — where fontkit's outline walk
+  genuinely diverges — remain
   the extractor's real motivation.
 - **Noto CJK / Noto Sans** and other large faces where fontkit's outline walk
   diverges from what Chromium's FreeType-backed rasterizer produces.
@@ -188,8 +190,8 @@ reused thereafter. Extends DM-393's engine-agnostic acquisition logic.
 - **FreeSans Math-Alpha (regression guard, NOT a DM-838 fix)**: extracting
   U+1D44E 𝑎 from FreeSans returns an **empty** path — FreeSans lacks the
   U+1D400–1D7FF range (confirmed this session). Kept only to document that the
-  extractor does not cover this; DM-838's fix is the capture/render-side
-  Math-Alpha→base-letter decomposition, out of scope here.
+  extractor does not cover this; DM-838 was fixed by the capture/render-side
+  Math-Alpha→base-letter decomposition (`mathAlphaToBase`), out of scope here.
 - **CI**: a Linux job (the `test-linux.yml` from DM-262, or the Docker harness
   `npm run test:linux-docker`) builds the helper from a clean checkout and runs
   `npm run demos:test:html`, exercising the FreeSans / Noto fallback ranges

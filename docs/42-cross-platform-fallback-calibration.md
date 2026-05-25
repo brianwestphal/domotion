@@ -140,17 +140,32 @@ defs, 0 `<text>`) at **0.00 %** vs Chromium-on-Linux. Fixed by the switch from
 `<text>` fallback to real glyph paths: `text-decorations`,
 `pseudo-before-gradient-badge`, `inline-box-decoration-break`.
 
-**Known residual (DM-838)**: `mathml-mi-greek-italic` / `mathml-mi-italic-letters`
-still fail (~0.4–0.8 %, also failing pre-change). The Math-Alphanumeric glyphs
-(𝑎 U+1D44E, 𝛼 U+1D6FC) fall back to `<text>`. Root cause confirmed by a
-Linux-container fontkit probe: **FreeSans's cmap does not contain U+1D400–1D7FF
-at all** (not a fontkit extraction bug, and not fixable by a native FreeType
-extractor — `FT_Get_Char_Index` also returns `.notdef`). Chromium paints them by
-*synthesizing* from the base Latin/Greek letters (the matched face is the already-
-italic `FreeSansOblique`). The fix is therefore a **capture/render-side
-Math-Alphanumeric → base-letter decomposition** (map U+1D4xx back to its base
-char + the bold/italic style when the system font lacks the range), not a chain
-or extractor change. Tracked on DM-838.
+**Math-Alphanumeric decomposition (DM-838, fixed)**: the Math-Alphanumeric
+glyphs (𝑎 U+1D44E, 𝛼 U+1D6FC, …) used to fall back to `<text>` on Linux. Root
+cause, confirmed by a Linux-container fontkit probe: **FreeSans's cmap does not
+contain U+1D400–1D7FF at all** (not a fontkit extraction bug, and not fixable by
+a native FreeType extractor — `FT_Get_Char_Index` also returns `.notdef`).
+Chromium paints them by *synthesizing* from the base Latin/Greek letters (the
+matched face is the already-italic `FreeSansOblique`).
+
+The fix is a **capture/render-side Math-Alphanumeric → base-letter
+decomposition** (`mathAlphaToBase` in `src/render/text-to-path.ts`): when a
+U+1D400–1D7FF (or U+210E ℎ) codepoint resolves to `.notdef` across the whole
+fallback chain, map it back to its base char + the implied bold/italic style and
+render that base glyph in the matching FreeFont sibling (`FreeSansOblique`,
+`FreeSansBold`, …). Both run splitters (`textToPathMarkup` glyph-path mode and
+`splitTextIntoFontRuns` embedded-font mode) apply it, so the output is a
+self-contained glyph outline rather than a consumer-font-dependent `<text>`.
+The decomposition only triggers when the chain comes up empty, so it never runs
+on macOS / Windows (STIX Two Math / Cambria Math cover U+1D4xx) — inherently
+platform-safe. After the fix, `mathml-mi-greek-italic` / `mathml-mi-italic-letters`
+emit **0 `<text>` elements** (all letters are glyph `<use>` refs).
+
+**Known residual (separate from DM-838)**: those two fixtures still fail their
+region check (~0.4–0.8 %, unchanged from pre-fix). With the letters now rendering
+self-contained, the residual is subpixel positioning of the surrounding **math
+layout** — `msup` superscript baseline, `mtable` cell alignment, and stretchy
+`mo` paren sizing — not the Math-Alpha glyph extraction. Tracked separately.
 
 ### Windows (DirectWrite) — DM-260
 
