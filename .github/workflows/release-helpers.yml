@@ -1,0 +1,108 @@
+name: Release helpers
+
+# Builds the native glyph-extractor helper binaries and attaches them to the
+# GitHub release for the pushed tag. Domotion downloads the matching
+# platform/arch asset on demand at runtime — the binaries are intentionally
+# NOT committed to git and NOT bundled in the npm tarball (they live only as
+# release assets).
+#
+# This runs as a SEPARATE workflow from release.yml (which publishes the npm
+# package): the helper build is slow (Swift compile + Apple notarization) and
+# will grow sibling Linux/Windows jobs, so it has its own lifecycle. It uploads
+# to the same release.yml creates — `gh release upload` only adds assets and
+# never touches the release body/flags, and the upload step waits for the
+# release to exist so the two parallel workflows don't race.
+#
+# Today only the macOS universal binary is wired up. Linux and Windows helper
+# builds are tracked separately and will add sibling jobs here.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+  # Manual re-run against an EXISTING release tag — lets you iterate on the
+  # signing setup without cutting a new version (it only uploads helper assets,
+  # never publishes to npm).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to (re)attach the helper binary to, e.g. v0.3.1'
+        required: true
+        type: string
+
+permissions:
+  contents: write   # attach assets to the release
+
+concurrency:
+  group: release-helpers-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  macos-glyph-extractor:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Imports the Developer ID Application cert (+ private key) from the
+      # base64-encoded .p12 secret into a throwaway keychain and authorizes
+      # codesign to use it, so `build.sh`'s `codesign --sign "$APPLE_DEVELOPER_ID"`
+      # resolves the identity. The keychain is created fresh per run and torn
+      # down at job end by the action.
+      - name: Import Developer ID Application certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERT_PASSWORD }}
+
+      # build.sh: universal arm64 + x86_64 `swift build` + `lipo`, then
+      # `codesign --options runtime --timestamp` and `xcrun notarytool submit
+      # --wait`. It self-skips signing when APPLE_DEVELOPER_ID is unset; here
+      # all four credentials are present so it signs + notarizes. (A bare CLI
+      # Mach-O cannot be stapled — only .app/.pkg/.dmg can — so the notarization
+      # ticket lives server-side; the runtime verifies with `codesign --verify`.)
+      - name: Build, codesign, and notarize the universal binary
+        env:
+          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: bash tools/macos-glyph-extractor/build.sh
+
+      - name: Verify the signature
+        working-directory: tools/macos-glyph-extractor
+        run: |
+          set -euo pipefail
+          codesign --verify --strict --verbose=2 domotion-glyph-paths
+          codesign --display --verbose=4 domotion-glyph-paths
+
+      # Rename to the documented asset name and emit a SHA-256 sidecar so the
+      # runtime download (the acquisition half of this distribution work) can
+      # integrity-check before caching.
+      - name: Stage release asset
+        run: |
+          set -euo pipefail
+          cp tools/macos-glyph-extractor/domotion-glyph-paths \
+             "$RUNNER_TEMP/domotion-glyph-paths-darwin-universal"
+          cd "$RUNNER_TEMP"
+          shasum -a 256 domotion-glyph-paths-darwin-universal \
+            > domotion-glyph-paths-darwin-universal.sha256
+
+      - name: Attach binaries to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          # release.yml creates the GitHub Release in a parallel workflow; wait
+          # for it (up to ~5 min) before attaching assets.
+          for i in $(seq 1 30); do
+            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
+            echo "Release $TAG not present yet; waiting… ($i/30)"
+            sleep 10
+          done
+          gh release upload "$TAG" \
+            domotion-glyph-paths-darwin-universal \
+            domotion-glyph-paths-darwin-universal.sha256 \
+            --clobber

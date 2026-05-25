@@ -16,7 +16,7 @@ The binary is **not committed to git** — it is published as a GitHub release a
 
 ## Codesigning + notarization
 
-The release workflow signs and notarizes when the following env vars are set (typically via GitHub Actions secrets — DM-391):
+`build.sh` signs (hardened runtime + timestamp) and notarizes (`xcrun notarytool submit --wait`) when the following env vars are set:
 
 ```
 APPLE_DEVELOPER_ID="Developer ID Application: <name> (<team-id>)"
@@ -26,6 +26,15 @@ APPLE_APP_SPECIFIC_PASSWORD="..."
 ```
 
 When `APPLE_DEVELOPER_ID` is unset, `build.sh` skips signing — local dev builds work without Apple credentials.
+
+In CI this is driven by [`.github/workflows/release-helpers.yml`](../../.github/workflows/release-helpers.yml), which runs on every `v*` tag: it imports the Developer ID Application certificate into a throwaway keychain, runs `build.sh` with the four credentials above, and attaches the signed/notarized universal binary (plus a SHA-256 sidecar) to the release as `domotion-glyph-paths-darwin-universal`. The certificate is supplied to CI as two additional secrets the env vars above don't cover, because a fresh runner has an empty keychain:
+
+```
+APPLE_CERT_P12_BASE64   # base64 of the exported Developer ID Application .p12 (cert + private key)
+APPLE_CERT_PASSWORD     # the .p12 export password
+```
+
+A bare CLI Mach-O cannot be stapled (only `.app` / `.pkg` / `.dmg` can), so the notarization ticket lives server-side and the runtime verifies the signature with `codesign --verify --strict` before caching.
 
 ## IPC protocol
 
