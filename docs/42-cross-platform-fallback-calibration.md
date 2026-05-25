@@ -161,11 +161,24 @@ on macOS / Windows (STIX Two Math / Cambria Math cover U+1D4xx) — inherently
 platform-safe. After the fix, `mathml-mi-greek-italic` / `mathml-mi-italic-letters`
 emit **0 `<text>` elements** (all letters are glyph `<use>` refs).
 
-**Known residual (separate from DM-838)**: those two fixtures still fail their
-region check (~0.4–0.8 %, unchanged from pre-fix). With the letters now rendering
-self-contained, the residual is subpixel positioning of the surrounding **math
-layout** — `msup` superscript baseline, `mtable` cell alignment, and stretchy
-`mo` paren sizing — not the Math-Alpha glyph extraction. Tracked separately.
+**MathML stretchy fence operators (DM-874, fixed)**: the matrix fixture's
+residual turned out to be stretchy `<mo>` fence parens. Chromium paints a fence
+(`(` `)` `[` `]` `{` `}` `|` …) centered on the math axis and stretched to wrap
+its content; the `<mo>` element's `getBoundingClientRect` reflects that painted
+extent, but placing the glyph on the captured text baseline (the old behavior)
+landed it ~5 px too low. `renderStretchyFenceGlyph` (in `src/render/text.ts` /
+`text-to-path.ts`) now fits the fence glyph's ink bbox to the captured `<mo>`
+box — a vertical scale (= the stretch) + axis-centered placement, natural
+horizontal scale. `mathml-mi-italic-letters` went 0.82 % → **0.00 % (clean) on
+Linux** and now passes on macOS.
+
+**Known residual (Linux only)**: `mathml-mi-greek-italic` still fails ~0.41 % on
+Linux — but it **passes on macOS**, so there is no `msup` / layout defect. The
+flagged region is the FreeFont-rendered math-italic letters being subpixel-
+different from Chromium's own FreeSansOblique paint (the irreducible glyph-path-
+vs-native-rasterization floor for this lower-quality fallback face). It's an
+inherent cost of the DM-838 FreeFont decomposition, not a layout bug; closing it
+would need a bundled pixel-faithful math font (bundled-fonts work, DM-261).
 
 ### Windows (DirectWrite) — DM-260
 

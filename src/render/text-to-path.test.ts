@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __resolveFontSpecForTest, clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
+import { __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -562,6 +562,60 @@ describe("mathAlphaToBase: Math-Alphanumeric decomposition (DM-838)", () => {
     expect(mathAlphaToBase(0x1d7d8)).toBeNull(); // 𝟘 double-struck digit 0
     expect(mathAlphaToBase(0x0061)).toBeNull();  // plain 'a'
     expect(mathAlphaToBase(0x1d800)).toBeNull(); // just past the block
+  });
+});
+
+// MathML stretchy fence operators (DM-874). A `<mo>` whose text is a single
+// bracket/paren/brace is painted by Chromium centered on the math axis and
+// stretched to wrap its content; renderStretchyFenceGlyph fits the glyph to the
+// captured `<mo>` element box instead of placing it on the text baseline.
+describe("isStretchyFenceChar: MathML fence detection (DM-874)", () => {
+  it("recognizes bracket/paren/brace fence chars", () => {
+    for (const c of ["(", ")", "[", "]", "{", "}", "|", "‖", "⌈", "⌋", "⟨", "⟩"]) {
+      expect(isStretchyFenceChar(c)).toBe(true);
+    }
+    expect(isStretchyFenceChar(" ( ")).toBe(true); // trims surrounding whitespace
+  });
+  it("rejects non-fence operators, letters, and multi-char strings", () => {
+    for (const c of ["+", "=", "·", "-", "a", "2", "𝑎", "()", "", "  "]) {
+      expect(isStretchyFenceChar(c)).toBe(false);
+    }
+  });
+});
+
+describe("renderStretchyFenceGlyph: fit fence to captured box (DM-874)", () => {
+  beforeEach(() => { clearGlyphDefs(); setRenderTextMode("paths"); });
+
+  it("emits a glyph <use> scaled and translated into the captured box", () => {
+    const out = renderStretchyFenceGlyph("(", 10, 30, 20, 22, "sans-serif", "400", "rgb(0,0,0)");
+    // Skips when the host has no resolvable font for '(' — but every supported
+    // platform's sans-serif covers it, so this should render here.
+    expect(out).not.toBeNull();
+    expect(out).toContain("<use href=");
+    expect(out).toMatch(/scale\([-0-9.]+,[-0-9.]+\)/);
+    expect(out).toContain('fill="rgb(0,0,0)"');
+  });
+
+  it("stretches vertically with the box height (taller box → larger |sy|) while x-scale stays natural", () => {
+    const short = renderStretchyFenceGlyph("(", 0, 0, 20, 22, "sans-serif", "400", "#000");
+    const tall = renderStretchyFenceGlyph("(", 0, 0, 60, 22, "sans-serif", "400", "#000");
+    expect(short).not.toBeNull();
+    expect(tall).not.toBeNull();
+    const parse = (s: string) => {
+      const m = /scale\(([-0-9.]+),([-0-9.]+)\)/.exec(s)!;
+      return { sx: parseFloat(m[1]), sy: Math.abs(parseFloat(m[2])) };
+    };
+    const a = parse(short!);
+    const b = parse(tall!);
+    // Horizontal scale is the natural fontSize/em — independent of box height.
+    expect(a.sx).toBeCloseTo(b.sx, 4);
+    // Vertical scale grows ~3x when the box is 3x taller (the stretch).
+    expect(b.sy / a.sy).toBeCloseTo(3, 1);
+  });
+
+  it("returns null for an empty or zero-height request (caller falls back to baseline text)", () => {
+    expect(renderStretchyFenceGlyph("", 0, 0, 20, 22, "sans-serif", "400", "#000")).toBeNull();
+    expect(renderStretchyFenceGlyph("(", 0, 0, 0, 22, "sans-serif", "400", "#000")).toBeNull();
   });
 });
 

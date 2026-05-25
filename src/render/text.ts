@@ -5,7 +5,7 @@
  */
 
 import bidiFactory from "bidi-js";
-import { computeSkipInkGaps, getDecorationMetrics, renderTextAsPath } from "./text-to-path.js";
+import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 
 // ── Rendering helpers ──
@@ -641,6 +641,19 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const fontWeight = el.styles.fontWeight;
   const tl = el.textLeft ?? el.x + 4;
   const tt = el.textTop ?? el.y;
+
+  // DM-874: a MathML stretchy fence operator (`<mo>` whose text is a single
+  // bracket/paren/brace) is painted by Chromium centered on the math axis and
+  // stretched to wrap its content — the `<mo>` element box reflects that, but
+  // the captured text baseline does not, so baseline placement lands the fence
+  // several px too low. Fit the glyph to the captured element box instead.
+  if (el.tag === "mo" && isStretchyFenceChar(el.text) && el.height > 0) {
+    const fence = renderStretchyFenceGlyph(
+      el.text.trim(), tl, el.y, el.height, fontSize, fontFamily, fontWeight, fillColor, el.styles.fontStyle,
+    );
+    if (fence != null) return fence;
+    // Fall through to normal baseline rendering when the glyph can't be fitted.
+  }
 
   // Path mode: convert to <path> outlines. When the capture layer recorded
   // per-character xOffsets for this single-line segment, pass them through so

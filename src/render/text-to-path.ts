@@ -2948,6 +2948,98 @@ export function measureLastGlyphRsb(
   return rsbUnits * scale;
 }
 
+/**
+ * The Unicode characters that MathML treats as vertically-stretchy fences /
+ * brackets by default (a focused subset of the operator dictionary's
+ * `stretchy` entries). Chromium paints these centered on the math axis and
+ * stretched to wrap their content, which `renderStretchyFenceGlyph` reproduces
+ * by fitting the glyph to the captured `<mo>` box rather than the text
+ * baseline. (DM-874)
+ */
+const STRETCHY_FENCE_CHARS = new Set([
+  "(", ")", "[", "]", "{", "}", "|", "‖",
+  "⌈", "⌉", "⌊", "⌋", "⟨", "⟩", "⎰", "⎱", "❲", "❳",
+]);
+
+/** True when `text` is a single stretchy MathML fence / bracket character. */
+export function isStretchyFenceChar(text: string): boolean {
+  return STRETCHY_FENCE_CHARS.has(text.trim());
+}
+
+/**
+ * Render a MathML stretchy fence operator (a `<mo>` whose text is a single
+ * bracket / paren / brace) fitted to its captured element box instead of the
+ * text baseline. Chromium paints these centered on the math axis and vertically
+ * stretched to wrap their content; the `<mo>` element's own
+ * `getBoundingClientRect` reflects exactly that painted extent (verified: the
+ * box matches the painted ink to <1px), so we map the glyph's ink bbox onto
+ * `[boxY, boxY + boxH]` vertically (a non-uniform scale = the stretch) while
+ * keeping the natural horizontal scale anchored at the captured x. Placing the
+ * fence on the text baseline instead — the previous behavior — landed it
+ * several px too low for multi-row content. (DM-874)
+ *
+ * Returns null (caller falls back to normal baseline text rendering) when the
+ * font / glyph can't be resolved or the glyph has no outline.
+ */
+export function renderStretchyFenceGlyph(
+  char: string,
+  x: number,
+  boxY: number,
+  boxH: number,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string,
+  fill: string,
+  fontStyle?: string,
+): string | null {
+  const ch = char.trim();
+  if (ch === "" || boxH <= 0) return null;
+  const cp = ch.codePointAt(0)!;
+  const weight = parseInt(fontWeight) || 400;
+  const slant = slantForStyle(fontStyle);
+
+  // Resolve a font that actually has the fence glyph: primary first, then the
+  // system fallback chain (mirrors textToPathMarkup's per-codepoint routing).
+  const primaryFontKey = resolveFontKey(fontFamily);
+  let useKey = primaryFontKey;
+  let font = resolveFont(fontFamily, weight, fontSize, slant);
+  if (font == null) return null;
+  if ((font as any).glyphForCodePoint(cp).id === 0) {
+    const chain = fallbackFontChain(cp, primaryFontKey);
+    for (const candidate of chain) {
+      const cf = getFontInstance(candidate, weight, fontSize, slant);
+      if (cf != null && (cf as any).glyphForCodePoint != null
+          && (cf as any).glyphForCodePoint(cp).id !== 0) {
+        useKey = candidate;
+        font = cf;
+        break;
+      }
+    }
+  }
+
+  let layout;
+  try { layout = font.layout(ch); } catch { return null; }
+  const glyph = layout.glyphs[0] as
+    { id: number; path: { commands: Array<{ command: string; args: number[] }> }; bbox?: { minX: number; minY: number; maxX: number; maxY: number } } | undefined;
+  if (glyph == null || glyph.path.commands.length === 0) return null;
+  const bbox = glyph.bbox;
+  if (bbox == null || !(bbox.maxY > bbox.minY)) return null;
+
+  const em = font.unitsPerEm;
+  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+  // Horizontal: natural scale, glyph origin anchored at the captured x (same as
+  // the per-char baseline path). Vertical: map ink [minY,maxY] (font units,
+  // y-up) onto [boxY, boxY+boxH] (SVG y-down) — `sy` is the stretch factor.
+  // Scale factors need 5-decimal precision (em is ~1000-2048, so 2dp would be
+  // a ~7% size error); the translate keeps `r()`'s 2dp px precision.
+  const sx = fontSize / em;
+  const sy = boxH / (bbox.maxY - bbox.minY);
+  const ty = boxY + sy * bbox.maxY;
+  const sxStr = Number(sx.toFixed(5)).toString();
+  const syStr = Number((-sy).toFixed(5)).toString();
+  return `<g transform="translate(${r(x)},${r(ty)}) scale(${sxStr},${syStr})" fill="${fill}"><use href="#${defId}"/></g>`;
+}
+
 export function computeSkipInkGaps(
   text: string,
   fontSize: number, fontFamily: string, fontWeight: string | number, fontStyle?: string,
