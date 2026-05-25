@@ -9,6 +9,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
 import {
   captureElementTree,
@@ -26,7 +27,6 @@ import {
   type AnimationFrame,
   type IntraFrameAnimation,
   type AnimationOverlay,
-  type SvgOverlay,
 } from "../index.js";
 import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
 import {
@@ -39,74 +39,140 @@ import {
   writeOutput,
 } from "./common.js";
 
-export interface AnimateConfig {
-  width: number;
-  height: number;
-  output?: string;
-  optimize?: boolean;
-  mobile?: boolean;
-  colorScheme?: "light" | "dark" | "no-preference";
-  frames: AnimateFrameConfig[];
-}
+// ── Config schema (DM-843) ──────────────────────────────────────────────────
+// The animate config is external `JSON.parse`'d input, so it's validated with
+// a zod schema rather than hand-rolled type guards. The schema is the single
+// source of truth for the config's shape; the exported/used types below are
+// inferred from it (`z.infer`), so type and runtime check can't drift apart.
 
-interface AnimateFrameConfig {
-  input: string;
-  duration: number;
-  transition?: { type: "crossfade" | "push-left" | "scroll" | "cut"; duration: number };
-  selector?: string;
-  wait?: number;
-  waitFor?: string;
+const transitionSchema = z.object({
+  type: z.enum(["crossfade", "push-left", "scroll", "cut"]),
+  duration: z.number(),
+});
+
+const scrollSchema = z.object({
+  // Pattern string per the scroll-pattern grammar (docs/37). Validated by
+  // running the real parser so a malformed pattern fails at config-parse time.
+  pattern: z
+    .string()
+    .min(1, "must be a non-empty string")
+    .superRefine((val, ctx) => {
+      try {
+        parseScrollPattern(val);
+      } catch (e) {
+        ctx.addIssue({ code: "custom", message: `is not a valid scroll pattern: ${e instanceof Error ? e.message : String(e)}` });
+      }
+    }),
+  /** Default scroll speed in px/s for tokens without an explicit `/<duration>`. */
+  speed: z.number().positive("must be a positive number (px/s)").optional(),
+  /** CSS selector for an inner scrollable element (default: window). */
+  selector: z.string().optional(),
+  /** Skip the pre-scroll-to-bottom-then-top step. Default: false. */
+  prescroll: z.boolean().optional(),
+});
+
+const frameAnimationSchema = z.object({
+  selector: z.string(),
+  property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "clipPath"]),
+  from: z.string(),
+  to: z.string(),
+  duration: z.number(),
+  easing: z.string().optional(),
+  delay: z.number().optional(),
+});
+
+const actionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("click"),  selector: z.string() }),
+  z.object({ type: z.literal("fill"),   selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("press"),  key: z.string() }),
+  z.object({ type: z.literal("scroll"), x: z.number().optional(), y: z.number().optional() }),
+  z.object({ type: z.literal("hover"),  selector: z.string() }),
+  z.object({ type: z.literal("wait"),   ms: z.number() }),
+]);
+
+const overlaySlideSchema = z.object({
+  from: z.enum(["top", "bottom", "left", "right"]),
+  duration: z.number(),
+  easing: z.string().optional(),
+  delay: z.number().optional(),
+});
+
+// Overlay *input* shapes. The `svg` kind takes a `src` path here; the CLI later
+// reads the file, namespaces its ids, and swaps `src` for `innerSvg`/`animId`
+// (see resolveSvgOverlays), producing the runtime `SvgOverlay`. typing/tap
+// inputs already match their runtime overlay shapes 1:1.
+const overlaySchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("typing"),
+    text: z.string(),
+    x: z.number(),
+    y: z.number(),
+    fontSize: z.number().optional(),
+    color: z.string().optional(),
+    delay: z.number().optional(),
+    speed: z.number().optional(),
+    bgColor: z.string().optional(),
+    bgWidth: z.number().optional(),
+    bgHeight: z.number().optional(),
+  }),
+  z.object({
+    kind: z.literal("tap"),
+    x: z.number(),
+    y: z.number(),
+    delay: z.number().optional(),
+  }),
+  z.object({
+    kind: z.literal("svg"),
+    src: z.string(),
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+    enter: overlaySlideSchema.optional(),
+    exit: overlaySlideSchema.optional(),
+  }),
+]);
+
+const frameSchema = z.object({
+  input: z.string(),
+  duration: z.number(),
+  transition: transitionSchema.optional(),
+  selector: z.string().optional(),
+  wait: z.number().optional(),
+  waitFor: z.string().optional(),
   /**
    * Scroll the page (or `selector`'s element) to this offset BEFORE the
-   * capture. For static positioning before a fold-style capture. See
-   * `scroll` (below) for the new pattern-based animated-scroll demo flow.
+   * capture — static positioning for a fold-style capture. See `scroll` for
+   * the pattern-based animated-scroll flow.
    */
-  scrollTo?: [number, number];
+  scrollTo: z.tuple([z.number(), z.number()]).optional(),
   /**
-   * DM-612: pattern-based scroll-demo block. When present, the frame's
-   * `input` is loaded normally and the scroll executor runs against it; the
-   * resulting per-segment captures are composed into one animated SVG that
-   * becomes this frame's content. Set the frame's `duration` to ≈ the
-   * pattern's total scroll time so the outer scene cycle matches the inner
-   * scroll's infinite loop (the two animations are independent; mismatched
-   * durations desync visibly).
+   * DM-612: pattern-based scroll-demo block. The frame's `input` is loaded and
+   * the scroll executor runs against it; the per-segment captures are composed
+   * into one animated SVG that becomes the frame's content. Size the frame's
+   * `duration` to ≈ the pattern's total scroll time so the outer scene cycle
+   * matches the inner scroll's loop.
    */
-  scroll?: AnimateFrameScrollConfig;
-  actions?: AnimateAction[];
-  // Overlays passed through verbatim — typed as unknown[] here, validated by AnimationFrame at runtime.
-  overlays?: unknown[];
+  scroll: scrollSchema.optional(),
+  actions: z.array(actionSchema).optional(),
+  overlays: z.array(overlaySchema).optional(),
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
-  animations?: AnimateFrameAnimationConfig[];
-}
+  animations: z.array(frameAnimationSchema).optional(),
+});
 
-interface AnimateFrameScrollConfig {
-  /** Required. Pattern string per the DM-604 grammar (`docs/...`). */
-  pattern: string;
-  /** Default scroll speed in px/s for tokens without explicit `/<duration>`. */
-  speed?: number;
-  /** CSS selector for an inner scrollable element (default: window). */
-  selector?: string;
-  /** Skip the pre-scroll-to-bottom-then-top step. Default: false. */
-  prescroll?: boolean;
-}
+const animateConfigSchema = z.object({
+  width: z.number(),
+  height: z.number(),
+  output: z.string().optional(),
+  optimize: z.boolean().optional(),
+  mobile: z.boolean().optional(),
+  colorScheme: z.enum(["light", "dark", "no-preference"]).optional(),
+  frames: z.array(frameSchema).min(1, "must be a non-empty array"),
+});
 
-interface AnimateFrameAnimationConfig {
-  selector: string;
-  property: IntraFrameAnimation["property"];
-  from: string;
-  to: string;
-  duration: number;
-  easing?: string;
-  delay?: number;
-}
-
-type AnimateAction =
-  | { type: "click";  selector: string }
-  | { type: "fill";   selector: string; value: string }
-  | { type: "press";  key: string }
-  | { type: "scroll"; x?: number; y?: number }
-  | { type: "hover";  selector: string }
-  | { type: "wait";   ms: number };
+export type AnimateConfig = z.infer<typeof animateConfigSchema>;
+type AnimateAction = z.infer<typeof actionSchema>;
+type OverlayInput = z.infer<typeof overlaySchema>;
 
 export async function runAnimate(args: string[], help: string): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -336,153 +402,30 @@ async function runActions(page: Page, actions: AnimateAction[]): Promise<void> {
   }
 }
 
-const COLOR_SCHEMES = new Set(["light", "dark", "no-preference"] as const);
-const TRANSITION_TYPES = new Set(["crossfade", "push-left", "scroll", "cut"] as const);
-const OVERLAY_SLIDE_FROMS = new Set(["top", "bottom", "left", "right"] as const);
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
+/**
+ * Validate a parsed config object against {@link animateConfigSchema}. Returns
+ * the typed config on success; on failure throws an `animate:`-prefixed Error
+ * listing each offending path + message (the CLI surfaces it as
+ * `domotion: animate: …`). zod's default issue messages are specific enough on
+ * their own — "Invalid input: expected number, received string" etc. — so we
+ * just prefix each with its dotted/bracketed path rather than re-authoring them.
+ */
 export function validateAnimateConfig(raw: unknown): AnimateConfig {
-  if (!isObject(raw)) throw new Error("animate: config must be an object");
-  if (typeof raw.width !== "number" || typeof raw.height !== "number") {
-    throw new Error("animate: config requires numeric width and height");
-  }
-  if (raw.output != null && typeof raw.output !== "string") {
-    throw new Error("animate: config.output must be a string when present");
-  }
-  if (raw.optimize != null && typeof raw.optimize !== "boolean") {
-    throw new Error("animate: config.optimize must be a boolean when present");
-  }
-  if (raw.mobile != null && typeof raw.mobile !== "boolean") {
-    throw new Error("animate: config.mobile must be a boolean when present");
-  }
-  if (raw.colorScheme != null && (typeof raw.colorScheme !== "string" || !COLOR_SCHEMES.has(raw.colorScheme as never))) {
-    throw new Error(`animate: config.colorScheme must be one of ${[...COLOR_SCHEMES].join(", ")}`);
-  }
-  if (!Array.isArray(raw.frames) || raw.frames.length === 0) {
-    throw new Error("animate: config.frames must be a non-empty array");
-  }
-  for (let i = 0; i < raw.frames.length; i++) {
-    const f = raw.frames[i];
-    if (!isObject(f)) throw new Error(`animate: frames[${i}] must be an object`);
-    if (typeof f.input !== "string") throw new Error(`animate: frames[${i}].input must be a string`);
-    if (typeof f.duration !== "number") throw new Error(`animate: frames[${i}].duration must be a number`);
-    if (f.transition != null) {
-      if (!isObject(f.transition)) throw new Error(`animate: frames[${i}].transition must be an object`);
-      if (typeof f.transition.type !== "string" || !TRANSITION_TYPES.has(f.transition.type as never)) {
-        throw new Error(`animate: frames[${i}].transition.type must be one of ${[...TRANSITION_TYPES].join(", ")}`);
-      }
-      if (typeof f.transition.duration !== "number") {
-        throw new Error(`animate: frames[${i}].transition.duration must be a number`);
-      }
-    }
-    if (f.scrollTo != null) {
-      if (!Array.isArray(f.scrollTo) || f.scrollTo.length !== 2 || typeof f.scrollTo[0] !== "number" || typeof f.scrollTo[1] !== "number") {
-        throw new Error(`animate: frames[${i}].scrollTo must be a [number, number] tuple`);
-      }
-    }
-    if (f.scroll != null) {
-      if (!isObject(f.scroll)) throw new Error(`animate: frames[${i}].scroll must be an object`);
-      if (typeof f.scroll.pattern !== "string" || f.scroll.pattern.trim() === "") {
-        throw new Error(`animate: frames[${i}].scroll.pattern must be a non-empty string`);
-      }
-      try {
-        parseScrollPattern(f.scroll.pattern);
-      } catch (e) {
-        throw new Error(`animate: frames[${i}].scroll.pattern is invalid: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      if (f.scroll.speed != null && (typeof f.scroll.speed !== "number" || !Number.isFinite(f.scroll.speed) || f.scroll.speed <= 0)) {
-        throw new Error(`animate: frames[${i}].scroll.speed must be a positive number (px/s)`);
-      }
-    }
-    if (f.actions != null) {
-      if (!Array.isArray(f.actions)) throw new Error(`animate: frames[${i}].actions must be an array`);
-      f.actions.forEach((a, ai) => validateAction(a, i, ai));
-    }
-    if (f.animations != null) {
-      if (!Array.isArray(f.animations)) throw new Error(`animate: frames[${i}].animations must be an array`);
-      f.animations.forEach((a, ai) => validateFrameAnimation(a, i, ai));
-    }
-    if (f.overlays != null && !Array.isArray(f.overlays)) {
-      throw new Error(`animate: frames[${i}].overlays must be an array`);
-    }
-    // Overlay shape is validated lazily in `resolveSvgOverlays` via
-    // `validateOverlay` — each entry checked at use-site.
-  }
-  return raw as unknown as AnimateConfig;
+  const result = animateConfigSchema.safeParse(raw);
+  if (result.success) return result.data;
+  throw new Error(`animate: ${formatConfigIssues(result.error)}`);
 }
 
-function validateAction(a: unknown, frameIdx: number, ai: number): void {
-  if (!isObject(a)) throw new Error(`animate: frames[${frameIdx}].actions[${ai}] must be an object`);
-  switch (a.type) {
-    case "click":
-    case "hover":
-      if (typeof a.selector !== "string") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (${a.type}) requires string selector`);
-      return;
-    case "fill":
-      if (typeof a.selector !== "string" || typeof a.value !== "string") {
-        throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (fill) requires string selector and value`);
-      }
-      return;
-    case "press":
-      if (typeof a.key !== "string") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (press) requires string key`);
-      return;
-    case "scroll":
-      if (a.x != null && typeof a.x !== "number") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (scroll) x must be a number`);
-      if (a.y != null && typeof a.y !== "number") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (scroll) y must be a number`);
-      return;
-    case "wait":
-      if (typeof a.ms !== "number") throw new Error(`animate: frames[${frameIdx}].actions[${ai}] (wait) requires numeric ms`);
-      return;
-    default:
-      throw new Error(`animate: frames[${frameIdx}].actions[${ai}].type "${String(a.type)}" is not a recognised action`);
-  }
-}
-
-function validateFrameAnimation(a: unknown, frameIdx: number, ai: number): void {
-  if (!isObject(a)) throw new Error(`animate: frames[${frameIdx}].animations[${ai}] must be an object`);
-  if (typeof a.selector !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].selector must be a string`);
-  if (typeof a.property !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].property must be a string`);
-  if (typeof a.from !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].from must be a string`);
-  if (typeof a.to !== "string") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].to must be a string`);
-  if (typeof a.duration !== "number") throw new Error(`animate: frames[${frameIdx}].animations[${ai}].duration must be a number`);
-}
-
-function validateOverlay(ov: unknown, frameIdx: number, oi: number): AnimationOverlay {
-  if (!isObject(ov)) throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] must be an object`);
-  switch (ov.kind) {
-    case "typing":
-      if (typeof ov.text !== "string" || typeof ov.x !== "number" || typeof ov.y !== "number") {
-        throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] (typing) requires text/x/y`);
-      }
-      return ov as unknown as AnimationOverlay;
-    case "tap":
-      if (typeof ov.x !== "number" || typeof ov.y !== "number") {
-        throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] (tap) requires numeric x and y`);
-      }
-      return ov as unknown as AnimationOverlay;
-    case "svg":
-      if (typeof ov.src !== "string" || typeof ov.x !== "number" || typeof ov.y !== "number" || typeof ov.width !== "number" || typeof ov.height !== "number") {
-        throw new Error(`animate: frames[${frameIdx}].overlays[${oi}] (svg) requires src/x/y/width/height`);
-      }
-      if (ov.enter != null) validateOverlaySlide(ov.enter, frameIdx, oi, "enter");
-      if (ov.exit != null) validateOverlaySlide(ov.exit, frameIdx, oi, "exit");
-      return ov as unknown as AnimationOverlay;
-    default:
-      throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].kind "${String(ov.kind)}" is not a recognised overlay`);
-  }
-}
-
-function validateOverlaySlide(s: unknown, frameIdx: number, oi: number, which: "enter" | "exit"): void {
-  if (!isObject(s)) throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].${which} must be an object`);
-  if (typeof s.from !== "string" || !OVERLAY_SLIDE_FROMS.has(s.from as never)) {
-    throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].${which}.from must be one of ${[...OVERLAY_SLIDE_FROMS].join(", ")}`);
-  }
-  if (typeof s.duration !== "number") {
-    throw new Error(`animate: frames[${frameIdx}].overlays[${oi}].${which}.duration must be a number`);
-  }
+function formatConfigIssues(err: z.ZodError): string {
+  return err.issues
+    .map((issue) => {
+      const path = issue.path
+        .map((seg) => (typeof seg === "number" ? `[${seg}]` : `.${String(seg)}`))
+        .join("")
+        .replace(/^\./, "");
+      return path === "" ? issue.message : `${path}: ${issue.message}`;
+    })
+    .join("; ");
 }
 
 /**
@@ -490,15 +433,14 @@ function validateOverlaySlide(s: unknown, frameIdx: number, oi: number, which: "
  * referenced SVG file, namespacing its ids, and replacing `src` with the
  * inlined `innerSvg`. Other overlay kinds pass through verbatim.
  */
-function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: string, frameIdx: number): AnimationOverlay[] | undefined {
-  if (rawOverlays == null) return undefined;
+function resolveSvgOverlays(overlays: OverlayInput[] | undefined, configDir: string, frameIdx: number): AnimationOverlay[] | undefined {
+  if (overlays == null) return undefined;
   const out: AnimationOverlay[] = [];
   let svgIdx = 0;
-  for (let oi = 0; oi < rawOverlays.length; oi++) {
-    const validated = validateOverlay(rawOverlays[oi], frameIdx, oi);
-    if (validated.kind === "svg" && "src" in (rawOverlays[oi] as Record<string, unknown>)) {
-      const raw = rawOverlays[oi] as { src: string; x: number; y: number; width: number; height: number; enter?: SvgOverlay["enter"]; exit?: SvgOverlay["exit"] };
-      const srcPath = resolve(configDir, raw.src);
+  for (const ov of overlays) {
+    if (ov.kind === "svg") {
+      // Inline the referenced file and swap `src` → `innerSvg`/`animId`.
+      const srcPath = resolve(configDir, ov.src);
       if (!existsSync(srcPath)) throw new Error(`animate: svg overlay file not found: ${srcPath}`);
       const fileText = readFileSync(srcPath, "utf8");
       const animId = `s${svgIdx++}`;
@@ -506,12 +448,13 @@ function resolveSvgOverlays(rawOverlays: unknown[] | undefined, configDir: strin
       out.push({
         kind: "svg",
         innerSvg: namespaced,
-        x: raw.x, y: raw.y, width: raw.width, height: raw.height,
+        x: ov.x, y: ov.y, width: ov.width, height: ov.height,
         animId,
-        enter: raw.enter, exit: raw.exit,
+        enter: ov.enter, exit: ov.exit,
       });
     } else {
-      out.push(validated);
+      // typing / tap already match their runtime overlay shapes verbatim.
+      out.push(ov);
     }
   }
   return out;

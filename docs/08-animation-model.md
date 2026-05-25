@@ -4,6 +4,8 @@ The animation pipeline composes multiple captured frames into a single SVG with 
 
 > **Runnable examples.** `examples/animate/` has one self-contained config per feature in this doc — crossfade, `cut` + typing overlay + intra-frame progress fill, `push-left`, a `scroll` block, and a `kind: "svg"` overlay — each with a committed golden SVG you can open. They double as a regression suite (`npm run demos:test:animate`). See `examples/animate/README.md`.
 
+> **Config validation.** The `domotion animate` JSON config is validated against a zod schema (`animateConfigSchema` in `src/cli/animate.ts`) — that schema is the source of truth for the config shape. Invalid configs fail with a path-specific message, e.g. `animate: frames[0].duration: Invalid input: expected number, received string`.
+
 ## Frame composition (existing behavior)
 
 A `generateAnimatedSvg` call takes a list of `AnimationFrame`s. Each frame has:
