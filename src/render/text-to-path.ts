@@ -931,7 +931,7 @@ export function pingfangKeyForLang(lang: string | undefined): string | null {
  * residue the primary lacks. The comment after each branch names the face the
  * probe showed Chromium using for that block.
  */
-function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
+export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
   const cp = codepoint;
   // Hebrew — Liberation Sans covers it, so route to the sans key (probe: hebrew
   // → Liberation Sans, i.e. the primary itself when sans-serif).
@@ -991,13 +991,24 @@ function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang?: stri
 }
 
 export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
-  // Platform-aware routing (DM-259 / DM-260). The body below is the macOS
-  // (CoreText) calibration — kept verbatim as the darwin path. Linux
-  // (fontconfig) cascades through entirely different faces, so it has its own
+  // Platform-aware routing (DM-259 / DM-260). Linux (fontconfig) cascades
+  // through entirely different faces than macOS (CoreText), so it has its own
   // empirically-probed chain. Windows (DirectWrite) is not yet calibrated
   // (DM-260 / DM-836) — it falls through to the darwin routing over its own
   // fonts (post-DM-258 status quo) until probed.
   if (process.platform === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
+  return darwinFallbackChain(codepoint, primaryKey, lang);
+}
+
+/**
+ * macOS (CoreText) fallback chain — reverse-engineered from Chromium-on-macOS
+ * painted widths (DM-241 / DM-256 / DM-257 / …). Exported so the macOS-
+ * calibration unit tests assert it directly: the suite runs on Linux in CI,
+ * where `fallbackFontChain` dispatches to `linuxFallbackChain`, so those tests
+ * must call this function (not `fallbackFontChain`) to validate macOS routing
+ * regardless of the host platform (DM-842).
+ */
+export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
   // When the primary family is a serif (Apple Times / Times New Roman /
   // Georgia, or fangsong/math/serif/ui-serif which all resolve to `times`),
   // CJK fallback should produce SERIF CJK glyphs (Songti SC Light) instead
@@ -1909,12 +1920,21 @@ export function textToPathMarkup(
           const nextI = i + ch.length;
           const nextCp = nextI < text.length ? text.codePointAt(nextI)! : 0;
           const isPua = isPrivateUseCodepoint(cp);
-          const skipNotdef = isEmojiCodepoint(cp, nextCp) || isPua;
+          const isEmoji = isEmojiCodepoint(cp, nextCp);
           const uses: string[] = [];
           let suppressedNotdef = false;
           for (const g of layout.glyphs) {
             if (g.path.commands.length === 0) continue;
-            if (skipNotdef && g.id === 0) { suppressedNotdef = true; continue; }
+            // Emoji codepoints are covered by the capture layer's raster
+            // <image> overlay (DM-334), so suppress ALL path emission for them
+            // — not only the .notdef tofu. On macOS the fallback chain resolves
+            // emoji to tofu (id 0), so an id-0-only gate sufficed; on Linux the
+            // chain can land a real MONOCHROME glyph (e.g. FreeSans has ✨
+            // U+2728), which must still be suppressed or it paints under the
+            // color raster. DM-842.
+            if (isEmoji) { suppressedNotdef = true; continue; }
+            // PUA: suppress only the .notdef tofu; a real icon-font glyph emits.
+            if (isPua && g.id === 0) { suppressedNotdef = true; continue; }
             const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, g.path.commands);
             uses.push(`<use href="#${defId}" x="0" y="0"/>`);
           }

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __resolveFontSpecForTest, clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isTextToPathAvailable, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
+import { __resolveFontSpecForTest, clearEmbeddedFonts, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isTextToPathAvailable, linuxFallbackChain, pingfangKeyForLang, registerWebfont, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -252,24 +252,24 @@ describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", (
   // overran the ASCII-art table in 02-text-preformatted's <pre>.
   it("routes box-drawing chars to the monospace primary when one is supplied", () => {
     // Courier (CSS `monospace` keyword on macOS) gets box chars from itself.
-    expect(fallbackFontChain(0x2500, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]);
-    expect(fallbackFontChain(0x252C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┬
-    expect(fallbackFontChain(0x2534, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┴
-    expect(fallbackFontChain(0x253C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┼
+    expect(darwinFallbackChain(0x2500, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]);
+    expect(darwinFallbackChain(0x252C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┬
+    expect(darwinFallbackChain(0x2534, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┴
+    expect(darwinFallbackChain(0x253C, "courier")).toEqual(["courier", "menlo", "hiragino-jp"]); // ┼
     // Author-named monospaces.
-    expect(fallbackFontChain(0x2500, "menlo")).toEqual(["menlo", "menlo", "hiragino-jp"]);
-    expect(fallbackFontChain(0x2500, "monaco")).toEqual(["monaco", "menlo", "hiragino-jp"]);
-    expect(fallbackFontChain(0x2500, "sf-mono")).toEqual(["sf-mono", "menlo", "hiragino-jp"]);
+    expect(darwinFallbackChain(0x2500, "menlo")).toEqual(["menlo", "menlo", "hiragino-jp"]);
+    expect(darwinFallbackChain(0x2500, "monaco")).toEqual(["monaco", "menlo", "hiragino-jp"]);
+    expect(darwinFallbackChain(0x2500, "sf-mono")).toEqual(["sf-mono", "menlo", "hiragino-jp"]);
   });
 
   it("keeps Hiragino routing for non-monospace primaries", () => {
     // Helvetica / SF Pro / Times body text: Chrome paints box chars from
     // CoreText's Hiragino fallback at em-width (it's already off the mono
     // cell grid anyway), so hiragino-jp stays first.
-    expect(fallbackFontChain(0x2500)).toEqual(["hiragino-jp", "menlo"]);
-    expect(fallbackFontChain(0x2500, "helvetica")).toEqual(["hiragino-jp", "menlo"]);
-    expect(fallbackFontChain(0x2500, "sf-pro")).toEqual(["hiragino-jp", "menlo"]);
-    expect(fallbackFontChain(0x2500, "times")).toEqual(["hiragino-jp", "menlo"]);
+    expect(darwinFallbackChain(0x2500)).toEqual(["hiragino-jp", "menlo"]);
+    expect(darwinFallbackChain(0x2500, "helvetica")).toEqual(["hiragino-jp", "menlo"]);
+    expect(darwinFallbackChain(0x2500, "sf-pro")).toEqual(["hiragino-jp", "menlo"]);
+    expect(darwinFallbackChain(0x2500, "times")).toEqual(["hiragino-jp", "menlo"]);
   });
 });
 
@@ -285,17 +285,17 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     // Geometric Shapes block (U+25A0..25FF) — chars Chrome paints at em-square.
     // Note: ■ □ ● ○ ◆ ◇ are individually carved out to LucidaGrande first
     // (DM-349) because Chrome paints those at proportional 9-13px, not em-square.
-    expect(fallbackFontChain(0x25C9)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x25CC)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x25D0)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x25D1)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x25C9)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x25CC)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x25D0)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x25D1)).toEqual(["cjk", "hiragino-jp", "symbols"]);
     // Misc Symbols block (U+2600..26FF).
-    expect(fallbackFontChain(0x2600)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x2601)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x2602)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x2603)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x2640)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x26A5)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x2600)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x2601)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x2602)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x2603)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x2640)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x26A5)).toEqual(["cjk", "hiragino-jp", "symbols"]);
   });
 
   it("routes ■ □ ● ○ ◆ ◇ through LucidaGrande (matches Chrome's narrow paint)", () => {
@@ -305,12 +305,12 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     // DM-415 / DM-429 verified this is still the closest visible-shape
     // match in our font set (tried SF NS / AppleSDGothicNeo, both produced
     // visibly larger glyphs than Chrome's painted ink).
-    expect(fallbackFontChain(0x25A0)).toEqual(["lucida-grande", "symbols"]); // ■
-    expect(fallbackFontChain(0x25A1)).toEqual(["lucida-grande", "symbols"]); // □
-    expect(fallbackFontChain(0x25CF)).toEqual(["lucida-grande", "symbols"]); // ●
-    expect(fallbackFontChain(0x25CB)).toEqual(["lucida-grande", "symbols"]); // ○
-    expect(fallbackFontChain(0x25C6)).toEqual(["lucida-grande", "symbols"]); // ◆
-    expect(fallbackFontChain(0x25C7)).toEqual(["lucida-grande", "symbols"]); // ◇
+    expect(darwinFallbackChain(0x25A0)).toEqual(["lucida-grande", "symbols"]); // ■
+    expect(darwinFallbackChain(0x25A1)).toEqual(["lucida-grande", "symbols"]); // □
+    expect(darwinFallbackChain(0x25CF)).toEqual(["lucida-grande", "symbols"]); // ●
+    expect(darwinFallbackChain(0x25CB)).toEqual(["lucida-grande", "symbols"]); // ○
+    expect(darwinFallbackChain(0x25C6)).toEqual(["lucida-grande", "symbols"]); // ◆
+    expect(darwinFallbackChain(0x25C7)).toEqual(["lucida-grande", "symbols"]); // ◇
   });
 });
 
@@ -322,58 +322,58 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
   // family: serif/fangsong/ui-serif`. Non-serif primaries keep the existing
   // HiraginoSansGB-W3 sans CJK route.
   it("returns ['cjk-serif', 'cjk'] when primary is times / times-new-roman / georgia", () => {
-    expect(fallbackFontChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "times-new-roman")).toEqual(["cjk-serif", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "georgia")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "times-new-roman")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "georgia")).toEqual(["cjk-serif", "cjk"]);
     // Hiragana / Katakana also go through the serif route.
-    expect(fallbackFontChain(0x3042, "times")).toEqual(["cjk-serif", "cjk"]);
-    expect(fallbackFontChain(0x30A2, "times")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x3042, "times")).toEqual(["cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x30A2, "times")).toEqual(["cjk-serif", "cjk"]);
     // Hangul does NOT — DM-691 routes it to Apple SD Gothic Neo first
     // because neither HiraginoSansGB nor Songti contains Hangul codepoints.
-    expect(fallbackFontChain(0xAC00, "times")).toEqual(["korean", "cjk"]);
+    expect(darwinFallbackChain(0xAC00, "times")).toEqual(["korean", "cjk"]);
   });
   it("routes Han Unified Ideographs through pingfang-sc → cjk for non-serif primaries (DM-388)", () => {
     // U+4F60 is in CJK Unified Ideographs (the 你 in 你好). Sans-serif primary
     // routes through PingFang SC (CoreText extractor) first to match what
     // Chrome paints, with HiraginoSansGB-W3 retained as the fontkit-readable
     // safety net for any glyph PingFang lacks. DM-382 / DM-364 / DM-388.
-    expect(fallbackFontChain(0x4F60, "helvetica")).toEqual(["pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "sf-pro")).toEqual(["pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "menlo")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "sf-pro")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "menlo")).toEqual(["pingfang-sc", "cjk"]);
     // No primaryKey arg → default sans behavior.
-    expect(fallbackFontChain(0x4F60)).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60)).toEqual(["pingfang-sc", "cjk"]);
   });
   it("keeps the bare ['cjk'] route for non-Han CJK ranges (Hiragana / Katakana)", () => {
     // PingFang routing applies only to Han Unified Ideographs + Ext A + CJK
     // Compatibility Ideographs. Hiragana (3040..309F) and Katakana
     // (30A0..30FF) are what HiraginoSansGB / Apple's Hiragino chain paints;
     // they don't go through PingFang.
-    expect(fallbackFontChain(0x3042, "helvetica")).toEqual(["cjk"]); // ぁ
-    expect(fallbackFontChain(0x30A2, "helvetica")).toEqual(["cjk"]); // ア
+    expect(darwinFallbackChain(0x3042, "helvetica")).toEqual(["cjk"]); // ぁ
+    expect(darwinFallbackChain(0x30A2, "helvetica")).toEqual(["cjk"]); // ア
   });
   it("routes Hangul (Syllables + Jamo) through Apple SD Gothic Neo — DM-691", () => {
     // HiraginoSansGB / Songti / PingFang don't contain Hangul codepoints,
     // so the dedicated `korean` route is required to avoid tofu glyphs.
-    expect(fallbackFontChain(0xAC00, "helvetica")).toEqual(["korean", "cjk"]); // 가
-    expect(fallbackFontChain(0xD7A3, "helvetica")).toEqual(["korean", "cjk"]); // 힣
-    expect(fallbackFontChain(0x1100, "helvetica")).toEqual(["korean", "cjk"]); // ᄀ (Jamo)
+    expect(darwinFallbackChain(0xAC00, "helvetica")).toEqual(["korean", "cjk"]); // 가
+    expect(darwinFallbackChain(0xD7A3, "helvetica")).toEqual(["korean", "cjk"]); // 힣
+    expect(darwinFallbackChain(0x1100, "helvetica")).toEqual(["korean", "cjk"]); // ᄀ (Jamo)
   });
   it("routes Han through the lang-matching PingFang variant when lang is set (DM-394)", () => {
     // 你 is U+4F60 — Han ideograph.
-    expect(fallbackFontChain(0x4F60, "helvetica", "zh-TW")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "helvetica", "zh-Hant")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "helvetica", "zh-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "helvetica", "zh-MO")).toEqual(["pingfang-mo", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-TW")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-Hant")).toEqual(["pingfang-tc", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-MO")).toEqual(["pingfang-mo", "pingfang-sc", "cjk"]);
     // zh-Hant-HK: region wins over script.
-    expect(fallbackFontChain(0x4F60, "helvetica", "zh-Hant-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-Hant-HK")).toEqual(["pingfang-hk", "pingfang-sc", "cjk"]);
     // Japanese: there's no PingFang JP — routes through Hiragino Kaku.
-    expect(fallbackFontChain(0x4F60, "helvetica", "ja")).toEqual(["hiragino-jp", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "helvetica", "ja-JP")).toEqual(["hiragino-jp", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "ja")).toEqual(["hiragino-jp", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "ja-JP")).toEqual(["hiragino-jp", "cjk"]);
     // SC / unspecified / non-CJK lang → default PingFang SC.
-    expect(fallbackFontChain(0x4F60, "helvetica", "zh-CN")).toEqual(["pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "helvetica", "zh-Hans")).toEqual(["pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "helvetica", "en-US")).toEqual(["pingfang-sc", "cjk"]);
-    expect(fallbackFontChain(0x4F60, "helvetica", "")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-CN")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "zh-Hans")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "en-US")).toEqual(["pingfang-sc", "cjk"]);
+    expect(darwinFallbackChain(0x4F60, "helvetica", "")).toEqual(["pingfang-sc", "cjk"]);
   });
 });
 
@@ -407,13 +407,13 @@ describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
     // chains regardless of primary — those blocks aren't affected by the
     // serif/sans CJK distinction. ■ is one of the LucidaGrande-narrow chars
     // (DM-349), so it stays on its dedicated chain even with a serif primary.
-    expect(fallbackFontChain(0x25A0, "times")).toEqual(["lucida-grande", "symbols"]);
-    expect(fallbackFontChain(0x25C9, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(fallbackFontChain(0x2600, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x25A0, "times")).toEqual(["lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x25C9, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x2600, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
     // Arrows ← → ↗ ↙ now route to LucidaGrande regardless of primary
     // (DM-405 — re-probed via CDP, Chrome paints these via LucidaGrande
     // at every size 12 → 32 px, not Hiragino).
-    expect(fallbackFontChain(0x2190, "times")).toEqual(["lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x2190, "times")).toEqual(["lucida-grande", "symbols"]);
   });
 });
 
@@ -447,10 +447,10 @@ describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM
   // Chrome paints these chunky filled arrows; Hiragino's thin outline visibly
   // diverges (DM-296 reverted by DM-405).
   it("routes ← → ↑ ↓ to LucidaGrande (matches Chrome's painted glyph shape)", () => {
-    expect(fallbackFontChain(0x2190)).toEqual(["lucida-grande", "symbols"]); // ←
-    expect(fallbackFontChain(0x2192)).toEqual(["lucida-grande", "symbols"]); // →
-    expect(fallbackFontChain(0x2191)).toEqual(["lucida-grande", "symbols"]); // ↑
-    expect(fallbackFontChain(0x2193)).toEqual(["lucida-grande", "symbols"]); // ↓
+    expect(darwinFallbackChain(0x2190)).toEqual(["lucida-grande", "symbols"]); // ←
+    expect(darwinFallbackChain(0x2192)).toEqual(["lucida-grande", "symbols"]); // →
+    expect(darwinFallbackChain(0x2191)).toEqual(["lucida-grande", "symbols"]); // ↑
+    expect(darwinFallbackChain(0x2193)).toEqual(["lucida-grande", "symbols"]); // ↓
   });
 
   // ↗ ↙ — Lucida Grande LACKS these codepoints (verified via fontkit on all
@@ -459,8 +459,8 @@ describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM
   // paints. Hiragino Sans GB has them at em-width (16 px @ 16 px font),
   // matching Chrome. (DM-441.)
   it("routes ↗ ↙ to Hiragino — Lucida Grande lacks the diagonal-arrow glyphs", () => {
-    expect(fallbackFontChain(0x2197)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↗
-    expect(fallbackFontChain(0x2199)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↙
+    expect(darwinFallbackChain(0x2197)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↗
+    expect(darwinFallbackChain(0x2199)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↙
   });
 
   // ↑ ↓ are not at CJK em-square width and not at Apple Symbols' narrow
@@ -469,14 +469,51 @@ describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM
   // = 14.19px, U+2193 id=928 = 14.19px) matching the bounding box that
   // Range.getBoundingClientRect captures from Chrome.
   it("routes ↑ ↓ to LucidaGrande (matches Chrome's painted width)", () => {
-    expect(fallbackFontChain(0x2191)).toEqual(["lucida-grande", "symbols"]);
-    expect(fallbackFontChain(0x2193)).toEqual(["lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x2191)).toEqual(["lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x2193)).toEqual(["lucida-grande", "symbols"]);
   });
 
   it("keeps the rest of the Arrows block on Apple Symbols", () => {
-    expect(fallbackFontChain(0x2194)).toEqual(["symbols"]);
-    expect(fallbackFontChain(0x21D2)).toEqual(["symbols"]);
-    expect(fallbackFontChain(0x21D4)).toEqual(["symbols"]);
+    expect(darwinFallbackChain(0x2194)).toEqual(["symbols"]);
+    expect(darwinFallbackChain(0x21D2)).toEqual(["symbols"]);
+    expect(darwinFallbackChain(0x21D4)).toEqual(["symbols"]);
+  });
+});
+
+// DM-259 / DM-842: the Linux chain is a separate calibration (Chromium-on-Linux
+// in the Playwright noble image — Liberation / WenQuanYi / FreeFont / Loma).
+// These test `linuxFallbackChain` directly so they run identically on any host
+// (the CI suite runs on Linux, but a dev's macOS run must cover it too).
+describe("linuxFallbackChain: Chromium-on-Linux calibration (DM-259)", () => {
+  it("routes the symbol/arrow/box blocks to the image's real faces", () => {
+    expect(linuxFallbackChain(0x2500, "courier")).toEqual(["courier", "cjk"]);   // box-drawing, mono primary
+    expect(linuxFallbackChain(0x2500)).toEqual(["helvetica", "cjk"]);            // box-drawing, sans primary
+    expect(linuxFallbackChain(0x25A0)).toEqual(["helvetica", "cjk"]);            // geometric → Liberation Sans
+    expect(linuxFallbackChain(0x2190)).toEqual(["helvetica", "free-sans"]);      // ← → Liberation Sans
+    expect(linuxFallbackChain(0x2197)).toEqual(["cjk", "helvetica"]);            // ↗ diagonal → WenQuanYi
+    expect(linuxFallbackChain(0x2702)).toEqual(["free-sans", "free-serif"]);     // dingbat → FreeSans
+    expect(linuxFallbackChain(0x1D400)).toEqual(["free-sans", "free-serif"]);    // Math Alpha → FreeFont
+  });
+
+  it("routes CJK / Indic / RTL to the image's lang faces", () => {
+    expect(linuxFallbackChain(0x4E00)).toEqual(["cjk"]);          // Han → WenQuanYi
+    expect(linuxFallbackChain(0xAC00)).toEqual(["cjk"]);          // Hangul → WenQuanYi
+    expect(linuxFallbackChain(0x0628)).toEqual(["sf-arabic"]);    // Arabic → FreeSerif
+    expect(linuxFallbackChain(0x0928)).toEqual(["devanagari"]);   // Devanagari → FreeSans
+    expect(linuxFallbackChain(0x0E01)).toEqual(["thai"]);         // Thai → Loma
+    expect(linuxFallbackChain(0x05D0)).toEqual(["helvetica"]);    // Hebrew → Liberation Sans
+  });
+});
+
+// DM-842: the public `fallbackFontChain` dispatches by process.platform. Confirm
+// it routes to the right per-platform implementation on the current host so the
+// platform split itself is regression-guarded.
+describe("fallbackFontChain: platform dispatch (DM-842)", () => {
+  it("dispatches to the host platform's chain", () => {
+    const expected = process.platform === "linux"
+      ? linuxFallbackChain(0x2500, "courier")
+      : darwinFallbackChain(0x2500, "courier");
+    expect(fallbackFontChain(0x2500, "courier")).toEqual(expected);
   });
 });
 
