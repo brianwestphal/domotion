@@ -140,11 +140,17 @@ defs, 0 `<text>`) at **0.00 %** vs Chromium-on-Linux. Fixed by the switch from
 `<text>` fallback to real glyph paths: `text-decorations`,
 `pseudo-before-gradient-badge`, `inline-box-decoration-break`.
 
-**Known residual (follow-up)**: `mathml-mi-greek-italic` / `mathml-mi-italic-letters`
+**Known residual (DM-838)**: `mathml-mi-greek-italic` / `mathml-mi-italic-letters`
 still fail (~0.4–0.8 %, also failing pre-change). The Math-Alphanumeric glyphs
-(𝑎 U+1D44E, 𝛼 U+1D6FC) fall back to `<text>` because **fontkit can't extract
-those glyphs from FreeSans on Linux** even though Chromium paints them there —
-a glyph-extraction gap, not a chain-routing gap. Tracked separately.
+(𝑎 U+1D44E, 𝛼 U+1D6FC) fall back to `<text>`. Root cause confirmed by a
+Linux-container fontkit probe: **FreeSans's cmap does not contain U+1D400–1D7FF
+at all** (not a fontkit extraction bug, and not fixable by a native FreeType
+extractor — `FT_Get_Char_Index` also returns `.notdef`). Chromium paints them by
+*synthesizing* from the base Latin/Greek letters (the matched face is the already-
+italic `FreeSansOblique`). The fix is therefore a **capture/render-side
+Math-Alphanumeric → base-letter decomposition** (map U+1D4xx back to its base
+char + the bold/italic style when the system font lacks the range), not a chain
+or extractor change. Tracked on DM-838.
 
 ### Windows (DirectWrite) — DM-260
 
