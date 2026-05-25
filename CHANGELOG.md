@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.4.1] - 2026-05-25
+
+
+- Fix an emoji glyph leaking into rendered text output
+
 ## [0.4.0] - 2026-05-25
 
 
