@@ -157,6 +157,10 @@ const overlaySchema = z.discriminatedUnion("kind", [
     bgColor: z.string().optional(),
     bgWidth: z.number().optional(),
     bgHeight: z.number().optional(),
+    // DM-870: blinking insertion caret.
+    caret: z
+      .union([z.boolean(), z.object({ color: z.string().optional(), width: z.number().optional(), blinkMs: z.number().optional() })])
+      .optional(),
   }),
   z.object({
     kind: z.literal("tap"),

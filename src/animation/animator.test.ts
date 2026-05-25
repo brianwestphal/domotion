@@ -207,6 +207,28 @@ describe("animator", () => {
     expect(svg).not.toContain("alternate");
   });
 
+  it("DM-870: typing-overlay caret emits a position-tracked, step-end blinking bar", () => {
+    const svg = generateAnimatedSvg({
+      width: 200,
+      height: 80,
+      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true }] }],
+    });
+    expect(svg).toContain(`class="t0-caret"`);
+    expect(svg).toMatch(/@keyframes t0-caret-pos/);
+    expect(svg).toMatch(/@keyframes t0-caret-blink/);
+    // Position track is linear; the blink toggles with step-end (hard on/off).
+    expect(svg).toMatch(/\.t0-caret\s*{[^}]*linear[^}]*step-end/);
+  });
+
+  it("DM-870: typing overlay without the caret option emits no caret", () => {
+    const svg = generateAnimatedSvg({
+      width: 200,
+      height: 80,
+      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi", x: 10, y: 40 }] }],
+    });
+    expect(svg).not.toContain("-caret");
+  });
+
   it("intra-frame animation: translateY desugars to transform: translateY()", () => {
     const svg = generateAnimatedSvg({
       width: 100, height: 100,

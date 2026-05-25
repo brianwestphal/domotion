@@ -134,6 +134,17 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
         }),
       ).toThrow();
     });
+
+    it("DM-870: accepts a typing-overlay caret (boolean or object)", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, overlays: [
+          { kind: "typing", text: "hi", x: 1, y: 2, caret: true },
+          { kind: "typing", text: "yo", x: 1, y: 20, caret: { color: "#fff", width: 2, blinkMs: 500 } },
+        ] }],
+      });
+      expect(cfg.frames[0].overlays).toHaveLength(2);
+    });
   });
 });
 

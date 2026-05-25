@@ -72,6 +72,13 @@ export interface TypingOverlay {
    * sits on a clean background.
    */
   bgHeight?: number;
+  /**
+   * DM-870: render a blinking insertion caret. The bar sweeps the type
+   * position while typing, then parks at the end of the text and blinks
+   * (opacity 1↔0) until the frame ends. `true` uses defaults (the typing
+   * `color`, 2px wide, ~530ms cadence); an object overrides them.
+   */
+  caret?: boolean | { color?: string; width?: number; blinkMs?: number };
 }
 
 export interface TapOverlay {
@@ -559,6 +566,9 @@ function renderTypingOverlay(
   // characters are typed (line N starts after line N-1 finishes), so the caret
   // advances down the field exactly as it would in the browser.
 
+  // DM-870: per-line type timing, collected for the optional caret below.
+  const lineTimings: Array<{ li: number; startMs: number; endMs: number; len: number }> = [];
+
   let cumChars = 0;
   lines.forEach((line, li) => {
     const lineY = overlay.y + li * lineHeight;
@@ -567,8 +577,11 @@ function renderTypingOverlay(
     // is where the caret would sit just after the typed character anyway.
     const lineWidth = line.length * charWidth + charWidth;
     const clipId = `${id}-clip${li}`;
-    const lineStartPct = pct(typeStartMs + (cumChars / visibleChars) * effTypeDur, totalDuration);
-    const lineEndPct = pct(typeStartMs + ((cumChars + line.length) / visibleChars) * effTypeDur, totalDuration);
+    const lineStartMs = typeStartMs + (cumChars / visibleChars) * effTypeDur;
+    const lineEndMs = typeStartMs + ((cumChars + line.length) / visibleChars) * effTypeDur;
+    const lineStartPct = pct(lineStartMs, totalDuration);
+    const lineEndPct = pct(lineEndMs, totalDuration);
+    lineTimings.push({ li, startMs: lineStartMs, endMs: lineEndMs, len: line.length });
     cumChars += line.length;
 
     parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="0" height="${textHeight}" /></clipPath></defs>`);
@@ -585,6 +598,54 @@ function renderTypingOverlay(
   cssRules.push(`
     @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }
     .${id}-text { animation: ${id}-vis ${totalSec.toFixed(2)}s infinite; }`);
+
+  // DM-870: blinking insertion caret. Sweeps the type position while typing
+  // (one linear translate segment per wrapped line, jumping to the next line's
+  // start), then parks at the end of the last line and blinks (step-end opacity
+  // toggle) until the overlay disappears. Two animations on one rect: a linear
+  // position track + a step-end opacity blink.
+  if (overlay.caret != null && overlay.caret !== false && lineTimings.length > 0) {
+    const caretOpts = typeof overlay.caret === "object" ? overlay.caret : {};
+    const caretColor = caretOpts.color ?? color;
+    const caretW = caretOpts.width ?? 2;
+    const blinkMs = caretOpts.blinkMs ?? 530;
+    const last = lineTimings[lineTimings.length - 1];
+    const endX = last.len * charWidth;
+    const endY = last.li * lineHeight;
+
+    // Position track: hold at line 0 start until typing begins, then sweep each
+    // line, then hold at the text end through the blink + disappear.
+    const posStops: string[] = [`0%, ${typeStartPct} { transform: translate(0px, 0px); }`];
+    for (const lt of lineTimings) {
+      posStops.push(`${pct(lt.startMs, totalDuration)} { transform: translate(0px, ${lt.li * lineHeight}px); }`);
+      posStops.push(`${pct(lt.endMs, totalDuration)} { transform: translate(${lt.len * charWidth}px, ${lt.li * lineHeight}px); }`);
+    }
+    posStops.push(`${holdEndPct}, 100% { transform: translate(${endX}px, ${endY}px); }`);
+
+    // Blink: invisible until typing starts, solid through typing, then toggle
+    // on/off every half-period until the overlay disappears.
+    const blinkStops: string[] = [
+      `0%, ${typeStartPct} { opacity: 0; }`,
+      `${pct(typeStartMs + 30, totalDuration)} { opacity: 1; }`,
+      `${pct(textEndMs, totalDuration)} { opacity: 1; }`,
+    ];
+    let t = textEndMs + blinkMs / 2;
+    let on = false;
+    while (t < holdEndMs) {
+      blinkStops.push(`${pct(t, totalDuration)} { opacity: ${on ? 1 : 0}; }`);
+      t += blinkMs / 2;
+      on = !on;
+    }
+    blinkStops.push(`${disappearPct}, 100% { opacity: 0; }`);
+
+    parts.push(
+      `  <rect class="${id}-caret" x="${overlay.x}" y="${overlay.y - fontSize + 2}" width="${caretW}" height="${fontSize}" fill="${caretColor}" />`,
+    );
+    cssRules.push(`
+    @keyframes ${id}-caret-pos { ${posStops.join(" ")} }
+    @keyframes ${id}-caret-blink { ${blinkStops.join(" ")} }
+    .${id}-caret { animation: ${id}-caret-pos ${totalSec.toFixed(2)}s linear infinite, ${id}-caret-blink ${totalSec.toFixed(2)}s step-end infinite; }`);
+  }
 
   return { svgMarkup: parts.join("\n"), css: cssRules.join("") };
 }
