@@ -110,6 +110,31 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       ).toThrow(/requires `equals`, `atLeast`, or `atMost`/);
     });
   });
+
+  describe("repeating animations (DM-869)", () => {
+    it("accepts repeat (integer | \"infinite\") + alternate on a frame animation", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, animations: [
+          { selector: ".caret", property: "opacity", from: "1", to: "0", duration: 530, repeat: "infinite", alternate: true },
+        ] }],
+      });
+      const a = cfg.frames[0].animations?.[0];
+      expect(a?.repeat).toBe("infinite");
+      expect(a?.alternate).toBe(true);
+    });
+
+    it("rejects a non-positive repeat count", () => {
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, animations: [
+            { selector: ".c", property: "opacity", from: "1", to: "0", duration: 1, repeat: 0 },
+          ] }],
+        }),
+      ).toThrow();
+    });
+  });
 });
 
 describe("interpolateConfigVars (DM-852)", () => {

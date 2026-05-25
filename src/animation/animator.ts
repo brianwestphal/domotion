@@ -151,6 +151,17 @@ export interface IntraFrameAnimation {
   easing?: string;
   /** Ms after the frame becomes visible before animation starts. Default 0. */
   delay?: number;
+  /**
+   * DM-869: repeat count. A positive integer or `"infinite"`. When set, the
+   * animation loops on its own `duration` clock (CSS `animation-iteration-count`)
+   * rather than playing once — turning a property animation into a blink / pulse
+   * / breathe. The loop is only visible while the frame is on screen (the frame
+   * group's visibility gating). `"infinite"` is the robust choice for a looping
+   * scene; a finite count aligns to the frame's first appearance.
+   */
+  repeat?: number | "infinite";
+  /** DM-869: when true, the loop ping-pongs `from`→`to`→`from` (CSS `animation-direction: alternate`). */
+  alternate?: boolean;
 }
 
 export interface AnimationConfig {
@@ -757,15 +768,32 @@ function buildIntraFrameAnimationCss(
         return `${a.property}: ${val};`;
       };
       const animName = `f${i}-${a.animId}-${ai}`;
-      // Hold `from` until startPct, animate from→to during [startPct, endPct],
-      // hold `to` afterwards. Pre-frame holds use 0% as the from anchor.
-      out.push(`    @keyframes ${animName} {
+      if (a.repeat != null) {
+        // DM-869: repeating animation (blink / pulse / breathe). The keyframe is
+        // a single from→to cycle on the animation's own `duration` clock, looped
+        // via animation-iteration-count + (optional) direction:alternate. The
+        // loop is only visible while the frame is on screen (the frame group's
+        // visibility gating); `animation-delay` aligns the first cycle to the
+        // frame's appearance. `fill-mode: both` holds `from` before the delay.
+        const iterations = a.repeat === "infinite" ? "infinite" : String(a.repeat);
+        const direction = a.alternate === true ? " alternate" : "";
+        out.push(`    @keyframes ${animName} {
+      0% { ${propValue(a.from)} }
+      100% { ${propValue(a.to)} }
+    }
+    .anim-${a.animId} { animation: ${animName} ${a.duration}ms ${iterations}${direction}; animation-timing-function: ${easing}; animation-delay: ${startMs.toFixed(0)}ms; animation-fill-mode: both; }`);
+      } else {
+        // One-shot: hold `from` until startPct, animate from→to during
+        // [startPct, endPct], hold `to` afterwards, mapped onto the global scene
+        // clock so it replays in sync each scene loop.
+        out.push(`    @keyframes ${animName} {
       0% { ${propValue(a.from)} }
       ${startPct.toFixed(3)}% { ${propValue(a.from)} }
       ${endPct.toFixed(3)}% { ${propValue(a.to)} }
       100% { ${propValue(a.to)} }
     }
     .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing}; }`);
+      }
     }
   }
   return out.length === 0 ? "" : "\n" + out.join("\n");

@@ -79,6 +79,9 @@ const frameAnimationSchema = z.object({
   duration: z.number(),
   easing: z.string().optional(),
   delay: z.number().optional(),
+  // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
+  repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
+  alternate: z.boolean().optional(),
 });
 
 const insertPositionSchema = z.enum(["beforebegin", "afterbegin", "beforeend", "afterend"]);
@@ -399,6 +402,8 @@ export async function composeAnimateConfig(
             duration: a.duration,
             easing: a.easing,
             delay: a.delay,
+            repeat: a.repeat,
+            alternate: a.alternate,
           });
         }
       }

@@ -173,6 +173,40 @@ describe("animator", () => {
     expect(svg).toContain("ease-out");
   });
 
+  it("DM-869: repeating animation loops on its own clock with iteration-count + alternate", () => {
+    const svg = generateAnimatedSvg({
+      width: 100,
+      height: 100,
+      frames: [
+        {
+          svgContent: `<rect class="anim-caret"/>`,
+          duration: 2000,
+          animations: [{ animId: "caret", property: "opacity", from: "1", to: "0", duration: 530, repeat: "infinite", alternate: true }],
+        },
+      ],
+    });
+    // Loops on its own 530ms clock, infinite + alternating — NOT the global scene clock.
+    expect(svg).toMatch(/\.anim-caret\s*{[^}]*animation:\s*f0-caret-0\s+530ms\s+infinite\s+alternate/);
+    // Simple two-stop from→to cycle (no 4-stop global-clock hold).
+    expect(svg).toMatch(/@keyframes f0-caret-0\s*{\s*0%\s*{\s*opacity:\s*1;\s*}\s*100%\s*{\s*opacity:\s*0;\s*}\s*}/);
+  });
+
+  it("DM-869: finite repeat emits the count and (without alternate) no direction", () => {
+    const svg = generateAnimatedSvg({
+      width: 100,
+      height: 100,
+      frames: [
+        {
+          svgContent: `<rect class="anim-p"/>`,
+          duration: 2000,
+          animations: [{ animId: "p", property: "opacity", from: "1", to: "0.3", duration: 400, repeat: 3 }],
+        },
+      ],
+    });
+    expect(svg).toMatch(/\.anim-p\s*{[^}]*animation:\s*f0-p-0\s+400ms\s+3\s*;/);
+    expect(svg).not.toContain("alternate");
+  });
+
   it("intra-frame animation: translateY desugars to transform: translateY()", () => {
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
