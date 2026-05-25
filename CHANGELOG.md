@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.4.0] - 2026-05-25
+
+
+- Text now renders with embedded fonts by default across all outputs.
+- Embedded-font output positions glyphs via a single `<text>` x-list for smaller, cleaner SVG.
+- Linux support: platform-aware font discovery with a calibrated Linux fallback chain.
+
 ## [0.3.3] - 2026-05-25
 
 
