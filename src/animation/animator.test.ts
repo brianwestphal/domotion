@@ -303,4 +303,66 @@ describe("animator", () => {
     // 50.000% boundary — frame 0 fades out and frame 1 fades in at the same instant.
     expect(svg).toMatch(/50\.000%/);
   });
+
+  // DM-840: a typing overlay over a bgWidth-constrained field must wrap like a
+  // browser textarea instead of running the text off the right edge.
+  describe("typing overlay text wrapping (DM-840)", () => {
+    const longText = "The quick brown fox jumps over the lazy dog repeatedly";
+
+    function typedSvg(opts: { bgWidth?: number }): string {
+      return generateAnimatedSvg({
+        width: 400, height: 200,
+        frames: [{
+          svgContent: `<rect width="400" height="200" fill="#fff"/>`,
+          duration: 4000,
+          overlays: [{
+            kind: "typing", text: longText, x: 20, y: 40,
+            fontSize: 14, bgColor: "#fff", bgWidth: opts.bgWidth, bgHeight: 24,
+          }],
+        }],
+      });
+    }
+
+    // Pull the text content out of every `<text class="t0-text" …>…</text>`.
+    function typedLines(svg: string): string[] {
+      return [...svg.matchAll(/<text class="t0-text"[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+    }
+
+    it("wraps the typed text into multiple lines bounded by bgWidth", () => {
+      const svg = typedSvg({ bgWidth: 120 });
+      const lines = typedLines(svg);
+      expect(lines.length).toBeGreaterThan(1);
+      // bgWidth 120, charWidth = 14*0.6 = 8.4 → usable (120-4)/8.4 ≈ 13 chars/line.
+      const maxChars = Math.floor((120 - 4) / (14 * 0.6));
+      for (const line of lines) expect(line.length).toBeLessThanOrEqual(maxChars);
+      // No glyph escapes the field: each line's right edge stays within the bg.
+      expect(lines.join("")).not.toContain("  "); // wrap consumed the break spaces
+    });
+
+    it("advances y by a line-height per wrapped line", () => {
+      const svg = typedSvg({ bgWidth: 120 });
+      const ys = [...svg.matchAll(/<text class="t0-text" x="20" y="([\d.]+)"/g)].map((m) => Number(m[1]));
+      expect(ys.length).toBeGreaterThan(1);
+      // Strictly increasing baselines, ~lineHeight (round(14*1.35)=19) apart.
+      for (let i = 1; i < ys.length; i++) {
+        expect(ys[i]).toBeGreaterThan(ys[i - 1]);
+        expect(ys[i] - ys[i - 1]).toBe(19);
+      }
+    });
+
+    it("keeps single-line behavior when no bgWidth is given (backward compatible)", () => {
+      const svg = typedSvg({});
+      const lines = typedLines(svg);
+      expect(lines.length).toBe(1);
+      expect(lines[0]).toBe(longText);
+    });
+
+    it("grows the bg mask to cover all wrapped lines", () => {
+      const svg = typedSvg({ bgWidth: 120 });
+      const bg = /<rect class="t0-bg"[^>]*height="([\d.]+)"/.exec(svg);
+      expect(bg).not.toBeNull();
+      // More than the single-line bgHeight (24) since the text wraps to several lines.
+      expect(Number(bg![1])).toBeGreaterThan(24);
+    });
+  });
 });

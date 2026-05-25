@@ -60,7 +60,18 @@ export interface TypingOverlay {
   speed?: number;
   /** Background color to mask placeholder text */
   bgColor?: string;
+  /**
+   * Field width in px. When set, the typed text WRAPS to this width like a
+   * browser textarea — breaking on spaces (char-breaking over-long words),
+   * advancing one line-height per wrapped line — instead of running off the
+   * right edge on a single line (DM-840). Omit for unbounded single-line text.
+   */
   bgWidth?: number;
+  /**
+   * Field height in px (used to size the placeholder mask). The mask grows
+   * beyond this if the wrapped text needs more lines, so the typed text always
+   * sits on a clean background.
+   */
   bgHeight?: number;
 }
 
@@ -445,6 +456,35 @@ function transitionDuration(f: AnimationFrame): number {
   return f.transition.duration;
 }
 
+/**
+ * Wrap `text` into lines no wider than `maxChars` monospace cells, the way a
+ * browser textarea does: break on spaces, char-break a word longer than the
+ * field, and honor explicit newlines. `maxChars === Infinity` → no wrap (one
+ * line per explicit-newline paragraph), preserving the pre-DM-840 behavior for
+ * overlays with no `bgWidth`. DM-840.
+ */
+function wrapTypingText(text: string, maxChars: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    if (maxChars === Infinity) { lines.push(paragraph); continue; }
+    if (paragraph === "") { lines.push(""); continue; }
+    let cur = "";
+    for (let word of paragraph.split(" ")) {
+      // A single word wider than the line char-breaks across lines.
+      while (word.length > maxChars) {
+        if (cur !== "") { lines.push(cur); cur = ""; }
+        lines.push(word.slice(0, maxChars));
+        word = word.slice(maxChars);
+      }
+      if (cur === "") cur = word;
+      else if ((cur + " " + word).length <= maxChars) cur += " " + word;
+      else { lines.push(cur); cur = word; }
+    }
+    lines.push(cur);
+  }
+  return lines;
+}
+
 function renderTypingOverlay(
   overlay: TypingOverlay,
   frameIdx: number,
@@ -456,52 +496,85 @@ function renderTypingOverlay(
   const delay = overlay.delay ?? 300;
   const speed = overlay.speed ?? 60;
   const fontSize = overlay.fontSize ?? 14;
-  const charWidth = fontSize * 0.6;
+  const charWidth = fontSize * 0.6;                 // monospace cell (overlay font is monospace)
+  const lineHeight = Math.round(fontSize * 1.35);
   const color = overlay.color ?? "#e6edf3";
   const typeStartMs = frameStart + delay;
+  const id = `t${frameIdx}`;
+
+  // DM-840: wrap to bgWidth so typed text behaves like a browser field
+  // (textarea) — wrapping to the next line instead of running off the right
+  // edge. Text starts at overlay.x and the bg rect starts at overlay.x-2 with
+  // width bgWidth, so the usable text width is bgWidth-4. With no bgWidth we
+  // keep the original single-line behavior (maxChars = Infinity).
+  const maxLineWidth = overlay.bgWidth != null ? overlay.bgWidth - 4 : Infinity;
+  const maxChars = maxLineWidth === Infinity ? Infinity : Math.max(1, Math.floor(maxLineWidth / charWidth));
+  const lines = wrapTypingText(overlay.text, maxChars);
+  const visibleChars = Math.max(1, lines.reduce((n, l) => n + l.length, 0));
+  const longestLineChars = lines.reduce((m, l) => Math.max(m, l.length), 0);
 
   const parts: string[] = [];
   const cssRules: string[] = [];
-  const id = `t${frameIdx}`;
 
-  // Background mask
+  // ── Timeline — all stops clamped to the frame so the overlay can't leak
+  // across the cut into the next frame. `naturalEnd` is when typing finishes
+  // at the requested speed; if that runs past the frame we compress the reveal
+  // to fit. The fully-typed text then HOLDS until just before the frame ends
+  // (the old hard 3 s cap cut long text off mid-type), then fades out.
+  const disappearGap = 150;
+  const naturalEndMs = typeStartMs + visibleChars * speed;
+  const textEndMs = Math.min(naturalEndMs, Math.max(typeStartMs + 1, frameEnd - disappearGap));
+  const effTypeDur = Math.max(1, textEndMs - typeStartMs);
+  const holdEndMs = Math.max(textEndMs, frameEnd - disappearGap);
+  const disappearMs = Math.min(frameEnd, holdEndMs + 100);
+  const textHeight = fontSize + 4;
+  const holdEndPct = pct(holdEndMs, totalDuration);
+  const disappearPct = pct(disappearMs, totalDuration);
+
+  // Background mask — grown to cover every wrapped line so the typed text
+  // always lands on a clean field instead of the captured placeholder.
   if (overlay.bgColor != null) {
-    const bgW = overlay.bgWidth ?? overlay.text.length * charWidth + 8;
-    const bgH = overlay.bgHeight ?? fontSize + 6;
+    const bgW = overlay.bgWidth ?? longestLineChars * charWidth + 8;
+    const bgH = Math.max(overlay.bgHeight ?? fontSize + 6, lines.length * lineHeight + 6);
     const bgStartPct = pct(typeStartMs, totalDuration);
-    const bgEndPct = pct(frameStart + overlay.text.length * speed + delay + 500, totalDuration);
-
     parts.push(
       `  <rect class="${id}-bg" x="${overlay.x - 2}" y="${overlay.y - fontSize + 2}" width="${bgW}" height="${bgH}" fill="${overlay.bgColor}" rx="2" />`,
     );
     cssRules.push(`
-    @keyframes ${id}-bg { 0%, ${bgStartPct} { opacity: 0; } ${pct(typeStartMs + 50, totalDuration)} { opacity: 1; } ${bgEndPct}, 100% { opacity: 0; } }
+    @keyframes ${id}-bg { 0%, ${bgStartPct} { opacity: 0; } ${pct(typeStartMs + 50, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }
     .${id}-bg { animation: ${id}-bg ${totalSec.toFixed(2)}s infinite; }`);
   }
 
-  // Render full text with an animated clip that reveals characters one-by-one.
-  // The overlay must disappear by the time the frame ends — otherwise it'll
-  // leak across the cut boundary and overlap the next frame's content.
-  const textEndMs = typeStartMs + overlay.text.length * speed;
-  const holdEndMs = Math.min(frameStart + 3000, frameEnd);
-  const fullTextWidth = overlay.text.length * charWidth + 4;
-  const textHeight = fontSize + 4;
-  const clipId = `${id}-clip`;
+  // Typewriter reveal: one <text> per wrapped line, each unveiled by a
+  // width-growing clip during the slice of the type timeline when that line's
+  // characters are typed (line N starts after line N-1 finishes), so the caret
+  // advances down the field exactly as it would in the browser.
 
-  // Clip rect animation: width grows from 0 to full text width
-  parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-reveal" x="${overlay.x}" y="${overlay.y - fontSize}" width="0" height="${textHeight}" /></clipPath></defs>`);
-  parts.push(
-    `  <text class="${id}-text" x="${overlay.x}" y="${overlay.y}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeXml(overlay.text)}</text>`,
-  );
+  let cumChars = 0;
+  lines.forEach((line, li) => {
+    const lineY = overlay.y + li * lineHeight;
+    // +1 cell of slack so the last glyph never clips: the real monospace
+    // advance is slightly wider than the 0.6em estimate, and the trailing cell
+    // is where the caret would sit just after the typed character anyway.
+    const lineWidth = line.length * charWidth + charWidth;
+    const clipId = `${id}-clip${li}`;
+    const lineStartPct = pct(typeStartMs + (cumChars / visibleChars) * effTypeDur, totalDuration);
+    const lineEndPct = pct(typeStartMs + ((cumChars + line.length) / visibleChars) * effTypeDur, totalDuration);
+    cumChars += line.length;
 
+    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="0" height="${textHeight}" /></clipPath></defs>`);
+    parts.push(
+      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeXml(line)}</text>`,
+    );
+    cssRules.push(`
+    @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: 0; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: 0; } }
+    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s infinite; }`);
+  });
+
+  // Whole-overlay visibility — shared by every line's <text>.
   const typeStartPct = pct(typeStartMs, totalDuration);
-  const typeEndPct = pct(textEndMs, totalDuration);
-  const holdEndPct = pct(holdEndMs, totalDuration);
-
   cssRules.push(`
-    @keyframes ${id}-reveal { 0%, ${typeStartPct} { width: 0; } ${typeEndPct} { width: ${fullTextWidth}px; } ${holdEndPct} { width: ${fullTextWidth}px; } ${pct(holdEndMs + 100, totalDuration)}, 100% { width: 0; } }
-    .${id}-reveal { animation: ${id}-reveal ${totalSec.toFixed(2)}s infinite; }
-    @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${pct(holdEndMs + 100, totalDuration)}, 100% { opacity: 0; } }
+    @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }
     .${id}-text { animation: ${id}-vis ${totalSec.toFixed(2)}s infinite; }`);
 
   return { svgMarkup: parts.join("\n"), css: cssRules.join("") };
