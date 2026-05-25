@@ -145,6 +145,16 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       });
       expect(cfg.frames[0].overlays).toHaveLength(2);
     });
+
+    it("DM-871: accepts a blink overlay", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, overlays: [
+          { kind: "blink", x: 1, y: 2, width: 10, height: 10, periodMs: 800, color: "#ef4444", radius: 5 },
+        ] }],
+      });
+      expect(cfg.frames[0].overlays?.[0]).toMatchObject({ kind: "blink" });
+    });
   });
 });
 

@@ -178,6 +178,18 @@ const overlaySchema = z.discriminatedUnion("kind", [
     enter: overlaySlideSchema.optional(),
     exit: overlaySlideSchema.optional(),
   }),
+  // DM-871: standalone blinking bar/box (recording dot, attention pulse, cursor).
+  z.object({
+    kind: z.literal("blink"),
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+    periodMs: z.number().optional(),
+    color: z.string().optional(),
+    radius: z.number().optional(),
+    delay: z.number().optional(),
+  }),
 ]);
 
 const frameSchema = z.object({
@@ -651,7 +663,7 @@ function resolveSvgOverlays(overlays: OverlayInput[] | undefined, configDir: str
         enter: ov.enter, exit: ov.exit,
       });
     } else {
-      // typing / tap already match their runtime overlay shapes verbatim.
+      // typing / tap / blink already match their runtime overlay shapes verbatim.
       out.push(ov);
     }
   }

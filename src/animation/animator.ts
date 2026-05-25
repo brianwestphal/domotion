@@ -125,7 +125,30 @@ export interface SvgOverlay {
   exit?: { from: "top" | "bottom" | "left" | "right"; duration: number; easing?: string; delay?: number };
 }
 
-export type AnimationOverlay = TypingOverlay | TapOverlay | SvgOverlay;
+/**
+ * DM-871: a standalone blinking bar/box, for carets/dots not tied to a typing
+ * overlay — a recording dot, an attention pulse on a focused field, a cursor.
+ * Renders a rect that toggles opacity on a `periodMs` cycle for the frame's
+ * hold (sugar over a rect + a repeating opacity animation).
+ */
+export interface BlinkOverlay {
+  kind: "blink";
+  /** Top-left corner in the captured frame's coordinate space. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Full on/off cycle in ms (default 1000). */
+  periodMs?: number;
+  /** Fill color (default a light gray). */
+  color?: string;
+  /** Corner radius — set to half the width/height for a dot. */
+  radius?: number;
+  /** Ms after the frame becomes visible before blinking starts. Default 0. */
+  delay?: number;
+}
+
+export type AnimationOverlay = TypingOverlay | TapOverlay | SvgOverlay | BlinkOverlay;
 
 /**
  * Animate a CSS property on captured elements that match a selector, while
@@ -410,6 +433,12 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
           );
           frameGroups.push(svgMarkup);
           keyframes.push(css);
+        } else if (overlay.kind === "blink") {
+          const { svgMarkup, css } = renderBlinkOverlay(
+            overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec,
+          );
+          frameGroups.push(svgMarkup);
+          keyframes.push(css);
         }
       }
     }
@@ -677,6 +706,39 @@ function renderTapOverlay(
     @keyframes ${id}-dot { 0%, ${tapStartPct} { opacity: 0; } ${pct(tapMs + 20, totalDuration)} { opacity: 0.6; } ${tapPeakPct} { opacity: 0.2; } ${tapEndPct}, 100% { opacity: 0; } }
     .${id}-dot { animation: ${id}-dot ${totalSec.toFixed(2)}s infinite; }`;
 
+  return { svgMarkup, css };
+}
+
+function renderBlinkOverlay(
+  overlay: BlinkOverlay,
+  frameIdx: number,
+  frameStart: number,
+  frameEnd: number,
+  totalDuration: number,
+  totalSec: number,
+): { svgMarkup: string; css: string } {
+  const id = `blink${frameIdx}`;
+  const period = overlay.periodMs ?? 1000;
+  const color = overlay.color ?? "#e6edf3";
+  const startMs = frameStart + (overlay.delay ?? 0);
+  const radiusAttr = overlay.radius != null ? ` rx="${overlay.radius}" ry="${overlay.radius}"` : "";
+
+  // Toggle opacity on/off every half-period across the frame's hold, then off.
+  // step-end keeps each state until the next stop (a hard blink, not a fade).
+  const stops: string[] = [`0%, ${pct(startMs, totalDuration)} { opacity: 0; }`];
+  let t = startMs;
+  let on = true;
+  while (t < frameEnd) {
+    stops.push(`${pct(t, totalDuration)} { opacity: ${on ? 1 : 0}; }`);
+    t += period / 2;
+    on = !on;
+  }
+  stops.push(`${pct(frameEnd, totalDuration)}, 100% { opacity: 0; }`);
+
+  const svgMarkup = `  <rect class="${id}" x="${overlay.x}" y="${overlay.y}" width="${overlay.width}" height="${overlay.height}"${radiusAttr} fill="${color}" />`;
+  const css = `
+    @keyframes ${id} { ${stops.join(" ")} }
+    .${id} { animation: ${id} ${totalSec.toFixed(2)}s step-end infinite; }`;
   return { svgMarkup, css };
 }
 

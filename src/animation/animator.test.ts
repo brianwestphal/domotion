@@ -229,6 +229,18 @@ describe("animator", () => {
     expect(svg).not.toContain("-caret");
   });
 
+  it("DM-871: blink overlay emits a step-end toggling rect", () => {
+    const svg = generateAnimatedSvg({
+      width: 100,
+      height: 100,
+      frames: [{ svgContent: `<rect/>`, duration: 2000, overlays: [{ kind: "blink", x: 10, y: 10, width: 12, height: 12, periodMs: 800, color: "#ef4444", radius: 6 }] }],
+    });
+    expect(svg).toMatch(/<rect class="blink0"[^>]*fill="#ef4444"/);
+    expect(svg).toContain('rx="6"');
+    expect(svg).toMatch(/@keyframes blink0/);
+    expect(svg).toMatch(/\.blink0\s*{[^}]*step-end/);
+  });
+
   it("intra-frame animation: translateY desugars to transform: translateY()", () => {
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
