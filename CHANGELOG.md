@@ -2,6 +2,18 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.5.0] - 2026-05-25
+
+
+- New declarative animate config — compose multi-frame animations from a config file
+- Added overlay primitives: config-level cursor, selector-anchored overlays, and a standalone blink
+- Typing overlay now renders a blinking insertion caret
+- Blink and pulse intra-frame animations now support repeat / alternate
+- Added richer readiness waits before capture, plus repeating-animation support
+- Added a `maxWidth` option to the animate config
+- Fixed crossfade z-order, push-left/scroll keyframes, and body-gradient capture
+- Font-family values are now escaped, and all animator transitions composite correctly
+
 ## [0.4.2] - 2026-05-25
 
 
