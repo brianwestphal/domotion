@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.3.2] - 2026-05-25
+
+
+- macOS glyph-extractor binary is now code-signed and notarized in releases
+
 ## [0.3.1] - 2026-05-25
 
 
