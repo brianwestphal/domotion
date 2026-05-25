@@ -140,6 +140,16 @@ const overlaySlideSchema = z.object({
   delay: z.number().optional(),
 });
 
+// DM-850 §5 — anchor an overlay to an element's bounding box (resolved at
+// capture time), replacing hardcoded x/y. `at` picks the box corner/edge;
+// `dx`/`dy` offset from it.
+const anchorSchema = z.object({
+  selector: z.string(),
+  at: z.enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"]).optional(),
+  dx: z.number().optional(),
+  dy: z.number().optional(),
+});
+
 // Overlay *input* shapes. The `svg` kind takes a `src` path here; the CLI later
 // reads the file, namespaces its ids, and swaps `src` for `innerSvg`/`animId`
 // (see resolveSvgOverlays), producing the runtime `SvgOverlay`. typing/tap
@@ -148,8 +158,8 @@ const overlaySchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("typing"),
     text: z.string(),
-    x: z.number(),
-    y: z.number(),
+    x: z.number().default(0),
+    y: z.number().default(0),
     fontSize: z.number().optional(),
     color: z.string().optional(),
     delay: z.number().optional(),
@@ -161,34 +171,41 @@ const overlaySchema = z.discriminatedUnion("kind", [
     caret: z
       .union([z.boolean(), z.object({ color: z.string().optional(), width: z.number().optional(), blinkMs: z.number().optional() })])
       .optional(),
+    // DM-850 §5: anchor to an element bbox; maxWidth wraps to the anchored
+    // element's content width ("anchor") or a fixed px.
+    anchor: anchorSchema.optional(),
+    maxWidth: z.union([z.literal("anchor"), z.number()]).optional(),
   }),
   z.object({
     kind: z.literal("tap"),
-    x: z.number(),
-    y: z.number(),
+    x: z.number().default(0),
+    y: z.number().default(0),
     delay: z.number().optional(),
+    anchor: anchorSchema.optional(),
   }),
   z.object({
     kind: z.literal("svg"),
     src: z.string(),
-    x: z.number(),
-    y: z.number(),
+    x: z.number().default(0),
+    y: z.number().default(0),
     width: z.number(),
     height: z.number(),
     enter: overlaySlideSchema.optional(),
     exit: overlaySlideSchema.optional(),
+    anchor: anchorSchema.optional(),
   }),
   // DM-871: standalone blinking bar/box (recording dot, attention pulse, cursor).
   z.object({
     kind: z.literal("blink"),
-    x: z.number(),
-    y: z.number(),
+    x: z.number().default(0),
+    y: z.number().default(0),
     width: z.number(),
     height: z.number(),
     periodMs: z.number().optional(),
     color: z.string().optional(),
     radius: z.number().optional(),
     delay: z.number().optional(),
+    anchor: anchorSchema.optional(),
   }),
 ]);
 
@@ -473,10 +490,14 @@ export async function composeAnimateConfig(
         svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
       }
 
+      // DM-850 §5: resolve selector-anchored overlays against the live page
+      // (bbox → x/y, and maxWidth:"anchor" → the element's content width) BEFORE
+      // the svg-inlining pass, while the page is still loaded.
+      const anchoredOverlays = await resolveOverlayAnchors(page, fc.overlays, i);
       // Resolve SVG-kind overlays: read each `src` from disk, namespace its
       // ids, and replace with `innerSvg`. Other overlay kinds pass through
       // verbatim. (DM-210.)
-      const overlays = resolveSvgOverlays(fc.overlays, configDir, i);
+      const overlays = resolveSvgOverlays(anchoredOverlays, configDir, i);
 
       frames.push({
         svgContent,
@@ -636,6 +657,78 @@ function formatConfigIssues(err: z.ZodError): string {
       return path === "" ? issue.message : `${path}: ${issue.message}`;
     })
     .join("; ");
+}
+
+interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number }
+
+/**
+ * DM-850 §5: resolve any overlay `anchor` against the live page. For each
+ * anchored overlay, query the selector's bounding box and set the overlay's
+ * x/y from the requested corner + dx/dy. For a typing overlay's `maxWidth`,
+ * set `bgWidth` to the anchored element's content width ("anchor") or the
+ * given px. A missing anchor selector is a hard error.
+ */
+async function resolveOverlayAnchors(page: Page, overlays: OverlayInput[] | undefined, frameIdx: number): Promise<OverlayInput[] | undefined> {
+  if (overlays == null) return undefined;
+  const out: OverlayInput[] = [];
+  for (const ov of overlays) {
+    const anchor = ov.anchor;
+    const maxWidth = ov.kind === "typing" ? ov.maxWidth : undefined;
+    if (anchor == null && maxWidth == null) {
+      out.push(ov);
+      continue;
+    }
+
+    let box: AnchorBox | null = null;
+    if (anchor != null) {
+      box = await page.evaluate((sel: string): AnchorBox | null => {
+        const el = document.querySelector(sel);
+        if (el == null) return null;
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const padL = parseFloat(cs.paddingLeft) || 0;
+        const padR = parseFloat(cs.paddingRight) || 0;
+        return { x: r.x, y: r.y, width: r.width, height: r.height, contentWidth: Math.max(0, el.clientWidth - padL - padR) };
+      }, anchor.selector);
+      if (box == null) throw new Error(`animate: frames[${frameIdx}] overlay anchor selector "${anchor.selector}" matched no element`);
+    }
+
+    const resolved = { ...ov };
+    if (anchor != null && box != null) {
+      const [ax, ay] = anchorPoint(box, anchor.at ?? "top-left");
+      resolved.x = ax + (anchor.dx ?? 0);
+      resolved.y = ay + (anchor.dy ?? 0);
+    }
+    if (resolved.kind === "typing" && maxWidth != null) {
+      if (maxWidth === "anchor") {
+        if (box == null) throw new Error(`animate: frames[${frameIdx}] typing overlay maxWidth:"anchor" requires an anchor`);
+        resolved.bgWidth = box.contentWidth;
+      } else {
+        resolved.bgWidth = maxWidth;
+      }
+    }
+    out.push(resolved);
+  }
+  return out;
+}
+
+function anchorPoint(box: AnchorBox, at: string): [number, number] {
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const right = box.x + box.width;
+  const bottom = box.y + box.height;
+  switch (at) {
+    case "top": return [cx, box.y];
+    case "top-right": return [right, box.y];
+    case "left": return [box.x, cy];
+    case "center": return [cx, cy];
+    case "right": return [right, cy];
+    case "bottom-left": return [box.x, bottom];
+    case "bottom": return [cx, bottom];
+    case "bottom-right": return [right, bottom];
+    case "top-left":
+    default: return [box.x, box.y];
+  }
 }
 
 /**

@@ -155,6 +155,19 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       });
       expect(cfg.frames[0].overlays?.[0]).toMatchObject({ kind: "blink" });
     });
+
+    it("DM-861: accepts overlay anchor + maxWidth; x/y default to 0 when omitted", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, overlays: [
+          { kind: "typing", text: "hi", anchor: { selector: ".f", at: "top-left", dx: 8, dy: 8 }, maxWidth: "anchor" },
+          { kind: "blink", width: 4, height: 12, anchor: { selector: ".c" } },
+        ] }],
+      });
+      expect(cfg.frames[0].overlays).toHaveLength(2);
+      // x/y default to 0 when omitted (the anchor overrides them at capture time).
+      expect(cfg.frames[0].overlays?.[0]).toMatchObject({ kind: "typing", x: 0, y: 0 });
+    });
   });
 });
 
