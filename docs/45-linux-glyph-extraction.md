@@ -19,21 +19,18 @@ every outline Chromium-on-Linux paints from. The concrete Linux forcing
 functions found during fallback calibration (DM-259, `docs/42`):
 
 - **GNU FreeFont (FreeSans / FreeSerif / FreeMono)** — the Linux Math-Alpha and
-  symbol fallback. `mathml-mi-italic-letters` and `mathml-mi-greek-italic` used
-  to render as `<text>` with **0 glyph paths** because fontkit's
-  `glyphForCodePoint` returns `.notdef` for the Mathematical Alphanumeric range
-  (U+1D400–1D7FF) on FreeSans, even though Chromium paints those glyphs (verified
-  via CDP `CSS.getPlatformFontsForNode`). This was the bug **DM-838** — and a
-  Linux-container probe (this session) **resolved the open question: a native
-  FreeType walk does NOT fix it.** FreeSans's cmap does not cover U+1D400–1D7FF at
-  all (`characterSet` excludes them; `glyphForCodePoint` and `FT_Get_Char_Index`
-  alike return `.notdef`); Chromium paints the math letters by *synthesizing*
-  from the base Latin/Greek letters (the matched face is `FreeSansOblique`,
-  already italic). DM-838 was therefore fixed by a capture/render-side
-  Math-Alpha→base-letter decomposition (`mathAlphaToBase` in
-  `src/render/text-to-path.ts` — both fixtures now emit 0 `<text>`), **not** this
-  extractor. The CJK / other fallback faces below — where fontkit's outline walk
-  genuinely diverges — remain
+  symbol fallback. The MathML fixtures `mathml-mi-italic-letters` /
+  `mathml-mi-greek-italic` render their letters through **upright `FreeSans.ttf`,
+  which carries the full Mathematical Alphanumeric block** (U+1D400–1D7FF; e.g.
+  𝑎 → gid 6385), and CDP `CSS.getPlatformFontsForNode` confirms Chromium paints
+  them with FreeSans too. fontkit's `glyphForCodePoint` returns those real gids
+  for the upright face, so a FreeType walk extracts them fine — the extractor is
+  **not** needed for Math-Alpha. (Correction, DM-876: an earlier DM-838 probe
+  reported FreeSans lacking U+1D4xx, but it had opened the **`FreeSansOblique`**
+  face — only the oblique face lacks the block; the upright `.ttf` has all of it.
+  DM-838's `mathAlphaToBase` decomposition is therefore a guarded fallback that
+  does not engage on this image.) The CJK / other fallback faces below — where
+  fontkit's outline walk genuinely diverges — remain
   the extractor's real motivation.
 - **Noto CJK / Noto Sans** and other large faces where fontkit's outline walk
   diverges from what Chromium's FreeType-backed rasterizer produces.
@@ -117,9 +114,10 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    helpers).
 4. **Glyph id resolution.** `FT_Get_Char_Index(face, codepoint)` (cmap lookup).
    Index `0` is `.notdef` → emit an empty path (parity with the "missing glyph →
-   empty `d`" rule). (Note: this does NOT recover the DM-838 Math-Alpha case —
-   FreeSans genuinely lacks U+1D4xx, so `FT_Get_Char_Index` returns `.notdef`
-   just like fontkit; that's a capture/render-side fix, see "Why".)
+   empty `d`" rule). (Note, corrected DM-876: upright `FreeSans.ttf` DOES carry
+   the Math-Alpha block, so `FT_Get_Char_Index(0x1D44E)` returns a real gid there
+   — the extractor would handle Math-Alpha fine. The DM-838 "FreeSans lacks
+   U+1D4xx" claim came from probing the `FreeSansOblique` face by mistake.)
 5. **Outline load + decompose.** `FT_Load_Glyph(face, glyphIndex,
    FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING)` → `FT_Outline_Decompose(&face->glyph->outline, &funcs, &ctx)`
    with an `FT_Outline_Funcs` whose callbacks emit SVG path-data (below).
@@ -187,11 +185,11 @@ reused thereafter. Extends DM-393's engine-agnostic acquisition logic.
   via the helper; assert the path commands match within a numeric tolerance —
   confirms the y-flip and the quad/cubic mapping. Add to
   `tests/linux-glyph-extractor.test.ts` (runs only on `process.platform === 'linux'`).
-- **FreeSans Math-Alpha (regression guard, NOT a DM-838 fix)**: extracting
-  U+1D44E 𝑎 from FreeSans returns an **empty** path — FreeSans lacks the
-  U+1D400–1D7FF range (confirmed this session). Kept only to document that the
-  extractor does not cover this; DM-838 was fixed by the capture/render-side
-  Math-Alpha→base-letter decomposition (`mathAlphaToBase`), out of scope here.
+- **FreeSans Math-Alpha parity**: extract U+1D44E 𝑎 from upright `FreeSans.ttf`
+  via the helper and via fontkit and assert the outlines match — the upright face
+  carries the Math-Alpha block (gid 6385 for 𝑎), so both return a real glyph
+  (corrected DM-876; the earlier "empty path" claim was the `FreeSansOblique`
+  face, which lacks the block).
 - **CI**: a Linux job (the `test-linux.yml` from DM-262, or the Docker harness
   `npm run test:linux-docker`) builds the helper from a clean checkout and runs
   `npm run demos:test:html`, exercising the FreeSans / Noto fallback ranges

@@ -140,26 +140,32 @@ defs, 0 `<text>`) at **0.00 %** vs Chromium-on-Linux. Fixed by the switch from
 `<text>` fallback to real glyph paths: `text-decorations`,
 `pseudo-before-gradient-badge`, `inline-box-decoration-break`.
 
-**Math-Alphanumeric decomposition (DM-838, fixed)**: the Math-Alphanumeric
-glyphs (𝑎 U+1D44E, 𝛼 U+1D6FC, …) used to fall back to `<text>` on Linux. Root
-cause, confirmed by a Linux-container fontkit probe: **FreeSans's cmap does not
-contain U+1D400–1D7FF at all** (not a fontkit extraction bug, and not fixable by
-a native FreeType extractor — `FT_Get_Char_Index` also returns `.notdef`).
-Chromium paints them by *synthesizing* from the base Latin/Greek letters (the
-matched face is the already-italic `FreeSansOblique`).
+**Math-Alphanumeric on Linux — how it actually renders (DM-838 / DM-876)**: the
+Math-Alphanumeric letters (𝑎 U+1D44E, 𝛼 U+1D6FC, …) render via **upright
+`FreeSans.ttf`, which carries dedicated glyphs for the whole U+1D400–1D7FF block**
+(e.g. 𝑎 → gid 6385, 𝑟 → gid 6401). CDP `CSS.getPlatformFontsForNode` confirms
+Chromium-on-noble paints every `<mi>` letter with **FreeSans** too, so the
+renderer's fallback chain (which finds the glyph in `free-sans` and stops) and
+Chromium agree on the face. `mathml-mi-italic-letters` is pixel-clean (0.00 %)
+on Linux as a result.
 
-The fix is a **capture/render-side Math-Alphanumeric → base-letter
-decomposition** (`mathAlphaToBase` in `src/render/text-to-path.ts`): when a
-U+1D400–1D7FF (or U+210E ℎ) codepoint resolves to `.notdef` across the whole
-fallback chain, map it back to its base char + the implied bold/italic style and
-render that base glyph in the matching FreeFont sibling (`FreeSansOblique`,
-`FreeSansBold`, …). Both run splitters (`textToPathMarkup` glyph-path mode and
-`splitTextIntoFontRuns` embedded-font mode) apply it, so the output is a
-self-contained glyph outline rather than a consumer-font-dependent `<text>`.
-The decomposition only triggers when the chain comes up empty, so it never runs
-on macOS / Windows (STIX Two Math / Cambria Math cover U+1D4xx) — inherently
-platform-safe. After the fix, `mathml-mi-greek-italic` / `mathml-mi-italic-letters`
-emit **0 `<text>` elements** (all letters are glyph `<use>` refs).
+> **Correction (DM-876):** an earlier DM-838 probe concluded "FreeSans's cmap
+> does not contain U+1D400–1D7FF" and that Chromium *synthesizes* the letters
+> from base italic. That probe opened the **`FreeSansOblique`** face by mistake —
+> the oblique face has none of the block, but the upright `FreeSans.ttf` has all
+> of it (verified by `glyphForCodePoint` on each file + CDP). So the chain renders
+> the letters directly from FreeSans; no synthesis is needed on this image.
+
+DM-838 also added a **Math-Alphanumeric → base-letter decomposition**
+(`mathAlphaToBase` in `src/render/text-to-path.ts`): when a U+1D400–1D7FF (or
+U+210E ℎ) codepoint resolves to `.notdef` across the *whole* fallback chain, it
+maps the codepoint to its base char + the implied bold/italic style and renders
+that base glyph in a FreeFont sibling. On the noble image FreeSans covers the
+block, so this path does not engage — it's a **guarded fallback** for fonts /
+platforms that genuinely lack the math block (and never runs on macOS / Windows,
+where STIX Two Math / Cambria Math cover it). Both run splitters
+(`textToPathMarkup` glyph-path mode and `splitTextIntoFontRuns` embedded-font
+mode) honor it.
 
 **MathML stretchy fence operators (DM-874, fixed)**: the matrix fixture's
 residual turned out to be stretchy `<mo>` fence parens. Chromium paints a fence
@@ -172,13 +178,16 @@ box — a vertical scale (= the stretch) + axis-centered placement, natural
 horizontal scale. `mathml-mi-italic-letters` went 0.82 % → **0.00 % (clean) on
 Linux** and now passes on macOS.
 
-**Known residual (Linux only)**: `mathml-mi-greek-italic` still fails ~0.41 % on
-Linux — but it **passes on macOS**, so there is no `msup` / layout defect. The
-flagged region is the FreeFont-rendered math-italic letters being subpixel-
-different from Chromium's own FreeSansOblique paint (the irreducible glyph-path-
-vs-native-rasterization floor for this lower-quality fallback face). It's an
-inherent cost of the DM-838 FreeFont decomposition, not a layout bug; closing it
-would need a bundled pixel-faithful math font (bundled-fonts work, DM-261).
+**Known residual (Linux only, DM-876)**: `mathml-mi-greek-italic` still fails
+~0.41 % on Linux — but it **passes on macOS**, so there is no `msup` / layout
+defect, and CDP confirms both Chromium and the renderer paint its letters with
+**FreeSans** (same face). The residual is small per-glyph shape / anti-aliasing
+differences between domotion's glyph-path emission and Chromium's native
+FreeSans rasterization — most visibly on `𝑟` — i.e. the glyph-path-vs-native
+floor for this lower-quality hinted face, not a font-selection or layout bug.
+Closing it would need a bundled pixel-faithful math font (bundled-fonts work,
+DM-261) or matching Chromium's exact FreeSans `𝑟` glyph/hinting; marginal
+(legible, Linux-only, anti-alias-level).
 
 ### Windows (DirectWrite) — DM-260
 
