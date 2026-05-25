@@ -51,13 +51,83 @@ export async function loadInputIntoPage(page: Page, input: string): Promise<void
   await page.goto(pathToFileURL(path).href, { waitUntil: "networkidle" });
 }
 
-export async function applyReadyWaits(page: Page, flags: { wait: number; waitFor?: string; fontsReady: boolean }): Promise<void> {
+/**
+ * Frame-level readiness waits. Order: fonts → `waitFor` (selector visible) →
+ * the richer condition waits (DM-860: `waitForText` / `waitForGone` /
+ * `waitForCount`) → the fixed `wait` settle delay. The condition waits poll in
+ * page context (Playwright `waitForFunction`, page default timeout = 90 s); on
+ * timeout they throw a message naming the unmet condition + frame index.
+ */
+export interface ReadyWaitFlags {
+  wait: number;
+  waitFor?: string;
+  fontsReady: boolean;
+  /** Frame index, for error messages. */
+  frameIndex?: number;
+  waitForText?: { selector: string; equals?: string; contains?: string };
+  /** Selector that must be gone — removed from the DOM, or all matches not visible. */
+  waitForGone?: string;
+  waitForCount?: { selector: string; equals?: number; atLeast?: number; atMost?: number };
+}
+
+export async function applyReadyWaits(page: Page, flags: ReadyWaitFlags): Promise<void> {
   if (flags.fontsReady) {
     await page.evaluate(() => document.fonts.ready);
   }
   if (flags.waitFor != null) {
     await page.waitForSelector(flags.waitFor, { state: "visible" });
   }
+  const where = flags.frameIndex != null ? `frames[${flags.frameIndex}]` : "frame";
+
+  if (flags.waitForText != null) {
+    const w = flags.waitForText;
+    try {
+      await page.waitForFunction((a) => {
+        const el = document.querySelector(a.selector);
+        if (el == null) return false;
+        const t = el.textContent ?? "";
+        if (a.equals != null) return t.trim() === a.equals;
+        if (a.contains != null) return t.includes(a.contains);
+        return false;
+      }, w);
+    } catch {
+      const cond = w.equals != null ? `equal "${w.equals}"` : `contain "${w.contains ?? ""}"`;
+      throw new Error(`animate: ${where}.waitForText timed out — "${w.selector}" text never came to ${cond}`);
+    }
+  }
+
+  if (flags.waitForGone != null) {
+    const sel = flags.waitForGone;
+    try {
+      await page.waitForFunction((s) => {
+        const els = document.querySelectorAll(s);
+        if (els.length === 0) return true;
+        return Array.from(els).every((e) => {
+          const cs = getComputedStyle(e);
+          const rect = e.getBoundingClientRect();
+          return cs.display === "none" || cs.visibility === "hidden" || (rect.width === 0 && rect.height === 0);
+        });
+      }, sel);
+    } catch {
+      throw new Error(`animate: ${where}.waitForGone timed out — "${sel}" never went away (still present and visible)`);
+    }
+  }
+
+  if (flags.waitForCount != null) {
+    const w = flags.waitForCount;
+    try {
+      await page.waitForFunction((a) => {
+        const n = document.querySelectorAll(a.selector).length;
+        if (a.equals != null && n !== a.equals) return false;
+        if (a.atLeast != null && n < a.atLeast) return false;
+        if (a.atMost != null && n > a.atMost) return false;
+        return true;
+      }, w);
+    } catch {
+      throw new Error(`animate: ${where}.waitForCount timed out — "${w.selector}" count never satisfied the condition`);
+    }
+  }
+
   if (flags.wait > 0) {
     await page.waitForTimeout(flags.wait);
   }

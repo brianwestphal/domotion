@@ -185,6 +185,16 @@ const frameSchema = z.object({
   selector: z.string().optional(),
   wait: z.number().optional(),
   waitFor: z.string().optional(),
+  // DM-849 §4 — richer readiness waits (poll page context until satisfied).
+  waitForText: z
+    .object({ selector: z.string(), equals: z.string().optional(), contains: z.string().optional() })
+    .refine((v) => v.equals != null || v.contains != null, { message: "requires `equals` or `contains`" })
+    .optional(),
+  waitForGone: z.string().optional(),
+  waitForCount: z
+    .object({ selector: z.string(), equals: z.number().optional(), atLeast: z.number().optional(), atMost: z.number().optional() })
+    .refine((v) => v.equals != null || v.atLeast != null || v.atMost != null, { message: "requires `equals`, `atLeast`, or `atMost`" })
+    .optional(),
   /**
    * Scroll the page (or `selector`'s element) to this offset BEFORE the
    * capture — static positioning for a fold-style capture. See `scroll` for
@@ -350,6 +360,10 @@ export async function composeAnimateConfig(
         wait: fc.wait ?? 200,
         waitFor: fc.waitFor,
         fontsReady: true,
+        frameIndex: i,
+        waitForText: fc.waitForText,
+        waitForGone: fc.waitForGone,
+        waitForCount: fc.waitForCount,
       });
       await discoverAndRegisterWebfonts(page, tracker.urls);
       if (fc.scrollTo != null) {

@@ -78,6 +78,38 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     const cfg = validateAnimateConfig({ ...base, vars: { base: "http://x" }, frames: [{ input: "${base}", duration: 1 }] });
     expect(cfg.vars).toEqual({ base: "http://x" });
   });
+
+  describe("readiness waits (DM-849)", () => {
+    it("accepts waitForText / waitForGone / waitForCount", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [
+          {
+            input: "a.html",
+            duration: 1,
+            waitForText: { selector: ".count", equals: "1" },
+            waitForGone: ".spinner",
+            waitForCount: { selector: ".item", atLeast: 1 },
+          },
+        ],
+      });
+      expect(cfg.frames[0].waitForText?.equals).toBe("1");
+      expect(cfg.frames[0].waitForGone).toBe(".spinner");
+      expect(cfg.frames[0].waitForCount?.atLeast).toBe(1);
+    });
+
+    it("rejects waitForText with neither equals nor contains", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, waitForText: { selector: ".x" } }] }),
+      ).toThrow(/requires `equals` or `contains`/);
+    });
+
+    it("rejects waitForCount with no equals/atLeast/atMost", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, waitForCount: { selector: ".x" } }] }),
+      ).toThrow(/requires `equals`, `atLeast`, or `atMost`/);
+    });
+  });
 });
 
 describe("interpolateConfigVars (DM-852)", () => {

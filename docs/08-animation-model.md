@@ -6,7 +6,7 @@ The animation pipeline composes multiple captured frames into a single SVG with 
 
 > **Config validation.** The `domotion animate` JSON config is validated against a zod schema (`animateConfigSchema` in `src/cli/animate.ts`) — that schema is the source of truth for the config shape. Invalid configs fail with a path-specific message, e.g. `animate: frames[0].duration: Invalid input: expected number, received string`.
 
-> **Planned expansion (design).** `docs/43-declarative-animate-config.md` specs a declarative expansion of this config — continuous-session frames (stateful multi-step capture), DOM-mutation / interaction actions, richer readiness waits, selector-anchored overlays, a config-level cursor, `vars` + `${}` interpolation, and a small `evaluate` escape hatch — so interaction demos rarely need the programmatic API. Design only; not yet implemented.
+> **Planned expansion (design).** `docs/43-declarative-animate-config.md` specs a declarative expansion of this config — continuous-session frames (stateful multi-step capture), DOM-mutation / interaction actions, richer readiness waits, selector-anchored overlays, a config-level cursor, `vars` + `${}` interpolation, and a small `evaluate` escape hatch — so interaction demos rarely need the programmatic API. `docs/44-repeating-animations.md` specs repeating animations — `repeat`/`alternate` on intra-frame animations, a blinking typing caret, and a `blink` overlay. Design only; not all implemented yet.
 
 ## Frame composition (existing behavior)
 
