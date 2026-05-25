@@ -11,4 +11,12 @@ export {
   clearGlyphDefs,
   registerWebfont,
   clearWebfonts,
+  // DM-839: embedded-font is the default render mode; expose the controls so
+  // consumers can opt back into per-pixel-faithful `paths` mode and manage the
+  // embedded-font lifecycle.
+  setRenderTextMode,
+  getRenderTextMode,
+  clearEmbeddedFonts,
+  getEmbeddedFontFaceCss,
+  type RenderTextMode,
 } from "./text-to-path.js";

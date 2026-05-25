@@ -13,6 +13,13 @@ import { __resolveFontSpecForTest, clearEmbeddedFonts, clearWebfonts, computeSki
 // stays green on Ubuntu/Windows runners.
 const MACOS_FONTS = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 
+// DM-839: embedded-font is the production default render mode, but the tests
+// below assert against the glyph-PATH renderer (`<use>`/`<path>` emission,
+// baseline/scale math, ligature collapse). Pin paths mode before every test so
+// those assertions hold; the two embedded-font tests flip to embedded-font
+// within themselves.
+beforeEach(() => setRenderTextMode("paths"));
+
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
 // font_cache_mac.mm) — substituting any of these silently shifts every

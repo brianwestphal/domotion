@@ -8,7 +8,7 @@ import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
-import { getGlyphDefs, measureLastGlyphRsb } from "./text-to-path.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb } from "./text-to-path.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
@@ -142,6 +142,16 @@ export function elementTreeToSvg(
    * the renderer falls back to the source-resolution data URI. Default 2.
    */
   hiDPIFactor: number = 2,
+  /**
+   * DM-839: when true, emit the embedded-font `@font-face` rules
+   * (`getEmbeddedFontFaceCss()`) as a `<style>` inside this frame's `<defs>`.
+   * Defaults to `includeGlyphDefs` — single-frame standalone producers
+   * (capture, CLI, the test harness) own their top-level defs and so should
+   * carry their font CSS here. Multi-frame producers (animator, scroll
+   * composer) pass `false` and collect the CSS once at the top level instead,
+   * so the (potentially large) base64 font bytes aren't duplicated per frame.
+   */
+  includeEmbeddedFontCss: boolean = includeGlyphDefs,
 ): string {
   setActiveHiDPIFactor(hiDPIFactor);
   const svgParts: string[] = [];
@@ -3043,7 +3053,13 @@ export function elementTreeToSvg(
   // `getEmbeddedFontFaceCss()` themselves once at the top level (see how
   // `composeScrollSvg` injects it into the outer <style>).
   const glyphDefsMarkup = includeGlyphDefs ? getGlyphDefs() : "";
-  const allDefs = defsParts.join("") + glyphDefsMarkup;
+  // DM-839: embedded-font `@font-face` rules for the text runs rendered above
+  // (empty in paths mode, or when no run was embeddable). A `<style>` inside
+  // `<defs>` is valid SVG. Single-frame producers emit it here; multi-frame
+  // producers pass includeEmbeddedFontCss=false and inject once at the top.
+  const embeddedFontCss = includeEmbeddedFontCss ? getEmbeddedFontFaceCss() : "";
+  const fontStyleMarkup = embeddedFontCss !== "" ? `<style>${embeddedFontCss}</style>` : "";
+  const allDefs = defsParts.join("") + glyphDefsMarkup + fontStyleMarkup;
   const defs = allDefs !== "" ? `  <defs>${allDefs}</defs>\n` : "";
   return defs + svgParts.join("\n");
 }

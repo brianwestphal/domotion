@@ -26,6 +26,7 @@ import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
 import {
   clearEmbeddedFonts,
   getEmbeddedFontFaceCss,
+  getRenderTextMode,
   setRenderTextMode,
   type RenderTextMode,
 } from "../render/text-to-path.js";
@@ -110,6 +111,7 @@ export function composeScrollSvg(
   // the same `@font-face` registry; we collect everything into one
   // top-level <style> block at the bottom of this function.
   const renderTextMode: RenderTextMode = opts.renderText ?? "embedded-font";
+  const prevRenderTextMode = getRenderTextMode();
   clearEmbeddedFonts();
   setRenderTextMode(renderTextMode);
 
@@ -207,7 +209,7 @@ export function composeScrollSvg(
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const offset = segOffsets[i];
-    const inner = elementTreeToSvg(strippedTrees[i], W, VH, `seg${i}-`, true, hiDPIFactor);
+    const inner = elementTreeToSvg(strippedTrees[i], W, VH, `seg${i}-`, true, hiDPIFactor, false);
     const tx = axis === "x" ? offset : 0;
     const ty = axis === "y" ? offset : 0;
     // Visibility window: visible while scroll-y is in the rasterisation
@@ -274,7 +276,7 @@ export function composeScrollSvg(
     const visStartPct = (segments[o.firstSegmentIdx].segmentStartMs / totalMs) * 100;
     const visEndPct = (segments[o.lastSegmentIdx].segmentEndMs / totalMs) * 100;
     const alwaysVisible = visStartPct <= 0 && visEndPct >= 100;
-    const inner = elementTreeToSvg([o.subtree], W, VH, `stk${i}-`, true, hiDPIFactor);
+    const inner = elementTreeToSvg([o.subtree], W, VH, `stk${i}-`, true, hiDPIFactor, false);
     if (alwaysVisible) {
       stickyMarkup.push(
         `\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
@@ -295,7 +297,7 @@ export function composeScrollSvg(
     ? ""
     : `\n  <g>` +
         `<svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-          elementTreeToSvg(fixedOverlay, W, VH, "fix-", true, hiDPIFactor) +
+          elementTreeToSvg(fixedOverlay, W, VH, "fix-", true, hiDPIFactor, false) +
         `</svg>` +
       `</g>`;
   const overlayMarkup = fixedMarkup + stickyMarkup.join("");
@@ -344,7 +346,7 @@ export function composeScrollSvg(
   // collapse onto one rule. Restore the default render mode now that
   // all per-segment rendering has finished.
   const fontFaceCss = getEmbeddedFontFaceCss();
-  setRenderTextMode("paths");
+  setRenderTextMode(prevRenderTextMode);
 
   // ── Compose final SVG ──
   return `<?xml version="1.0" encoding="UTF-8"?>

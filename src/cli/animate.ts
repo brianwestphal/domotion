@@ -12,12 +12,14 @@ import { parseArgs } from "node:util";
 import type { Page } from "@playwright/test";
 import {
   captureElementTree,
+  clearEmbeddedFonts,
   clearWebfonts,
   composeScrollSvg,
   cullElementsOutsideViewBox,
   elementTreeToSvg,
   executeScrollPattern,
   generateAnimatedSvg,
+  getEmbeddedFontFaceCss,
   launchChromium,
   optimizeSvg,
   parseScrollPattern,
@@ -153,6 +155,11 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     // same registry. Multiple frames declaring the same family register
     // multiple variants and the resolver picks the closest weight/style.
     clearWebfonts();
+    // DM-839: embedded-font is the default render mode. Reset the builder once
+    // here; each frame renders with includeEmbeddedFontCss=false (below) and we
+    // collect the deduped @font-face block once into the animator's top-level
+    // <style> after the loop — so the base64 font bytes appear once, not per frame.
+    clearEmbeddedFonts();
     // One tracker for the whole animate run — fonts fetched by any frame
     // get accumulated, and we deduplicate URLs inside discoverAndRegister.
     const tracker = attachWebfontTracker(page);
@@ -251,7 +258,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
         const totalDurationMs = cfg.frames.reduce((sum, f) => sum + f.duration + (f.transition?.type === "cut" ? 0 : (f.transition?.duration ?? 300)), 0);
         const result = cullElementsOutsideViewBox(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
         frameCullCss = result.css;
-        svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`);
+        svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
       }
 
       // Resolve SVG-kind overlays: read each `src` from disk, namespace its
@@ -270,8 +277,11 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     }
     tracker.detach();
 
+    // DM-839: collect the embedded-font @font-face rules accumulated across all
+    // frames once, for the animator's top-level <style>.
+    const fontFaceCss = getEmbeddedFontFaceCss();
     let svg = await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
-      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames })),
+      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss })),
     );
     // svgz is auto-detected from the output filename; implies --optimize
     // unless --no-optimize was passed.

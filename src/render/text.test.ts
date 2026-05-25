@@ -1,7 +1,13 @@
 import * as fs from "fs";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText } from "./text.js";
+import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
+
+// DM-839: embedded-font is the production default render mode, but these tests
+// assert the glyph-PATH renderer's `<text transform="scale(...)">` / baseline
+// output. Pin paths mode so the path-specific assertions hold.
+beforeEach(() => setRenderTextMode("paths"));
 
 // Tests that exercise glyph emission via the macOS-only FONT_PATHS map
 // (Linux / Windows are roadmap per CLAUDE.md) skip on hosts without

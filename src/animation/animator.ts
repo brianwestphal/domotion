@@ -155,6 +155,13 @@ export interface AnimationConfig {
    */
   sharedDefs?: string;
   /**
+   * DM-839: embedded-font `@font-face` rules collected once across all frames
+   * (the caller renders each frame with `includeEmbeddedFontCss=false` and
+   * passes the accumulated `getEmbeddedFontFaceCss()` here). Injected into the
+   * top-level `<style>` so the base64 font bytes appear once, not per frame.
+   */
+  fontFaceCss?: string;
+  /**
    * Optional cursor / click overlay (DM-277). Renders a macOS-style cursor
    * moving along the script timeline with QuickTime-style click pulses.
    * Off by default; opt-in per animation. See `docs/13-cursor-overlay.md`.
@@ -415,7 +422,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}
   </defs>
   <style>
-    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
+${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss + "\n" : ""}    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
     .f { opacity: 0; visibility: hidden; }
     ${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
@@ -690,7 +697,7 @@ function composeMergedSvg(
     <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}
   </defs>
   <style>
-    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
+${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss + "\n" : ""}    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
 ${css}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">

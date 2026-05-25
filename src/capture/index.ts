@@ -12,7 +12,7 @@ import { elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr } from "../render/ele
 import { embedRemoteImages } from "./embed.js";
 import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
-import { registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
+import { clearEmbeddedFonts, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
@@ -213,6 +213,10 @@ export class DemoRecorder {
     // tree contains no conic content; otherwise the renderer (DM-550) emits
     // <pattern><image href="data:..."/></pattern> instead of dropping the layer.
     await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
+    // DM-839: reset the embedded-font builder so this capture's `@font-face`
+    // block contains only its own fonts (the renderer repopulates it during
+    // elementTreeToSvg, which emits the CSS into this frame's <defs>).
+    clearEmbeddedFonts();
     return elementTreeToSvg(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
   }
 
@@ -236,6 +240,7 @@ export class DemoRecorder {
     }
     // DM-549: rasterize conic-gradient layers — see captureCurrent above.
     await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
+    clearEmbeddedFonts(); // DM-839: see captureCurrent
     const svgContent = elementTreeToSvg(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
     return { svgContent, pageHeight };
   }

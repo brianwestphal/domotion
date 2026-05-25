@@ -18,7 +18,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
-import { clearWebfonts } from "../src/render/text-to-path.js";
+import { clearWebfonts, setRenderTextMode } from "../src/render/text-to-path.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { raw } from "kerfjs";
 import { comparePngs, passes, type DiffVerdict } from "./compare-pngs.js";
@@ -157,6 +157,12 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   await embedRemoteImages(tree);
   // DM-549: rasterize conic-gradient layers (no-op when tree has none).
   await rasterizeConicGradients(tree);
+  // DM-839: embedded-font is now the production default, but the visual-
+  // regression harness pins `paths` mode — its job is per-pixel parity against
+  // the live Chromium paint, and embedded `<text>` carries an inherent sub-
+  // pixel-kerning drift (xOffsets aren't forwarded, to keep the glyph atlas
+  // cacheable). Same convention the scroll composer documents for diffing.
+  setRenderTextMode("paths");
   const svgContent = elementTreeToSvg(tree, width, height);
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);

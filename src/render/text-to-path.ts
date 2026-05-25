@@ -43,18 +43,28 @@ const fontInstanceCache = new Map<string, FontInstance>();
 interface WebfontVariant { weight: number; italic: boolean; font: FontInstance; unicodeRange?: Array<[number, number]>; buffer?: Buffer }
 const webfontRegistry = new Map<string, WebfontVariant[]>();
 
-// ── DM-652: opt-in embedded-font render mode ──
-// When enabled, the text renderer emits `<text>` elements with a CSS
-// `font-family` pointing at a `@font-face`-declared subset font, instead
-// of the default `<use href="#gN">` glyph references. The default
-// (`"paths"`) is unchanged and preserves Chromium-faithful per-pixel
-// output. The embedded-font mode trades pixel fidelity (each browser's
-// text engine applies its own hinting / kerning / subpixel positioning)
-// for WebKit perf — text-heavy scroll composites that ran at 14.7 fps
-// in WebKit (paths mode) jump back toward Chromium's 119 fps because the
-// engine caches the rasterized glyph atlas at the compositor layer.
+// ── Text render mode (DM-652 / DM-655 / DM-839) ──
+// `embedded-font` (the DEFAULT, DM-839): the renderer emits `<text>` elements
+// against a `@font-face`-declared subset TTF built from the captured glyph
+// outlines, addressed by private-use codepoints so the consumer browser does
+// zero shaping. `paths`: the renderer emits `<use href="#gN">` references into
+// per-glyph `<path>` defs.
+//
+// Tradeoff: embedded-font hands rasterization to the consumer browser's text
+// engine (its own hinting / AA), so output isn't byte-identical across
+// browsers — but it's far smaller and faster for text-heavy content (the
+// compositor caches the rasterized glyph atlas; WebKit scroll composites that
+// ran at 14.7 fps in paths mode jump back toward Chromium's 119 fps). `paths`
+// is the per-pixel-faithful mode; opt back into it via `setRenderTextMode`
+// (e.g. for visual-regression diffing against the live Chromium paint).
+//
+// Lifecycle: top-level SVG producers must `clearEmbeddedFonts()` before
+// rendering and emit `getEmbeddedFontFaceCss()` into the output `<style>` once
+// (single-frame producers do this via `elementTreeToSvg`'s `includeGlyphDefs`
+// defs block; multi-frame producers — animator, scroll composer — collect it
+// at the top level).
 export type RenderTextMode = "paths" | "embedded-font";
-let currentRenderTextMode: RenderTextMode = "paths";
+let currentRenderTextMode: RenderTextMode = "embedded-font";
 export function setRenderTextMode(mode: RenderTextMode): void { currentRenderTextMode = mode; }
 export function getRenderTextMode(): RenderTextMode { return currentRenderTextMode; }
 
