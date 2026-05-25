@@ -27,6 +27,9 @@ import {
   type AnimationFrame,
   type IntraFrameAnimation,
   type AnimationOverlay,
+  type CursorOverlay,
+  type CursorEvent,
+  type CursorStyle,
 } from "../index.js";
 import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
 import {
@@ -251,6 +254,36 @@ const frameSchema = z.object({
   animations: z.array(frameAnimationSchema).optional(),
 });
 
+// DM-851 §6 — config-level cursor overlay. Either "auto" (derive a move +
+// click-pulse per click/hover/fill action) or an explicit event list.
+const cursorStyleSchema = z.object({
+  scale: z.number().optional(),
+  color: z.string().optional(),
+  pulseColor: z.string().optional(),
+  pulseRadius: z.number().optional(),
+  pulseDurationMs: z.number().optional(),
+});
+
+const cursorEventSchema = z
+  .object({
+    frame: z.number().int().nonnegative(),
+    at: z.number().default(0),
+    type: z.enum(["move", "click", "moveClick", "hide"]),
+    selector: z.string().optional(),
+    to: z.object({ x: z.number(), y: z.number() }).optional(),
+    offset: z.object({ dx: z.number(), dy: z.number() }).optional(),
+    duration: z.number().optional(),
+    button: z.enum(["primary", "secondary", "middle"]).optional(),
+  })
+  .refine((e) => (e.type !== "move" && e.type !== "moveClick") || e.selector != null || e.to != null, {
+    message: "a move / moveClick event requires `selector` or `to`",
+  });
+
+const cursorSchema = z.union([
+  z.literal("auto"),
+  z.object({ style: cursorStyleSchema.optional(), events: z.array(cursorEventSchema).min(1, "must be a non-empty array") }),
+]);
+
 const animateConfigSchema = z
   .object({
     width: z.number(),
@@ -261,6 +294,8 @@ const animateConfigSchema = z
     colorScheme: z.enum(["light", "dark", "no-preference"]).optional(),
     /** DM-852 §7 — string vars interpolated into `${name}` in any string field. */
     vars: z.record(z.string(), z.string()).optional(),
+    /** DM-851 §6 — config-level cursor overlay. */
+    cursor: cursorSchema.optional(),
     frames: z.array(frameSchema).min(1, "must be a non-empty array"),
   })
   .superRefine((cfg, ctx) => {
@@ -376,6 +411,28 @@ export async function composeAnimateConfig(
     // get accumulated, and we deduplicate URLs inside discoverAndRegister.
     const tracker = attachWebfontTracker(page);
 
+    // DM-851 §6: config-level cursor. We resolve selectors to absolute coords
+    // during capture, then assemble a global-time CursorOverlay after the loop.
+    const cursorCfg = cfg.cursor;
+    const cursorAuto = cursorCfg === "auto";
+    const explicitCursorEvents = cursorCfg != null && cursorCfg !== "auto" ? cursorCfg.events : [];
+    const cursorStyleCfg = cursorCfg != null && cursorCfg !== "auto" ? cursorCfg.style : undefined;
+    const autoCursorTargets: Array<{ frame: number; cx: number; cy: number }> = [];
+    const explicitCursorBoxes = new Map<string, { cx: number; cy: number }>();
+    const frameStartsMs: number[] = [];
+    {
+      let acc = 0;
+      for (const f of cfg.frames) {
+        frameStartsMs.push(acc);
+        acc += f.duration + (f.transition == null ? 300 : f.transition.type === "cut" ? 0 : f.transition.duration);
+      }
+    }
+    for (const ev of explicitCursorEvents) {
+      if (ev.frame >= cfg.frames.length) {
+        throw new Error(`animate: cursor.events references frame ${ev.frame}, but there are only ${cfg.frames.length} frames`);
+      }
+    }
+
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
       // DM-846 §1: a continued frame (explicit `continue: true`, or a non-first
@@ -406,7 +463,25 @@ export async function composeAnimateConfig(
         const sx = fc.scrollTo[0], sy = fc.scrollTo[1];
         await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
       }
+      // DM-851 §6: for `cursor: "auto"`, record each interaction target's
+      // center BEFORE the action runs (that's where the pointer clicks).
+      if (cursorAuto && fc.actions != null) {
+        for (const a of fc.actions) {
+          if (a.type === "click" || a.type === "hover" || a.type === "fill") {
+            const c = await queryCursorBox(page, a.selector);
+            if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy });
+          }
+        }
+      }
       if (fc.actions != null) await runActions(page, fc.actions, log);
+      // Explicit cursor-event selectors resolve against the post-action DOM.
+      for (const ev of explicitCursorEvents) {
+        if (ev.frame === i && ev.selector != null) {
+          const c = await queryCursorBox(page, ev.selector);
+          if (c == null) throw new Error(`animate: cursor.events selector "${ev.selector}" matched no element in frame ${i}`);
+          explicitCursorBoxes.set(`${i}:${ev.selector}`, c);
+        }
+      }
 
       // Intra-frame animations (DM-209): tag the live DOM with
       // `data-domotion-anim="<id>"` for each animation's selector. The capture
@@ -510,11 +585,18 @@ export async function composeAnimateConfig(
     }
     tracker.detach();
 
+    // DM-851 §6: assemble the cursor overlay from the resolved coords + the
+    // frame timeline. Move events carry absolute `to` coords (selectors already
+    // resolved during capture), so no resolveSelector callback is needed.
+    const cursorOverlay = buildCursorOverlay(
+      cursorAuto, explicitCursorEvents, cursorStyleCfg, autoCursorTargets, explicitCursorBoxes, frameStartsMs, cfg.frames,
+    );
+
     // DM-839: collect the embedded-font @font-face rules accumulated across all
     // frames once, for the animator's top-level <style>.
     const fontFaceCss = getEmbeddedFontFaceCss();
     return await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
-      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss })),
+      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay })),
     );
   } finally {
     await ctx.close();
@@ -729,6 +811,91 @@ function anchorPoint(box: AnchorBox, at: string): [number, number] {
     case "top-left":
     default: return [box.x, box.y];
   }
+}
+
+// ── Cursor overlay (DM-851 §6) ──────────────────────────────────────────────
+
+type CursorEventInput = z.infer<typeof cursorEventSchema>;
+type CursorStyleInput = z.infer<typeof cursorStyleSchema>;
+
+/** Resolve a selector's center in page (viewport) coords, or null if absent. */
+async function queryCursorBox(page: Page, sel: string): Promise<{ cx: number; cy: number } | null> {
+  return page.evaluate((s: string) => {
+    const el = document.querySelector(s);
+    if (el == null) return null;
+    const r = el.getBoundingClientRect();
+    return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
+  }, sel);
+}
+
+/**
+ * Assemble a global-time `CursorOverlay` from resolved coords + the frame
+ * timeline. "auto" derives a move + click-pulse per recorded interaction
+ * target, spaced across each frame's hold; the explicit form maps each
+ * `{ frame, at }` event to global time. Move events carry absolute `to` coords.
+ */
+function buildCursorOverlay(
+  auto: boolean,
+  explicitEvents: CursorEventInput[],
+  styleCfg: CursorStyleInput | undefined,
+  autoTargets: Array<{ frame: number; cx: number; cy: number }>,
+  explicitBoxes: Map<string, { cx: number; cy: number }>,
+  frameStarts: number[],
+  frames: AnimateConfig["frames"],
+): CursorOverlay | undefined {
+  const moveDur = 400;
+  const events: CursorEvent[] = [];
+
+  if (auto) {
+    const byFrame = new Map<number, Array<{ cx: number; cy: number }>>();
+    for (const tgt of autoTargets) {
+      const arr = byFrame.get(tgt.frame) ?? [];
+      arr.push({ cx: tgt.cx, cy: tgt.cy });
+      byFrame.set(tgt.frame, arr);
+    }
+    for (const [frame, targets] of byFrame) {
+      const start = frameStarts[frame];
+      const dur = frames[frame].duration;
+      targets.forEach((tg, m) => {
+        const tHit = start + (dur * (m + 0.5)) / targets.length;
+        events.push({ type: "move", t: Math.max(start, tHit - moveDur), duration: moveDur, to: { x: tg.cx, y: tg.cy } });
+        events.push({ type: "click", t: tHit });
+      });
+    }
+  } else {
+    for (const ev of explicitEvents) {
+      const t = frameStarts[ev.frame] + ev.at;
+      if (ev.type === "hide") { events.push({ type: "hide", t }); continue; }
+      if (ev.type === "click") { events.push({ type: "click", t, button: ev.button }); continue; }
+      // move / moveClick
+      let pos: { x: number; y: number } | null = null;
+      if (ev.to != null) {
+        pos = { x: ev.to.x + (ev.offset?.dx ?? 0), y: ev.to.y + (ev.offset?.dy ?? 0) };
+      } else if (ev.selector != null) {
+        const b = explicitBoxes.get(`${ev.frame}:${ev.selector}`);
+        if (b != null) pos = { x: b.cx + (ev.offset?.dx ?? 0), y: b.cy + (ev.offset?.dy ?? 0) };
+      }
+      if (pos == null) continue;
+      const d = ev.duration ?? moveDur;
+      events.push({ type: "move", t, duration: d, to: pos });
+      if (ev.type === "moveClick") events.push({ type: "click", t: t + d, button: ev.button });
+    }
+  }
+
+  if (events.length === 0) return undefined;
+  return { events, style: mapCursorStyle(styleCfg) };
+}
+
+/** Map the config-facing cursor style to the renderer's `Partial<CursorStyle>`. */
+function mapCursorStyle(s: CursorStyleInput | undefined): Partial<CursorStyle> | undefined {
+  if (s == null) return undefined;
+  const style: Partial<CursorStyle> = {};
+  if (s.scale != null) style.cursorScale = s.scale;
+  if (s.color != null) style.cursorFill = s.color;
+  if (s.pulseColor != null) style.pulseStroke = s.pulseColor;
+  if (s.pulseRadius != null) style.pulseRadius = s.pulseRadius;
+  if (s.pulseDurationMs != null) style.pulseDurationMs = s.pulseDurationMs;
+  return style;
 }
 
 /**

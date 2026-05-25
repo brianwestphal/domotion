@@ -199,3 +199,27 @@ describe("interpolateConfigVars (DM-852)", () => {
     expect(interpolateConfigVars(cfg)).toBe(cfg);
   });
 });
+
+describe("cursor overlay config (DM-851)", () => {
+  const base = { width: 100, height: 100 };
+
+  it("accepts cursor: \"auto\"", () => {
+    const cfg = validateAnimateConfig({ ...base, cursor: "auto", frames: [{ input: "a.html", duration: 1, actions: [{ type: "click", selector: ".b" }] }] });
+    expect(cfg.cursor).toBe("auto");
+  });
+
+  it("accepts explicit cursor events", () => {
+    const cfg = validateAnimateConfig({
+      ...base,
+      cursor: { style: { scale: 1.5 }, events: [{ frame: 0, at: 100, type: "moveClick", selector: ".b" }] },
+      frames: [{ input: "a.html", duration: 1 }],
+    });
+    expect(typeof cfg.cursor === "object" && cfg.cursor.events).toHaveLength(1);
+  });
+
+  it("rejects a move event without selector or to", () => {
+    expect(() =>
+      validateAnimateConfig({ ...base, cursor: { events: [{ frame: 0, type: "move" }] }, frames: [{ input: "a.html", duration: 1 }] }),
+    ).toThrow(/requires `selector` or `to`/);
+  });
+});
