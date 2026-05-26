@@ -144,12 +144,15 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
   // the renderer can emit it into the output SVG `<defs>`. See
   // `docs/39-clip-path-fragment-references.md`.
   //
-  // Scope (initial cut): same-document `<clipPath>` defs with
-  // `clipPathUnits="objectBoundingBox"` or the default `userSpaceOnUse`. The
-  // emitted def carries `clipPathUnits` through verbatim — SVG handles
-  // objectBoundingBox auto-scaling natively. userSpaceOnUse refs are recorded
-  // but the renderer currently passes coordinates through unchanged (best-
-  // effort; faithful support needs per-element translation, deferred).
+  // Scope: same-document `<clipPath>` defs with `clipPathUnits="objectBoundingBox"`
+  // (SVG auto-scales natively) or the default `userSpaceOnUse` (the renderer
+  // mints a per-element translated copy — DM-828). External-file refs
+  // (`url("./shapes.svg#id")`) are resolved *before* this walk by the
+  // `inlineExternalClipPaths` pre-pass (DM-829), which fetches the file, inlines
+  // the `<clipPath>` as a same-document def, and rewrites the element's ref to
+  // `url(#id)` — so by the time we get here a successfully-resolved external ref
+  // looks like any same-document fragment. The `extFragMatch` branch below only
+  // fires when that pre-pass couldn't resolve it (fetch failed / non-http).
   const discoverClipPaths = (el, cs, sel) => {
     const cp = cs.clipPath;
     if (!cp || cp === 'none' || cp === '') return;
@@ -180,7 +183,11 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     }
     const extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(cpShape);
     if (extFragMatch != null) {
-      warn(sel, 'clip-path', 'external-file SVG fragment refs (url("./file.svg#id")) are not yet emitted');
+      // The inlineExternalClipPaths pre-pass (DM-829) rewrites resolvable
+      // external refs to same-document before this walk; reaching here means it
+      // couldn't (fetch failed, non-http origin, or missing fragment) — the
+      // element renders unclipped, same as the pre-DM-829 baseline.
+      warn(sel, 'clip-path', 'external-file SVG fragment ref (url("./file.svg#id")) could not be resolved — element renders unclipped');
     }
   };
 

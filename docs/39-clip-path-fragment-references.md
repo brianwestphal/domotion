@@ -58,7 +58,9 @@ The captured `<clipPath>`'s `clipPathUnits` is recorded at capture time (`ClipPa
 
 ### 3. External-file fragment (`url("./shapes.svg#clip-id")`)
 
-Deferred (matches doc 21's policy for the mask analogue). The `.svg` file is not part of the captured DOM, so capture would have to fetch it, parse with `DOMParser`, locate the fragment, and emit. No real-world or html-test fixture currently exercises external clipPath refs. The capture-side handler emits a per-element warning so downstream consumers know the clip was dropped.
+**Implemented in DM-829.** The `.svg` file isn't part of the captured DOM, so the sync walk can't reach it. An async pre-pass — `inlineExternalClipPaths()` in `src/capture/index.ts`, run before the capture walk (alongside the `rasterize*` passes) — does the resolution in-page: for each element whose computed `clip-path` is an external `url("<path>#id")` (a non-empty path before the `#`), it fetches the file same-origin, `DOMParser`-extracts the `<clipPath id>`, inlines a copy into a hidden in-document `<svg>` under a fresh local id, and rewrites the element's inline `clip-path` to `url(#localId)` (preserving any `<geometry-box>` keyword). The walk then sees a normal same-document fragment, and §1/§2 (incl. DM-828 userSpaceOnUse translation) render it **unchanged**.
+
+Caveats: this only works over **http(s)** — Chrome doesn't resolve external clip-path refs over `file://`, and a sibling-file `fetch()` is blocked there (so the feature is validated via a loopback-HTTP test, `tests/external-clippath.test.ts`, not the `file://` feature runner). Any failure (fetch error / non-2xx / non-http origin / missing or non-`<clipPath>` fragment) leaves the ref intact, so the walk emits its existing warning and the element paints unclipped — the pre-DM-829 baseline. A parsed file is fetched once and shared across consumers (icon-set pattern).
 
 ## Implementation notes
 
@@ -71,7 +73,7 @@ Deferred (matches doc 21's policy for the mask analogue). The `.svg` file is not
 ## What's deferred
 
 - ~~`clipPathUnits="userSpaceOnUse"`~~ — **done in DM-828** (per-element translated copy via `positionFragmentClipPathDef`; fixture `clip-path-userspaceonuse-fragment` in `tests/features.ts`).
-- External `.svg` file fragment refs (`url("./shapes.svg#id")`) — DM-829. Same deferral policy as the mask-image analogue.
+- ~~External `.svg` file fragment refs (`url("./shapes.svg#id")`)~~ — **done in DM-829** (`inlineExternalClipPaths` pre-pass; resolves over http(s), inlines as a same-document def).
 - **Non-default `<geometry-box>` origin offset for `userSpaceOnUse`** — `clip-path: url(#id) padding-box` shifts the user-space origin to the padding box (inside the border); DM-828 translates by the border-box origin (the default, the common case). Folding the box-keyword offset into the translate is a small follow-up if a fixture surfaces it.
 - `<clipPath>` defs that reference other `<clipPath>` / `<mask>` / `<filter>` defs transitively — the rewriter passes those refs through unchanged today. Investigation ticket if a fixture surfaces a real cross-def chain.
 - Animated clipPaths (`<animate>` children inside the clipPath) — out of scope; capture is a static snapshot.
@@ -102,5 +104,5 @@ A unit test exercising id-rewriting on a synthetic clipPath outerHTML lives alon
 ## Follow-ups to file when this lands
 
 - ~~`userSpaceOnUse` clipPaths — per-element coordinate translation~~ — done (DM-828).
-- External `.svg` file fragment refs — DM-829 (same deferral policy as the mask-image case, doc 21).
+- ~~External `.svg` file fragment refs~~ — done (DM-829).
 - Investigation: cross-def chains (clipPath → filter, clipPath → mask) when/if surfaced by a real-world fixture.
