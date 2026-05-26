@@ -195,7 +195,7 @@ The fontkit `Font` API the renderer consumes (`glyphForCodePoint`, `layout`, `ge
 The helper is consulted only when:
 
 - `process.platform` has a helper binary for it — `darwin`, `linux`, or `win32`. Resolution is platform-aware as of DM-881: each platform maps to its in-tree `tools/<platform>-glyph-extractor/` binary, and `DOMOTION_HELPER_PATH` overrides on every platform. (Before DM-881 the gate was hardcoded to `darwin`, and the in-tree path was even mis-resolved after the `src/render/` reorg, so only an explicit `DOMOTION_HELPER_PATH` reached a binary.)
-- A binary exists at the resolved path (an in-tree dev build, the `DOMOTION_HELPER_PATH` target, or — for published consumers — the on-demand download into the user cache, which is still pending in DM-886).
+- A binary exists at the resolved path (an in-tree dev build, the `DOMOTION_HELPER_PATH` target, or — for published consumers — the on-demand download into the user cache, implemented in DM-886 / `src/render/helper-acquire.ts`; see docs/50).
 - `DOMOTION_DISABLE_HELPER` is not set.
 
 If any guard fails, the renderer treats every fontkit-empty path as **missing** (renders the .notdef tofu) — no behavior change from today's pre-DM-385 baseline.

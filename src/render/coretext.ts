@@ -28,6 +28,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { acquireGlyphHelperSync } from "./helper-acquire.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,11 +47,18 @@ const HELPER_BINARIES: Partial<Record<NodeJS.Platform, string>> = {
   win32: path.resolve(HERE, "..", "..", "tools", "win32-glyph-extractor", "domotion-glyph-paths.exe")
 };
 
-// Resolve the helper binary for the running platform: an explicit override
-// wins; otherwise the in-tree build for `process.platform` (undefined on a
-// platform with no helper → no native extraction, fontkit only).
+// Resolve the helper binary for the running platform, in order:
+//   1. `DOMOTION_HELPER_PATH` override (verbatim — no download).
+//   2. The in-tree build (in-repo dev / unpacked source), if it exists.
+//   3. The on-demand download of the release asset into the user cache
+//      (DM-886) — what gives a *published* consumer a helper, since `tools/`
+//      isn't shipped. Lazy: this runs only when 1+2 miss and a coretext font
+//      is actually requested. Returns undefined on any failure → fontkit.
 function resolveHelperPath(platform: NodeJS.Platform = process.platform): string | undefined {
-  return process.env.DOMOTION_HELPER_PATH ?? HELPER_BINARIES[platform];
+  if (process.env.DOMOTION_HELPER_PATH) return process.env.DOMOTION_HELPER_PATH;
+  const inTree = HELPER_BINARIES[platform];
+  if (inTree != null && existsSync(inTree)) return inTree;
+  return acquireGlyphHelperSync({ platform });
 }
 
 /** Test-only: the in-tree helper path mapped for `platform`, ignoring the

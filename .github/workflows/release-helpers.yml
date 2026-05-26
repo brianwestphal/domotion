@@ -13,8 +13,11 @@ name: Release helpers
 # never touches the release body/flags, and the upload step waits for the
 # release to exist so the two parallel workflows don't race.
 #
-# All three native helper binaries are wired up here: macOS (universal,
-# signed/notarized), Linux (x64, FreeType), and Windows (x64, DirectWrite).
+# All native helper binaries are wired up here: macOS (universal,
+# signed/notarized), Linux (x64 + arm64, FreeType), and Windows (x64 + arm64,
+# DirectWrite). The arm64 jobs (DM-886) run on GitHub's arm64 runners and
+# upload the `-linux-arm64` / `-win32-arm64.exe` assets the acquisition layer
+# resolves for arm64 hosts.
 
 on:
   push:
@@ -162,6 +165,50 @@ jobs:
             domotion-glyph-paths-linux-x64.sha256 \
             --clobber
 
+  linux-arm64-glyph-extractor:
+    runs-on: ubuntu-22.04-arm   # GitHub-hosted arm64 Linux runner; glibc 2.35 floor
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config libfreetype-dev
+
+      # build.sh compiles for the host arch, so on an arm64 runner it produces
+      # the arm64 binary — no cross-compilation needed.
+      - name: Build the helper
+        run: bash tools/linux-glyph-extractor/build.sh
+
+      - name: Stage release asset
+        run: |
+          set -euo pipefail
+          strip tools/linux-glyph-extractor/domotion-glyph-paths || true
+          cp tools/linux-glyph-extractor/domotion-glyph-paths \
+             "$RUNNER_TEMP/domotion-glyph-paths-linux-arm64"
+          cd "$RUNNER_TEMP"
+          sha256sum domotion-glyph-paths-linux-arm64 \
+            > domotion-glyph-paths-linux-arm64.sha256
+
+      - name: Attach binaries to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          for i in $(seq 1 30); do
+            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
+            echo "Release $TAG not present yet; waiting… ($i/30)"
+            sleep 10
+          done
+          gh release upload "$TAG" \
+            domotion-glyph-paths-linux-arm64 \
+            domotion-glyph-paths-linux-arm64.sha256 \
+            --clobber
+
   windows-glyph-extractor:
     runs-on: windows-latest   # x64; DirectWrite + the Windows SDK ship preinstalled
     steps:
@@ -206,4 +253,44 @@ jobs:
           gh release upload "$TAG" \
             domotion-glyph-paths-win32-x64.exe \
             domotion-glyph-paths-win32-x64.exe.sha256 \
+            --clobber
+
+  windows-arm64-glyph-extractor:
+    runs-on: windows-11-arm   # GitHub-hosted arm64 Windows runner; MSVC + SDK preinstalled
+    steps:
+      - uses: actions/checkout@v4
+
+      # build.ps1 drives CMake for the host arch; on the arm64 runner it links
+      # an arm64 .exe (CRT statically linked /MT, no VC++ redistributable).
+      - name: Build the helper
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+
+      - name: Stage release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp tools/win32-glyph-extractor/domotion-glyph-paths.exe \
+             "$RUNNER_TEMP/domotion-glyph-paths-win32-arm64.exe"
+          cd "$RUNNER_TEMP"
+          sha256sum domotion-glyph-paths-win32-arm64.exe \
+            > domotion-glyph-paths-win32-arm64.exe.sha256
+
+      - name: Attach binaries to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          for i in $(seq 1 30); do
+            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
+            echo "Release $TAG not present yet; waiting… ($i/30)"
+            sleep 10
+          done
+          gh release upload "$TAG" \
+            domotion-glyph-paths-win32-arm64.exe \
+            domotion-glyph-paths-win32-arm64.exe.sha256 \
             --clobber

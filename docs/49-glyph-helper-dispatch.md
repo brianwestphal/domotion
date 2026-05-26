@@ -124,7 +124,9 @@ platforms; the rename can be a follow-up. (Filed separately.)
   *any* font" trigger is not built, so on Linux/Windows the helper is resolvable
   + invocable but nothing routes through it yet. Filed as a follow-up; pairs
   with the per-platform fallback calibration (DM-259 / DM-260).
-- **On-demand acquisition** for published consumers — that's piece B (DM-886).
+- **On-demand acquisition** for published consumers — piece B, now landed in
+  DM-886 (`src/render/helper-acquire.ts`; lazy first-render download → user
+  cache → SHA-verify → reuse). `coretext.ts`'s resolver falls through to it.
 
 **Tests**: `src/render/coretext.test.ts` gained a platform-agnostic
 "platform-aware helper resolution" block (per-platform binary mapping, the

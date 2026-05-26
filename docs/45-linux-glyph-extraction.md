@@ -278,6 +278,9 @@ not yet built — see open questions.)
   flag, set on no Linux `FONT_PATHS` entry. The doc-16 "fontkit-empty path →
   consult the helper for any font" trigger is unbuilt; it pairs with the Linux
   fallback-chain calibration (DM-259) that decides which fonts route through it.
-- ⏳ **On-demand acquisition** for published consumers (download release asset →
-  user cache → SHA-verify → chmod) — the missing DM-393 layer, filed as DM-886.
-- ⏳ **arm64 asset** — open (see Open questions §3).
+- ✅ **On-demand acquisition** for published consumers (download release asset →
+  user cache → SHA-verify → chmod → reuse) — the missing DM-393 layer, landed in
+  DM-886 (`src/render/helper-acquire.ts`; lazy first-render fetch, see docs/50).
+- ✅ **arm64 asset** — `linux-arm64` (and `win32-arm64`) build+upload jobs added
+  to `release-helpers.yml` and resolved by the acquisition layer (DM-886). The
+  arm64 jobs run on GitHub arm64 runners; not yet validated by a real release.

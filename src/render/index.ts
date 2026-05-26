@@ -20,3 +20,9 @@ export {
   getEmbeddedFontFaceCss,
   type RenderTextMode,
 } from "./text-to-path.js";
+
+// DM-886: pre-warm the native glyph-helper cache (download the platform/arch
+// release asset, SHA-verify, cache) ahead of rendering, instead of paying the
+// lazy first-render download. No-op-returns-null on unsupported platforms /
+// offline; the renderer falls back to fontkit either way.
+export { acquireGlyphHelper } from "./helper-acquire.js";

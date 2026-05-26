@@ -6,10 +6,11 @@ per-user cache at runtime, so a **published-npm consumer** has a working helper
 without it being committed to git or bundled in the tarball. Origin: DM-886
 (the missing DM-393 layer, discovered during DM-881 — see `docs/49`).
 
-> **Status: DRAFT — open decisions below (the trigger model is the consequential
-> one).** This is piece **B** of the DM-881 split; piece A (platform-aware
-> resolution in `src/render/coretext.ts`) has landed and is the consumer of this
-> layer.
+> **Status: IMPLEMENTED (DM-886).** `src/render/helper-acquire.ts` ships the
+> acquisition layer, wired into `coretext.ts`'s resolver as the third source.
+> The maintainer's decisions are recorded in [Decisions](#decisions-adopted).
+> This is piece **B** of the DM-881 split; piece A (platform-aware resolution in
+> `coretext.ts`) is the consumer of this layer.
 
 ## The gap
 
@@ -90,39 +91,47 @@ never throws into the render path. A single concise warning (once per process)
 explains why the native helper was skipped. `DOMOTION_DISABLE_HELPER` short-circuits
 acquisition entirely; `DOMOTION_HELPER_PATH` still overrides (no download).
 
-## Open decisions
+## Decisions (adopted)
 
-1. **Download trigger (the consequential one).** When does the fetch happen?
-   - **(a) Lazy first-render fetch** *(recommended)* — the first render that
-     actually needs the helper triggers the download, caches, reuses. No
-     install-time network, so `npm ci --ignore-scripts`, offline/airgapped
-     installs, and locked-down CI all keep working; the cost is that the first
-     render needing a non-fontkit glyph is slower and needs network once.
-   - **(b) `postinstall` script** — download at `npm install` time. Fastest
-     first render, but breaks `--ignore-scripts`, offline installs, and trips
-     many orgs' "no network in install scripts" security policies. Generally an
-     npm anti-pattern.
-   - **(c) Explicit opt-in** — a `domotion install-helper` CLI command / exported
-     `acquireGlyphHelper()` the consumer runs deliberately. Most predictable, but
-     the helper is silently absent until they do.
-   - Recommendation: **(a)**, and *also* export `acquireGlyphHelper()` so a
-     consumer can pre-warm in CI if they want (a) + (c) without the postinstall
-     downside.
-2. **arch coverage.** Only x86_64 Linux/Windows assets exist (macOS is
-   universal). On linux-arm64 / win32-arm64 there's no asset → silent fontkit
-   fallback. OK for v1 *(recommended)*, or is arm64 (build + release jobs)
-   in-scope? (Pairs with doc 45 Open-question §3.)
-3. **Failure verbosity.** Warn once per process on a skipped/failed acquisition
-   *(recommended)*, or stay silent (only surface via a debug flag)?
-4. **Linux/Windows release assets aren't attached to v0.5.0.** Acquisition is
-   only end-to-end testable on macOS today. Is "make the Linux/Windows
-   `release-helpers.yml` jobs actually upload for the current tag" part of
-   DM-886, or a separate release-infra ticket? *(recommended: separate — DM-886
-   builds + tests the layer on macOS, with Linux/Windows covered by unit tests +
-   `DOMOTION_HELPER_PATH` until the assets ship.)*
-5. **macOS cache dir.** `~/Library/Caches/…` (doc 16, OS-purgeable — fine since
-   re-downloadable) vs `~/Library/Application Support/…` (DM-886 text, persists).
-   Recommendation: **Caches** — it's a reconstructible artifact.
+The maintainer's calls on the open questions (all implemented):
+
+1. **Download trigger → lazy first-render fetch.** The synchronous resolver in
+   `coretext.ts` calls `acquireGlyphHelperSync()` when no `DOMOTION_HELPER_PATH`
+   / in-tree binary is found; the download runs in a short-lived child `node`
+   process (this module re-invoked as a script) so the otherwise-synchronous
+   render path blocks on it exactly once, then caches + reuses. No install-time
+   network — `npm ci --ignore-scripts`, offline, and locked-down CI keep
+   working. The async **`acquireGlyphHelper()` is exported** (from the package
+   barrel) so consumers can pre-warm the cache instead of paying the first-render
+   download.
+2. **arch coverage → include arm64.** `assetNameFor` resolves
+   `linux-arm64` / `win32-arm64` in addition to `linux-x64` / `win32-x64` and the
+   macOS universal binary. The release workflow grows arm64 build+upload jobs
+   (below); until those assets ship a 404 just falls back to fontkit.
+3. **Failure verbosity → warn once per process** on any skipped/failed
+   acquisition (offline / 404 / SHA mismatch / unsupported arch), then fontkit.
+4. **Release assets → wired in DM-886.** `release-helpers.yml` is extended so
+   the Linux/Windows (x64 + arm64) jobs build and upload their assets + sidecars
+   for the tag (macOS already did). [Note: arm64 build jobs can't be validated
+   from this dev box — they run on GitHub arm64 runners.]
+5. **macOS cache dir → `~/Library/Caches/domotion/<version>/bin/`** (a
+   reconstructible artifact; OS-purgeable is fine since it re-downloads).
+
+## Implementation
+
+- **`src/render/helper-acquire.ts`** — `assetNameFor`, `cacheDirFor`,
+  `parseSha256Sidecar`, `downloadAndInstall` (fetch asset + sidecar →
+  SHA-256-verify → atomic temp-write + `chmod 0o755` + rename), the sync
+  `acquireGlyphHelperSync` (child-process download, one attempt per process,
+  warn-once latch), the async `acquireGlyphHelper`, and a worker entry guarded
+  on `argv[1]` so a normal `import` never triggers a download.
+- **`src/render/coretext.ts`** — `resolveHelperPath` now falls through to
+  `acquireGlyphHelperSync({ platform })` after the env override + existing
+  in-tree binary.
+- **Tested:** unit (asset/cache/sidecar resolvers, unsupported-arch + cache-hit
+  offline) + a loopback-HTTP-server exercise of download/verify/install (good /
+  bad-SHA / 404). The full sync path was validated end-to-end against the real
+  `v0.5.0` darwin release asset (downloads, verifies, installs, the binary runs).
 
 ## Relationship to other work
 
