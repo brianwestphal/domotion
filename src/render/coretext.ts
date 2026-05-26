@@ -1,12 +1,22 @@
 /**
- * Native macOS glyph-outline extraction via the CoreText helper binary
- * (`tools/macos-glyph-extractor`). DM-385 / DM-388.
+ * Native glyph-outline extraction via a platform's system-font engine helper:
+ * CoreText on macOS (`tools/macos-glyph-extractor`, DM-385 / DM-388), FreeType
+ * on Linux (`tools/linux-glyph-extractor`, DM-872), DirectWrite on Windows
+ * (`tools/win32-glyph-extractor`, DM-837).
  *
- * Used as the path-extraction backend for fonts whose outlines fontkit
- * can't read — primarily PingFang, whose outlines live in the proprietary
- * Apple `hvgl` table. The helper opens the font through CoreText (which
- * understands `hvgl`) and returns SVG path data we can drop into the same
- * `<defs>`/`<use>` pipeline as fontkit-extracted glyphs.
+ * Used as the path-extraction backend for fonts whose outlines fontkit can't
+ * read — primarily PingFang on macOS, whose outlines live in the proprietary
+ * Apple `hvgl` table; the Linux/Windows analogues cover CFF/CJK outlines their
+ * native engine reads faithfully but fontkit can't. Each helper opens the font
+ * through the platform engine (which Chromium also rasterizes through, so the
+ * outlines are byte-faithful to the painted page) and returns SVG path data we
+ * drop into the same `<defs>`/`<use>` pipeline as fontkit-extracted glyphs.
+ *
+ * All three helpers speak the identical stdin/stdout JSON IPC and emit outlines
+ * in font design units, y-up (fontkit's convention), so everything below the
+ * binary selection — the wrapper, `parseSvgPath`, the scale transform in
+ * `text-to-path.ts` — is engine-agnostic. (The `Coretext` symbol names are kept
+ * for their original macOS provenance; they now dispatch across all platforms.)
  *
  * The wrapper exposes a fontkit-compatible subset of the `Font` API (the
  * fields `text-to-path.ts` reads): `unitsPerEm`, ascent/descent, underline /
@@ -20,15 +30,42 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HELPER_PATH = process.env.DOMOTION_HELPER_PATH
-  ?? path.resolve(HERE, "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
+
+// In-tree helper binary per platform. These live at the repo-root
+// `tools/<platform>-glyph-extractor/` dir, which is two levels up from this
+// module (`src/render/` in dev, `dist/render/` once compiled).
+//
+// NOTE: `tools/` is NOT in the published npm `files` (only `dist` ships), so
+// for a *published* consumer these paths don't exist — the on-demand
+// release-asset download into a user cache (DM-886) is what provides a binary
+// there. Today only an in-repo dev build or an explicit `DOMOTION_HELPER_PATH`
+// resolves a real binary; everywhere else the renderer falls back to fontkit.
+const HELPER_BINARIES: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: path.resolve(HERE, "..", "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths"),
+  linux: path.resolve(HERE, "..", "..", "tools", "linux-glyph-extractor", "domotion-glyph-paths"),
+  win32: path.resolve(HERE, "..", "..", "tools", "win32-glyph-extractor", "domotion-glyph-paths.exe")
+};
+
+// Resolve the helper binary for the running platform: an explicit override
+// wins; otherwise the in-tree build for `process.platform` (undefined on a
+// platform with no helper → no native extraction, fontkit only).
+function resolveHelperPath(platform: NodeJS.Platform = process.platform): string | undefined {
+  return process.env.DOMOTION_HELPER_PATH ?? HELPER_BINARIES[platform];
+}
+
+/** Test-only: the in-tree helper path mapped for `platform`, ignoring the
+ *  `DOMOTION_HELPER_PATH` override. `undefined` for platforms with no helper. */
+export function __helperBinaryForPlatform(platform: NodeJS.Platform): string | undefined {
+  return HELPER_BINARIES[platform];
+}
 
 let helperAvailable: boolean | null = null;
+let helperPath: string | undefined;
 export function isCoretextHelperAvailable(): boolean {
   if (helperAvailable != null) return helperAvailable;
-  if (process.platform !== "darwin") { helperAvailable = false; return false; }
   if (process.env.DOMOTION_DISABLE_HELPER) { helperAvailable = false; return false; }
-  helperAvailable = existsSync(HELPER_PATH);
+  helperPath = resolveHelperPath();
+  helperAvailable = helperPath != null && existsSync(helperPath);
   return helperAvailable;
 }
 
@@ -93,13 +130,17 @@ interface HelperResponse {
 }
 
 function callHelper(request: HelperRequest): HelperResponse {
-  const proc = spawnSync(HELPER_PATH, [], {
+  // `isCoretextHelperAvailable()` (the gate every caller passes) sets
+  // `helperPath`; re-resolve defensively in case it's called standalone.
+  const bin = helperPath ?? resolveHelperPath();
+  if (bin == null) throw new Error("no glyph helper binary for this platform");
+  const proc = spawnSync(bin, [], {
     input: JSON.stringify(request),
     encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024
   });
   if (proc.status !== 0) {
-    throw new Error(`coretext helper failed (exit ${proc.status}): ${proc.stderr}`);
+    throw new Error(`glyph helper failed (exit ${proc.status}): ${proc.stderr}`);
   }
   return JSON.parse(proc.stdout);
 }
@@ -253,4 +294,5 @@ export function createCoretextFont(spec: {
  *  parity with `clearWebfonts` / `clearGlyphDefs`. */
 export function clearCoretextCache(): void {
   helperAvailable = null;
+  helperPath = undefined;
 }

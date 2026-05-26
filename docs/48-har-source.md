@@ -3,9 +3,14 @@
 Requirements for accepting an HTTP-Archive (`.har`) file as a `domotion capture`
 input, alongside the existing URL / local-HTML / stdin sources. Origin: DM-883.
 
-> **Status: DRAFT — pending maintainer decisions** (see [Open decisions](#open-decisions)).
-> The design below states a recommended default for each; confirm or override
-> before implementation.
+> **Status: investigation concluded (DM-883) — implementation deferred (DM-889).**
+> Feasibility is high and the design below stands. The maintainer confirmed no
+> specific driving use case ("thought it might be useful"), so rather than ship
+> public CLI surface speculatively, the **recommended default for each open
+> decision is adopted as the plan** (none were overridden) and implementation is
+> filed, ready to build, as **DM-889** — to land when a use case arises or it's
+> explicitly green-lit. The "Open decisions" section below records the adopted
+> defaults.
 
 ## Why
 
@@ -65,21 +70,24 @@ domotion capture page.har --url https://x.com/ -o …  # disambiguate multi-page
 domotion capture page.har --har-fallback -o …        # let missing assets hit network
 ```
 
-## Open decisions
+## Decisions (adopted defaults)
 
-1. **CLI surface** — auto-detect a `.har` input *(recommended)*, or a separate
-   `--har <path>` flag paired with a URL input? Auto-detect is consistent with
-   `.svgz`; the flag form is more explicit and supports "this URL, replayed from
-   this HAR" without inference.
-2. **URL inference vs always-require `--url`** — infer the main page from the HAR
-   *(recommended)*, falling back to `--url`? Or require `--url` always (simpler,
-   no HAR-parsing heuristics, but less ergonomic)?
-3. **Unmatched-request policy** — default `notFound: "abort"` (strict
-   deterministic offline) *(recommended)* with a `--har-fallback` opt-in to the
-   network, or default to fallback?
-4. **Scope** — single-page capture only for v1 *(recommended)*, or also support
-   driving the `animate` config's per-frame `input` from a HAR (multi-frame
-   interaction demos replayed offline)?
+No driving use case surfaced (DM-883), so the recommended default for each was
+adopted as the implementation plan (DM-889); none were overridden. A later
+green-light could still revisit any of these before/at implementation.
+
+1. **CLI surface** — **auto-detect** a `.har` input (consistent with `.svgz`
+   output detection). Considered + not chosen: a separate `--har <path>` flag
+   paired with a URL (more explicit, supports "this URL replayed from this HAR"
+   without inference) — can be added later if needed.
+2. **URL inference** — **infer** the main page from the HAR (`log.pages[0]` /
+   first HTML entry), with `--url` to override/disambiguate. Considered: always
+   require `--url` (simpler, no heuristics, less ergonomic).
+3. **Unmatched-request policy** — default **`notFound: "abort"`** (strict
+   deterministic offline — every asset must be in the HAR), with a
+   `--har-fallback` opt-in to the network.
+4. **Scope** — **single-page `capture` only** for v1. Driving the `animate`
+   config's per-frame `input` from a HAR is a follow-up.
 
 ## Out of scope (v1)
 

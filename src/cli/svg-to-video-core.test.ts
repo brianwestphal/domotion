@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildFfmpegArgs,
   fitContain,
+  isAnimatedImageContainer,
   parseSvgIntrinsicSize,
   resolveDurationMs,
   resolveFormat,
@@ -95,6 +96,19 @@ describe("resolveFormat", () => {
   it("throws on an unknown format", () => {
     expect(() => resolveFormat("xyz")).toThrow(/Unsupported --format/);
   });
+  it("maps the animated-image formats and ignores a container override for them", () => {
+    expect(resolveFormat("gif")).toEqual({ videoCodec: "gif", container: "gif", pixFmt: "pal8" });
+    expect(resolveFormat("apng")).toEqual({ videoCodec: "apng", container: "apng", pixFmt: "rgba" });
+    // a nonsensical override can't desync the format from its container
+    expect(resolveFormat("gif", "mp4").container).toBe("gif");
+    expect(resolveFormat("apng", "webm").container).toBe("apng");
+  });
+  it("classifies animated-image containers", () => {
+    expect(isAnimatedImageContainer("gif")).toBe(true);
+    expect(isAnimatedImageContainer("apng")).toBe(true);
+    expect(isAnimatedImageContainer("mp4")).toBe(false);
+    expect(isAnimatedImageContainer("webm")).toBe(false);
+  });
 });
 
 describe("buildFfmpegArgs", () => {
@@ -163,5 +177,49 @@ describe("buildFfmpegArgs", () => {
     expect(a).toContain("-c:a libopus");
     expect(a).toContain("-c:s webvtt");
     expect(a).not.toContain("faststart");
+  });
+
+  const gif: ResolvedFormat = { videoCodec: "gif", container: "gif", pixFmt: "pal8" };
+  const apng: ResolvedFormat = { videoCodec: "apng", container: "apng", pixFmt: "rgba" };
+
+  it("builds a GIF via the palettegen/paletteuse filtergraph", () => {
+    const a = buildFfmpegArgs({ ...base, fmt: gif, output: "out.gif" });
+    const s = a.join(" ");
+    expect(s).toContain("image2pipe");
+    expect(s).toContain("split[s0][s1]");
+    expect(s).toContain("palettegen");
+    expect(s).toContain("paletteuse");
+    expect(s).toContain("-map [v]");
+    expect(s).toContain("-f gif");
+    expect(a[a.length - 1]).toBe("out.gif");
+  });
+
+  it("downscales inside the GIF graph when supersampled, not as a separate -vf", () => {
+    const ss = buildFfmpegArgs({ ...base, fmt: gif, output: "out.gif", frameWidth: 1600, frameHeight: 1000 }).join(" ");
+    expect(ss).toContain("scale=800:500:flags=lanczos,split");
+    expect(ss).not.toContain("-vf "); // folded into -filter_complex
+  });
+
+  it("builds an APNG with the apng encoder, rgba, and looping", () => {
+    const a = buildFfmpegArgs({ ...base, fmt: apng, output: "out.png" });
+    const s = a.join(" ");
+    expect(s).toContain("-c:v apng");
+    expect(s).toContain("-pix_fmt rgba");
+    expect(s).toContain("-plays 0");
+    expect(s).toContain("-f apng");
+    expect(s).not.toContain("palettegen");
+    expect(a[a.length - 1]).toBe("out.png");
+  });
+
+  it("drops audio + soft captions for animated-image formats (burn-in still applies)", () => {
+    // music/audio/soft-captions are ignored; only burn-in subtitles reach the filter.
+    const dropped = buildFfmpegArgs({ ...base, fmt: gif, output: "out.gif", music: "bed.mp3", audio: "vo.m4a", captions: "cap.srt" }).join(" ");
+    expect(dropped).not.toContain("-c:a");
+    expect(dropped).not.toContain("-c:s");
+    expect(dropped).not.toContain("amix");
+    expect(dropped).not.toContain("subtitles=");
+
+    const burned = buildFfmpegArgs({ ...base, fmt: gif, output: "out.gif", captions: "cap.srt", burnCaptions: true }).join(" ");
+    expect(burned).toContain("subtitles=cap.srt");
   });
 });

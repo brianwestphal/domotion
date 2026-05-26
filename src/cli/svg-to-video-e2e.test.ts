@@ -86,6 +86,52 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
     }
   }, 60_000);
 
+  it("renders an animated GIF via the palette flow with the right geometry + frame count (DM-885)", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-gif-"));
+    const input = path.join(dir, "anim.svg");
+    const output = path.join(dir, "out.gif");
+    writeFileSync(input, ANIMATED_SVG);
+    try {
+      await runSvgToVideo({
+        input, output, width: 100, height: 100,
+        fps: 4, durationSec: 1, // 4 frames; 4 divides 100 → exact GIF timing
+        format: "gif", scale: 1, background: "#ffffff", burnCaptions: false,
+        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        launchBrowser: () => launchChromium(),
+      });
+      const meta = ffprobe(output);
+      expect(meta.codec_name).toBe("gif");
+      expect(Number(meta.width)).toBe(100);
+      expect(Number(meta.height)).toBe(100);
+      expect(Number(meta.nb_read_frames)).toBe(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("renders an animated APNG via the apng encoder (DM-885)", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-apng-"));
+    const input = path.join(dir, "anim.svg");
+    const output = path.join(dir, "out.png");
+    writeFileSync(input, ANIMATED_SVG);
+    try {
+      await runSvgToVideo({
+        input, output, width: 100, height: 100,
+        fps: 4, durationSec: 1,
+        format: "apng", scale: 1, background: "#ffffff", burnCaptions: false,
+        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        launchBrowser: () => launchChromium(),
+      });
+      const meta = ffprobe(output);
+      expect(meta.codec_name).toBe("apng");
+      expect(Number(meta.width)).toBe(100);
+      expect(Number(meta.height)).toBe(100);
+      expect(Number(meta.nb_read_frames)).toBe(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it("fails with install guidance when ffmpeg is missing", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-"));
     const input = path.join(dir, "anim.svg");

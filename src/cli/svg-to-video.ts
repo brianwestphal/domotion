@@ -36,9 +36,11 @@ Options:
       --duration <s>       Render this many seconds. Default: one full animation
                            loop, derived from the SVG. Required for SMIL-only SVGs
                            or animations with no derivable cycle.
-      --format <codec>     Video codec: h264 (default), hevc, vp9, vp8, av1.
+      --format <codec>     Output format: h264 (default), hevc, vp9, vp8, av1,
+                           or the animated images gif / apng (no audio).
       --container <ext>    Container override (default follows --format:
-                           h264/hevc/av1 → mp4, vp9/vp8 → webm).
+                           h264/hevc/av1 → mp4, vp9/vp8 → webm). Ignored for
+                           gif/apng.
       --scale <n>          Supersample render factor for crisper output
                            (default 2; ffmpeg downscales to the target size).
       --background <css>   Page background behind the SVG (default "#ffffff";
@@ -63,6 +65,9 @@ Examples:
   # Burn in captions and add a voiceover that starts 0.5s in.
   svg-to-video demo.svg -o demo.mp4 --captions demo.srt --burn-captions \\
     --audio vo.m4a --audio-offset 0.5
+
+  # An animated GIF (palette-optimized); use an fps that divides 100 for exact timing.
+  svg-to-video demo.svg -o demo.gif --format gif --fps 25
 
 Requires ffmpeg on PATH (brew / apt / dnf / winget install ffmpeg).
 `;

@@ -264,11 +264,20 @@ not yet built — see open questions.)
   `linux-glyph-extractor` release job in `release-helpers.yml`. Built and
   validated in the Playwright Linux container (Liberation `H` + FreeSans 𝑎 parity
   with fontkit, byte-faithful).
-- ⏳ **Remaining — JS-side dispatch (separate follow-up).** The renderer does not
-  yet *invoke* the Linux helper: `src/render/coretext.ts` is still macOS-gated
-  (`process.platform === 'darwin'`). Generalizing the probe-then-fallback dispatch
-  to resolve + spawn the Linux asset (mirroring `createCoretextFont`) — including
-  the on-demand release-asset download into `$XDG_DATA_HOME/domotion/<version>/bin/`
-  — is its own chunk, naturally paired with the Linux fallback-chain calibration
-  (DM-259) that decides which fonts actually route through the helper.
+- ✅ **JS-side resolution wired** (DM-881, piece A): `src/render/coretext.ts` is
+  no longer macOS-gated — it resolves the helper binary platform-aware
+  (`darwin`/`linux`/`win32` → the in-tree `tools/<platform>-glyph-extractor/`
+  binary, two levels up from the module), with `DOMOTION_HELPER_PATH` overriding
+  on every platform. The engine-agnostic `createCoretextFont` wrapper spawns the
+  Linux FreeType binary and consumes its design-unit, y-up output unchanged. A
+  Linux-gated dispatch test in `src/render/coretext.test.ts` extracts an outline
+  through the wrapper end-to-end (green in the `test:linux-docker` container).
+- ⏳ **Remaining — the probe-then-fallback *trigger* (separate follow-up).** The
+  renderer can now *invoke* the Linux helper, but nothing routes through it on
+  Linux yet: the helper is reached only via the static `extractor: "coretext"`
+  flag, set on no Linux `FONT_PATHS` entry. The doc-16 "fontkit-empty path →
+  consult the helper for any font" trigger is unbuilt; it pairs with the Linux
+  fallback-chain calibration (DM-259) that decides which fonts route through it.
+- ⏳ **On-demand acquisition** for published consumers (download release asset →
+  user cache → SHA-verify → chmod) — the missing DM-393 layer, filed as DM-886.
 - ⏳ **arm64 asset** — open (see Open questions §3).

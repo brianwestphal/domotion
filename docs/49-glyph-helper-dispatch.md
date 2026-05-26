@@ -4,9 +4,12 @@ Requirements for making the renderer actually *invoke* the native glyph
 extractors (macOS CoreText, Linux FreeType, Windows DirectWrite) instead of only
 the macOS one. Origin: DM-881 (follow-up to DM-385 / DM-872 / DM-837).
 
-> **Status: DRAFT — blocked on a prerequisite + a decision** (see below). The
-> investigation found that the premise of DM-881 ("extends DM-393's acquisition
-> which the macOS asset already uses") does **not** hold in the code today.
+> **Status: piece A IMPLEMENTED (DM-881); piece B (acquisition) is DM-886.**
+> The investigation found that the premise of DM-881 ("extends DM-393's
+> acquisition which the macOS asset already uses") does **not** hold in the code
+> today — see "Current state" below. Per the maintainer's decision the work was
+> split: **A (platform-aware resolution)** shipped as DM-881; **B (on-demand
+> acquisition)** is filed separately as DM-886. See "Implemented (piece A)".
 
 ## Current state (verified)
 
@@ -89,3 +92,49 @@ Do **A** (platform-aware resolution + the rename, low-risk, macOS-unchanged) as
 DM-881, and file **B** (the cross-platform acquisition layer) as a separate
 ticket — it's the real prerequisite for published consumers and benefits macOS
 too. Confirm before implementing, since A touches the macOS-working render path.
+
+## Implemented (piece A, DM-881)
+
+`src/render/coretext.ts` now resolves the helper binary **platform-aware**:
+
+- `HELPER_BINARIES` maps `darwin` / `linux` / `win32` to their in-tree
+  `tools/<platform>-glyph-extractor/` binary (`.exe` on Windows). The path is
+  resolved **two levels up** from the module (`src/render/` → repo root) —
+  fixing a latent bug from the DM-619d `src/render/` reorg, where the relative
+  path still pointed one level up at a nonexistent `src/tools/`, so even the
+  macOS in-tree binary was unreachable except via `DOMOTION_HELPER_PATH`.
+- `isCoretextHelperAvailable()` no longer hard-gates on `darwin`; it's available
+  whenever a binary resolves for `process.platform`. `DOMOTION_HELPER_PATH`
+  overrides on every platform; `DOMOTION_DISABLE_HELPER` disables.
+- The IPC wrapper (`createCoretextFont`, `parseSvgPath`, the scale transform in
+  `text-to-path.ts`) was already engine-agnostic — all three helpers emit
+  design-unit, y-up outlines — so only resolution + the gate changed.
+
+**Naming**: deferred. Open decision #3 (rename `coretext.ts` → `glyph-helper.ts`
++ rename the public symbols) was *not* done, to keep this diff focused on the
+behavior change rather than mixing in cross-file cosmetic churn through the
+macOS-working render path. The `Coretext` symbol names now dispatch across all
+platforms; the rename can be a follow-up. (Filed separately.)
+
+**What A does NOT do** (deliberately out of scope, follow-ups filed):
+
+- **The probe-then-fallback trigger.** The renderer still routes to the helper
+  only via the static `extractor: "coretext"` flag on `FONT_PATHS` entries
+  (macOS PingFang only). The doc-16 "fontkit-empty path → consult helper for
+  *any* font" trigger is not built, so on Linux/Windows the helper is resolvable
+  + invocable but nothing routes through it yet. Filed as a follow-up; pairs
+  with the per-platform fallback calibration (DM-259 / DM-260).
+- **On-demand acquisition** for published consumers — that's piece B (DM-886).
+
+**Tests**: `src/render/coretext.test.ts` gained a platform-agnostic
+"platform-aware helper resolution" block (per-platform binary mapping, the
+two-levels-up regression assertion, and the `DOMOTION_HELPER_PATH` /
+`DOMOTION_DISABLE_HELPER` env behaviors) plus a Linux-gated dispatch test that
+spawns the FreeType binary through `createCoretextFont` and extracts an outline
+— verified green in the `test:linux-docker` container.
+
+**macOS effect**: fixing the path means the CoreText helper is now actually
+reachable in in-repo dev (it was silently unreachable before). PingFang fixtures
+now route through CoreText instead of the fontkit/HiraginoSansGB fall-through;
+the feature suite stays green (`text-mixed-script` 0.00%; the 3 unrelated
+pre-existing border/button/counter failures are unchanged).

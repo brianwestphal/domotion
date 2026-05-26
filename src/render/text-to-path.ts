@@ -1593,8 +1593,13 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   const spec = resolveFontSpec(effectiveKey);
   if (spec == null) return null;
 
-  // CoreText-extractor route: route to the macOS Swift helper (DM-385 / DM-388).
-  // When the helper isn't present (non-darwin host, dev hasn't built it,
+  // Native-helper-extractor route: route to the platform's glyph helper
+  // (CoreText/macOS DM-385, FreeType/Linux DM-872, DirectWrite/Windows DM-837 —
+  // resolution is platform-aware as of DM-881). Today only macOS FONT_PATHS
+  // entries set `extractor: "coretext"`; Linux/Windows tables don't yet, so
+  // this branch is macOS-only in practice until per-platform fallback
+  // calibration (DM-259/DM-260) routes their CFF/CJK keys through the helper.
+  // When the helper isn't present (no in-tree build, no DOMOTION_HELPER_PATH,
   // DOMOTION_DISABLE_HELPER set), fall through to fontkit — the renderer's
   // chain logic skips fontkit-empty paths and walks to the next candidate
   // (`cjk` / HiraginoSansGB for the PingFang case), preserving the pre-DM-385

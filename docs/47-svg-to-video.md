@@ -88,8 +88,8 @@ What is *not* free:
 | `--width <px>` / `--height <px>` | intrinsic | Contain within; preserve aspect ratio. Either or both. |
 | `--fps <n>` | `30` | Target frame rate; drives the sampling interval. |
 | `--duration <s>` | one cycle | Override the rendered length (required for SMIL-only or indeterminate general SVGs). |
-| `--format <codec>` | `h264` | Video codec keyword: `h264`, `hevc`, `vp9`, `vp8`, `av1`. |
-| `--container <ext>` | per format | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`). |
+| `--format <codec>` | `h264` | Output format: video codecs `h264`, `hevc`, `vp9`, `vp8`, `av1`, or the animated images `gif` / `apng` (no audio track). |
+| `--container <ext>` | per format | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`). Ignored for `gif`/`apng` (the format *is* the container). |
 | `--scale <n>` | `2` | Supersample render factor; ffmpeg downscales (lanczos) to the target size for crisper output. |
 | `--background <css>` | `#ffffff` | Page background behind the SVG (video has no alpha). |
 | `--music <path>` | — | Background music; looped (`-stream_loop -1`) + trimmed (`-shortest`) to the video length. |
@@ -145,11 +145,36 @@ estimate, and what's free.
   `--burn-captions` renders them into the picture via the `subtitles=` filter.
 - Audio codec follows the container: AAC for mp4/mov, Opus for webm.
 
+## Animated-image output (GIF / APNG, DM-885)
+
+`--format gif` and `--format apng` emit an animated image instead of a video.
+They share the same Playwright frame-stepping pipeline; only the ffmpeg argv
+differs (`buildFfmpegArgs` branches on the container):
+
+- **GIF** uses a single-invocation palette flow — `split` the filtered frame
+  stream, `palettegen` an optimal 256-color palette from one branch, and
+  `paletteuse` (Bayer dither) it on the other. A naive single-pass GIF is
+  heavily banded; the palette pass is what makes it look acceptable.
+- **APNG** encodes through the `apng` encoder with `-plays 0` (loop) and an
+  `rgba` pixel format.
+- **No audio / soft captions.** Neither format carries an audio track or
+  soft-muxed subtitles, so `--music` / `--audio` / soft `--captions` are
+  ignored with a note. `--burn-captions` still works (it's a video filter).
+- **`--container` is ignored** — the format is its own container.
+- **GIF frame-rate caveat.** GIF delays are stored in centiseconds, so the
+  effective rate is `round(100/fps)/100`. fps values that divide 100
+  (`50`/`25`/`20`/`10`) are exact; others (e.g. `30`) drift slightly. The CLI
+  warns on a non-dividing fps rather than silently snapping it.
+
+mp4/webm remain the primary path; gif/apng are for inline-loop demos and chat
+embeds where a video element isn't convenient.
+
 ## Out of scope (v1)
 
 - Arbitrary JS/`requestAnimationFrame`-driven SVG animation (needs clock
   virtualization; best-effort only).
-- GIF/APNG output (could be a later `--format gif` via a palette pass).
+- Transparent-background GIF/APNG (frames are captured over `--background`,
+  which defaults to opaque white — alpha capture is a possible follow-up).
 - Per-frame audio sync beyond music/voiceover/captions.
 
 ## Verification
@@ -157,7 +182,12 @@ estimate, and what's free.
 - **Unit tests** (`src/cli/svg-to-video-core.test.ts`) cover the pure helpers:
   `fitContain` (aspect-preserving + even dims), `parseSvgIntrinsicSize`,
   `resolveDurationMs` (override / uniform loop / LCM / finite-end / cap), the
-  `--format` map, and `buildFfmpegArgs` for every audio/caption/scale/webm combo.
+  `--format` map (incl. the gif/apng entries + container-override guard), and
+  `buildFfmpegArgs` for every audio/caption/scale/webm combo plus the gif palette
+  filtergraph and apng encoder branches (audio/soft-caption drop, burn-in kept).
+- **End-to-end** (`src/cli/svg-to-video-e2e.test.ts`, ffmpeg-gated) renders the
+  same animated SVG to mp4, gif, and apng and ffprobes each for codec, geometry,
+  and frame count.
 - **End-to-end** (validated manually this session): a `domotion animate` SVG
   rendered to mp4 yields exactly `round(duration*fps)` frames with the seeked
   state captured (frames genuinely differ across the timeline — confirmed the

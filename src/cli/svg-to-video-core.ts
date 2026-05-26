@@ -189,7 +189,19 @@ const FORMAT_MAP: Record<string, { codec: string; container: string; pixFmt: str
   vp9: { codec: "libvpx-vp9", container: "webm", pixFmt: "yuv420p" },
   vp8: { codec: "libvpx", container: "webm", pixFmt: "yuv420p" },
   av1: { codec: "libaom-av1", container: "mp4", pixFmt: "yuv420p" },
+  // Animated-image formats (DM-885). These take a distinct ffmpeg path in
+  // `buildFfmpegArgs` (no audio/soft-caption track): GIF via a palette
+  // filtergraph, APNG via the apng encoder. The `container` value `gif`/`apng`
+  // is the branch discriminant. pixFmt is unused for gif (the palette graph
+  // sets it); rgba for apng preserves the alpha the encoder supports.
+  gif: { codec: "gif", container: "gif", pixFmt: "pal8" },
+  apng: { codec: "apng", container: "apng", pixFmt: "rgba" },
 };
+
+/** True for the animated-image formats that take the palette/apng path. */
+export function isAnimatedImageContainer(container: string): boolean {
+  return container === "gif" || container === "apng";
+}
 
 /** Map a `--format` keyword to an ffmpeg codec + default container + pix_fmt. */
 export function resolveFormat(format: string, containerOverride?: string): ResolvedFormat {
@@ -197,7 +209,10 @@ export function resolveFormat(format: string, containerOverride?: string): Resol
   if (!f) {
     throw new Error(`Unsupported --format "${format}". Known: ${Object.keys(FORMAT_MAP).join(", ")}.`);
   }
-  return { videoCodec: f.codec, container: containerOverride ?? f.container, pixFmt: f.pixFmt };
+  // A container override is meaningless for gif/apng (the format *is* the
+  // container) — ignore it so `--format gif --container mp4` can't desync.
+  const container = isAnimatedImageContainer(f.container) ? f.container : containerOverride ?? f.container;
+  return { videoCodec: f.codec, container, pixFmt: f.pixFmt };
 }
 
 // ffmpeg's subtitles filter treats ':' '\' '[' ']' ',' specially in the path.
@@ -230,6 +245,10 @@ export interface FfmpegArgsInput {
  * native for webm) or burned in.
  */
 export function buildFfmpegArgs(o: FfmpegArgsInput): string[] {
+  // GIF / APNG take a distinct path — no audio track, no soft-muxed captions
+  // (the format can't carry them); the caller warns when those flags are set.
+  if (isAnimatedImageContainer(o.fmt.container)) return buildAnimatedImageArgs(o);
+
   const args: string[] = ["-y", "-hide_banner"];
 
   // input 0: the PNG frame stream
@@ -297,6 +316,54 @@ export function buildFfmpegArgs(o: FfmpegArgsInput): string[] {
 
   if (o.fmt.container === "mp4") args.push("-movflags", "+faststart");
 
+  args.push("-f", containerToMuxer(o.fmt.container), o.output);
+  return args;
+}
+
+/**
+ * ffmpeg argv for the animated-image formats (GIF / APNG, DM-885). Frames
+ * arrive on the same PNG `image2pipe` stdin. These carry no audio and can't
+ * soft-mux captions, so only the shared video filters apply (lanczos downscale
+ * when supersampled, burn-in subtitles when `--burn-captions`).
+ *
+ * GIF uses a single-invocation palette flow — `split` the filtered stream,
+ * `palettegen` an optimal 256-color palette from one branch, `paletteuse` it on
+ * the other. A naive single-pass GIF (no palettegen) is heavily banded; the
+ * Bayer-dither + diff-mode settings here are the widely-used quality preset.
+ * APNG is a straight encode through the `apng` encoder with `-plays 0` (loop).
+ *
+ * Frame-rate caveat: GIF frame delays are stored in centiseconds, so the
+ * effective rate is `round(100 / fps) / 100` — fps values that divide 100
+ * (50/25/20/10) are exact; others (e.g. 30 → 3 cs → 33.3fps) drift slightly.
+ * The caller warns on a non-dividing fps; we don't silently snap it.
+ */
+function buildAnimatedImageArgs(o: FfmpegArgsInput): string[] {
+  const args: string[] = ["-y", "-hide_banner"];
+  args.push("-f", "image2pipe", "-framerate", String(o.fps), "-i", "-");
+
+  // Shared video filters (same as the video path), composed into the graph.
+  const base: string[] = [];
+  if (o.frameWidth !== o.outWidth || o.frameHeight !== o.outHeight) {
+    base.push(`scale=${o.outWidth}:${o.outHeight}:flags=lanczos`);
+  }
+  if (o.captions != null && o.burnCaptions) base.push(`subtitles=${escapeSubtitlesPath(o.captions)}`);
+
+  if (o.fmt.container === "gif") {
+    const pre = base.length > 0 ? base.join(",") + "," : "";
+    args.push(
+      "-filter_complex",
+      `[0:v]${pre}split[s0][s1];` +
+        `[s0]palettegen=stats_mode=diff[p];` +
+        `[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle[v]`,
+      "-map", "[v]",
+    );
+  } else {
+    // apng
+    if (base.length > 0) args.push("-vf", base.join(","));
+    args.push("-map", "0:v:0", "-c:v", "apng", "-pix_fmt", o.fmt.pixFmt, "-plays", "0");
+  }
+
+  args.push("-r", String(o.fps));
   args.push("-f", containerToMuxer(o.fmt.container), o.output);
   return args;
 }
@@ -464,6 +531,19 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     log(`disk pre-flight: ~${fmtBytes(disk.neededBytes)} needed, ${fmtBytes(disk.freeBytes)} free — ok`);
 
     const fmt = resolveFormat(opts.format, opts.container);
+    if (isAnimatedImageContainer(fmt.container)) {
+      // GIF/APNG carry no audio and can't soft-mux captions — flag what's
+      // dropped (burn-in captions still work; they go into the video filter).
+      if (opts.music || opts.audio) {
+        log(`note: ${fmt.container} has no audio track — ignoring --music/--audio`);
+      }
+      if (opts.captions && !opts.burnCaptions) {
+        log(`note: ${fmt.container} can't soft-mux captions — pass --burn-captions to render them in`);
+      }
+      if (fmt.container === "gif" && 100 % opts.fps !== 0) {
+        log(`note: GIF frame delays are centiseconds — fps ${opts.fps} doesn't divide 100, so timing is approximate (try 50/25/20/10)`);
+      }
+    }
     const ffArgs = buildFfmpegArgs({
       fps: opts.fps,
       frameWidth,
