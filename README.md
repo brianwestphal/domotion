@@ -64,6 +64,20 @@ domotion animate ./demo.json
 
 The config describes each frame (input, duration, transition) plus a declarative surface for interaction demos: continuous-session frames that carry client-side state across steps (omit `input` / set `"continue": true`), DOM-mutation and interaction actions, richer readiness waits (`waitForText` / `waitForGone` / `waitForCount`), typing / tap / svg / blink overlays that can anchor to an element's box, an on-screen `cursor` (explicit or `"auto"`), `vars` + `${}` interpolation, and a small `evaluate` escape hatch. See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
 
+### Export to video
+
+The package also ships a standalone `svg-to-video` CLI that renders an animated SVG (a `domotion animate` output, or any CSS-/SMIL-animated SVG) to a video file. It steps the animation timeline frame by frame in Chromium for frame-accurate timing, then pipes the frames to **ffmpeg** (a required external dependency — install via `brew` / `apt` / `winget`).
+
+```bash
+# h264/mp4 at 30fps, contained to 1280px wide.
+svg-to-video demo.svg -o demo.mp4 --width 1280
+
+# 60fps VP9/webm with looping background music.
+svg-to-video demo.svg -o demo.webm --format vp9 --fps 60 --music bed.mp3
+```
+
+Supports target size (`--width`/`--height`, aspect-preserving), `--fps`, `--format` / `--container`, supersampling (`--scale`), background music / foreground audio / captions, and a disk-space pre-flight. See `svg-to-video --help`.
+
 ### Scripting API
 
 When you outgrow the CLI — custom interaction loops, programmatic frame composition, custom overlays — the same primitives are available as a library:

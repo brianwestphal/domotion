@@ -1,20 +1,21 @@
-# Domotion: animated SVG → video export
+# Domotion: animated SVG → video export (`svg-to-video`)
 
-Requirements for a CLI that renders an animated SVG to a video file (h264/mp4
-by default), with precise frame-rate control and optional audio / captions.
-Origin: DM-873.
+The `svg-to-video` CLI renders an animated SVG to a video file (h264/mp4 by
+default), with precise frame-rate control and optional audio / captions. It is a
+**standalone program** — its own `bin` (`svg-to-video`), a sibling of
+`domotion`, in the same npm package. Origin: DM-873.
 
-> **Status: DRAFT — pending maintainer decisions.** The open decisions in
-> [Open decisions](#open-decisions) are stated with a recommended default; the
-> design below assumes those defaults. Confirm or override before
-> implementation begins.
+> **Status: implemented (DM-873).** The decisions in
+> [Decisions](#decisions-resolved) were confirmed by the maintainer; this doc
+> describes the shipped behavior. Source: `src/cli/svg-to-video.ts` (bin) +
+> `src/cli/svg-to-video-core.ts` (converter + pure helpers).
 
 ## Goal
 
 Turn an animated SVG into a video:
 
 ```bash
-domotion video demo.svg -o demo.mp4 --width 1280 --fps 30
+svg-to-video demo.svg -o demo.mp4 --width 1280 --fps 30
 ```
 
 Primary target: SVGs produced by `domotion animate` (CSS-`@keyframes`-driven).
@@ -61,8 +62,12 @@ What is *not* free:
    (fit inside the box, never distort). Render at an integer device scale for
    crisp frames; pad to even dimensions (h264 `yuv420p` requires even W/H).
 4. **Determine duration & frame count.** Duration = explicit `--duration`, else
-   one full timeline cycle computed from `getAnimations()` end times (for
-   domotion SVGs that is the `--scene-dur` loop). `N = round(duration * fps)`.
+   derived from `getAnimations()` timings: the max finite `endTime`, and for
+   infinite (looping) animations the LCM of their iteration periods — one full
+   loop cycle. For a `domotion animate` SVG every animation shares one period, so
+   that LCM is just the loop length. Incommensurate infinite periods (LCM over a
+   ~10-min cap) or a SMIL-only SVG (no WAAPI timings) require an explicit
+   `--duration`. `N = round(duration * fps)`.
 5. **Pre-flight disk-space check.** Estimate footprint and compare against free
    space on the output (and temp, if `--keep-frames`) volume via `fs.statfs`.
    Abort with a clear message if short. See [Disk space](#disk-space).
@@ -79,17 +84,21 @@ What is *not* free:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `-o, --output <path>` | required | Output video path. Extension may imply `--container`. |
+| `-o, --output <path>` | required | Output video path. |
 | `--width <px>` / `--height <px>` | intrinsic | Contain within; preserve aspect ratio. Either or both. |
 | `--fps <n>` | `30` | Target frame rate; drives the sampling interval. |
-| `--duration <s>` | one cycle | Override the rendered length (needed for indeterminate/infinite general SVGs). |
-| `--format <codec>` | `h264` | Video codec (`h264`/`libx264`, `vp9`, `hevc`, …). |
-| `--container <ext>` | `mp4` | Container (`mp4`, `webm`, `mov`, …). Validated against codec. |
-| `--music <path>` | — | Background music; looped+trimmed to video length, optional fade-out. |
-| `--audio <path>` | — | Foreground audio; mixed over music (`amix`), optional start offset. |
-| `--captions <path>` | — | Caption file (`.srt`/`.vtt`); soft-muxed (mp4→`mov_text`) or burned-in via `--burn-captions`. |
-| `--scale <n>` | `2` | Device scale factor for capture crispness. |
-| `--keep-frames <dir>` | — | Write the PNG sequence to disk instead of piping (debug). |
+| `--duration <s>` | one cycle | Override the rendered length (required for SMIL-only or indeterminate general SVGs). |
+| `--format <codec>` | `h264` | Video codec keyword: `h264`, `hevc`, `vp9`, `vp8`, `av1`. |
+| `--container <ext>` | per format | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`). |
+| `--scale <n>` | `2` | Supersample render factor; ffmpeg downscales (lanczos) to the target size for crisper output. |
+| `--background <css>` | `#ffffff` | Page background behind the SVG (video has no alpha). |
+| `--music <path>` | — | Background music; looped (`-stream_loop -1`) + trimmed (`-shortest`) to the video length. |
+| `--audio <path>` | — | Foreground audio; mixed over music via `amix` when both are given. |
+| `--audio-offset <s>` | — | Delay the foreground audio by this many seconds (`-itsoffset`). |
+| `--captions <path>` | — | Caption file (`.srt`/`.vtt`); soft-muxed (mp4→`mov_text`, webm→`webvtt`) or burned-in via `--burn-captions`. |
+| `--burn-captions` | off | Render captions into the picture (`subtitles=` filter) instead of muxing a track. |
+| `--keep-frames <dir>` | — | Also write the PNG sequence to disk (debug). |
+| `--ffmpeg <path>` | `$FFMPEG_PATH` or `ffmpeg` | ffmpeg binary to shell out to. |
 | `--quiet` | off | Suppress per-phase progress on stderr. |
 
 ## ffmpeg dependency
@@ -103,10 +112,12 @@ runtime, resolved from `PATH`. When missing, print install guidance:
 - **Windows**: `winget install ffmpeg` / `choco install ffmpeg`, or a
   [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) / BtbN static build on `PATH`.
 
-Codec notes to surface: h264 (`libx264`) + AAC audio is the portable default;
-`yuv420p` is needed for QuickTime/Safari/most players; VP9/webm needs `libvpx`;
-HEVC needs `libx265`. The tool detects whether the resolved ffmpeg has the
-requested encoder and errors early if not.
+Codec notes: h264 (`libx264`) + AAC audio is the portable default; `yuv420p` is
+needed for QuickTime/Safari/most players; VP9/webm uses `libvpx-vp9` + Opus audio
++ WebVTT subs; HEVC needs `libx265`. The `--ffmpeg <path>` flag (or `FFMPEG_PATH`
+env var) points at a specific binary. ffmpeg is resolved up front so the tool
+fails with guidance *before* launching a browser. (Per the maintainer decision,
+there is no `ffmpeg-static` auto-fallback — system ffmpeg is a hard requirement.)
 
 ## Disk space
 
@@ -119,17 +130,20 @@ pre-flight check, and `--keep-frames` does write frames. Estimate:
   conservatively from a single probe screenshot's size — on the temp/frames
   volume, plus the output estimate.
 
-`fs.statfs(path)` gives free bytes per volume. The message names the volume,
-the estimate, and what's free.
+`statfsSync(path)` gives free bytes per volume; the estimate is sized from the
+real first rendered frame's byte size. The message names the volume, the
+estimate, and what's free.
 
-## Audio / caption muxing (defaults)
+## Audio / caption muxing
 
-- **Background music** longer than the video: trim with `-shortest`; shorter:
-  loop (`-stream_loop -1`) then trim; optional `afade` out at the tail.
-- **Foreground audio**: `amix` over music (or replace if no music); optional
-  `--audio-offset`.
-- **Captions**: default soft-mux (`-c:s mov_text` for mp4, native for webm);
+- **Background music**: looped (`-stream_loop -1`) and trimmed to the video
+  length (`-shortest`).
+- **Foreground audio**: when given alongside music, the two are combined with
+  `amix=inputs=2:duration=longest`; alone, it is mapped directly. `--audio-offset`
+  delays it via `-itsoffset`.
+- **Captions**: default soft-mux (`-c:s mov_text` for mp4, `webvtt` for webm);
   `--burn-captions` renders them into the picture via the `subtitles=` filter.
+- Audio codec follows the container: AAC for mp4/mov, Opus for webm.
 
 ## Out of scope (v1)
 
@@ -140,26 +154,29 @@ the estimate, and what's free.
 
 ## Verification
 
-- A fixture SVG from `domotion animate` rendered at a known fps yields exactly
-  `round(duration*fps)` frames, and sampled frames match per-time screenshots
-  taken by the existing capture path (frame-accuracy assertion).
-- ffmpeg-missing path prints guidance and exits non-zero without writing a
-  partial file.
-- Disk-space pre-flight aborts cleanly when free space is below the estimate.
+- **Unit tests** (`src/cli/svg-to-video-core.test.ts`) cover the pure helpers:
+  `fitContain` (aspect-preserving + even dims), `parseSvgIntrinsicSize`,
+  `resolveDurationMs` (override / uniform loop / LCM / finite-end / cap), the
+  `--format` map, and `buildFfmpegArgs` for every audio/caption/scale/webm combo.
+- **End-to-end** (validated manually this session): a `domotion animate` SVG
+  rendered to mp4 yields exactly `round(duration*fps)` frames with the seeked
+  state captured (frames genuinely differ across the timeline — confirmed the
+  WAAPI seek beats Playwright's screenshot default, which is why we do **not**
+  pass `animations:"disabled"`), correct contain-fit dimensions, and a looping
+  music track trimmed to length; vp9/webm output and the ffmpeg-missing guidance
+  path both verified.
 
-## Open decisions
+## Decisions (resolved)
 
-These need a maintainer call (see the ticket's FEEDBACK note). Defaults assumed
-above:
+Confirmed by the maintainer (DM-873):
 
-1. **Generality scope** — v1 = CSS-`@keyframes` (domotion) **+** SMIL
-   `setCurrentTime`; JS-`rAF` animation out of scope / best-effort. *(assumed)*
-2. **Infinite/indeterminate duration** — when no finite cycle is derivable,
-   require `--duration`; for domotion SVGs default to one `--scene-dur` loop.
-   *(assumed)*
-3. **ffmpeg sourcing** — require system ffmpeg + install guidance; do **not**
-   bundle. Optionally honor an `ffmpeg-static` install if present. *(assumed)*
-4. **Frame transport** — pipe to ffmpeg by default; `--keep-frames` for the
-   on-disk debug sequence. *(assumed)*
-5. **Subcommand name** — `domotion video`. Alternatives: `export` / `render` /
-   `record`. *(assumed `video`)*
+1. **Generality scope** — CSS-`@keyframes` (domotion) **+** SMIL
+   (`setCurrentTime`); JS-`rAF` animation out of scope / best-effort. ✅
+2. **Infinite/indeterminate duration** — derive one loop cycle from
+   `getAnimations()`; require `--duration` for SMIL-only or incommensurate cases. ✅
+3. **ffmpeg sourcing** — hard-require system ffmpeg, print install guidance when
+   missing; **not** bundled, **no** `ffmpeg-static` auto-fallback. ✅
+4. **Frame transport** — pipe to ffmpeg stdin by default; `--keep-frames` for the
+   on-disk debug sequence; disk pre-flight always runs. ✅
+5. **Program shape** — a **standalone `svg-to-video` bin** (second bin in the
+   package), not a `domotion video` subcommand. ✅

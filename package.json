@@ -16,7 +16,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "domotion": "dist/cli/index.js"
+    "domotion": "dist/cli/index.js",
+    "svg-to-video": "dist/cli/svg-to-video.js"
   },
   "files": [
     "dist",
