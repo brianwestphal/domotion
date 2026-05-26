@@ -90,3 +90,20 @@ jobs:
             | ./tools/win32-glyph-extractor/domotion-glyph-paths.exe
       - name: Run the fontkit-parity test
         run: npx vitest run tests/win32-glyph-extractor.test.ts
+
+  # DM-884 diagnostic: pinpoint the Windows primary-font (Arial) text-positioning
+  # drift behind the feature regression. Dumps the captured per-char xOffsets +
+  # baseline vs the positions Chromium-on-Windows actually painted. Read the log:
+  # the delta pattern says whether xOffsets are absent (renderer sums fontkit
+  # advances), unfaithful (capture), or matching (render-side / vertical).
+  text-drift-probe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Probe captured vs painted text positions
+        run: npx tsx tools/probe-win-text-drift.ts
