@@ -190,8 +190,8 @@ describe("resolveFontSpec: cross-platform font path discovery (DM-258)", () => {
       expect(__resolveFontSpecForTest("helvetica")?.path).toBe("/System/Library/Fonts/Helvetica.ttc");
       expect(__resolveFontSpecForTest("courier")?.path).toBe("/System/Library/Fonts/Courier.ttc");
       expect(__resolveFontSpecForTest("times")?.path).toBe("/System/Library/Fonts/Times.ttc");
-      // The CoreText extractor flag survives the resolver indirection (PingFang).
-      expect(__resolveFontSpecForTest("pingfang-sc")?.extractor).toBe("coretext");
+      // The native-extractor flag survives the resolver indirection (PingFang).
+      expect(__resolveFontSpecForTest("pingfang-sc")?.extractor).toBe("native");
     });
   }
 });

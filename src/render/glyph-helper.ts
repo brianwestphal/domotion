@@ -15,8 +15,8 @@
  * All three helpers speak the identical stdin/stdout JSON IPC and emit outlines
  * in font design units, y-up (fontkit's convention), so everything below the
  * binary selection — the wrapper, `parseSvgPath`, the scale transform in
- * `text-to-path.ts` — is engine-agnostic. (The `Coretext` symbol names are kept
- * for their original macOS provenance; they now dispatch across all platforms.)
+ * `text-to-path.ts` — is engine-agnostic. (Originally macOS-only `coretext.ts`;
+ * generalized to all platforms in DM-881 and renamed in DM-888.)
  *
  * The wrapper exposes a fontkit-compatible subset of the `Font` API (the
  * fields `text-to-path.ts` reads): `unitsPerEm`, ascent/descent, underline /
@@ -52,7 +52,7 @@ const HELPER_BINARIES: Partial<Record<NodeJS.Platform, string>> = {
 //   2. The in-tree build (in-repo dev / unpacked source), if it exists.
 //   3. The on-demand download of the release asset into the user cache
 //      (DM-886) — what gives a *published* consumer a helper, since `tools/`
-//      isn't shipped. Lazy: this runs only when 1+2 miss and a coretext font
+//      isn't shipped. Lazy: this runs only when 1+2 miss and a helper-eligible font
 //      is actually requested. Returns undefined on any failure → fontkit.
 function resolveHelperPath(platform: NodeJS.Platform = process.platform): string | undefined {
   if (process.env.DOMOTION_HELPER_PATH) return process.env.DOMOTION_HELPER_PATH;
@@ -69,7 +69,7 @@ export function __helperBinaryForPlatform(platform: NodeJS.Platform): string | u
 
 let helperAvailable: boolean | null = null;
 let helperPath: string | undefined;
-export function isCoretextHelperAvailable(): boolean {
+export function isGlyphHelperAvailable(): boolean {
   if (helperAvailable != null) return helperAvailable;
   if (process.env.DOMOTION_DISABLE_HELPER) { helperAvailable = false; return false; }
   helperPath = resolveHelperPath();
@@ -79,7 +79,7 @@ export function isCoretextHelperAvailable(): boolean {
 
 interface PathCommand { command: string; args: number[] }
 
-interface CoretextGlyph {
+interface GlyphHelperGlyph {
   id: number;
   advanceWidth: number;
   path: { commands: PathCommand[] };
@@ -138,7 +138,7 @@ interface HelperResponse {
 }
 
 function callHelper(request: HelperRequest): HelperResponse {
-  // `isCoretextHelperAvailable()` (the gate every caller passes) sets
+  // `isGlyphHelperAvailable()` (the gate every caller passes) sets
   // `helperPath`; re-resolve defensively in case it's called standalone.
   const bin = helperPath ?? resolveHelperPath();
   if (bin == null) throw new Error("no glyph helper binary for this platform");
@@ -153,7 +153,7 @@ function callHelper(request: HelperRequest): HelperResponse {
   return JSON.parse(proc.stdout);
 }
 
-export interface CoretextFontInstance {
+export interface GlyphHelperFontInstance {
   unitsPerEm: number;
   ascent: number;
   descent: number;
@@ -161,19 +161,19 @@ export interface CoretextFontInstance {
   underlineThickness: number;
   "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
   availableFeatures?: string[];
-  glyphForCodePoint(cp: number): CoretextGlyph;
-  getGlyph(id: number): CoretextGlyph;
+  glyphForCodePoint(cp: number): GlyphHelperGlyph;
+  getGlyph(id: number): GlyphHelperGlyph;
   layout(text: string, features?: string[]): {
-    glyphs: CoretextGlyph[];
+    glyphs: GlyphHelperGlyph[];
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
   };
 }
 
-export function createCoretextFont(spec: {
+export function createGlyphHelperFont(spec: {
   postscriptName?: string;
   fontPath?: string;
-}): CoretextFontInstance | null {
-  if (!isCoretextHelperAvailable()) return null;
+}): GlyphHelperFontInstance | null {
+  if (!isGlyphHelperAvailable()) return null;
 
   // Open at size=1000 first so we can read unitsPerEm. Then re-open at
   // size=unitsPerEm so all glyph paths come back in design-unit space — this
@@ -196,8 +196,8 @@ export function createCoretextFont(spec: {
   const renderSize = unitsPerEm;
 
   // Per-(cp, id) caches — each glyph is fetched at most once per Node process.
-  const cpToGlyph = new Map<number, CoretextGlyph>();
-  const idToGlyph = new Map<number, CoretextGlyph>();
+  const cpToGlyph = new Map<number, GlyphHelperGlyph>();
+  const idToGlyph = new Map<number, GlyphHelperGlyph>();
   const missingCp = new Set<number>();
 
   function fetchByCps(cps: number[]): void {
@@ -216,7 +216,7 @@ export function createCoretextFont(spec: {
         missingCp.add(cp);
         continue;
       }
-      const glyph: CoretextGlyph = {
+      const glyph: GlyphHelperGlyph = {
         id: g.id,
         advanceWidth: g.advance,
         path: { commands: parseSvgPath(g.d) },
@@ -227,7 +227,7 @@ export function createCoretextFont(spec: {
     }
   }
 
-  function fetchById(id: number): CoretextGlyph {
+  function fetchById(id: number): GlyphHelperGlyph {
     const cached = idToGlyph.get(id);
     if (cached != null) return cached;
     const resp = callHelper({
@@ -236,12 +236,12 @@ export function createCoretextFont(spec: {
     });
     const r = resp.results[0];
     if (r.type !== "glyphs") {
-      const empty: CoretextGlyph = { id, advanceWidth: 0, path: { commands: [] } };
+      const empty: GlyphHelperGlyph = { id, advanceWidth: 0, path: { commands: [] } };
       idToGlyph.set(id, empty);
       return empty;
     }
     const g = r.glyphs[0];
-    const glyph: CoretextGlyph = {
+    const glyph: GlyphHelperGlyph = {
       id: g.id,
       advanceWidth: g.advance,
       path: { commands: parseSvgPath(g.d) }
@@ -250,7 +250,7 @@ export function createCoretextFont(spec: {
     return glyph;
   }
 
-  function notdef(id = 0): CoretextGlyph {
+  function notdef(id = 0): GlyphHelperGlyph {
     return { id, advanceWidth: 0, path: { commands: [] } };
   }
 
@@ -266,18 +266,18 @@ export function createCoretextFont(spec: {
     },
     availableFeatures: [],
 
-    glyphForCodePoint(cp: number): CoretextGlyph {
+    glyphForCodePoint(cp: number): GlyphHelperGlyph {
       if (missingCp.has(cp)) return notdef(0);
       if (!cpToGlyph.has(cp)) fetchByCps([cp]);
       return cpToGlyph.get(cp) ?? notdef(0);
     },
 
-    getGlyph(id: number): CoretextGlyph {
+    getGlyph(id: number): GlyphHelperGlyph {
       return fetchById(id);
     },
 
     layout(text: string): {
-      glyphs: CoretextGlyph[];
+      glyphs: GlyphHelperGlyph[];
       positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
     } {
       // Batch every codepoint in one helper call before assembling the result.
@@ -285,7 +285,7 @@ export function createCoretextFont(spec: {
       for (const ch of text) cps.push(ch.codePointAt(0)!);
       fetchByCps(cps);
 
-      const glyphs: CoretextGlyph[] = [];
+      const glyphs: GlyphHelperGlyph[] = [];
       const positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }> = [];
       for (const cp of cps) {
         const g = cpToGlyph.get(cp) ?? notdef(0);
@@ -298,9 +298,9 @@ export function createCoretextFont(spec: {
 }
 
 /** Drop the in-memory glyph-resolution caches. Currently a no-op since each
- *  `createCoretextFont` returns its own closure-bound cache, but exposed for
+ *  `createGlyphHelperFont` returns its own closure-bound cache, but exposed for
  *  parity with `clearWebfonts` / `clearGlyphDefs`. */
-export function clearCoretextCache(): void {
+export function clearGlyphHelperCache(): void {
   helperAvailable = null;
   helperPath = undefined;
 }

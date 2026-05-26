@@ -33,7 +33,7 @@ then shaped with `font.layout(runText)`, and each shaped glyph's
 
 The helper enters via `getFontInstance` (~line 1602): when the resolved spec has
 `extractor: "coretext"` and the helper is available, the **whole font instance**
-is swapped for a `CoretextFontInstance` that routes *everything* — cmap, metrics,
+is swapped for a `GlyphHelperFontInstance` that routes *everything* — cmap, metrics,
 shaping (`layout`), and outlines — through the helper. fontkit is not consulted
 for that font at all.
 
@@ -50,7 +50,7 @@ Two ways to close the gap:
 fontkit stays the primary font for cmap + metrics + shaping. Only at outline
 extraction, when a shaped glyph's `.path.commands` is empty *and* its `.id !== 0`
 (cmap-covered but outline-unreadable), fetch **that glyph's** outline from the
-helper by glyph id (`createCoretextFont(...).getGlyph(id)`), keyed in a
+helper by glyph id (`createGlyphHelperFont(...).getGlyph(id)`), keyed in a
 `(fontFile, glyphId) → fontkit | helper | missing` cache so each glyph is probed
 once per process.
 
@@ -65,7 +65,7 @@ once per process.
 
 ### Option B — probe-triggered whole-instance swap (incremental)
 
-Keep the `CoretextFontInstance` whole-font swap, but *decide* to use it by
+Keep the `GlyphHelperFontInstance` whole-font swap, but *decide* to use it by
 probing fontkit for empty outlines instead of reading the static flag.
 
 - Pro: smaller; preserves the PingFang path (helper still does shaping) exactly.
@@ -185,7 +185,7 @@ including PingFang in both macOS configs — shipped in `getFontInstance`
      falsy even when the table exists).
   3. If the font is helper-eligible **and** fontkit can't render it (didn't open,
      or no outline table) **and** the helper is available → use the helper
-     (`createCoretextFont`, by postscriptName on macOS / fontPath elsewhere).
+     (`createGlyphHelperFont`, by postscriptName on macOS / fontPath elsewhere).
   4. Otherwise use the fontkit font; if it couldn't even open and the helper
      didn't rescue it, return null and the chain walks on (pre-DM-385 baseline).
 - This covers **PingFang in both configs**: no file → `openSync` throws → helper;

@@ -221,5 +221,5 @@ a cert is provisioned.
   `GetInformationalStrings(POSTSCRIPT_NAME)`, and the DirectWrite-3 variation path.
 - ⏳ **Remaining:** Windows Authenticode signing in CI (pending a cert — open
   question 1); arm64 asset (open question 2); the JS-side dispatch that actually
-  *invokes* the helper (`src/render/coretext.ts` is still macOS-gated — the same
+  *invokes* the helper (`src/render/glyph-helper.ts` is still macOS-gated — the same
   generalization tracked for Linux in DM-881 extends to win32).

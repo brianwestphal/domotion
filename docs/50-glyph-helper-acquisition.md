@@ -7,14 +7,14 @@ without it being committed to git or bundled in the tarball. Origin: DM-886
 (the missing DM-393 layer, discovered during DM-881 — see `docs/49`).
 
 > **Status: IMPLEMENTED (DM-886).** `src/render/helper-acquire.ts` ships the
-> acquisition layer, wired into `coretext.ts`'s resolver as the third source.
+> acquisition layer, wired into `glyph-helper.ts`'s resolver as the third source.
 > The maintainer's decisions are recorded in [Decisions](#decisions-adopted).
 > This is piece **B** of the DM-881 split; piece A (platform-aware resolution in
-> `coretext.ts`) is the consumer of this layer.
+> `glyph-helper.ts`) is the consumer of this layer.
 
 ## The gap
 
-`isCoretextHelperAvailable()` (DM-881) resolves a helper binary from, in order:
+`isGlyphHelperAvailable()` (DM-881) resolves a helper binary from, in order:
 `DOMOTION_HELPER_PATH` → the in-tree `tools/<platform>-glyph-extractor/` build.
 But `tools/` is **not** in the published npm `files` (`["dist", …]`), so for a
 consumer who ran `npm install domotion`, neither path exists → the helper is
@@ -49,7 +49,7 @@ filename). The asset is keyed to the package version via the release tag.
 ## Proposed design
 
 A self-contained `acquireGlyphHelper()` module (e.g. `src/render/helper-acquire.ts`),
-called by `coretext.ts`'s resolution as the source *after* the in-tree path:
+called by `glyph-helper.ts`'s resolution as the source *after* the in-tree path:
 
 1. **Resolve the target.** Asset name from the table above by `process.platform`;
    bail (→ fontkit) on an unsupported platform/arch (e.g. linux-arm64).
@@ -62,7 +62,7 @@ called by `coretext.ts`'s resolution as the source *after* the in-tree path:
    failed acquisition.
 5. **Install** into the cache: write atomically (temp + rename), `chmod 0o755`
    on POSIX.
-6. **Reuse** thereafter; the in-memory availability cache in `coretext.ts`
+6. **Reuse** thereafter; the in-memory availability cache in `glyph-helper.ts`
    already memoizes per process.
 
 ### Cache locations
@@ -96,7 +96,7 @@ acquisition entirely; `DOMOTION_HELPER_PATH` still overrides (no download).
 The maintainer's calls on the open questions (all implemented):
 
 1. **Download trigger → lazy first-render fetch.** The synchronous resolver in
-   `coretext.ts` calls `acquireGlyphHelperSync()` when no `DOMOTION_HELPER_PATH`
+   `glyph-helper.ts` calls `acquireGlyphHelperSync()` when no `DOMOTION_HELPER_PATH`
    / in-tree binary is found; the download runs in a short-lived child `node`
    process (this module re-invoked as a script) so the otherwise-synchronous
    render path blocks on it exactly once, then caches + reuses. No install-time
@@ -125,7 +125,7 @@ The maintainer's calls on the open questions (all implemented):
   `acquireGlyphHelperSync` (child-process download, one attempt per process,
   warn-once latch), the async `acquireGlyphHelper`, and a worker entry guarded
   on `argv[1]` so a normal `import` never triggers a download.
-- **`src/render/coretext.ts`** — `resolveHelperPath` now falls through to
+- **`src/render/glyph-helper.ts`** — `resolveHelperPath` now falls through to
   `acquireGlyphHelperSync({ platform })` after the env override + existing
   in-tree binary.
 - **Tested:** unit (asset/cache/sidecar resolvers, unsupported-arch + cache-hit

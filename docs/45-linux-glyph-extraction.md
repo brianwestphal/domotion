@@ -264,13 +264,13 @@ not yet built — see open questions.)
   `linux-glyph-extractor` release job in `release-helpers.yml`. Built and
   validated in the Playwright Linux container (Liberation `H` + FreeSans 𝑎 parity
   with fontkit, byte-faithful).
-- ✅ **JS-side resolution wired** (DM-881, piece A): `src/render/coretext.ts` is
+- ✅ **JS-side resolution wired** (DM-881, piece A): `src/render/glyph-helper.ts` is
   no longer macOS-gated — it resolves the helper binary platform-aware
   (`darwin`/`linux`/`win32` → the in-tree `tools/<platform>-glyph-extractor/`
   binary, two levels up from the module), with `DOMOTION_HELPER_PATH` overriding
-  on every platform. The engine-agnostic `createCoretextFont` wrapper spawns the
+  on every platform. The engine-agnostic `createGlyphHelperFont` wrapper spawns the
   Linux FreeType binary and consumes its design-unit, y-up output unchanged. A
-  Linux-gated dispatch test in `src/render/coretext.test.ts` extracts an outline
+  Linux-gated dispatch test in `src/render/glyph-helper.test.ts` extracts an outline
   through the wrapper end-to-end (green in the `test:linux-docker` container).
 - ⏳ **Remaining — the probe-then-fallback *trigger* (separate follow-up).** The
   renderer can now *invoke* the Linux helper, but nothing routes through it on

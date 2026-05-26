@@ -8,7 +8,7 @@
  * them.
  *
  * **Lazy first-render fetch** (the chosen trigger — docs/50): the synchronous
- * resolver in `coretext.ts` calls `acquireGlyphHelperSync()` when no in-tree /
+ * resolver in `glyph-helper.ts` calls `acquireGlyphHelperSync()` when no in-tree /
  * `DOMOTION_HELPER_PATH` binary is found. The download runs in a short-lived
  * child `node` process (this same module, re-invoked as a script) so the
  * otherwise-synchronous render path can block on it exactly once. The async

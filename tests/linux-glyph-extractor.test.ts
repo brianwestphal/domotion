@@ -7,7 +7,7 @@ import * as fontkit from "fontkit";
 
 // DM-872: validates the Linux FreeType glyph extractor
 // (tools/linux-glyph-extractor). Mirrors the macOS CoreText helper test
-// (src/render/coretext.test.ts). Skipped automatically when:
+// (src/render/glyph-helper.test.ts). Skipped automatically when:
 //   - we're not on Linux (the helper is platform-specific), or
 //   - the helper binary isn't built yet (run tools/linux-glyph-extractor/build.sh).
 // so this file is inert on macOS/Windows CI and on a clean Linux checkout that

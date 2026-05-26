@@ -20,7 +20,7 @@ const HELPER_PATH = process.env.DOMOTION_HELPER_PATH
   ?? path.resolve(HERE, "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
 ```
 
-and `isCoretextHelperAvailable()` returns false unless `process.platform === "darwin"`
+and `isGlyphHelperAvailable()` returns false unless `process.platform === "darwin"`
 **and** that path exists. Two consequences:
 
 1. **There is no on-demand release-asset download anywhere** (`grep` across
@@ -30,7 +30,7 @@ and `isCoretextHelperAvailable()` returns false unless `process.platform === "da
    does not use it — it uses the in-tree `tools/` binary or `DOMOTION_HELPER_PATH`.
 2. **`tools/` is not in the published `files`** (`["dist", …]`). So a
    published-npm consumer has no helper binary on *any* platform, and no way to
-   acquire one. `isCoretextHelperAvailable()` is therefore false for every
+   acquire one. `isGlyphHelperAvailable()` is therefore false for every
    published consumer; the helper path only runs in in-repo dev (binary built
    locally) or when `DOMOTION_HELPER_PATH` points at a binary.
 
@@ -52,7 +52,7 @@ Generalize `coretext.ts` (rename concept: "native glyph helper", not
 | win32 | `tools/win32-glyph-extractor/domotion-glyph-paths.exe` | `domotion-glyph-paths-win32-x64.exe` |
 
 `DOMOTION_HELPER_PATH` overrides on all platforms; `DOMOTION_DISABLE_HELPER`
-disables. The IPC envelope + `parseSvgPath` + the `createCoretextFont` wrapper
+disables. The IPC envelope + `parseSvgPath` + the `createGlyphHelperFont` wrapper
 are already engine-agnostic (the Linux/win32 helpers emit the same design-unit,
 y-up JSON), so only the *resolution + platform gate* changes. macOS behavior is
 unchanged when the existing path/env logic is preserved.
@@ -103,18 +103,20 @@ too. Confirm before implementing, since A touches the macOS-working render path.
   fixing a latent bug from the DM-619d `src/render/` reorg, where the relative
   path still pointed one level up at a nonexistent `src/tools/`, so even the
   macOS in-tree binary was unreachable except via `DOMOTION_HELPER_PATH`.
-- `isCoretextHelperAvailable()` no longer hard-gates on `darwin`; it's available
+- `isGlyphHelperAvailable()` no longer hard-gates on `darwin`; it's available
   whenever a binary resolves for `process.platform`. `DOMOTION_HELPER_PATH`
   overrides on every platform; `DOMOTION_DISABLE_HELPER` disables.
-- The IPC wrapper (`createCoretextFont`, `parseSvgPath`, the scale transform in
+- The IPC wrapper (`createGlyphHelperFont`, `parseSvgPath`, the scale transform in
   `text-to-path.ts`) was already engine-agnostic — all three helpers emit
   design-unit, y-up outlines — so only resolution + the gate changed.
 
-**Naming**: deferred. Open decision #3 (rename `coretext.ts` → `glyph-helper.ts`
-+ rename the public symbols) was *not* done, to keep this diff focused on the
-behavior change rather than mixing in cross-file cosmetic churn through the
-macOS-working render path. The `Coretext` symbol names now dispatch across all
-platforms; the rename can be a follow-up. (Filed separately.)
+**Naming**: deferred from DM-881 (to keep that diff focused on behavior), then
+**done in DM-888** — the module is now `src/render/glyph-helper.ts` and the
+symbols are `isGlyphHelperAvailable` / `createGlyphHelperFont` /
+`clearGlyphHelperCache` / `GlyphHelperFontInstance`, and the `FONT_PATHS`
+`extractor` literal is `"native"`. The historical `coretext.ts` / `Coretext*` /
+`extractor: "coretext"` references elsewhere in this doc describe the
+pre-DM-888 names.
 
 **What A does NOT do** (deliberately out of scope, follow-ups filed):
 
@@ -126,13 +128,13 @@ platforms; the rename can be a follow-up. (Filed separately.)
   with the per-platform fallback calibration (DM-259 / DM-260).
 - **On-demand acquisition** for published consumers — piece B, now landed in
   DM-886 (`src/render/helper-acquire.ts`; lazy first-render download → user
-  cache → SHA-verify → reuse). `coretext.ts`'s resolver falls through to it.
+  cache → SHA-verify → reuse). `glyph-helper.ts`'s resolver falls through to it.
 
-**Tests**: `src/render/coretext.test.ts` gained a platform-agnostic
+**Tests**: `src/render/glyph-helper.test.ts` gained a platform-agnostic
 "platform-aware helper resolution" block (per-platform binary mapping, the
 two-levels-up regression assertion, and the `DOMOTION_HELPER_PATH` /
 `DOMOTION_DISABLE_HELPER` env behaviors) plus a Linux-gated dispatch test that
-spawns the FreeType binary through `createCoretextFont` and extracts an outline
+spawns the FreeType binary through `createGlyphHelperFont` and extracts an outline
 — verified green in the `test:linux-docker` container.
 
 **macOS effect**: fixing the path means the CoreText helper is now actually

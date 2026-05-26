@@ -10,7 +10,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import * as fontkit from "fontkit";
-import { createCoretextFont, isCoretextHelperAvailable } from "./coretext.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable } from "./glyph-helper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 
 interface FontInstance {
@@ -407,7 +407,7 @@ function slantForStyle(style: string | undefined): number {
 // tables — see DM-258 / resolveFontSpec below for Linux + Windows). TTC
 // collections require picking a sub-font by postscript name — fontkit returns
 // a TTCFont wrapper for .ttc files and .getFont(name) extracts the member.
-interface FontPath { path: string; postscriptName?: string; extractor?: "fontkit" | "coretext" }
+interface FontPath { path: string; postscriptName?: string; extractor?: "fontkit" | "native" }
 const FONT_PATHS: Record<string, FontPath> = {
   "sf-pro":          { path: "/System/Library/Fonts/SFNS.ttf" },
   // SF Pro ships its italic as a sibling file, not as a variable `slnt` axis
@@ -461,19 +461,19 @@ const FONT_PATHS: Record<string, FontPath> = {
   // (`tools/macos-glyph-extractor/`). HiraginoSansGB stays as the secondary
   // route via `cjk` for any glyph PingFang lacks. DM-382 / DM-364 / DM-385 /
   // DM-388.
-  "pingfang-sc":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Regular", extractor: "coretext" },
-  "pingfang-sc-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Medium", extractor: "coretext" },
+  "pingfang-sc":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Regular", extractor: "native" },
+  "pingfang-sc-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangSC-Medium", extractor: "native" },
   // Per-locale PingFang variants (DM-394). Apple ships the same `hvgl`-only
   // PingFang.ttc with regional faces for Traditional Chinese, Hong Kong, and
   // Macau. Chrome routes by computed `lang`: zh-TW / zh-Hant → TC, zh-HK → HK,
   // zh-MO → MO. There is no `PingFangJP-Regular` postscriptName on macOS;
   // Japanese text routes through `hiragino-jp` (HiraKakuProN) instead.
-  "pingfang-tc":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangTC-Regular", extractor: "coretext" },
-  "pingfang-tc-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangTC-Medium", extractor: "coretext" },
-  "pingfang-hk":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangHK-Regular", extractor: "coretext" },
-  "pingfang-hk-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangHK-Medium", extractor: "coretext" },
-  "pingfang-mo":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangMO-Regular", extractor: "coretext" },
-  "pingfang-mo-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangMO-Medium", extractor: "coretext" },
+  "pingfang-tc":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangTC-Regular", extractor: "native" },
+  "pingfang-tc-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangTC-Medium", extractor: "native" },
+  "pingfang-hk":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangHK-Regular", extractor: "native" },
+  "pingfang-hk-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangHK-Medium", extractor: "native" },
+  "pingfang-mo":      { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangMO-Regular", extractor: "native" },
+  "pingfang-mo-bold": { path: "/System/Library/Fonts/PingFang.ttc", postscriptName: "PingFangMO-Medium", extractor: "native" },
   "cjk":             { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "cjk-bold":        { path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W6" },
   // Songti SC Light (postscriptName STSongti-SC-Light) is what Chrome on
@@ -603,7 +603,7 @@ const FONT_PATHS: Record<string, FontPath> = {
 // different font set, so the SAME logical keys (`helvetica`, `times`,
 // `courier`, `cjk`, `symbols`, …) resolve to different files there. The
 // tables below map those keys per platform; everything downstream of
-// `resolveFontSpec` (the weight/slant variant logic, the coretext route,
+// `resolveFontSpec` (the weight/slant variant logic, the native-helper route,
 // `fontkit.openSync`) is unchanged.
 //
 // SCOPE NOTE: this is *path discovery only*. The `fallbackFontChain` routing
@@ -870,7 +870,7 @@ function resolveWin32Spec(key: string): FontPath | null {
  * Resolve a logical font key to a concrete on-disk spec for the current
  * platform (DM-258). On macOS this is the unchanged `FONT_PATHS[key]` lookup —
  * file existence is still handled downstream by `fontkit.openSync` / the
- * coretext helper, preserving the family-chain fall-through for fonts that
+ * glyph helper, preserving the family-chain fall-through for fonts that
  * aren't installed (e.g. Source Serif Pro). On Linux / Windows it consults
  * the per-platform tables above, verifying the file exists (and using
  * `fc-match` discovery on Linux). Results are cached per key.
@@ -1596,7 +1596,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // Probe-then-fallback dispatch (DM-887). fontkit is the primary; the native
   // glyph helper (CoreText/macOS DM-385, FreeType/Linux DM-872, DirectWrite/
   // Windows DM-837 — platform-aware as of DM-881) is the FALLBACK when fontkit
-  // can't produce outlines for a *helper-eligible* font (`extractor: "coretext"`,
+  // can't produce outlines for a *helper-eligible* font (`extractor: "native"`,
   // today the macOS PingFang keys; Linux/Windows CFF/CJK keys join once DM-259/
   // DM-260 calibrate their chains). "fontkit can't produce outlines" means it
   // can't open the file (e.g. PingFang, whose font isn't a file on current
@@ -1613,7 +1613,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // baseline). This is the WHOLE-FONT fallback tier; the per-glyph tier (a font
   // fontkit opens WITH outlines but can't decode a specific glyph) is a
   // follow-up — no current fixture exercises it, and it pairs with DM-259/260.
-  const helperEligible = spec.extractor === "coretext";
+  const helperEligible = spec.extractor === "native";
 
   let opened: any = null;
   try { opened = fontkit.openSync(spec.path); } catch { opened = null; }
@@ -1631,8 +1631,8 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   }
 
   const fontkitHasOutlines = font != null && fontHasOutlineTable(font);
-  if (helperEligible && !fontkitHasOutlines && isCoretextHelperAvailable()) {
-    const helper = createCoretextFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
+  if (helperEligible && !fontkitHasOutlines && isGlyphHelperAvailable()) {
+    const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
       fontInstanceCache.set(cacheKey, instance);

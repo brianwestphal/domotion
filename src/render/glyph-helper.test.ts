@@ -6,10 +6,10 @@ import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import {
   __helperBinaryForPlatform,
-  clearCoretextCache,
-  createCoretextFont,
-  isCoretextHelperAvailable
-} from "./coretext.js";
+  clearGlyphHelperCache,
+  createGlyphHelperFont,
+  isGlyphHelperAvailable
+} from "./glyph-helper.js";
 
 // DM-385 / DM-387: validates the Swift CoreText helper.
 // Tests are skipped automatically when:
@@ -68,13 +68,13 @@ describe("platform-aware helper resolution", () => {
       if (saved[k] === undefined) delete process.env[k];
       else process.env[k] = saved[k];
     }
-    clearCoretextCache();
+    clearGlyphHelperCache();
   });
   function setEnv(k: (typeof ENV_KEYS)[number], v: string | undefined): void {
     if (!(k in saved)) saved[k] = process.env[k];
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
-    clearCoretextCache();
+    clearGlyphHelperCache();
   }
 
   it("maps each supported platform to its in-tree extractor binary", () => {
@@ -92,7 +92,7 @@ describe("platform-aware helper resolution", () => {
   });
 
   it("resolves the binary two levels up from the module (repo-root tools/)", () => {
-    // Regression for the DM-619d reorg bug: when coretext moved to src/render/
+    // Regression for the DM-619d reorg bug: when this module moved to src/render/
     // the relative path still pointed one level up (src/tools/), so the in-tree
     // helper was unreachable. It must resolve to the repo-root tools/ dir.
     const darwinBin = __helperBinaryForPlatform("darwin")!;
@@ -112,24 +112,24 @@ describe("platform-aware helper resolution", () => {
     // Point at a file that definitely exists (this very test module).
     const thisFile = fileURLToPath(import.meta.url);
     setEnv("DOMOTION_HELPER_PATH", thisFile);
-    expect(isCoretextHelperAvailable()).toBe(true);
+    expect(isGlyphHelperAvailable()).toBe(true);
   });
 
   it("reports unavailable when DOMOTION_HELPER_PATH points at a missing file", () => {
     setEnv("DOMOTION_HELPER_PATH", "/no/such/glyph-helper-binary");
-    expect(isCoretextHelperAvailable()).toBe(false);
+    expect(isGlyphHelperAvailable()).toBe(false);
   });
 
   it("DOMOTION_DISABLE_HELPER forces unavailable even with a valid override", () => {
     setEnv("DOMOTION_HELPER_PATH", fileURLToPath(import.meta.url));
     setEnv("DOMOTION_DISABLE_HELPER", "1");
-    expect(isCoretextHelperAvailable()).toBe(false);
+    expect(isGlyphHelperAvailable()).toBe(false);
   });
 });
 
 // DM-881: end-to-end dispatch through the wrapper on Linux — proves the
 // generalized resolution actually spawns the FreeType helper and the
-// engine-agnostic `createCoretextFont` wrapper consumes its output. Runs only
+// engine-agnostic `createGlyphHelperFont` wrapper consumes its output. Runs only
 // on Linux with the in-tree binary built (skipped elsewhere, so inert on
 // macOS/Windows CI). The binary-level FreeType parity is covered separately by
 // tests/linux-glyph-extractor.test.ts; this asserts the JS dispatch path.
@@ -143,10 +143,10 @@ function resolveFontFile(candidates: string[]): string | null {
   return null;
 }
 
-describeLinux("native helper dispatch on Linux (createCoretextFont)", () => {
+describeLinux("native helper dispatch on Linux (createGlyphHelperFont)", () => {
   it("extracts an outline from a Linux system font through the wrapper", () => {
-    clearCoretextCache();
-    expect(isCoretextHelperAvailable()).toBe(true); // resolves the in-tree linux binary
+    clearGlyphHelperCache();
+    expect(isGlyphHelperAvailable()).toBe(true); // resolves the in-tree linux binary
 
     const fontPath = resolveFontFile([
       "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
@@ -157,7 +157,7 @@ describeLinux("native helper dispatch on Linux (createCoretextFont)", () => {
     ]);
     if (fontPath == null) return; // no usable font on this runner — skip the body
 
-    const font = createCoretextFont({ fontPath });
+    const font = createGlyphHelperFont({ fontPath });
     expect(font).not.toBeNull();
     expect(font!.unitsPerEm).toBeGreaterThan(0);
 
