@@ -1,7 +1,9 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
+import { existsSync } from "node:fs";
+import * as fontkit2 from "fontkit";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -215,6 +217,69 @@ describe("fontHasOutlineTable (helper-fallback probe)", () => {
     expect(fontHasOutlineTable({})).toBe(true);
     expect(fontHasOutlineTable(null)).toBe(true);
     expect(fontHasOutlineTable({ directory: {} })).toBe(true);
+  });
+});
+
+// DM-891: the per-glyph helper fallback (a font fontkit opens but can't decode a
+// specific glyph). The crux safety property is the inkless guard — without it,
+// "fontkit empty → ask the helper" would fire on the entire inkless codepoint
+// set (spaces, format chars, bidi controls, invisible operators), spawning the
+// helper / triggering the DM-886 download for ordinary text.
+describe("isLegitimatelyInklessCodepoint (per-glyph fallback guard)", () => {
+  it("flags control / format / separators / spaces / invisibles (never paint ink)", () => {
+    const inkless = [
+      0x20, 0x09, 0x0A, 0x0D,                          // space, tab, LF, CR (Cc/Zs)
+      0xA0, 0x2000, 0x2009, 0x202F, 0x205F, 0x3000,    // no-break / thin / narrow / math / ideographic spaces (Zs)
+      0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF,          // ZWSP / ZWNJ / ZWJ / word-joiner / BOM (Cf)
+      0x202A, 0x202B, 0x202C, 0x202D, 0x202E,          // bidi embedding/override (Cf)
+      0x2028, 0x2029,                                  // line / paragraph separators (Zl/Zp)
+      0x7F, 0x80, 0x9F,                                // DEL + C1 controls (Cc)
+      0x2061, 0x2062, 0x2063, 0x2064,                  // invisible math operators
+      0xFE00, 0xFE0F, 0xE0101, 0xE0020,                // variation selectors + tags
+    ];
+    for (const cp of inkless) expect(isLegitimatelyInklessCodepoint(cp)).toBe(true);
+  });
+  it("does NOT flag inkable glyphs — letters, digits, CJK, combining marks, Math-Alpha", () => {
+    const inkable = [0x41, 0x61, 0x30, 0x6F22, 0x4E00, 0x0301, 0x05D0, 0x0E01, 0x1D400];
+    for (const cp of inkable) expect(isLegitimatelyInklessCodepoint(cp)).toBe(false);
+  });
+});
+
+describe("commandsFor (per-glyph fallback routing)", () => {
+  beforeEach(() => __clearGlyphFallbackCaches());
+
+  it("returns fontkit's commands verbatim when present (fast path, no helper)", () => {
+    const cmds = [{ command: "moveTo", args: [0, 0] }, { command: "lineTo", args: [10, 10] }];
+    expect(commandsFor({ path: { commands: cmds }, id: 5, codePoints: [0x41] }, "helvetica", 400, 16, 0)).toBe(cmds);
+  });
+  it("does not route .notdef (id 0) to the helper", () => {
+    expect(commandsFor({ path: { commands: [] }, id: 0, codePoints: [0x41] }, "helvetica", 400, 16, 0)).toEqual([]);
+  });
+  it("does not route a legitimately-inkless glyph to the helper (no over-fire)", () => {
+    // A space glyph: empty outline, cmap-covered (id != 0) — must stay empty.
+    expect(commandsFor({ path: { commands: [] }, id: 99, codePoints: [0x20] }, "helvetica", 400, 16, 0)).toEqual([]);
+    expect(commandsFor({ path: { commands: [] }, id: 99, codePoints: [0x202F] }, "helvetica", 400, 16, 0)).toEqual([]);
+  });
+  it("does not route when the glyph has no source codepoints (decomposed/ligature)", () => {
+    expect(commandsFor({ path: { commands: [] }, id: 7 }, "helvetica", 400, 16, 0)).toEqual([]);
+  });
+
+  // Positive end-to-end: synthesize the (otherwise-nonexistent on macOS)
+  // "fontkit returned empty for an inkable glyph" condition and confirm the
+  // fallback pulls that glyph's real outline from the native helper. Gated on
+  // the macOS in-tree helper + Helvetica.
+  const HELVETICA = "/System/Library/Fonts/Helvetica.ttc";
+  const HELPER = "tools/macos-glyph-extractor/domotion-glyph-paths";
+  const canRunPositive = process.platform === "darwin" && existsSync(HELVETICA) && existsSync(HELPER);
+  (canRunPositive ? it : it.skip)("fetches a glyph's outline from the helper when fontkit hands back empty", () => {
+    // Real Helvetica glyph id for 'H' (fontkit decodes it fine — we fake the
+    // "empty" to exercise the fallback path the same way a partial font would).
+    const col = fontkit2.openSync(HELVETICA) as any;
+    const f = col.getFont != null ? col.getFont("Helvetica") : col;
+    const hId = f.glyphForCodePoint(0x48).id;
+    const fallback = commandsFor({ path: { commands: [] }, id: hId, codePoints: [0x48] }, "helvetica", 400, 16, 0);
+    expect(fallback.length).toBeGreaterThan(0);            // the helper produced a real outline
+    expect(fallback.some((c) => c.command === "moveTo")).toBe(true);
   });
 });
 

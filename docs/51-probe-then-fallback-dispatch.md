@@ -5,12 +5,14 @@ DirectWrite) when fontkit can read the font's `cmap` but not its outline — the
 "probe-then-fallback" trigger from `docs/16` that was never built. Origin:
 DM-887 (follow-up to DM-881; pairs with DM-259 / DM-260).
 
-> **Status: whole-font tier IMPLEMENTED (DM-887); per-glyph tier is a follow-up.**
+> **Status: BOTH tiers IMPLEMENTED — whole-font (DM-887) + per-glyph (DM-891).**
 > Investigation (below) corrected a premise of the original plan — PingFang has
-> no openable file on current macOS, so the helper is a *whole-font* fallback,
-> not a per-glyph patch on a fontkit primary. The implemented design and what
-> shipped vs. deferred are in [Implemented](#implemented-dm-887). The two-tier
-> framing + findings that motivated it follow.
+> no openable file on current macOS, so the helper is a *whole-font* fallback
+> there, not a per-glyph patch on a fontkit primary. The whole-font tier
+> ([Implemented](#implemented-dm-887)) handles that; the per-glyph tier
+> ([per-glyph tier](#the-per-glyph-tier-dm-891-implemented)) handles a font
+> fontkit opens but can't decode a specific glyph in. The two-tier framing +
+> findings that motivated it follow.
 
 ## The gap
 
@@ -194,18 +196,43 @@ including PingFang in both macOS configs — shipped in `getFontInstance`
   suite unchanged (the 3 pre-existing border/button/counter diffs are unrelated),
   and `src/render/text-to-path.test.ts` covers `fontHasOutlineTable` directly.
 
-### Deferred — the per-glyph tier (follow-up)
+### The per-glyph tier (DM-891, implemented)
 
 The second tier — a font fontkit **opens with** an outline table but **can't
-decode a specific glyph** (a partial CFF/CJK face) — is **not** built:
+decode a specific glyph** (a partial CFF/CJK face) — is implemented in
+`text-to-path.ts` (`commandsFor`). When a shaped glyph's `.path.commands` is
+empty, fontkit kept the shaping/metrics and `commandsFor` supplies just that
+glyph's outline from the helper, fetched by glyph id from the **same file**
+fontkit loaded (ids match across engines). The file is found via a `WeakMap`
+(`fontSourceMap`) that `getFontInstance` populates for fontkit instances only —
+helper instances (whole-font tier) and webfonts have no entry, so they never
+trigger it. Caches: a helper instance per file + the outline per `(file, id)`,
+so each glyph is probed once per process. Wired at the five `paths`-mode glyph
+sites in `textToPathMarkup` / `renderTextAsPath`.
 
-- No current fixture exercises it. PingFang never reaches it (it's a whole-font
-  case — no outline table at all), so it's **inert on macOS**; the genuine
-  targets are Linux/Windows faces that only get routed once DM-259/DM-260
-  calibrate their fallback chains.
-- It's invasive: the per-glyph outline is consumed at ~7 sites in the render
-  hot path, each of which would need the "empty + cmap-covered + non-whitespace
-  → fetch from helper by (fontPath, glyphId), cached" logic.
+**The inkless guard is the crux.** "fontkit empty → ask the helper" would
+otherwise fire on the entire legitimately-inkless codepoint set — controls (Cc),
+format chars (Cf), line/para/space separators (Zl/Zp/Zs), the invisible math
+operators, variation selectors, tags — i.e. ordinary text (a narrow no-break
+space, a bidi control) would spawn the helper and, on a published consumer,
+trigger the DM-886 download. `isLegitimatelyInklessCodepoint` excludes that set,
+so the fallback only fires for a glyph that's *plausibly inkable* yet came back
+empty. Empirically (DM-891 probe) every macOS glyph fontkit returns empty for is
+in that inkless set **and the helper agrees it's empty**, so the tier is **inert
+on macOS by design** — it activates only for a genuinely-undecodable inkable
+glyph, which is Linux/Windows CFF/CJK territory (its first real fixtures come
+with DM-259 / DM-260).
 
-Filed as a follow-up; it pairs with DM-259 / DM-260, which provide both the
-routing and a fixture to validate against.
+Validated: the inkless guard + `commandsFor` routing are unit-tested
+(`text-to-path.test.ts`), including a macOS positive case that synthesizes the
+trigger (a faked-empty Helvetica `H`) and confirms the helper returns a real
+outline; the feature suite is unchanged on macOS and the Linux Docker visual
+baseline stays green (98/98) with the fallback active.
+
+**Not covered (follow-ups):**
+- **Embedded-font mode** (`renderTextAsEmbedded`, the production default) emits a
+  synthesized TTF, not SVG `<path>`s — supplying a helper outline there means
+  injecting it into the TTF `glyf`, a different mechanism. Filed separately.
+- **Stretchy math fences** (`renderStretchyFenceGlyph`) need the glyph's `bbox`
+  to stretch, which the helper's outline response doesn't carry — left as-is
+  (the niche path returns null on an empty glyph, the prior behavior).

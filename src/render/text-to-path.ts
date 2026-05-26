@@ -1642,6 +1642,13 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   if (font == null) return null; // couldn't open and the helper didn't (or can't) rescue
 
   const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings);
+  // DM-891: record the exact file this fontkit instance was loaded from, so the
+  // per-glyph helper fallback can open the SAME file (glyph ids match) when
+  // fontkit returns an empty outline for a glyph it should be able to draw.
+  // Only fontkit instances get an entry — helper instances (whole-font tier)
+  // and webfonts (no file) deliberately don't, so they never trigger the
+  // per-glyph fallback.
+  fontSourceMap.set(instance as unknown as object, { path: spec.path, postscriptName: spec.postscriptName });
   fontInstanceCache.set(cacheKey, instance);
   return instance;
 }
@@ -1659,6 +1666,104 @@ export function fontHasOutlineTable(font: any): boolean {
   const tables = font?.directory?.tables;
   if (tables == null || typeof tables !== "object") return true;
   return "glyf" in tables || "CFF " in tables || "CFF2" in tables;
+}
+
+// ── DM-891: per-glyph helper fallback ──
+// The whole-font tier (DM-887, getFontInstance) swaps the entire font to the
+// native helper only when fontkit can't open it / it has no outline table. This
+// is the finer tier: a font fontkit DID open (has glyf/CFF) but can't decode a
+// SPECIFIC glyph's outline (a partial CFF/CJK face). fontkit keeps doing
+// shaping/metrics; the helper supplies just that glyph's outline, fetched by
+// glyph id from the SAME file (ids match across engines). See docs/51.
+
+type PathCommand = { command: string; args: number[] };
+
+/** Records which on-disk file each fontkit instance was loaded from (populated
+ *  in getFontInstance). Helper instances + webfonts are absent → no fallback. */
+const fontSourceMap = new WeakMap<object, { path: string; postscriptName?: string }>();
+const helperFontCache = new Map<string, FontInstance | null>();       // path → helper instance | null
+const helperOutlineCache = new Map<string, PathCommand[] | null>();   // `${path}#${id}` → commands | null
+
+// High-confidence "this codepoint never paints ink" set: control (Cc), format
+// (Cf), line/paragraph/space separators (Zl/Zp/Zs), the invisible math
+// operators (Sm but inkless), variation selectors, and tags. fontkit correctly
+// returns an empty outline for these, so they must NOT trigger the helper —
+// otherwise ordinary text (a narrow no-break space, a bidi control) would spawn
+// the helper / trigger the DM-886 download for no reason. Empirically (DM-891),
+// every macOS glyph fontkit returns empty for falls in this set, and the helper
+// agrees they're empty — so the fallback is inert on macOS by design and only
+// fires for a genuinely-undecodable inkable glyph (Linux/Windows CFF/CJK).
+const INKLESS_CATEGORY_RE = /^[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Zs}]$/u;
+export function isLegitimatelyInklessCodepoint(cp: number): boolean {
+  let s: string;
+  try { s = String.fromCodePoint(cp); } catch { return false; }
+  if (INKLESS_CATEGORY_RE.test(s)) return true;
+  if (cp >= 0x2061 && cp <= 0x2064) return true;   // invisible math operators
+  if (cp >= 0xFE00 && cp <= 0xFE0F) return true;    // variation selectors
+  if (cp >= 0xE0100 && cp <= 0xE01EF) return true;  // variation selectors supplement
+  if (cp >= 0xE0000 && cp <= 0xE007F) return true;  // tags
+  return false;
+}
+
+// A glyph is worth probing the helper for only if at least one source codepoint
+// is plausibly inkable. Unknown codepoints (decomposed glyphs / ligatures with
+// no codePoints array) → conservatively NOT inkable (don't over-fire).
+function glyphIsInkable(glyph: { codePoints?: number[] }): boolean {
+  const cps = glyph.codePoints;
+  if (cps == null || cps.length === 0) return false;
+  return !cps.every((cp) => isLegitimatelyInklessCodepoint(cp));
+}
+
+/** Fetch glyph `glyphId`'s outline from the native helper opening `srcPath`.
+ *  Cached per (path, id) — probed at most once per process. Returns null when
+ *  the helper is unavailable / can't open the font / the glyph is empty there
+ *  too (i.e. genuinely inkless — leave it empty, no point emitting). */
+function helperGlyphOutline(srcPath: string, postscriptName: string | undefined, glyphId: number): PathCommand[] | null {
+  const cacheKey = `${srcPath}#${glyphId}`;
+  const cached = helperOutlineCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let helper = helperFontCache.get(srcPath);
+  if (helper === undefined) {
+    helper = (createGlyphHelperFont({ postscriptName, fontPath: srcPath }) as unknown as FontInstance) ?? null;
+    helperFontCache.set(srcPath, helper);
+  }
+
+  let cmds: PathCommand[] | null = null;
+  if (helper != null) {
+    try {
+      const g = (helper as any).getGlyph(glyphId);
+      const c: PathCommand[] = g?.path?.commands ?? [];
+      cmds = c.length > 0 ? c : null;
+    } catch { cmds = null; }
+  }
+  helperOutlineCache.set(cacheKey, cmds);
+  return cmds;
+}
+
+/** The outline commands to emit for a shaped glyph: fontkit's when present,
+ *  else the per-glyph helper fallback (DM-891) when the glyph is inkable, the
+ *  helper is available, and the font was loaded from a real file. Empty array
+ *  when there's genuinely nothing to draw. Exported for unit testing (not in
+ *  the package barrel). */
+export function commandsFor(glyph: any, fontKey: string, weight: number, fontSize: number, slant: number): PathCommand[] {
+  const cmds: PathCommand[] = glyph?.path?.commands ?? [];
+  if (cmds.length > 0) return cmds;
+  if (glyph == null || glyph.id === 0) return cmds;       // genuine .notdef
+  if (!glyphIsInkable(glyph)) return cmds;                 // legitimately inkless
+  if (!isGlyphHelperAvailable()) return cmds;
+  // Re-resolve the instance (cache hit) to read the exact file fontkit loaded.
+  // variationSettings don't affect the file path, so they're omitted here.
+  const inst = getFontInstance(fontKey, weight, fontSize, slant);
+  const src = inst != null ? fontSourceMap.get(inst as unknown as object) : undefined;
+  if (src == null) return cmds;                            // helper instance / webfont → no fallback
+  return helperGlyphOutline(src.path, src.postscriptName, glyph.id) ?? cmds;
+}
+
+/** Test-only: clear the per-glyph fallback caches (helper instances + outlines). */
+export function __clearGlyphFallbackCaches(): void {
+  helperFontCache.clear();
+  helperOutlineCache.clear();
 }
 
 /**
@@ -2222,7 +2327,8 @@ export function textToPathMarkup(
           const uses: string[] = [];
           let suppressedNotdef = false;
           for (const g of layout.glyphs) {
-            if (g.path.commands.length === 0) continue;
+            const gCmds = commandsFor(g, run.fontKey, weight, fontSize, slant);
+            if (gCmds.length === 0) continue;
             // Emoji codepoints are covered by the capture layer's raster
             // <image> overlay (DM-334), so suppress ALL path emission for them
             // — not only the .notdef tofu. On macOS the fallback chain resolves
@@ -2233,7 +2339,7 @@ export function textToPathMarkup(
             if (isEmoji) { suppressedNotdef = true; continue; }
             // PUA: suppress only the .notdef tofu; a real icon-font glyph emits.
             if (isPua && g.id === 0) { suppressedNotdef = true; continue; }
-            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, g.path.commands);
+            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, gCmds);
             uses.push(`<use href="#${defId}" x="0" y="0"/>`);
           }
           if (uses.length > 0) {
@@ -2292,8 +2398,9 @@ export function textToPathMarkup(
         for (let gi = 0; gi < layout.glyphs.length; gi++) {
           const glyph = layout.glyphs[gi];
           const pos = layout.positions[gi];
-          if (glyph.path.commands.length > 0) {
-            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+          const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+          if (glyphCmds.length > 0) {
+            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
             const tx = runFontUnits + pos.xOffset;
             const ty = -pos.yOffset;
             uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
@@ -2324,8 +2431,9 @@ export function textToPathMarkup(
     for (let i = 0; i < layout.glyphs.length; i++) {
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
-      if (glyph.path.commands.length > 0) {
-        const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+      const glyphCmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
+      if (glyphCmds.length > 0) {
+        const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
         const tx = runX + pos.xOffset;
         const ty = -pos.yOffset;
         uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
@@ -2384,8 +2492,9 @@ function singleFontMarkup(
       const pos = run.positions[gi];
       const skipNotdefHere = glyph.id === 0 && glyph.codePoints != null && glyph.codePoints.length > 0
         && glyph.codePoints.every((cp: number) => isPrivateUseCodepoint(cp));
-      if (textIdx < xOffsets.length && glyph.path.commands.length > 0 && !skipNotdefHere) {
-        const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+      const dCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
+      if (textIdx < xOffsets.length && dCmds.length > 0 && !skipNotdefHere) {
+        const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
         const ty = -pos.yOffset;
         uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
@@ -2419,8 +2528,9 @@ function singleFontMarkup(
     const pos = run.positions[i];
     const skipNotdefHere = glyph.id === 0 && glyph.codePoints != null && glyph.codePoints.length > 0
       && glyph.codePoints.every((cp: number) => isPrivateUseCodepoint(cp));
-    if (glyph.path.commands.length > 0 && !skipNotdefHere) {
-      const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+    const eCmds = commandsFor(glyph, fontKey, weight, fontSize, slant);
+    if (eCmds.length > 0 && !skipNotdefHere) {
+      const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, eCmds);
       let tx: number;
       if (usePerChar) {
         // Use the fractional CSS x straight from getBoundingClientRect — do
