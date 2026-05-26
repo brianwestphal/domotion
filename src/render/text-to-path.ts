@@ -1593,47 +1593,72 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   const spec = resolveFontSpec(effectiveKey);
   if (spec == null) return null;
 
-  // Native-helper-extractor route: route to the platform's glyph helper
-  // (CoreText/macOS DM-385, FreeType/Linux DM-872, DirectWrite/Windows DM-837 —
-  // resolution is platform-aware as of DM-881). Today only macOS FONT_PATHS
-  // entries set `extractor: "coretext"`; Linux/Windows tables don't yet, so
-  // this branch is macOS-only in practice until per-platform fallback
-  // calibration (DM-259/DM-260) routes their CFF/CJK keys through the helper.
-  // When the helper isn't present (no in-tree build, no DOMOTION_HELPER_PATH,
-  // DOMOTION_DISABLE_HELPER set), fall through to fontkit — the renderer's
-  // chain logic skips fontkit-empty paths and walks to the next candidate
-  // (`cjk` / HiraginoSansGB for the PingFang case), preserving the pre-DM-385
-  // baseline.
-  if (spec.extractor === "coretext" && isCoretextHelperAvailable()) {
-    const coretextFont = createCoretextFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
-    if (coretextFont != null) {
-      const instance = coretextFont as unknown as FontInstance;
+  // Probe-then-fallback dispatch (DM-887). fontkit is the primary; the native
+  // glyph helper (CoreText/macOS DM-385, FreeType/Linux DM-872, DirectWrite/
+  // Windows DM-837 — platform-aware as of DM-881) is the FALLBACK when fontkit
+  // can't produce outlines for a *helper-eligible* font (`extractor: "coretext"`,
+  // today the macOS PingFang keys; Linux/Windows CFF/CJK keys join once DM-259/
+  // DM-260 calibrate their chains). "fontkit can't produce outlines" means it
+  // can't open the file (e.g. PingFang, whose font isn't a file on current
+  // macOS — CoreText resolves it by name) OR it opens but has no glyf/CFF/CFF2
+  // outline table (PingFang's outlines live in the Apple-private `hvgl` table,
+  // so fontkit reads its cmap/metrics but every path is empty). The helper
+  // resolves by postscriptName (CoreText) or fontPath (FreeType/DirectWrite).
+  //
+  // The eligibility flag scopes the probe to fonts that might need the helper —
+  // pure "any empty outline → helper" detection would mis-route inkless glyphs
+  // (space) and color/bitmap fonts that legitimately lack glyf/CFF. When the
+  // helper is unavailable, an eligible font with no fontkit outlines returns
+  // null and the renderer's chain walks to the next candidate (the pre-DM-385
+  // baseline). This is the WHOLE-FONT fallback tier; the per-glyph tier (a font
+  // fontkit opens WITH outlines but can't decode a specific glyph) is a
+  // follow-up — no current fixture exercises it, and it pairs with DM-259/260.
+  const helperEligible = spec.extractor === "coretext";
+
+  let opened: any = null;
+  try { opened = fontkit.openSync(spec.path); } catch { opened = null; }
+  // TTC collections expose .fonts + .getFont(postscriptName). Pick the requested
+  // member; fall back to the first sub-font if the requested one is missing
+  // (defensive against OS font updates renaming members).
+  let font: any = null;
+  if (opened != null) {
+    font = opened;
+    if (opened.fonts != null && Array.isArray(opened.fonts)) {
+      font = (spec.postscriptName != null && opened.getFont != null)
+        ? (opened.getFont(spec.postscriptName) ?? opened.fonts[0])
+        : opened.fonts[0];
+    }
+  }
+
+  const fontkitHasOutlines = font != null && fontHasOutlineTable(font);
+  if (helperEligible && !fontkitHasOutlines && isCoretextHelperAvailable()) {
+    const helper = createCoretextFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
+    if (helper != null) {
+      const instance = helper as unknown as FontInstance;
       fontInstanceCache.set(cacheKey, instance);
       return instance;
     }
   }
-  if (spec.extractor === "coretext") return null;
+  if (font == null) return null; // couldn't open and the helper didn't (or can't) rescue
 
-  try {
-    const opened = fontkit.openSync(spec.path) as any;
-    if (opened == null) return null;
-    // TTC collections expose .fonts + .getFont(postscriptName). Pick the
-    // requested member; fall back to the first sub-font if the requested
-    // one is missing (defensive against OS font updates renaming members).
-    let font = opened;
-    if (opened.fonts != null && Array.isArray(opened.fonts)) {
-      if (spec.postscriptName != null && opened.getFont != null) {
-        font = opened.getFont(spec.postscriptName) ?? opened.fonts[0];
-      } else {
-        font = opened.fonts[0];
-      }
-    }
-    const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings);
-    fontInstanceCache.set(cacheKey, instance);
-    return instance;
-  } catch {
-    return null;
-  }
+  const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings);
+  fontInstanceCache.set(cacheKey, instance);
+  return instance;
+}
+
+// Does fontkit have a glyph-outline table it can render from? A font's outlines
+// live in `glyf` (TrueType, incl. `gvar` variable), `CFF `/`CFF2` (PostScript).
+// PingFang has none of these — its outlines are in the Apple-private `hvgl`
+// table — so fontkit reads its cmap/metrics but produces empty paths; that's
+// the signal to fall back to the native helper. `font.directory.tables` is the
+// reliable presence check: the `font.glyf` / `font['CFF ']` accessors are
+// lazily-parsed and read falsy even when the table physically exists. Unknown
+// shape → assume fontkit is fine, so we never over-route a readable font.
+// Exported for unit testing (not part of the package's public barrel).
+export function fontHasOutlineTable(font: any): boolean {
+  const tables = font?.directory?.tables;
+  if (tables == null || typeof tables !== "object") return true;
+  return "glyf" in tables || "CFF " in tables || "CFF2" in tables;
 }
 
 /**

@@ -5,13 +5,12 @@ DirectWrite) when fontkit can read the font's `cmap` but not its outline — the
 "probe-then-fallback" trigger from `docs/16` that was never built. Origin:
 DM-887 (follow-up to DM-881; pairs with DM-259 / DM-260).
 
-> **Status: design corrected after implementation probing — re-confirming (see
-> [Implementation findings](#implementation-findings-correction)).** The
-> maintainer approved "Option A, build now," but a probe disproved a premise:
-> **PingFang has no openable font file on current macOS**, so fontkit can't be
-> its primary and Option A can't subsume it (it must *coexist*), and the new
-> probe path is **inert on macOS** (nothing validates it there). The corrected
-> design + the decision this changes are at the bottom.
+> **Status: whole-font tier IMPLEMENTED (DM-887); per-glyph tier is a follow-up.**
+> Investigation (below) corrected a premise of the original plan — PingFang has
+> no openable file on current macOS, so the helper is a *whole-font* fallback,
+> not a per-glyph patch on a fontkit primary. The implemented design and what
+> shipped vs. deferred are in [Implemented](#implemented-dm-887). The two-tier
+> framing + findings that motivated it follow.
 
 ## The gap
 
@@ -168,3 +167,45 @@ a Linux/Windows fixture (DM-259/DM-260):
 - **(ii) Build now, unit-tested only** — the per-font-gated probe + cache, with
   PingFang regression-checked (stays on the swap, unchanged) and the new path
   covered by unit tests against a synthesized empty-outline glyph.
+
+## Implemented (DM-887)
+
+The **whole-font fallback tier** — the part that handles every real case today,
+including PingFang in both macOS configs — shipped in `getFontInstance`
+(`src/render/text-to-path.ts`):
+
+- The static `extractor: "coretext"` flag is retained as a **helper-eligibility
+  marker** (so we never over-route inkless glyphs / color-bitmap fonts to the
+  helper), but its behavior is now **fontkit-first, helper-as-fallback** rather
+  than "always swap":
+  1. Try `fontkit.openSync(spec.path)`.
+  2. fontkit can render this font ⇔ it opened **and** has a `glyf` / `CFF ` /
+     `CFF2` outline table (`fontHasOutlineTable`, which reads
+     `font.directory.tables` — the `font.glyf`/`font['CFF ']` accessors read
+     falsy even when the table exists).
+  3. If the font is helper-eligible **and** fontkit can't render it (didn't open,
+     or no outline table) **and** the helper is available → use the helper
+     (`createCoretextFont`, by postscriptName on macOS / fontPath elsewhere).
+  4. Otherwise use the fontkit font; if it couldn't even open and the helper
+     didn't rescue it, return null and the chain walks on (pre-DM-385 baseline).
+- This covers **PingFang in both configs**: no file → `openSync` throws → helper;
+  file present → opens but `hvgl`-only (no glyf/CFF) → helper. Validated on
+  macOS: `text-mixed-script` (CJK via PingFang) stays at 0.00%, full feature
+  suite unchanged (the 3 pre-existing border/button/counter diffs are unrelated),
+  and `src/render/text-to-path.test.ts` covers `fontHasOutlineTable` directly.
+
+### Deferred — the per-glyph tier (follow-up)
+
+The second tier — a font fontkit **opens with** an outline table but **can't
+decode a specific glyph** (a partial CFF/CJK face) — is **not** built:
+
+- No current fixture exercises it. PingFang never reaches it (it's a whole-font
+  case — no outline table at all), so it's **inert on macOS**; the genuine
+  targets are Linux/Windows faces that only get routed once DM-259/DM-260
+  calibrate their fallback chains.
+- It's invasive: the per-glyph outline is consumed at ~7 sites in the render
+  hot path, each of which would need the "empty + cmap-covered + non-whitespace
+  → fetch from helper by (fontPath, glyphId), cached" logic.
+
+Filed as a follow-up; it pairs with DM-259 / DM-260, which provide both the
+routing and a fixture to validate against.

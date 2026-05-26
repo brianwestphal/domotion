@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
+import { __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -194,6 +194,28 @@ describe("resolveFontSpec: cross-platform font path discovery (DM-258)", () => {
       expect(__resolveFontSpecForTest("pingfang-sc")?.extractor).toBe("coretext");
     });
   }
+});
+
+// DM-887: the probe-then-fallback signal. fontkit can render a font's outlines
+// only when it has a glyf / CFF / CFF2 table; PingFang (hvgl-only) has none, so
+// it routes to the native helper. The check reads font.directory.tables, since
+// the lazily-parsed font.glyf / font['CFF '] accessors are unreliable.
+describe("fontHasOutlineTable (helper-fallback probe)", () => {
+  it("is true for TrueType (glyf, incl. variable gvar) and PostScript (CFF/CFF2)", () => {
+    expect(fontHasOutlineTable({ directory: { tables: { glyf: {}, loca: {}, cmap: {} } } })).toBe(true);
+    expect(fontHasOutlineTable({ directory: { tables: { glyf: {}, gvar: {} } } })).toBe(true);
+    expect(fontHasOutlineTable({ directory: { tables: { "CFF ": {} } } })).toBe(true);
+    expect(fontHasOutlineTable({ directory: { tables: { CFF2: {} } } })).toBe(true);
+  });
+  it("is false for an hvgl-only font like PingFang (cmap/metrics but no outline table)", () => {
+    expect(fontHasOutlineTable({ directory: { tables: { hvgl: {}, cmap: {}, "OS/2": {} } } })).toBe(false);
+    expect(fontHasOutlineTable({ directory: { tables: {} } })).toBe(false);
+  });
+  it("defaults to true when the table directory is unknown — never over-routes a readable font", () => {
+    expect(fontHasOutlineTable({})).toBe(true);
+    expect(fontHasOutlineTable(null)).toBe(true);
+    expect(fontHasOutlineTable({ directory: {} })).toBe(true);
+  });
 });
 
 // Baseline placement: when CAPTURE_SCRIPT records the browser's
