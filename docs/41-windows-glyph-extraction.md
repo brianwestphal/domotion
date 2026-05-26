@@ -101,7 +101,10 @@ Mirrors doc 16 §"Internal pipeline" with DirectWrite calls:
    `m.strikethroughPosition` / `m.strikethroughThickness`. These map directly
    onto doc 16's `meta` response fields (note: DirectWrite already exposes
    underline/strikeout in the metrics struct, so unlike the CoreText helper we
-   don't need to crack the raw `post` / `OS/2` tables).
+   don't need to crack the raw `post` / `OS/2` tables). **Sign note (as built):**
+   DirectWrite's `descent` is a positive magnitude below the baseline; fontkit
+   and the other helpers report descent as negative, so the helper emits
+   `-m.descent`.
 
 ### The geometry sink
 
@@ -122,17 +125,27 @@ unlike the CoreText helper (which sees quads and emits `Q`), the Windows helper
 emits `C` for all curves. This is fine: the downstream SVG `<path>` consumer
 handles both, and the dedup cache keys on the emitted string.
 
-### Coordinate system
+### Coordinate system *(as built — DM-837)*
 
-`GetGlyphRunOutline` emits geometry in DIPs already scaled by `emSize`, with the
-glyph baseline at the origin. DirectWrite's outline y-axis points **up** (font
-convention); SVG wants y **down**. Negate y on every emitted coordinate — the
-same y-flip the CoreText helper applies (doc 16 §"Internal pipeline" step 3).
-The Helvetica-`H` parity check (below) is what actually pins the sign down;
-treat the flip direction as validated-by-test, not assumed.
+The renderer consumes outlines in **fontkit's convention: design units, y-up**
+(it applies `scale(fontSize/unitsPerEm, -…)` to flip to SVG y-down at draw time).
+The macOS and Linux helpers emit that directly because CoreText and FreeType are
+natively y-up. **DirectWrite is the exception:** `GetGlyphRunOutline` emits
+Direct2D screen-space geometry, which is y-**down**. So this helper **negates y**
+on every emitted coordinate to reach the y-up convention — the *opposite* of
+"the same flip CoreText applies" (CoreText does no flip). The sign is pinned by
+the `H` parity test (`tests/win32-glyph-extractor.test.ts`), which asserts the
+cap-height bbox lands above the baseline and matches fontkit; treat the negation
+as validated-by-test.
+
+For scale: `emSize` is set to the font's `designUnitsPerEm` (read from
+`GetMetrics`), so `GetGlyphRunOutline` emits coordinates in **design units**
+(scale = emSize/unitsPerEm = 1), matching fontkit. Advances from
+`GetDesignGlyphMetrics` are likewise design units. (The `size` field in the
+request is accepted for envelope compatibility but does not rescale the outline.)
 
 Emit all numbers at fixed 3-decimal precision for deterministic, dedup-friendly
-output (parity with the CoreText helper).
+output (parity with the other helpers).
 
 ### Build script
 
@@ -188,11 +201,25 @@ a cert is provisioned.
 - Windows fallback-chain calibration (which key paints which block) — DM-260.
 - Color-emoji vector layers (Segoe UI Emoji COLR layers) — separate ticket.
 
-## Follow-ups to file
+## Status
 
-- Implement the C++ helper (`tools/win32-glyph-extractor/`) + build script.
-- Wire the win32 asset into the release workflow (build on `windows-latest`,
-  upload `domotion-glyph-paths-win32-x64.exe`) — extends DM-393's acquisition
-  logic, which is already engine-agnostic.
-- Windows Authenticode signing in CI (pending cert — see open question 1).
-- `tests/win32-glyph-extractor.test.ts` parity tests.
+- ✅ **Helper written + CI wired** (DM-837): `tools/win32-glyph-extractor/`
+  (`src/main.cpp` + `CMakeLists.txt` + `build.ps1` + `README.md`; the JSON
+  parser/serializer is shared verbatim with the Linux helper). The release asset
+  job (`windows-glyph-extractor` in `release-helpers.yml`, alongside macOS +
+  Linux) builds + uploads `domotion-glyph-paths-win32-x64.exe`. A
+  release-independent validation job (`glyph-extractor-build` in
+  `windows-fidelity.yml`, manual dispatch) compiles it and runs the
+  `tests/win32-glyph-extractor.test.ts` fontkit-parity test on the real Windows
+  font stack.
+- ⚠️ **Not yet compiled/run on real Windows.** Unlike the macOS (local Swift) and
+  Linux (Docker) helpers, there is no Windows/MSVC environment on the dev box and
+  Docker can't host Windows there — so this is validated only by the
+  `windows-latest` CI jobs above. Expect to iterate on the first green run; the
+  highest-risk spots are the **y-flip sign** (the bbox parity assertion catches a
+  wrong negation), `.ttc` face-index resolution via
+  `GetInformationalStrings(POSTSCRIPT_NAME)`, and the DirectWrite-3 variation path.
+- ⏳ **Remaining:** Windows Authenticode signing in CI (pending a cert — open
+  question 1); arm64 asset (open question 2); the JS-side dispatch that actually
+  *invokes* the helper (`src/render/coretext.ts` is still macOS-gated — the same
+  generalization tracked for Linux in DM-881 extends to win32).

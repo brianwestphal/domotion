@@ -1,0 +1,5 @@
+build/
+domotion-glyph-paths.exe
+*.exe
+*.obj
+*.pdb

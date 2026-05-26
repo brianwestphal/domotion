@@ -14,6 +14,10 @@ name: Windows fidelity
 #                            the input for building the win32 fallback chain.
 #   - windows-fidelity-diffs : expected/actual/diff PNGs from the feature suite,
 #                            so you can eyeball where Windows output diverges.
+#
+# Also runs glyph-extractor-build: compiles the DirectWrite glyph extractor
+# (tools/win32-glyph-extractor) and runs its fontkit-parity test on the real
+# Windows font stack — the release-independent way to validate the win32 helper.
 
 on:
   workflow_dispatch:
@@ -63,3 +67,26 @@ jobs:
           name: windows-fidelity-diffs
           path: tests/output/*.png
           if-no-files-found: error
+
+  # Compile the DirectWrite glyph extractor and run its parity test against the
+  # real Windows font stack. This is the release-independent validation path for
+  # the win32 helper (the release-helpers.yml job builds + uploads the asset; this
+  # one just proves it compiles and matches fontkit) — run it after editing the
+  # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
+  glyph-extractor-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Build the DirectWrite helper
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Smoke-test the helper (Arial H)
+        shell: pwsh
+        run: |
+          '{"fonts":[{"ref":"f","fontPath":"C:\\Windows\\Fonts\\arial.ttf","size":2048}],"queries":[{"type":"meta","fontRef":"f"},{"type":"glyphs","fontRef":"f","glyphs":[{"cp":72}]}]}' `
+            | ./tools/win32-glyph-extractor/domotion-glyph-paths.exe
+      - name: Run the fontkit-parity test
+        run: npx vitest run tests/win32-glyph-extractor.test.ts
