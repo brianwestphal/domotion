@@ -51,8 +51,9 @@ filename). The asset is keyed to the package version via the release tag.
 A self-contained `acquireGlyphHelper()` module (e.g. `src/render/helper-acquire.ts`),
 called by `glyph-helper.ts`'s resolution as the source *after* the in-tree path:
 
-1. **Resolve the target.** Asset name from the table above by `process.platform`;
-   bail (→ fontkit) on an unsupported platform/arch (e.g. linux-arm64).
+1. **Resolve the target.** Asset name from the table above by `process.platform`
+   + `process.arch` (darwin universal, linux/win32 × x64/arm64); bail (→ fontkit)
+   on a combination with no asset.
 2. **Check the cache.** Per-platform cache dir, versioned by the installed
    package `version` (so a Domotion upgrade fetches a fresh binary and old
    versions keep their own). If a verified binary is already cached, reuse it.
@@ -112,8 +113,13 @@ The maintainer's calls on the open questions (all implemented):
    acquisition (offline / 404 / SHA mismatch / unsupported arch), then fontkit.
 4. **Release assets → wired in DM-886.** `release-helpers.yml` is extended so
    the Linux/Windows (x64 + arm64) jobs build and upload their assets + sidecars
-   for the tag (macOS already did). [Note: arm64 build jobs can't be validated
-   from this dev box — they run on GitHub arm64 runners.]
+   for the tag (macOS already did). The arm64 jobs (`ubuntu-22.04-arm` /
+   `windows-11-arm`) were validated against the v0.5.0 release (DM-890): both
+   runner labels provision, the FreeType/DirectWrite helpers compile on arm64,
+   and `acquireGlyphHelper({ arch: "arm64" })` downloads + SHA-verifies both
+   assets; the linux-arm64 binary additionally ran natively in an aarch64 Linux
+   container and produced correct outlines. (win32-arm64 live execution awaits
+   real arm64-Windows hardware — same build path as the validated x64 .exe.)
 5. **macOS cache dir → `~/Library/Caches/domotion/<version>/bin/`** (a
    reconstructible artifact; OS-purgeable is fine since it re-downloads).
 
