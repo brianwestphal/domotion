@@ -138,6 +138,33 @@ async function main() {
     { families: FAMILIES, samples: SAMPLES },
   );
 
+  // Painted-font capture (CDP). Advance width alone can't fingerprint the
+  // fallback font for full-width CJK or shaped scripts — on Windows every CJK /
+  // Hangul / Arabic / Thai sample measures one em regardless of face. So we also
+  // ask Chromium which font it ACTUALLY painted each cell with, via
+  // `CSS.getPlatformFontsForNode` — the deterministic signal the fallback-chain
+  // calibration needs (DM-260 / DM-836). The dominant face is the one covering
+  // the most glyphs in the cell.
+  const client = await page.context().newCDPSession(page);
+  await client.send("DOM.enable");
+  await client.send("CSS.enable");
+  const { root } = await client.send("DOM.getDocument", { depth: -1 });
+  for (let fi = 0; fi < FAMILIES.length; fi++) {
+    for (let si = 0; si < SAMPLES.length; si++) {
+      const entry = measured[fi * SAMPLES.length + si];
+      try {
+        const { nodeId } = await client.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#c_${fi}_${si}` });
+        if (!nodeId) continue;
+        const { fonts } = await client.send("CSS.getPlatformFontsForNode", { nodeId });
+        const sorted = (fonts ?? []).slice().sort((a, b) => b.glyphCount - a.glyphCount);
+        entry.paintedFont = sorted.length ? sorted[0].familyName : null;
+        entry.paintedFonts = sorted.map((f) => ({ family: f.familyName, glyphCount: f.glyphCount }));
+      } catch {
+        entry.paintedFont = null;
+      }
+    }
+  }
+
   const result = {
     platform: process.platform, // "darwin" | "linux" | "win32"
     chromiumVersion: browser.version(),

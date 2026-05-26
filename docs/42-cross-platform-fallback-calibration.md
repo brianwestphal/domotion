@@ -212,6 +212,41 @@ DM-261) or matching Chromium's exact FreeSans `𝑟` glyph/hinting; marginal
 | Math Alphanumeric (U+1D400–1D7FF) | Cambria Math |
 | Pictographs / Transport / Emoji | Segoe UI Emoji (color font — raster path, doc 15) |
 
+### DM-836 — first calibrated win32 chain + a methodology correction
+
+First `windows-latest` painted-width probe (run 26430174100, Chromium 147). Two findings:
+
+1. **Advance width alone is insufficient on Windows for the CJK / shaped-script
+   blocks.** Every CJK / Hangul / Arabic / Hebrew / Devanagari / Thai sample
+   measured exactly one em (`64px` at the 64px probe size) for *every* candidate
+   face, so the width can't fingerprint which font Chromium painted. The probe
+   was therefore extended to capture `CSS.getPlatformFontsForNode` (the actual
+   painted family per cell) — the deterministic signal. (Validated on macOS,
+   where it correctly reports Helvetica / PingFang SC / Apple SD Gothic Neo /
+   Geeza Pro / Thonburi, matching the hand-calibrated darwin chain.) The next
+   `windows-fidelity` run captures this for Windows.
+2. **Where advance width *does* discriminate, it proved that Chromium-on-Windows
+   paints the symbol / math-operator / geometric-shape / box-drawing / arrow
+   codepoints in Arial itself** (the `sans-serif` painted width equals Arial's
+   exactly for `∑ ∏ ≠ ∫ ■ ● ◆ ★ ─ ┼`), not in a dedicated symbol face.
+
+`win32FallbackChain` (`src/render/text-to-path.ts`) is populated accordingly:
+
+| Block | Chain | Basis |
+| --- | --- | --- |
+| Symbols / math operators / geometric / arrows | `helvetica` (Arial), then `symbols`/`stix-math` | **probe-proven** (Arial covers them) |
+| Box Drawing | mono primary → `[primary, sf-mono]`; else `[helvetica, symbols]` | probe-proven |
+| Math Alphanumeric | `stix-math` (Cambria Math) | Cambria Math covers the block |
+| CJK Han/Kana | `cjk` (YaHei); `hiragino-jp` (Yu Gothic) for `ja`; `cjk-serif` (SimSun) for serif | first cut — pending painted-font confirmation |
+| Hangul | `[korean, cjk]` (Malgun Gothic) | first cut |
+| Arabic / Hebrew | `sf-arabic` / `sf-hebrew` (Segoe UI) | first cut |
+| Devanagari / Thai | `devanagari` (Nirmala UI) / `thai` (Leelawadee UI) | first cut |
+
+The **proven** rows replace the previous darwin-fallthrough, which routed these
+to macOS faces (Hiragino / Zapf Dingbats / STIX) that look wrong or are absent
+on Windows. The **first-cut** rows use the OS-default Windows faces and are
+confirmed/refined once the enhanced probe's painted-font data lands.
+
 ## The probe script
 
 A `tools/probe-fallbacks-cross-platform.mjs` modelled on the existing

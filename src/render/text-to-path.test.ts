@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode } from "./text-to-path.js";
+import { __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, getDecorationMetrics, getEmbeddedFontFaceCss, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -505,6 +505,37 @@ describe("linuxFallbackChain: Chromium-on-Linux calibration (DM-259)", () => {
   });
 });
 
+// These test `win32FallbackChain` directly so they run identically on any host
+// (the win32 chain is exercised only on windows-latest CI otherwise). DM-836.
+describe("win32FallbackChain: Chromium-on-Windows calibration (DM-836)", () => {
+  it("routes symbol/math/geometric/box/arrow blocks to Arial (Chromium paints them there)", () => {
+    // Probe-proven: Chromium-on-Windows paints these in Arial itself, not a
+    // dedicated symbol face — so `helvetica` (Arial) leads, Segoe UI Symbol /
+    // Cambria Math only mop up the residue.
+    expect(win32FallbackChain(0x2211)).toEqual(["helvetica", "stix-math"]);   // ∑ math operator
+    expect(win32FallbackChain(0x25A0)).toEqual(["helvetica", "symbols"]);     // ■ geometric
+    expect(win32FallbackChain(0x2190)).toEqual(["helvetica", "symbols"]);     // ← arrow
+    expect(win32FallbackChain(0x2500)).toEqual(["helvetica", "symbols"]);     // ─ box-drawing, sans primary
+    expect(win32FallbackChain(0x2500, "menlo")).toEqual(["menlo", "sf-mono"]); // box-drawing, mono primary → Consolas
+    expect(win32FallbackChain(0x2702)).toEqual(["symbols"]);                  // ✂ dingbat → Segoe UI Symbol
+  });
+
+  it("routes Math-Alphanumeric to Cambria Math", () => {
+    expect(win32FallbackChain(0x1D400)).toEqual(["stix-math", "helvetica"]);  // 𝐀 → Cambria Math
+  });
+
+  it("routes CJK / Hangul / RTL / Indic / Thai to the Windows system faces", () => {
+    expect(win32FallbackChain(0x4E00)).toEqual(["cjk"]);                      // Han → Microsoft YaHei
+    expect(win32FallbackChain(0x4E00, undefined, "ja")).toEqual(["hiragino-jp", "cjk"]); // Han, ja → Yu Gothic
+    expect(win32FallbackChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]); // Han, serif → SimSun
+    expect(win32FallbackChain(0xAC00)).toEqual(["korean", "cjk"]);            // Hangul → Malgun Gothic
+    expect(win32FallbackChain(0x0628)).toEqual(["sf-arabic"]);               // Arabic → Segoe UI
+    expect(win32FallbackChain(0x05D0)).toEqual(["sf-hebrew"]);               // Hebrew → Segoe UI
+    expect(win32FallbackChain(0x0928)).toEqual(["devanagari"]);             // Devanagari → Nirmala UI
+    expect(win32FallbackChain(0x0E01)).toEqual(["thai"]);                   // Thai → Leelawadee UI
+  });
+});
+
 // DM-842: the public `fallbackFontChain` dispatches by process.platform. Confirm
 // it routes to the right per-platform implementation on the current host so the
 // platform split itself is regression-guarded.
@@ -512,7 +543,9 @@ describe("fallbackFontChain: platform dispatch (DM-842)", () => {
   it("dispatches to the host platform's chain", () => {
     const expected = process.platform === "linux"
       ? linuxFallbackChain(0x2500, "courier")
-      : darwinFallbackChain(0x2500, "courier");
+      : process.platform === "win32"
+        ? win32FallbackChain(0x2500, "courier")
+        : darwinFallbackChain(0x2500, "courier");
     expect(fallbackFontChain(0x2500, "courier")).toEqual(expected);
   });
 });

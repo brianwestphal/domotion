@@ -1004,13 +1004,91 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   return [];
 }
 
+/**
+ * Windows (DirectWrite) per-Unicode-block fallback routing. DM-260 / DM-836.
+ *
+ * Keys resolve through `WIN32_FONT_PATHS` (DM-258) to real Windows faces:
+ * `helvetica`→Arial, `times`→Times New Roman, `sf-mono`/`menlo`→Consolas,
+ * `cjk`→Microsoft YaHei, `hiragino-jp`→Yu Gothic, `cjk-serif`→SimSun,
+ * `korean`→Malgun Gothic, `sf-arabic`/`sf-hebrew`→Segoe UI, `devanagari`→Nirmala
+ * UI, `thai`→Leelawadee UI, `symbols`/`zapf-dingbats`→Segoe UI Symbol,
+ * `stix-math`→Cambria Math.
+ *
+ * Calibration basis (run 26430174100 painted-advance probe):
+ * - **Proven from the probe**: Chromium-on-Windows paints the symbol / math /
+ *   geometric-shape / box-drawing / arrow codepoints in **Arial itself** (the
+ *   sans default covers them — `sans-serif` painted width == Arial's exactly),
+ *   not in a dedicated symbol face. So those blocks route to `helvetica` (Arial)
+ *   first, with Segoe UI Symbol / Cambria Math only as the residue fallback.
+ *   This is the key correction over the previous darwin-fallthrough, which sent
+ *   them to macOS faces (Hiragino / Zapf Dingbats / STIX) that look wrong or
+ *   don't exist on Windows.
+ * - **First cut, pending painted-font confirmation**: advance width can't
+ *   fingerprint the CJK / Hangul / RTL / Indic / Thai fallback face (every such
+ *   sample measures one em), so those route to the documented Windows system
+ *   faces (the OS defaults). The enhanced probe now captures
+ *   `getPlatformFontsForNode`; the next `windows-fidelity` run confirms/refines
+ *   these.
+ */
+export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
+  const cp = codepoint;
+  // Hebrew — Segoe UI covers it.
+  if ((cp >= 0x0590 && cp <= 0x05FF) || (cp >= 0xFB1D && cp <= 0xFB4F)) return ["sf-hebrew"];
+  // Arabic core + presentation forms — Segoe UI.
+  if ((cp >= 0x0600 && cp <= 0x06FF) || (cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF)) {
+    return ["sf-arabic"];
+  }
+  // Devanagari — Nirmala UI.
+  if (cp >= 0x0900 && cp <= 0x097F) return ["devanagari"];
+  // Thai — Leelawadee UI.
+  if (cp >= 0x0E00 && cp <= 0x0E7F) return ["thai"];
+  // Hangul — Malgun Gothic; YaHei as a last resort for anything it lacks.
+  if ((cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0x1100 && cp <= 0x11FF)) return ["korean", "cjk"];
+  // Math Alphanumeric — Cambria Math carries the whole block; the
+  // `mathAlphaToBase` decomposition handles any residue.
+  if (cp >= 0x1D400 && cp <= 0x1D7FF) return ["stix-math", "helvetica"];
+  // CJK Han / Kana / CJK Symbols & Punctuation. Serif primary → SimSun;
+  // Japanese-tagged → Yu Gothic; otherwise Microsoft YaHei.
+  if ((cp >= 0x3000 && cp <= 0x303F) || (cp >= 0x3040 && cp <= 0x309F)
+    || (cp >= 0x30A0 && cp <= 0x30FF) || (cp >= 0x31F0 && cp <= 0x31FF)
+    || (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF)
+    || (cp >= 0xF900 && cp <= 0xFAFF)) {
+    const serifPrimary = primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia";
+    if (serifPrimary) return ["cjk-serif", "cjk"];
+    if (_lang != null && /^ja\b/i.test(_lang)) return ["hiragino-jp", "cjk"];
+    return ["cjk"];
+  }
+  // Box Drawing / Block Elements — mono primary keeps its own cell-width glyphs
+  // (Consolas), then Consolas as a safety net; non-mono falls to Arial (the
+  // probe paints `─ ┼ ┬` at Arial's width for sans-serif).
+  if (cp >= 0x2500 && cp <= 0x259F) {
+    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+      || primaryKey === "monaco" || primaryKey === "sf-mono";
+    return monoPrimary ? [primaryKey!, "sf-mono"] : ["helvetica", "symbols"];
+  }
+  // Dingbats — Arial lacks most; Segoe UI Symbol covers them.
+  if (cp >= 0x2700 && cp <= 0x27BF) return ["symbols"];
+  // Geometric Shapes / Misc Symbols / Arrows — Arial covers the common ones
+  // (probe: ■ ● ◆ ★ ✒ ← → at Arial's width); Segoe UI Symbol for the residue.
+  if ((cp >= 0x2190 && cp <= 0x21FF) || (cp >= 0x25A0 && cp <= 0x25FF) || (cp >= 0x2600 && cp <= 0x26FF)) {
+    return ["helvetica", "symbols"];
+  }
+  // Superscripts / Subscripts, Letterlike, Math Operators — Arial carries the
+  // common members (probe: ∑ ∏ ≠ ∫ at Arial's width); Cambria Math for the rest.
+  if (cp >= 0x2070 && cp <= 0x209F) return ["helvetica"];
+  if ((cp >= 0x2100 && cp <= 0x214F) || (cp >= 0x2200 && cp <= 0x22FF)) return ["helvetica", "stix-math"];
+  // Pictographs not caught by the color-emoji raster path — Segoe UI Symbol
+  // monochrome as a last resort.
+  if ((cp >= 0x1F300 && cp <= 0x1F5FF) || (cp >= 0x1F680 && cp <= 0x1F6FF)) return ["symbols"];
+  return [];
+}
+
 export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
-  // Platform-aware routing (DM-259 / DM-260). Linux (fontconfig) cascades
-  // through entirely different faces than macOS (CoreText), so it has its own
-  // empirically-probed chain. Windows (DirectWrite) is not yet calibrated
-  // (DM-260 / DM-836) — it falls through to the darwin routing over its own
-  // fonts (post-DM-258 status quo) until probed.
+  // Platform-aware routing (DM-259 / DM-260). Each platform's Chromium cascades
+  // through entirely different faces (CoreText vs fontconfig vs DirectWrite), so
+  // each has its own empirically-probed chain.
   if (process.platform === "linux") return linuxFallbackChain(codepoint, primaryKey, lang);
+  if (process.platform === "win32") return win32FallbackChain(codepoint, primaryKey, lang);
   return darwinFallbackChain(codepoint, primaryKey, lang);
 }
 
