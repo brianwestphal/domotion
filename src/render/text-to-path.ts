@@ -801,6 +801,10 @@ const WIN32_FONT_PATHS: Record<string, FontPath> = {
   "korean":           win("malgun.ttf", "MalgunGothic"),
   "korean-bold":      win("malgunbd.ttf", "MalgunGothicBold"),
   "thai":            win("LeelaUIsl.ttf", "LeelawadeeUISemilight"),
+  // Tahoma is what Chromium-on-Windows actually falls back to for Thai under a
+  // sans-serif request (painted-font probe, DM-836), so the Thai fallback chain
+  // prefers it over Leelawadee UI.
+  "tahoma":          win("tahoma.ttf"),
   "devanagari":      win("Nirmala.ttf", "NirmalaUI"),
   "sf-arabic":       win("segoeui.ttf"),
   "sf-hebrew":       win("segoeui.ttf"),
@@ -1023,12 +1027,11 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
  *   This is the key correction over the previous darwin-fallthrough, which sent
  *   them to macOS faces (Hiragino / Zapf Dingbats / STIX) that look wrong or
  *   don't exist on Windows.
- * - **First cut, pending painted-font confirmation**: advance width can't
- *   fingerprint the CJK / Hangul / RTL / Indic / Thai fallback face (every such
- *   sample measures one em), so those route to the documented Windows system
- *   faces (the OS defaults). The enhanced probe now captures
- *   `getPlatformFontsForNode`; the next `windows-fidelity` run confirms/refines
- *   these.
+ * - **Painted-font-confirmed (run 26430730227, via `getPlatformFontsForNode`)**:
+ *   Han → Microsoft YaHei, Hangul → Malgun Gothic, Thai → Tahoma.
+ * - **First cut, pending confirmation**: Arabic / Hebrew → Segoe UI, Devanagari
+ *   → Nirmala UI (advance width can't fingerprint these — every such sample
+ *   measures one em — and they weren't isolated in the painted-font check yet).
  */
 export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
   const cp = codepoint;
@@ -1040,9 +1043,10 @@ export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang
   }
   // Devanagari — Nirmala UI.
   if (cp >= 0x0900 && cp <= 0x097F) return ["devanagari"];
-  // Thai — Leelawadee UI.
-  if (cp >= 0x0E00 && cp <= 0x0E7F) return ["thai"];
-  // Hangul — Malgun Gothic; YaHei as a last resort for anything it lacks.
+  // Thai — Tahoma (painted-font probe DM-836 confirms Chromium falls back to
+  // Tahoma under sans-serif), Leelawadee UI as a secondary.
+  if (cp >= 0x0E00 && cp <= 0x0E7F) return ["tahoma", "thai"];
+  // Hangul — Malgun Gothic (painted-font probe confirmed); YaHei last resort.
   if ((cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0x1100 && cp <= 0x11FF)) return ["korean", "cjk"];
   // Math Alphanumeric — Cambria Math carries the whole block; the
   // `mathAlphaToBase` decomposition handles any residue.

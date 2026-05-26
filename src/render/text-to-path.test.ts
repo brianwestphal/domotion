@@ -532,7 +532,7 @@ describe("win32FallbackChain: Chromium-on-Windows calibration (DM-836)", () => {
     expect(win32FallbackChain(0x0628)).toEqual(["sf-arabic"]);               // Arabic → Segoe UI
     expect(win32FallbackChain(0x05D0)).toEqual(["sf-hebrew"]);               // Hebrew → Segoe UI
     expect(win32FallbackChain(0x0928)).toEqual(["devanagari"]);             // Devanagari → Nirmala UI
-    expect(win32FallbackChain(0x0E01)).toEqual(["thai"]);                   // Thai → Leelawadee UI
+    expect(win32FallbackChain(0x0E01)).toEqual(["tahoma", "thai"]);         // Thai → Tahoma (painted-font confirmed)
   });
 });
 

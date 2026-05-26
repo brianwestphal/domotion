@@ -237,15 +237,26 @@ First `windows-latest` painted-width probe (run 26430174100, Chromium 147). Two 
 | Symbols / math operators / geometric / arrows | `helvetica` (Arial), then `symbols`/`stix-math` | **probe-proven** (Arial covers them) |
 | Box Drawing | mono primary → `[primary, sf-mono]`; else `[helvetica, symbols]` | probe-proven |
 | Math Alphanumeric | `stix-math` (Cambria Math) | Cambria Math covers the block |
-| CJK Han/Kana | `cjk` (YaHei); `hiragino-jp` (Yu Gothic) for `ja`; `cjk-serif` (SimSun) for serif | first cut — pending painted-font confirmation |
-| Hangul | `[korean, cjk]` (Malgun Gothic) | first cut |
-| Arabic / Hebrew | `sf-arabic` / `sf-hebrew` (Segoe UI) | first cut |
-| Devanagari / Thai | `devanagari` (Nirmala UI) / `thai` (Leelawadee UI) | first cut |
+| CJK Han/Kana | `cjk` (YaHei); `hiragino-jp` (Yu Gothic) for `ja`; `cjk-serif` (SimSun) for serif | **painted-font confirmed** (Han → Microsoft YaHei) |
+| Hangul | `[korean, cjk]` (Malgun Gothic) | **painted-font confirmed** (→ Malgun Gothic) |
+| Thai | `[tahoma, thai]` | **painted-font confirmed** (→ Tahoma, not Leelawadee) |
+| Arabic / Hebrew | `sf-arabic` / `sf-hebrew` (Segoe UI) | first cut (Arial covers Arabic as primary; Segoe UI is the fallback) |
+| Devanagari | `devanagari` (Nirmala UI) | first cut |
 
-The **proven** rows replace the previous darwin-fallthrough, which routed these
-to macOS faces (Hiragino / Zapf Dingbats / STIX) that look wrong or are absent
-on Windows. The **first-cut** rows use the OS-default Windows faces and are
-confirmed/refined once the enhanced probe's painted-font data lands.
+The second `windows-fidelity` run (26430730227) added `getPlatformFontsForNode`
+capture, which **confirmed** the CJK / Hangul rows and **corrected** Thai
+(Chromium falls back to **Tahoma**, not Leelawadee UI, under a `sans-serif`
+request). The **proven** rows replace the previous darwin-fallthrough, which
+routed these to macOS faces (Hiragino / Zapf Dingbats / STIX) that look wrong or
+are absent on Windows.
+
+**Important scope note:** this fallback calibration does *not* move the
+`windows-fidelity` feature-regression diffs — those 18 failing fixtures render
+their text in the **primary** font (Arial), so the fallback chain is never
+consulted. The residual 0.2–3% diffs are a primary-font sub-pixel positioning
+drift on Windows (same Arial outlines, drifting x-positions), tracked
+separately as an investigation. The fallback chain governs *which* face covers a
+block; it can't fix how the primary face is positioned.
 
 ## The probe script
 
