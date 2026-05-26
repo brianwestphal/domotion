@@ -465,14 +465,42 @@ describe("composeScrollSvg: position:sticky hoisting", () => {
 // ── Background colour override ─────────────────────────────────────────────
 
 describe("composeScrollSvg: background colour", () => {
-  it("default bg is dark", () => {
+  // Build a segment whose captured root carries `rootBgComputed` (the value the
+  // capture script stamps from getComputedStyle(documentElement).backgroundColor).
+  const segWithRootBg = (rootBgComputed: string): ScrollSegmentCapture =>
+    makeSeg(0, 0, 0, [el({ tag: "div", x: 0, y: 0, styles: { rootBgComputed } as CapturedElement["styles"] })]);
+
+  // DM-894: the bug was a hardcoded `#0d1117` default. The default must now be
+  // transparent — no canvas rect — when nothing supplies a background, so a
+  // transparent capture composites over a host page instead of a dark box.
+  it("no background by default — never the old hardcoded #0d1117 (DM-894)", () => {
     const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600 });
-    expect(svg).toContain('fill="#0d1117"');
+    expect(svg).not.toContain('fill="#0d1117"');
+    expect(svg).not.toMatch(/<rect width="800" height="600" fill=/); // no opaque viewport backdrop
   });
 
-  it("custom bg is honored", () => {
-    const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600, bgColor: "#ffffff" });
-    expect(svg).toContain('fill="#ffffff"');
+  it("derives the canvas background from the captured page root background (DM-894)", () => {
+    const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], { viewportW: 800, viewportH: 600 });
+    expect(svg).toContain('fill="rgb(255, 255, 255)"');
+  });
+
+  it("a transparent captured root paints no background rect (DM-894)", () => {
+    for (const transparent of ["rgba(0, 0, 0, 0)", "transparent"]) {
+      const svg = composeScrollSvg([segWithRootBg(transparent)], { viewportW: 800, viewportH: 600 });
+      expect(svg).not.toMatch(/<rect width="800" height="600" fill=/);
+      expect(svg).not.toContain('fill="#0d1117"');
+    }
+  });
+
+  it("explicit bgColor is honored and wins over the captured root bg", () => {
+    const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], { viewportW: 800, viewportH: 600, bgColor: "#ff8800" });
+    expect(svg).toContain('fill="#ff8800"');
+    expect(svg).not.toContain('fill="rgb(255, 255, 255)"');
+  });
+
+  it("explicit transparent bgColor paints no background rect", () => {
+    const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], { viewportW: 800, viewportH: 600, bgColor: "transparent" });
+    expect(svg).not.toMatch(/<rect width="800" height="600" fill=/);
   });
 });
 

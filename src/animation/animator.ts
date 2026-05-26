@@ -223,6 +223,14 @@ export interface AnimationConfig {
    * uses `selector`; otherwise pass undefined / null.
    */
   resolveSelector?: SelectorResolver;
+  /**
+   * Canvas background color painted behind every frame (a full-viewport
+   * `<rect>`). Mirrors the single-frame path's `transparentRootBgRect`
+   * (DM-554): pass the captured page's root background so animated output
+   * matches `capture` output. Omitted / `"transparent"` / `"rgba(0, 0, 0, 0)"`
+   * → no rect, i.e. a transparent SVG that composites over a host background.
+   */
+  background?: string;
 }
 
 export function generateAnimatedSvg(config: AnimationConfig): string {
@@ -472,6 +480,13 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     );
     overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration);
   }
+  // Canvas background rect — only when a non-transparent background is given.
+  // Default (none / transparent) emits nothing so the SVG composites over the
+  // host page, matching the single-frame `transparentRootBgRect` path (DM-554).
+  const bg = config.background;
+  const canvasBgRect = (bg != null && bg !== "" && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)")
+    ? `  <rect width="${width}" height="${height}" fill="${bg}" />\n`
+    : "";
   const out = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
@@ -483,8 +498,7 @@ ${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss +
     ${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">
-  <rect width="${width}" height="${height}" fill="#0d1117" />
-${frameGroups.join("\n")}${overlayMarkup}
+${canvasBgRect}${frameGroups.join("\n")}${overlayMarkup}
   </g>
 </svg>`;
   return out;

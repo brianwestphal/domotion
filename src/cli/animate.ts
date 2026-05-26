@@ -397,6 +397,12 @@ export async function composeAnimateConfig(
     page.setDefaultTimeout(90_000);
     page.setDefaultNavigationTimeout(90_000);
     const frames: AnimationFrame[] = [];
+    // Canvas background for the composed SVG: the captured root background of
+    // the first frame, so animated output matches single-frame `capture`
+    // output (a transparent page → transparent SVG). Stamped per-frame by the
+    // capture script as `rootBgComputed`; the animator paints no rect when it's
+    // transparent/absent (DM-893).
+    let canvasBg: string | undefined;
     // Frames may pull from different documents with different webfonts.
     // Clear once at the start; each frame's discovery accumulates into the
     // same registry. Multiple frames declaring the same family register
@@ -539,6 +545,7 @@ export async function composeAnimateConfig(
         for (const seg of segments) {
           cullElementsOutsideViewBox(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
         }
+        if (i === 0) canvasBg = segments[0]?.tree?.[0]?.styles?.rootBgComputed;
         const composed = composeScrollSvg(segments, { viewportW: cfg.width, viewportH: cfg.height });
         // The composer emits a full `<?xml ...><svg>...</svg>` document. The
         // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
@@ -562,6 +569,7 @@ export async function composeAnimateConfig(
         const totalDurationMs = cfg.frames.reduce((sum, f) => sum + f.duration + (f.transition?.type === "cut" ? 0 : (f.transition?.duration ?? 300)), 0);
         const result = cullElementsOutsideViewBox(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
         frameCullCss = result.css;
+        if (i === 0) canvasBg = tree[0]?.styles?.rootBgComputed;
         svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
       }
 
@@ -596,7 +604,7 @@ export async function composeAnimateConfig(
     // frames once, for the animator's top-level <style>.
     const fontFaceCss = getEmbeddedFontFaceCss();
     return await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
-      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay })),
+      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, background: canvasBg })),
     );
   } finally {
     await ctx.close();

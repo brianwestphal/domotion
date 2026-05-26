@@ -6,6 +6,32 @@
 import { describe, it, expect } from "vitest";
 import { generateAnimatedSvg } from "./animator.js";
 
+// DM-893 / DM-894: the animator (and the scroll composer) must NOT paint a
+// hardcoded canvas backdrop. A transparent capture has to stay transparent so
+// the SVG composites over a host page; a colored root paints that color. These
+// guard against the `#0d1117` regression coming back on the animator path.
+describe("animator: canvas background", () => {
+  const FR = [{ svgContent: `<rect width="10" height="10" fill="red"/>`, duration: 100 }];
+
+  it("paints NO background rect by default — never the old hardcoded #0d1117 (DM-893)", () => {
+    const svg = generateAnimatedSvg({ width: 200, height: 100, frames: FR });
+    expect(svg).not.toContain('fill="#0d1117"');
+    expect(svg).not.toMatch(/<rect width="200" height="100" fill=/); // no opaque viewport backdrop
+  });
+
+  for (const transparent of ["transparent", "rgba(0, 0, 0, 0)", ""]) {
+    it(`paints no background rect when background is ${JSON.stringify(transparent)}`, () => {
+      const svg = generateAnimatedSvg({ width: 200, height: 100, frames: FR, background: transparent });
+      expect(svg).not.toMatch(/<rect width="200" height="100" fill=/);
+    });
+  }
+
+  it("paints the given background color as a full-viewport rect when one is supplied", () => {
+    const svg = generateAnimatedSvg({ width: 200, height: 100, frames: FR, background: "rgb(255, 255, 255)" });
+    expect(svg).toContain('<rect width="200" height="100" fill="rgb(255, 255, 255)" />');
+  });
+});
+
 describe("animator", () => {
   it("includes sharedDefs in the top-level <defs>", () => {
     const svg = generateAnimatedSvg({

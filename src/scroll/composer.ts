@@ -40,7 +40,13 @@ export interface ScrollComposerOptions {
   viewportH: number;
   /** Which axis the scroll moves along. Default `"y"`. */
   axis?: "x" | "y";
-  /** Background colour painted behind the captures (visible at seams). */
+  /**
+   * Background color painted behind the captures (a full-viewport rect, visible
+   * at seams). When omitted it defaults to the captured page's root background
+   * (`rootBgComputed`), so a transparent page yields a transparent SVG and a
+   * colored page keeps its color — matching the single-frame path (DM-894).
+   * Pass `"transparent"` to force no background rect regardless of the capture.
+   */
   bgColor?: string;
   /**
    * hiDPI multiplier passed through to `elementTreeToSvg` when rendering
@@ -76,8 +82,6 @@ export interface ScrollComposerOptions {
   renderText?: RenderTextMode;
 }
 
-const DEFAULT_BG = "#0d1117";
-
 /**
  * Compose a sequence of segment-captures into one animated SVG. The output
  * starts at the first capture's content (segment 0 anchor) and animates
@@ -94,7 +98,14 @@ export function composeScrollSvg(
   const axis = opts.axis ?? "y";
   const W = opts.viewportW;
   const VH = opts.viewportH;
-  const bg = opts.bgColor ?? DEFAULT_BG;
+  // DM-894: paint the canvas background from the captured page's ROOT
+  // background (`rootBgComputed`, stamped by the capture script — the same
+  // value the single-frame `transparentRootBgRect` path and the DM-893 animator
+  // fix use), not a hardcoded dark color. An explicit `opts.bgColor` still wins.
+  // When the resolved background is transparent / absent we emit NO rect, so a
+  // transparent capture stays transparent and composites over a host page.
+  const bg = opts.bgColor ?? segments[0]?.tree?.[0]?.styles?.rootBgComputed;
+  const paintBg = bg != null && bg !== "" && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)";
   const hiDPIFactor = opts.hiDPIFactor ?? 2;
   const chunkSize = opts.chunkSize ?? 2;
   if (chunkSize < 1 || !Number.isInteger(chunkSize)) {
@@ -362,12 +373,10 @@ ${segmentCullCss.join("\n")}
 ${stickyCullCss.join("\n")}
     </style>
   </defs>
-  <rect width="${W}" height="${VH}" fill="${bg}"/>
-  <g clip-path="url(#${animClass}-clip)">
+${paintBg ? `  <rect width="${W}" height="${VH}" fill="${bg}"/>\n` : ""}  <g clip-path="url(#${animClass}-clip)">
     <g class="${animClass}">
       <svg x="0" y="0" width="${compositeW}" height="${compositeH}" viewBox="0 0 ${compositeW} ${compositeH}">
-        <rect width="${compositeW}" height="${compositeH}" fill="${bg}"/>
-      ${chunks.join("\n      ")}
+${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${bg}"/>\n` : ""}      ${chunks.join("\n      ")}
       </svg>
     </g>
   </g>${overlayMarkup}

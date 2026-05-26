@@ -1,5 +1,9 @@
 # Domotion
 
+<p align="center">
+  <img src="examples/output/domotion-word-demo.svg" alt="Domotion — an animated wordmark cycling through twenty neon-retro typographic variants of the word domotion" width="600">
+</p>
+
 DOM-to-animated-SVG renderer. Captures HTML/CSS rendered in headless Chromium and converts the captured tree into a self-contained SVG with optional CSS animations — pixel-faithful to what Chromium painted, scales crisply at any size, and embeds without external assets.
 
 ## Why
