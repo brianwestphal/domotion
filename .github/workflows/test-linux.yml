@@ -1,0 +1,105 @@
+name: Linux fidelity
+
+# Captures genuine Chromium-on-Linux signal — real FreeType font fallback +
+# the Liberation / FreeFont / WenQuanYi fonts the Linux fallback chain (DM-259)
+# was calibrated against. Every job runs INSIDE the pinned Playwright "noble"
+# container: the same image `npm run test:linux-docker` uses and DM-259
+# calibrated against. A bare `ubuntu-latest` runner ships a different font set,
+# so its fallback routing — and the diff against our expected paint — would not
+# match the calibration.
+#
+# Manual-dispatch (run from the Actions tab) to keep the per-PR cost off every
+# push (a full `demos:test` is ~5-7 min). The Linux fallback chain is
+# calibrated and the feature suite passes within the documented Linux
+# text-hinting floor (DM-259 / DM-262), so `regression` is green on a clean
+# branch and goes red on genuine breakage. Promote to a push/PR gate when the
+# maintainer wants Linux in the required-checks set.
+#
+# Unit tests already run on every push via release.yml's `test` job on
+# ubuntu-latest; this workflow adds the parts that need the calibrated
+# container / a real Linux font stack: the VISUAL baseline and the FreeType
+# helper's fontkit-parity test.
+#
+# Produces two downloadable artifacts:
+#   - font-widths-linux  : Chromium-on-Linux painted advance widths (JSON), the
+#                          input for (re)building the Linux fallback chain.
+#   - linux-fidelity-diffs : expected/actual/diff PNGs from the feature suite,
+#                          so you can eyeball where Linux output diverges.
+
+on:
+  workflow_dispatch:
+
+# Keep this image tag in sync with the installed @playwright/test version
+# (scripts/test-linux-docker.sh derives the same tag dynamically). The image
+# bundles Node + the Chromium build the suite captures with — matching CI's
+# browser — so no setup-node / `playwright install` step is needed.
+env:
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
+
+jobs:
+  font-width-probe:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Probe Chromium-on-Linux painted advances
+        run: node scripts/probe-platform-font-widths.mjs --out font-widths-linux.json
+      - name: Show a summary in the run log
+        run: node -e "const d=require('./font-widths-linux.json');console.log('platform',d.platform,'chromium',d.chromiumVersion,'measurements',d.widths.length)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: font-widths-linux
+          path: font-widths-linux.json
+          if-no-files-found: error
+
+  regression:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Run feature visual-regression suite (Linux container)
+        # Passes within the Linux text-hinting floor (DM-259 / DM-262): the
+        # runner applies a per-platform coverage cap on Linux because FreeType
+        # grid-fits native text while Domotion fills unhinted vector outlines.
+        # Genuine breakage (missing fonts -> tofu) exceeds the floor and fails.
+        # Diff PNGs still upload below (if: always()) for review.
+        run: npm run demos:test
+      - name: Upload expected/actual/diff PNGs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-fidelity-diffs
+          path: tests/output/*.png
+          if-no-files-found: error
+
+  # Compile the FreeType glyph extractor and run its fontkit-parity test against
+  # the container's real Linux font stack. Release-independent validation of the
+  # linux helper (release-helpers.yml builds + uploads the asset; this just
+  # proves it compiles and matches fontkit) — run after editing the C++ to catch
+  # build / coordinate issues without cutting a tag.
+  glyph-extractor-build:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        # The container runs as root, so no sudo. FreeType dev headers + a C++17
+        # toolchain; libfreetype.so.6 is already present (Chromium needs it).
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev
+      - run: npm ci
+      - name: Build the FreeType helper
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Smoke-test the helper (Liberation Sans H)
+        run: |
+          F=$(ls /usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf 2>/dev/null || echo /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf)
+          printf '{"fonts":[{"ref":"f","fontPath":"%s","size":2048}],"queries":[{"type":"meta","fontRef":"f"},{"type":"glyphs","fontRef":"f","glyphs":[{"cp":72}]}]}' "$F" \
+            | tools/linux-glyph-extractor/domotion-glyph-paths
+      - name: Run the fontkit-parity test
+        run: npx vitest run tests/linux-glyph-extractor.test.ts
