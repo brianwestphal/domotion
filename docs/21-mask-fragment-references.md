@@ -17,7 +17,7 @@ Doc 20 covers the gradient + raster `url()` cases that already round-trip cleanl
 
 ## Today's behavior
 
-DM-493 implemented same-document fragment refs (`url("#id")`). External-file refs (`url("./shapes.svg#id")`) are deferred to DM-496 and currently emit a capture-time warning (`external-file SVG fragment refs are not yet emitted`).
+DM-493 implemented same-document fragment refs (`url("#id")`); DM-496 added external-file refs (`url("./shapes.svg#id")`) by inlining the fetched `<mask>` as a same-document def before the walk (see §2). A capture-time warning now only fires when that resolution fails (fetch error / non-http / missing fragment).
 
 For same-document refs, CAPTURE_SCRIPT resolves `document.getElementById(id)` to the inline `<mask>` element and serialises its `outerHTML` into a top-level `maskDefs` payload on the captured tree. The renderer copies the mask def into the output `<defs>` with id rewriting and per-element coordinate translation so the mask aligns with the element being masked. See `rewriteFragmentMaskDef` and `positionFragmentMaskDef` in `src/dom-to-svg.ts`.
 
@@ -36,15 +36,14 @@ At capture time, when CAPTURE_SCRIPT sees `mask-image: url("#mask-id")`:
 
 ### 2. External-file fragment (`url("./shapes.svg#mask-id")`)
 
-Deferred to DM-496. The .svg file is not part of the captured DOM, so capture would have to fetch it:
+**Implemented in DM-496.** The `.svg` file isn't part of the captured DOM, so the synchronous capture walk can't reach it. An async pre-pass — `inlineExternalSvgRefs()` in `src/capture/index.ts`, shared with the clip-path analogue (DM-829) and run before the walk — resolves it in-page:
 
-1. Resolve the URL relative to `document.baseURI`.
-2. `await fetch(absoluteUrl).then(r => r.text())`.
-3. Parse with `new DOMParser().parseFromString(svgText, "image/svg+xml")`, then `getElementById(fragment)`.
-4. Same emit/rewrite path as case 1.
-5. Cache the parsed file across multiple elements that point at different fragments of the same .svg (common: a single `icons.svg` file with dozens of `<mask>` and `<symbol>` defs).
+1. Scan each element's computed `mask-image` (and `-webkit-mask-image`) for an external `url("<path>#id")` (a non-empty path before the `#`; the same-document `url("#id")` form is skipped).
+2. `fetch` the file same-origin, `DOMParser`-parse it, and `getElementById` the referenced `<mask>`.
+3. Inline a copy of the `<mask>` into a hidden in-document `<svg>` under a fresh local id, and rewrite the element's `mask-image` to `url(#localId)` (overriding only the image longhand, so mask-mode/size/position/repeat survive).
+4. The walk then sees a normal same-document fragment → case 1 (above) renders it unchanged.
 
-For now, capture warns and falls back to the legacy raster-mask emission path for external-file refs. No real-world fixture currently exercises this case.
+A file is fetched once and shared across consumers (icon-set pattern). Only works over **http(s)** — Chrome doesn't resolve external mask refs over `file://`, and a sibling-file `fetch` is blocked there (so it's validated by a loopback-HTTP test, `tests/external-svg-refs.test.ts`, not the `file://` feature runner). Any failure (fetch error / non-2xx / non-http origin / missing or non-`<mask>` fragment) leaves the ref intact, so capture warns and the element paints unmasked — the pre-DM-496 baseline.
 
 ## Implementation notes (DM-493)
 
@@ -65,13 +64,13 @@ For now, capture warns and falls back to the legacy raster-mask emission path fo
 - An inline `<svg><defs><mask id="diag-mask" maskUnits="userSpaceOnUse" …></mask></defs></svg>` defined inside the captured DOM.
 - Two elements using `mask-image: url(#diag-mask)` at different positions to exercise per-element repositioning + dedupe.
 
-External-file fixture (`url("./asset.svg#m2")`) is deferred to DM-496.
+External-file fixture (`url("./maskdef.svg#m")`): `tests/external-svg-refs.test.ts` (loopback-HTTP, DM-496).
 
 `src/mask.test.ts` covers `rewriteFragmentMaskDef()` (outer-id rewriting, descendant-id rewriting, `href`/`url(#…)` substitution, refs-outside-subtree pass-through, dedupe stability) and `positionFragmentMaskDef()` (content translation, `maskUnits=userSpaceOnUse` forcing).
 
 ## Resolved design questions
 
-- **External `.svg` fetch**: deferred to DM-496 (backlog). Same-document covers the realistic case and keeps capture-time overhead bounded; external fetch adds CORS/CSP risk and latency.
+- **External `.svg` fetch**: implemented in DM-496 via the shared `inlineExternalSvgRefs` in-page pre-pass (same mechanism as the clip-path analogue, DM-829). In-page same-origin `fetch` keeps it simple + consistent across the two features; the CSP/CORS-robust alternative (Node-side `page.context().request.fetch`) was weighed and declined for that consistency, since Domotion captures the author's own pages (see docs/39 for the clip-path counterpart).
 - **Top-level vs per-element payload**: top-level array (`tree[0].maskDefs`). Captured fragment defs are deduped at capture time by source id; the renderer mints per-element copies for coordinate translation and dedupes identical (fragId, position, size) tuples.
 
 ## Follow-ups to file when this lands

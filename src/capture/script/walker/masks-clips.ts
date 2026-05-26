@@ -17,8 +17,12 @@
 //
 //   3. Everything else gets a warning (gradient / url() mask sources are
 //      supported but emitted later in the pipeline so they don't need
-//      walker-level work; external-file fragment refs and other shapes
-//      are not yet supported).
+//      walker-level work). External-file fragment refs
+//      (`mask-image: url("./file.svg#id")`) are resolved *before* this walk by
+//      the `inlineExternalSvgRefs` pre-pass (DM-496) — inlined as a
+//      same-document `<mask>` def + the ref rewritten to `url(#id)` — so by
+//      here they look like case 1; a warning here means that pre-pass couldn't
+//      resolve it (fetch failed / non-http / missing fragment).
 //
 // The pass-through CSS mask properties (mask, maskImage, maskMode,
 // maskSize, maskPosition, maskRepeat, maskComposite) live in the captured
@@ -69,10 +73,15 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
       return;
     }
 
-    // External-file fragment refs (url("./file.svg#id")) — deferred.
+    // External-file fragment refs (url("./file.svg#id")) — resolved before this
+    // walk by the inlineExternalSvgRefs pre-pass (DM-496), which fetches the
+    // file, inlines the <mask> as a same-document def, and rewrites the ref to
+    // url(#id) (handled by the same-document branch above). Reaching here means
+    // that pre-pass couldn't (fetch failed, non-http origin, or missing/wrong-
+    // tag fragment) → the element paints unmasked, the prior baseline.
     const extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(miSrc);
     if (extFragMatch != null) {
-      warn(sel, 'mask', 'external-file SVG fragment refs (url("./file.svg#id")) are not yet emitted (DM-496)');
+      warn(sel, 'mask', 'external-file SVG mask-image fragment ref (url("./file.svg#id")) could not be resolved — element renders unmasked');
       return;
     }
 
@@ -148,7 +157,7 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
   // (SVG auto-scales natively) or the default `userSpaceOnUse` (the renderer
   // mints a per-element translated copy — DM-828). External-file refs
   // (`url("./shapes.svg#id")`) are resolved *before* this walk by the
-  // `inlineExternalClipPaths` pre-pass (DM-829), which fetches the file, inlines
+  // `inlineExternalSvgRefs` pre-pass (DM-829), which fetches the file, inlines
   // the `<clipPath>` as a same-document def, and rewrites the element's ref to
   // `url(#id)` — so by the time we get here a successfully-resolved external ref
   // looks like any same-document fragment. The `extFragMatch` branch below only
@@ -183,7 +192,7 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     }
     const extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(cpShape);
     if (extFragMatch != null) {
-      // The inlineExternalClipPaths pre-pass (DM-829) rewrites resolvable
+      // The inlineExternalSvgRefs pre-pass (DM-829) rewrites resolvable
       // external refs to same-document before this walk; reaching here means it
       // couldn't (fetch failed, non-http origin, or missing fragment) — the
       // element renders unclipped, same as the pre-DM-829 baseline.

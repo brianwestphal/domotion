@@ -863,14 +863,16 @@ export async function captureElementTreeWithWarnings(
     rasterizeFromImagePath?: string;
   },
 ): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }> {
-  // DM-829: external-file clip-path refs (`clip-path: url("./shapes.svg#id")`)
-  // can't be resolved by the synchronous capture walk (it can't fetch). Run an
-  // async pre-pass that fetches the external `.svg`, inlines its `<clipPath>`
-  // as a same-document def, and rewrites the element's ref to `url(#localId)`
-  // — so the existing same-document path (DM-826 / DM-828) handles it unchanged.
-  // A no-op (one getComputedStyle sweep, no fetches) when no external refs
-  // exist; a fetch failure leaves the ref intact so the walk warns as before.
-  await inlineExternalClipPaths(page);
+  // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
+  // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
+  // walk (it can't fetch). Run an async pre-pass that fetches the external
+  // `.svg`, inlines its `<clipPath>` / `<mask>` as a same-document def, and
+  // rewrites the element's ref to `url(#localId)` — so the existing
+  // same-document paths (clip-path: DM-826/DM-828; mask: DM-493) handle it
+  // unchanged. A no-op (one getComputedStyle sweep, no fetches) when no
+  // external refs exist; a fetch failure leaves the ref intact so the walk
+  // warns as before.
+  await inlineExternalSvgRefs(page);
 
   const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}})`);
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
@@ -883,22 +885,24 @@ export async function captureElementTreeWithWarnings(
 }
 
 /**
- * DM-829: resolve external-file `clip-path: url("./shapes.svg#id")` refs in the
- * live page before the (synchronous) capture walk runs. For each element whose
- * computed `clip-path` points at a file fragment (a non-empty path before the
- * `#`, vs the same-document `url("#id")` form), fetch the `.svg` same-origin,
- * extract the referenced `<clipPath>`, inline a copy into a hidden in-document
- * SVG, and rewrite the element's inline `clip-path` to `url(#localId)` (keeping
- * any `<geometry-box>` keyword). The downstream walk then sees a normal
- * same-document fragment and DM-826 / DM-828 render it unchanged.
+ * DM-829 / DM-496: resolve external-file `clip-path` / `mask-image`
+ * (`url("./shapes.svg#id")`) refs in the live page before the (synchronous)
+ * capture walk runs. For each element whose computed `clip-path` or
+ * `mask-image` points at a file fragment (a non-empty path before the `#`, vs
+ * the same-document `url("#id")` form), fetch the `.svg` same-origin, extract
+ * the referenced `<clipPath>` / `<mask>`, inline a copy into a hidden
+ * in-document SVG, and rewrite the element's inline ref to `url(#localId)`
+ * (keeping any `<geometry-box>` keyword for clip-path). The downstream walk
+ * then sees a normal same-document fragment and the existing renderer paths
+ * handle it unchanged (clip-path: DM-826/DM-828; mask: DM-493).
  *
- * Only meaningful on http(s) pages — Chrome doesn't resolve external clip-path
+ * Only meaningful on http(s) pages — Chrome doesn't resolve external fragment
  * refs over `file://`, and `fetch()` of a sibling file is blocked there. Any
- * failure (fetch error / non-2xx / missing or non-`<clipPath>` fragment) leaves
- * the element's ref intact, so the walk emits its existing "not yet emitted"
- * warning and the element paints unclipped — the pre-DM-829 baseline.
+ * failure (fetch error / non-2xx / missing or wrong-tag fragment) leaves the
+ * element's ref intact, so the walk emits its existing "could not be resolved"
+ * warning and the element paints unclipped / unmasked — the prior baseline.
  */
-async function inlineExternalClipPaths(page: Page): Promise<void> {
+async function inlineExternalSvgRefs(page: Page): Promise<void> {
   await page.evaluate(async () => {
     // External form: a non-empty, non-`#`-only path before the fragment.
     // `url("#id")` (same-document) has nothing before the `#` → skipped.
@@ -906,28 +910,37 @@ async function inlineExternalClipPaths(page: Page): Promise<void> {
     const BOX = /\b(?:content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i;
     const SVGNS = "http://www.w3.org/2000/svg";
 
-    // First sweep: collect the (element, absUrl, fragId) hits. Bail fast — the
-    // common case has none, so we never fetch or mutate.
-    const hits: Array<{ el: HTMLElement; absUrl: string; fragId: string; box: string | null }> = [];
+    type Hit = { el: HTMLElement; absUrl: string; fragId: string; kind: "clip" | "mask"; box: string | null };
+    // First sweep: collect the hits. Bail fast — the common case has none, so
+    // we never fetch or mutate.
+    const hits: Hit[] = [];
     for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
-      const cp = getComputedStyle(el).clipPath;
-      if (cp == null || cp === "none" || cp === "") continue;
-      const m = EXT.exec(cp);
-      if (m == null) continue;
-      let absUrl: string;
-      try { absUrl = new URL(m[1], document.baseURI).href; } catch { continue; }
-      const boxMatch = BOX.exec(cp);
-      hits.push({ el, absUrl, fragId: m[2], box: boxMatch ? boxMatch[0] : null });
+      const cs = getComputedStyle(el);
+      const cp = cs.clipPath;
+      if (cp != null && cp !== "none" && cp !== "") {
+        const m = EXT.exec(cp);
+        if (m != null) {
+          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "clip", box: (BOX.exec(cp) ?? [null])[0] }); } catch { /* bad URL */ }
+        }
+      }
+      const mi = cs.maskImage || (cs as unknown as { webkitMaskImage?: string }).webkitMaskImage || "";
+      if (mi !== "" && mi !== "none") {
+        const m = EXT.exec(mi);
+        if (m != null) {
+          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "mask", box: null }); } catch { /* bad URL */ }
+        }
+      }
     }
     if (hits.length === 0) return;
 
     const fileCache = new Map<string, Document | null>(); // absUrl → parsed doc (null = failed)
-    const localIdFor = new Map<string, string>();         // `${absUrl}#${fragId}` → injected local id
+    const localIdFor = new Map<string, string>();         // `${kind}|${absUrl}#${fragId}` → injected local id
     let host: SVGSVGElement | null = null;
     let counter = 0;
 
     for (const hit of hits) {
-      const key = `${hit.absUrl}#${hit.fragId}`;
+      const wantTag = hit.kind === "clip" ? "clippath" : "mask";
+      const key = `${hit.kind}|${hit.absUrl}#${hit.fragId}`;
       let localId = localIdFor.get(key);
       if (localId == null) {
         let doc = fileCache.get(hit.absUrl);
@@ -940,7 +953,7 @@ async function inlineExternalClipPaths(page: Page): Promise<void> {
         }
         if (doc == null) continue; // fetch/parse failed → leave ref intact (walk warns)
         const frag = doc.getElementById(hit.fragId);
-        if (frag == null || frag.tagName.toLowerCase() !== "clippath") continue;
+        if (frag == null || frag.tagName.toLowerCase() !== wantTag) continue;
         if (host == null) {
           host = document.createElementNS(SVGNS, "svg");
           host.setAttribute("width", "0");
@@ -950,12 +963,19 @@ async function inlineExternalClipPaths(page: Page): Promise<void> {
           document.body.appendChild(host);
         }
         const imported = document.importNode(frag, true) as Element;
-        localId = `domotion-extclip-${counter++}`;
+        localId = `domotion-ext${hit.kind}-${counter++}`;
         imported.setAttribute("id", localId);
         host.appendChild(imported);
         localIdFor.set(key, localId);
       }
-      hit.el.style.clipPath = `url(#${localId})${hit.box ? ` ${hit.box}` : ""}`;
+      if (hit.kind === "clip") {
+        hit.el.style.clipPath = `url(#${localId})${hit.box ? ` ${hit.box}` : ""}`;
+      } else {
+        // Override just the image longhand; mask-mode/size/position/repeat stay
+        // from the original CSS so DM-493's same-document path reads them.
+        hit.el.style.maskImage = `url(#${localId})`;
+        (hit.el.style as unknown as { webkitMaskImage?: string }).webkitMaskImage = `url(#${localId})`;
+      }
     }
   });
 }
