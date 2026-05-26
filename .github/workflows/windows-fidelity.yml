@@ -5,12 +5,15 @@ name: Windows fidelity
 # in a Linux container — Wine's dwrite reimplementation does not match real
 # Windows fallback, and the Windows system fonts aren't redistributable.
 #
-# Manual-dispatch (run from the Actions tab) to keep the per-PR cost off every
-# push; the win32 fallback chain is now calibrated and the feature suite passes
-# within the documented Windows text-hinting floor (DM-836 / DM-262), so the
-# `regression` job is green on a clean branch and goes red on genuine breakage.
-# It can be promoted to a push/PR gate when the maintainer wants Windows in the
-# required-checks set.
+# Runs on PRs that touch render-affecting paths (the renderer, capture, the
+# glyph extractors, the visual fixtures/runner, or the deps that drive
+# rendering) — so visual regressions are caught on the PRs that can cause them,
+# with ~0 cost on docs/CI-only PRs (DM-262, path-filtered triggers). Also
+# available via manual dispatch. The win32 fallback chain is calibrated and the
+# feature suite passes within the documented Windows text-hinting floor
+# (DM-836 / DM-262), so the `regression` job is green on a clean branch and goes
+# red on genuine breakage. (Making these checks *blocking* is a branch-protection
+# setting in the repo's GitHub settings, separate from this trigger.)
 #
 # Produces two downloadable artifacts:
 #   - font-widths-windows  : Chromium-on-Windows painted advance widths (JSON),
@@ -24,6 +27,15 @@ name: Windows fidelity
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/render/**'
+      - 'src/capture/**'
+      - 'tools/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/windows-fidelity.yml'
 
 env:
   # Match the Release workflow's pin (Node 22.22.x ships a broken bundled npm).
