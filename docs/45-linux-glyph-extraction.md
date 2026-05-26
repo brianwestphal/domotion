@@ -106,8 +106,14 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
      (`FcFontMatch` on a pattern of family + weight + slant), then `FT_New_Face`
      on the matched file. (Most requests carry a `fontPath` already, so this
      branch is rare.)
-2. **Size.** `FT_Set_Char_Size` / `FT_Set_Pixel_Sizes` to the requested CSS-pixel
-   `emSize` (so the outline is pre-scaled, parity with the other helpers).
+2. **Size.** *(As built — DM-872)* The outline is loaded with `FT_LOAD_NO_SCALE`
+   (step 5), which returns coordinates in raw **font design units** regardless
+   of size, so no `FT_Set_Pixel_Sizes` call is needed. This is exactly fontkit's
+   convention (its `glyph.path.commands` are unscaled design units); the renderer
+   applies `scale(fontSize/unitsPerEm, …)` downstream. The `size` field in the
+   request is accepted for envelope compatibility but does not affect the
+   outline. (The macOS helper instead opens at `size = unitsPerEm` to approximate
+   design units; `NO_SCALE` gives them exactly, with no 26.6 rounding.)
 3. **Variations.** Apply `wght` / `opsz` / `slnt` via
    `FT_Set_Var_Design_Coordinates` when the face is an MM/variable font
    (`FT_Get_MM_Var`); no-op otherwise (parity with the CoreText/DirectWrite
@@ -119,10 +125,14 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    — the extractor would handle Math-Alpha fine. The DM-838 "FreeSans lacks
    U+1D4xx" claim came from probing the `FreeSansOblique` face by mistake.)
 5. **Outline load + decompose.** `FT_Load_Glyph(face, glyphIndex,
-   FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING)` → `FT_Outline_Decompose(&face->glyph->outline, &funcs, &ctx)`
-   with an `FT_Outline_Funcs` whose callbacks emit SVG path-data (below).
-6. **Advances + bbox.** `face->glyph->advance.x >> 6` (26.6 fixed → px) for the
-   advance; bbox from the decomposer's accumulated min/max or `FT_Glyph_Get_CBox`.
+   FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING)` →
+   `FT_Outline_Decompose(&face->glyph->outline, &funcs, &ctx)` with an
+   `FT_Outline_Funcs` whose callbacks emit SVG path-data (below). `NO_SCALE`
+   makes the outline points exact design-unit integers (no 26.6 conversion).
+6. **Advances + bbox.** With `NO_SCALE`, `face->glyph->advance.x` is already in
+   design units (no `>> 6`). bbox from `FT_Outline_Get_CBox` (control box, design
+   units) — note this is unused by the current renderer, which reads only id /
+   advance / path.
 7. **Meta query.** `face->units_per_EM`, `face->ascender`, `face->descender`,
    `face->underline_position` / `face->underline_thickness`. Strikeout from the
    `OS/2` table via `FT_Get_Sfnt_Table(face, FT_SFNT_OS2)` →
@@ -144,68 +154,100 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
 Unlike DirectWrite (which elevates everything to cubics), FreeType preserves the
 native curve kind — `conic_to` for TrueType quads, `cubic_to` for CFF. Emit `Q`
 and `C` respectively (the downstream SVG `<path>` consumer + dedup cache handle
-both, same as the CoreText helper which also emits `Q`). Coordinates from
-`FT_Outline_Decompose` are in 26.6 fixed point at the set pixel size — convert
-to float px (`v / 64.0`).
+both, same as the CoreText helper which also emits `Q`). Under `FT_LOAD_NO_SCALE`
+the coordinates are exact design-unit integers — no 26.6 conversion.
+
+FreeType traces the explicit closing edge back to the contour start as the final
+segment; SVG `Z` already closes a subpath with a straight line to the start, so
+that trailing `L <start>` is redundant. fontkit and the CoreText helper both
+omit it, so the Linux helper drops it too (buffer the contour, pop a trailing
+line-to-start, then emit `Z`) — keeping the emitted path command-for-command
+identical to fontkit's `glyph.path.commands`.
 
 ### Coordinate system
 
-FreeType outline y points **up** (font convention), origin at the baseline; SVG
-wants y **down**. **Negate y** on every emitted coordinate — the same y-flip the
-CoreText helper applies (doc 16 §"Internal pipeline" step 3). (Note: had we gone
-through `cairo_glyph_path` instead, Cairo's user space is already y-down and no
-flip would be needed — a reason the flip direction must be **validated by the
-Helvetica-`H` parity test**, not assumed.)
+**Emit y-UP, do NOT negate.** *(Corrected — DM-872.)* FreeType outline y points
+up (font convention); fontkit's `glyph.path.commands` are also y-up; the
+renderer flips to SVG y-down at draw time via its `scale(sc, -sc)` transform. So
+the helper must emit FreeType's native y-up coordinates verbatim — negating
+would double-flip and fail the `H` parity test. (This supersedes an earlier
+draft of this section that said "negate y"; that section itself flagged that the
+flip direction "must be validated by the `H` parity test, not assumed" — and the
+test, now in `tests/linux-glyph-extractor.test.ts`, confirms y-up by asserting
+the cap-height bbox is positive and matches fontkit. The macOS CoreText helper
+emits y-up for the same reason.)
+
+The only intentional divergence from fontkit: the implied on-curve midpoint
+TrueType inserts between two consecutive off-curve points is computed by
+`FT_Outline_Decompose` with integer division (truncating the `.5`), while
+fontkit uses an exact float midpoint — so a single coordinate may differ by ≤ 0.5
+design units (~0.004 px at 16 px). Since Chromium also rasterizes through
+FreeType, the truncated value is the Chromium-faithful one. The parity test's
+coordinate tolerance reflects this floor.
 
 Emit all numbers at fixed 3-decimal precision for deterministic, dedup-friendly
-output (parity with the other helpers).
+output (parity with the other helpers; with `NO_SCALE` they are almost always
+integers).
 
-### Build script & portability
+### Build script & portability *(as built — DM-872)*
 
-- `tools/linux-glyph-extractor/CMakeLists.txt` + a `build.sh`, plus a
-  **Docker-based build** (e.g. a `manylinux2014` or old-Ubuntu image) so the
-  released binary links against an old glibc and runs across distros. Statically
-  link FreeType (and fontconfig if retained) to avoid runtime `.so` version
-  skew; the binary still dynamically links glibc, hence the old-glibc build base.
-- A `README.md` in the helper dir documenting the local + Docker rebuild.
-- Consider a `musl`/Alpine static build for a fully-static binary if glibc
-  portability proves fragile (open question).
+- `tools/linux-glyph-extractor/CMakeLists.txt` + `build.sh` (CMake + pkg-config
+  for FreeType), plus a `Dockerfile` that reproduces the release build on
+  `ubuntu:22.04`, and a `README.md`.
+- **FreeType is linked dynamically, not statically** (resolving open question 1
+  below): the helper only ever runs in an environment that also runs Domotion's
+  Playwright Chromium, and Chromium-on-Linux requires system FreeType
+  (`libfreetype6` ships via `npx playwright install-deps`). So `libfreetype.so.6`
+  is guaranteed present, its SONAME is ABI-stable, and a static build would need
+  `libfreetype.a` (not shipped by mainstream distros) for no real gain. glibc
+  stays dynamic; the `ubuntu:22.04` build floor (glibc 2.35) covers all
+  currently supported distros and matches the release runner.
 
 ## Distribution
 
-Per doc 16: release asset `domotion-glyph-paths-linux-x64` (and `-arm64` — see
-open questions), built on an `ubuntu-*` GitHub runner (x64) in the Docker
-portability image, uploaded, downloaded on demand into the Linux user-cache dir
+Per doc 16: release asset `domotion-glyph-paths-linux-x64`, built on an
+`ubuntu-22.04` GitHub runner (a `linux-glyph-extractor` job in
+`.github/workflows/release-helpers.yml`, alongside the macOS job), uploaded with
+a SHA-256 sidecar, downloaded on demand into the Linux user-cache dir
 (`$XDG_DATA_HOME/domotion/<version>/bin/`, default `~/.local/share/...`), `chmod +x`,
-reused thereafter. Extends DM-393's engine-agnostic acquisition logic.
+reused thereafter. Extends DM-393's engine-agnostic acquisition logic. (arm64 is
+not yet built — see open questions.)
 
 ## Validation
 
-- **DejaVu Sans / Liberation `H` outline parity**: extract `H` via fontkit and
-  via the helper; assert the path commands match within a numeric tolerance —
-  confirms the y-flip and the quad/cubic mapping. Add to
-  `tests/linux-glyph-extractor.test.ts` (runs only on `process.platform === 'linux'`).
-- **FreeSans Math-Alpha parity**: extract U+1D44E 𝑎 from upright `FreeSans.ttf`
-  via the helper and via fontkit and assert the outlines match — the upright face
-  carries the Math-Alpha block (gid 6385 for 𝑎), so both return a real glyph
-  (corrected DM-876; the earlier "empty path" claim was the `FreeSansOblique`
-  face, which lacks the block).
+- **Liberation Sans `H` outline parity** *(implemented)*: extract `H` via
+  fontkit and via the helper; assert the command sequence matches and
+  coordinates match within tolerance — confirms y-up and the line mapping. In
+  `tests/linux-glyph-extractor.test.ts` (runs only on `process.platform === 'linux'`
+  with the binary built; skips otherwise). Validated via `npm run
+  test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
+  Liberation Sans is the canonical line-parity oracle.)
+- **FreeSans Math-Alpha parity** *(implemented)*: extract U+1D44E 𝑎 from upright
+  `FreeSans.ttf` via the helper and via fontkit and assert the outlines match —
+  the upright face carries the Math-Alpha block (gid 6385 for 𝑎), so both return
+  a real glyph (corrected DM-876; the earlier "empty path" claim was the
+  `FreeSansOblique` face, which lacks the block). This is positive coverage, not
+  an empty-regression guard.
 - **CI**: a Linux job (the `test-linux.yml` from DM-262, or the Docker harness
   `npm run test:linux-docker`) builds the helper from a clean checkout and runs
   `npm run demos:test:html`, exercising the FreeSans / Noto fallback ranges
   through the native route once the Linux fallback chain (DM-259) is calibrated.
 
-## Open questions (for follow-up / user input)
+## Open questions
 
-1. **glibc floor / static strategy** — build against `manylinux2014` (glibc 2.17)
-   for broad compatibility, or ship a fully-static musl/Alpine binary? Affects
-   the build image and whether fontconfig can be static.
-2. **fontconfig dependency** — keep fontconfig for family→file resolution, or
-   require callers to always pass a `fontPath` (the capture side resolves
-   families already via the platform font-path map, DM-258) and drop the
-   fontconfig link entirely for a leaner binary?
-3. **arm64** — ship `domotion-glyph-paths-linux-arm64` alongside x64, or x64 only
-   until there's demand?
+1. **glibc floor / static strategy** — *RESOLVED (DM-872): dynamic FreeType,
+   glibc floor = `ubuntu:22.04` (2.35).* No static/musl build — `libfreetype.so.6`
+   is guaranteed present alongside Chromium (see Build § / CMakeLists rationale),
+   so a static link buys nothing. Revisit only if a need arises to run the helper
+   on a glibc older than 2.35 or without Chromium present.
+2. **fontconfig dependency** — *RESOLVED (DM-872): dropped.* The helper requires
+   a concrete `fontPath` and does not link fontconfig — the capture side already
+   resolves families to files via the platform font-path map (DM-258). A
+   family-name-only request fails loudly rather than guessing.
+3. **arm64** — still open. The release builds `linux-x64` only (GitHub
+   `ubuntu-*` runners are x64). `domotion-glyph-paths-linux-arm64` can be added
+   when there's demand (the source is arch-agnostic; it builds + passes parity on
+   arm64, verified locally on Apple-Silicon Docker).
 
 ## Out of scope
 
@@ -214,14 +256,19 @@ reused thereafter. Extends DM-393's engine-agnostic acquisition logic.
 - Linux fallback-chain calibration (which key paints which block) — DM-259.
 - Color-emoji vector layers (Noto Color Emoji `CBDT`/`COLR`) — separate ticket.
 
-## Follow-ups to file
+## Status
 
-- Implement the C/C++ helper (`tools/linux-glyph-extractor/`) + CMake/build.sh +
-  Docker build image. **Blocked on a Linux build environment** (the C++ helper
-  can't be built/tested on macOS; the Docker harness can validate it).
-- Wire the linux asset into the release workflow (build on `ubuntu-*`, upload
-  `domotion-glyph-paths-linux-x64`) — extends DM-393's engine-agnostic
-  acquisition logic.
-- `tests/linux-glyph-extractor.test.ts` parity tests (DejaVu/Liberation `H`;
-  a FreeSans Math-Alpha case documenting the extractor returns empty there —
-  DM-838 is fixed capture-side, not by this helper).
+- ✅ **Helper implemented + built + tested** (DM-872): `tools/linux-glyph-extractor/`
+  (`src/main.cpp` + `CMakeLists.txt` + `build.sh` + `Dockerfile` + `README.md`),
+  parity tests in `tests/linux-glyph-extractor.test.ts`, and the
+  `linux-glyph-extractor` release job in `release-helpers.yml`. Built and
+  validated in the Playwright Linux container (Liberation `H` + FreeSans 𝑎 parity
+  with fontkit, byte-faithful).
+- ⏳ **Remaining — JS-side dispatch (separate follow-up).** The renderer does not
+  yet *invoke* the Linux helper: `src/render/coretext.ts` is still macOS-gated
+  (`process.platform === 'darwin'`). Generalizing the probe-then-fallback dispatch
+  to resolve + spawn the Linux asset (mirroring `createCoretextFont`) — including
+  the on-demand release-asset download into `$XDG_DATA_HOME/domotion/<version>/bin/`
+  — is its own chunk, naturally paired with the Linux fallback-chain calibration
+  (DM-259) that decides which fonts actually route through the helper.
+- ⏳ **arm64 asset** — open (see Open questions §3).

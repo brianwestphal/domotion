@@ -39,6 +39,9 @@ yourself to keep the first job's runtime down.
 The fastest way in is the `domotion` CLI — no TypeScript, no Playwright bring-up. Point it at a URL or HTML file:
 
 ```bash
+# Zero-install: run the published CLI straight from npm.
+npx domotion-svg capture https://example.com -o example.svg
+
 # Capture a URL as SVG.
 domotion capture https://example.com -o example.svg
 

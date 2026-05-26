@@ -14,10 +14,17 @@
  * Run `domotion --help` for the full option list.
  */
 
+import { createRequire } from "node:module";
 import { runCapture } from "./capture.js";
 import { runAnimate } from "./animate.js";
 
-const VERSION = "0.1.0";
+// Read the version from package.json at runtime rather than hardcoding it, so
+// `domotion --version` always matches the installed package (the literal had
+// drifted to 0.1.0 while the package was at 0.5.0). Resolved relative to this
+// file: dist/cli/index.js → ../../package.json is the package root, and the
+// same path holds for src/cli/index.ts under tsx in local dev.
+const require = createRequire(import.meta.url);
+const VERSION = (require("../../package.json") as { version: string }).version;
 
 const HELP = `domotion ${VERSION} — DOM-to-animated-SVG renderer
 
