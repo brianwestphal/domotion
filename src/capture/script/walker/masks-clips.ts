@@ -164,7 +164,14 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
       if (!clipPathDefs.has(fragId)) {
         const target = document.getElementById(fragId);
         if (target != null && target.tagName.toLowerCase() === 'clippath') {
-          clipPathDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
+          // SVG default for clipPathUnits is userSpaceOnUse (DM-828): the
+          // renderer translates those per-consumer; objectBoundingBox is shared.
+          const units = (target.getAttribute('clipPathUnits') || 'userSpaceOnUse').toLowerCase();
+          clipPathDefs.set(fragId, {
+            id: fragId,
+            outerHTML: target.outerHTML,
+            clipPathUnits: units === 'objectboundingbox' ? 'objectBoundingBox' : 'userSpaceOnUse',
+          });
         } else {
           warn(sel, 'clip-path', 'clip-path fragment "#' + fragId + '" did not resolve to an inline <clipPath> element');
         }

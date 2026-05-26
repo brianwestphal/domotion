@@ -856,6 +856,11 @@ export interface ClipPathFragmentDef {
   id: string;
   /** Verbatim `outerHTML` of the captured `<clipPath>` element. */
   outerHTML: string;
+  /** Resolved `clipPathUnits` — `"userSpaceOnUse"` (the SVG default) or
+   *  `"objectBoundingBox"`. The renderer needs this to decide whether the def
+   *  must be translated per-consumer (userSpaceOnUse coords are element-local;
+   *  objectBoundingBox auto-scales into the element bbox) — DM-828. */
+  clipPathUnits?: "userSpaceOnUse" | "objectBoundingBox";
 }
 
 export interface MaskRasterRef {

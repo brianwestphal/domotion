@@ -479,6 +479,28 @@ const tests: FeatureTest[] = [
     height: 90,
   },
 
+  // ── Regression: clip-path: url(#id) with clipPathUnits="userSpaceOnUse" (DM-828) ──
+  // The clipPath's coords are element-local (origin at the element's border-box,
+  // verified against Chrome), but Domotion draws content at absolute (x, y), so
+  // each consumer needs a copy of the clip translated to its own position. Two
+  // boxes at different x-offsets share one userSpaceOnUse triangle clip — before
+  // the fix both clips landed at the SVG origin (top-left), clipping both boxes
+  // wrongly; now each paints its own downward triangle in place.
+  {
+    name: "clip-path-userspaceonuse-fragment",
+    html: `<div style="padding: 16px; display: flex; gap: 16px;">
+      <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+        <clipPath id="us-tri" clipPathUnits="userSpaceOnUse">
+          <polygon points="0,0 120,0 60,90"/>
+        </clipPath>
+      </svg>
+      <div style="width: 120px; height: 90px; background: linear-gradient(135deg, #e91e63, #3f51b5); clip-path: url(#us-tri);"></div>
+      <div style="width: 120px; height: 90px; background: #16a34a; clip-path: url(#us-tri);"></div>
+    </div>`,
+    width: 304,
+    height: 122,
+  },
+
   // ── Regression: CSS filter + mix-blend-mode pass through to SVG (SK-433) ──
   // Three colored boxes with filters applied. The browser's SVG renderer honors
   // CSS 'filter' and 'mix-blend-mode' in <img src=svg>, so we pass the value

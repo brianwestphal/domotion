@@ -51,10 +51,10 @@ At render time:
 
 ### 2. `clipPathUnits` semantics
 
-The captured `<clipPath>`'s `clipPathUnits` attribute is **passed through verbatim** to the emitted def — no coordinate translation required.
+The captured `<clipPath>`'s `clipPathUnits` is recorded at capture time (`ClipPathFragmentDef.clipPathUnits`, defaulting to `userSpaceOnUse` per the SVG spec) and drives how the def is emitted:
 
-- `clipPathUnits="objectBoundingBox"` (the fixture case): the polygon / path coordinates are 0..1 fractions of the masked element's bounding box. SVG renderers compute the bbox of the `<g>` the `clip-path` is applied to and auto-scale the clipPath into it. Since the renderer already emits the element's painted content as children of a single `<g>`, the natural bbox lines up with the captured element rect and Chromium's painted output. **In scope for the initial cut.**
-- `clipPathUnits="userSpaceOnUse"` (the SVG default): the coordinates are absolute in the user coordinate system at the reference site. For HTML elements consuming a `<clipPath>`, that means the source-page user space — which doesn't map cleanly to our output SVG's absolute viewport coords. Faithful support would require translating every coordinate by the masked element's (x, y) origin, similar to `positionFragmentMaskDef()`. **Initially deferred** — no html-test fixture currently exercises this case; the only `<clipPath>` reference in the suite uses `objectBoundingBox`. If a real-world fixture surfaces a `userSpaceOnUse` clipPath, file a follow-up to land the coordinate translation.
+- `clipPathUnits="objectBoundingBox"`: the polygon / path coordinates are 0..1 fractions of the masked element's bounding box. SVG renderers compute the bbox of the `<g>` the `clip-path` is applied to and auto-scale the clipPath into it. Since the renderer already emits the element's painted content as children of a single `<g>`, the natural bbox lines up with the captured element rect and Chromium's painted output. Emitted **verbatim**, one shared def per source id.
+- `clipPathUnits="userSpaceOnUse"` (the SVG default): the coordinates are in the user coordinate system at the reference site. **Empirically (DM-828), for an HTML element that origin is the element's border-box top-left — element-local, NOT the source-page origin** (an earlier note here mis-stated it as page-absolute). Domotion draws the element's content at absolute (x, y) with no positioning transform, so each consumer gets a **per-(fragId, x, y) copy** of the clipPath with `transform="translate(x, y)"` added — `positionFragmentClipPathDef()`, the clipPath analogue of `positionFragmentMaskDef()`. (`<clipPath>` can't wrap children in a `<g>` — not a permitted child in SVG 1.1 — but it accepts a `transform` attribute, which Chrome honors.) **Implemented in DM-828.**
 
 ### 3. External-file fragment (`url("./shapes.svg#clip-id")`)
 
@@ -64,14 +64,15 @@ Deferred (matches doc 21's policy for the mask analogue). The `.svg` file is not
 
 - **Serialisation scope**: capture serialises the `<clipPath>` element's `outerHTML` verbatim. Descendants (nested `<polygon>` / `<path>` / `<use>`) ride along as part of that string. References from inside the clipPath subtree to outside defs (`url(#filter)` etc.) are not chased today — that's defensible because real `<clipPath>` content is overwhelmingly self-contained geometry. File a follow-up if a fixture surfaces a clipPath with transitive defs.
 - **Id rewriting**: reuse the existing `rewriteFragmentMaskDef()` machinery — it discovers every `id="…"` in the subtree, mints prefixed aliases (the outer element gets `${idPrefix}cpfragN`; descendants get `${idPrefix}fragid-${original}`), and rewrites `id`, `href`/`xlink:href`, and `url(#…)` references consistently. The helper is element-name-agnostic (it does not care whether the root tag is `<mask>` or `<clipPath>`), so a single shared `rewriteFragmentDef()` covers both paths. Refactor only as needed for clarity; otherwise keep the existing function and rename the file-level docstring + tests.
-- **Per-element placement**: for `objectBoundingBox` clipPaths, no per-element repositioning is required — SVG handles the auto-scaling natively. The renderer emits ONE clipPath def per (frame, source-id) tuple and references it from every masked element. For `userSpaceOnUse` (deferred), per-element translation would be required (mirror `positionFragmentMaskDef`'s pattern).
+- **Per-element placement**: for `objectBoundingBox` clipPaths, no per-element repositioning is required — SVG handles the auto-scaling natively, so the renderer emits ONE clipPath def per (frame, source-id) tuple and references it from every masked element. For `userSpaceOnUse` (DM-828) the renderer mints a per-`(fragId, elX, elY)` copy translated to the element's origin (`positionFragmentClipPathDef`), deduping identical positions — the same per-consumer-copy precedent as `resolveFragmentMaskRef`.
 - **Resource loading failures** (missing fragment id, target is not a `<clipPath>`) fall back gracefully — capture emits a per-element warning and the renderer skips the clip (so the element paints unclipped; same outcome as the pre-DM-826 baseline).
-- **Interaction with the `<geometry-box>` keyword** (DM-818): `clip-path: url(#id) padding-box` is grammatically valid (CSS Masking 1 §3.1). The renderer's existing geo-box stripping at `src/render/element-tree-to-svg.ts:543` already handles this — the residual shape value after stripping is just `url(#id)`. For `objectBoundingBox` clipPaths there's nothing to do (the geo-box doesn't affect a bbox-relative clipPath); for `userSpaceOnUse` clipPaths (deferred) the geo-box would be folded into the per-element translation.
+- **Interaction with the `<geometry-box>` keyword** (DM-818): `clip-path: url(#id) padding-box` is grammatically valid (CSS Masking 1 §3.1). The renderer's existing geo-box stripping at `src/render/element-tree-to-svg.ts:543` already handles this — the residual shape value after stripping is just `url(#id)`. For `objectBoundingBox` clipPaths there's nothing to do (the geo-box doesn't affect a bbox-relative clipPath); for `userSpaceOnUse` clipPaths (DM-828) the translate uses the border-box origin (the default) — a non-default box keyword's origin offset is a small deferred follow-up.
 
 ## What's deferred
 
-- `clipPathUnits="userSpaceOnUse"` — needs per-element coordinate translation. No fixture exercises it today; revisit if one surfaces.
-- External `.svg` file fragment refs (`url("./shapes.svg#id")`) — no fixture; same deferral policy as the mask-image analogue.
+- ~~`clipPathUnits="userSpaceOnUse"`~~ — **done in DM-828** (per-element translated copy via `positionFragmentClipPathDef`; fixture `clip-path-userspaceonuse-fragment` in `tests/features.ts`).
+- External `.svg` file fragment refs (`url("./shapes.svg#id")`) — DM-829. Same deferral policy as the mask-image analogue.
+- **Non-default `<geometry-box>` origin offset for `userSpaceOnUse`** — `clip-path: url(#id) padding-box` shifts the user-space origin to the padding box (inside the border); DM-828 translates by the border-box origin (the default, the common case). Folding the box-keyword offset into the translate is a small follow-up if a fixture surfaces it.
 - `<clipPath>` defs that reference other `<clipPath>` / `<mask>` / `<filter>` defs transitively — the rewriter passes those refs through unchanged today. Investigation ticket if a fixture surfaces a real cross-def chain.
 - Animated clipPaths (`<animate>` children inside the clipPath) — out of scope; capture is a static snapshot.
 
@@ -100,6 +101,6 @@ A unit test exercising id-rewriting on a synthetic clipPath outerHTML lives alon
 
 ## Follow-ups to file when this lands
 
-- `userSpaceOnUse` clipPaths — per-element coordinate translation, mirror `positionFragmentMaskDef`'s pattern.
-- External `.svg` file fragment refs — same deferral policy as the mask-image case (doc 21).
+- ~~`userSpaceOnUse` clipPaths — per-element coordinate translation~~ — done (DM-828).
+- External `.svg` file fragment refs — DM-829 (same deferral policy as the mask-image case, doc 21).
 - Investigation: cross-def chains (clipPath → filter, clipPath → mask) when/if surfaced by a real-world fixture.

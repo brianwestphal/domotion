@@ -243,26 +243,47 @@ export function elementTreeToSvg(
   }
   let fragmentClipPathCounter = 0;
   const fragmentClipPathOutputId = new Map<string, string>();
-  function resolveFragmentClipPathRef(clipPathCss: string): string | null {
+  function resolveFragmentClipPathRef(
+    clipPathCss: string,
+    elX: number, elY: number,
+  ): string | null {
     // Strip the optional <geometry-box> keyword so `url(#id) padding-box`
-    // matches; the box keyword doesn't affect bbox-relative clipPaths and
-    // the deferred userSpaceOnUse path will fold it in separately.
+    // matches; it doesn't affect bbox-relative clipPaths, and for
+    // userSpaceOnUse the border-box origin (the default) is what Chrome uses —
+    // a non-default box keyword's origin offset is a rare edge left for later.
     const stripped = clipPathCss.replace(/\b(?:content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i, "").trim();
     const m = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(stripped);
     if (m == null) return null;
     const fragId = m[1];
     const def = fragmentClipPathDefs.get(fragId);
     if (def == null) return null;
-    const cached = fragmentClipPathOutputId.get(fragId);
+
+    // The mask rewriter is element-name-agnostic (discovers ids, mints prefixed
+    // aliases, rewrites href / url() refs); the outer `<clipPath>`'s id becomes
+    // `outId`, descendants get the `${idPrefix}fragid-${original}` alias.
+    if ((def.clipPathUnits ?? "userSpaceOnUse") === "objectBoundingBox") {
+      // objectBoundingBox: coords are 0..1 fractions of the masked element's
+      // bbox — SVG auto-scales natively, so one shared def serves every
+      // consumer regardless of position (DM-826).
+      const cached = fragmentClipPathOutputId.get(fragId);
+      if (cached != null) return cached;
+      const outId = `${idPrefix}cpfrag${fragmentClipPathCounter++}`;
+      fragmentClipPathOutputId.set(fragId, outId);
+      defsParts.push(rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix));
+      return outId;
+    }
+
+    // userSpaceOnUse (the SVG default): coords are element-local but the element
+    // is drawn at absolute (elX, elY), so mint a per-position copy translated to
+    // match. Dedupe identical positions, mirroring resolveFragmentMaskRef
+    // (width/height don't matter for a clipPath — no bbox) — DM-828.
+    const cacheKey = `${fragId}|${r(elX)}|${r(elY)}`;
+    const cached = fragmentClipPathOutputId.get(cacheKey);
     if (cached != null) return cached;
     const outId = `${idPrefix}cpfrag${fragmentClipPathCounter++}`;
-    fragmentClipPathOutputId.set(fragId, outId);
-    // Reuse the mask rewriter — it's element-name-agnostic at the
-    // implementation level (discovers ids, mints prefixed aliases, rewrites
-    // href / url() refs). The outer `<clipPath>` element's id becomes
-    // `outId`; descendants get the `${idPrefix}fragid-${original}` alias.
+    fragmentClipPathOutputId.set(cacheKey, outId);
     const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
-    defsParts.push(rewritten);
+    defsParts.push(positionFragmentClipPathDef(rewritten, elX, elY));
     return outId;
   }
   function resolveFragmentMaskRef(
@@ -618,7 +639,7 @@ export function elementTreeToSvg(
         // top-level `clipPathDefs` collected at capture time; the def is
         // emitted into `<defs>` once and the masked element's wrapper `<g>`
         // gets `clip-path="url(#${outId})"`. See docs/39.
-        const fragId = resolveFragmentClipPathRef(clipPathCss);
+        const fragId = resolveFragmentClipPathRef(clipPathCss, el.x, el.y);
         if (fragId != null) clipPathUrlId = fragId;
       }
     }
@@ -4462,6 +4483,35 @@ export function positionFragmentMaskDef(
     .replace(/\sheight\s*=\s*'[^']*'/gi, "");
   attrs += ` maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(elW)}" height="${r(elH)}"`;
   return `<mask${attrs}><g transform="translate(${r(elX)}, ${r(elY)})">${inner}</g></mask>`;
+}
+
+/**
+ * DM-828: position a `clipPathUnits="userSpaceOnUse"` fragment clipPath for an
+ * HTML element at absolute (elX, elY). A userSpaceOnUse clipPath's coordinates
+ * are element-local — origin at the element's border-box top-left (verified
+ * against Chrome) — but Domotion draws the element's content at absolute
+ * (elX, elY) with no positioning transform, so the clip geometry must be
+ * shifted by (elX, elY) to land on it. `<clipPath>` can't wrap its children in
+ * a `<g>` (not a permitted clipPath child in SVG 1.1), but it *does* accept a
+ * `transform` attribute that maps its content into user space (Chrome honors
+ * it), so we add `translate(elX, elY)` there — composing with any transform the
+ * captured clipPath already carried (ours outermost, applied after theirs).
+ */
+export function positionFragmentClipPathDef(
+  rewrittenOuterHTML: string,
+  elX: number, elY: number,
+): string {
+  const openMatch = /^<clipPath\b([^>]*)>/i.exec(rewrittenOuterHTML);
+  if (openMatch == null) return rewrittenOuterHTML;
+  const translate = `translate(${r(elX)}, ${r(elY)})`;
+  let attrs = openMatch[1];
+  const existing = /\stransform\s*=\s*"([^"]*)"/i.exec(attrs) ?? /\stransform\s*=\s*'([^']*)'/i.exec(attrs);
+  if (existing != null) {
+    attrs = attrs.replace(existing[0], ` transform="${translate} ${existing[1]}"`);
+  } else {
+    attrs += ` transform="${translate}"`;
+  }
+  return `<clipPath${attrs}>${rewrittenOuterHTML.slice(openMatch[0].length)}`;
 }
 
 /**
