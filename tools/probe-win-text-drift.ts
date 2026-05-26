@@ -44,8 +44,11 @@ async function main(): Promise<void> {
   await page.setContent(HTML, { waitUntil: "load" });
   await page.evaluate(() => document.fonts.ready);
 
-  // Chromium's actual painted per-char left-x + baseline for #title / #subtitle.
-  // Body passed as a string to dodge tsx/esbuild's `__name` helper injection.
+  // Chromium's painted geometry for #title / #subtitle: per-char left-x, line
+  // box top/bottom, the ACTUAL alphabetic baseline (a 0-size inline-block with
+  // vertical-align:baseline sits its border-box bottom on the baseline), and the
+  // canvas fontBoundingBox metrics the renderer captures as `fontAscent`.
+  // String body dodges tsx/esbuild's `__name` helper injection.
   const painted = (await page.evaluate(`(() => {
     var out = {};
     var ids = ["title", "subtitle"];
@@ -62,10 +65,27 @@ async function main(): Promise<void> {
         xs.push(Math.round(range.getBoundingClientRect().left * 100) / 100);
       }
       var box = el.getBoundingClientRect();
-      out[ids[k]] = { text: text, charLeftX: xs, top: Math.round(box.top * 100) / 100, bottom: Math.round(box.bottom * 100) / 100 };
+      // Alphabetic baseline via a baseline-aligned marker.
+      var marker = document.createElement("span");
+      marker.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline";
+      el.appendChild(marker);
+      var baseline = Math.round(marker.getBoundingClientRect().top * 100) / 100;
+      el.removeChild(marker);
+      // Canvas metrics = what capture records as fontAscent (font-metrics.ts).
+      var cs = getComputedStyle(el);
+      var cv = document.createElement("canvas").getContext("2d");
+      cv.font = cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+      var m = cv.measureText("Mxgp");
+      out[ids[k]] = {
+        text: text, charLeftX: xs,
+        top: Math.round(box.top * 100) / 100, bottom: Math.round(box.bottom * 100) / 100,
+        baseline: baseline,
+        fbbAscent: Math.round(m.fontBoundingBoxAscent * 100) / 100,
+        fbbDescent: Math.round(m.fontBoundingBoxDescent * 100) / 100
+      };
     }
     return out;
-  })()`)) as Record<string, { text: string; charLeftX: number[]; top: number; bottom: number } | null>;
+  })()`)) as Record<string, { text: string; charLeftX: number[]; top: number; bottom: number; baseline: number; fbbAscent: number; fbbDescent: number } | null>;
 
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
   const segs: CapturedElement[] = [];
@@ -73,11 +93,12 @@ async function main(): Promise<void> {
 
   console.log("=== captured text segments ===");
   for (const el of segs) {
-    const tss = (el as { textSegments?: Array<{ text: string; x: number; y: number; width: number; xOffsets?: number[] }> }).textSegments;
+    const tss = (el as { textSegments?: Array<{ text: string; x: number; y: number; width: number; xOffsets?: number[]; fontAscent?: number }> }).textSegments;
     if (!tss) continue;
+    const elAscent = (el as { fontAscent?: number }).fontAscent;
     for (const s of tss) {
       console.log(
-        `seg "${s.text}"  x=${r(s.x)} y=${r(s.y)} w=${r(s.width)}  xOffsets=${s.xOffsets ? `[n=${s.xOffsets.length}] ${s.xOffsets.map(r).join(",")}` : "ABSENT"}`,
+        `seg "${s.text}"  x=${r(s.x)} y=${r(s.y)} w=${r(s.width)} fontAscent=${s.fontAscent ?? elAscent}  xOffsets=${s.xOffsets ? `[n=${s.xOffsets.length}]` : "ABSENT"}`,
       );
     }
   }
@@ -85,22 +106,22 @@ async function main(): Promise<void> {
   for (const which of ["title", "subtitle"] as const) {
     const p = painted[which];
     if (!p) continue;
-    console.log(`\n=== ${which}: Chromium painted "${p.text}" ===`);
-    console.log(`  painted top=${p.top} bottom=${p.bottom}`);
-    console.log(`  painted per-char left-x: ${p.charLeftX.join(",")}`);
-    // Find the matching captured segment and diff.
-    let captured: { x: number; y: number; xOffsets?: number[] } | undefined;
+    // Find the matching captured segment + its element ascent.
+    let captured: { y: number; xOffsets?: number[]; fontAscent?: number } | undefined;
+    let elAscent: number | undefined;
     for (const el of segs) {
-      const tss = (el as { textSegments?: Array<{ text: string; x: number; y: number; xOffsets?: number[] }> }).textSegments;
+      const tss = (el as { textSegments?: Array<{ text: string; y: number; xOffsets?: number[]; fontAscent?: number }> }).textSegments;
       const match = tss?.find((s) => s.text === p.text);
-      if (match) { captured = match; break; }
+      if (match) { captured = match; elAscent = (el as { fontAscent?: number }).fontAscent; break; }
     }
-    if (!captured) { console.log("  (no matching captured segment)"); continue; }
-    console.log(`  captured seg y=${r(captured.y)}  xOffsets ${captured.xOffsets ? "present" : "ABSENT"}`);
-    if (captured.xOffsets) {
-      const deltas = captured.xOffsets.map((xo, i) => Math.round((xo - p.charLeftX[i]) * 100) / 100);
-      console.log(`  Δ(captured − painted) per char: ${deltas.join(",")}`);
-      console.log(`  max |Δ| = ${Math.max(...deltas.map(Math.abs))}`);
+    console.log(`\n=== ${which}: "${p.text}" ===`);
+    console.log(`  painted: lineBox top=${p.top} bottom=${p.bottom} (h=${r(p.bottom - p.top)}), alphabetic baseline=${p.baseline}, fontBoundingBox asc=${p.fbbAscent} desc=${p.fbbDescent} (h=${r(p.fbbAscent + p.fbbDescent)})`);
+    const xMax = captured?.xOffsets ? Math.max(...captured.xOffsets.map((xo, i) => Math.abs(xo - p.charLeftX[i]))) : NaN;
+    console.log(`  captured: y(textTop)=${captured ? r(captured.y) : "?"} fontAscent=${captured?.fontAscent ?? elAscent ?? "?"}  xOffsets ${captured?.xOffsets ? `present (max|Δx|=${r(xMax)})` : "ABSENT"}`);
+    const capAscent = captured?.fontAscent ?? elAscent;
+    if (captured && capAscent != null) {
+      const domotionBaseline = captured.y + capAscent;
+      console.log(`  → Domotion baseline = textTop+fontAscent = ${r(domotionBaseline)} vs Chromium painted baseline ${p.baseline}  ⇒ vertical Δ = ${r(domotionBaseline - p.baseline)} px`);
     }
   }
 
