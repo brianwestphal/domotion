@@ -5,9 +5,12 @@ name: Windows fidelity
 # in a Linux container — Wine's dwrite reimplementation does not match real
 # Windows fallback, and the Windows system fonts aren't redistributable.
 #
-# Manual-dispatch only: until the win32 font-fallback chain is calibrated the
-# regression diffs are expected to be large, so this is NOT wired to push/PR.
-# Run it from the Actions tab ("Run workflow") when you want fresh numbers.
+# Manual-dispatch (run from the Actions tab) to keep the per-PR cost off every
+# push; the win32 fallback chain is now calibrated and the feature suite passes
+# within the documented Windows text-hinting floor (DM-836 / DM-262), so the
+# `regression` job is green on a clean branch and goes red on genuine breakage.
+# It can be promoted to a push/PR gate when the maintainer wants Windows in the
+# required-checks set.
 #
 # Produces two downloadable artifacts:
 #   - font-widths-windows  : Chromium-on-Windows painted advance widths (JSON),
@@ -56,9 +59,11 @@ jobs:
       - name: Install Chromium
         run: npx playwright install chromium
       - name: Run feature visual-regression suite
-        # Until the win32 fallback chain is calibrated this exits non-zero on the
-        # text/font fixtures, so the job legitimately goes red. The diff PNGs are
-        # still uploaded below (if: always()) — that artifact is the point.
+        # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
+        # runner applies a per-platform coverage cap on win32 because DirectWrite
+        # grid-fits native text while Domotion fills unhinted vector outlines.
+        # Genuine breakage (missing fonts → tofu) exceeds the floor and fails.
+        # Diff PNGs still upload below (if: always()) for review.
         run: npm run demos:test
       - name: Upload expected/actual/diff PNGs
         if: always()
