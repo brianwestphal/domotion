@@ -189,20 +189,23 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // classified as glyph anti-aliasing by the Yee detector. avg / sig / tile
   // metrics are diagnostic.
   const cmp = await comparePngs(w.comparePage, expectedPath, actualPath, diffPath);
-  // DM-262 / DM-884: Windows carries an irreducible path-mode text-hinting
-  // floor. DirectWrite grid-fits native text (the `expected` paint), but
-  // Domotion fills unhinted vector glyph outlines (`paths` mode, pinned by this
-  // harness), so every glyph edge diffs sub-pixel even when font + position
-  // match Chromium EXACTLY (verified per-char Δx=0 and baseline Δ=0 — DM-884).
-  // macOS stays the strict per-pixel gate (`regionCount === 0`) and catches real
-  // rendering regressions; the Windows visual job's role is to catch gross
-  // breakage (missing fonts → tofu → far higher coverage), so it tolerates the
-  // hinting floor via a coverage cap. Max observed hinting coverage is 3.34%
-  // (all 18 failing fixtures are text-edge diffs); cap at 4% with headroom.
-  const WIN32_HINTING_FLOOR_PCT = 4.0;
+  // DM-262 / DM-884: non-macOS platforms carry an irreducible path-mode text-
+  // hinting floor. The native paint (`expected`) is grid-fitted by the platform
+  // rasterizer (DirectWrite on Windows, FreeType on Linux), but Domotion fills
+  // unhinted vector glyph outlines (`paths` mode, pinned by this harness), so
+  // every glyph edge diffs sub-pixel even when font + position match Chromium
+  // EXACTLY (verified per-char Δx=0 and baseline Δ=0 — DM-884). macOS stays the
+  // strict per-pixel gate (`regionCount === 0`) and catches real rendering
+  // regressions; the Linux/Windows visual jobs catch gross breakage (missing
+  // fonts → tofu → far higher coverage), so they tolerate the floor via a
+  // per-platform coverage cap. Caps sit above the max observed hinting coverage:
+  //   - win32: 3.34% observed (DirectWrite, heavy hinting) → cap 4%
+  //   - linux: 0.58% observed (FreeType, lighter hinting)  → cap 1%
+  const HINTING_FLOOR_PCT: Record<string, number> = { win32: 4.0, linux: 1.0 };
+  const floorPct = HINTING_FLOOR_PCT[process.platform] ?? 0;
   let pass: boolean;
-  if (process.platform === "win32") {
-    pass = cmp.coveragePct <= Math.max(WIN32_HINTING_FLOOR_PCT, test.relaxedDiffPct ?? 0);
+  if (floorPct > 0) {
+    pass = cmp.coveragePct <= Math.max(floorPct, test.relaxedDiffPct ?? 0);
   } else if (test.relaxedDiffPct != null) {
     pass = cmp.diffPct <= test.relaxedDiffPct && cmp.sigPixelPct === 0;
   } else {

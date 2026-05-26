@@ -1,5 +1,7 @@
 tests/output/
 tests/cache/
+examples/output/*.mp4
+examples/output/*.webm
 node_modules/
 external/
 dist/

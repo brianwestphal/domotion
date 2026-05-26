@@ -306,6 +306,33 @@ it's an `apt install fonts-noto-core fonts-noto-cjk` step in the container/CI
 plus a re-probe of the CJK/symbol blocks** (the Latin primaries stay Liberation).
 Left as a decision for DM-262 (CI wiring), where the font-install policy lives.
 
+## Per-platform visual-gate hinting floor (DM-262 / DM-884)
+
+Calibrating the fallback chain makes the renderer pick the *right* face, but the
+feature visual-regression suite (`tests/runner.tsx`, `paths` mode) still can't
+hit per-pixel parity with the native paint on non-macOS platforms — and that
+gap is **not** a fallback or positioning bug. The `expected` PNG is the platform
+rasterizer painting text natively with grid-fitting/hinting (DirectWrite on
+Windows, FreeType on Linux); the `actual` is Domotion filling **unhinted vector
+glyph outlines**. DM-884 proved per-char `xOffsets` (Δx = 0) and baseline
+(Δ = 0) match Chromium exactly in the same font, so the residual diff is purely
+the hinting of the outline raster — irreducible without a hinting engine.
+
+So the runner applies a **per-platform coverage cap** that absorbs the hinting
+floor while still failing on gross breakage (missing fonts → tofu → far higher
+coverage). macOS stays the strict per-pixel gate (`regionCount === 0`) and is
+the real regression catch.
+
+| Platform | Rasterizer | Max observed hinting coverage | Gate |
+| --- | --- | --- | --- |
+| macOS | CoreText (light) | ~0% (outline ≈ paint) | strict `regionCount === 0` |
+| Linux | FreeType | 0.58% (4 fixtures) | `coveragePct ≤ 1%` |
+| Windows | DirectWrite (heavy) | 3.34% (18 fixtures) | `coveragePct ≤ 4%` |
+
+Both non-macOS suites are green at these caps (Linux via `npm run
+test:linux-docker`; Windows via `windows-fidelity.yml`, 97/97). The cap lives in
+`tests/runner.tsx` (`HINTING_FLOOR_PCT`).
+
 ## Acceptance criteria
 
 - **DM-259**: probe results documented per Unicode block on Linux; `linuxFallbackChain`
