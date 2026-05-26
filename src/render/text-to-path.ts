@@ -2795,7 +2795,15 @@ function renderTextAsEmbedded(
     for (let i = 0; i < layout.glyphs.length; i++) {
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
-      const cmds = glyph.path?.commands ?? [];
+      // DM-892: route through commandsFor so the DM-891 per-glyph helper
+      // fallback applies in embedded mode too — when fontkit decodes an
+      // inkable, cmap-covered glyph as empty (a partial CFF/CJK face), the
+      // native helper supplies its outline. commandsFor returns fontkit-shaped
+      // PathCommand[], which trackGlyphInEmbedFont already converts into the
+      // synthesized TTF's glyf, so the helper outline lands in the embedded
+      // font with no extra construction. (Inert on macOS, like DM-891: every
+      // fontkit-empty glyph here is legitimately inkless and the helper agrees.)
+      const cmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant);
       const placement = trackGlyphInEmbedFont(
         instanceKey, run.font.unitsPerEm, runAscent, runDescent,
         glyph.id, cmds, glyph.advanceWidth,

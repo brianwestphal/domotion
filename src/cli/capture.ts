@@ -24,6 +24,8 @@ import {
 import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
 import {
   applyReadyWaits,
+  inferHarPageUrl,
+  isHarPath,
   isSvgzPath,
   loadInputIntoPage,
   makeLogger,
@@ -75,6 +77,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "scroll-speed":     { type: "string" },
       "scroll-selector":  { type: "string" },
       "no-prescroll":     { type: "boolean" },
+      url:                { type: "string" },
+      "har-fallback":     { type: "boolean" },
       quiet:              { type: "boolean" },
       help:               { type: "boolean", short: "h" },
     },
@@ -87,6 +91,13 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   }
 
   const input = positionals[0];
+  // DM-889: a `.har` input is replayed offline via routeFromHAR (auto-detected
+  // by extension, like `.svgz` output). `--url` / `--har-fallback` only apply
+  // there, so reject them on a non-HAR input rather than silently ignoring.
+  const har = isHarPath(input);
+  if (!har && (values.url != null || values["har-fallback"] === true)) {
+    throw new Error("capture: --url / --har-fallback only apply to a .har input");
+  }
   // svgz is auto-detected from the output filename extension; it implies
   // --optimize unless the caller passed --no-optimize.
   const svgz = isSvgzPath(values.output);
@@ -127,8 +138,22 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // tracker is how `discoverAndRegisterWebfonts` learns about them.
     const tracker = attachWebfontTracker(page);
 
-    log(`Loading ${input}…`);
-    await timed(log, "  loaded", () => loadInputIntoPage(page, input));
+    if (har) {
+      // DM-889: replay the HAR offline. Route every request through the archive
+      // (notFound: "abort" → strict, every asset must be in the HAR; opt into
+      // the live network with --har-fallback), then navigate to the inferred
+      // (or --url-overridden) main document URL.
+      const harUrl = values.url ?? inferHarPageUrl(input);
+      await ctx.routeFromHAR(input, {
+        url: "**/*",
+        notFound: values["har-fallback"] === true ? "fallback" : "abort",
+      });
+      log(`Loading ${harUrl} from HAR ${input}…`);
+      await timed(log, "  loaded (HAR replay)", () => page.goto(harUrl, { waitUntil: "load" }));
+    } else {
+      log(`Loading ${input}…`);
+      await timed(log, "  loaded", () => loadInputIntoPage(page, input));
+    }
     await timed(log, "  page settled", () => applyReadyWaits(page, flags));
 
     // Webfont discovery: now that document.fonts.ready resolved, walk the

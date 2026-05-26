@@ -36,6 +36,41 @@ export function parseTuple(value: string, len: number, name: string): number[] {
   return nums;
 }
 
+/** True when the input is an HTTP-Archive file (auto-detected by extension,
+ *  like `.svgz` output). DM-889. */
+export function isHarPath(input: string): boolean {
+  return input !== "-" && /\.har$/i.test(input);
+}
+
+/**
+ * Infer the main-document URL to navigate to when capturing from a HAR. Prefers
+ * `log.pages[0].title` when it's a URL (some recorders set it), else the first
+ * 2xx `text/html` entry's request URL, else the first entry's URL. Throws when
+ * none can be found (caller should require `--url`). DM-889.
+ */
+export function inferHarPageUrl(harPath: string): string {
+  let har: unknown;
+  try {
+    har = JSON.parse(readFileSync(harPath, "utf8"));
+  } catch (e) {
+    throw new Error(`could not read HAR file ${harPath}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const log = (har as { log?: { pages?: Array<{ title?: string }>; entries?: Array<{ request?: { url?: string }; response?: { status?: number; content?: { mimeType?: string } } }> } })?.log;
+  const pageTitle = log?.pages?.[0]?.title;
+  if (typeof pageTitle === "string" && /^https?:\/\//i.test(pageTitle)) return pageTitle;
+  const entries = Array.isArray(log?.entries) ? log!.entries! : [];
+  const htmlEntry = entries.find((e) => {
+    const status = e?.response?.status;
+    const mime = e?.response?.content?.mimeType ?? "";
+    return typeof status === "number" && status >= 200 && status < 300 && /text\/html/i.test(mime);
+  });
+  const url = htmlEntry?.request?.url ?? entries[0]?.request?.url;
+  if (typeof url !== "string" || url === "") {
+    throw new Error(`could not infer a page URL from ${harPath} (no usable entries) — pass --url <url>`);
+  }
+  return url;
+}
+
 export async function loadInputIntoPage(page: Page, input: string): Promise<void> {
   if (input === "-") {
     const html = readFileSync(0, "utf8"); // stdin

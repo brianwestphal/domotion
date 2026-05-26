@@ -4,6 +4,7 @@ import * as fontkit from "fontkit";
 import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
+import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -280,6 +281,62 @@ describe("commandsFor (per-glyph fallback routing)", () => {
     const fallback = commandsFor({ path: { commands: [] }, id: hId, codePoints: [0x48] }, "helvetica", 400, 16, 0);
     expect(fallback.length).toBeGreaterThan(0);            // the helper produced a real outline
     expect(fallback.some((c) => c.command === "moveTo")).toBe(true);
+  });
+});
+
+// DM-892: the per-glyph helper fallback in EMBEDDED-FONT mode (the production
+// default). Where paths-mode emits a `<path>`, embedded mode bakes the glyph
+// into a synthesized TTF via `trackGlyphInEmbedFont`. Because the helper returns
+// fontkit-shaped PathCommand[] and the builder already converts those into the
+// TTF `glyf`, the fix is just routing the embedded glyph loop through
+// `commandsFor`. These tests prove the resulting glyf is a real (non-empty)
+// contour — i.e. the helper outline actually lands in the embedded font.
+describe("embedded-font mode: per-glyph helper fallback (DM-892)", () => {
+  beforeEach(() => { __clearGlyphFallbackCaches(); clearEmbeddedFonts(); });
+  afterEach(() => { clearEmbeddedFonts(); });
+
+  // Re-parse the single built TTF out of the @font-face CSS and return the
+  // glyph fontkit resolves for `pua`.
+  function builtGlyphForPua(pua: number): { path: { commands: Array<{ command: string }> } } {
+    const css = getEmbeddedFontFaceCss();
+    const b64 = /base64,([A-Za-z0-9+/=]+)"\)/.exec(css)?.[1];
+    expect(b64).toBeTruthy();
+    const ttf = fontkit.create(Buffer.from(b64!, "base64")) as any;
+    return ttf.glyphForCodePoint(pua);
+  }
+
+  it("converts a helper-supplied outline (fontkit-shaped commands) into a non-empty TTF glyf", () => {
+    // A box contour, the shape a helper would hand back for an inkable glyph
+    // fontkit couldn't decode. trackGlyphInEmbedFont must bake it into the TTF.
+    const helperCmds = [
+      { command: "moveTo", args: [100, 0] },
+      { command: "lineTo", args: [100, 700] },
+      { command: "lineTo", args: [600, 700] },
+      { command: "lineTo", args: [600, 0] },
+      { command: "closePath", args: [] },
+    ];
+    const placement = trackGlyphInEmbedFont("dm892-fake|w=400|s=0", 1000, 800, -200, 42, helperCmds, 700);
+    expect(placement).not.toBeNull();
+    expect(builtGlyphForPua(placement!.puaCodepoint).path.commands.length).toBeGreaterThan(0);
+  });
+
+  // End-to-end on macOS: the exact chain a partial font triggers — fontkit
+  // returns empty for an inkable glyph, `commandsFor` pulls the helper outline,
+  // and it bakes into the embedded TTF as a real contour. Gated like DM-891.
+  const HELVETICA = "/System/Library/Fonts/Helvetica.ttc";
+  const HELPER = "tools/macos-glyph-extractor/domotion-glyph-paths";
+  const canRun = process.platform === "darwin" && existsSync(HELVETICA) && existsSync(HELPER);
+  (canRun ? it : it.skip)("bakes the helper outline into the embedded TTF when fontkit hands back empty", () => {
+    const col = fontkit2.openSync(HELVETICA) as any;
+    const f = col.getFont != null ? col.getFont("Helvetica") : col;
+    const h = f.glyphForCodePoint(0x48);
+    // Fake the "empty" the same way the paths-mode DM-891 test does, then run
+    // the production routing: commandsFor → helper outline → embedded TTF.
+    const cmds = commandsFor({ path: { commands: [] }, id: h.id, codePoints: [0x48] }, "helvetica", 400, 16, 0);
+    expect(cmds.length).toBeGreaterThan(0);
+    const placement = trackGlyphInEmbedFont("dm892-helvetica|w=400|s=0", f.unitsPerEm, f.ascent, f.descent, h.id, cmds, h.advanceWidth);
+    expect(placement).not.toBeNull();
+    expect(builtGlyphForPua(placement!.puaCodepoint).path.commands.length).toBeGreaterThan(0);
   });
 });
 

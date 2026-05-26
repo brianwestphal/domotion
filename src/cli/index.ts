@@ -9,6 +9,7 @@
  * `<input>` for `capture` may be:
  *   - a URL (`https://...`, `http://...`)
  *   - a local HTML file path
+ *   - a `.har` file (HTTP-Archive) — replayed offline (DM-889)
  *   - `-` to read HTML from stdin
  *
  * Run `domotion --help` for the full option list.
@@ -34,7 +35,7 @@ Usage:
   domotion --help | --version
 
 Commands:
-  capture   Capture a single frame from a URL or HTML file as SVG.
+  capture   Capture a single frame from a URL, HTML file, or .har archive as SVG.
   animate   Capture multiple frames described by a JSON config and stitch
             them into one animated SVG with CSS keyframe transitions.
 
@@ -72,6 +73,17 @@ capture options:
       --warnings           Log capture warnings to stderr after capture.
       --mobile             Emulate a mobile device (iOS UA, isMobile=true).
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
+
+  HAR replay (when <input> ends in .har): the archive is replayed offline —
+  every request is served from the HAR, so the capture is deterministic and
+  needs no network. The main-document URL is inferred from the HAR; override
+  it with --url. Output defaults to <input>.svg.
+      --url <url>          Main-document URL to navigate to within the HAR.
+                           Default: inferred (recorded page URL, else the first
+                           text/html entry). Only valid with a .har input.
+      --har-fallback       Let requests missing from the HAR hit the live
+                           network instead of aborting. Default: abort (strict
+                           offline). Only valid with a .har input.
 
 animate config (JSON):
   {

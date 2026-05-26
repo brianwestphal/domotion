@@ -229,10 +229,12 @@ trigger (a faked-empty Helvetica `H`) and confirms the helper returns a real
 outline; the feature suite is unchanged on macOS and the Linux Docker visual
 baseline stays green (98/98) with the fallback active.
 
-**Not covered (follow-ups):**
+**Follow-ups:**
 - **Embedded-font mode** (`renderTextAsEmbedded`, the production default) emits a
-  synthesized TTF, not SVG `<path>`s — supplying a helper outline there means
-  injecting it into the TTF `glyf`, a different mechanism. Filed separately.
+  synthesized TTF, not SVG `<path>`s. **Done (DM-892, `docs/52`):** the helper
+  returns fontkit-shaped `PathCommand[]` and `trackGlyphInEmbedFont` already
+  converts those into the TTF `glyf`, so the embedded glyph loop just routes
+  through the same `commandsFor` — no bespoke glyf construction needed.
 - **Stretchy math fences** (`renderStretchyFenceGlyph`) need the glyph's `bbox`
   to stretch, which the helper's outline response doesn't carry — left as-is
   (the niche path returns null on an empty glyph, the prior behavior).

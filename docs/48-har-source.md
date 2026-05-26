@@ -3,14 +3,14 @@
 Requirements for accepting an HTTP-Archive (`.har`) file as a `domotion capture`
 input, alongside the existing URL / local-HTML / stdin sources. Origin: DM-883.
 
-> **Status: investigation concluded (DM-883) — implementation deferred (DM-889).**
-> Feasibility is high and the design below stands. The maintainer confirmed no
-> specific driving use case ("thought it might be useful"), so rather than ship
-> public CLI surface speculatively, the **recommended default for each open
-> decision is adopted as the plan** (none were overridden) and implementation is
-> filed, ready to build, as **DM-889** — to land when a use case arises or it's
-> explicitly green-lit. The "Open decisions" section below records the adopted
-> defaults.
+> **Status: implemented (DM-889).** `domotion capture page.har` replays a HAR
+> offline. Every adopted default below shipped as written: auto-detect by `.har`
+> extension, infer the main-document URL (override with `--url`), default to
+> strict `notFound: "abort"` (opt into the live network with `--har-fallback`),
+> single-page `capture` only. The one refinement made during implementation:
+> URL inference uses `log.pages[0].title` when it's a URL, else the first 2xx
+> `text/html` entry, else the first entry — Playwright-recorded HARs leave
+> `log.pages` empty, so the simpler entry scan is the reliable path.
 
 ## Why
 
@@ -47,11 +47,12 @@ change. No new dependency.
    (mirrors the `.svgz`-by-extension output detection). So
    `domotion capture page.har -o out.svg` "just works".
 2. **Page URL resolution.** A HAR can contain many entries; we need the main
-   document's URL to `goto`. Resolve in order:
+   document's URL to `goto`. Resolve in order (`inferHarPageUrl`,
+   `src/cli/common.ts`):
    - explicit `--url <url>` flag (required for multi-page HARs / disambiguation);
-   - else the HAR's `log.pages[0]` → the entry whose `pageref` matches with an
-     HTML `response.content.mimeType` (the top-level document);
-   - else the first `text/html` 200 entry.
+   - else `log.pages[0].title` when it's an `http(s)` URL (some recorders set it);
+   - else the first 2xx `text/html` entry's `request.url`;
+   - else the first entry's `request.url`.
    Error clearly if none can be found (tell the user to pass `--url`).
 3. **Replay.** On the context:
    `routeFromHAR(harPath, { url: "**/*", notFound: "abort" })` — strict offline
@@ -70,11 +71,10 @@ domotion capture page.har --url https://x.com/ -o …  # disambiguate multi-page
 domotion capture page.har --har-fallback -o …        # let missing assets hit network
 ```
 
-## Decisions (adopted defaults)
+## Decisions (as implemented)
 
 No driving use case surfaced (DM-883), so the recommended default for each was
-adopted as the implementation plan (DM-889); none were overridden. A later
-green-light could still revisit any of these before/at implementation.
+adopted as the implementation (DM-889); none were overridden.
 
 1. **CLI surface** — **auto-detect** a `.har` input (consistent with `.svgz`
    output detection). Considered + not chosen: a separate `--har <path>` flag
