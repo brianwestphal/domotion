@@ -1,8 +1,14 @@
 // Public surface of the animation pipeline. The composer
 // (`generateAnimatedSvg`) consumes per-frame element trees + transition /
 // overlay config and emits one self-contained SVG with `@keyframes` cross-
-// fade / push-left / scroll / cut transitions and optional typing / tap /
-// SVG / cursor overlays.
+// fade / push-left / scroll / cut / magic-move transitions and optional
+// typing / tap / SVG / cursor overlays.
+
+export {
+  buildMagicMove,
+  type MagicMove,
+  type MagicMoveSlide,
+} from "./magic-move.js";
 
 export {
   generateAnimatedSvg,

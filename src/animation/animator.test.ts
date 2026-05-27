@@ -112,6 +112,49 @@ describe("animator", () => {
     expect(svg).toMatch(/@keyframes fp-0/);
   });
 
+  it("DM-898: magic-move emits the bridge composite + slide/fade keyframes", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        {
+          svgContent: `<rect class="prev"/>`,
+          duration: 1000,
+          transition: { type: "magic-move", duration: 200 },
+          magicMove: {
+            compositeSvg: `<g class="anim-mm0-mv0"><rect/></g>`,
+            slides: [{ cls: "anim-mm0-mv0", dx: 50, dy: 80 }],
+            fadeIn: ["anim-mm0-in0"],
+            fadeOut: ["anim-mm0-out0"],
+          },
+        },
+        { svgContent: `<rect class="next"/>`, duration: 1000 },
+      ],
+    });
+    // Bridge composite group is emitted.
+    expect(svg).toContain(`class="f mm-0"`);
+    expect(svg).toContain(`<g class="anim-mm0-mv0">`);
+    // Slide keyframe carries the negated prev→next delta as the start state.
+    expect(svg).toMatch(/@keyframes mms-anim-mm0-mv0/);
+    expect(svg).toContain("translate(-50.00px, -80.00px)");
+    // Added fades in, removed fades out.
+    expect(svg).toMatch(/@keyframes mmf-anim-mm0-in0/);
+    expect(svg).toMatch(/@keyframes mmf-anim-mm0-out0/);
+  });
+
+  it("DM-898: magic-move with no bridge layer falls back to a crossfade-style fade (never throws)", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        // type is magic-move but magicMove is null → must degrade gracefully.
+        { svgContent: `<rect/>`, duration: 1000, transition: { type: "magic-move", duration: 200 }, magicMove: null },
+        { svgContent: `<rect/>`, duration: 1000 },
+      ],
+    });
+    // No bridge group emitted; the opacity (fv-) crossfade path is used instead.
+    expect(svg).not.toContain(`class="f mm-0"`);
+    expect(svg).toMatch(/@keyframes fv-0/);
+  });
+
   it("non-crossfade transitions are unaffected", () => {
     const svg = generateAnimatedSvg({
       width: 100,

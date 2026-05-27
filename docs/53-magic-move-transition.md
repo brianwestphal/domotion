@@ -6,9 +6,21 @@ shared elements animate from their old position/size/style to their new one
 (rather than the whole frame cross-fading), so the eye tracks each object
 across the cut. Origin: DM-112.
 
-> **Status: SPECIFIED.** This doc is the contract; implementation is split into
-> the follow-up tickets listed under [Phasing](#phasing). Maintainer decisions
-> are recorded in [Decisions](#decisions-adopted).
+> **Status: PHASE 1 IMPLEMENTED (DM-898).** The core (translate-only moves +
+> cross-faded add/remove) ships in `src/animation/magic-move.ts` +
+> `generateAnimatedSvg`'s `magic-move` branch + the CLI wiring. Phases 2-4
+> (size/style morph, `data-magic-key`, reduced-motion/nesting) remain — see
+> [Phasing](#phasing). Maintainer decisions are in [Decisions](#decisions-adopted).
+>
+> **Architecture note (revised in DM-898):** the original sketch below had the
+> animator re-render from the trees. That isn't workable — the caller finalizes
+> the glyph/font `<defs>` (`getEmbeddedFontFaceCss()`) *before* calling
+> `generateAnimatedSvg`, so re-rendering inside the animator would reference
+> glyphs missing from the emitted defs. The bridge layer is therefore built
+> **caller-side** (`buildMagicMove`, invoked from `src/cli/animate.ts` while the
+> page/trees are live and before defs are finalized) and passed to the animator
+> as a pre-rendered `frame.magicMove` payload; the animator only schedules it
+> and emits the keyframes.
 
 ## Goal
 
@@ -109,16 +121,19 @@ already does for shared static content).
 
 ## Phasing
 
-Each becomes a follow-up ticket (filed from this ticket):
+Each is a follow-up ticket (filed from DM-112):
 
-1. **Core transition + tree threading** — add the `magic-move` type, thread
-   element trees to the animator, wire `diffTrees`, emit translate-only moves +
-   crossfade unmatched. Smallest end-to-end slice that demonstrates the effect.
-2. **Size + style morph** — add scale and color/opacity/border tweening to
-   matched elements (decision #2's full scope).
-3. **Author match keys** — capture `data-magic-key` and the key-first matching
-   override (decision #1's override half).
-4. **Reduced-motion + nesting hardening + a feature fixture** — the
-   `prefers-reduced-motion` fallback, the parent/child relative-transform rule,
-   and a `tests/features.ts` fixture (two frames sharing a relocating/resizing
-   card) plus a showcase example.
+1. ✅ **Core transition + tree threading (DM-898, done).** `magic-move` type +
+   Zod enum; caller-side bridge builder (`buildMagicMove`) wired into the CLI
+   (which has the live trees / pre-defs render); `diffTrees`-driven translate
+   moves + cross-faded add/remove; highest-matched-ancestor nesting handled even
+   here (else a moved card's moved children double-translate); crossfade
+   fallback when no bridge. Unit-tested + verified end-to-end (a card slides
+   diagonally while add/remove cross-fade).
+2. **Size + style morph (DM-899)** — add scale and color/opacity/border tweening
+   to matched elements (decision #2's full scope). Phase 1 is translate-only.
+3. **Author match keys (DM-900)** — capture `data-magic-key` and the key-first
+   matching override (decision #1's override half).
+4. **Reduced-motion + nesting hardening + a feature fixture (DM-901)** — the
+   `prefers-reduced-motion` fallback, deeper parent/child relative-transform
+   rules, a `tests/features.ts` fixture, and a showcase example.

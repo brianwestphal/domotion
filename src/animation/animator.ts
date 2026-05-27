@@ -6,6 +6,7 @@
  */
 
 import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
+import type { MagicMove } from "./magic-move.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -30,11 +31,26 @@ export interface AnimationFrame {
      * `crossfade` (default) overlaps fade-out and fade-in. `push-left` slides
      * the outgoing frame off and the incoming frame in from the right.
      * `scroll` keeps both visible during the transition. `cut` is instant —
-     * no fade, no slide. For `cut`, `duration` is ignored.
+     * no fade, no slide. For `cut`, `duration` is ignored. `magic-move` blends
+     * shared elements between the two frames — matched elements slide from
+     * their old position to their new one while added/removed elements
+     * cross-fade (DM-898; see `docs/53-magic-move-transition.md`). It requires
+     * the per-frame `magicMove` bridge layer (built caller-side from the
+     * element trees); when that's absent it degrades to `crossfade`.
      */
-    type: "crossfade" | "push-left" | "scroll" | "cut";
+    type: "crossfade" | "push-left" | "scroll" | "cut" | "magic-move";
     duration: number;
   };
+  /**
+   * Magic-move bridge layer for this frame's transition to the next, built by
+   * the caller via `buildMagicMove(prevTree, nextTree, …)`. Present only when
+   * `transition.type === "magic-move"` and both frames' element trees were
+   * available; the animator shows it during the transition window (moved
+   * elements slide, added fade in, removed fade out) between the hard-cut prev
+   * and next frame blobs. When `transition.type` is `magic-move` but this is
+   * null, the animator falls back to `crossfade`.
+   */
+  magicMove?: MagicMove | null;
   /** Overlays: typing, tap ripple */
   overlays?: AnimationOverlay[];
   /**
@@ -288,6 +304,11 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     const prevFrame = i > 0 ? frames[i - 1] : null;
     const entersViaPush = prevFrame?.transition?.type === "push-left";
     const entersViaScroll = prevFrame?.transition?.type === "scroll";
+    // DM-898: a frame entered from a magic-move transition appears at its own
+    // start (= the predecessor's transition end), NOT overlap-faded — the
+    // magic-move bridge layer already covered the window, so a crossfade
+    // overlap here would double-show the next frame on top of the bridge.
+    const entersViaMagicMove = prevFrame?.transition?.type === "magic-move" && prevFrame?.magicMove != null;
     // Both push-left and scroll overlap their transition with the next
     // frame's entry — the next frame is already sliding in while the current
     // one slides out, so its show window starts at `timeOffset - prevTransDur`
@@ -361,6 +382,78 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
     .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`);
 
+    } else if (transType === "magic-move" && frame.magicMove != null) {
+      // DM-898: magic-move. Frame i holds [start..holdEnd] then HARD-CUTS out;
+      // a bridge composite covers the transition window [holdEnd..transEnd],
+      // inside which matched elements slide prev→next, added elements fade in,
+      // and removed elements fade out. The next frame cuts in at transEnd
+      // (= its own start). The bridge's start state matches the prev frame's
+      // final paint and its end state the next frame's initial paint, so both
+      // hard cuts are seamless. (When `frame.magicMove` is null the type falls
+      // through to the crossfade branch below — the documented fallback.)
+      const mm = frame.magicMove;
+      const sNum = parseFloat(startPct);
+      const hNum = parseFloat(holdEndPct);
+      const tNum = parseFloat(transEndPct);
+      const beforeS = Math.max(0, sNum - 0.001).toFixed(3);
+      const afterH = Math.min(100, hNum + 0.001).toFixed(3);
+      const beforeH = Math.max(0, hNum - 0.001).toFixed(3);
+      const afterT = Math.min(100, tNum + 0.001).toFixed(3);
+
+      // Frame i blob: visible only during its hold, hard-cut out at hold end.
+      frameGroups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
+      keyframes.push(`
+    @keyframes fv-${i} {
+      0% { opacity: 0; visibility: hidden; }
+      ${beforeS}% { opacity: 0; visibility: hidden; }
+      ${sNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${afterH}% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+
+      // Bridge composite: visible during the transition window only.
+      frameGroups.push(`  <g class="f mm-${i}">\n${mm.compositeSvg}\n  </g>`);
+      keyframes.push(`
+    @keyframes mmv-${i} {
+      0% { opacity: 0; visibility: hidden; }
+      ${beforeH}% { opacity: 0; visibility: hidden; }
+      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${tNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${afterT}% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .mm-${i} { animation: mmv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+
+      // Per-element slide / fade keyframes within the window (linear interp).
+      // The composite is only visible [holdEnd..transEnd], so the held values
+      // outside that window are never painted — they just pin the endpoints.
+      for (const s of mm.slides) {
+        keyframes.push(`
+    @keyframes mms-${s.cls} {
+      0%, ${hNum.toFixed(3)}% { transform: translate(${(-s.dx).toFixed(2)}px, ${(-s.dy).toFixed(2)}px); }
+      ${tNum.toFixed(3)}%, 100% { transform: translate(0px, 0px); }
+    }
+    .${s.cls} { animation: mms-${s.cls} ${totalSec.toFixed(2)}s infinite; }`);
+      }
+      for (const cls of mm.fadeIn) {
+        keyframes.push(`
+    @keyframes mmf-${cls} {
+      0%, ${hNum.toFixed(3)}% { opacity: 0; }
+      ${tNum.toFixed(3)}%, 100% { opacity: 1; }
+    }
+    .${cls} { animation: mmf-${cls} ${totalSec.toFixed(2)}s infinite; }`);
+      }
+      for (const cls of mm.fadeOut) {
+        keyframes.push(`
+    @keyframes mmf-${cls} {
+      0%, ${hNum.toFixed(3)}% { opacity: 1; }
+      ${tNum.toFixed(3)}%, 100% { opacity: 0; }
+    }
+    .${cls} { animation: mmf-${cls} ${totalSec.toFixed(2)}s infinite; }`);
+      }
+
     } else {
       // Crossfade or cut: opacity in/out.
       //
@@ -403,7 +496,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     }
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
       } else {
-        const fadeInStartPct = i > 0
+        const fadeInStartPct = (i > 0 && !entersViaMagicMove)
           ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
           : startPct;
         const prevEnd = i > 0

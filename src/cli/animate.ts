@@ -12,6 +12,7 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
 import {
+  buildMagicMove,
   captureElementTree,
   clearEmbeddedFonts,
   clearWebfonts,
@@ -30,6 +31,7 @@ import {
   type CursorOverlay,
   type CursorEvent,
   type CursorStyle,
+  type CapturedElement,
 } from "../index.js";
 import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
 import {
@@ -49,7 +51,7 @@ import {
 // inferred from it (`z.infer`), so type and runtime check can't drift apart.
 
 const transitionSchema = z.object({
-  type: z.enum(["crossfade", "push-left", "scroll", "cut"]),
+  type: z.enum(["crossfade", "push-left", "scroll", "cut", "magic-move"]),
   duration: z.number(),
 });
 
@@ -397,6 +399,9 @@ export async function composeAnimateConfig(
     page.setDefaultTimeout(90_000);
     page.setDefaultNavigationTimeout(90_000);
     const frames: AnimationFrame[] = [];
+    // DM-898: the previous frame's captured tree, kept so a magic-move
+    // transition can diff (prev, next) once both are captured.
+    let prevFrameTree: CapturedElement[] | null = null;
     // Canvas background for the composed SVG: the captured root background of
     // the first frame, so animated output matches single-frame `capture`
     // output (a transparent page → transparent SVG). Stamped per-frame by the
@@ -524,6 +529,10 @@ export async function composeAnimateConfig(
 
       let svgContent: string;
       let frameCullCss: string;
+      // DM-898: retain this frame's captured tree so a magic-move transition
+      // can diff it against the next frame's. `null` for scroll-block frames
+      // (no single tree) — magic-move then falls back to crossfade.
+      let frameTree: CapturedElement[] | null = null;
       if (fc.scroll != null) {
         // DM-612: scroll-demo block. Run the executor against the loaded
         // page, cull each segment's tree (DM-603), compose into one
@@ -571,6 +580,7 @@ export async function composeAnimateConfig(
         frameCullCss = result.css;
         if (i === 0) canvasBg = tree[0]?.styles?.rootBgComputed;
         svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
+        frameTree = tree;
       }
 
       // DM-850 §5: resolve selector-anchored overlays against the live page
@@ -590,6 +600,22 @@ export async function composeAnimateConfig(
         overlays,
         animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
       });
+
+      // DM-898: when the PREVIOUS frame's transition is magic-move and both it
+      // and this frame captured a tree, build the bridge layer now — BEFORE the
+      // glyph/font @font-face defs are finalized below (getEmbeddedFontFaceCss),
+      // since the bridge re-renders subtrees and must contribute its glyphs to
+      // those defs — and attach it to that frame. Falls back to crossfade when
+      // either tree is absent (e.g. a scroll-block neighbor) or buildMagicMove
+      // finds nothing to animate (returns null).
+      if (i > 0 && frames[i - 1]?.transition?.type === "magic-move" && prevFrameTree != null && frameTree != null) {
+        frames[i - 1].magicMove = buildMagicMove(
+          prevFrameTree, frameTree,
+          (roots, prefix) => elementTreeToSvg(roots, cfg.width, cfg.height, prefix, true, 2, false),
+          `mm${i - 1}-`,
+        );
+      }
+      prevFrameTree = frameTree;
     }
     tracker.detach();
 

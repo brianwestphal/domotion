@@ -46,8 +46,11 @@ The CSS spec interpolates discrete properties by snapping at 50% of a segment by
 | `push-left` | Outgoing slides off to the left, incoming slides in from the right. | Composited + transform. |
 | `scroll` | Vertical scroll between frames; both stay visible during the transition. | Composited + transform. |
 | `cut` | **New (DM-208).** Instant — no fade, no slide. `duration` ignored. | Composited (step-end `fv-N`). |
+| `magic-move` | **New (DM-898).** Elements shared between the two frames slide from their old position to their new one; added/removed elements cross-fade. Keynote "Magic Move". | Composited prev/next blobs (hard-cut at the window edges) + a bridge composite over the window. See `docs/53-magic-move-transition.md`. |
 
 `cut` is the right pick for any case where adjacent frames represent "the page was just updated" rather than "we're transitioning between two screens" — e.g. progress-bar resizing, a new line appearing in a terminal, a panel toggling. It's also cleaner than the 0-duration-crossfade hack we currently use in the install-demo.
+
+`magic-move` is for "the same scene rearranged" — a card that grows, a list item that relocates, a logo that moves between slides. It diffs the two frames' captured element trees (`diffTrees`), then over the transition window slides the matched elements and cross-fades the rest. It needs both frames' element trees (the CLI has them); a magic-move frame without a built bridge layer degrades to `crossfade`. v1 (DM-898) is translate-only — size/style morph (DM-899), `data-magic-key` author pairing (DM-900), and reduced-motion / nesting hardening (DM-901) are the remaining phases. Full contract: `docs/53-magic-move-transition.md`.
 
 ## Intra-frame property animations (DM-209)
 
