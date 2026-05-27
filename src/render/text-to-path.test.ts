@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -389,6 +389,55 @@ describe("renderTextAsPath: ascentOverride threading", () => {
   });
 });
 
+describe("measureInkMetrics: MathML token ink positioning (DM-832)", () => {
+  // The MathML `34-mathml-layout` fixture drifted vertically because token
+  // elements (<mo>/<mi>/<mn>/<mtext>) were baseline-positioned with the font
+  // ascent, while Chromium sizes each token's box to its glyph ink. These
+  // tests lock the ink-metric helper the renderer now uses to split that box.
+
+  it.skipIf(!MACOS_FONTS)("returns ink ascent/descent for an x-height letter", () => {
+    const ink = measureInkMetrics("x", 22, "math", "400");
+    expect(ink).not.toBeNull();
+    expect(ink!.inkAscent).toBeGreaterThan(0);
+    // 'x' rests on the baseline — descent is ~0 (sub-px), ascent ≈ x-height.
+    expect(ink!.inkDescent).toBeLessThan(1);
+    expect(ink!.inkAscent).toBeLessThan(22); // never exceeds the em
+  });
+
+  it.skipIf(!MACOS_FONTS)("measures a fallback-routed math operator, not null", () => {
+    // ∑ (U+2211) is absent from Times (what `font-family: math` resolves to)
+    // and routes to a fallback face. The helper must walk the SAME chain the
+    // path emitter uses and still return the fallback glyph's ink — the whole
+    // point of the fix. A null here would drop the renderer back to the font
+    // ascent and re-introduce the operator drift.
+    const ink = measureInkMetrics("∑", 22, "math", "400");
+    expect(ink).not.toBeNull();
+    expect(ink!.inkAscent).toBeGreaterThan(0);
+  });
+
+  it.skipIf(!MACOS_FONTS)("gives a taller ink box to ∑ than to an x-height letter", () => {
+    const sum = measureInkMetrics("∑", 22, "math", "400")!;
+    const ex = measureInkMetrics("x", 22, "math", "400")!;
+    // ∑ spans well above and below the baseline; its total ink height must
+    // exceed a lowercase x's. This is the signal that made the operator sit
+    // ~5 px low under the old font-ascent baseline.
+    expect(sum.inkAscent + sum.inkDescent).toBeGreaterThan(ex.inkAscent + ex.inkDescent);
+  });
+
+  it.skipIf(!MACOS_FONTS)("reports a real descent for a descender glyph", () => {
+    // 'p' hangs below the baseline; 'o' does not. Descent ordering must hold
+    // so the proportional baseline split places descenders correctly.
+    const p = measureInkMetrics("p", 22, "math", "400")!;
+    const o = measureInkMetrics("o", 22, "math", "400")!;
+    expect(p.inkDescent).toBeGreaterThan(o.inkDescent);
+  });
+
+  it("returns null when nothing renders an outline", () => {
+    // Whitespace shapes to a blank advance with no ink — no usable bbox.
+    expect(measureInkMetrics(" ", 22, "math", "400")).toBeNull();
+  });
+});
+
 describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", () => {
   // Box-drawing block (U+2500..U+259F) inside a <pre> / <code> / monospace
   // primary needs to stay at the monospace cell width to align with the
@@ -414,6 +463,20 @@ describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", (
     expect(darwinFallbackChain(0x2500, "helvetica")).toEqual(["hiragino-jp", "menlo"]);
     expect(darwinFallbackChain(0x2500, "sf-pro")).toEqual(["hiragino-jp", "menlo"]);
     expect(darwinFallbackChain(0x2500, "times")).toEqual(["hiragino-jp", "menlo"]);
+  });
+});
+
+describe("fallbackFontChain: overline / macron over-accents (DM-896)", () => {
+  // U+203E OVERLINE is the `<mo>` in a MathML `<mover accent="true">` mean bar
+  // (x̄). `font-family: math` resolves to Times, which lacks U+203E, and the
+  // General-Punctuation block had no fallback branch — so it painted a .notdef
+  // tofu box. Chrome paints it via Helvetica (its U+203E advance matches the
+  // captured `<mo>` width exactly), so the chain must lead with helvetica.
+  it("routes U+203E overline and U+00AF macron to Helvetica first", () => {
+    expect(darwinFallbackChain(0x203E, "times")).toEqual(["helvetica", "symbols"]);
+    expect(darwinFallbackChain(0x00AF, "times")).toEqual(["helvetica", "symbols"]);
+    // Must not be the empty chain that produced the tofu.
+    expect(darwinFallbackChain(0x203E).length).toBeGreaterThan(0);
   });
 });
 

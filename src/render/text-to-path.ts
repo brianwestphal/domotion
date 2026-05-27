@@ -1429,6 +1429,17 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   if (codepoint >= 0x2070 && codepoint <= 0x209F) {
     return ["sf-pro", "stix-math", "hiragino-jp", "symbols"];
   }
+  // General Punctuation overline / Latin-1 macron (U+203E OVERLINE, U+00AF
+  // MACRON). Used as MathML over-accents — `<mover accent="true"><mi>x</mi>
+  // <mo>‾</mo></mover>` paints x̄. The `math`→Times primary lacks U+203E
+  // (.notdef) and this block had no fallback branch, so the accent painted a
+  // .notdef tofu box (DM-811's "black blob"). Chrome paints it via Helvetica:
+  // the captured `<mo>‾</mo>` advance is 7.33 px @22 px, matching Helvetica's
+  // U+203E advance EXACTLY (STIX 11.26 / Apple Symbols 13.77 are both too
+  // wide). Apple Symbols stays as the residue fallback. DM-896.
+  if (codepoint === 0x203E || codepoint === 0x00AF) {
+    return ["helvetica", "symbols"];
+  }
   // Letterlike (ℝℕℤℂℚ™), Arrows residue, Math Operators, Pictographs, Transport.
   // The caller's primary-first check already routes chars Helvetica/Times
   // have (∑∏∫≠≤≥, ™, ●) to the primary; what reaches this fallback is the
@@ -3176,6 +3187,73 @@ export function measureLastGlyphRsb(
   const scale = fontSize / font.unitsPerEm;
   const rsbUnits = lastGlyph.advanceWidth - bboxMaxX;
   return rsbUnits * scale;
+}
+
+/**
+ * Measure the ink ascent / descent (px above / below the baseline) of `text`
+ * shaped through the SAME per-codepoint font resolution `textToPathMarkup`
+ * uses (`splitTextIntoFontRuns` → `font.layout`). Returns the extreme glyph
+ * ink-bbox edges scaled to px, or null when no rendered glyph has a usable
+ * bbox.
+ *
+ * DM-832: positions MathML token elements (`<mo>` / `<mi>` / `<mn>` /
+ * `<mtext>`). Chromium's math token layout
+ * (`math_token_layout_algorithm.cc`) sizes each token's border box to its
+ * glyph ink — `block_size = ink_ascent + ink_descent + padding` — so the
+ * captured element rect top is the painted ink top and `el.height` the ink
+ * height. The caller splits that captured box by `inkAscent / (inkAscent +
+ * inkDescent)` to place the baseline, landing the glyph ink where Chrome
+ * painted it without assuming our glyph's absolute ink size matches Chrome's
+ * (it borrows only the ascent:descent ratio). The font-ascent baseline used
+ * for ordinary inline text sits several px too low for tall operators (∑ ∫ ∏)
+ * and a few px off for letters — the residual vertical drift the
+ * `34-mathml-layout` fixture flagged.
+ *
+ * Crucially the ink is read from the glyph actually rendered — the
+ * fallback-routed font, not the primary — so a `math` family that resolves to
+ * Times yet paints ∑ from a fallback face still measures the fallback's ink.
+ * A prior attempt that measured the primary font's bbox overshot by ~4 px for
+ * codepoints that fallback-routed away from it; reusing the shared run
+ * splitter keeps the measurement and the emitted glyph on the same font.
+ */
+export function measureInkMetrics(
+  text: string,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string | number,
+  fontStyle?: string,
+  lang?: string,
+  variationSettings?: Record<string, number>,
+  features?: string[],
+): { inkAscent: number; inkDescent: number } | null {
+  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const slant = slantForStyle(fontStyle);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  if (primaryFont == null) return null;
+  const primaryFontKey = resolveFontKey(fontFamily);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+  let maxY = -Infinity; // ink top    (font units, y-up)
+  let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
+  for (const run of runs) {
+    const scale = fontSize / run.font.unitsPerEm;
+    let layout;
+    try {
+      layout = features != null && features.length > 0 ? run.font.layout(run.text, features) : run.font.layout(run.text);
+    } catch { continue; }
+    for (const g of layout.glyphs) {
+      // Skip .notdef tofu (id 0) — its placeholder bbox would inflate the ink
+      // box, and `textToPathMarkup` suppresses it from emission anyway.
+      if (g.id === 0) continue;
+      const bbox = (g as { bbox?: { minY: number; maxY: number } }).bbox;
+      if (bbox == null || !(bbox.maxY > bbox.minY)) continue;
+      const top = bbox.maxY * scale;
+      const bot = bbox.minY * scale;
+      if (top > maxY) maxY = top;
+      if (bot < minY) minY = bot;
+    }
+  }
+  if (maxY === -Infinity) return null;
+  return { inkAscent: maxY, inkDescent: -minY };
 }
 
 /**

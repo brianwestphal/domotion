@@ -5,10 +5,18 @@
  */
 
 import bidiFactory from "bidi-js";
-import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
+import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, measureInkMetrics, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 
 // ── Rendering helpers ──
+
+// MathML token elements whose border box Chromium sizes to its glyph ink
+// (`math_token_layout_algorithm.cc`): the captured element rect top is the
+// painted ink top, not the line-box top. The renderer positions these via the
+// measured ink ascent (DM-832) instead of the font ascent. `<mo>` stretchy
+// fences are handled earlier by `renderStretchyFenceGlyph` and never reach the
+// ink-metric path.
+const MATH_TOKEN_TAGS = new Set(["mo", "mi", "mn", "mtext", "ms"]);
 
 function r(n: number): string { return Number(n.toFixed(1)).toString(); }
 function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
@@ -719,7 +727,39 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       : "";
     return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`;
   })() : "";
-  const result = renderTextAsPath(pathText, tl, tt, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, segAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder);
+  // DM-832: MathML token elements (`<mi>` / `<mo>` / `<mn>` / `<mtext>`, the
+  // non-stretchy cases — stretchy fences returned above) are positioned by
+  // Chromium's math layout so the element border box is tight to the glyph
+  // ink. The captured `el.y` is the ink top and `el.height` the ink height,
+  // where ordinary inline text would use the line-box top + font ascent. That
+  // font-ascent baseline sits several px too low for tall operators (∑ ∫) and
+  // a few px off for letters, which is the residual vertical drift the
+  // `34-mathml-layout` fixture flagged.
+  //
+  // Place the baseline by splitting Chrome's captured ink box in the SAME
+  // ascent:descent ratio the rendered glyph has: `baseline = el.y + el.height
+  // * inkAscent / (inkAscent + inkDescent)`. Scaling by Chrome's own
+  // `el.height` (rather than the glyph's absolute ink ascent) keeps the fit
+  // correct even when the math glyph we draw differs slightly from Chrome's:
+  // `font-family: math` resolves to Times here and the operators / Greek
+  // letters fall back to STIX, whose per-glyph ink ascent runs ~0.5 px short
+  // of Chrome's painted glyph. Anchoring on the absolute ink ascent transferred
+  // that mismatch straight into a baseline error big enough to trip the diff on
+  // π / β; the proportional split absorbs it because it only borrows the
+  // glyph's ascent:descent RATIO, not its absolute size.
+  let renderY = tt;
+  let renderAscent = segAscent;
+  if (MATH_TOKEN_TAGS.has(el.tag ?? "") && el.height > 0) {
+    const ink = measureInkMetrics(pathText, segFontSize, segFontFamily, segFontWeight, segFontStyle, el.styles.lang, variationSettings, features);
+    if (ink != null) {
+      const inkTotal = ink.inkAscent + ink.inkDescent;
+      if (inkTotal > 0) {
+        renderY = el.y;
+        renderAscent = el.height * (ink.inkAscent / inkTotal);
+      }
+    }
+  }
+  const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : segColor;

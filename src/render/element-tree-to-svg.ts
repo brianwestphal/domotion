@@ -2955,16 +2955,31 @@ export function elementTreeToSvg(
     // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
     // numerator (first child) and denominator (second child). Chrome's
     // MathML layout paints this from internal layout — there's no CSS
-    // border on the children to capture. Synthesize the bar from the two
-    // children's rects: span the wider of the two horizontally, place at
-    // the midpoint between numerator bottom and denominator top, default
-    // 1px thickness (matches MathML's `mfrac@linethickness="medium"`).
+    // border on the children to capture. Synthesize the bar at the midpoint
+    // between numerator bottom and denominator top, default 1px thickness
+    // (matches MathML's `mfrac@linethickness="medium"`).
+    //
+    // DM-896: span the bar across the mfrac ELEMENT box (`el.x` … `el.x +
+    // el.width`), NOT the children's content span. Chromium paints the
+    // fraction rule across the full inline-size of the mfrac. For inline
+    // fractions the mfrac shrink-wraps its content so the two are equal, but
+    // a display-block fraction (`<math display="block">` quadratic formula)
+    // is stretched to the block width — there the element box is 800 px wide
+    // while the num/den content is ~135 px, and the old children-span bar was
+    // far too short. PNG scan of the expected output confirms Chrome's bar
+    // runs the full mfrac width.
+    //
+    // DM-832/DM-896: snap the 1-px bar to the device pixel row the math-axis
+    // midpoint falls in via `round` (the previous fractional `midpoint - 0.5`
+    // straddled two rows and rasterized to a blurred gray 2-px bar). `round`
+    // matches Chrome's pixel snap on both the layout fixture (mid 1469.03 →
+    // 1469) and the quadratic (mid 1372.85 → 1373, where `floor` gave 1372).
     if (el.tag === "mfrac" && el.children.length >= 2) {
       const num = el.children[0];
       const den = el.children[1];
-      const barX = Math.min(num.x, den.x);
-      const barRight = Math.max(num.x + num.width, den.x + den.width);
-      const barY = (num.y + num.height + den.y) / 2 - 0.5;
+      const barX = el.x;
+      const barRight = el.x + el.width;
+      const barY = Math.round((num.y + num.height + den.y) / 2);
       const fillCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
       svgParts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`);
     }
