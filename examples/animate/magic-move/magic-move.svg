@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="600" height="360">
+  <defs>
+    <clipPath id="viewport-clip"><rect width="600" height="360" /></clipPath>
+  </defs>
+  <style>
+@font-face { font-family: "dmf0"; font-style: normal; font-weight: 400; src: url("data:font/ttf;base64,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"); }
+    :root { --scene-dur: 3.80s; }
+    .f { opacity: 0; visibility: hidden; }
+    
+    @keyframes fv-0 {
+      0% { opacity: 0; visibility: hidden; }
+      0.000% { opacity: 0; visibility: hidden; }
+      0.000% { opacity: 1; visibility: visible; }
+      31.580% { opacity: 1; visibility: visible; }
+      31.581% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 3.80s infinite; animation-timing-function: step-end; }
+
+    @keyframes mmv-0 {
+      0% { opacity: 0; visibility: hidden; }
+      31.579% { opacity: 0; visibility: hidden; }
+      31.580% { opacity: 1; visibility: visible; }
+      50.000% { opacity: 1; visibility: visible; }
+      50.001% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .mm-0 { animation: mmv-0 3.80s infinite; animation-timing-function: step-end; }
+
+    @keyframes mms-anim-mm0-mv0 {
+      0%, 31.580% { transform: translate(40px, 40px) scale(0.75, 0.69231) translate(-320px, -190px); }
+      50.000%, 100% { transform: none; }
+    }
+    .anim-mm0-mv0 { animation: mms-anim-mm0-mv0 3.80s infinite; }
+
+    @keyframes mmf-anim-mm0-in0 {
+      0%, 31.580% { opacity: 0; }
+      50.000%, 100% { opacity: 1; }
+    }
+    .anim-mm0-in0 { animation: mmf-anim-mm0-in0 3.80s infinite; }
+
+    @keyframes mmf-anim-mm0-out0 {
+      0%, 31.580% { opacity: 1; }
+      50.000%, 100% { opacity: 0; }
+    }
+    .anim-mm0-out0 { animation: mmf-anim-mm0-out0 3.80s infinite; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .anim-mm0-mv0 { animation: none; transform: none; }
+    }
+
+    @keyframes fv-1 {
+      0%, 49.99%, 100.00%, 100% { opacity: 0; }
+      50.00%, 81.58% { opacity: 1; }
+    }
+    @keyframes fd-1 {
+      0% { visibility: hidden; }
+      49.990% { visibility: hidden; }
+      50.000% { visibility: visible; }
+      100.000% { visibility: visible; }
+      100.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-1 { animation: fv-1 3.80s infinite, fd-1 3.80s infinite step-end; }
+  </style>
+  <g clip-path="url(#viewport-clip)">
+  <g class="f f-0">
+  <defs><clipPath id="f0-ct0"><rect x="40" y="40" width="180" height="90" /></clipPath><clipPath id="f0-ct1"><rect x="40" y="300" width="120" height="34" /></clipPath></defs>
+  <rect x="0" y="0" width="600" height="0" rx="0" fill="rgb(248,250,252)" />
+  <rect x="40" y="40" width="180" height="90" rx="12" fill="rgb(79,70,229)" />
+  <g role="img" aria-label="Overview"><title>Overview</title><text x="88.98 103.77 113.48 124.19 131.16 141.27 145.56 156.25" y="92.5" font-family="dmf0" font-size="20" fill="rgb(255,255,255)"></text></g>
+  <rect x="40" y="300" width="120" height="34" rx="17" fill="rgb(239,68,68)" />
+  <g role="img" aria-label="Draft"><title>Draft</title><text x="83.67 93.69 98.88 106.44 111.36" y="322.5" font-family="dmf0" font-size="14" fill="rgb(255,255,255)"></text></g>
+  </g>
+  <g class="f mm-0">
+  <defs><clipPath id="mm0-ct0"><rect x="320" y="190" width="240" height="130" /></clipPath><clipPath id="mm0-ct1"><rect x="420" y="40" width="140" height="34" /></clipPath><clipPath id="mm0-ct2"><rect x="40" y="300" width="120" height="34" /></clipPath></defs>
+  <rect x="0" y="0" width="600" height="0" rx="0" fill="rgb(248,250,252)" />
+  <g class="anim-mm0-mv0">
+  <rect x="320" y="190" width="240" height="130" rx="12" fill="rgb(79,70,229)" />
+  <g role="img" aria-label="Overview"><title>Overview</title><text x="398.98 413.77 423.48 434.19 441.16 451.27 455.56 466.25" y="262.5" font-family="dmf0" font-size="20" fill="rgb(255,255,255)"></text></g>
+  </g>
+  <g class="anim-mm0-in0">
+  <rect x="420" y="40" width="140" height="34" rx="17" fill="rgb(16,185,129)" />
+  <g role="img" aria-label="Published"><title>Published</title><text x="458.25 466.98 475 483.45 486.84 490.16 497.33 505.42 513.27" y="62.5" font-family="dmf0" font-size="14" fill="rgb(255,255,255)"></text></g>
+  </g>
+  <g class="anim-mm0-out0">
+  <rect x="40" y="300" width="120" height="34" rx="17" fill="rgb(239,68,68)" />
+  <g role="img" aria-label="Draft"><title>Draft</title><text x="83.67 93.69 98.88 106.44 111.36" y="322.5" font-family="dmf0" font-size="14" fill="rgb(255,255,255)"></text></g>
+  </g>
+  </g>
+  <g class="f f-1">
+  <defs><clipPath id="f1-ct0"><rect x="320" y="190" width="240" height="130" /></clipPath><clipPath id="f1-ct1"><rect x="420" y="40" width="140" height="34" /></clipPath></defs>
+  <rect x="0" y="0" width="600" height="0" rx="0" fill="rgb(248,250,252)" />
+  <rect x="320" y="190" width="240" height="130" rx="12" fill="rgb(79,70,229)" />
+  <g role="img" aria-label="Overview"><title>Overview</title><text x="398.98 413.77 423.48 434.19 441.16 451.27 455.56 466.25" y="262.5" font-family="dmf0" font-size="20" fill="rgb(255,255,255)"></text></g>
+  <rect x="420" y="40" width="140" height="34" rx="17" fill="rgb(16,185,129)" />
+  <g role="img" aria-label="Published"><title>Published</title><text x="458.25 466.98 475 483.45 486.84 490.16 497.33 505.42 513.27" y="62.5" font-family="dmf0" font-size="14" fill="rgb(255,255,255)"></text></g>
+  </g>
+  </g>
+</svg>

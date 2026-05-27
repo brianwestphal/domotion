@@ -43,10 +43,21 @@ describe("buildMagicMove (DM-898)", () => {
     const mm = buildMagicMove(prev, next, stubRender, "mm0-")!;
     expect(mm).not.toBeNull();
     expect(mm.slides).toHaveLength(1);
-    // dx = next.x − prev.x = 50; dy = 80.
-    expect(mm.slides[0]).toMatchObject({ dx: 50, dy: 80 });
+    // Pure move (no size change) → a single translate from prev to next origin:
+    // prev.x − next.x = -50, prev.y − next.y = -80.
+    expect(mm.slides[0].from).toBe("translate(-50px, -80px)");
     // The slide class was actually stamped onto the rendered composite.
     expect(mm.compositeSvg).toContain(mm.slides[0].cls.replace("anim-", ""));
+  });
+
+  it("emits a translate·scale affine for an element that moves AND resizes (DM-899)", () => {
+    // A card grows 2× (100×40 → 200×80) and relocates (10,10 → 60,90).
+    const prev = el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 10, y: 10, width: 100, height: 40, text: "card" })] });
+    const next = el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 60, y: 90, width: 200, height: 80, text: "card" })] });
+    const mm = buildMagicMove(prev, next, stubRender, "mm0-")!;
+    expect(mm.slides).toHaveLength(1);
+    // prevSize/nextSize = 0.5; maps the next-rendered box back onto the prev box.
+    expect(mm.slides[0].from).toBe("translate(10px, 10px) scale(0.5, 0.5) translate(-60px, -90px)");
   });
 
   it("animates only the highest moved ancestor, not its moved children", () => {
@@ -60,7 +71,33 @@ describe("buildMagicMove (DM-898)", () => {
     ]});
     const mm = buildMagicMove(prev, next, stubRender, "mm0-")!;
     expect(mm.slides).toHaveLength(1);
-    expect(mm.slides[0]).toMatchObject({ dx: 40, dy: 40 });
+    expect(mm.slides[0].from).toBe("translate(-40px, -40px)");
+  });
+
+  it("force-pairs by data-magic-key even when content differs (DM-900)", () => {
+    // Different tag-content (text "A" vs "B") AND a move: the fingerprint
+    // heuristic would split these into add + remove (cross-fade). A shared
+    // data-magic-key must instead pair them into a single slide.
+    const prev = el({ tag: "body", x: 0, y: 0, children: [
+      el({ tag: "div", x: 10, y: 10, text: "A", magicKey: "hero" }),
+    ]});
+    const next = el({ tag: "body", x: 0, y: 0, children: [
+      el({ tag: "div", x: 200, y: 200, text: "B", magicKey: "hero" }),
+    ]});
+
+    // Sanity: without the keys this would be add + remove, not a slide.
+    const noKey = buildMagicMove(
+      el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 10, y: 10, text: "A" })] }),
+      el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 200, y: 200, text: "B" })] }),
+      stubRender, "mm0-")!;
+    expect(noKey.slides).toHaveLength(0);
+    expect(noKey.fadeIn.length + noKey.fadeOut.length).toBeGreaterThan(0);
+
+    const mm = buildMagicMove(prev, next, stubRender, "mm0-")!;
+    expect(mm.slides).toHaveLength(1);
+    expect(mm.slides[0].from).toBe("translate(-190px, -190px)");
+    expect(mm.fadeIn).toHaveLength(0);   // the keyed pair slides, doesn't fade
+    expect(mm.fadeOut).toHaveLength(0);
   });
 
   it("fades in added elements and fades out removed ones", () => {

@@ -430,10 +430,13 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // The composite is only visible [holdEnd..transEnd], so the held values
       // outside that window are never painted — they just pin the endpoints.
       for (const s of mm.slides) {
+        // `from` maps the element (painted at its next rect) back onto its prev
+        // rect — translate for a pure move, translate·scale·translate for a
+        // size change (DM-899). Interpolating it to `none` plays the magic move.
         keyframes.push(`
     @keyframes mms-${s.cls} {
-      0%, ${hNum.toFixed(3)}% { transform: translate(${(-s.dx).toFixed(2)}px, ${(-s.dy).toFixed(2)}px); }
-      ${tNum.toFixed(3)}%, 100% { transform: translate(0px, 0px); }
+      0%, ${hNum.toFixed(3)}% { transform: ${s.from}; }
+      ${tNum.toFixed(3)}%, 100% { transform: none; }
     }
     .${s.cls} { animation: mms-${s.cls} ${totalSec.toFixed(2)}s infinite; }`);
       }
@@ -452,6 +455,21 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       ${tNum.toFixed(3)}%, 100% { opacity: 0; }
     }
     .${cls} { animation: mmf-${cls} ${totalSec.toFixed(2)}s infinite; }`);
+      }
+      // DM-901: honor `prefers-reduced-motion: reduce` — cancel the slide/scale
+      // animations so matched elements sit at their final position instead of
+      // gliding (the translate/scale is the "motion"; the opacity cross-fades
+      // stay, which the reduced-motion guidelines treat as acceptable). The
+      // bridge still step-shows the next state across the window, so the
+      // transition degrades to a cut-like reveal for motion-sensitive viewers.
+      // Static CSS, so output stays deterministic; rasterizers default to
+      // `no-preference` and play the full move.
+      if (mm.slides.length > 0) {
+        const sel = mm.slides.map((s) => `.${s.cls}`).join(", ");
+        keyframes.push(`
+    @media (prefers-reduced-motion: reduce) {
+      ${sel} { animation: none; transform: none; }
+    }`);
       }
 
     } else {

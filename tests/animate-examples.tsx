@@ -108,6 +108,24 @@ const EXAMPLES: Example[] = [
       return f;
     },
   },
+  {
+    name: "magic-move",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 600 360"`)) f.push("missing viewBox 600x360");
+      // The shared "Overview" card (data-magic-key="hero") must SLIDE — a
+      // magic-move slide keyframe — and, since it also grows, carry a scale.
+      if (!/@keyframes mms-/.test(svg)) f.push("missing magic-move slide keyframes (mms-) — card should slide, not cross-fade");
+      if (!/transform: translate\([^)]*\) scale\(/.test(svg)) f.push("missing translate·scale affine — card relocates AND resizes");
+      // The bridge composite carries the moving card during the window.
+      if (count(svg, /class="f mm-\d+"/g) < 1) f.push("missing magic-move bridge composite group");
+      // The Draft→Published chip swap is an add/remove → cross-fade (mmf-).
+      if (!/@keyframes mmf-/.test(svg)) f.push("missing add/remove cross-fade keyframes (mmf-)");
+      // Reduced-motion must cancel the slide (DM-901).
+      if (!/@media \(prefers-reduced-motion: reduce\)/.test(svg)) f.push("missing prefers-reduced-motion fallback");
+      return f;
+    },
+  },
 ];
 
 /**

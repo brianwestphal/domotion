@@ -734,6 +734,10 @@ export const captureScript =
     }
 
     const _animId = el.dataset != null ? el.dataset.domotionAnim : undefined;
+    // DM-900: author-supplied magic-move pairing key (`data-magic-key`). When
+    // present on the same logical element across two animation frames, the
+    // magic-move matcher force-pairs them ahead of its fingerprint heuristic.
+    const _magicKey = el.dataset != null ? el.dataset.magicKey : undefined;
 
     // <fieldset> with a top-aligned <legend>: Chrome's UA fieldset paints its
     // top border at the legend's vertical center, with a notch cut in the
@@ -769,6 +773,7 @@ export const captureScript =
       width: fsW, height: fsH,
       fieldsetLegendNotch,
       animId: _animId,
+      magicKey: _magicKey,
       styles: {
         // Border + background + outline + box-shadow fields — see
         // walker/borders-backgrounds.ts. Includes the

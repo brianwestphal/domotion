@@ -122,7 +122,7 @@ describe("animator", () => {
           transition: { type: "magic-move", duration: 200 },
           magicMove: {
             compositeSvg: `<g class="anim-mm0-mv0"><rect/></g>`,
-            slides: [{ cls: "anim-mm0-mv0", dx: 50, dy: 80 }],
+            slides: [{ cls: "anim-mm0-mv0", from: "translate(-50px, -80px)" }],
             fadeIn: ["anim-mm0-in0"],
             fadeOut: ["anim-mm0-out0"],
           },
@@ -133,12 +133,15 @@ describe("animator", () => {
     // Bridge composite group is emitted.
     expect(svg).toContain(`class="f mm-0"`);
     expect(svg).toContain(`<g class="anim-mm0-mv0">`);
-    // Slide keyframe carries the negated prev→next delta as the start state.
+    // Slide keyframe carries the `from` transform as the window-start state.
     expect(svg).toMatch(/@keyframes mms-anim-mm0-mv0/);
-    expect(svg).toContain("translate(-50.00px, -80.00px)");
+    expect(svg).toContain("transform: translate(-50px, -80px)");
     // Added fades in, removed fades out.
     expect(svg).toMatch(/@keyframes mmf-anim-mm0-in0/);
     expect(svg).toMatch(/@keyframes mmf-anim-mm0-out0/);
+    // DM-901: reduced-motion cancels the slide so it doesn't glide.
+    expect(svg).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+    expect(svg).toContain(".anim-mm0-mv0 { animation: none; transform: none; }");
   });
 
   it("DM-898: magic-move with no bridge layer falls back to a crossfade-style fade (never throws)", () => {

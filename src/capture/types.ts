@@ -169,6 +169,14 @@ export interface CapturedElement {
    */
   animId?: string;
   /**
+   * Author-supplied magic-move pairing key from `data-magic-key="…"` (DM-900).
+   * When the same key appears on an element in two consecutive animation
+   * frames, the magic-move transition force-pairs them (so the matched element
+   * slides/scales between frames) ahead of the fingerprint/path heuristic —
+   * the escape hatch for demos where the heuristic mis-pairs similar elements.
+   */
+  magicKey?: string;
+  /**
    * DM-603 viewBox culling. Set to `true` by `cullElementsOutsideViewBox()` (or a single-frame
    * static cull) when this element's bbox never intersects the viewBox during
    * the scene cycle. The renderer surfaces it as `style="display:none"` on

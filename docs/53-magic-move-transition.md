@@ -130,10 +130,44 @@ Each is a follow-up ticket (filed from DM-112):
    here (else a moved card's moved children double-translate); crossfade
    fallback when no bridge. Unit-tested + verified end-to-end (a card slides
    diagonally while add/remove cross-fade).
-2. **Size + style morph (DM-899)** — add scale and color/opacity/border tweening
-   to matched elements (decision #2's full scope). Phase 1 is translate-only.
-3. **Author match keys (DM-900)** — capture `data-magic-key` and the key-first
-   matching override (decision #1's override half).
-4. **Reduced-motion + nesting hardening + a feature fixture (DM-901)** — the
-   `prefers-reduced-motion` fallback, deeper parent/child relative-transform
-   rules, a `tests/features.ts` fixture, and a showcase example.
+2. ✅ **Size morph (DM-899, done).** A "mover" is now any matched element whose
+   prev→next rect changed in origin OR size (re-derived from the rects, since
+   `diffTrees` keys its kind on origin only and a grow-in-place lands as
+   `static`). Each mover animates the full prev→next affine — `translate` for a
+   pure move, `translate · scale · translate` for a size change, anchored so the
+   element's next-rendered box maps back onto its prev box. Highest-moved-
+   ancestor filtering covers scale too. Unit-tested + verified end-to-end (a
+   card grows 120×60→260×130 and relocates, mid-transition shows it part-grown).
+   **Style morph split out → DM-903:** color / background / border / opacity
+   tweening (and content cross-fade for `modified` movers) needs a different
+   mechanism — the bridge renders each mover once at its NEXT appearance, so
+   color/border/content currently SNAP to next at the window start while the box
+   morphs; tweening them means rendering the mover twice (prev + next
+   appearance) and cross-fading, because the SVG children carry baked-in fills a
+   wrapper can't restyle.
+3. ✅ **Author match keys (DM-900, done).** Capture records `data-magic-key`
+   onto `CapturedElement.magicKey` (a `el.dataset.magicKey` read alongside the
+   existing `data-domotion-anim` capture). `buildMagicMove` collects keyed
+   elements in both frames and force-pairs any key present in both as a mover
+   AHEAD of the fingerprint heuristic — superseding whatever `diffTrees`
+   decided, including splitting a content-changed element into add+remove. Such
+   pairs are removed from the add/remove (fade) sets so they slide instead.
+   Verified end-to-end: a card whose text changes between frames still slides
+   (1 slide keyframe, 0 fades) when both copies carry `data-magic-key="card"`.
+   **Use it** for any demo where the automatic blend mis-pairs similar elements
+   or a moving element's content changes (the heuristic would cross-fade those).
+4. ✅ **Reduced-motion + nesting + showcase (DM-901, done).**
+   `prefers-reduced-motion: reduce` cancels the slide/scale animations (a
+   trailing `@media` block sets `animation: none` on the mover classes) so
+   matched elements sit at their final position instead of gliding — the
+   opacity cross-fades stay (acceptable under the reduced-motion guidelines);
+   static CSS, so output stays deterministic and rasterizers (Chromium default
+   = `no-preference`) still play the full move. Nesting is already correct from
+   phase 1: only the highest moved ancestor animates, so children ride its
+   transform (no double-application) — relative child transforms would only
+   matter if a child moved DIFFERENTLY than its parent, a non-uniform edge left
+   for later. Coverage: a committed `examples/animate/magic-move/` showcase (a
+   card relocating AND growing 180×90→240×130, with a Draft→Published chip
+   add/remove) drives the deterministic golden suite (`demos:test:animate`),
+   doubling as the demo. Verified by rasterizing the golden: card mid-morph
+   under normal motion, card at final position under emulated reduced-motion.

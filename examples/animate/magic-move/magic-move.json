@@ -1,0 +1,8 @@
+{
+  "width": 600,
+  "height": 360,
+  "frames": [
+    { "input": "./page-1.html", "duration": 1200, "transition": { "type": "magic-move", "duration": 700 } },
+    { "input": "./page-2.html", "duration": 1200, "transition": { "type": "magic-move", "duration": 700 } }
+  ]
+}

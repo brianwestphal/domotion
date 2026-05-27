@@ -172,6 +172,40 @@ export function trackGlyphInEmbedFont(
 }
 
 /**
+ * Zero the OpenType `head` table's build timestamps so the serialized font is
+ * byte-for-byte reproducible (DM-902). opentype.js stamps `head.modified` (and,
+ * unless `createdTimestamp` is given, `head.created`) with the wall-clock build
+ * time, then folds those bytes into `head.checkSumAdjustment` and the head
+ * table's directory checksum — so every `@font-face` `data:` URI differs
+ * run-to-run, breaking golden-SVG comparisons (and reproducible builds) even
+ * when nothing about the glyphs changed.
+ *
+ * Walks the sfnt table directory to the `head` record, then zeroes the four
+ * fields that depend on (or summarize) the timestamps: the directory's
+ * per-table `head` checksum, `head.checkSumAdjustment`, and `head.created` /
+ * `head.modified`. Browsers / FreeType / CoreText / DirectWrite don't validate
+ * either checksum for rendering, so zeroing is safe. Mutates `bytes` in place.
+ */
+function determinizeFontTimestamps(bytes: Buffer): void {
+  if (bytes.length < 12) return;
+  const numTables = bytes.readUInt16BE(4);
+  const DIR_START = 12;
+  const REC = 16;
+  for (let i = 0; i < numTables; i++) {
+    const rec = DIR_START + i * REC;
+    if (rec + REC > bytes.length) break;
+    if (bytes.toString("ascii", rec, rec + 4) !== "head") continue;
+    const headOff = bytes.readUInt32BE(rec + 8);
+    // head layout: …, checkSumAdjustment@8, …, created@20 (8), modified@28 (8).
+    if (headOff + 36 > bytes.length) return;
+    bytes.writeUInt32BE(0, rec + 4);            // directory per-table head checksum
+    bytes.writeUInt32BE(0, headOff + 8);        // head.checkSumAdjustment
+    bytes.fill(0, headOff + 20, headOff + 36);  // head.created + head.modified
+    return;
+  }
+}
+
+/**
  * Serialise every tracked custom font as `@font-face` rules with embedded
  * TTF bytes. Returns the joined CSS ready to drop into the SVG's `<style>`
  * block. Empty string when no glyphs were registered.
@@ -201,6 +235,7 @@ export function getBuiltEmbeddedFontFaceCss(): string {
       glyphs: allGlyphs,
     });
     const ttfBytes = Buffer.from(font.toArrayBuffer());
+    determinizeFontTimestamps(ttfBytes); // DM-902: strip the build-time stamp
     const b64 = ttfBytes.toString("base64");
     // Emit explicit font-style / font-weight descriptors so the consumer
     // browser matches this @font-face EXACTLY when the `<text>` element

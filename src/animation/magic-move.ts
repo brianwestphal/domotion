@@ -30,12 +30,16 @@ import { diffTrees, entriesOfKind } from "../tree-ops/tree-diff.js";
 
 /** One element that slides during the transition. `(dx, dy)` is the
  *  prev→next shift (`next.x − prev.x`); the element renders at its next
- *  position and the animator interpolates `translate(−dx, −dy) → (0, 0)`. */
+ *  rect: `from` is the CSS `transform` that maps the element (rendered at its
+ *  NEXT rect) back onto its PREV rect, and the animator interpolates
+ *  `transform: <from> → none` over the transition window. For a pure move
+ *  `from` is `translate(dx,dy)`; for a size change it's the full
+ *  `translate · scale · translate` affine (DM-899). */
 export interface MagicMoveSlide {
   /** CSS class the renderer stamped on the element (`anim-<id>`). */
   cls: string;
-  dx: number;
-  dy: number;
+  /** CSS transform placing the element at its PREV rect (window start). */
+  from: string;
 }
 
 export interface MagicMove {
@@ -60,11 +64,72 @@ function elementAtPath(roots: CapturedElement[], path: number[]): CapturedElemen
   return el ?? null;
 }
 
+/**
+ * CSS `transform` that maps an element rendered at its NEXT rect back onto its
+ * PREV rect — the window-start state the animator interpolates away to `none`.
+ * The element's painted geometry sits at next-space coordinates, so the affine
+ * is `translate(prevOrigin) · scale(prevSize/nextSize) · translate(-nextOrigin)`
+ * (prepend-translate to next origin, scale about it, then place at prev origin).
+ * Pure moves (size unchanged) collapse to a single `translate(dx, dy)` for
+ * smaller, more legible output; a zero next-dimension can't be scaled, so it
+ * also falls back to translate-only.
+ */
+function rectMapTransform(
+  prev: { x: number; y: number; width: number; height: number },
+  next: { x: number; y: number; width: number; height: number },
+): string {
+  const sizeChanged = Math.abs(prev.width - next.width) > 0.5 || Math.abs(prev.height - next.height) > 0.5;
+  if (!sizeChanged || next.width <= 0 || next.height <= 0) {
+    return `translate(${r(prev.x - next.x)}px, ${r(prev.y - next.y)}px)`;
+  }
+  const sx = prev.width / next.width;
+  const sy = prev.height / next.height;
+  return `translate(${r(prev.x)}px, ${r(prev.y)}px) scale(${r5(sx)}, ${r5(sy)}) translate(${r(-next.x)}px, ${r(-next.y)}px)`;
+}
+
+/** Round to 2dp (px positions) / 5dp (scale factors), trimming trailing zeros. */
+function r(n: number): number { return Number(n.toFixed(2)); }
+function r5(n: number): number { return Number(n.toFixed(5)); }
+
 /** True iff `a` is a strict prefix of `b` (i.e. `a` is an ancestor path of `b`). */
 function isAncestorPath(a: number[], b: number[]): boolean {
   if (a.length >= b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
+}
+
+/** A matched element that animates between frames. */
+interface Mover {
+  nextPath: number[];
+  prev: CapturedElement;
+  next: CapturedElement;
+}
+
+/**
+ * Collect every element carrying a `data-magic-key` (`el.magicKey`), keyed by
+ * the attribute value, with its tree path (`[rootIdx, childIdx, …]`, matching
+ * `diffTrees`). First occurrence per key wins — a duplicate key within one
+ * frame is author error; we pair the first. (DM-900)
+ */
+function collectKeyed(roots: CapturedElement[]): Map<string, { el: CapturedElement; path: number[] }> {
+  const out = new Map<string, { el: CapturedElement; path: number[] }>();
+  const walk = (el: CapturedElement, path: number[]): void => {
+    const k = el.magicKey;
+    if (k != null && k !== "" && !out.has(k)) out.set(k, { el, path });
+    const kids = el.children ?? [];
+    for (let i = 0; i < kids.length; i++) walk(kids[i], [...path, i]);
+  };
+  for (let i = 0; i < roots.length; i++) walk(roots[i], [i]);
+  return out;
+}
+
+/** True iff the two rects differ in origin or size beyond the diff tolerance. */
+function rectChanged(
+  p: { x: number; y: number; width: number; height: number },
+  q: { x: number; y: number; width: number; height: number },
+): boolean {
+  return Math.abs(q.x - p.x) > 0.5 || Math.abs(q.y - p.y) > 0.5
+    || Math.abs(q.width - p.width) > 0.5 || Math.abs(q.height - p.height) > 0.5;
 }
 
 /**
@@ -86,23 +151,53 @@ export function buildMagicMove(
   const nextRoots = asRoots(nextTree);
   const diff = diffTrees(prevRoots, nextRoots);
 
-  const translated = entriesOfKind(diff, "translated");
-  const added = entriesOfKind(diff, "added");
-  const removed = entriesOfKind(diff, "removed");
+  // DM-900: author `data-magic-key` force-pairs the same logical element across
+  // frames AHEAD of the fingerprint heuristic. A key present in BOTH trees is a
+  // forced mover that supersedes whatever diffTrees decided for those elements
+  // (the heuristic may have mis-paired them, or — when their content changed —
+  // split them into add + remove, which would cross-fade instead of slide).
+  const prevKeyed = collectKeyed(prevRoots);
+  const nextKeyed = collectKeyed(nextRoots);
+  const keyedMovers: Mover[] = [];
+  const keyedNextPaths = new Set<string>();
+  const keyedPrevPaths = new Set<string>();
+  for (const [key, nx] of nextKeyed) {
+    const pv = prevKeyed.get(key);
+    if (pv == null) continue; // key only in next → genuinely added; leave to heuristic
+    keyedMovers.push({ nextPath: nx.path, prev: pv.el, next: nx.el });
+    keyedNextPaths.add(nx.path.join(","));
+    keyedPrevPaths.add(pv.path.join(","));
+  }
 
-  // Only animate the HIGHEST translated ancestor of each moved subtree: when a
-  // card and its children all shift by the same delta the diff reports every
-  // node as `translated`, but the ancestor's slide already carries its
-  // descendants — animating each would translate the children twice. Keep a
-  // translated entry only when no other translated entry is its ancestor.
-  const translatedPaths = translated
-    .map((e) => e.nextPath)
-    .filter((p): p is number[] => p != null);
-  const rootMovers = translated.filter((e) => {
-    if (e.nextPath == null || e.dx == null || e.dy == null) return false;
-    if (Math.round(e.dx) === 0 && Math.round(e.dy) === 0) return false;
-    return !translatedPaths.some((p) => isAncestorPath(p, e.nextPath!));
-  });
+  // Heuristic movers: any element matched by diffTrees (static / translated /
+  // modified all carry prev + next) whose rect changed in ORIGIN or SIZE —
+  // re-derived from the rects since diffTrees keys its kind on origin only and
+  // size isn't in its fingerprint (a grow-in-place lands as `static`). Skip
+  // elements a key already claimed.
+  const heuristicMovers: Mover[] = entriesOfKind(diff, "static", "translated", "modified")
+    .filter((e) => e.nextPath != null && e.prev != null && e.next != null
+      && !keyedNextPaths.has(e.nextPath.join(","))
+      && rectChanged(e.prev, e.next))
+    .map((e) => ({ nextPath: e.nextPath!, prev: e.prev!, next: e.next! }));
+
+  // Keyed pairs animate only when their rect actually changed (a keyed but
+  // unmoved element is just static — the key still guaranteed the pairing).
+  const allMovers = [...keyedMovers.filter((m) => rectChanged(m.prev, m.next)), ...heuristicMovers];
+
+  // Only animate the HIGHEST moved ancestor of each changed subtree: when a
+  // card moves/grows the diff reports every descendant as changed too, but the
+  // ancestor's transform already carries them — animating each would
+  // double-apply. Keep a mover only when no other mover is its ancestor.
+  const allMoverPaths = allMovers.map((m) => m.nextPath);
+  const rootMovers = allMovers.filter(
+    (m) => !allMoverPaths.some((p) => isAncestorPath(p, m.nextPath)),
+  );
+
+  // Added / removed, minus anything a key force-paired (those slide, not fade).
+  const added = entriesOfKind(diff, "added")
+    .filter((e) => e.nextPath == null || !keyedNextPaths.has(e.nextPath.join(",")));
+  const removed = entriesOfKind(diff, "removed")
+    .filter((e) => e.prevPath == null || !keyedPrevPaths.has(e.prevPath.join(",")));
 
   if (rootMovers.length === 0 && added.length === 0 && removed.length === 0) {
     return null; // nothing to magic-move → caller uses crossfade
@@ -115,12 +210,12 @@ export function buildMagicMove(
 
   const slides: MagicMoveSlide[] = [];
   let n = 0;
-  for (const e of rootMovers) {
-    const el = elementAtPath(compositeNext, e.nextPath!);
+  for (const m of rootMovers) {
+    const el = elementAtPath(compositeNext, m.nextPath);
     if (el == null) continue;
     const id = `${idPrefix}mv${n++}`;
     el.animId = id;
-    slides.push({ cls: `anim-${id}`, dx: e.dx!, dy: e.dy! });
+    slides.push({ cls: `anim-${id}`, from: rectMapTransform(m.prev, m.next) });
   }
 
   const fadeIn: string[] = [];
