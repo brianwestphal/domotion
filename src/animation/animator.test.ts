@@ -122,7 +122,7 @@ describe("animator", () => {
           transition: { type: "magic-move", duration: 200 },
           magicMove: {
             compositeSvg: `<g class="anim-mm0-mv0"><rect/></g>`,
-            slides: [{ cls: "anim-mm0-mv0", from: "translate(-50px, -80px)" }],
+            slides: [{ cls: "anim-mm0-mv0", from: "translate(-50px, -80px)", to: "none" }],
             fadeIn: ["anim-mm0-in0"],
             fadeOut: ["anim-mm0-out0"],
           },

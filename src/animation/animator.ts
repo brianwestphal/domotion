@@ -429,46 +429,67 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // Per-element slide / fade keyframes within the window (linear interp).
       // The composite is only visible [holdEnd..transEnd], so the held values
       // outside that window are never painted — they just pin the endpoints.
+      //
+      // A dual-render cross-fade copy (DM-903) is BOTH a slide and a fade, so
+      // its element needs two animations. They MUST go in one `animation:`
+      // declaration (comma-joined) — two separate `.cls { animation: … }` rules
+      // would have the later one silently override the former, dropping the
+      // slide. Accumulate per-class animation entries and emit one rule each.
+      const animEntries = new Map<string, string[]>();
+      const addAnim = (cls: string, name: string): void => {
+        const list = animEntries.get(cls) ?? [];
+        list.push(`${name} ${totalSec.toFixed(2)}s infinite`);
+        animEntries.set(cls, list);
+      };
       for (const s of mm.slides) {
-        // `from` maps the element (painted at its next rect) back onto its prev
-        // rect — translate for a pure move, translate·scale·translate for a
-        // size change (DM-899). Interpolating it to `none` plays the magic move.
+        // Interpolate the element's transform `from → to` across the window.
+        // The next-appearance copy maps its prev rect → `none` (final next
+        // rect); a cross-fade prev copy maps `none` → its next rect, so both
+        // copies trace the same path (DM-899 geometry; DM-903 paired copies).
         keyframes.push(`
     @keyframes mms-${s.cls} {
       0%, ${hNum.toFixed(3)}% { transform: ${s.from}; }
-      ${tNum.toFixed(3)}%, 100% { transform: none; }
-    }
-    .${s.cls} { animation: mms-${s.cls} ${totalSec.toFixed(2)}s infinite; }`);
+      ${tNum.toFixed(3)}%, 100% { transform: ${s.to}; }
+    }`);
+        addAnim(s.cls, `mms-${s.cls}`);
       }
       for (const cls of mm.fadeIn) {
         keyframes.push(`
     @keyframes mmf-${cls} {
       0%, ${hNum.toFixed(3)}% { opacity: 0; }
       ${tNum.toFixed(3)}%, 100% { opacity: 1; }
-    }
-    .${cls} { animation: mmf-${cls} ${totalSec.toFixed(2)}s infinite; }`);
+    }`);
+        addAnim(cls, `mmf-${cls}`);
       }
       for (const cls of mm.fadeOut) {
         keyframes.push(`
     @keyframes mmf-${cls} {
       0%, ${hNum.toFixed(3)}% { opacity: 1; }
       ${tNum.toFixed(3)}%, 100% { opacity: 0; }
-    }
-    .${cls} { animation: mmf-${cls} ${totalSec.toFixed(2)}s infinite; }`);
+    }`);
+        addAnim(cls, `mmf-${cls}`);
       }
-      // DM-901: honor `prefers-reduced-motion: reduce` — cancel the slide/scale
-      // animations so matched elements sit at their final position instead of
-      // gliding (the translate/scale is the "motion"; the opacity cross-fades
-      // stay, which the reduced-motion guidelines treat as acceptable). The
-      // bridge still step-shows the next state across the window, so the
-      // transition degrades to a cut-like reveal for motion-sensitive viewers.
-      // Static CSS, so output stays deterministic; rasterizers default to
-      // `no-preference` and play the full move.
-      if (mm.slides.length > 0) {
-        const sel = mm.slides.map((s) => `.${s.cls}`).join(", ");
+      for (const [cls, entries] of animEntries) {
+        keyframes.push(`    .${cls} { animation: ${entries.join(", ")}; }`);
+      }
+      // DM-901: honor `prefers-reduced-motion: reduce` — pin everything to the
+      // NEXT state instead of animating, so the transition degrades to a
+      // cut-like reveal for motion-sensitive viewers. Slides drop to their
+      // final transform (`none` for the next copy; the prev cross-fade copy is
+      // also hidden via its fade-out below). Added / next-appearance fades snap
+      // to opacity 1; removed / prev-appearance fades snap to opacity 0. Static
+      // CSS, so output stays deterministic; rasterizers default to
+      // `no-preference` and play the full move. (DM-903: the fade rules now
+      // also matter — without pinning fade-out to 0 the prev-appearance copy
+      // would stay visible at full opacity.)
+      const reduceRules: string[] = [];
+      if (mm.slides.length > 0) reduceRules.push(`${mm.slides.map((s) => `.${s.cls}`).join(", ")} { animation: none; transform: none; }`);
+      if (mm.fadeIn.length > 0) reduceRules.push(`${mm.fadeIn.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 1; }`);
+      if (mm.fadeOut.length > 0) reduceRules.push(`${mm.fadeOut.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 0; }`);
+      if (reduceRules.length > 0) {
         keyframes.push(`
     @media (prefers-reduced-motion: reduce) {
-      ${sel} { animation: none; transform: none; }
+      ${reduceRules.join("\n      ")}
     }`);
       }
 

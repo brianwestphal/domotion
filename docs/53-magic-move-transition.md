@@ -138,13 +138,21 @@ Each is a follow-up ticket (filed from DM-112):
    element's next-rendered box maps back onto its prev box. Highest-moved-
    ancestor filtering covers scale too. Unit-tested + verified end-to-end (a
    card grows 120×60→260×130 and relocates, mid-transition shows it part-grown).
-   **Style morph split out → DM-903:** color / background / border / opacity
-   tweening (and content cross-fade for `modified` movers) needs a different
-   mechanism — the bridge renders each mover once at its NEXT appearance, so
-   color/border/content currently SNAP to next at the window start while the box
-   morphs; tweening them means rendering the mover twice (prev + next
-   appearance) and cross-fading, because the SVG children carry baked-in fills a
-   wrapper can't restyle.
+   ✅ **Style/appearance morph (DM-903, done).** When a mover's PAINT also
+   changed — text, `color`, `backgroundColor`, `borderColor`, or `opacity`
+   (`appearanceChanged()`; checked off the captured styles, since the
+   fingerprint matcher ignores style so a recolored-but-moved element stays a
+   single mover) — the bridge renders the element TWICE: a next-appearance copy
+   (slide prev→next rect, fade in) and a prev-appearance copy appended at its
+   prev coords (slide prev→next rect, fade out). Both trace the same path and
+   cross-fade, so color/border/content morph while the box moves — the SVG
+   children carry baked-in fills a wrapper can't restyle, so dual-render +
+   cross-fade is the mechanism. `MagicMoveSlide` carries both transform
+   endpoints (`from`→`to`) for this. Geometry-only movers keep the single copy.
+   Fixed a latent bug this exposed: an element that's both a slide and a fade
+   must emit ONE `animation:` declaration (comma-joined) — two separate rules
+   silently dropped the transform. Verified end-to-end (a card recolors blue→red
+   while moving: mid-transition shows one blended card at the intermediate rect).
 3. ✅ **Author match keys (DM-900, done).** Capture records `data-magic-key`
    onto `CapturedElement.magicKey` (a `el.dataset.magicKey` read alongside the
    existing `data-domotion-anim` capture). `buildMagicMove` collects keyed

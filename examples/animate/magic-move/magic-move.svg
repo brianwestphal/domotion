@@ -32,22 +32,24 @@
       0%, 31.580% { transform: translate(40px, 40px) scale(0.75, 0.69231) translate(-320px, -190px); }
       50.000%, 100% { transform: none; }
     }
-    .anim-mm0-mv0 { animation: mms-anim-mm0-mv0 3.80s infinite; }
 
     @keyframes mmf-anim-mm0-in0 {
       0%, 31.580% { opacity: 0; }
       50.000%, 100% { opacity: 1; }
     }
-    .anim-mm0-in0 { animation: mmf-anim-mm0-in0 3.80s infinite; }
 
     @keyframes mmf-anim-mm0-out0 {
       0%, 31.580% { opacity: 1; }
       50.000%, 100% { opacity: 0; }
     }
+    .anim-mm0-mv0 { animation: mms-anim-mm0-mv0 3.80s infinite; }
+    .anim-mm0-in0 { animation: mmf-anim-mm0-in0 3.80s infinite; }
     .anim-mm0-out0 { animation: mmf-anim-mm0-out0 3.80s infinite; }
 
     @media (prefers-reduced-motion: reduce) {
       .anim-mm0-mv0 { animation: none; transform: none; }
+      .anim-mm0-in0 { animation: none; opacity: 1; }
+      .anim-mm0-out0 { animation: none; opacity: 0; }
     }
 
     @keyframes fv-1 {

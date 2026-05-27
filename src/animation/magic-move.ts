@@ -28,18 +28,19 @@
 import type { CapturedElement } from "../capture/types.js";
 import { diffTrees, entriesOfKind } from "../tree-ops/tree-diff.js";
 
-/** One element that slides during the transition. `(dx, dy)` is the
- *  prev→next shift (`next.x − prev.x`); the element renders at its next
- *  rect: `from` is the CSS `transform` that maps the element (rendered at its
- *  NEXT rect) back onto its PREV rect, and the animator interpolates
- *  `transform: <from> → none` over the transition window. For a pure move
- *  `from` is `translate(dx,dy)`; for a size change it's the full
- *  `translate · scale · translate` affine (DM-899). */
+/** One element that slides during the transition. The animator interpolates
+ *  `transform: <from> → <to>` over the window. A `translate(dx,dy)` for a pure
+ *  move, the full `translate · scale · translate` affine for a size change
+ *  (DM-899). The next-appearance copy goes `<prev-rect map> → none`; a prev-
+ *  appearance copy in a cross-fade pair goes `none → <next-rect map>` so both
+ *  copies trace the same prev→next path while their opacities swap (DM-903). */
 export interface MagicMoveSlide {
   /** CSS class the renderer stamped on the element (`anim-<id>`). */
   cls: string;
-  /** CSS transform placing the element at its PREV rect (window start). */
+  /** CSS transform at the window start. */
   from: string;
+  /** CSS transform at the window end (`"none"` for the next-appearance copy). */
+  to: string;
 }
 
 export interface MagicMove {
@@ -121,6 +122,27 @@ function collectKeyed(roots: CapturedElement[]): Map<string, { el: CapturedEleme
   };
   for (let i = 0; i < roots.length; i++) walk(roots[i], [i]);
   return out;
+}
+
+/**
+ * True iff a matched element's PAINT changed between frames — text content or
+ * a visible style (`color` / `backgroundColor` / `borderColor` / `borderTopColor`
+ * / `opacity`). Gates the DM-903 dual-render cross-fade: geometry-only movers
+ * (same paint, just moved/resized) keep a single copy; paint-changed movers
+ * render prev + next appearances and cross-fade. The fingerprint matcher keys
+ * on (tag, text, children) not style, so a recolored-but-moved element stays
+ * `translated` — style equality has to be checked here, not read off the kind.
+ */
+function appearanceChanged(prev: CapturedElement, next: CapturedElement): boolean {
+  if ((prev.text ?? "") !== (next.text ?? "")) return true;
+  const p = prev.styles;
+  const q = next.styles;
+  if (p == null || q == null) return false;
+  return p.color !== q.color
+    || (p.backgroundColor ?? "") !== (q.backgroundColor ?? "")
+    || (p.borderColor ?? "") !== (q.borderColor ?? "")
+    || (p.borderTopColor ?? "") !== (q.borderTopColor ?? "")
+    || p.opacity !== q.opacity;
 }
 
 /** True iff the two rects differ in origin or size beyond the diff tolerance. */
@@ -209,16 +231,42 @@ export function buildMagicMove(
   const compositeNext = nextRoots.map((r) => structuredClone(r));
 
   const slides: MagicMoveSlide[] = [];
+  const fadeIn: string[] = [];
+  const fadeOut: string[] = [];
+  // Prev-appearance copies + removed subtrees, appended after the next tree so
+  // they render at their prev coordinates.
+  const extraRoots: CapturedElement[] = [];
+
   let n = 0;
   for (const m of rootMovers) {
     const el = elementAtPath(compositeNext, m.nextPath);
     if (el == null) continue;
-    const id = `${idPrefix}mv${n++}`;
-    el.animId = id;
-    slides.push({ cls: `anim-${id}`, from: rectMapTransform(m.prev, m.next) });
+    const nextId = `${idPrefix}mv${n++}`;
+    el.animId = nextId;
+    // Next-appearance copy: slide from the prev rect to its final next rect.
+    slides.push({ cls: `anim-${nextId}`, from: rectMapTransform(m.prev, m.next), to: "none" });
+
+    // DM-903: when the element's PAINT also changed (text / color / background
+    // / border / opacity), a single next-appearance copy would snap the new
+    // look on at the window start. Render a SECOND copy at the PREV appearance,
+    // co-moving along the same prev→next path, and cross-fade — prev fades out,
+    // next fades in. Geometry-only movers keep the cheaper single copy (nothing
+    // to cross-fade). The SVG children carry baked-in fills a wrapper can't
+    // restyle, so dual-render + cross-fade is how the paint morph is expressed.
+    if (appearanceChanged(m.prev, m.next)) {
+      fadeIn.push(`anim-${nextId}`);
+      const prevClone = structuredClone(m.prev);
+      const prevId = `${nextId}p`;
+      prevClone.animId = prevId;
+      extraRoots.push(prevClone);
+      // Prev copy renders at its prev rect; map it FORWARD onto the next rect
+      // (rectMapTransform with args swapped) so it traces the same path as the
+      // next copy while fading out.
+      slides.push({ cls: `anim-${prevId}`, from: "none", to: rectMapTransform(m.next, m.prev) });
+      fadeOut.push(`anim-${prevId}`);
+    }
   }
 
-  const fadeIn: string[] = [];
   let a = 0;
   for (const e of added) {
     if (e.nextPath == null) continue;
@@ -234,8 +282,6 @@ export function buildMagicMove(
   // fade them out. Skip a removed entry nested inside another removed subtree
   // (its ancestor already carries it).
   const removedPaths = removed.map((e) => e.prevPath).filter((p): p is number[] => p != null);
-  const extraRoots: CapturedElement[] = [];
-  const fadeOut: string[] = [];
   let o = 0;
   for (const e of removed) {
     if (e.prevPath == null || e.prev == null) continue;

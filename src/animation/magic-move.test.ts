@@ -85,19 +85,47 @@ describe("buildMagicMove (DM-898)", () => {
       el({ tag: "div", x: 200, y: 200, text: "B", magicKey: "hero" }),
     ]});
 
-    // Sanity: without the keys this would be add + remove, not a slide.
+    // Sanity: without the keys this is add + remove (independent appear /
+    // disappear) — NO slide, because the heuristic can't pair "A" with "B".
     const noKey = buildMagicMove(
       el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 10, y: 10, text: "A" })] }),
       el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 200, y: 200, text: "B" })] }),
       stubRender, "mm0-")!;
     expect(noKey.slides).toHaveLength(0);
-    expect(noKey.fadeIn.length + noKey.fadeOut.length).toBeGreaterThan(0);
 
+    // With the key the element is PAIRED → it slides. Since its content also
+    // changed (A→B), the DM-903 dual-render kicks in: two co-moving copies
+    // (prev + next appearance) that cross-fade, both tracing the prev→next path.
     const mm = buildMagicMove(prev, next, stubRender, "mm0-")!;
-    expect(mm.slides).toHaveLength(1);
-    expect(mm.slides[0].from).toBe("translate(-190px, -190px)");
-    expect(mm.fadeIn).toHaveLength(0);   // the keyed pair slides, doesn't fade
-    expect(mm.fadeOut).toHaveLength(0);
+    expect(mm.slides).toHaveLength(2);
+    const nextCopy = mm.slides.find((s) => s.to === "none")!;
+    expect(nextCopy.from).toBe("translate(-190px, -190px)"); // next copy slides in from prev rect
+    expect(mm.fadeIn).toHaveLength(1);   // next appearance fades in
+    expect(mm.fadeOut).toHaveLength(1);  // prev appearance fades out
+  });
+
+  it("dual-renders a cross-fade when a mover's PAINT changes, not just its box (DM-903)", () => {
+    // Same text, same structure, but the card is recolored AND moved — the
+    // fingerprint still pairs it (color isn't in the fingerprint), so it's a
+    // single mover; the paint change must trigger the prev+next cross-fade.
+    const blue = { color: "rgb(0,0,0)", backgroundColor: "rgb(0,0,255)", opacity: "1" } as CapturedElement["styles"];
+    const red = { color: "rgb(0,0,0)", backgroundColor: "rgb(255,0,0)", opacity: "1" } as CapturedElement["styles"];
+    const prev = el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 10, y: 10, text: "Card", styles: blue })] });
+    const next = el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 120, y: 60, text: "Card", styles: red })] });
+    const mm = buildMagicMove(prev, next, stubRender, "mm0-")!;
+    // Two slide copies (next-appearance + prev-appearance), one fading in, one out.
+    expect(mm.slides).toHaveLength(2);
+    expect(mm.fadeIn).toHaveLength(1);
+    expect(mm.fadeOut).toHaveLength(1);
+
+    // A pure geometric move with NO paint change stays a single copy.
+    const moveOnly = buildMagicMove(
+      el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 10, y: 10, text: "Card", styles: blue })] }),
+      el({ tag: "body", x: 0, y: 0, children: [el({ tag: "div", x: 120, y: 60, text: "Card", styles: blue })] }),
+      stubRender, "mm0-")!;
+    expect(moveOnly.slides).toHaveLength(1);
+    expect(moveOnly.fadeIn).toHaveLength(0);
+    expect(moveOnly.fadeOut).toHaveLength(0);
   });
 
   it("fades in added elements and fades out removed ones", () => {
