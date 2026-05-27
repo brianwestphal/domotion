@@ -10,6 +10,10 @@ export default [
       "tests/cache/**",
       "external/**",
       "src/capture/script.generated.ts",
+      // Native-helper CMake build dirs (git-ignored, but ESLint flat config
+      // doesn't read nested .gitignore). They hold compiler artifacts like
+      // `compiler_depend.ts` that aren't real TypeScript.
+      "tools/**/build/**",
     ],
   },
   {
