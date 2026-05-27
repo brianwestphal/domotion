@@ -1,5 +1,3 @@
-# Domotion
-
 <p align="center">
   <img src="examples/output/domotion-word-demo.svg" alt="Domotion — an animated wordmark cycling through twenty neon-retro typographic variants of the word domotion" width="600">
 </p>
