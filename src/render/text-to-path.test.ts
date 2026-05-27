@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -463,6 +463,36 @@ describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", (
     expect(darwinFallbackChain(0x2500, "helvetica")).toEqual(["hiragino-jp", "menlo"]);
     expect(darwinFallbackChain(0x2500, "sf-pro")).toEqual(["hiragino-jp", "menlo"]);
     expect(darwinFallbackChain(0x2500, "times")).toEqual(["hiragino-jp", "menlo"]);
+  });
+});
+
+describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
+  // The radical was a uniform-stroke synthesized path that couldn't match the
+  // stroke-weight contrast of Chrome's painted √ glyph. renderRadicalGlyph
+  // fits the actual U+221A glyph to the captured radical box and extends the
+  // overbar across the radicand.
+  it.skipIf(!MACOS_FONTS)("emits a glyph <use> plus an overbar rect fitted to the box", () => {
+    clearGlyphDefs();
+    // x=261, top=680, height=22, width=24 — the √2 box from the fixture.
+    const out = renderRadicalGlyph(261, 680, 22, 24, 22, "math", "400", "rgb(0,0,0)");
+    expect(out).not.toBeNull();
+    // The √ glyph is emitted as a <use> reference inside a scaled group.
+    expect(out!).toContain("<use href=");
+    expect(out!).toMatch(/scale\([^)]+\)/);
+    // The overbar (vinculum) is a separate 1-px rule extending to the right.
+    expect(out!).toContain("<rect");
+    expect(out!).toContain('height="1"');
+  });
+
+  it.skipIf(!MACOS_FONTS)("omits the overbar when the radical box has no width past the glyph", () => {
+    clearGlyphDefs();
+    // A zero/degenerate width can't host a vinculum extension.
+    const out = renderRadicalGlyph(261, 680, 22, 0, 22, "math", "400", "rgb(0,0,0)");
+    expect(out).toBeNull(); // width <= 0 short-circuits
+  });
+
+  it("returns null for a non-positive box height", () => {
+    expect(renderRadicalGlyph(0, 0, 0, 20, 22, "math", "400", "rgb(0,0,0)")).toBeNull();
   });
 });
 

@@ -8,7 +8,7 @@ import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb } from "./text-to-path.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph } from "./text-to-path.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
@@ -2984,33 +2984,41 @@ export function elementTreeToSvg(
       svgParts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`);
     }
 
-    // DM-809: MathML `<msqrt>` / `<mroot>` need their radical sign + over-
-    // bar synthesised — Chrome's MathML layout paints them from internal
-    // layout (no border / glyph capture). The msqrt's first radicand
-    // child's `x` is inset from `el.x` by the radical-sign width, and
-    // its `y` is inset by the overbar height — derive the radical
-    // geometry from those rects. Stroke a 3-segment path: leftmost mid-
-    // height vertex → bottom-right of radical area → top of overbar; then
-    // a horizontal overbar from the radicand's left to msqrt's right edge.
-    // For `<mroot>` the structure is `<mroot><radicand><index></mroot>`
-    // (index is a small superscript inside the radical's "hook"); we only
-    // draw the radical + overbar — the index renders normally as a child
-    // glyph.
+    // DM-809 / DM-897: MathML `<msqrt>` / `<mroot>` need their radical sign +
+    // overbar synthesised — Chrome's MathML layout paints them from internal
+    // layout (no border / glyph capture). Preferred path (DM-897): render the
+    // actual √ (U+221A) font glyph fitted to the captured radical box, so the
+    // checkmark inherits the font's stroke-weight contrast and hook shape that
+    // a uniform stroke can't reproduce; the overbar (vinculum) is extended
+    // across the radicand separately. Falls back to the legacy uniform-stroke
+    // 3-segment path when the √ glyph can't be resolved (e.g. a platform whose
+    // fallback chain lacks it). For `<mroot>` the structure is `<mroot>
+    // <radicand><index></mroot>` — the index renders normally as a child
+    // glyph; only the radical + overbar are synthesised here.
     if ((el.tag === "msqrt" || el.tag === "mroot") && el.children.length >= 1) {
       const radicand = el.children[0];
       const strokeCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
-      const radX0 = el.x;
-      const radX1 = radicand.x;
-      const radTop = el.y;
-      const radBottom = el.y + el.height;
-      const radMid = el.y + el.height * 0.6;
-      const radRight = el.x + el.width;
-      // Radical checkmark: enter at (radX0, radMid), descend to bottom at
-      // 40% across the radical-sign zone, climb to top-right at radicand
-      // start. Then overbar across the top.
-      const vertexX = radX0 + (radX1 - radX0) * 0.4;
-      const path = `M${r(radX0)},${r(radMid)} L${r(vertexX)},${r(radBottom - 1)} L${r(radX1)},${r(radTop)} L${r(radRight)},${r(radTop)}`;
-      svgParts.push(`${indent}<path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="1" />`);
+      const radFontSize = parseFloat(el.styles.fontSize) || 16;
+      const glyphRadical = renderRadicalGlyph(
+        el.x, el.y, el.height, el.width,
+        radFontSize, el.styles.fontFamily, el.styles.fontWeight, strokeCol, el.styles.fontStyle,
+      );
+      if (glyphRadical != null) {
+        svgParts.push(`${indent}${glyphRadical}`);
+      } else {
+        const radX0 = el.x;
+        const radX1 = radicand.x;
+        const radTop = el.y;
+        const radBottom = el.y + el.height;
+        const radMid = el.y + el.height * 0.6;
+        const radRight = el.x + el.width;
+        // Radical checkmark: enter at (radX0, radMid), descend to bottom at
+        // 40% across the radical-sign zone, climb to top-right at radicand
+        // start. Then overbar across the top.
+        const vertexX = radX0 + (radX1 - radX0) * 0.4;
+        const path = `M${r(radX0)},${r(radMid)} L${r(vertexX)},${r(radBottom - 1)} L${r(radX1)},${r(radTop)} L${r(radRight)},${r(radTop)}`;
+        svgParts.push(`${indent}<path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="1" />`);
+      }
     }
 
     if (overflowClipId != null) svgParts.push(`${indent}</g>`);

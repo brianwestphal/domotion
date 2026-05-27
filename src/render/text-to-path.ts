@@ -3348,6 +3348,107 @@ export function renderStretchyFenceGlyph(
   return `<g transform="translate(${r(x)},${r(ty)}) scale(${sxStr},${syStr})" fill="${fill}"><use href="#${defId}"/></g>`;
 }
 
+/**
+ * Render a MathML `<msqrt>` / `<mroot>` radical sign from the actual √ (U+221A)
+ * font glyph fitted to the captured radical box, plus the horizontal overbar
+ * (vinculum) extended across the radicand. (DM-897)
+ *
+ * Chromium paints the radical from the math font's glyph, which carries
+ * stroke-weight contrast (thin descending stroke → thick rising stroke) and a
+ * proper hook — a uniform-stroke synthesized path (the previous approach)
+ * couldn't reproduce that look. The radicands in practice are close to the √
+ * glyph's natural height, so a near-natural uniform scale fits without the
+ * OpenType MATH-table vertical glyph assembly that taller radicals would need.
+ *
+ * Fit: scale uniformly so the glyph ink height fills the captured box height,
+ * anchor the glyph's ink-left at `x` and ink-top at `topY` (so the V tip lands
+ * at the box bottom, matching Chrome's painted radical). The glyph's own
+ * overbar stub sits at the top; the separately-drawn rule continues it across
+ * the radicand to `x + width`. The rule's y is nudged to Chrome's painted
+ * vinculum, which sits ~1.5 px below the captured element-box top.
+ *
+ * Returns null (caller falls back to the synthesized path) when the √ glyph
+ * can't be resolved or has no outline.
+ */
+export function renderRadicalGlyph(
+  x: number,
+  topY: number,
+  height: number,
+  width: number,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string,
+  fill: string,
+  fontStyle?: string,
+): string | null {
+  if (height <= 0 || width <= 0) return null;
+  const cp = 0x221A; // √ SQUARE ROOT
+  const weight = parseInt(fontWeight) || 400;
+  const slant = slantForStyle(fontStyle);
+
+  // Resolve a font that has the √ glyph: primary first, then the fallback
+  // chain (mirrors textToPathMarkup's per-codepoint routing).
+  const primaryFontKey = resolveFontKey(fontFamily);
+  let useKey = primaryFontKey;
+  let font = resolveFont(fontFamily, weight, fontSize, slant);
+  if (font == null) return null;
+  if ((font as any).glyphForCodePoint(cp).id === 0) {
+    const chain = fallbackFontChain(cp, primaryFontKey);
+    for (const candidate of chain) {
+      const cf = getFontInstance(candidate, weight, fontSize, slant);
+      if (cf != null && (cf as any).glyphForCodePoint != null
+          && (cf as any).glyphForCodePoint(cp).id !== 0) {
+        useKey = candidate;
+        font = cf;
+        break;
+      }
+    }
+  }
+
+  let layout;
+  try { layout = font.layout("√"); } catch { return null; }
+  const glyph = layout.glyphs[0] as
+    { id: number; path: { commands: Array<{ command: string; args: number[] }> }; bbox?: { minX: number; minY: number; maxX: number; maxY: number } } | undefined;
+  if (glyph == null || glyph.path.commands.length === 0) return null;
+  const bbox = glyph.bbox;
+  if (bbox == null || !(bbox.maxY > bbox.minY) || !(bbox.maxX > bbox.minX)) return null;
+
+  const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands);
+  // The captured element box carries a small clearance above the painted
+  // vinculum and below the V tip (Chrome's RadicalVerticalGap + rule), so the
+  // radical INK is shorter than `height`. Pixel scan of the 22 px fixture put
+  // the top clearance at ~1.5 px (≈7% of the box) and the bottom at ~0.5 px
+  // (≈2%); expressing them as fractions keeps the fit correct across sizes.
+  // Fit the glyph ink to that inset box, uniform scale to preserve the √'s
+  // natural aspect (a non-uniform stretch would distort the stroke weights).
+  const topInset = height * 0.07;
+  const botInset = height * 0.02;
+  const inkH = height - topInset - botInset;
+  const s = inkH / (bbox.maxY - bbox.minY);
+  // Anchor ink-left at x (translateX offsets the glyph origin so bbox.minX
+  // lands at x) and ink-top at `topY + topInset` (translateY maps bbox.maxY
+  // there under the -s vertical flip, same convention as the fence path).
+  const overbarY = topY + topInset;
+  const tx = x - bbox.minX * s;
+  const ty = overbarY + s * bbox.maxY;
+  const sStr = Number(s.toFixed(5)).toString();
+  const negS = Number((-s).toFixed(5)).toString();
+  const glyphMarkup = `<g transform="translate(${r(tx)},${r(ty)}) scale(${sStr},${negS})" fill="${fill}"><use href="#${defId}"/></g>`;
+
+  // Overbar (vinculum): continue the glyph's top stub across the radicand to
+  // the radical's right edge, at the SAME y the glyph ink-top was anchored to
+  // so the stub and the extension form one continuous rule (a y mismatch here
+  // is what showed up as a doubled overbar line). 1 px matches the default
+  // rule thickness.
+  const glyphRight = x + (bbox.maxX - bbox.minX) * s;
+  const overbarRight = x + width;
+  let overbar = "";
+  if (overbarRight > glyphRight) {
+    overbar = `<rect x="${r(glyphRight)}" y="${r(overbarY)}" width="${r(overbarRight - glyphRight)}" height="1" fill="${fill}"/>`;
+  }
+  return glyphMarkup + overbar;
+}
+
 export function computeSkipInkGaps(
   text: string,
   fontSize: number, fontFamily: string, fontWeight: string | number, fontStyle?: string,
