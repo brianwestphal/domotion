@@ -158,11 +158,30 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined): string 
   if (suppress.length === 0) return normalized;
   // text is a UTF-16 string; charIndex is a UTF-16 position. U+200B is one
   // UTF-16 unit so the substitution preserves text length and xOffsets
-  // alignment.
+  // alignment. DM-905: supplementary-plane codepoints (e.g. emoji like 😀
+  // U+1F600) occupy TWO UTF-16 units (a surrogate pair). The capture's
+  // charIndex points at the FIRST (high) surrogate; replacing only that
+  // leaves the orphan low surrogate, which UTF-8 encodes as U+FFFD and
+  // the embedded-font emit then paints as a replacement-character tofu.
+  // When the suppressed char-at-i is a high surrogate, replace BOTH the
+  // high and low surrogate with a single ZWSP and a second filler ZWSP
+  // so xOffset / position indexing stays aligned 1:1.
+  const isHighSurrogate = (c: string) => c.charCodeAt(0) >= 0xD800 && c.charCodeAt(0) <= 0xDBFF;
+  const isLowSurrogate = (c: string) => c.charCodeAt(0) >= 0xDC00 && c.charCodeAt(0) <= 0xDFFF;
   let out = "";
   for (let i = 0; i < normalized.length; i++) {
     const drop = suppress.some((g) => g.charIndex === i);
-    out += drop ? ZWSP : normalized[i];
+    if (drop) {
+      out += ZWSP;
+      // Pair the high surrogate's ZWSP with a second ZWSP for the low
+      // surrogate so following indices match the original positions.
+      if (isHighSurrogate(normalized[i]) && i + 1 < normalized.length && isLowSurrogate(normalized[i + 1])) {
+        out += ZWSP;
+        i++;
+      }
+    } else {
+      out += normalized[i];
+    }
   }
   return out;
 }

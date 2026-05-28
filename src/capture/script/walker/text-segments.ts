@@ -336,9 +336,20 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
                 width: cRec.right - cRec.left,
                 height: rasterHeight,
               },
-              // ::first-letter drop caps: suppress the path glyph so
-              // only the rasterized big letter paints (DM-439).
-              suppressGlyph: isFirstLetter ? true : undefined,
+              // Suppress the underlying glyph emit. Two cases:
+              //   • ::first-letter drop caps: the rasterized big letter is
+              //     the ONLY paint; leaving the body-size path glyph would
+              //     sit behind the raster and bleed through (DM-439).
+              //   • Emoji / color-bitmap codepoints (DM-905): the path
+              //     pipeline emits nothing for fontkit's zero-contour
+              //     emoji glyph, BUT the embedded-font default path
+              //     (DM-839) emits the codepoint as a PUA `<text>` against
+              //     the system fallback subset font, where it lands as
+              //     the font's .notdef tofu — peeking out past the
+              //     rasterGlyph overlay's edges. Suppressing the glyph
+              //     replaces the codepoint with ZWSP before the emit so
+              //     only the raster image paints.
+              suppressGlyph: true,
             });
           }
           utf16Idx += cRec.ch.length;
