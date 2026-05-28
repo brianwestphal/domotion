@@ -2741,6 +2741,14 @@ function renderTextAsEmbedded(
   textStrokeWidth?: number,
   textStrokeColor?: string,
   paintOrder?: string,
+  /** DM-907: caller-supplied target run width (Chrome's measured glyph
+   *  span). When provided AND non-null AND xOffsets are missing (so the
+   *  per-glyph anchors come from fontkit advances), scale every glyph's
+   *  CSS x by `targetWidth / nativeWidth` so the rendered text spans the
+   *  same width Chrome painted — eliminates the asymmetric padding gap
+   *  on auto-sized pseudo-element pills where fontkit's width differs
+   *  from Chrome's by a few pixels. */
+  targetWidth?: number,
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -2760,8 +2768,29 @@ function renderTextAsEmbedded(
   const baselineY = y + baselineAscent;
 
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const segments: string[] = [];
+  // void: silence "unused" when the helper isn't called below (path varies).
+  void esc;
+  // DM-907: defer `<text>` emit until we've walked every run, so the
+  // total fontkit-measured nativeWidth is known and we can apply the
+  // `targetWidth/nativeWidth` scale uniformly. Without that, sites
+  // where Chrome's text-shaper measured the glyph run a few pixels
+  // wider than fontkit (pseudo-element auto-sized pill labels) end up
+  // left-anchored in their captured content rect with the leftover
+  // padding stacking on the right — visibly off-centre.
+  interface PendingSeg {
+    perGlyph: Array<{ pua: string; xCss: number }>;
+    runCssFamily: string;
+    weightAttr: string;
+    italicAttr: string;
+    fvsAttr: string;
+    strokeAttr: string;
+  }
+  const pending: PendingSeg[] = [];
   let cssX = 0;
+  // Track whether per-char xOffsets covered EVERY glyph in EVERY run. If
+  // they did, glyph positions are already Chrome-accurate and the
+  // targetWidth scale would only introduce drift; skip it.
+  let allGlyphsHaveXOffset = xOffsets != null && xOffsets.length > 0;
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
     let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }> };
@@ -2801,6 +2830,22 @@ function renderTextAsEmbedded(
     let runCssFamily: string | null = null;
     let runCursorFontUnits = 0;
     let glyphFailed = false;
+    // DM-906: fontkit returns shaped glyphs in VISUAL order for RTL runs
+    // (leftmost-visual-glyph first), but our per-glyph xOffsets lookup
+    // walks `run.text` in LOGICAL order. For an Arabic run "العربية"
+    // fontkit's glyph[0] is the visually-leftmost glyph (= logical char
+    // N-1, ة), but textIdx=0 would index xOffsets[0] which is the
+    // visually-RIGHTMOST char (logical 0, ا). Detect RTL by inspecting
+    // the run's xOffsets — decreasing-x for ascending logical-index =
+    // RTL. When RTL, run textIdx from N-1 back to 0 so each fontkit
+    // glyph i pairs with logical char (N-1-i) and gets the correct
+    // visual xOffset; otherwise keep the linear LTR walk.
+    let runIsRtl = false;
+    if (xOffsets != null && run.text.length >= 2) {
+      const first = xOffsets[run.startIdx];
+      const last = xOffsets[run.startIdx + run.text.length - 1];
+      if (first != null && last != null && first > last) runIsRtl = true;
+    }
     // Walk the shaped glyph stream. For each glyph: convert its cluster's
     // first-codepoint xOffset to a CSS pixel x, OR fall back to the
     // accumulated cursor when no xOffsets are present (or the cluster
@@ -2808,7 +2853,7 @@ function renderTextAsEmbedded(
     // UTF-16 lengths in glyph.codePoints (BMP=1, astral=2). When the
     // codePoints array is missing or empty (decomposed glyphs) span=1
     // so the cursor still advances.
-    let textIdx = 0; // index within run.text
+    let textIdx = runIsRtl ? run.text.length : 0; // index within run.text
     for (let i = 0; i < layout.glyphs.length; i++) {
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
@@ -2839,6 +2884,18 @@ function renderTextAsEmbedded(
       // advance from the run start. xOffsets is indexed against `text`
       // (the whole captured string), so we use the run's startIdx +
       // intra-run textIdx to look it up.
+      // Compute the cluster's UTF-16 char span (size in run.text).
+      const cps = glyph.codePoints;
+      let span = 0;
+      if (cps != null && cps.length > 0) {
+        for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
+      } else {
+        span = 1;
+      }
+      // For RTL runs, textIdx walks backwards: the cluster's first
+      // logical char sits at (textIdx - span), so subtract BEFORE lookup
+      // so the lookup index lands on the cluster's first char.
+      if (runIsRtl) textIdx -= span;
       let xCss: number;
       const wholeTextIdx = run.startIdx + textIdx;
       if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
@@ -2851,18 +2908,14 @@ function renderTextAsEmbedded(
         const runOriginCss = (xOffsets != null && xOffsets[run.startIdx] != null)
           ? xOffsets[run.startIdx] : cssX;
         xCss = runOriginCss + runCursorFontUnits * runScale;
+        allGlyphsHaveXOffset = false;
       }
       perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss });
       runCursorFontUnits += pos.xAdvance;
-      // Advance textIdx by the cluster's char span.
-      const cps = glyph.codePoints;
-      let span = 0;
-      if (cps != null && cps.length > 0) {
-        for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
-      } else {
-        span = 1;
-      }
-      textIdx += span;
+      // For LTR, advance textIdx AFTER lookup. (For RTL we decremented
+      // before the lookup so the next iteration's pre-decrement lands on
+      // the previous cluster's start.)
+      if (!runIsRtl) textIdx += span;
     }
     if (glyphFailed || perGlyph.length === 0 || runCssFamily == null) return null;
 
@@ -2884,17 +2937,6 @@ function renderTextAsEmbedded(
     const fvsAttr = (variationSettings != null && Object.keys(variationSettings).length > 0)
       ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
 
-    // Position each glyph with the `<text>` `x` positional list — one value
-    // per glyph — instead of wrapping each in its own `<tspan>` (DM-841). The
-    // explicit per-glyph x is still required: the custom subset TTF carries no
-    // GPOS/kern, so without it the consumer browser re-flows from hmtx alone
-    // and loses Chrome's kerning (multi-px drift at headline sizes). SVG
-    // applies x[i] to the i-th addressable character; our content is one BMP
-    // PUA codepoint per glyph (builder assigns U+E000..U+F8FF — single UTF-16
-    // unit), so the list aligns 1:1 with the PUA stream. Same pixel-faithful
-    // placement, ~2-3x less markup than per-glyph `<tspan>`s.
-    const xList = perGlyph.map((g) => r(x + g.xCss)).join(" ");
-    const puaStream = perGlyph.map((g) => g.pua).join("");
     let strokeAttr = "";
     if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
       strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r(textStrokeWidth)}"`;
@@ -2902,8 +2944,36 @@ function renderTextAsEmbedded(
         strokeAttr += ` paint-order="stroke fill"`;
       }
     }
-    segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${runCssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}"${strokeAttr}>${puaStream}</text>`);
+    pending.push({ perGlyph, runCssFamily, weightAttr, italicAttr, fvsAttr, strokeAttr });
     cssX += runCursorFontUnits * runScale;
+  }
+
+  if (pending.length === 0) return null;
+  const segments: string[] = [];
+
+  // DM-907: apply targetWidth scaling now that we know the full
+  // fontkit-measured nativeWidth across all runs. cssX after the loop is
+  // the cumulative end-of-text x in CSS units (font-unit cursor × scale
+  // per run, summed). When targetWidth is provided AND we DIDN'T have
+  // per-char xOffsets for every glyph (the per-char case already pins
+  // every glyph at Chrome's painted position, so an additional scale
+  // would mis-position), scale every glyph's xCss by `targetWidth /
+  // cssX`. Otherwise emit unchanged.
+  const xScale = (targetWidth != null && targetWidth > 0 && cssX > 0 && !allGlyphsHaveXOffset)
+    ? targetWidth / cssX : 1;
+  // Position each glyph with the `<text>` `x` positional list — one value
+  // per glyph — instead of wrapping each in its own `<tspan>` (DM-841). The
+  // explicit per-glyph x is still required: the custom subset TTF carries no
+  // GPOS/kern, so without it the consumer browser re-flows from hmtx alone
+  // and loses Chrome's kerning (multi-px drift at headline sizes). SVG
+  // applies x[i] to the i-th addressable character; our content is one BMP
+  // PUA codepoint per glyph (builder assigns U+E000..U+F8FF — single UTF-16
+  // unit), so the list aligns 1:1 with the PUA stream. Same pixel-faithful
+  // placement, ~2-3x less markup than per-glyph `<tspan>`s.
+  for (const p of pending) {
+    const xList = p.perGlyph.map((g) => r(x + g.xCss * xScale)).join(" ");
+    const puaStream = p.perGlyph.map((g) => g.pua).join("");
+    segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${p.runCssFamily}" font-size="${r(fontSize)}"${p.weightAttr}${p.italicAttr}${p.fvsAttr} fill="${fill}"${p.strokeAttr}>${puaStream}</text>`);
   }
 
   if (segments.length === 0) return null;
@@ -2999,7 +3069,7 @@ export function renderTextAsPath(
     // exhausted, etc.) — paths-mode is the safe always-correct fallback.
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
-      textStrokeWidth, textStrokeColor, paintOrder);
+      textStrokeWidth, textStrokeColor, paintOrder, targetWidth);
     if (embedded != null) return embedded;
   }
 

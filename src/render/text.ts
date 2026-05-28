@@ -379,13 +379,67 @@ function renderTextDecoration(
       const parts: string[] = [];
       for (const { x0: sx0, x1: sx1 } of subs) {
         if (sx1 - sx0 < 0.5) continue;
+        // DM-916: when the sub-segment ends mid-wavelength, Chrome's
+        // `WavyPath` truncates the cubic Bezier at the segment endpoint
+        // using de Casteljau's algorithm (the painter clips the cubic at
+        // parameter `t = (sx1 - x) / wavelength`). The previous emit kept
+        // both control points at `x + wavelength/2` while clamping the
+        // endpoint to `sx1` — when `sx1 < cpX` the result was a backward
+        // Bezier that painted as a visible extra stub, exaggerating wave
+        // count on lines with many descenders + skip-ink gaps. Split the
+        // final cubic instead so the truncated curve matches Chrome.
         let d = `M ${r(sx0)} ${r(yWave)}`;
         let x = sx0;
-        while (x < sx1) {
-          const nx = Math.min(x + wavelength, sx1);
-          const cpX = x + wavelength / 2;
-          d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
-          x = nx;
+        while (x < sx1 - 0.01) {
+          if (x + wavelength <= sx1 + 0.01) {
+            const nx = x + wavelength;
+            const cpX = x + wavelength / 2;
+            d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
+            x = nx;
+          } else {
+            // Partial wavelength remaining. Full cubic control points
+            // (P1, P2, P3) relative to P0 = (x, yWave):
+            //   P1 = (wavelength/2, +cpDist)
+            //   P2 = (wavelength/2, -cpDist)
+            //   P3 = (wavelength,    0)
+            // De Casteljau at parameter t splits this cubic at the point
+            // where the curve has advanced t·wavelength along the x axis
+            // (because the cubic is naturally parameterised so x(t) is
+            // monotonic with t). The "first half" cubic from 0 to t has:
+            //   Q0 = P0
+            //   Q1 = lerp(P0, P1, t)
+            //   Q2 = lerp(Q1, lerp(P1, P2, t), t)
+            //   Q3 = the de-Casteljau midpoint at t
+            const len = sx1 - x;
+            const t = len / wavelength;
+            // Y coordinates (relative to yWave) of the original cubic's
+            // points: 0, +cpDist, -cpDist, 0.
+            const p1y = cpDist, p2y = -cpDist;
+            // De Casteljau split for the FIRST half (start to t):
+            const ab = t * p1y;                                // lerp(0, p1, t).y
+            const bc = (1 - t) * p1y + t * p2y;                // lerp(p1, p2, t).y
+            const cd = (1 - t) * p2y;                          // lerp(p2, 0, t).y
+            const abc = (1 - t) * ab + t * bc;
+            const bcd = (1 - t) * bc + t * cd;
+            const abcd = (1 - t) * abc + t * bcd;
+            // X for the split: cubic x parametric is
+            //   x(t) = 3t(1-t)²·(wavelength/2) + 3t²(1-t)·(wavelength/2) + t³·wavelength
+            // which by symmetry of the cps simplifies to wavelength · t·(3 - 2t·(?))…
+            // Easier: each control point's x = lerped along its segment.
+            const p1x = wavelength / 2, p2x = wavelength / 2, p3x = wavelength;
+            const abx = t * p1x;
+            const bcx = (1 - t) * p1x + t * p2x;
+            const cdx = (1 - t) * p2x + t * p3x;
+            const abcx = (1 - t) * abx + t * bcx;
+            const bcdx = (1 - t) * bcx + t * cdx;
+            const abcdx = (1 - t) * abcx + t * bcdx;
+            // Split-curve cps + endpoint, in absolute coords:
+            const cp1x = x + abx,  cp1y = yWave + ab;
+            const cp2x = x + abcx, cp2y = yWave + abc;
+            const endx = x + abcdx, endy = yWave + abcd;
+            d += ` C ${r(cp1x)} ${r(cp1y)} ${r(cp2x)} ${r(cp2y)} ${r(endx)} ${r(endy)}`;
+            x = sx1;
+          }
         }
         parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`);
       }

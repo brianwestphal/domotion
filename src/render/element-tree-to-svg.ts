@@ -4156,8 +4156,59 @@ function buildLinearGradientDef(id: string, args: string, repeating: boolean, w:
   const spread = repeating ? ` spreadMethod="repeat"` : "";
   // Stop offsets need 4 decimals of precision — rounding 0.33 to 0.3 would turn
   // three equal thirds into uneven bands. Use stopFmt, not r(), here.
-  const stopsMarkup = emitStops.map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
+  const stopsMarkup = normalizeTransparentStops(emitStops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
   return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${stopFmt(vx1)}" y1="${stopFmt(vy1)}" x2="${stopFmt(vx2)}" y2="${stopFmt(vy2)}"${spread}>${stopsMarkup}</linearGradient>`;
+}
+
+/** CSS gradient interpolation treats `transparent` as "the adjacent stop's
+ *  RGB with alpha=0" — `linear-gradient(transparent, red)` fades a fully-
+ *  transparent RED into opaque red, NEVER through dark midpoints. SVG
+ *  `<stop>` interpolation uses the literal `stop-color` RGB though, so the
+ *  same gradient with `stop-color="rgba(0,0,0,0)"` → `stop-color="red"`
+ *  interpolates RGB (0,0,0) → (255,0,0) linearly with alpha going 0 → 1,
+ *  producing a visible dark band in the middle. Most prominent on photo-
+ *  card gradient overlays (nytimes mobile etc., DM-913).
+ *
+ *  Fix: rewrite any stop with alpha == 0 to inherit the nearest non-zero-
+ *  alpha neighbour's RGB. Walk forward then back so first/last stops can
+ *  inherit from whichever side has a real colour. */
+function normalizeTransparentStops(stops: Array<{ pos: number; color: RGBA }>): Array<{ pos: number; color: RGBA }> {
+  if (stops.length < 2) return stops;
+  const transparentIdx: number[] = [];
+  for (let i = 0; i < stops.length; i++) {
+    if (stops[i].color.a < 1e-4 && stops[i].color.r === 0 && stops[i].color.g === 0 && stops[i].color.b === 0) {
+      transparentIdx.push(i);
+    }
+  }
+  if (transparentIdx.length === 0) return stops;
+  const out = stops.map((s) => ({ pos: s.pos, color: { ...s.color } }));
+  for (const i of transparentIdx) {
+    // Prefer the NEXT non-transparent stop's RGB (a CSS `transparent` stop
+    // at the start of `linear-gradient(transparent, red)` should fade IN
+    // from rgba(red, 0)). If none ahead, fall back to the previous one.
+    let neighbour: RGBA | null = null;
+    for (let j = i + 1; j < out.length; j++) {
+      if (!(out[j].color.a < 1e-4 && out[j].color.r === 0 && out[j].color.g === 0 && out[j].color.b === 0)) {
+        neighbour = out[j].color;
+        break;
+      }
+    }
+    if (neighbour == null) {
+      for (let j = i - 1; j >= 0; j--) {
+        if (!(out[j].color.a < 1e-4 && out[j].color.r === 0 && out[j].color.g === 0 && out[j].color.b === 0)) {
+          neighbour = out[j].color;
+          break;
+        }
+      }
+    }
+    if (neighbour != null) {
+      out[i].color.r = neighbour.r;
+      out[i].color.g = neighbour.g;
+      out[i].color.b = neighbour.b;
+      // alpha stays 0
+    }
+  }
+  return out;
 }
 
 
@@ -4303,7 +4354,7 @@ function buildRadialGradientDef(
   }
 
   const spread = repeating ? ` spreadMethod="repeat"` : "";
-  const stopsMarkup = stops.map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
+  const stopsMarkup = normalizeTransparentStops(stops).map((s) => `<stop offset="${stopFmt(s.pos)}" stop-color="${colorStr(s.color)}" />`).join("");
 
   // SVG radialGradient has a single r — use rx as r and scale Y via gradientTransform
   // to stretch it into an ellipse matching (rx, ry).
