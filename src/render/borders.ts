@@ -175,6 +175,108 @@ export function parseSide(widthCss: string | undefined, styleCss: string | undef
   return { w, style: styleCss, color };
 }
 
+/**
+ * Polygon (as `"x1,y1 x2,y2 …"`) that clips the annular border RING down to
+ * the wedge belonging to one side of a rounded-corner box with mixed widths.
+ *
+ * For each side we compute that side's own apex (the meeting point of its
+ * two adjacent corners' miter lines) and the perpendicular pair's apices.
+ *
+ * - top apex: NW-miter (lw, tw) ∩ NE-miter (-rw, tw) →
+ *   `(bxL + lw·W/(lw+rw), bxT + tw·W/(lw+rw))`
+ * - left apex: NW-miter (lw, tw) ∩ SW-miter (lw, -bw) →
+ *   `(bxL + lw·H/(tw+bw), bxT + tw·H/(tw+bw))`
+ * - and the bottom / right apexes mirror those.
+ *
+ * If the side's own apex falls INSIDE the box, the wedge is a triangle from
+ * the two outer corners to that apex (DM-803). If the apex falls OUTSIDE the
+ * box — which happens for wide-or-tall boxes whenever the box aspect ratio
+ * doesn't match the adjacent widths' ratio — the triangle would extend
+ * across to the OPPOSITE edge, and after intersection with the annular ring
+ * the side bleeds its colour into the opposite side's strip. (Visible as
+ * "circle, mixed sides" painting the whole ellipse one colour, or as a
+ * solid bottom border's red dash showing through the gaps of a dashed
+ * top border — DM-917 / DM-918.)
+ *
+ * In that case we build a quadrilateral using the PERPENDICULAR pair of
+ * apex points (clamped to box bounds) as the wedge's inner corners — those
+ * points cap the wedge where it meets the adjacent side wedges instead of
+ * letting it run across the box.
+ *
+ * The `useSameSideApex` flags are per-side because each apex is checked
+ * against the box independently; the caller passes whether each apex lies
+ * within the box bounds (since the same caller has all the geometry already).
+ */
+export interface WedgeApexes {
+  apexTopX: number; apexTopY: number;
+  apexRightX: number; apexRightY: number;
+  apexBottomX: number; apexBottomY: number;
+  apexLeftX: number; apexLeftY: number;
+}
+export function wedgePolygonPoints(
+  side: "top" | "right" | "bottom" | "left",
+  bxL: number, bxT: number, bxR: number, bxB: number,
+  a: WedgeApexes,
+): string {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  // A side's own apex is INSIDE the box rect when both coordinates lie
+  // within the box; we already know one coord stays inside by construction
+  // (top apex always has y ≥ bxT, etc.), so the check is the other coord
+  // + the cross axis (apex could shift outside horizontally when widths
+  // and box aspect both skew).
+  const insideTop = a.apexTopY <= bxB && a.apexTopX >= bxL && a.apexTopX <= bxR;
+  const insideRight = a.apexRightX >= bxL && a.apexRightY >= bxT && a.apexRightY <= bxB;
+  const insideBottom = a.apexBottomY >= bxT && a.apexBottomX >= bxL && a.apexBottomX <= bxR;
+  const insideLeft = a.apexLeftX <= bxR && a.apexLeftY >= bxT && a.apexLeftY <= bxB;
+  const clLX = clamp(a.apexLeftX, bxL, bxR), clLY = clamp(a.apexLeftY, bxT, bxB);
+  const clRX = clamp(a.apexRightX, bxL, bxR), clRY = clamp(a.apexRightY, bxT, bxB);
+  const clTX = clamp(a.apexTopX, bxL, bxR), clTY = clamp(a.apexTopY, bxT, bxB);
+  const clBX = clamp(a.apexBottomX, bxL, bxR), clBY = clamp(a.apexBottomY, bxT, bxB);
+  switch (side) {
+    case "top":
+      return insideTop
+        ? `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(a.apexTopX)},${r(a.apexTopY)}`
+        : `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(clRX)},${r(clRY)} ${r(clLX)},${r(clLY)}`;
+    case "right":
+      return insideRight
+        ? `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(a.apexRightX)},${r(a.apexRightY)}`
+        : `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(clBX)},${r(clBY)} ${r(clTX)},${r(clTY)}`;
+    case "bottom":
+      return insideBottom
+        ? `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(a.apexBottomX)},${r(a.apexBottomY)}`
+        : `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(clLX)},${r(clLY)} ${r(clRX)},${r(clRY)}`;
+    case "left":
+      return insideLeft
+        ? `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(a.apexLeftX)},${r(a.apexLeftY)}`
+        : `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(clTX)},${r(clTY)} ${r(clBX)},${r(clBY)}`;
+  }
+}
+
+/**
+ * Same-side apex coordinates for the four side wedges of a rounded-corner
+ * box with widths `tw / rw / bw / lw`. Each apex is the meeting point of
+ * the two miter lines on that side's two corners. See `wedgePolygonPoints`
+ * for how these feed into the wedge clip polygons.
+ */
+export function computeWedgeApexes(
+  bxL: number, bxT: number, bxR: number, bxB: number,
+  tw: number, rw: number, bw: number, lw: number,
+): WedgeApexes {
+  const W = bxR - bxL, H = bxB - bxT;
+  const horizSum = lw + rw, vertSum = tw + bw;
+  const cxBox = (bxL + bxR) / 2, cyBox = (bxT + bxB) / 2;
+  return {
+    apexTopX:    horizSum > 0 ? bxL + lw * W / horizSum : cxBox,
+    apexTopY:    horizSum > 0 ? bxT + tw * W / horizSum : cyBox,
+    apexRightX:  vertSum > 0 ? bxR - rw * H / vertSum : cxBox,
+    apexRightY:  vertSum > 0 ? bxT + tw * H / vertSum : cyBox,
+    apexBottomX: horizSum > 0 ? bxL + lw * W / horizSum : cxBox,
+    apexBottomY: horizSum > 0 ? bxB - bw * W / horizSum : cyBox,
+    apexLeftX:   vertSum > 0 ? bxL + lw * H / vertSum : cxBox,
+    apexLeftY:   vertSum > 0 ? bxT + tw * H / vertSum : cyBox,
+  };
+}
+
 /** Stroke-dasharray pattern for CSS border-style (dashed / dotted). Solid
  *  styles return an empty pattern (caller should omit the attribute entirely).
  *

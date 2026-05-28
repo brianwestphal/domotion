@@ -117,6 +117,20 @@ function textStrokeParams(styles: { webkitTextStrokeWidth?: string; webkitTextSt
   };
 }
 
+/** DM-914: `<text>` fallback path didn't carry `-webkit-text-stroke`, so a
+ *  `color: transparent; -webkit-text-stroke: 2px black` outline-only headline
+ *  rendered nothing (transparent fill, no stroke). Build the SVG stroke
+ *  attribute string from the same trio `textStrokeParams` returns, ready
+ *  for inline-attribute splicing into a `<text>` element. */
+function textStrokeAttrString(ts: { width: number; color: string; paintOrder: string }): string {
+  if (ts.width <= 0 || ts.color === "") return "";
+  let out = ` stroke="${ts.color}" stroke-width="${r(ts.width)}"`;
+  if (ts.paintOrder != null && /\bstroke\b\s+\bfill\b/.test(ts.paintOrder)) {
+    out += ` paint-order="stroke fill"`;
+  }
+  return out;
+}
+
 function suppressGlyphChars(text: string, seg: TextSegment | undefined): string {
   // DM-692: Chrome paints a visible hyphen at line-break points marked by
   // a soft-hyphen (U+00AD); SHYs not at the break paint nothing. Our
@@ -817,11 +831,12 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const isCentered = tw > 0 && leftGap > 2 && rightGap > 2
     && Math.abs(leftGap - rightGap) < Math.max(2, minGap * 0.3);
 
+  const strokeAttr = textStrokeAttrString(_ts);
   if (isCentered) {
     const cx = el.x + el.width / 2;
-    return `<text x="${r(cx)}" y="${r(textY)}" text-anchor="middle" dominant-baseline="central" fill="${fillColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
+    return `<text x="${r(cx)}" y="${r(textY)}" text-anchor="middle" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
   }
-  return `<text x="${r(tl)}" y="${r(textY)}" dominant-baseline="central" fill="${fillColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
+  return `<text x="${r(tl)}" y="${r(textY)}" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
 }
 
 /**
@@ -931,7 +946,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       const ff = segFontFamily.replace(/"/g, "'");
       const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;`;
       const sy = seg.y + seg.height / 2;
-      segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
+      segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
     const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, segFontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, reordered.text, el.styles.textDecorationSkipInk, segFeatures);
@@ -1066,5 +1081,5 @@ export function renderInputText(opts: RenderTextOpts): string {
   const ff = fontFamily.replace(/"/g, "'");
   const baseStyle = `font-family:${ff};font-size:${r(fontSize)}px;font-weight:${fontWeight};font-kerning:normal;font-optical-sizing:auto;`;
 
-  return anisotropicCorrectionWrap(el, `<text x="${r(textX)}" y="${r(textY)}" dominant-baseline="central" fill="${textColor}" style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`);
+  return anisotropicCorrectionWrap(el, `<text x="${r(textX)}" y="${r(textY)}" dominant-baseline="central" fill="${textColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`);
 }

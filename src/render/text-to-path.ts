@@ -2735,6 +2735,12 @@ function renderTextAsEmbedded(
   features: string[] | undefined,
   lang: string | undefined,
   variationSettings: Record<string, number> | undefined,
+  /** DM-914: `-webkit-text-stroke-width` (CSS px). When > 0 each per-run
+   *  `<text>` carries `stroke` / `stroke-width` so transparent-fill /
+   *  outline-only headlines paint their stroke instead of vanishing. */
+  textStrokeWidth?: number,
+  textStrokeColor?: string,
+  paintOrder?: string,
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
@@ -2889,7 +2895,14 @@ function renderTextAsEmbedded(
     // placement, ~2-3x less markup than per-glyph `<tspan>`s.
     const xList = perGlyph.map((g) => r(x + g.xCss)).join(" ");
     const puaStream = perGlyph.map((g) => g.pua).join("");
-    segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${runCssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}">${puaStream}</text>`);
+    let strokeAttr = "";
+    if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
+      strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r(textStrokeWidth)}"`;
+      if (paintOrder != null && /\bstroke\b\s+\bfill\b/.test(paintOrder)) {
+        strokeAttr += ` paint-order="stroke fill"`;
+      }
+    }
+    segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${runCssFamily}" font-size="${r(fontSize)}"${weightAttr}${italicAttr}${fvsAttr} fill="${fill}"${strokeAttr}>${puaStream}</text>`);
     cssX += runCursorFontUnits * runScale;
   }
 
@@ -2985,7 +2998,8 @@ export function renderTextAsPath(
     // can't be embedded (font failed to resolve, layout threw, PUA-A
     // exhausted, etc.) — paths-mode is the safe always-correct fallback.
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
-      xOffsets, fontStyle, ascentOverride, features, lang, variationSettings);
+      xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
+      textStrokeWidth, textStrokeColor, paintOrder);
     if (embedded != null) return embedded;
   }
 

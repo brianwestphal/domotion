@@ -24,6 +24,8 @@ import {
   dashArrayForStyle,
   renderBorderImage,
   injectSvgSize,
+  computeWedgeApexes,
+  wedgePolygonPoints,
   type CornerRadii,
   type CornerRadiusPair,
   type BorderSide,
@@ -1455,7 +1457,18 @@ export function elementTreeToSvg(
         ];
         for (const [x1, y1, x2, y2, len] of sides) {
           const { array: dash, offset } = adjustedDashAttrs(style, bt.w, len);
-          const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+          // DM-912: the dash math computes pattern positions from `len` (the
+          // OUTER corner-to-corner length, e.g. 300 for a 10 px border on a
+          // 300 px box), but the SVG `<line>` is drawn from the INNER
+          // cornerTrim'd endpoints (length len - 2·cornerTrim). SVG's
+          // `stroke-dasharray` phases from the line START, so without a
+          // shift the visible dashes land cornerTrim px ahead of where
+          // Chrome's `BoxBorderPainter` paints them. Adding a
+          // `stroke-dashoffset` equal to `cornerTrim` rewinds the pattern
+          // so the visible portion aligns with Chrome's per-edge dash
+          // positions.
+          const phaseOffset = cornerTrim > 0 ? offset + cornerTrim : offset;
+          const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}` : "";
           svgParts.push(
             `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttrs}${linecap} />`,
           );
@@ -1610,8 +1623,6 @@ export function elementTreeToSvg(
       // here when there's a rounded corner; the non-solid branches keep
       // their existing line / double-stroke emit with the outer-outline
       // clip wrapping.
-      const cxBox = (bxL + bxR) / 2;
-      const cyBox = (bxT + bxB) / 2;
       const outerRoundedPath = hasOuterRadius
         ? roundedRectPath(bxL, bxT, bxR - bxL, bxB - bxT, corners)
         : "";
@@ -1642,26 +1653,26 @@ export function elementTreeToSvg(
       // the top blue and bottom green arcs narrower than Chrome (because
       // 45° diagonals from the rectangle corners hit the ellipse closer to
       // the cardinal axes than the wider-top miter lines would).
-      const boxW = bxR - bxL;
-      const boxH = bxB - bxT;
-      const horizSum = lw + rw;
-      const vertSum = tw + bw;
-      // Top apex: NW miter (lw, tw) and NE miter (-rw, tw) meet at
-      // (bxL + lw*boxW/(lw+rw), bxT + tw*boxW/(lw+rw)). Fall back to box
-      // centre when the denominator is zero (no adjacent borders).
-      const apexTopX = horizSum > 0 ? bxL + lw * boxW / horizSum : cxBox;
-      const apexTopY = horizSum > 0 ? bxT + tw * boxW / horizSum : cyBox;
-      const apexRightX = vertSum > 0 ? bxR - rw * boxH / vertSum : cxBox;
-      const apexRightY = vertSum > 0 ? bxT + tw * boxH / vertSum : cyBox;
-      const apexBottomX = horizSum > 0 ? bxL + lw * boxW / horizSum : cxBox;
-      const apexBottomY = horizSum > 0 ? bxB - bw * boxW / horizSum : cyBox;
-      const apexLeftX = vertSum > 0 ? bxL + lw * boxH / vertSum : cxBox;
-      const apexLeftY = vertSum > 0 ? bxT + tw * boxH / vertSum : cyBox;
+      // DM-803: per-side wedge apex = intersection of the two adjacent
+      // corner MITER lines (not box centre). For mixed widths the apex
+      // tilts toward the thicker side, shifting where the colour-transition
+      // between adjacent sides lands on the rounded-corner arc. Matches
+      // Chromium's `box_border_painter.cc` `miter_line` construction —
+      // without it e.g. the 8/2/8/2 border on a 50%-radius ellipse paints
+      // the top blue and bottom green arcs narrower than Chrome.
+      //
+      // DM-917 / DM-918: when a side's own apex falls OUTSIDE the box rect,
+      // the triangular wedge extends across the box and bleeds into the
+      // opposite side's region. In that case `wedgePolygonPoints` falls
+      // back to a 4-point polygon using the perpendicular pair of apex
+      // points (clamped to box bounds) as the inner corners, which caps
+      // the wedge at the adjacent-side meeting points instead.
+      const apexes = computeWedgeApexes(bxL, bxT, bxR, bxB, tw, rw, bw, lw);
       const annularWedges: string[] = hasOuterRadius ? [
-        `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(apexTopX)},${r(apexTopY)}`, // top
-        `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(apexRightX)},${r(apexRightY)}`, // right
-        `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(apexBottomX)},${r(apexBottomY)}`, // bottom
-        `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(apexLeftX)},${r(apexLeftY)}`, // left
+        wedgePolygonPoints("top",    bxL, bxT, bxR, bxB, apexes),
+        wedgePolygonPoints("right",  bxL, bxT, bxR, bxB, apexes),
+        wedgePolygonPoints("bottom", bxL, bxT, bxR, bxB, apexes),
+        wedgePolygonPoints("left",   bxL, bxT, bxR, bxB, apexes),
       ] : [];
       // The outer-outline group still wraps the non-solid branches so their
       // straight `<line>` strokes get trimmed to the rounded outline at the
@@ -1796,6 +1807,38 @@ export function elementTreeToSvg(
             );
             svgParts.push(
               `${indent}<rect x="${r(ox + half)}" y="${r(oy + half)}" width="${r(owd - 2 * half)}" height="${r(oh - 2 * half)}" rx="${r(innerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
+            );
+          } else if ((ostyle === "dashed" || ostyle === "dotted") && oRadius === 0) {
+            // DM-910 / DM-911: a single `<rect stroke-dasharray>` runs the
+            // dash pattern unbroken across all four corners, so the dashes
+            // phase differently from Chrome's `OutlinePainter::PaintOutline`
+            // — Chrome paints each side as a separate path and starts a
+            // fresh dash at each corner. Reproduce that by emitting four
+            // `<line>`s with the same per-side adjusted dash math used for
+            // dashed/dotted borders (`adjustedDashAttrs` → Chrome's
+            // `SelectBestDashGap`), so each side begins flush at its
+            // start corner. We only take this path when the outline is
+            // NOT rounded (oRadius == 0) — for rounded outlines the
+            // single-rect emit is still the closest SVG-native fit.
+            const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
+            const oxR = ox + owd, oyB = oy + oh;
+            const hLen = owd, vLen = oh;
+            const hAttrs = (() => {
+              const { array, offset } = adjustedDashAttrs(ostyle, ow, hLen);
+              return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+            })();
+            const vAttrs = (() => {
+              const { array, offset } = adjustedDashAttrs(ostyle, ow, vLen);
+              return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+            })();
+            const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
+            // Four sides, each starting at its top-left corner so the
+            // dash pattern phases identically per side.
+            svgParts.push(
+              `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+              `${indent}<line x1="${r(oxR)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+              `${indent}<line x1="${r(ox)}" y1="${r(oyB)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+              `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(ox)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
             );
           } else {
             const dash = dashArrayForStyle(ostyle, ow);
@@ -2465,7 +2508,18 @@ export function elementTreeToSvg(
       if (topmostTextBgClipFill == null && textIsTransparent && el.styles.inheritedTextFillGradient != null && el.styles.inheritedTextFillGradient !== "" && el.styles.inheritedTextFillGradient !== "none") {
         const layer = el.styles.inheritedTextFillGradient;
         const defId = `${idPrefix}bg${clipIdx++}`;
-        const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, "auto", "0% 0%", "no-repeat", null, "scroll", captureViewport);
+        // DM-908: resolve the gradient against the ANCESTOR's bbox (the
+        // element that set `background-clip: text`), not this child's
+        // bbox. Falling back to (el.x, el.y, el.width, el.height) for
+        // legacy captures missing the new field would produce the
+        // pre-fix behaviour where each child re-runs the gradient over
+        // its own (smaller) area.
+        const r = el.styles.inheritedTextFillGradientRect;
+        const gx = r != null ? r.x : el.x;
+        const gy = r != null ? r.y : el.y;
+        const gw = r != null ? r.width : el.width;
+        const gh = r != null ? r.height : el.height;
+        const out = buildBackgroundLayerDef(defId, layer, gx, gy, gw, gh, "auto", "0% 0%", "no-repeat", null, "scroll", captureViewport);
         if (out.def !== "") {
           defsParts.push(out.def);
           topmostTextBgClipFill = `url(#${defId})`;

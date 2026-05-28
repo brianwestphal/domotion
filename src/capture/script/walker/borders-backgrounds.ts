@@ -179,10 +179,10 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     borderColor: normColor(cs.borderColor, cs.color),
     borderWidth: cs.borderWidth,
     borderRadius: cs.borderRadius,
-    borderTopLeftRadius: resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height),
-    borderTopRightRadius: resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height),
-    borderBottomRightRadius: resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height),
-    borderBottomLeftRadius: resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height),
+    borderTopLeftRadius: resolveCornerRadius(cs.borderTopLeftRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
+    borderTopRightRadius: resolveCornerRadius(cs.borderTopRightRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
+    borderBottomRightRadius: resolveCornerRadius(cs.borderBottomRightRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
+    borderBottomLeftRadius: resolveCornerRadius(cs.borderBottomLeftRadius, rect.width, rect.height, parseFloat(cs.zoom) || 1),
     borderTopWidth: cs.borderTopWidth,
     borderRightWidth: cs.borderRightWidth,
     borderBottomWidth: cs.borderBottomWidth,
@@ -227,10 +227,12 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     // bg-image is none AND its text-fill-color is transparent AND an
     // ancestor has background-clip: text with a gradient, capture that
     // ancestor's gradient so the renderer can use it as the glyph fill.
-    inheritedTextFillGradient: (function () {
+    ...(function () {
       const ownTfc = cs.webkitTextFillColor || cs.WebkitTextFillColor || '';
       // Only meaningful when our own text is transparent.
-      if (!/^(rgba\(0[^)]*?,\s*0\)|transparent)$/i.test(ownTfc.trim())) return undefined;
+      if (!/^(rgba\(0[^)]*?,\s*0\)|transparent)$/i.test(ownTfc.trim())) {
+        return { inheritedTextFillGradient: undefined };
+      }
       // Walk up at most 8 ancestors looking for `background-clip: text`
       // + a non-none `background-image`. 8 covers the Stripe hds-heading
       // depth-of-2 nesting comfortably without scanning the whole tree.
@@ -240,12 +242,24 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
         const pcs = window.getComputedStyle(p);
         const bc = (pcs.backgroundClip || '') + ' ' + (pcs.webkitBackgroundClip || '');
         if (/\btext\b/i.test(bc) && pcs.backgroundImage && pcs.backgroundImage !== 'none' && pcs.backgroundImage !== '') {
-          return pcs.backgroundImage;
+          // DM-908: the gradient resolves against the ANCESTOR's bbox (the
+          // element that set `background-clip: text`), not the current
+          // child element. Capture both so the renderer can build a
+          // gradient def with the right `gradientUnits="userSpaceOnUse"`
+          // coordinates. When two sibling children inherit from the same
+          // ancestor, each then references the SAME gradient span — they
+          // share one continuous gradient instead of each repainting a
+          // full pink-to-purple ramp within its own bbox.
+          const prect = p.getBoundingClientRect();
+          return {
+            inheritedTextFillGradient: pcs.backgroundImage,
+            inheritedTextFillGradientRect: { x: prect.x, y: prect.y, width: prect.width, height: prect.height },
+          };
         }
         p = p.parentElement;
         depth++;
       }
-      return undefined;
+      return { inheritedTextFillGradient: undefined };
     })(),
     // DM-719: `-webkit-text-stroke-width` / `-webkit-text-stroke-color` paint a
     // stroke around each glyph outline. Captured so the renderer can add a

@@ -143,13 +143,20 @@ export const createPseudoRules = () => {
   // v is the vertical axis (resolved against rect height). Per-corner radii
   // can be elliptical; returning the pair lets the renderer emit per-axis arc
   // commands without losing the elliptical shape (e.g. border-radius:50px/20px).
-  const resolveCornerRadius = (v, w, h) => {
+  // DM-909: `getComputedStyle().borderRadius` returns the AUTHORED CSS
+  // length (e.g. "4px") regardless of `zoom`, but the element's rect is
+  // SCALED by the effective zoom (4px on a zoom:2 box renders as 8px on
+  // screen). Pass the effective zoom so px values track the painted size;
+  // % values resolve against the (already-scaled) rect, so the `* zoom`
+  // skip on that branch keeps them correct.
+  const resolveCornerRadius = (v, w, h, zoom) => {
     if (v == null || v === '') return '0px 0px';
+    const z = zoom == null || zoom <= 0 ? 1 : zoom;
     const parts = v.split(/\s+/);
     const a = parts[0] || '0';
     const b = parts[1] != null ? parts[1] : a;
-    const aPx = a.endsWith('%') ? (parseFloat(a) || 0) * w / 100 : (parseFloat(a) || 0);
-    const bPx = b.endsWith('%') ? (parseFloat(b) || 0) * h / 100 : (parseFloat(b) || 0);
+    const aPx = a.endsWith('%') ? (parseFloat(a) || 0) * w / 100 : (parseFloat(a) || 0) * z;
+    const bPx = b.endsWith('%') ? (parseFloat(b) || 0) * h / 100 : (parseFloat(b) || 0) * z;
     return aPx + 'px ' + bPx + 'px';
   };
 

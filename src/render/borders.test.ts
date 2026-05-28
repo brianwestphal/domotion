@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { insetCornerRadii, parseCornerRadii, roundedRectPath, roundedRectSvg } from "./borders.js";
+import {
+  computeWedgeApexes,
+  insetCornerRadii,
+  parseCornerRadii,
+  roundedRectPath,
+  roundedRectSvg,
+  wedgePolygonPoints,
+} from "./borders.js";
 
 describe("parseCornerRadii: shorthand and longhand", () => {
   it("treats four equal circular corners as uniform", () => {
@@ -158,3 +165,90 @@ describe("roundedRectSvg: rect-or-path branching", () => {
     expect(svg.startsWith("<path ")).toBe(true);
   });
 });
+
+describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", () => {
+  // For a uniform-width SQUARE box, every same-side apex lands at the box
+  // centre — all four wedges degenerate to triangles meeting at the centre.
+  it("square box with uniform widths gives triangles meeting at the centre", () => {
+    const apexes = computeWedgeApexes(0, 0, 100, 100, 6, 6, 6, 6);
+    expect(apexes.apexTopX).toBe(50); expect(apexes.apexTopY).toBe(50);
+    expect(apexes.apexBottomX).toBe(50); expect(apexes.apexBottomY).toBe(50);
+    expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
+    expect(apexes.apexRightX).toBe(50); expect(apexes.apexRightY).toBe(50);
+    expect(wedgePolygonPoints("top", 0, 0, 100, 100, apexes))
+      .toBe("0,0 100,0 50,50");
+    expect(wedgePolygonPoints("bottom", 0, 0, 100, 100, apexes))
+      .toBe("100,100 0,100 50,50");
+  });
+
+  // DM-918: 6/6/6/6 widths on a 240×100 box. apexTop/apexBottom (formula
+  // `bxT + tw·W/(lw+rw)` = bxT + 120) land BELOW / ABOVE the box. Before
+  // the fix the bottom wedge triangle was `(R,B) (L,B) (cx, bxT-20)` —
+  // covering the entire box vertically, so the solid bottom border bled
+  // through the gaps of the top dashed border. The fix: top / bottom
+  // become quadrilaterals capped at apexLeft / apexRight on y=cyBox.
+  it("wide box with uniform widths caps top/bottom wedges at the perpendicular apexes", () => {
+    const apexes = computeWedgeApexes(0, 0, 240, 100, 6, 6, 6, 6);
+    // apexTop is at y = 6·240/12 = 120, below bxB=100 → outside the box.
+    expect(apexes.apexTopY).toBe(120);
+    expect(apexes.apexBottomY).toBe(-20);
+    // apexLeft / apexRight sit at y=cyBox=50, inside.
+    expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
+    expect(apexes.apexRightX).toBe(190); expect(apexes.apexRightY).toBe(50);
+    // Top wedge: quadrilateral spans only the upper half (no bleed into y > 50).
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes))
+      .toBe("0,0 240,0 190,50 50,50");
+    // Bottom wedge: quadrilateral spans only the lower half.
+    expect(wedgePolygonPoints("bottom", 0, 0, 240, 100, apexes))
+      .toBe("240,100 0,100 50,50 190,50");
+    // Left / right wedges keep their triangles (apexLeft / apexRight inside).
+    expect(wedgePolygonPoints("left", 0, 0, 240, 100, apexes))
+      .toBe("0,100 0,0 50,50");
+    expect(wedgePolygonPoints("right", 0, 0, 240, 100, apexes))
+      .toBe("240,0 240,100 190,50");
+  });
+
+  // DM-917: 8/2/8/2 widths on a wide 240×100 box (the "circle, mixed
+  // sides" ellipse). apexTop/apexBottom land WAY outside (y = ±480) —
+  // before the fix both top and bottom wedges claimed the entire ring,
+  // and bottom (painted last) covered the whole ellipse green. The fix:
+  // top/bottom cap at apexLeft / apexRight, which still sit on y=cyBox
+  // because tw == bw.
+  it("8/2/8/2 widths on a wide box gives top/bottom quads bounded at cyBox", () => {
+    const apexes = computeWedgeApexes(0, 0, 240, 100, 8, 2, 8, 2);
+    // apexTop = bxT + 8·240/4 = 480 (way past bxB=100).
+    expect(apexes.apexTopY).toBe(480);
+    expect(apexes.apexBottomY).toBe(-380);
+    // apexLeft / apexRight: y = bxT + 8·100/16 = 50, inside.
+    expect(apexes.apexLeftX).toBe(12.5); expect(apexes.apexLeftY).toBe(50);
+    expect(apexes.apexRightX).toBe(227.5); expect(apexes.apexRightY).toBe(50);
+    // Top quad: bounded to upper half.
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes))
+      .toBe("0,0 240,0 227.5,50 12.5,50");
+    // Bottom quad: bounded to lower half.
+    expect(wedgePolygonPoints("bottom", 0, 0, 240, 100, apexes))
+      .toBe("240,100 0,100 12.5,50 227.5,50");
+  });
+
+  // Asymmetric tw/bw — apexLeft.y shifts off cyBox toward the thicker side
+  // (DM-803). The top quad's bottom edge tilts accordingly.
+  it("shifts apexLeft.y when tw != bw to preserve miter-line geometry", () => {
+    // tw=4, bw=8, lw=rw=2 on a 240×120 box. apexLeft.y = bxT + 4·120/12 = 40.
+    const apexes = computeWedgeApexes(0, 0, 240, 120, 4, 2, 8, 2);
+    expect(apexes.apexLeftY).toBe(40);
+    expect(apexes.apexRightY).toBe(40);
+    // Top quad bottom edge is at y=40 (above cyBox=60), giving the
+    // thinner top side less vertical extent than the thicker bottom.
+    // apexLeft/Right .x = lw·H/(tw+bw) = 2·120/12 = 20.
+    expect(wedgePolygonPoints("top", 0, 0, 240, 120, apexes))
+      .toBe("0,0 240,0 220,40 20,40");
+  });
+
+  // Edge case: all-zero widths → fall back to box centre (no division by 0).
+  it("falls back to the box centre when the adjacent-pair widths sum to zero", () => {
+    const apexes = computeWedgeApexes(0, 0, 100, 100, 0, 0, 0, 0);
+    expect(apexes.apexTopX).toBe(50); expect(apexes.apexTopY).toBe(50);
+    expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
+  });
+});
+

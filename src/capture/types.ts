@@ -341,6 +341,12 @@ export interface CapturedElement {
      * nearest ancestor with `background-clip: text` (walked up to 8 levels).
      */
     inheritedTextFillGradient?: string;
+    /** DM-908: bbox of the ancestor that supplied `inheritedTextFillGradient`.
+     *  The gradient must resolve against the ANCESTOR's coordinates so two
+     *  sibling children inheriting from the same ancestor share one
+     *  continuous gradient span instead of each painting a fresh ramp
+     *  within its own (smaller) bbox. */
+    inheritedTextFillGradientRect?: { x: number; y: number; width: number; height: number };
     /** `-webkit-text-stroke-width` (e.g. "2px"). DM-719. */
     webkitTextStrokeWidth?: string;
     /** `-webkit-text-stroke-color` (e.g. "rgb(220,38,38)"). DM-719. */
