@@ -80,6 +80,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       url:                { type: "string" },
       "har-fallback":     { type: "boolean" },
       quiet:              { type: "boolean" },
+      debug:              { type: "boolean" },
+      "debug-dir":        { type: "string" },
       help:               { type: "boolean", short: "h" },
     },
   });
@@ -118,6 +120,27 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   };
 
   const log = makeLogger(values.quiet === true);
+  // DM-945: `--debug` records a HAR + a 1× page screenshot + the
+  // captured-tree JSON to `<output>.debug/` (overridable with
+  // `--debug-dir <path>`), giving consumers a turnkey reproduction
+  // bundle to attach to bug reports — including the `expected.png`
+  // and `actual.svg` pair `svg-review` (DM-946) consumes directly.
+  const debug = values.debug === true || values["debug-dir"] != null;
+  let debugDir: string | undefined;
+  if (debug) {
+    const { mkdirSync } = await import("node:fs");
+    const { resolve, dirname, basename } = await import("node:path");
+    if (values["debug-dir"] != null) {
+      debugDir = resolve(values["debug-dir"]);
+    } else if (flags.output != null) {
+      const outPath = resolve(flags.output);
+      debugDir = resolve(dirname(outPath), `${basename(outPath, ".svg").replace(/\.svgz$/, "")}.debug`);
+    } else {
+      throw new Error("capture: --debug requires either --output (so we can derive <output>.debug/) or --debug-dir <path>");
+    }
+    mkdirSync(debugDir, { recursive: true });
+    log(`Debug bundle → ${debugDir}/`);
+  }
   log(`Launching Chromium…`);
   const browser = await launchChromium();
   try {
@@ -126,6 +149,10 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       isMobile: flags.mobile,
       ...(flags.mobile ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
       ...(flags.colorScheme != null ? { colorScheme: flags.colorScheme } : {}),
+      // DM-945: record HAR for `--debug` so the consumer can reproduce
+      // the exact network state offline (the same `tests/cache/real-
+      // world/*.har` pattern the in-repo regression suites use).
+      ...(debug && debugDir != null ? { recordHar: { path: `${debugDir}/capture.har`, mode: "minimal" as const } } : {}),
     });
     const page = await ctx.newPage();
     // DM-479: bump Playwright's 30 s defaults to 90 s. Long captures on
@@ -198,9 +225,25 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       );
     } else {
       log(`Capturing element tree…`);
+      // DM-945: snapshot what Chrome actually painted BEFORE we run the
+      // capture script (the script doesn't disturb paint, but ordering
+      // keeps the debug artifact a faithful pre-capture reference for
+      // svg-review (DM-946) to diff our SVG output against).
+      if (debug && debugDir != null) {
+        await timed(log, "  debug: expected.png", () => page.screenshot({
+          clip: { x: clip[0], y: clip[1], width: clip[2], height: clip[3] },
+          path: `${debugDir}/expected.png`,
+          omitBackground: false,
+        }));
+      }
       const tree = await timed(log, "  captured", () => captureElementTree(page, flags.selector, {
         x: clip[0], y: clip[1], width: clip[2], height: clip[3],
       }));
+      if (debug && debugDir != null) {
+        const { writeFileSync } = await import("node:fs");
+        writeFileSync(`${debugDir}/captured-tree.json`, JSON.stringify(tree, null, 2));
+        log(`  debug: captured-tree.json (${(JSON.stringify(tree).length / 1024).toFixed(1)} KB)`);
+      }
       // DM-603: single-frame static cull — mark any captured element whose
       // bbox doesn't intersect the clip viewBox. Capture already filters most
       // off-viewport elements (`outsideViewport` early-return in CAPTURE_SCRIPT),
@@ -219,6 +262,26 @@ export async function runCapture(args: string[], help: string): Promise<void> {
 
     const outPath = resolveOutputPath(flags.output, input, ".svg");
     writeOutput(svg, outPath, svgz);
+    if (debug && debugDir != null && outPath != null) {
+      // Also drop a copy of the produced SVG into the debug dir so the
+      // whole reproduction bundle lives in one folder consumers can zip
+      // and attach to an issue.
+      const { copyFileSync } = await import("node:fs");
+      copyFileSync(outPath, `${debugDir}/actual.svg`);
+    }
+    // Playwright flushes `recordHar` only on `context.close()` — `browser
+    // .close()` cascades but the cascade doesn't always wait for the HAR
+    // write. Close the context explicitly when `--debug` so the HAR
+    // lands on disk before we move on.
+    if (debug) await ctx.close();
+    if (debug && debugDir != null && outPath != null) {
+      log(`Debug bundle written:\n` +
+          `  ${debugDir}/capture.har          (Playwright HAR)\n` +
+          `  ${debugDir}/expected.png         (Chrome screenshot of source)\n` +
+          `  ${debugDir}/actual.svg           (copy of the produced SVG)\n` +
+          `  ${debugDir}/captured-tree.json   (intermediate element tree)\n` +
+          `Review with: svg-review --expected ${debugDir}/expected.png --actual ${debugDir}/actual.svg`);
+    }
   } finally {
     await browser.close();
   }

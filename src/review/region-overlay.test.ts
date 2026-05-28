@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { enableRegionOverlays } from "./review-region-overlay.js";
+import { enableRegionOverlays } from "./region-overlay.js";
 
 function buildCard({
   naturalW = 100,

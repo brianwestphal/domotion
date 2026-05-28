@@ -21,7 +21,7 @@ import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { clearWebfonts, setRenderTextMode } from "../src/render/text-to-path.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { raw } from "kerfjs";
-import { comparePngs, passes, type DiffVerdict } from "./compare-pngs.js";
+import { comparePngs, passes, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 // Resolve against this script's dir so runs from any cwd write to the real

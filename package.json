@@ -17,7 +17,8 @@
   "types": "dist/index.d.ts",
   "bin": {
     "domotion": "dist/cli/index.js",
-    "svg-to-video": "dist/cli/svg-to-video.js"
+    "svg-to-video": "dist/cli/svg-to-video.js",
+    "svg-review": "dist/cli/review.js"
   },
   "files": [
     "dist",
@@ -27,8 +28,9 @@
   ],
   "scripts": {
     "build:capture-script": "node scripts/build-capture-script.mjs",
-    "build": "npm run build:capture-script && tsc -p tsconfig.build.json",
-    "typecheck": "npm run build:capture-script && tsc --noEmit",
+    "build:review-client": "node scripts/build-review-client.mjs",
+    "build": "npm run build:capture-script && npm run build:review-client && tsc -p tsconfig.build.json",
+    "typecheck": "npm run build:capture-script && npm run build:review-client && tsc --noEmit",
     "lint": "eslint .",
     "capture": "npm run build:capture-script && tsx src/cli/index.ts",
     "test": "npm run build:capture-script && vitest run",

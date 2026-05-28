@@ -43,7 +43,7 @@ import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPattern, type ScrollSegmentCapture } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
 import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
-import { comparePngs, type DiffVerdict } from "./compare-pngs.js";
+import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));

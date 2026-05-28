@@ -73,6 +73,12 @@ capture options:
       --warnings           Log capture warnings to stderr after capture.
       --mobile             Emulate a mobile device (iOS UA, isMobile=true).
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
+      --debug              Write a reproduction bundle next to the output
+                           (.debug/ folder with capture.har, expected.png
+                           Chromium screenshot, actual.svg copy, and the
+                           captured-tree JSON). Pair with svg-review to
+                           file render-fidelity bug reports.
+      --debug-dir <path>   Override the .debug/ folder location.
 
   HAR replay (when <input> ends in .har): the archive is replayed offline —
   every request is served from the HAR, so the capture is deterministic and
