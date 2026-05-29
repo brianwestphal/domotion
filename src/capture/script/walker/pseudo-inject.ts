@@ -114,9 +114,29 @@ export const createPseudoInjectHandler = () => {
         const lastSeg = textSegments[textSegments.length - 1];
         const bs = p.boxStyles || {};
         const mLa = parseFloat(window.getComputedStyle(el, '::after').marginLeft) || 0;
+        // DM-926: when the host is a flex container with a non-default
+        // `justify-content` (e.g. `summary { display: flex;
+        // justify-content: space-between }` for a `<details>` accordion
+        // marker), the ::after isn't laid out flush after the last
+        // text segment — it's pushed to the right edge by the flex
+        // distribution. The xPos pseudo-content.ts pre-computed
+        // (`elLeft + rect.width - pseudoWidth - 2 × padR`) IS the
+        // right-edge position; KEEP it instead of overwriting with the
+        // adjacent-to-text anchor that's wrong here.
+        const hcs = window.getComputedStyle(el);
+        const hostIsFlex = hcs.display === 'flex' || hcs.display === 'inline-flex';
+        const hostJc = hcs.justifyContent;
+        const flexSpread = hostIsFlex && hostJc != null && hostJc !== ''
+          && hostJc !== 'flex-start' && hostJc !== 'start' && hostJc !== 'normal';
+        if (flexSpread) {
+          // Keep p.seg.x as computed by pseudo-content.ts; only re-anchor y / height.
+          p.seg.y = lastSeg.y;
+          p.seg.height = lastSeg.height;
+        } else {
         p.seg.x = lastSeg.x + lastSeg.width + mLa + (bs.borL || 0) + (bs.padL || 0);
         p.seg.y = lastSeg.y;
         p.seg.height = lastSeg.height;
+        }
         // DM-944: when the host element's painted box extends BELOW the
         // last main-text line by more than one line-height, Chrome wrapped
         // the ::after content to a new line because it didn't fit on the
