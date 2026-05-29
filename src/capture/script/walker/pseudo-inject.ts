@@ -117,6 +117,27 @@ export const createPseudoInjectHandler = () => {
         p.seg.x = lastSeg.x + lastSeg.width + mLa + (bs.borL || 0) + (bs.padL || 0);
         p.seg.y = lastSeg.y;
         p.seg.height = lastSeg.height;
+        // DM-944: when the host element's painted box extends BELOW the
+        // last main-text line by more than one line-height, Chrome wrapped
+        // the ::after content to a new line because it didn't fit on the
+        // current line. Detect that gap by comparing the host's
+        // `getBoundingClientRect().bottom` (which DOES include the
+        // pseudo's painted area) to the last text segment's bottom
+        // (which doesn't). If the gap is ≥ ~80% of one line-height, the
+        // pseudo wrapped — bump `p.seg.y` down by the gap and reset its
+        // x to the host's content-box left edge so the renderer paints
+        // it on the new line at the host's left margin like Chrome did.
+        const elRect = el.getBoundingClientRect();
+        const ecs = window.getComputedStyle(el);
+        const pdL = parseFloat(ecs.paddingLeft) || 0;
+        const bdL = parseFloat(ecs.borderLeftWidth) || 0;
+        const lastBottom = lastSeg.y + lastSeg.height;
+        const elBottom = elRect.bottom - (parseFloat(ecs.paddingBottom) || 0) - (parseFloat(ecs.borderBottomWidth) || 0);
+        const wrapThreshold = lastSeg.height * 0.8;
+        if (elBottom - lastBottom >= wrapThreshold) {
+          p.seg.x = elRect.x + bdL + pdL;
+          p.seg.y = lastBottom; // start of the next line
+        }
         textSegments.push(p.seg);
       } else {
         // No main text — just place at element origin (already set by
