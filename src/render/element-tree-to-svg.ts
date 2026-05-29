@@ -257,6 +257,22 @@ export function elementTreeToSvgInner(
       if (!fragmentClipPathDefs.has(def.id)) fragmentClipPathDefs.set(def.id, def);
     }
   }
+  // DM-934: collect inline <filter> defs from every root. Filters don't
+  // need per-element coordinate rewriting: their default `filterUnits=
+  // objectBoundingBox` makes the filter region relative to each consuming
+  // element's bbox, and `primitiveUnits=userSpaceOnUse` only affects
+  // primitive-internal coordinates (e.g. feTurbulence baseFrequency). The
+  // captured outerHTML can be emitted verbatim with the ORIGINAL id (the
+  // CSS `filter: url(#id)` value is passed through as an inline style on
+  // the wrapping <g>, so it expects the id to match the captured page).
+  // We collect once and emit eagerly into defsParts below.
+  const fragmentFilterDefs = new Map<string, { id: string; outerHTML: string }>();
+  for (const root of elements) {
+    if (root.filterDefs == null) continue;
+    for (const def of root.filterDefs) {
+      if (!fragmentFilterDefs.has(def.id)) fragmentFilterDefs.set(def.id, def);
+    }
+  }
   let fragmentClipPathCounter = 0;
   const fragmentClipPathOutputId = new Map<string, string>();
   function resolveFragmentClipPathRef(
@@ -328,6 +344,18 @@ export function elementTreeToSvgInner(
     const positioned = positionFragmentMaskDef(rewritten, elX, elY, elW, elH);
     defsParts.push(positioned);
     return outId;
+  }
+
+  // DM-934: emit captured inline <filter> defs eagerly into the output
+  // SVG's top-level <defs>. The original id is preserved so the
+  // pass-through-as-inline-style emit of `filter: url(#id)` on the
+  // wrapping <g> resolves against this def. Filters are emitted as
+  // verbatim outerHTML — feGaussianBlur / feTurbulence / feColorMatrix /
+  // feComposite / feMerge / feFlood / feDisplacementMap / feConvolveMatrix
+  // and the rest of the SVG filter primitive set all round-trip cleanly
+  // since the browser's SVG renderer interprets them directly.
+  for (const def of fragmentFilterDefs.values()) {
+    defsParts.push(def.outerHTML);
   }
 
   // DM-673: wraps `renderElement` with a `<g clip-path>` group when `el`

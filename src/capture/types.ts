@@ -824,6 +824,13 @@ export interface CapturedElement {
    */
   clipPathDefs?: ClipPathFragmentDef[];
   /**
+   * DM-934: Inline `<filter>` defs referenced by CSS `filter: url(#id)`.
+   * Captured at root level; the renderer copies them into the output SVG's
+   * top-level `<defs>` and the existing pass-through of `cs.filter` as an
+   * inline style on the wrapping group references them. Same-document only.
+   */
+  filterDefs?: { id: string; outerHTML: string }[];
+  /**
    * DM-494: Raster snapshots of elements referenced by `mask-image:
    * element(#id)`. Top-level (root only) — same-document only (cross-document
    * `element()` is not in scope; CSS spec doesn't define it). Each raster is

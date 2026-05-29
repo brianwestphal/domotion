@@ -58,7 +58,7 @@ export const captureScript =
   const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
   const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
-  const { discoverMasks, discoverClipPaths, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs } = createMasksClipsHandler({ vp, warn });
+  const { discoverMasks, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
   const { captureBordersBackgrounds } = createBordersBackgroundsHandler({
@@ -200,6 +200,11 @@ export const captureScript =
     // the mask discovery above; collects inline <clipPath> defs the
     // renderer copies into the output SVG. See docs/39.
     discoverClipPaths(el, cs, sel);
+    // DM-934: CSS `filter: url(#id)` referencing an inline SVG <filter>.
+    // Collect the def so the renderer can copy it into the output SVG;
+    // the existing pass-through of cs.filter as an inline style then
+    // resolves against that same-document def.
+    discoverFilters(el, cs, sel);
     if (cs.borderImageSource && cs.borderImageSource !== 'none') {
       warn(sel, 'border-image', '9-slice composition pending (SK-466); border-image-source ignored');
     }
@@ -1533,6 +1538,13 @@ export const captureScript =
   // <clipPath> defs the renderer emits into the output SVG. See docs/39.
   if (_clipPathDefs.size > 0 && result.length > 0) {
     result[0].clipPathDefs = Array.from(_clipPathDefs.values());
+  }
+  // DM-934: same shape — inline <filter> defs referenced by CSS `filter:
+  // url(#id)`. The renderer copies these into the output SVG and the
+  // existing pass-through of cs.filter as an inline style on the wrapping
+  // group references them.
+  if (_filterDefs.size > 0 && result.length > 0) {
+    result[0].filterDefs = Array.from(_filterDefs.values());
   }
   // DM-494: attach mask raster references (mask-image: element(#id)). Skip
   // null entries (display:none / zero-area / not-found targets). The post-

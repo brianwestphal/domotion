@@ -200,5 +200,32 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     }
   };
 
-  return { discoverMasks, discoverClipPaths, maskDefs, maskRasters, clipPathDefs };
+  // DM-934: CSS `filter: url(#id)` referencing an inline SVG `<filter>` def.
+  // Same shape as discoverClipPaths but for filters — collect the def keyed
+  // by id, the renderer copies it into the output SVG <defs> verbatim and
+  // the existing pass-through emit of `cs.filter` as an inline style on the
+  // element's group wrapper does the rest (the browser's SVG renderer
+  // resolves `filter="url(#id)"` against the same-document def).
+  //
+  // Multi-value forms like `filter: blur(2px) url(#svg-glow)` collect every
+  // url(#id) found in the value; each gets its own captured def.
+  const filterDefs = new Map();
+  const discoverFilters = (el, cs, sel) => {
+    const f = cs.filter;
+    if (!f || f === 'none' || f === '') return;
+    const re = /url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)/gi;
+    let m;
+    while ((m = re.exec(f)) != null) {
+      const fragId = m[1];
+      if (filterDefs.has(fragId)) continue;
+      const target = document.getElementById(fragId);
+      if (target != null && target.tagName.toLowerCase() === 'filter') {
+        filterDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
+      } else {
+        warn(sel, 'filter', 'filter fragment "#' + fragId + '" did not resolve to an inline <filter> element');
+      }
+    }
+  };
+
+  return { discoverMasks, discoverClipPaths, discoverFilters, maskDefs, maskRasters, clipPathDefs, filterDefs };
 };
