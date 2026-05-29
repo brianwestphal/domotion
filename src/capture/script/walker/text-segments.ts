@@ -115,11 +115,45 @@ export const computeElementRaster = (el, cs, tag, rect, vp) => {
   const br = parseFloat(cs.borderRightWidth) || 0;
   const bt = parseFloat(cs.borderTopWidth) || 0;
   const bb = parseFloat(cs.borderBottomWidth) || 0;
+  // DM-936: vertical writing mode with text-decoration: underline paints
+  // a vertical underline OUTSIDE the inline content box (to the LEFT for
+  // `text-underline-position: left` in vertical-rl, to the RIGHT for
+  // `right`, etc.). Tight content-box clipping erases that vertical
+  // underline from the screenshot. Walk descendants to detect any
+  // text-decoration-line that mentions `underline`/`overline`/`line-
+  // through` AND expand the clip rect outward by enough margin (8 px
+  // on each side covers thicknesses up to ~6 px plus offsets). Also
+  // expand for descendant `text-shadow` for similar reasons. Horizontal
+  // writing modes already include the underline area inside the line-
+  // box height so the existing tight clip suffices.
+  let marginX = 0;
+  let marginY = 0;
+  if (hasNonHorizontalText) {
+    let hasDecoration = false;
+    const walk = (node) => {
+      if (hasDecoration || node == null) return;
+      const ncs = node.nodeType === 1 ? window.getComputedStyle(node) : null;
+      if (ncs != null) {
+        const td = ncs.textDecorationLine || ncs.textDecoration || '';
+        if (td !== '' && td !== 'none' && /\b(?:underline|overline|line-through)\b/.test(td)) {
+          hasDecoration = true;
+          return;
+        }
+      }
+      const kids = node.children;
+      if (kids != null) for (let i = 0; i < kids.length; i++) walk(kids[i]);
+    };
+    walk(el);
+    if (hasDecoration) {
+      marginX = 4;
+      marginY = 0;
+    }
+  }
   return {
-    x: rect.left - vp.x + bl + pl,
-    y: rect.top - vp.y + bt + pt,
-    width: Math.max(1, rect.width - bl - br - pl - pr),
-    height: Math.max(1, rect.height - bt - bb - pt - pb),
+    x: rect.left - vp.x + bl + pl - marginX,
+    y: rect.top - vp.y + bt + pt - marginY,
+    width: Math.max(1, rect.width - bl - br - pl - pr + 2 * marginX),
+    height: Math.max(1, rect.height - bt - bb - pt - pb + 2 * marginY),
   };
 };
 

@@ -627,6 +627,11 @@ export interface CapturedElement {
     /** `text-underline-offset` — extra distance below the baseline for the
      *  underline stroke. Adds to the auto offset. DM-431. */
     textUnderlineOffset?: string;
+    /** DM-936: `text-underline-position` (`auto` / `from-font` / `under` /
+     *  `left` / `right`) — drives where the underline paints. Needed for
+     *  the elementRaster dedupe key so vertical-mode columns with
+     *  different underline-position values don't share screenshots. */
+    textUnderlinePosition?: string;
     /** `text-decoration-skip-ink` — 'auto' (default; break around descenders),
      *  'none' (always solid), or 'all'. Per Chromium's
      *  `decoration_line_painter.cc`, only solid + double underlines honor

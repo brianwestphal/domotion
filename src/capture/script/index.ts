@@ -935,6 +935,7 @@ export const captureScript =
         textDecorationStyle: cs.textDecorationStyle,
         textDecorationThickness: cs.textDecorationThickness,
         textUnderlineOffset: cs.textUnderlineOffset,
+        textUnderlinePosition: cs.textUnderlinePosition,
         textDecorationSkipInk: cs.textDecorationSkipInk,
       },
       children, imageSrc, imageIntrinsic, imageBroken, imageAlt, svgContent, pseudoImages,

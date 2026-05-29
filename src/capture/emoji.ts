@@ -123,9 +123,19 @@ export async function rasterizeBitmapGlyphs(
       // identical textareas dedupe to one screenshot.
       if (el.elementRaster != null) {
         const er = el.elementRaster;
+        // DM-936: include text-decoration + text-underline-position in the
+        // dedupe key so 3 identical-text `.vert.pos-{left,right,auto}`
+        // columns don't collapse to the same screenshot (the underline
+        // paints in different places per pos-* but tag+text+color+size
+        // alone hashes them all together → wrong-side underline in 2/3
+        // of the columns). Same for text-shadow / writing-mode variants.
+        // Several of the keys aren't on the strict CapturedStyles surface;
+        // cast through Record so the optional reads compile.
+        const sty = el.styles as unknown as Record<string, string | undefined>;
+        const tdKey = `${sty.textDecorationLine ?? sty.textDecoration ?? ""}|${sty.textUnderlinePosition ?? ""}|${sty.textUnderlineOffset ?? ""}|${sty.textDecorationStyle ?? ""}|${sty.textDecorationColor ?? ""}|${sty.textDecorationThickness ?? ""}|${sty.textShadow ?? ""}|${sty.writingMode ?? ""}`;
         candidates.push({
           rect: { x: er.x, y: er.y, width: er.width, height: er.height },
-          key: `el|${el.tag}|${el.text}|${el.styles.color}|${el.styles.fontSize}|${er.width}x${er.height}`,
+          key: `el|${el.tag}|${el.text}|${el.styles.color}|${el.styles.fontSize}|${er.width}x${er.height}|${tdKey}`,
           setDataUri: (uri) => { er.dataUri = uri; },
         });
       }
