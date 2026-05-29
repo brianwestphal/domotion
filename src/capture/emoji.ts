@@ -181,7 +181,23 @@ export async function rasterizeBitmapGlyphs(
                   // a rectangular PNG).
                   const elFs = parseFloat(el.styles.fontSize ?? "") || 0;
                   const fs = seg.fontSize ?? (elFs > 0 ? elFs : Math.max(g.rect.width, g.rect.height));
-                  g.rect.x += (g.rect.width - fs) / 2;
+                  // DM-919: Chrome's per-emoji paint origin = advance start
+                  // (rect.x) when there's NO letter-spacing — the bitmap
+                  // sits flush at the left of the advance. When letter-
+                  // spacing > 0, Chrome ADDS the letter-spacing to the
+                  // advance, which captures as a wider rect — the bitmap
+                  // is still at rect.x (the spacing pads to the right).
+                  // The original DM-381 centering pass mis-handled this:
+                  // it shifted the bitmap by `(rect.width - fs) / 2`,
+                  // moving the emoji right whenever letter-spacing >0.
+                  // Pull out the captured letter-spacing and subtract it
+                  // from rect.width FIRST, then center the bitmap inside
+                  // the REAL advance — handles both the centered emoji-
+                  // alone case (where rect.w ≈ fs) and the letter-spaced
+                  // case (where rect.w = fs + letter-spacing).
+                  const ls = parseFloat(el.styles.letterSpacing ?? "") || 0;
+                  const advanceW = Math.max(fs, g.rect.width - Math.max(0, ls));
+                  g.rect.x += (advanceW - fs) / 2;
                   g.rect.y += (g.rect.height - fs) / 2;
                   g.rect.width = fs;
                   g.rect.height = fs;
