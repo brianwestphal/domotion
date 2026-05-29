@@ -125,7 +125,13 @@ function textStrokeParams(styles: { webkitTextStrokeWidth?: string; webkitTextSt
 function textStrokeAttrString(ts: { width: number; color: string; paintOrder: string }): string {
   if (ts.width <= 0 || ts.color === "") return "";
   let out = ` stroke="${ts.color}" stroke-width="${r(ts.width)}"`;
-  if (ts.paintOrder != null && /\bstroke\b\s+\bfill\b/.test(ts.paintOrder)) {
+  // DM-932: CSS shorthand `paint-order: stroke` (without explicit "fill")
+  // means "stroke fill markers" per CSS Paint Order 1. Chrome's computed
+  // style returns the canonical short form when stroke is first, so
+  // accept either `stroke` alone OR `stroke fill` — both produce SVG
+  // `paint-order="stroke fill"` which paints stroke beneath the fill (so
+  // a white fill over a thick coloured stroke stays visible).
+  if (ts.paintOrder != null && /^\s*stroke(?:\s|$)/.test(ts.paintOrder)) {
     out += ` paint-order="stroke fill"`;
   }
   return out;

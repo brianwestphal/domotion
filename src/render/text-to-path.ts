@@ -3013,7 +3013,7 @@ function renderTextAsEmbedded(
     let strokeAttr = "";
     if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
       strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r(textStrokeWidth)}"`;
-      if (paintOrder != null && /\bstroke\b\s+\bfill\b/.test(paintOrder)) {
+      if (paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder)) {
         strokeAttr += ` paint-order="stroke fill"`;
       }
     }
@@ -3189,7 +3189,7 @@ export function renderTextAsPath(
     const inverseScale = font.unitsPerEm / fontSize;
     const swInEm = textStrokeWidth * inverseScale;
     strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r(swInEm)}"`;
-    if (paintOrder != null && /\bstroke\b\s+\bfill\b/.test(paintOrder)) {
+    if (paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder)) {
       strokeAttr += ` paint-order="stroke fill"`;
     }
   }
