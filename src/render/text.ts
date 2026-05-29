@@ -516,16 +516,16 @@ const _RTL_RE = /[֐-ࣿיִ-ﻼ]/;
  */
 function applyBidi(text: string, xOffsets: number[] | undefined, paragraphDir: "ltr" | "rtl"): { text: string; xOffsets?: number[] } {
   if (!_RTL_RE.test(text) && paragraphDir !== "rtl") return { text, xOffsets };
-  // DM-940: when per-char `xOffsets` are present, each character is already
-  // pinned to Chrome's painted x — and Chrome has already laid out the
-  // visually-correct mirrored bracket at that position. Re-mirroring HERE
-  // would swap the logical codepoint at each captured x and the glyph
-  // emitted at that x (e.g. a `(` originally captured at the leftmost x of
-  // an LTR sub-run inside an RTL paragraph would become `)` while staying
-  // at the leftmost x — Chrome paints `(` there, but we'd render `)`).
-  // Skip the mirror pass when Chrome's positions are authoritative; the
-  // logical-codepoint-to-visual-position mapping is already correct.
-  if (xOffsets != null) return { text, xOffsets };
+  // DM-940: re-confirmed via probe — Chrome's per-char xOffset for a logical
+  // `(` at an odd embedding level returns the visual x where the MIRRORED
+  // glyph `)` is painted. So to faithfully reproduce Chrome's paint we
+  // need to mirror the codepoint here (so the glyph we emit at that x is
+  // the mirrored shape), AND we need the LOGICAL→VISUAL char-to-position
+  // mapping to be correct — which it is, as long as the per-glyph walk
+  // (`renderTextAsEmbedded`) uses the codePoints-based direction detect
+  // from DM-940 instead of an xOffset-monotonicity heuristic. The earlier
+  // attempt to skip mirroring when xOffsets were present was wrong: it
+  // produced `)one(` (correct letters, wrong brackets) instead of `(one)`.
   const embeddingLevels = _bidi.getEmbeddingLevels(text, paragraphDir);
   // bidi-js's getMirroredCharactersMap is keyed for a post-reorder pipeline
   // and returns empty when we haven't reordered, so apply mirroring directly:

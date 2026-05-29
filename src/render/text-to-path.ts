@@ -2830,21 +2830,30 @@ function renderTextAsEmbedded(
     let runCssFamily: string | null = null;
     let runCursorFontUnits = 0;
     let glyphFailed = false;
-    // DM-906: fontkit returns shaped glyphs in VISUAL order for RTL runs
-    // (leftmost-visual-glyph first), but our per-glyph xOffsets lookup
-    // walks `run.text` in LOGICAL order. For an Arabic run "العربية"
-    // fontkit's glyph[0] is the visually-leftmost glyph (= logical char
-    // N-1, ة), but textIdx=0 would index xOffsets[0] which is the
-    // visually-RIGHTMOST char (logical 0, ا). Detect RTL by inspecting
-    // the run's xOffsets — decreasing-x for ascending logical-index =
-    // RTL. When RTL, run textIdx from N-1 back to 0 so each fontkit
-    // glyph i pairs with logical char (N-1-i) and gets the correct
-    // visual xOffset; otherwise keep the linear LTR walk.
+    // DM-906 + DM-940: fontkit returns shaped glyphs in VISUAL order for
+    // RTL scripts (Arabic, Hebrew) and LOGICAL order for LTR scripts.
+    // The xOffsets pipeline keys each glyph to its source logical
+    // position, but for mixed-bidi runs an xOffsets-monotonicity check
+    // misclassifies (an LTR sub-run within an RTL paragraph carries
+    // bracket-mirrored outliers — `(` captured at the rightmost
+    // visual-x of the sub-run, `)` at the leftmost — so first > last
+    // on the SURROUNDING-spaces run but the inner Latin chars are
+    // still LTR-monotonic).
+    //
+    // Detect direction by asking fontkit: does the first glyph's
+    // codepoint match the FIRST logical char of run.text (LTR
+    // shaper) or the LAST (RTL shaper)? This is deterministic per
+    // run regardless of bidi context — a Latin run gets LTR walking
+    // even when surrounded by Hebrew, and a Hebrew run gets RTL
+    // walking even when surrounded by Latin.
     let runIsRtl = false;
-    if (xOffsets != null && run.text.length >= 2) {
-      const first = xOffsets[run.startIdx];
-      const last = xOffsets[run.startIdx + run.text.length - 1];
-      if (first != null && last != null && first > last) runIsRtl = true;
+    if (run.text.length >= 2 && layout.glyphs.length >= 1) {
+      const firstGlyphCp = layout.glyphs[0].codePoints?.[0];
+      const firstTextCp = run.text.codePointAt(0);
+      const lastTextCp = run.text.codePointAt(run.text.length - (run.text.codePointAt(run.text.length - 2)! > 0xFFFF ? 2 : 1));
+      if (firstGlyphCp != null && firstGlyphCp === lastTextCp && firstTextCp !== lastTextCp) {
+        runIsRtl = true;
+      }
     }
     // Walk the shaped glyph stream. For each glyph: convert its cluster's
     // first-codepoint xOffset to a CSS pixel x, OR fall back to the
