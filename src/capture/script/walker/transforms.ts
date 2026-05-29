@@ -85,7 +85,98 @@ const transformHasRotationOrSkew = (transformStr) => {
     const c = parseFloat(m3[3]);
     return Math.abs(b) > 1e-6 || Math.abs(c) > 1e-6;
   }
+  // DM-943: composed-effective-transform strings from CSS Transforms 2
+  // standalone properties may carry plain function forms like
+  // `rotate(20deg)` or `skewX(30deg)` instead of a resolved matrix(). The
+  // freeze path passes the un-resolved transform list through verbatim;
+  // detect the function names so threadFrozenTransform stashes them too.
+  if (/\brotate(?:[XYZ])?\(/.test(transformStr)) return true;
+  if (/\bskew(?:[XY])?\(/.test(transformStr)) return true;
   return false;
+};
+
+// DM-943: CSS Transforms Level 2 introduced standalone `translate`,
+// `rotate`, `scale` properties that compose with `transform` per spec
+// order: translate → rotate → scale → transform. Chrome keeps them on
+// SEPARATE computed-style entries (cs.rotate / cs.scale / cs.translate)
+// — they do NOT merge into cs.transform. Compose them into a single
+// CSS matrix() string in the page context via DOMMatrix so the existing
+// renderer (which only parses matrix() / matrix3d()) picks them up
+// unchanged. Returns 'none' when all four properties are absent /
+// 'none', otherwise a `matrix(a, b, c, d, e, f)` string.
+const composeEffectiveTransform = (cs) => {
+  const t = cs.translate;
+  const r = cs.rotate;
+  const s = cs.scale;
+  const tr = cs.transform;
+  const hasT = t && t !== 'none';
+  const hasR = r && r !== 'none';
+  const hasS = s && s !== 'none';
+  const hasTr = tr && tr !== 'none';
+  if (!hasT && !hasR && !hasS && !hasTr) return 'none';
+  if (!hasT && !hasR && !hasS) return tr;
+  // Build the composed matrix via DOMMatrix in spec order. DOMMatrix
+  // multiplications are LEFT to RIGHT post-multiply (each multiplySelf
+  // applies AFTER prior ops in the local coord system), so we apply
+  // translate first, then rotate, scale, transform — matching CSS T2 §3.
+  let m = new DOMMatrix();
+  if (hasT) {
+    // cs.translate is "<x> [<y>] [<z>]" in px / computed length.
+    const ts = t.split(/\s+/).map((v) => parseFloat(v));
+    const tx = isFinite(ts[0]) ? ts[0] : 0;
+    const ty = ts.length > 1 && isFinite(ts[1]) ? ts[1] : 0;
+    const tz = ts.length > 2 && isFinite(ts[2]) ? ts[2] : 0;
+    m = m.translate(tx, ty, tz);
+  }
+  if (hasR) {
+    // cs.rotate is "<angle>" or "<x> <y> <z> <angle>" (3D axis form).
+    // Parse all numeric tokens; the angle is the last one (with deg/rad/grad/turn unit).
+    const tokens = r.trim().split(/\s+/);
+    const last = tokens[tokens.length - 1];
+    const angleDeg = parseAngleToDeg(last);
+    if (tokens.length === 4) {
+      const ax = parseFloat(tokens[0]);
+      const ay = parseFloat(tokens[1]);
+      const az = parseFloat(tokens[2]);
+      m = m.rotateAxisAngle(ax, ay, az, angleDeg);
+    } else {
+      m = m.rotate(angleDeg);
+    }
+  }
+  if (hasS) {
+    const ts = s.trim().split(/\s+/).map((v) => parseFloat(v));
+    const sx = isFinite(ts[0]) ? ts[0] : 1;
+    const sy = ts.length > 1 && isFinite(ts[1]) ? ts[1] : sx;
+    const sz = ts.length > 2 && isFinite(ts[2]) ? ts[2] : 1;
+    m = m.scale(sx, sy, sz);
+  }
+  if (hasTr) {
+    // tr is already a CSS matrix() / matrix3d() string (or rarely the
+    // un-resolved form when inline style is read; getComputedStyle always
+    // resolves to a matrix). DOMMatrix accepts both.
+    try {
+      m = m.multiply(new DOMMatrix(tr));
+    } catch {
+      // Unparseable — leave m as the standalone-property-only product.
+    }
+  }
+  // Emit as 2D matrix() when the 3D parts are identity; else matrix3d().
+  if (m.is2D) {
+    return `matrix(${m.a}, ${m.b}, ${m.c}, ${m.d}, ${m.e}, ${m.f})`;
+  }
+  return `matrix3d(${m.m11}, ${m.m12}, ${m.m13}, ${m.m14}, ${m.m21}, ${m.m22}, ${m.m23}, ${m.m24}, ${m.m31}, ${m.m32}, ${m.m33}, ${m.m34}, ${m.m41}, ${m.m42}, ${m.m43}, ${m.m44})`;
+};
+
+const parseAngleToDeg = (a) => {
+  const m = /^([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)(deg|rad|grad|turn)?$/.exec(a);
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  const u = m[2] || 'deg';
+  if (u === 'deg') return n;
+  if (u === 'rad') return (n * 180) / Math.PI;
+  if (u === 'grad') return (n * 360) / 400;
+  if (u === 'turn') return n * 360;
+  return n;
 };
 
 export const createTransformsHandler = () => {
@@ -99,20 +190,45 @@ export const createTransformsHandler = () => {
     // HTML elements would paint as their axis-aligned bounding boxes (and
     // overlap their neighbors) since `getBoundingClientRect` post-rotation
     // returns the rotated AABB, not the original 160×160 layout box.
-    const originalTransform = cs.transform;
+    //
+    // DM-943: compose the effective transform from `transform` PLUS the
+    // CSS Transforms Level 2 standalone `translate` / `rotate` / `scale`
+    // properties — Chrome keeps them separate in computed style and our
+    // capture used to only read `cs.transform`, so a `rotate: 20deg` (no
+    // `transform:` prefix) produced cs.transform === 'none' and rendered
+    // the box axis-aligned. The composed string flows through the same
+    // freeze logic as a plain `transform:` of the same shape.
+    const originalTransform = composeEffectiveTransform(cs);
     const hasTransform = originalTransform && originalTransform !== 'none';
     if (!hasTransform) {
       return captureInner(el, cs, null, null);
     }
-    if (transformHasRotationOrSkew(originalTransform)) {
+    // Heuristic: do we need to clear inlines to capture an un-rotated layout
+    // box? Pure translate/scale leaves the layout box axis-aligned so we
+    // keep the live-rect model. Anything containing a rotate(...) or skew
+    // function — including the freshly composed string — needs the freeze.
+    const needsFreeze =
+      transformHasRotationOrSkew(originalTransform) ||
+      /\brotate\b/.test(originalTransform) ||
+      /\bskew/.test(originalTransform);
+    if (needsFreeze) {
       // Old model: clear so getBoundingClientRect returns the un-rotated
       // layout box; renderer re-applies the original transform.
-      const inline = el.style.transform;
+      const inlineTransform = el.style.transform;
+      const inlineRotate = el.style.rotate;
+      const inlineScale = el.style.scale;
+      const inlineTranslate = el.style.translate;
       el.style.transform = 'translate(0)';
+      el.style.rotate = 'none';
+      el.style.scale = 'none';
+      el.style.translate = 'none';
       try {
         return captureInner(el, cs, originalTransform, cs.transformOrigin);
       } finally {
-        el.style.transform = inline;
+        el.style.transform = inlineTransform;
+        el.style.rotate = inlineRotate;
+        el.style.scale = inlineScale;
+        el.style.translate = inlineTranslate;
       }
     }
     // Pure translate/scale: keep new live-rect model (no clear, no wrap).
