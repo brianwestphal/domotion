@@ -1133,7 +1133,13 @@ export function renderInputText(opts: RenderTextOpts): string {
   // rendering of the textarea's laid-out value.
   if (el.elementRaster != null && el.elementRaster.dataUri != null) {
     const er = el.elementRaster;
-    return `<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
+    // DM-924: snap raster <image> position to integer CSS pixels. The
+    // screenshot inside is captured at integer pixel dimensions; emitting
+    // at a fractional position (e.g. y=1621.44 for a textarea content
+    // box) triggers the browser's image-resampling interpolation and the
+    // text inside renders blurry. Snapping keeps the source PNG's
+    // pixels 1:1 with the rendered canvas, preserving text sharpness.
+    return `<image href="${er.dataUri}" x="${Math.round(er.x)}" y="${Math.round(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
   }
   const fontSize = parseFloat(el.styles.fontSize) || 14;
   const fontFamily = el.styles.fontFamily;
