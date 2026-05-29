@@ -3735,7 +3735,24 @@ function sortChildrenByPaintOrder(
     const zRaw = c.styles.zIndex;
     const positioned = pos != null && pos !== "static";
     const z = zRaw === "auto" || zRaw === "" || zRaw == null ? NaN : parseInt(zRaw, 10);
-    const treatAsZSorted = positioned || (isFlexGrid && !isNaN(z)) || (paintAsZSorted?.has(c) === true);
+    // DM-939: per CSS 2.1 Appendix E step 6 a non-positioned element that
+    // STILL establishes a stacking context (transform, opacity < 1,
+    // filter, mix-blend-mode, mask, clip-path, isolation, will-change, …)
+    // paints at the same level as positioned z:0/auto descendants —
+    // AFTER step-3 blocks and step-5 inlines, so it visually paints OVER
+    // a later-in-document sibling that doesn't form an SC. Without this,
+    // `<span class="card scale-2">` (transform: scale(2)) painted in
+    // document order with its non-SC inline-block sibling, which then
+    // covered it. Bucket non-positioned SCs into the z:0/auto bucket too.
+    // `isOverflowOnlySC` keeps overflow scrollers atomic in normal flow
+    // (DM-673), so exclude them from this hoisting.
+    const isNonPosSc = !positioned
+      && establishesStackingContext(c, parentDisplay)
+      && !isOverflowOnlySC(c);
+    const treatAsZSorted = positioned
+      || (isFlexGrid && !isNaN(z))
+      || (paintAsZSorted?.has(c) === true)
+      || isNonPosSc;
     if (!treatAsZSorted && flt !== "none") {
       floats.push(c);
     } else if (!treatAsZSorted && paintAsInline?.has(c) === true) {
