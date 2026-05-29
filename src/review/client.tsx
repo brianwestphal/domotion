@@ -30,14 +30,15 @@ const label = window.__SVG_REVIEW__?.label ?? "fixture";
 
 // ── Region overlay wiring ──────────────────────────────────────────────
 
-const cards = Array.from(document.querySelectorAll<HTMLElement>(".card"));
-const overlays: OverlayHandle[] = [];
-for (const card of cards) overlays.push(enableRegionOverlays(card));
-
-// The three overlays share state — drawing a region on `expected` shows
-// the same box on `actual` + `diff` because they have the same source-
-// PNG dimensions. (`enableRegionOverlays` already does the cross-figure
-// sync via the WeakMap pattern from the maintainer-side tool.)
+// One `.card` wrapper, three `figure[data-src]` inside (matching the API
+// `enableRegionOverlays` expects from the maintainer-side tool). The
+// returned overlay handle manages all three figures and syncs region
+// state across them so a drag on `expected` shows the same rect on
+// `actual` + `diff`.
+const card = document.querySelector<HTMLElement>(".card");
+if (card == null) throw new Error("svg-review client: missing .card container");
+const overlay = enableRegionOverlays(card);
+const overlays: OverlayHandle[] = [overlay];
 
 // ── Per-region caption inputs ──────────────────────────────────────────
 
@@ -166,8 +167,8 @@ rebuildIssueText();
 const lightbox = document.getElementById("lightbox")!;
 const lightboxInner = document.getElementById("lightbox-inner")!;
 let lbIndex = -1; // -1 == closed
-const figureImgs = cards.map((c) => c.querySelector("img")!);
-const figureSrcs = figureImgs.map((i) => i.dataset["src"]!);
+const figureImgs = Array.from(card.querySelectorAll<HTMLImageElement>(".imgs figure img"));
+const figureSrcs = figureImgs.map((i) => i.dataset["src"] ?? i.src);
 
 function openLightboxAt(i: number): void {
   lbIndex = i;

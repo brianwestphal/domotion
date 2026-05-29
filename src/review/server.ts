@@ -91,10 +91,12 @@ function renderShell(label: string): string {
 <body>
 <h1>${safeLabel}</h1>
 <p class="hint">Arrow keys cycle <kbd>expected</kbd> → <kbd>actual</kbd> → <kbd>diff</kbd> when an image is open. Drag on any image to mark a region; click inside a region to delete it. Press <kbd>Enter</kbd> in the caption to focus the issue text, then Cmd/Ctrl+C to copy.</p>
-<div class="imgs">
-  <figure class="card" data-role="expected"><img data-src="/expected.png" src="/expected.png"><figcaption>expected.png</figcaption></figure>
-  <figure class="card" data-role="actual"><img data-src="/actual.png" src="/actual.png"><figcaption>actual.svg (rasterised)</figcaption></figure>
-  <figure class="card" data-role="diff"><img data-src="/diff.png" src="/diff.png"><figcaption>diff.png</figcaption></figure>
+<div class="card">
+  <div class="imgs">
+    <figure data-src="/expected.png" data-role="expected"><img data-src="/expected.png" src="/expected.png"><figcaption>expected.png</figcaption></figure>
+    <figure data-src="/actual.png" data-role="actual"><img data-src="/actual.png" src="/actual.png"><figcaption>actual.svg (rasterised)</figcaption></figure>
+    <figure data-src="/diff.png" data-role="diff"><img data-src="/diff.png" src="/diff.png"><figcaption>diff.png</figcaption></figure>
+  </div>
 </div>
 <div id="lightbox"><div id="lightbox-inner"></div></div>
 <div id="issue-panel">
