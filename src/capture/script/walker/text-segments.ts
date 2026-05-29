@@ -391,6 +391,8 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
             // first-char width.
             let rasterTop = cRec.top - vp.y;
             let rasterHeight = cRec.bottom - cRec.top;
+            let rasterLeft = cRec.left - vp.x;
+            let rasterWidth = cRec.right - cRec.left;
             if (isFirstLetter) {
               const ilRaw = flStyle.initialLetter || flStyle.webkitInitialLetter || '';
               const ilN = parseFloat(ilRaw);
@@ -406,13 +408,33 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
                   rasterHeight = expectedHeight;
                 }
               }
+              // DM-931: decorative ::first-letter drop caps frequently
+              // declare PADDING + BACKGROUND-IMAGE on the pseudo (e.g.
+              // `linear-gradient` behind the cap). The base char rect
+              // measures the GLYPH only — the padding-extended background
+              // box extends beyond on every side. Without expansion the
+              // rasterized PNG captures just the glyph and the gradient
+              // box renders truncated. Expand by the ::first-letter
+              // padding (top / right / bottom / left). Same omitBackground
+              // semantics: extra captured area outside the painted box is
+              // transparent and inert.
+              const padT = parseFloat(flStyle.paddingTop) || 0;
+              const padR = parseFloat(flStyle.paddingRight) || 0;
+              const padB = parseFloat(flStyle.paddingBottom) || 0;
+              const padL = parseFloat(flStyle.paddingLeft) || 0;
+              if (padT > 0 || padR > 0 || padB > 0 || padL > 0) {
+                rasterTop -= padT;
+                rasterLeft -= padL;
+                rasterWidth += padL + padR;
+                rasterHeight += padT + padB;
+              }
             }
             rasterGlyphs.push({
               charIndex: utf16Idx,
               rect: {
-                x: cRec.left - vp.x,
+                x: rasterLeft,
                 y: rasterTop,
-                width: cRec.right - cRec.left,
+                width: rasterWidth,
                 height: rasterHeight,
               },
               // Suppress the underlying glyph emit. Two cases:
