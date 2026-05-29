@@ -229,15 +229,60 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
         // math-italic codepoint (`𝑎`, 2 code units) that the downstream
         // shaping pipeline picks up.
         if (mathItalicizeMi) ch = mathItalicChar(ch);
-        const charRec = { ch, left: cr.left, top: cr.top, right: cr.right, bottom: cr.bottom };
-        if (cur == null || Math.abs(cr.top - cur.top) > 1) {
+        // DM-942: when a character is the FIRST glyph of a wrapped line
+        // immediately after a soft-hyphen or hyphenation break, Chrome's
+        // Range.getBoundingClientRect() returns a UNION rect spanning both
+        // lines (top = previous line's top, bottom = next line's bottom,
+        // height ≈ 2 × normalCharHeight, width ≈ entire wrap region). The
+        // glyph itself paints at the START of the next line. If we trust
+        // cr.top, the char gets bucketed into the previous line and the
+        // wrapped line silently loses its first character. Detect the
+        // anomaly (height significantly larger than the current line's
+        // chars) and synthesise the correct per-glyph top/left/right from
+        // the next char (peek ahead) — or, when no next char exists, use
+        // cr.bottom minus a normal char height.
+        let topForGroup = cr.top;
+        let leftForGroup = cr.left;
+        let rightForGroup = cr.right;
+        let bottomForGroup = cr.bottom;
+        if (cur != null && cur.chars.length > 0) {
+          const refH = (cur.bottom - cur.top) || 16;
+          if (cr.height > refH * 1.5 && cr.bottom > cur.bottom + refH * 0.5) {
+            // Peek ahead one char to get the actual line-2 top/x.
+            const peekI = i + step;
+            if (peekI < raw.length) {
+              const pr = document.createRange();
+              pr.setStart(node, peekI);
+              pr.setEnd(node, peekI + 1);
+              const pcr = pr.getBoundingClientRect();
+              if (pcr.height > 0 && pcr.height < refH * 1.5) {
+                topForGroup = pcr.top;
+                bottomForGroup = pcr.bottom;
+                // The first char's left/right are unknown from cr (it's a
+                // union spanning both lines). Place it just before the
+                // peeked char, with width = (peek.left - cr-leftmost-of-line-2).
+                // The peek's left is line 2's second char; estimate this
+                // char's right edge at the peek's left, and its left at
+                // cr.left (which IS the line-2 leftmost x when the union
+                // spans into line 2).
+                leftForGroup = cr.left;
+                rightForGroup = pcr.left;
+              }
+            } else {
+              // No next char — derive the next-line top from cr.bottom.
+              topForGroup = cr.bottom - refH;
+            }
+          }
+        }
+        const charRec = { ch, left: leftForGroup, top: topForGroup, right: rightForGroup, bottom: bottomForGroup };
+        if (cur == null || Math.abs(topForGroup - cur.top) > 1) {
           if (cur != null) lines.push(cur);
-          cur = { chars: [charRec], top: cr.top, bottom: cr.bottom, left: cr.left, right: cr.right };
+          cur = { chars: [charRec], top: topForGroup, bottom: bottomForGroup, left: leftForGroup, right: rightForGroup };
         } else {
           cur.chars.push(charRec);
-          cur.left = Math.min(cur.left, cr.left);
-          cur.right = Math.max(cur.right, cr.right);
-          cur.bottom = Math.max(cur.bottom, cr.bottom);
+          cur.left = Math.min(cur.left, leftForGroup);
+          cur.right = Math.max(cur.right, rightForGroup);
+          cur.bottom = Math.max(cur.bottom, bottomForGroup);
         }
         i += step - 1;
       }
