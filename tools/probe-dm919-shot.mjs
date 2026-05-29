@@ -1,0 +1,10 @@
+import { chromium } from "@playwright/test";
+import { readFileSync, writeFileSync } from "node:fs";
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1024, height: 1200 } });
+const page = await ctx.newPage();
+await page.setContent(readFileSync("external/html-test/20-deep-font-palette.html", "utf-8"));
+await page.waitForLoadState("networkidle");
+const buf = await page.screenshot({ clip: { x: 30, y: 280, width: 100, height: 100 } });
+writeFileSync("/tmp/dm919-chrome-fresh.png", buf);
+await browser.close();

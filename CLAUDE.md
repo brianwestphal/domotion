@@ -99,6 +99,17 @@ When writing TSX, components return `SafeHtml` (which is `JSX.Element`). Use `ra
 
 You have **standing permission to use Playwright freely** for any investigation, debugging, or experimentation — driving live pages, replaying cached HARs (`tests/cache/real-world/*.har`), dumping captured trees with computed styles, comparing painted output against captured rects, or any other interactive probe. Do NOT defer a ticket as "needs DOM access" or "blocked on interactive Playwright session" — write the probe script, run it, and proceed. Probes can land as throwaway scripts under `tools/` or be inlined directly in a Bash invocation; whatever's expedient.
 
+**Always read Chromium source code when stuck on Chrome-paint behavior.** `chromium.googlesource.com` and `source.chromium.org` are in the sandbox allowlist and reachable via `WebFetch`. The project's fidelity rule says Chrome's actual paint is the source of truth — the Chromium source IS that source of truth, written down and citable. Whenever a ticket investigation reaches "I'm not sure why Chrome does X here," go read the blink renderer code instead of probing-and-curve-fitting. Useful entry points:
+
+- `third_party/blink/renderer/platform/fonts/` — font fallback, glyph metrics, sbix / COLR painters, `font-palette` resolution
+- `third_party/blink/renderer/platform/fonts/shaping/` — `ShapeResult`, glyph offset / advance math
+- `third_party/blink/renderer/core/paint/` — text painter, decoration painter, paint-order resolution
+- `third_party/blink/renderer/core/css/` — CSS property parsing + computed-style serialization
+- `third_party/blink/renderer/core/layout/` — flex / grid / inline layout
+- Skia (`SkScalerContext`, `SkGlyph`) for the actual glyph rasterization
+
+Cite the exact file + line in commit messages and ticket notes so the rationale is auditable. Example from a prior fix: `kSmallCapsFontSizeMultiplier = 0.7f` in `simple_font_data.cc` is the constant DM-294 / DM-444 / DM-938 mirrored for the synthesised small-caps multiplier.
+
 When investigating a real-world fixture (`tests/real-world.tsx`), prefer replaying the existing HAR in `tests/cache/real-world/` over hitting the live site — it's faster, deterministic, and matches what the failing test actually saw.
 
 ## Debugging the generated output
