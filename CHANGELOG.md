@@ -2,6 +2,19 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.6.0] - 2026-05-29
+
+
+- `elementTreeToSvg` now returns a complete `<svg>` document (the old renderer is `elementTreeToSvgInner`)
+- New magic-move transition slides shared elements between frames, morphing size and cross-fading paint changes (honors reduced-motion)
+- New CLIs: `svg-review` for consumer fidelity bug reports and `svg-to-video` for GIF/APNG/video export
+- Linux and Windows rendering now calibrated to native fonts (FreeType / DirectWrite), with reproducible embedded fonts
+- Added a HAR-file capture source
+- Text fixes: wavy-underline truncation, transparent gradient stops, embedded text-width scaling, RTL glyph alignment, and emoji raster overlays
+- Box fixes: border-radius wedges, dashed-border/outline corner phasing, text-stroke on transparent fill, background-clip:text inheritance, and zoom-scaled radius
+- MathML: radical signs, stretchy fence operators, Math-Alphanumeric glyphs, and fraction-bar width
+- Support external-file `clip-path` / `mask-image` fragment refs and `clipPathUnits="userSpaceOnUse"`
+
 ## [0.5.0] - 2026-05-25
 
 
