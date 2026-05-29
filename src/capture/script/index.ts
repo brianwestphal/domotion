@@ -942,6 +942,18 @@ export const captureScript =
         textUnderlineOffset: cs.textUnderlineOffset,
         textUnderlinePosition: cs.textUnderlinePosition,
         textDecorationSkipInk: cs.textDecorationSkipInk,
+        // DM-920: text-emphasis. Captured per CSS Text Decoration 3 §3.5.
+        // `text-emphasis-style` resolved string ("filled circle" / "open
+        // sesame" / `"★"` etc.) maps to a single mark character in the
+        // renderer per Chromium's `ComputedStyle::TextEmphasisMarkString`
+        // (third_party/blink/renderer/core/style/computed_style.cc:
+        // kBullet U+2022 / kWhiteBullet U+25E6 / kBlackCircle U+25CF /
+        // kWhiteCircle U+25CB / kFisheye U+25C9 / kBullseye U+25CE /
+        // kBlackUpPointingTriangle U+25B2 / kWhiteUpPointingTriangle
+        // U+25B3 / kSesameDot U+FE45 / kWhiteSesameDot U+FE46).
+        textEmphasisStyle: cs.textEmphasisStyle,
+        textEmphasisColor: cs.textEmphasisColor,
+        textEmphasisPosition: cs.textEmphasisPosition,
       },
       children, imageSrc, imageIntrinsic, imageBroken, imageAlt, svgContent, pseudoImages,
       pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,

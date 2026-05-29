@@ -122,6 +122,110 @@ function textStrokeParams(styles: { webkitTextStrokeWidth?: string; webkitTextSt
  *  rendered nothing (transparent fill, no stroke). Build the SVG stroke
  *  attribute string from the same trio `textStrokeParams` returns, ready
  *  for inline-attribute splicing into a `<text>` element. */
+// DM-920: text-emphasis-style → mark character mapping. Mirrors
+// `ComputedStyle::TextEmphasisMarkString` in third_party/blink/renderer/
+// core/style/computed_style.cc — the keyword form resolves to a single
+// codepoint per (fill, shape) combination; the `<string>` form (e.g.
+// `text-emphasis: "★"`) uses the literal string as the mark.
+function parseTextEmphasisMark(styleCss: string | undefined): string | null {
+  if (styleCss == null || styleCss === "" || styleCss === "none") return null;
+  // `<string>` form: `"★"` / `'·'`
+  const stringMatch = /^["']([\s\S]+)["']$/.exec(styleCss.trim());
+  if (stringMatch != null) return stringMatch[1];
+  // Keyword form. Default fill is `filled` when only a shape is given.
+  const isOpen = /\bopen\b/.test(styleCss);
+  // Codepoint table from Chromium's character_names.h:
+  if (/\bdot\b/.test(styleCss)) return isOpen ? "◦" : "•";
+  if (/\bdouble-circle\b/.test(styleCss)) return isOpen ? "◎" : "◉";
+  if (/\bcircle\b/.test(styleCss)) return isOpen ? "○" : "●";
+  if (/\btriangle\b/.test(styleCss)) return isOpen ? "△" : "▲";
+  if (/\bsesame\b/.test(styleCss)) return isOpen ? "﹆" : "﹅";
+  return null;
+}
+
+// DM-920: emit `<text>` elements for the text-emphasis marks above (or
+// below) every typographic character unit in the element's text segments.
+// Position per Chromium's `TextPainter::SetEmphasisMark` semantics:
+//   over:  Y = baselineY - ascent - markDescent (above the line)
+//   under: Y = baselineY + descent + markAscent (below the line)
+// We approximate ascent / descent / mark-descent / mark-ascent using
+// fontSize fractions (Chrome's actual numbers come from font metrics,
+// but the typical bullet-style mark sits ~0.9em above the baseline
+// for `over` and ~0.4em below for `under`). Skip whitespace characters
+// per CSS `text-emphasis-skip: spaces` default.
+function renderTextEmphasisMarks(
+  el: CapturedElement,
+  fillColorFallback: string,
+): string {
+  const styleCss = el.styles.textEmphasisStyle;
+  const mark = parseTextEmphasisMark(styleCss);
+  if (mark == null) return "";
+  // Collect per-character x positions across every text segment that
+  // carries captured xOffsets. Anchor each mark at the char's CENTER —
+  // approximate by averaging xOffsets[i] and xOffsets[i+1] (or use the
+  // segment's right edge for the last char). Skip whitespace per CSS
+  // text-emphasis-skip default.
+  interface MarkPos { x: number; baselineY: number; fontSize: number }
+  const positions: MarkPos[] = [];
+  if (el.textSegments == null) return "";
+  for (const seg of el.textSegments) {
+    if (seg.xOffsets == null || seg.text == null || seg.xOffsets.length === 0) continue;
+    const segFs = seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14);
+    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * 0.8;
+    const baselineY = seg.y + segAscent;
+    for (let i = 0; i < seg.text.length; i++) {
+      const ch = seg.text[i];
+      if (ch === " " || ch === "\t" || ch === "\n" || ch === " ") continue;
+      if (i >= seg.xOffsets.length) continue;
+      const xStart = seg.xOffsets[i];
+      const xEnd = (i + 1 < seg.xOffsets.length)
+        ? seg.xOffsets[i + 1]
+        : seg.x + seg.width;
+      const xCenter = (xStart + xEnd) / 2;
+      positions.push({ x: xCenter, baselineY, fontSize: segFs });
+    }
+  }
+  if (positions.length === 0) return "";
+  const fontFamily = el.styles.fontFamily;
+  const fontWeight = el.styles.fontWeight;
+  const color = (el.styles.textEmphasisColor != null
+    && el.styles.textEmphasisColor !== ""
+    && el.styles.textEmphasisColor !== "currentcolor")
+    ? el.styles.textEmphasisColor
+    : (el.styles.color ?? fillColorFallback);
+  const position = el.styles.textEmphasisPosition ?? "over right";
+  const isUnder = /\bunder\b/.test(position);
+  // Per-segment xs in case mixed font sizes. Group by (baselineY, fontSize).
+  const groups = new Map<string, MarkPos[]>();
+  for (const p of positions) {
+    const key = `${r(p.baselineY)}|${r(p.fontSize)}`;
+    let g = groups.get(key);
+    if (g == null) { g = []; groups.set(key, g); }
+    g.push(p);
+  }
+  const out: string[] = [];
+  for (const [key, ps] of groups) {
+    const [byStr, fsStr] = key.split("|");
+    const by = parseFloat(byStr);
+    const fs = parseFloat(fsStr);
+    // Per CSS Text Decoration 3 §3.5.1, the mark glyph is painted at
+    // 50% of the element's font-size and positioned immediately
+    // outside the line box. Mark baseline:
+    //   over:  by - fontAscent - markDescent
+    //   under: by + fontDescent + markAscent
+    // Approximating without per-font metrics: place the mark glyph
+    // baseline at by - fs (one full main-em above the main baseline)
+    // for `over`, by + fs * 0.5 + fs * 0.3 for `under`. Empirical
+    // 0.95em above / 0.5em below matches Chrome on Hiragino / Helvetica.
+    const markFs = fs * 0.5;
+    const markBaselineY = isUnder ? by + fs * 0.5 : by - fs * 0.95;
+    const xList = ps.map((p) => r(p.x)).join(" ");
+    const markStream = mark.repeat(ps.length);
+    out.push(`<text x="${xList}" y="${r(markBaselineY)}" font-family="${fontFamily}" font-size="${r(markFs)}" font-weight="${fontWeight}" fill="${color}" text-anchor="middle">${markStream}</text>`);
+  }
+  return out.join("");
+}
+
 function textStrokeAttrString(ts: { width: number; color: string; paintOrder: string }): string {
   if (ts.width <= 0 || ts.color === "") return "";
   let out = ` stroke="${ts.color}" stroke-width="${r(ts.width)}"`;
@@ -887,7 +991,8 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // around the captured `transform-origin` and the text rotates WITH the
     // box (e.g. a `::after { transform: rotate(-15deg) }` rotated pill keeps
     // its label aligned to the pill, not the host's baseline).
-    const inner = `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}`;
+    const emphasisMarks = renderTextEmphasisMarks(el, segColor);
+    const inner = `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}${emphasisMarks}`;
     const transformed = (singleSeg?.pseudoBox != null) ? pseudoBoxTransformWrap(singleSeg.pseudoBox, inner) : inner;
     if (opts.overflowClip) {
       return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${transformed}</g>`);

@@ -632,6 +632,16 @@ export interface CapturedElement {
      *  the elementRaster dedupe key so vertical-mode columns with
      *  different underline-position values don't share screenshots. */
     textUnderlinePosition?: string;
+    /** DM-920: `text-emphasis-style` — `none`, a `<string>` (`"★"`), or a
+     *  `[filled | open] [dot | circle | double-circle | triangle | sesame]`
+     *  combination. Renderer maps the keyword form to a single mark
+     *  character per Chromium's `ComputedStyle::TextEmphasisMarkString`. */
+    textEmphasisStyle?: string;
+    /** DM-920: `text-emphasis-color` — defaults to `currentcolor`. */
+    textEmphasisColor?: string;
+    /** DM-920: `text-emphasis-position` — `over` / `under` (×
+     *  `left` / `right` in horizontal-tb). */
+    textEmphasisPosition?: string;
     /** `text-decoration-skip-ink` — 'auto' (default; break around descenders),
      *  'none' (always solid), or 'all'. Per Chromium's
      *  `decoration_line_painter.cc`, only solid + double underlines honor
