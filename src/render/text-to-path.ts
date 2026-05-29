@@ -2777,8 +2777,12 @@ function renderTextAsEmbedded(
   // wider than fontkit (pseudo-element auto-sized pill labels) end up
   // left-anchored in their captured content rect with the leftover
   // padding stacking on the right — visibly off-centre.
+  // DM-938: per-glyph scale carries the synthesized small-caps multiplier
+  // (1.0 for native-size glyphs, 0.7 for synthesized cap-shrunk lowercase).
+  // Pending segments group consecutive glyphs of the same scale so each
+  // emits a single `<text>` with its own `font-size` attribute.
   interface PendingSeg {
-    perGlyph: Array<{ pua: string; xCss: number }>;
+    perGlyph: Array<{ pua: string; xCss: number; scale: number }>;
     runCssFamily: string;
     weightAttr: string;
     italicAttr: string;
@@ -2791,11 +2795,66 @@ function renderTextAsEmbedded(
   // they did, glyph positions are already Chrome-accurate and the
   // targetWidth scale would only introduce drift; skip it.
   let allGlyphsHaveXOffset = xOffsets != null && xOffsets.length > 0;
+  // DM-938: synthesized small-caps detection. Mirrors the renderTextAsPath
+  // logic (line 2195+). When `font-variant-caps: small-caps` (or any of
+  // its peers) maps to an OpenType feature that the resolved font lacks
+  // (Helvetica / Arial / SF Pro / Georgia / Times / Menlo on macOS all
+  // lack smcp / c2sc / pcap / c2pc / unic), Chrome falls back to
+  // SYNTHESIZED small-caps: lowercase chars paint as their uppercase
+  // glyph at a smaller font-size (0.7× matches Chromium's
+  // kSmallCapsFontSizeMultiplier in blink simple_font_data.cc).
+  const SMALL_CAP_SCALE = 0.7;
+  const featuresArr = features ?? [];
+  const wantSmcp = featuresArr.includes("smcp");
+  const wantC2sc = featuresArr.includes("c2sc");
+  const wantPcap = featuresArr.includes("pcap");
+  const wantC2pc = featuresArr.includes("c2pc");
+  const wantUnic = featuresArr.includes("unic");
   for (const run of runs) {
     const runScale = fontSize / run.font.unitsPerEm;
+    const availableFeatures = Array.isArray((run.font as { availableFeatures?: string[] }).availableFeatures)
+      ? ((run.font as { availableFeatures: string[] }).availableFeatures) : [];
+    const fontHas = (f: string) => availableFeatures.includes(f);
+    let synthLower = 1; // scale for lowercase chars
+    let synthUpper = 1; // scale for uppercase chars
+    let needsSynthCaseFold = false;
+    if (wantSmcp && !fontHas("smcp")) { synthLower = SMALL_CAP_SCALE; needsSynthCaseFold = true; }
+    if (wantPcap && !fontHas("pcap")) { synthLower = SMALL_CAP_SCALE; needsSynthCaseFold = true; }
+    if (wantC2sc && !fontHas("c2sc")) { synthUpper = SMALL_CAP_SCALE; }
+    if (wantC2pc && !fontHas("c2pc")) { synthUpper = SMALL_CAP_SCALE; }
+    if (wantUnic && !fontHas("unic")) { synthUpper = SMALL_CAP_SCALE; /* lowercase stays 1.0 per CSS Fonts 4 §3.5 */ }
+    const doSynth = synthLower !== 1 || synthUpper !== 1;
+    // Build the shaping input text and a parallel per-source-char scale
+    // array indexed against run.text (UTF-16 units). When synthesis is
+    // active, lowercase chars get uppercased so fontkit hands back the
+    // uppercase glyph at the same codepoint position; the scale flips to
+    // 0.7 so the emit step renders that glyph smaller. Uppercase chars
+    // pass through, scaled per synthUpper.
+    let shapingText = run.text;
+    const perCharScale: number[] = new Array(run.text.length).fill(1);
+    if (doSynth) {
+      let out = "";
+      for (let i = 0; i < run.text.length; i++) {
+        const ch = run.text[i];
+        const upper = ch.toUpperCase();
+        const isLower = needsSynthCaseFold && ch !== upper && upper !== ch.toLowerCase();
+        const isUpper = ch === upper && ch !== ch.toLowerCase();
+        if (isLower) {
+          out += upper;
+          perCharScale[i] = synthLower;
+        } else if (isUpper) {
+          out += ch;
+          perCharScale[i] = synthUpper;
+        } else {
+          out += ch;
+          perCharScale[i] = 1;
+        }
+      }
+      shapingText = out;
+    }
     let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }> };
     try {
-      layout = features != null && features.length > 0 ? run.font.layout(run.text, features) : run.font.layout(run.text);
+      layout = features != null && features.length > 0 ? run.font.layout(shapingText, features) : run.font.layout(shapingText);
     } catch {
       return null;
     }
@@ -2825,7 +2884,7 @@ function renderTextAsEmbedded(
     // multi-pixel drift across a 12-glyph run). We anchor at the captured
     // xOffsets where available (Chrome's actual paint position, subpixel-
     // accurate); else use fontkit's shaped advances cumulatively.
-    interface PerGlyph { pua: string; xCss: number }
+    interface PerGlyph { pua: string; xCss: number; scale: number }
     const perGlyph: PerGlyph[] = [];
     let runCssFamily: string | null = null;
     let runCursorFontUnits = 0;
@@ -2919,7 +2978,12 @@ function renderTextAsEmbedded(
         xCss = runOriginCss + runCursorFontUnits * runScale;
         allGlyphsHaveXOffset = false;
       }
-      perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss });
+      // DM-938: pull the per-source-char scale through to per-glyph. The
+      // cluster's first char (textIdx) is where Chrome's painted-position
+      // anchor lives; use its scale. For multi-char clusters all chars in
+      // the cluster get the same case treatment so the scale is uniform.
+      const glyphScale = perCharScale[textIdx] ?? 1;
+      perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, scale: glyphScale });
       runCursorFontUnits += pos.xAdvance;
       // For LTR, advance textIdx AFTER lookup. (For RTL we decremented
       // before the lookup so the next iteration's pre-decrement lands on
@@ -2980,9 +3044,23 @@ function renderTextAsEmbedded(
   // unit), so the list aligns 1:1 with the PUA stream. Same pixel-faithful
   // placement, ~2-3x less markup than per-glyph `<tspan>`s.
   for (const p of pending) {
-    const xList = p.perGlyph.map((g) => r(x + g.xCss * xScale)).join(" ");
-    const puaStream = p.perGlyph.map((g) => g.pua).join("");
-    segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${p.runCssFamily}" font-size="${r(fontSize)}"${p.weightAttr}${p.italicAttr}${p.fvsAttr} fill="${fill}"${p.strokeAttr}>${puaStream}</text>`);
+    // DM-938: synthesized small-caps splits the per-glyph stream into
+    // runs of consecutive same-scale glyphs. Each run emits its own
+    // `<text>` with the matching `font-size` (`fontSize × scale`). When
+    // no glyph in this PendingSeg carries a non-1.0 scale, we emit a
+    // single `<text>` for the whole segment as before.
+    let runStart = 0;
+    while (runStart < p.perGlyph.length) {
+      const runScale = p.perGlyph[runStart].scale;
+      let runEnd = runStart + 1;
+      while (runEnd < p.perGlyph.length && p.perGlyph[runEnd].scale === runScale) runEnd++;
+      const slice = p.perGlyph.slice(runStart, runEnd);
+      const xList = slice.map((g) => r(x + g.xCss * xScale)).join(" ");
+      const puaStream = slice.map((g) => g.pua).join("");
+      const emitFontSize = r(fontSize * runScale);
+      segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr} fill="${fill}"${p.strokeAttr}>${puaStream}</text>`);
+      runStart = runEnd;
+    }
   }
 
   if (segments.length === 0) return null;
