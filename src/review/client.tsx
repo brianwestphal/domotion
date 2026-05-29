@@ -18,7 +18,7 @@
  * delete on the figures' SVG overlays.
  */
 
-import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./region-overlay.js";
+import { enableRegionOverlays, type Rect } from "./region-overlay.js";
 
 declare global {
   interface Window {
@@ -38,7 +38,6 @@ const label = window.__SVG_REVIEW__?.label ?? "fixture";
 const card = document.querySelector<HTMLElement>(".card");
 if (card == null) throw new Error("svg-review client: missing .card container");
 const overlay = enableRegionOverlays(card);
-const overlays: OverlayHandle[] = [overlay];
 
 // ── Per-region caption inputs ──────────────────────────────────────────
 
@@ -48,13 +47,13 @@ const copyBtn = document.getElementById("copy-btn") as HTMLButtonElement;
 const fileLink = document.getElementById("file-link") as HTMLAnchorElement;
 
 interface CaptionedRegion extends Rect { caption: string }
-const captionsByIndex = new Map<number, string>();
-
+// DM-952: captions live ON each rect inside the overlay (via the
+// overlay's `setCaption(index, caption)` API), so they survive the
+// reindex-after-delete operation that swaps surrounding rects' index
+// numbers. Snapshot via `getRegions()` and just read `r.caption`.
 function snapshotRegions(): CaptionedRegion[] {
-  // Pull from the first overlay — the three share state, so any of them
-  // returns the same list.
-  const rects = overlays[0]?.getRegions() ?? [];
-  return rects.map((r) => ({ ...r, caption: captionsByIndex.get(r.index) ?? "" }));
+  const rects = overlay.getRegions();
+  return rects.map((r) => ({ ...r, caption: r.caption ?? "" }));
 }
 
 function rebuildRegionList(): void {
@@ -78,7 +77,7 @@ function rebuildRegionList(): void {
     input.placeholder = `(${Math.round(r.x)}, ${Math.round(r.y)}, ${Math.round(r.w)}×${Math.round(r.h)}) — describe what's wrong here`;
     input.value = r.caption;
     input.addEventListener("input", () => {
-      captionsByIndex.set(r.index, input.value);
+      overlay.setCaption(r.index, input.value);
       rebuildIssueText();
     });
     input.addEventListener("keydown", (e) => {
@@ -86,7 +85,7 @@ function rebuildRegionList(): void {
       // user can immediately Cmd/Ctrl+C the generated Markdown.
       if (e.key === "Enter") {
         e.preventDefault();
-        captionsByIndex.set(r.index, input.value);
+        overlay.setCaption(r.index, input.value);
         rebuildIssueText();
         issueText.focus();
         issueText.select();
@@ -99,15 +98,21 @@ function rebuildRegionList(): void {
   rebuildIssueText();
 }
 
-// Re-render the region list whenever the overlays change. Poll on a
-// repaint tick because the existing overlay API doesn't expose a
-// change event; checking serialisedRegions() lets us short-circuit
-// when nothing actually moved.
-let lastSerialised = "";
+// Re-render the region list whenever the overlay's RECT SET changes
+// (add / delete / move / resize). The poll deliberately ignores
+// `caption` so an inflight keystroke in a caption input doesn't
+// blow away its own DOM node and steal focus mid-word — caption
+// changes flow through `rebuildIssueText` directly from the input
+// listener instead.
+function rectListSignature(): string {
+  const rects = overlay.getRegions();
+  return rects.map((r) => `${r.index}:${r.x},${r.y},${r.w},${r.h}`).join("|");
+}
+let lastSignature = "";
 function tick(): void {
-  const snap = serializeRegions(overlays[0]?.getRegions() ?? []);
-  if (snap !== lastSerialised) {
-    lastSerialised = snap;
+  const sig = rectListSignature();
+  if (sig !== lastSignature) {
+    lastSignature = sig;
     rebuildRegionList();
   }
   requestAnimationFrame(tick);
@@ -185,14 +190,19 @@ function closeLightbox(): void {
   lightboxInner.innerHTML = "";
 }
 
-for (let i = 0; i < figureImgs.length; i++) {
-  const img = figureImgs[i]!;
-  img.addEventListener("click", (e) => {
-    // If the click landed on a region overlay (rect / handle), don't
-    // open the lightbox — the overlay's pointer handlers already
-    // consumed the gesture for draw / resize / delete.
+// DM-951: the region overlay inserts an SVG layer over each image and
+// captures pointer events for drag-to-draw / resize / delete. When a
+// pointerup is a non-drag click, the overlay's wireFigure dispatches a
+// synthetic click on the parent `<figure>` (NOT the `<img>`) — see
+// `region-overlay.ts:345`. Listen on the figure so the click-through
+// reaches us; ignore clicks that originated on an existing region rect
+// (those mean "delete this rect" and were already consumed).
+const figureEls = Array.from(card.querySelectorAll<HTMLElement>(".imgs figure"));
+for (let i = 0; i < figureEls.length; i++) {
+  const fig = figureEls[i]!;
+  fig.addEventListener("click", (e) => {
     const t = e.target as Element;
-    if (t.closest(".region-overlay") != null) return;
+    if (t.closest(".region-overlay rect") != null) return;
     openLightboxAt(i);
   });
 }

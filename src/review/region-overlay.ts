@@ -37,6 +37,13 @@ export interface Rect {
 export interface OverlayHandle {
   /** Snapshot the current rectangles, sorted by index. */
   getRegions(): Rect[];
+  /** DM-952: write a caption onto the rect at the given index. The
+   *  caption persists across reindex-after-delete operations because
+   *  it's stored on the internal Rect, not in caller state keyed by a
+   *  mutable index. Caller-side state keyed by the overlay's `index`
+   *  field would drift after delete (rects 3→2→1 inherit captions from
+   *  the wrong source). No-op when no rect at that index. */
+  setCaption(index: number, caption: string): void;
   /** Drop every in-progress rectangle and repaint. */
   clear(): void;
   /** Attach a secondary viewing + editing surface that shares the same
@@ -116,7 +123,7 @@ function resizeCursor(h: ResizeHandles): string {
 export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
   const figureEls = Array.from(card.querySelectorAll<HTMLElement>(".imgs figure[data-src]"));
   if (figureEls.length === 0) {
-    return { getRegions: () => [], clear: () => {}, addView: () => () => {} };
+    return { getRegions: () => [], setCaption: () => {}, clear: () => {}, addView: () => () => {} };
   }
 
   const rects: Rect[] = [];
@@ -379,6 +386,11 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
 
   return {
     getRegions: () => rects.map((r) => ({ ...r })),
+    setCaption: (index: number, caption: string) => {
+      const target = rects.find((r) => r.index === index);
+      if (target == null) return;
+      target.caption = caption;
+    },
     clear: () => {
       rects.length = 0;
       repaintAll();

@@ -130,6 +130,129 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
     }
   }, 60_000);
 
+  it("clicking an image opens the fullscreen lightbox; arrow keys cycle expected→actual→diff (DM-951)", async () => {
+    child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const url = await waitForUrl(child);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+      await page.goto(url, { waitUntil: "networkidle" });
+      // Click anywhere on the expected figure that ISN'T over an
+      // existing region rect. The overlay's wireFigure dispatches a
+      // synthetic click on the parent <figure> when pointerup is a
+      // non-drag — our client listens on the figure (DM-951) so the
+      // lightbox opens.
+      const expectedImg = page.locator('figure[data-role="expected"] img');
+      await expectedImg.waitFor({ state: "visible" });
+      const box = await expectedImg.boundingBox();
+      if (box == null) throw new Error("expected img has no bounding box");
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      const lb = page.locator("#lightbox.open");
+      await lb.waitFor({ state: "visible", timeout: 3_000 });
+      // The lightbox img should show /expected.png first.
+      const lbImg = page.locator("#lightbox-inner img");
+      expect(await lbImg.getAttribute("src")).toMatch(/expected\.png$/);
+      // ArrowRight → actual.png
+      await page.keyboard.press("ArrowRight");
+      await page.waitForFunction(() => /actual\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""), null, { timeout: 2_000 });
+      // ArrowRight → diff.png
+      await page.keyboard.press("ArrowRight");
+      await page.waitForFunction(() => /diff\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""), null, { timeout: 2_000 });
+      // ArrowRight wraps back to expected.png
+      await page.keyboard.press("ArrowRight");
+      await page.waitForFunction(() => /expected\.png$/.test(document.querySelector("#lightbox-inner img")?.getAttribute("src") ?? ""), null, { timeout: 2_000 });
+      // Escape closes the lightbox.
+      await page.keyboard.press("Escape");
+      await page.waitForFunction(() => !document.querySelector("#lightbox")?.classList.contains("open"), null, { timeout: 2_000 });
+      await browser.close();
+    } catch (e) {
+      await browser.close().catch(() => {/* noop */});
+      throw e;
+    }
+  }, 60_000);
+
+  it("captions stay with the right rect after a delete (DM-952)", async () => {
+    child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const url = await waitForUrl(child);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+      await page.goto(url, { waitUntil: "networkidle" });
+      const actualImg = page.locator('figure[data-role="actual"] img');
+      await actualImg.waitFor({ state: "visible" });
+      const box = await actualImg.boundingBox();
+      if (box == null) throw new Error("actual img has no bounding box");
+
+      // Drive the overlay directly from the page context — pointermove
+      // sequences in Playwright are timing-sensitive on the overlay's
+      // drag-vs-click hit-test, so prefer dispatching a clean sequence
+      // of synthetic pointer events that crosses the drag threshold
+      // unambiguously. Each call creates one rect and waits for it to
+      // surface in the caption list before the next one.
+      const drawRectViaEvents = async (x1: number, y1: number, x2: number, y2: number) => {
+        await page.evaluate(({ x1, y1, x2, y2 }) => {
+          const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
+          if (svg == null) throw new Error("no overlay");
+          const fire = (type: string, x: number, y: number) =>
+            svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
+          fire("pointerdown", x1, y1);
+          fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
+          fire("pointermove", x2, y2);
+          fire("pointerup", x2, y2);
+        }, { x1, y1, x2, y2 });
+        await page.waitForTimeout(100);
+      };
+
+      await drawRectViaEvents(box.x + box.width * 0.10, box.y + box.height * 0.10, box.x + box.width * 0.25, box.y + box.height * 0.20);
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, { timeout: 3_000 });
+      await drawRectViaEvents(box.x + box.width * 0.40, box.y + box.height * 0.40, box.x + box.width * 0.55, box.y + box.height * 0.50);
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 2, null, { timeout: 3_000 });
+      await drawRectViaEvents(box.x + box.width * 0.70, box.y + box.height * 0.70, box.x + box.width * 0.85, box.y + box.height * 0.80);
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 3, null, { timeout: 5_000 });
+      const inputs = page.locator(".region-list input[type='text']");
+      await inputs.nth(0).fill("first");
+      await inputs.nth(1).fill("second");
+      await inputs.nth(2).fill("third");
+
+      // Verify the issue text reflects all three captions BEFORE delete.
+      let issueText = await page.locator("#issue-text").inputValue();
+      expect(issueText).toContain("first");
+      expect(issueText).toContain("second");
+      expect(issueText).toContain("third");
+
+      // Delete rect #2 ("second") by dispatching an interior pointerdown
+      // + immediate pointerup (no movement, so the overlay's drag
+      // threshold isn't crossed and the click routes to "delete this
+      // rect"). Rect 2 spans displayed (40%, 40%) → (55%, 50%); click
+      // its centre.
+      await page.evaluate(({ x, y }) => {
+        const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
+        if (svg == null) throw new Error("no overlay");
+        svg.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
+        svg.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
+      }, { x: box.x + box.width * 0.475, y: box.y + box.height * 0.45 });
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 2, null, { timeout: 5_000 });
+
+      // The remaining captions should be "first" and "third" — NOT
+      // "first" and "second" (which would be the buggy DM-952 case
+      // where the third caption stuck to the now-renumbered index-2 slot).
+      issueText = await page.locator("#issue-text").inputValue();
+      expect(issueText).toContain("first");
+      expect(issueText).toContain("third");
+      expect(issueText).not.toContain("second");
+      await browser.close();
+    } catch (e) {
+      await browser.close().catch(() => {/* noop */});
+      throw e;
+    }
+  }, 60_000);
+
   it("serves all four endpoints (HTML shell, client.js, expected.png, diff.png)", async () => {
     child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
       cwd: REPO_ROOT,
