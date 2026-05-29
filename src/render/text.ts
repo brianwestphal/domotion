@@ -516,6 +516,16 @@ const _RTL_RE = /[֐-ࣿיִ-ﻼ]/;
  */
 function applyBidi(text: string, xOffsets: number[] | undefined, paragraphDir: "ltr" | "rtl"): { text: string; xOffsets?: number[] } {
   if (!_RTL_RE.test(text) && paragraphDir !== "rtl") return { text, xOffsets };
+  // DM-940: when per-char `xOffsets` are present, each character is already
+  // pinned to Chrome's painted x — and Chrome has already laid out the
+  // visually-correct mirrored bracket at that position. Re-mirroring HERE
+  // would swap the logical codepoint at each captured x and the glyph
+  // emitted at that x (e.g. a `(` originally captured at the leftmost x of
+  // an LTR sub-run inside an RTL paragraph would become `)` while staying
+  // at the leftmost x — Chrome paints `(` there, but we'd render `)`).
+  // Skip the mirror pass when Chrome's positions are authoritative; the
+  // logical-codepoint-to-visual-position mapping is already correct.
+  if (xOffsets != null) return { text, xOffsets };
   const embeddingLevels = _bidi.getEmbeddingLevels(text, paragraphDir);
   // bidi-js's getMirroredCharactersMap is keyed for a post-reorder pipeline
   // and returns empty when we haven't reordered, so apply mirroring directly:
