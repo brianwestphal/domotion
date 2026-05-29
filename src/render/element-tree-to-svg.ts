@@ -123,9 +123,23 @@ export function transparentRootBgRect(elements: CapturedElement[], width: number
 }
 
 /**
- * Convert a CapturedElement tree into SVG markup.
+ * Convert a CapturedElement tree into the **inner** SVG body markup —
+ * the `<defs>` + paint groups that go INSIDE a root `<svg>` tag, but
+ * NOT the `<svg xmlns viewBox …>` opening tag itself. Returned string
+ * is not a complete SVG document; either pass it to `wrapSvg()` or
+ * call `elementTreeToSvg()` (the wrapper that combines the two).
+ *
+ * Use this directly only when composing multiple frames into one big
+ * SVG (the animator + scroll composer use it that way), where the
+ * outer `<svg>` is emitted once and each frame contributes inner
+ * content with its own `idPrefix` to avoid clipPath ID collisions.
+ *
+ * Renamed in DM-950: the function used to be exported as
+ * `elementTreeToSvg`, which was confusing because the returned string
+ * wasn't actually a valid SVG document. Callers that want a complete
+ * document should switch to the new `elementTreeToSvg()` below.
  */
-export function elementTreeToSvg(
+export function elementTreeToSvgInner(
   elements: CapturedElement[],
   width: number,
   height: number,
@@ -3162,7 +3176,51 @@ export function elementTreeToSvg(
   return defs + svgParts.join("\n");
 }
 
-
+/**
+ * DM-950: render a CapturedElement tree into a **complete `<svg>`
+ * document** — the obvious entry point for "I have a tree, give me a
+ * standalone SVG file". Composes `elementTreeToSvgInner()` + `wrapSvg()`
+ * (which adds the `xmlns`, `viewBox`, `width`/`height`, color-scheme,
+ * and root-bg `<rect>` produced from the captured tree's resolved
+ * `rootBgComputed`).
+ *
+ * For multi-frame composition (animator, scroll composer), call
+ * `elementTreeToSvgInner()` directly and emit one outer `<svg>`
+ * yourself so per-frame `idPrefix`-scoped clipPath ids don't collide
+ * and the embedded-font CSS isn't duplicated per frame.
+ *
+ * Renamed in DM-950: the symbol previously called `elementTreeToSvg`
+ * was renamed to `elementTreeToSvgInner` to reflect what it actually
+ * emits. The new `elementTreeToSvg` below produces the full document
+ * most callers actually want; if you were calling the old function
+ * and wrapping the output in `wrapSvg()` yourself, switch to this.
+ */
+export function elementTreeToSvg(
+  elements: CapturedElement[],
+  width: number,
+  height: number,
+  opts?: {
+    /** Forwarded to `elementTreeToSvgInner`. Single-frame producers
+     *  can leave this default. Multi-frame producers should NOT use
+     *  this wrapper — call `elementTreeToSvgInner` directly. */
+    idPrefix?: string;
+    /** Forwarded to `elementTreeToSvgInner`. */
+    includeGlyphDefs?: boolean;
+    /** Forwarded to `elementTreeToSvgInner`. */
+    hiDPIFactor?: number;
+    /** Forwarded to `elementTreeToSvgInner`. */
+    includeEmbeddedFontCss?: boolean;
+  },
+): string {
+  const inner = elementTreeToSvgInner(
+    elements, width, height,
+    opts?.idPrefix ?? "",
+    opts?.includeGlyphDefs ?? true,
+    opts?.hiDPIFactor ?? 2,
+    opts?.includeEmbeddedFontCss ?? (opts?.includeGlyphDefs ?? true),
+  );
+  return wrapSvg(inner, width, height, { tree: elements });
+}
 
 
 /**

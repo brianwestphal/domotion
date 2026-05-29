@@ -12,7 +12,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
 import { optimizeSvg } from "./shared.js";
 
@@ -165,7 +165,7 @@ async function main(): Promise<void> {
   let tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
   await embedRemoteImages(tree);
   frames.push({
-    svgContent: elementTreeToSvg(tree, WIDTH, HEIGHT, "f0-"),
+    svgContent: elementTreeToSvgInner(tree, WIDTH, HEIGHT, "f0-"),
     duration: 3500,
     transition: { type: "push-left", duration: 400 },
     overlays: [{
@@ -190,7 +190,7 @@ async function main(): Promise<void> {
   tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
   await embedRemoteImages(tree);
   frames.push({
-    svgContent: elementTreeToSvg(tree, WIDTH, HEIGHT, "f1-"),
+    svgContent: elementTreeToSvgInner(tree, WIDTH, HEIGHT, "f1-"),
     duration: 3000,
     transition: { type: "push-left", duration: 400 },
     overlays: [{
@@ -214,7 +214,7 @@ async function main(): Promise<void> {
   await pg.waitForTimeout(200);
   // Capture the full tall page
   const fullTree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: 900 });
-  const fullSvg = elementTreeToSvg(fullTree, WIDTH, 900, "f2-");
+  const fullSvg = elementTreeToSvgInner(fullTree, WIDTH, 900, "f2-");
   // Wrap in a group with scroll animation
   frames.push({
     svgContent: fullSvg,

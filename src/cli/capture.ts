@@ -13,7 +13,7 @@ import {
   clearWebfonts,
   composeScrollSvg,
   cullElementsOutsideViewBox,
-  elementTreeToSvg,
+  elementTreeToSvgInner,
   executeScrollPattern,
   launchChromium,
   logCaptureWarnings,
@@ -251,7 +251,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // escape cases where an off-viewport ancestor still gets captured.
       cullElementsOutsideViewBox(tree, clip[2], clip[3], undefined, 0, 1);
       clearEmbeddedFonts(); // DM-839: reset embedded-font builder before this single-frame render
-      const inner = elementTreeToSvg(tree, clip[2], clip[3]);
+      const inner = elementTreeToSvgInner(tree, clip[2], clip[3]);
       svg = wrapSvg(inner, clip[2], clip[3]);
     }
     if (flags.optimize) {

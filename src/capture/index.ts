@@ -8,7 +8,7 @@
 import { spawnSync } from "node:child_process";
 import sharp from "sharp";
 import { chromium, type Browser, type BrowserContext, type ElementHandle, type LaunchOptions, type Page } from "@playwright/test";
-import { elementTreeToSvg, wrapSvg, rootSvgColorSchemeAttr } from "../render/element-tree-to-svg.js";
+import { elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages } from "./embed.js";
 import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
@@ -217,7 +217,7 @@ export class DemoRecorder {
     // block contains only its own fonts (the renderer repopulates it during
     // elementTreeToSvg, which emits the CSS into this frame's <defs>).
     clearEmbeddedFonts();
-    return elementTreeToSvg(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
+    return elementTreeToSvgInner(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
   }
 
   /**
@@ -241,7 +241,7 @@ export class DemoRecorder {
     // DM-549: rasterize conic-gradient layers — see captureCurrent above.
     await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     clearEmbeddedFonts(); // DM-839: see captureCurrent
-    const svgContent = elementTreeToSvg(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
+    const svgContent = elementTreeToSvgInner(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
     return { svgContent, pageHeight };
   }
 

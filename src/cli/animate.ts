@@ -18,7 +18,7 @@ import {
   clearWebfonts,
   composeScrollSvg,
   cullElementsOutsideViewBox,
-  elementTreeToSvg,
+  elementTreeToSvgInner,
   executeScrollPattern,
   generateAnimatedSvg,
   getEmbeddedFontFaceCss,
@@ -579,7 +579,7 @@ export async function composeAnimateConfig(
         const result = cullElementsOutsideViewBox(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
         frameCullCss = result.css;
         if (i === 0) canvasBg = tree[0]?.styles?.rootBgComputed;
-        svgContent = elementTreeToSvg(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
+        svgContent = elementTreeToSvgInner(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
         frameTree = tree;
       }
 
@@ -611,7 +611,7 @@ export async function composeAnimateConfig(
       if (i > 0 && frames[i - 1]?.transition?.type === "magic-move" && prevFrameTree != null && frameTree != null) {
         frames[i - 1].magicMove = buildMagicMove(
           prevFrameTree, frameTree,
-          (roots, prefix) => elementTreeToSvg(roots, cfg.width, cfg.height, prefix, true, 2, false),
+          (roots, prefix) => elementTreeToSvgInner(roots, cfg.width, cfg.height, prefix, true, 2, false),
           `mm${i - 1}-`,
         );
       }

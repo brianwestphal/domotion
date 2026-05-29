@@ -10,7 +10,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { optimizeSvg } from "./shared.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
 
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     // emit self-contained SVGs so they load in offline image viewers.
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
     await embedRemoteImages(tree);
-    const svgContent = elementTreeToSvg(tree, WIDTH, HEIGHT, `f${i}-`);
+    const svgContent = elementTreeToSvgInner(tree, WIDTH, HEIGHT, `f${i}-`);
 
     const animFrame: AnimationFrame = {
       svgContent,

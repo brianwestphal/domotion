@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
+import type { Readable } from "node:stream";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,28 +29,29 @@ const ACTUAL = resolve(REPO_ROOT, "tests/output/bg-conic-checkerboard.svg");
 const fixtureReady = existsSync(CLI) && existsSync(EXPECTED) && existsSync(ACTUAL);
 const describeE2E = fixtureReady ? describe : describe.skip;
 
-function waitForUrl(child: ChildProcessWithoutNullStreams, timeoutMs = 30_000): Promise<string> {
+function waitForUrl(child: ChildProcess, timeoutMs = 30_000): Promise<string> {
+  const stdout = child.stdout as Readable;
   return new Promise((resolveFn, rejectFn) => {
     let buf = "";
     const onData = (chunk: Buffer) => {
       buf += chunk.toString();
       const m = buf.match(/svg-review:\s+(http:\/\/[^\s]+)/);
       if (m != null) {
-        child.stdout.off("data", onData);
+        stdout.off("data", onData);
         clearTimeout(timer);
         resolveFn(m[1]!);
       }
     };
     const timer = setTimeout(() => {
-      child.stdout.off("data", onData);
+      stdout.off("data", onData);
       rejectFn(new Error(`svg-review never printed a URL within ${timeoutMs}ms; stdout so far:\n${buf}`));
     }, timeoutMs);
-    child.stdout.on("data", onData);
+    stdout.on("data", onData);
   });
 }
 
 describeE2E("svg-review CLI end-to-end (DM-948)", () => {
-  let child: ChildProcessWithoutNullStreams | null = null;
+  let child: ChildProcess | null = null;
   afterEach(() => {
     if (child != null && !child.killed) child.kill("SIGTERM");
     child = null;
@@ -64,9 +66,9 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       stdio: ["ignore", "pipe", "pipe"],
     });
     const stderrChunks: string[] = [];
-    child.stderr.on("data", (c) => stderrChunks.push(c.toString()));
+    (child.stderr as Readable).on("data", (c: Buffer) => stderrChunks.push(c.toString()));
     const url = await waitForUrl(child).catch((e) => {
-      throw new Error(`${e.message}\nstderr:\n${stderrChunks.join("")}`);
+      throw new Error(`${(e as Error).message}\nstderr:\n${stderrChunks.join("")}`);
     });
 
     const browser = await chromium.launch();

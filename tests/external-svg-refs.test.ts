@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import sharp from "sharp";
-import { launchChromium, captureElementTree, elementTreeToSvg, setRenderTextMode } from "../src/index.js";
+import { launchChromium, captureElementTree, elementTreeToSvgInner, setRenderTextMode } from "../src/index.js";
 
 // External-file SVG fragment refs: clip-path (DM-829) and mask-image (DM-496).
 // Chrome only resolves these over http(s) (not file://), and the capture
@@ -106,7 +106,7 @@ describeBrowser("external-file clip-path fragment refs (DM-829)", () => {
       // clipPath and rewritten the ref to same-document.
       setRenderTextMode("paths");
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const svg = elementTreeToSvg(tree, W, H);
+      const svg = elementTreeToSvgInner(tree, W, H);
 
       // The external triangle was inlined as a <clipPath> def and the box group
       // references it — i.e. the external ref was resolved, not dropped.
@@ -147,7 +147,7 @@ describeBrowser("external-file mask-image fragment refs (DM-496)", () => {
 
       setRenderTextMode("paths");
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const svg = elementTreeToSvg(tree, W, H);
+      const svg = elementTreeToSvgInner(tree, W, H);
 
       // The external <mask> was inlined as a same-document def and applied.
       expect(svg).toMatch(/<mask\b[^>]*>/i);

@@ -30,7 +30,7 @@ import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import { captureElementTreeWithWarnings, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { raw } from "kerfjs";
@@ -538,7 +538,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     await embedRemoteImages(cap.tree, { warnings: capWarnings });
     // DM-549: rasterize conic-gradient layers (no-op when tree has none).
     await rasterizeConicGradients(cap.tree);
-    const svgContent = elementTreeToSvg(cap.tree, WIDTH, fixtureHeight);
+    const svgContent = elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight);
     const xlinkAttr = svgContent.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${WIDTH} ${fixtureHeight}" width="${WIDTH}" height="${fixtureHeight}"><rect width="${WIDTH}" height="${fixtureHeight}" fill="${bodyBg}" />${svgContent}</svg>`;
     writeFileSync(svgPath, svgDoc);

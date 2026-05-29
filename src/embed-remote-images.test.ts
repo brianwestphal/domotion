@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   embedRemoteImages,
-  elementTreeToSvg,
+  elementTreeToSvgInner,
   getLastCaptureWarnings,
 } from "./render/element-tree-to-svg.js";
 import type { CapturedElement, CaptureWarning } from "./capture/types.js";
@@ -156,7 +156,7 @@ describe("embedRemoteImages — DM-512", () => {
       imageSrc: url,
     })];
     await embedRemoteImages(tree);
-    const svg = elementTreeToSvg(tree, 100, 100);
+    const svg = elementTreeToSvgInner(tree, 100, 100);
     expect(svg).toContain(ONE_PX_PNG_DATA_URI);
     expect(svg).not.toContain(url);
   });
@@ -168,7 +168,7 @@ describe("embedRemoteImages — DM-512", () => {
       styles: { ...makeElement().styles, backgroundImage: `url("${url}")`, backgroundIntrinsic: [{ w: 50, h: 50 }] } as CapturedElement["styles"],
     })];
     await embedRemoteImages(tree);
-    const svg = elementTreeToSvg(tree, 100, 100);
+    const svg = elementTreeToSvgInner(tree, 100, 100);
     expect(svg).toContain(ONE_PX_PNG_DATA_URI);
     expect(svg).not.toContain(url);
   });
@@ -196,7 +196,7 @@ describe("embedRemoteImages — DM-512", () => {
     const tree = [makeElement({ tag: "img", imageSrc: url })];
     // 404 is a 4xx — the retry path doesn't touch it (DM-529).
     await embedRemoteImages(tree);
-    const svg = elementTreeToSvg(tree, 100, 100);
+    const svg = elementTreeToSvgInner(tree, 100, 100);
     // URL passes through verbatim — the SVG still references the remote
     // image (broken in offline viewers, but renders the same as before
     // the embedRemoteImages pre-pass for the failed URL).
@@ -335,7 +335,7 @@ describe("embedRemoteImages — DM-512", () => {
       expect(warnings[0].detail).toContain("RemoteImageTimeoutError");
       expect(warnings[0].detail).toContain("50ms");
       // URL stays as-is — the SVG still references the remote image.
-      const svg = elementTreeToSvg(tree, 100, 100);
+      const svg = elementTreeToSvgInner(tree, 100, 100);
       expect(svg).toContain(url);
     });
 
@@ -374,7 +374,7 @@ describe("embedRemoteImages — DM-512", () => {
       const warnings: CaptureWarning[] = [];
       await embedRemoteImages(tree, { warnings, retryBackoffMs: 0 });
       expect(fetchMock).toHaveBeenCalledTimes(2);
-      const svg = elementTreeToSvg(tree, 100, 100);
+      const svg = elementTreeToSvgInner(tree, 100, 100);
       expect(svg).toContain(ONE_PX_PNG_DATA_URI);
       expect(svg).not.toContain(url);
       expect(warnings).toHaveLength(0); // success on retry → no warning

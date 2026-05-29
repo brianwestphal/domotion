@@ -17,7 +17,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
 import { optimizeSvg } from "./shared.js";
 
@@ -171,7 +171,7 @@ async function main(): Promise<void> {
     // in image viewers (Preview / QuickLook) that don't fetch remote
     // resources from local files.
     await embedRemoteImages(tree);
-    const svgContent = elementTreeToSvg(tree, WIDTH, HEIGHT, `f${i}-`);
+    const svgContent = elementTreeToSvgInner(tree, WIDTH, HEIGHT, `f${i}-`);
 
     animFrames.push({
       svgContent,

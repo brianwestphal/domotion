@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stockPalette, type DefCtx } from "./render/form-controls.js";
-import { elementTreeToSvg } from "./render/element-tree-to-svg.js";
+import { elementTreeToSvgInner } from "./render/element-tree-to-svg.js";
 import type { CapturedElement } from "./capture/types.js";
 
 // DM-553: form-control synthesizers consume `defCtx.colorScheme` to pick the
@@ -165,7 +165,7 @@ function makeRange(): CapturedElement {
 
 function emitForScheme(scheme: "light" | "dark" | undefined, control: CapturedElement): string {
   const root = makeBody(scheme, [control]);
-  return elementTreeToSvg([root], 200, 200);
+  return elementTreeToSvgInner([root], 200, 200);
 }
 
 describe("renderCheckbox: scheme-aware palette (DM-553)", () => {

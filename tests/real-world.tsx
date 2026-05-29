@@ -35,7 +35,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "@playwri
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTreeWithWarnings, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import { captureElementTreeWithWarnings, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
@@ -649,7 +649,7 @@ async function runJob(
     }
     // DM-549: rasterize conic-gradient layers (no-op when tree has none).
     await rasterizeConicGradients(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
-    const svgInner = elementTreeToSvg(cap.tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI);
+    const svgInner = elementTreeToSvgInner(cap.tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI);
     // DM-554: when document.body is transparent, prefer the captured tree's
     // `rootBgComputed` (Chromium-resolved `<html>` bg, which handles author-
     // set roots AND the UA default per scheme — `#ffffff` for light,

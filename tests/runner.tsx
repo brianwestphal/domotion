@@ -16,7 +16,7 @@ import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTree, elementTreeToSvg, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { clearWebfonts, setRenderTextMode } from "../src/render/text-to-path.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
@@ -171,7 +171,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // pixel-kerning drift (xOffsets aren't forwarded, to keep the glyph atlas
   // cacheable). Same convention the scroll composer documents for diffing.
   setRenderTextMode("paths");
-  const svgContent = elementTreeToSvg(tree, width, height);
+  const svgContent = elementTreeToSvgInner(tree, width, height);
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);
 

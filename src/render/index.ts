@@ -3,6 +3,7 @@
 
 export {
   elementTreeToSvg,
+  elementTreeToSvgInner,
   wrapSvg,
 } from "./element-tree-to-svg.js";
 

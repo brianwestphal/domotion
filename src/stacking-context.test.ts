@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { elementTreeToSvg } from "./render/element-tree-to-svg.js";
+import { elementTreeToSvgInner } from "./render/element-tree-to-svg.js";
 import type { CapturedElement } from "./capture/types.js";
 
 /**
  * DM-473: cross-stacking-context z-index unit tests.
  *
  * These exercise `establishesStackingContext` + `gatherStackingContextChildren`
- * (both internal) by their observable effect on `elementTreeToSvg` output:
+ * (both internal) by their observable effect on `elementTreeToSvgInner` output:
  * the relative DOM order of `fill="rgb(...)"` rect emissions in the SVG
  * string equals the paint order Chromium would use. The colors are unique
  * per scenario so the fixture under test only needs to verify each color
@@ -173,7 +173,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(63,185,80)", "rgb(88,166,255)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // red painted first (z:auto, DOM order)
@@ -211,7 +211,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // red (z:1)
@@ -250,7 +250,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // red (transformed, SC root) — auto-z bucket at root
@@ -289,7 +289,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(88,166,255)", "rgb(148,163,184)", "rgb(220,38,38)"]);
     expect(order).toEqual([
       "rgb(88,166,255)", // blue (z:-1) hoisted to negative bucket — paints first
@@ -325,7 +325,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // will-change wrapper (auto-z bucket at root, paints first)
@@ -359,7 +359,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     expect(order).toEqual([
       "rgb(220,38,38)",
@@ -390,7 +390,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     expect(order).toEqual([
       "rgb(220,38,38)",
@@ -425,7 +425,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     // blue (z:5 hoisted to root) paints LAST — over green (z:1).
     expect(order).toEqual([
@@ -459,7 +459,7 @@ describe("DM-473 stacking-context paint order — cross-parent z-index", () => {
       ],
     })];
 
-    const svg = elementTreeToSvg(tree, 240, 160);
+    const svg = elementTreeToSvgInner(tree, 240, 160);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(88,166,255)", "rgb(63,185,80)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // fixed red (auto-z bucket at root)
@@ -498,7 +498,7 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)"]);
     expect(order).toEqual([
       "rgb(22,163,74)", // green (auto)
@@ -529,7 +529,7 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)"]);
     expect(order).toEqual([
       "rgb(37,99,235)", // c: auto-bucket
@@ -555,7 +555,7 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // DOM order: red first
@@ -578,7 +578,7 @@ describe("DM-525 flex/grid item z-index — stacking context without explicit po
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
       "rgb(22,163,74)", // green (auto)
@@ -657,7 +657,7 @@ describe("DM-558 flex/grid item z-index — buried-inside-non-SC-ancestor hoist"
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     const order = fillOrder(svg, ["rgb(0,113,227)", "rgb(220,38,38)"]);
     // tile-image-wrapper (red) must paint BEFORE the button (blue) so that
     // the button is visible on top — matches Chromium for the real apple
@@ -697,7 +697,7 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
         makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(124,58,237)" } }), // E
       ],
     })];
-    const svg = elementTreeToSvg(tree, 600, 60);
+    const svg = elementTreeToSvgInner(tree, 600, 60);
     const order = fillOrder(svg, [
       "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)", "rgb(124,58,237)",
     ]);
@@ -723,7 +723,7 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
         makeElement({ x: 300, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "0", backgroundColor: "rgb(234,88,12)" } }), // orange, order:0, DOM 3
       ],
     })];
-    const svg = elementTreeToSvg(tree, 400, 60);
+    const svg = elementTreeToSvgInner(tree, 400, 60);
     const order = fillOrder(svg, [
       "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)",
     ]);
@@ -745,7 +745,7 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
         makeElement({ x: 100, y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(22,163,74)" } }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 200, 60);
+    const svg = elementTreeToSvgInner(tree, 200, 60);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // DOM order — `order` ignored
@@ -773,7 +773,7 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
         makeElement({ x: 0,   y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" } }), // E — DOM 4, visually leftmost
       ],
     })];
-    const svg = elementTreeToSvg(tree, 600, 60);
+    const svg = elementTreeToSvgInner(tree, 600, 60);
     const order = fillOrder(svg, [
       "rgb(220,38,38)", "rgb(22,163,74)", "rgb(37,99,235)", "rgb(234,88,12)", "rgb(124,58,237)",
     ]);
@@ -797,7 +797,7 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
         makeElement({ x: 120, y: 0, width: 120, height: 60, styles: { ...makeElement().styles, backgroundColor: "rgb(124,58,237)" } }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 600, 60);
+    const svg = elementTreeToSvgInner(tree, 600, 60);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(124,58,237)"]);
     expect(order).toEqual(["rgb(220,38,38)", "rgb(124,58,237)"]);
   });
@@ -813,7 +813,7 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
         makeElement({ x: 0,   y: 0, width: 100, height: 60, styles: { ...makeElement().styles, order: "1", backgroundColor: "rgb(220,38,38)" } }), // red
       ],
     })];
-    const svg = elementTreeToSvg(tree, 200, 60);
+    const svg = elementTreeToSvgInner(tree, 200, 60);
     const order = fillOrder(svg, ["rgb(220,38,38)", "rgb(22,163,74)"]);
     expect(order).toEqual([
       "rgb(220,38,38)", // red (auto bucket — paints before any explicit-z item)
@@ -872,7 +872,7 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
   });
 
@@ -897,7 +897,7 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
   });
 
@@ -918,7 +918,7 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
   });
 
@@ -939,7 +939,7 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
   });
 
@@ -962,7 +962,7 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
         }),
       ],
     })];
-    const svg = elementTreeToSvg(tree, 300, 100);
+    const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
   });
 });
