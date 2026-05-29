@@ -1,0 +1,81 @@
+# Requirements summary — AI agents read me first
+
+This file is the entry point the Hot Sheet ticket template tells you to read
+for behaviour contracts. Like `code-summary.md`, it points at the canonical
+docs rather than duplicating them.
+
+## The contract surface
+
+Domotion's contract with consumers is "the SVG renders pixel-faithful to
+Chromium-on-this-platform at 1×, embeds without external assets, and scales
+crisply at any size." That's enforced by the visual-regression suites
+(`features.ts`, `showcase.ts`, `html-test-suite.tsx`, `real-world.tsx`) and
+documented per-feature in the numbered `docs/` set.
+
+## Read these for behaviour contracts
+
+1. **`docs/README.md`** — index of every numbered doc. Browse by topic
+   (fidelity, writing-mode, gradients, animation, scroll, fonts, …).
+2. **`FEATURES.md`** — per-feature support checklist with fixture links.
+   Keep in sync when fixtures land.
+3. **Doc 01 (`docs/01-fidelity.md`)** — the overarching fidelity
+   contract. What's in scope, what isn't, what tolerance applies.
+
+## Always-in-sync docs
+
+Some docs ARE the canonical reference for a user-facing surface — if the
+code changes and the doc doesn't, consumers get a misleading contract.
+Update these in the same commit as any change that touches the surface
+they describe (see `CLAUDE.md` "Documentation"):
+
+- **`docs/37-scroll-pattern-grammar.md`** — canonical EBNF + semantics for
+  the scroll-pattern language. Any change to `src/scroll/pattern.ts`,
+  `src/scroll/executor.ts`, or scroll-related CLI flags must update doc
+  37 too.
+
+## Recent additions worth knowing about
+
+- **Doc 54 (`docs/54-svg-review-tool.md`, DM-946)** — the published
+  `svg-review` CLI for single-fixture render-fidelity bug reports.
+- **Doc 55 (`docs/55-debug-mode-capture.md`, DM-945)** — the
+  `domotion capture --debug` flag's reproduction bundle (HAR +
+  screenshot + actual SVG + captured-tree JSON).
+
+These two together form the consumer-side bug-report workflow: capture
+with `--debug`, review with `svg-review`, file an issue with the
+generated Markdown. AI agents working on render bugs should reach for
+the same flow internally — see `CLAUDE.md` "Debugging the generated
+output".
+
+## Cross-platform support
+
+Per `CLAUDE.md` "Platform support — non-negotiable":
+
+- macOS, Linux, Windows must all work. The output should be pixel-faithful
+  to Chromium ON the platform the capture runs on (CoreText on macOS,
+  fontconfig on Linux, DirectWrite on Windows).
+- The implementation is fully calibrated only for macOS today; Linux +
+  Windows calibration is roadmap (tracked in Hot Sheet, not public yet).
+- New font / fallback / metric routing must be designed platform-aware
+  from the start — `process.platform` based, not assumed `darwin`.
+
+## Platform-specific docs
+
+- **Doc 40 (`docs/40-cross-platform-font-paths.md`)** — how the platform
+  font-path lookup works.
+- **Doc 42 (`docs/42-cross-platform-fallback-calibration.md`)** — how
+  fallback chains get probed against Chromium's painted output.
+- **Doc 41 (`docs/41-windows-glyph-extraction.md`)** and
+  **doc 45 (`docs/45-linux-glyph-extraction.md`)** — native glyph
+  extraction helpers (currently macOS via CoreText is doc 16).
+- **Doc 49 / 50 / 51 / 52** — glyph-helper dispatch, acquisition,
+  probe-then-fallback, embedded-mode glyph fallback.
+
+## What this file is NOT
+
+- Not a complete requirements doc — the per-feature docs are.
+- Not a substitute for opening the actual numbered doc — when a ticket
+  touches gradients, open `docs/07-gradient-fills.md` /
+  `docs/10-repeating-gradients.md`. When it touches fonts, open
+  `docs/03-font-family-chain.md` / `docs/52-embedded-mode-glyph-fallback
+  .md`. And so on.

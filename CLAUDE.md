@@ -101,6 +101,53 @@ You have **standing permission to use Playwright freely** for any investigation,
 
 When investigating a real-world fixture (`tests/real-world.tsx`), prefer replaying the existing HAR in `tests/cache/real-world/` over hitting the live site — it's faster, deterministic, and matches what the failing test actually saw.
 
+## Debugging the generated output
+
+Before reverse-engineering a render-fidelity bug by reading source, reach for the dedicated debug surfaces — they exist precisely so you don't have to redo this work each ticket:
+
+- **`domotion capture --debug` (doc 55, DM-945)** writes a four-file reproduction bundle next to the SVG output: `capture.har` (Playwright `recordHar`), `expected.png` (1× Chromium screenshot of the clip rect), `actual.svg`, and `captured-tree.json` (intermediate element tree). Default location is `<output>.debug/`; override with `--debug-dir <path>`. The CLI prints the matching `svg-review` invocation as its final log line.
+
+  ```sh
+  domotion capture <url-or-file> --debug -o out.svg
+  # → out.debug/{capture.har, expected.png, actual.svg, captured-tree.json}
+  ```
+
+- **`svg-review` (doc 54, DM-946)** is the published CLI for single-fixture diff review. `svg-review --expected <png> --actual <svg|png>` rasterises the SVG via Playwright at 1×, computes the same pixel-diff the regression suites use (`src/review/compare-pngs.ts`), and opens a local web UI showing expected / actual / diff with arrow-key lightbox cycling and draggable issue regions. Use this instead of re-implementing crop-and-compare from scratch when you need to see how Chrome's paint differs from the SVG we produce.
+
+- **`tools/crop-regions.ts`** crops a ticket's `REGIONS:` rectangles out of the canonical expected/actual/diff triplet (see Ticket-Driven Work below). Always run this before reasoning about an attached screenshot — pixel-level evidence beats narrative description.
+
+- **Throwaway Playwright probes** are the right tool for "what does Chrome actually capture for this element / this CSS property?" questions. Drop a `.mjs` under `tools/probe-*.mjs` and run with `node tools/probe-foo.mjs`. The pattern for the two most common probes:
+
+  ```js
+  // tools/probe-foo.mjs — measure an element's actual layout
+  import { chromium } from "@playwright/test";
+  import { readFileSync } from "node:fs";
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ viewport: { width: 1024, height: 1184 } });
+  const page = await ctx.newPage();
+  await page.setContent(readFileSync("external/html-test/<fixture>.html", "utf-8"));
+  await page.waitForLoadState("networkidle");
+  const info = await page.evaluate(() => {
+    const el = document.querySelector(".target")!;
+    const r = el.getBoundingClientRect();
+    return { rect: { x: r.x, y: r.y, w: r.width, h: r.height }, cs: getComputedStyle(el).<prop> };
+  });
+  console.log(JSON.stringify(info, null, 2));
+  await browser.close();
+  ```
+
+  ```js
+  // tools/probe-foo.mjs — screenshot a sub-region and save it
+  const buf = await page.screenshot({ clip: { x, y, width: w, height: h }, omitBackground: false });
+  writeFileSync("/tmp/probe-foo.png", buf);
+  ```
+
+  For HAR recording from a probe: `ctx = await browser.newContext({ recordHar: { path: "/tmp/probe.har", mode: "minimal" } })` then `await ctx.close()` (the HAR only flushes on context close, not browser close — DM-945's `--debug` learned this the hard way).
+
+- **`elementTreeToSvg` vs `elementTreeToSvgInner` (doc 54, DM-950)** — the public `elementTreeToSvg(elements, w, h, opts?)` returns a complete `<svg>` document (most callers want this). `elementTreeToSvgInner(...)` returns only the body markup, for multi-frame composers (animator, scroll composer) that emit one outer `<svg>` themselves. If you're building a probe SVG to inspect, use `elementTreeToSvg`.
+
+- **`src/review/compare-pngs.ts`** is the shared pixel-diff routine (used by both `demos:test` and `svg-review`). Call it directly from a probe to score a hand-built comparison.
+
 ## Git
 
 - **Never commit unless explicitly asked.** Do not run `git commit`, `git add`, or any git write operations proactively. Only commit when the user directly asks.
@@ -115,6 +162,7 @@ When the user gives you work directly via the CLI (not via MCP channel or Hot Sh
 - Use the Hot Sheet API to create tickets, mark them as Up Next, then work through them normally (set status to "started", implement, set to "completed" with notes).
 - **Always create follow-up tickets** for work that isn't completed in the current session: unfinished implementation steps, open design questions needing answers, known gaps discovered during work, features designed but not yet built (e.g., a requirements doc without implementation). Never leave follow-up work undocumented — if it's not in a ticket, it will be forgotten.
 - **Use FEEDBACK NEEDED before deferring or asking about follow-up tickets.** When you're about to (a) defer a ticket because it needs more work, (b) ask the user whether to file follow-up tickets, or (c) close a ticket with a question buried in the notes ("let me know if you want X" / "happy to do Y if you want"), DO NOT close it that way. Instead, leave the ticket in `started` status and add a `FEEDBACK NEEDED:` note (per `.hotsheet/worklist.md`), then signal channel done and wait for the user. Closing with an unanswered question buries the question and the user can't easily see it. The FEEDBACK NEEDED mechanism is the only way to reliably get attention on a question.
+- **Deferral is the user's call, not yours.** Never unilaterally mark a ticket as "deferred" or write a note that amounts to "this is too complex / out of session scope / needs broader work — deferred." If you can't finish a ticket in the current session, leave it in `started` status with a `FEEDBACK NEEDED:` note that lays out (i) what you found, (ii) the specific options for how to proceed, (iii) why each option has the cost / risk it does — and then signal channel done. The user decides whether to defer, scope down, escalate, or push you to try harder. "I judged this too big to do now" is not yours to declare.
 - **When a ticket carries a `REGIONS:` block** (left by the demos:review tool — see `docs/31-region-feedback.md`), run `npx tsx tools/crop-regions.ts --ticket DM-{id}` before reasoning about the attached screenshots. It crops each rectangle out of the canonical expected/actual/diff triplet and writes them to `tests/output/region-crops/DM-{id}/{noteId}/[{idx}]-{base}.png`. Read those crops as your primary visual evidence in addition to (not instead of) the full PNGs.
 
 ## Documentation
