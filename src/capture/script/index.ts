@@ -1034,6 +1034,35 @@ export const captureScript =
           _a = _a.parentElement;
         }
       }
+      // DM-937: detect "inline-with-block-descendant" — an inline element
+      // (e.g. a `<label>`) that wraps a block-level child (`display:block`
+      // /list-item/flex/grid). Per CSS 2.1 §9.2.1.1 Chrome inserts
+      // "anonymous block boxes" around the block-level descendants and
+      // fragments the inline accordingly, but the painted border on each
+      // resulting fragment looks like a CLONE box (all four corners
+      // rounded, all four sides drawn) rather than the inline-axis SLICE
+      // semantics (first owns left, last owns right). Fixture: the .drop
+      // label in 06-forms-style-file with `border-radius: 10px` and
+      // `<strong>`/`<small>` block children — Chrome paints each
+      // fragment as a self-contained rounded box.
+      var _hasBlockDescendant = false;
+      if (_isInline && _hasPaint) {
+        var _stack = [el];
+        while (_stack.length > 0) {
+          var _n = _stack.pop();
+          var _kids = _n.children;
+          for (var _ki = 0; _ki < _kids.length; _ki++) {
+            var _k = _kids[_ki];
+            var _kd = window.getComputedStyle(_k).display;
+            if (_kd === 'block' || _kd === 'list-item' || _kd === 'flex' || _kd === 'grid' || _kd === 'flow-root' || _kd === 'table') {
+              _hasBlockDescendant = true;
+              break;
+            }
+            _stack.push(_k);
+          }
+          if (_hasBlockDescendant) break;
+        }
+      }
       if (_hasPaint && (_isInline || _inMultiColumn)) {
         var _cr = el.getClientRects();
         if (_cr != null && _cr.length > 1) {
@@ -1060,6 +1089,17 @@ export const captureScript =
             // Both axes produce vertically-stacked frag rects so we can't
             // distinguish them geometrically at render time.
             _captured.fragmentAxis = _isInline ? 'inline' : 'block';
+            // DM-937: when the inline has block-level descendants, Chrome
+            // paints each fragment as a complete rounded box (every side,
+            // every corner) — equivalent to `box-decoration-break: clone`
+            // — rather than the inline-axis slice it normally uses. Force
+            // clone here so the renderer's per-fragment path keeps all
+            // sides + corners. Author-set `box-decoration-break: slice` is
+            // overridden (rare in practice — the painted look in Chrome
+            // wins per the project's fidelity rule).
+            if (_hasBlockDescendant) {
+              _captured.styles.boxDecorationBreak = 'clone';
+            }
           }
         }
       }

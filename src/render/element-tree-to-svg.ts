@@ -547,6 +547,45 @@ export function elementTreeToSvgInner(
         svgParts.push(
           `${indent}${roundedRectSvg(f.x + half, f.y + half, Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners, `fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap}`)}`,
         );
+      } else if (sbt != null && sidesUniformColor && anyCorner && sbt.w > 0 && sbt.style !== "none" && sbt.style !== "hidden"
+          && ((wantTop && wantBottom && wantLeft && !wantRight) || (wantTop && wantBottom && !wantLeft && wantRight))) {
+        // DM-937: inline-axis slice — the FIRST fragment owns top + left +
+        // bottom (with TL + BL rounded), the LAST owns top + right + bottom
+        // (with TR + BR rounded). Emit ONE open `<path>` stroke that traces
+        // the 3 wanted sides with the rounded corners — replacing the
+        // straight-line fallback that produced sharp 90° corners where
+        // Chrome paints arcs. This visibly closes the rounded-drop-zone
+        // outline (`<label>` wrapping block descendants in
+        // `06-forms-style-file`'s `.drop`).
+        const half = sbt.w / 2;
+        const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
+        const fxL = f.x + half, fxR = f.x + f.width - half;
+        const fyT = f.y + half, fyB = f.y + f.height - half;
+        const tl = strokeCorners.tl, tr = strokeCorners.tr, br = strokeCorners.br, bl = strokeCorners.bl;
+        let d: string;
+        if (wantLeft && !wantRight) {
+          // First frag: start at top-right (sharp), trace top → TL arc →
+          // left → BL arc → bottom → end at bottom-right (sharp).
+          d = `M${r(fxR)},${r(fyT)} L${r(fxL + tl.h)},${r(fyT)}`
+            + (tl.h > 0 || tl.v > 0 ? ` A${r(tl.h)},${r(tl.v)} 0 0 0 ${r(fxL)},${r(fyT + tl.v)}` : "")
+            + ` L${r(fxL)},${r(fyB - bl.v)}`
+            + (bl.h > 0 || bl.v > 0 ? ` A${r(bl.h)},${r(bl.v)} 0 0 0 ${r(fxL + bl.h)},${r(fyB)}` : "")
+            + ` L${r(fxR)},${r(fyB)}`;
+        } else {
+          // Last frag: start at top-left (sharp), trace top → TR arc →
+          // right → BR arc → bottom → end at bottom-left (sharp).
+          d = `M${r(fxL)},${r(fyT)} L${r(fxR - tr.h)},${r(fyT)}`
+            + (tr.h > 0 || tr.v > 0 ? ` A${r(tr.h)},${r(tr.v)} 0 0 1 ${r(fxR)},${r(fyT + tr.v)}` : "")
+            + ` L${r(fxR)},${r(fyB - br.v)}`
+            + (br.h > 0 || br.v > 0 ? ` A${r(br.h)},${r(br.v)} 0 0 1 ${r(fxR - br.h)},${r(fyB)}` : "")
+            + ` L${r(fxL)},${r(fyB)}`;
+        }
+        const dash = dashArrayForStyle(sbt.style, sbt.w);
+        const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+        const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
+        svgParts.push(
+          `${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap} />`,
+        );
       } else {
         // Per-side strokes anchored at the inner half-width inset so they
         // sit inside the border-box (matching Chrome). For slice-mode
