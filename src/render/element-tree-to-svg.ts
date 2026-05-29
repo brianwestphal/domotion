@@ -4166,13 +4166,42 @@ function buildImagePatternDef(
                 : repV === "space" ? Math.max(tileH, basisH / Math.max(1, Math.floor(basisH / tileH)))
                 : basisH * 2;
 
-  // Pattern position in userSpaceOnUse — absolute SVG canvas coords. For scroll
-  // backgrounds that's elX+posX (positioned within the element). For fixed
-  // backgrounds the viewport IS the canvas, so patX = posX directly.
-  const patX = originX + posX;
-  const patY = originY + posY;
+  // Pattern position in userSpaceOnUse — absolute SVG canvas coords. The
+  // pattern unit cell starts here and repeats every (periodW × periodH).
+  // DM-935: for no-repeat with `background-size: cover` where the scaled
+  // image is LARGER than the tile (image extends above / below the tile
+  // with a negative posX/posY), DON'T shift the cell origin by
+  // (posX, posY) — the previous shifting placed the FIRST pattern cell
+  // at the image's top-left (outside the tile) and the tile sat in the
+  // SECOND row of repeated cells where only the image's clipped-top
+  // portion paints (typically empty padding above the visible content).
+  // Anchor the cell at the element origin instead, and place the IMAGE
+  // inside the cell at (posX, posY) so the tile area samples the
+  // correct (center-overflow-clipped) portion of the image.
+  //
+  // Backwards-compat: when the image is SMALLER than or equal to the
+  // basis on both axes (no overflow) keep the existing
+  // shift-the-cell-origin behaviour — the prior layout works for
+  // contain / explicit-size / repeating patterns where the image fits
+  // and the original offset positions it correctly within the tile.
+  const imageOverflows = tileW > basisW || tileH > basisH;
+  let patX: number;
+  let patY: number;
+  let imgX: number;
+  let imgY: number;
+  if (imageOverflows && (repH === "no-repeat" || repV === "no-repeat")) {
+    patX = originX;
+    patY = originY;
+    imgX = posX;
+    imgY = posY;
+  } else {
+    patX = originX + posX;
+    patY = originY + posY;
+    imgX = 0;
+    imgY = 0;
+  }
 
-  return `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${r(patX)}" y="${r(patY)}" width="${r(periodW)}" height="${r(periodH)}"><image href="${esc(embedResizedDataUri(href, tileW, tileH))}" x="0" y="0" width="${r(tileW)}" height="${r(tileH)}" preserveAspectRatio="none" /></pattern>`;
+  return `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${r(patX)}" y="${r(patY)}" width="${r(periodW)}" height="${r(periodH)}"><image href="${esc(embedResizedDataUri(href, tileW, tileH))}" x="${r(imgX)}" y="${r(imgY)}" width="${r(tileW)}" height="${r(tileH)}" preserveAspectRatio="none" /></pattern>`;
 }
 
 interface GradientStop { color: RGBA; pos: number }
