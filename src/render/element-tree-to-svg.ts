@@ -2623,7 +2623,19 @@ export function elementTreeToSvgInner(
       if (el.elementRaster != null && el.elementRaster.dataUri != null
           && el.styles.writingMode != null && el.styles.writingMode !== "horizontal-tb") {
         const er = el.elementRaster;
-        svgParts.push(`${indent}<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${cid})"/>`);
+        // DM-957: the elementRaster rect was expanded outward in
+        // `computeElementRaster` (DM-936) to capture the vertical-mode
+        // text-decoration underlines that paint just outside the inline
+        // content box. The default `cid` clip-path here is the element's
+        // content rect (el.x / el.y / el.width / el.height) — which is
+        // NARROWER than the captured screenshot, so the underline pixels
+        // inside the expansion margin get CLIPPED OFF. Mint a dedicated
+        // clip-path matching the expanded er rect so the screenshot
+        // renders intact (the screenshot is already pixel-faithful to
+        // Chrome's paint within its own clip; no need to re-clip here).
+        const erCid = `${idPrefix}ct${clipIdx++}`;
+        defsParts.push(`<clipPath id="${erCid}"><rect x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" /></clipPath>`);
+        svgParts.push(`${indent}<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${erCid})"/>`);
       } else {
 
       // DM-782: pseudoBox gradient/url() emitter. The text renderer can't

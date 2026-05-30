@@ -1,0 +1,14 @@
+import { chromium } from "@playwright/test";
+import { readFileSync, writeFileSync } from "node:fs";
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1024, height: 1500 } });
+const page = await ctx.newPage();
+await page.setContent(readFileSync("external/html-test/20-deep-text-underline-position.html", "utf-8"));
+await page.waitForLoadState("networkidle");
+const ulX = 209.8125, ulY = 1304.46875, ulW = 22, ulH = 154;
+const clip = { x: Math.floor(ulX - 4), y: Math.floor(ulY), width: Math.ceil(ulW + 8), height: Math.ceil(ulH) };
+const bufNoBg = await page.screenshot({ clip, omitBackground: true, type: "png" });
+writeFileSync("/tmp/dm957-noBg.png", bufNoBg);
+const bufBg = await page.screenshot({ clip, omitBackground: false, type: "png" });
+writeFileSync("/tmp/dm957-Bg.png", bufBg);
+await browser.close();
