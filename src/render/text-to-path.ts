@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable } from "./glyph-helper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.generated.js";
 
 interface FontInstance {
   layout(text: string, features?: string[]): {
@@ -593,6 +594,13 @@ const FONT_PATHS: Record<string, FontPath> = {
   // Chrome picks). Papyrus.ttc ships W3 + Condensed sub-fonts; the default
   // (no postscriptName) picks the Regular member.
   "papyrus":         { path: "/System/Library/Fonts/Supplemental/Papyrus.ttc", postscriptName: "Papyrus" },
+  // DM-983: per-Unicode-block routes for codepoints that don't match any
+  // hand-coded rule in `darwinFallbackChain` below. Generated from a
+  // `CSS.getPlatformFontsForNode` sweep across every block in
+  // `../html-test/unicode/*.html` (see `tools/probe-983-genroutes.mjs`).
+  // 142 fonts, 319 block routes. Each entry's key is namespaced under
+  // `u-...` so it can't collide with a hand-coded key here.
+  ...UNICODE_FONT_PATHS,
 };
 
 // ── Cross-platform font path discovery (DM-258) ──
@@ -1482,7 +1490,33 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     || (codepoint >= 0x1F680 && codepoint <= 0x1F6FF)) {
     return ["symbols"];
   }
+  // DM-983: per-Unicode-block fallback derived from a Chrome CDP sweep —
+  // `CSS.getPlatformFontsForNode` for every block in the html-test/unicode
+  // fixture set. Probed family names are mapped to on-disk macOS font paths
+  // by `tools/probe-983-genroutes.mjs` and serialised into
+  // `unicode-font-routing.generated.ts`. Consulted as a LAST resort so all
+  // the hand-tuned routes above (which carry per-codepoint width / shape
+  // calibration) win for the blocks where Chrome's font choice is already
+  // baked in. Adds coverage for scripts / symbol sets that previously fell
+  // through to `[]` and rendered as tofu (cuneiform, Egyptian hieroglyphs,
+  // most pre-modern scripts, Yi, Vai, Cherokee, Bamum, …).
+  const generatedKey = lookupUnicodeFontRange(codepoint);
+  if (generatedKey != null) return [generatedKey, "symbols"];
   return [];
+}
+
+/** Binary-search the generated `UNICODE_FONT_RANGES` for a codepoint. */
+function lookupUnicodeFontRange(codepoint: number): string | null {
+  let lo = 0;
+  let hi = UNICODE_FONT_RANGES.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const r = UNICODE_FONT_RANGES[mid]!;
+    if (codepoint < r[0]) hi = mid - 1;
+    else if (codepoint > r[1]) lo = mid + 1;
+    else return r[2];
+  }
+  return null;
 }
 
 /** @deprecated Single-key wrapper for back-compat — prefer `fallbackFontChain`. */
@@ -1654,6 +1688,28 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // fontkit opens WITH outlines but can't decode a specific glyph) is a
   // follow-up — no current fixture exercises it, and it pairs with DM-259/260.
   const helperEligible = spec.extractor === "native";
+
+  // DM-983: when a font is explicitly marked `extractor: "native"`, prefer the
+  // CoreText helper UP FRONT and skip fontkit entirely. Two reasons it's set:
+  //   1. The font has no outline tables fontkit can read (PingFang uses the
+  //      Apple-private `hvgl` table — `fontkit.openSync` succeeds and the
+  //      cmap/metrics are visible, but every glyph path is empty). Pre-DM-983
+  //      behaviour: open the font, see no outlines, fall through to the helper.
+  //   2. (DM-983) The font HAS outlines fontkit can read for SOME codepoints,
+  //      but its GSUB tables crash fontkit's parser on others — verified by
+  //      the per-codepoint sweep in `tools/probe-983-genroutes.mjs`. macOS
+  //      Sangam MN / a chunk of the Indic Noto fonts trigger
+  //      `Builtins_ArrayPrototypeSplice` with "invalid array length" and an
+  //      unrecoverable v8 OOM (try/catch can't rescue). Routing through the
+  //      helper before fontkit even sees the codepoint avoids the crash.
+  if (helperEligible && isGlyphHelperAvailable()) {
+    const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
+    if (helper != null) {
+      const instance = helper as unknown as FontInstance;
+      fontInstanceCache.set(cacheKey, instance);
+      return instance;
+    }
+  }
 
   let opened: any = null;
   try { opened = fontkit.openSync(spec.path); } catch { opened = null; }
