@@ -1440,15 +1440,24 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   if (codepoint === 0x203E || codepoint === 0x00AF) {
     return ["helvetica", "symbols"];
   }
-  // Letterlike (ℝℕℤℂℚ™), Arrows residue, Math Operators, Pictographs, Transport.
-  // The caller's primary-first check already routes chars Helvetica/Times
-  // have (∑∏∫≠≤≥, ™, ●) to the primary; what reaches this fallback is the
-  // residue (∀∃∈ ↑↓↔ ⇒⇔ etc.) for which Apple Symbols is the right macOS
-  // source. (← → ↗ ↙ branch above to CJK because Hiragino's em-wide glyph
-  // matches Chrome and Apple Symbols' is too narrow — DM-296.)
+  // Letterlike (ℝℕℤℂℚ™), Arrows residue, Math Operators, Misc Technical
+  // (⌘ ⌥ ⎘ etc.), Pictographs, Transport. The caller's primary-first check
+  // already routes chars Helvetica/Times have (∑∏∫≠≤≥, ™, ●) to the
+  // primary; what reaches this fallback is the residue (∀∃∈ ↑↓↔ ⇒⇔ etc.)
+  // for which Apple Symbols is the right macOS source. (← → ↗ ↙ branch
+  // above to CJK because Hiragino's em-wide glyph matches Chrome and Apple
+  // Symbols' is too narrow — DM-296.)
+  //
+  // DM-959: Misc Technical block (U+2300..U+23FF) added — Chrome paints
+  // these via Apple Symbols on macOS (verified empirically for U+2398
+  // NEXT PAGE: Chrome advance 14.14 px @24 px, Apple Symbols 14.13 px).
+  // Without this route the codepoint fell through to `[]` (no fallback)
+  // and the renderer dropped to the primary font, which lacks the glyph
+  // entirely and substituted a different symbol shape.
   if ((codepoint >= 0x2100 && codepoint <= 0x214F)
     || (codepoint >= 0x2190 && codepoint <= 0x21FF)
     || (codepoint >= 0x2200 && codepoint <= 0x22FF)
+    || (codepoint >= 0x2300 && codepoint <= 0x23FF)
     || (codepoint >= 0x1F300 && codepoint <= 0x1F5FF)
     || (codepoint >= 0x1F680 && codepoint <= 0x1F6FF)) {
     return ["symbols"];
