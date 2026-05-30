@@ -2,6 +2,20 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.7.0] - 2026-05-30
+
+
+- Render CSS `text-emphasis` marks
+- Capture CSS Transforms 2 standalone `rotate`/`scale`/`translate` properties
+- Capture inline SVG `<filter>` defs referenced by `filter: url(#id)`
+- Accept the canonical `paint-order: stroke` shorthand
+- Synthesize small-caps in embedded fonts that lack the OpenType feature
+- Fix emoji, drop-cap, and vertical-writing-mode text rasterization glitches
+- Fix `::after`/`::first-letter` pseudo-element placement in flex and wrapped layouts
+- Fix cover-mode background image positioning and `<image>` pixel snapping
+- Better RTL bracket mirroring and soft-hyphen line-wrap handling
+- `svg-review`: figure-level click for lightbox; captions survive deletion
+
 ## [0.6.0] - 2026-05-29
 
 
