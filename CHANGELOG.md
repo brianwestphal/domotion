@@ -2,6 +2,19 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.8.0] - 2026-05-30
+
+
+Looking at the commits, here are the user-facing release notes:
+
+```markdown
+- Fix drop-cap position when rendered from a rasterized image
+- Fix positioning of `::before`/`::after` pseudo-elements that carry a transform
+- Stop clipping vertical writing-mode raster images to the narrower content rect
+- Route additional symbol code points (U+25C8, ♀♂⚥, Misc Technical) to correct fallback fonts
+- Broaden Unicode coverage across more script blocks
+- Improve svg-review diff interactions
+
 ## [0.7.0] - 2026-05-30
 
 
