@@ -83,9 +83,17 @@ function renderShell(label: string): string {
   /* Lightbox + region overlay (mirrored from tests/review.css). */
   #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px; }
   #lightbox.open { display: flex; }
-  #lightbox img { max-width: none; max-height: none; user-select: none; cursor: zoom-out; }
-  .region-overlay { position: absolute; inset: 0; pointer-events: auto; }
-  .region-overlay rect { fill: rgba(255, 99, 132, 0.18); stroke: #ff6384; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  #lightbox .region-stage { position: relative; display: inline-block; }
+  #lightbox img { display: block; max-width: none; max-height: none; user-select: none; cursor: crosshair; }
+  /* DM-976: when the lightbox image is taller than wide, scale it to the
+   * viewport width so the overlay rects still hit-test at sensible
+   * coordinates. The .tall class is applied imperatively by the client. */
+  #lightbox.tall img { width: 100vw; height: auto; }
+  .region-stage { position: relative; display: inline-block; line-height: 0; }
+  .region-overlay { position: absolute; inset: 0; pointer-events: auto; width: 100%; height: 100%; }
+  .region-overlay rect.region-rect { fill: rgba(255, 99, 132, 0.18); stroke: #ff6384; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .region-overlay rect.region-label-bg { fill: #ff6384; }
+  .region-overlay text.region-label-text { fill: #fff; font: 14px/1 ui-monospace, monospace; }
 </style>
 </head>
 <body>
@@ -98,7 +106,7 @@ function renderShell(label: string): string {
     <figure data-src="/diff.png" data-role="diff"><img data-src="/diff.png" src="/diff.png"><figcaption>diff.png</figcaption></figure>
   </div>
 </div>
-<div id="lightbox"><div id="lightbox-inner"></div></div>
+<div id="lightbox"><div id="lightbox-inner"><div class="region-stage"><img id="lb-img" alt=""><svg id="lb-overlay" class="region-overlay" preserveAspectRatio="none"></svg></div></div></div>
 <div id="issue-panel">
   <h2 style="font-size: 14px; margin: 16px 0 6px;">Annotated regions</h2>
   <div class="region-list" id="region-list"><p class="hint">(none yet — drag on any image above)</p></div>

@@ -170,39 +170,74 @@ rebuildIssueText();
 // ── Lightbox: click to enlarge, arrow keys cycle expected/actual/diff ──
 
 const lightbox = document.getElementById("lightbox")!;
-const lightboxInner = document.getElementById("lightbox-inner")!;
+const lbImg = document.getElementById("lb-img") as HTMLImageElement;
+const lbOverlay = document.getElementById("lb-overlay") as unknown as SVGSVGElement;
 let lbIndex = -1; // -1 == closed
 const figureImgs = Array.from(card.querySelectorAll<HTMLImageElement>(".imgs figure img"));
 const figureSrcs = figureImgs.map((i) => i.dataset["src"] ?? i.src);
 
+// DM-976: track the overlay view attached to the lightbox so we can
+// detach when closing. The same overlay handle drives both the card's
+// three figures AND the lightbox image — drawing in the lightbox edits
+// the same shared rects array, so a rect drawn while zoomed in shows up
+// on the thumbnails when the user closes the lightbox.
+let lbOverlayDetach: (() => void) | null = null;
+function attachLightboxOverlay(): void {
+  if (lbOverlayDetach != null) return;
+  // Clear leftover children from previous detach — addView() repaints fresh.
+  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
+  lbOverlayDetach = overlay.addView(lbImg, lbOverlay, closeLightbox);
+}
+function detachLightboxOverlay(): void {
+  if (lbOverlayDetach != null) lbOverlayDetach();
+  lbOverlayDetach = null;
+  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
+}
+
+// Apply the `.tall` class so a taller-than-wide image scales to viewport
+// width and the lightbox container scrolls vertically. Mirror of the
+// matching demos:review behavior.
+function applyLightboxAspect(): void {
+  const setAspect = (w: number, h: number): void => {
+    lightbox.classList.toggle("tall", h > w);
+  };
+  if (lbImg.naturalWidth > 0 && lbImg.naturalHeight > 0) {
+    setAspect(lbImg.naturalWidth, lbImg.naturalHeight);
+    return;
+  }
+  lbImg.addEventListener("load", () => setAspect(lbImg.naturalWidth, lbImg.naturalHeight), { once: true });
+}
+
 function openLightboxAt(i: number): void {
   lbIndex = i;
-  lightboxInner.innerHTML = "";
-  const img = document.createElement("img");
-  img.src = figureSrcs[i]!;
-  lightboxInner.appendChild(img);
+  lbImg.src = figureSrcs[i]!;
   lightbox.classList.add("open");
-  img.addEventListener("click", closeLightbox);
+  applyLightboxAspect();
+  attachLightboxOverlay();
 }
 function closeLightbox(): void {
   lbIndex = -1;
   lightbox.classList.remove("open");
-  lightboxInner.innerHTML = "";
+  lightbox.classList.remove("tall");
+  detachLightboxOverlay();
 }
 
-// DM-951: the region overlay inserts an SVG layer over each image and
-// captures pointer events for drag-to-draw / resize / delete. When a
-// pointerup is a non-drag click, the overlay's wireFigure dispatches a
-// synthetic click on the parent `<figure>` (NOT the `<img>`) — see
-// `region-overlay.ts:345`. Listen on the figure so the click-through
-// reaches us; ignore clicks that originated on an existing region rect
-// (those mean "delete this rect" and were already consumed).
+// DM-951 / DM-976: the region overlay inserts an SVG layer over each image
+// and captures pointer events for drag-to-draw / resize / delete. When a
+// pointerup is a non-drag click (just a tap), the overlay's wireFigure
+// dispatches a synthetic click on the parent `<figure>` (target = figure)
+// — see `region-overlay.ts:352`. Listen on the figure so that synthetic
+// click reaches us, AND skip any click whose original target lives inside
+// `.region-overlay` (drag-end of a real draw, resize-handle release,
+// interior-click delete). Without that skip the native browser click that
+// follows a stationary pointerdown-up on the SVG would ALSO bubble here
+// and re-open the lightbox over the user's work.
 const figureEls = Array.from(card.querySelectorAll<HTMLElement>(".imgs figure"));
 for (let i = 0; i < figureEls.length; i++) {
   const fig = figureEls[i]!;
   fig.addEventListener("click", (e) => {
     const t = e.target as Element;
-    if (t.closest(".region-overlay rect") != null) return;
+    if (t.closest(".region-overlay") != null) return;
     openLightboxAt(i);
   });
 }
@@ -223,6 +258,10 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// Close on background click only — the overlay stops propagation on
+// pointer events, and the overlay's click-through path explicitly calls
+// closeLightbox() when the user taps the image without crossing the drag
+// threshold.
 lightbox.addEventListener("click", (e) => {
   if (e.target === lightbox) closeLightbox();
 });

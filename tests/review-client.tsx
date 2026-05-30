@@ -21,7 +21,7 @@ import { signal, computed, each, effect, mount, delegate } from "kerfjs";
 
 import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./review-region-overlay.js";
 
-type SuiteName = "features" | "showcase" | "html-test" | "real-world";
+type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "real-world";
 
 interface ReviewTest {
   suite: SuiteName;

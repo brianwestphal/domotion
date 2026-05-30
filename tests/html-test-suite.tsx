@@ -43,9 +43,15 @@ const HTML_TEST_DIR = process.env.HTML_TEST_DIR != null && process.env.HTML_TEST
   ? resolve(process.env.HTML_TEST_DIR)
   : resolve(PACKAGE_ROOT, "external/html-test");
 // Anchor output under this package's tests/ regardless of cwd so runs from
-// inside  don't create a stray 
-// subtree (the reason SK-991 was filed).
-const OUTPUT_DIR = resolve(__dirname, "output/html-test");
+// inside  don't create a stray
+// subtree (the reason SK-991 was filed). Override via `HTML_TEST_OUTPUT_DIR`
+// so a secondary suite (e.g. the unicode-block sweep — see
+// `demos:test:unicode` in package.json) can point its expected/actual/diff
+// triplets at a separate folder without clobbering the canonical
+// html-test results.
+const OUTPUT_DIR = process.env.HTML_TEST_OUTPUT_DIR != null && process.env.HTML_TEST_OUTPUT_DIR !== ""
+  ? resolve(process.env.HTML_TEST_OUTPUT_DIR)
+  : resolve(__dirname, "output/html-test");
 const WIDTH = 1024;
 const HEIGHT = 768;
 

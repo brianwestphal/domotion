@@ -394,39 +394,67 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
             let rasterLeft = cRec.left - vp.x;
             let rasterWidth = cRec.right - cRec.left;
             if (isFirstLetter) {
-              const ilRaw = flStyle.initialLetter || flStyle.webkitInitialLetter || '';
-              const ilN = parseFloat(ilRaw);
-              const parentLineHeight = parseFloat(cs.lineHeight);
-              if (Number.isFinite(ilN) && ilN > 1 && Number.isFinite(parentLineHeight) && parentLineHeight > 0) {
-                const expectedHeight = ilN * parentLineHeight;
-                if (expectedHeight > rasterHeight) {
-                  // Extend downward only — Chrome aligns the cap-top at the
-                  // first line's cap-height position; extra space the
-                  // expansion captures past the actual ink is empty (will
-                  // raster as transparent, with `omitBackground: true`) and
-                  // doesn't paint anything visible.
-                  rasterHeight = expectedHeight;
-                }
-              }
-              // DM-931: decorative ::first-letter drop caps frequently
-              // declare PADDING + BACKGROUND-IMAGE on the pseudo (e.g.
-              // `linear-gradient` behind the cap). The base char rect
-              // measures the GLYPH only — the padding-extended background
-              // box extends beyond on every side. Without expansion the
-              // rasterized PNG captures just the glyph and the gradient
-              // box renders truncated. Expand by the ::first-letter
-              // padding (top / right / bottom / left). Same omitBackground
-              // semantics: extra captured area outside the painted box is
-              // transparent and inert.
+              const flFloat = flStyle.float || flStyle.cssFloat || '';
               const padT = parseFloat(flStyle.paddingTop) || 0;
               const padR = parseFloat(flStyle.paddingRight) || 0;
               const padB = parseFloat(flStyle.paddingBottom) || 0;
               const padL = parseFloat(flStyle.paddingLeft) || 0;
-              if (padT > 0 || padR > 0 || padB > 0 || padL > 0) {
-                rasterTop -= padT;
-                rasterLeft -= padL;
-                rasterWidth += padL + padR;
-                rasterHeight += padT + padB;
+              if (flFloat === 'left' || flFloat === 'right') {
+                // DM-931: floated ::first-letter (drop cap) is positioned
+                // relative to the PARAGRAPH's content area, not the first
+                // character's line-box position. `Range.getBoundingClientRect`
+                // on the first character returns the GLYPH bounds at its
+                // line-1 position — which doesn't match where Chrome paints
+                // the float when `initial-letter` is set (the cap-top aligns
+                // to line-1's cap-top, shifting the painted box DOWN from
+                // the Range top by roughly the cap-height-vs-ascender delta).
+                // Compute the raster rect from the pseudo's computed
+                // padding-box (width/height + padding) + the paragraph's
+                // border-box origin + paragraph padding/border + pseudo
+                // margins.
+                const pBox = el.getBoundingClientRect();
+                const pPadT = parseFloat(cs.paddingTop) || 0;
+                const pPadL = parseFloat(cs.paddingLeft) || 0;
+                const pPadR = parseFloat(cs.paddingRight) || 0;
+                const pBorT = parseFloat(cs.borderTopWidth) || 0;
+                const pBorL = parseFloat(cs.borderLeftWidth) || 0;
+                const pBorR = parseFloat(cs.borderRightWidth) || 0;
+                const flMarT = parseFloat(flStyle.marginTop) || 0;
+                const flMarL = parseFloat(flStyle.marginLeft) || 0;
+                const flMarR = parseFloat(flStyle.marginRight) || 0;
+                const w = parseFloat(flStyle.width);
+                const h = parseFloat(flStyle.height);
+                const padW = (Number.isFinite(w) && w > 0 ? w : rasterWidth) + padL + padR;
+                const padH = (Number.isFinite(h) && h > 0 ? h : rasterHeight) + padT + padB;
+                rasterTop = pBox.y + pBorT + pPadT + flMarT - vp.y;
+                if (flFloat === 'left') {
+                  rasterLeft = pBox.x + pBorL + pPadL + flMarL - vp.x;
+                } else {
+                  rasterLeft = pBox.x + pBox.width - pBorR - pPadR - flMarR - padW - vp.x;
+                }
+                rasterWidth = padW;
+                rasterHeight = padH;
+              } else {
+                // Non-floated ::first-letter (raised cap via font-size only,
+                // or `display: inline`). The Range rect tracks the painted
+                // glyph correctly; just expand the rect by the pseudo's
+                // padding so a `background-color` / gradient behind the
+                // glyph isn't truncated. Apply the older `initial-letter`
+                // height fallback for safety against under-tall Range
+                // measurements on float-less drop caps.
+                const ilRaw = flStyle.initialLetter || flStyle.webkitInitialLetter || '';
+                const ilN = parseFloat(ilRaw);
+                const parentLineHeight = parseFloat(cs.lineHeight);
+                if (Number.isFinite(ilN) && ilN > 1 && Number.isFinite(parentLineHeight) && parentLineHeight > 0) {
+                  const expectedHeight = ilN * parentLineHeight;
+                  if (expectedHeight > rasterHeight) rasterHeight = expectedHeight;
+                }
+                if (padT > 0 || padR > 0 || padB > 0 || padL > 0) {
+                  rasterTop -= padT;
+                  rasterLeft -= padL;
+                  rasterWidth += padL + padR;
+                  rasterHeight += padT + padB;
+                }
               }
             }
             rasterGlyphs.push({

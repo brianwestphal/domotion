@@ -41,6 +41,7 @@
     "demos:test": "npm run build:capture-script && tsx tests/features.ts",
     "demos:test:showcase": "npm run build:capture-script && tsx tests/showcase.tsx",
     "demos:test:html": "npm run build:capture-script && tsx tests/html-test-suite.tsx",
+    "demos:test:unicode": "npm run build:capture-script && HTML_TEST_DIR=${HTML_TEST_DIR:-../html-test/unicode} HTML_TEST_OUTPUT_DIR=tests/output/html-test-unicode tsx tests/html-test-suite.tsx",
     "demos:test:real-world": "npm run build:capture-script && tsx tests/real-world.tsx",
     "demos:test:snapshot-isolation": "npm run build:capture-script && tsx tests/snapshot-isolation.tsx",
     "demos:test:animate": "npm run build:capture-script && tsx tests/animate-examples.tsx",

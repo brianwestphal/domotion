@@ -160,8 +160,19 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
     probe.style.marginRight = pcs.marginRight;
     probe.style.marginBottom = pcs.marginBottom;
     probe.style.marginLeft = pcs.marginLeft;
-    probe.style.transform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : '';
-    probe.style.transformOrigin = pcs.transformOrigin || '';
+    // DM-928: deliberately DO NOT apply the pseudo's `transform` to the
+    // probe. CSS transforms only affect paint, not layout; the probe's
+    // `getBoundingClientRect()` returns the AXIS-ALIGNED bounding box of
+    // whatever box it currently paints. With a 45° rotation, that AABB is
+    // ~√2 × larger than the actual border-box and its top-left sits
+    // ~(diagonal-extra)/2 to the upper-left of the true border-box origin
+    // — re-rotating that AABB later via the `<g transform>` wrapper
+    // places the painted strokes at the wrong position (pricing-table
+    // checkmarks drift ~4 px left / 1 px up). Strip the transform here
+    // and let the unrotated probe report the actual border-box rect; the
+    // transform is re-applied at render time inside `flushPbTransformWrap`.
+    probe.style.transform = '';
+    probe.style.transformOrigin = '';
     // Pseudo lives logically inside the host; an absolute child of the host
     // inherits the same containing-block lookup.
     if (pseudo === '::before') el.insertBefore(probe, el.firstChild);

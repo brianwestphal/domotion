@@ -253,6 +253,113 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
     }
   }, 60_000);
 
+  it("drawing a region does NOT pop the lightbox (DM-976 regression)", async () => {
+    // Regression: prior to DM-976 a real drag-to-draw raised a native
+    // browser click on the overlay's <svg> that bubbled to <figure>; the
+    // figure click handler only filtered `.region-overlay rect`, not the
+    // overlay itself, so the lightbox opened OVER the user's in-progress
+    // rectangle work. Fixed by widening the guard to `.region-overlay`.
+    child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const url = await waitForUrl(child);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+      await page.goto(url, { waitUntil: "networkidle" });
+      const actualImg = page.locator('figure[data-role="actual"] img');
+      await actualImg.waitFor({ state: "visible" });
+      const box = await actualImg.boundingBox();
+      if (box == null) throw new Error("actual img has no bounding box");
+
+      // Draw a real (>threshold) rectangle. After this completes the
+      // lightbox should still be CLOSED.
+      await page.evaluate(({ x1, y1, x2, y2 }) => {
+        const svg = document.querySelector('figure[data-role="actual"] .region-overlay') as SVGSVGElement | null;
+        if (svg == null) throw new Error("no overlay");
+        const fire = (type: string, x: number, y: number) =>
+          svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
+        fire("pointerdown", x1, y1);
+        fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
+        fire("pointermove", x2, y2);
+        fire("pointerup", x2, y2);
+      }, {
+        x1: box.x + box.width * 0.30, y1: box.y + box.height * 0.30,
+        x2: box.x + box.width * 0.60, y2: box.y + box.height * 0.55,
+      });
+      // The rect renders.
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, { timeout: 3_000 });
+      // The lightbox stays closed.
+      const open = await page.locator("#lightbox").evaluate((el) => el.classList.contains("open"));
+      expect(open).toBe(false);
+      await browser.close();
+    } catch (e) {
+      await browser.close().catch(() => {/* noop */});
+      throw e;
+    }
+  }, 60_000);
+
+  it("drawing a region works in lightbox (zoomed-in) mode (DM-976)", async () => {
+    // Prior to DM-976 the lightbox had no overlay attached — pointer events
+    // on the maximised image went nowhere. Fixed by mirroring demos:review:
+    // attach `overlay.addView(lbImg, lbOverlay, closeLightbox)` on open
+    // and detach on close. A rect drawn in the lightbox lives in the same
+    // shared `rects` array so it surfaces in the issue list immediately.
+    child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const url = await waitForUrl(child);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+      await page.goto(url, { waitUntil: "networkidle" });
+
+      // Click the thumbnail to enter lightbox mode.
+      const expectedImg = page.locator('figure[data-role="expected"] img');
+      await expectedImg.waitFor({ state: "visible" });
+      const tbox = await expectedImg.boundingBox();
+      if (tbox == null) throw new Error("expected thumbnail has no bounding box");
+      await page.mouse.click(tbox.x + tbox.width / 2, tbox.y + tbox.height / 2);
+      await page.locator("#lightbox.open").waitFor({ state: "visible", timeout: 3_000 });
+      // Wait for the maximised image to load and the overlay to attach.
+      await page.waitForFunction(() => {
+        const img = document.getElementById("lb-img") as HTMLImageElement | null;
+        return img != null && img.naturalWidth > 0 && img.naturalHeight > 0;
+      }, null, { timeout: 5_000 });
+
+      const lbBox = await page.locator("#lb-img").boundingBox();
+      if (lbBox == null) throw new Error("lb-img has no bounding box");
+
+      // Draw a rect on the lightbox overlay.
+      await page.evaluate(({ x1, y1, x2, y2 }) => {
+        const svg = document.getElementById("lb-overlay") as unknown as SVGSVGElement | null;
+        if (svg == null) throw new Error("no lb-overlay");
+        const fire = (type: string, x: number, y: number) =>
+          svg.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", isPrimary: true }));
+        fire("pointerdown", x1, y1);
+        fire("pointermove", (x1 + x2) / 2, (y1 + y2) / 2);
+        fire("pointermove", x2, y2);
+        fire("pointerup", x2, y2);
+      }, {
+        x1: lbBox.x + lbBox.width * 0.30, y1: lbBox.y + lbBox.height * 0.30,
+        x2: lbBox.x + lbBox.width * 0.55, y2: lbBox.y + lbBox.height * 0.55,
+      });
+
+      // The rect shows up in the underlying region list (shared rects array).
+      await page.waitForFunction(() => document.querySelectorAll(".region-list input").length === 1, null, { timeout: 5_000 });
+      // Lightbox stays OPEN through the draw — the overlay's drag handler
+      // suppresses the click-through that would normally close it.
+      const stillOpen = await page.locator("#lightbox").evaluate((el) => el.classList.contains("open"));
+      expect(stillOpen).toBe(true);
+      await browser.close();
+    } catch (e) {
+      await browser.close().catch(() => {/* noop */});
+      throw e;
+    }
+  }, 60_000);
+
   it("serves all four endpoints (HTML shell, client.js, expected.png, diff.png)", async () => {
     child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
       cwd: REPO_ROOT,

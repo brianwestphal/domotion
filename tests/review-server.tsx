@@ -38,18 +38,20 @@ import * as esbuild from "esbuild";
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output");
 const HTML_TEST_DIR = resolve(OUTPUT_DIR, "html-test");
+const HTML_TEST_UNICODE_DIR = resolve(OUTPUT_DIR, "html-test-unicode");
 const REAL_WORLD_DIR = resolve(OUTPUT_DIR, "real-world");
 const PROJECT_ROOT = resolve(TESTS_DIR, "..");
 const SETTINGS_PATH = resolve(PROJECT_ROOT, ".hotsheet/settings.json");
 
 const MANIFEST_FILES: Array<{ suite: SuiteName; path: string; imagesDir: string; isBareArray: boolean }> = [
-  { suite: "features",   path: resolve(OUTPUT_DIR,     "features-results.json"), imagesDir: OUTPUT_DIR,     isBareArray: false },
-  { suite: "showcase",   path: resolve(OUTPUT_DIR,     "showcase-results.json"), imagesDir: OUTPUT_DIR,     isBareArray: false },
-  { suite: "html-test",  path: resolve(HTML_TEST_DIR,  "results.json"),          imagesDir: HTML_TEST_DIR,  isBareArray: true  },
-  { suite: "real-world", path: resolve(REAL_WORLD_DIR, "results.json"),          imagesDir: REAL_WORLD_DIR, isBareArray: false },
+  { suite: "features",          path: resolve(OUTPUT_DIR,             "features-results.json"), imagesDir: OUTPUT_DIR,             isBareArray: false },
+  { suite: "showcase",          path: resolve(OUTPUT_DIR,             "showcase-results.json"), imagesDir: OUTPUT_DIR,             isBareArray: false },
+  { suite: "html-test",         path: resolve(HTML_TEST_DIR,          "results.json"),          imagesDir: HTML_TEST_DIR,          isBareArray: true  },
+  { suite: "html-test-unicode", path: resolve(HTML_TEST_UNICODE_DIR,  "results.json"),          imagesDir: HTML_TEST_UNICODE_DIR,  isBareArray: true  },
+  { suite: "real-world",        path: resolve(REAL_WORLD_DIR,         "results.json"),          imagesDir: REAL_WORLD_DIR,         isBareArray: false },
 ];
 
-type SuiteName = "features" | "showcase" | "html-test" | "real-world";
+type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "real-world";
 
 // ── Config ──
 
@@ -118,10 +120,11 @@ interface ReviewManifest {
 function loadManifest(): ReviewManifest {
   const tests: ReviewTest[] = [];
   const suites: ReviewManifest["suites"] = {
-    features:    { present: false, count: 0 },
-    showcase:    { present: false, count: 0 },
-    "html-test": { present: false, count: 0 },
-    "real-world":{ present: false, count: 0 },
+    features:            { present: false, count: 0 },
+    showcase:            { present: false, count: 0 },
+    "html-test":         { present: false, count: 0 },
+    "html-test-unicode": { present: false, count: 0 },
+    "real-world":        { present: false, count: 0 },
   };
   const timestamps: string[] = [];
 
@@ -201,9 +204,10 @@ function loadManifest(): ReviewManifest {
 }
 
 function imagePathFor(t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
-  const dir = t.suite === "html-test"  ? HTML_TEST_DIR
-            : t.suite === "real-world" ? REAL_WORLD_DIR
-            :                            OUTPUT_DIR;
+  const dir = t.suite === "html-test"         ? HTML_TEST_DIR
+            : t.suite === "html-test-unicode" ? HTML_TEST_UNICODE_DIR
+            : t.suite === "real-world"        ? REAL_WORLD_DIR
+            :                                   OUTPUT_DIR;
   return resolve(dir, `${t.name}-${kind}.png`);
 }
 
@@ -383,6 +387,7 @@ function Layout({ manifestJson }: { manifestJson: string }) {
               <option value="features">features</option>
               <option value="showcase">showcase</option>
               <option value="html-test">html-test</option>
+              <option value="html-test-unicode">html-test-unicode</option>
               <option value="real-world">real-world</option>
             </select></label>
             <label>Sort: <select id="sort">
@@ -497,6 +502,7 @@ async function main(): Promise<void> {
     console.error("  npm run demos:test            # features only");
     console.error("  npm run demos:test:showcase   # showcase");
     console.error("  npm run demos:test:html       # html-test (~147)");
+    console.error("  npm run demos:test:unicode    # per-Unicode-block coverage sweep (330, slow)");
     console.error("  npm run demos:test:real-world # real public sites (DM-454)");
     console.error("  npm run demos:test:all        # all four");
     process.exit(1);
@@ -527,9 +533,10 @@ async function main(): Promise<void> {
           send(res, 400, "text/plain", "bad path");
           return;
         }
-        const baseDir = suite === "html-test"  ? HTML_TEST_DIR
-                      : suite === "real-world" ? REAL_WORLD_DIR
-                      :                          OUTPUT_DIR;
+        const baseDir = suite === "html-test"         ? HTML_TEST_DIR
+                      : suite === "html-test-unicode" ? HTML_TEST_UNICODE_DIR
+                      : suite === "real-world"        ? REAL_WORLD_DIR
+                      :                                 OUTPUT_DIR;
         const filePath = resolve(baseDir, fname);
         if (!existsSync(filePath)) {
           send(res, 404, "text/plain", "not found");
@@ -576,9 +583,10 @@ async function main(): Promise<void> {
           detailsParts.push("", regionsBlock);
         }
         if (!match.skipped) {
-          const relPath = match.suite === "html-test"  ? "tests/output/html-test"
-                        : match.suite === "real-world" ? "tests/output/real-world"
-                        :                                "tests/output";
+          const relPath = match.suite === "html-test"         ? "tests/output/html-test"
+                        : match.suite === "html-test-unicode" ? "tests/output/html-test-unicode"
+                        : match.suite === "real-world"        ? "tests/output/real-world"
+                        :                                       "tests/output";
           detailsParts.push(
             "",
             "Source files:",
