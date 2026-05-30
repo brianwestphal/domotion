@@ -531,7 +531,13 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     expect(darwinFallbackChain(0x2601)).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(darwinFallbackChain(0x2602)).toEqual(["cjk", "hiragino-jp", "symbols"]);
     expect(darwinFallbackChain(0x2603)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x2640)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    // DM-925: gender signs (U+2640 ♀ / U+2641 ♁ / U+2642 ♂) are carved out
+    // ABOVE the block fallback to prefer hiragino-jp first — Chrome's CoreText
+    // cascade for sans-serif on macOS picks HiraginoSans-W3 (Japanese) for
+    // these codepoints (verified via CSS.getPlatformFontsForNode probe), and
+    // its glyph shape for ♂ differs visibly from HiraginoSansGB-W3 (Chinese),
+    // which has a straight-up arrow rather than the standard up-right diagonal.
+    expect(darwinFallbackChain(0x2640)).toEqual(["hiragino-jp", "cjk", "symbols"]);
     expect(darwinFallbackChain(0x26A5)).toEqual(["cjk", "hiragino-jp", "symbols"]);
   });
 

@@ -1372,6 +1372,26 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     || codepoint === 0x25C6 || codepoint === 0x25C7) {
     return ["lucida-grande", "symbols"];
   }
+  // DM-925: U+25C8 WHITE DIAMOND CONTAINING SMALL BLACK DIAMOND (◈) —
+  // Chrome paints via AppleSDGothicNeo (Korean fallback), not Hiragino
+  // Sans GB which has no glyph for it. Probe @18 px: Chrome 15.59 px,
+  // AppleSDGothicNeo 15.57 px (match), Apple Symbols 13.91 px (off by
+  // 1.68 px). The `korean` key already exists for Hangul routing;
+  // reuse it here for this single misc-shapes codepoint.
+  if (codepoint === 0x25C8) {
+    return ["korean", "symbols"];
+  }
+  // DM-925: Gender symbols (U+2640 ♀, U+2641 ♁, U+2642 ♂) — Chrome
+  // routes to **Hiragino Sans (Japanese, HiraginoSans-W3)** per
+  // CSS.getPlatformFontsForNode probe, NOT Hiragino Sans GB (Chinese,
+  // HiraginoSansGB-W3). The two have meaningfully different glyph
+  // shapes for ♂: Japanese has the classic up-right diagonal arrow,
+  // Chinese variant has a straight-up arrow. Our `cjk` route resolves
+  // to GB and produced the wrong-shape glyph. Switch the chain to
+  // prefer the Japanese face (`hiragino-jp`) first.
+  if (codepoint >= 0x2640 && codepoint <= 0x2642) {
+    return ["hiragino-jp", "cjk", "symbols"];
+  }
   // Chess pieces ♔..♟ (U+2654..U+265F) — Chrome routes these through Menlo,
   // not Apple Symbols. Verified via CDP CSS.getPlatformFontsForNode at 22px
   // sans-serif: Chrome reports the font as "Menlo" and the captured advance
