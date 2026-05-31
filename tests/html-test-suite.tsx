@@ -276,13 +276,13 @@ const FIXTURE_HEIGHT_OVERRIDES: Record<string, number> = {
   "12400-1247F-cuneiform-numbers-and-punctuation": 840,
   "12480-1254F-early-dynastic-cuneiform": 1392,
   "13000-1342F-egyptian-hieroglyphs": 6616,
-  "13460-143FF-egyptian-hieroglyphs-extended-a": 16000,
+  // 13460-143FF-egyptian-hieroglyphs-extended-a → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "1400-167F-unified-canadian-aboriginal-syllabics": 4040,
   "14400-1467F-anatolian-hieroglyphs": 3648,
   "16800-16A3F-bamum-supplement": 3576,
   "16B00-16B8F-pahawh-hmong": 920,
   "16F00-16F9F-miao": 1080,
-  "17000-187FF-tangut": 16000,
+  // 17000-187FF-tangut → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "1780-17FF-khmer": 840,
   "1800-18AF-mongolian": 1152,
   "18800-18AFF-tangut-components": 4824,
@@ -311,7 +311,7 @@ const FIXTURE_HEIGHT_OVERRIDES: Record<string, number> = {
   "1F900-1F9FF-supplemental-symbols-and-pictographs": 1704,
   "1FA70-1FAFF-symbols-and-pictographs-extended-a": 840,
   "1FB00-1FBFF-symbols-for-legacy-computing": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b": 16000,
+  // 20000-2A6DF-cjk-unified-ideographs-extension-b → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "2190-21FF-arrows": 840,
   "2200-22FF-mathematical-operators": 1704,
   "2300-23FF-miscellaneous-technical": 1704,
@@ -323,26 +323,26 @@ const FIXTURE_HEIGHT_OVERRIDES: Record<string, number> = {
   "2900-297F-supplemental-arrows-b": 920,
   "2980-29FF-miscellaneous-mathematical-symbols-b": 920,
   "2A00-2AFF-supplemental-mathematical-operators": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c": 16000,
+  // 2A700-2B73F-cjk-unified-ideographs-extension-c → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "2B00-2BFF-miscellaneous-symbols-and-arrows": 1720,
   "2B740-2B81F-cjk-unified-ideographs-extension-d": 1544,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e": 16000,
+  // 2B820-2CEAF-cjk-unified-ideographs-extension-e → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "2C80-2CFF-coptic": 920,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f": 16000,
+  // 2CEB0-2EBEF-cjk-unified-ideographs-extension-f → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "2E80-2EFF-cjk-radicals-supplement": 840,
   "2EBF0-2EE5F-cjk-unified-ideographs-extension-i": 3888,
   "2F00-2FDF-kangxi-radicals": 1464,
   "2F800-2FA1F-cjk-compatibility-ideographs-supplement": 3416,
-  "30000-3134F-cjk-unified-ideographs-extension-g": 16000,
-  "31350-323AF-cjk-unified-ideographs-extension-h": 16000,
+  // 30000-3134F-cjk-unified-ideographs-extension-g → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
+  // 31350-323AF-cjk-unified-ideographs-extension-h → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "3200-32FF-enclosed-cjk-letters-and-months": 1720,
   "3300-33FF-cjk-compatibility": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a": 16000,
-  "4E00-9FFF-cjk-unified-ideographs": 16000,
+  // 3400-4DBF-cjk-unified-ideographs-extension-a → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
+  // 4E00-9FFF-cjk-unified-ideographs → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "A000-A48F-yi-syllables": 7160,
   "A500-A63F-vai": 2016,
   "A720-A7FF-latin-extended-d": 1392,
-  "AC00-D7AF-hangul-syllables": 16000,
+  // AC00-D7AF-hangul-syllables → CHUNKED, see FIXTURE_CHUNK_HEIGHTS
   "E0100-E01EF-variation-selectors-supplement": 1624,
   "F900-FAFF-cjk-compatibility-ideographs": 3024,
   "FB50-FDFF-arabic-presentation-forms-a": 3960,
@@ -350,10 +350,84 @@ const FIXTURE_HEIGHT_OVERRIDES: Record<string, number> = {
   "FF00-FFEF-halfwidth-and-fullwidth-forms": 1544,
 };
 
-/** Effective capture height for a fixture: the override when one exists,
- *  otherwise the 768 px default. */
+/** Natural (= probed) total height of fixtures whose content exceeds the
+ *  CHUNK_HEIGHT below. The runner splits each such fixture into N sequential
+ *  16000-px chunks named `{base}.0`, `{base}.1`, … so each chunk fits in a
+ *  reasonable capture/compare without blowing memory on a single 256k-px PNG.
+ *
+ *  Add a new entry whenever a fixture grows past CHUNK_HEIGHT — the existing
+ *  height-override entry above (if any) takes priority for fixtures ≤ chunk
+ *  height; this map is only consulted for the giant codepoint grids that
+ *  would otherwise require a 100 MB+ raw screenshot per fixture.
+ *
+ *  Source: `node tools/probe-html-test-heights.mjs ../html-test/unicode` —
+ *  any entry returning a height > CHUNK_HEIGHT belongs here, with its
+ *  NATURAL height (not the chunk size).
+ */
+const CHUNK_HEIGHT = 16000;
+const FIXTURE_CHUNK_HEIGHTS: Record<string, number> = {
+  "13460-143FF-egyptian-hieroglyphs-extended-a": 24168,
+  "17000-187FF-tangut": 36960,
+  "20000-2A6DF-cjk-unified-ideographs-extension-b": 256528,
+  "2A700-2B73F-cjk-unified-ideographs-extension-c": 25104,
+  "2B820-2CEAF-cjk-unified-ideographs-extension-e": 34776,
+  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f": 44992,
+  "30000-3134F-cjk-unified-ideographs-extension-g": 29784,
+  "31350-323AF-cjk-unified-ideographs-extension-h": 25336,
+  "3400-4DBF-cjk-unified-ideographs-extension-a": 39768,
+  "4E00-9FFF-cjk-unified-ideographs": 126112,
+  "AC00-D7AF-hangul-syllables": 67224,
+};
+
+/** Parse a chunk suffix from a fixture name. Returns `{ base, idx }` for
+ *  chunked names (`foo.3`), `null` otherwise. */
+function parseChunkName(name: string): { base: string; idx: number } | null {
+  const m = /^(.+)\.(\d+)$/.exec(name);
+  if (m == null) return null;
+  return { base: m[1], idx: parseInt(m[2], 10) };
+}
+
+/** How many chunks (0-indexed range) a chunked fixture splits into. */
+function chunkCountFor(base: string): number {
+  const total = FIXTURE_CHUNK_HEIGHTS[base];
+  if (total == null) return 1;
+  return Math.ceil(total / CHUNK_HEIGHT);
+}
+
+/** Effective capture height for a fixture: chunked entries get CHUNK_HEIGHT
+ *  for all but the FINAL chunk (which only gets the remainder of the natural
+ *  page height, avoiding 10k+ px of empty space at the page bottom); override
+ *  entries get their explicit value; everything else uses 768. */
 function captureHeightFor(name: string): number {
+  const chunk = parseChunkName(name);
+  if (chunk != null && FIXTURE_CHUNK_HEIGHTS[chunk.base] != null) {
+    const total = FIXTURE_CHUNK_HEIGHTS[chunk.base];
+    const isLast = chunk.idx === chunkCountFor(chunk.base) - 1;
+    if (isLast) {
+      const remaining = total - chunk.idx * CHUNK_HEIGHT;
+      // Round up to next 8 px boundary for clean diff tile alignment.
+      return Math.ceil(remaining / 8) * 8;
+    }
+    return CHUNK_HEIGHT;
+  }
   return FIXTURE_HEIGHT_OVERRIDES[name] ?? HEIGHT;
+}
+
+/** Y-offset into the source page for this fixture (0 for non-chunked, or
+ *  chunkIdx × CHUNK_HEIGHT for chunked). The runner uses this to clip the
+ *  source-page screenshot and to set `vp.y` for the captured tree. */
+function chunkOffsetFor(name: string): number {
+  const chunk = parseChunkName(name);
+  if (chunk != null && FIXTURE_CHUNK_HEIGHTS[chunk.base] != null) return chunk.idx * CHUNK_HEIGHT;
+  return 0;
+}
+
+/** Source filename for a fixture: chunked names strip the `.N` suffix
+ *  to recover the underlying `.html` path. */
+function sourceFileFor(name: string): string {
+  const chunk = parseChunkName(name);
+  if (chunk != null && FIXTURE_CHUNK_HEIGHTS[chunk.base] != null) return chunk.base;
+  return name;
 }
 // Pass criterion, AA detector, and tile metrics are shared with the simpler
 // runner via tests/compare-pngs.ts (DM-383). PASS_THRESHOLD_NON_AA_PIXELS,
@@ -567,12 +641,20 @@ interface HtmlTestWorker {
   comparePage: Page;
 }
 
-async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResult> {
-  // DM-714: `file` is a relative path under HTML_TEST_DIR (e.g. `01-foo.html`
-  // or `niche/foo.html`). Flatten subdir separators to `-` so the output
-  // PNGs and the visible "name" in results live at the top of OUTPUT_DIR;
-  // `srcPath` still resolves correctly through the un-flattened path.
-  const name = file.replace(/\.html$/, "").replace(/\//g, "-");
+interface HtmlTestJob {
+  /** Relative path under HTML_TEST_DIR (e.g. `01-foo.html`, `niche/foo.html`). */
+  file: string;
+  /** Output fixture name (with `/` flattened to `-`, plus optional `.N`
+   *  chunk suffix for fixtures split via FIXTURE_CHUNK_HEIGHTS). */
+  name: string;
+}
+
+async function runOneHtmlTest(job: HtmlTestJob, w: HtmlTestWorker): Promise<TestResult> {
+  // DM-714: `file` is a relative path under HTML_TEST_DIR. The output
+  // `name` flattens `/` to `-` and may carry a `.N` chunk suffix for
+  // FIXTURE_CHUNK_HEIGHTS entries (sequential 16000-px slices of giant
+  // codepoint-grid pages).
+  const { file, name } = job;
   const srcPath = resolve(HTML_TEST_DIR, file);
   const expectedPath = resolve(OUTPUT_DIR, `${name}-expected.png`);
   const actualPath = resolve(OUTPUT_DIR, `${name}-actual.png`);
@@ -601,11 +683,16 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let capWarnings: Array<{ selector: string; feature: string; detail: string }> = [];
 
   // DM-781: per-fixture capture height. Fixtures whose content extends past
-  // the 768 px default get the override; everything else uses the default.
-  // Resize the viewport BEFORE the navigation so the initial layout (and
-  // anything keyed off media queries / vh units / IntersectionObserver) sees
-  // the height the test was designed for.
+  // the 768 px default get the override; chunked fixtures use CHUNK_HEIGHT
+  // (16000) per slice; everything else uses the 768 default. Resize the
+  // viewport BEFORE the navigation so the initial layout (and anything
+  // keyed off media queries / vh units / IntersectionObserver) sees the
+  // height the test was designed for.
   const fixtureHeight = captureHeightFor(name);
+  // Y-offset into the source page for chunked fixtures (0 for non-chunked).
+  // Used to clip the source-page screenshot and to set `vp.y` for the
+  // captured tree so element rects come back chunk-relative.
+  const chunkOffset = chunkOffsetFor(name);
 
   try {
     if (fixtureHeight !== HEIGHT) {
@@ -621,6 +708,14 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     }
     await w.page.goto(`file://${srcPath}`);
     await w.page.waitForTimeout(150);
+    // Chunked fixtures: scroll the page to the chunk's y-offset so
+    // viewport-relative metric reads (IntersectionObserver, scroll-driven
+    // animations) see the chunk's content as the visible area. Doesn't
+    // affect the screenshot clip below (which uses page-absolute coords).
+    if (chunkOffset > 0) {
+      await w.page.evaluate((y) => window.scrollTo(0, y), chunkOffset);
+      await w.page.waitForTimeout(50);
+    }
 
     bodyBg = await w.page.evaluate(() => {
       const cs = getComputedStyle(document.body);
@@ -629,7 +724,12 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       return bg;
     });
 
-    await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+    // Screenshot clip uses page-absolute coords but the screenshot
+    // captures only the visible viewport. For chunked fixtures we already
+    // scrolled to `chunkOffset` so the chunk's content IS in the viewport;
+    // request the clip at `y=chunkOffset` so the captured pixels
+    // correspond to the chunk's slice of the page.
+    await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: chunkOffset, width: WIDTH, height: fixtureHeight }, fullPage: true });
 
     // Pick up any @font-face rules — covers both url(...) downloads and
     // local(...) aliases (DM-303). Without this, fixtures using
@@ -639,7 +739,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
 
     // captureElementTreeWithWarnings returns warnings inline so concurrent
     // workers don't race on the lastCaptureWarnings module global (DM-456).
-    const cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: 0, width: WIDTH, height: fixtureHeight });
+    const cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: chunkOffset, width: WIDTH, height: fixtureHeight });
     capWarnings = cap.warnings;
     // DM-512: demos always emit self-contained SVGs.
     // DM-527: thread the per-suite warnings array so concurrent workers
@@ -658,6 +758,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // Loading the SVG as a document lets those external file:// refs resolve.
     await w.page.goto(`file://${svgPath}`);
     await w.page.waitForTimeout(200);
+    // The SVG output is already chunk-local (vp.y was set on captureElementTree),
+    // so its viewport origin is 0..fixtureHeight regardless of chunk index.
     await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
 
     const cmp = await comparePngs(w.comparePage, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST);
@@ -746,22 +848,40 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Expand each file into one or more HtmlTestJobs. Files whose flat-name
+  // matches a FIXTURE_CHUNK_HEIGHTS entry emit N jobs (one per 16000-px
+  // slice); all others emit a single job with `name = flat-name`.
+  const testJobs: HtmlTestJob[] = [];
+  for (const file of testFiles) {
+    const flatName = file.replace(/\.html$/, "").replace(/\//g, "-");
+    const chunks = chunkCountFor(flatName);
+    if (chunks <= 1) {
+      testJobs.push({ file, name: flatName });
+    } else {
+      for (let i = 0; i < chunks; i++) {
+        testJobs.push({ file, name: `${flatName}.${i}` });
+      }
+    }
+  }
+
   // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
   lowerProcessPriority();
   const workerCount = resolveWorkerCount();
-  const overrideCount = testFiles.filter((f) => {
-    const name = f.replace(/\.html$/, "").replace(/\//g, "-");
-    return FIXTURE_HEIGHT_OVERRIDES[name] != null;
-  }).length;
+  const overrideCount = testJobs.filter((j) => FIXTURE_HEIGHT_OVERRIDES[j.name] != null).length;
+  const chunkedCount = testJobs.filter((j) => parseChunkName(j.name) != null).length;
   const overrideNote = overrideCount > 0
-    ? ` (${overrideCount} fixture${overrideCount === 1 ? "" : "s"} use a taller capture height per DM-781)`
+    ? ` (${overrideCount} fixture${overrideCount === 1 ? "" : "s"} use a taller capture height per DM-781`
     : "";
-  console.log(`Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT}${overrideNote}) with ${workerCount} workers...\n`);
+  const chunkedNote = chunkedCount > 0
+    ? `${overrideCount > 0 ? "; " : " ("}${chunkedCount} chunked slice${chunkedCount === 1 ? "" : "s"} from giant codepoint grids`
+    : "";
+  const noteSuffix = (overrideCount > 0 || chunkedCount > 0) ? `${overrideNote}${chunkedNote})` : "";
+  console.log(`Running ${testJobs.length} html-test jobs (viewport ${WIDTH}x${HEIGHT}${noteSuffix}) with ${workerCount} workers...\n`);
 
   const browser = await chromium.launch();
 
-  const results = await runJobsInPool<string, HtmlTestWorker, TestResult>({
-    jobs: testFiles,
+  const results = await runJobsInPool<HtmlTestJob, HtmlTestWorker, TestResult>({
+    jobs: testJobs,
     workers: workerCount,
     setup: async () => {
       const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
@@ -780,7 +900,7 @@ async function main(): Promise<void> {
       await w.context.close();
       await w.compareContext.close();
     },
-    runJob: async (file, w) => runOneHtmlTest(file, w),
+    runJob: async (job, w) => runOneHtmlTest(job, w),
     onResult: (result) => {
       const { name, pass, skipped, acceptedReason, error: err, warnings, verdict, regionCount, coveragePct } = result;
       const status = skipped
