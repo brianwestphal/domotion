@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * One-shot probe that measures the rendered content height of every
- * `external/html-test/**.html` fixture and emits a TypeScript-ready map of
- * fixtures whose content overruns the 1024 × 768 default capture viewport
- * (DM-781). Re-run whenever fixtures grow taller and paste the new entries
- * into `FIXTURE_HEIGHT_OVERRIDES` in `tests/html-test-suite.tsx`.
+ * `*.html` fixture under a html-test directory and emits a TypeScript-ready
+ * map of fixtures whose content overruns the 1024 × 768 default capture
+ * viewport (DM-781). Re-run whenever fixtures grow taller and paste the new
+ * entries into `FIXTURE_HEIGHT_OVERRIDES` in `tests/html-test-suite.tsx`.
  *
- *   node tools/probe-html-test-heights.mjs
+ *   node tools/probe-html-test-heights.mjs                       # → external/html-test (default)
+ *   node tools/probe-html-test-heights.mjs ../html-test/unicode  # → unicode sweep fixtures
  *
  * Output is sorted alphabetically by flattened fixture name (the same name
  * the runner uses for output PNGs and the override-map key). Each entry's
@@ -19,7 +20,8 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, "..", "external", "html-test");
+const DEFAULT_ROOT = resolve(__dirname, "..", "external", "html-test");
+const ROOT = process.argv[2] != null ? resolve(process.argv[2]) : DEFAULT_ROOT;
 const WIDTH = 1024;
 const BASE_HEIGHT = 768;
 
@@ -39,7 +41,7 @@ function walk(dir, prefix = "") {
 }
 
 const files = walk(ROOT).sort();
-console.error(`Probing ${files.length} fixtures…`);
+console.error(`Probing ${files.length} fixtures under ${ROOT}…`);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: WIDTH, height: BASE_HEIGHT } });
@@ -74,6 +76,4 @@ await browser.close();
 
 entries.sort((a, b) => a.name.localeCompare(b.name));
 console.error(`${entries.length} fixtures exceed ${BASE_HEIGHT} px.\n`);
-console.log("const FIXTURE_HEIGHT_OVERRIDES: Record<string, number> = {");
 for (const e of entries) console.log(`  ${JSON.stringify(e.name)}: ${e.height},`);
-console.log("};");
