@@ -167,7 +167,7 @@ export const computeElementRaster = (el, cs, tag, rect, vp) => {
   };
 };
 
-export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster }) => {
+export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor }) => {
   const captureTextSegments = (el, cs) => {
     const textSegments = [];
     let text = '';
@@ -178,15 +178,69 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
 
     // ::first-letter detection (SK-1114). Compare the pseudo's computed
     // font-size against the element's own — when they differ the author
-    // has styled ::first-letter (drop-cap pattern) and we raster the
-    // very first visible char as a glyph image. Other delta signals
-    // (color, weight, etc.) come along for free since the screenshot
-    // captures whatever Chrome painted.
+    // has styled ::first-letter (drop-cap pattern). DM-989: emit the
+    // styled run as its own native-SVG TextSegment carrying the pseudo's
+    // font + color + pseudoBox (background / border / border-radius),
+    // and suppress the body-text glyphs for the selected chars so the
+    // styled segment is the only paint. Previously these chars were
+    // routed through the rasterGlyph image-overlay pipeline (DM-439).
     const flStyle = window.getComputedStyle(el, '::first-letter');
     const elFsRaw = parseFloat(cs.fontSize) || 0;
     const flFsRaw = parseFloat(flStyle.fontSize) || 0;
-    const firstLetterStyled = flFsRaw > 0 && Math.abs(flFsRaw - elFsRaw) > 0.5;
-    let firstCharSeen = false;
+    // `initial-letter: N [M]` (CSS Inline 3) drives Chromium to scale the
+    // first-letter glyph internally so its cap-height equals N × the
+    // parent's line-height (per Blink's
+    // `initial_letter_utils.cc::ComputeInitialLetterBoxBlockOffset`).
+    // `getComputedStyle(el, '::first-letter').fontSize` returns the
+    // SPECIFIED value (e.g. `4em`), NOT the effective one Chrome paints
+    // at. To render the W faithfully we derive the effective font-size at
+    // capture time below by reading the font's cap-height ratio from a
+    // canvas `measureText('H').actualBoundingBoxAscent` probe (DM-989).
+    const flInitialLetterRaw = (flStyle.initialLetter || flStyle.webkitInitialLetter || '').trim();
+    const hasInitialLetter = flInitialLetterRaw !== '' && flInitialLetterRaw !== 'normal' && flInitialLetterRaw !== 'auto';
+    // Trigger: ANY pseudo-vs-host computed-style delta the path renderer
+    // can carry on a TextSegment — font-size, color, font-weight,
+    // font-family, font-style, text-shadow, or `initial-letter`. The
+    // pre-DM-989 gate was font-size only (the raster pipeline needed a
+    // visible size delta to screenshot meaningfully); the native-SVG
+    // styled-segment path can express color-only changes too, so widen
+    // the trigger to catch `.fl-color`, etc.
+    const firstLetterStyled = (
+      (flFsRaw > 0 && Math.abs(flFsRaw - elFsRaw) > 0.5) ||
+      (flStyle.color !== '' && flStyle.color !== cs.color) ||
+      (flStyle.fontWeight !== '' && flStyle.fontWeight !== cs.fontWeight) ||
+      (flStyle.fontFamily !== '' && flStyle.fontFamily !== cs.fontFamily) ||
+      (flStyle.fontStyle !== '' && flStyle.fontStyle !== cs.fontStyle) ||
+      (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow) ||
+      hasInitialLetter
+    );
+    // Chrome's selection rule (per Blink `first_letter_pseudo_element.cc`
+    // and CSS Pseudo-Elements 4): skip leading whitespace, include any
+    // leading punctuation (Unicode general-category P*), include ONE
+    // letter (or precomposed letter codepoint + following combining
+    // marks — \p{M}), then include any trailing punctuation. Probed
+    // empirically against Chrome 130 on the html-test fixtures: `"This…`
+    // selects `"T`; `'s-Gravenhage` selects `'s`; `Évidemment` and
+    // `Ñoño` each select one precomposed codepoint. Digraphs are NOT
+    // combined — `Dž` selects only `D` (matches Chrome).
+    const isFirstLetterPunct = (ch) => /\p{P}/u.test(ch);
+    const isCombiningMark = (ch) => /\p{M}/u.test(ch);
+    const selectFirstLetter = (chars) => {
+      let i = 0;
+      while (i < chars.length && /\s/.test(chars[i].ch)) i++;
+      const start = i;
+      while (i < chars.length && isFirstLetterPunct(chars[i].ch)) i++;
+      if (i < chars.length && !/\s/.test(chars[i].ch) && !isFirstLetterPunct(chars[i].ch)) {
+        i++;
+        while (i < chars.length && isCombiningMark(chars[i].ch)) i++;
+      }
+      while (i < chars.length && isFirstLetterPunct(chars[i].ch)) i++;
+      return { start, end: i };
+    };
+    let firstLetterChars = null; // collected cRec records for the styled segment, filled during loop 4 on line 0
+    let firstLetterStartIdx = -1;
+    let firstLetterEndIdx = -1;
+    let didEmitStyledFirstLetter = false;
 
     // DM-747 / DM-791: MathML `<mi>` with a single token character is
     // automatically painted with the Mathematical Italic alphabet (the
@@ -378,6 +432,20 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
       for (const line of lines) {
         const visualText = line.text.replace(/[\t\n\r]/g, ' ');
         if (visualText.replace(/\s/g, '') === '') continue;
+        // ::first-letter selection runs ONLY on the very first non-empty
+        // line of the very first text node that produces visible chars.
+        // Compute the exclusive end index once; subsequent lines and
+        // subsequent text nodes keep `firstLetterEndIdx = -1` so none of
+        // their chars get suppressed. `firstLetterChars` doubles as a
+        // sentinel — `null` means "not yet computed", `[]` means "computed,
+        // possibly empty (no selection)".
+        const isFirstStyledLine = firstLetterStyled && firstLetterChars == null;
+        if (isFirstStyledLine) {
+          const sel = selectFirstLetter(line.chars);
+          firstLetterStartIdx = sel.start;
+          firstLetterEndIdx = sel.end;
+          firstLetterChars = [];
+        }
         const rasterGlyphs = [];
         let utf16Idx = 0;
         for (let ci = 0; ci < line.chars.length; ci++) {
@@ -385,109 +453,38 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
           const cp = cRec.ch.codePointAt(0);
           const nextCh = ci + 1 < line.chars.length ? line.chars[ci + 1].ch : '';
           const nextCp = nextCh ? nextCh.codePointAt(0) : 0;
-          const isFirstLetter = firstLetterStyled && !firstCharSeen && /\S/.test(cRec.ch);
-          if (isFirstLetter) firstCharSeen = true;
-          if ((cp != null && needsRaster(cp, nextCp)) || isFirstLetter) {
-            // DM-823: for floated ::first-letter drop caps (initial-letter:
-            // N M), `Range.getBoundingClientRect()` returns the line-box of
-            // the first character in the NORMAL flow — but Chrome paints the
-            // float at a much larger box (~N × parent-line-height tall). The
-            // bitmap captured at the Range rect gets vertically truncated,
-            // visible as a clipped W / B / T drop cap in the rendered SVG.
-            // Expand the rasterRect downward by the difference between
-            // (N × parent-line-height) and the natural-flow Range height so
-            // the screenshot includes the full painted glyph. Width stays
-            // unchanged — Chrome's drop cap matches the natural-flow
-            // first-char width.
-            let rasterTop = cRec.top - vp.y;
-            let rasterHeight = cRec.bottom - cRec.top;
-            let rasterLeft = cRec.left - vp.x;
-            let rasterWidth = cRec.right - cRec.left;
-            if (isFirstLetter) {
-              const flFloat = flStyle.float || flStyle.cssFloat || '';
-              const padT = parseFloat(flStyle.paddingTop) || 0;
-              const padR = parseFloat(flStyle.paddingRight) || 0;
-              const padB = parseFloat(flStyle.paddingBottom) || 0;
-              const padL = parseFloat(flStyle.paddingLeft) || 0;
-              if (flFloat === 'left' || flFloat === 'right') {
-                // DM-931: floated ::first-letter (drop cap) is positioned
-                // relative to the PARAGRAPH's content area, not the first
-                // character's line-box position. `Range.getBoundingClientRect`
-                // on the first character returns the GLYPH bounds at its
-                // line-1 position — which doesn't match where Chrome paints
-                // the float when `initial-letter` is set (the cap-top aligns
-                // to line-1's cap-top, shifting the painted box DOWN from
-                // the Range top by roughly the cap-height-vs-ascender delta).
-                // Compute the raster rect from the pseudo's computed
-                // padding-box (width/height + padding) + the paragraph's
-                // border-box origin + paragraph padding/border + pseudo
-                // margins.
-                const pBox = el.getBoundingClientRect();
-                const pPadT = parseFloat(cs.paddingTop) || 0;
-                const pPadL = parseFloat(cs.paddingLeft) || 0;
-                const pPadR = parseFloat(cs.paddingRight) || 0;
-                const pBorT = parseFloat(cs.borderTopWidth) || 0;
-                const pBorL = parseFloat(cs.borderLeftWidth) || 0;
-                const pBorR = parseFloat(cs.borderRightWidth) || 0;
-                const flMarT = parseFloat(flStyle.marginTop) || 0;
-                const flMarL = parseFloat(flStyle.marginLeft) || 0;
-                const flMarR = parseFloat(flStyle.marginRight) || 0;
-                const w = parseFloat(flStyle.width);
-                const h = parseFloat(flStyle.height);
-                const padW = (Number.isFinite(w) && w > 0 ? w : rasterWidth) + padL + padR;
-                const padH = (Number.isFinite(h) && h > 0 ? h : rasterHeight) + padT + padB;
-                rasterTop = pBox.y + pBorT + pPadT + flMarT - vp.y;
-                if (flFloat === 'left') {
-                  rasterLeft = pBox.x + pBorL + pPadL + flMarL - vp.x;
-                } else {
-                  rasterLeft = pBox.x + pBox.width - pBorR - pPadR - flMarR - padW - vp.x;
-                }
-                rasterWidth = padW;
-                rasterHeight = padH;
-              } else {
-                // Non-floated ::first-letter (raised cap via font-size only,
-                // or `display: inline`). The Range rect tracks the painted
-                // glyph correctly; just expand the rect by the pseudo's
-                // padding so a `background-color` / gradient behind the
-                // glyph isn't truncated. Apply the older `initial-letter`
-                // height fallback for safety against under-tall Range
-                // measurements on float-less drop caps.
-                const ilRaw = flStyle.initialLetter || flStyle.webkitInitialLetter || '';
-                const ilN = parseFloat(ilRaw);
-                const parentLineHeight = parseFloat(cs.lineHeight);
-                if (Number.isFinite(ilN) && ilN > 1 && Number.isFinite(parentLineHeight) && parentLineHeight > 0) {
-                  const expectedHeight = ilN * parentLineHeight;
-                  if (expectedHeight > rasterHeight) rasterHeight = expectedHeight;
-                }
-                if (padT > 0 || padR > 0 || padB > 0 || padL > 0) {
-                  rasterTop -= padT;
-                  rasterLeft -= padL;
-                  rasterWidth += padL + padR;
-                  rasterHeight += padT + padB;
-                }
-              }
-            }
+          const isFirstLetterChar = isFirstStyledLine && ci >= firstLetterStartIdx && ci < firstLetterEndIdx;
+          if (isFirstLetterChar) {
+            // DM-989: capture the char's per-char rect for later segment
+            // build, AND emit a zero-rect rasterGlyph entry purely to
+            // suppress the body-text glyph at this charIndex (so the body
+            // pipeline doesn't double-paint underneath the styled segment).
+            // `capture/emoji.ts::rasterizeBitmapGlyphs` skips entries with
+            // zero-area rects so no screenshot is taken.
+            firstLetterChars.push(cRec);
+            rasterGlyphs.push({
+              charIndex: utf16Idx,
+              rect: { x: 0, y: 0, width: 0, height: 0 },
+              suppressGlyph: true,
+            });
+          } else if (cp != null && needsRaster(cp, nextCp)) {
+            // Color-bitmap codepoint (emoji etc.) — record the painted rect
+            // so post-capture rasterization can fill in the dataUri and the
+            // renderer can stamp an `<image>` over the path-mode emit.
             rasterGlyphs.push({
               charIndex: utf16Idx,
               rect: {
-                x: rasterLeft,
-                y: rasterTop,
-                width: rasterWidth,
-                height: rasterHeight,
+                x: cRec.left - vp.x,
+                y: cRec.top - vp.y,
+                width: cRec.right - cRec.left,
+                height: cRec.bottom - cRec.top,
               },
-              // Suppress the underlying glyph emit. Two cases:
-              //   • ::first-letter drop caps: the rasterized big letter is
-              //     the ONLY paint; leaving the body-size path glyph would
-              //     sit behind the raster and bleed through (DM-439).
-              //   • Emoji / color-bitmap codepoints (DM-905): the path
-              //     pipeline emits nothing for fontkit's zero-contour
-              //     emoji glyph, BUT the embedded-font default path
-              //     (DM-839) emits the codepoint as a PUA `<text>` against
-              //     the system fallback subset font, where it lands as
-              //     the font's .notdef tofu — peeking out past the
-              //     rasterGlyph overlay's edges. Suppressing the glyph
-              //     replaces the codepoint with ZWSP before the emit so
-              //     only the raster image paints.
+              // DM-905: the embedded-font default path emits the codepoint
+              // as a PUA `<text>` against the system fallback subset font
+              // where it lands as the font's .notdef tofu — peeking out
+              // past the rasterGlyph overlay's edges. Suppressing the glyph
+              // replaces the codepoint with ZWSP before the emit so only
+              // the raster image paints.
               suppressGlyph: true,
             });
           }
@@ -509,10 +506,191 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster 
       }
     }
 
-    // ::first-line overrides (DM-294).
-    if (textSegments.length > 0) {
+    // DM-989: emit the captured ::first-letter chars as their own styled
+    // TextSegment with pseudo font / color / pseudoBox (background / border
+    // / border-radius). Inserted at index 0 so the renderer paints it
+    // first; the body segment(s) still own the same UTF-16 char indices
+    // but their glyphs are suppressed via the zero-rect rasterGlyph
+    // entries pushed above. Replaces the prior page.screenshot raster
+    // overlay (DM-439, DM-823, DM-931).
+    if (firstLetterChars != null && firstLetterChars.length > 0) {
+      const styledText = firstLetterChars.map((c) => c.ch).join('');
+      const minL = Math.min(...firstLetterChars.map((c) => c.left));
+      const maxR = Math.max(...firstLetterChars.map((c) => c.right));
+      const minT = Math.min(...firstLetterChars.map((c) => c.top));
+      const maxB = Math.max(...firstLetterChars.map((c) => c.bottom));
+      // Per-char xOffsets in viewport-relative coords (one entry per UTF-16
+      // unit, matching the convention in the body segments).
+      const xoff = [];
+      for (const c of firstLetterChars) {
+        for (let k = 0; k < c.ch.length; k++) xoff.push(c.left - vp.x);
+      }
+      // Measure pseudo font ascent so the renderer baselines the glyph
+      // inside the styled segment correctly (`fontBoundingBoxAscent`
+      // mirrors the canvas measurement the regular-text path uses).
+      const flMetrics = measureFontMetrics(flStyle);
+      // DM-989: `initial-letter: N [M]` cap-height equalisation. Chrome
+      // internally scales the first-letter glyph to a larger font-size
+      // than `getComputedStyle().fontSize` reports — per Blink's
+      // `initial_letter_utils.cc::ComputeInitialLetterBoxBlockOffset`, the
+      // glyph is sized so its cap-height equals N × the parent's
+      // line-height. The naive theoretical formula `effectiveFs =
+      // (N × parentLineHeight) / capHeightRatio(font)` overshoots Chrome
+      // empirically (gave 202 px for drop-5 where Chrome paints ~171 px);
+      // probably Chrome's internal cap-height target uses (N-1)*line-height
+      // + body-line-height-leading or similar nuance buried in the layout
+      // code. Side-step the formula and derive `effectiveFs` from Chrome's
+      // *computed pseudo width* — `flStyle.width` is the content-box width
+      // Chrome already sized the pseudo to, which equals the glyph's
+      // painted extent. Probe the chars' natural width at 100 px via
+      // canvas, scale: `effectiveFs = 100 × paintedGlyphWidth /
+      // naturalWidthAt100`. Same approach for `effectiveAscent` — read
+      // `fontBoundingBoxAscent` from the probe-rendered font and scale.
+      let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
+      let effectiveAscent = flMetrics.ascent;
+      let styledSegY = minT - vp.y;
+      if (hasInitialLetter) {
+        const probeCanvas = document.createElement('canvas');
+        const probeCtx = probeCanvas.getContext('2d');
+        probeCtx.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
+        const probeM = probeCtx.measureText(styledText);
+        const naturalWidthAt100 = probeM.width;
+        const ascentRatio = probeM.fontBoundingBoxAscent / 100;
+        const padLForGlyph = parseFloat(flStyle.paddingLeft) || 0;
+        const padRForGlyph = parseFloat(flStyle.paddingRight) || 0;
+        const pseudoComputedW = parseFloat(flStyle.width);
+        if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
+          // `flStyle.width` is the pseudo's content-box width Chrome sized
+          // the float to. Subtract padding to get the glyph's painted
+          // extent (`paddingRight` for `:left`-float, `paddingLeft` for
+          // `:right`-float — both sides for safety).
+          void padLForGlyph; void padRForGlyph;
+          const paintedGlyphW = pseudoComputedW;
+          effectiveFs = 100 * paintedGlyphW / naturalWidthAt100;
+          effectiveAscent = effectiveFs * ascentRatio;
+          // Position the segment so the rendered baseline matches Chrome's
+          // painted baseline. Chrome paints the first-letter with its
+          // cap-top aligned to line-1's cap-top — i.e. the cap-top sits
+          // at `minT` (Range.top of the painted glyph as captured here).
+          // Use the H-probe cap-height ratio to derive baseline from
+          // cap-top, then seg.y from baseline - effectiveAscent so the
+          // renderer's `seg.y + segAscent = baseline` arithmetic
+          // reconstructs the right paint position.
+          const hM = probeCtx.measureText('H');
+          const capHeightRatio = hM.actualBoundingBoxAscent / 100;
+          if (capHeightRatio > 0) {
+            const effectiveCapHeight = effectiveFs * capHeightRatio;
+            const baseline = minT + effectiveCapHeight;
+            styledSegY = baseline - effectiveAscent - vp.y;
+          }
+        }
+      }
+      // Compute the pseudo's painted padding-box. Reuses the rect-math
+      // that the prior raster overlay used (DM-823 padding expansion for
+      // non-floated; DM-931 paragraph-anchored origin for floats / drop
+      // caps with `initial-letter: N`). The styled segment paints its
+      // text in front; the renderer paints the pseudoBox (background +
+      // border + border-radius) behind.
+      const flFloat = flStyle.float || flStyle.cssFloat || '';
+      const padT = parseFloat(flStyle.paddingTop) || 0;
+      const padR = parseFloat(flStyle.paddingRight) || 0;
+      const padB = parseFloat(flStyle.paddingBottom) || 0;
+      const padL = parseFloat(flStyle.paddingLeft) || 0;
+      let pboxL, pboxT, pboxW, pboxH;
+      if (flFloat === 'left' || flFloat === 'right') {
+        const pBox = el.getBoundingClientRect();
+        const pPadT = parseFloat(cs.paddingTop) || 0;
+        const pPadL = parseFloat(cs.paddingLeft) || 0;
+        const pPadR = parseFloat(cs.paddingRight) || 0;
+        const pBorT = parseFloat(cs.borderTopWidth) || 0;
+        const pBorL = parseFloat(cs.borderLeftWidth) || 0;
+        const pBorR = parseFloat(cs.borderRightWidth) || 0;
+        const flMarT = parseFloat(flStyle.marginTop) || 0;
+        const flMarL = parseFloat(flStyle.marginLeft) || 0;
+        const flMarR = parseFloat(flStyle.marginRight) || 0;
+        const cw = parseFloat(flStyle.width);
+        const ch_ = parseFloat(flStyle.height);
+        pboxW = (Number.isFinite(cw) && cw > 0 ? cw : (maxR - minL)) + padL + padR;
+        pboxH = (Number.isFinite(ch_) && ch_ > 0 ? ch_ : (maxB - minT)) + padT + padB;
+        pboxT = pBox.y + pBorT + pPadT + flMarT - vp.y;
+        pboxL = (flFloat === 'left')
+          ? pBox.x + pBorL + pPadL + flMarL - vp.x
+          : pBox.x + pBox.width - pBorR - pPadR - flMarR - pboxW - vp.x;
+      } else {
+        pboxL = minL - vp.x - padL;
+        pboxT = minT - vp.y - padT;
+        pboxW = (maxR - minL) + padL + padR;
+        pboxH = (maxB - minT) + padT + padB;
+      }
+      // Borders — per-side widths + colors, with uniform shorthand when
+      // all four sides match (same convention as pseudo-content.ts).
+      const bwT = parseFloat(flStyle.borderTopWidth) || 0;
+      const bwR_ = parseFloat(flStyle.borderRightWidth) || 0;
+      const bwB = parseFloat(flStyle.borderBottomWidth) || 0;
+      const bwL = parseFloat(flStyle.borderLeftWidth) || 0;
+      const uniformBw = bwT > 0 && bwT === bwR_ && bwT === bwB && bwT === bwL;
+      const bgRaw = flStyle.backgroundColor;
+      const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
+      const bgImgRaw = flStyle.backgroundImage;
+      const hasBgImg = bgImgRaw && bgImgRaw !== '' && bgImgRaw !== 'none';
+      const brad = parseFloat(flStyle.borderRadius) || 0;
+      const hasAnyBox = hasBg || hasBgImg || brad > 0 || bwT > 0 || bwR_ > 0 || bwB > 0 || bwL > 0;
+      const pseudoBox = hasAnyBox ? {
+        x: pboxL, y: pboxT, width: pboxW, height: pboxH,
+        backgroundColor: hasBg ? normColor(bgRaw) : undefined,
+        backgroundImage: hasBgImg ? bgImgRaw : undefined,
+        borderRadius: brad > 0 ? brad : undefined,
+        borderWidth: uniformBw ? bwT : undefined,
+        borderColor: uniformBw ? normColor(flStyle.borderTopColor) : undefined,
+        borL: bwL, borR: bwR_, borT: bwT, borB: bwB,
+        borderTopColor: !uniformBw && bwT > 0 ? normColor(flStyle.borderTopColor) : undefined,
+        borderRightColor: !uniformBw && bwR_ > 0 ? normColor(flStyle.borderRightColor) : undefined,
+        borderBottomColor: !uniformBw && bwB > 0 ? normColor(flStyle.borderBottomColor) : undefined,
+        borderLeftColor: !uniformBw && bwL > 0 ? normColor(flStyle.borderLeftColor) : undefined,
+      } : undefined;
+      // `text-shadow` carries from pseudo onto the styled segment when the
+      // pseudo's value differs from the host's; the renderer reads
+      // `seg.textShadow` and emits the matching SVG `<filter>` or stacked
+      // `<text>` siblings (whichever path the regular text renderer uses).
+      const flTextShadow = (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow)
+        ? flStyle.textShadow
+        : undefined;
+      const styledSeg = {
+        text: styledText,
+        x: minL - vp.x,
+        y: styledSegY,
+        width: maxR - minL,
+        height: maxB - minT,
+        xOffsets: xoff,
+        color: normColor(flStyle.color),
+        fontFamily: flStyle.fontFamily,
+        fontSize: effectiveFs,
+        fontWeight: flStyle.fontWeight !== cs.fontWeight ? flStyle.fontWeight : undefined,
+        fontStyle: flStyle.fontStyle !== cs.fontStyle ? flStyle.fontStyle : undefined,
+        fontVariant: flStyle.fontVariant !== cs.fontVariant ? flStyle.fontVariant : undefined,
+        fontAscent: effectiveAscent,
+        textShadow: flTextShadow,
+        pseudoBox,
+      };
+      textSegments.unshift(styledSeg);
+      didEmitStyledFirstLetter = true;
+      // Update the bounds reported back to captureInner so the host
+      // element's textLeft/Top/Width/Height envelope includes the styled
+      // run (drop-cap floats often paint outside the host's text envelope).
+      minLeft = Math.min(minLeft, minL);
+      minTop = Math.min(minTop, minT);
+      maxRight = Math.max(maxRight, maxR);
+      maxBottom = Math.max(maxBottom, maxB);
+    }
+
+    // ::first-line overrides (DM-294). When DM-989's styled ::first-letter
+    // segment was inserted at index 0, skip past it so the first-line
+    // overrides land on the first BODY line (textSegments[1]) instead of
+    // clobbering the styled first-letter's own font/color overrides.
+    const flLineTargetIdx = didEmitStyledFirstLetter ? 1 : 0;
+    if (textSegments.length > flLineTargetIdx) {
       const flLineStyle = window.getComputedStyle(el, '::first-line');
-      const firstSeg = textSegments[0];
+      const firstSeg = textSegments[flLineTargetIdx];
       if (flLineStyle.fontVariant !== '' && flLineStyle.fontVariant !== cs.fontVariant) {
         firstSeg.fontVariant = flLineStyle.fontVariant;
       }

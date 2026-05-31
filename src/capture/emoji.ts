@@ -150,6 +150,12 @@ export async function rasterizeBitmapGlyphs(
           }
           if (seg.rasterGlyphs != null) {
             for (const g of seg.rasterGlyphs) {
+              // DM-989: ::first-letter chars get a zero-rect rasterGlyph
+              // entry whose only role is to suppress the body-text glyph at
+              // that index (the styled-first-letter segment paints in front).
+              // Skip the screenshot — there's nothing to capture, and
+              // Playwright rejects zero-area clips anyway.
+              if (g.rect.width === 0 && g.rect.height === 0) continue;
               const cp = seg.text.codePointAt(g.charIndex);
               // DM-335: try Apple Color Emoji's sbix table first. Returns
               // the high-DPI bitmap Chrome itself paints from CoreText —

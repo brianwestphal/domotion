@@ -60,6 +60,15 @@ export interface TextSegment {
    */
   fontAscent?: number;
   /**
+   * Override `text-shadow` for this segment (DM-989: a `::first-letter`
+   * pseudo whose shadow differs from the host element's). The element-level
+   * shadow renderer in `element-tree-to-svg.ts` (SK-1113) handles the
+   * default case by stacking a shifted+recolored copy of the whole text
+   * tree behind the main paint; for the styled-first-letter segment, the
+   * styled-segment renderer applies this override JUST to that one segment.
+   */
+  textShadow?: string;
+  /**
    * Viewport-relative rectangle (CSS pixels) to screenshot when the WHOLE
    * segment is raster-worthy — used for ::before / ::after pseudos whose
    * entire text is a color-bitmap run. Populated by CAPTURE_SCRIPT;

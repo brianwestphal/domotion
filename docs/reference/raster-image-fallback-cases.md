@@ -28,18 +28,6 @@ Emit: `src/text-renderer.ts::rasterGlyphOverlays` stamps one `<image>` per entry
 
 Doc: [15-color-emoji-rendering.md](../15-color-emoji-rendering.md).
 
-### G2. `::first-letter` drop caps with author-styled font-size
-
-Trigger: `getComputedStyle(el, '::first-letter').fontSize` differs from the host element's `font-size` by more than 0.5 px. The capture script flags the first visible non-whitespace character as a `rasterGlyph` with `suppressGlyph: true`.
-
-Why: the pseudo-element's box can carry padding, border-radius, background-image (gradient pill), `initial-letter` cap-top alignment, and floated positioning that the path pipeline doesn't replay. Rastering the painted glyph + its background as one `<image>` lets Chromium do the layout and we just stamp the pixels.
-
-Capture: `src/capture/script/walker/text-segments.ts` computes the raster rect from the pseudo's box model — for floated pseudos (`initial-letter: N`) the rect comes from the paragraph's `getBoundingClientRect()` + paragraph padding/border + pseudo margins + padding-box (DM-931), since the Range API returns the glyph's natural-flow bounds which don't match the float's actual paint position. Non-floated pseudos use the Range rect with padding expansion (DM-823).
-
-Emit: same `rasterGlyphOverlays` path as G1.
-
-Doc: [38-pseudo-element-paint.md](../38-pseudo-element-paint.md) (general pseudo-element paint), DM-439 (drop-cap raster decision), DM-931 (floated-position fix).
-
 ---
 
 ## Element-level fallbacks

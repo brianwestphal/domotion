@@ -76,7 +76,7 @@ export const captureScript =
     isCustomCounterStyle,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
-  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster });
+  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster, normColor });
   const { injectPseudoSegments } = createPseudoInjectHandler();
 
   const capture = (el) => {
