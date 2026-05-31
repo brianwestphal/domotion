@@ -42,9 +42,20 @@
 // `.spin input` with `text-align: center` left "3" against the left
 // padding instead of centered between the +/- buttons.
 //
-// Only `<input>` runs the inputXOffsets probe — `<textarea>` text shaping
-// goes through the elementRaster path on the captureInner side (see
-// SK-1108 / DM-625 follow-ups).
+// DM-991: `<textarea>` text shaping now ALSO probes per-character Range
+// rects, but on a hidden `<div>` mirror sized + styled like the textarea's
+// content box (white-space: pre-wrap to honour author newlines and let
+// the browser do its soft-wrap). The probe's wrap points and per-char x
+// positions match Chrome's painted positions in the real textarea because
+// both run the same inline-layout algorithm given the same constraints.
+// Per-line textSegments[] are produced and returned alongside the single-
+// line top-level locals; the dispatcher in captureInner spreads them.
+//
+// The textarea-specific probe path supersedes the earlier elementRaster
+// fallback (which screenshotted the painted content box because
+// reimplementing Chrome's word-wrap from scratch was deemed too brittle —
+// turns out the browser's own layout, prompted via the probe div, is the
+// correct source of truth for the wrap positions, same as for `<input>`).
 
 const SKIP_VALUE_TYPES = new Set([
   'range', 'color', 'checkbox', 'radio',
@@ -130,6 +141,13 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
       textTop -= (fontH - textHeight) / 2;
     }
 
+    // DM-991: textareas produce per-line textSegments via a soft-wrap probe
+    // (see end-of-function for the probe), so the single-line top-level
+    // metrics (textLeft / textTop / textWidth / textHeight) only describe
+    // the FIRST line. Other text-handling fields still mirror the input
+    // path; inputXOffsets stays `undefined` for textareas (per-line
+    // xOffsets live inside `textSegments`).
+    let textSegments;
     let inputXOffsets;
     if (text.length > 0 && tag === 'input') {
       const probe = document.createElement('span');
@@ -185,6 +203,126 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
       document.body.removeChild(probe);
     }
 
+    // DM-991: textarea per-line probe. Mirror the textarea's content-box
+    // width + font + wrap properties in a hidden `<div>`, set the same
+    // text, then read per-character Range rects. The probe wraps at the
+    // same chars Chrome wraps the real textarea at because both run the
+    // same inline-layout algorithm under the same constraints.
+    //
+    // The probe is offscreen so it doesn't affect layout of the rest of
+    // the page, but it must sit at a non-zero device coordinate (otherwise
+    // some browsers short-circuit Range.getBoundingClientRect for
+    // visually-clipped subtrees). `left: 0; top: -100000px` keeps the
+    // probe at width-honouring layout while keeping it visually offscreen.
+    if (text.length > 0 && tag === 'textarea') {
+      const contentBoxW = rect.width - bl - br - pl - pr;
+      const contentBoxH = rect.height - bt - bb - pt - pb;
+      const probe = document.createElement('div');
+      probe.style.position = 'absolute';
+      probe.style.left = '0';
+      probe.style.top = '-100000px';
+      probe.style.visibility = 'hidden';
+      probe.style.boxSizing = 'content-box';
+      probe.style.width = contentBoxW + 'px';
+      // No height constraint — let the probe grow to fit; Chrome's textarea
+      // scrolls if the content exceeds its height, but the painted positions
+      // for the visible chars match what an unscrolled tall box would
+      // produce (per-line positions are independent of scroll).
+      probe.style.padding = '0';
+      probe.style.margin = '0';
+      probe.style.border = '0';
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.style.fontStyle = cs.fontStyle;
+      probe.style.fontVariationSettings = cs.fontVariationSettings;
+      probe.style.fontFeatureSettings = cs.fontFeatureSettings;
+      probe.style.fontKerning = cs.fontKerning;
+      probe.style.letterSpacing = cs.letterSpacing;
+      probe.style.wordSpacing = cs.wordSpacing;
+      probe.style.lineHeight = cs.lineHeight;
+      probe.style.tabSize = cs.tabSize;
+      probe.style.textAlign = cs.textAlign;
+      probe.style.direction = cs.direction;
+      // Textareas default to `white-space: pre-wrap` so newlines in `.value`
+      // become line breaks AND long lines soft-wrap on word boundaries.
+      // Use `white-space: pre-wrap` explicitly instead of inheriting the
+      // textarea's computed value — the textarea's UA stylesheet pins this
+      // and we want the probe to match regardless of any page-author
+      // override that didn't actually apply.
+      probe.style.whiteSpace = 'pre-wrap';
+      probe.style.wordWrap = cs.wordWrap || 'normal';
+      probe.style.overflowWrap = cs.overflowWrap || 'normal';
+      probe.style.wordBreak = cs.wordBreak || 'normal';
+      // hyphens — only matters when soft-hyphen / hyphens: auto are used;
+      // mirror to match the real textarea's wrapping.
+      probe.style.hyphens = cs.hyphens || 'manual';
+      probe.textContent = text;
+      document.body.appendChild(probe);
+      const probeNode = probe.firstChild;
+      if (probeNode != null) {
+        const probeBox = probe.getBoundingClientRect();
+        const probeOriginX = probeBox.left;
+        const probeOriginY = probeBox.top;
+        // Group per-character rects into visual lines by their Y top.
+        // Each line becomes a textSegment with its own xOffsets[] for the
+        // chars in that line. Newline chars (\n) produce zero-width rects
+        // at the prior line's end; skip them (they're not painted).
+        const lines = [];
+        let cur = null;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          // Skip the newline itself — it's a hard break, not a painted
+          // glyph. The next visible char starts a new line via cur === null.
+          if (ch === '\n') {
+            if (cur != null) { lines.push(cur); cur = null; }
+            continue;
+          }
+          const code = text.charCodeAt(i);
+          const isHigh = code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length;
+          const step = isHigh ? 2 : 1;
+          const rng = document.createRange();
+          rng.setStart(probeNode, i);
+          rng.setEnd(probeNode, i + step);
+          const cr = rng.getBoundingClientRect();
+          // Zero-width / zero-height rect → invisible (e.g. a trailing
+          // space at a wrap point). Skip; the next visible char tells us
+          // where the new line starts.
+          if (cr.width === 0 && cr.height === 0) { i += step - 1; continue; }
+          const charLeft = cr.left - probeOriginX;
+          const charTop = cr.top - probeOriginY;
+          const charRight = cr.right - probeOriginX;
+          const charBottom = cr.bottom - probeOriginY;
+          // New line if we haven't started one, or the Y jumped down.
+          if (cur == null || charTop - cur.top > Math.max(1, (cur.bottom - cur.top) * 0.5)) {
+            if (cur != null) lines.push(cur);
+            cur = { text: '', xOffsets: [], top: charTop, bottom: charBottom, left: charLeft, right: charRight };
+          }
+          for (let k = 0; k < step; k++) {
+            cur.text += text[i + k];
+            cur.xOffsets.push(textLeft + charLeft);
+          }
+          if (charRight > cur.right) cur.right = charRight;
+          if (charBottom > cur.bottom) cur.bottom = charBottom;
+          i += step - 1;
+        }
+        if (cur != null) lines.push(cur);
+        // Emit textSegments — one per visual line. y is viewport-relative
+        // (textTop + offset within the probe).
+        textSegments = lines.map(ln => ({
+          text: ln.text,
+          x: textLeft + ln.left,
+          y: textTop + ln.top,
+          width: ln.right - ln.left,
+          height: ln.bottom - ln.top,
+          xOffsets: ln.xOffsets,
+        }));
+      }
+      document.body.removeChild(probe);
+      // Suppress the unused single-char-mode contentBoxH warning.
+      void contentBoxH;
+    }
+
     // SK-1099 + SK-1097 / SK-1100: when the captured text came from a
     // placeholder attribute, the renderer paints it in `::placeholder`
     // color (default muted gray) with optionally-overridden font-style /
@@ -210,6 +348,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
       fontAscent,
       fontDescent,
       inputXOffsets,
+      textSegments,
       isPlaceholderCapture,
       placeholderColor,
       placeholderFontStyle,

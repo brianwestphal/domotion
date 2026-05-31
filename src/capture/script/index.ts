@@ -283,6 +283,10 @@ export const captureScript =
         fontAscent = _iv.fontAscent;
         fontDescent = _iv.fontDescent;
         inputXOffsets = _iv.inputXOffsets;
+        // DM-991: textareas return per-line textSegments[] alongside the
+        // single-line top-level locals; the multi-line text path consumes
+        // them just like text-segments.ts emits them for regular text.
+        if (_iv.textSegments != null) for (const seg of _iv.textSegments) textSegments.push(seg);
         isPlaceholderCapture = _iv.isPlaceholderCapture;
         placeholderColor = _iv.placeholderColor;
         placeholderFontStyle = _iv.placeholderFontStyle;

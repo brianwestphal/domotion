@@ -1262,12 +1262,25 @@ export function renderInputText(opts: RenderTextOpts): string {
   const textFontWeight = el.isPlaceholderText && el.placeholderFontWeight != null ? el.placeholderFontWeight : fontWeight;
   // Per-char xOffsets captured via DOM probe (SK-1234) — anchors each glyph
   // at the position Chromium's HarfBuzz shaping would paint. Falls back to
-  // fontkit native advances when the probe wasn't run (e.g. for textarea,
-  // which still uses the SK-1108 element raster path).
+  // fontkit native advances when the probe wasn't run.
   const xOffsetsRel = el.inputXOffsets != null
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
   const inputFeatures = parseFontFeatureSettings(el.styles.fontFeatureSettings);
   const inputAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
+  // DM-991: textareas carry per-LINE textSegments captured via the wrap
+  // probe in `walker/input-value.ts`. Iterate them so each visual line
+  // becomes its own `<text>` element at its own y, matching Chrome's
+  // soft-wrap layout. Single-line `<input>` skips this branch (textSegments
+  // is undefined for inputs — they only set `inputXOffsets`).
+  if (el.textSegments != null && el.textSegments.length > 0) {
+    const segParts: string[] = [];
+    for (const seg of el.textSegments) {
+      const segXOffsetsRel = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
+      const segResult = renderTextAsPath(seg.text, seg.x, seg.y, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, segXOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder);
+      if (segResult != null) segParts.push(segResult);
+    }
+    if (segParts.length > 0) return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`);
+  }
   const result = renderTextAsPath(el.text, textX, tt, fontSize, fontFamily, textFontWeight, textColor, undefined, undefined, xOffsetsRel, textFontStyle, el.fontAscent, inputFeatures, el.styles.lang, inputAxes, _ts.width, _ts.color, _ts.paintOrder);
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or

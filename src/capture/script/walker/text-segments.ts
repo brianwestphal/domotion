@@ -87,7 +87,17 @@
 // the host doesn't qualify.
 
 export const computeElementRaster = (el, cs, tag, rect, vp) => {
-  const hasTextareaValue = tag === 'textarea' && el.value;
+  // DM-991: `<textarea>` content no longer rasters — the input-value
+  // walker now probes per-line xOffsets for textareas (same probe
+  // technique it uses for `<input>`, with a `<div>` mirror sized to the
+  // textarea's content box so Chrome's soft-wrap algorithm produces the
+  // same wrap points). Suppress the textarea trigger here entirely; the
+  // function now only triggers for `writing-mode != horizontal-tb` (E1).
+  const hasTextareaValue = false;
+  // Used to be: `tag === 'textarea' && el.value`. Kept the local so the
+  // condition below reads unchanged; DM-990 will drop the variable when
+  // the vertical-text path replaces the writing-mode raster.
+  void tag;
   const hasNonHorizontalText = cs.writingMode
     && cs.writingMode !== 'horizontal-tb'
     && (el.textContent || '').trim() !== '';

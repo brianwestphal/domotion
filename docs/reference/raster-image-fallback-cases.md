@@ -56,18 +56,6 @@ Emit: `src/render/element-tree-to-svg.ts:2638` emits the `<image>` with a dedica
 
 Doc: [02-writing-mode.md](../02-writing-mode.md).
 
-### E2. `<textarea>` with non-empty value
-
-Trigger: `tag === 'textarea' && el.value !== ''`.
-
-Why: Chrome's `<textarea>` word-wrap is sensitive to per-glyph kerning, `white-space`, `word-break`, soft-hyphen, `hyphens: auto`, etc. Even a tiny mismatch between fontkit's widths and Chromium's painted widths produces a different wrap point — and the wrap cascades through every following line. Screenshotting the painted textarea content gives pixel-perfect Chrome word-wrap for free.
-
-Capture: same `computeElementRaster()` path as E1. Scoped to textareas with a non-empty value so short / empty ones still go through the cleaner path pipeline (SK-1108).
-
-Emit: same `<image>` emission as E1.
-
-Source: `src/capture/script/walker/text-segments.ts:90`. Ticket: SK-1108.
-
 ### E4. Replaced elements — `<iframe>` / `<canvas>` / `<video>` / `<object>` / `<embed>` and custom elements with open shadow DOM
 
 Trigger: tag is one of those five, OR a custom element (hyphenated tag with `shadowRoot != null`).
