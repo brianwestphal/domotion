@@ -15,6 +15,7 @@ import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { clearEmbeddedFonts, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
+import { refineInitialLetterPositions } from "./initial-letter-probe.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 
@@ -881,6 +882,7 @@ export async function captureElementTreeWithWarnings(
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);
+  await refineInitialLetterPositions(page, typed.tree, viewport);
   return { tree: typed.tree, warnings };
 }
 

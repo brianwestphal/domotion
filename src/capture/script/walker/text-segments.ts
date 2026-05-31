@@ -655,6 +655,53 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       const flTextShadow = (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow)
         ? flStyle.textShadow
         : undefined;
+      // DM-994 capture-time pixel probe for `initial-letter` cases. The
+      // CSS-derived placement (`styledSegY` above) is within ±12 px of
+      // Chrome's painted cap-top on the 24-deep-initial-letter fixtures
+      // — the residual diff is real fragment-state from Blink's inline
+      // layout that doesn't surface in `getComputedStyle`. Tag the
+      // styled seg with a probe rect so the Node-side post-pass can
+      // pixel-walk Chrome's screenshot to find the actual painted ink
+      // top and refine `seg.y` accordingly. Cap-height + ascent travel
+      // alongside so the post-pass can solve `seg.y = chromeInkTop −
+      // ascent + capHeight` without re-deriving font metrics.
+      let initialLetterProbe;
+      if (hasInitialLetter && effectiveFs != null) {
+        const capHeightForProbe = effectiveFs * 0.6929; // fallback ratio; overridden below when we have ratios
+        // Compute the actual cap-height ratio inline so the probe carries
+        // the value matching what we used to derive styledSegY above.
+        const _probeCanvas2 = document.createElement('canvas');
+        const _probeCtx2 = _probeCanvas2.getContext('2d');
+        _probeCtx2.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
+        const _hMetrics2 = _probeCtx2.measureText('H');
+        const _capRatio = _hMetrics2.actualBoundingBoxAscent / 100;
+        const realCapHeight = _capRatio > 0 ? effectiveFs * _capRatio : capHeightForProbe;
+        // Probe rect: cover the full Range area plus generous margin for
+        // raise cases (cap may overflow well above Range.top) and sink
+        // cases (descenders may extend below Range.bottom). The Node
+        // post-pass thresholds at > 8 dark pixels per row, which filters
+        // out section-header text and body-text wrapping that the rect
+        // may also catch.
+        // Probe rect margins scale with effectiveFs so smaller drop caps
+        // (clustered together like the `T A T` multi-row) don't catch
+        // neighboring drop caps' ink — only enough margin to cover the
+        // raise overflow above and the sink overflow below for this
+        // particular drop cap. Large drop caps (W at 185 px) need more
+        // upward margin to catch raised caps; small ones (T multi at
+        // 56 px) need tight bounds.
+        const upMargin = Math.min(100, Math.max(15, effectiveFs * 0.4));
+        const downMargin = Math.min(120, Math.max(20, effectiveFs * 0.5));
+        initialLetterProbe = {
+          rect: {
+            x: minL - vp.x - 5,
+            y: minT - vp.y - upMargin,
+            width: (maxR - minL) + 10,
+            height: (maxB - minT) + upMargin + downMargin,
+          },
+          capHeight: realCapHeight,
+          ascent: effectiveAscent,
+        };
+      }
       const styledSeg = {
         text: styledText,
         x: minL - vp.x,
@@ -671,6 +718,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         fontAscent: effectiveAscent,
         textShadow: flTextShadow,
         pseudoBox,
+        _initialLetterProbe: initialLetterProbe,
       };
       textSegments.unshift(styledSeg);
       didEmitStyledFirstLetter = true;
