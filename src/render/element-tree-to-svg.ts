@@ -2722,6 +2722,52 @@ export function elementTreeToSvgInner(
         }
         svgParts.push(`${indent}${body}`);
       }
+      // DM-993: per-segment text-shadow (DM-989 follow-up). When a styled
+      // segment carries its own `seg.textShadow` (the DM-989 ::first-letter
+      // pipeline captures this from the pseudo's computed text-shadow when
+      // it differs from the host's), emit a shadow copy of JUST that
+      // segment. Same shifted-and-recolored pattern as the element-level
+      // loop above, but rendered with `renderMultiSegmentText([oneSeg])`
+      // so only the target segment paints in shadow color — the rest of
+      // the body text stays unshadowed (Chrome's cascade for
+      // `::first-letter` overrides the parent's text-shadow only on the
+      // selection chars).
+      if (el.textSegments != null) {
+        for (let segIdx = 0; segIdx < el.textSegments.length; segIdx++) {
+          const seg = el.textSegments[segIdx];
+          if (seg.textShadow == null || seg.textShadow === "" || seg.textShadow === "none") continue;
+          const segShadows = parseBoxShadow(seg.textShadow);
+          for (let si = segShadows.length - 1; si >= 0; si--) {
+            const sh = segShadows[si];
+            if (sh.inset) continue;
+            const segShadowFill = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
+            const shiftedSeg: TextSegment = {
+              ...seg,
+              x: seg.x + sh.x,
+              y: seg.y + sh.y,
+              xOffsets: seg.xOffsets?.map((v) => v + sh.x),
+              rasterRect: undefined,
+              rasterDataUri: undefined,
+              rasterGlyphs: undefined,
+              // Drop the pseudoBox on the shadow copy — backgrounds and
+              // borders aren't part of the text shadow (they paint
+              // separately via the pseudoBox path). Otherwise we'd stamp
+              // a recolored gradient-pill rect underneath the shadow.
+              pseudoBox: undefined,
+            };
+            let segBody = renderMultiSegmentText({ el, idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers }, [shiftedSeg]);
+            if (sh.blur > 0) {
+              const stdDev = sh.blur / 2;
+              const fid = `${idPrefix}tssh${clipIdx++}`;
+              defsParts.push(
+                `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
+              );
+              segBody = `<g filter="url(#${fid})">${segBody}</g>`;
+            }
+            svgParts.push(`${indent}${segBody}`);
+          }
+        }
+      }
 
       // Whether the element's own text needs clipping: only when overflow
       // is set on the element itself (overflow != visible on either axis).
