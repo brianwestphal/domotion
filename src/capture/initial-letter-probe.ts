@@ -110,9 +110,13 @@ export async function refineInitialLetterPositions(
       }
       rowDarkCounts.push(dark);
     }
-    // Ink-bearing row threshold: 6+ dark pixels filters anti-aliasing
-    // fringes but catches every meaningful glyph row.
-    const isInk = rowDarkCounts.map((d) => d >= 6);
+    // Ink-bearing row threshold: 3+ dark pixels catches the thin top
+    // strokes of letters like W (top corners are very narrow ink tips)
+    // and B (top of the upper bowl), while filtering anti-aliasing
+    // fringes around the glyph. A higher threshold (e.g. 6+) misses
+    // the cap-top rows of W and shifts the detected ink-top down by
+    // 5–10 px (visible as the rendered drop cap painted below Chrome's).
+    const isInk = rowDarkCounts.map((d) => d >= 3);
     // Walk to find each contiguous run of inky rows; track the longest.
     let bestStart = -1;
     let bestLen = 0;
