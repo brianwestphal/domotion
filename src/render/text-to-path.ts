@@ -1529,7 +1529,23 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   }
   if ((codepoint >= 0x25A0 && codepoint <= 0x25FF)
     || (codepoint >= 0x2600 && codepoint <= 0x26FF)) {
-    return ["cjk", "hiragino-jp", "symbols"];
+    // DM-988: Chrome's per-codepoint pick varies by primary-font class for
+    // these blocks (Geometric Shapes + Misc Symbols). Probed at 18 px:
+    //   sans primary: ★ ♥ ♠ ♣ → Hiragino Sans (JP) em-square 18 px
+    //   serif primary: ★ → Songti SC (cjk-serif) em-square 18 px,
+    //                  ♥ ♠ ♣ → Times New Roman proportional ~10-12 px
+    //   mono primary: ★ ♥ ♠ ♣ → Menlo cell-width (~10.84 px @18)
+    // The previous unified `["cjk", "hiragino-jp", "symbols"]` chain used
+    // HiraginoSansGB (Chinese) first, which paints these glyphs at a
+    // visibly larger / differently-shaped em-square than HiraKakuProN
+    // (Japanese) — visible diff on `02-text-symbols`'s `.serif` and
+    // `.mono` rows where the primary should win. Branch by primary so the
+    // chain matches Chrome's per-context pick.
+    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+      || primaryKey === "monaco" || primaryKey === "sf-mono";
+    if (monoPrimary) return [primaryKey!, "menlo", "hiragino-jp", "symbols"];
+    if (serifPrimary) return ["cjk-serif", primaryKey ?? "times", "hiragino-jp", "symbols"];
+    return ["hiragino-jp", "cjk", "symbols"];
   }
   // Arrows: most of the Arrows block (↔↦⇒⇔ …) routes to Apple Symbols
   // below, but specific codepoints split off:
