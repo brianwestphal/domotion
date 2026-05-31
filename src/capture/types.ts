@@ -69,6 +69,39 @@ export interface TextSegment {
    */
   textShadow?: string;
   /**
+   * DM-990: vertical writing-mode segment. Set to the element's computed
+   * `writing-mode` value (`vertical-rl` / `vertical-lr` / `sideways-rl`
+   * / `sideways-lr`) when the host element paints text in a vertical
+   * orientation. The renderer dispatches such segments to a vertical-
+   * column path that emits each char at its captured `(x, yOffsets[i])`
+   * position — upright glyphs at their natural shape, rotated glyphs
+   * (per `verticalOrientations[i]`) wrapped in a `<g transform=
+   * "rotate(90, cx, cy)">` so their advance flows down the column.
+   */
+  verticalWritingMode?: string;
+  /**
+   * DM-990: per-char Y position in the column for vertical segments
+   * (viewport-relative, one entry per UTF-16 code unit in `text`).
+   * Replaces `xOffsets` for vertical layout — chars stack along Y, not X.
+   */
+  yOffsets?: number[];
+  /**
+   * DM-990: per-char orientation for vertical segments — `'upright'`
+   * (no rotation, glyph paints normally) or `'rotated'` (glyph rotated
+   * 90° clockwise so its horizontal advance becomes vertical, per CSS
+   * Writing Modes 4 `text-orientation: mixed` rules from UAX #50).
+   * One entry per UTF-16 code unit in `text`.
+   */
+  verticalOrientations?: Array<'upright' | 'rotated'>;
+  /**
+   * DM-990: per-char advance along the vertical axis (= `Range.height`
+   * the capture script measured for each char) for vertical segments.
+   * For upright chars this is roughly `font-size` (CJK), for rotated
+   * chars it's the char's natural HORIZONTAL advance pre-rotation.
+   * One entry per UTF-16 code unit in `text`.
+   */
+  verticalAdvances?: number[];
+  /**
    * Viewport-relative rectangle (CSS pixels) to screenshot when the WHOLE
    * segment is raster-worthy — used for ::before / ::after pseudos whose
    * entire text is a color-bitmap run. Populated by CAPTURE_SCRIPT;

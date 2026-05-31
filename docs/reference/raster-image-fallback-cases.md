@@ -32,18 +32,6 @@ Doc: [15-color-emoji-rendering.md](../15-color-emoji-rendering.md).
 
 ## Element-level fallbacks
 
-### E1. Vertical writing mode (`writing-mode != horizontal-tb`)
-
-Trigger: any element whose computed `writing-mode` is `vertical-rl`, `vertical-lr`, or `sideways-*` AND that contains non-whitespace text.
-
-Why: the path-mode renderer assumes horizontal baseline progression. Reimplementing Chrome's vertical text layout (CJK kerning, mid-character rotation for `text-orientation`, vertical underline-position, ruby alignment) is enough work that screenshotting Chrome's painted content box is the faster path to fidelity.
-
-Capture: `src/capture/script/walker/text-segments.ts::computeElementRaster()` returns the content-box rect (border + padding subtracted). For elements with descendant `text-decoration: underline/overline/line-through`, the rect is expanded outward by 4 px on each side because vertical underlines paint *outside* the inline content box (DM-936).
-
-Emit: `src/render/element-tree-to-svg.ts:2638` emits the `<image>` with a dedicated `clip-path` matching the expanded raster rect (DM-957 / DM-958 — the original content-rect clip-path was too tight and chopped the underline off).
-
-Doc: [02-writing-mode.md](../02-writing-mode.md).
-
 ### E4. Replaced elements — `<iframe>` / `<canvas>` / `<video>` / `<object>` / `<embed>` and custom elements with open shadow DOM
 
 Trigger: tag is one of those five, OR a custom element (hyphenated tag with `shadowRoot != null`).

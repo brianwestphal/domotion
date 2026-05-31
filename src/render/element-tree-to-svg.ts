@@ -8,6 +8,7 @@ import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
+import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph } from "./text-to-path.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
@@ -2666,6 +2667,12 @@ export function elementTreeToSvgInner(
         const optsWithEmit = { ...opts, emitPseudoBoxBgLayers };
         const hasMultipleSegments = opts.el.textSegments != null && opts.el.textSegments.length > 1;
         const isMultiLine = opts.el.text.includes("\n");
+        // DM-990: vertical writing-mode dispatch BEFORE any other
+        // branch. Vertical segments carry their per-char positions in
+        // `yOffsets` (not `xOffsets`) and need per-char rotation for
+        // text-orientation: mixed / sideways — the horizontal renderers
+        // would mis-paint them along the wrong axis.
+        if (hasVerticalSegments(opts.el)) return renderVerticalSegments(opts.el, opts.fillColor);
         // DM-799: input/textarea dispatch must come BEFORE the multi-line
         // branch. A textarea with newline-bearing value (`\n` in `el.text`)
         // would otherwise hit `renderMultiLineText`, which path-renders each

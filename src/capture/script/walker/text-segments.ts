@@ -87,88 +87,199 @@
 // the host doesn't qualify.
 
 export const computeElementRaster = (el, cs, tag, rect, vp) => {
-  // DM-991: `<textarea>` content no longer rasters — the input-value
-  // walker now probes per-line xOffsets for textareas (same probe
-  // technique it uses for `<input>`, with a `<div>` mirror sized to the
-  // textarea's content box so Chrome's soft-wrap algorithm produces the
-  // same wrap points). Suppress the textarea trigger here entirely; the
-  // function now only triggers for `writing-mode != horizontal-tb` (E1).
-  const hasTextareaValue = false;
-  // Used to be: `tag === 'textarea' && el.value`. Kept the local so the
-  // condition below reads unchanged; DM-990 will drop the variable when
-  // the vertical-text path replaces the writing-mode raster.
-  void tag;
-  const hasNonHorizontalText = cs.writingMode
-    && cs.writingMode !== 'horizontal-tb'
-    && (el.textContent || '').trim() !== '';
-  // DM-992: text-flavored `<input>` (text / search / email / tel / url /
-  // password / number) USED to trigger the raster path because
-  // `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', ...`
-  // resolved through Chromium to a font whose painted glyph widths didn't
-  // match what fontkit produced for the same family — visible glyph
-  // overdraw on the rendered value (DM-628). DM-983's macOS routing
-  // sweep (driven by Chrome's actual `CSS.getPlatformFontsForNode`
-  // choices per-codepoint) closed that font-family gap, and the
-  // input-value walker (`walker/input-value.ts` SK-1234) ALREADY
-  // captures per-character `inputXOffsets` from a hidden probe span that
-  // mirrors the input's font + letter-spacing + features — so the path
-  // pipeline matches Chrome's painted positions to sub-pixel without
-  // needing the raster overlay. Drop the input-text trigger from the
-  // raster path; if the per-char positions ever drift again, the fix is
-  // to add the missing route in `darwinFallbackChain`, not to re-raster.
-  if (!hasTextareaValue && !hasNonHorizontalText) return undefined;
-  const pl = parseFloat(cs.paddingLeft) || 0;
-  const pr = parseFloat(cs.paddingRight) || 0;
-  const pt = parseFloat(cs.paddingTop) || 0;
-  const pb = parseFloat(cs.paddingBottom) || 0;
-  const bl = parseFloat(cs.borderLeftWidth) || 0;
-  const br = parseFloat(cs.borderRightWidth) || 0;
-  const bt = parseFloat(cs.borderTopWidth) || 0;
-  const bb = parseFloat(cs.borderBottomWidth) || 0;
-  // DM-936: vertical writing mode with text-decoration: underline paints
-  // a vertical underline OUTSIDE the inline content box (to the LEFT for
-  // `text-underline-position: left` in vertical-rl, to the RIGHT for
-  // `right`, etc.). Tight content-box clipping erases that vertical
-  // underline from the screenshot. Walk descendants to detect any
-  // text-decoration-line that mentions `underline`/`overline`/`line-
-  // through` AND expand the clip rect outward by enough margin (8 px
-  // on each side covers thicknesses up to ~6 px plus offsets). Also
-  // expand for descendant `text-shadow` for similar reasons. Horizontal
-  // writing modes already include the underline area inside the line-
-  // box height so the existing tight clip suffices.
-  let marginX = 0;
-  let marginY = 0;
-  if (hasNonHorizontalText) {
-    let hasDecoration = false;
-    const walk = (node) => {
-      if (hasDecoration || node == null) return;
-      const ncs = node.nodeType === 1 ? window.getComputedStyle(node) : null;
-      if (ncs != null) {
-        const td = ncs.textDecorationLine || ncs.textDecoration || '';
-        if (td !== '' && td !== 'none' && /\b(?:underline|overline|line-through)\b/.test(td)) {
-          hasDecoration = true;
-          return;
-        }
-      }
-      const kids = node.children;
-      if (kids != null) for (let i = 0; i < kids.length; i++) walk(kids[i]);
-    };
-    walk(el);
-    if (hasDecoration) {
-      marginX = 4;
-      marginY = 0;
-    }
-  }
-  return {
-    x: rect.left - vp.x + bl + pl - marginX,
-    y: rect.top - vp.y + bt + pt - marginY,
-    width: Math.max(1, rect.width - bl - br - pl - pr + 2 * marginX),
-    height: Math.max(1, rect.height - bt - bb - pt - pb + 2 * marginY),
-  };
+  // DM-991: `<textarea>` content path now uses native SVG; DM-990:
+  // vertical writing-mode path now uses native SVG too. The element-
+  // raster path no longer triggers for any captured case — kept as a
+  // stub returning `undefined` so the call site in script/index.ts
+  // compiles unchanged. If a future CSS feature surfaces that requires
+  // screenshotting an element wholesale, restore the rect-math here.
+  void el; void cs; void tag; void rect; void vp;
+  return undefined;
 };
 
 export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor }) => {
+  // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
+  // `text-orientation: mixed`. Hardcoded table covering the codepoint
+  // ranges that paint upright in vertical text: CJK ideographs, CJK
+  // symbols/punctuation, kana, Hangul, fullwidth/halfwidth forms,
+  // bopomofo, lisu, hexagrams, mahjong/domino tiles, vertical-form
+  // punctuation, vertical-presentation forms. Everything else (Latin,
+  // Greek, Cyrillic, Arabic, Hebrew, common ASCII punctuation, …)
+  // defaults to ROTATED in vertical text. Derived from the UAX #50
+  // VerticalOrientation.txt table (Unicode 16, 2024).
+  const UPRIGHT_RANGES = [
+    [0x1100, 0x11FF],   // Hangul Jamo
+    [0x2E80, 0x2EFF],   // CJK Radicals Supplement
+    [0x2F00, 0x2FDF],   // Kangxi Radicals
+    [0x2FF0, 0x2FFF],   // Ideographic Description Characters
+    [0x3000, 0x303E],   // CJK Symbols and Punctuation (mostly upright; some exceptions)
+    [0x3041, 0x309F],   // Hiragana
+    [0x30A0, 0x30FF],   // Katakana
+    [0x3100, 0x312F],   // Bopomofo
+    [0x3130, 0x318F],   // Hangul Compatibility Jamo
+    [0x3190, 0x319F],   // Kanbun
+    [0x31A0, 0x31BF],   // Bopomofo Extended
+    [0x31C0, 0x31EF],   // CJK Strokes
+    [0x31F0, 0x31FF],   // Katakana Phonetic Extensions
+    [0x3200, 0x32FF],   // Enclosed CJK Letters and Months
+    [0x3300, 0x33FF],   // CJK Compatibility
+    [0x3400, 0x4DBF],   // CJK Unified Ideographs Extension A
+    [0x4E00, 0x9FFF],   // CJK Unified Ideographs
+    [0xA000, 0xA48F],   // Yi Syllables
+    [0xA490, 0xA4CF],   // Yi Radicals
+    [0xA960, 0xA97F],   // Hangul Jamo Extended-A
+    [0xAC00, 0xD7AF],   // Hangul Syllables
+    [0xD7B0, 0xD7FF],   // Hangul Jamo Extended-B
+    [0xF900, 0xFAFF],   // CJK Compatibility Ideographs
+    [0xFE30, 0xFE4F],   // CJK Compatibility Forms
+    [0xFF00, 0xFFEF],   // Halfwidth and Fullwidth Forms (mostly upright, ASCII range is per-glyph but treat as upright for fixture coverage)
+    [0x1B000, 0x1B0FF], // Kana Supplement
+    [0x1B100, 0x1B12F], // Kana Extended-A
+    [0x1B130, 0x1B16F], // Small Kana Extension
+    [0x1F200, 0x1F2FF], // Enclosed Ideographic Supplement
+    [0x20000, 0x2FFFF], // CJK Extensions B-G (supplementary plane)
+  ];
+  const isUpright = (cp) => {
+    if (cp == null) return false;
+    for (const [lo, hi] of UPRIGHT_RANGES) {
+      if (cp >= lo && cp <= hi) return true;
+    }
+    return false;
+  };
+  // Resolve per-char orientation given the parent's text-orientation
+  // computed value. Per CSS Writing Modes 3:
+  //   - upright  → all chars upright
+  //   - mixed    → use UAX #50 (upright for CJK / kana / Hangul; rotated for others)
+  //   - sideways → all chars rotated 90°CW
+  const resolveCharOrientation = (ch, textOrientation) => {
+    if (textOrientation === 'upright') return 'upright';
+    if (textOrientation === 'sideways') return 'rotated';
+    const cp = ch.codePointAt(0);
+    return isUpright(cp) ? 'upright' : 'rotated';
+  };
+
+  // DM-990: vertical writing-mode capture. Returns the same shape as
+  // `captureTextSegments` ({applied, text, textSegments, ...}) but each
+  // segment represents ONE COLUMN of vertical text (grouped by matching
+  // `left` ±1 px, since chars in a vertical column share x). Each
+  // segment carries `verticalWritingMode`, `verticalOrientations[]`, and
+  // `yOffsets[]` (per char) so the renderer can emit each char at its
+  // captured position, wrapping rotated chars in a `<g transform=
+  // "rotate(90, …)">`.
+  const captureVerticalTextSegments = (el, cs) => {
+    const wm = cs.writingMode;
+    const textOrientation = cs.textOrientation || 'mixed';
+    // Sideways-* modes are equivalent to text-orientation: sideways
+    // applied on top of vertical-lr / vertical-rl. Per CSS Writing
+    // Modes 4 (and what Chrome paints), `sideways-rl` paints chars
+    // rotated 90° CW with columns flowing right-to-left, exactly like
+    // `vertical-rl` + `text-orientation: sideways`.
+    const isSideways = wm === 'sideways-rl' || wm === 'sideways-lr';
+    const effectiveTextOrientation = isSideways ? 'sideways' : textOrientation;
+    const textSegments = [];
+    let text = '';
+    let minLeft = Infinity;
+    let minTop = Infinity;
+    let maxRight = -Infinity;
+    let maxBottom = -Infinity;
+    const allChars = []; // {ch, x, y, w, h} viewport-page coords (NOT yet vp-adjusted)
+    for (const node of el.childNodes) {
+      if (node.nodeType !== Node.TEXT_NODE) continue;
+      let raw = node.textContent || '';
+      const tt = cs.textTransform;
+      if (tt === 'uppercase') raw = raw.toUpperCase();
+      else if (tt === 'lowercase') raw = raw.toLowerCase();
+      else if (tt === 'capitalize') raw = raw.replace(/\b\p{L}/gu, (ch) => ch.toUpperCase());
+      if (!raw.trim()) continue;
+      text += raw.trim() + ' ';
+      for (let i = 0; i < raw.length; i++) {
+        const code = raw.charCodeAt(i);
+        const isHighSurrogate = code >= 0xD800 && code <= 0xDBFF && i + 1 < raw.length;
+        const step = isHighSurrogate ? 2 : 1;
+        const r = document.createRange();
+        r.setStart(node, i);
+        r.setEnd(node, i + step);
+        const cr = r.getBoundingClientRect();
+        const ch = raw.slice(i, i + step);
+        const isWs = step === 1 && /\s/.test(raw[i]);
+        // Skip whitespace with zero bbox (collapsed whitespace).
+        if (cr.height === 0 && (cr.width === 0 || isWs)) { i += step - 1; continue; }
+        allChars.push({ ch, x: cr.left, y: cr.top, w: cr.width, h: cr.height });
+        i += step - 1;
+      }
+    }
+    if (allChars.length === 0) {
+      return { applied: true, text: text.trim(), textSegments };
+    }
+    // Group chars by COLUMN — matching `x` ±1 px. Within each column,
+    // chars stack top-to-bottom in increasing `y` (their natural source
+    // order, since Range follows DOM order).
+    const columns = [];
+    let curCol = null;
+    for (const c of allChars) {
+      if (curCol == null || Math.abs(c.x - curCol.x) > 1) {
+        if (curCol != null) columns.push(curCol);
+        curCol = { x: c.x, width: c.w, chars: [c] };
+      } else {
+        curCol.chars.push(c);
+      }
+    }
+    if (curCol != null) columns.push(curCol);
+    // Emit one segment per column.
+    const metrics = measureFontMetrics(cs);
+    for (const col of columns) {
+      const colTop = col.chars[0].y;
+      const colBot = col.chars[col.chars.length - 1].y + col.chars[col.chars.length - 1].h;
+      const visualText = col.chars.map((c) => c.ch).join('').replace(/[\t\n\r]/g, ' ');
+      if (visualText.replace(/\s/g, '') === '') continue;
+      const yOffsets = [];
+      const verticalOrientations = [];
+      const verticalAdvances = [];
+      for (const c of col.chars) {
+        for (let k = 0; k < c.ch.length; k++) {
+          yOffsets.push(c.y - vp.y);
+          verticalOrientations.push(resolveCharOrientation(c.ch, effectiveTextOrientation));
+          verticalAdvances.push(c.h);
+        }
+      }
+      textSegments.push({
+        text: visualText,
+        x: col.x - vp.x,
+        y: colTop - vp.y,
+        width: col.width,
+        height: colBot - colTop,
+        verticalWritingMode: wm,
+        verticalOrientations,
+        yOffsets,
+        verticalAdvances,
+      });
+      minLeft = Math.min(minLeft, col.x);
+      minTop = Math.min(minTop, colTop);
+      maxRight = Math.max(maxRight, col.x + col.width);
+      maxBottom = Math.max(maxBottom, colBot);
+    }
+    return {
+      applied: true,
+      text: text.trim(),
+      textSegments,
+      textLeft: minLeft - vp.x,
+      textTop: minTop - vp.y,
+      textWidth: maxRight - minLeft,
+      textHeight: maxBottom - minTop,
+      fontAscent: metrics.ascent,
+      fontDescent: metrics.descent,
+    };
+  };
+
   const captureTextSegments = (el, cs) => {
+    // DM-990: dispatch vertical writing-mode elements to the column-
+    // grouping capture path. The horizontal walker below groups chars
+    // by `top` which puts every char of a vertical column into a
+    // separate "line" — wrong shape entirely for the renderer.
+    const wm = cs.writingMode;
+    if (wm === 'vertical-rl' || wm === 'vertical-lr' || wm === 'sideways-rl' || wm === 'sideways-lr') {
+      return captureVerticalTextSegments(el, cs);
+    }
     const textSegments = [];
     let text = '';
     let minLeft = Infinity;
