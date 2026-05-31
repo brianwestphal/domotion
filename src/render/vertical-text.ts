@@ -34,6 +34,62 @@ function r(v: number): string {
 }
 
 /**
+ * DM-997: emit a vertical text-decoration line (underline / overline /
+ * line-through) for a column segment. Vertical text decorations paint
+ * OUTSIDE the inline-box, parallel to the column axis, with position
+ * driven by `text-underline-position` (`left` / `right` / `auto`). The
+ * decoration line spans the column's full height (segment.y to
+ * segment.y + segment.height).
+ */
+function renderVerticalDecoration(
+  el: CapturedElement,
+  seg: { x: number; y: number; width: number; height: number; verticalWritingMode?: string },
+  fillColor: string,
+): string {
+  const decoLine = el.styles.textDecorationLine;
+  if (decoLine == null || decoLine === "none" || decoLine === "") return "";
+  const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
+    ? el.styles.textDecorationColor : fillColor;
+  const styles = el.styles as unknown as Record<string, string | undefined>;
+  const thicknessRaw = styles.textDecorationThickness;
+  const thickness = thicknessRaw && thicknessRaw !== "auto" && thicknessRaw !== ""
+    ? parseFloat(thicknessRaw) || 1
+    : Math.max(1, parseFloat(el.styles.fontSize) / 18); // ~1 px at body sizes
+  const underlinePos = (styles.textUnderlinePosition ?? "auto").trim();
+  const wm = seg.verticalWritingMode ?? "vertical-rl";
+  // Default underline side: `auto` resolves to right for vertical-rl /
+  // sideways-rl and left for vertical-lr / sideways-lr (the inline-end
+  // side of the column).
+  const defaultRight = wm === "vertical-rl" || wm === "sideways-rl";
+  const onLeft = underlinePos === "left" || (underlinePos === "auto" && !defaultRight);
+  const onRight = underlinePos === "right" || (underlinePos === "auto" && defaultRight);
+  const offset = 1; // small offset from column edge
+  const lines: string[] = [];
+  const has = (k: string): boolean => decoLine.includes(k);
+  // X-coordinate for vertical underline / overline / line-through.
+  const colLeftX = seg.x - offset - thickness / 2;
+  const colRightX = seg.x + seg.width + offset + thickness / 2;
+  const colMidX = seg.x + seg.width / 2;
+  const yTop = seg.y;
+  const yBot = seg.y + seg.height;
+  if (has("underline")) {
+    const lineX = onLeft ? colLeftX : colRightX;
+    lines.push(`<line x1="${r(lineX)}" y1="${r(yTop)}" x2="${r(lineX)}" y2="${r(yBot)}" stroke="${decoColor}" stroke-width="${r(thickness)}" />`);
+  }
+  if (has("overline")) {
+    // Overline is the OPPOSITE side of underline.
+    const lineX = onLeft ? colRightX : colLeftX;
+    lines.push(`<line x1="${r(lineX)}" y1="${r(yTop)}" x2="${r(lineX)}" y2="${r(yBot)}" stroke="${decoColor}" stroke-width="${r(thickness)}" />`);
+  }
+  if (has("line-through")) {
+    // Line-through paints through the middle of the column (perpendicular
+    // to the column axis, so a VERTICAL line down the column's mid-x).
+    lines.push(`<line x1="${r(colMidX)}" y1="${r(yTop)}" x2="${r(colMidX)}" y2="${r(yBot)}" stroke="${decoColor}" stroke-width="${r(thickness)}" />`);
+  }
+  return lines.join("");
+}
+
+/**
  * Render all vertical segments on an element. Returns the concatenated
  * SVG markup; caller wraps in `<g clip-path="..." style="...">` etc.
  */
@@ -60,6 +116,10 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
     const advances = seg.verticalAdvances;
     const naturalWidths = seg.verticalNaturalWidths;
     if (yOffsets == null || orientations == null || advances == null) continue;
+    // DM-997: vertical text-decoration painter. Emits BEFORE the glyphs
+    // so the line paints behind (matching Chrome's stacking order).
+    const decoMarkup = renderVerticalDecoration(el, seg, fillColor);
+    if (decoMarkup !== "") out.push(decoMarkup);
     const colX = seg.x;
     const colW = seg.width;
     // DM-996: `sideways-lr` rotates text 90° COUNTER-clockwise (text
