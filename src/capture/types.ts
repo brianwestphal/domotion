@@ -102,6 +102,14 @@ export interface TextSegment {
    */
   verticalAdvances?: number[];
   /**
+   * DM-996: per-char NATURAL horizontal advance (canvas
+   * `measureText(ch).width`) for vertical segments. Used by the
+   * renderer to center upright glyphs in their column — `Range.width`
+   * reports the column width (~font-size + slack), not the glyph's own
+   * advance, so we probe via canvas at capture time.
+   */
+  verticalNaturalWidths?: number[];
+  /**
    * Viewport-relative rectangle (CSS pixels) to screenshot when the WHOLE
    * segment is raster-worthy — used for ::before / ::after pseudos whose
    * entire text is a color-bitmap run. Populated by CAPTURE_SCRIPT;

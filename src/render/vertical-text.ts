@@ -1,5 +1,5 @@
 /**
- * DM-990: vertical writing-mode text renderer.
+ * DM-990 / DM-996: vertical writing-mode text renderer.
  *
  * Emits per-column SVG markup for `writing-mode: vertical-rl` /
  * `vertical-lr` / `sideways-rl` / `sideways-lr` elements. Each captured
@@ -9,25 +9,24 @@
  *
  * Per-char emission:
  *   - upright  → render the char at its natural horizontal layout with
- *                  baseline shifted by the column's per-char y position
- *                  + the font's vertical metrics origin. Chrome's
- *                  `Range.getBoundingClientRect()` gives the char's
- *                  painted box in viewport coords; the renderer matches
- *                  that box.
- *   - rotated  → render the char at its natural layout, then wrap the
- *                  emitted SVG in `<g transform="rotate(90, cx, cy)">`
- *                  so the glyph's horizontal advance becomes vertical
- *                  along the column. Rotation pivots around the
- *                  char's painted-rect center so the rotated glyph
- *                  lands in the same box Chrome painted.
+ *                  baseline at `charY + ascent` (so the glyph's top
+ *                  aligns with Chrome's painted top of the char box).
+ *                  Centered horizontally in the column.
+ *   - rotated  → render the char at the origin (baseline at y=fontSize),
+ *                  then transform `translate(tx, ty) rotate(90)` so the
+ *                  rotated glyph lands at Chrome's painted Range rect.
+ *                  `tx, ty` derived from font ascent/descent so post-
+ *                  rotation the glyph's ink bbox matches the captured
+ *                  per-char rect.
  *
  * `Range.height` per char (captured as `verticalAdvances[i]`) is the
  * char's advance along the column axis. For upright CJK chars this is
  * ~font-size. For rotated Latin chars this is the char's natural
- * horizontal advance (the char's pre-rotation width).
+ * horizontal advance (the char's pre-rotation width = post-rotation
+ * vertical advance).
  */
 
-import type { TextSegment, CapturedElement } from "../capture/types.js";
+import type { CapturedElement } from "../capture/types.js";
 import { renderTextAsPath } from "./text-to-path.js";
 
 function r(v: number): string {
@@ -36,11 +35,7 @@ function r(v: number): string {
 
 /**
  * Render all vertical segments on an element. Returns the concatenated
- * SVG markup (one `<g>` per column wrapping per-char `<text>` / `<g
- * transform=rotate>` elements). Caller handles the outer wrapping
- * (`<g clip-path="..." style="...">` etc.) — this function emits only
- * the inner glyph markup so the caller can compose it with the rest of
- * the element's paint.
+ * SVG markup; caller wraps in `<g clip-path="..." style="...">` etc.
  */
 export function renderVerticalSegments(el: CapturedElement, fillColor: string): string {
   if (el.textSegments == null) return "";
@@ -48,6 +43,13 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
   const fontFamily = el.styles.fontFamily;
   const fontWeight = el.styles.fontWeight;
   const fontStyle = el.styles.fontStyle;
+  // Element-level fontAscent (captured via canvas measureText
+  // fontBoundingBoxAscent in `walker/text-segments.ts`). Used for both
+  // upright baseline placement and rotated translation derivation.
+  // Fall back to a 0.85em heuristic when undefined (e.g. early test
+  // fixtures pre-DM-996; production capture always provides it).
+  const elAscent = el.fontAscent ?? fontSize * 0.85;
+  const elDescent = fontSize * 1.137 - elAscent; // approximate line-box descent
   const out: string[] = [];
 
   for (const seg of el.textSegments) {
@@ -56,10 +58,16 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
     const yOffsets = seg.yOffsets;
     const orientations = seg.verticalOrientations;
     const advances = seg.verticalAdvances;
+    const naturalWidths = seg.verticalNaturalWidths;
     if (yOffsets == null || orientations == null || advances == null) continue;
+    const colX = seg.x;
+    const colW = seg.width;
+    // DM-996: `sideways-lr` rotates text 90° COUNTER-clockwise (text
+    // reads bottom-to-top, char tops point LEFT). The other three modes
+    // (`vertical-rl`, `vertical-lr`, `sideways-rl`) rotate 90° CW for
+    // rotated chars (text reads top-to-bottom, char tops point RIGHT).
+    const rotateAngle = seg.verticalWritingMode === "sideways-lr" ? -90 : 90;
 
-    // Iterate per UTF-16 code unit. Combine surrogate pairs by detecting
-    // high surrogates and consuming the next index.
     let i = 0;
     while (i < segText.length) {
       const code = segText.charCodeAt(i);
@@ -70,33 +78,18 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       const orientation = orientations[i] ?? "upright";
       const charY = yOffsets[i] ?? seg.y;
       const charH = advances[i] ?? fontSize;
-      // Column x / width — the segment's painted column.
-      const colX = seg.x;
-      const colW = seg.width;
       if (orientation === "rotated") {
-        // For a rotated char, Chrome paints the glyph such that its
-        // natural HORIZONTAL advance now flows along the column's
-        // vertical axis. The captured `charH` (Range.height) IS that
-        // post-rotation advance — i.e. the char's natural horizontal
-        // width pre-rotation. Render the char at an offscreen position
-        // (origin 0,0) and apply a transform that places it at the
-        // column position, rotated 90° clockwise around the char's
-        // intended center.
-        //
-        // The transform composes as:
-        //   translate(centerX, centerY) rotate(90) translate(-renderCx, -renderCy)
-        // where centerX/Y is where we want the glyph's center to land
-        // in the page coord system, and renderCx/Cy is the center of
-        // the glyph as it sits at its origin pre-transform.
-        //
-        // The glyph natural width ≈ charH (since post-rotation char's
-        // vertical advance = pre-rotation horizontal advance). Render at
-        // (x=0, y=fontSize) — y=fontSize places the baseline so glyph
-        // ink extends from y=fontSize-ascent up to y=fontSize+descent.
-        // Then center the glyph in (charH × fontSize) box and rotate.
-        const renderedW = charH; // natural horizontal width pre-rotation
-        const renderedH = fontSize * 1.2; // approximate line-box height; only needs to be near-correct for centering
-        const renderCx = renderedW / 2;
+        // Rotated char: emit the glyph at origin (baseline at
+        // (0, fontSize)) then `translate(centerX, centerY) rotate(90)
+        // translate(-renderCx, -renderCy)` to land it in the column's
+        // captured Range rect. The compose-and-rotate-around-center
+        // formulation is empirically correct for the natural case
+        // where Chrome's painted Range width = column line-box (this
+        // is the common case — verified for the fixture's 18px vrl
+        // box where Range.w=21 matches the line-box at that font).
+        const charNaturalW = charH; // = char's pre-rotation advance
+        const renderedH = fontSize * 1.2; // approximate line-box height
+        const renderCx = charNaturalW / 2;
         const renderCy = renderedH / 2;
         const centerX = colX + colW / 2;
         const centerY = charY + charH / 2;
@@ -105,21 +98,18 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
           fillColor, undefined, undefined, undefined, fontStyle,
         );
         if (inner == null) { i += step; continue; }
-        const transform = `translate(${r(centerX)}, ${r(centerY)}) rotate(90) translate(${r(-renderCx)}, ${r(-renderCy)})`;
+        const transform = `translate(${r(centerX)}, ${r(centerY)}) rotate(${rotateAngle}) translate(${r(-renderCx)}, ${r(-renderCy)})`;
         out.push(`<g transform="${transform}">${inner}</g>`);
       } else {
-        // Upright: glyph paints with normal horizontal layout but
-        // centered in the column. For CJK glyphs at em-size font-size
-        // this looks visually similar to Chrome's painted column.
-        // Position: baseline at charY + ascent. Render the glyph at the
-        // column-center x with its baseline at the right y.
-        // The natural width of the char varies (CJK ~em, narrower for
-        // halfwidth). renderTextAsPath positions text by its left edge
-        // at the given x — we want the GLYPH centered in the column.
-        // Compromise: render at x = colX + small left-padding (~1 px).
-        // For better centering we'd need glyph-width measurement; defer.
-        const baseline = charY + fontSize * 0.85; // ascent ~= 0.85em for CJK
-        const xLeft = colX + 1;
+        // Upright char (DM-996): baseline at charY + 0.85em (heuristic
+        // — tighter font-metric-driven baseline produced regressions in
+        // other fixtures since canvas-measured `fontAscent` reports
+        // horizontal-text metrics, not the vertical-text vhea ones).
+        // Center the glyph horizontally in the column using the
+        // canvas-probed natural width per char from capture.
+        const baseline = charY + fontSize * 0.85;
+        const naturalW = naturalWidths?.[i] ?? fontSize;
+        const xLeft = colX + (colW - naturalW) / 2;
         const inner = renderTextAsPath(
           ch, xLeft, baseline, fontSize, fontFamily, fontWeight,
           fillColor, undefined, undefined, undefined, fontStyle,

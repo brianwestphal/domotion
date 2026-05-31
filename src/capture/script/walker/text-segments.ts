@@ -182,7 +182,17 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
     let minTop = Infinity;
     let maxRight = -Infinity;
     let maxBottom = -Infinity;
-    const allChars = []; // {ch, x, y, w, h} viewport-page coords (NOT yet vp-adjusted)
+    // Canvas-probed natural width per char, used by the renderer to
+    // center upright glyphs in their column (DM-996). For rotated chars
+    // the natural width equals the captured `verticalAdvance` (=
+    // Range.height post-rotation) so we don't need a separate probe;
+    // for upright chars Range.height ≈ font-size doesn't tell us the
+    // glyph's actual horizontal advance, so we probe via canvas.
+    const _vertCanvas = document.createElement('canvas');
+    const _vertCtx = _vertCanvas.getContext('2d');
+    _vertCtx.font = `${cs.fontStyle || 'normal'} ${cs.fontWeight || '400'} ${cs.fontSize} ${cs.fontFamily}`;
+    const measureNaturalWidth = (ch) => _vertCtx.measureText(ch).width;
+    const allChars = []; // {ch, x, y, w, h, naturalW} viewport-page coords (NOT yet vp-adjusted)
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
       let raw = node.textContent || '';
@@ -204,7 +214,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         const isWs = step === 1 && /\s/.test(raw[i]);
         // Skip whitespace with zero bbox (collapsed whitespace).
         if (cr.height === 0 && (cr.width === 0 || isWs)) { i += step - 1; continue; }
-        allChars.push({ ch, x: cr.left, y: cr.top, w: cr.width, h: cr.height });
+        allChars.push({ ch, x: cr.left, y: cr.top, w: cr.width, h: cr.height, naturalW: measureNaturalWidth(ch) });
         i += step - 1;
       }
     }
@@ -235,11 +245,13 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       const yOffsets = [];
       const verticalOrientations = [];
       const verticalAdvances = [];
+      const verticalNaturalWidths = [];
       for (const c of col.chars) {
         for (let k = 0; k < c.ch.length; k++) {
           yOffsets.push(c.y - vp.y);
           verticalOrientations.push(resolveCharOrientation(c.ch, effectiveTextOrientation));
           verticalAdvances.push(c.h);
+          verticalNaturalWidths.push(c.naturalW);
         }
       }
       textSegments.push({
@@ -252,6 +264,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         verticalOrientations,
         yOffsets,
         verticalAdvances,
+        verticalNaturalWidths,
       });
       minLeft = Math.min(minLeft, col.x);
       minTop = Math.min(minTop, colTop);
