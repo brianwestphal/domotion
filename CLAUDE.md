@@ -188,6 +188,7 @@ The `FEATURES.md` checklist tracks per-feature support and links to fixtures; ke
 A handful of docs ARE the canonical reference for a user-facing surface — if the code changes and the doc doesn't, consumers get a misleading contract. Update these in the same commit as any change that touches the surface they describe:
 
 - `docs/37-scroll-pattern-grammar.md` is the canonical EBNF + semantics reference for the scroll-pattern language. Any change to `src/scroll/pattern.ts` (tokeniser, parser, AST), `src/scroll/executor.ts` (axis resolution, speed-derived duration, `until` semantics), or scroll-related user-visible flags in `src/cli/capture.ts` / `src/cli/animate.ts` must update doc 37 too. The parser + executor headers carry pointers back to doc 37; keep those accurate as well.
+- `docs/reference/raster-image-fallback-cases.md` is the index of every code path that falls back to embedding a raster `<image>` instead of native SVG (color emoji, vertical text, `<textarea>` content, `<canvas>`/`<iframe>`/`<video>` snapshots, conic gradients, mask-image `element()` refs, etc.). When you add a new fallback site, remove one, or change the trigger condition for an existing one, update the matching entry in the same commit — consumers reading the SVG use this doc to figure out "why is this paint a raster?" and a stale entry sends them the wrong direction.
 
 ### Hot Sheet tickets are local-only
 

@@ -22,3 +22,4 @@ test-results/
 data/
 *.tsbuildinfo
 .tmp/
+tools/unicode-fixtures/

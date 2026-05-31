@@ -1,10 +1,16 @@
 // Sweep every unicode block fixture, probe Chrome's font choice per character,
 // build a (block → font-family) histogram so we can prioritise font additions.
+//
+// Per-platform: pass `HTML_TEST_DIR` (defaults to ../html-test/unicode) and
+// `UNICODE_FONTS_OUT` (defaults to /tmp/unicode-fonts.json). On Linux this
+// is invoked inside the Playwright Docker container so the probed font
+// choices are Chrome-on-Linux's actual fontconfig pick (DM-984).
 import { chromium } from "@playwright/test";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const UNICODE_DIR = "/Users/westphal/Documents/html-test/unicode";
+const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "../html-test/unicode");
+const OUT_PATH = process.env.UNICODE_FONTS_OUT ?? `${process.env.TMPDIR ?? "/tmp"}/unicode-fonts.json`;
 const files = readdirSync(UNICODE_DIR)
   .filter(f => f.endsWith(".html") && f !== "index.html")
   .sort();
@@ -50,8 +56,9 @@ console.log("=== Font families used by Chrome across all unicode blocks ===");
 const sorted = [...familyCount.entries()].sort((a, b) => b[1] - a[1]);
 for (const [f, c] of sorted) console.log(`  ${c.toString().padStart(8)}  ${f}`);
 
-writeFileSync("/tmp/unicode-fonts.json", JSON.stringify({
+writeFileSync(OUT_PATH, JSON.stringify({
+  platform: process.platform,
   familyCount: Object.fromEntries(sorted),
   blockToFamilies: Object.fromEntries(blockToFamilies),
 }, null, 2));
-console.log("\nSaved /tmp/unicode-fonts.json");
+console.log(`\nSaved ${OUT_PATH}`);
