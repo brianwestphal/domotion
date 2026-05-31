@@ -68,16 +68,6 @@ Emit: same `<image>` emission as E1.
 
 Source: `src/capture/script/walker/text-segments.ts:90`. Ticket: SK-1108.
 
-### E3. `<input type="text|search|email|tel|url|password|number">` with placeholder or value
-
-Trigger: text-flavored `<input>` with non-empty value OR a placeholder attribute. Checkboxes / radios / range / color etc. are skipped (no text to raster — they're synthesised by `src/form-controls.ts`).
-
-Why: text inputs in Chromium pick the system Arial / fallback chain that doesn't exactly match what fontkit produces. The mismatch is small per-character but accumulates to visible overdraw on multi-character inputs (DM-628).
-
-Capture: same `computeElementRaster()` path. Emit: same as E1 / E2.
-
-Source: `src/capture/script/walker/text-segments.ts:103`. Ticket: DM-628.
-
 ### E4. Replaced elements — `<iframe>` / `<canvas>` / `<video>` / `<object>` / `<embed>` and custom elements with open shadow DOM
 
 Trigger: tag is one of those five, OR a custom element (hyphenated tag with `shadowRoot != null`).

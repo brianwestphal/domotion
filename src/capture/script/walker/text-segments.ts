@@ -91,22 +91,22 @@ export const computeElementRaster = (el, cs, tag, rect, vp) => {
   const hasNonHorizontalText = cs.writingMode
     && cs.writingMode !== 'horizontal-tb'
     && (el.textContent || '').trim() !== '';
-  // DM-628: `<input type="text" | "search" | "email" | "tel" | "url" |
-  // "password" | "number">` text shaped via fontkit doesn't match
-  // Chromium's painted glyph widths (different system Arial / fallback),
-  // producing visible glyph overdraw. Screenshot the input's content
-  // box so the rasterized output stamps Chromium's actual paint.
-  // Scoped to inputs with either a placeholder or a value; checkboxes /
-  // radios / range / color etc. are skipped (no text to raster). Skip
-  // when the input is a sub-pixel size or has display:none — captureInner
-  // already excludes those earlier.
-  const isTextInput = tag === 'input' && (
-    el.type === 'text' || el.type === 'search' || el.type === 'email'
-    || el.type === 'tel' || el.type === 'url' || el.type === 'password'
-    || el.type === 'number' || el.type === '' || el.type == null
-  );
-  const hasInputText = isTextInput && (el.value || (el.getAttribute && el.getAttribute('placeholder')));
-  if (!hasTextareaValue && !hasNonHorizontalText && !hasInputText) return undefined;
+  // DM-992: text-flavored `<input>` (text / search / email / tel / url /
+  // password / number) USED to trigger the raster path because
+  // `font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', ...`
+  // resolved through Chromium to a font whose painted glyph widths didn't
+  // match what fontkit produced for the same family — visible glyph
+  // overdraw on the rendered value (DM-628). DM-983's macOS routing
+  // sweep (driven by Chrome's actual `CSS.getPlatformFontsForNode`
+  // choices per-codepoint) closed that font-family gap, and the
+  // input-value walker (`walker/input-value.ts` SK-1234) ALREADY
+  // captures per-character `inputXOffsets` from a hidden probe span that
+  // mirrors the input's font + letter-spacing + features — so the path
+  // pipeline matches Chrome's painted positions to sub-pixel without
+  // needing the raster overlay. Drop the input-text trigger from the
+  // raster path; if the per-char positions ever drift again, the fix is
+  // to add the missing route in `darwinFallbackChain`, not to re-raster.
+  if (!hasTextareaValue && !hasNonHorizontalText) return undefined;
   const pl = parseFloat(cs.paddingLeft) || 0;
   const pr = parseFloat(cs.paddingRight) || 0;
   const pt = parseFloat(cs.paddingTop) || 0;
