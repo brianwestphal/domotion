@@ -9,6 +9,8 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import * as nodePath from "node:path";
+import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable } from "./glyph-helper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -410,6 +412,29 @@ function slantForStyle(style: string | undefined): number {
 // collections require picking a sub-font by postscript name — fontkit returns
 // a TTCFont wrapper for .ttc files and .getFont(name) extracts the member.
 interface FontPath { path: string; postscriptName?: string; extractor?: "fontkit" | "native" }
+
+// DM-1014: pick the LastResort font Chrome actually paints with on this
+// platform. On macOS Chrome's CoreText cascade bottoms out at the on-disk
+// `/System/Library/Fonts/LastResort.otf` — a 2.5 KB Apple stub with 7
+// glyphs whose ENTIRE cmap maps to glyph #4, a single outlined rectangle.
+// Empirically that's exactly what Chrome paints for unmapped codepoints on
+// macOS, so we use the system file to keep the placeholder shape byte-
+// faithful. Tried bundling Unicode's LastResort-HE (Heads-up Edition, 380
+// per-block-frame glyphs) under `assets/fonts/` — that DOES paint richer
+// per-block frames, but Chrome on macOS doesn't reach for it, so swapping
+// it in regressed pixel diffs ~2 pp on the affected fixtures (Egyptian
+// Hieroglyphs Ext-A 4.05 % → 6.45 %, CJK Ext-G 3.99 % → 6.06 %, Sutton
+// SignWriting 6.35 % → 7.02 %). Kept the bundled font in `assets/fonts/`
+// as a future option for non-macOS platforms where Chrome's fontconfig /
+// DirectWrite cascades also bottom out at "nothing" — using LR-HE there
+// would AT LEAST emit a visible placeholder rather than empty space, even
+// if it doesn't match Chrome's per-platform tofu pixel-for-pixel.
+const LAST_RESORT_FONT_PATH = process.platform === "darwin"
+  ? "/System/Library/Fonts/LastResort.otf"
+  : nodePath.resolve(
+      nodePath.dirname(fileURLToPath(import.meta.url)),
+      "..", "..", "assets", "fonts", "LastResortHE-Regular.ttf",
+    );
 const FONT_PATHS: Record<string, FontPath> = {
   "sf-pro":          { path: "/System/Library/Fonts/SFNS.ttf" },
   // SF Pro ships its italic as a sibling file, not as a variable `slnt` axis
@@ -510,16 +535,22 @@ const FONT_PATHS: Record<string, FontPath> = {
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
-  // Apple's LastResort.otf — the absolute final fallback Chrome on macOS
-  // reaches when no font in the cascade has a glyph for a codepoint. It
-  // contains one "block-frame" glyph per Unicode block (SMP gets stacked
-  // horizontal stripes, Egyptian Hieroglyphs gets an empty rectangle,
-  // CJK ranges get a hex-numbered tofu, etc.), so painting a codepoint
-  // via LastResort matches what Chrome paints for anything otherwise
-  // unmappable on this platform. DM-998 / DM-999 / DM-1010: without
-  // this entry the renderer ends the chain at `[]` and emits nothing
-  // (or a generic placeholder) instead of Chrome's block-frame glyph.
-  "last-resort":     { path: "/System/Library/Fonts/LastResort.otf" },
+  // The absolute final fallback Chrome reaches when no font in the cascade
+  // has a glyph for a codepoint. It contains one "block-frame" glyph per
+  // Unicode block (SMP gets stacked horizontal stripes, Egyptian Hieroglyphs
+  // gets an empty rectangle, CJK ranges get a hex-numbered tofu, etc.), so
+  // painting a codepoint via LastResort matches what Chrome paints for
+  // anything otherwise unmappable. DM-998 / DM-999 / DM-1010.
+  //
+  // DM-1014: bundle Unicode's LastResort-HE (Heads-up Edition) font under
+  // `assets/fonts/LastResortHE-Regular.ttf` so we ship the same per-block-
+  // frame glyphs Chrome uses, regardless of host OS. The macOS on-disk
+  // `/System/Library/Fonts/LastResort.otf` is a 2.5 KB stub with 7 glyphs
+  // (every codepoint cmap-maps to glyph #4, a single rectangle-with-?);
+  // bundling LR-HE gives us 380 distinct block-frame glyphs. SIL Open Font
+  // License 1.1 — `assets/fonts/LICENSE-last-resort-font.txt` ships
+  // alongside the binary per the OFL attribution clause.
+  "last-resort":     { path: LAST_RESORT_FONT_PATH },
   // Chrome on macOS routes a handful of arrow codepoints (↑ ↓) to LucidaGrande
   // rather than Apple Symbols — Apple Symbols' ↑ ↓ are 9.86/10.28px wide
   // @22px while LucidaGrande's are 14.19/14.19px, and Chrome's captured
