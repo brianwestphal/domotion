@@ -35,6 +35,7 @@ import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { raw } from "kerfjs";
 import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
+import { waitForSettled } from "../src/utils/wait-events.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1107,7 +1108,11 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       }
     }
     await w.page.goto(`file://${srcPath}`);
-    await w.page.waitForTimeout(150);
+    // DM-1009: replaced waitForTimeout(150) — the 150 ms was a buffer for
+    // `@font-face` loads to finish (per DM-303 comment below). waitForSettled
+    // resolves on the actual `document.fonts.ready` + images-complete +
+    // next-paint events, so fast fixtures stop paying for the slow ones.
+    await waitForSettled(w.page);
 
     bodyBg = await w.page.evaluate(() => {
       const cs = getComputedStyle(document.body);
@@ -1144,7 +1149,10 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // masked rendering fidelity for any test using background:url() or <img>.
     // Loading the SVG as a document lets those external file:// refs resolve.
     await w.page.goto(`file://${svgPath}`);
-    await w.page.waitForTimeout(200);
+    // DM-1009: replaced waitForTimeout(200) — the 200 ms was a buffer for
+    // SVG `<image href>` external file:// refs to finish loading.
+    // waitForSettled awaits each image's load/error event directly.
+    await waitForSettled(w.page);
     await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
 
     const cmp = await comparePngs(w.comparePage, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST);
