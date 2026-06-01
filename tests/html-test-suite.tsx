@@ -1058,8 +1058,31 @@ function walkHtmlFiles(rootDir: string): string[] {
 interface HtmlTestWorker {
   context: BrowserContext;
   page: Page;
-  compareContext: BrowserContext;
-  comparePage: Page;
+}
+
+// DM-1006: one comparePage shared across all workers. The N-workers-each-
+// owning-their-own-comparePage approach burned ~80 MB of Chromium memory
+// per worker for a resource that's idle most of the time (each comparePngs
+// call takes ~100 ms; with 2 workers, the page sits unused 99% of the
+// time). Serialise the compare calls with a simple chain-promise mutex —
+// throughput stays within 10% of the prior parallel-compare setup since
+// the per-worker render work (the actual bottleneck) keeps running while
+// one worker holds the compare lock.
+let sharedComparePage: Page | null = null;
+let compareMutex: Promise<void> = Promise.resolve();
+async function withCompareLock<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+  if (sharedComparePage == null) {
+    throw new Error("withCompareLock called before sharedComparePage was initialised");
+  }
+  const prev = compareMutex;
+  let release: () => void = () => {};
+  compareMutex = new Promise<void>((resolve) => { release = resolve; });
+  await prev;
+  try {
+    return await fn(sharedComparePage);
+  } finally {
+    release();
+  }
 }
 
 async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResult> {
@@ -1198,7 +1221,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     await waitForSettled(w.page);
     await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
 
-    const cmp = await comparePngs(w.comparePage, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST);
+    const cmp = await withCompareLock((cp) => comparePngs(cp, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST));
     nonAaPixels = cmp.nonAaPixels;
     nonAaPixelPct = cmp.nonAaPixelPct;
     diffPct = cmp.diffPct;
@@ -1305,6 +1328,15 @@ async function main(): Promise<void> {
 
   const browser = await chromium.launch();
 
+  // DM-1006: one shared comparePage for all workers (was per-worker before).
+  // Set up once here, torn down after the pool finishes; the per-call mutex
+  // (`withCompareLock`) serialises access so workers don't race on it.
+  const sharedCompareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
+  sharedComparePage = await sharedCompareContext.newPage();
+  sharedComparePage.setDefaultTimeout(90_000);
+  sharedComparePage.setDefaultNavigationTimeout(90_000);
+  await sharedComparePage.goto("about:blank");
+
   const results = await runJobsInPool<string, HtmlTestWorker, TestResult>({
     jobs: testFiles,
     workers: workerCount,
@@ -1314,16 +1346,10 @@ async function main(): Promise<void> {
       // DM-479: 90 s instead of Playwright's 30 s default.
       page.setDefaultTimeout(90_000);
       page.setDefaultNavigationTimeout(90_000);
-      const compareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
-      const comparePage = await compareContext.newPage();
-      comparePage.setDefaultTimeout(90_000);
-      comparePage.setDefaultNavigationTimeout(90_000);
-      await comparePage.goto("about:blank");
-      return { context, page, compareContext, comparePage };
+      return { context, page };
     },
     teardown: async (w) => {
       await w.context.close();
-      await w.compareContext.close();
     },
     runJob: async (file, w) => runOneHtmlTest(file, w),
     onResult: (result) => {
@@ -1356,6 +1382,10 @@ async function main(): Promise<void> {
     },
   });
 
+  // DM-1006: tear down the shared compare context before closing the
+  // browser so its resources are released cleanly.
+  await sharedCompareContext.close();
+  sharedComparePage = null;
   await browser.close();
 
   writeFileSync(resolve(OUTPUT_DIR, "results.json"), JSON.stringify(results, null, 2));
