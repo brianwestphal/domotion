@@ -82,15 +82,34 @@ const PLAYWRIGHT_VERSION: string = (() => {
   try { return _require("@playwright/test/package.json").version as string; }
   catch { return "unknown"; }
 })();
+// DM-1013: fold the CAPTURE_SCRIPT bundle hash into the cache key so a
+// bundle rebuild (`npm run build:capture-script`) invalidates every
+// cached tree. Read once at module init.
+function _hashFileOrEmpty(path: string): string {
+  try { return createHash("sha256").update(readFileSync(path)).digest("hex"); }
+  catch { return "missing"; }
+}
+const CAPTURE_SCRIPT_HASH = _hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/script.generated.ts"));
 function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
   return createHash("sha256")
     .update(htmlBytes)
-    .update(`|${WIDTH}x${fixtureHeight}|${PLAYWRIGHT_VERSION}`)
+    .update(`|${WIDTH}x${fixtureHeight}|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}`)
     .digest("hex");
 }
 function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
 function expectedCacheMetaPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.json`); }
-interface ExpectedCacheMeta { bodyBg: string; }
+// DM-1013: cache the raw captured tree + warnings alongside expected.png
+// + bodyBg. On full cache hit, runOneHtmlTest skips the source goto,
+// screenshot, bodyBg evaluate, webfont discovery, AND captureElementTree
+// — the per-fixture bottleneck. The tree is captured BEFORE
+// embedRemoteImages and rasterizeConicGradients (those passes add
+// Buffer data in place; cache cleanly without it and re-run them on
+// cache load).
+interface ExpectedCacheMeta {
+  bodyBg: string;
+  tree?: unknown; // raw element tree from captureElementTreeWithWarnings
+  warnings?: Array<{ selector: string; feature: string; detail: string }>;
+}
 // Cache-hit / cache-miss counters (DM-1002 verification — reported at the
 // end of the run alongside the pass/fail summary so we can confirm the
 // cache is actually firing as expected).
@@ -1207,42 +1226,50 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         await w.page.setViewportSize({ width: WIDTH, height: HEIGHT });
       }
     }
-    // DM-1002: check the expected.png cache. The hash key folds in
-    // (source HTML bytes, viewport WIDTH × fixtureHeight, Playwright
-    // version) so any of those changing invalidates the entry. Cache
-    // hit → copy PNG to expectedPath + read bodyBg from meta JSON;
-    // skip the goto + screenshot + evaluate. Cache miss → fall through
-    // to the normal navigate/screenshot/evaluate path, then write the
-    // results back to the cache for next time.
+    // DM-1002 / DM-1013: check the cache. Hash key folds in source HTML
+    // bytes + viewport + Playwright version + CAPTURE_SCRIPT bundle
+    // hash, so any of those changing invalidates the entry. Full cache
+    // hit (PNG + meta with `tree` field) lets us skip the source goto +
+    // screenshot + bodyBg evaluate + webfont discovery + captureTree
+    // entirely — the per-fixture bottleneck. The tree is restored from
+    // JSON; embedRemoteImages and rasterizeConicGradients run as
+    // normal against it. The actual-render half still needs the SVG
+    // navigation (no way around that — it's how we render the SVG).
     const srcBytes = readFileSync(srcPath);
     const cacheKey = expectedCacheKey(srcBytes, fixtureHeight);
     const cachedPng = expectedCachePngPath(cacheKey);
     const cachedMeta = expectedCacheMetaPath(cacheKey);
-    let expectedFromCache = false;
+    let cap: { tree: unknown[]; warnings: Array<{ selector: string; feature: string; detail: string }> } | null = null;
     if (existsSync(cachedPng) && existsSync(cachedMeta)) {
       try {
-        copyFileSync(cachedPng, expectedPath);
         const meta = JSON.parse(readFileSync(cachedMeta, "utf-8")) as ExpectedCacheMeta;
-        bodyBg = meta.bodyBg;
-        expectedFromCache = true;
-        _expectedCacheHits++;
+        if (meta.tree != null) {
+          copyFileSync(cachedPng, expectedPath);
+          bodyBg = meta.bodyBg;
+          cap = { tree: meta.tree as unknown[], warnings: meta.warnings ?? [] };
+          capWarnings = cap.warnings;
+          _expectedCacheHits++;
+        } else {
+          // Old DM-1002 cache entry without tree — treat as miss so we
+          // re-capture and overwrite with the tree-bearing version.
+          _expectedCacheMisses++;
+        }
       } catch {
-        // Cache read failed (corrupted file etc.) — fall through.
-        expectedFromCache = false;
         _expectedCacheMisses++;
       }
     } else {
       _expectedCacheMisses++;
     }
 
-    await w.page.goto(`file://${srcPath}`);
-    // DM-1009: replaced waitForTimeout(150) — the 150 ms was a buffer for
-    // `@font-face` loads to finish (per DM-303 comment below). waitForSettled
-    // resolves on the actual `document.fonts.ready` + images-complete +
-    // next-paint events, so fast fixtures stop paying for the slow ones.
-    await waitForSettled(w.page);
+    if (cap == null) {
+      // Cache miss — do the full source-side work.
+      await w.page.goto(`file://${srcPath}`);
+      // DM-1009: replaced waitForTimeout(150) — the 150 ms was a buffer for
+      // `@font-face` loads to finish (per DM-303 comment below). waitForSettled
+      // resolves on the actual `document.fonts.ready` + images-complete +
+      // next-paint events, so fast fixtures stop paying for the slow ones.
+      await waitForSettled(w.page);
 
-    if (!expectedFromCache) {
       bodyBg = await w.page.evaluate(() => {
         const cs = getComputedStyle(document.body);
         const bg = cs.backgroundColor;
@@ -1252,25 +1279,28 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
 
       await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
 
-      // Populate the cache for next time. Best-effort: cache write failure
-      // doesn't fail the test, the next run just re-renders.
+      // Pick up any @font-face rules — covers both url(...) downloads and
+      // local(...) aliases (DM-303). Without this, fixtures using
+      // `font-family: "MyFamily"` declared via @font-face render in the
+      // chain-fallback face (`serif` → Times) instead of the local() target.
+      try { await discoverAndRegisterWebfonts(w.page); } catch { /* best-effort */ }
+
+      // captureElementTreeWithWarnings returns warnings inline so concurrent
+      // workers don't race on the lastCaptureWarnings module global (DM-456).
+      cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: 0, width: WIDTH, height: fixtureHeight });
+      capWarnings = cap.warnings;
+
+      // Populate the cache for next time (DM-1002 + DM-1013). Best-effort
+      // — a cache write failure doesn't fail the test, the next run just
+      // re-renders. Write happens BEFORE embedRemoteImages /
+      // rasterizeConicGradients so the serialised tree stays small (those
+      // passes mutate cap.tree in place with Buffer / dataURI data).
       try {
         mkdirSync(EXPECTED_CACHE_DIR, { recursive: true });
         copyFileSync(expectedPath, cachedPng);
-        writeFileSync(cachedMeta, JSON.stringify({ bodyBg }));
+        writeFileSync(cachedMeta, JSON.stringify({ bodyBg, tree: cap.tree, warnings: cap.warnings }));
       } catch { /* ignore */ }
     }
-
-    // Pick up any @font-face rules — covers both url(...) downloads and
-    // local(...) aliases (DM-303). Without this, fixtures using
-    // `font-family: "MyFamily"` declared via @font-face render in the
-    // chain-fallback face (`serif` → Times) instead of the local() target.
-    try { await discoverAndRegisterWebfonts(w.page); } catch { /* best-effort */ }
-
-    // captureElementTreeWithWarnings returns warnings inline so concurrent
-    // workers don't race on the lastCaptureWarnings module global (DM-456).
-    const cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: 0, width: WIDTH, height: fixtureHeight });
-    capWarnings = cap.warnings;
     // DM-512: demos always emit self-contained SVGs.
     // DM-527: thread the per-suite warnings array so concurrent workers
     // don't race on the lastCaptureWarnings module global.
