@@ -3109,6 +3109,29 @@ function splitTextIntoFontRuns(
             emitCh = decomp.ch;
           }
         }
+        // DM-1020/1021: Unicode canonical-decomposition fallback (HarfBuzz
+        // behavior). CJK Compatibility Ideographs (U+2F800–2FA1F, U+F900–FAFF
+        // singletons) and other canonically-decomposable codepoints aren't in
+        // most font cmaps; HarfBuzz falls back to the canonical decomposition
+        // (NFD) and shapes THAT. E.g. U+2F800 → U+4E3D (丽), which Arial Unicode
+        // MS / PingFang cover. When the raw codepoint is uncovered (picked null
+        // or only `last-resort`), route its SINGLETON NFD codepoint instead so
+        // we paint the real ideograph Chrome paints rather than a `.notdef`.
+        if (useFontOverride == null && (picked == null || picked === "last-resort")) {
+          const nfd = String.fromCodePoint(cp).normalize("NFD");
+          const dcp = nfd.codePointAt(0);
+          if (dcp != null && dcp !== cp && String.fromCodePoint(dcp) === nfd) {
+            for (const cand of [primaryFontKey, ...fallbackFontChain(dcp, primaryFontKey, lang)]) {
+              const cf = getFontInstance(cand, weight, fontSize, slant);
+              if (cf != null && (cf as any).glyphForCodePoint != null
+                  && (cf as any).glyphForCodePoint(dcp).id !== 0) {
+                picked = cand;
+                emitCh = String.fromCodePoint(dcp);
+                break;
+              }
+            }
+          }
+        }
         if (useFontOverride == null) {
           // DM-1018: when nothing in the chain covers the codepoint (picked is
           // null, or the only cover is the `last-resort` placeholder), Chrome

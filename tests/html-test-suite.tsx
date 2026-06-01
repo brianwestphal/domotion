@@ -939,6 +939,12 @@ const SKIP_TESTS: Record<string, string> = {
  * the ticket id where the rendering was reviewed.
  */
 const ACCEPTED_DIFFS: Record<string, string> = {
+  // DM-1019: Supplemental Arrows-C (U+1F800–1F8FF) — the arrows render via the
+  // primary-`.notdef` / fallback chain; residual diff is glyph-shape /
+  // antialiasing scatter on arrow forms the macOS fallback fonts draw slightly
+  // differently from Chrome's painted output. Reviewed visually; accepted as a
+  // stable baseline per maintainer.
+  "1F800-1F8FF-supplemental-arrows-c": "DM-1019: arrows render; residual diff is fallback arrow-glyph shape / antialiasing scatter — accepted baseline",
   // DM-774: paint-order test renders the seven nested layers in the correct
   // back-to-front order with correct colors / geometry; the residual diff is
   // text antialiasing + arrow-glyph substitution in the header / caption
