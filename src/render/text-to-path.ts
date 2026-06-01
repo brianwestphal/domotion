@@ -1714,7 +1714,33 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     || (codepoint >= 0x1F1E6 && codepoint <= 0x1F1FF);
   const generatedKey = lookupUnicodeFontRange(codepoint);
   if (generatedKey != null) {
-    return isEmojiCp ? [generatedKey, "symbols"] : [generatedKey, "symbols", "last-resort"];
+    // DM-1018: the DM-983 per-block generated table assigns ONE font per
+    // block, sampled from the first few cells. Many blocks are heterogeneous
+    // — e.g. Latin Extended-D (U+A720–A7FF) samples to Helvetica Neue from
+    // its leading modifier letters, but Chrome paints most of the block
+    // (Egyptological / Insular / phonetic letters at U+A722+) via Noto Sans.
+    // When the sampled font lacks a glyph the chain previously went
+    // `[sampledFont, symbols, last-resort]` and bottomed out at the
+    // LastResort `?` tofu, even though Noto Sans — which Chrome actually
+    // reaches for these — has the glyph. Insert `u-noto-sans` (the basic
+    // 4.6k-glyph Noto Sans with broad Latin / Greek / Cyrillic / IPA /
+    // phonetic coverage) AFTER `symbols` so Apple Symbols stays the
+    // preferred fallback for genuine symbol codepoints (Noto Sans lacks
+    // those, so it never wins there) but letter codepoints the sampled
+    // font missed resolve to Noto Sans instead of tofu. The chain walker
+    // picks the first font whose `glyphForCodePoint(cp).id !== 0`, so a
+    // `u-noto-sans` that's also the generatedKey or lacks the glyph is a
+    // harmless no-op.
+    return isEmojiCp
+      ? [generatedKey, "symbols", "u-noto-sans"]
+      : [generatedKey, "symbols", "u-noto-sans", "last-resort"];
+  }
+  // No generated-table route matched (rare — the table covers most blocks).
+  // Try Noto Sans before LastResort: a codepoint with no block route is
+  // usually a letter Chrome resolves via its broad Latin/Greek/Cyrillic
+  // cascade, which Noto Sans mirrors. DM-1018.
+  if (!isEmojiCp) {
+    return ["u-noto-sans", "last-resort"];
   }
   // Final fallback: Apple LastResort.otf paints the block-frame placeholder
   // glyph (one per Unicode block) for every codepoint — matching what
