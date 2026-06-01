@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
 
 /**
  * Shared PNG comparator used by every visual-regression runner in `tests/`.
@@ -159,8 +159,41 @@ export async function comparePngs(
   tilePx: number = TILE_PX,
   significantDist: number = SIGNIFICANT_PIXEL_DIST,
 ): Promise<CompareResult> {
-  const expectedB64 = readFileSync(expectedPath).toString("base64");
-  const actualB64 = readFileSync(actualPath).toString("base64");
+  const expectedBytes = readFileSync(expectedPath);
+  const actualBytes = readFileSync(actualPath);
+  // DM-1003: byte-equality fast path. When the two PNGs are byte-identical
+  // skip the per-tile Yee + region-detection walk entirely (the walk loads
+  // both images into Chromium canvases, iterates every pixel for the diff
+  // mask, runs connected-components — ~1–3 s on the bigger fixtures).
+  // Buffer length compare + Buffer.equals is O(n) but C-speed and shares
+  // the same file reads we'd do anyway for base64. Empirically rare in
+  // our renderer (clean fixtures still have sub-pixel render differences
+  // between expected/actual) but compounds with DM-1002 where the
+  // cached expected.png is reused unchanged across runs.
+  if (expectedBytes.length === actualBytes.length && expectedBytes.equals(actualBytes)) {
+    copyFileSync(expectedPath, diffPath);
+    return {
+      nonAaPixels: 0,
+      nonAaPixelPct: 0,
+      diffPct: 0,
+      sigPixelPct: 0,
+      worstTilePct: 0,
+      worstTileSignificantPct: 0,
+      worstTileRect: { x: 0, y: 0, w: 0, h: 0 },
+      regionCount: 0,
+      totalChangedArea: 0,
+      maxRegionSeverity: 0,
+      scatteredPixels: 0,
+      shiftedPixels: 0,
+      shiftyRegionCount: 0,
+      shiftyRegionArea: 0,
+      coveragePct: 0,
+      verdict: "clean",
+      regions: [],
+    };
+  }
+  const expectedB64 = expectedBytes.toString("base64");
+  const actualB64 = actualBytes.toString("base64");
 
   const result = (await comparePage.evaluate(
     `(async () => {
