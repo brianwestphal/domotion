@@ -27,7 +27,9 @@
  */
 
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readdirSync, statSync, existsSync, readFileSync, copyFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTreeWithWarnings, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
@@ -62,6 +64,33 @@ const HEIGHT = 768;
 // don't read the review UI can save the per-fixture cost.
 const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0"
   && !process.argv.includes("--no-render-skipped");
+
+// DM-1002: expected.png cache. The expected screenshot is deterministic
+// per (source HTML, viewport, Chromium version). When the cache hits we
+// skip the per-fixture page.screenshot + bodyBg evaluate, copying the
+// cached PNG into expectedPath and reading bodyBg from a sibling JSON
+// meta file. The cache lives under OUTPUT_DIR/.expected-cache/ and is
+// gitignored via the existing `tests/output/` rule.
+//
+// Cache key = sha256(htmlBytes + "|" + WIDTH + "x" + fixtureHeight + "|"
+// + Playwright version). Playwright pins a specific Chromium revision
+// per release, so the package version is a sufficient proxy for "the
+// Chromium that would produce this screenshot."
+const EXPECTED_CACHE_DIR = resolve(OUTPUT_DIR, ".expected-cache");
+const _require = createRequire(import.meta.url);
+const PLAYWRIGHT_VERSION: string = (() => {
+  try { return _require("@playwright/test/package.json").version as string; }
+  catch { return "unknown"; }
+})();
+function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
+  return createHash("sha256")
+    .update(htmlBytes)
+    .update(`|${WIDTH}x${fixtureHeight}|${PLAYWRIGHT_VERSION}`)
+    .digest("hex");
+}
+function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
+function expectedCacheMetaPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.json`); }
+interface ExpectedCacheMeta { bodyBg: string; }
 
 /**
  * Per-fixture capture-height overrides for html-test files whose content
@@ -1173,6 +1202,30 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         await w.page.setViewportSize({ width: WIDTH, height: HEIGHT });
       }
     }
+    // DM-1002: check the expected.png cache. The hash key folds in
+    // (source HTML bytes, viewport WIDTH × fixtureHeight, Playwright
+    // version) so any of those changing invalidates the entry. Cache
+    // hit → copy PNG to expectedPath + read bodyBg from meta JSON;
+    // skip the goto + screenshot + evaluate. Cache miss → fall through
+    // to the normal navigate/screenshot/evaluate path, then write the
+    // results back to the cache for next time.
+    const srcBytes = readFileSync(srcPath);
+    const cacheKey = expectedCacheKey(srcBytes, fixtureHeight);
+    const cachedPng = expectedCachePngPath(cacheKey);
+    const cachedMeta = expectedCacheMetaPath(cacheKey);
+    let expectedFromCache = false;
+    if (existsSync(cachedPng) && existsSync(cachedMeta)) {
+      try {
+        copyFileSync(cachedPng, expectedPath);
+        const meta = JSON.parse(readFileSync(cachedMeta, "utf-8")) as ExpectedCacheMeta;
+        bodyBg = meta.bodyBg;
+        expectedFromCache = true;
+      } catch {
+        // Cache read failed (corrupted file etc.) — fall through.
+        expectedFromCache = false;
+      }
+    }
+
     await w.page.goto(`file://${srcPath}`);
     // DM-1009: replaced waitForTimeout(150) — the 150 ms was a buffer for
     // `@font-face` loads to finish (per DM-303 comment below). waitForSettled
@@ -1180,14 +1233,24 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // next-paint events, so fast fixtures stop paying for the slow ones.
     await waitForSettled(w.page);
 
-    bodyBg = await w.page.evaluate(() => {
-      const cs = getComputedStyle(document.body);
-      const bg = cs.backgroundColor;
-      if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return "#ffffff";
-      return bg;
-    });
+    if (!expectedFromCache) {
+      bodyBg = await w.page.evaluate(() => {
+        const cs = getComputedStyle(document.body);
+        const bg = cs.backgroundColor;
+        if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return "#ffffff";
+        return bg;
+      });
 
-    await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+      await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+
+      // Populate the cache for next time. Best-effort: cache write failure
+      // doesn't fail the test, the next run just re-renders.
+      try {
+        mkdirSync(EXPECTED_CACHE_DIR, { recursive: true });
+        copyFileSync(expectedPath, cachedPng);
+        writeFileSync(cachedMeta, JSON.stringify({ bodyBg }));
+      } catch { /* ignore */ }
+    }
 
     // Pick up any @font-face rules — covers both url(...) downloads and
     // local(...) aliases (DM-303). Without this, fixtures using
