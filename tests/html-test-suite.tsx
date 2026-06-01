@@ -91,6 +91,11 @@ function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
 function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
 function expectedCacheMetaPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.json`); }
 interface ExpectedCacheMeta { bodyBg: string; }
+// Cache-hit / cache-miss counters (DM-1002 verification — reported at the
+// end of the run alongside the pass/fail summary so we can confirm the
+// cache is actually firing as expected).
+let _expectedCacheHits = 0;
+let _expectedCacheMisses = 0;
 
 /**
  * Per-fixture capture-height overrides for html-test files whose content
@@ -1220,10 +1225,14 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         const meta = JSON.parse(readFileSync(cachedMeta, "utf-8")) as ExpectedCacheMeta;
         bodyBg = meta.bodyBg;
         expectedFromCache = true;
+        _expectedCacheHits++;
       } catch {
         // Cache read failed (corrupted file etc.) — fall through.
         expectedFromCache = false;
+        _expectedCacheMisses++;
       }
+    } else {
+      _expectedCacheMisses++;
     }
 
     await w.page.goto(`file://${srcPath}`);
@@ -1460,6 +1469,13 @@ async function main(): Promise<void> {
   const skipped = results.filter((r) => r.skipped).length;
   const failed = results.length - passed - skipped;
   console.log(`\n${passed} passed, ${failed} failed, ${skipped} skipped out of ${results.length}`);
+  // DM-1002 verification — expected.png cache hit/miss tally so we can
+  // confirm the cache is actually firing across the run.
+  const totalCacheChecks = _expectedCacheHits + _expectedCacheMisses;
+  if (totalCacheChecks > 0) {
+    const hitPct = (_expectedCacheHits / totalCacheChecks * 100).toFixed(1);
+    console.log(`Expected.png cache: ${_expectedCacheHits} hits / ${_expectedCacheMisses} misses (${hitPct}% hit rate)`);
+  }
   console.log(`\nArtifacts: ${OUTPUT_DIR}`);
   console.log(`Visual index: file://${resolve(OUTPUT_DIR, "index.html")}`);
 
