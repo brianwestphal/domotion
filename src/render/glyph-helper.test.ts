@@ -222,14 +222,45 @@ describeHelper("CoreText glyph extractor", () => {
     expect(Math.abs(ctH.advance - fkAdvancePoints)).toBeLessThan(fkAdvancePoints * 0.01);
   });
 
-  it("returns id=0 / empty path for codepoints the font lacks", () => {
+  it("returns id=0 (uncovered) for codepoints the font lacks, with the font's .notdef outline (DM-1018)", () => {
     const response = callHelper({
       fonts: [{ ref: "h", postscriptName: "Helvetica", size: 16 }],
       queries: [{ type: "glyphs", fontRef: "h", glyphs: [{ cp: 0x6F22 }] }] // Han ideograph in Helvetica
     });
     const result = response.results[0] as { glyphs: GlyphResult[] };
+    // id 0 is the coverage signal — the codepoint is NOT in the font. Callers
+    // gate on this. DM-1018: the helper now ALSO returns glyph 0's outline (the
+    // `.notdef` glyph) rather than an empty path, because Blink draws the
+    // primary font's `.notdef` for uncovered codepoints (e.g. SF Compact's
+    // SignWriting stripes). Helvetica's `.notdef` is a box, so `d` is non-empty.
     expect(result.glyphs[0].id).toBe(0);
-    expect(result.glyphs[0].d).toBe("");
+    expect(result.glyphs[0].d.length).toBeGreaterThan(0);
+  });
+
+  it("notdef query returns the font's glyph-0 outline (DM-1018)", () => {
+    const response = callHelper({
+      fonts: [{ ref: "h", postscriptName: "Helvetica", size: 1000 }],
+      queries: [{ type: "notdef", fontRef: "h" }]
+    });
+    const r = response.results[0] as { type: string; id: number; d: string };
+    expect(r.type).toBe("notdef");
+    expect(r.id).toBe(0);
+    expect(r.d.length).toBeGreaterThan(0); // Helvetica .notdef is a visible box
+  });
+
+  it("family query resolves a real installed font and rejects unknowns (DM-1018)", () => {
+    const resp = callHelper({
+      fonts: [],
+      queries: [
+        { type: "family", name: "Helvetica" },
+        { type: "family", name: "ThisFontDoesNotExist98765" },
+      ],
+    });
+    const real = resp.results[0] as { type: string; found: boolean; postscriptName?: string };
+    const fake = resp.results[1] as { found: boolean };
+    expect(real.found).toBe(true);
+    expect(real.postscriptName).toBeTruthy();
+    expect(fake.found).toBe(false);
   });
 
   it("accepts pre-resolved glyph ids in addition to codepoints", () => {

@@ -132,10 +132,18 @@ interface HelperRequest {
     | { type: "meta"; fontRef: string }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
     | { type: "fallback"; fontRef: string; cps: number[] }
+    | { type: "family"; name: string }
   >;
 }
 interface FallbackResponseEntry {
   cp: number;
+  found: boolean;
+  postscriptName?: string;
+  familyName?: string;
+  path?: string;
+}
+interface FamilyResponse {
+  type: "family";
   found: boolean;
   postscriptName?: string;
   familyName?: string;
@@ -146,6 +154,7 @@ interface HelperResponse {
     | (MetaResponse & { type: "meta" })
     | { type: "glyphs"; glyphs: GlyphResponse[] }
     | { type: "fallback"; fonts: FallbackResponseEntry[] }
+    | FamilyResponse
   >;
 }
 
@@ -224,10 +233,20 @@ export function createGlyphHelperFont(spec: {
     for (let i = 0; i < need.length; i++) {
       const cp = need[i];
       const g = r.glyphs[i];
-      if (g == null || g.id === 0) {
+      if (g == null) {
         missingCp.add(cp);
         continue;
       }
+      // DM-1018: a glyph id of 0 is `.notdef` — the font doesn't cover this
+      // codepoint. We STILL store the glyph (with its outline) rather than
+      // marking it missing, because Blink draws the primary font's `.notdef`
+      // for uncovered codepoints and that outline is often inked (SF Compact's
+      // `.notdef` is the SignWriting stripes frame). `glyphForCodePoint(cp).id`
+      // still reports 0, so the fallback-chain coverage check (`id !== 0`)
+      // correctly treats the codepoint as uncovered and keeps walking; the
+      // stored outline is only ever emitted when the renderer deliberately
+      // paints the primary's `.notdef` (the DM-1018 terminal in
+      // splitTextIntoFontRuns).
       const glyph: GlyphHelperGlyph = {
         id: g.id,
         advanceWidth: g.advance,
@@ -235,7 +254,7 @@ export function createGlyphHelperFont(spec: {
         codePoints: [cp]
       };
       cpToGlyph.set(cp, glyph);
-      idToGlyph.set(g.id, glyph);
+      if (g.id !== 0) idToGlyph.set(g.id, glyph);
     }
   }
 
@@ -372,6 +391,40 @@ export function resolveSystemFallbackFonts(
   return out;
 }
 
+/** A real installed font resolved by name via CoreText. */
+export interface InstalledFont {
+  postscriptName: string;
+  familyName: string;
+  path: string;
+}
+
+const _installedFontCache = new Map<string, InstalledFont | null>();
+
+/** Resolve a CSS font-family NAME to a real installed font, the way Blink's
+ *  FontFallbackList picks `first_candidate_` — the first family in the stack
+ *  that actually loads (font_fallback_iterator.cc). Backed by
+ *  `CTFontCreateWithName` with a name-match guard so a substituted default
+ *  doesn't masquerade as the requested family. Returns null when the name
+ *  isn't a real installed font (caller keeps walking the stack), or when the
+ *  helper binary isn't available (non-macOS / unbuilt). Memoized process-wide.
+ *  darwin-only. */
+export function resolveInstalledFont(name: string): InstalledFont | null {
+  const key = name.toLowerCase();
+  if (_installedFontCache.has(key)) return _installedFontCache.get(key)!;
+  let resolved: InstalledFont | null = null;
+  if (isGlyphHelperAvailable()) {
+    try {
+      const resp = callHelper({ fonts: [], queries: [{ type: "family", name }] });
+      const r = resp.results[0];
+      if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
+        resolved = { postscriptName: r.postscriptName, familyName: r.familyName ?? "", path: r.path };
+      }
+    } catch { resolved = null; }
+  }
+  _installedFontCache.set(key, resolved);
+  return resolved;
+}
+
 /** Drop the in-memory glyph-resolution caches. Currently a no-op since each
  *  `createGlyphHelperFont` returns its own closure-bound cache, but exposed for
  *  parity with `clearWebfonts` / `clearGlyphDefs`. */
@@ -379,4 +432,5 @@ export function clearGlyphHelperCache(): void {
   helperAvailable = null;
   helperPath = undefined;
   _systemFallbackCache.clear();
+  _installedFontCache.clear();
 }

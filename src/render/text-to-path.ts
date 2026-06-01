@@ -12,7 +12,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
@@ -943,6 +943,17 @@ function resolveWin32Spec(key: string): FontPath | null {
 // resolveFontSpec before the platform tables so the dynamic key resolves.
 const dynamicSystemFontPaths = new Map<string, FontPath>();
 
+/** DM-1018: register a CoreText-resolved on-disk font under a `sysfb:<psName>`
+ *  key so getFontInstance / resolveFontSpec can open it. `extractor: native`
+ *  routes through the CoreText helper (handles hvgl / GSUB-crashing faces and
+ *  the `.notdef` extraction), and the path lets the helper open the exact file
+ *  CoreText chose. No-op if already registered. */
+function registerDynamicSystemFont(key: string, path: string, postscriptName: string): void {
+  if (dynamicSystemFontPaths.has(key)) return;
+  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor: "native" });
+  resolvedSpecCache.delete(key); // in case a prior null was cached
+}
+
 function resolveFontSpec(key: string): FontPath | null {
   if (resolvedSpecCache.has(key)) return resolvedSpecCache.get(key)!;
   let resolved: FontPath | null;
@@ -989,18 +1000,7 @@ function resolveSystemFallbackKeyForCp(cp: number): string | null {
     const resolved = resolveSystemFallbackFonts([cp]).get(cp);
     if (resolved != null && resolved.path !== "") {
       key = `sysfb:${resolved.postscriptName}`;
-      if (!dynamicSystemFontPaths.has(key)) {
-        // Mark `extractor: native` so PingFang-style hvgl / GSUB-crashing faces
-        // route through the CoreText helper; fontkit-readable faces still work
-        // through it (the helper handles both). Path lets the helper open the
-        // exact file CTFontCreateForString chose.
-        dynamicSystemFontPaths.set(key, {
-          path: resolved.path,
-          postscriptName: resolved.postscriptName,
-          extractor: "native",
-        });
-        resolvedSpecCache.delete(key); // in case a prior null was cached
-      }
+      registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
     }
   } catch { key = null; }
   systemFallbackKeyCache.set(cp, key);
@@ -2343,6 +2343,24 @@ export function resolveFontKey(fontFamily: string): string {
     if (name === "ui-monospace" || name === "ui-rounded" || name === "ui-sans-serif"
       || name === "math" || name === "emoji" || name === "fangsong"
       || name === "-apple-system") continue;
+    // DM-1018: the name isn't one of our calibrated families or a generic
+    // keyword — but it may still be a REAL installed font (SF Compact,
+    // Mplus 1p, …). Blink's FontFallbackList sets `first_candidate_` to the
+    // first family in the stack that actually loads, and draws THAT font's
+    // `.notdef` for uncovered codepoints (FontFallbackIterator
+    // kFirstCandidateForNotdefGlyph). Probe CoreText (memoized) so an
+    // installed-but-uncalibrated primary resolves to itself instead of
+    // falling through to the `times` default — which is what makes e.g. the
+    // SignWriting fixture paint SF Compact's stripes `.notdef` and the Kana
+    // Supplement fixture paint Mplus 1p's blank `.notdef`, matching Chrome.
+    // The calibrated families above still win (they carry metric tuning); only
+    // genuinely-unrecognized names reach here.
+    const installed = resolveInstalledFont(name);
+    if (installed != null) {
+      const key = `sysfb:${installed.postscriptName}`;
+      registerDynamicSystemFont(key, installed.path, installed.postscriptName);
+      return key;
+    }
   }
   // Last-resort fallback when no family in the stack matched. Chrome's
   // ultimate fallback on macOS for an unrecognized name is the user's

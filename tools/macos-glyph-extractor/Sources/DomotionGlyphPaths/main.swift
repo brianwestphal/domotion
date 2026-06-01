@@ -232,7 +232,14 @@ func runGlyphsQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [Stri
         let g = glyphs[i]
         let advance = advances[i].width
         let bbox = bboxes[i]
-        let path = g == 0 ? "" : svgPath(forGlyph: g, in: font)
+        // DM-1018: extract glyph-0 (.notdef) outlines too. Blink draws the
+        // primary font's `.notdef` for codepoints nothing covers, and that
+        // glyph is often inked (SF Compact's `.notdef` is the SignWriting
+        // stripes frame). Fallback fonts are only ever picked when they HAVE
+        // the glyph (id != 0), so only the primary reaches glyph 0 here; the
+        // renderer suppresses emoji / PUA `.notdef` at a higher level (DM-334),
+        // so emitting the outline is safe and matches Chrome's placeholder.
+        let path = svgPath(forGlyph: g, in: font)
         // bbox stays in CT's y-up coords to match the path emission convention.
         // origin.y is the bottom of the glyph (often negative for descenders);
         // origin.y + height is the top.
@@ -251,6 +258,26 @@ func runGlyphsQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [Stri
     }
 
     return ["type": "glyphs", "glyphs": out]
+}
+
+// DM-1018: extract a font's `.notdef` glyph (glyph 0) outline. Blink draws the
+// `first_candidate_` (primary) font's `.notdef` for codepoints nothing covers
+// (FontFallbackIterator kFirstCandidateForNotdefGlyph), and that glyph is
+// often NOT an empty box — e.g. SF Compact's `.notdef` is the stacked-stripes
+// frame Chrome paints for uncovered Sutton SignWriting cells. The normal
+// `glyphs` query suppresses glyph-0 paths (`g == 0 ? ""`); this query returns it.
+func runNotdefQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String: Any] {
+    guard let ref = query["fontRef"] as? String, let entry = fonts[ref] else {
+        return ["type": "notdef", "error": "fontRef missing or unknown"]
+    }
+    let font = entry.font
+    var advance = CGSize.zero
+    var gg: CGGlyph = 0
+    _ = CTFontGetAdvancesForGlyphs(font, .horizontal, &gg, &advance, 1)
+    let path = svgPath(forGlyph: 0, in: font)
+    return ["type": "notdef", "id": 0,
+            "advance": NSDecimalNumber(string: formatNumber(advance.width)),
+            "d": path]
 }
 
 // Read Int16 (big-endian) from a Data slice at offset.
@@ -306,6 +333,37 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
     if let v = strikeoutPos { result["strikeoutPosition"] = v }
     if let v = strikeoutThick { result["strikeoutThickness"] = v }
     return result
+}
+
+// DM-1018: resolve a CSS font-family name to a real installed font, the way
+// Blink's FontFallbackList picks `first_candidate_` — the first family in the
+// stack that actually loads. CTFontCreateWithName substitutes a default when
+// the name is unknown, so we VERIFY the resolved font's family / PostScript
+// name actually matches the request (case-insensitive) before reporting it
+// found; otherwise the caller keeps walking the stack. Returns the resolved
+// PostScript name + on-disk file URL so the renderer can open it.
+func runFamilyQuery(_ query: [String: Any]) -> [String: Any] {
+    guard let name = query["name"] as? String, !name.isEmpty else {
+        return ["type": "family", "found": false]
+    }
+    let font = CTFontCreateWithName(name as CFString, 16.0, nil)
+    let psName = (CTFontCopyPostScriptName(font) as String?) ?? ""
+    let familyName = (CTFontCopyFamilyName(font) as String?) ?? ""
+    let displayName = (CTFontCopyName(font, kCTFontFullNameKey) as String?) ?? ""
+    let want = name.lowercased()
+    let matches = familyName.lowercased() == want
+        || psName.lowercased() == want
+        || psName.lowercased() == want.replacingOccurrences(of: " ", with: "")
+        || displayName.lowercased() == want
+    if !matches || psName.isEmpty {
+        return ["type": "family", "found": false]
+    }
+    var pathStr = ""
+    if let url = CTFontCopyAttribute(font, kCTFontURLAttribute) as? URL {
+        pathStr = url.path
+    }
+    return ["type": "family", "found": true,
+            "postscriptName": psName, "familyName": familyName, "path": pathStr]
 }
 
 // MARK: - System fallback resolution (CTFontCreateForString)
@@ -432,6 +490,10 @@ for query in queries {
         results.append(runMetaQuery(query, fonts: fonts))
     case "fallback":
         results.append(runFallbackQuery(query, fonts: fonts))
+    case "notdef":
+        results.append(runNotdefQuery(query, fonts: fonts))
+    case "family":
+        results.append(runFamilyQuery(query))
     default:
         results.append(["type": type, "error": "unknown query type"])
     }
