@@ -510,6 +510,16 @@ const FONT_PATHS: Record<string, FontPath> = {
   "thai":            { path: "/System/Library/Fonts/ThonburiUI.ttc", postscriptName: ".ThonburiUI-Regular" },
   "devanagari":      { path: "/System/Library/Fonts/Kohinoor.ttc", postscriptName: "KohinoorDevanagari-Regular" },
   "symbols":         { path: "/System/Library/Fonts/Apple Symbols.ttf" },
+  // Apple's LastResort.otf — the absolute final fallback Chrome on macOS
+  // reaches when no font in the cascade has a glyph for a codepoint. It
+  // contains one "block-frame" glyph per Unicode block (SMP gets stacked
+  // horizontal stripes, Egyptian Hieroglyphs gets an empty rectangle,
+  // CJK ranges get a hex-numbered tofu, etc.), so painting a codepoint
+  // via LastResort matches what Chrome paints for anything otherwise
+  // unmappable on this platform. DM-998 / DM-999 / DM-1010: without
+  // this entry the renderer ends the chain at `[]` and emits nothing
+  // (or a generic placeholder) instead of Chrome's block-frame glyph.
+  "last-resort":     { path: "/System/Library/Fonts/LastResort.otf" },
   // Chrome on macOS routes a handful of arrow codepoints (↑ ↓) to LucidaGrande
   // rather than Apple Symbols — Apple Symbols' ↑ ↓ are 9.86/10.28px wide
   // @22px while LucidaGrande's are 14.19/14.19px, and Chrome's captured
@@ -1353,6 +1363,33 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     if (localeKey != null) return [localeKey, "pingfang-sc", "cjk"];
     return ["pingfang-sc", "cjk"];
   }
+  // CJK supplementary planes — Unified Ideographs Extensions B/C/D/E/F/I
+  // (U+20000..U+2EBEF), CJK Compatibility Ideographs Supplement
+  // (U+2F800..U+2FA1F), Ext G (U+30000..U+3134F) and Ext H
+  // (U+31350..U+323AF). On macOS Chrome reaches Apple's PingFang variants
+  // (PingFangSC for Ext B/C/D/E/F/G, PingFangHK for Ext H, PingFangTC for
+  // the small set of compat-ideographs additions HK lacks). Probed per-
+  // codepoint via CSS.getPlatformFontsForNode: U+305D6 → .PingFangSC-Regular,
+  // U+3208E → .PingFangHK-Regular. Without this route the codepoints fall
+  // through to the DM-983 generated table — which (because Arial Unicode
+  // MS / Noto Sans KR don't carry these blocks) maps to fonts with no
+  // glyph and the chain ends at `[]`, rendering nothing for what Chrome
+  // paints as a real character. DM-1000 / DM-1011 / DM-1012.
+  //
+  // `pingfang-hk` is tried before `pingfang-sc` because HK has the broadest
+  // coverage of the post-Unicode-13 additions (Apple updates HK first for
+  // newly-added codepoints); SC catches the older Ext B/C/D/E/F set; `cjk`
+  // (HiraginoSansGB) stays as a safety net; LastResort emits Chrome's
+  // block-frame placeholder for the residue PingFang lacks.
+  if ((codepoint >= 0x20000 && codepoint <= 0x2EBEF)
+    || (codepoint >= 0x2F800 && codepoint <= 0x2FA1F)
+    || (codepoint >= 0x30000 && codepoint <= 0x323AF)) {
+    if (serifPrimary) return ["cjk-serif", "pingfang-hk", "pingfang-sc", "cjk", "last-resort"];
+    const localeKey = pingfangKeyForLang(lang);
+    if (localeKey === "hiragino-jp") return ["hiragino-jp", "pingfang-hk", "pingfang-sc", "cjk", "last-resort"];
+    if (localeKey != null) return [localeKey, "pingfang-hk", "pingfang-sc", "cjk", "last-resort"];
+    return ["pingfang-hk", "pingfang-sc", "cjk", "last-resort"];
+  }
   // Box Drawing / Block Elements (U+2500..U+259F).
   //
   // When the primary font is MONOSPACE (Courier / Menlo / Monaco / SF Mono),
@@ -1634,9 +1671,28 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // baked in. Adds coverage for scripts / symbol sets that previously fell
   // through to `[]` and rendered as tofu (cuneiform, Egyptian hieroglyphs,
   // most pre-modern scripts, Yi, Vai, Cherokee, Bamum, …).
+  // Skip the LastResort tail for codepoints in the broad emoji range —
+  // the capture layer attaches a raster `<image>` overlay for those
+  // (DM-334) and the renderer expects the chain to end at `[]` so the
+  // primary font's `.notdef` rectangle paints behind the overlay. Adding
+  // LastResort here would route the emoji into its own font run and
+  // trigger the per-codepoint `isEmoji` suppression, which drops the
+  // glyph entirely and breaks the expected layout (S, m, i, l, e + the
+  // `.notdef` slot).
+  const isEmojiCp = (codepoint >= 0x1F300 && codepoint <= 0x1FAFF)
+    || (codepoint >= 0x1F1E6 && codepoint <= 0x1F1FF);
   const generatedKey = lookupUnicodeFontRange(codepoint);
-  if (generatedKey != null) return [generatedKey, "symbols"];
-  return [];
+  if (generatedKey != null) {
+    return isEmojiCp ? [generatedKey, "symbols"] : [generatedKey, "symbols", "last-resort"];
+  }
+  // Final fallback: Apple LastResort.otf paints the block-frame placeholder
+  // glyph (one per Unicode block) for every codepoint — matching what
+  // Chrome on macOS paints for entirely-unmappable codepoints (Egyptian
+  // Hieroglyphs Extended-A, supplementary-plane symbols no system font
+  // carries, etc.). Without this the chain ends at `[]` and the renderer
+  // drops to a generic placeholder that doesn't match Chrome's per-block
+  // frame paint. DM-998 / DM-999 / DM-1010.
+  return isEmojiCp ? [] : ["last-resort"];
 }
 
 /** Binary-search the generated `UNICODE_FONT_RANGES` for a codepoint. */
