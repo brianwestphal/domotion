@@ -308,6 +308,65 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
     return result
 }
 
+// MARK: - System fallback resolution (CTFontCreateForString)
+
+// Mirror Chrome-on-macOS's per-character font fallback. Blink's
+// `font_cache_mac.mm::PlatformFallbackFontForCharacter` → `GetSubstituteFont`
+// calls `CTFontCreateForString(baseFont, string, range)` to walk CoreText's
+// system cascade and find the font that actually renders a character the
+// primary font lacks; if the result is LastResort it returns null (Chrome then
+// paints its own last-resort). We expose the same call so the renderer can
+// resolve fallback fonts authoritatively instead of consulting a sampled
+// per-block table. For each requested codepoint we return the resolved font's
+// PostScript name + on-disk file URL (so the existing path-based open works),
+// or null when CoreText falls through to LastResort.
+func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String: Any] {
+    // Base font drives the cascade list + trait matching. Use the caller's
+    // primary font when provided (matches Chrome, which starts from the
+    // element's resolved primary), else a neutral system font at 16pt.
+    let baseFont: CTFont
+    if let ref = query["fontRef"] as? String, let entry = fonts[ref] {
+        baseFont = entry.font
+    } else {
+        baseFont = CTFontCreateWithName("Helvetica" as CFString, 16.0, nil)
+    }
+    let cps = (query["cps"] as? [NSNumber])?.map { $0.uint32Value } ?? []
+
+    // LastResort detection: CTFontCreateForString returns the LastResort font
+    // for codepoints nothing in the cascade covers. Compare PostScript names.
+    let lastResortName = "LastResort"
+
+    var out: [[String: Any]] = []
+    for cp in cps {
+        guard let scalar = Unicode.Scalar(cp) else {
+            out.append(["cp": Int(cp), "found": false]); continue
+        }
+        let s = String(scalar) as NSString
+        let range = CFRangeMake(0, s.length)
+        let substitute = CTFontCreateForString(baseFont, s as CFString, range)
+        let psName = (CTFontCopyPostScriptName(substitute) as String?) ?? ""
+        let familyName = (CTFontCopyFamilyName(substitute) as String?) ?? ""
+        if psName == lastResortName || psName.isEmpty {
+            out.append(["cp": Int(cp), "found": false])
+            continue
+        }
+        // Resolve the on-disk file URL so the renderer can open it by path
+        // through the same fontkit / helper machinery it uses elsewhere.
+        var pathStr = ""
+        if let urlAttr = CTFontCopyAttribute(substitute, kCTFontURLAttribute) as? URL {
+            pathStr = urlAttr.path
+        }
+        out.append([
+            "cp": Int(cp),
+            "found": true,
+            "postscriptName": psName,
+            "familyName": familyName,
+            "path": pathStr
+        ])
+    }
+    return ["type": "fallback", "fonts": out]
+}
+
 // MARK: - Main
 
 func readRequest() -> Data {
@@ -371,6 +430,8 @@ for query in queries {
         results.append(runGlyphsQuery(query, fonts: fonts))
     case "meta":
         results.append(runMetaQuery(query, fonts: fonts))
+    case "fallback":
+        results.append(runFallbackQuery(query, fonts: fonts))
     default:
         results.append(["type": type, "error": "unknown query type"])
     }

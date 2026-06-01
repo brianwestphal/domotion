@@ -131,10 +131,22 @@ interface HelperRequest {
   queries: Array<
     | { type: "meta"; fontRef: string }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
+    | { type: "fallback"; fontRef: string; cps: number[] }
   >;
 }
+interface FallbackResponseEntry {
+  cp: number;
+  found: boolean;
+  postscriptName?: string;
+  familyName?: string;
+  path?: string;
+}
 interface HelperResponse {
-  results: Array<MetaResponse & { type: "meta" } | { type: "glyphs"; glyphs: GlyphResponse[] }>;
+  results: Array<
+    | (MetaResponse & { type: "meta" })
+    | { type: "glyphs"; glyphs: GlyphResponse[] }
+    | { type: "fallback"; fonts: FallbackResponseEntry[] }
+  >;
 }
 
 function callHelper(request: HelperRequest): HelperResponse {
@@ -297,10 +309,74 @@ export function createGlyphHelperFont(spec: {
   };
 }
 
+/** Resolved system fallback font for a codepoint Chrome would substitute via
+ *  CoreText's `CTFontCreateForString` cascade. `null` when CoreText falls
+ *  through to LastResort (Chrome paints its own last-resort tofu there). */
+export interface SystemFallbackFont {
+  postscriptName: string;
+  familyName: string;
+  path: string;
+}
+
+const _systemFallbackCache = new Map<number, SystemFallbackFont | null>();
+
+/** Authoritative per-codepoint system font fallback, matching Chrome-on-macOS.
+ *
+ *  Blink's `font_cache_mac.mm::PlatformFallbackFontForCharacter` →
+ *  `GetSubstituteFont` calls `CTFontCreateForString(baseFont, str, range)` to
+ *  walk CoreText's system cascade and find the font that renders a character
+ *  the primary font lacks (returning null when the result is LastResort). This
+ *  exposes the same call so the renderer can resolve fallback fonts the way
+ *  Chrome actually does, instead of relying on the sampled per-block table.
+ *
+ *  Returns a map from codepoint to the resolved font (or null for LastResort).
+ *  Results are memoized process-wide; `basePostscriptName` selects the cascade
+ *  base (defaults to Helvetica — a neutral sans base whose system cascade is
+ *  what an un-styled element resolves through). Returns an empty map when the
+ *  helper binary isn't available (non-macOS / unbuilt). */
+export function resolveSystemFallbackFonts(
+  cps: number[],
+  basePostscriptName: string = "Helvetica",
+): Map<number, SystemFallbackFont | null> {
+  const out = new Map<number, SystemFallbackFont | null>();
+  if (!isGlyphHelperAvailable()) return out;
+  const need: number[] = [];
+  for (const cp of cps) {
+    if (_systemFallbackCache.has(cp)) out.set(cp, _systemFallbackCache.get(cp)!);
+    else need.push(cp);
+  }
+  if (need.length === 0) return out;
+  let resp: HelperResponse;
+  try {
+    resp = callHelper({
+      fonts: [{ ref: "base", postscriptName: basePostscriptName, size: 16 }],
+      queries: [{ type: "fallback", fontRef: "base", cps: need }],
+    });
+  } catch {
+    // Helper failure → treat all as unresolved this call (don't poison cache).
+    for (const cp of need) out.set(cp, null);
+    return out;
+  }
+  const r = resp.results[0];
+  if (r == null || r.type !== "fallback") {
+    for (const cp of need) out.set(cp, null);
+    return out;
+  }
+  for (const e of r.fonts) {
+    const resolved: SystemFallbackFont | null = e.found && e.path && e.postscriptName
+      ? { postscriptName: e.postscriptName, familyName: e.familyName ?? "", path: e.path }
+      : null;
+    _systemFallbackCache.set(e.cp, resolved);
+    out.set(e.cp, resolved);
+  }
+  return out;
+}
+
 /** Drop the in-memory glyph-resolution caches. Currently a no-op since each
  *  `createGlyphHelperFont` returns its own closure-bound cache, but exposed for
  *  parity with `clearWebfonts` / `clearGlyphDefs`. */
 export function clearGlyphHelperCache(): void {
   helperAvailable = null;
   helperPath = undefined;
+  _systemFallbackCache.clear();
 }

@@ -12,7 +12,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts } from "./glyph-helper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
@@ -936,16 +936,75 @@ function resolveWin32Spec(key: string): FontPath | null {
  * the per-platform tables above, verifying the file exists (and using
  * `fc-match` discovery on Linux). Results are cached per key.
  */
+// DM-1018: dynamic font specs registered at runtime by the CoreText system-
+// fallback resolver (`resolveSystemFallbackKeyForCp`). Keyed `sysfb:<psName>`.
+// These point at on-disk fonts CTFontCreateForString picked that aren't in the
+// static FONT_PATHS table (e.g. Mplus 1p for Kana Supplement). Checked by
+// resolveFontSpec before the platform tables so the dynamic key resolves.
+const dynamicSystemFontPaths = new Map<string, FontPath>();
+
 function resolveFontSpec(key: string): FontPath | null {
   if (resolvedSpecCache.has(key)) return resolvedSpecCache.get(key)!;
   let resolved: FontPath | null;
-  switch (process.platform) {
+  if (key.startsWith("sysfb:")) {
+    resolved = dynamicSystemFontPaths.get(key) ?? null;
+  } else switch (process.platform) {
     case "linux": resolved = resolveLinuxSpec(key); break;
     case "win32": resolved = resolveWin32Spec(key); break;
     default:      resolved = FONT_PATHS[key] ?? null; break; // darwin + any other Unix with macOS-style paths
   }
   resolvedSpecCache.set(key, resolved);
   return resolved;
+}
+
+// DM-1018: per-codepoint memo of the resolved `sysfb:` key (or null when the
+// CoreText cascade falls through to LastResort — Chrome paints its placeholder
+// there, handled by the primary-`.notdef` terminal).
+const systemFallbackKeyCache = new Map<number, string | null>();
+
+// DM-1018: gate for the per-codepoint CoreText system-fallback resolution.
+// Each first-seen uncovered codepoint costs one `CTFontCreateForString`
+// subprocess round-trip (memoized after). Worth it for blocks where a real
+// system font exists that the sampled per-block table missed (Kana Supplement
+// → Mplus 1p). darwin-only; auto-off when the helper binary isn't present.
+let _systemFallbackResolutionEnabled = process.platform === "darwin";
+/** Test/perf hook to toggle the CoreText per-codepoint fallback resolver. */
+export function setSystemFallbackResolution(on: boolean): void { _systemFallbackResolutionEnabled = on; }
+
+/**
+ * Resolve the system fallback font for a codepoint the way Chrome-on-macOS
+ * does — via CoreText's `CTFontCreateForString` (see `resolveSystemFallbackFonts`
+ * in glyph-helper). Registers the resolved on-disk font as a dynamic
+ * `sysfb:<postscriptName>` key and returns it, so the chain walker can open it
+ * through the normal `getFontInstance` path. Returns null when CoreText
+ * resolves to LastResort (keep `last-resort`) or the helper isn't available
+ * (non-macOS / unbuilt). darwin-only: Linux/Windows have their own system
+ * fallback engines and aren't wired here yet.
+ */
+function resolveSystemFallbackKeyForCp(cp: number): string | null {
+  if (process.platform !== "darwin") return null;
+  if (systemFallbackKeyCache.has(cp)) return systemFallbackKeyCache.get(cp)!;
+  let key: string | null = null;
+  try {
+    const resolved = resolveSystemFallbackFonts([cp]).get(cp);
+    if (resolved != null && resolved.path !== "") {
+      key = `sysfb:${resolved.postscriptName}`;
+      if (!dynamicSystemFontPaths.has(key)) {
+        // Mark `extractor: native` so PingFang-style hvgl / GSUB-crashing faces
+        // route through the CoreText helper; fontkit-readable faces still work
+        // through it (the helper handles both). Path lets the helper open the
+        // exact file CTFontCreateForString chose.
+        dynamicSystemFontPaths.set(key, {
+          path: resolved.path,
+          postscriptName: resolved.postscriptName,
+          extractor: "native",
+        });
+        resolvedSpecCache.delete(key); // in case a prior null was cached
+      }
+    }
+  } catch { key = null; }
+  systemFallbackKeyCache.set(cp, key);
+  return key;
 }
 
 /** Test-only window into the platform path resolver (DM-258). */
@@ -2233,6 +2292,15 @@ export function resolveFontKey(fontFamily: string): string {
     if (name === "sans-serif" || name === "helvetica"
       || name === "helvetica neue") return "helvetica";
     if (name === "arial") return "arial";
+    // Arial Unicode MS — the broad-coverage pan-Unicode face many of the
+    // html-test unicode fixtures declare as their primary. Recognizing it
+    // matters for two reasons (DM-1018): (1) it actually covers a lot of
+    // BMP scripts Chrome would paint from it, and (2) for codepoints NO
+    // font on the system covers, Chrome paints THIS primary's `.notdef`
+    // (an empty rectangle) — see the primary-`.notdef` terminal in
+    // splitTextIntoFontRuns. Without recognizing the family the primary
+    // fell through to `times`, whose `.notdef` is a different-shaped box.
+    if (name === "arial unicode ms" || name === "arialunicodems") return "u-arial-unicode-ms";
     // system-ui / BlinkMacSystemFont / "SF Pro" → SF Pro.
     // These keywords mean "the platform UI font", which on modern macOS is
     // San Francisco. NOTE: `-apple-system` is INTENTIONALLY excluded —
@@ -2994,6 +3062,24 @@ function splitTextIntoFontRuns(
             break;
           }
         }
+        // DM-1018: if the static chain only found `last-resort` (the tofu
+        // placeholder) — or found nothing — ask CoreText which font Chrome
+        // would actually substitute for this codepoint (CTFontCreateForString,
+        // the exact call Blink's font_cache_mac.mm makes). This recovers fonts
+        // the sampled per-block table misses entirely, e.g. Kana Supplement
+        // (U+1B000) → Mplus 1p, without per-block hand-tuning. When CoreText
+        // also resolves to LastResort we fall through to the primary-`.notdef`
+        // terminal below (Chrome paints its placeholder there too).
+        if ((picked == null || picked === "last-resort") && _systemFallbackResolutionEnabled) {
+          const sysKey = resolveSystemFallbackKeyForCp(cp);
+          if (sysKey != null) {
+            const sf = getFontInstance(sysKey, weight, fontSize, slant);
+            if (sf != null && (sf as any).glyphForCodePoint != null
+                && (sf as any).glyphForCodePoint(cp).id !== 0) {
+              picked = sysKey;
+            }
+          }
+        }
         if (picked == null) {
           // Math-Alphanumeric decomposition — same fallback the glyph-path
           // splitter uses (mathAlphaToBase): render the base letter in the
@@ -3006,7 +3092,25 @@ function splitTextIntoFontRuns(
           }
         }
         if (useFontOverride == null) {
-          useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
+          // DM-1018: when nothing in the chain covers the codepoint (picked is
+          // null, or the only cover is the `last-resort` placeholder), Chrome
+          // paints the PRIMARY font's `.notdef` glyph (glyph 0) — NOT a
+          // universal LastResort tofu. The shape is therefore primary-font-
+          // dependent: Arial Unicode MS's `.notdef` is an empty rectangle
+          // (what Chrome shows for the unassigned/uncovered CJK-extension and
+          // Egyptian-hieroglyph cells), while a blank-`.notdef` primary like
+          // Mplus 1p paints nothing at all (Kana Supplement Hentaigana cells).
+          // Mirror that by rendering the primary font here instead of
+          // `last-resort`: the per-glyph emit shapes the codepoint to the
+          // primary's glyph 0 and draws its outline (empty → blank). Verified
+          // against Chrome: font_cache_mac.mm returns null when CTFontCreate-
+          // ForString resolves to LastResort, and Blink then shapes with the
+          // *primary* font, whose missing-glyph is glyph 0.
+          if (picked == null || picked === "last-resort") {
+            useKey = primaryFontKey; // render primary's glyph 0 (.notdef)
+          } else {
+            useKey = picked;
+          }
         }
       }
     }
