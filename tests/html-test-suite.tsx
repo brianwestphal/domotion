@@ -55,6 +55,13 @@ const OUTPUT_DIR = process.env.HTML_TEST_OUTPUT_DIR != null && process.env.HTML_
   : resolve(__dirname, "output/html-test");
 const WIDTH = 1024;
 const HEIGHT = 768;
+// DM-1004: when set (`RENDER_SKIPPED=0` or `--no-render-skipped` on CLI),
+// fixtures listed in SKIP_TESTS bypass the goto + screenshot + SVG render
+// pipeline entirely and emit a placeholder result. Default keeps rendering
+// so the review UI can inspect skipped artifacts; CI / batch sweeps that
+// don't read the review UI can save the per-fixture cost.
+const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0"
+  && !process.argv.includes("--no-render-skipped");
 
 /**
  * Per-fixture capture-height overrides for html-test files whose content
@@ -1088,6 +1095,42 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let err: string | undefined;
   let capWarnings: Array<{ selector: string; feature: string; detail: string }> = [];
 
+  // DM-1004: when RENDER_SKIPPED=0 and the fixture is in SKIP_TESTS, bail
+  // before any rendering work. Saves ~3–5 s per skipped fixture on batch
+  // sweeps where the review UI's artifacts aren't being inspected. The
+  // result is shaped like the slow-path "skipped" output (`pass: true,
+  // skipped: true, ...zero-metric defaults`) so downstream counts /
+  // categorisation behave identically.
+  if (!RENDER_SKIPPED && SKIP_TESTS[name] != null) {
+    return {
+      name,
+      category: categoryOf(name),
+      nonAaPixels: 0,
+      nonAaPixelPct: 0,
+      diffPct: 0,
+      sigPixelPct: 0,
+      worstTilePct: 0,
+      worstTileSignificantPct: 0,
+      worstTileRect: undefined,
+      regionCount: 0,
+      totalChangedArea: 0,
+      maxRegionSeverity: 0,
+      scatteredPixels: 0,
+      shiftedPixels: 0,
+      shiftyRegionCount: 0,
+      shiftyRegionArea: 0,
+      coveragePct: 0,
+      verdict: "clean",
+      regions: [],
+      pass: true,
+      skipped: true,
+      skipReason: SKIP_TESTS[name],
+      acceptedReason: undefined,
+      bodyBg: "#ffffff",
+      error: undefined,
+      warnings: undefined,
+    };
+  }
   // DM-781: per-fixture capture height. Fixtures whose content extends past
   // the 768 px default get the override; everything else uses the default.
   // Resize the viewport BEFORE the navigation so the initial layout (and
