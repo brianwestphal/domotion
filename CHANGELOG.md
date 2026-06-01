@@ -2,6 +2,19 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.9.0] - 2026-06-01
+
+
+- Vertical writing-mode text now renders as native SVG, with underline/overline/line-through and correct sideways-lr orientation
+- `::first-letter` drop caps now render as native SVG, including text-shadow and pixel-accurate cap-top positioning
+- `<textarea>` content and text-flavored `<input>` now render as native SVG instead of a raster screenshot
+- Fixed fade-overlay `::after` content so it paints on top of descendant text
+- Added Linux per-Unicode-block font routing and recalibrated macOS symbol-row fallbacks
+- Bundled a LastResort fallback font as the final glyph fallback on non-macOS platforms
+- Routed CJK Extension B–H and Compatibility Supplement glyphs through PingFang
+- Fixed SF Compact font routing on macOS
+- Resolved the primary font to the first installed family in the stack and render its real `.notdef` glyph for unmapped codepoints, matching Chrome's placeholder and clearing tofu mismatches across dozens of Unicode blocks (CJK extensions, Egyptian Hieroglyphs, Sutton SignWriting, Kana Supplement, Arabic Mathematical, and more)
+
 ## [0.8.0] - 2026-05-30
 
 
