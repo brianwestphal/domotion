@@ -146,7 +146,16 @@ export const UNICODE_FONT_PATHS: Record<string, UnicodeFontEntry> = {
   "u-noto-sans-pahawh-hmong": { path: "/System/Library/Fonts/Supplemental/NotoSansPahawhHmong-Regular.ttf" },
   "u-noto-sans-miao": { path: "/System/Library/Fonts/Supplemental/NotoSansMiao-Regular.ttf" },
   "u-noto-sans-duployan": { path: "/System/Library/Fonts/Supplemental/NotoSansDuployan-Regular.ttf" },
-  "u-sf-compact": { path: "/System/Library/Fonts/SFCompact.ttf" },
+  // DM-1015: route SF Compact through the native helper with an explicit
+  // SFCompact-Regular postscriptName. fontkit's `openSync` on the on-disk
+  // SFCompact.ttf picks `.SFCompact-Black` (the first sub-font in the
+  // collection) whose cmap returns id 0 for U+1D80D (Sutton SignWriting),
+  // so the renderer skipped SF Compact entirely. CoreText resolves
+  // `SFCompact-Regular` by name across the whole font registry (including
+  // /Library/Fonts/SF-Compact.ttf when present — the 19 MB Apple developer
+  // download has the SignWriting glyphs) so the helper finds the curated
+  // SignWriting outlines no fontkit lookup could have reached.
+  "u-sf-compact": { path: "/System/Library/Fonts/SFCompact.ttf", postscriptName: "SFCompact-Regular", extractor: "native" as const },
   "u-noto-serif-hmong-nyiakeng": { path: "/System/Library/Fonts/Supplemental/NotoSerifNyiakengPuachueHmong-Regular.ttf" },
   "u-noto-sans-wancho": { path: "/System/Library/Fonts/Supplemental/NotoSansWancho-Regular.ttf" },
   "u-noto-sans-nag-mundari": { path: "/System/Library/Fonts/Supplemental/NotoSansNagMundari-Regular.ttf" },

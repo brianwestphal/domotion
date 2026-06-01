@@ -68,7 +68,12 @@ const FAMILY_TO_PATH = {
   "Sukhumvit Set":        { path: `${SUPPLEMENTAL}/SukhumvitSet.ttc`, postscriptName: "SukhumvitSet-Text" },
   "Kailasa":              { path: `${SUPPLEMENTAL}/Kailasa.ttc`, postscriptName: "Kailasa" },
   "SF Arabic":            { path: `${SYSTEM_FONTS}/SFArabic.ttf` },
-  "SF Compact":           { path: `${SYSTEM_FONTS}/SFCompact.ttf` },
+  // DM-1015: explicit SFCompact-Regular postscriptName + native extractor
+  // so the helper finds the SignWriting glyphs (in /Library/Fonts/SF-Compact.ttf
+  // when the Apple developer SF Pro download is installed); fontkit would
+  // otherwise pick `.SFCompact-Black` from the /System stub which has no
+  // U+1D80x cmap coverage.
+  "SF Compact":           { path: `${SYSTEM_FONTS}/SFCompact.ttf`, postscriptName: "SFCompact-Regular", extractor: "native" },
   "Mplus 1p":             null, // not standard on macOS
   "Inter":                null, // not standard on macOS
   "Dela Gothic One":      null,

@@ -60,6 +60,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
     let size = (spec["size"] as? NSNumber)?.doubleValue ?? 16.0
 
     var baseFont: CTFont?
+    var pickedNameMatch = false
     if let path = fontPath {
         let url = URL(fileURLWithPath: path) as CFURL
         // CTFontManagerCreateFontDescriptorsFromURL returns every face in the file
@@ -72,6 +73,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
                     if let name = CTFontDescriptorCopyAttribute(d, kCTFontNameAttribute) as? String,
                        name == want {
                         picked = d
+                        pickedNameMatch = true
                         break
                     }
                 }
@@ -80,6 +82,29 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
             if let d = picked {
                 baseFont = CTFontCreateWithFontDescriptor(d, CGFloat(size), nil)
             }
+        }
+    }
+    // DM-1015: when a postscriptName was requested AND the file lookup didn't
+    // match it (we silently fell back to the file's first face), try a
+    // system-wide CTFontCreateWithName resolution as a second chance. macOS
+    // installs the same family in multiple places: /System/Library/Fonts is
+    // a stripped-down stub (`/System/Library/Fonts/SFCompact.ttf` is 1.8 MB
+    // with only `.SFCompact-Black`), while `/Library/Fonts/SF-Compact.ttf`
+    // is the 19 MB Apple-developer-distributed full font that carries the
+    // SignWriting / extended-script coverage. CoreText's by-name resolution
+    // sees both and picks the richest match — falling back here recovers the
+    // glyphs we'd otherwise miss when our recorded font path points at the
+    // /System stub but the caller asked for a regular-weight face that only
+    // exists in /Library.
+    if !pickedNameMatch, let name = postscriptName {
+        let byName = CTFontCreateWithName(name as CFString, CGFloat(size), nil)
+        // Verify the by-name lookup found a face whose postscript name actually
+        // matches what we asked for — CTFontCreateWithName falls back to the
+        // system default if no match, and we don't want to silently swap a
+        // generic font in for a missing face.
+        let resolvedName = CTFontCopyPostScriptName(byName) as String
+        if resolvedName == name {
+            baseFont = byName
         }
     }
     if baseFont == nil, let name = postscriptName {
