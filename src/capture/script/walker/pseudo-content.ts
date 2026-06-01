@@ -456,6 +456,15 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             const pcsTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
             const pcsTransformOrigin = pcsTransform != null ? (pcs.transformOrigin || undefined) : undefined;
             pseudoBoxes.push({
+              // DM-1001: track which pseudo emitted this box so the renderer
+              // can paint ::after pseudo-elements AFTER the host's text (the
+              // CSS render order). The earlier "emit all pseudoBoxes ahead of
+              // text" gate (line 2370) is right for ::before but wrong for
+              // ::after — NYT's right-edge fade-out overlays the headline
+              // text via `::after { background: linear-gradient(transparent,
+              // white) }`, so painting it under the text leaves the headline
+              // sharp instead of fading.
+              pseudo: pseudo,
               x: borderBoxX,
               y: borderBoxY,
               width: borderBoxW,

@@ -915,6 +915,12 @@ export interface CapturedElement {
 }
 
 export interface PseudoBox {
+  /** Which pseudo-element this box came from. CSS render order paints the
+   *  host's main content between `::before` (under) and `::after` (over), so
+   *  the renderer needs the distinction to emit `::after` AFTER text — DM-1001
+   *  / nytimes mobile's right-edge fade-out overlays the headline via
+   *  `::after`. Optional so older captured trees still load. */
+  pseudo?: "::before" | "::after";
   x: number;
   y: number;
   width: number;

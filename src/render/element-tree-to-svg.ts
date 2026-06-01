@@ -2383,6 +2383,27 @@ export function elementTreeToSvgInner(
     // stroke="..." attribute the way the regular-element border path does.
     if (el.pseudoBoxes != null) {
       for (const pb of el.pseudoBoxes) {
+        // DM-1001: defer the FADE-OVERLAY `::after` pattern to AFTER all
+        // descendant rendering so it paints on top of child text — NYT's
+        // right-edge headline fade is `::after { background: linear-gradient
+        // (transparent, white) }` on the carousel container; emitting it
+        // here put the fade UNDER the inner headline text. Heuristic for
+        // "this is a fade overlay, not a decorative caret / divider": the
+        // box carries a backgroundImage (so it has a gradient or url() to
+        // paint) AND has no own background color / borders (a real caret
+        // would have a backgroundColor or per-side border to draw its
+        // shape). Decorative pseudoBoxes (carets, dividers, dots) keep
+        // the previous in-place emit so vertical-align caret placement
+        // (`pseudo-after-down-caret-vertical-align`) stays correct.
+        if (pb.pseudo === "::after") {
+          const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
+          const hasBgColor = pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
+          const hasBorder = (pb.borderTopWidth ?? 0) > 0
+            || (pb.borderRightWidth ?? 0) > 0
+            || (pb.borderBottomWidth ?? 0) > 0
+            || (pb.borderLeftWidth ?? 0) > 0;
+          if (hasBgImage && !hasBgColor && !hasBorder) continue;
+        }
         // DM-783: snapshot svgParts.length so we can wrap THIS pb's emit in
         // a `<g transform="…">` when pb.transform is present. The wrap pre-
         // bakes the rotation/scale around the captured transform-origin so
@@ -3150,6 +3171,38 @@ export function elementTreeToSvgInner(
     }
     for (const child of sortedChildren) {
       renderElementWithOverflowClip(child, depth + 1, childParentDisplay);
+    }
+
+    // DM-1001: emit deferred fade-overlay `::after` pseudoBoxes AFTER all
+    // child recursion. The `::before` loop above skipped these so they paint
+    // last and win z over child headline text — matches NYT's right-edge
+    // mask-image-style fade pattern. Same filter as the skip condition above
+    // so we don't double-emit decorative `::after` boxes (carets / dividers)
+    // that the earlier loop already handled in CSS-correct inline position.
+    if (el.pseudoBoxes != null) {
+      for (const pb of el.pseudoBoxes) {
+        if (pb.pseudo !== "::after") continue;
+        const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
+        const hasBgColor = pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
+        const hasBorder = (pb.borderTopWidth ?? 0) > 0
+          || (pb.borderRightWidth ?? 0) > 0
+          || (pb.borderBottomWidth ?? 0) > 0
+          || (pb.borderLeftWidth ?? 0) > 0;
+        if (!(hasBgImage && !hasBgColor && !hasBorder)) continue;
+        const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
+        for (let li = pbLayers.length - 1; li >= 0; li--) {
+          const layer = pbLayers[li].trim();
+          const defId = `${idPrefix}pbg${clipIdx++}`;
+          const out = buildBackgroundLayerDef(
+            defId, layer, pb.x, pb.y, pb.width, pb.height,
+            "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
+          );
+          if (out.def === "") continue;
+          defsParts.push(out.def);
+          const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
+          svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+        }
+      }
     }
 
     // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
