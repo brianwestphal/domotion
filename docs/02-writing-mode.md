@@ -37,6 +37,15 @@ To minimize disruption: keep the existing `xOffsets` field name but record the *
 
 The existing per-char raster path (SK-1090) needs to copy the rotation transform into each `<image>` overlay so emoji rendered in a vertical column rotate to match Chrome.
 
+### Baseline placement invariant
+
+`renderTextAsPath` (and the embedded-font `renderTextAsEmbedded` it delegates to) interpret their `y` argument as the **line-box top** and add the font ascent to derive the painted baseline (`baselineY = y + ascent`). The vertical renderer therefore must NOT also pre-add an ascent, or every glyph picks up a second ascent (~0.85em at body sizes):
+
+- **Upright glyphs**: pass the intended baseline (`charY + 0.85em`) as `y` together with `ascentOverride = 0`, so the baseline is used verbatim.
+- **Rotated glyphs**: pass `y = 0` with `ascentOverride = fontSize`, pinning the pre-rotation baseline to exactly `fontSize` — the value the compose-and-rotate-around-center math assumes. A stray ascent here becomes a horizontal drift after the 90° rotation rather than a vertical one.
+
+`src/render/vertical-text.test.ts` locks both argument shapes in (font-independent, so it holds on Linux CI).
+
 ## Edge cases / out of scope
 
 - `text-combine-upright: all` (tate-chū-yoko, horizontal digits embedded in vertical text) — defer to a follow-up. Visible in date strings within vertical paragraphs.

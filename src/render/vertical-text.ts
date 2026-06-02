@@ -153,9 +153,17 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         const renderCy = renderedH / 2;
         const centerX = colX + colW / 2;
         const centerY = charY + charH / 2;
+        // `renderTextAsPath` treats its `y` arg as the line-box TOP and
+        // adds the font ascent to derive the baseline. The rotation math
+        // above assumes the glyph baseline sits at exactly `fontSize`, so
+        // pin it there deterministically: pass `y = 0` with an explicit
+        // `ascentOverride = fontSize` → baselineY = 0 + fontSize. Without
+        // this the renderer added the font's own ascent on top (baseline
+        // ≈ 1.8em), and after the 90° rotation that vertical error became
+        // a ~14 px HORIZONTAL drift of every rotated glyph in the column.
         const inner = renderTextAsPath(
-          ch, 0, fontSize, fontSize, fontFamily, fontWeight,
-          fillColor, undefined, undefined, undefined, fontStyle,
+          ch, 0, 0, fontSize, fontFamily, fontWeight,
+          fillColor, undefined, undefined, undefined, fontStyle, fontSize,
         );
         if (inner == null) { i += step; continue; }
         const transform = `translate(${r(centerX)}, ${r(centerY)}) rotate(${rotateAngle}) translate(${r(-renderCx)}, ${r(-renderCy)})`;
@@ -167,12 +175,18 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         // horizontal-text metrics, not the vertical-text vhea ones).
         // Center the glyph horizontally in the column using the
         // canvas-probed natural width per char from capture.
+        //
+        // `renderTextAsPath` treats `y` as the line-box TOP and adds the
+        // font ascent to get the baseline, so pass `ascentOverride = 0`
+        // to keep the baseline at exactly the `charY + 0.85em` we already
+        // resolved. Without the override the ascent was added a second
+        // time and every upright glyph dropped ~0.85em below its cell.
         const baseline = charY + fontSize * 0.85;
         const naturalW = naturalWidths?.[i] ?? fontSize;
         const xLeft = colX + (colW - naturalW) / 2;
         const inner = renderTextAsPath(
           ch, xLeft, baseline, fontSize, fontFamily, fontWeight,
-          fillColor, undefined, undefined, undefined, fontStyle,
+          fillColor, undefined, undefined, undefined, fontStyle, 0,
         );
         if (inner != null) out.push(inner);
       }

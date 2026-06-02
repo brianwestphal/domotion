@@ -1,0 +1,84 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { CapturedElement } from "../capture/types.js";
+
+// Capture every renderTextAsPath call so we can assert the baseline / ascent
+// arguments the vertical renderer passes — without depending on any real
+// system font being installed (so the assertions hold on Linux CI too, where
+// the macOS FONT_PATHS glyph path isn't available).
+const calls: unknown[][] = [];
+vi.mock("./text-to-path.js", () => ({
+  renderTextAsPath: (...args: unknown[]) => {
+    calls.push(args);
+    // Return non-null so the vertical renderer emits its wrapper markup.
+    return `<g data-stub="${String(args[0])}"></g>`;
+  },
+}));
+
+// Imported AFTER the mock is registered (vi.mock is hoisted, so this is fine).
+const { renderVerticalSegments } = await import("./vertical-text.js");
+
+// renderTextAsPath positional arg indices under test.
+const ARG_Y = 2;
+const ARG_ASCENT_OVERRIDE = 11;
+
+function makeElement(): CapturedElement {
+  // One rotated Latin char ("E") followed by one upright kana ("と") in a
+  // single vertical-rl column. Mirrors the fixture's mixed-orientation column.
+  return {
+    tag: "div",
+    styles: {
+      fontSize: "18px",
+      fontFamily: "sans-serif",
+      fontWeight: "400",
+      fontStyle: "normal",
+      textDecorationLine: "none",
+    },
+    fontAscent: 14,
+    textSegments: [
+      {
+        text: "Eと",
+        x: 100,
+        y: 50,
+        width: 21,
+        height: 30,
+        verticalWritingMode: "vertical-rl",
+        verticalOrientations: ["rotated", "upright"],
+        yOffsets: [50, 62],
+        verticalAdvances: [12, 18],
+        verticalNaturalWidths: [12, 18],
+      },
+    ],
+  } as unknown as CapturedElement;
+}
+
+describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () => {
+  beforeEach(() => {
+    calls.length = 0;
+  });
+
+  it("pins the rotated glyph baseline to fontSize (ascent not double-counted)", () => {
+    renderVerticalSegments(makeElement(), "rgb(0,0,0)");
+    // First call is the rotated "E".
+    const rotated = calls.find((c) => c[0] === "E");
+    expect(rotated).toBeDefined();
+    // `renderTextAsPath` adds the ascent to its `y` arg to derive the
+    // baseline, so the rotated path must pass y=0 + an explicit
+    // ascentOverride=fontSize → baseline lands at exactly fontSize (18),
+    // which is what the rotation math assumes. Before DM-1024 it passed
+    // y=fontSize with no override, so the font ascent was added on top and
+    // the post-rotation glyph drifted ~14 px horizontally.
+    expect(rotated![ARG_Y]).toBe(0);
+    expect(rotated![ARG_ASCENT_OVERRIDE]).toBe(18);
+  });
+
+  it("keeps the upright glyph baseline at charY + 0.85em (ascent not added again)", () => {
+    renderVerticalSegments(makeElement(), "rgb(0,0,0)");
+    const upright = calls.find((c) => c[0] === "と");
+    expect(upright).toBeDefined();
+    // Upright baseline = charY (62) + 0.85 * 18 = 77.3. The ascentOverride
+    // must be 0 so renderTextAsPath doesn't add the font ascent a second
+    // time (which dropped every upright glyph ~0.85em below its cell).
+    expect(upright![ARG_Y]).toBeCloseTo(62 + 0.85 * 18, 5);
+    expect(upright![ARG_ASCENT_OVERRIDE]).toBe(0);
+  });
+});
