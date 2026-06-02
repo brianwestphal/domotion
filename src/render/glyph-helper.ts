@@ -24,11 +24,12 @@
  * renderer treats it interchangeably with a fontkit Font.
  */
 
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { existsSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { acquireGlyphHelperSync } from "./helper-acquire.js";
+import { profAccum, profNow } from "./render-profile.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -174,16 +175,142 @@ interface HelperResponse {
   >;
 }
 
+// DM-1031: persistent-helper channel. Spawning the binary fresh for each call
+// costs ~16 ms (process spawn + CoreText init + font open) and was ~93% of the
+// render step (DM-1029). Instead, start the binary ONCE in `--serve` mode and
+// do a synchronous request/response round-trip over its stdin/stdout fds
+// (~0.4 ms/call, fonts reused across calls). Falls back transparently to the
+// original one-shot `spawnSync` if the persistent channel can't be established
+// (e.g. an older downloaded binary that doesn't understand `--serve`).
+let serverProc: ChildProcess | null = null;
+let serverInFd: number | undefined;
+let serverOutFd: number | undefined;
+let serverLeftover = "";          // bytes read past one response (normally "")
+let persistentDisabled = false;   // set once we know the binary can't serve
+let persistentEverWorked = false; // distinguishes "broken binary" from a transient crash
+
+function fdOf(stream: unknown): number | undefined {
+  const s = stream as { fd?: number; _handle?: { fd?: number } } | null;
+  return s?.fd ?? s?._handle?.fd;
+}
+
+function startPersistent(bin: string): boolean {
+  if (persistentDisabled) return false;
+  // Only the macOS helper implements `--serve` today. On Linux/Windows the
+  // binary wouldn't understand it; disable persistent there so we use the
+  // one-shot spawnSync path (no regression). Lift this gate per-platform once
+  // the FreeType / DirectWrite helpers grow a serve loop. (An old macOS binary
+  // that predates `--serve` still self-heals: it dies on the unknown flag, the
+  // first round-trip fails, and `persistentDisabled` flips below.)
+  if (process.platform !== "darwin") { persistentDisabled = true; return false; }
+  try {
+    const proc = spawn(bin, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
+    const inFd = fdOf(proc.stdin);
+    const outFd = fdOf(proc.stdout);
+    if (inFd == null || outFd == null) { try { proc.kill(); } catch { /* ignore */ } return false; }
+    // Don't let the long-lived child (or its pipe handles) keep the parent's
+    // event loop alive — otherwise the process hangs at exit waiting on the
+    // serve loop. unref() is libuv-handle-only; our synchronous readSync/
+    // writeSync go straight to the fds and are unaffected. The `exit` hook
+    // below then kills the child as the parent shuts down.
+    proc.unref();
+    (proc.stdin as { unref?: () => void } | null)?.unref?.();
+    (proc.stdout as { unref?: () => void } | null)?.unref?.();
+    serverProc = proc;
+    serverInFd = inFd;
+    serverOutFd = outFd;
+    serverLeftover = "";
+    proc.on("error", () => { serverProc = null; });
+    proc.on("exit", () => { serverProc = null; });
+    if (!_persistentExitHookInstalled) {
+      _persistentExitHookInstalled = true;
+      process.once("exit", () => { try { serverProc?.kill(); } catch { /* ignore */ } });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+let _persistentExitHookInstalled = false;
+
+/** Synchronous request → response over the persistent `--serve` child. Returns
+ *  null (and disables the channel as appropriate) if it can't complete, so the
+ *  caller falls back to one-shot spawnSync. */
+function callHelperPersistent(request: HelperRequest, bin: string): HelperResponse | null {
+  if (persistentDisabled) return null;
+  if (serverProc == null && !startPersistent(bin)) return null;
+  try {
+    const line = Buffer.from(JSON.stringify(request) + "\n", "utf-8");
+    let off = 0;
+    const wDeadline = Date.now() + 30_000;
+    while (off < line.length) {
+      try {
+        off += writeSync(serverInFd!, line, off, line.length - off);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "EAGAIN") {
+          if (Date.now() > wDeadline) throw new Error("helper write timeout");
+          continue;
+        }
+        throw e;
+      }
+    }
+    const tmp = Buffer.allocUnsafe(1 << 20);
+    const rDeadline = Date.now() + 30_000;
+    while (!serverLeftover.includes("\n")) {
+      let n: number;
+      try {
+        n = readSync(serverOutFd!, tmp, 0, tmp.length, null);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "EAGAIN") {
+          if (Date.now() > rDeadline) throw new Error("helper read timeout");
+          continue;
+        }
+        throw e;
+      }
+      if (n > 0) serverLeftover += tmp.toString("utf-8", 0, n);
+      else if (n === 0) throw new Error("helper closed stdout"); // EOF
+    }
+    const nl = serverLeftover.indexOf("\n");
+    const respLine = serverLeftover.slice(0, nl);
+    serverLeftover = serverLeftover.slice(nl + 1);
+    const resp = JSON.parse(respLine) as HelperResponse;
+    persistentEverWorked = true;
+    return resp;
+  } catch {
+    // Channel broken. Tear it down. If it never once worked, the binary almost
+    // certainly doesn't support `--serve` (old release) — disable for the
+    // session so we don't keep paying a failed spawn. If it had worked before,
+    // this was a transient crash; leave it enabled so the next call respawns.
+    try { serverProc?.kill(); } catch { /* ignore */ }
+    serverProc = null;
+    serverLeftover = "";
+    if (!persistentEverWorked) persistentDisabled = true;
+    return null;
+  }
+}
+
 function callHelper(request: HelperRequest): HelperResponse {
   // `isGlyphHelperAvailable()` (the gate every caller passes) sets
   // `helperPath`; re-resolve defensively in case it's called standalone.
   const bin = helperPath ?? resolveHelperPath();
   if (bin == null) throw new Error("no glyph helper binary for this platform");
+  // DM-1029: time the helper round-trip (the dominant render cost for
+  // native-extractor fonts). No-op unless DEMO_TIMING. Label kept as
+  // `helper-spawnSync` so the DM-1029 before/after numbers line up even though
+  // DM-1031 made the common path a persistent-process round-trip.
+  const _t0 = profNow();
+  const persistent = callHelperPersistent(request, bin);
+  if (persistent != null) {
+    profAccum("helper-spawnSync", profNow() - _t0);
+    return persistent;
+  }
+  // Fallback: original one-shot spawnSync.
   const proc = spawnSync(bin, [], {
     input: JSON.stringify(request),
     encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024
   });
+  profAccum("helper-spawnSync", profNow() - _t0);
   if (proc.status !== 0) {
     throw new Error(`glyph helper failed (exit ${proc.status}): ${proc.stderr}`);
   }

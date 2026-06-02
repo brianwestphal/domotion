@@ -66,9 +66,74 @@ export const createEmojiDetect = () => {
     0x2733, 0x2734, 0x2744, 0x2747, 0x2763, 0x2764,
   ]);
 
-  const needsRaster = (cp, nextCp) => {
+  // DM-1025: the BMP "default emoji presentation" symbols above (zodiac signs,
+  // ☔ ☕ ⚡ ⛪ ⛲ …) only paint as COLOR emoji when the element's font cascade
+  // actually reaches the color-emoji font. When the author lists a text symbol
+  // font that covers the codepoint FIRST — e.g. the html-test cells use
+  // `"Apple Symbols", … , "Apple Color Emoji", …` and Chrome resolves the
+  // zodiac signs to Apple Symbols (verified via CSS.getPlatformFontsForNode) —
+  // Chrome paints the MONOCHROME text glyph, and rastering a color emoji over
+  // it is wrong. Probe Chrome's actual choice the same way Chrome makes it:
+  // render the codepoint to a canvas with the element's font (canvas uses the
+  // identical font cascade + rasterizer as the page) and check whether any
+  // pixel came out colored. Apple/Noto Color Emoji ignore the black fillStyle
+  // and stamp their colored bitmap; a text glyph stays black/gray. Cached per
+  // (codepoint, font) — the ambiguous symbols are rare.
+  let _colorCanvas = null;
+  let _colorCtx = null;
+  const _colorCache = new Map();
+  const isColorGlyph = (cp, font) => {
+    // No font context (e.g. the pseudo-content path) → preserve the prior
+    // unconditional behavior: assume the default-presentation emoji renders in
+    // color.
+    if (font == null || font === '') return true;
+    const key = cp + '|' + font;
+    const hit = _colorCache.get(key);
+    if (hit !== undefined) return hit;
+    if (_colorCtx == null) {
+      _colorCanvas = document.createElement('canvas');
+      _colorCanvas.width = 48;
+      _colorCanvas.height = 48;
+      _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    let colored = true; // fail safe: if the probe can't run, keep rastering
+    try {
+      _colorCtx.clearRect(0, 0, 48, 48);
+      _colorCtx.fillStyle = '#000';
+      _colorCtx.textBaseline = 'top';
+      _colorCtx.font = '32px ' + font;
+      _colorCtx.fillText(String.fromCodePoint(cp), 8, 4);
+      const data = _colorCtx.getImageData(0, 0, 48, 48).data;
+      colored = false;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 8) continue; // transparent
+        if (Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]) > 24) {
+          colored = true;
+          break;
+        }
+      }
+    } catch (e) { /* keep colored = true */ }
+    _colorCache.set(key, colored);
+    return colored;
+  };
+
+  const needsRaster = (cp, nextCp, font) => {
+    // `rasterCps` (the ✨ ❌ ➡ checkmark/star family) are codepoints Chrome
+    // routes to the COLOR emoji font even when a text font in the cascade has
+    // a monochrome glyph — emoji presentation wins regardless of the author's
+    // font, so they stay unconditional. (Gating them on the canvas probe
+    // regressed 2700-dingbats: the probe picks Zapf's mono glyph, but Chrome's
+    // page still paints the color emoji.)
     if (rasterCps.has(cp)) return true;
-    if (emojiPresentation26.has(cp)) return true;
+    // DM-1025: the U+2600-26FF "emojiPresentation26" symbols (zodiac signs,
+    // ☔ etc.) are different — Chrome paints the MONOCHROME text glyph when the
+    // author lists a text symbol font that covers them first (the html-test
+    // cells lead with "Apple Symbols"; CSS.getPlatformFontsForNode confirms
+    // Chrome resolves those cells to Apple Symbols, not Apple Color Emoji).
+    // Probe Chrome's actual choice per element font via the canvas (color →
+    // raster, monochrome → path) instead of unconditionally rastering a color
+    // emoji over Chrome's text glyph.
+    if (emojiPresentation26.has(cp)) return isColorGlyph(cp, font);
     // U+FE0F (Variation Selector-16) after a base emoji codepoint requests
     // emoji presentation — Chrome paints the colorful glyph instead of the
     // text-mode path glyph. DM-278.
@@ -82,12 +147,12 @@ export const createEmojiDetect = () => {
     return false;
   };
 
-  const textNeedsRaster = (s) => {
+  const textNeedsRaster = (s, font) => {
     for (let i = 0; i < s.length; i++) {
       const cp = s.codePointAt(i);
       const step = cp > 0xFFFF ? 2 : 1;
       const nextCp = i + step < s.length ? s.codePointAt(i + step) : 0;
-      if (needsRaster(cp, nextCp)) return true;
+      if (needsRaster(cp, nextCp, font)) return true;
       if (cp > 0xFFFF) i++;
     }
     return false;

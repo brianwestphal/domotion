@@ -10,6 +10,7 @@ import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph } from "./text-to-path.js";
+import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
@@ -2685,6 +2686,12 @@ export function elementTreeToSvgInner(
         return out.join("");
       };
       const renderOneText = (opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string; overflowClip?: boolean }): string => {
+        // DM-1029: time all text rendering (font resolution + shaping + glyph
+        // outline / embedded-font build + markup) per element. The helper
+        // `spawnSync` time accumulated separately is a sub-component of this;
+        // `text − helper` is the in-process text cost. No-op unless DEMO_TIMING.
+        const _tText = profNow();
+        try {
         const optsWithEmit = { ...opts, emitPseudoBoxBgLayers };
         const hasMultipleSegments = opts.el.textSegments != null && opts.el.textSegments.length > 1;
         const isMultiLine = opts.el.text.includes("\n");
@@ -2704,6 +2711,9 @@ export function elementTreeToSvgInner(
         if (hasMultipleSegments) return renderMultiSegmentText(optsWithEmit, opts.el.textSegments!);
         if (isMultiLine) return renderMultiLineText(optsWithEmit);
         return renderSingleLineText(optsWithEmit);
+        } finally {
+          profAccum("text-render", profNow() - _tText);
+        }
       };
 
       // text-shadow (SK-1113): render each shadow as a recolored copy of

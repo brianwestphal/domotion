@@ -505,85 +505,122 @@ func runFallbackQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [St
 
 // MARK: - Main
 
-func readRequest() -> Data {
-    var inputPath: String? = nil
-    let args = CommandLine.arguments
-    var i = 1
-    while i < args.count {
-        let a = args[i]
-        switch a {
-        case "--version":
-            print("domotion-glyph-paths 0.1.0")
-            exit(0)
-        case "--help", "-h":
-            print("Usage: domotion-glyph-paths [--input <path>]")
-            print("Reads a JSON request envelope from stdin (default) or the given file.")
-            print("Writes a JSON response to stdout.")
-            exit(0)
-        case "--input":
-            i += 1
-            if i >= args.count { die("--input requires a path") }
-            inputPath = args[i]
-        default:
-            die("unknown argument: \(a)")
-        }
-        i += 1
+// DM-1031: stable cache key for an opened font, so `--serve` mode reuses the
+// CTFont across requests instead of re-opening (font open + CoreText init is
+// ~16 ms, the dominant per-spawn cost).
+func fontCacheKey(_ spec: [String: Any]) -> String {
+    let ps = spec["postscriptName"] as? String ?? ""
+    let fp = spec["fontPath"] as? String ?? ""
+    let sz = (spec["size"] as? NSNumber)?.stringValue ?? "16"
+    var varKey = ""
+    if let v = spec["variations"] as? [String: Any] {
+        varKey = v.keys.sorted().map { "\($0)=\((v[$0] as? NSNumber)?.stringValue ?? "")" }.joined(separator: ",")
     }
-
-    if let path = inputPath {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
-            die("could not read --input file: \(path)")
-        }
-        return data
-    }
-    return FileHandle.standardInput.readDataToEndOfFile()
+    return "\(ps)|\(fp)|\(sz)|\(varKey)"
 }
 
-let requestData = readRequest()
+// Process one request envelope into a response, opening (or reusing, via
+// `fontCache`) the declared fonts and running each query.
+func handleEnvelope(_ envelope: [String: Any], fontCache: inout [String: FontEntry]) -> [String: Any] {
+    let fontSpecs = envelope["fonts"] as? [[String: Any]] ?? []
+    let queries = envelope["queries"] as? [[String: Any]] ?? []
 
+    var fonts: [String: FontEntry] = [:]
+    for spec in fontSpecs {
+        guard let ref = spec["ref"] as? String else { continue }
+        let key = fontCacheKey(spec)
+        if let cached = fontCache[key] {
+            fonts[ref] = cached
+        } else if let entry = try? openFont(spec: spec) {
+            fontCache[key] = entry
+            fonts[ref] = entry
+        }
+        // On open failure the ref is simply absent; queries referencing it
+        // report "fontRef missing or unknown" rather than aborting the batch.
+    }
+
+    var results: [[String: Any]] = []
+    for query in queries {
+        let type = (query["type"] as? String) ?? ""
+        switch type {
+        case "glyphs": results.append(runGlyphsQuery(query, fonts: fonts))
+        case "meta": results.append(runMetaQuery(query, fonts: fonts))
+        case "fallback": results.append(runFallbackQuery(query, fonts: fonts))
+        case "notdef": results.append(runNotdefQuery(query, fonts: fonts))
+        case "shape": results.append(runShapeQuery(query, fonts: fonts))
+        case "family": results.append(runFamilyQuery(query))
+        default: results.append(["type": type, "error": "unknown query type"])
+        }
+    }
+    return ["results": results]
+}
+
+func writeResponse(_ response: [String: Any]) {
+    guard let data = try? JSONSerialization.data(withJSONObject: response, options: []) else {
+        die("could not encode response")
+    }
+    FileHandle.standardOutput.write(data)
+    FileHandle.standardOutput.write(Data("\n".utf8))
+}
+
+// Parse args.
+var inputPath: String? = nil
+var serve = false
+let cliArgs = CommandLine.arguments
+var ai = 1
+while ai < cliArgs.count {
+    switch cliArgs[ai] {
+    case "--version":
+        print("domotion-glyph-paths 0.1.0")
+        exit(0)
+    case "--help", "-h":
+        print("Usage: domotion-glyph-paths [--input <path>] [--serve]")
+        print("Reads a JSON request envelope from stdin (default) or --input <path>; writes a JSON response.")
+        print("--serve: persistent mode — read one request envelope per line on stdin, write one response per")
+        print("         line on stdout, looping until EOF, reusing opened fonts across requests (DM-1031).")
+        exit(0)
+    case "--serve":
+        serve = true
+    case "--input":
+        ai += 1
+        if ai >= cliArgs.count { die("--input requires a path") }
+        inputPath = cliArgs[ai]
+    default:
+        die("unknown argument: \(cliArgs[ai])")
+    }
+    ai += 1
+}
+
+if serve {
+    // DM-1031: persistent server. One request envelope per line in, one
+    // response per line out. Fonts opened once are reused for the lifetime of
+    // the process via `fontCache`. A malformed line yields an error response
+    // but does not stop the loop; EOF (the parent closing stdin) ends it.
+    var fontCache: [String: FontEntry] = [:]
+    while let line = readLine(strippingNewline: true) {
+        if line.isEmpty { continue }
+        guard let data = line.data(using: .utf8),
+              let envelope = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+            writeResponse(["results": [], "error": "invalid JSON on input line"])
+            continue
+        }
+        writeResponse(handleEnvelope(envelope, fontCache: &fontCache))
+    }
+    exit(0)
+}
+
+// One-shot mode (the fallback path / the original CLI contract).
+let requestData: Data
+if let path = inputPath {
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+        die("could not read --input file: \(path)")
+    }
+    requestData = data
+} else {
+    requestData = FileHandle.standardInput.readDataToEndOfFile()
+}
 guard let envelope = try? JSONSerialization.jsonObject(with: requestData, options: []) as? [String: Any] else {
     die("invalid JSON on input")
 }
-
-let fontSpecs = envelope["fonts"] as? [[String: Any]] ?? []
-let queries = envelope["queries"] as? [[String: Any]] ?? []
-
-var fonts: [String: FontEntry] = [:]
-for spec in fontSpecs {
-    do {
-        let entry = try openFont(spec: spec)
-        fonts[entry.ref] = entry
-    } catch {
-        die("font open failed: \(error.localizedDescription)")
-    }
-}
-
-var results: [[String: Any]] = []
-for query in queries {
-    let type = (query["type"] as? String) ?? ""
-    switch type {
-    case "glyphs":
-        results.append(runGlyphsQuery(query, fonts: fonts))
-    case "meta":
-        results.append(runMetaQuery(query, fonts: fonts))
-    case "fallback":
-        results.append(runFallbackQuery(query, fonts: fonts))
-    case "notdef":
-        results.append(runNotdefQuery(query, fonts: fonts))
-    case "shape":
-        results.append(runShapeQuery(query, fonts: fonts))
-    case "family":
-        results.append(runFamilyQuery(query))
-    default:
-        results.append(["type": type, "error": "unknown query type"])
-    }
-}
-
-let response: [String: Any] = ["results": results]
-do {
-    let data = try JSONSerialization.data(withJSONObject: response, options: [])
-    FileHandle.standardOutput.write(data)
-    FileHandle.standardOutput.write(Data("\n".utf8))
-} catch {
-    die("could not encode response: \(error.localizedDescription)")
-}
+var oneShotFontCache: [String: FontEntry] = [:]
+writeResponse(handleEnvelope(envelope, fontCache: &oneShotFontCache))

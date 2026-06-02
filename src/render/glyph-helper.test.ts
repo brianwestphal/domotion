@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
-import { existsSync, openSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, openSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
@@ -323,5 +323,57 @@ describeHelper("CoreText glyph extractor", () => {
     // circle advances, the vowel sign overlays it) — non-zero, finite.
     const total = laid.positions.reduce((s, p) => s + p.xAdvance, 0);
     expect(total).toBeGreaterThan(0);
+  });
+});
+
+// DM-1031: the persistent `--serve` protocol. Spawn the binary once, stream
+// newline-delimited request envelopes on stdin, read one response per line on
+// stdout — fonts are reused across requests so the per-call cost drops from
+// ~16 ms (fresh spawn + CoreText init + font open) to a sub-ms round-trip.
+// This is what `callHelper` uses by default; here we exercise the wire
+// protocol directly to guard the Swift serve loop + font reuse.
+describeHelper("persistent --serve protocol (DM-1031)", () => {
+  it("handles multiple sequential requests over one long-lived process, reusing fonts", () => {
+    const child = spawn(HELPER, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
+    const inFd = (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd
+      ?? (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
+    const outFd = (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd
+      ?? (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
+    expect(inFd).toBeTypeOf("number");
+    expect(outFd).toBeTypeOf("number");
+    let leftover = "";
+    const syncCall = (req: unknown): { results: Array<Record<string, unknown>> } => {
+      const line = Buffer.from(JSON.stringify(req) + "\n", "utf-8");
+      let off = 0;
+      while (off < line.length) {
+        try { off += writeSync(inFd!, line, off, line.length - off); }
+        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+      }
+      const tmp = Buffer.allocUnsafe(1 << 20);
+      while (!leftover.includes("\n")) {
+        try { const n = readSync(outFd!, tmp, 0, tmp.length, null); if (n > 0) leftover += tmp.toString("utf-8", 0, n); }
+        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+      }
+      const nl = leftover.indexOf("\n");
+      const resp = leftover.slice(0, nl);
+      leftover = leftover.slice(nl + 1);
+      return JSON.parse(resp);
+    };
+    try {
+      const FONT = { ref: "p", postscriptName: "PingFangSC-Regular", fontPath: "/System/Library/Fonts/PingFang.ttc", size: 1000 };
+      // First request opens the font + resolves a glyph.
+      const r1 = syncCall({ fonts: [FONT], queries: [{ type: "glyphs", fontRef: "p", glyphs: [{ cp: 0x6F22 }] }] });
+      const g1 = (r1.results[0] as { glyphs: Array<{ id: number; d: string }> }).glyphs[0];
+      expect(g1.id).toBeGreaterThan(0);
+      expect(g1.d.length).toBeGreaterThan(0);
+      // Second request on the SAME live process reuses the cached font and
+      // shapes a string — proves the loop persists and font reuse works.
+      const r2 = syncCall({ fonts: [FONT], queries: [{ type: "shape", fontRef: "p", text: "漢字" }] });
+      const shaped = (r2.results[0] as { glyphs: unknown[] }).glyphs;
+      expect(shaped.length).toBe(2);
+    } finally {
+      child.stdin!.end();
+      child.kill();
+    }
   });
 });

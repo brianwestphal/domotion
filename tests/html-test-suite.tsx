@@ -35,6 +35,7 @@ import { fileURLToPath } from "node:url";
 import { captureElementTreeWithWarnings, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
+import { profReset, profSnapshot } from "../src/render/render-profile.js";
 import { raw } from "kerfjs";
 import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { waitForSettled } from "../src/utils/wait-events.js";
@@ -115,6 +116,47 @@ interface ExpectedCacheMeta {
 // cache is actually firing as expected).
 let _expectedCacheHits = 0;
 let _expectedCacheMisses = 0;
+
+// DM-1029: per-step timing instrumentation for a single demo-test run. Opt-in
+// via `DEMO_TIMING=1` so it's zero-overhead in normal CI runs (the `mark()`
+// calls below are no-ops when the flag is off). When on, each fixture pushes a
+// record of its serial pipeline (step → ms) into `_timingRecords`, and the main
+// runner writes `<OUTPUT_DIR>/timing.json` (the per-step durations + the run's
+// worker count + total wall time) after the pool drains. Kept in permanently:
+// this pipeline is the thing we re-measure as we optimize it (DM-1029), so the
+// instrumentation has to stay so the numbers stay reproducible. See
+// `tools/render-timing-diagram.mjs` for the SVG flamechart this feeds.
+const DEMO_TIMING = process.env.DEMO_TIMING === "1";
+interface FixtureTiming {
+  name: string;
+  worker: number;
+  cacheHit: boolean;
+  startMs: number; // wall-clock ms since run start (set by the runner)
+  totalMs: number;
+  steps: Array<{ step: string; ms: number }>;
+  // DM-1029: sub-breakdown of the `render-svg` step (ms + call count per
+  // stage) from the render-profiler — e.g. `helper-spawnSync`, `text-render`.
+  renderProfile?: Record<string, { ms: number; count: number }>;
+}
+const _timingRecords: FixtureTiming[] = [];
+let _timingRunStartMs = 0;
+let _timingWorkerCount = 1;
+/** Per-fixture step stopwatch. `mark(label)` records the elapsed time since the
+ *  previous mark (or since `start()`), so steps are timed by bracketing each
+ *  awaited stage with a trailing `mark()`. No-op unless DEMO_TIMING. */
+function makeStepTimer() {
+  const steps: Array<{ step: string; ms: number }> = [];
+  let last = DEMO_TIMING ? performance.now() : 0;
+  return {
+    steps,
+    mark(step: string): void {
+      if (!DEMO_TIMING) return;
+      const now = performance.now();
+      steps.push({ step, ms: now - last });
+      last = now;
+    },
+  };
+}
 
 /**
  * Per-fixture capture-height overrides for html-test files whose content
@@ -951,6 +993,15 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // non-zero height is kept). Expected vs actual are visually identical; the
   // residual ~0.04% is antialiasing scatter on the thin 1–2px mark strokes.
   "0300-036F-combining-diacritical-marks": "DM-1027: marks now render at Chrome's positions; residual is sub-pixel antialiasing scatter on the thin marks — accepted baseline",
+  // DM-1025: Misc Symbols (U+2600-26FF) — the dominant diff (zodiac signs + ☔
+  // etc. wrongly painted as color emoji) is fixed: the capture now probes
+  // Chrome's actual presentation per font (the fixture lists "Apple Symbols"
+  // first, so Chrome paints the monochrome text glyph, not the color emoji).
+  // Residual ~0.10% is minor per-symbol glyph-shape on a handful of cells
+  // (e.g. ☂ U+2602, the dice faces) where the macOS fallback font draws a
+  // slightly different monochrome glyph than Chrome — a per-codepoint routing
+  // nuance, not the emoji-presentation bug. Accepted as a stable baseline.
+  "2600-26FF-miscellaneous-symbols": "DM-1025: emoji-vs-text presentation fixed (1.32% -> 0.10%); residual is minor monochrome glyph-shape on a few symbols — accepted baseline",
   // DM-774: paint-order test renders the seven nested layers in the correct
   // back-to-front order with correct colors / geometry; the residual diff is
   // text antialiasing + arrow-glyph substitution in the header / caption
@@ -1226,6 +1277,11 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   // the height the test was designed for.
   const fixtureHeight = captureHeightFor(name);
 
+  // DM-1029: per-step timer (no-op unless DEMO_TIMING). `startMs` clocks where
+  // in the overall run this fixture began so the diagram can show worker
+  // overlap.
+  const timer = makeStepTimer();
+  const fixtureStartMs = DEMO_TIMING ? performance.now() - _timingRunStartMs : 0;
   try {
     if (fixtureHeight !== HEIGHT) {
       await w.page.setViewportSize({ width: WIDTH, height: fixtureHeight });
@@ -1238,6 +1294,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         await w.page.setViewportSize({ width: WIDTH, height: HEIGHT });
       }
     }
+    timer.mark("viewport");
     // DM-1002 / DM-1013: check the cache. Hash key folds in source HTML
     // bytes + viewport + Playwright version + CAPTURE_SCRIPT bundle
     // hash, so any of those changing invalidates the entry. Full cache
@@ -1273,14 +1330,17 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       _expectedCacheMisses++;
     }
 
+    timer.mark("cache-check");
     if (cap == null) {
       // Cache miss — do the full source-side work.
       await w.page.goto(`file://${srcPath}`);
+      timer.mark("goto-source");
       // DM-1009: replaced waitForTimeout(150) — the 150 ms was a buffer for
       // `@font-face` loads to finish (per DM-303 comment below). waitForSettled
       // resolves on the actual `document.fonts.ready` + images-complete +
       // next-paint events, so fast fixtures stop paying for the slow ones.
       await waitForSettled(w.page);
+      timer.mark("settle-source");
 
       bodyBg = await w.page.evaluate(() => {
         const cs = getComputedStyle(document.body);
@@ -1288,19 +1348,23 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return "#ffffff";
         return bg;
       });
+      timer.mark("read-bodyBg");
 
       await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+      timer.mark("screenshot-expected");
 
       // Pick up any @font-face rules — covers both url(...) downloads and
       // local(...) aliases (DM-303). Without this, fixtures using
       // `font-family: "MyFamily"` declared via @font-face render in the
       // chain-fallback face (`serif` → Times) instead of the local() target.
       try { await discoverAndRegisterWebfonts(w.page); } catch { /* best-effort */ }
+      timer.mark("discover-webfonts");
 
       // captureElementTreeWithWarnings returns warnings inline so concurrent
       // workers don't race on the lastCaptureWarnings module global (DM-456).
       cap = await captureElementTreeWithWarnings(w.page, "body", { x: 0, y: 0, width: WIDTH, height: fixtureHeight });
       capWarnings = cap.warnings;
+      timer.mark("capture-tree");
 
       // Populate the cache for next time (DM-1002 + DM-1013). Best-effort
       // — a cache write failure doesn't fail the test, the next run just
@@ -1312,30 +1376,55 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         copyFileSync(expectedPath, cachedPng);
         writeFileSync(cachedMeta, JSON.stringify({ bodyBg, tree: cap.tree, warnings: cap.warnings }));
       } catch { /* ignore */ }
+      timer.mark("cache-write");
     }
     // DM-512: demos always emit self-contained SVGs.
     // DM-527: thread the per-suite warnings array so concurrent workers
     // don't race on the lastCaptureWarnings module global.
     await embedRemoteImages(cap.tree, { warnings: capWarnings });
+    timer.mark("embed-remote-images");
     // DM-549: rasterize conic-gradient layers (no-op when tree has none).
     await rasterizeConicGradients(cap.tree);
+    timer.mark("rasterize-conic");
+    // DM-1029: bracket the synchronous render with the render-profiler so we
+    // can split render-svg into [helper subprocess] / [text in-process] /
+    // [box + markup]. Safe because elementTreeToSvgInner never awaits — no
+    // other worker interleaves between reset and snapshot.
+    if (DEMO_TIMING) profReset();
     const svgContent = elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight);
+    const renderProf = DEMO_TIMING ? profSnapshot() : {};
     const xlinkAttr = svgContent.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${WIDTH} ${fixtureHeight}" width="${WIDTH}" height="${fixtureHeight}"><rect width="${WIDTH}" height="${fixtureHeight}" fill="${bodyBg}" />${svgContent}</svg>`;
     writeFileSync(svgPath, svgDoc);
+    timer.mark("render-svg");
 
     // Load the SVG directly as the top-level document. Wrapping it in <img>
     // blocks external resource loads inside the SVG for security, which
     // masked rendering fidelity for any test using background:url() or <img>.
     // Loading the SVG as a document lets those external file:// refs resolve.
     await w.page.goto(`file://${svgPath}`);
+    timer.mark("goto-svg");
     // DM-1009: replaced waitForTimeout(200) — the 200 ms was a buffer for
     // SVG `<image href>` external file:// refs to finish loading.
     // waitForSettled awaits each image's load/error event directly.
     await waitForSettled(w.page);
+    timer.mark("settle-svg");
     await w.page.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+    timer.mark("screenshot-actual");
 
     const cmp = await withCompareLock((cp) => comparePngs(cp, expectedPath, actualPath, diffPath, TILE_PX, SIGNIFICANT_PIXEL_DIST));
+    timer.mark("compare-pngs");
+    if (DEMO_TIMING) {
+      _timingRecords.push({
+        name,
+        worker: 0, // overlap is shown via startMs; exact worker id isn't needed
+        cacheHit: !timer.steps.some((s) => s.step === "goto-source"),
+        startMs: fixtureStartMs,
+        totalMs: timer.steps.reduce((sum, s) => sum + s.ms, 0),
+        steps: timer.steps,
+        renderProfile: renderProf,
+      });
+    }
     nonAaPixels = cmp.nonAaPixels;
     nonAaPixelPct = cmp.nonAaPixelPct;
     diffPct = cmp.diffPct;
@@ -1440,6 +1529,11 @@ async function main(): Promise<void> {
   const runStartMs = Date.now();
   let completedJobs = 0;
 
+  // DM-1029: anchor the per-fixture timing offsets to the same instant the
+  // browser launches, and record the worker count so the diagram can show how
+  // many serial pipelines run concurrently.
+  _timingRunStartMs = performance.now();
+  _timingWorkerCount = workerCount;
   const browser = await chromium.launch();
 
   // DM-1006: one shared comparePage for all workers (was per-worker before).
@@ -1503,6 +1597,18 @@ async function main(): Promise<void> {
   await browser.close();
 
   writeFileSync(resolve(OUTPUT_DIR, "results.json"), JSON.stringify(results, null, 2));
+
+  // DM-1029: dump the per-step timing trace so `tools/render-timing-diagram.mjs`
+  // can build the annotated pipeline SVG and we can re-measure after each
+  // optimization. Only written when DEMO_TIMING=1.
+  if (DEMO_TIMING) {
+    const totalWallMs = performance.now() - _timingRunStartMs;
+    writeFileSync(
+      resolve(OUTPUT_DIR, "timing.json"),
+      JSON.stringify({ workerCount: _timingWorkerCount, totalWallMs, fixtures: _timingRecords }, null, 2),
+    );
+    console.log(`DEMO_TIMING: wrote ${resolve(OUTPUT_DIR, "timing.json")} (${_timingRecords.length} fixtures, ${(totalWallMs / 1000).toFixed(1)}s wall)`);
+  }
 
   const indexHtml = buildIndexHtml(results);
   writeFileSync(resolve(OUTPUT_DIR, "index.html"), indexHtml);
