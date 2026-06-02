@@ -3046,6 +3046,20 @@ function splitTextIntoFontRuns(
   lang: string | undefined,
 ): FontRun[] {
   const runs: FontRun[] = [];
+  // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
+  // codepoint in `text` in a single helper round-trip. The per-codepoint
+  // `glyphForCodePoint(cp).id === 0` coverage probe below otherwise issues one
+  // helper round-trip per distinct codepoint (the dominant `glyphs`-query class
+  // in the DM-1029 profile — e.g. 233 separate coverage calls for the Arabic
+  // fixture). Batching collapses those to one. `warmGlyphs` only exists on the
+  // native-helper font instances (PingFang / system-fallback extraction); it's
+  // absent on fontkit fonts, where coverage is already in-process and free.
+  const warm = (primaryFont as { warmGlyphs?: (cps: number[]) => void }).warmGlyphs;
+  if (warm != null) {
+    const distinct = new Set<number>();
+    for (const ch of text) distinct.add(ch.codePointAt(0)!);
+    warm.call(primaryFont, [...distinct]);
+  }
   let curKey = primaryFontKey;
   let curFontOverride: FontInstance | null = null;
   let curText = "";

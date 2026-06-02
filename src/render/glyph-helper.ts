@@ -29,7 +29,7 @@ import { existsSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { acquireGlyphHelperSync } from "./helper-acquire.js";
-import { profAccum, profNow } from "./render-profile.js";
+import { profAccum, profNow, renderProfileEnabled } from "./render-profile.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -299,6 +299,14 @@ function callHelper(request: HelperRequest): HelperResponse {
   // `helper-spawnSync` so the DM-1029 before/after numbers line up even though
   // DM-1031 made the common path a persistent-process round-trip.
   const _t0 = profNow();
+  // DM-1033: per-query-type tally so the timing breakdown shows WHERE the
+  // round-trips come from (shape vs coverage-glyphs vs id-glyphs vs fallback vs
+  // family vs meta) — drives the batching analysis. One round-trip can carry
+  // several queries; count the dominant (first) query's type plus a roll-up.
+  if (renderProfileEnabled) {
+    const q0 = request.queries[0];
+    if (q0 != null) profAccum(`helper-q:${q0.type}`, 0);
+  }
   const persistent = callHelperPersistent(request, bin);
   if (persistent != null) {
     profAccum("helper-spawnSync", profNow() - _t0);
@@ -325,6 +333,12 @@ export interface GlyphHelperFontInstance {
   underlineThickness: number;
   "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
   availableFeatures?: string[];
+  /** DM-1033: batch-fetch coverage for every codepoint in `cps` in ONE helper
+   *  round-trip, priming the cache so subsequent per-codepoint
+   *  `glyphForCodePoint` checks (the font-run-splitting walk) hit cache instead
+   *  of issuing one round-trip each. Already-cached / known-missing codepoints
+   *  are skipped. */
+  warmGlyphs(cps: number[]): void;
   glyphForCodePoint(cp: number): GlyphHelperGlyph;
   getGlyph(id: number): GlyphHelperGlyph;
   layout(text: string, features?: string[]): {
@@ -373,18 +387,13 @@ export function createGlyphHelperFont(spec: {
   // DM-1028: per-run-text shape cache so identical runs shape once.
   const shapeCache = new Map<string, ShapeResponseGlyph[] | null>();
 
-  function fetchByCps(cps: number[]): void {
-    const need = cps.filter((cp) => !cpToGlyph.has(cp) && !missingCp.has(cp));
-    if (need.length === 0) return;
-    const resp = callHelper({
-      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
-      queries: [{ type: "glyphs", fontRef: "f", glyphs: need.map((cp) => ({ cp })) }]
-    });
-    const r = resp.results[0];
-    if (r.type !== "glyphs") return;
+  // Ingest a `glyphs` query result for the codepoints in `need`, populating
+  // `cpToGlyph` / `missingCp` / `idToGlyph`. Shared by the lazy `fetchByCps`
+  // path and the combined coverage+shape primer (DM-1033).
+  function ingestGlyphs(need: number[], glyphs: GlyphResponse[]): void {
     for (let i = 0; i < need.length; i++) {
       const cp = need[i];
-      const g = r.glyphs[i];
+      const g = glyphs[i];
       if (g == null) {
         missingCp.add(cp);
         continue;
@@ -408,6 +417,18 @@ export function createGlyphHelperFont(spec: {
       cpToGlyph.set(cp, glyph);
       if (g.id !== 0) idToGlyph.set(g.id, glyph);
     }
+  }
+
+  function fetchByCps(cps: number[]): void {
+    const need = cps.filter((cp) => !cpToGlyph.has(cp) && !missingCp.has(cp));
+    if (need.length === 0) return;
+    const resp = callHelper({
+      fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
+      queries: [{ type: "glyphs", fontRef: "f", glyphs: need.map((cp) => ({ cp })) }]
+    });
+    const r = resp.results[0];
+    if (r.type !== "glyphs") return;
+    ingestGlyphs(need, r.glyphs);
   }
 
   function fetchById(id: number): GlyphHelperGlyph {
@@ -470,6 +491,10 @@ export function createGlyphHelperFont(spec: {
       yStrikeoutSize: metaResp.strikeoutThickness
     },
     availableFeatures: [],
+
+    warmGlyphs(cps: number[]): void {
+      fetchByCps(cps);
+    },
 
     glyphForCodePoint(cp: number): GlyphHelperGlyph {
       if (missingCp.has(cp)) return notdef(0);

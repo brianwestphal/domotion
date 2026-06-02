@@ -324,6 +324,39 @@ describeHelper("CoreText glyph extractor", () => {
     const total = laid.positions.reduce((s, p) => s + p.xAdvance, 0);
     expect(total).toBeGreaterThan(0);
   });
+
+  // DM-1033: `warmGlyphs(cps)` batches the coverage probe for many codepoints
+  // into one round-trip, priming the same cache the per-codepoint
+  // `glyphForCodePoint` walk reads. It must leave `glyphForCodePoint` returning
+  // byte-identical glyphs to the lazy path (it only changes WHEN they're
+  // fetched, not WHAT comes back) — the property that lets the renderer pre-warm
+  // before `splitTextIntoFontRuns` without altering output.
+  it("warmGlyphs primes the cache identically to lazy per-codepoint resolution (DM-1033)", () => {
+    const cps = [0x6F22, 0x4E00, 0x4E8C, 0x4E09, 0x65E5, 0x672C]; // 漢 一 二 三 日 本
+
+    // Lazy path: resolve each codepoint on demand.
+    const lazy = createGlyphHelperFont({ postscriptName: "PingFangSC-Regular" });
+    expect(lazy).not.toBeNull();
+    const lazyGlyphs = cps.map((cp) => lazy!.glyphForCodePoint(cp));
+
+    // Pre-warmed path: one batched warm, then the same lookups.
+    const warmed = createGlyphHelperFont({ postscriptName: "PingFangSC-Regular" });
+    expect(warmed).not.toBeNull();
+    warmed!.warmGlyphs(cps);
+    const warmGlyphs = cps.map((cp) => warmed!.glyphForCodePoint(cp));
+
+    for (let i = 0; i < cps.length; i++) {
+      expect(warmGlyphs[i].id).toBe(lazyGlyphs[i].id);
+      expect(warmGlyphs[i].advanceWidth).toBe(lazyGlyphs[i].advanceWidth);
+      expect(warmGlyphs[i].path.commands.length).toBe(lazyGlyphs[i].path.commands.length);
+      expect(warmGlyphs[i].id).toBeGreaterThan(0); // PingFang covers these
+    }
+
+    // A second warm of the now-cached set is a no-op (nothing left to fetch),
+    // and re-looking-up still returns the same glyph.
+    warmed!.warmGlyphs(cps);
+    expect(warmed!.glyphForCodePoint(0x6F22).id).toBe(lazyGlyphs[0].id);
+  });
 });
 
 // DM-1031: the persistent `--serve` protocol. Spawn the binary once, stream
