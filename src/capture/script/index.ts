@@ -171,7 +171,16 @@ export const captureScript =
     // animation — an animated element starting at width: 0 should still be
     // captured so the renderer can emit its anim-class wrapper. (DM-209.)
     const _hasAnim = el.dataset != null && el.dataset.domotionAnim != null && el.dataset.domotionAnim !== '';
-    if (zeroSized && el.children.length === 0 && !_hasAnim) return null;
+    // DM-1027: a lone combining mark (e.g. U+0300 grave in `<g>̀</g>`) lays out
+    // with ZERO advance width but still paints ink — the mark's glyph extends
+    // left of the origin (negative left side-bearing) at the full line height.
+    // Chrome paints it, so dropping the element as "zero-sized" loses the
+    // character. Keep a zero-WIDTH element that has non-zero height and
+    // non-whitespace text content; truly empty / zero-HEIGHT collapsed
+    // elements are still skipped.
+    const _inkTextZeroWidth = rect.width === 0 && rect.height > 0
+      && el.textContent != null && el.textContent.trim().length > 0;
+    if (zeroSized && el.children.length === 0 && !_hasAnim && !_inkTextZeroWidth) return null;
 
     const tag = el.tagName.toLowerCase();
 

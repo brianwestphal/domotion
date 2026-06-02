@@ -522,23 +522,26 @@ describe("fallbackFontChain: Geometric/Misc Symbols routing (DM-324 / DM-326)", 
     // Geometric Shapes block (U+25A0..25FF) — chars Chrome paints at em-square.
     // Note: ■ □ ● ○ ◆ ◇ are individually carved out to LucidaGrande first
     // (DM-349) because Chrome paints those at proportional 9-13px, not em-square.
-    expect(darwinFallbackChain(0x25C9)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x25CC)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x25D0)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x25D1)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    //
+    // DM-988 routed the WHOLE block hiragino-jp (HiraKakuProN, Japanese) FIRST,
+    // not cjk (HiraginoSansGB, Chinese) — GB paints these glyphs at a visibly
+    // larger / differently-shaped em-square than ProN. DM-1030 re-verified via
+    // CDP CSS.getPlatformFontsForNode at 32px sans-serif: U+25C9 ◉, U+2600 ☀,
+    // U+2601 ☁ all return "Hiragino Sans" (= hiragino-jp), so hiragino-jp must
+    // lead. `cjk` stays as the secondary for the chars HiraKakuProN lacks.
+    expect(darwinFallbackChain(0x25C9)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x25CC)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x25D0)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x25D1)).toEqual(["hiragino-jp", "cjk", "symbols"]);
     // Misc Symbols block (U+2600..26FF).
-    expect(darwinFallbackChain(0x2600)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x2601)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x2602)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x2603)).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    // DM-925: gender signs (U+2640 ♀ / U+2641 ♁ / U+2642 ♂) are carved out
-    // ABOVE the block fallback to prefer hiragino-jp first — Chrome's CoreText
-    // cascade for sans-serif on macOS picks HiraginoSans-W3 (Japanese) for
-    // these codepoints (verified via CSS.getPlatformFontsForNode probe), and
-    // its glyph shape for ♂ differs visibly from HiraginoSansGB-W3 (Chinese),
-    // which has a straight-up arrow rather than the standard up-right diagonal.
+    expect(darwinFallbackChain(0x2600)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x2601)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x2602)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    expect(darwinFallbackChain(0x2603)).toEqual(["hiragino-jp", "cjk", "symbols"]);
+    // Gender signs (U+2640 ♀ / U+2642 ♂) and the rest of the block now share
+    // the same hiragino-jp-first chain (the old DM-925 carve-out is subsumed).
     expect(darwinFallbackChain(0x2640)).toEqual(["hiragino-jp", "cjk", "symbols"]);
-    expect(darwinFallbackChain(0x26A5)).toEqual(["cjk", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x26A5)).toEqual(["hiragino-jp", "cjk", "symbols"]);
   });
 
   it("routes ■ □ ● ○ ◆ ◇ through LucidaGrande (matches Chrome's narrow paint)", () => {
@@ -645,17 +648,20 @@ describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
     expect(pingfangKeyForLang("")).toBeNull();
     expect(pingfangKeyForLang(undefined)).toBeNull();
   });
-  it("does NOT swap the symbol blocks for serif primaries (only CJK ranges)", () => {
-    // Geometric Shapes / Misc Symbols still route through their dedicated
-    // chains regardless of primary — those blocks aren't affected by the
-    // serif/sans CJK distinction. ■ is one of the LucidaGrande-narrow chars
-    // (DM-349), so it stays on its dedicated chain even with a serif primary.
+  it("routes the symbol blocks serif-aware for serif primaries (DM-988)", () => {
+    // ■ is one of the LucidaGrande-narrow carve-outs (DM-349), so it stays on
+    // its dedicated chain regardless of primary.
     expect(darwinFallbackChain(0x25A0, "times")).toEqual(["lucida-grande", "symbols"]);
-    expect(darwinFallbackChain(0x25C9, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    expect(darwinFallbackChain(0x2600, "times")).toEqual(["cjk", "hiragino-jp", "symbols"]);
-    // Arrows ← → ↗ ↙ now route to LucidaGrande regardless of primary
-    // (DM-405 — re-probed via CDP, Chrome paints these via LucidaGrande
-    // at every size 12 → 32 px, not Hiragino).
+    // DM-988: for a SERIF primary the Geometric Shapes / Misc Symbols block
+    // leads with the SERIF CJK font (cjk-serif = Songti SC) and the serif
+    // primary itself, then the sans hiragino-jp / Apple Symbols residue —
+    // Chrome's CoreText cascade for serif picks a serif/mincho face for these
+    // (CDP at 32px serif: U+25C9 ◉, U+2600 ☀ → "Hiragino Mincho ProN"), so a
+    // serif-led chain is correct here vs the sans hiragino-jp-first chain.
+    expect(darwinFallbackChain(0x25C9, "times")).toEqual(["cjk-serif", "times", "hiragino-jp", "symbols"]);
+    expect(darwinFallbackChain(0x2600, "times")).toEqual(["cjk-serif", "times", "hiragino-jp", "symbols"]);
+    // Arrows ← → ↑ ↓ route to LucidaGrande regardless of primary (DM-405 —
+    // Chrome paints these via LucidaGrande at every size 12 → 32 px).
     expect(darwinFallbackChain(0x2190, "times")).toEqual(["lucida-grande", "symbols"]);
   });
 });
@@ -696,14 +702,16 @@ describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM
     expect(darwinFallbackChain(0x2193)).toEqual(["lucida-grande", "symbols"]); // ↓
   });
 
-  // ↗ ↙ — Lucida Grande LACKS these codepoints (verified via fontkit on all
-  // four faces of LucidaGrande.ttc). Routing them to "lucida-grande" silently
-  // fell through to Apple Symbols at ~10 px advance, half the width Chrome
-  // paints. Hiragino Sans GB has them at em-width (16 px @ 16 px font),
-  // matching Chrome. (DM-441.)
-  it("routes ↗ ↙ to Hiragino — Lucida Grande lacks the diagonal-arrow glyphs", () => {
-    expect(darwinFallbackChain(0x2197)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↗
-    expect(darwinFallbackChain(0x2199)).toEqual(["cjk", "hiragino-jp", "symbols"]); // ↙
+  // ↗ ↙ — DM-981 re-probed the misc arrows U+2194..U+2199 per-codepoint via
+  // CDP at 32px sans-serif and unified them on ["hiragino-jp", "korean",
+  // "lucida-grande", "symbols"] (the chain walker picks the first face that
+  // carries each glyph). ↗ U+2197 and ↙ U+2199 -> Hiragino Sans (JP) =
+  // hiragino-jp. DM-1030 re-verified via CDP: both return "Hiragino Sans".
+  // (Lucida Grande lacks ↗ ↙, so it sits later in the chain for ↖ ↘ which it
+  // does carry.)
+  it("routes ↗ ↙ to Hiragino Sans (JP) per the unified misc-arrows chain", () => {
+    expect(darwinFallbackChain(0x2197)).toEqual(["hiragino-jp", "korean", "lucida-grande", "symbols"]); // ↗
+    expect(darwinFallbackChain(0x2199)).toEqual(["hiragino-jp", "korean", "lucida-grande", "symbols"]); // ↙
   });
 
   // ↑ ↓ are not at CJK em-square width and not at Apple Symbols' narrow
@@ -716,10 +724,53 @@ describe("fallbackFontChain: Arrows-block routing (DM-296 / DM-369 / DM-405 / DM
     expect(darwinFallbackChain(0x2193)).toEqual(["lucida-grande", "symbols"]);
   });
 
-  it("keeps the rest of the Arrows block on Apple Symbols", () => {
-    expect(darwinFallbackChain(0x2194)).toEqual(["symbols"]);
-    expect(darwinFallbackChain(0x21D2)).toEqual(["symbols"]);
-    expect(darwinFallbackChain(0x21D4)).toEqual(["symbols"]);
+  // The misc-arrow (U+2194..2199, DM-981) and double-arrow (U+21D0..21D5,
+  // DM-978) carve-outs now lead with hiragino-jp — Chrome paints them via
+  // Hiragino Sans (JP), not Apple Symbols (whose glyphs are thinner / too
+  // narrow). DM-1030 re-verified via CDP at 32px sans-serif: ↔ U+2194,
+  // ⇒ U+21D2, ⇔ U+21D4 all return "Hiragino Sans". Apple Symbols stays as the
+  // residue fallback at the end of each chain. The double-arrow chain uses
+  // `menlo` (not lucida-grande) as the mid-tier because ⇕ U+21D5 -> Menlo.
+  it("routes ↔ ⇒ ⇔ to Hiragino Sans, Apple Symbols as residue", () => {
+    expect(darwinFallbackChain(0x2194)).toEqual(["hiragino-jp", "korean", "lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x21D2)).toEqual(["hiragino-jp", "korean", "menlo", "symbols"]);
+    expect(darwinFallbackChain(0x21D4)).toEqual(["hiragino-jp", "korean", "menlo", "symbols"]);
+  });
+});
+
+// DM-1030: well-formedness guard for the darwin chain. The four symbol/arrow
+// routing tests above went stale when DM-978 / DM-981 / DM-988 recalibrated the
+// chains (the per-codepoint EXPECTATIONS are inherently coupled to Chrome's
+// paint and must be re-probed when they change). This guard is the part that
+// CAN be checked structurally without a live browser: every key a chain emits
+// must resolve to a real on-disk font spec, and the symbol/arrow/geometric
+// blocks must never produce an EMPTY chain. A dangling/typo'd key (the silent
+// failure mode — the renderer drops to no-font and paints tofu) is caught here
+// even when the per-codepoint expectation tests aren't updated.
+describe("darwinFallbackChain well-formedness (DM-1030)", () => {
+  it("every emitted font key resolves to a real font spec", () => {
+    const keys = new Set<string>();
+    // Sweep the symbol / arrow / geometric / technical ranges plus a sample of
+    // every script block that has a dedicated route.
+    for (let cp = 0x2000; cp <= 0x2BFF; cp++) {
+      for (const k of darwinFallbackChain(cp)) keys.add(k);
+      for (const primary of ["times", "courier"]) for (const k of darwinFallbackChain(cp, primary)) keys.add(k);
+    }
+    for (const cp of [0x4E00, 0x3041, 0x30A1, 0xAC00, 0x1100, 0x0900, 0x0E00, 0x0600, 0x0590, 0x1D400, 0x20000, 0x2F800]) {
+      for (const k of darwinFallbackChain(cp)) keys.add(k);
+    }
+    // `last-resort` is a synthetic terminal (bundled LastResort font), not a
+    // FONT_PATHS entry — exempt it. Every other key must resolve.
+    const unresolved = [...keys].filter((k) => k !== "last-resort" && __resolveFontSpecForTest(k) == null);
+    expect(unresolved).toEqual([]);
+  });
+
+  it("never returns an empty chain for the symbol / arrow / geometric blocks", () => {
+    for (const [lo, hi] of [[0x2190, 0x21FF], [0x2500, 0x25FF], [0x2600, 0x26FF], [0x2700, 0x27BF]]) {
+      for (let cp = lo; cp <= hi; cp++) {
+        expect(darwinFallbackChain(cp).length).toBeGreaterThan(0);
+      }
+    }
   });
 });
 

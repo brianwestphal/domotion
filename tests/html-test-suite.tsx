@@ -945,6 +945,12 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // differently from Chrome's painted output. Reviewed visually; accepted as a
   // stable baseline per maintainer.
   "1F800-1F8FF-supplemental-arrows-c": "DM-1019: arrows render; residual diff is fallback arrow-glyph shape / antialiasing scatter — accepted baseline",
+  // DM-1027: lone combining diacritical marks (U+0300–036F) now capture +
+  // render (the zero-advance-width cells were being dropped by the capture's
+  // zero-sized-element filter; fixed so a zero-WIDTH element with inked text +
+  // non-zero height is kept). Expected vs actual are visually identical; the
+  // residual ~0.04% is antialiasing scatter on the thin 1–2px mark strokes.
+  "0300-036F-combining-diacritical-marks": "DM-1027: marks now render at Chrome's positions; residual is sub-pixel antialiasing scatter on the thin marks — accepted baseline",
   // DM-774: paint-order test renders the seven nested layers in the correct
   // back-to-front order with correct colors / geometry; the residual diff is
   // text antialiasing + arrow-glyph substitution in the header / caption
