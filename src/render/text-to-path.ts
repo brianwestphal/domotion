@@ -3259,7 +3259,7 @@ function renderTextAsEmbedded(
   // Pending segments group consecutive glyphs of the same scale so each
   // emits a single `<text>` with its own `font-size` attribute.
   interface PendingSeg {
-    perGlyph: Array<{ pua: string; xCss: number; scale: number }>;
+    perGlyph: Array<{ pua: string; xCss: number; yCss: number; scale: number }>;
     runCssFamily: string;
     weightAttr: string;
     italicAttr: string;
@@ -3329,7 +3329,7 @@ function renderTextAsEmbedded(
       }
       shapingText = out;
     }
-    let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }> };
+    let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters?: number[] };
     try {
       layout = features != null && features.length > 0 ? run.font.layout(shapingText, features) : run.font.layout(shapingText);
     } catch {
@@ -3361,7 +3361,7 @@ function renderTextAsEmbedded(
     // multi-pixel drift across a 12-glyph run). We anchor at the captured
     // xOffsets where available (Chrome's actual paint position, subpixel-
     // accurate); else use fontkit's shaped advances cumulatively.
-    interface PerGlyph { pua: string; xCss: number; scale: number }
+    interface PerGlyph { pua: string; xCss: number; yCss: number; scale: number }
     const perGlyph: PerGlyph[] = [];
     let runCssFamily: string | null = null;
     let runCursorFontUnits = 0;
@@ -3399,6 +3399,19 @@ function renderTextAsEmbedded(
     // codePoints array is missing or empty (decomposed glyphs) span=1
     // so the cursor still advances.
     let textIdx = runIsRtl ? run.text.length : 0; // index within run.text
+    // DM-1028: when the run was shaped by the CoreText helper, each glyph
+    // carries its UTF-16 source cluster index. We anchor each CLUSTER at its
+    // captured per-character xOffset and lay the cluster's glyphs out from
+    // that single anchor by shaped advance + GPOS offset — so an inserted
+    // dotted circle, a reordered conjunct, or a mark stacked over its base
+    // all paint at the right place. (The naive per-codepoint path emitted one
+    // glyph per source char at xOffset and dropped every inserted/extra glyph
+    // and every GPOS offset.) For 1:1 scripts each glyph is its own cluster,
+    // so this is identical to the per-char anchoring below.
+    const clusters = layout.clusters;
+    let clusterAnchorCss = 0;
+    let clusterCursorFU = 0;
+    let prevCluster = -1;
     for (let i = 0; i < layout.glyphs.length; i++) {
       const glyph = layout.glyphs[i];
       const pos = layout.positions[i];
@@ -3424,48 +3437,76 @@ function renderTextAsEmbedded(
       );
       if (placement == null) { glyphFailed = true; break; }
       if (runCssFamily == null) runCssFamily = placement.cssFamily;
-      // Glyph x anchor: captured xOffset at the cluster's first char
-      // (relative to the whole-text origin), else cumulative fontkit
-      // advance from the run start. xOffsets is indexed against `text`
-      // (the whole captured string), so we use the run's startIdx +
-      // intra-run textIdx to look it up.
-      // Compute the cluster's UTF-16 char span (size in run.text).
-      const cps = glyph.codePoints;
-      let span = 0;
-      if (cps != null && cps.length > 0) {
-        for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
-      } else {
-        span = 1;
-      }
-      // For RTL runs, textIdx walks backwards: the cluster's first
-      // logical char sits at (textIdx - span), so subtract BEFORE lookup
-      // so the lookup index lands on the cluster's first char.
-      if (runIsRtl) textIdx -= span;
+
       let xCss: number;
-      const wholeTextIdx = run.startIdx + textIdx;
-      if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
-        xCss = xOffsets[wholeTextIdx];
+      let yCss = 0;
+      let glyphScale: number;
+      if (clusters != null) {
+        // CoreText-shaped run: cluster-aware anchoring + GPOS offsets.
+        const srcIdx = clusters[i];
+        const wholeTextIdx = run.startIdx + srcIdx;
+        if (srcIdx !== prevCluster) {
+          if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
+            clusterAnchorCss = xOffsets[wholeTextIdx];
+          } else {
+            const runOriginCss = (xOffsets != null && xOffsets[run.startIdx] != null)
+              ? xOffsets[run.startIdx] : cssX;
+            clusterAnchorCss = runOriginCss + runCursorFontUnits * runScale;
+            allGlyphsHaveXOffset = false;
+          }
+          clusterCursorFU = 0;
+          prevCluster = srcIdx;
+        }
+        // pos.xOffset / yOffset are the GPOS adjustment from the glyph's pen
+        // origin (font units, y-up); flip y for SVG's y-down axis.
+        xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset) * runScale;
+        yCss = -pos.yOffset * runScale;
+        clusterCursorFU += pos.xAdvance;
+        glyphScale = perCharScale[srcIdx] ?? 1;
       } else {
-        // Cursor sits in font units; convert to CSS using the run's scale.
-        // Anchored at run.startIdx + 0 if xOffsets exists for the run's
-        // first char (so subsequent glyphs in the run remain run-relative
-        // when xOffsets gap mid-run).
-        const runOriginCss = (xOffsets != null && xOffsets[run.startIdx] != null)
-          ? xOffsets[run.startIdx] : cssX;
-        xCss = runOriginCss + runCursorFontUnits * runScale;
-        allGlyphsHaveXOffset = false;
+        // fontkit-shaped run: per-char xOffset anchoring (unchanged).
+        // Glyph x anchor: captured xOffset at the cluster's first char
+        // (relative to the whole-text origin), else cumulative fontkit
+        // advance from the run start. xOffsets is indexed against `text`
+        // (the whole captured string), so we use the run's startIdx +
+        // intra-run textIdx to look it up.
+        // Compute the cluster's UTF-16 char span (size in run.text).
+        const cps = glyph.codePoints;
+        let span = 0;
+        if (cps != null && cps.length > 0) {
+          for (const cp of cps) span += cp > 0xFFFF ? 2 : 1;
+        } else {
+          span = 1;
+        }
+        // For RTL runs, textIdx walks backwards: the cluster's first
+        // logical char sits at (textIdx - span), so subtract BEFORE lookup
+        // so the lookup index lands on the cluster's first char.
+        if (runIsRtl) textIdx -= span;
+        const wholeTextIdx = run.startIdx + textIdx;
+        if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
+          xCss = xOffsets[wholeTextIdx];
+        } else {
+          // Cursor sits in font units; convert to CSS using the run's scale.
+          // Anchored at run.startIdx + 0 if xOffsets exists for the run's
+          // first char (so subsequent glyphs in the run remain run-relative
+          // when xOffsets gap mid-run).
+          const runOriginCss = (xOffsets != null && xOffsets[run.startIdx] != null)
+            ? xOffsets[run.startIdx] : cssX;
+          xCss = runOriginCss + runCursorFontUnits * runScale;
+          allGlyphsHaveXOffset = false;
+        }
+        // DM-938: pull the per-source-char scale through to per-glyph. The
+        // cluster's first char (textIdx) is where Chrome's painted-position
+        // anchor lives; use its scale. For multi-char clusters all chars in
+        // the cluster get the same case treatment so the scale is uniform.
+        glyphScale = perCharScale[textIdx] ?? 1;
+        // For LTR, advance textIdx AFTER lookup. (For RTL we decremented
+        // before the lookup so the next iteration's pre-decrement lands on
+        // the previous cluster's start.)
+        if (!runIsRtl) textIdx += span;
       }
-      // DM-938: pull the per-source-char scale through to per-glyph. The
-      // cluster's first char (textIdx) is where Chrome's painted-position
-      // anchor lives; use its scale. For multi-char clusters all chars in
-      // the cluster get the same case treatment so the scale is uniform.
-      const glyphScale = perCharScale[textIdx] ?? 1;
-      perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, scale: glyphScale });
+      perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
       runCursorFontUnits += pos.xAdvance;
-      // For LTR, advance textIdx AFTER lookup. (For RTL we decremented
-      // before the lookup so the next iteration's pre-decrement lands on
-      // the previous cluster's start.)
-      if (!runIsRtl) textIdx += span;
     }
     if (glyphFailed || perGlyph.length === 0 || runCssFamily == null) return null;
 
@@ -3535,7 +3576,15 @@ function renderTextAsEmbedded(
       const xList = slice.map((g) => r(x + g.xCss * xScale)).join(" ");
       const puaStream = slice.map((g) => g.pua).join("");
       const emitFontSize = r(fontSize * runScale);
-      segments.push(`<text x="${xList}" y="${r(baselineY)}" font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr} fill="${fill}"${p.strokeAttr}>${puaStream}</text>`);
+      // DM-1028: emit a per-glyph y-list only when a glyph carries a vertical
+      // GPOS offset (Brahmic marks stacked above/below their base). The common
+      // case (all glyphs on the baseline) keeps the single `y` attribute and
+      // the smaller markup.
+      const anyY = slice.some((g) => g.yCss !== 0);
+      const yAttr = anyY
+        ? `y="${slice.map((g) => r(baselineY + g.yCss)).join(" ")}"`
+        : `y="${r(baselineY)}"`;
+      segments.push(`<text x="${xList}" ${yAttr} font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr} fill="${fill}"${p.strokeAttr}>${puaStream}</text>`);
       runStart = runEnd;
     }
   }

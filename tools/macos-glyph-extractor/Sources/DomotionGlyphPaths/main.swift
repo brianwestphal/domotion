@@ -280,6 +280,84 @@ func runNotdefQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [Stri
             "d": path]
 }
 
+// DM-1028: shape a string with CoreText (CTLine) and return the shaped glyph
+// stream — ids, per-glyph advance / offset, source-cluster index, and outline.
+// The naive per-codepoint helper `layout()` did NO shaping: one glyph per
+// codepoint, every offset 0. That drops the dotted circle CoreText/HarfBuzz
+// insert for an orphaned Brahmic combining mark (U+25CC), drops conjuncts /
+// reordering, and ignores GPOS mark positioning. fontkit's Universal-Shaping
+// engine is broken for these scripts (it mis-stacks the Javanese suku and
+// throws `'syllable'` nulls), so CoreText's USE shaping — which matches
+// Chrome's painted cluster for these blocks — is the source of truth here.
+//
+// Coordinates are in font design units (the font is opened at size=unitsPerEm
+// by the caller), y-up, matching `svgPath` and fontkit's convention. Per glyph
+// we decompose CTRun's absolute pen positions into fontkit-style
+// {xAdvance, xOffset, yOffset}: xOffset = position.x − (running advance sum),
+// so a mark that GPOS pulls back over its base carries a negative xOffset and
+// the renderer can lay the cluster out from a single anchor. `cluster` is the
+// UTF-16 source index (CTRunGetStringIndices) so the renderer can anchor each
+// cluster at the captured per-character xOffset. Outlines come from each run's
+// OWN font (CTRunGetAttributes) so a CoreText sub-substitution still draws the
+// correct glyph.
+func runShapeQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String: Any] {
+    guard let ref = query["fontRef"] as? String, let entry = fonts[ref] else {
+        return ["type": "shape", "error": "fontRef missing or unknown", "glyphs": []]
+    }
+    guard let text = query["text"] as? String else {
+        return ["type": "shape", "error": "text missing", "glyphs": []]
+    }
+    let attrs: [CFString: Any] = [kCTFontAttributeName: entry.font]
+    guard let astr = CFAttributedStringCreate(nil, text as CFString, attrs as CFDictionary) else {
+        return ["type": "shape", "error": "could not build attributed string", "glyphs": []]
+    }
+    let line = CTLineCreateWithAttributedString(astr)
+    let runs = (CTLineGetGlyphRuns(line) as? [CTRun]) ?? []
+    var out: [[String: Any]] = []
+    // Pen advances accumulate across the whole line (visual order) so each
+    // glyph's xOffset is measured from its own pen origin.
+    var penX: CGFloat = 0
+    for run in runs {
+        let n = CTRunGetGlyphCount(run)
+        if n == 0 { continue }
+        // The font CoreText actually used for this run (may differ from the
+        // requested one if CT substituted for an uncovered codepoint).
+        let runAttrs = CTRunGetAttributes(run) as? [CFString: Any]
+        let runFontAny = runAttrs?[kCTFontAttributeName]
+        let runFont: CTFont = {
+            if let f = runFontAny, CFGetTypeID(f as CFTypeRef) == CTFontGetTypeID() {
+                return (f as! CTFont)
+            }
+            return entry.font
+        }()
+        var glyphs = [CGGlyph](repeating: 0, count: n)
+        var positions = [CGPoint](repeating: .zero, count: n)
+        var advances = [CGSize](repeating: .zero, count: n)
+        var indices = [CFIndex](repeating: 0, count: n)
+        CTRunGetGlyphs(run, CFRange(location: 0, length: n), &glyphs)
+        CTRunGetPositions(run, CFRange(location: 0, length: n), &positions)
+        CTRunGetAdvances(run, CFRange(location: 0, length: n), &advances)
+        CTRunGetStringIndices(run, CFRange(location: 0, length: n), &indices)
+        for i in 0..<n {
+            let g = glyphs[i]
+            let xOffset = positions[i].x - penX
+            let yOffset = positions[i].y
+            let path = svgPath(forGlyph: g, in: runFont)
+            out.append([
+                "id": Int(g),
+                "cluster": indices[i],
+                "ax": NSDecimalNumber(string: formatNumber(advances[i].width)),
+                "ay": NSDecimalNumber(string: formatNumber(advances[i].height)),
+                "dx": NSDecimalNumber(string: formatNumber(xOffset)),
+                "dy": NSDecimalNumber(string: formatNumber(yOffset)),
+                "d": path
+            ])
+            penX += advances[i].width
+        }
+    }
+    return ["type": "shape", "glyphs": out]
+}
+
 // Read Int16 (big-endian) from a Data slice at offset.
 func readI16BE(_ data: Data, _ offset: Int) -> Int16? {
     guard offset + 2 <= data.count else { return nil }
@@ -492,6 +570,8 @@ for query in queries {
         results.append(runFallbackQuery(query, fonts: fonts))
     case "notdef":
         results.append(runNotdefQuery(query, fonts: fonts))
+    case "shape":
+        results.append(runShapeQuery(query, fonts: fonts))
     case "family":
         results.append(runFamilyQuery(query))
     default:

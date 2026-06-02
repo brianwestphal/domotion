@@ -278,4 +278,50 @@ describeHelper("CoreText glyph extractor", () => {
     expect(byIdGlyph.id).toBe(id);
     expect(byIdGlyph.d.length).toBeGreaterThan(0);
   });
+
+  // DM-1028: the CoreText `shape` query runs CTLine, so an orphaned Brahmic
+  // combining mark gets its dotted circle (U+25CC) inserted and both glyphs
+  // carry the source cluster + GPOS-decomposed advance/offset. The old naive
+  // per-codepoint `layout()` emitted ONE glyph and dropped the dotted circle.
+  const javanesePath = "/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf";
+  const javaneseInstalled = existsSync(javanesePath);
+  const itJavanese = javaneseInstalled ? it : it.skip;
+
+  itJavanese("shape query inserts the dotted circle for an orphaned Javanese vowel sign (U+A9B8)", () => {
+    const resp = callHelper({
+      fonts: [{ ref: "j", postscriptName: "NotoSansJavanese-Regular", fontPath: javanesePath, size: 1000 }],
+      queries: [{ type: "shape", fontRef: "j", text: "\u{A9B8}" }]
+    });
+    const r = resp.results[0] as { type: string; glyphs?: Array<{ id: number; cluster: number; ax: number; d: string }> };
+    expect(r.type).toBe("shape");
+    expect(r.glyphs).toBeDefined();
+    // The mark shapes to TWO glyphs: an inserted dotted circle + the vowel
+    // sign. Both belong to the single source character (cluster 0).
+    expect(r.glyphs!.length).toBe(2);
+    for (const g of r.glyphs!) {
+      expect(g.cluster).toBe(0);
+      expect(g.d.length).toBeGreaterThan(0); // both glyphs are inked
+    }
+  });
+
+  itJavanese("createGlyphHelperFont().layout() returns the shaped cluster with per-glyph clusters", () => {
+    clearGlyphHelperCache();
+    const font = createGlyphHelperFont({
+      postscriptName: "NotoSansJavanese-Regular",
+      fontPath: javanesePath
+    });
+    expect(font).not.toBeNull();
+    const laid = font!.layout("\u{A9B8}");
+    expect(laid.glyphs.length).toBe(2);
+    expect(laid.clusters).toBeDefined();
+    expect(laid.clusters).toEqual([0, 0]);
+    // Every shaped glyph carries an outline the renderer can emit directly.
+    for (const g of laid.glyphs) {
+      expect(g.path.commands.length).toBeGreaterThan(0);
+    }
+    // The cluster's total advance matches Chrome's measured width (the dotted
+    // circle advances, the vowel sign overlays it) — non-zero, finite.
+    const total = laid.positions.reduce((s, p) => s + p.xAdvance, 0);
+    expect(total).toBeGreaterThan(0);
+  });
 });

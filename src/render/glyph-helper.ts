@@ -133,7 +133,22 @@ interface HelperRequest {
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
     | { type: "fallback"; fontRef: string; cps: number[] }
     | { type: "family"; name: string }
+    | { type: "shape"; fontRef: string; text: string }
   >;
+}
+// DM-1028: one shaped glyph from the CoreText `shape` query. Coordinates are
+// in font design units, y-up. `cluster` is the UTF-16 source index in the
+// shaped text; `ax`/`ay` are the glyph advance and `dx`/`dy` the GPOS offset
+// from the glyph's pen origin. `d` is the outline (drawn from the run's own
+// CoreText font, so a sub-substitution still draws the right glyph).
+interface ShapeResponseGlyph {
+  id: number;
+  cluster: number;
+  ax: number;
+  ay: number;
+  dx: number;
+  dy: number;
+  d: string;
 }
 interface FallbackResponseEntry {
   cp: number;
@@ -155,6 +170,7 @@ interface HelperResponse {
     | { type: "glyphs"; glyphs: GlyphResponse[] }
     | { type: "fallback"; fonts: FallbackResponseEntry[] }
     | FamilyResponse
+    | { type: "shape"; glyphs?: ShapeResponseGlyph[]; error?: string }
   >;
 }
 
@@ -187,6 +203,13 @@ export interface GlyphHelperFontInstance {
   layout(text: string, features?: string[]): {
     glyphs: GlyphHelperGlyph[];
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+    /** DM-1028: per-glyph UTF-16 source index in `text` (CoreText cluster).
+     *  Present whenever the run was shaped via the CoreText `shape` query;
+     *  the renderer uses it to anchor each cluster at its captured xOffset and
+     *  to lay multi-glyph clusters (dotted circle + mark, conjuncts) out from
+     *  that single anchor. Absent only when shaping fell back to the naive
+     *  per-codepoint path. */
+    clusters?: number[];
   };
 }
 
@@ -220,6 +243,8 @@ export function createGlyphHelperFont(spec: {
   const cpToGlyph = new Map<number, GlyphHelperGlyph>();
   const idToGlyph = new Map<number, GlyphHelperGlyph>();
   const missingCp = new Set<number>();
+  // DM-1028: per-run-text shape cache so identical runs shape once.
+  const shapeCache = new Map<string, ShapeResponseGlyph[] | null>();
 
   function fetchByCps(cps: number[]): void {
     const need = cps.filter((cp) => !cpToGlyph.has(cp) && !missingCp.has(cp));
@@ -285,6 +310,28 @@ export function createGlyphHelperFont(spec: {
     return { id, advanceWidth: 0, path: { commands: [] } };
   }
 
+  // DM-1028: shape `text` with CoreText (CTLine) → the shaped glyph stream
+  // (ids, advances, GPOS offsets, source clusters, outlines). Returns null on
+  // any helper error so `layout()` can fall back to the naive per-codepoint
+  // path. Cached per run text.
+  function shapeText(text: string): ShapeResponseGlyph[] | null {
+    const cached = shapeCache.get(text);
+    if (cached !== undefined) return cached;
+    let shaped: ShapeResponseGlyph[] | null = null;
+    try {
+      const resp = callHelper({
+        fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
+        queries: [{ type: "shape", fontRef: "f", text }]
+      });
+      const r = resp.results[0];
+      if (r.type === "shape" && Array.isArray(r.glyphs)) shaped = r.glyphs;
+    } catch {
+      shaped = null;
+    }
+    shapeCache.set(text, shaped);
+    return shaped;
+  }
+
   return {
     unitsPerEm,
     ascent: metaResp.ascent ?? 0,
@@ -310,7 +357,47 @@ export function createGlyphHelperFont(spec: {
     layout(text: string): {
       glyphs: GlyphHelperGlyph[];
       positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
+      clusters?: number[];
     } {
+      // DM-1028: shape with CoreText so Brahmic clusters (dotted-circle
+      // insertion for an orphaned combining mark, conjuncts, mark-to-base
+      // GPOS) round-trip. The old naive path mapped one glyph per codepoint
+      // with zero offsets — it dropped the dotted circle and every mark
+      // position. CoreText's USE shaping matches Chrome's painted cluster for
+      // these scripts (fontkit's USE engine is broken for them).
+      //
+      // Gate: shape ONLY when this font covers every source codepoint. For an
+      // UNCOVERED codepoint the renderer's DM-1018 path draws the primary
+      // font's `.notdef` (SF Compact's SignWriting stripes, the no-font
+      // Brahmic tofu box) — but CTLine, asked to shape an uncovered codepoint,
+      // substitutes a DIFFERENT font's tofu, which regressed Sutton SignWriting
+      // (was pixel-clean) and the no-font Devanagari-Extended block. So
+      // uncovered runs stay on the naive per-codepoint path, where glyph 0's
+      // stored `.notdef` outline reaches the renderer unchanged.
+      const cps0 = [...text].map((c) => c.codePointAt(0)!);
+      fetchByCps(cps0); // batch the coverage probe (cached, reused below)
+      const fullyCovered = cps0.every((cp) => !missingCp.has(cp) && (cpToGlyph.get(cp)?.id ?? 0) !== 0);
+      const shaped = fullyCovered ? shapeText(text) : null;
+      if (shaped != null && shaped.length > 0) {
+        const glyphs: GlyphHelperGlyph[] = [];
+        const positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }> = [];
+        const clusters: number[] = [];
+        for (const sg of shaped) {
+          const glyph: GlyphHelperGlyph = {
+            id: sg.id,
+            advanceWidth: sg.ax,
+            path: { commands: parseSvgPath(sg.d) }
+          };
+          // Cache the outline by id so a later getGlyph(id) reuses it.
+          if (sg.id !== 0 && !idToGlyph.has(sg.id)) idToGlyph.set(sg.id, glyph);
+          glyphs.push(glyph);
+          positions.push({ xAdvance: sg.ax, yAdvance: sg.ay, xOffset: sg.dx, yOffset: sg.dy });
+          clusters.push(sg.cluster);
+        }
+        return { glyphs, positions, clusters };
+      }
+
+      // Fallback: naive per-codepoint mapping (CoreText shaping unavailable).
       // Batch every codepoint in one helper call before assembling the result.
       const cps: number[] = [];
       for (const ch of text) cps.push(ch.codePointAt(0)!);
