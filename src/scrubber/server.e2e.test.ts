@@ -111,4 +111,50 @@ describe("animated-svg-scrubber server (DM-1040)", () => {
     // ISO-BMFF: bytes 4..8 are the "ftyp" box type.
     expect(buf.slice(4, 8).toString("ascii")).toBe("ftyp");
   }, 60_000);
+
+  // DM-1049: the loaded SVG must be centered in the stage (both axes) at Fit and
+  // after Center — regression guard for the "vertically aligns to the top" bug
+  // (a content-sized flex host top-pinned when taller than the stage).
+  it("centers the loaded SVG in the stage, at Fit and after Center (DM-1049)", async () => {
+    if (!chromiumAvailable) return;
+    // A WIDE SVG so Fit leaves vertical slack — that's where the vertical-center
+    // bug showed. Preload it via the bootstrap so the page has it on first paint.
+    const wide = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200"><rect width="800" height="200" fill="#2c8"/></svg>`;
+    // A dedicated browser so the scoped server's close() (which closes the
+    // browser it was handed) doesn't tear down the shared one used by the
+    // sibling tests / afterAll.
+    const b2 = await chromium.launch();
+    const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: wide, initialName: "wide.svg" });
+    const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(s2.url, { waitUntil: "load" });
+      await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
+      await page.waitForTimeout(400); // let Fit + ResizeObserver settle
+      const centered = async () => page.evaluate(() => {
+        const st = document.querySelector(".stage")!.getBoundingClientRect();
+        const sv = document.querySelector(".svg-host svg")!.getBoundingClientRect();
+        return {
+          dy: Math.abs((sv.y + sv.height / 2) - (st.y + st.height / 2)),
+          dx: Math.abs((sv.x + sv.width / 2) - (st.x + st.width / 2)),
+          fitsH: sv.height <= st.height + 2,
+        };
+      });
+      const fit = await centered();
+      expect(fit.dy).toBeLessThan(3); // vertically centered (the reported bug)
+      expect(fit.dx).toBeLessThan(3); // horizontally centered
+      expect(fit.fitsH).toBe(true);   // Fit accounts for the footer (stage excludes it)
+      // Pan away, then Center → centered again on both axes.
+      await page.locator(".stage").hover();
+      await page.mouse.wheel(80, 120);
+      await page.locator("button[data-action=center]").click();
+      await page.waitForTimeout(80);
+      const after = await centered();
+      expect(after.dy).toBeLessThan(3);
+      expect(after.dx).toBeLessThan(3);
+    } finally {
+      await ctx.close();
+      await s2.close();
+    }
+  }, 60_000);
 });

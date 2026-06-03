@@ -25,17 +25,27 @@ The process serves a local HTTP UI and stays alive until `Ctrl-C`.
 
 ## UI controls
 
+The footer has two rows: row 1 is transport (play, speed, timeline, time); row 2
+spreads three groups across the width (`space-between`) — **range** controls on
+the left, **zoom / pan** controls in the middle, the **Export** button on the
+right.
+
 | Control | Behavior |
 | --- | --- |
-| Play / pause | Space, or the **Play** / **Pause** button. |
+| Play / pause | Space, or the play/pause button (a Lucide play/pause icon). The scrubber thumb advances while playing. |
 | Frame step | `←` / `→` step one 30 fps frame; hold **Shift** to step 1 ms. |
 | Speed | 0.1x–4x select; affects playback only, not the underlying timeline. |
-| Scrub | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range on the track. |
-| Range | **In** / **Out** set the in/out points to the playhead, or type seconds directly. **loop** loops playback over `[in, out]`. **Reset range** restores the full loop. |
-| Zoom / pan | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **+** / **-** buttons step zoom. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
-| Export | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). |
+| Scrub | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range; the ticks are **draggable** along the track to set the in/out points. |
+| Range | **In** / **Out** set the in/out points to the playhead (or type seconds, or drag the ticks). **loop** loops playback over `[in, out]`. **Reset** restores the full loop. |
+| Zoom / pan | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **+** / **-** buttons step zoom; **Center** resets the pan. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
+| Export | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). Export errors surface as a browser alert; there is no persistent status line. |
 
-The UI is built with **kerfjs** (signals + `mount` + `delegate`); the loaded SVG sits in a `data-morph-skip` host so the reactive re-render never touches it, while its animations and the zoom/pan transform are driven imperatively. No emoji are used in the UI.
+The UI is built with **kerfjs** (signals + `mount` + `delegate`); the loaded SVG
+sits in a `data-morph-skip` host so the reactive re-render never touches it,
+while its animations, the zoom/pan transform, and the scrubber thumb position
+are driven imperatively (kerf preserves a touched input's value, so the thumb is
+set on the element directly). No emoji are used — labels are plain text and the
+play/pause control is a Lucide SVG icon.
 
 ## How playback works
 
