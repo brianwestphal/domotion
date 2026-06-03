@@ -40,6 +40,9 @@ they describe (see `CLAUDE.md` "Documentation"):
 - **Doc 55 (`docs/55-debug-mode-capture.md`, DM-945)** — the
   `domotion capture --debug` flag's reproduction bundle (HAR +
   screenshot + actual SVG + captured-tree JSON).
+- **Doc 56 (`docs/56-animated-svg-scrubber.md`, DM-1040)** — the
+  `animated-svg-scrubber` CLI: a local video-style bench for an animated
+  SVG (play / scrub / speed / range-loop / frame-PNG / range-MP4 / trim).
 
 These two together form the consumer-side bug-report workflow: capture
 with `--debug`, review with `svg-review`, file an issue with the
@@ -54,8 +57,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
 - macOS, Linux, Windows must all work. The output should be pixel-faithful
   to Chromium ON the platform the capture runs on (CoreText on macOS,
   fontconfig on Linux, DirectWrite on Windows).
-- The implementation is fully calibrated only for macOS today; Linux +
-  Windows calibration is roadmap (tracked in Hot Sheet, not public yet).
+- All three platforms now have calibrated fallback chains AND generated
+  per-Unicode-block routing tables — `unicode-font-routing.{darwin,linux,win32}
+  .generated.ts`, from Chrome CDP `CSS.getPlatformFontsForNode` sweeps
+  (macOS DM-983, Linux DM-984, Windows DM-987). macOS remains the most
+  mature / most-validated; Linux + Windows native glyph extractors and CI
+  are partially landed (docs 41 / 45 / 49–52). Treat macOS as the reference
+  and re-probe the others when their font set changes.
 - New font / fallback / metric routing must be designed platform-aware
   from the start — `process.platform` based, not assumed `darwin`.
 

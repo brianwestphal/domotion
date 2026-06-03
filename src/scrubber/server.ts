@@ -24,6 +24,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
 import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize, resolveDurationMs, findFfmpeg, resolveFormat, buildFfmpegArgs, fitContain, type AnimTiming } from "../cli/svg-to-video-core.js";
 import { trimAnimatedSvg } from "./trim.js";
@@ -31,6 +32,45 @@ import { SCRUBBER_CLIENT_JS } from "./client.bundle.generated.js";
 
 /** Fixed export frame rate (DM-1042 — per requested design). */
 const EXPORT_FPS = 30;
+
+/** Output dimension clamp — guards `setViewportSize` against absurd values. */
+const MAX_DIM = 10_000;
+
+// DM-1065: every POST body is untrusted external input, so validate it at the
+// boundary with zod (mirroring `animate.ts`) before any value reaches Chromium /
+// ffmpeg / `trimAnimatedSvg`. A failure is a 400 (client error), not a 500.
+const svgField = z.string().min(1, "must be a non-empty SVG string");
+const finite = z.number().refine(Number.isFinite, "must be a finite number");
+const timeMs = finite.refine((n) => n >= 0, "must be ≥ 0");
+const dim = finite.refine((n) => n > 0 && n <= MAX_DIM, `must be in (0, ${MAX_DIM}]`);
+const TIMING_BODY = z.object({ svg: svgField });
+const TRIM_BODY = z.object({
+  svg: svgField,
+  startMs: timeMs,
+  endMs: timeMs,
+  periodMs: finite.refine((n) => n > 0, "must be > 0"),
+});
+const FRAME_BODY = z.object({ svg: svgField, timeMs, width: dim, height: dim });
+const RANGE_VIDEO_BODY = z.object({ svg: svgField, startMs: timeMs, endMs: timeMs, width: dim, height: dim });
+
+/** A request-level error carrying the HTTP status to return (e.g. a 400). */
+class HttpError extends Error {
+  constructor(public readonly status: number, message: string) { super(message); }
+}
+
+/** Read + JSON-parse + zod-validate a request body, or throw an `HttpError(400)`. */
+async function parseBody<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise<T> {
+  const raw = await readBody(req);
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new HttpError(400, "invalid JSON body"); }
+  const result = schema.safeParse(parsed);
+  if (!result.success) {
+    const msg = result.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; ");
+    throw new HttpError(400, `invalid request: ${msg}`);
+  }
+  return result.data;
+}
 
 /**
  * Render the `[t0, t1]` window of `svg` to an MP4 (H.264) and return the bytes.
@@ -159,6 +199,18 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
   const withChromium = <T>(fn: (page: Page) => Promise<T>): Promise<T> => {
     const run = queue.then(() => getPage().then(fn));
     queue = run.catch(() => {});
+    // DM-1065: if the reused page/context (or the browser) died — Chromium OOM
+    // on a huge SVG, a crashed renderer, a closed context — discard the memoized
+    // handle so the NEXT request rebuilds it instead of reusing a dead page
+    // forever. Page/context death only needs a fresh page; browser death needs a
+    // relaunch (next getPage() re-invokes launchBrowser).
+    run.catch((err: unknown) => {
+      const msg = String(err instanceof Error ? err.message : err);
+      if (/\b(closed|crashed|disconnected|Target (?:page|closed)|browser has been closed)\b/i.test(msg)) {
+        pagePromise = null;
+        if (/browser/i.test(msg)) browser = null;
+      }
+    });
     return run;
   };
 
@@ -181,21 +233,19 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         return;
       }
       if (req.method === "POST" && url === "/timing") {
-        const { svg } = JSON.parse(await readBody(req)) as { svg: string };
+        const { svg } = await parseBody(req, TIMING_BODY);
         const t = await withChromium((page) => deriveTiming(page, svg));
         sendJson(res, 200, t);
         return;
       }
       if (req.method === "POST" && url === "/trim") {
-        const { svg, startMs, endMs, periodMs } = JSON.parse(await readBody(req)) as
-          { svg: string; startMs: number; endMs: number; periodMs: number };
+        const { svg, startMs, endMs, periodMs } = await parseBody(req, TRIM_BODY);
         const r = trimAnimatedSvg(svg, startMs, endMs, periodMs);
         sendJson(res, 200, { svg: r.svg, slicedCss: r.slicedCss, slicedSmil: r.slicedSmil, shiftedCss: r.shiftedCss, shiftedSmil: r.shiftedSmil });
         return;
       }
       if (req.method === "POST" && url === "/export-frame") {
-        const { svg, timeMs, width, height } = JSON.parse(await readBody(req)) as
-          { svg: string; timeMs: number; width: number; height: number };
+        const { svg, timeMs, width, height } = await parseBody(req, FRAME_BODY);
         const png = await withChromium(async (page) => {
           await page.setViewportSize({ width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) });
           await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
@@ -207,8 +257,7 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         return;
       }
       if (req.method === "POST" && url === "/export-range-video") {
-        const { svg, startMs, endMs, width, height } = JSON.parse(await readBody(req)) as
-          { svg: string; startMs: number; endMs: number; width: number; height: number };
+        const { svg, startMs, endMs, width, height } = await parseBody(req, RANGE_VIDEO_BODY);
         const t0 = Math.max(0, Math.min(startMs, endMs));
         const t1 = Math.max(startMs, endMs);
         if (!(t1 - t0 >= 1)) { sendJson(res, 400, { error: "empty range — set an in/out window first" }); return; }
@@ -220,8 +269,11 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
       res.writeHead(404, { "content-type": "text/plain" });
       res.end(`not found: ${url}`);
     } catch (err) {
-      log(`request error: ${err instanceof Error ? err.message : String(err)}`);
-      if (!res.headersSent) sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+      // A validation / bad-input failure is the client's fault (4xx); everything
+      // else is a genuine server fault (5xx). DM-1065.
+      const status = err instanceof HttpError ? err.status : 500;
+      if (status >= 500) log(`request error: ${err instanceof Error ? err.message : String(err)}`);
+      if (!res.headersSent) sendJson(res, status, { error: err instanceof Error ? err.message : String(err) });
       else res.end();
     }
   };
@@ -239,7 +291,11 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
     url: `http://127.0.0.1:${port}/`,
     port,
     close: async () => {
-      await new Promise<void>((r) => server.close(() => r()));
+      // `server.close()` stops accepting NEW connections but waits for every
+      // existing socket to go idle before firing the callback; a keep-alive
+      // client (Node's `fetch`/undici pools a socket) can delay that by tens of
+      // seconds — undesirable on Ctrl-C. Drop idle sockets so it fires promptly.
+      await new Promise<void>((r) => { server.close(() => r()); server.closeIdleConnections(); });
       if (browser != null) { await browser.close().catch(() => {}); browser = null; }
     },
   };

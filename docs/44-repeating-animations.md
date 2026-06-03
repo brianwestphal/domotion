@@ -1,6 +1,6 @@
 # 44 — Repeating animations: blink, pulse, typing caret
 
-Status: **requirements / design** (not yet implemented). Spec for repeating / looping animations in the animation pipeline. See `docs/08-animation-model.md` for the one-shot intra-frame animation model this extends, and `docs/43-declarative-animate-config.md` for the config surface.
+Status: **shipped**. Spec for repeating / looping animations in the animation pipeline; all three mechanisms are implemented — `repeat`/`alternate` on `IntraFrameAnimation` (`src/animation/animator.ts`; config schema in `src/cli/animate.ts`), the typing-overlay blinking `caret`, and the standalone `blink` overlay (DM-869 / DM-870 / DM-871). See `docs/08-animation-model.md` for the one-shot intra-frame animation model this extends, and `docs/43-declarative-animate-config.md` for the config surface.
 
 ## Why
 

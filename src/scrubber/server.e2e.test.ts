@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser } from "@playwright/test";
 import { startScrubberServer, type ScrubberServerHandle } from "./server.js";
+import { closeSafely } from "../test-support/close-browser-safely.js";
 
 /**
  * DM-1040: end-to-end coverage for the `animated-svg-scrubber` server — the
@@ -33,9 +34,11 @@ describe("animated-svg-scrubber server (DM-1040)", () => {
   }, 60_000);
 
   afterAll(async () => {
-    if (srv) await srv.close();
-    // `srv.close()` closes the browser it was handed; nothing else to do.
-  });
+    // `srv.close()` closes the shared browser it was handed. DM-1074: race that
+    // close with a deadline (abandon it if it hangs) so an environmental
+    // `browser.close()` flake can't blow this hook's timeout and red the file.
+    if (srv) await closeSafely(() => srv!.close(), browser, 6_000);
+  }, 15_000);
 
   const post = (path: string, body: unknown) =>
     fetch(srv!.url.replace(/\/$/, "") + path, {
@@ -153,8 +156,8 @@ describe("animated-svg-scrubber server (DM-1040)", () => {
       expect(after.dy).toBeLessThan(3);
       expect(after.dx).toBeLessThan(3);
     } finally {
-      await ctx.close();
-      await s2.close();
+      await ctx.close().catch(() => {});
+      await closeSafely(() => s2.close(), b2, 6_000); // DM-1074: don't hang on a flaky browser.close()
     }
   }, 60_000);
 });

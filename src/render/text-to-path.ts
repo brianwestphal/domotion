@@ -32,6 +32,15 @@ interface FontInstance {
    *  the synthesized-small-caps path to detect when smcp is missing. */
   availableFeatures?: string[];
   "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
+  /** Glyph-coverage probe. `id === 0` is `.notdef` (no coverage). Both backing
+   *  implementations expose it (fontkit's `Font`, the glyph-helper instance), so
+   *  it's typed here rather than cast through `any` at each call site (DM-1067). */
+  glyphForCodePoint(codePoint: number): { id: number; advanceWidth?: number; codePoints?: number[] };
+  /** Native (glyph-helper) instances can pre-warm a batch of glyph-coverage
+   *  probes so the per-codepoint walk hits a cache. fontkit instances omit it. */
+  warmGlyphs?(codePoints: number[]): void;
+  /** Native instances can pre-warm a batch of shaping calls (run-based layout). */
+  warmShapes?(texts: string[]): void;
 }
 
 const fontInstanceCache = new Map<string, FontInstance>();
@@ -1411,8 +1420,8 @@ function decomposeMathAlphaRun(
     if (candidate !== "free-sans" && candidate !== "free-serif") continue;
     const vKey = freeFontVariantKey(candidate, decomp.bold, decomp.italic);
     const vFont = getFontInstance(vKey, weight, fontSize, 0);
-    if (vFont != null && (vFont as any).glyphForCodePoint != null
-        && (vFont as any).glyphForCodePoint(decomp.base).id !== 0) {
+    if (vFont != null && vFont.glyphForCodePoint != null
+        && vFont.glyphForCodePoint(decomp.base).id !== 0) {
       return { key: vKey, font: vFont, ch: String.fromCodePoint(decomp.base) };
     }
   }
@@ -2107,7 +2116,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
 // lazily-parsed and read falsy even when the table physically exists. Unknown
 // shape → assume fontkit is fine, so we never over-route a readable font.
 // Exported for unit testing (not part of the package's public barrel).
-export function fontHasOutlineTable(font: any): boolean {
+export function fontHasOutlineTable(font: { directory?: { tables?: Record<string, unknown> } } | null | undefined): boolean {
   const tables = font?.directory?.tables;
   if (tables == null || typeof tables !== "object") return true;
   return "glyf" in tables || "CFF " in tables || "CFF2" in tables;
@@ -2122,6 +2131,10 @@ export function fontHasOutlineTable(font: any): boolean {
 // glyph id from the SAME file (ids match across engines). See docs/51.
 
 type PathCommand = { command: string; args: number[] };
+
+/** Minimal fontkit `Glyph` shape the renderer reads (DM-1067) — keeps `any` off
+ *  the exported `commandsFor` signature without depending on fontkit's full type. */
+type FontkitGlyph = { id: number; path?: { commands: PathCommand[] }; codePoints?: number[]; advanceWidth?: number };
 
 /** Records which on-disk file each fontkit instance was loaded from (populated
  *  in getFontInstance). Helper instances + webfonts are absent → no fallback. */
@@ -2191,7 +2204,7 @@ function helperGlyphOutline(srcPath: string, postscriptName: string | undefined,
  *  helper is available, and the font was loaded from a real file. Empty array
  *  when there's genuinely nothing to draw. Exported for unit testing (not in
  *  the package barrel). */
-export function commandsFor(glyph: any, fontKey: string, weight: number, fontSize: number, slant: number): PathCommand[] {
+export function commandsFor(glyph: FontkitGlyph | null | undefined, fontKey: string, weight: number, fontSize: number, slant: number): PathCommand[] {
   const cmds: PathCommand[] = glyph?.path?.commands ?? [];
   if (cmds.length > 0) return cmds;
   if (glyph == null || glyph.id === 0) return cmds;       // genuine .notdef
@@ -2564,7 +2577,7 @@ export function textToPathMarkup(
       // whenever it has the glyph; only walk the fallback chain otherwise.
       let useKey = primaryFontKey;
       let useFontOverride: FontInstance | null = null;
-      if ((primaryFont as any).glyphForCodePoint(cp).id === 0) {
+      if (primaryFont.glyphForCodePoint(cp).id === 0) {
         // DM-557: for a partitioned webfont family (Geist split across
         // Latin / Latin-Ext / Cyrillic / etc. by `unicode-range`), the
         // Latin-biased `pickWebfontVariant` returns the Latin partition as
@@ -2578,7 +2591,7 @@ export function textToPathMarkup(
         if (primaryFontKey.startsWith("webfont:")) {
           const family = primaryFontKey.slice("webfont:".length);
           const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-          if (cpVariant != null && (cpVariant as any).glyphForCodePoint(cp).id !== 0) {
+          if (cpVariant != null && cpVariant.glyphForCodePoint(cp).id !== 0) {
             // Use the codepoint-aware variant. Keep `useKey` = primary so the
             // run discriminator still groups with primary at the key level;
             // the font instance override propagates through the run grouping
@@ -2598,8 +2611,8 @@ export function textToPathMarkup(
           let picked: string | null = null;
           for (const candidate of chain) {
             const cf = getFontInstance(candidate, weight, fontSize, slant);
-            if (cf != null && (cf as any).glyphForCodePoint != null
-                && (cf as any).glyphForCodePoint(cp).id !== 0) {
+            if (cf != null && cf.glyphForCodePoint != null
+                && cf.glyphForCodePoint(cp).id !== 0) {
               picked = candidate;
               break;
             }
@@ -2680,8 +2693,7 @@ export function textToPathMarkup(
   const wantPcap   = features_.includes("pcap");
   const wantC2pc   = features_.includes("c2pc");
   const wantUnic   = features_.includes("unic");
-  const availableFeatures = Array.isArray((primaryFont as any).availableFeatures)
-    ? ((primaryFont as any).availableFeatures as string[]) : [];
+  const availableFeatures = primaryFont.availableFeatures ?? [];
   const hasFeature = (f: string) => availableFeatures.includes(f);
   // Determine the synthesized scale for lowercase / uppercase letters under
   // each variant. `null` means do not transform (keep native glyph at 1.0).
@@ -3121,24 +3133,24 @@ function codepointResolvesToNotdef(
   weight: number, fontSize: number, slant: number,
   variationSettings: Record<string, number> | undefined, lang: string | undefined,
 ): boolean {
-  if ((primaryFont as any).glyphForCodePoint(cp).id !== 0) return false;
+  if (primaryFont.glyphForCodePoint(cp).id !== 0) return false;
   if (primaryFontKey.startsWith("webfont:")) {
     const family = primaryFontKey.slice("webfont:".length);
     const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-    if (v != null && (v as any).glyphForCodePoint(cp).id !== 0) return false;
+    if (v != null && v.glyphForCodePoint(cp).id !== 0) return false;
   }
   for (const candidate of fallbackFontChain(cp, primaryFontKey, lang)) {
     if (candidate === "last-resort") continue;
     const cf = getFontInstance(candidate, weight, fontSize, slant);
-    if (cf != null && (cf as any).glyphForCodePoint != null
-        && (cf as any).glyphForCodePoint(cp).id !== 0) return false;
+    if (cf != null && cf.glyphForCodePoint != null
+        && cf.glyphForCodePoint(cp).id !== 0) return false;
   }
   if (_systemFallbackResolutionEnabled) {
     const sysKey = resolveSystemFallbackKeyForCp(cp);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
-      if (sf != null && (sf as any).glyphForCodePoint != null
-          && (sf as any).glyphForCodePoint(cp).id !== 0) return false;
+      if (sf != null && sf.glyphForCodePoint != null
+          && sf.glyphForCodePoint(cp).id !== 0) return false;
     }
   }
   return true;
@@ -3184,8 +3196,8 @@ export function insertSyntheticDottedCircles(
     if (dottedCircleAdvanceCss >= 0) return dottedCircleAdvanceCss;
     dottedCircleAdvanceCss = 0;
     const advFrom = (cf: FontInstance | null): number | null => {
-      const g = cf != null ? (cf as any).glyphForCodePoint?.(0x25CC) : null;
-      if (cf != null && g != null && g.id !== 0) return (g.advanceWidth ?? 0) * (fontSize / (cf as any).unitsPerEm);
+      const g = cf != null ? cf.glyphForCodePoint(0x25CC) : null;
+      if (cf != null && g != null && g.id !== 0) return (g.advanceWidth ?? 0) * (fontSize / cf.unitsPerEm);
       return null;
     };
     const fromPrimary = advFrom(primaryFont);
@@ -3267,7 +3279,7 @@ function splitTextIntoFontRuns(
   // fixture). Batching collapses those to one. `warmGlyphs` only exists on the
   // native-helper font instances (PingFang / system-fallback extraction); it's
   // absent on fontkit fonts, where coverage is already in-process and free.
-  const warm = (primaryFont as { warmGlyphs?: (cps: number[]) => void }).warmGlyphs;
+  const warm = primaryFont.warmGlyphs;
   if (warm != null) {
     const distinct = new Set<number>();
     for (const ch of text) distinct.add(ch.codePointAt(0)!);
@@ -3297,7 +3309,7 @@ function splitTextIntoFontRuns(
       const cp = ch.codePointAt(0)!;
       if (seenCp.has(cp)) continue;
       seenCp.add(cp);
-      if ((primaryFont as any).glyphForCodePoint(cp).id !== 0) {
+      if (primaryFont.glyphForCodePoint(cp).id !== 0) {
         continue; // primary covers it — no fallback probe happens for this cp
       }
       // A webfont primary first tries a per-codepoint webfont variant before the
@@ -3307,7 +3319,7 @@ function splitTextIntoFontRuns(
       if (primaryFontKey.startsWith("webfont:")) {
         const family = primaryFontKey.slice("webfont:".length);
         const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-        if (cpVariant != null && (cpVariant as any).glyphForCodePoint(cp).id !== 0) {
+        if (cpVariant != null && cpVariant.glyphForCodePoint(cp).id !== 0) {
           continue;
         }
       }
@@ -3334,7 +3346,7 @@ function splitTextIntoFontRuns(
         const cf = getFontInstance(candidate, weight, fontSize, slant);
         const probe = (cf as { glyphForCodePoint?: (cp: number) => { id: number } } | null)?.glyphForCodePoint;
         if (cf == null || probe == null) continue;
-        const cfWarm = (cf as { warmGlyphs?: (cps: number[]) => void }).warmGlyphs;
+        const cfWarm = cf.warmGlyphs;
         if (cfWarm != null) cfWarm.call(cf, remaining); // one batched round-trip
         // Prune the codepoints this candidate now covers — same stop-at-first-
         // cover the walk applies. These probes hit the cache `warmGlyphs` just
@@ -3359,11 +3371,11 @@ function splitTextIntoFontRuns(
     let emitCh = ch;
     let useKey = primaryFontKey;
     let useFontOverride: FontInstance | null = null;
-    if ((primaryFont as any).glyphForCodePoint(cp).id === 0) {
+    if (primaryFont.glyphForCodePoint(cp).id === 0) {
       if (primaryFontKey.startsWith("webfont:")) {
         const family = primaryFontKey.slice("webfont:".length);
         const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-        if (cpVariant != null && (cpVariant as any).glyphForCodePoint(cp).id !== 0) {
+        if (cpVariant != null && cpVariant.glyphForCodePoint(cp).id !== 0) {
           useFontOverride = cpVariant;
         }
       }
@@ -3372,8 +3384,8 @@ function splitTextIntoFontRuns(
         let picked: string | null = null;
         for (const candidate of chain) {
           const cf = getFontInstance(candidate, weight, fontSize, slant);
-          if (cf != null && (cf as any).glyphForCodePoint != null
-              && (cf as any).glyphForCodePoint(cp).id !== 0) {
+          if (cf != null && cf.glyphForCodePoint != null
+              && cf.glyphForCodePoint(cp).id !== 0) {
             picked = candidate;
             break;
           }
@@ -3390,8 +3402,8 @@ function splitTextIntoFontRuns(
           const sysKey = resolveSystemFallbackKeyForCp(cp);
           if (sysKey != null) {
             const sf = getFontInstance(sysKey, weight, fontSize, slant);
-            if (sf != null && (sf as any).glyphForCodePoint != null
-                && (sf as any).glyphForCodePoint(cp).id !== 0) {
+            if (sf != null && sf.glyphForCodePoint != null
+                && sf.glyphForCodePoint(cp).id !== 0) {
               picked = sysKey;
             }
           }
@@ -3421,8 +3433,8 @@ function splitTextIntoFontRuns(
           if (dcp != null && dcp !== cp && String.fromCodePoint(dcp) === nfd) {
             for (const cand of [primaryFontKey, ...fallbackFontChain(dcp, primaryFontKey, lang)]) {
               const cf = getFontInstance(cand, weight, fontSize, slant);
-              if (cf != null && (cf as any).glyphForCodePoint != null
-                  && (cf as any).glyphForCodePoint(dcp).id !== 0) {
+              if (cf != null && cf.glyphForCodePoint != null
+                  && cf.glyphForCodePoint(dcp).id !== 0) {
                 picked = cand;
                 emitCh = String.fromCodePoint(dcp);
                 break;
@@ -3647,8 +3659,7 @@ function renderTextAsEmbedded(
   {
     const shapeBatch = new Map<FontInstance, string[]>();
     for (const run of runs) {
-      const wf = (run.font as { warmShapes?: (texts: string[]) => void }).warmShapes;
-      if (wf == null) continue;
+      if (run.font.warmShapes == null) continue;
       const { shapingText } = computeRunShaping(run);
       if (shapingText.length === 0) continue;
       const arr = shapeBatch.get(run.font);
@@ -3656,7 +3667,7 @@ function renderTextAsEmbedded(
       else shapeBatch.set(run.font, [shapingText]);
     }
     for (const [font, texts] of shapeBatch) {
-      (font as unknown as { warmShapes: (texts: string[]) => void }).warmShapes(texts);
+      font.warmShapes?.(texts);
     }
   }
   for (const run of runs) {
@@ -4349,12 +4360,12 @@ export function renderStretchyFenceGlyph(
   let useKey = primaryFontKey;
   let font = resolveFont(fontFamily, weight, fontSize, slant);
   if (font == null) return null;
-  if ((font as any).glyphForCodePoint(cp).id === 0) {
+  if (font.glyphForCodePoint(cp).id === 0) {
     const chain = fallbackFontChain(cp, primaryFontKey);
     for (const candidate of chain) {
       const cf = getFontInstance(candidate, weight, fontSize, slant);
-      if (cf != null && (cf as any).glyphForCodePoint != null
-          && (cf as any).glyphForCodePoint(cp).id !== 0) {
+      if (cf != null && cf.glyphForCodePoint != null
+          && cf.glyphForCodePoint(cp).id !== 0) {
         useKey = candidate;
         font = cf;
         break;
@@ -4429,12 +4440,12 @@ export function renderRadicalGlyph(
   let useKey = primaryFontKey;
   let font = resolveFont(fontFamily, weight, fontSize, slant);
   if (font == null) return null;
-  if ((font as any).glyphForCodePoint(cp).id === 0) {
+  if (font.glyphForCodePoint(cp).id === 0) {
     const chain = fallbackFontChain(cp, primaryFontKey);
     for (const candidate of chain) {
       const cf = getFontInstance(candidate, weight, fontSize, slant);
-      if (cf != null && (cf as any).glyphForCodePoint != null
-          && (cf as any).glyphForCodePoint(cp).id !== 0) {
+      if (cf != null && cf.glyphForCodePoint != null
+          && cf.glyphForCodePoint(cp).id !== 0) {
         useKey = candidate;
         font = cf;
         break;

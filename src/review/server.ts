@@ -168,6 +168,8 @@ export async function startReviewServer(inputs: ReviewServerInputs): Promise<Rev
     });
   });
   const url = `http://127.0.0.1:${port}/`;
-  const close = () => new Promise<void>((resolveFn) => server.close(() => resolveFn()));
+  // DM-1074: drop idle keep-alive sockets so `close()` fires promptly on Ctrl-C
+  // instead of waiting out a pooled client's keep-alive timeout.
+  const close = () => new Promise<void>((resolveFn) => { server.close(() => resolveFn()); server.closeIdleConnections(); });
   return { url, port, close };
 }

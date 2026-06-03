@@ -7,7 +7,7 @@ Requirements and support matrix for Domotion — the engine that converts captur
 - Faithful visual reproduction of captured DOM as SVG, targeting Chromium on the host platform as the canonical reference.
 - Predictable output: if a feature isn't fully supported, the tool says so (it doesn't silently drop content).
 - Self-contained SVG: renders identically when embedded in a page or loaded standalone.
-- **Cross-platform parity**: works on macOS, Linux, and Windows like any normal npm package, calibrated against Chromium's actual fallback behavior on each platform (CoreText / fontconfig / DirectWrite). **Today the project is only actively tested on macOS** — Linux and Windows install and run, but text rendering is not yet calibrated to match Chromium on those platforms. Cross-platform path discovery, fallback chains, and CI coverage are roadmap items (tickets DM-258 → DM-259 / DM-260 / DM-261 → DM-262). New code must be platform-aware from the start, not macOS-hardcoded. **Help wanted**: bug reports, test runs, and fixes for Linux/Windows from the community are welcome — open an issue or PR on the GitHub repo.
+- **Cross-platform parity**: works on macOS, Linux, and Windows like any normal npm package, calibrated against Chromium's actual fallback behavior on each platform (CoreText / fontconfig / DirectWrite). **macOS is the most validated platform.** Linux and Windows now have calibrated fallback chains plus generated per-Unicode-block routing tables (`unicode-font-routing.{linux,win32}.generated.ts`, from Chrome CDP sweeps — DM-984 / DM-987) and native glyph extractors (docs 41 / 45), so non-Latin text renders as glyph paths rather than tofu; they are less battle-tested than macOS and CI hardening continues (DM-262). New code must be platform-aware from the start, not macOS-hardcoded. **Help wanted**: bug reports, test runs, and fixes for Linux/Windows from the community are welcome — open an issue or PR on the GitHub repo.
 
 ## Support matrix
 
@@ -28,7 +28,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [x] background-color (all modern CSS color formats: hex/rgb/hsl/hwb/lab/lch/oklab/oklch/color()/color-mix)
 - [x] background-image: linear-gradient, radial-gradient, repeating-*, url()
 - [x] multiple background layers (first-on-top semantics preserved)
-- [ ] background-image: conic-gradient — no SVG equivalent; layer not painted (warning logged)
+- [x] background-image: conic-gradient — rasterized to a `<pattern><image>` tile (no native SVG conic). See `28-conic-gradient.md`.
 - [~] background-size, -position, -repeat — url() layers approximate center/cover
 - [x] border (uniform) with border-radius
 - [x] border (per-side with different width/style/color)
@@ -47,13 +47,12 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [ ] backdrop-filter — captured but not emitted (no SVG equivalent in img-rendered SVG)
 - [x] clip-path: inset(), circle(), ellipse(), polygon()
 - [ ] clip-path: path() — not supported (warning logged if detected)
-- [ ] mask — captured but not emitted
+- [x] mask (mask-image gradient/url() fragment/element() paint refs) — emitted as SVG `<mask>`. See `20-css-mask-emission.md` / `21` / `22`.
 
 ### Transforms
 
-- [~] transform: translate(…) — renders correctly (bbox absorbs translation)
-- [ ] transform: rotate/scale/skew/matrix — renders as axis-aligned bbox (tracked SK-1127 — see `06-css-transforms.md`)
-- [ ] transform: 3D — out of scope; downgrade to 2D (SK-1127)
+- [x] transform: translate/rotate/scale/skew/matrix — full 2D affine, emitted as an SVG `transform` (Chromium resolves the computed value to `matrix()`/`matrix3d()`, which is what's consumed). See `06-css-transforms.md`.
+- [~] transform: 3D — flattened to its 2D projection (no perspective). See `06-css-transforms.md`.
 
 ### Typography
 
@@ -66,8 +65,8 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [x] Multi-line wrapped paragraphs (per-visual-line capture via Range)
 - [x] text-align: left/right/center/start/end
 - [~] text-align: justify — does not space-stretch (warning logged)
-- [~] RTL/bidi — visual order is preserved for Latin mixed with RTL scripts; complex-script shaping (Arabic contextual forms, Hebrew niqqud positioning) is not done (tracked SK-469)
-- [ ] writing-mode: vertical-rl/vertical-lr/sideways-* — render as horizontal (tracked SK-1123 — see `02-writing-mode.md`)
+- [x] RTL/bidi + complex-script shaping — Arabic contextual joining, Devanagari cluster reordering / conjuncts, Thai mark-on-base, and CJK GPOS are shaped through `font.layout()` / CoreText (DM-1022 / DM-1028), with paired-bracket mirroring on RTL embedding levels. (fontkit shaping ≈ HarfBuzz; gap < 1% at body sizes.)
+- [x] writing-mode: vertical-rl/vertical-lr/sideways-* — upright + rotated vertical runs, text-combine-upright. See `02-writing-mode.md`.
 - [x] Color-bitmap glyphs (emoji, U+2713, etc.): rasterized via Playwright `page.screenshot` and embedded as `<image>` — SK-1058 / SK-1090
 - [x] ::first-letter drop caps (rasterized when font-size differs from element) — SK-1114
 - [x] `background-clip: text` (gradient/image-fill inside glyph shapes) — DM-462. Captured via `webkitTextFillColor`; rendered via SVG `<mask>` over a `<rect fill="url(#bg)">`. See `18-background-clip-text.md`.
@@ -112,7 +111,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 Every call to `captureElementTree()` collects warnings when it encounters a feature from the lists above that doesn't round-trip fully. After the call:
 
 ```ts
-import { captureElementTree, getLastCaptureWarnings, logCaptureWarnings } from "domotion-svg/dom-to-svg";
+import { captureElementTree, getLastCaptureWarnings, logCaptureWarnings } from "domotion-svg";
 
 const tree = await captureElementTree(page, "body", viewport);
 logCaptureWarnings();      // stderr one-line-per-warning

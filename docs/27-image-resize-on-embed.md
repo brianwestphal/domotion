@@ -45,6 +45,8 @@ Otherwise the source bytes are kept untouched. Two reasons:
 1. Re-encoding a JPEG that's already correctly sized accumulates compression artifacts with no size benefit.
 2. Tiny icons (16×16, 32×32, sprites) are often delivered at exact target size; running them through a decode/encode round-trip can grow the file.
 
+**Keep-whichever-is-smaller (DM-542):** even when the resize threshold IS crossed, if the resized PNG ends up larger than the original source bytes, the source is kept (`resize-embedded-images.ts` compares `out.length >= sourceBytes.length`). So a resize never makes a given image bigger than leaving it alone.
+
 ### HiDPI factor
 
 `embedRemoteImagesHiDPIFactor` (default `2.0`) multiplies the target render rect to leave headroom for users viewing the SVG on retina displays or zoomed in. `1.0` produces the smallest output (and matches Chromium's painted resolution at `devicePixelRatio: 1`); `3.0` covers iPhone-Pro-class density. Fractional values are allowed. Values < `1.0` are clamped to `1.0` — going below render rect would produce a visibly blurry SVG even at default zoom.
@@ -130,7 +132,6 @@ A new test fixture `src/resize-embedded-images.test.ts` covers:
 
 - **Image format conversion to WebP / AVIF**. PNG is the only output format. If a future ticket revisits this for size-critical use cases, it should land as an additional `embedRemoteImagesFormat: "png" | "webp"` option.
 - **Animated GIF preservation**. The first frame is what gets emitted today.
-- **Preserving the source bytes when smaller than the resized PNG**. If the source JPEG happens to be smaller than the resized PNG (rare given the threshold check), the resized PNG still wins. A "keep whichever is smaller" optimization could land in a follow-up.
 - **CSS `image-set()`** — not currently parsed by the capture; if it lands later, the largest-dpr entry should feed into the same resize pipeline.
 
 ## Follow-ups

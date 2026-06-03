@@ -258,9 +258,11 @@ a cert is provisioned.
   wrong negation), `.ttc` face-index resolution via
   `GetInformationalStrings(POSTSCRIPT_NAME)`, and the DirectWrite-3 variation path.
 - ⏳ **Remaining:** Windows Authenticode signing in CI (pending a cert — open
-  question 1); arm64 asset (open question 2); the JS-side dispatch that actually
-  *invokes* the helper (`src/render/glyph-helper.ts` is still macOS-gated — the same
-  generalization tracked for Linux in DM-881 extends to win32).
+  question 1); arm64 asset (open question 2). (The JS-side dispatch that
+  *invokes* the helper is already wired — `src/render/glyph-helper.ts` is fully
+  platform-aware: `HELPER_BINARIES` includes `win32` and `resolveHelperPath` /
+  `isGlyphHelperAvailable` / `startPersistent` dispatch by `process.platform`
+  with no darwin gate. See the DM-1035 ✅ item below.)
 - ✅ **Persistent `--serve` mode — built + verified on real Windows** (DM-1035):
   the DirectWrite helper gained the same line-delimited serve loop + face-reuse
   cache as the Linux/macOS helpers (a structural mirror of the Linux change, no

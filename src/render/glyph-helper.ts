@@ -725,9 +725,18 @@ export function resolveInstalledFont(name: string): InstalledFont | null {
   return resolved;
 }
 
-/** Drop the in-memory glyph-resolution caches. Currently a no-op since each
- *  `createGlyphHelperFont` returns its own closure-bound cache, but exposed for
- *  parity with `clearWebfonts` / `clearGlyphDefs`. */
+/**
+ * Drop the in-memory glyph-resolution caches: the helper-availability probe
+ * result + resolved path, and the system-fallback / installed-font lookup
+ * caches. Exposed for parity with `clearWebfonts` / `clearGlyphDefs`.
+ *
+ * DM-1073: this deliberately does NOT tear down the persistent `--serve`
+ * channel (`serverProc` / `serverInFd` / `serverOutFd` / `serverLeftover`) or
+ * reset the `persistentDisabled` latch. That channel is process-lifetime by
+ * design — spawned lazily on first use and reaped by the `process.on("exit")`
+ * hook (`_persistentExitHookInstalled`), reused across captures. A cache-clear
+ * is not a shutdown, so the live serve process and its disabled-latch persist.
+ */
 export function clearGlyphHelperCache(): void {
   helperAvailable = null;
   helperPath = undefined;

@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 
 /**
  * DM-948: end-to-end test for the `svg-review` CLI. Spawns the built bin
@@ -123,9 +124,9 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       expect(fileHref).toContain("github.com/brianwestphal/domotion/issues/new");
       expect(fileHref).toContain("bg-conic-checkerboard.svg");
 
-      await browser.close();
+      await closeBrowserSafely(browser);
     } catch (e) {
-      await browser.close().catch(() => {/* noop */});
+      await closeBrowserSafely(browser);
       throw e;
     }
   }, 60_000);
@@ -167,9 +168,9 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // Escape closes the lightbox.
       await page.keyboard.press("Escape");
       await page.waitForFunction(() => !document.querySelector("#lightbox")?.classList.contains("open"), null, { timeout: 2_000 });
-      await browser.close();
+      await closeBrowserSafely(browser);
     } catch (e) {
-      await browser.close().catch(() => {/* noop */});
+      await closeBrowserSafely(browser);
       throw e;
     }
   }, 60_000);
@@ -246,9 +247,9 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       expect(issueText).toContain("first");
       expect(issueText).toContain("third");
       expect(issueText).not.toContain("second");
-      await browser.close();
+      await closeBrowserSafely(browser);
     } catch (e) {
-      await browser.close().catch(() => {/* noop */});
+      await closeBrowserSafely(browser);
       throw e;
     }
   }, 60_000);
@@ -293,9 +294,9 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // The lightbox stays closed.
       const open = await page.locator("#lightbox").evaluate((el) => el.classList.contains("open"));
       expect(open).toBe(false);
-      await browser.close();
+      await closeBrowserSafely(browser);
     } catch (e) {
-      await browser.close().catch(() => {/* noop */});
+      await closeBrowserSafely(browser);
       throw e;
     }
   }, 60_000);
@@ -353,9 +354,9 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // suppresses the click-through that would normally close it.
       const stillOpen = await page.locator("#lightbox").evaluate((el) => el.classList.contains("open"));
       expect(stillOpen).toBe(true);
-      await browser.close();
+      await closeBrowserSafely(browser);
     } catch (e) {
-      await browser.close().catch(() => {/* noop */});
+      await closeBrowserSafely(browser);
       throw e;
     }
   }, 60_000);

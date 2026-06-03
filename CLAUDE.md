@@ -160,6 +160,8 @@ Before reverse-engineering a render-fidelity bug by reading source, reach for th
 
 - **`src/review/compare-pngs.ts`** is the shared pixel-diff routine (used by both `demos:test` and `svg-review`). Call it directly from a probe to score a hand-built comparison.
 
+- **`animated-svg-scrubber` (doc 56, DM-1040)** is the 4th published bin (`bin.animated-svg-scrubber` → `src/cli/scrubber.ts`): a local video-style bench for an *animated* SVG — play / pause / speed / manual scrub / mark an in-out range + loop / export the current frame as PNG / export the range as MP4 / trim the range to a new self-contained animated SVG. Reach for it when debugging an animated SVG's timeline (the static-frame analogue is `svg-review`). Server + kerfjs UI live under `src/scrubber/`.
+
 ## Git
 
 - **Never commit unless explicitly asked.** Do not run `git commit`, `git add`, or any git write operations proactively. Only commit when the user directly asks.
@@ -182,6 +184,10 @@ When the user gives you work directly via the CLI (not via MCP channel or Hot Sh
 When you change capture, rendering, or animation behavior, update the relevant requirements doc in `docs/`. Add a new doc when a feature area isn't covered. The docs are the contract with consumers about what CSS round-trips and what doesn't.
 
 The `FEATURES.md` checklist tracks per-feature support and links to fixtures; keep it in sync when fixtures land.
+
+### AI-summary docs
+
+`docs/ai/code-summary.md` and `docs/ai/requirements-summary.md` are the AI-agent entry points (the Hot Sheet ticket template points there first). They're intentionally thin — pointers into this file + the numbered `docs/`, not a parallel source of truth. Keep them in sync when the structure they describe changes: `code-summary.md` lists the `src/` subdirs + the published bins; `requirements-summary.md` tracks the cross-platform calibration status + recent doc additions. When you reorganize `src/`, add a bin, or land a platform-calibration milestone, update the matching summary in the same change.
 
 ### Always-in-sync docs
 

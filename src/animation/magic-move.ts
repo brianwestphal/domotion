@@ -26,7 +26,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
-import { diffTrees, entriesOfKind } from "../tree-ops/tree-diff.js";
+import { diffTrees, entriesOfKind, BBOX_TOLERANCE } from "../tree-ops/tree-diff.js";
 
 /** One element that slides during the transition. The animator interpolates
  *  `transform: <from> → <to>` over the window. A `translate(dx,dy)` for a pure
@@ -79,7 +79,7 @@ function rectMapTransform(
   prev: { x: number; y: number; width: number; height: number },
   next: { x: number; y: number; width: number; height: number },
 ): string {
-  const sizeChanged = Math.abs(prev.width - next.width) > 0.5 || Math.abs(prev.height - next.height) > 0.5;
+  const sizeChanged = Math.abs(prev.width - next.width) > BBOX_TOLERANCE || Math.abs(prev.height - next.height) > BBOX_TOLERANCE;
   if (!sizeChanged || next.width <= 0 || next.height <= 0) {
     return `translate(${r(prev.x - next.x)}px, ${r(prev.y - next.y)}px)`;
   }
@@ -150,8 +150,8 @@ function rectChanged(
   p: { x: number; y: number; width: number; height: number },
   q: { x: number; y: number; width: number; height: number },
 ): boolean {
-  return Math.abs(q.x - p.x) > 0.5 || Math.abs(q.y - p.y) > 0.5
-    || Math.abs(q.width - p.width) > 0.5 || Math.abs(q.height - p.height) > 0.5;
+  return Math.abs(q.x - p.x) > BBOX_TOLERANCE || Math.abs(q.y - p.y) > BBOX_TOLERANCE
+    || Math.abs(q.width - p.width) > BBOX_TOLERANCE || Math.abs(q.height - p.height) > BBOX_TOLERANCE;
 }
 
 /**

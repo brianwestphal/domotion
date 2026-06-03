@@ -234,7 +234,12 @@ export const createPseudoInjectHandler = () => {
           };
         }
       }
-      text = (p.isBefore ? p.seg.text + ' ' : ' ' + p.seg.text) + text;
+      // DM-1066: ::before content reads BEFORE the host text, ::after AFTER it.
+      // (Previously both prepended, so an ::after landed before the host text in
+      // the accessibility/search string.) `text` starts as the host text, so
+      // prepend for before-pseudos and append for after-pseudos — yielding
+      // `before + host + after` regardless of pseudo iteration order.
+      text = p.isBefore ? p.seg.text + ' ' + text : text + ' ' + p.seg.text;
     }
 
     return { pseudoImages, text, textLeft, textTop, textWidth, textHeight, fontAscent };

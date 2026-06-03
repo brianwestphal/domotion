@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import sharp from "sharp";
 import { launchChromium, captureElementTree, elementTreeToSvgInner, setRenderTextMode } from "../src/index.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // External-file SVG fragment refs: clip-path (DM-829) and mask-image (DM-496).
 // Chrome only resolves these over http(s) (not file://), and the capture
@@ -76,9 +77,9 @@ async function setup(): Promise<{ server: Server; base: string; browser: Awaited
 
 const env = await setup();
 afterAll(async () => {
-  try { await env?.browser.close(); } catch { /* ignore */ }
+  await closeBrowserSafely(env?.browser); // DM-1074: don't hang the hook on a flaky browser.close()
   env?.server.close();
-});
+}, 15_000);
 
 const describeBrowser = env ? describe : describe.skip;
 

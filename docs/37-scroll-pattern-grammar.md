@@ -138,9 +138,9 @@ Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horiz
 
   Per-action `@<speed>` is preferred for mixed-speed patterns (e.g. a slow hero pan followed by a fast scroll-through-feed). Per-action `/<duration>` is preferred when the scroll has to land on a specific beat (synchronized with audio, transitions, etc.). `defaultSpeed` is the right default when you want every untagged action to share one constant speed — exactly the shape used by the scroll demos.
 
-- **Default easing**: `ease-out` (matches Chrome's `scroll-behavior: smooth`). Override per token via `[easing-name]`.
+- **Easing**: the `[easing-name]` suffix is **parsed and accepted** (it's in the grammar above), but **not yet applied** to the rendered animation — the composite scroll keyframes currently animate **`linear`** (`src/scroll/composer.ts`), so neither a per-token override nor a default takes visual effect today. Wiring per-action easing into the composite keyframe timing is a planned enhancement; until it lands, treat `[easing-name]` as accepted-but-inert. (Tracked as a follow-up to DM-1060.)
 
-- **`until <position>`** repeats the group's body until the current scroll position satisfies the condition. The last iteration's scroll magnitude is **clamped** so the cumulative travel lands exactly at the target — no overshoot.
+- **`until <position>`** repeats the group's body until the current scroll position satisfies the condition. Each scroll destination is **clamped to the page bounds** (`[0, maxScroll]`), so the travel never runs off the document. Precise *clamp-to-target* on the final iteration (so cumulative travel lands exactly on the `until` target rather than at most one action-step past it) is a planned refinement (`src/scroll/executor.ts` notes it as a follow-up); today the last step can overshoot the condition target by up to one action's magnitude (but never past the page edge).
 
 - **`until <N> times`** repeats the group's body exactly N times.
 

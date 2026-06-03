@@ -143,7 +143,11 @@ export function composeScrollSvg(
   const compositeH = axis === "y" ? (maxPos - minPos) + VH : VH;
   const compositeW = axis === "x" ? (maxPos - minPos) + W  : W;
 
-  const animClass = `scrl-${Math.random().toString(36).slice(2, 8)}`;
+  // DM-1073: derive the animation class from a stable signature of this
+  // composite (axis, dimensions, segment scroll offsets) rather than
+  // `Math.random()`, so the same input produces byte-identical output (stable
+  // diffing / caching) while distinct composites in one document still differ.
+  const animClass = `scrl-${fnv1aHex(`${axis}|${W}x${VH}|${positions.join(",")}`)}`;
 
   // ── Split each capture into "scrolling" + "fixed" subtrees ──
   // DM-643: `position: fixed` elements (site headers, cookie banners, etc.)
@@ -381,4 +385,16 @@ ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${
     </g>
   </g>${overlayMarkup}
 </svg>`;
+}
+
+/** Small deterministic string hash (FNV-1a, 32-bit) → 6-char base36. Used to
+ *  derive a stable per-composite animation-class suffix so identical input
+ *  yields byte-identical SVG (DM-1073). */
+function fnv1aHex(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36).padStart(6, "0").slice(0, 6);
 }

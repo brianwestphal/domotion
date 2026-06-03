@@ -1,5 +1,5 @@
 {
-  "//": "Build config for the PUBLISHED package: same as tsconfig.json but omits test files from the emitted dist/. Tests are still type-checked by `npm run typecheck` (which uses the base tsconfig.json that includes them) and run from source by vitest — they just don't ship in the npm tarball (DM-878).",
+  "//": "Build config for the PUBLISHED package: same as tsconfig.json but omits test files + test-only support from the emitted dist/. Tests are still type-checked by `npm run typecheck` (which uses the base tsconfig.json that includes them) and run from source by vitest — they just don't ship in the npm tarball (DM-878). `src/test-support/**` holds test-only helpers (DM-1074) and is likewise kept out of dist.",
   "extends": "./tsconfig.json",
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test-support/**"]
 }

@@ -27,7 +27,7 @@ await embedRemoteImages(tree);                 // ← new pre-pass (DM-512)
 const svg = elementTreeToSvg(tree, w, h);      // every URL is now inline
 ```
 
-Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Type) are swallowed: the URL stays as-is in the output, so the rest of the SVG isn't held hostage by one broken image. Failures don't currently surface via `getLastCaptureWarnings` — that's a follow-up if usage warrants.
+Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Type) don't abort the capture: the URL stays as-is in the output so the rest of the SVG isn't held hostage by one broken image, AND the failure is surfaced as a `remote-image` warning via `getLastCaptureWarnings` (DM-528) so it's diagnosable. Each fetch also has a per-URL timeout (`fetchTimeoutMs`, default 10000 ms) so a stalled CDN host can't hang the capture.
 
 ## CLI / API integration
 
@@ -75,7 +75,7 @@ A captured nytimes.com homepage: ~1.5 MB SVG with all images inline (vs. ~50 KB 
 
 ## Follow-ups
 
-- **Surface fetch failures via `getLastCaptureWarnings`** — currently swallowed. Useful for debugging why a particular image isn't inlining.
-- **Configurable timeout per fetch** — `fetch()` doesn't time out by default; a stalled CDN host can hang the capture indefinitely. A 5-10s per-URL timeout via `AbortController` would be safer.
+- ✅ **Surface fetch failures via `getLastCaptureWarnings`** — done (DM-528): each failed fetch pushes a `remote-image` warning.
+- ✅ **Configurable timeout per fetch** — done (DM-528): a per-URL `fetchTimeoutMs` (default 10000 ms) via `AbortController` so a stalled host can't hang the capture.
 - **Retry on transient errors** — single fetch attempt today.
 - **Data-URI size budget** — for captures with many high-resolution images the inlined SVG can balloon. Optional resize / re-encode would be a natural extension.

@@ -411,7 +411,7 @@ export async function executeScrollPattern(
     }
   };
 
-  await walkPattern(pattern, pageQuery, defaultSpeed, runOp, checkTimeout);
+  await walkPattern(pattern, pageQuery, defaultSpeed, runOp, checkTimeout, log);
   return captures;
 }
 
@@ -423,9 +423,10 @@ async function walkPattern(
   defaultSpeed: number,
   runOp: (op: ResolvedOp) => Promise<void>,
   checkTimeout: () => void,
+  log: (msg: string) => void,
 ): Promise<void> {
   for (const seg of pattern.segments) {
-    await walkSegment(seg, pageQuery, defaultSpeed, runOp, checkTimeout);
+    await walkSegment(seg, pageQuery, defaultSpeed, runOp, checkTimeout, log);
   }
 }
 
@@ -435,11 +436,12 @@ async function walkSegment(
   defaultSpeed: number,
   runOp: (op: ResolvedOp) => Promise<void>,
   checkTimeout: () => void,
+  log: (msg: string) => void,
 ): Promise<void> {
   if (seg.kind === "bracketed") {
     await runWithMaybeUntil(seg.until, async () => {
-      await walkPattern(seg.pattern, pageQuery, defaultSpeed, runOp, checkTimeout);
-    }, pageQuery, defaultSpeed, runOp, checkTimeout);
+      await walkPattern(seg.pattern, pageQuery, defaultSpeed, runOp, checkTimeout, log);
+    }, pageQuery, defaultSpeed, runOp, checkTimeout, log);
     return;
   }
   // Flat segment.
@@ -447,7 +449,7 @@ async function walkSegment(
     for (const a of (seg as FlatSegment).actions) {
       await runAction(a, pageQuery, defaultSpeed, runOp);
     }
-  }, pageQuery, defaultSpeed, runOp, checkTimeout);
+  }, pageQuery, defaultSpeed, runOp, checkTimeout, log);
 }
 
 async function runWithMaybeUntil(
@@ -457,6 +459,7 @@ async function runWithMaybeUntil(
   defaultSpeed: number,
   runOp: (op: ResolvedOp) => Promise<void>,
   checkTimeout: () => void,
+  log: (msg: string) => void,
 ): Promise<void> {
   if (until == null) {
     await bodyOnce();
@@ -482,7 +485,11 @@ async function runWithMaybeUntil(
     const snap = await pageQuery.snapshot();
     if (await isUntilConditionMet(until, snap, pageQuery)) break;
     if (prevSnap != null && snap.scrollX === prevSnap.scrollX && snap.scrollY === prevSnap.scrollY) {
-      // No progress between iterations — bail to avoid an infinite loop.
+      // No progress between iterations — bail to avoid an infinite loop. Unlike
+      // the timeout path (which throws), an `until` that can't make progress is
+      // often benign (already at the edge), so we just stop — but log it (DM-1073)
+      // so a genuinely-impossible condition producing a short capture isn't silent.
+      log(`  until loop: no scroll progress at (${snap.scrollX}, ${snap.scrollY}) after ${i} iteration(s) — stopping (condition may be unsatisfiable)`);
       break;
     }
     prevSnap = snap;

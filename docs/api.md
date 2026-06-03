@@ -47,6 +47,10 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `clearWebfonts` | function | Clear the global webfont registry. Useful between independent captures in the same process. |
 | `getGlyphDefs` | function | Read the accumulated `<defs>` (glyph paths) the renderer collected across calls. Used by frame-by-frame composers to share a single `<defs>` block. |
 | `clearGlyphDefs` | function | Reset the glyph-defs accumulator. Pair with `getGlyphDefs` when rendering an independent sequence. |
+| `setRenderTextMode` / `getRenderTextMode` | function | Set / read how text is emitted — `"path"` (glyph outlines, default), `"text"` (`<text>` elements), or `"embedded"` (subset `@font-face` + `<text>`). `RenderTextMode` is the value type. |
+| `clearEmbeddedFonts` | function | Reset the embedded-font subset builder (used by `"embedded"` mode) between independent captures. |
+| `getEmbeddedFontFaceCss` | function | Read the accumulated base64 `@font-face` CSS for the glyphs rendered in `"embedded"` mode — emit it once into the document's `<style>`. |
+| `acquireGlyphHelper` | function | Ensure the platform native glyph-extraction helper binary is present (downloads + caches it on first use). Returns its path, or `null` when unavailable. See docs 50 / 51. |
 
 ## Animation
 
@@ -57,8 +61,8 @@ and typing / tap / SVG overlays.
 | Export | Kind | Description |
 | --- | --- | --- |
 | `generateAnimatedSvg` | function | Compose `frames[]` into one SVG with crossfade / push-left / scroll / cut transitions and overlays. |
-| `AnimationConfig` | type | Top-level config: `{ width, height, frames, sharedDefs?, cursorOverlay?, resolveSelector? }`. |
-| `AnimationFrame` | type | Per-frame data: `{ svgContent, duration, transition?, overlays?, animations?, cullCss? }`. |
+| `AnimationConfig` | type | Top-level config: `{ width, height, frames, sharedDefs?, fontFaceCss?, cursorOverlay?, resolveSelector?, background? }`. (`fontFaceCss` injects embedded-font `@font-face` once; `background` paints a full-viewport canvas rect.) |
+| `AnimationFrame` | type | Per-frame data: `{ svgContent, duration, transition?, magicMove?, overlays?, animations?, cullCss? }`. (`magicMove` is the per-frame bridge layer built by `buildMagicMove`.) |
 | `AnimationOverlay` | type | Discriminated union of `TypingOverlay` \| `TapOverlay` \| `SvgOverlay`. (Renamed from `Overlay` in DM-622.) |
 | `TypingOverlay` | type | Frame-relative typed-text reveal. |
 | `TapOverlay` | type | Frame-relative tap-ripple at `(x, y)`. |
@@ -71,6 +75,9 @@ and typing / tap / SVG overlays.
 | `SelectorResolver` | type | `(sel, frameIndex) => { x, y, w, h } | null` — for cursor events that target a DOM selector. |
 | `cursorOverlayMarkup` | function | Lower-level builder for the cursor SVG markup if you're not using `generateAnimatedSvg`. |
 | `resolveCursorScript` | function | Resolve a cursor event script against the captured frame coordinate space. |
+| `buildMagicMove` | function | Build the magic-move bridge layer from a `(prevTree, nextTree)` pair (matched elements slide, added/removed cross-fade). Set the result as `AnimationFrame.magicMove` when the frame's `transition.type` is `"magic-move"`. See doc 53. |
+| `MagicMove` | type | The bridge layer `buildMagicMove` returns (composite markup + per-element slide / fade descriptors). |
+| `MagicMoveSlide` | type | One matched-element slide entry within a `MagicMove`. |
 
 ## Scroll
 

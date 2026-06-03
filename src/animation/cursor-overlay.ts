@@ -143,18 +143,12 @@ export function resolveCursorScript(
       const dur = ev.duration ?? 0;
       const target = resolveMoveTarget(ev, curX, curY, frameForT(ev.t), resolveSelector);
       if (target == null) continue;
-      // First time we ever position the cursor — also turn it visible.
-      const becomeVisible = !visible;
       if (dur > 0) {
-        if (becomeVisible) {
-          // Hold the cursor at its previous spot until the move begins so we
-          // don't see it pop in mid-frame; the start keyframe carries `false`
-          // visibility, the end keyframe carries `true` and the cursor fades
-          // in at the move's start.
-          pushKey(ev.t, curX, curY, true);
-        } else {
-          pushKey(ev.t, curX, curY, true);
-        }
+        // Anchor the cursor at its previous spot when the move begins, then
+        // interpolate to the target over `dur`, so it slides rather than popping
+        // in mid-frame. (Both the first-positioning and subsequent-move cases
+        // emit the same start keyframe — DM-1073 collapsed a no-op branch here.)
+        pushKey(ev.t, curX, curY, true);
         pushKey(ev.t + dur, target.x, target.y, true);
       } else {
         pushKey(ev.t, target.x, target.y, true);

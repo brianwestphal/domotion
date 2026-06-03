@@ -38,12 +38,19 @@ shortest possible map:
 - **`src/animation/`** — multi-frame composition (animator, magic-move).
 - **`src/scroll/`** — scroll-pattern grammar (DM-604) and the composer
   that stitches per-segment captures into one animated SVG.
-- **`src/cli/`** — the three published bins: `domotion`, `svg-to-video`,
-  `svg-review`.
+- **`src/cli/`** — the four published bins: `domotion`, `svg-to-video`,
+  `svg-review`, `animated-svg-scrubber`.
 - **`src/review/`** — the published review-tool surface
   (`compare-pngs.ts`, `region-overlay.ts`, `server.ts`, `client.tsx`)
   shared between the in-repo `tests/review-server.tsx` and the
   consumer-facing `svg-review` CLI.
+- **`src/scrubber/`** — the `animated-svg-scrubber` server + kerfjs
+  page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
+  play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56).
+- **`src/tree-ops/`** — element-tree transforms (`frame-merge.ts`,
+  `tree-diff.ts`, `viewbox-culling.ts`, `resize-embedded-images.ts`).
+- **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`.
+- **`src/utils/`** — small shared helpers.
 - **`tests/`** — visual-regression suites (`features.ts`, `showcase.ts`,
   `html-test-suite.tsx`, `real-world.tsx`) + the in-repo review server
   (`review-server.tsx`).

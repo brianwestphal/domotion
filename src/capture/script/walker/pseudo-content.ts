@@ -342,14 +342,9 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         const bwL = parseFloat(pcs.borderLeftWidth) || 0;
         const hasBorder = bwT > 0 || bwR > 0 || bwB > 0 || bwL > 0;
         const isBlockLike = pcs.display === 'block' || pcs.display === 'inline-block' || pcs.display === 'flex';
-        // DM-665: `opacity: 0` pseudos paint nothing (Material-style ripple
-        // / hover overlays use this pattern — Google's `a.gb_C::before` is
-        // a 40×40 dark-grey absolute box that's invisible at rest). Capturing
-        // them anyway would paint an opaque box over the host's content
-        // (the apps-grid SVG underneath the anchor). Skip empty-content
-        // pseudos whose `opacity: 0` makes them visually a no-op.
-        const opacityNum = parseFloat(pcs.opacity);
-        if (Number.isFinite(opacityNum) && opacityNum === 0) continue;
+        // DM-1073: the `opacity: 0` skip that used to repeat here is dead — the
+        // loop-top guard (above) already `continue`d on opacity 0 before any
+        // box-rect work, so by here opacity is non-zero.
         if (isBlockLike && (hasBg || hasBgImg || hasBorder)) {
           const hostPadL = parseFloat(cs.paddingLeft) || 0;
           const hostPadT = parseFloat(cs.paddingTop) || 0;

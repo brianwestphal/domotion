@@ -1,6 +1,6 @@
 # 43 — Declarative `animate` config
 
-Status: **requirements / design** (not yet implemented). This doc is the contract for an expansion of the `domotion animate` JSON config. Each feature section below has a corresponding implementation ticket; the section is the spec, the ticket tracks the build.
+Status: **shipped**. This doc is the contract for the `domotion animate` JSON config; all eight sections below are implemented in `src/cli/animate.ts` (continuous-session `continue`, the DOM-mutation + interaction actions, the richer readiness waits, selector-anchored overlays, the config-level `cursor` incl. `"auto"`, `${}` variable interpolation, and the `evaluate` escape hatch — DM-846 through DM-853, with the auto-cursor timing refined in DM-1050). Each section reads as the spec; the per-section ticket tracked its build.
 
 ## Why
 

@@ -153,4 +153,9 @@ This doc fans out into the following sub-tickets (see DM-547 follow-ups):
 
 ## Status
 
-- Requirements doc landed (this file). No implementation yet — see follow-up sub-tickets.
+- **Shipped** (DM-549 / DM-550). A `rasterizeConicGradients` pre-pass
+  (`src/capture/index.ts`) rasterizes each conic / repeating-conic background
+  layer via `rasterizeConic` (`src/render/conic-raster.ts`) into a PNG tile, and
+  `buildConicGradientDef` (`src/render/element-tree-to-svg.ts`) emits it as a
+  `<pattern><image>` the element fills with. See the raster-fallback index
+  (`docs/reference/raster-image-fallback-cases.md` → C1).

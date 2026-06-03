@@ -78,8 +78,8 @@ key resolves to is:
 | `cjk-serif` | Songti SC | Noto Serif CJK SC | `simsun.ttc` (SimSun) |
 | `hiragino-jp` | Hiragino Kaku | Noto Sans CJK JP | `YuGothR.ttc` (Yu Gothic) |
 | `korean` | Apple SD Gothic Neo | Noto Sans CJK KR | `malgun.ttf` (Malgun Gothic) |
-| `thai` | Thonburi | Noto Sans Thai | `LeelaUIsl.ttf` (Leelawadee UI) |
-| `devanagari` | Kohinoor | Noto Sans Devanagari | `Nirmala.ttf` (Nirmala UI) |
+| `thai` | Thonburi | Noto Sans Thai | `leeluisl.ttf` (Leelawadee UI Semilight, PS `LeelawadeeUI-Semilight`) |
+| `devanagari` | Kohinoor | Noto Sans Devanagari | `Nirmala.ttc` (Nirmala UI, PS `NirmalaUI`) |
 | `sf-arabic` | Geeza Pro | Noto Sans Arabic | `segoeui.ttf` (Segoe UI) |
 | `sf-hebrew` | SF Hebrew | Noto Sans Hebrew | `segoeui.ttf` (Segoe UI) |
 | `symbols` / `zapf-dingbats` | Apple Symbols / Zapf Dingbats | Noto Sans Symbols 2 | `seguisym.ttf` (Segoe UI Symbol) |

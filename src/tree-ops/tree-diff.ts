@@ -53,8 +53,9 @@ export interface TreeDiff {
   entries: DiffEntry[];
 }
 
-/** Sub-pixel drift below this magnitude counts as `static`, not `translated`. */
-const BBOX_TOLERANCE = 0.5;
+/** Sub-pixel drift below this magnitude (px) counts as `static`, not
+ *  `translated`. Shared with magic-move's rect-change detection (DM-1073). */
+export const BBOX_TOLERANCE = 0.5;
 
 /**
  * Diff two captured-element trees. Either argument may be a single root or

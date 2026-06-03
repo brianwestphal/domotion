@@ -43,6 +43,12 @@ In the text-rendering block, when `textBgClipFill != null` AND the rendered text
 3. Emit a `<rect>` covering the headline element rect with `fill="url(#bg)"` and `mask="url(#textmask)"`. The mask reveals the gradient through the glyph silhouettes.
 4. **Skip** the normal text emission (the masked rect is the visible text).
 
+**Multi-layer text-clip (DM-696):** when more than one background layer is
+clipped to text, the renderer emits one masked `<rect fill="url(#bg-N)">` per
+text-clipped layer, walking bottom→top, so stacked gradients/images all paint
+through the shared glyph mask (CSS first-layer-on-top order preserved) — not just
+the first layer.
+
 ## Why `<mask>`, not `<clipPath>` or fill-on-text-group
 
 Two simpler-looking approaches were tried and don't work:
@@ -53,7 +59,6 @@ Two simpler-looking approaches were tried and don't work:
 
 ## What's not yet supported
 
-- **Multi-layer bg with mixed clips** — first text-clipped layer wins; subsequent text-clipped layers are stashed but not emitted on top of each other. Common case is a single gradient.
 - **`url(...)` background-image clipped to text** — the current code path emits the bg layer as a pattern referencing the image, which would work as a mask source; not exhaustively tested.
 - **`text` clip combined with `bg-color` non-transparent** — bg-color paints under all bg-image layers per CSS spec, and CSS doesn't apply bg-clip to bg-color independently. We currently still paint the bg-color rect normally, which is technically wrong if the author wants the bg-color clipped to text too. In practice the bg-clip:text idiom always pairs with `background-color: transparent` (default), so this hasn't surfaced.
 - **`-webkit-text-stroke` over a bg-clipped fill** — author often pairs a stroke with the gradient fill; we don't render the stroke. Out of scope for this iteration.

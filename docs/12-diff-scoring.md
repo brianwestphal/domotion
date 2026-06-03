@@ -1,74 +1,167 @@
 # Domotion: visual-diff scoring
 
-Requirements for the `tests/html-test-suite.tsx` PNG-comparison metric. Origin: DM-281 (the original baseline metric was raw per-pixel RGB distance with no anti-aliasing awareness, so glyph-rendering drift dominated the signal and structurally-broken renders could pass under generous thresholds). Updated DM-383 (the bucketed avg / sig / tile thresholds were still tolerating visible structural mismatches that fell below the average-distance budget — a missing thin border or a misaligned shadow flips ~50 pixels, well under 5% of a 1024×768 image).
+Requirements for the PNG-comparison metric shared by every visual-regression
+runner. Origin: DM-281 (the original baseline metric was raw per-pixel RGB
+distance with no anti-aliasing awareness, so glyph-rendering drift dominated the
+signal and structurally-broken renders could pass under generous thresholds).
+DM-383 replaced the bucketed avg/sig/tile thresholds with a strict
+"every non-AA pixel fails" gate. **DM-715 then replaced that** with
+**region-based scoring** — the current contract — because a strict per-pixel gate
+flagged every page as a failure: our font substitution differs from Chrome's by a
+pixel or two on essentially every glyph, so `nonAaPixels` is never zero in
+practice even when nothing structural is wrong.
 
-## Pass criterion (DM-383)
+## Pass criterion (DM-715)
 
-A fixture passes iff **every** differing pixel between expected and actual is classified as glyph anti-aliasing by the Yee detector. Concretely: `nonAaPixels === 0`, where `nonAaPixels` counts pixels whose `(R,G,B)` tuple differs between the two images AND that the detector did NOT classify as sub-pixel coverage along an edge.
+A fixture passes iff **`regionCount === 0`** — i.e. there is no surviving
+connected-component *region* of real, structural change. `passes(cmp)` is exactly
+`cmp.regionCount === 0`.
 
-The previous bucketed thresholds (`avg < 2%`, `sig < 5%`, `tile avg < 20%`, `tile-sig < 50%`) are now diagnostic only — they're still computed and printed so reviewers can gauge the *severity* of a failure, but they no longer gate pass/fail.
+Scatter (a pixel here, a pixel there from glyph-edge differences) is allowed; a
+*contiguous block* of genuine change (a missing border, a recolored element, a
+swapped image, a misplaced shadow) is not. The earlier `nonAaPixels === 0` rule
+(DM-383) is gone; `nonAaPixels` and the old bucketed percentages are now
+**diagnostic only** — still computed and printed so reviewers can gauge severity,
+but they no longer gate pass/fail. `PASS_THRESHOLD_NON_AA_PIXELS = 0` is retained
+as a back-compat export only.
 
-The user-facing rationale: "anti-aliasing differences aren't super important, but basically every other difference is important. For now, subtract the anti-aliasing differences and then mark everything with > 0% difference as a failure." Specific tolerances will be re-introduced per fixture once the user reviews which fixtures fail under the strict gate.
+## The pipeline — from raw pixel diff to region count
 
-## What the AA detector does
+The comparator runs four layers of noise suppression on top of the raw RGB diff,
+in this order, then counts what survives. (All constants are exported from
+`src/review/compare-pngs.ts`.)
 
-`comparePngs` in `tests/html-test-suite.tsx` runs a port of pixelmatch's `antialiased()` detector (BSD-licensed; mapbox/pixelmatch) against **every** pixel where the two images differ. Previously the check was gated by `dist > SIG` (40 in the 0..441 normalized scale) for performance, which meant tiny non-AA drift was uncategorized and forced lenient % thresholds. The DM-383 strict gate runs the detector on every nonzero pixel so AA classification covers the full range of contrast.
+1. **Sub-pixel shift pre-filter** (`SHIFT_MATCH_RADIUS = 2`, `SHIFT_MATCH_DIST = 35`).
+   For every differing pixel, sample the `(2·radius+1)²` neighborhood in the
+   *opposite* image; if `expected[x,y]` finds a near-match in `actual` **and**
+   `actual[x,y]` finds a near-match in `expected` (both within `SHIFT_MATCH_DIST`),
+   the pixel is a shift artifact and is removed from the diff mask **before** AA
+   detection and region analysis. This cleanly catches the "whole text block
+   translated 1 px" case the AA detector can't — each pixel there is a correct
+   rendering at the wrong position.
 
-AA-classified pixels contribute 0 to all metrics (`nonAaPixels`, the legacy avg-distance metric, and the significant-pixel count). AA pixels are still drawn into `*-diff.png` (literal absolute difference, see below) so reviewers can see what was filtered.
+2. **Pixelmatch-style anti-aliasing detector** (a port of mapbox/pixelmatch's
+   `antialiased()`; DM-281 / DM-383). Any pixel that looks like sub-pixel glyph
+   coverage along an edge is zeroed out. Run twice — once anchored in `expected`,
+   once in `actual` — and unioned (a pixel is AA if either anchor classifies it).
+   See the recap below.
 
-## Yee / pixelmatch antialias detector — recap
+3. **Connected-components region detection** (`REGION_DILATE_PX = 3`,
+   `MIN_REGION_AREA = 15`; DM-715). The surviving non-AA diff pixels are dilated by
+   3 px so neighbors merge, then flood-filled into components. A component whose
+   *original* (un-dilated) diff-pixel area is below `MIN_REGION_AREA` is dropped as
+   residual scatter.
+
+4. **High-severity gate** (`HIGH_SEV_PCT = 50`, `MIN_HIGH_SEV_FRACTION = 0.15`). A
+   surviving component counts as a *real* structural change only when at least 15%
+   of its diff pixels exceed 50% per-pixel severity (normalized color distance).
+   Text-rendering / font-substitution diffs concentrate in low-severity edge
+   pixels; a genuine image swap or recolor produces large runs of high-severity
+   pixels. Without this gate, any paragraph where our font substitution differs
+   from Chrome's would blow up the region count with no real change present.
+
+`regionCount` is the number of components that pass layers 3 + 4. Pass requires it
+to be zero.
+
+## What the AA detector does (recap)
 
 For each pixel `p` whose color differs between expected and actual:
 
-1. Walk `p`'s 3×3 neighborhood in the source image. Compute Y-channel (luminance, ITU-R BT.601) delta to each neighbor.
-2. Track:
-   - `zeroes` — count of neighbors with identical color to `p`.
-   - `min` / `max` — the most-extreme negative and positive Y deltas, with their `(x, y)` coordinates.
-3. Bail (not AA) if `zeroes < 2` (no flat region around) OR no high-contrast neighbor exists in either direction.
-4. The pixel is AA if either the darkest-neighbor cell or the brightest-neighbor cell has many same-color siblings in BOTH images (`hasManySiblings`). That means the contrasty neighbor is on a stroke that continues, i.e., the pixel is sub-pixel coverage along an edge.
+1. Walk `p`'s 3×3 neighborhood in the source image. Compute Y-channel (luminance,
+   ITU-R BT.601) delta to each neighbor.
+2. Track `zeroes` (neighbors identical to `p`) and the most-extreme negative /
+   positive Y deltas with their coordinates.
+3. Bail (not AA) if `zeroes < 2` (no flat region around) or no high-contrast
+   neighbor exists in either direction.
+4. The pixel is AA if the darkest- or brightest-neighbor cell has many same-color
+   siblings in BOTH images (`hasManySiblings`) — i.e. the contrasty neighbor sits
+   on a stroke that continues, so `p` is sub-pixel coverage along an edge.
 
-We run the check twice — once anchored in `expected`, once in `actual` — and union the results. A pixel is AA if either check classifies it that way.
+AA-classified pixels contribute 0 to every metric. They are still drawn into
+`*-diff.png` (literal absolute difference) so reviewers can see what was filtered.
 
-## Threshold rationale
+## Metrics
 
-Under DM-383 there is one threshold: `PASS_THRESHOLD_NON_AA_PIXELS = 0`. The diagnostic metrics retain their historical meanings (used for reviewer triage and for the worst-tile pointer in the diff PNG):
+| metric | role | meaning |
+|---|---|---|
+| `regionCount` | **pass/fail gate** | surviving structural-change regions (layers 3+4). Pass = 0. |
+| `totalChangedArea` | diagnostic | total original-diff-pixel area inside surviving regions |
+| `maxRegionSeverity` | diagnostic | max per-pixel normalized distance % inside any region |
+| `coveragePct` | diagnostic | `totalChangedArea / totalPixels · 100` — drives the verdict tier |
+| `nonAaPixels` / `nonAaPixelPct` | diagnostic | differing pixels not classified AA (the old DM-383 gate) |
+| `diffPct` | diagnostic | average normalized color distance %, AA pixels excluded |
+| `sigPixelPct` | diagnostic | % of pixels with `dist > SIGNIFICANT_PIXEL_DIST (40)` and !AA |
+| `worstTilePct` / `worstTileSignificantPct` | diagnostic | per-`TILE_PX(64)`-tile avg / sig% for the worst tile |
 
-| metric | meaning |
-|---|---|
-| `nonAaPixels` | pass/fail gate — count of differing pixels not classified as AA |
-| `nonAaPixelPct` | `nonAaPixels / totalPixels * 100` |
-| `diffPct` | average normalized color distance % (AA pixels excluded) |
-| `sigPixelPct` | % of pixels with `dist > SIGNIFICANT_PIXEL_DIST (40)` and !isAA |
-| `worstTilePct` | per-tile avg distance for the worst tile |
-| `worstTileSignificantPct` | per-tile sig-pixel % for the worst tile |
-
-The worst-tile selector is now keyed off `nonAaPct` first (since that's what gates pass), with sig% then avg% as successive tiebreaks — so the yellow box in `*-diff.png` always points to the tile most responsible for the failure verdict.
+`classifyDiff(regionCount, coveragePct)` buckets a result into a one-word
+**verdict** reviewers can scan: `clean` (0 regions) → `trivial` (≤2 regions,
+coverage < 0.05%) → `minor` (≤5, < 0.5%) → `moderate` (≤15, < 2%) → `major`
+(anything more — once an image is "lots wrong" the gradations stop being useful).
 
 ## Diff image legend
 
-The diff PNG is a **literal per-channel absolute difference** between expected and actual:
+The diff PNG is a **literal per-channel absolute difference** between expected and
+actual:
 
 ```
 diff[i] = |expected[i] - actual[i]|       (per R/G/B channel, alpha=255)
 ```
 
-Black pixels are exact matches; brighter pixels show what changed and in which color (a red glyph that should have been blue paints magenta in the diff; a small anti-aliasing shift on a black-on-white edge paints dim gray). No thresholding, no red tint, no dimmed-source overlay — the image is uninterpreted (DM-379). Reviewers reading the diff see the same per-pixel difference the metric saw.
+Black pixels are exact matches; brighter pixels show what changed and in which
+color (a red glyph that should have been blue paints magenta; a small AA shift on
+a black-on-white edge paints dim gray). The fill itself is uninterpreted — no
+thresholding, no red tint, no dimmed-source overlay (DM-379).
 
-The **only** painted overlay is a yellow rectangle outlining the worst tile by `tileSig` (then `tileAvg` as tiebreak), drawn after the absolute-difference fill so the navigation hint stays visible against the dark background.
+Two overlays are painted on top of the difference fill:
 
-Note: the AA classification still drives the `diffPercent` / `sigPixelPct` metrics (AA-classified pixels don't contribute to either), but it no longer affects the diff IMAGE rendering. If you need to know *which* pixels were classified AA, re-derive from the source images using the algorithm above — the diff PNG itself doesn't encode that distinction.
+- **Magenta (255, 0, 255) 1-px outlines** around each surviving region (DM-715) —
+  the actual pass/fail signal — capped at the top 32 so a busy image isn't
+  spammed with outlines.
+- A single **yellow rectangle** outlining the worst tile, keyed off non-AA% first
+  (then sig%, then avg% as tiebreaks) — a "where is the residual noise densest"
+  navigator. (Pre-DM-715 this tile was the pass/fail signal; it's now just a
+  pointer.)
+
+To know *which* pixels were classified AA, re-derive from the source images with
+the algorithm above — the diff PNG doesn't encode that distinction.
+
+## Per-platform coverage floor
+
+The visual gate is calibrated to macOS. On Linux / Windows the host rasterizer
+grid-fits native text (FreeType / DirectWrite) while Domotion fills unhinted
+vector outlines, so a per-platform coverage cap is applied in the runner
+(`tests/runner.tsx`) instead of requiring `regionCount === 0` there — see
+`docs/42-cross-platform-fallback-calibration.md` ("Per-platform visual-gate
+hinting floor", DM-262 / DM-884).
 
 ## Edge cases / out of scope
 
-- Pixelmatch's algorithm is anchored to per-pixel comparisons; large translations of identical content (e.g., the entire page shifted by 5px) do not benefit from Yee. The current pipeline doesn't attempt translation-tolerant matching — fixtures should reflect the same captured layout for both expected and actual.
-- The detector classifies any pixel that "looks like part of a smooth edge" as AA. A real content difference that happens to fall on a smooth edge in both images can be filtered. In practice this hurts very little because the same pixel typically carries a non-AA companion in the immediate area; tile-significant is the metric that surfaces this case.
-- `hasManySiblings` does an exact-color comparison. Subtly different colors across an edge gradient can fool it. Pixelmatch tolerates this by also checking via `colorDelta` — a future iteration could add the relaxed match if needed.
-
-## Tests
-
-- `npm run demos:test:html` — full html-test suite. Under DM-383 the strict gate produces 0 / 156 PASS at baseline (all fixtures have at least some non-AA drift the detector doesn't catch); the user is iterating per-fixture on what should be allowed back to PASS. The diagnostic metrics in `results.json` make it easy to triage by severity (e.g., `nonAaPixels` ascending picks out fixtures with the smallest residual diff to investigate first).
-- `npm test` — unit tests unchanged (the diff implementation lives only in the test runner, not in the library).
+- The shift pre-filter (layer 1) handles small translations of identical content;
+  large translations beyond `SHIFT_MATCH_RADIUS` are not chased — fixtures should
+  reflect the same captured layout for both expected and actual.
+- The AA detector classifies any pixel that "looks like part of a smooth edge" as
+  AA, so a real difference falling on a smooth edge in both images can be filtered
+  — but the high-severity region gate (layer 4) is what ultimately decides
+  structural change, so an isolated filtered pixel rarely matters.
+- `hasManySiblings` does an exact-color comparison; subtly different colors across
+  an edge gradient can fool it. Pixelmatch tolerates this via `colorDelta`; a
+  future iteration could add the relaxed match.
 
 ## Shared comparator
 
-The comparator implementation lives in `tests/compare-pngs.ts`. Both runners (`tests/runner.tsx` for features / showcase, `tests/html-test-suite.tsx` for the html-test sweep) import `comparePngs()`, `passes()`, and the threshold / tile constants from there. Pass criterion, AA detection, tile metrics, and the worst-tile yellow box on the diff PNG are identical across all three suites — when the detector changes, change it once.
+The implementation lives in **`src/review/compare-pngs.ts`** (there is no
+`tests/` copy). It's imported by every visual-regression runner —
+`tests/runner.tsx` (features / showcase), `tests/html-test-suite.tsx` (the
+html-test sweep), `tests/real-world.tsx` — and by the published **`svg-review`**
+CLI, so the pass criterion, AA detection, shift pre-filter, region scoring, and
+the diff-PNG overlays are identical everywhere. The pixel work runs inside
+`page.evaluate(...)` because the canvas APIs that decode and walk the PNGs only
+exist in a browser context. The pure scalar helpers (`passes`, `classifyDiff`)
+are unit-tested in `src/review/compare-pngs.test.ts`.
+
+## Tests
+
+- `npm run demos:test:html` — full html-test suite; `results.json` carries the
+  per-fixture metrics above so reviewers can triage by `verdict` / `coveragePct`.
+- `npm test` — unit tests, including `compare-pngs.test.ts` for the `passes`
+  region-count gate and the `classifyDiff` tier boundaries.

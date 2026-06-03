@@ -7,6 +7,11 @@
 
 import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 import type { MagicMove } from "./magic-move.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
+
+/** Default crossfade duration (ms) when a frame specifies no `transition`. The
+ *  legacy value; see `transitionDuration()`. (DM-1069) */
+const DEFAULT_TRANSITION_MS = 300;
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -314,7 +319,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     // one slides out, so its show window starts at `timeOffset - prevTransDur`
     // rather than at `startPct`.
     const entersViaOverlap = entersViaPush || entersViaScroll;
-    const prevTransDur = prevFrame != null ? transitionDuration(prevFrame) : 300;
+    const prevTransDur = prevFrame != null ? transitionDuration(prevFrame) : DEFAULT_TRANSITION_MS;
     const enterStartPct = entersViaOverlap
       ? pct(timeOffset - prevTransDur, totalDuration)
       : startPct;
@@ -357,8 +362,8 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // slides up from the bottom of the viewport, outgoing slides up off
       // the top. Uses height instead of width and translateY instead of
       // translateX, otherwise identical machinery (incl. the cull-friendly
-      // `fd-${i}` display animation).
-      const entersViaScroll = prevFrame?.transition?.type === "scroll";
+      // `fd-${i}` display animation). (`entersViaScroll` is already computed in
+      // the outer scope above — same value, no need to redeclare/shadow it.)
       frameGroups.push(
         `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${frame.svgContent}\n  </g></g>`,
       );
@@ -642,7 +647,7 @@ ${canvasBgRect}${frameGroups.join("\n")}${overlayMarkup}
  * (no transition specified) is 300ms (legacy crossfade duration).
  */
 function transitionDuration(f: AnimationFrame): number {
-  if (f.transition == null) return 300;
+  if (f.transition == null) return DEFAULT_TRANSITION_MS;
   if (f.transition.type === "cut") return 0;
   return f.transition.duration;
 }
@@ -761,7 +766,7 @@ function renderTypingOverlay(
 
     parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="0" height="${textHeight}" /></clipPath></defs>`);
     parts.push(
-      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeXml(line)}</text>`,
+      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeHtml(line)}</text>`,
     );
     cssRules.push(`
     @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: 0; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: 0; } }
@@ -1066,8 +1071,4 @@ function buildIntraFrameAnimationCss(
     }
   }
   return out.length === 0 ? "" : "\n" + out.join("\n");
-}
-
-function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
