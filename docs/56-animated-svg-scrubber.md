@@ -61,32 +61,36 @@ rather than a canvas rasterization that can diverge on embedded raster /
 
 ## Trim → new animated SVG
 
-`Trim → SVG` produces a **new self-contained animated SVG** that plays only the
-selected `[in, out]` window, looping. The transform (`src/scrubber/trim.ts`,
-pure + unit-tested) re-times the CSS animation rather than re-recording it:
+`Trim → SVG` produces a **new self-contained animated SVG** re-based to the
+in-point, preserving the exact visual state that existed there and animating
+forward for BOTH CSS and SMIL. The transform (`src/scrubber/trim.ts`, pure +
+unit-tested) does a **negative time shift** rather than keyframe surgery:
 
-1. Each `@keyframes` block is windowed to `[f0, f1] = [in/period, out/period]`:
-   interior stops in that range are kept and their percentages remapped to
-   `[0%, 100%]`, and boundary stops at `0%` / `100%` are synthesised by
-   interpolating the keyframe state at `f0` / `f1`.
-2. Each animation's duration (`animation-duration`, or the first `<time>` in the
-   `animation` shorthand) is rewritten to the window length; delays are zeroed.
+1. **CSS** — each `animation` shorthand gets `animation-delay: -t0s` and
+   `animation-fill-mode: both` appended as longhands (a single delay value
+   applies to every animation in a comma list, so multi-animation rules
+   `animation: fv-0 …, fd-0 … step-end` shift uniformly). The browser then
+   evaluates each animation at `t0` into its own timeline — content faded in
+   before `t0` shows faded-in, `step-end` `visibility` holds its `t0` value, and
+   `fill: both` keeps already-completed animations in their end state.
+2. **SMIL** — each timed element's `begin` is shifted by `-t0` (a bare `begin`
+   defaults to 0 → `-t0`). A negative begin means the animation began before the
+   new start, so at time 0 it already shows its `t0` state and keeps going;
+   `fill="freeze"` holds post-end state. Event/syncbase begins (`click`,
+   `id.end`) are left alone.
 
-Because the keyframe shape is preserved, per-stop easing inside the window is
-unchanged and the output stays a tiny vector file.
+The `@keyframes` blocks and SMIL `values`/`keyTimes` are left byte-for-byte
+intact — the engines do the interpolation. This sidesteps the pitfalls that
+broke the earlier keyframe-rewriting attempt (multi-animation shorthands,
+`step-end`, discrete `visibility`, SMIL value lists) — see DM-1045.
 
-### Known limitations (tracked as follow-ups)
+### Known limitation (tracked as a follow-up)
 
-- **Boundary easing**: the two synthesised boundary stops are interpolated
-  **linearly**; a non-linear `animation-timing-function` is therefore
-  approximated at exactly the in/out instants (interior stops keep their own
-  easing). Full timing-function-aware boundary interpolation is a follow-up.
-- **Single period**: the window is taken within one loop period; selecting a
-  range that spans multiple periods clamps to the first period.
-- **Property coverage**: boundary interpolation handles the properties Domotion
-  emits (opacity, `transform` translate/scale/rotate) plus generic numeric / px
-  values; any value whose numeric skeleton differs between the bracketing stops
-  **snaps** to the earlier stop (visually safe, never throws).
+- **No hard out-point clip yet.** The export re-bases to the in-point and plays
+  the full original period forward, looping at that period — it does not yet
+  truncate the tail at the out-point. True window-looping needs per-keyframe /
+  per-`values` slicing layered on top of the re-base (a follow-up). The in-point
+  fidelity + SMIL re-timing this delivers were the reported breakages.
 
 ## Scope (this version)
 
@@ -105,6 +109,6 @@ separately.
   `/timing`, `/trim`, `/export-frame` endpoints; one reused Chromium page.
 - `src/scrubber/client.ts` — the page-side UI (bundled to `/client.js` by
   `scripts/build-scrubber-client.mjs`, baked into `client.bundle.generated.ts`).
-- `src/scrubber/trim.ts` — the pure keyframe re-timing transform.
+- `src/scrubber/trim.ts` — the pure timeline re-base (negative-time-shift) transform.
 - Tests: `src/scrubber/trim.test.ts` (transform), `src/scrubber/server.e2e.test.ts`
   (endpoints end-to-end through Chromium).

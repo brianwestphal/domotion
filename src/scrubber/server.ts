@@ -141,7 +141,7 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         const { svg, startMs, endMs, periodMs } = JSON.parse(await readBody(req)) as
           { svg: string; startMs: number; endMs: number; periodMs: number };
         const r = trimAnimatedSvg(svg, startMs, endMs, periodMs);
-        sendJson(res, 200, { svg: r.svg, rewrittenAnimations: r.rewrittenAnimations });
+        sendJson(res, 200, { svg: r.svg, shiftedCss: r.shiftedCss, shiftedSmil: r.shiftedSmil });
         return;
       }
       if (req.method === "POST" && url === "/export-frame") {

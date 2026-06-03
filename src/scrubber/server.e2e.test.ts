@@ -62,13 +62,14 @@ describe("animated-svg-scrubber server (DM-1040)", () => {
     expect(t.height).toBe(60);
   });
 
-  it("/trim re-times the keyframes to the window and reports the animation", async () => {
+  it("/trim re-bases the timeline to the in-point (CSS delay shift + keyframes intact)", async () => {
     if (!chromiumAvailable) return;
     const r = await (await post("/trim", { svg: SVG, startMs: 500, endMs: 1500, periodMs: 2000 })).json() as
-      { svg: string; rewrittenAnimations: string[] };
-    expect(r.rewrittenAnimations).toEqual(["m"]);
-    expect(r.svg).toContain("@keyframes m");
-    expect(r.svg).toMatch(/animation:\s*m\s+1s/); // 1s window
+      { svg: string; shiftedCss: number; shiftedSmil: number };
+    expect(r.shiftedCss).toBe(1);
+    expect(r.svg).toContain("@keyframes m"); // keyframes left intact
+    expect(r.svg).toMatch(/animation-delay:-0\.5s/); // re-based to the 0.5s in-point
+    expect(r.svg).toContain("animation-fill-mode:both");
   });
 
   it("/export-frame returns a PNG of the seeked frame", async () => {

@@ -32,8 +32,16 @@ button.primary{background:#3a63d8;border-color:#3a63d8}button.primary:hover{back
 .play{font-size:15px;min-width:42px}
 select,input[type=number]{background:#1c1f27;color:#e7e9ee;border:1px solid #333845;border-radius:6px;padding:5px 7px;font:inherit}
 input[type=number]{width:84px}
-.scrub{flex:1;min-width:200px}
-input[type=range]{width:100%;accent-color:#5b8cff}
+.scrub-wrap{position:relative;flex:1;min-width:200px;display:flex;align-items:center;height:24px}
+.scrub{width:100%;position:relative;z-index:2;margin:0;background:transparent}
+input[type=range]{accent-color:#5b8cff}
+.range-band{position:absolute;top:50%;transform:translateY(-50%);height:9px;
+  background:rgba(91,140,255,.22);border:1px solid rgba(120,160,255,.5);border-radius:3px;
+  pointer-events:none;z-index:1;box-sizing:border-box}
+.range-tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:3px;height:18px;
+  background:#9bb4ff;border-radius:2px;pointer-events:none;z-index:1;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.range-tick::after{content:attr(data-lbl);position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+  font-size:9px;color:#9bb4ff;font-weight:600}
 .time{font-variant-numeric:tabular-nums;color:#aab0bd;min-width:120px;text-align:right}
 .muted{color:#8a90a0;font-size:12px}
 .range-wrap{position:relative}
@@ -72,6 +80,12 @@ const playBtn = el("button", { class: "play primary" }, ["▶"]);
 const speedSel = el("select", {}, ["0.1", "0.25", "0.5", "1", "1.5", "2", "4"].map((v) =>
   el("option", v === "1" ? { value: v, selected: "" } : { value: v }, [`${v}×`])));
 const scrub = el("input", { type: "range", class: "scrub", min: "0", max: "1000", value: "0", step: "0.1" }) as HTMLInputElement;
+// Visual range indicators overlaid on the timeline: a shaded band spanning the
+// selected [in, out] window plus an in/out tick at each edge.
+const rangeBand = el("div", { class: "range-band" });
+const tickIn = el("div", { class: "range-tick", "data-lbl": "in" });
+const tickOut = el("div", { class: "range-tick", "data-lbl": "out" });
+const scrubWrap = el("div", { class: "scrub-wrap" }, [rangeBand, tickIn, tickOut, scrub]);
 const timeLbl = el("div", { class: "time" }, ["0:00.00 / 0:00.00"]);
 
 const inN = el("input", { type: "number", min: "0", step: "0.01", value: "0", title: "range start (s)" }) as HTMLInputElement;
@@ -87,7 +101,7 @@ const status = el("span", { class: "muted" }, [""]);
 const dlAnchor = el("a", { class: "dl" });
 
 const bar = el("div", { class: "bar" }, [
-  el("div", { class: "row" }, [playBtn, speedSel, scrub, timeLbl]),
+  el("div", { class: "row" }, [playBtn, speedSel, scrubWrap, timeLbl]),
   el("div", { class: "row rng" }, [
     el("span", { class: "tag" }, ["Range"]), setIn, inN, el("span", { class: "muted" }, ["→"]), outN, setOut,
     el("label", {}, [loopChk, "loop"]), clearRange,
@@ -121,12 +135,42 @@ function seekAll(ms: number): void {
   for (const a of stageAnims()) {
     try { a.pause(); a.currentTime = ms; } catch { /* some anims refuse seeking */ }
   }
+  // SMIL (<animate>/<animateTransform>/<animateMotion>/<set>) is NOT returned by
+  // document.getAnimations(), so the WAAPI loop above never touches it — without
+  // this, an SVG that drives e.g. a cursor/pointer via SMIL keeps animating
+  // independently of the scrubber. Drive it via the SVG document timeline (the
+  // same path the server-side exporter uses): pause the SMIL clock and set its
+  // current time to the playhead so it tracks scrub / play / range-loop.
+  const svg = stage.querySelector("svg") as SVGSVGElement | null;
+  if (svg != null && typeof svg.pauseAnimations === "function") {
+    try { svg.pauseAnimations(); svg.setCurrentTime(ms / 1000); } catch { /* no SMIL timeline */ }
+  }
 }
 
 function setControlsEnabled(on: boolean): void {
   for (const b of [playBtn, speedSel, scrub, setIn, setOut, inN, outN, loopChk, clearRange, exportFrameBtn, trimBtn]) {
     (b as HTMLButtonElement).disabled = !on;
   }
+}
+
+// Half the native range thumb's width — the thumb CENTER travels from THUMB_R
+// to (trackWidth − THUMB_R), so the markers inset by this to line up with where
+// the playhead thumb actually sits at a given fraction.
+const THUMB_R = 8;
+
+function renderRangeMarkers(): void {
+  const w = scrub.clientWidth || scrubWrap.clientWidth;
+  const dur = durationMs || 1;
+  if (w <= 0 || durationMs <= 0) { rangeBand.style.display = tickIn.style.display = tickOut.style.display = "none"; return; }
+  rangeBand.style.display = tickIn.style.display = tickOut.style.display = "";
+  const usable = Math.max(1, w - THUMB_R * 2);
+  const xOf = (ms: number) => THUMB_R + (Math.min(Math.max(ms, 0), dur) / dur) * usable;
+  const hi = rangeEnd > rangeStart ? rangeEnd : dur;
+  const x0 = xOf(rangeStart), x1 = xOf(hi);
+  rangeBand.style.left = `${x0}px`;
+  rangeBand.style.width = `${Math.max(0, x1 - x0)}px`;
+  tickIn.style.left = `${x0}px`;
+  tickOut.style.left = `${x1}px`;
 }
 
 function render(): void {
@@ -136,7 +180,11 @@ function render(): void {
   playBtn.textContent = playing ? "❚❚" : "▶";
   inN.value = (rangeStart / 1000).toFixed(2);
   outN.value = (rangeEnd / 1000).toFixed(2);
+  renderRangeMarkers();
 }
+
+// Reposition markers on resize (they're pixel-positioned against the track width).
+window.addEventListener("resize", renderRangeMarkers);
 
 function tick(ts: number): void {
   if (playing) {

@@ -1,78 +1,73 @@
 import { describe, expect, it } from "vitest";
 import { trimAnimatedSvg } from "./trim.js";
 
-// A minimal animated SVG mirroring `domotion animate` output: one @keyframes
-// driving opacity + transform, applied with the `animation` shorthand.
+// Minimal SVG mixing a CSS multi-animation shorthand (like `domotion animate` /
+// the htmx demo) and SMIL — both must re-base to the in-point.
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
 <style>
-@keyframes fade { 0% { opacity: 0; transform: translateX(0px) } 50% { opacity: 1; transform: translateX(20px) } 100% { opacity: 0; transform: translateX(40px) } }
-.box { animation: fade 4s linear infinite; }
+@keyframes fv-0 { 0% { opacity: 0 } 50% { opacity: 1 } 100% { opacity: 0 } }
+@keyframes fd-0 { 0%,49% { visibility: visible } 50%,to { visibility: hidden } }
+.box { animation: fv-0 4s infinite, fd-0 4s infinite step-end; }
 </style>
 <rect class="box" width="10" height="10" fill="red"/>
+<circle r="4"><animateTransform attributeName="transform" type="translate" values="0,0;40,0" dur="4s" repeatCount="indefinite"/></circle>
+<circle r="2"><animate attributeName="opacity" values="0;1;0" dur="0.5s" begin="1.85s" fill="freeze"/></circle>
 </svg>`;
 
-describe("trimAnimatedSvg (DM-1040)", () => {
-  it("rewrites the @keyframes and reports the animation name", () => {
-    const r = trimAnimatedSvg(SVG, 1000, 3000, 4000); // window [25%, 75%] of a 4s loop
-    expect(r.rewrittenAnimations).toEqual(["fade"]);
-    expect(r.svg).toContain("@keyframes fade");
-    expect(r.svg).toMatch(/0%\s*\{/);
-    expect(r.svg).toMatch(/100%\s*\{/);
+describe("trimAnimatedSvg — negative-time-shift re-basing (DM-1045)", () => {
+  it("re-bases CSS by appending a negative animation-delay + fill:both AFTER the shorthand", () => {
+    const r = trimAnimatedSvg(SVG, 1000, 3000, 4000); // in-point at 1s
+    expect(r.svg).toMatch(/animation:\s*fv-0 4s infinite, fd-0 4s infinite step-end;animation-delay:-1s;animation-fill-mode:both/);
+    expect(r.shiftedCss).toBe(1);
   });
 
-  it("sets the animation duration to the window length", () => {
-    const r = trimAnimatedSvg(SVG, 1000, 3000, 4000); // 2s window
-    // The `animation` shorthand's first <time> becomes the window length.
-    expect(r.svg).toMatch(/animation:\s*fade\s+2s/);
-  });
-
-  it("synthesises a boundary stop at the in-point with interpolated values", () => {
-    // f0 = 0.25 → between 0% (opacity 0, tx 0) and 50% (opacity 1, tx 20):
-    // halfway → opacity 0.5, translateX(10px).
+  it("leaves the @keyframes byte-for-byte intact (no fragile keyframe surgery)", () => {
     const r = trimAnimatedSvg(SVG, 1000, 3000, 4000);
-    const kf = r.svg.match(/@keyframes fade \{([\s\S]*?)\n\}/)![1];
-    const firstStop = kf.trim().split("\n")[0];
-    expect(firstStop).toMatch(/^\s*0%/);
-    expect(firstStop).toContain("opacity: 0.5");
-    expect(firstStop).toContain("translateX(10px)");
+    expect(r.svg).toContain("@keyframes fv-0 { 0% { opacity: 0 } 50% { opacity: 1 } 100% { opacity: 0 } }");
+    expect(r.svg).toContain("@keyframes fd-0 { 0%,49% { visibility: visible } 50%,to { visibility: hidden } }");
   });
 
-  it("synthesises a boundary stop at the out-point", () => {
-    // f1 = 0.75 → between 50% (opacity 1, tx 20) and 100% (opacity 0, tx 40):
-    // halfway → opacity 0.5, translateX(30px).
+  it("shifts a SMIL begin by -t0", () => {
+    const r = trimAnimatedSvg(SVG, 1000, 3000, 4000); // 1.85s - 1s = 0.85s
+    expect(r.svg).toMatch(/begin="0\.85s"/);
+    expect(r.shiftedSmil).toBe(2);
+  });
+
+  it("gives a SMIL element with no begin an explicit negative begin", () => {
     const r = trimAnimatedSvg(SVG, 1000, 3000, 4000);
-    const kf = r.svg.match(/@keyframes fade \{([\s\S]*?)\n\}/)![1];
-    const lastStop = kf.trim().split("\n").pop()!;
-    expect(lastStop).toMatch(/100%/);
-    expect(lastStop).toContain("opacity: 0.5");
-    expect(lastStop).toContain("translateX(30px)");
+    // the animateTransform had no begin → default 0 → -1s
+    expect(r.svg).toMatch(/<animateTransform[^>]*\bbegin="-1s"/);
   });
 
-  it("remaps an interior stop into the window", () => {
-    // The original 50% stop sits at 0.5; window [0.25, 0.75] → (0.5-0.25)/0.5 = 50%.
+  it("leaves SMIL dur / values untouched", () => {
     const r = trimAnimatedSvg(SVG, 1000, 3000, 4000);
-    const kf = r.svg.match(/@keyframes fade \{([\s\S]*?)\n\}/)![1];
-    expect(kf).toMatch(/50%\s*\{[^}]*translateX\(20px\)/);
+    expect(r.svg).toContain(`values="0,0;40,0"`);
+    expect(r.svg).toContain(`dur="4s"`);
+    expect(r.svg).toContain(`dur="0.5s"`);
   });
 
-  it("is a no-op when the period is unknown (0)", () => {
-    const r = trimAnimatedSvg(SVG, 1000, 3000, 0);
+  it("does NOT shift an event/syncbase begin", () => {
+    const svg = SVG.replace('begin="1.85s"', 'begin="click"');
+    const r = trimAnimatedSvg(svg, 1000, 3000, 4000);
+    expect(r.svg).toContain('begin="click"');
+  });
+
+  it("is a no-op when the in-point is 0", () => {
+    const r = trimAnimatedSvg(SVG, 0, 2000, 4000);
     expect(r.svg).toBe(SVG);
-    expect(r.rewrittenAnimations).toEqual([]);
+    expect(r.shiftedCss).toBe(0);
+    expect(r.shiftedSmil).toBe(0);
   });
 
-  it("handles explicit animation-duration / -delay longhands", () => {
-    const svg = SVG.replace(".box { animation: fade 4s linear infinite; }",
-      ".box { animation-name: fade; animation-duration: 4s; animation-delay: 1s; animation-iteration-count: infinite; }");
-    const r = trimAnimatedSvg(svg, 0, 2000, 4000);
-    expect(r.svg).toMatch(/animation-duration:\s*2s/);
-    expect(r.svg).toMatch(/animation-delay:\s*0s/);
+  it("normalizes the in-point to min(start, end)", () => {
+    const a = trimAnimatedSvg(SVG, 3000, 1000, 4000);
+    const b = trimAnimatedSvg(SVG, 1000, 3000, 4000);
+    expect(a.svg).toBe(b.svg); // both re-base to 1s
   });
 
-  it("zeroes the delay in the shorthand form too", () => {
-    const svg = SVG.replace("animation: fade 4s linear infinite;", "animation: fade 4s linear 0.5s infinite;");
-    const r = trimAnimatedSvg(svg, 0, 2000, 4000);
-    // duration → 2s, the 0.5s delay → 0s
-    expect(r.svg).toMatch(/animation:\s*fade\s+2s\s+linear\s+0s\s+infinite/);
+  it("handles ms units in a SMIL begin", () => {
+    const svg = SVG.replace('begin="1.85s"', 'begin="1850ms"');
+    const r = trimAnimatedSvg(svg, 1000, 3000, 4000);
+    expect(r.svg).toMatch(/begin="0\.85s"/); // 1850ms - 1000ms = 850ms
   });
 });
