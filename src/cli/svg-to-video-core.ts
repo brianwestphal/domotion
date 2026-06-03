@@ -429,7 +429,7 @@ function fmtBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-function htmlWrapper(svgMarkup: string, background: string): string {
+export function htmlWrapper(svgMarkup: string, background: string): string {
   return (
     "<!doctype html><html><head><meta charset=\"utf-8\"><style>" +
     `html,body{margin:0;padding:0;background:${background}}` +
@@ -600,7 +600,7 @@ function frameName(i: number): string {
   return `frame_${String(i).padStart(6, "0")}.png`;
 }
 
-async function seekTo(page: import("@playwright/test").Page, t: number): Promise<void> {
+export async function seekTo(page: import("@playwright/test").Page, t: number): Promise<void> {
   // Pause every animation and seek it to t (ms). CSS/Web-Animations via the
   // WAAPI; SMIL via the SVG document timeline. Runs in the page — no outer scope.
   await page.evaluate((tMs) => {
@@ -628,7 +628,7 @@ async function seekTo(page: import("@playwright/test").Page, t: number): Promise
   await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 }
 
-async function screenshot(page: import("@playwright/test").Page): Promise<Buffer> {
+export async function screenshot(page: import("@playwright/test").Page): Promise<Buffer> {
   // The context's deviceScaleFactor already supersamples; "device" captures at
   // that DPR (target × scale px). Crucially do NOT pass animations:"disabled" —
   // that fast-forwards/cancels animations for the shot, which would override our

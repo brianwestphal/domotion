@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -218,6 +218,77 @@ describe("fontHasOutlineTable (helper-fallback probe)", () => {
     expect(fontHasOutlineTable({})).toBe(true);
     expect(fontHasOutlineTable(null)).toBe(true);
     expect(fontHasOutlineTable({ directory: {} })).toBe(true);
+  });
+});
+
+// DM-1026: the complex-shaper gate that decides whether an ORPHANED, UNCOVERED
+// combining mark gets a synthetic dotted circle (U+25CC), mirroring Chrome's
+// HarfBuzz. Font-independent — locks the block table so the crux gating can't
+// silently drift (too broad → spurious ◌ on Latin marks; too narrow → missed
+// Brahmic blocks). Holds on Linux CI.
+describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle gate)", () => {
+  it("is true for Brahmic / Indic / SE-Asian complex-shaper blocks", () => {
+    expect(usesComplexShaperDottedCircle(0x11A51)).toBe(true); // Soyombo vowel sign
+    expect(usesComplexShaperDottedCircle(0x11A01)).toBe(true); // Zanabazar Square
+    expect(usesComplexShaperDottedCircle(0x11D3A)).toBe(true); // Masaram Gondi
+    expect(usesComplexShaperDottedCircle(0x0903)).toBe(true);  // Devanagari sign visarga
+    expect(usesComplexShaperDottedCircle(0x0E31)).toBe(true);  // Thai vowel sign
+    expect(usesComplexShaperDottedCircle(0x0F71)).toBe(true);  // Tibetan vowel sign
+    expect(usesComplexShaperDottedCircle(0x1789)).toBe(true);  // Khmer
+    expect(usesComplexShaperDottedCircle(0xA8E0)).toBe(true);  // Devanagari Extended
+  });
+  it("is FALSE for the generic combining-mark blocks (default shaper — Chrome adds NO dotted circle)", () => {
+    expect(usesComplexShaperDottedCircle(0x0301)).toBe(false); // Combining acute (Latin)
+    expect(usesComplexShaperDottedCircle(0x036F)).toBe(false); // Combining Diacritical Marks
+    expect(usesComplexShaperDottedCircle(0x1AB0)).toBe(false); // …-Extended
+    expect(usesComplexShaperDottedCircle(0x1DC0)).toBe(false); // …-Supplement
+    expect(usesComplexShaperDottedCircle(0x20D0)).toBe(false); // …-for-Symbols
+    expect(usesComplexShaperDottedCircle(0xFE20)).toBe(false); // Combining Half Marks
+  });
+  it("is FALSE for non-mark scripts and base letters", () => {
+    expect(usesComplexShaperDottedCircle(0x0041)).toBe(false); // Latin A
+    expect(usesComplexShaperDottedCircle(0x4E00)).toBe(false); // CJK 一
+    expect(usesComplexShaperDottedCircle(0x0590)).toBe(false); // Hebrew area
+  });
+});
+
+// DM-1026: the synthetic dotted-circle preprocessing. macOS-gated (needs the
+// real font chain to decide coverage). Asserts the FOUR gates compose: a
+// no-font Brahmic orphaned mark gets a leading ◌, while a covered Latin mark, a
+// mark with a base, and plain text are all left untouched.
+const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
+(MACOS_FONTS_DC ? describe : describe.skip)("insertSyntheticDottedCircles (DM-1026)", () => {
+  const fam = '"Arial Unicode MS","Apple Symbols","Noto Sans",sans-serif';
+  const run = (text: string, xOffsets?: number[]) =>
+    insertSyntheticDottedCircles(text, xOffsets, fam, 400, 32, 0, undefined, undefined);
+
+  it("prepends U+25CC to a lone, uncovered, complex-shaper Brahmic mark", () => {
+    const r = run("\u{11A51}"); // Soyombo vowel sign AA — no font covers it
+    expect(r.text).toBe("◌\u{11A51}");
+  });
+  it("shifts a present xOffset so ◌ takes the cell origin and the mark moves right by the ◌ advance", () => {
+    const r = run("\u{11A51}", [98.4, 98.4]); // one xOffset per UTF-16 unit
+    expect(r.text).toBe("◌\u{11A51}");
+    expect(r.xOffsets!.length).toBe(3); // ◌ + surrogate pair
+    expect(r.xOffsets![0]).toBeCloseTo(98.4, 3); // ◌ at the captured cell origin
+    expect(r.xOffsets![1]).toBeGreaterThan(98.4); // mark displaced right by ◌'s advance
+    // The advance must come from the PRIMARY font (Arial Unicode MS ◌ = 0.6em =
+    // 19.2px @32), NOT the fallback chain's full-width Hiragino ◌ (32px).
+    expect(r.xOffsets![1] - 98.4).toBeCloseTo(19.2, 1);
+  });
+  it("does NOT insert ◌ for a generic Latin combining mark (covered + default shaper)", () => {
+    const r = run("á"); // a + combining acute — covered, has a base
+    expect(r.text).toBe("á");
+  });
+  it("does NOT insert ◌ for a Brahmic mark that HAS a base in its cluster (not orphaned)", () => {
+    // Base letter (Lo) then its mark: HarfBuzz attaches the mark, no dotted circle.
+    const r = run("\u{11A50}\u{11A51}");
+    expect(r.text).toBe("\u{11A50}\u{11A51}");
+  });
+  it("is a no-op for plain text with no combining marks", () => {
+    const r = run("Hello, world", [0, 1, 2]);
+    expect(r.text).toBe("Hello, world");
+    expect(r.xOffsets).toEqual([0, 1, 2]);
   });
 });
 

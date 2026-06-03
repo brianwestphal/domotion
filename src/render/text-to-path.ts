@@ -3028,6 +3028,176 @@ function singleFontMarkup(
   };
 }
 
+// DM-1026: Unicode blocks whose script uses a COMPLEX shaper (Indic / Khmer /
+// Myanmar / SE-Asian Brahmic / the Universal Shaping Engine) — the shapers that,
+// like Chrome's HarfBuzz, insert a dotted circle (U+25CC) before an ORPHANED
+// combining mark (a mark with no base in its cluster). The generic combining-
+// mark blocks (Combining Diacritical Marks 0300–036F, …-Extended 1AB0–1AFF,
+// …-Supplement 1DC0–1DFF, …-for-Symbols 20D0–20FF, Half Marks FE20–FE2F) are
+// DELIBERATELY ABSENT: those route through the DEFAULT shaper, which paints the
+// bare mark with NO dotted circle (so DM-1027's Latin combining marks correctly
+// get none). Ranges are inclusive [start, end]. Kept as a flat sorted list — the
+// gate only runs for an uncovered category-M codepoint, which is rare.
+const COMPLEX_SHAPER_MARK_RANGES: ReadonlyArray<readonly [number, number]> = [
+  // BMP Indic / SE-Asian
+  [0x0900, 0x097F], [0x0980, 0x09FF], [0x0A00, 0x0A7F], [0x0A80, 0x0AFF],
+  [0x0B00, 0x0B7F], [0x0B80, 0x0BFF], [0x0C00, 0x0C7F], [0x0C80, 0x0CFF],
+  [0x0D00, 0x0D7F], [0x0D80, 0x0DFF], [0x0E00, 0x0E7F], [0x0E80, 0x0EFF],
+  [0x0F00, 0x0FFF], [0x1000, 0x109F], [0x1700, 0x171F], [0x1720, 0x173F],
+  [0x1740, 0x175F], [0x1760, 0x177F], [0x1780, 0x17FF], [0x1900, 0x194F],
+  [0x1980, 0x19DF], [0x1A00, 0x1A1F], [0x1A20, 0x1AAF], [0x1B00, 0x1B7F],
+  [0x1B80, 0x1BBF], [0x1BC0, 0x1BFF], [0x1C00, 0x1C4F], [0x1CD0, 0x1CFF],
+  [0xA800, 0xA82F], [0xA880, 0xA8DF], [0xA8E0, 0xA8FF], [0xA900, 0xA92F],
+  [0xA930, 0xA95F], [0xA980, 0xA9DF], [0xA9E0, 0xA9FF], [0xAA00, 0xAA5F],
+  [0xAA60, 0xAA7F], [0xAA80, 0xAADF], [0xAAE0, 0xAAFF], [0xABC0, 0xABFF],
+  // SMP Brahmic (all USE)
+  [0x10A00, 0x10A5F], [0x11000, 0x1107F], [0x11080, 0x110CF], [0x110D0, 0x110FF],
+  [0x11100, 0x1114F], [0x11150, 0x1117F], [0x11180, 0x111DF], [0x11200, 0x1124F],
+  [0x11280, 0x112AF], [0x112B0, 0x112FF], [0x11300, 0x1137F], [0x11400, 0x1147F],
+  [0x11480, 0x114DF], [0x11580, 0x115FF], [0x11600, 0x1165F], [0x11680, 0x116CF],
+  [0x11700, 0x1174F], [0x11800, 0x1184F], [0x11900, 0x1195F], [0x119A0, 0x119FF],
+  [0x11A00, 0x11A4F], [0x11A50, 0x11AAF], [0x11C00, 0x11C6F], [0x11C70, 0x11CBF],
+  [0x11D00, 0x11D5F], [0x11D60, 0x11DAF], [0x11EE0, 0x11EFF], [0x11F00, 0x11F5F],
+];
+
+export function usesComplexShaperDottedCircle(cp: number): boolean {
+  for (const [lo, hi] of COMPLEX_SHAPER_MARK_RANGES) {
+    if (cp >= lo && cp <= hi) return true;
+  }
+  return false;
+}
+
+// DM-1026: does `cp` resolve to a `.notdef` (no real font in the chain covers
+// it)? Mirrors the coverage resolution in `splitTextIntoFontRuns`'s walk —
+// primary, then per-codepoint webfont variant, then the static fallback chain,
+// then the CoreText system-fallback — but only the "is it covered anywhere"
+// question (no Math-Alpha / NFD decomposition, which don't apply to a combining
+// mark). Returns true when nothing but `last-resort` (or nothing) covers it.
+function codepointResolvesToNotdef(
+  cp: number, primaryFont: FontInstance, primaryFontKey: string,
+  weight: number, fontSize: number, slant: number,
+  variationSettings: Record<string, number> | undefined, lang: string | undefined,
+): boolean {
+  if ((primaryFont as any).glyphForCodePoint(cp).id !== 0) return false;
+  if (primaryFontKey.startsWith("webfont:")) {
+    const family = primaryFontKey.slice("webfont:".length);
+    const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+    if (v != null && (v as any).glyphForCodePoint(cp).id !== 0) return false;
+  }
+  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang)) {
+    if (candidate === "last-resort") continue;
+    const cf = getFontInstance(candidate, weight, fontSize, slant);
+    if (cf != null && (cf as any).glyphForCodePoint != null
+        && (cf as any).glyphForCodePoint(cp).id !== 0) return false;
+  }
+  if (_systemFallbackResolutionEnabled) {
+    const sysKey = resolveSystemFallbackKeyForCp(cp);
+    if (sysKey != null) {
+      const sf = getFontInstance(sysKey, weight, fontSize, slant);
+      if (sf != null && (sf as any).glyphForCodePoint != null
+          && (sf as any).glyphForCodePoint(cp).id !== 0) return false;
+    }
+  }
+  return true;
+}
+
+// DM-1026: synthesize the dotted circle (U+25CC) Chrome's HarfBuzz inserts
+// before an ORPHANED combining mark that NO font covers — e.g. the "no font"
+// Brahmic blocks (Soyombo, Zanabazar, Devanagari-Extended, …) where each mark
+// cell paints "◌ + .notdef tofu", ~51 px wide, while we previously painted just
+// the bare tofu. Returns the input text/xOffsets augmented with a leading U+25CC
+// for each qualifying mark; a no-op (returns the inputs) when the text has no
+// combining marks. The ◌ is itself covered (Hiragino etc.), so it routes and
+// renders through the normal pipeline — only the INSERTION is synthetic.
+//
+// A mark qualifies when it is (a) Unicode category M, (b) in a complex-shaper
+// block (so default-shaper marks like Latin diacritics get NONE — see the range
+// table), (c) uncovered by the whole font chain, and (d) orphaned: no base in
+// its cluster. Orphan tracking: a base letter (or an already-inserted ◌, which
+// becomes the cluster base so consecutive orphaned marks share one ◌) sets
+// `clusterHasBase`; whitespace resets it. Covered marks are left untouched — the
+// CoreText `shape` path (DM-1028) already inserts their dotted circle, so this
+// never double-inserts.
+export function insertSyntheticDottedCircles(
+  text: string, xOffsets: number[] | undefined,
+  fontFamily: string, weight: number, fontSize: number, slant: number,
+  variationSettings: Record<string, number> | undefined, lang: string | undefined,
+): { text: string; xOffsets: number[] | undefined } {
+  if (!/\p{M}/u.test(text)) return { text, xOffsets };
+  const primaryFontKey = resolveFontKey(fontFamily);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  if (primaryFont == null) return { text, xOffsets };
+
+  // Resolve the dotted circle's own advance (CSS px) so the displaced mark can
+  // be shifted right by exactly the ◌ we will paint. CRUCIAL: probe the PRIMARY
+  // font FIRST — Chrome (and our run-splitter) renders ◌ from the primary when
+  // it covers U+25CC, so the ◌'s advance must come from THAT font, not the
+  // fallback chain. E.g. Arial Unicode MS gives ◌ a 0.6em (19.2px @32) advance,
+  // while the chain's Hiragino gives it a full-width 1em (32px) advance — using
+  // the chain would shift the tofu ~13px too far right. Falls back to the chain
+  // only when the primary lacks ◌. Computed lazily — only if a mark qualifies.
+  let dottedCircleAdvanceCss = -1;
+  const resolveDottedCircleAdvance = (): number => {
+    if (dottedCircleAdvanceCss >= 0) return dottedCircleAdvanceCss;
+    dottedCircleAdvanceCss = 0;
+    const advFrom = (cf: FontInstance | null): number | null => {
+      const g = cf != null ? (cf as any).glyphForCodePoint?.(0x25CC) : null;
+      if (cf != null && g != null && g.id !== 0) return (g.advanceWidth ?? 0) * (fontSize / (cf as any).unitsPerEm);
+      return null;
+    };
+    const fromPrimary = advFrom(primaryFont);
+    if (fromPrimary != null) { dottedCircleAdvanceCss = fromPrimary; return dottedCircleAdvanceCss; }
+    for (const cand of fallbackFontChain(0x25CC, primaryFontKey, lang)) {
+      if (cand === "last-resort") continue;
+      const a = advFrom(getFontInstance(cand, weight, fontSize, slant));
+      if (a != null) { dottedCircleAdvanceCss = a; break; }
+    }
+    return dottedCircleAdvanceCss;
+  };
+
+  let outText = "";
+  const outX: number[] = [];
+  const haveX = xOffsets != null;
+  let changed = false;
+  let clusterHasBase = false;
+  let i = 0;
+  while (i < text.length) {
+    const cp = text.codePointAt(i)!;
+    const chLen = cp > 0xFFFF ? 2 : 1;
+    const ch = text.slice(i, i + chLen);
+    const isMark = /\p{M}/u.test(ch);
+    const isWs = chLen === 1 && /\s/.test(ch);
+    if (isMark) {
+      const orphaned = !clusterHasBase;
+      if (orphaned && usesComplexShaperDottedCircle(cp)
+          && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang)) {
+        const adv = resolveDottedCircleAdvance();
+        const markX = haveX ? (xOffsets![i] ?? 0) : 0;
+        outText += "◌";
+        if (haveX) outX.push(markX); // ◌ at the mark's captured cell origin
+        // The displaced mark shifts right by the ◌ advance; its units keep that
+        // shifted x (one entry per UTF-16 unit, mirroring the capture's layout).
+        for (let k = 0; k < chLen; k++) outX.push(haveX ? markX + adv : 0);
+        outText += ch;
+        clusterHasBase = true; // the inserted ◌ is the cluster base now
+        changed = true;
+        i += chLen;
+        continue;
+      }
+      // Non-qualifying mark: pass through unchanged.
+    } else if (isWs) {
+      clusterHasBase = false;
+    } else {
+      clusterHasBase = true; // a spacing base char
+    }
+    outText += ch;
+    if (haveX) for (let k = 0; k < chLen; k++) outX.push(xOffsets![i + k] ?? xOffsets![i] ?? 0);
+    i += chLen;
+  }
+  if (!changed) return { text, xOffsets };
+  return { text: outText, xOffsets: haveX ? outX : undefined };
+}
+
 // DM-655: split text into per-codepoint font runs the same way
 // textToPathMarkup does — primary font first, fall back to per-codepoint
 // webfont partitions, then the system fallback chain. Shared between the
@@ -3769,6 +3939,13 @@ export function renderTextAsPath(
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  // DM-1026: synthesize the dotted circle Chrome's HarfBuzz inserts before an
+  // orphaned, uncovered, complex-shaper combining mark (no-font Brahmic blocks).
+  // Run once at the funnel so both the embedded-font and glyph-path branches
+  // below receive the augmented text + xOffsets. A no-op for text with no marks.
+  ({ text, xOffsets } = insertSyntheticDottedCircles(
+    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang));
 
   // DM-652: opt-in embedded-font path. When `setRenderTextMode("embedded-font")`
   // is active AND we hold a webfont buffer that matches the requested

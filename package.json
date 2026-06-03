@@ -18,7 +18,8 @@
   "bin": {
     "domotion": "dist/cli/index.js",
     "svg-to-video": "dist/cli/svg-to-video.js",
-    "svg-review": "dist/cli/review.js"
+    "svg-review": "dist/cli/review.js",
+    "animated-svg-scrubber": "dist/cli/scrubber.js"
   },
   "files": [
     "dist",
@@ -30,8 +31,9 @@
   "scripts": {
     "build:capture-script": "node scripts/build-capture-script.mjs",
     "build:review-client": "node scripts/build-review-client.mjs",
-    "build": "npm run build:capture-script && npm run build:review-client && tsc -p tsconfig.build.json",
-    "typecheck": "npm run build:capture-script && npm run build:review-client && tsc --noEmit",
+    "build:scrubber-client": "node scripts/build-scrubber-client.mjs",
+    "build": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && tsc -p tsconfig.build.json",
+    "typecheck": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && tsc --noEmit",
     "lint": "eslint .",
     "capture": "npm run build:capture-script && tsx src/cli/index.ts",
     "test": "npm run build:capture-script && vitest run",
