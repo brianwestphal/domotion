@@ -108,6 +108,45 @@ jobs:
       - name: Run the fontkit-parity test
         run: npx vitest run tests/win32-glyph-extractor.test.ts
 
+  # DM-987: re-run the per-Unicode-block DirectWrite font-routing sweep and upload
+  # the JSON as an artifact, so a contributor without a Windows box can refresh
+  # the routing table. Clones the public html-test repo for the per-block unicode
+  # fixtures, runs the same `CSS.getPlatformFontsForNode` sweep, and uploads
+  # `unicode-fonts.win32.json`. Manual-dispatch only (the committed table rarely
+  # needs refreshing — only when Chromium's fallback or the Windows font set
+  # changes).
+  #
+  # CAVEAT: `windows-latest` is Windows Server, whose default font set is NARROWER
+  # than desktop Windows 11 (it omits several supplemental faces — Yu Gothic,
+  # SimSun-ExtB, some Indic/historic faces — that ship by default on desktop).
+  # The committed `tests/output/unicode-fonts.win32.json` is the DESKTOP Windows 11
+  # calibration (the representative consumer environment). Treat this job's
+  # artifact as a coverage-gap CHECK, not a drop-in replacement: regenerate the
+  # committed table on real desktop Windows 11 (run `tools/probe-983-sweep.mjs`
+  # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
+  font-routing-sweep:
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Clone html-test (per-Unicode-block fixtures)
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Run the DirectWrite font-routing sweep
+        env:
+          HTML_TEST_DIR: external/html-test/unicode
+          UNICODE_FONTS_OUT: unicode-fonts.win32.json
+        run: node tools/probe-983-sweep.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unicode-fonts-win32
+          path: unicode-fonts.win32.json
+          if-no-files-found: error
+
   # DM-884 diagnostic: pinpoint the Windows primary-font (Arial) text-positioning
   # drift behind the feature regression. Dumps the captured per-char xOffsets +
   # baseline vs the positions Chromium-on-Windows actually painted. Read the log:

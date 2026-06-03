@@ -258,6 +258,66 @@ drift on Windows (same Arial outlines, drifting x-positions), tracked
 separately as an investigation. The fallback chain governs *which* face covers a
 block; it can't fix how the primary face is positioned.
 
+### DM-987 — per-Unicode-block sweep (the generated win32 table)
+
+The DM-836 chain above hand-routes the common blocks. DM-987 extends Windows the
+same way DM-983 (macOS) and DM-984 (Linux) extended theirs: a per-Unicode-block
+`CSS.getPlatformFontsForNode` sweep across **every** block fixture
+(`../html-test/unicode/*.html`, 818 blocks), so the long tail of scripts that no
+hand-coded rule covers still resolves to the face Chromium actually paints
+instead of dropping to tofu.
+
+The sweep ran under Node + Playwright Chromium on a **desktop Windows 11** host
+(via a local Parallels VM — `tools/probe-983-sweep.mjs` with
+`HTML_TEST_DIR`/`UNICODE_FONTS_OUT`), producing
+`tests/output/unicode-fonts.win32.json` (committed, ~70 KB).
+`tools/probe-983-genroutes-win32.mjs` maps each block's first-choice DirectWrite
+family to a `C:\Windows\Fonts` filename (+ the TTC member's PostScript name for
+collections), emitting `src/render/unicode-font-routing.win32.generated.ts` (34
+fonts, 326 block ranges). `win32FallbackChain` consults it via
+`lookupWin32UnicodeFontRange` **as a last resort**, after every hand-coded rule —
+so the DM-836 routes still win where they match.
+
+What the sweep surfaced (net-new coverage over the hand-coded chain):
+
+| Script family | DirectWrite face | File |
+| --- | --- | --- |
+| Ancient / historic (Old Italic, Gothic, Cuneiform, Egyptian Hieroglyphs, Phoenician, Cypriot, Syriac, …) | Segoe UI Historic | `seguihis.ttf` |
+| Ethiopic, N'Ko, Vai, Osmanya | Ebrima | `ebrima.ttf` |
+| Cherokee, Canadian Aboriginal, Osage | Gadugi | `gadugi.ttf` |
+| Yi | Microsoft Yi Baiti | `msyi.ttf` |
+| Myanmar | Myanmar Text | `mmrtext.ttf` |
+| Javanese | Javanese Text | `javatext.ttf` |
+| Tibetan | Microsoft Himalaya | `himalaya.ttf` |
+| Mongolian | Mongolian Baiti | `monbaiti.ttf` |
+| Tai Le / New Tai Lue / Phags-pa | Microsoft Tai Le / New Tai Lue / PhagsPa | `taile.ttf` / `ntailu.ttf` / `phagspa.ttf` |
+| Thaana | MV Boli | `mvboli.ttf` |
+| Georgian / Armenian | Sylfaen | `sylfaen.ttf` |
+| Rare CJK ideographs (Ext B/C/D/…, Ext G) | SimSun-ExtB / -ExtG | `simsunb.ttf` / `SimsunExtG.ttf` |
+| Broad symbol / pictograph residue | Sans Serif Collection | `SansSerifCollection.ttf` |
+
+Validated on the same Windows 11 host: opening each generated key's font with
+fontkit and calling `glyphForCodePoint` for a representative codepoint in its
+block returns a real (non-`.notdef`) glyph for the tail scripts above — i.e. the
+codepoints that returned `[]` (tofu) from `win32FallbackChain` before now paint a
+real glyph.
+
+The same sweep also caught two stale `WIN32_FONT_PATHS` filenames that never
+existed on disk (so those keys silently resolved to null): Nirmala UI ships as
+`Nirmala.ttc` (not `Nirmala.ttf`) — which had **broken Devanagari/Indic on
+Windows entirely** — and Leelawadee UI Semilight is `leeluisl.ttf` with
+PostScript `LeelawadeeUI-Semilight` (not `LeelaUIsl.ttf` /
+`LeelawadeeUISemilight`). Both are fixed.
+
+**Re-running the sweep:** `tools/probe-983-sweep.mjs` is platform-agnostic — run
+it wherever a real Windows Chromium lives. The `windows-fidelity` workflow has a
+manual-dispatch `font-routing-sweep` job that runs it on `windows-latest` and
+uploads the JSON, but **note that `windows-latest` is Windows Server**, whose
+default font set is narrower than desktop Windows 11 (it omits several
+supplemental faces). The committed table is the **desktop Windows 11**
+calibration — the representative consumer environment — so regenerate it on
+desktop Windows, not from the CI artifact.
+
 ## The probe script
 
 A `tools/probe-fallbacks-cross-platform.mjs` modelled on the existing

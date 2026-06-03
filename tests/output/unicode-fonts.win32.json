@@ -1,0 +1,2511 @@
+{
+  "platform": "win32",
+  "familyCount": {
+    "SimSun-ExtB": 702,
+    "Arial": 372,
+    "Microsoft YaHei": 333,
+    "Sans Serif Collection": 323,
+    "Malgun Gothic": 144,
+    "SimSun-ExtG": 117,
+    "Segoe UI Historic": 110,
+    "Nirmala UI": 87,
+    "Segoe UI Symbol": 58,
+    "Ebrima": 39,
+    "Cambria Math": 32,
+    "Gadugi": 24,
+    "Segoe UI Emoji": 19,
+    "Microsoft Yi Baiti": 18,
+    "SimSun": 14,
+    "Leelawadee UI": 12,
+    "Times New Roman": 12,
+    "Yu Gothic": 12,
+    "Myanmar Text": 9,
+    "Segoe UI": 9,
+    "Microsoft JhengHei UI": 7,
+    "Sylfaen": 6,
+    "Microsoft Sans Serif": 6,
+    "微軟正黑體": 6,
+    "Javanese Text": 6,
+    "Yu Gothic UI": 5,
+    "MS PGothic": 5,
+    "Lucida Sans Unicode": 5,
+    "Tahoma": 4,
+    "MV Boli": 3,
+    "Microsoft Himalaya": 3,
+    "Mongolian Baiti": 3,
+    "Microsoft Tai Le": 3,
+    "Microsoft New Tai Lue": 3,
+    "Calibri": 3,
+    "Microsoft PhagsPa": 3
+  },
+  "blockToFamilies": {
+    "0000-007F-basic-latin": [
+      "Arial"
+    ],
+    "0080-00FF-latin-1-supplement": [
+      "Arial"
+    ],
+    "0100-017F-latin-extended-a": [
+      "Arial"
+    ],
+    "0180-024F-latin-extended-b": [
+      "Arial"
+    ],
+    "0250-02AF-ipa-extensions": [
+      "Arial"
+    ],
+    "02B0-02FF-spacing-modifier-letters": [
+      "Arial"
+    ],
+    "0300-036F-combining-diacritical-marks": [
+      "Arial"
+    ],
+    "0370-03FF-greek-and-coptic": [
+      "Arial"
+    ],
+    "0400-04FF-cyrillic": [
+      "Arial"
+    ],
+    "0500-052F-cyrillic-supplement": [
+      "Arial"
+    ],
+    "0530-058F-armenian": [
+      "Arial"
+    ],
+    "0590-05FF-hebrew": [
+      "Arial"
+    ],
+    "0600-06FF-arabic": [
+      "Arial"
+    ],
+    "0700-074F-syriac": [
+      "Segoe UI Historic"
+    ],
+    "0750-077F-arabic-supplement": [
+      "Arial"
+    ],
+    "0780-07BF-thaana": [
+      "MV Boli"
+    ],
+    "07C0-07FF-nko": [
+      "Ebrima"
+    ],
+    "0800-083F-samaritan": [
+      "Sans Serif Collection"
+    ],
+    "0840-085F-mandaic": [
+      "Sans Serif Collection"
+    ],
+    "0860-086F-syriac-supplement": [
+      "Arial"
+    ],
+    "0870-089F-arabic-extended-b": [
+      "Arial"
+    ],
+    "08A0-08FF-arabic-extended-a": [
+      "Arial"
+    ],
+    "0900-097F-devanagari": [
+      "Nirmala UI"
+    ],
+    "0980-09FF-bengali": [
+      "Nirmala UI"
+    ],
+    "0A00-0A7F-gurmukhi": [
+      "Nirmala UI"
+    ],
+    "0A80-0AFF-gujarati": [
+      "Nirmala UI"
+    ],
+    "0B00-0B7F-oriya": [
+      "Nirmala UI"
+    ],
+    "0B80-0BFF-tamil": [
+      "Nirmala UI"
+    ],
+    "0C00-0C7F-telugu": [
+      "Nirmala UI"
+    ],
+    "0C80-0CFF-kannada": [
+      "Nirmala UI"
+    ],
+    "0D00-0D7F-malayalam": [
+      "Nirmala UI"
+    ],
+    "0D80-0DFF-sinhala": [
+      "Nirmala UI"
+    ],
+    "0E00-0E7F-thai": [
+      "Tahoma"
+    ],
+    "0E80-0EFF-lao": [
+      "Leelawadee UI"
+    ],
+    "0F00-0FFF-tibetan": [
+      "Microsoft Himalaya"
+    ],
+    "1000-109F-myanmar": [
+      "Myanmar Text"
+    ],
+    "10000-1007F-linear-b-syllabary": [
+      "Sans Serif Collection"
+    ],
+    "10080-100FF-linear-b-ideograms": [
+      "Sans Serif Collection"
+    ],
+    "10100-1013F-aegean-numbers": [
+      "Sans Serif Collection"
+    ],
+    "10140-1018F-ancient-greek-numbers": [
+      "Arial"
+    ],
+    "10190-101CF-ancient-symbols": [
+      "Arial"
+    ],
+    "101D0-101FF-phaistos-disc": [
+      "Arial"
+    ],
+    "10280-1029F-lycian": [
+      "Segoe UI Historic"
+    ],
+    "102A0-102DF-carian": [
+      "Segoe UI Historic"
+    ],
+    "102E0-102FF-coptic-epact-numbers": [
+      "Sans Serif Collection"
+    ],
+    "10300-1032F-old-italic": [
+      "Segoe UI Historic"
+    ],
+    "10330-1034F-gothic": [
+      "Segoe UI Historic"
+    ],
+    "10350-1037F-old-permic": [
+      "Sans Serif Collection"
+    ],
+    "10380-1039F-ugaritic": [
+      "Segoe UI Historic"
+    ],
+    "103A0-103DF-old-persian": [
+      "Segoe UI Historic"
+    ],
+    "10400-1044F-deseret": [
+      "Segoe UI Symbol"
+    ],
+    "10450-1047F-shavian": [
+      "Segoe UI Historic"
+    ],
+    "10480-104AF-osmanya": [
+      "Ebrima"
+    ],
+    "104B0-104FF-osage": [
+      "Gadugi"
+    ],
+    "10500-1052F-elbasan": [
+      "Sans Serif Collection"
+    ],
+    "10530-1056F-caucasian-albanian": [
+      "Sans Serif Collection"
+    ],
+    "10570-105BF-vithkuqi": [
+      "Sans Serif Collection"
+    ],
+    "105C0-105FF-todhri": [
+      "Arial"
+    ],
+    "10600-1077F-linear-a.0": [
+      "Sans Serif Collection"
+    ],
+    "10600-1077F-linear-a.1": [
+      "Sans Serif Collection"
+    ],
+    "10780-107BF-latin-extended-f": [
+      "Sans Serif Collection"
+    ],
+    "10800-1083F-cypriot-syllabary": [
+      "Segoe UI Historic"
+    ],
+    "10840-1085F-imperial-aramaic": [
+      "Segoe UI Historic"
+    ],
+    "10860-1087F-palmyrene": [
+      "Sans Serif Collection"
+    ],
+    "10880-108AF-nabataean": [
+      "Sans Serif Collection"
+    ],
+    "108E0-108FF-hatran": [
+      "Sans Serif Collection"
+    ],
+    "10900-1091F-phoenician": [
+      "Segoe UI Historic"
+    ],
+    "10920-1093F-lydian": [
+      "Segoe UI Historic"
+    ],
+    "10980-1099F-meroitic-hieroglyphs": [
+      "Sans Serif Collection"
+    ],
+    "109A0-109FF-meroitic-cursive": [
+      "Segoe UI Historic"
+    ],
+    "10A0-10FF-georgian": [
+      "Sylfaen"
+    ],
+    "10A00-10A5F-kharoshthi": [
+      "Segoe UI Historic"
+    ],
+    "10A60-10A7F-old-south-arabian": [
+      "Segoe UI Historic"
+    ],
+    "10A80-10A9F-old-north-arabian": [
+      "Sans Serif Collection"
+    ],
+    "10AC0-10AFF-manichaean": [
+      "Sans Serif Collection"
+    ],
+    "10B00-10B3F-avestan": [
+      "Sans Serif Collection"
+    ],
+    "10B40-10B5F-inscriptional-parthian": [
+      "Segoe UI Historic"
+    ],
+    "10B60-10B7F-inscriptional-pahlavi": [
+      "Segoe UI Historic"
+    ],
+    "10B80-10BAF-psalter-pahlavi": [
+      "Sans Serif Collection"
+    ],
+    "10C00-10C4F-old-turkic": [
+      "Segoe UI Historic"
+    ],
+    "10C80-10CFF-old-hungarian": [
+      "Sans Serif Collection"
+    ],
+    "10D00-10D3F-hanifi-rohingya": [
+      "Sans Serif Collection"
+    ],
+    "10D40-10D8F-garay": [
+      "Arial"
+    ],
+    "10E60-10E7F-rumi-numeral-symbols": [
+      "Arial"
+    ],
+    "10E80-10EBF-yezidi": [
+      "Sans Serif Collection"
+    ],
+    "10EC0-10EFF-arabic-extended-c": [
+      "Arial"
+    ],
+    "10F00-10F2F-old-sogdian": [
+      "Sans Serif Collection"
+    ],
+    "10F30-10F6F-sogdian": [
+      "Sans Serif Collection"
+    ],
+    "10F70-10FAF-old-uyghur": [
+      "Sans Serif Collection"
+    ],
+    "10FB0-10FDF-chorasmian": [
+      "Sans Serif Collection"
+    ],
+    "10FE0-10FFF-elymaic": [
+      "Sans Serif Collection"
+    ],
+    "1100-11FF-hangul-jamo": [
+      "Malgun Gothic"
+    ],
+    "11000-1107F-brahmi": [
+      "Segoe UI Historic"
+    ],
+    "11080-110CF-kaithi": [
+      "Sans Serif Collection"
+    ],
+    "110D0-110FF-sora-sompeng": [
+      "Nirmala UI"
+    ],
+    "11100-1114F-chakma": [
+      "Nirmala UI"
+    ],
+    "11150-1117F-mahajani": [
+      "Sans Serif Collection"
+    ],
+    "11180-111DF-sharada": [
+      "Sans Serif Collection"
+    ],
+    "111E0-111FF-sinhala-archaic-numbers": [
+      "Nirmala UI"
+    ],
+    "11200-1124F-khojki": [
+      "Sans Serif Collection"
+    ],
+    "11280-112AF-multani": [
+      "Sans Serif Collection"
+    ],
+    "112B0-112FF-khudawadi": [
+      "Sans Serif Collection"
+    ],
+    "11300-1137F-grantha": [
+      "Sans Serif Collection"
+    ],
+    "11380-113FF-tulu-tigalari": [
+      "Arial"
+    ],
+    "11400-1147F-newa": [
+      "Sans Serif Collection"
+    ],
+    "11480-114DF-tirhuta": [
+      "Sans Serif Collection"
+    ],
+    "11580-115FF-siddham": [
+      "Sans Serif Collection"
+    ],
+    "11600-1165F-modi": [
+      "Sans Serif Collection"
+    ],
+    "11660-1167F-mongolian-supplement": [
+      "Arial"
+    ],
+    "11680-116CF-takri": [
+      "Sans Serif Collection"
+    ],
+    "116D0-116FF-myanmar-extended-c": [
+      "Arial"
+    ],
+    "11700-1174F-ahom": [
+      "Sans Serif Collection"
+    ],
+    "11800-1184F-dogra": [
+      "Sans Serif Collection"
+    ],
+    "118A0-118FF-warang-citi": [
+      "Sans Serif Collection"
+    ],
+    "11900-1195F-dives-akuru": [
+      "Sans Serif Collection"
+    ],
+    "119A0-119FF-nandinagari": [
+      "Sans Serif Collection"
+    ],
+    "11A00-11A4F-zanabazar-square": [
+      "Sans Serif Collection"
+    ],
+    "11A50-11AAF-soyombo": [
+      "Sans Serif Collection"
+    ],
+    "11AB0-11ABF-unified-canadian-aboriginal-syllabics-extended-a": [
+      "Gadugi"
+    ],
+    "11AC0-11AFF-pau-cin-hau": [
+      "Sans Serif Collection"
+    ],
+    "11B00-11B5F-devanagari-extended-a": [
+      "Arial"
+    ],
+    "11BC0-11BFF-sunuwar": [
+      "Arial"
+    ],
+    "11C00-11C6F-bhaiksuki": [
+      "Sans Serif Collection"
+    ],
+    "11C70-11CBF-marchen": [
+      "Sans Serif Collection"
+    ],
+    "11D00-11D5F-masaram-gondi": [
+      "Sans Serif Collection"
+    ],
+    "11D60-11DAF-gunjala-gondi": [
+      "Sans Serif Collection"
+    ],
+    "11EE0-11EFF-makasar": [
+      "Sans Serif Collection"
+    ],
+    "11F00-11F5F-kawi": [
+      "Sans Serif Collection"
+    ],
+    "11FB0-11FBF-lisu-supplement": [
+      "Arial"
+    ],
+    "11FC0-11FFF-tamil-supplement": [
+      "Sans Serif Collection"
+    ],
+    "1200-137F-ethiopic.0": [
+      "Ebrima"
+    ],
+    "1200-137F-ethiopic.1": [
+      "Ebrima"
+    ],
+    "12000-123FF-cuneiform.0": [
+      "Segoe UI Historic"
+    ],
+    "12000-123FF-cuneiform.1": [
+      "Segoe UI Historic"
+    ],
+    "12000-123FF-cuneiform.2": [
+      "Segoe UI Historic"
+    ],
+    "12000-123FF-cuneiform.3": [
+      "Segoe UI Historic"
+    ],
+    "12400-1247F-cuneiform-numbers-and-punctuation": [
+      "Segoe UI Historic"
+    ],
+    "12480-1254F-early-dynastic-cuneiform": [
+      "Arial"
+    ],
+    "12F90-12FFF-cypro-minoan": [
+      "Sans Serif Collection"
+    ],
+    "13000-1342F-egyptian-hieroglyphs.0": [
+      "Segoe UI Historic"
+    ],
+    "13000-1342F-egyptian-hieroglyphs.1": [
+      "Segoe UI Historic"
+    ],
+    "13000-1342F-egyptian-hieroglyphs.2": [
+      "Segoe UI Historic"
+    ],
+    "13000-1342F-egyptian-hieroglyphs.3": [
+      "Segoe UI Historic"
+    ],
+    "13000-1342F-egyptian-hieroglyphs.4": [
+      "Segoe UI Historic"
+    ],
+    "13430-1345F-egyptian-hieroglyph-format-controls": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.0": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.1": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.10": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.11": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.12": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.13": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.14": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.15": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.2": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.3": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.4": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.5": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.6": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.7": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.8": [
+      "Arial"
+    ],
+    "13460-143FF-egyptian-hieroglyphs-extended-a.9": [
+      "Arial"
+    ],
+    "1380-139F-ethiopic-supplement": [
+      "Ebrima"
+    ],
+    "13A0-13FF-cherokee": [
+      "Gadugi"
+    ],
+    "1400-167F-unified-canadian-aboriginal-syllabics.0": [
+      "Gadugi"
+    ],
+    "1400-167F-unified-canadian-aboriginal-syllabics.1": [
+      "Gadugi"
+    ],
+    "1400-167F-unified-canadian-aboriginal-syllabics.2": [
+      "Gadugi"
+    ],
+    "14400-1467F-anatolian-hieroglyphs.0": [
+      "Sans Serif Collection"
+    ],
+    "14400-1467F-anatolian-hieroglyphs.1": [
+      "Sans Serif Collection"
+    ],
+    "14400-1467F-anatolian-hieroglyphs.2": [
+      "Sans Serif Collection"
+    ],
+    "16100-1613F-gurung-khema": [
+      "Arial"
+    ],
+    "1680-169F-ogham": [
+      "Segoe UI Historic"
+    ],
+    "16800-16A3F-bamum-supplement.0": [
+      "Segoe UI Historic"
+    ],
+    "16800-16A3F-bamum-supplement.1": [
+      "Segoe UI Historic"
+    ],
+    "16800-16A3F-bamum-supplement.2": [
+      "Segoe UI Historic"
+    ],
+    "16A0-16FF-runic": [
+      "Segoe UI Historic"
+    ],
+    "16A40-16A6F-mro": [
+      "Sans Serif Collection"
+    ],
+    "16A70-16ACF-tangsa": [
+      "Sans Serif Collection"
+    ],
+    "16AD0-16AFF-bassa-vah": [
+      "Sans Serif Collection"
+    ],
+    "16B00-16B8F-pahawh-hmong": [
+      "Sans Serif Collection"
+    ],
+    "16D40-16D7F-kirat-rai": [
+      "Arial"
+    ],
+    "16E40-16E9F-medefaidrin": [
+      "Sans Serif Collection"
+    ],
+    "16F00-16F9F-miao": [
+      "Sans Serif Collection"
+    ],
+    "16FE0-16FFF-ideographic-symbols-and-punctuation": [
+      "Arial",
+      "Sans Serif Collection"
+    ],
+    "1700-171F-tagalog": [
+      "Sans Serif Collection"
+    ],
+    "17000-187FF-tangut.0": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.1": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.10": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.11": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.12": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.13": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.14": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.15": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.16": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.17": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.18": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.19": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.2": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.20": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.21": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.22": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.23": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.3": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.4": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.5": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.6": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.7": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.8": [
+      "Arial"
+    ],
+    "17000-187FF-tangut.9": [
+      "Arial"
+    ],
+    "1720-173F-hanunoo": [
+      "Sans Serif Collection"
+    ],
+    "1740-175F-buhid": [
+      "Sans Serif Collection"
+    ],
+    "1760-177F-tagbanwa": [
+      "Sans Serif Collection"
+    ],
+    "1780-17FF-khmer": [
+      "Leelawadee UI"
+    ],
+    "1800-18AF-mongolian": [
+      "Mongolian Baiti"
+    ],
+    "18800-18AFF-tangut-components.0": [
+      "Arial"
+    ],
+    "18800-18AFF-tangut-components.1": [
+      "Arial"
+    ],
+    "18800-18AFF-tangut-components.2": [
+      "Arial"
+    ],
+    "18B0-18FF-unified-canadian-aboriginal-syllabics-extended": [
+      "Gadugi"
+    ],
+    "18B00-18CFF-khitan-small-script.0": [
+      "Arial"
+    ],
+    "18B00-18CFF-khitan-small-script.1": [
+      "Arial"
+    ],
+    "18D00-18D7F-tangut-supplement": [
+      "Arial"
+    ],
+    "1900-194F-limbu": [
+      "Sans Serif Collection"
+    ],
+    "1950-197F-tai-le": [
+      "Microsoft Tai Le"
+    ],
+    "1980-19DF-new-tai-lue": [
+      "Microsoft New Tai Lue"
+    ],
+    "19E0-19FF-khmer-symbols": [
+      "Leelawadee UI"
+    ],
+    "1A00-1A1F-buginese": [
+      "Leelawadee UI"
+    ],
+    "1A20-1AAF-tai-tham": [
+      "Sans Serif Collection"
+    ],
+    "1AB0-1AFF-combining-diacritical-marks-extended": [
+      "Sans Serif Collection"
+    ],
+    "1AFF0-1AFFF-kana-extended-b": [
+      "Arial"
+    ],
+    "1B00-1B7F-balinese": [
+      "Sans Serif Collection"
+    ],
+    "1B000-1B0FF-kana-supplement": [
+      "Yu Gothic UI",
+      "Arial"
+    ],
+    "1B100-1B12F-kana-extended-a": [
+      "Arial"
+    ],
+    "1B130-1B16F-small-kana-extension": [
+      "Arial"
+    ],
+    "1B170-1B2FF-nushu.0": [
+      "Sans Serif Collection"
+    ],
+    "1B170-1B2FF-nushu.1": [
+      "Sans Serif Collection"
+    ],
+    "1B80-1BBF-sundanese": [
+      "Sans Serif Collection"
+    ],
+    "1BC0-1BFF-batak": [
+      "Sans Serif Collection"
+    ],
+    "1BC00-1BC9F-duployan": [
+      "Sans Serif Collection"
+    ],
+    "1C00-1C4F-lepcha": [
+      "Sans Serif Collection"
+    ],
+    "1C50-1C7F-ol-chiki": [
+      "Nirmala UI"
+    ],
+    "1C80-1C8F-cyrillic-extended-c": [
+      "Sans Serif Collection"
+    ],
+    "1C90-1CBF-georgian-extended": [
+      "Segoe UI"
+    ],
+    "1CC0-1CCF-sundanese-supplement": [
+      "Sans Serif Collection"
+    ],
+    "1CC00-1CEBF-symbols-for-legacy-computing-supplement.0": [
+      "Arial"
+    ],
+    "1CC00-1CEBF-symbols-for-legacy-computing-supplement.1": [
+      "Arial"
+    ],
+    "1CC00-1CEBF-symbols-for-legacy-computing-supplement.2": [
+      "Arial"
+    ],
+    "1CD0-1CFF-vedic-extensions": [
+      "Nirmala UI"
+    ],
+    "1CF00-1CFCF-znamenny-musical-notation": [
+      "Arial"
+    ],
+    "1D00-1D7F-phonetic-extensions": [
+      "Arial"
+    ],
+    "1D000-1D0FF-byzantine-musical-symbols": [
+      "Sans Serif Collection"
+    ],
+    "1D100-1D1FF-musical-symbols": [
+      "Segoe UI Symbol"
+    ],
+    "1D200-1D24F-ancient-greek-musical-notation": [
+      "Sans Serif Collection"
+    ],
+    "1D2C0-1D2DF-kaktovik-numerals": [
+      "Arial"
+    ],
+    "1D2E0-1D2FF-mayan-numerals": [
+      "Sans Serif Collection"
+    ],
+    "1D300-1D35F-tai-xuan-jing-symbols": [
+      "Segoe UI Symbol"
+    ],
+    "1D360-1D37F-counting-rod-numerals": [
+      "Arial"
+    ],
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.0": [
+      "Cambria Math"
+    ],
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.1": [
+      "Cambria Math"
+    ],
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.2": [
+      "Cambria Math"
+    ],
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.3": [
+      "Cambria Math"
+    ],
+    "1D80-1DBF-phonetic-extensions-supplement": [
+      "Arial"
+    ],
+    "1D800-1DAAF-sutton-signwriting.0": [
+      "Arial"
+    ],
+    "1D800-1DAAF-sutton-signwriting.1": [
+      "Arial"
+    ],
+    "1D800-1DAAF-sutton-signwriting.2": [
+      "Arial"
+    ],
+    "1DC0-1DFF-combining-diacritical-marks-supplement": [
+      "Arial"
+    ],
+    "1DF00-1DFFF-latin-extended-g": [
+      "Calibri"
+    ],
+    "1E00-1EFF-latin-extended-additional": [
+      "Arial"
+    ],
+    "1E000-1E02F-glagolitic-supplement": [
+      "Arial"
+    ],
+    "1E030-1E08F-cyrillic-extended-d": [
+      "Arial"
+    ],
+    "1E100-1E14F-nyiakeng-puachue-hmong": [
+      "Sans Serif Collection"
+    ],
+    "1E290-1E2BF-toto": [
+      "Sans Serif Collection"
+    ],
+    "1E2C0-1E2FF-wancho": [
+      "Sans Serif Collection"
+    ],
+    "1E4D0-1E4FF-nag-mundari": [
+      "Sans Serif Collection"
+    ],
+    "1E5D0-1E5FF-ol-onal": [
+      "Arial"
+    ],
+    "1E7E0-1E7FF-ethiopic-extended-b": [
+      "Ebrima"
+    ],
+    "1E800-1E8DF-mende-kikakui": [
+      "Sans Serif Collection"
+    ],
+    "1E900-1E95F-adlam": [
+      "Ebrima"
+    ],
+    "1EC70-1ECBF-indic-siyaq-numbers": [
+      "Sans Serif Collection"
+    ],
+    "1ED00-1ED4F-ottoman-siyaq-numbers": [
+      "Sans Serif Collection"
+    ],
+    "1EE00-1EEFF-arabic-mathematical-alphabetic-symbols": [
+      "Arial"
+    ],
+    "1F00-1FFF-greek-extended": [
+      "Arial"
+    ],
+    "1F000-1F02F-mahjong-tiles": [
+      "Segoe UI Symbol"
+    ],
+    "1F030-1F09F-domino-tiles": [
+      "Segoe UI Symbol"
+    ],
+    "1F0A0-1F0FF-playing-cards": [
+      "Segoe UI Symbol"
+    ],
+    "1F100-1F1FF-enclosed-alphanumeric-supplement": [
+      "Segoe UI Symbol"
+    ],
+    "1F200-1F2FF-enclosed-ideographic-supplement": [
+      "MS PGothic",
+      "Segoe UI Emoji",
+      "Segoe UI Symbol"
+    ],
+    "1F300-1F5FF-miscellaneous-symbols-and-pictographs.0": [
+      "Segoe UI Emoji"
+    ],
+    "1F300-1F5FF-miscellaneous-symbols-and-pictographs.1": [
+      "Segoe UI Emoji"
+    ],
+    "1F300-1F5FF-miscellaneous-symbols-and-pictographs.2": [
+      "Segoe UI Emoji"
+    ],
+    "1F600-1F64F-emoticons": [
+      "Segoe UI Emoji"
+    ],
+    "1F650-1F67F-ornamental-dingbats": [
+      "Segoe UI Symbol"
+    ],
+    "1F680-1F6FF-transport-and-map-symbols": [
+      "Segoe UI Emoji"
+    ],
+    "1F700-1F77F-alchemical-symbols": [
+      "Segoe UI Symbol"
+    ],
+    "1F780-1F7FF-geometric-shapes-extended": [
+      "Segoe UI Symbol"
+    ],
+    "1F800-1F8FF-supplemental-arrows-c": [
+      "Segoe UI Symbol"
+    ],
+    "1F900-1F9FF-supplemental-symbols-and-pictographs": [
+      "Arial"
+    ],
+    "1FA00-1FA6F-chess-symbols": [
+      "Arial"
+    ],
+    "1FA70-1FAFF-symbols-and-pictographs-extended-a": [
+      "Segoe UI Emoji"
+    ],
+    "1FB00-1FBFF-symbols-for-legacy-computing": [
+      "Arial"
+    ],
+    "2000-206F-general-punctuation": [
+      "Times New Roman",
+      "Arial"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.0": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.1": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.10": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.100": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.101": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.102": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.103": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.104": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.105": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.106": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.107": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.108": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.109": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.11": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.110": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.111": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.112": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.113": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.114": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.115": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.116": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.117": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.118": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.119": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.12": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.120": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.121": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.122": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.123": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.124": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.125": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.126": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.127": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.128": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.129": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.13": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.130": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.131": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.132": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.133": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.134": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.135": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.136": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.137": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.138": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.139": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.14": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.140": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.141": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.142": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.143": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.144": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.145": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.146": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.147": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.148": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.149": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.15": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.150": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.151": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.152": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.153": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.154": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.155": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.156": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.157": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.158": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.159": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.16": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.160": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.161": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.162": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.163": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.164": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.17": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.18": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.19": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.2": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.20": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.21": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.22": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.23": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.24": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.25": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.26": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.27": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.28": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.29": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.3": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.30": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.31": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.32": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.33": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.34": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.35": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.36": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.37": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.38": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.39": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.4": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.40": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.41": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.42": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.43": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.44": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.45": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.46": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.47": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.48": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.49": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.5": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.50": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.51": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.52": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.53": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.54": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.55": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.56": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.57": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.58": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.59": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.6": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.60": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.61": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.62": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.63": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.64": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.65": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.66": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.67": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.68": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.69": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.7": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.70": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.71": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.72": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.73": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.74": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.75": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.76": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.77": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.78": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.79": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.8": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.80": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.81": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.82": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.83": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.84": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.85": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.86": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.87": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.88": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.89": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.9": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.90": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.91": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.92": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.93": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.94": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.95": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.96": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.97": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.98": [
+      "SimSun-ExtB"
+    ],
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.99": [
+      "SimSun-ExtB"
+    ],
+    "2070-209F-superscripts-and-subscripts": [
+      "Arial",
+      "Times New Roman"
+    ],
+    "20A0-20CF-currency-symbols": [
+      "Arial"
+    ],
+    "20D0-20FF-combining-diacritical-marks-for-symbols": [
+      "Segoe UI Symbol"
+    ],
+    "2100-214F-letterlike-symbols": [
+      "Times New Roman"
+    ],
+    "2150-218F-number-forms": [
+      "Times New Roman"
+    ],
+    "2190-21FF-arrows": [
+      "Arial"
+    ],
+    "2200-22FF-mathematical-operators": [
+      "Cambria Math",
+      "Arial"
+    ],
+    "2300-23FF-miscellaneous-technical": [
+      "Cambria Math",
+      "Arial"
+    ],
+    "2400-243F-control-pictures": [
+      "Lucida Sans Unicode"
+    ],
+    "2440-245F-optical-character-recognition": [
+      "Segoe UI Symbol"
+    ],
+    "2460-24FF-enclosed-alphanumerics": [
+      "MS PGothic"
+    ],
+    "2500-257F-box-drawing": [
+      "Arial",
+      "Lucida Sans Unicode"
+    ],
+    "2580-259F-block-elements": [
+      "Arial",
+      "MS PGothic",
+      "Lucida Sans Unicode"
+    ],
+    "25A0-25FF-geometric-shapes": [
+      "Arial",
+      "Cambria Math"
+    ],
+    "2600-26FF-miscellaneous-symbols": [
+      "Segoe UI Symbol"
+    ],
+    "2700-27BF-dingbats": [
+      "Segoe UI Symbol"
+    ],
+    "27C0-27EF-miscellaneous-mathematical-symbols-a": [
+      "Cambria Math"
+    ],
+    "27F0-27FF-supplemental-arrows-a": [
+      "Cambria Math"
+    ],
+    "2800-28FF-braille-patterns": [
+      "Segoe UI Symbol"
+    ],
+    "2900-297F-supplemental-arrows-b": [
+      "Cambria Math"
+    ],
+    "2980-29FF-miscellaneous-mathematical-symbols-b": [
+      "Cambria Math"
+    ],
+    "2A00-2AFF-supplemental-mathematical-operators": [
+      "Cambria Math"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.0": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.1": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.10": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.11": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.12": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.13": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.14": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.15": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.2": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.3": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.4": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.5": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.6": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.7": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.8": [
+      "SimSun-ExtB"
+    ],
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.9": [
+      "SimSun-ExtB"
+    ],
+    "2B00-2BFF-miscellaneous-symbols-and-arrows": [
+      "Segoe UI Symbol"
+    ],
+    "2B740-2B81F-cjk-unified-ideographs-extension-d": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.0": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.1": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.10": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.11": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.12": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.13": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.14": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.15": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.16": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.17": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.18": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.19": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.2": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.20": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.21": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.22": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.3": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.4": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.5": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.6": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.7": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.8": [
+      "SimSun-ExtB"
+    ],
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.9": [
+      "SimSun-ExtB"
+    ],
+    "2C00-2C5F-glagolitic": [
+      "Segoe UI Historic"
+    ],
+    "2C60-2C7F-latin-extended-c": [
+      "Arial"
+    ],
+    "2C80-2CFF-coptic": [
+      "Segoe UI Symbol"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.0": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.1": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.10": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.11": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.12": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.13": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.14": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.15": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.16": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.17": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.18": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.19": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.2": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.20": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.21": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.22": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.23": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.24": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.25": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.26": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.27": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.28": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.3": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.4": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.5": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.6": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.7": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.8": [
+      "SimSun-ExtB"
+    ],
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.9": [
+      "SimSun-ExtB"
+    ],
+    "2D00-2D2F-georgian-supplement": [
+      "Sylfaen"
+    ],
+    "2D30-2D7F-tifinagh": [
+      "Ebrima"
+    ],
+    "2D80-2DDF-ethiopic-extended": [
+      "Ebrima"
+    ],
+    "2DE0-2DFF-cyrillic-extended-a": [
+      "Microsoft Sans Serif"
+    ],
+    "2E00-2E7F-supplemental-punctuation": [
+      "Times New Roman"
+    ],
+    "2E80-2EFF-cjk-radicals-supplement": [
+      "Microsoft YaHei"
+    ],
+    "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.0": [
+      "SimSun-ExtG"
+    ],
+    "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.1": [
+      "SimSun-ExtG"
+    ],
+    "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.2": [
+      "SimSun-ExtG"
+    ],
+    "2F00-2FDF-kangxi-radicals": [
+      "Microsoft YaHei"
+    ],
+    "2F800-2FA1F-cjk-compatibility-ideographs-supplement.0": [
+      "Arial"
+    ],
+    "2F800-2FA1F-cjk-compatibility-ideographs-supplement.1": [
+      "Arial"
+    ],
+    "2F800-2FA1F-cjk-compatibility-ideographs-supplement.2": [
+      "Arial"
+    ],
+    "2FF0-2FFF-ideographic-description-characters": [
+      "SimSun"
+    ],
+    "3000-303F-cjk-symbols-and-punctuation": [
+      "Microsoft YaHei"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.0": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.1": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.10": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.11": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.12": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.13": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.14": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.15": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.16": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.17": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.18": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.2": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.3": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.4": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.5": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.6": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.7": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.8": [
+      "SimSun-ExtG"
+    ],
+    "30000-3134F-cjk-unified-ideographs-extension-g.9": [
+      "SimSun-ExtG"
+    ],
+    "3040-309F-hiragana": [
+      "Yu Gothic"
+    ],
+    "30A0-30FF-katakana": [
+      "Yu Gothic"
+    ],
+    "3100-312F-bopomofo": [
+      "微軟正黑體"
+    ],
+    "3130-318F-hangul-compatibility-jamo": [
+      "Malgun Gothic"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.0": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.1": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.10": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.11": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.12": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.13": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.14": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.15": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.16": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.2": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.3": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.4": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.5": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.6": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.7": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.8": [
+      "SimSun-ExtG"
+    ],
+    "31350-323AF-cjk-unified-ideographs-extension-h.9": [
+      "SimSun-ExtG"
+    ],
+    "3190-319F-kanbun": [
+      "Yu Gothic UI"
+    ],
+    "31A0-31BF-bopomofo-extended": [
+      "微軟正黑體"
+    ],
+    "31C0-31EF-cjk-strokes": [
+      "SimSun"
+    ],
+    "31F0-31FF-katakana-phonetic-extensions": [
+      "Yu Gothic"
+    ],
+    "3200-32FF-enclosed-cjk-letters-and-months": [
+      "Malgun Gothic"
+    ],
+    "3300-33FF-cjk-compatibility": [
+      "Yu Gothic"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.0": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.1": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.10": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.11": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.12": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.13": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.14": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.15": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.16": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.17": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.18": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.19": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.2": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.20": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.21": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.22": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.23": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.24": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.25": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.3": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.4": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.5": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.6": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.7": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.8": [
+      "Microsoft YaHei"
+    ],
+    "3400-4DBF-cjk-unified-ideographs-extension-a.9": [
+      "Microsoft YaHei"
+    ],
+    "4DC0-4DFF-yijing-hexagram-symbols": [
+      "Segoe UI Symbol"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.0": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.1": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.10": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.11": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.12": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.13": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.14": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.15": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.16": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.17": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.18": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.19": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.2": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.20": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.21": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.22": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.23": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.24": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.25": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.26": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.27": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.28": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.29": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.3": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.30": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.31": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.32": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.33": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.34": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.35": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.36": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.37": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.38": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.39": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.4": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.40": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.41": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.42": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.43": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.44": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.45": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.46": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.47": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.48": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.49": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.5": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.50": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.51": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.52": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.53": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.54": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.55": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.56": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.57": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.58": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.59": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.6": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.60": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.61": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.62": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.63": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.64": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.65": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.66": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.67": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.68": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.69": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.7": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.70": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.71": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.72": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.73": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.74": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.75": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.76": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.77": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.78": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.79": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.8": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.80": [
+      "Microsoft YaHei"
+    ],
+    "4E00-9FFF-cjk-unified-ideographs.9": [
+      "Microsoft YaHei"
+    ],
+    "A000-A48F-yi-syllables.0": [
+      "Microsoft Yi Baiti"
+    ],
+    "A000-A48F-yi-syllables.1": [
+      "Microsoft Yi Baiti"
+    ],
+    "A000-A48F-yi-syllables.2": [
+      "Microsoft Yi Baiti"
+    ],
+    "A000-A48F-yi-syllables.3": [
+      "Microsoft Yi Baiti"
+    ],
+    "A000-A48F-yi-syllables.4": [
+      "Microsoft Yi Baiti"
+    ],
+    "A490-A4CF-yi-radicals": [
+      "Microsoft Yi Baiti"
+    ],
+    "A4D0-A4FF-lisu": [
+      "Segoe UI"
+    ],
+    "A500-A63F-vai.0": [
+      "Ebrima"
+    ],
+    "A500-A63F-vai.1": [
+      "Ebrima"
+    ],
+    "A640-A69F-cyrillic-extended-b": [
+      "Microsoft Sans Serif"
+    ],
+    "A6A0-A6FF-bamum": [
+      "Ebrima"
+    ],
+    "A700-A71F-modifier-tone-letters": [
+      "Segoe UI"
+    ],
+    "A720-A7FF-latin-extended-d": [
+      "Arial"
+    ],
+    "A800-A82F-syloti-nagri": [
+      "Sans Serif Collection"
+    ],
+    "A830-A83F-common-indic-number-forms": [
+      "Nirmala UI"
+    ],
+    "A840-A87F-phags-pa": [
+      "Microsoft PhagsPa"
+    ],
+    "A880-A8DF-saurashtra": [
+      "Sans Serif Collection"
+    ],
+    "A8E0-A8FF-devanagari-extended": [
+      "Nirmala UI"
+    ],
+    "A900-A92F-kayah-li": [
+      "Sans Serif Collection"
+    ],
+    "A930-A95F-rejang": [
+      "Sans Serif Collection"
+    ],
+    "A960-A97F-hangul-jamo-extended-a": [
+      "Malgun Gothic"
+    ],
+    "A980-A9DF-javanese": [
+      "Javanese Text"
+    ],
+    "A9E0-A9FF-myanmar-extended-b": [
+      "Myanmar Text"
+    ],
+    "AA00-AA5F-cham": [
+      "Sans Serif Collection"
+    ],
+    "AA60-AA7F-myanmar-extended-a": [
+      "Myanmar Text"
+    ],
+    "AA80-AADF-tai-viet": [
+      "Sans Serif Collection"
+    ],
+    "AAE0-AAFF-meetei-mayek-extensions": [
+      "Sans Serif Collection"
+    ],
+    "AB00-AB2F-ethiopic-extended-a": [
+      "Ebrima"
+    ],
+    "AB30-AB6F-latin-extended-e": [
+      "Arial"
+    ],
+    "AB70-ABBF-cherokee-supplement": [
+      "Gadugi"
+    ],
+    "ABC0-ABFF-meetei-mayek": [
+      "Nirmala UI"
+    ],
+    "AC00-D7AF-hangul-syllables.0": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.1": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.10": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.11": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.12": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.13": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.14": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.15": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.16": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.17": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.18": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.19": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.2": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.20": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.21": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.22": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.23": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.24": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.25": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.26": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.27": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.28": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.29": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.3": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.30": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.31": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.32": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.33": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.34": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.35": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.36": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.37": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.38": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.39": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.4": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.40": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.41": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.42": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.5": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.6": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.7": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.8": [
+      "Malgun Gothic"
+    ],
+    "AC00-D7AF-hangul-syllables.9": [
+      "Malgun Gothic"
+    ],
+    "D7B0-D7FF-hangul-jamo-extended-b": [
+      "Malgun Gothic"
+    ],
+    "E0100-E01EF-variation-selectors-supplement": [
+      "Arial"
+    ],
+    "F900-FAFF-cjk-compatibility-ideographs.0": [
+      "Microsoft JhengHei UI"
+    ],
+    "F900-FAFF-cjk-compatibility-ideographs.1": [
+      "Microsoft JhengHei UI"
+    ],
+    "FB00-FB4F-alphabetic-presentation-forms": [
+      "Arial"
+    ],
+    "FB50-FDFF-arabic-presentation-forms-a.0": [
+      "Arial"
+    ],
+    "FB50-FDFF-arabic-presentation-forms-a.1": [
+      "Arial"
+    ],
+    "FB50-FDFF-arabic-presentation-forms-a.2": [
+      "Arial"
+    ],
+    "FE00-FE0F-variation-selectors": [
+      "Arial"
+    ],
+    "FE10-FE1F-vertical-forms": [
+      "SimSun"
+    ],
+    "FE20-FE2F-combining-half-marks": [
+      "Arial"
+    ],
+    "FE30-FE4F-cjk-compatibility-forms": [
+      "SimSun",
+      "Microsoft JhengHei UI"
+    ],
+    "FE50-FE6F-small-form-variants": [
+      "SimSun"
+    ],
+    "FE70-FEFF-arabic-presentation-forms-b": [
+      "Arial"
+    ],
+    "FF00-FFEF-halfwidth-and-fullwidth-forms": [
+      "Microsoft YaHei"
+    ],
+    "FFF0-FFFF-specials": [
+      "Arial",
+      "Tahoma"
+    ]
+  }
+}

@@ -1,4 +1,10 @@
-tests/output/
+tests/output/*
+# DM-987: the Windows DirectWrite font-routing sweep is committed (unlike the
+# macOS/Linux sweeps, which regenerate locally) because a Windows box is the
+# friction point — keeping the JSON in-tree lets contributors re-run
+# tools/probe-983-genroutes-win32.mjs without one. (`tests/output/*` still
+# ignores every other entry, including subdirectories, wholesale.)
+!tests/output/unicode-fonts.win32.json
 tests/cache/
 examples/output/*.mp4
 examples/output/*.webm

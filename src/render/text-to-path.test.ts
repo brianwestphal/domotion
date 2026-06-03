@@ -5,6 +5,7 @@ import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFont
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -898,6 +899,63 @@ describe("win32FallbackChain: Chromium-on-Windows calibration (DM-836)", () => {
     expect(win32FallbackChain(0x05D0)).toEqual(["sf-hebrew"]);               // Hebrew → Segoe UI
     expect(win32FallbackChain(0x0928)).toEqual(["devanagari"]);             // Devanagari → Nirmala UI
     expect(win32FallbackChain(0x0E01)).toEqual(["tahoma", "thai"]);         // Thai → Tahoma (painted-font confirmed)
+  });
+});
+
+// DM-987: the generated Windows per-Unicode-block routing — produced by a Chrome
+// CDP `CSS.getPlatformFontsForNode` sweep on a Windows 11 host (DirectWrite),
+// resolved to C:\Windows\Fonts faces by tools/probe-983-genroutes-win32.mjs. The
+// table is consulted as a LAST resort by `win32FallbackChain`. These tests are
+// host-independent (the chain is a pure function; file paths only resolve on a
+// real Windows box, validated separately on the VM where each `u-...` key's font
+// extracts a real glyph for a codepoint in its block).
+describe("win32 generated Unicode-block routing well-formedness (DM-987)", () => {
+  it("ranges are sorted by start and non-overlapping", () => {
+    for (let i = 1; i < UNICODE_FONT_RANGES_WIN32.length; i++) {
+      const prev = UNICODE_FONT_RANGES_WIN32[i - 1]!;
+      const cur = UNICODE_FONT_RANGES_WIN32[i]!;
+      expect(cur[0]).toBeGreaterThan(prev[1]); // strictly after the previous range's end
+      expect(cur[1]).toBeGreaterThanOrEqual(cur[0]); // well-formed [start, end]
+    }
+  });
+
+  it("every range's fontKey resolves to a file entry, and every file name is non-empty", () => {
+    for (const [, , key] of UNICODE_FONT_RANGES_WIN32) {
+      const entry = UNICODE_FONT_FILES_WIN32[key];
+      expect(entry, `range key ${key} missing from UNICODE_FONT_FILES_WIN32`).toBeDefined();
+      expect(entry!.file.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("win32FallbackChain now routes tail scripts that the hand-coded rules don't cover", () => {
+    // Each of these returned [] before DM-987 (no hand-coded rule, no generated
+    // table) — i.e. tofu. They now route to the swept DirectWrite face.
+    const tail: Array<[number, string]> = [
+      [0x1208, "u-ebrima"],              // Ethiopic → Ebrima
+      [0x13A0, "u-gadugi"],              // Cherokee → Gadugi
+      [0xA000, "u-microsoft-yi-baiti"],  // Yi → Microsoft Yi Baiti
+      [0x1000, "u-myanmar-text"],        // Myanmar → Myanmar Text
+      [0x0F40, "u-microsoft-himalaya"],  // Tibetan → Microsoft Himalaya
+      [0x10300, "u-segoe-ui-historic"],  // Old Italic → Segoe UI Historic
+      [0x12000, "u-segoe-ui-historic"],  // Cuneiform → Segoe UI Historic
+      [0x20000, "u-simsun-extb"],        // CJK Ext B → SimSun-ExtB
+      [0x0780, "u-mv-boli"],             // Thaana → MV Boli
+      [0xA840, "u-microsoft-phagspa"],   // Phags-pa → Microsoft PhagsPa
+    ];
+    for (const [cp, key] of tail) {
+      const chain = win32FallbackChain(cp);
+      expect(chain.length, `U+${cp.toString(16)} should route, not tofu`).toBeGreaterThan(0);
+      expect(chain).toEqual([key]);
+    }
+  });
+
+  it("hand-coded rules still win over the generated table where they overlap", () => {
+    // Han / Hangul / Arabic / Devanagari have dedicated hand-coded routes; the
+    // generated last-resort lookup must not override them.
+    expect(win32FallbackChain(0x4E00)).toEqual(["cjk"]);        // Han, not a u-... key
+    expect(win32FallbackChain(0xAC00)).toEqual(["korean", "cjk"]);
+    expect(win32FallbackChain(0x0628)).toEqual(["sf-arabic"]);
+    expect(win32FallbackChain(0x0928)).toEqual(["devanagari"]);
   });
 });
 
