@@ -6,9 +6,23 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { validateAnimateConfig, interpolateConfigVars } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, buildCursorOverlay, type AnimateConfig } from "./animate.js";
+import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
+
+/** Mirror composeAnimateConfig's per-frame start-time accumulation. */
+function frameStartsFor(frames: AnimateConfig["frames"]): number[] {
+  const starts: number[] = [];
+  let acc = 0;
+  for (const f of frames) {
+    starts.push(acc);
+    acc += f.duration + (f.transition == null ? 300 : f.transition.type === "cut" ? 0 : f.transition.duration);
+  }
+  return starts;
+}
+const clicksOf = (ov: ReturnType<typeof buildCursorOverlay>): CursorEvent[] =>
+  (ov?.events ?? []).filter((e) => e.type === "click");
 
 describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)", () => {
   it("accepts the new DOM-mutation / interaction / evaluate actions", () => {
@@ -221,5 +235,95 @@ describe("cursor overlay config (DM-851)", () => {
     expect(() =>
       validateAnimateConfig({ ...base, cursor: { events: [{ frame: 0, type: "move" }] }, frames: [{ input: "a.html", duration: 1 }] }),
     ).toThrow(/requires `selector` or `to`/);
+  });
+});
+
+// DM-1050: auto-cursor click TIMING. In the continuous-session model a frame's
+// content is the RESULT of its actions (capture runs after the actions), and the
+// transition INTO that frame reveals the result. So a click captured into a
+// `continue` frame must be shown over the PREVIOUS frame's "before" image,
+// landing just before the transition — not in the middle of the frame that
+// already shows the change it caused. Before this fix, the cart-htmx demo's
+// three clicks fired at 1850 / 3170 / 4590 ms — each ~550 ms AFTER its own
+// result was already on screen.
+describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
+  // The cart-htmx shape: an initial frame then three continue frames, each one
+  // click + a 220 ms crossfade. (durations: 1000, 1100, 1100, 1300.)
+  const frames = validateAnimateConfig({
+    ...base,
+    cursor: "auto",
+    frames: [
+      { input: "a.html", duration: 1000 },
+      { continue: true, duration: 1100, transition: { type: "crossfade", duration: 220 }, actions: [{ type: "click", selector: "#load" }] },
+      { continue: true, duration: 1100, transition: { type: "crossfade", duration: 220 }, actions: [{ type: "click", selector: "#remove" }] },
+      { continue: true, duration: 1300, transition: { type: "crossfade", duration: 220 }, actions: [{ type: "click", selector: "#reload" }] },
+    ],
+  }).frames;
+  const starts = frameStartsFor(frames); // [0, 1300, 2620, 3940]
+  // One auto target per click, recorded against the frame whose actions hold it.
+  const targets = [
+    { frame: 1, cx: 10, cy: 10 },
+    { frame: 2, cx: 20, cy: 20 },
+    { frame: 3, cx: 30, cy: 30 },
+  ];
+
+  it("fires each continue-frame's click during the PREVIOUS frame's hold, before the reveal", () => {
+    const ov = buildCursorOverlay(true, [], undefined, targets, new Map(), starts, frames);
+    const clickTimes = clicksOf(ov).map((c) => c.t).sort((a, b) => a - b);
+    expect(clickTimes).toHaveLength(3);
+    // Each click must land within its STAGE frame's hold (the before-image) and
+    // strictly before the result frame's own start (= when its reveal completes).
+    for (let i = 0; i < 3; i++) {
+      const actionFrame = i + 1;
+      const stage = actionFrame - 1; // continue frames stage over the predecessor
+      const stageStart = starts[stage];
+      const stageHoldEnd = starts[stage] + frames[stage].duration;
+      const t = clickTimes[i];
+      expect(t).toBeGreaterThanOrEqual(stageStart);
+      expect(t).toBeLessThanOrEqual(stageHoldEnd);          // within the before-image's hold
+      expect(t).toBeLessThan(starts[actionFrame]);          // before the result frame begins
+    }
+  });
+
+  it("does NOT fire a click during its OWN result frame's hold (the bug)", () => {
+    const ov = buildCursorOverlay(true, [], undefined, targets, new Map(), starts, frames);
+    const clickTimes = clicksOf(ov).map((c) => c.t).sort((a, b) => a - b);
+    // The old behavior placed each click at the mid-hold of the frame that holds
+    // its action — i.e. inside the result image (1850 / 3170 / 4590). Each
+    // click[i] is for action frame i+1; assert it is NOT inside that frame's hold.
+    for (let i = 0; i < 3; i++) {
+      const actionFrame = i + 1;
+      const holdStart = starts[actionFrame];
+      const holdEnd = starts[actionFrame] + frames[actionFrame].duration;
+      const t = clickTimes[i];
+      expect(t < holdStart || t > holdEnd).toBe(true);
+    }
+    // And concretely: none of the new times equal the old buggy mid-hold times.
+    expect(clickTimes).not.toContain(1850);
+    expect(clickTimes).not.toContain(3170);
+    expect(clickTimes).not.toContain(4590);
+  });
+
+  it("keeps a frame-0 / reload-frame click in its own hold (no prior before-image to stage over)", () => {
+    const reloadFrames = validateAnimateConfig({
+      ...base,
+      cursor: "auto",
+      frames: [
+        { input: "a.html", duration: 1000, actions: [{ type: "click", selector: "#a" }] },
+        { input: "b.html", duration: 1000, transition: { type: "crossfade", duration: 200 }, actions: [{ type: "click", selector: "#b" }] },
+      ],
+    }).frames;
+    const rs = frameStartsFor(reloadFrames); // [0, 1300]
+    const rt = [{ frame: 0, cx: 1, cy: 1 }, { frame: 1, cx: 2, cy: 2 }];
+    const ov = buildCursorOverlay(true, [], undefined, rt, new Map(), rs, reloadFrames);
+    const ct = clicksOf(ov).map((c) => c.t).sort((a, b) => a - b);
+    expect(ct).toHaveLength(2);
+    // Frame 0 click stays in frame 0's hold; the reload frame's click stays in
+    // its OWN hold (its before-state was never captured, so there's nothing to
+    // stage it over).
+    expect(ct[0]).toBeGreaterThanOrEqual(rs[0]);
+    expect(ct[0]).toBeLessThanOrEqual(rs[0] + reloadFrames[0].duration);
+    expect(ct[1]).toBeGreaterThanOrEqual(rs[1]);
+    expect(ct[1]).toBeLessThanOrEqual(rs[1] + reloadFrames[1].duration);
   });
 });

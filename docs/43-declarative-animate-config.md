@@ -194,12 +194,27 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 }
 ```
 
-**Derived** — `"cursor": "auto"`: for each `click`/`hover`/`fill` action, resolve the target's bbox and emit a move + click-pulse at that action's time, so the pointer simply *follows the actions* — perfectly synced, zero manual authoring.
+**Derived** — `"cursor": "auto"`: for each `click`/`hover`/`fill` action, resolve the target's bbox and emit a move + click-pulse, so the pointer simply *follows the actions* — perfectly synced, zero manual authoring.
 
 **Semantics.**
 - Explicit `events[].selector` resolves to a bbox at the named frame's capture; `at` is ms within that frame, mapped to global time via the existing per-frame timeline.
-- `"auto"` derives one cursor event per interaction action from the action's resolved target + computed time; `style` defaults apply.
+- `"auto"` derives one cursor event per interaction action from the action's resolved target + a computed time (see the timing model below); `style` defaults apply.
 - Event `type` mirrors the cursor-overlay API (`move`/`click`/`moveClick`/`hide`).
+
+**Auto-cursor timing — where the click lands (DM-1050).** This is the one part of the model that surprises authors, so it's worth stating plainly. A frame's captured **content is the _result_ of its `actions`** — capture runs *after* the actions — and the **transition _into_ a frame is what reveals that result**. So a frame's job is to show the *outcome* of its own click. To read as cause→effect, the click must therefore be shown on the **previous** frame's image (the "before" state), landing just before the transition that reveals the result.
+
+`"auto"` does exactly this: for a click in a `continue` frame, the move + pulse are placed near the **end of the previous frame's hold**, so the pointer clicks the button on the before-image and the crossfade then reveals what the click produced. (A click in frame 0, or in a frame that reloads via `input`, has no prior before-image to stage over, so its pulse stays within its own hold.)
+
+Worked example — the cart demo:
+
+```jsonc
+{ "input": "…/cart/", "duration": 1000 },                              // frame 0: empty cart
+{ "continue": true,
+  "actions": [{ "type": "click", "selector": "#load-cart" }, { "type": "wait", "ms": 200 }],
+  "transition": { "type": "crossfade", "duration": 220 }, "duration": 1100 }  // frame 1: LOADED cart
+```
+
+The pointer clicks `#load-cart` during frame 0's hold (over the empty cart), then the 220 ms crossfade reveals the loaded cart that the click produced — *not* a click landing in the middle of the already-loaded cart. The `duration`/`transition` on frame 1 size **frame 1's own hold and the crossfade out of it**; they don't bound the click, which belongs to the frame-0 → frame-1 reveal. (Before DM-1050 the auto-cursor placed each click at the mid-hold of its *own* result frame, so the pointer appeared to click *after* the change it caused was already on screen.)
 
 **Replaces.** The need to drop to the programmatic API solely to get an on-screen pointer. `"auto"` is broadly useful for any interaction demo.
 

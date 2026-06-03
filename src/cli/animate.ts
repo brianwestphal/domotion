@@ -868,7 +868,7 @@ async function queryCursorBox(page: Page, sel: string): Promise<{ cx: number; cy
  * target, spaced across each frame's hold; the explicit form maps each
  * `{ frame, at }` event to global time. Move events carry absolute `to` coords.
  */
-function buildCursorOverlay(
+export function buildCursorOverlay(
   auto: boolean,
   explicitEvents: CursorEventInput[],
   styleCfg: CursorStyleInput | undefined,
@@ -881,17 +881,42 @@ function buildCursorOverlay(
   const events: CursorEvent[] = [];
 
   if (auto) {
-    const byFrame = new Map<number, Array<{ cx: number; cy: number }>>();
+    // DM-1050: stage each interaction over the image it visually happens ON.
+    // In the continuous-session model a frame's CONTENT is the RESULT of its
+    // actions — capture runs AFTER the actions — and the transition INTO that
+    // frame is what reveals the result. So a click captured into a `continue`
+    // frame must be shown during the PREVIOUS frame's hold (the "before" image),
+    // landing just before that transition. Otherwise the click pulse fires in
+    // the middle of the frame that already shows the change it caused — the
+    // reported bug: "the mouse moves and clicks after the change is shown."
+    // A click in frame 0 (or a reload frame, which loads a fresh page) has no
+    // prior before-image, so it stays within its own hold.
+    const stageFor = (actionFrame: number): number => {
+      if (actionFrame === 0) return 0;
+      const fc = frames[actionFrame];
+      const isContinue = fc.continue === true || fc.input == null;
+      return isContinue ? actionFrame - 1 : actionFrame;
+    };
+    const byStage = new Map<number, Array<{ cx: number; cy: number }>>();
     for (const tgt of autoTargets) {
-      const arr = byFrame.get(tgt.frame) ?? [];
+      const stage = stageFor(tgt.frame);
+      const arr = byStage.get(stage) ?? [];
       arr.push({ cx: tgt.cx, cy: tgt.cy });
-      byFrame.set(tgt.frame, arr);
+      byStage.set(stage, arr);
     }
-    for (const [frame, targets] of byFrame) {
-      const start = frameStarts[frame];
-      const dur = frames[frame].duration;
+    for (const [stage, targets] of byStage) {
+      const start = frameStarts[stage];
+      const holdEnd = start + frames[stage].duration;
+      // Leave a short beat after the last click before the transition reveals
+      // the result, so the click reads as cause-then-effect rather than landing
+      // exactly on the cut.
+      const tail = Math.min(250, frames[stage].duration * 0.25);
+      const lastHit = holdEnd - tail;
+      const span = Math.max(0, lastHit - start);
       targets.forEach((tg, m) => {
-        const tHit = start + (dur * (m + 0.5)) / targets.length;
+        // Single click → land at `lastHit` (just before the transition).
+        // Multiple → spread across the hold so the LAST still lands at lastHit.
+        const tHit = targets.length === 1 ? lastHit : start + (span * (m + 1)) / targets.length;
         events.push({ type: "move", t: Math.max(start, tHit - moveDur), duration: moveDur, to: { x: tg.cx, y: tg.cy } });
         events.push({ type: "click", t: tHit });
       });
