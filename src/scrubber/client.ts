@@ -96,6 +96,7 @@ const loopChk = el("input", { type: "checkbox", checked: "" }) as HTMLInputEleme
 const clearRange = el("button", {}, ["Reset range"]);
 
 const exportFrameBtn = el("button", {}, ["⤓ Export frame (PNG)"]);
+const exportVideoBtn = el("button", { title: "render the in/out range to an MP4 (server-side, 30 fps)" }, ["🎬 Range → MP4"]);
 const trimBtn = el("button", {}, ["✂ Trim → SVG"]);
 const status = el("span", { class: "muted" }, [""]);
 const dlAnchor = el("a", { class: "dl" });
@@ -105,7 +106,7 @@ const bar = el("div", { class: "bar" }, [
   el("div", { class: "row rng" }, [
     el("span", { class: "tag" }, ["Range"]), setIn, inN, el("span", { class: "muted" }, ["→"]), outN, setOut,
     el("label", {}, [loopChk, "loop"]), clearRange,
-    el("span", { style: "flex:1" }), exportFrameBtn, trimBtn, status,
+    el("span", { style: "flex:1" }), exportFrameBtn, exportVideoBtn, trimBtn, status,
   ]),
 ]);
 app.append(el("div", { class: "wrap" }, [stage, bar]), fileInput, dlAnchor);
@@ -148,7 +149,7 @@ function seekAll(ms: number): void {
 }
 
 function setControlsEnabled(on: boolean): void {
-  for (const b of [playBtn, speedSel, scrub, setIn, setOut, inN, outN, loopChk, clearRange, exportFrameBtn, trimBtn]) {
+  for (const b of [playBtn, speedSel, scrub, setIn, setOut, inN, outN, loopChk, clearRange, exportFrameBtn, exportVideoBtn, trimBtn]) {
     (b as HTMLButtonElement).disabled = !on;
   }
 }
@@ -293,6 +294,27 @@ exportFrameBtn.addEventListener("click", async () => {
     status.textContent = `exported frame @ ${fmt(playhead)}`;
   } catch (err) { status.textContent = err instanceof Error ? err.message : "export failed"; }
   finally { exportFrameBtn.disabled = false; }
+});
+
+exportVideoBtn.addEventListener("click", async () => {
+  if (svgText === "") return;
+  const s = rangeStart, e = rangeEnd > rangeStart ? rangeEnd : durationMs;
+  const svg = stage.querySelector("svg")!;
+  const w = svg.clientWidth || svg.viewBox?.baseVal?.width || 800;
+  const h = svg.clientHeight || svg.viewBox?.baseVal?.height || 600;
+  status.textContent = `rendering MP4 (${fmt(s)}–${fmt(e)} @ 30fps)…`; exportVideoBtn.disabled = true;
+  try {
+    const r = await fetch("/export-range-video", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, width: w, height: h }) });
+    if (!r.ok) {
+      let msg = `export failed (${r.status})`;
+      try { msg = (await r.json() as { error?: string }).error ?? msg; } catch { /* non-JSON body */ }
+      throw new Error(msg);
+    }
+    triggerDownload(await r.blob(), `${svgName}-${Math.round(s)}-${Math.round(e)}ms.mp4`);
+    status.textContent = `exported MP4 ${fmt(s)}–${fmt(e)}`;
+  } catch (err) { status.textContent = err instanceof Error ? err.message : "video export failed"; }
+  finally { exportVideoBtn.disabled = false; }
 });
 
 trimBtn.addEventListener("click", async () => {

@@ -62,14 +62,13 @@ describe("animated-svg-scrubber server (DM-1040)", () => {
     expect(t.height).toBe(60);
   });
 
-  it("/trim re-bases the timeline to the in-point (CSS delay shift + keyframes intact)", async () => {
+  it("/trim window-slices the period-spanning animation to the window", async () => {
     if (!chromiumAvailable) return;
     const r = await (await post("/trim", { svg: SVG, startMs: 500, endMs: 1500, periodMs: 2000 })).json() as
-      { svg: string; shiftedCss: number; shiftedSmil: number };
-    expect(r.shiftedCss).toBe(1);
-    expect(r.svg).toContain("@keyframes m"); // keyframes left intact
-    expect(r.svg).toMatch(/animation-delay:-0\.5s/); // re-based to the 0.5s in-point
-    expect(r.svg).toContain("animation-fill-mode:both");
+      { svg: string; slicedCss: number; shiftedCss: number };
+    expect(r.slicedCss).toBe(1); // `m` (2s ≈ period, infinite) is period-spanning → sliced
+    expect(r.svg).toContain("@keyframes m"); // kept (sliced in place)
+    expect(r.svg).toMatch(/animation:\s*m 1s/); // duration → the 1s window
   });
 
   it("/export-frame returns a PNG of the seeked frame", async () => {
@@ -88,4 +87,28 @@ describe("animated-svg-scrubber server (DM-1040)", () => {
     const b = Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 1000, width: 100, height: 60 })).arrayBuffer());
     expect(a.equals(b)).toBe(false); // the rect has translated, so the PNGs differ
   });
+
+  it("/export-range-video rejects an empty range", async () => {
+    if (!chromiumAvailable) return;
+    const r = await post("/export-range-video", { svg: SVG, startMs: 500, endMs: 500, width: 100, height: 60 });
+    expect(r.status).toBe(400);
+    expect((await r.json() as { error: string }).error).toMatch(/empty range/);
+  });
+
+  it("/export-range-video renders the window to an MP4 (DM-1042)", async () => {
+    if (!chromiumAvailable) return;
+    // Needs ffmpeg; skip the body (not the assertion) when it isn't installed so
+    // a CI box without ffmpeg stays green rather than failing.
+    let hasFfmpeg = true;
+    try { (await import("node:child_process")).execFileSync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"]); }
+    catch { hasFfmpeg = false; }
+    if (!hasFfmpeg) return;
+    const r = await post("/export-range-video", { svg: SVG, startMs: 0, endMs: 1000, width: 100, height: 60 });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("video/mp4");
+    const buf = Buffer.from(await r.arrayBuffer());
+    expect(buf.length).toBeGreaterThan(100);
+    // ISO-BMFF: bytes 4..8 are the "ftyp" box type.
+    expect(buf.slice(4, 8).toString("ascii")).toBe("ftyp");
+  }, 60_000);
 });

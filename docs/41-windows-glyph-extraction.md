@@ -261,13 +261,17 @@ a cert is provisioned.
   question 1); arm64 asset (open question 2); the JS-side dispatch that actually
   *invokes* the helper (`src/render/glyph-helper.ts` is still macOS-gated — the same
   generalization tracked for Linux in DM-881 extends to win32).
-- ⚠️ **Persistent `--serve` mode written, not yet Windows-validated** (DM-1035):
+- ✅ **Persistent `--serve` mode — built + verified on real Windows** (DM-1035):
   the DirectWrite helper gained the same line-delimited serve loop + face-reuse
   cache as the Linux/macOS helpers (a structural mirror of the Linux change, no
   new DirectWrite API calls), the persistent-channel gate in
   `glyph-helper.ts::callHelper` was lifted for `win32`, and a Windows serve test
-  asserting byte-identity to one-shot was added. It is **unverified on a real
-  Windows host** (no MSVC/DirectWrite on the dev box; Docker can't host Windows)
-  — the `windows-fidelity.yml` CI job is the compile + byte-identity gate, same
-  as the original DM-837 helper. Runtime risk is bounded: the wrapper's one-shot
-  `spawnSync` fallback transparently recovers if the serve channel misbehaves.
+  asserting byte-identity to one-shot was added. Verified on a Windows 11 host
+  (ARM64, x64 target via the `arm64_amd64` MSVC v143 cross-tools + Windows 11
+  SDK 10.0.22621): `main.cpp` compiles clean; a `meta` + `glyphs` query on Arial
+  returns correct metrics (unitsPerEm 2048, ascent 1854) and a real outline (the
+  'A' glyph, id 36, with its counter + Bézier curves); and the `--serve`
+  responses are **byte-identical to one-shot** across two envelopes reusing one
+  font ref (the face cache). The `windows-fidelity.yml` CI job remains the
+  ongoing x64-native gate. Runtime risk is bounded by the wrapper's one-shot
+  `spawnSync` fallback if the serve channel ever misbehaves.

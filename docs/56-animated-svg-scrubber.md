@@ -33,6 +33,7 @@ The process serves a local HTTP UI and stays alive until `Ctrl-C`.
 | Scrub | The timeline slider seeks the playhead and pauses. |
 | Range | **[ In** / **Out ]** set the in/out points to the playhead, or type seconds directly. **loop** loops playback over `[in, out]`. **Reset range** restores the full loop. |
 | Export frame (PNG) | Renders the frame at the playhead **server-side** (Chromium) and downloads it. |
+| Range → MP4 | Renders the `[in, out]` window to an H.264 MP4 at 30 fps **server-side** (see below). |
 | Trim → SVG | Exports a new animated SVG re-timed to `[in, out]` (see below). |
 
 ## How playback works
@@ -59,56 +60,78 @@ identical to the corresponding video frame and to Chromium's own paint —
 rather than a canvas rasterization that can diverge on embedded raster /
 `foreignObject` content.
 
+## Range → MP4 video (DM-1042)
+
+`Range → MP4` renders the selected `[in, out]` window to an **H.264 MP4 at a
+fixed 30 fps**, server-side. It POSTs the SVG markup + window to
+`/export-range-video`; the server samples frame `i` at `in + i/30s`
+(`seekTo` + `screenshot`), pipes the PNG stream to ffmpeg (`buildFfmpegArgs`,
+the same encoder `svg-to-video` uses), and streams the resulting MP4 back for
+download. Unlike `Trim → SVG`, this raster export **isolates exactly the window**
+(frame count = `round((out − in)/1000 × 30)`), so it's the way to get a clip of
+just the selected range today.
+
+**ffmpeg is required** (a hard runtime dependency, not bundled — same as
+`svg-to-video`); if it's missing the export returns an error with install
+guidance rather than failing silently. Point the app at a specific binary with
+the `FFMPEG_PATH` env var. Output dimensions are the SVG's intrinsic size,
+rounded to even values (H.264 `yuv420p` needs even width/height).
+
 ## Trim → new animated SVG
 
-`Trim → SVG` produces a **new self-contained animated SVG** re-based to the
-in-point, preserving the exact visual state that existed there and animating
-forward for BOTH CSS and SMIL. The transform (`src/scrubber/trim.ts`, pure +
-unit-tested) does a **negative time shift** rather than keyframe surgery:
+`Trim → SVG` produces a **new self-contained animated SVG that loops exactly the
+selected `[in, out]` window** — for both CSS and SMIL. `src/scrubber/trim.ts`
+(pure + unit-tested) classifies each animation and uses one of two strategies:
 
-1. **CSS** — each `animation` shorthand gets `animation-delay: -t0s` and
-   `animation-fill-mode: both` appended as longhands (a single delay value
-   applies to every animation in a comma list, so multi-animation rules
-   `animation: fv-0 …, fd-0 … step-end` shift uniformly). The browser then
-   evaluates each animation at `t0` into its own timeline — content faded in
-   before `t0` shows faded-in, `step-end` `visibility` holds its `t0` value, and
-   `fill: both` keeps already-completed animations in their end state.
-2. **SMIL** — each timed element's `begin` is shifted by `-t0` (a bare `begin`
-   defaults to 0 → `-t0`). A negative begin means the animation began before the
-   new start, so at time 0 it already shows its `t0` state and keeps going;
-   `fill="freeze"` holds post-end state. Event/syncbase begins (`click`,
-   `id.end`) are left alone.
+1. **Period-spanning animations** (a looping animation whose duration ≈ the loop
+   period — the master cursor / content cycle) are **window-sliced**: their
+   `@keyframes` (CSS) or `values`/`keyTimes` (SMIL) are sliced to
+   `[f0, f1] = [in/period, out/period]` (interior stops remapped to `[0%, 100%]`,
+   boundary stops synthesised at the window edges), and their duration set to the
+   window length. So the output loops the window. Boundary interpolation is
+   linear for continuous channels (opacity, transform, multi-component SMIL
+   values) and **snaps** discrete ones (`step-end` `visibility`, SMIL
+   `calcMode="discrete"`).
+2. **Scheduled animations** (a short `<animate begin="1.85s" dur="0.5s">` ripple,
+   or any non-period CSS animation):
+   - CSS: re-based by a negative time shift — `animation-delay: -t0` +
+     `animation-fill-mode: both` (DM-1045) — so it fires at the right offset.
+   - SMIL: re-timed to RE-FIRE every loop. A ripple landing inside the window
+     gets a self-referencing syncbase `begin="Δs; id.begin+winS"` /
+     `end="winS; id.end+winS"` (a 2-entry loop, no long list) + `fill="remove"`,
+     so each instance fires at its window offset and is clipped at the boundary;
+     one that fires only after the window becomes `begin="indefinite"`.
 
-The `@keyframes` blocks and SMIL `values`/`keyTimes` are left byte-for-byte
-intact — the engines do the interpolation. This sidesteps the pitfalls that
-broke the earlier keyframe-rewriting attempt (multi-animation shorthands,
-`step-end`, discrete `visibility`, SMIL value lists) — see DM-1045.
+Re-basing alone (DM-1045) already reproduced the window CONTENT; the slicing
+(DM-1041) is what makes it LOOP the window. Verified with an A/B harness against
+`cart-htmx.svg`: trimmed @ k matches original @ in+k (within-window 0% diff) AND
+trimmed @ (win+k) matches original @ in+k (the loop is pixel-clean by the 2nd
+iteration).
 
-### Known limitation (tracked as a follow-up)
+### Known limitations (fall back to plain re-basing, no slice)
 
-- **No hard out-point clip yet.** The export re-bases to the in-point and plays
-  the full original period forward, looping at that period — it does not yet
-  truncate the tail at the out-point. True window-looping needs per-keyframe /
-  per-`values` slicing layered on top of the re-base (a follow-up). The in-point
-  fidelity + SMIL re-timing this delivers were the reported breakages.
+- A CSS rule mixing period-spanning + scheduled animations in **one** shorthand.
+- SMIL `calcMode="paced"` / `"spline"` (extra timing data not sliced).
+- Ranges spanning **multiple** periods (the window is taken within one period).
 
 ## Scope (this version)
 
-Per the requested design: range export targets a **new animated SVG** (not
-video/GIF/PNG-sequence — use `svg-to-video` for those), frame export is the
-**current frame** only, and all rendering-fidelity-sensitive export runs
-**server-side** through Chromium. Batch frame export, video/GIF range export,
-and in-browser (instant) export are deliberately out of scope here and tracked
-separately.
+Per the requested design, exports are: **current frame → PNG**, **range → MP4**
+(H.264, 30 fps), and **range → windowed-loop animated SVG** — all rendered
+**server-side** through Chromium. Animated-GIF / WebM range export, batch
+frame-sequence (ZIP) export, and an in-browser (instant, canvas) export path
+were deliberately not built (the user selected MP4 only); they're tracked as a
+follow-up and reuse the same `svg-to-video` / per-frame machinery.
 
 ## Code map
 
 - `src/cli/scrubber.ts` — the `animated-svg-scrubber` bin (arg parsing, browser
   launch, open, lifecycle).
 - `src/scrubber/server.ts` — HTTP server: static shell + client bundle;
-  `/timing`, `/trim`, `/export-frame` endpoints; one reused Chromium page.
+  `/timing`, `/trim`, `/export-frame`, `/export-range-video` endpoints; one
+  reused Chromium page (Chromium work is serialized — one export at a time).
 - `src/scrubber/client.ts` — the page-side UI (bundled to `/client.js` by
   `scripts/build-scrubber-client.mjs`, baked into `client.bundle.generated.ts`).
-- `src/scrubber/trim.ts` — the pure timeline re-base (negative-time-shift) transform.
+- `src/scrubber/trim.ts` — the pure window-slice + re-base transform.
 - Tests: `src/scrubber/trim.test.ts` (transform), `src/scrubber/server.e2e.test.ts`
   (endpoints end-to-end through Chromium).

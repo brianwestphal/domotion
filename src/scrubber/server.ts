@@ -20,10 +20,59 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
+import { spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Browser, Page } from "@playwright/test";
-import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize, resolveDurationMs, type AnimTiming } from "../cli/svg-to-video-core.js";
+import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize, resolveDurationMs, findFfmpeg, resolveFormat, buildFfmpegArgs, fitContain, type AnimTiming } from "../cli/svg-to-video-core.js";
 import { trimAnimatedSvg } from "./trim.js";
 import { SCRUBBER_CLIENT_JS } from "./client.bundle.generated.js";
+
+/** Fixed export frame rate (DM-1042 — per requested design). */
+const EXPORT_FPS = 30;
+
+/**
+ * Render the `[t0, t1]` window of `svg` to an MP4 (H.264) and return the bytes.
+ * Reuses the `svg-to-video` machinery — Playwright seek+screenshot per frame
+ * piped to ffmpeg — but, unlike the SVG trim, this naturally isolates exactly
+ * the selected window (frame i is sampled at `t0 + i/fps`). Throws (with install
+ * guidance) when ffmpeg is missing. Runs on the caller's serialized Chromium
+ * page.
+ */
+async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number, width: number, height: number): Promise<Buffer> {
+  const ffmpeg = findFfmpeg(process.env.FFMPEG_PATH || "ffmpeg"); // throws if absent
+  const fmt = resolveFormat("h264"); // → mp4 / yuv420p (needs even W/H)
+  const { width: outW, height: outH } = fitContain(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
+  const frameCount = Math.max(1, Math.round(((t1 - t0) / 1000) * EXPORT_FPS));
+
+  await page.setViewportSize({ width: outW, height: outH });
+  await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
+
+  const dir = mkdtempSync(join(tmpdir(), "scrubber-mp4-"));
+  const outPath = join(dir, "range.mp4");
+  const args = buildFfmpegArgs({ fps: EXPORT_FPS, frameWidth: outW, frameHeight: outH, outWidth: outW, outHeight: outH, fmt, output: outPath, burnCaptions: false });
+  const ff = spawn(ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
+  let ffErr = "";
+  ff.stderr?.on("data", (d: Buffer) => { ffErr += d.toString(); if (ffErr.length > 8192) ffErr = ffErr.slice(-8192); });
+  const ffDone = new Promise<void>((resolve, reject) => {
+    ff.on("error", reject);
+    ff.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${ffErr.slice(-400)}`))));
+  });
+  const writeFrame = (buf: Buffer): Promise<void> =>
+    new Promise((res, rej) => ff.stdin!.write(buf, (err) => (err ? rej(err) : res())));
+  try {
+    for (let i = 0; i < frameCount; i++) {
+      await seekTo(page, t0 + (i * 1000) / EXPORT_FPS);
+      await writeFrame(await screenshot(page));
+    }
+    ff.stdin!.end();
+    await ffDone;
+    return readFileSync(outPath);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 export interface ScrubberServerInputs {
   port?: number;
@@ -141,7 +190,7 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         const { svg, startMs, endMs, periodMs } = JSON.parse(await readBody(req)) as
           { svg: string; startMs: number; endMs: number; periodMs: number };
         const r = trimAnimatedSvg(svg, startMs, endMs, periodMs);
-        sendJson(res, 200, { svg: r.svg, shiftedCss: r.shiftedCss, shiftedSmil: r.shiftedSmil });
+        sendJson(res, 200, { svg: r.svg, slicedCss: r.slicedCss, slicedSmil: r.slicedSmil, shiftedCss: r.shiftedCss, shiftedSmil: r.shiftedSmil });
         return;
       }
       if (req.method === "POST" && url === "/export-frame") {
@@ -155,6 +204,17 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         });
         res.writeHead(200, { "content-type": "image/png", "content-length": png.length });
         res.end(png);
+        return;
+      }
+      if (req.method === "POST" && url === "/export-range-video") {
+        const { svg, startMs, endMs, width, height } = JSON.parse(await readBody(req)) as
+          { svg: string; startMs: number; endMs: number; width: number; height: number };
+        const t0 = Math.max(0, Math.min(startMs, endMs));
+        const t1 = Math.max(startMs, endMs);
+        if (!(t1 - t0 >= 1)) { sendJson(res, 400, { error: "empty range — set an in/out window first" }); return; }
+        const mp4 = await withChromium((page) => renderRangeVideo(page, svg, t0, t1, width, height));
+        res.writeHead(200, { "content-type": "video/mp4", "content-length": mp4.length });
+        res.end(mp4);
         return;
       }
       res.writeHead(404, { "content-type": "text/plain" });
