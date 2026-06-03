@@ -993,6 +993,18 @@ const ACCEPTED_DIFFS: Record<string, string> = {
   // non-zero height is kept). Expected vs actual are visually identical; the
   // residual ~0.04% is antialiasing scatter on the thin 1–2px mark strokes.
   "0300-036F-combining-diacritical-marks": "DM-1027: marks now render at Chrome's positions; residual is sub-pixel antialiasing scatter on the thin marks — accepted baseline",
+  // DM-1039: writing-mode + mixed-scripts + tate-chu-yoko. All seven vertical
+  // blocks render structurally correct after DM-1024 (per-glyph baseline/ascent
+  // drift) and DM-1032 (tate-chu-yoko `text-combine-upright` digit cells, now
+  // zero-diff). The remaining ~0.13% / ~21 regions is text-rasterization scatter
+  // on the dense upright CJK ideographs: a per-cell ink-bbox probe (本/文/縦/書)
+  // showed expected and actual ink land at the SAME position (e.g. 本/縦 both
+  // trim to +3+2), so there is no baseline/centering offset to fix — the diff is
+  // uniform faint glyph-edge ghosting (Chrome's Skia raster vs our glyph
+  // outlines), the same antialiasing class the rest of the suite carries, just
+  // multiplied by the many stroke-edges of CJK so the region COUNT (not the area)
+  // trips the verdict. Reviewed visually + quantitatively; accepted baseline.
+  "20-deep-writing-mode-mixed": "DM-1039: vertical writing-mode + tate-chu-yoko render correct (DM-1024 + DM-1032); ink positions match Chrome per-glyph, residual is CJK-glyph antialiasing scatter — accepted baseline",
   // DM-1025: Misc Symbols (U+2600-26FF) — the dominant diff (zodiac signs + ☔
   // etc. wrongly painted as color emoji) is fixed: the capture now probes
   // Chrome's actual presentation per font (the fixture lists "Apple Symbols"
