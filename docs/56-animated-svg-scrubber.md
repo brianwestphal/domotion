@@ -27,14 +27,15 @@ The process serves a local HTTP UI and stays alive until `Ctrl-C`.
 
 | Control | Behavior |
 | --- | --- |
-| Play / pause | Space, or the ▶/❚❚ button. |
+| Play / pause | Space, or the **Play** / **Pause** button. |
 | Frame step | `←` / `→` step one 30 fps frame; hold **Shift** to step 1 ms. |
-| Speed | 0.1×–4× select; affects playback only, not the underlying timeline. |
-| Scrub | The timeline slider seeks the playhead and pauses. |
-| Range | **[ In** / **Out ]** set the in/out points to the playhead, or type seconds directly. **loop** loops playback over `[in, out]`. **Reset range** restores the full loop. |
-| Export frame (PNG) | Renders the frame at the playhead **server-side** (Chromium) and downloads it. |
-| Range → MP4 | Renders the `[in, out]` window to an H.264 MP4 at 30 fps **server-side** (see below). |
-| Trim → SVG | Exports a new animated SVG re-timed to `[in, out]` (see below). |
+| Speed | 0.1x–4x select; affects playback only, not the underlying timeline. |
+| Scrub | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range on the track. |
+| Range | **In** / **Out** set the in/out points to the playhead, or type seconds directly. **loop** loops playback over `[in, out]`. **Reset range** restores the full loop. |
+| Zoom / pan | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **+** / **-** buttons step zoom. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
+| Export | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). |
+
+The UI is built with **kerfjs** (signals + `mount` + `delegate`); the loaded SVG sits in a `data-morph-skip` host so the reactive re-render never touches it, while its animations and the zoom/pan transform are driven imperatively. No emoji are used in the UI.
 
 ## How playback works
 
@@ -130,7 +131,7 @@ follow-up and reuse the same `svg-to-video` / per-frame machinery.
 - `src/scrubber/server.ts` — HTTP server: static shell + client bundle;
   `/timing`, `/trim`, `/export-frame`, `/export-range-video` endpoints; one
   reused Chromium page (Chromium work is serialized — one export at a time).
-- `src/scrubber/client.ts` — the page-side UI (bundled to `/client.js` by
+- `src/scrubber/client.tsx` — the kerfjs page-side UI (bundled to `/client.js` by
   `scripts/build-scrubber-client.mjs`, baked into `client.bundle.generated.ts`).
 - `src/scrubber/trim.ts` — the pure window-slice + re-base transform.
 - Tests: `src/scrubber/trim.test.ts` (transform), `src/scrubber/server.e2e.test.ts`
