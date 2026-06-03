@@ -3372,8 +3372,15 @@ function renderTextAsEmbedded(
   const wantPcap = featuresArr.includes("pcap");
   const wantC2pc = featuresArr.includes("c2pc");
   const wantUnic = featuresArr.includes("unic");
-  for (const run of runs) {
-    const runScale = fontSize / run.font.unitsPerEm;
+  // The exact text each run is shaped with, plus its parallel per-source-char
+  // scale array. Synthesized small-caps (a `font-variant-caps` feature the
+  // resolved font lacks) uppercases lowercase chars so fontkit/CoreText hands
+  // back the uppercase glyph at the same position, flipping the scale to 0.7 so
+  // the emit step paints it smaller; uppercase chars pass through at synthUpper.
+  // Extracted (DM-1037) so the per-run render loop AND the shape pre-warm pass
+  // below compute byte-identical shaping text — the pre-warm must key the shape
+  // cache on the SAME text the layout() call will, or it wouldn't hit.
+  function computeRunShaping(run: FontRun): { shapingText: string; perCharScale: number[] } {
     const availableFeatures = Array.isArray((run.font as { availableFeatures?: string[] }).availableFeatures)
       ? ((run.font as { availableFeatures: string[] }).availableFeatures) : [];
     const fontHas = (f: string) => availableFeatures.includes(f);
@@ -3386,34 +3393,62 @@ function renderTextAsEmbedded(
     if (wantC2pc && !fontHas("c2pc")) { synthUpper = SMALL_CAP_SCALE; }
     if (wantUnic && !fontHas("unic")) { synthUpper = SMALL_CAP_SCALE; /* lowercase stays 1.0 per CSS Fonts 4 §3.5 */ }
     const doSynth = synthLower !== 1 || synthUpper !== 1;
-    // Build the shaping input text and a parallel per-source-char scale
-    // array indexed against run.text (UTF-16 units). When synthesis is
-    // active, lowercase chars get uppercased so fontkit hands back the
-    // uppercase glyph at the same codepoint position; the scale flips to
-    // 0.7 so the emit step renders that glyph smaller. Uppercase chars
-    // pass through, scaled per synthUpper.
-    let shapingText = run.text;
     const perCharScale: number[] = new Array(run.text.length).fill(1);
-    if (doSynth) {
-      let out = "";
-      for (let i = 0; i < run.text.length; i++) {
-        const ch = run.text[i];
-        const upper = ch.toUpperCase();
-        const isLower = needsSynthCaseFold && ch !== upper && upper !== ch.toLowerCase();
-        const isUpper = ch === upper && ch !== ch.toLowerCase();
-        if (isLower) {
-          out += upper;
-          perCharScale[i] = synthLower;
-        } else if (isUpper) {
-          out += ch;
-          perCharScale[i] = synthUpper;
-        } else {
-          out += ch;
-          perCharScale[i] = 1;
-        }
+    if (!doSynth) return { shapingText: run.text, perCharScale };
+    let out = "";
+    for (let i = 0; i < run.text.length; i++) {
+      const ch = run.text[i];
+      const upper = ch.toUpperCase();
+      const isLower = needsSynthCaseFold && ch !== upper && upper !== ch.toLowerCase();
+      const isUpper = ch === upper && ch !== ch.toLowerCase();
+      if (isLower) {
+        out += upper;
+        perCharScale[i] = synthLower;
+      } else if (isUpper) {
+        out += ch;
+        perCharScale[i] = synthUpper;
+      } else {
+        out += ch;
+        perCharScale[i] = 1;
       }
-      shapingText = out;
     }
+    return { shapingText: out, perCharScale };
+  }
+
+  // DM-1037: batch the per-run `shape` round-trips. The loop below calls
+  // run.font.layout(shapingText) once per run; for a native (CoreText/FreeType/
+  // DirectWrite) fallback font each such call issues one helper `shape`
+  // round-trip (one envelope each, even over the persistent `--serve` channel).
+  // Pre-warm here: group the runs' shaping texts by their resolved font
+  // instance and issue ONE batched `shape` envelope per instance, priming the
+  // per-run-text shape cache the subsequent layout() calls read. This only
+  // POPULATES that cache — layout() still independently decides per run whether
+  // to USE the shaped result (its fully-covered gate is unchanged) — so the
+  // emitted runs stay byte-identical. Native instances expose `warmShapes`;
+  // fontkit/webfont instances (in-process, no round-trip) don't, and are
+  // skipped. (`getFontInstance` caches by spec, so two runs that resolve to the
+  // same font share one instance and batch together.) The win is largest on the
+  // spawnSync platforms (~9–16 ms/round-trip) the ticket targets, and on Linux/
+  // Windows it also collapses the per-run `shape` queries that the FreeType /
+  // DirectWrite helpers reject (CoreText-only) into a single envelope.
+  {
+    const shapeBatch = new Map<FontInstance, string[]>();
+    for (const run of runs) {
+      const wf = (run.font as { warmShapes?: (texts: string[]) => void }).warmShapes;
+      if (wf == null) continue;
+      const { shapingText } = computeRunShaping(run);
+      if (shapingText.length === 0) continue;
+      const arr = shapeBatch.get(run.font);
+      if (arr != null) arr.push(shapingText);
+      else shapeBatch.set(run.font, [shapingText]);
+    }
+    for (const [font, texts] of shapeBatch) {
+      (font as unknown as { warmShapes: (texts: string[]) => void }).warmShapes(texts);
+    }
+  }
+  for (const run of runs) {
+    const runScale = fontSize / run.font.unitsPerEm;
+    const { shapingText, perCharScale } = computeRunShaping(run);
     let layout: { glyphs: Array<{ id: number; path: { commands: Array<{ command: string; args: number[] }> }; advanceWidth: number; codePoints?: number[] }>; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters?: number[] };
     try {
       layout = features != null && features.length > 0 ? run.font.layout(shapingText, features) : run.font.layout(shapingText);

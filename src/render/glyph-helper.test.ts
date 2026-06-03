@@ -430,6 +430,58 @@ describeHelper("CoreText glyph extractor", () => {
     warmed!.warmGlyphs(cps);
     expect(warmed!.glyphForCodePoint(0x6F22).id).toBe(lazyGlyphs[0].id);
   });
+
+  // DM-1037: `warmShapes(texts)` folds the per-run `shape` round-trips into one
+  // batched envelope, priming the same per-run-text shape cache `layout()`
+  // reads. Like `warmGlyphs`, it must leave `layout()` returning byte-identical
+  // results to the lazy per-run path — it only changes WHEN each run is shaped
+  // (once, together) not WHAT comes back. The renderer pre-warms with it after
+  // the DM-1036 coverage pre-warm, so coverage is known when `warmShapes` runs;
+  // its fully-covered gate mirrors `layout()`'s own shape gate exactly.
+  it("warmShapes primes the shape cache identically to lazy per-run layout (DM-1037)", () => {
+    // Several distinct CJK runs the same PingFang instance would shape, as a
+    // multi-run fallback paragraph produces (each Latin gap splits a new run).
+    const runTexts = ["你好", "世界", "早安", "谢谢", "漢字"];
+
+    // Lazy path: each run shaped on demand by its own `layout()` call.
+    const lazy = createGlyphHelperFont({ postscriptName: "PingFangSC-Regular" });
+    expect(lazy).not.toBeNull();
+    const lazyLaid = runTexts.map((t) => lazy!.layout(t));
+
+    // Pre-warmed path: warm coverage (as the DM-1036 pre-warm does), then warm
+    // every run's shape in ONE batched envelope, then lay each run out.
+    const warmed = createGlyphHelperFont({ postscriptName: "PingFangSC-Regular" });
+    expect(warmed).not.toBeNull();
+    const allCps = runTexts.flatMap((t) => [...t].map((c) => c.codePointAt(0)!));
+    warmed!.warmGlyphs(allCps);
+    (warmed as unknown as { warmShapes: (t: string[]) => void }).warmShapes(runTexts);
+    const warmLaid = runTexts.map((t) => warmed!.layout(t));
+
+    for (let r = 0; r < runTexts.length; r++) {
+      const a = lazyLaid[r];
+      const b = warmLaid[r];
+      expect(b.glyphs.length).toBe(a.glyphs.length);
+      expect(b.glyphs.length).toBeGreaterThan(0);
+      expect(b.clusters).toEqual(a.clusters);
+      for (let i = 0; i < a.glyphs.length; i++) {
+        expect(b.glyphs[i].id).toBe(a.glyphs[i].id);
+        expect(b.glyphs[i].advanceWidth).toBe(a.glyphs[i].advanceWidth);
+        expect(b.glyphs[i].path.commands.length).toBe(a.glyphs[i].path.commands.length);
+        expect(b.positions[i]).toEqual(a.positions[i]);
+      }
+    }
+
+    // Re-warming the now-cached set is a no-op, and a single-text warm of a
+    // brand-new run still primes correctly (matches a fresh lazy shape).
+    (warmed as unknown as { warmShapes: (t: string[]) => void }).warmShapes(runTexts);
+    const freshText = "你们好"; // 你们好
+    const freshLazy = createGlyphHelperFont({ postscriptName: "PingFangSC-Regular" });
+    const lazyFresh = freshLazy!.layout(freshText);
+    warmed!.warmGlyphs([...freshText].map((c) => c.codePointAt(0)!));
+    (warmed as unknown as { warmShapes: (t: string[]) => void }).warmShapes([freshText]);
+    const warmFresh = warmed!.layout(freshText);
+    expect(warmFresh.glyphs.map((g) => g.id)).toEqual(lazyFresh.glyphs.map((g) => g.id));
+  });
 });
 
 // DM-1031: the persistent `--serve` protocol. Spawn the binary once, stream

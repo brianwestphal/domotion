@@ -18,7 +18,10 @@ vi.mock("./text-to-path.js", () => ({
 const { renderVerticalSegments } = await import("./vertical-text.js");
 
 // renderTextAsPath positional arg indices under test.
+const ARG_TEXT = 0;
+const ARG_X = 1;
 const ARG_Y = 2;
+const ARG_XOFFSETS = 9;
 const ARG_ASCENT_OVERRIDE = 11;
 
 function makeElement(): CapturedElement {
@@ -80,5 +83,60 @@ describe("renderVerticalSegments — baseline / ascent handling (DM-1024)", () =
     // time (which dropped every upright glyph ~0.85em below its cell).
     expect(upright![ARG_Y]).toBeCloseTo(62 + 0.85 * 18, 5);
     expect(upright![ARG_ASCENT_OVERRIDE]).toBe(0);
+  });
+});
+
+// DM-1032: tate-chu-yoko. A `verticalCombineUpright` segment is emitted as ONE
+// renderTextAsPath call for the whole combined run (e.g. "31"), anchored at the
+// captured cell left with each glyph at its captured per-char xOffset — NOT the
+// per-char upright/rotated column walk. Font-independent (asserts the args the
+// renderer passes), so it holds on Linux CI where no macOS glyph path exists.
+function makeCombineElement(): CapturedElement {
+  return {
+    tag: "span",
+    styles: {
+      fontSize: "18px",
+      fontFamily: "sans-serif",
+      fontWeight: "400",
+      fontStyle: "normal",
+      textDecorationLine: "none",
+    },
+    fontAscent: 14,
+    textSegments: [
+      {
+        text: "31",
+        x: 91.08,
+        y: 50,
+        width: 19.8,
+        height: 18,
+        verticalWritingMode: "vertical-rl",
+        verticalCombineUpright: true,
+        verticalCombineXOffsets: [0, 9.89],
+      },
+    ],
+  } as unknown as CapturedElement;
+}
+
+describe("renderVerticalSegments — tate-chu-yoko combine (DM-1032)", () => {
+  beforeEach(() => {
+    calls.length = 0;
+  });
+
+  it("emits ONE upright run for the whole combined cell at the captured positions", () => {
+    const markup = renderVerticalSegments(makeCombineElement(), "rgb(0,0,0)");
+    expect(markup).not.toBe("");
+    // Exactly one renderTextAsPath call (the combined run) — not one per digit.
+    expect(calls.length).toBe(1);
+    const c = calls[0];
+    expect(c[ARG_TEXT]).toBe("31");
+    // Anchored at the captured cell left, NOT centered or column-split.
+    expect(c[ARG_X]).toBeCloseTo(91.08, 5);
+    // Upright baseline = cell top (50) + 0.85em, with ascentOverride=0 so the
+    // font ascent isn't added a second time (same invariant as the per-char
+    // upright path).
+    expect(c[ARG_Y]).toBeCloseTo(50 + 0.85 * 18, 5);
+    expect(c[ARG_ASCENT_OVERRIDE]).toBe(0);
+    // Each glyph placed at its captured per-char x (Chrome's painted layout).
+    expect(c[ARG_XOFFSETS]).toEqual([0, 9.89]);
   });
 });

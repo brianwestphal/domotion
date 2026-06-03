@@ -221,6 +221,55 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
     if (allChars.length === 0) {
       return { applied: true, text: text.trim(), textSegments };
     }
+    // DM-1032: tate-chu-yoko (`text-combine-upright`). When the element
+    // combines its run upright-and-horizontal into one ~1em cell, the chars
+    // share a column Y but spread along X (different `x`), so the column
+    // grouping below would split "31" into two single-char columns and rotate
+    // each. Detect the combine here and emit ONE combined segment instead,
+    // anchoring each glyph at its CAPTURED per-char x (Chrome's painted
+    // positions, including any sub-1em condensing). `all` combines the whole
+    // run; `digits[ N]` only combines when the run is entirely ASCII digits
+    // (the common authored case — a span wrapping just the digits) — a mixed
+    // `digits` run with non-digit chars falls through to normal column flow.
+    const tcu = cs.textCombineUpright || cs.webkitTextCombine || '';
+    const isCombineAll = tcu === 'all';
+    const allDigits = allChars.every((c) => c.ch.length === 1 && c.ch >= '0' && c.ch <= '9');
+    const isCombineDigits = (tcu.indexOf('digits') === 0) && allDigits;
+    if (isCombineAll || isCombineDigits) {
+      const metricsC = measureFontMetrics(cs);
+      // Shared cell top/height (all combined chars sit in one column cell), and
+      // the horizontal span of the combined glyphs (Chrome's painted extent).
+      let cellTop = Infinity, cellBot = -Infinity, minX = Infinity, maxX = -Infinity;
+      for (const c of allChars) {
+        cellTop = Math.min(cellTop, c.y);
+        cellBot = Math.max(cellBot, c.y + c.h);
+        minX = Math.min(minX, c.x);
+        maxX = Math.max(maxX, c.x + c.w);
+      }
+      const combinedText = allChars.map((c) => c.ch).join('').replace(/[\t\n\r]/g, ' ');
+      const xOffsets = allChars.map((c) => c.x - minX);
+      textSegments.push({
+        text: combinedText,
+        x: minX - vp.x,
+        y: cellTop - vp.y,
+        width: maxX - minX,
+        height: cellBot - cellTop,
+        verticalWritingMode: wm,
+        verticalCombineUpright: true,
+        verticalCombineXOffsets: xOffsets,
+      });
+      return {
+        applied: true,
+        text: combinedText,
+        textSegments,
+        textLeft: minX - vp.x,
+        textTop: cellTop - vp.y,
+        textWidth: maxX - minX,
+        textHeight: cellBot - cellTop,
+        fontAscent: metricsC.ascent,
+        fontDescent: metricsC.descent,
+      };
+    }
     // Group chars by COLUMN — matching `x` ±1 px. Within each column,
     // chars stack top-to-bottom in increasing `y` (their natural source
     // order, since Range follows DOM order).

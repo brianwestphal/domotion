@@ -110,6 +110,24 @@ export interface TextSegment {
    */
   verticalNaturalWidths?: number[];
   /**
+   * DM-1032: tate-chu-yoko (`text-combine-upright: all` / `digits`). When set,
+   * this vertical segment is a SINGLE horizontally-combined upright group that
+   * occupies one ~1em column cell, not a stack of column chars. `text` is the
+   * whole combined run (e.g. "31"); the renderer emits it as one upright
+   * horizontal run anchored at `(x, y)` with each glyph placed at its captured
+   * `verticalCombineXOffsets[i]` (Chrome's painted per-char x within the cell),
+   * so it bypasses the per-char upright/rotated column emission entirely.
+   */
+  verticalCombineUpright?: boolean;
+  /**
+   * DM-1032: per-char x offset (CSS px) of each combined glyph RELATIVE to the
+   * segment's `x` (the leftmost glyph), in DOM order. Chrome's actual painted
+   * positions — anchoring each glyph here reproduces the side-by-side combined
+   * layout (and any sub-1em condensing Chrome applied) without re-deriving it.
+   * One entry per UTF-16 code unit in `text`.
+   */
+  verticalCombineXOffsets?: number[];
+  /**
    * Viewport-relative rectangle (CSS pixels) to screenshot when the WHOLE
    * segment is raster-worthy — used for ::before / ::after pseudos whose
    * entire text is a color-bitmap run. Populated by CAPTURE_SCRIPT;

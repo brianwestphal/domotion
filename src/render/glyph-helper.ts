@@ -343,6 +343,16 @@ export interface GlyphHelperFontInstance {
    *  of issuing one round-trip each. Already-cached / known-missing codepoints
    *  are skipped. */
   warmGlyphs(cps: number[]): void;
+  /** DM-1037: batch the per-run `shape` queries. `layout(text)` issues one
+   *  `shape` helper round-trip per distinct run text; pre-warming every run
+   *  text of an element here collapses them into ONE envelope (many `shape`
+   *  queries → one round-trip), priming the same per-run-text shape cache that
+   *  `layout()` reads. Only texts this font FULLY covers are warmed — mirroring
+   *  `layout()`'s shape gate — so a text the layout call would never shape isn't
+   *  speculatively shaped. Already-cached texts are skipped. Populating the
+   *  cache never changes which result `layout()` returns, so the emitted runs
+   *  stay byte-identical to the lazy per-run path. */
+  warmShapes(texts: string[]): void;
   glyphForCodePoint(cp: number): GlyphHelperGlyph;
   getGlyph(id: number): GlyphHelperGlyph;
   layout(text: string, features?: string[]): {
@@ -498,6 +508,53 @@ export function createGlyphHelperFont(spec: {
 
     warmGlyphs(cps: number[]): void {
       fetchByCps(cps);
+    },
+
+    // DM-1037: batch the per-run `shape` round-trips. Mirrors `shapeText`'s
+    // per-text behavior exactly (same `{type:"shape",fontRef:"f",text}` query,
+    // same result-parsing, same cache write) but folds every text into ONE
+    // envelope so the helper is consulted once instead of once per run. Each
+    // batched query produces the identical result the lazy single-query call
+    // would, so the populated cache is byte-identical to lazily shaping.
+    warmShapes(texts: string[]): void {
+      const need: string[] = [];
+      const seen = new Set<string>();
+      for (const t of texts) {
+        if (t.length === 0 || seen.has(t) || shapeCache.has(t)) continue;
+        seen.add(t);
+        // Gate identical to `layout()`'s: only shape a run this font FULLY
+        // covers. Coverage must already be known (the selection walk / the
+        // DM-1036 coverage pre-warm populated it); if it isn't, conservatively
+        // skip and let `layout()` shape this text lazily — no behavior change,
+        // just no batching win for that one text.
+        const cps = [...t].map((c) => c.codePointAt(0)!);
+        const fullyCovered = cps.every(
+          (cp) => cpToGlyph.has(cp) && !missingCp.has(cp) && (cpToGlyph.get(cp)!.id) !== 0
+        );
+        if (fullyCovered) need.push(t);
+      }
+      if (need.length === 0) return;
+      let resp: HelperResponse;
+      try {
+        resp = callHelper({
+          fonts: [{ ref: "f", postscriptName: spec.postscriptName, fontPath: spec.fontPath, size: renderSize }],
+          queries: need.map((t) => ({ type: "shape" as const, fontRef: "f", text: t }))
+        });
+      } catch {
+        return; // batch failed wholesale — leave cache empty so layout() retries per-text
+      }
+      for (let i = 0; i < need.length; i++) {
+        const r = resp.results[i];
+        // A missing result (results array shorter than queries) is left
+        // uncached so `layout()` re-issues a single-query shape for it rather
+        // than caching a divergent value — preserves byte-identity under a
+        // partial batch failure. A present result is parsed exactly as
+        // `shapeText` does (including caching `null` on an error/non-shape
+        // response, matching the Linux/Windows "unknown query type" path).
+        if (r == null) continue;
+        const shaped = r.type === "shape" && Array.isArray(r.glyphs) ? r.glyphs : null;
+        shapeCache.set(need[i], shaped);
+      }
     },
 
     glyphForCodePoint(cp: number): GlyphHelperGlyph {

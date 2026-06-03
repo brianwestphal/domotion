@@ -111,6 +111,26 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
   for (const seg of el.textSegments) {
     if (seg.verticalWritingMode == null) continue;
     const segText = seg.text;
+    // DM-1032: tate-chu-yoko — one combined upright HORIZONTAL run in a single
+    // ~1em column cell. Handled BEFORE the per-char column fields are required
+    // (a combine segment carries none of `yOffsets`/`verticalOrientations`/
+    // `verticalAdvances`). Emit it as a single `renderTextAsPath` call anchored
+    // at the captured cell left (`seg.x`) and the upright baseline, with each
+    // glyph placed at its captured per-char x (`verticalCombineXOffsets`) so the
+    // side-by-side combined digits land exactly where Chrome painted them. Uses
+    // the same `ascentOverride = 0` + `charTop + 0.85em` baseline as the upright
+    // per-char path. Bypasses the per-char upright/rotated walk below.
+    if (seg.verticalCombineUpright) {
+      const decoMarkupC = renderVerticalDecoration(el, seg, fillColor);
+      if (decoMarkupC !== "") out.push(decoMarkupC);
+      const baseline = seg.y + fontSize * 0.85;
+      const inner = renderTextAsPath(
+        segText, seg.x, baseline, fontSize, fontFamily, fontWeight,
+        fillColor, undefined, undefined, seg.verticalCombineXOffsets, fontStyle, 0,
+      );
+      if (inner != null) out.push(inner);
+      continue;
+    }
     const yOffsets = seg.yOffsets;
     const orientations = seg.verticalOrientations;
     const advances = seg.verticalAdvances;
