@@ -168,6 +168,79 @@ describeLinux("native helper dispatch on Linux (createGlyphHelperFont)", () => {
   });
 });
 
+// DM-1034: the Linux FreeType helper's persistent `--serve` loop — the Linux
+// analogue of the macOS test above. Spawn the binary once, stream
+// newline-delimited request envelopes on stdin, read one response per line on
+// stdout; faces opened once are reused across requests. This is what
+// `callHelper` now uses on Linux (the darwin gate was lifted for linux), so we
+// exercise the wire protocol directly to guard the FreeType serve loop + face
+// reuse, and assert each serve response is BYTE-IDENTICAL to the one-shot
+// response for the same envelope (the acceptance contract).
+describeLinux("persistent --serve protocol on Linux (DM-1034)", () => {
+  it("reuses faces across requests and matches one-shot output byte-for-byte", () => {
+    const fontPath = resolveFontFile([
+      "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+      "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+      "/usr/share/fonts/liberation-fonts/LiberationSans-Regular.ttf",
+      "/usr/share/fonts/TTF/LiberationSans-Regular.ttf",
+      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    ]);
+    if (fontPath == null) return; // no usable font on this runner — skip the body
+
+    const FONT = { ref: "f", fontPath, size: 2048 };
+    const envA = { fonts: [FONT], queries: [
+      { type: "meta", fontRef: "f" },
+      { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }, { cp: 0x65 }, { cp: 0x21 }] }
+    ] };
+    // Second envelope reuses the SAME font ref to exercise the face cache.
+    const envB = { fonts: [FONT], queries: [
+      { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x57 }, { cp: 0x6F }] }
+    ] };
+
+    // One-shot reference outputs (raw stdout, trailing newline trimmed).
+    const oneShot = (req: unknown): string => {
+      const p = spawnSync(LINUX_HELPER!, [], { input: JSON.stringify(req), encoding: "utf-8" });
+      expect(p.status).toBe(0);
+      return p.stdout.trim();
+    };
+    const refA = oneShot(envA);
+    const refB = oneShot(envB);
+
+    const child = spawn(LINUX_HELPER!, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
+    const inFd = (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd
+      ?? (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
+    const outFd = (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd
+      ?? (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
+    expect(inFd).toBeTypeOf("number");
+    expect(outFd).toBeTypeOf("number");
+    let leftover = "";
+    const syncCall = (req: unknown): string => {
+      const line = Buffer.from(JSON.stringify(req) + "\n", "utf-8");
+      let off = 0;
+      while (off < line.length) {
+        try { off += writeSync(inFd!, line, off, line.length - off); }
+        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+      }
+      const tmp = Buffer.allocUnsafe(1 << 20);
+      while (!leftover.includes("\n")) {
+        try { const n = readSync(outFd!, tmp, 0, tmp.length, null); if (n > 0) leftover += tmp.toString("utf-8", 0, n); }
+        catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+      }
+      const nl = leftover.indexOf("\n");
+      const resp = leftover.slice(0, nl);
+      leftover = leftover.slice(nl + 1);
+      return resp;
+    };
+    try {
+      expect(syncCall(envA)).toBe(refA); // first request opens the face
+      expect(syncCall(envB)).toBe(refB); // second reuses the cached face
+    } finally {
+      child.stdin!.end();
+      child.kill();
+    }
+  });
+});
+
 describeHelper("CoreText glyph extractor", () => {
   it("extracts the Helvetica H outline at 100pt", () => {
     const response = callHelper({

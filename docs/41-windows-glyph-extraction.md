@@ -147,6 +147,44 @@ request is accepted for envelope compatibility but does not rescale the outline.
 Emit all numbers at fixed 3-decimal precision for deterministic, dedup-friendly
 output (parity with the other helpers).
 
+### Persistent `--serve` mode *(DM-1035)*
+
+By default the helper is one-shot: read one JSON request envelope from stdin (or
+`--input <path>`), write one JSON response to stdout, exit. Spawning the binary
+fresh per call pays a fixed cost each time — process spawn + `DWriteCreateFactory`
++ `CreateFontFace` — which dominates when a render issues many helper round-trips.
+
+`--serve` amortizes that cost exactly as the macOS CoreText and Linux FreeType
+serve modes do (the protocol is platform-neutral):
+
+- Read **one request envelope per line** on stdin; write **one response line** on
+  stdout; loop until EOF (the parent closing stdin ends the loop).
+- Opened `IDWriteFontFace`s are **reused across requests** via a process-lifetime
+  cache keyed by `postscriptName | fontPath | size | variations` (`fontCacheKey`)
+  — so the second and later requests for a font skip the `CreateFontFace` open.
+- A malformed line yields a `{"results":[],"error":"invalid JSON on input line"}`
+  response **without stopping the loop**; a font that fails to open leaves that
+  `ref` absent so its queries report `fontRef missing or unknown` (the one-shot
+  path still `die()`s on these — the fatal CLI contract is unchanged).
+- **stdin/stdout are forced to binary mode** (`_setmode(_fileno(...), _O_BINARY)`)
+  so Windows' default text-mode CRLF translation can't inject stray CRs into the
+  line-delimited framing or make serve output differ from one-shot. stdout is
+  flushed after every response (it's a pipe, hence buffered) so the parent's
+  synchronous read never blocks on buffered bytes.
+- Each serve response is **byte-identical** to the one-shot response for the same
+  envelope (asserted by the Windows serve test in
+  `tests/win32-glyph-extractor.test.ts`).
+
+The serve refactor — `fontCacheKey` + `handleEnvelope` + the stdin loop — is a
+structural mirror of the Linux helper's and **adds no new DirectWrite API calls**
+(the `runGlyphsQuery` / `runMetaQuery` bodies are unchanged), so the byte-identity
+follows from the same logic the Linux serve mode was empirically verified to have.
+The renderer's wrapper (`src/render/glyph-helper.ts::callHelper`) starts one
+long-lived `domotion-glyph-paths.exe --serve` child and does a synchronous
+request→response round-trip per call, falling back transparently to one-shot
+`spawnSync` if the channel can't be established (e.g. an older downloaded binary
+that predates `--serve`). DM-1035 lifted the persistent-channel gate for `win32`.
+
 ### Build script
 
 - `tools/win32-glyph-extractor/build.ps1` (PowerShell) and/or a `CMakeLists.txt`
@@ -223,3 +261,13 @@ a cert is provisioned.
   question 1); arm64 asset (open question 2); the JS-side dispatch that actually
   *invokes* the helper (`src/render/glyph-helper.ts` is still macOS-gated — the same
   generalization tracked for Linux in DM-881 extends to win32).
+- ⚠️ **Persistent `--serve` mode written, not yet Windows-validated** (DM-1035):
+  the DirectWrite helper gained the same line-delimited serve loop + face-reuse
+  cache as the Linux/macOS helpers (a structural mirror of the Linux change, no
+  new DirectWrite API calls), the persistent-channel gate in
+  `glyph-helper.ts::callHelper` was lifted for `win32`, and a Windows serve test
+  asserting byte-identity to one-shot was added. It is **unverified on a real
+  Windows host** (no MSVC/DirectWrite on the dev box; Docker can't host Windows)
+  — the `windows-fidelity.yml` CI job is the compile + byte-identity gate, same
+  as the original DM-837 helper. Runtime risk is bounded: the wrapper's one-shot
+  `spawnSync` fallback transparently recovers if the serve channel misbehaves.

@@ -7,6 +7,16 @@
 // docs/16-coretext-glyph-extraction.md (shared contract) and
 // docs/45-linux-glyph-extraction.md (Linux specifics).
 //
+// A persistent `--serve` mode (DM-1034) mirrors the macOS CoreText helper's:
+// read one request envelope per line on stdin, write one response per line on
+// stdout, loop until EOF, reusing opened FT_Faces across requests via a cache.
+// The fixed per-spawn cost (process spawn + FreeType init + face open) is what
+// the persistent process amortizes — so the renderer's `glyph-helper.ts` does
+// one round-trip per call over a single long-lived child instead of a fresh
+// `spawnSync` each time. The one-shot CLI mode below is the transparent
+// fallback (an older binary that predates `--serve` dies on the unknown flag,
+// the wrapper notices, and reverts to one-shot).
+//
 // Coordinate convention: outlines are emitted in FreeType's native y-UP, in
 // font design units, via FT_LOAD_NO_SCALE — exactly what fontkit's
 // `glyph.path.commands` returns, so the helper is a drop-in backend for the
@@ -434,7 +444,12 @@ static FT_Long resolveFaceIndex(FT_Library lib, const std::string& path,
   return 0;
 }
 
-static FontEntry openFont(FT_Library lib, const JsonValue& spec) {
+// Open the font described by `spec`. Returns true on success (populating
+// `out`); on failure returns false and sets `err` — the caller decides whether
+// to `die()` (one-shot mode, preserving the original fatal contract) or skip
+// the ref (`--serve` mode, where one bad envelope must not kill the server,
+// matching the macOS helper's `try? openFont`).
+static bool openFont(FT_Library lib, const JsonValue& spec, FontEntry& out, std::string& err) {
   std::string fontPath = spec.at("fontPath").asString();
   std::string postscriptName = spec.at("postscriptName").asString();
 
@@ -442,13 +457,15 @@ static FontEntry openFont(FT_Library lib, const JsonValue& spec) {
     // Family-name-only resolution (fontconfig) is intentionally not implemented:
     // the capture side always resolves a concrete fontPath via the platform
     // font-path map before invoking the helper. Fail loudly rather than guess.
-    die("font.fontPath missing (family-name resolution is not supported; pass a fontPath)");
+    err = "font.fontPath missing (family-name resolution is not supported; pass a fontPath)";
+    return false;
   }
 
   FT_Long faceIndex = resolveFaceIndex(lib, fontPath, postscriptName);
   FT_Face face = nullptr;
   if (FT_New_Face(lib, fontPath.c_str(), faceIndex, &face) != 0) {
-    die("could not open font: " + fontPath);
+    err = "could not open font: " + fontPath;
+    return false;
   }
 
   // Variations (variable / MM fonts): map requested axis tags to design coords.
@@ -471,10 +488,9 @@ static FontEntry openFont(FT_Library lib, const JsonValue& spec) {
     }
   }
 
-  FontEntry entry;
-  entry.face = face;
-  entry.unitsPerEm = static_cast<int>(face->units_per_EM);
-  return entry;
+  out.face = face;
+  out.unitsPerEm = static_cast<int>(face->units_per_EM);
+  return true;
 }
 
 // Load a glyph outline in font units (NO_SCALE → exact design units, y-up).
@@ -564,58 +580,66 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
   return out.str();
 }
 
-// ──────────────────────────────── main ─────────────────────────────────────
+// ─────────────────────────── envelope handling ─────────────────────────────
 
-static std::string readAll(std::istream& in) {
-  std::ostringstream ss;
-  ss << in.rdbuf();
-  return ss.str();
+// DM-1034: stable cache key for an opened font, so `--serve` mode reuses the
+// FT_Face across requests instead of re-opening (face open + FreeType init is
+// the dominant per-spawn cost). Mirrors the macOS helper's `fontCacheKey`:
+// postscriptName | fontPath | size | sorted variation axes. Under NO_SCALE the
+// `size` field never affects the outline, but it's kept in the key for parity
+// with the cross-platform contract (and so a future sized path stays correct).
+static std::string fontCacheKey(const JsonValue& spec) {
+  std::string ps = spec.at("postscriptName").asString();
+  std::string fp = spec.at("fontPath").asString();
+  std::string sz = spec.has("size") ? formatNumber(spec.at("size").asNumber(16)) : "16";
+  std::string varKey;
+  const JsonValue& variations = spec.at("variations");
+  if (variations.isObject() && variations.object) {
+    // Sorted axis=value pairs so the key is order-independent (std::map already
+    // iterates keys in sorted order).
+    bool first = true;
+    for (const auto& kv : *variations.object) {
+      if (!first) varKey += ",";
+      first = false;
+      varKey += kv.first + "=" +
+                (kv.second.isNumber() ? formatNumber(kv.second.number) : std::string());
+    }
+  }
+  return ps + "|" + fp + "|" + sz + "|" + varKey;
 }
 
-int main(int argc, char** argv) {
-  std::string inputPath;
-  for (int i = 1; i < argc; i++) {
-    std::string a = argv[i];
-    if (a == "--version") {
-      std::cout << "domotion-glyph-paths (linux/freetype) 0.1.0\n";
-      return 0;
-    }
-    if (a == "--help" || a == "-h") {
-      std::cout << "Usage: domotion-glyph-paths [--input <path>]\n"
-                   "Reads a JSON request envelope from stdin (default) or the given file.\n"
-                   "Writes a JSON response to stdout.\n";
-      return 0;
-    }
-    if (a == "--input") {
-      if (i + 1 >= argc) die("--input requires a path");
-      inputPath = argv[++i];
-    } else {
-      die("unknown argument: " + a);
-    }
-  }
-
-  std::string requestText;
-  if (!inputPath.empty()) {
-    std::ifstream f(inputPath, std::ios::binary);
-    if (!f) die("could not read --input file: " + inputPath);
-    requestText = readAll(f);
-  } else {
-    requestText = readAll(std::cin);
-  }
-
-  JsonValue envelope;
-  if (!JsonParser(requestText).parse(envelope) || !envelope.isObject()) {
-    die("invalid JSON on input");
-  }
-
-  FT_Library lib = nullptr;
-  if (FT_Init_FreeType(&lib) != 0) die("FT_Init_FreeType failed");
-
-  std::map<std::string, FontEntry> fonts;
+// Run one request envelope into its JSON response string, opening (or reusing,
+// via `fontCache`) the declared fonts and dispatching each query. `dieOnOpenFail`
+// preserves the one-shot CLI's fatal contract; `--serve` passes false so a
+// malformed envelope yields a per-query error without taking down the loop.
+// Faces are owned by `fontCache` and freed by the caller — never here — so a
+// cached face survives across envelopes (and isn't double-freed).
+static std::string handleEnvelope(FT_Library lib, const JsonValue& envelope,
+                                  std::map<std::string, FontEntry>& fontCache,
+                                  bool dieOnOpenFail) {
+  std::map<std::string, FontEntry> fonts;  // ref → face for THIS envelope
   for (const JsonValue& spec : envelope.at("fonts").asArray()) {
     std::string ref = spec.at("ref").asString();
-    if (ref.empty()) die("font.ref missing");
-    fonts[ref] = openFont(lib, spec);
+    if (ref.empty()) {
+      if (dieOnOpenFail) die("font.ref missing");
+      continue;
+    }
+    std::string key = fontCacheKey(spec);
+    auto cached = fontCache.find(key);
+    if (cached != fontCache.end()) {
+      fonts[ref] = cached->second;
+      continue;
+    }
+    FontEntry entry;
+    std::string err;
+    if (openFont(lib, spec, entry, err)) {
+      fontCache[key] = entry;
+      fonts[ref] = entry;
+    } else if (dieOnOpenFail) {
+      die(err);
+    }
+    // On open failure in serve mode the ref is simply absent; queries
+    // referencing it report "fontRef missing or unknown" (matching macOS).
   }
 
   std::ostringstream response;
@@ -633,12 +657,97 @@ int main(int argc, char** argv) {
     }
   }
   response << "]}";
+  return response.str();
+}
 
-  for (auto& kv : fonts) {
+// ──────────────────────────────── main ─────────────────────────────────────
+
+static std::string readAll(std::istream& in) {
+  std::ostringstream ss;
+  ss << in.rdbuf();
+  return ss.str();
+}
+
+int main(int argc, char** argv) {
+  std::string inputPath;
+  bool serve = false;
+  for (int i = 1; i < argc; i++) {
+    std::string a = argv[i];
+    if (a == "--version") {
+      std::cout << "domotion-glyph-paths (linux/freetype) 0.1.0\n";
+      return 0;
+    }
+    if (a == "--help" || a == "-h") {
+      std::cout << "Usage: domotion-glyph-paths [--input <path>] [--serve]\n"
+                   "Reads a JSON request envelope from stdin (default) or the given file.\n"
+                   "Writes a JSON response to stdout.\n"
+                   "--serve: persistent mode — read one request envelope per line on stdin,\n"
+                   "         write one response per line on stdout, looping until EOF, reusing\n"
+                   "         opened fonts across requests (DM-1034).\n";
+      return 0;
+    }
+    if (a == "--serve") {
+      serve = true;
+    } else if (a == "--input") {
+      if (i + 1 >= argc) die("--input requires a path");
+      inputPath = argv[++i];
+    } else {
+      die("unknown argument: " + a);
+    }
+  }
+
+  FT_Library lib = nullptr;
+  if (FT_Init_FreeType(&lib) != 0) die("FT_Init_FreeType failed");
+
+  if (serve) {
+    // DM-1034: persistent server. One request envelope per line in, one
+    // response per line out. Faces opened once are reused for the process
+    // lifetime via `fontCache`. A malformed line yields an error response but
+    // does not stop the loop; EOF (the parent closing stdin) ends it. stdout is
+    // a pipe here (fully buffered by default), so flush after every response or
+    // the parent's synchronous read blocks forever waiting on buffered bytes.
+    std::map<std::string, FontEntry> fontCache;
+    std::string line;
+    while (std::getline(std::cin, line)) {
+      if (line.empty()) continue;
+      JsonValue envelope;
+      if (!JsonParser(line).parse(envelope) || !envelope.isObject()) {
+        std::cout << "{\"results\":[],\"error\":\"invalid JSON on input line\"}\n" << std::flush;
+        continue;
+      }
+      std::cout << handleEnvelope(lib, envelope, fontCache, /*dieOnOpenFail=*/false)
+                << "\n" << std::flush;
+    }
+    for (auto& kv : fontCache) {
+      if (kv.second.face) FT_Done_Face(kv.second.face);
+    }
+    FT_Done_FreeType(lib);
+    return 0;
+  }
+
+  // One-shot mode (the fallback path / the original CLI contract).
+  std::string requestText;
+  if (!inputPath.empty()) {
+    std::ifstream f(inputPath, std::ios::binary);
+    if (!f) die("could not read --input file: " + inputPath);
+    requestText = readAll(f);
+  } else {
+    requestText = readAll(std::cin);
+  }
+
+  JsonValue envelope;
+  if (!JsonParser(requestText).parse(envelope) || !envelope.isObject()) {
+    die("invalid JSON on input");
+  }
+
+  std::map<std::string, FontEntry> fontCache;
+  std::string response = handleEnvelope(lib, envelope, fontCache, /*dieOnOpenFail=*/true);
+
+  for (auto& kv : fontCache) {
     if (kv.second.face) FT_Done_Face(kv.second.face);
   }
   FT_Done_FreeType(lib);
 
-  std::cout << response.str() << "\n";
+  std::cout << response << "\n";
   return 0;
 }

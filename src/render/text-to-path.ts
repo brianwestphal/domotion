@@ -3060,6 +3060,77 @@ function splitTextIntoFontRuns(
     for (const ch of text) distinct.add(ch.codePointAt(0)!);
     warm.call(primaryFont, [...distinct]);
   }
+  // DM-1036: batch the FALLBACK-font coverage probes. DM-1033 (above) batched
+  // the PRIMARY font's coverage, but the per-codepoint walk below still probes
+  // each fallback candidate's `glyphForCodePoint(cp)` one codepoint at a time —
+  // one helper round-trip per (native-fallback-font, codepoint). For a run whose
+  // characters share a fallback font (a real mixed-script paragraph: an Arabic /
+  // Devanagari / CJK span the primary doesn't cover), that's N round-trips where
+  // one batched `warmGlyphs` would do. Pre-warm here, mirroring the walk's
+  // logic: group the primary-uncovered codepoints by their fallback chain, then
+  // for each chain warm the candidates in order with the still-unresolved set,
+  // pruning the codepoints each candidate covers (same stop-at-first-cover the
+  // walk applies). This only POPULATES the coverage caches the walk reads — it
+  // never changes which font the walk picks, so the emitted runs stay
+  // byte-identical. Gated to runs with ≥2 distinct uncovered codepoints, so a
+  // single-codepoint element (e.g. a one-cell-per-codepoint Unicode-table fixture)
+  // skips it entirely — nothing to batch there, and the gate keeps that path's
+  // round-trip count unchanged. The win lands on helper-heavy fallback runs and
+  // is largest on the spawnSync platforms (~9–16 ms/call) the ticket targets.
+  const uncovered: number[] = [];
+  {
+    const seenCp = new Set<number>();
+    for (const ch of text) {
+      const cp = ch.codePointAt(0)!;
+      if (seenCp.has(cp)) continue;
+      seenCp.add(cp);
+      if ((primaryFont as any).glyphForCodePoint(cp).id !== 0) {
+        continue; // primary covers it — no fallback probe happens for this cp
+      }
+      // A webfont primary first tries a per-codepoint webfont variant before the
+      // fallback chain; when the variant covers the cp the chain is never probed,
+      // so exclude it here (don't warm fonts the walk won't touch). Variants are
+      // webfonts (in-process fontkit), so this probe issues no helper round-trip.
+      if (primaryFontKey.startsWith("webfont:")) {
+        const family = primaryFontKey.slice("webfont:".length);
+        const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+        if (cpVariant != null && (cpVariant as any).glyphForCodePoint(cp).id !== 0) {
+          continue;
+        }
+      }
+      uncovered.push(cp);
+    }
+  }
+  if (uncovered.length >= 2) {
+    // Group uncovered codepoints by their fallback chain (codepoints in the same
+    // Unicode block share a chain), so each chain's candidates are warmed once
+    // over the whole group.
+    const byChain = new Map<string, { chain: string[]; cps: number[] }>();
+    for (const cp of uncovered) {
+      const chain = fallbackFontChain(cp, primaryFontKey, lang);
+      if (chain.length === 0) continue;
+      const key = chain.join(" ");
+      const entry = byChain.get(key);
+      if (entry != null) entry.cps.push(cp);
+      else byChain.set(key, { chain, cps: [cp] });
+    }
+    for (const { chain, cps } of byChain.values()) {
+      let remaining = cps;
+      for (const candidate of chain) {
+        if (remaining.length === 0) break;
+        const cf = getFontInstance(candidate, weight, fontSize, slant);
+        const probe = (cf as { glyphForCodePoint?: (cp: number) => { id: number } } | null)?.glyphForCodePoint;
+        if (cf == null || probe == null) continue;
+        const cfWarm = (cf as { warmGlyphs?: (cps: number[]) => void }).warmGlyphs;
+        if (cfWarm != null) cfWarm.call(cf, remaining); // one batched round-trip
+        // Prune the codepoints this candidate now covers — same stop-at-first-
+        // cover the walk applies. These probes hit the cache `warmGlyphs` just
+        // filled (or are free in-process for fontkit candidates), so no extra
+        // round-trips. Whatever a candidate doesn't cover flows to the next.
+        remaining = remaining.filter((cp) => probe.call(cf, cp).id === 0);
+      }
+    }
+  }
   let curKey = primaryFontKey;
   let curFontOverride: FontInstance | null = null;
   let curText = "";

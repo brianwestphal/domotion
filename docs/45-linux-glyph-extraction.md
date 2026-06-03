@@ -139,6 +139,41 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    `os2->yStrikeoutPosition` / `os2->yStrikeoutSize`. These map onto doc 16's
    `meta` response fields.
 
+### Persistent `--serve` mode *(DM-1034)*
+
+By default the helper is one-shot: read one JSON request envelope from stdin (or
+`--input <path>`), write one JSON response to stdout, exit. Spawning the binary
+fresh per call pays a fixed cost each time — process spawn + `FT_Init_FreeType` +
+`FT_New_Face` — which dominates when a render issues many helper round-trips.
+
+`--serve` amortizes that cost exactly as the macOS CoreText helper's serve mode
+does (the protocol is platform-neutral):
+
+- Read **one request envelope per line** on stdin; write **one response line** on
+  stdout; loop until EOF (the parent closing stdin ends the loop).
+- Opened `FT_Face`s are **reused across requests** via a process-lifetime cache
+  keyed by `postscriptName | fontPath | size | variations` (`fontCacheKey`) — so
+  the second and later requests for a font skip the `FT_New_Face` open entirely.
+- A malformed line yields a `{"results":[],"error":"invalid JSON on input line"}`
+  response **without stopping the loop**; an envelope whose font fails to open
+  leaves that `ref` absent so its queries report `fontRef missing or unknown`
+  (the one-shot path still `die()`s on these — the fatal CLI contract is
+  unchanged). stdout is flushed after every response (it's a pipe, hence fully
+  buffered) so the parent's synchronous read never blocks on buffered bytes.
+- Each serve response is **byte-identical** to the one-shot response for the same
+  envelope (asserted by the Linux serve test in `src/render/glyph-helper.test.ts`
+  and validated end-to-end via `npm run test:linux-docker`).
+
+The renderer's wrapper (`src/render/glyph-helper.ts::callHelper`) starts one
+long-lived `domotion-glyph-paths --serve` child and does a synchronous
+request→response round-trip per call, falling back transparently to one-shot
+`spawnSync` if the channel can't be established (e.g. an older downloaded binary
+that predates `--serve` — it dies on the unknown flag, the first round-trip
+fails, and the wrapper disables the persistent channel for the session). This was
+darwin-only when introduced (the CoreText helper); DM-1034 added the FreeType
+serve loop and lifted the gate for `linux`. Windows (DirectWrite) is still
+one-shot until its helper grows the same loop.
+
 ### The outline decomposer
 
 `FT_Outline_Decompose` takes an `FT_Outline_Funcs` with four callbacks:
@@ -272,6 +307,12 @@ not yet built — see open questions.)
   Linux FreeType binary and consumes its design-unit, y-up output unchanged. A
   Linux-gated dispatch test in `src/render/glyph-helper.test.ts` extracts an outline
   through the wrapper end-to-end (green in the `test:linux-docker` container).
+- ✅ **Persistent `--serve` mode** (DM-1034): the FreeType helper now implements
+  the same line-delimited request/response serve loop as the macOS helper, reusing
+  opened `FT_Face`s across requests, and `glyph-helper.ts::callHelper`'s persistent
+  channel is enabled for `linux` (was darwin-only). Byte-identical to one-shot,
+  guarded by a Linux serve test in `src/render/glyph-helper.test.ts`. See
+  "Persistent `--serve` mode" above.
 - ⏳ **Remaining — the probe-then-fallback *trigger* (separate follow-up).** The
   renderer can now *invoke* the Linux helper, but nothing routes through it on
   Linux yet: the helper is reached only via the static `extractor: "coretext"`

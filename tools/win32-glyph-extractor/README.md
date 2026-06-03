@@ -61,6 +61,23 @@ Quick smoke test (on Windows):
   | .\domotion-glyph-paths.exe
 ```
 
+### Persistent `--serve` mode (DM-1035)
+
+`--serve` switches to a persistent loop: one request envelope **per line** on
+stdin, one response **per line** on stdout, looping until EOF, reusing opened
+`IDWriteFontFace`s across requests so repeated calls skip the
+`DWriteCreateFactory` + `CreateFontFace` cost. This is the path the renderer
+(`src/render/glyph-helper.ts`) uses on Windows; the one-shot mode above is the
+transparent fallback. stdin/stdout run in binary mode so each serve response is
+byte-identical to the one-shot response for the same envelope.
+
+```powershell
+@(
+  '{"fonts":[{"ref":"f","fontPath":"C:\\Windows\\Fonts\\arial.ttf","size":2048}],"queries":[{"type":"glyphs","fontRef":"f","glyphs":[{"cp":72}]}]}'
+  '{"fonts":[{"ref":"f","fontPath":"C:\\Windows\\Fonts\\arial.ttf","size":2048}],"queries":[{"type":"glyphs","fontRef":"f","glyphs":[{"cp":101}]}]}'
+) | .\domotion-glyph-paths.exe --serve
+```
+
 ## Tests
 
 `tests/win32-glyph-extractor.test.ts` (vitest) asserts the helper's outlines

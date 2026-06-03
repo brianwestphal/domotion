@@ -20,12 +20,27 @@
 // The JSON parser/serializer + formatNumber/jsonEscape are copied verbatim from
 // the Linux helper (portable C++17), so only the DirectWrite-specific code here
 // is new.
+//
+// A persistent `--serve` mode (DM-1035) mirrors the macOS CoreText and Linux
+// FreeType helpers': read one request envelope per line on stdin, write one
+// response per line on stdout, loop until EOF, reusing opened IDWriteFontFaces
+// across requests via a cache. The fixed per-spawn cost (process spawn +
+// DWriteCreateFactory + CreateFontFace) is what the persistent process
+// amortizes, so the renderer's `glyph-helper.ts` does one round-trip per call
+// over a single long-lived child instead of a fresh `spawnSync` each time. The
+// one-shot CLI mode is the transparent fallback (an older binary that predates
+// `--serve` dies on the unknown flag, the wrapper notices, and reverts to
+// one-shot). The serve refactor — `fontCacheKey` + `handleEnvelope` + the
+// stdin loop — is a structural mirror of the Linux helper's and adds no new
+// DirectWrite API calls.
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <d2d1.h>      // full ID2D1SimplifiedGeometrySink definition (we implement it)
 #include <dwrite_3.h>  // IDWriteGeometrySink is a typedef for the above
 
+#include <fcntl.h>     // _O_BINARY — LF-only stdio on Windows (DM-1035 serve loop)
+#include <io.h>        // _setmode / _fileno
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -430,17 +445,24 @@ static std::string facePostScriptName(IDWriteFontFace* face) {
   return result;
 }
 
-static FontEntry openFont(IDWriteFactory* factory, const JsonValue& spec) {
+// Open the font described by `spec`. Returns true on success (populating
+// `out`); on failure returns false and sets `err` — the caller decides whether
+// to `die()` (one-shot mode, preserving the original fatal contract) or skip
+// the ref (`--serve` mode, where one bad envelope must not kill the server,
+// matching the macOS / Linux helpers).
+static bool openFont(IDWriteFactory* factory, const JsonValue& spec, FontEntry& out, std::string& err) {
   std::string fontPath = spec.at("fontPath").asString();
   std::string postscriptName = spec.at("postscriptName").asString();
   if (fontPath.empty()) {
-    die("font.fontPath missing (family-name resolution is not supported; pass a fontPath)");
+    err = "font.fontPath missing (family-name resolution is not supported; pass a fontPath)";
+    return false;
   }
 
   std::wstring widePath = toWide(fontPath);
   IDWriteFontFile* file = nullptr;
   if (FAILED(factory->CreateFontFileReference(widePath.c_str(), nullptr, &file)) || !file) {
-    die("could not open font file: " + fontPath);
+    err = "could not open font file: " + fontPath;
+    return false;
   }
 
   BOOL isSupported = FALSE;
@@ -449,7 +471,8 @@ static FontEntry openFont(IDWriteFactory* factory, const JsonValue& spec) {
   UINT32 numberOfFaces = 0;
   if (FAILED(file->Analyze(&isSupported, &fileType, &faceType, &numberOfFaces)) || !isSupported) {
     safeRelease(file);
-    die("unsupported font file: " + fontPath);
+    err = "unsupported font file: " + fontPath;
+    return false;
   }
 
   // Resolve the face index inside a (possibly .ttc) file by PostScript name.
@@ -469,7 +492,8 @@ static FontEntry openFont(IDWriteFactory* factory, const JsonValue& spec) {
   IDWriteFontFace* face = nullptr;
   if (FAILED(factory->CreateFontFace(faceType, 1, &file, faceIndex, DWRITE_FONT_SIMULATIONS_NONE, &face)) || !face) {
     safeRelease(file);
-    die("could not create font face for: " + fontPath);
+    err = "could not create font face for: " + fontPath;
+    return false;
   }
   safeRelease(file);  // the face holds its own reference to the file data
 
@@ -510,10 +534,9 @@ static FontEntry openFont(IDWriteFactory* factory, const JsonValue& spec) {
   DWRITE_FONT_METRICS metrics;
   face->GetMetrics(&metrics);
 
-  FontEntry entry;
-  entry.face = face;
-  entry.unitsPerEm = static_cast<int>(metrics.designUnitsPerEm);
-  return entry;
+  out.face = face;
+  out.unitsPerEm = static_cast<int>(metrics.designUnitsPerEm);
+  return true;
 }
 
 // ──────────────────────────────── queries ──────────────────────────────────
@@ -608,54 +631,63 @@ static std::string readAll(std::istream& in) {
   return ss.str();
 }
 
-int main(int argc, char** argv) {
-  std::string inputPath;
-  for (int i = 1; i < argc; i++) {
-    std::string a = argv[i];
-    if (a == "--version") {
-      std::cout << "domotion-glyph-paths (win32/directwrite) 0.1.0\n";
-      return 0;
+// DM-1035: stable cache key for an opened font, so `--serve` mode reuses the
+// IDWriteFontFace across requests instead of re-opening (face creation +
+// DirectWrite init is the dominant per-spawn cost). Mirrors the macOS / Linux
+// helpers' `fontCacheKey`: postscriptName | fontPath | size | sorted variation
+// axes. DirectWrite renders outlines at emSize = unitsPerEm regardless of the
+// request `size`, so `size` never affects the outline, but it's kept in the key
+// for parity with the cross-platform contract.
+static std::string fontCacheKey(const JsonValue& spec) {
+  std::string ps = spec.at("postscriptName").asString();
+  std::string fp = spec.at("fontPath").asString();
+  std::string sz = spec.has("size") ? formatNumber(spec.at("size").asNumber(16)) : "16";
+  std::string varKey;
+  const JsonValue& variations = spec.at("variations");
+  if (variations.isObject() && variations.object) {
+    bool first = true;
+    for (const auto& kv : *variations.object) {
+      if (!first) varKey += ",";
+      first = false;
+      varKey += kv.first + "=" +
+                (kv.second.type == JsonValue::Type::Number ? formatNumber(kv.second.number) : std::string());
     }
-    if (a == "--help" || a == "-h") {
-      std::cout << "Usage: domotion-glyph-paths.exe [--input <path>]\n"
-                   "Reads a JSON request envelope from stdin (default) or the given file.\n"
-                   "Writes a JSON response to stdout.\n";
-      return 0;
-    }
-    if (a == "--input") {
-      if (i + 1 >= argc) die("--input requires a path");
-      inputPath = argv[++i];
-    } else {
-      die("unknown argument: " + a);
-    }
   }
+  return ps + "|" + fp + "|" + sz + "|" + varKey;
+}
 
-  std::string requestText;
-  if (!inputPath.empty()) {
-    std::ifstream f(inputPath, std::ios::binary);
-    if (!f) die("could not read --input file: " + inputPath);
-    requestText = readAll(f);
-  } else {
-    requestText = readAll(std::cin);
-  }
-
-  JsonValue envelope;
-  if (!JsonParser(requestText).parse(envelope) || !envelope.isObject()) {
-    die("invalid JSON on input");
-  }
-
-  IDWriteFactory* factory = nullptr;
-  if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
-                                 reinterpret_cast<IUnknown**>(&factory))) ||
-      !factory) {
-    die("DWriteCreateFactory failed");
-  }
-
-  std::map<std::string, FontEntry> fonts;
+// Run one request envelope into its JSON response string, opening (or reusing,
+// via `fontCache`) the declared fonts and dispatching each query. `dieOnOpenFail`
+// preserves the one-shot CLI's fatal contract; `--serve` passes false so a
+// malformed envelope yields a per-query error without taking down the loop.
+// Faces are owned by `fontCache` and released by the caller — never here — so a
+// cached face survives across envelopes (and isn't double-released).
+static std::string handleEnvelope(IDWriteFactory* factory, const JsonValue& envelope,
+                                  std::map<std::string, FontEntry>& fontCache,
+                                  bool dieOnOpenFail) {
+  std::map<std::string, FontEntry> fonts;  // ref → face for THIS envelope
   for (const JsonValue& spec : envelope.at("fonts").asArray()) {
     std::string ref = spec.at("ref").asString();
-    if (ref.empty()) die("font.ref missing");
-    fonts[ref] = openFont(factory, spec);
+    if (ref.empty()) {
+      if (dieOnOpenFail) die("font.ref missing");
+      continue;
+    }
+    std::string key = fontCacheKey(spec);
+    auto cached = fontCache.find(key);
+    if (cached != fontCache.end()) {
+      fonts[ref] = cached->second;
+      continue;
+    }
+    FontEntry entry;
+    std::string err;
+    if (openFont(factory, spec, entry, err)) {
+      fontCache[key] = entry;
+      fonts[ref] = entry;
+    } else if (dieOnOpenFail) {
+      die(err);
+    }
+    // On open failure in serve mode the ref is simply absent; queries
+    // referencing it report "fontRef missing or unknown" (matching macOS/Linux).
   }
 
   std::ostringstream response;
@@ -673,10 +705,101 @@ int main(int argc, char** argv) {
     }
   }
   response << "]}";
+  return response.str();
+}
 
-  for (auto& kv : fonts) safeRelease(kv.second.face);
+int main(int argc, char** argv) {
+  // Force LF-only binary stdio (DM-1035): Windows defaults stdin/stdout to text
+  // mode, which translates CRLF↔LF. On the line-delimited `--serve` protocol that
+  // would inject stray CRs and desync framing; it would also make serve output
+  // differ from one-shot. Binary mode emits `…}\n` verbatim in both modes, so
+  // serve responses stay byte-identical to one-shot. (The win32 test parses JSON,
+  // not raw bytes, so this doesn't change the one-shot contract.)
+  _setmode(_fileno(stdin), _O_BINARY);
+  _setmode(_fileno(stdout), _O_BINARY);
+
+  std::string inputPath;
+  bool serve = false;
+  for (int i = 1; i < argc; i++) {
+    std::string a = argv[i];
+    if (a == "--version") {
+      std::cout << "domotion-glyph-paths (win32/directwrite) 0.1.0\n";
+      return 0;
+    }
+    if (a == "--help" || a == "-h") {
+      std::cout << "Usage: domotion-glyph-paths.exe [--input <path>] [--serve]\n"
+                   "Reads a JSON request envelope from stdin (default) or the given file.\n"
+                   "Writes a JSON response to stdout.\n"
+                   "--serve: persistent mode — read one request envelope per line on stdin,\n"
+                   "         write one response per line on stdout, looping until EOF, reusing\n"
+                   "         opened fonts across requests (DM-1035).\n";
+      return 0;
+    }
+    if (a == "--serve") {
+      serve = true;
+    } else if (a == "--input") {
+      if (i + 1 >= argc) die("--input requires a path");
+      inputPath = argv[++i];
+    } else {
+      die("unknown argument: " + a);
+    }
+  }
+
+  IDWriteFactory* factory = nullptr;
+  if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+                                 reinterpret_cast<IUnknown**>(&factory))) ||
+      !factory) {
+    die("DWriteCreateFactory failed");
+  }
+
+  if (serve) {
+    // DM-1035: persistent server. One request envelope per line in, one
+    // response per line out. Faces opened once are reused for the process
+    // lifetime via `fontCache`. A malformed line yields an error response but
+    // does not stop the loop; EOF (the parent closing stdin) ends it. stdout is
+    // a pipe here (fully buffered by default), so flush after every response or
+    // the parent's synchronous read blocks forever waiting on buffered bytes.
+    std::map<std::string, FontEntry> fontCache;
+    std::string line;
+    while (std::getline(std::cin, line)) {
+      // A Windows parent may send CRLF-terminated lines; std::getline strips the
+      // LF but leaves the CR — drop it so the JSON parse sees clean bytes.
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (line.empty()) continue;
+      JsonValue envelope;
+      if (!JsonParser(line).parse(envelope) || !envelope.isObject()) {
+        std::cout << "{\"results\":[],\"error\":\"invalid JSON on input line\"}\n" << std::flush;
+        continue;
+      }
+      std::cout << handleEnvelope(factory, envelope, fontCache, /*dieOnOpenFail=*/false)
+                << "\n" << std::flush;
+    }
+    for (auto& kv : fontCache) safeRelease(kv.second.face);
+    safeRelease(factory);
+    return 0;
+  }
+
+  // One-shot mode (the fallback path / the original CLI contract).
+  std::string requestText;
+  if (!inputPath.empty()) {
+    std::ifstream f(inputPath, std::ios::binary);
+    if (!f) die("could not read --input file: " + inputPath);
+    requestText = readAll(f);
+  } else {
+    requestText = readAll(std::cin);
+  }
+
+  JsonValue envelope;
+  if (!JsonParser(requestText).parse(envelope) || !envelope.isObject()) {
+    die("invalid JSON on input");
+  }
+
+  std::map<std::string, FontEntry> fontCache;
+  std::string response = handleEnvelope(factory, envelope, fontCache, /*dieOnOpenFail=*/true);
+
+  for (auto& kv : fontCache) safeRelease(kv.second.face);
   safeRelease(factory);
 
-  std::cout << response.str() << "\n";
+  std::cout << response << "\n";
   return 0;
 }

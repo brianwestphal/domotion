@@ -73,6 +73,22 @@ echo '{"fonts":[{"ref":"f","fontPath":"/usr/share/fonts/truetype/liberation/Libe
   | ./domotion-glyph-paths
 ```
 
+### Persistent `--serve` mode (DM-1034)
+
+`--serve` switches to a persistent loop: one request envelope **per line** on
+stdin, one response **per line** on stdout, looping until EOF, reusing opened
+`FT_Face`s across requests so repeated calls skip the spawn + `FT_New_Face` cost.
+This is the path the renderer (`src/render/glyph-helper.ts`) uses on Linux; the
+one-shot mode above is the transparent fallback. Each serve response is
+byte-identical to the one-shot response for the same envelope.
+
+```bash
+printf '%s\n%s\n' \
+  '{"fonts":[{"ref":"f","fontPath":"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf","size":1000}],"queries":[{"type":"glyphs","fontRef":"f","glyphs":[{"cp":72}]}]}' \
+  '{"fonts":[{"ref":"f","fontPath":"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf","size":1000}],"queries":[{"type":"glyphs","fontRef":"f","glyphs":[{"cp":101}]}]}' \
+  | ./domotion-glyph-paths --serve
+```
+
 ## Tests
 
 `tests/linux-glyph-extractor.test.ts` (vitest) asserts the helper's outlines

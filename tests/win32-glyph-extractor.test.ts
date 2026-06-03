@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
@@ -162,6 +162,72 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       expect(a.id).toBeGreaterThan(0);
       expect(a.d.length).toBeGreaterThan(0);
       expect(a.d).toMatch(/C/); // DirectWrite emits cubic curves
+    });
+  });
+});
+
+// DM-1035: the Windows DirectWrite helper's persistent `--serve` loop — the
+// Windows analogue of the macOS / Linux serve tests. Spawn the binary once,
+// stream newline-delimited request envelopes on stdin, read one response per
+// line on stdout; faces opened once are reused across requests. This is what
+// `callHelper` now uses on Windows (the gate was lifted for win32), so we
+// exercise the wire protocol directly and assert each serve response is
+// BYTE-IDENTICAL to the one-shot response for the same envelope (the acceptance
+// contract). Runs only on Windows with the binary built (skipped elsewhere).
+describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
+  const describeArial = ARIAL ? describe : describe.skip;
+  describeArial("reuses faces across requests and matches one-shot byte-for-byte", () => {
+    it("serve responses equal one-shot responses", () => {
+      const FONT = { ref: "f", fontPath: ARIAL!, size: 2048 };
+      const envA = { fonts: [FONT], queries: [
+        { type: "meta", fontRef: "f" },
+        { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x48 }, { cp: 0x65 }, { cp: 0x21 }] }
+      ] };
+      // Second envelope reuses the SAME font ref to exercise the face cache.
+      const envB = { fonts: [FONT], queries: [
+        { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x57 }, { cp: 0x6f }] }
+      ] };
+
+      const oneShot = (req: unknown): string => {
+        const p = spawnSync(HELPER, [], { input: JSON.stringify(req), encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 });
+        expect(p.status).toBe(0);
+        return p.stdout.trim();
+      };
+      const refA = oneShot(envA);
+      const refB = oneShot(envB);
+
+      const child = spawn(HELPER, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
+      const inFd = (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd
+        ?? (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
+      const outFd = (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd
+        ?? (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
+      expect(inFd).toBeTypeOf("number");
+      expect(outFd).toBeTypeOf("number");
+      let leftover = "";
+      const syncCall = (req: unknown): string => {
+        const line = Buffer.from(JSON.stringify(req) + "\n", "utf-8");
+        let off = 0;
+        while (off < line.length) {
+          try { off += writeSync(inFd!, line, off, line.length - off); }
+          catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+        }
+        const tmp = Buffer.allocUnsafe(1 << 20);
+        while (!leftover.includes("\n")) {
+          try { const n = readSync(outFd!, tmp, 0, tmp.length, null); if (n > 0) leftover += tmp.toString("utf-8", 0, n); }
+          catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+        }
+        const nl = leftover.indexOf("\n");
+        const resp = leftover.slice(0, nl);
+        leftover = leftover.slice(nl + 1);
+        return resp;
+      };
+      try {
+        expect(syncCall(envA)).toBe(refA); // first request opens the face
+        expect(syncCall(envB)).toBe(refB); // second reuses the cached face
+      } finally {
+        child.stdin!.end();
+        child.kill();
+      }
     });
   });
 });

@@ -196,13 +196,17 @@ function fdOf(stream: unknown): number | undefined {
 
 function startPersistent(bin: string): boolean {
   if (persistentDisabled) return false;
-  // Only the macOS helper implements `--serve` today. On Linux/Windows the
-  // binary wouldn't understand it; disable persistent there so we use the
-  // one-shot spawnSync path (no regression). Lift this gate per-platform once
-  // the FreeType / DirectWrite helpers grow a serve loop. (An old macOS binary
-  // that predates `--serve` still self-heals: it dies on the unknown flag, the
-  // first round-trip fails, and `persistentDisabled` flips below.)
-  if (process.platform !== "darwin") { persistentDisabled = true; return false; }
+  // macOS (CoreText, DM-1031), Linux (FreeType, DM-1034), and Windows
+  // (DirectWrite, DM-1035) all implement `--serve`. An old binary on any
+  // platform that predates `--serve` still self-heals: it dies on the unknown
+  // flag, the first round-trip fails (EOF / closed stdout), and
+  // `persistentDisabled` flips below since `persistentEverWorked` is still
+  // false — reverting transparently to the one-shot `spawnSync` path. So the
+  // persistent channel is safe to attempt on every platform that ships a helper.
+  if (process.platform !== "darwin" && process.platform !== "linux" && process.platform !== "win32") {
+    persistentDisabled = true;
+    return false;
+  }
   try {
     const proc = spawn(bin, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
     const inFd = fdOf(proc.stdin);
