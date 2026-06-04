@@ -142,6 +142,14 @@ export interface CompareResult {
   }>;
 }
 
+/** Raw output of the in-page diff `page.evaluate` — every `CompareResult`
+ *  metric EXCEPT the caller-derived `verdict`, plus the base64 diff-PNG data
+ *  URL. Deriving it from `CompareResult` keeps the page-eval return shape, the
+ *  cast below, and the public result from drifting (DM-1072). */
+interface EvalDiffResult extends Omit<CompareResult, "verdict"> {
+  diffDataUrl: string;
+}
+
 /**
  * Compare `expectedPath` vs `actualPath` and write a literal absolute-difference
  * diff PNG to `diffPath`. Returns the full metric set. DM-715 pass criterion:
@@ -545,7 +553,7 @@ export async function comparePngs(
       return {
         nonAaPixels: totalNonAa,
         nonAaPixelPct: (totalNonAa / totalPixels) * 100,
-        diffPercent: (totalDist / totalPixels) * 100,
+        diffPct: (totalDist / totalPixels) * 100,
         sigPixelPct: (totalSig / totalPixels) * 100,
         worstTilePct: worstAvgPct,
         worstTileSignificantPct: worstSigPct,
@@ -562,46 +570,13 @@ export async function comparePngs(
         diffDataUrl: diffCanvas.toDataURL("image/png"),
       };
     })()`,
-  )) as {
-    nonAaPixels: number;
-    nonAaPixelPct: number;
-    diffPercent: number;
-    sigPixelPct: number;
-    worstTilePct: number;
-    worstTileSignificantPct: number;
-    worstTileRect: { x: number; y: number; w: number; h: number };
-    regionCount: number;
-    totalChangedArea: number;
-    maxRegionSeverity: number;
-    scatteredPixels: number;
-    shiftedPixels: number;
-    shiftyRegionCount: number;
-    shiftyRegionArea: number;
-    coveragePct: number;
-    regions: Array<{ area: number; maxSeverity: number; highSevFraction: number; x: number; y: number; w: number; h: number }>;
-    diffDataUrl: string;
-  };
+  )) as EvalDiffResult;
 
-  writeFileSync(diffPath, Buffer.from(result.diffDataUrl.split(",")[1], "base64"));
-  return {
-    nonAaPixels: result.nonAaPixels,
-    nonAaPixelPct: result.nonAaPixelPct,
-    diffPct: result.diffPercent,
-    sigPixelPct: result.sigPixelPct,
-    worstTilePct: result.worstTilePct,
-    worstTileSignificantPct: result.worstTileSignificantPct,
-    worstTileRect: result.worstTileRect,
-    regionCount: result.regionCount,
-    totalChangedArea: result.totalChangedArea,
-    maxRegionSeverity: result.maxRegionSeverity,
-    scatteredPixels: result.scatteredPixels,
-    shiftedPixels: result.shiftedPixels,
-    shiftyRegionCount: result.shiftyRegionCount,
-    shiftyRegionArea: result.shiftyRegionArea,
-    coveragePct: result.coveragePct,
-    verdict: classifyDiff(result.regionCount, result.coveragePct),
-    regions: result.regions,
-  };
+  // Drop the data URL (written to disk below); every remaining field IS a
+  // CompareResult metric, so the spread can't drift from the interface.
+  const { diffDataUrl, ...metrics } = result;
+  writeFileSync(diffPath, Buffer.from(diffDataUrl.split(",")[1], "base64"));
+  return { ...metrics, verdict: classifyDiff(result.regionCount, result.coveragePct) };
 }
 
 /** DM-715: pre-region pass criterion (every differing pixel must be classified
