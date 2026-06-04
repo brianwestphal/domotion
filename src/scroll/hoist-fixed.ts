@@ -17,6 +17,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { mapTreePruning } from "../tree-ops/prune-tree.js";
 
 /**
  * Walk the tree, remove every subtree rooted at a `position: fixed` element
@@ -35,35 +36,12 @@ export function extractFixedSubtrees(tree: CapturedElement[]): {
   fixed: CapturedElement[];
 } {
   const fixed: CapturedElement[] = [];
-  const stripped = stripFromList(tree, fixed);
+  const stripped = mapTreePruning(
+    tree,
+    (node) => node.styles?.position === "fixed",
+    (node) => fixed.push(node),
+  );
   return { stripped, fixed };
-}
-
-function stripFromList(
-  list: CapturedElement[],
-  fixedOut: CapturedElement[],
-): CapturedElement[] {
-  const kept: CapturedElement[] = [];
-  for (const node of list) {
-    if (node.styles?.position === "fixed") {
-      fixedOut.push(node);
-      continue;
-    }
-    if (node.children != null && node.children.length > 0) {
-      const newChildren = stripFromList(node.children, fixedOut);
-      if (newChildren !== node.children) {
-        // At least one descendant was stripped — emit a shallow copy with the
-        // pruned child list so the caller's tree isn't mutated.
-        kept.push({ ...node, children: newChildren });
-        continue;
-      }
-    }
-    kept.push(node);
-  }
-  // If nothing was removed at this level, return the original list (lets
-  // ancestor levels avoid copying too).
-  if (kept.length === list.length && fixedOut.length === 0) return list;
-  return kept;
 }
 
 /**

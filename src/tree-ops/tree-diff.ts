@@ -82,7 +82,7 @@ export function diffTrees(
   // (e.g. a list of N identical rows).
   const prevByFingerprint = new Map<string, FlatEntry[]>();
   for (const fe of prevList) {
-    const fp = fingerprint(fe.el);
+    const fp = capturedElementFingerprint(fe.el);
     if (!prevByFingerprint.has(fp)) prevByFingerprint.set(fp, []);
     prevByFingerprint.get(fp)!.push(fe);
   }
@@ -95,7 +95,7 @@ export function diffTrees(
   const entries: DiffEntry[] = [];
 
   for (const ne of nextList) {
-    const fp = fingerprint(ne.el);
+    const fp = capturedElementFingerprint(ne.el);
     const bucket = prevByFingerprint.get(fp);
     if (bucket == null || bucket.length === 0) continue;
     const start = prevCursor.get(fp) ?? 0;
@@ -192,8 +192,8 @@ function pathKey(path: number[]): string {
  * since it's the user's explicit "this is the same element across captures"
  * hint and we want it to dominate over coincidental text matches.
  */
-function fingerprint(el: CapturedElement): string {
-  const childFP = (el.children ?? []).map(fingerprint).join("|");
+function capturedElementFingerprint(el: CapturedElement): string {
+  const childFP = (el.children ?? []).map(capturedElementFingerprint).join("|");
   const animPart = el.animId != null && el.animId !== "" ? `@${el.animId}` : "";
   return `${el.tag}${animPart}:${el.text ?? ""}:[${childFP}]`;
 }

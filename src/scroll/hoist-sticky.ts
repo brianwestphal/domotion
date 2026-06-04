@@ -22,6 +22,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { mapTreePruning } from "../tree-ops/prune-tree.js";
 
 export interface StickyOverlay {
   /** The sticky subtree (captured at the FIRST segment in the stuck window). */
@@ -167,27 +168,5 @@ function identityKey(node: CapturedElement, path: number[]): string {
 
 /** Build a shallow-copied tree with the nodes at the given paths removed. */
 function removeAtPaths(tree: CapturedElement[], strikePaths: Set<string>): CapturedElement[] {
-  function recur(list: CapturedElement[], parentPath: number[]): CapturedElement[] {
-    const out: CapturedElement[] = [];
-    for (let i = 0; i < list.length; i++) {
-      const path = parentPath.concat(i);
-      if (strikePaths.has(path.join(","))) {
-        // Drop this subtree entirely.
-        continue;
-      }
-      const node = list[i];
-      if (node.children != null && node.children.length > 0) {
-        const newKids = recur(node.children, path);
-        if (newKids !== node.children) {
-          out.push({ ...node, children: newKids });
-          continue;
-        }
-      }
-      out.push(node);
-    }
-    // Return same reference when nothing changed at this level.
-    if (out.length === list.length && out.every((n, i) => n === list[i])) return list;
-    return out;
-  }
-  return recur(tree, []);
+  return mapTreePruning(tree, (_node, path) => strikePaths.has(path.join(",")));
 }

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -692,6 +692,48 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     expect(darwinFallbackChain(0x4F60, "helvetica", "zh-Hans")).toEqual(["pingfang-sc", "cjk"]);
     expect(darwinFallbackChain(0x4F60, "helvetica", "en-US")).toEqual(["pingfang-sc", "cjk"]);
     expect(darwinFallbackChain(0x4F60, "helvetica", "")).toEqual(["pingfang-sc", "cjk"]);
+  });
+});
+
+// Primary-only NFD canonical decomposition (DM-1080 / DM-1081). CJK compatibility
+// ideographs (U+2F800–2FA1F etc.) have no cmap entry in most faces; Chrome's
+// HarfBuzz shapes their canonical (NFD) form, but ONLY within the font already
+// selected for the run. An earlier version searched the whole fallback chain for
+// the canonical glyph, so it painted real Han where Chrome paints tofu (24 such
+// over-render cells on the 2F800 fixture). These guard that the decomposition
+// stays pinned to the run's PRIMARY font so it can't silently re-broaden.
+describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", () => {
+  it.skipIf(!MACOS_FONTS)("never decomposes a CJK compat ideograph under a Latin primary that can't render the canonical", () => {
+    // Helvetica covers neither the literal compat ideograph nor its canonical
+    // Han form. Under the old full-chain search the canonical was found in a
+    // deep CJK fallback face and decomposed anyway; primary-only must not.
+    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+      const r = __resolveFontForCodepointForTest(cp, "Helvetica");
+      expect(r?.decomposed ?? false).toBe(false);
+    }
+  });
+
+  it.skipIf(!MACOS_FONTS)("only ever resolves a decomposition within the primary font's own key", () => {
+    // The defining invariant of the fix: any codepoint that decomposes must
+    // resolve to the PRIMARY font's key, never a deeper chain font. A regression
+    // to the whole-chain search would surface a chain key here.
+    for (const family of ["Helvetica", "Hiragino Sans", "Songti SC"]) {
+      const primaryKey = resolveFontKey(family);
+      for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+        const r = __resolveFontForCodepointForTest(cp, family);
+        if (r?.decomposed) expect(r.key).toBe(primaryKey);
+      }
+    }
+  });
+
+  it.skipIf(!MACOS_FONTS)("still decomposes within a CJK primary that DOES cover the canonical (NFD stays load-bearing)", () => {
+    // Removing NFD entirely would tofu these. Hiragino Sans covers the canonical
+    // Han of many 2F800 singletons, so decomposition must still fire there.
+    let decomposed = 0;
+    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+      if (__resolveFontForCodepointForTest(cp, "Hiragino Sans")?.decomposed) decomposed++;
+    }
+    expect(decomposed).toBeGreaterThan(0);
   });
 });
 

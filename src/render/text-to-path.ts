@@ -3243,6 +3243,30 @@ function resolveFontForCodepoint(
   return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
 }
 
+/**
+ * Test-only window into the per-codepoint font resolution decision (DM-1080 /
+ * DM-1081). Resolves `fontFamily` to its primary key + instance the same way the
+ * renderer does, then returns the resolution's `{ key, decomposed, covered }`.
+ * Lets the unit suite guard the primary-only NFD-decomposition invariant so a
+ * future change can't silently re-broaden the canonical-form search back across
+ * the whole fallback chain (which over-rendered CJK compatibility ideographs
+ * Chrome paints as tofu).
+ */
+export function __resolveFontForCodepointForTest(
+  cp: number,
+  fontFamily: string,
+  weight = 400,
+  fontSize = 32,
+  slant = 0,
+  lang?: string,
+): { key: string; decomposed: boolean; covered: boolean } | null {
+  const primaryFontKey = resolveFontKey(fontFamily);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
+  if (primaryFont == null) return null;
+  const r = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, lang);
+  return { key: r.key, decomposed: r.decomposed, covered: r.covered };
+}
+
 // DM-1026: synthesize the dotted circle (U+25CC) Chrome's HarfBuzz inserts
 // before an ORPHANED combining mark that NO font covers — e.g. the "no font"
 // Brahmic blocks (Soyombo, Zanabazar, Devanagari-Extended, …) where each mark
