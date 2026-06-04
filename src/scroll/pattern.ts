@@ -69,7 +69,10 @@ export interface ScrollAction {
    * `/<duration>` OR `@<speed>` on a single action, not both.
    */
   speedPxPerSec?: number;
-  /** From the `[easing-name]` suffix. Absent → default (`ease-out`). */
+  /** From the `[easing-name]` suffix. Absent → the composer's `linear` default
+   *  (DM-1076 applies this as a per-keyframe `animation-timing-function`); an
+   *  opinionated `ease-out` default is intentionally NOT applied, since it would
+   *  change the feel of every existing scroll. */
   easing?: Easing;
 }
 

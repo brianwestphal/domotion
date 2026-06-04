@@ -32,6 +32,19 @@ import {
 } from "../render/text-to-path.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
+import type { Easing } from "./pattern.js";
+
+/**
+ * Map a parsed scroll-action easing (DM-1076) to a CSS `<timing-function>`, or
+ * `null` when it's absent or `linear` — the composite's animation-level default
+ * — so no per-keyframe `animation-timing-function` is emitted and a pattern
+ * without an `[easing]` suffix produces minimal, unchanged CSS.
+ */
+function cssTimingFunction(easing: Easing | undefined): string | null {
+  if (easing == null) return null;
+  if (easing.kind === "named") return easing.name === "linear" ? null : easing.name;
+  return `cubic-bezier(${easing.values.map((v) => String(v)).join(", ")})`;
+}
 
 export interface ScrollComposerOptions {
   /** Visible viewport width (output SVG width). */
@@ -332,13 +345,28 @@ export function composeScrollSvg(
   // interpolation between stops produces the smooth scroll; segments whose
   // start and end times match (effectively zero-duration) produce
   // step-end-style cuts naturally because the keyframe percentages collide.
-  const stops: Array<{ pct: number; offset: number }> = [];
-  stops.push({ pct: 0, offset: positions[0] - minPos });
-  for (const seg of segments) {
+  // DM-1076: each stop also carries the CSS timing-function for the interval
+  // that STARTS at it (CSS applies a keyframe's `animation-timing-function` to
+  // the segment after it). The interval out of `stops[i]` lands at the next
+  // segment, so it takes THAT segment's action easing — `segments[i + 1]`
+  // relative to the per-segment stop, and `segments[0]` for the initial stop.
+  // `null` (absent or `linear`) emits nothing, so patterns without an
+  // `[easing]` suffix produce byte-identical CSS and animate `linear` (the
+  // animation-level default below).
+  const stops: Array<{ pct: number; offset: number; tf: string | null }> = [];
+  stops.push({ pct: 0, offset: positions[0] - minPos, tf: cssTimingFunction(segments[0]?.easing) });
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
     const endPct = (seg.segmentEndMs / totalMs) * 100;
-    stops.push({ pct: endPct, offset: (axis === "y" ? seg.scrollY : seg.scrollX) - minPos });
+    stops.push({
+      pct: endPct,
+      offset: (axis === "y" ? seg.scrollY : seg.scrollX) - minPos,
+      tf: cssTimingFunction(segments[i + 1]?.easing),
+    });
   }
-  // Dedupe trivially equal stops to keep CSS small.
+  // Dedupe trivially equal stops to keep CSS small (pct + offset only — a stop
+  // with the same position/time as its predecessor is a zero-motion interval
+  // whose timing-function is moot).
   const dedupedStops = stops.filter((s, i, arr) => i === 0 || !(s.pct === arr[i - 1].pct && s.offset === arr[i - 1].offset));
   const translateFn = axis === "x" ? "X" : "Y";
   const keyframes = dedupedStops
@@ -347,7 +375,7 @@ export function composeScrollSvg(
       // animated <g> onto its own compositing layer so per-frame motion is
       // a GPU paint rather than a CPU re-rasterisation of every embedded
       // image/path under the composite.
-      `      ${s.pct.toFixed(3)}% { transform: translate3d(${translateFn === "X" ? `-${s.offset.toFixed(3)}px, 0` : `0, -${s.offset.toFixed(3)}px`}, 0); }`,
+      `      ${s.pct.toFixed(3)}% { transform: translate3d(${translateFn === "X" ? `-${s.offset.toFixed(3)}px, 0` : `0, -${s.offset.toFixed(3)}px`}, 0);${s.tf != null ? ` animation-timing-function: ${s.tf};` : ""} }`,
     )
     .join("\n");
 

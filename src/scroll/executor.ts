@@ -26,7 +26,7 @@ import { captureElementTree } from "../render/element-tree-to-svg.js";
 import type {
   ScrollPattern, ScrollPatternSegment, FlatSegment, BracketedSegment,
   ScrollPatternAction, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
-  UntilClause, PositionUntil,
+  UntilClause, PositionUntil, Easing,
 } from "./pattern.js";
 import { diffTrees, type TreeDiff } from "../tree-ops/tree-diff.js";
 
@@ -65,6 +65,11 @@ export interface ScrollSegmentCapture {
   tree: CapturedElement[];
   /** Diff from the previous segment's capture. Null for the very first. */
   diffFromPrev: TreeDiff | null;
+  /** Easing of the scroll action that produced the motion INTO this segment,
+   *  from the pattern's `[easing-name]` suffix (DM-1076). Absent → the composer
+   *  uses its `linear` default. The initial capture and pause-captures (no
+   *  motion) carry none. */
+  easing?: Easing;
 }
 
 const DEFAULT_SPEED_PX_PER_SEC = 1500;
@@ -194,7 +199,7 @@ export async function resolveScrollAction(
   pageQuery: PageQuery,
   snapshot: PageStateSnapshot,
   defaultSpeed: number,
-): Promise<{ axis: ScrollAxis; destX: number; destY: number; scrollDurationMs: number }> {
+): Promise<{ axis: ScrollAxis; destX: number; destY: number; scrollDurationMs: number; easing?: Easing }> {
   const axis = axisOfScroll(action);
   const sign = directionSign(action);
   let delta: number;
@@ -225,7 +230,7 @@ export async function resolveScrollAction(
   // Cases 2 and 3 are mutually exclusive at parse time; safe to read both.
   const effectiveSpeed = action.speedPxPerSec ?? defaultSpeed;
   const scrollDurationMs = action.durationMs ?? Math.round((magnitude / effectiveSpeed) * 1000);
-  return { axis, destX, destY, scrollDurationMs };
+  return { axis, destX, destY, scrollDurationMs, easing: action.easing };
 }
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -247,6 +252,7 @@ interface ResolvedScrollOp {
   destX: number;
   destY: number;
   durationMs: number;
+  easing?: Easing;
 }
 interface ResolvedPauseOp {
   kind: "pause";
@@ -405,6 +411,7 @@ export async function executeScrollPattern(
         segmentEndMs: sceneTime,
         tree: nextTree,
         diffFromPrev: diff,
+        easing: op.easing,
       });
       prevTree = nextTree;
       log(`  captured frame ${captures.length} at scrollY=${Math.round(snap.scrollY)} (chunk ${ci}/${numChunks})`);
@@ -569,7 +576,7 @@ async function runAction(
   }
   const snap = await pageQuery.snapshot();
   const resolved = await resolveScrollAction(a, pageQuery, snap, defaultSpeed);
-  await runOp({ kind: "scroll", axis: resolved.axis, destX: resolved.destX, destY: resolved.destY, durationMs: resolved.scrollDurationMs });
+  await runOp({ kind: "scroll", axis: resolved.axis, destX: resolved.destX, destY: resolved.destY, durationMs: resolved.scrollDurationMs, easing: resolved.easing });
 }
 
 // ── Playwright I/O ─────────────────────────────────────────────────────────

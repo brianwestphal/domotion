@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
 import type { ScrollSegmentCapture } from "./executor.js";
 import { composeScrollSvg } from "./composer.js";
+import type { Easing } from "./pattern.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -529,5 +530,44 @@ describe("composeScrollSvg: renderText option", () => {
     // glyph-path rendering exactly as if renderText="paths" were set.
     const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600, renderText: "embedded-font" });
     expect(svg).not.toContain("@font-face");
+  });
+});
+
+// ── Per-action easing → per-keyframe animation-timing-function (DM-1076) ─────
+
+describe("composeScrollSvg: per-action easing", () => {
+  const easeIn: Easing = { kind: "named", name: "ease-in" };
+  const bezier: Easing = { kind: "cubic-bezier", values: [0.2, 0, 0.3, 1] };
+
+  it("emits animation-timing-function at the stop that PRECEDES the eased transition", () => {
+    // CSS applies a keyframe's timing-function to the interval starting at it, so
+    // the easing of the action landing at a segment attaches to the prior stop.
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0, 0, 1000),
+      { ...makeSeg(600, 1000, 4000), easing: easeIn },
+      { ...makeSeg(1200, 4000, 5000), easing: bezier },
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    // segments[1].easing (ease-in) governs the 20%→80% interval → emitted at 20%.
+    expect(svg).toMatch(/20\.000% \{ transform: translate3d\(0, -0\.000px, 0\); animation-timing-function: ease-in; \}/);
+    // segments[2].easing (cubic-bezier) governs the 80%→100% interval → at 80%.
+    expect(svg).toMatch(/80\.000% \{ transform: translate3d\(0, -600\.000px, 0\); animation-timing-function: cubic-bezier\(0\.2, 0, 0\.3, 1\); \}/);
+    // The final stop has no following eased transition.
+    expect(svg).toMatch(/100\.000% \{ transform: translate3d\(0, -1200\.000px, 0\); \}/);
+  });
+
+  it("a `linear` token emits nothing (it IS the composite default)", () => {
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0, 0, 1000),
+      { ...makeSeg(600, 1000, 4000), easing: { kind: "named", name: "linear" } },
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    expect(svg).not.toMatch(/translate3d\([^)]*\);[^}]*animation-timing-function/);
+  });
+
+  it("omits per-keyframe timing-functions entirely when no segment carries easing", () => {
+    const segs: ScrollSegmentCapture[] = [makeSeg(0, 0, 1000), makeSeg(600, 1000, 4000)];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    expect(svg).not.toMatch(/translate3d\([^)]*\);[^}]*animation-timing-function/);
   });
 });
