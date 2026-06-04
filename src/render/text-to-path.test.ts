@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setChainFontResolution, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -23,6 +23,13 @@ const MACOS_FONTS = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 // those assertions hold; the two embedded-font tests flip to embedded-font
 // within themselves.
 beforeEach(() => setRenderTextMode("paths"));
+
+// DM-1083: pin the unified family-walk resolver OFF before every test so the
+// default-path assertions (the DM-1080 primary-only NFD guards especially) are
+// immune to any flag state leaked from the flag-on tests below — or from a
+// timed-out/retried run that didn't reach an afterEach. The flag-on tests flip
+// it within themselves.
+beforeEach(() => setChainFontResolution(false));
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's
@@ -734,6 +741,90 @@ describe("resolveFontForCodepoint: primary-only NFD decomposition (DM-1080)", ()
       if (__resolveFontForCodepointForTest(cp, "Hiragino Sans")?.decomposed) decomposed++;
     }
     expect(decomposed).toBeGreaterThan(0);
+  });
+});
+
+// DM-1083: the full-CSS-family-stack resolver. `resolveFontKey` collapses a
+// computed `font-family` to one key; `resolveFontKeyChain` keeps the whole
+// ordered list of resolvable keys — the set Chrome's FontFallbackIterator walks
+// at the kFontFamily stage.
+describe("resolveFontKeyChain: full CSS family stack (DM-1083)", () => {
+  it("returns every resolvable family in CSS order, with resolveFontKey == chain[0]", () => {
+    const chain = resolveFontKeyChain(`"Times New Roman", Georgia, sans-serif`);
+    expect(chain).toEqual(["times-new-roman", "georgia", "helvetica"]);
+    expect(resolveFontKey(`"Times New Roman", Georgia, sans-serif`)).toBe(chain[0]);
+  });
+
+  it("skips unresolved / generic-keyword names Chrome walks past, preserving order", () => {
+    // DoesNotExist + the ui-* / -apple-system keywords resolve to nothing and
+    // must NOT appear; the real families that follow them keep their order.
+    expect(resolveFontKeyChain(`DoesNotExist, -apple-system, ui-monospace, Menlo, monospace`))
+      .toEqual(["menlo", "courier"]);
+  });
+
+  it("dedupes families that collapse to the same key", () => {
+    // serif and Times both map to `times`; the chain holds it once.
+    expect(resolveFontKeyChain(`Times, serif`)).toEqual(["times"]);
+  });
+
+  it("is empty when nothing in the stack resolves (caller appends its own terminal)", () => {
+    expect(resolveFontKeyChain(`-apple-system, ui-sans-serif`)).toEqual([]);
+    // …while the first-match resolver still falls back to the Times default.
+    expect(resolveFontKey(`-apple-system, ui-sans-serif`)).toBe("times");
+  });
+});
+
+// DM-1083: the unified family-walk resolver (flag-gated). For a cp the primary
+// lacks, it walks the FULL declared stack (literal then in-font canonical
+// decomposition per font) before the OS fallback — reaching later families a
+// primary-only resolver drops, WITHOUT over-rendering into Chrome-unreachable
+// faces. Validated empirically by tools/probe-2f800-facewalk.mjs (+90 cells via
+// Arial Unicode MS decomposition, 0 over-paints, on the CJK-compat block).
+describe("resolveFontForCodepoint: unified family-walk loop (DM-1083, flag-gated)", () => {
+  // The CJK Compatibility Ideographs Supplement fixture's actual glyph-cell stack.
+  const FIXTURE_STACK = `"Hiragino Sans","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
+
+  // The file-level beforeEach pins the flag OFF before each test; these flip it
+  // on within themselves, so no afterEach is needed.
+
+  it.skipIf(!MACOS_FONTS)("covers strictly MORE 2F800 cells than the primary-only resolver", () => {
+    let primaryOnly = 0;
+    setChainFontResolution(false);
+    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+      if (__resolveFontForCodepointForTest(cp, FIXTURE_STACK)?.covered) primaryOnly++;
+    }
+    let walk = 0;
+    setChainFontResolution(true);
+    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+      if (__resolveFontForCodepointForTest(cp, FIXTURE_STACK)?.covered) walk++;
+    }
+    expect(walk).toBeGreaterThan(primaryOnly);
+  });
+
+  it.skipIf(!MACOS_FONTS)("resolves later-family cells to a NON-primary key (the family-walk reached past the primary)", () => {
+    setChainFontResolution(true);
+    const primaryKey = resolveFontKey(FIXTURE_STACK);
+    let reachedLaterFamily = 0;
+    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+      const r = __resolveFontForCodepointForTest(cp, FIXTURE_STACK);
+      if (r?.covered && r.key !== primaryKey) reachedLaterFamily++;
+    }
+    expect(reachedLaterFamily).toBeGreaterThan(0);
+  });
+
+  it.skipIf(!MACOS_FONTS)("preserves the DM-1080 invariant: a Latin-only stack never over-renders a CJK-compat ideograph", () => {
+    // The hazard the family-walk must not reintroduce: with no CJK family
+    // DECLARED, the canonical Han is unreachable and Chrome paints tofu. The walk
+    // only searches the declared stack, so it must stay uncovered here too.
+    setChainFontResolution(true);
+    for (let cp = 0x2F800; cp <= 0x2F8FF; cp++) {
+      const r = __resolveFontForCodepointForTest(cp, "Helvetica, Arial, sans-serif");
+      // Helvetica/Arial cover neither the literal nor the canonical Han → no
+      // declared family can supply it; only the OS fallback (system CJK face)
+      // may, which is Chrome's behavior too. The invariant we assert is the
+      // narrow DM-1080 one: no DECLARED-stack decomposition into a Latin face.
+      if (r?.decomposed) expect(["helvetica", "arial"]).not.toContain(r.key);
+    }
   });
 });
 

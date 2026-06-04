@@ -1011,6 +1011,20 @@ let _systemFallbackResolutionEnabled = process.platform === "darwin";
 /** Test/perf hook to toggle the CoreText per-codepoint fallback resolver. */
 export function setSystemFallbackResolution(on: boolean): void { _systemFallbackResolutionEnabled = on; }
 
+// DM-1083: gate for the unified Chrome-mirroring font-resolution loop (walk the
+// FULL CSS family stack, testing literal cmap then in-font canonical
+// decomposition per font, before the per-char OS fallback). Default OFF — the
+// current per-codepoint resolver stays the shipped path until the loop is A/B'd
+// across the feature + 331 unicode fixtures and the default is flipped. When ON,
+// `resolveFontForCodepoint` delegates to `resolveFontForCodepointChain` for the
+// codepoints the primary doesn't cover. See `tools/probe-2f800-facewalk.mjs`.
+let _chainFontResolutionEnabled = process.env.DOMOTION_CHAIN_FONT === "1";
+/** Test/A-B hook for the DM-1083 unified family-walk resolver (default off; the
+ *  `DOMOTION_CHAIN_FONT=1` env var flips it on so the existing capture/render
+ *  harnesses can A/B the loop against the fixtures without code edits). */
+export function setChainFontResolution(on: boolean): void { _chainFontResolutionEnabled = on; }
+export function isChainFontResolutionEnabled(): boolean { return _chainFontResolutionEnabled; }
+
 /**
  * Resolve the system fallback font for a codepoint the way Chrome-on-macOS
  * does — via CoreText's `CTFontCreateForString` (see `resolveSystemFallbackFonts`
@@ -2280,14 +2294,24 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
   return v;
 }
 
-export function resolveFontKey(fontFamily: string): string {
-  // Walk the comma-separated stack — Chrome's getComputedStyle returns the
-  // unresolved list (e.g. `"DoesNotExist", Georgia, "Times New Roman", serif`)
-  // not the matched font. Pick the first name we recognize, mirroring how
-  // Chrome falls through the stack until something loads.
-  const names = fontFamily.split(",").map((s) => s.trim().replace(/^["']|["']$/g, "").toLowerCase());
-  for (const name of names) {
-    if (name === "" || name === "doesnotexist") continue;
+/** Normalize a computed `font-family` string into its ordered list of lower-cased,
+ *  unquoted family names (Chrome's `getComputedStyle().fontFamily` is the full
+ *  unresolved comma-separated stack). */
+function splitFontFamilyNames(fontFamily: string): string[] {
+  return fontFamily.split(",").map((s) => s.trim().replace(/^["']|["']$/g, "").toLowerCase());
+}
+
+/**
+ * Resolve a SINGLE lower-cased family name to its font key, or `null` when the
+ * name is unrecognized / a generic keyword Chrome skips / not installed (the
+ * caller then moves to the next name in the stack). This is the per-name body of
+ * `resolveFontKey`, factored out so both the first-match resolver and the
+ * full-stack `resolveFontKeyChain` (DM-1083) share one calibration table. Pure
+ * except for the `resolveInstalledFont` dynamic-registration side effect, which
+ * is idempotent.
+ */
+function matchFamilyNameToKey(name: string): string | null {
+  if (name === "" || name === "doesnotexist") return null;
     // Registered webfonts win — the page declared this family AND we hold
     // its bytes. `getFontInstance` dispatches the webfont: prefix to the
     // runtime registry instead of the on-disk FONT_PATHS table.
@@ -2398,7 +2422,7 @@ export function resolveFontKey(fontFamily: string): string {
     // and we wrongly pinned to Times, painting code in a serif face.)
     if (name === "ui-monospace" || name === "ui-rounded" || name === "ui-sans-serif"
       || name === "math" || name === "emoji" || name === "fangsong"
-      || name === "-apple-system") continue;
+      || name === "-apple-system") return null;
     // DM-1018: the name isn't one of our calibrated families or a generic
     // keyword — but it may still be a REAL installed font (SF Compact,
     // Mplus 1p, …). Blink's FontFallbackList sets `first_candidate_` to the
@@ -2417,11 +2441,42 @@ export function resolveFontKey(fontFamily: string): string {
       registerDynamicSystemFont(key, installed.path, installed.postscriptName);
       return key;
     }
+  return null;
+}
+
+export function resolveFontKey(fontFamily: string): string {
+  // Walk the comma-separated stack — Chrome's getComputedStyle returns the
+  // unresolved list (e.g. `"DoesNotExist", Georgia, "Times New Roman", serif`)
+  // not the matched font. Pick the first name we recognize, mirroring how
+  // Chrome falls through the stack until something loads.
+  for (const name of splitFontFamilyNames(fontFamily)) {
+    const key = matchFamilyNameToKey(name);
+    if (key != null) return key;
   }
   // Last-resort fallback when no family in the stack matched. Chrome's
   // ultimate fallback on macOS for an unrecognized name is the user's
   // configured "Standard Font" preference, which defaults to Times.
   return "times";
+}
+
+/**
+ * DM-1083: the full ORDERED list of resolvable font keys for a computed
+ * `font-family` stack — every name Chrome's FontFallbackIterator would try at
+ * the `kFontFamily` stage, in CSS order, deduped. `resolveFontKey` returns just
+ * `[0]`; the unified per-codepoint resolver walks the whole list so a character
+ * the first family lacks can be drawn by a LATER declared family (e.g. the CJK
+ * compatibility fixtures whose `"Hiragino Sans","Arial Unicode MS",…` stacks let
+ * Chrome paint +90 cells from Arial Unicode MS that a primary-only resolver
+ * misses — see the probe in `tools/probe-2f800-facewalk.mjs`). Never includes
+ * the `times` last-resort — callers append their own terminal.
+ */
+export function resolveFontKeyChain(fontFamily: string): string[] {
+  const out: string[] = [];
+  for (const name of splitFontFamilyNames(fontFamily)) {
+    const key = matchFamilyNameToKey(name);
+    if (key != null && !out.includes(key)) out.push(key);
+  }
+  return out;
 }
 
 function resolveFont(fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
@@ -2543,6 +2598,7 @@ export function textToPathMarkup(
   if (primaryFont == null) return null;
 
   const primaryFontKey = resolveFontKey(fontFamily);
+  const fontKeyChain = _chainFontResolutionEnabled ? resolveFontKeyChain(fontFamily) : undefined;
 
   // Split the text into runs by font. Code points that primary lacks (Arabic,
   // CJK, …) get routed to a fallback font. Each run keeps its order; this
@@ -2573,7 +2629,7 @@ export function textToPathMarkup(
       // webfont variant → chain → system fallback → math-alpha → NFD). This path
       // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
       // (the substituted base char) rather than the per-char source index.
-      const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+      const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
       // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
       // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
       // placing one on a system color font here would split it out of the
@@ -3170,12 +3226,21 @@ function resolveFontForCodepoint(
   slant: number,
   variationSettings: Record<string, number> | undefined,
   lang: string | undefined,
+  fontKeyChain?: string[],
 ): FontResolution {
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     ({ key, fontOverride, emitCh, decomposed, covered: true });
 
   if (primaryFont.glyphForCodePoint(cp).id !== 0) return cover(primaryFontKey, null);
+
+  // DM-1083 unified loop (flag-gated): for codepoints the primary doesn't cover,
+  // walk the full CSS family stack with in-font canonical decomposition before
+  // the OS-fallback step, mirroring Chrome. Default off; see setChainFontResolution.
+  if (_chainFontResolutionEnabled && fontKeyChain != null) {
+    return resolveFontForCodepointChain(
+      cp, primaryFont, primaryFontKey, fontKeyChain, weight, fontSize, slant, variationSettings, lang);
+  }
 
   // Per-codepoint webfont variant (partitioned @font-face family — DM-557). Keep
   // `key` = primary so runs still group at the key level; the instance override
@@ -3244,6 +3309,104 @@ function resolveFontForCodepoint(
 }
 
 /**
+ * DM-1083: the unified Chrome-mirroring resolution loop (flag-gated via
+ * `setChainFontResolution`). Reached only for a `cp` the primary font does NOT
+ * cover literally. Mirrors Blink's FontFallbackIterator order:
+ *
+ *   1. kFontFamily — walk the WHOLE captured CSS family stack in order. For each
+ *      font test the literal cmap, then (mirroring HarfBuzz's default-composed
+ *      normalizer) the canonical NFD singleton WITHIN THAT SAME FONT. This is the
+ *      fix for both recurring bugs: it reaches later-declared families the
+ *      primary-only resolver dropped (e.g. Arial Unicode MS covers +90 CJK-compat
+ *      cells via in-font decomposition — `tools/probe-2f800-facewalk.mjs`), and
+ *      it confines decomposition to the declared cascade, so it does NOT
+ *      over-render into deep fallback faces Chrome never reaches (the DM-1080
+ *      hazard — full-`fallbackFontChain` decomposition drew 24 cells Chrome
+ *      leaves blank; this walk drew 0 such over-paints in the probe).
+ *   2. kSystemFonts — the per-char OS fallback: the calibrated `fallbackFontChain`
+ *      table (literal only, as the shipped resolver uses it) then the live
+ *      CoreText `CTFontCreateForString` (literal + in-font decomposition, which
+ *      catches residue like U+2F9B2 whose canonical 456B only a system CJK face
+ *      covers). Platform-specific step (CoreText / fc-match / DWrite); the rest
+ *      of the loop is platform-agnostic.
+ *   3. Math-Alphanumeric (NFKD compatibility — a deliberately separate axis).
+ *   4. kOutOfLuck — LastResort tofu; caller applies its own uncovered terminal.
+ */
+function resolveFontForCodepointChain(
+  cp: number,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  fontKeyChain: string[],
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
+): FontResolution {
+  const ch = String.fromCodePoint(cp);
+  const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
+    ({ key, fontOverride, emitCh, decomposed, covered: true });
+
+  // Canonical NFD singleton (e.g. U+2F800→U+4E3D). null when `cp` has no
+  // single-codepoint canonical decomposition — multi-char decompositions are not
+  // a font-substitution case here.
+  const nfd = ch.normalize("NFD");
+  const dcp0 = nfd.codePointAt(0);
+  const singleton = (dcp0 != null && dcp0 !== cp && String.fromCodePoint(dcp0) === nfd) ? dcp0 : null;
+
+  // Materialize a chain key to an instance — webfont-partition-aware, and only
+  // the primary carries the author's font-variation-settings.
+  const instanceFor = (key: string): FontInstance | null => {
+    const fvs = key === primaryFontKey ? variationSettings : undefined;
+    if (key === primaryFontKey) return primaryFont;
+    if (key.startsWith("webfont:")) {
+      const family = key.slice("webfont:".length);
+      const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+      if (v != null) return v;
+    }
+    return getFontInstance(key, weight, fontSize, slant, fvs);
+  };
+
+  // 1. kFontFamily — walk the declared families (literal, then in-font decomp).
+  for (const key of fontKeyChain) {
+    const inst = instanceFor(key);
+    if (inst == null) continue;
+    if (inst.glyphForCodePoint(cp).id !== 0) return cover(key, key === primaryFontKey ? null : inst);
+    if (singleton != null && inst.glyphForCodePoint(singleton).id !== 0) {
+      return cover(key, key === primaryFontKey ? null : inst, String.fromCodePoint(singleton), true);
+    }
+  }
+
+  // 2a. kSystemFonts — the calibrated static fallback table (literal only).
+  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang)) {
+    if (candidate === "last-resort") continue;
+    const cf = getFontInstance(candidate, weight, fontSize, slant);
+    if (cf != null && cf.glyphForCodePoint(cp).id !== 0) return cover(candidate, null);
+  }
+
+  // 2b. kSystemFonts — live CoreText per-char fallback (literal + in-font decomp).
+  if (_systemFallbackResolutionEnabled) {
+    const sysKey = resolveSystemFallbackKeyForCp(cp);
+    if (sysKey != null) {
+      const sf = getFontInstance(sysKey, weight, fontSize, slant);
+      if (sf != null) {
+        if (sf.glyphForCodePoint(cp).id !== 0) return cover(sysKey, null);
+        if (singleton != null && sf.glyphForCodePoint(singleton).id !== 0) {
+          return cover(sysKey, null, String.fromCodePoint(singleton), true);
+        }
+      }
+    }
+  }
+
+  // 3. Math-Alphanumeric decomposition (NFKD compatibility axis).
+  const decomp = decomposeMathAlphaRun(cp, fallbackFontChain(cp, primaryFontKey, lang), weight, fontSize);
+  if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
+
+  // 4. kOutOfLuck — nothing covers it; caller applies its own uncovered terminal.
+  return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
+}
+
+/**
  * Test-only window into the per-codepoint font resolution decision (DM-1080 /
  * DM-1081). Resolves `fontFamily` to its primary key + instance the same way the
  * renderer does, then returns the resolution's `{ key, decomposed, covered }`.
@@ -3263,7 +3426,8 @@ export function __resolveFontForCodepointForTest(
   const primaryFontKey = resolveFontKey(fontFamily);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
   if (primaryFont == null) return null;
-  const r = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, lang);
+  const r = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, lang,
+    resolveFontKeyChain(fontFamily));
   return { key: r.key, decomposed: r.decomposed, covered: r.covered };
 }
 
@@ -3380,6 +3544,7 @@ function splitTextIntoFontRuns(
   slant: number,
   variationSettings: Record<string, number> | undefined,
   lang: string | undefined,
+  fontKeyChain?: string[],
 ): FontRun[] {
   const runs: FontRun[] = [];
   // DM-1033: pre-warm the primary font's coverage cache for every DISTINCT
@@ -3485,7 +3650,7 @@ function splitTextIntoFontRuns(
     // `.notdef` (glyph 0) — which is exactly what `covered: false` returns
     // (key=primary / override=null / emitCh=source), preserving DM-1018.
     // (`decomposed` is unused here — the embedded loop always renders run.text.)
-    const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+    const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
     const emitCh = res.emitCh;
     const useKey = res.key;
     const useFontOverride = res.fontOverride;
@@ -3566,8 +3731,9 @@ function renderTextAsEmbedded(
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily);
+  const fontKeyChain = _chainFontResolutionEnabled ? resolveFontKeyChain(fontFamily) : undefined;
 
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
   if (runs.length === 0) return null;
 
   // Per-run baseline: SVG `<text y=...>` puts the BASELINE at y. Use the
@@ -4303,7 +4469,8 @@ export function measureInkMetrics(
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily);
-  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+  const fontKeyChain = _chainFontResolutionEnabled ? resolveFontKeyChain(fontFamily) : undefined;
+  const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity;  // ink bottom (font units, y-up; negative = below baseline)
   for (const run of runs) {
@@ -4384,7 +4551,8 @@ export function renderStretchyFenceGlyph(
   const primaryFontKey = resolveFontKey(fontFamily);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
   if (primaryFont == null) return null;
-  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined);
+  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
+    _chainFontResolutionEnabled ? resolveFontKeyChain(fontFamily) : undefined);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant) ?? primaryFont) : primaryFont;
 
@@ -4455,7 +4623,8 @@ export function renderRadicalGlyph(
   const primaryFontKey = resolveFontKey(fontFamily);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
   if (primaryFont == null) return null;
-  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined);
+  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined,
+    _chainFontResolutionEnabled ? resolveFontKeyChain(fontFamily) : undefined);
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant) ?? primaryFont) : primaryFont;
 
