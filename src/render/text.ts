@@ -654,6 +654,51 @@ function applyBidi(text: string, xOffsets: number[] | undefined, paragraphDir: "
   return { text: outText, xOffsets };
 }
 
+/**
+ * DM-1055: mirror a soft-wrapped LINE's paired brackets using BiDi levels
+ * resolved on the WHOLE logical paragraph, not the line in isolation. The bidi
+ * paired-bracket algorithm (BD16) needs the full paragraph to pair `(` with `)`
+ * — when a pair is split across wrapped lines, resolving the lone-bracket line by
+ * itself leaves it at an odd embedding level and mirrors it, but Chrome does NOT
+ * (in the full paragraph the pair resolves to an even level). `levels` is
+ * `getEmbeddingLevels(fullText).levels`; `base` is the line's char offset into
+ * `fullText`. `suppressGlyphChars` preserves length, so the line's bracket
+ * positions align 1:1 with `levels[base + i]`. xOffsets pass through unchanged.
+ */
+function applyBidiAt(text: string, xOffsets: number[] | undefined, levels: number[], base: number): { text: string; xOffsets?: number[] } {
+  let out = "";
+  let any = false;
+  for (let i = 0; i < text.length; i++) {
+    const level = levels[base + i];
+    if (level != null && level % 2 === 1) {
+      const m = _bidi.getMirroredCharacter(text[i]);
+      if (m != null) { out += m; any = true; continue; }
+    }
+    out += text[i];
+  }
+  return any ? { text: out, xOffsets } : { text, xOffsets };
+}
+
+/**
+ * Test-only window into the DM-1055 fix: given the full logical paragraph and
+ * its soft-wrapped lines, return each line's text after BiDi paired-bracket
+ * mirroring resolved on the WHOLE paragraph (the logic `renderMultiSegmentText`
+ * runs). Guards the invariant that a `(`…`)` pair split across wrapped lines is
+ * NOT mirrored — per-line resolution would mirror the lone trailing bracket.
+ */
+export function __bidiMirrorLinesForTest(fullText: string, lines: string[], dir: "ltr" | "rtl"): string[] {
+  const needs = dir === "rtl" || _RTL_RE.test(fullText);
+  if (!needs) return lines.slice();
+  const levels = _bidi.getEmbeddingLevels(fullText, dir).levels;
+  let off = 0;
+  return lines.map((ln) => {
+    const idx = fullText.indexOf(ln, off);
+    const base = idx >= 0 ? idx : off;
+    off = base + ln.length;
+    return applyBidiAt(ln, undefined, levels, base).text;
+  });
+}
+
 interface RenderTextOpts {
   el: CapturedElement;
   idPrefix: string;
@@ -1045,6 +1090,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const parts: string[] = [];
 
   const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
+  // DM-1055: resolve BiDi embedding levels on the WHOLE paragraph (`el.text`)
+  // once, so a paired bracket split across soft-wrapped segments mirrors the
+  // same as Chrome. Resolving per-segment (below) sees a lone bracket and
+  // over-mirrors it. `_segBidiOffset` walks each segment's slice of the levels.
+  const _segBidiNeeded = dir === "rtl" || _RTL_RE.test(el.text);
+  const _segFullLevels = _segBidiNeeded ? _bidi.getEmbeddingLevels(el.text, dir).levels : null;
+  let _segBidiOffset = 0;
   const decoLine = el.styles.textDecorationLine;
   const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
     ? el.styles.textDecorationColor : fillColor;
@@ -1119,7 +1171,20 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
-    const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
+    const _segRaw = suppressGlyphChars(seg.text, seg);
+    // DM-1055: locate this segment in the full paragraph and mirror its brackets
+    // with the paragraph-level embedding levels (so a `(`…`)` split across wrapped
+    // lines matches Chrome). Falls back to per-segment resolution when the element
+    // has no RTL content.
+    let reordered: { text: string; xOffsets?: number[] };
+    if (_segFullLevels != null) {
+      const _idx = el.text.indexOf(seg.text, _segBidiOffset);
+      const _base = _idx >= 0 ? _idx : _segBidiOffset;
+      reordered = applyBidiAt(_segRaw, xOffsetsRelRaw, _segFullLevels, _base);
+      _segBidiOffset = _base + seg.text.length;
+    } else {
+      reordered = applyBidi(_segRaw, xOffsetsRelRaw, dir);
+    }
     // DM-822: anisotropic correction — see `anisotropicCorrectionXOffsets`.
     const segXOffsets = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
     const segAscent = seg.fontAscent ?? el.fontAscent;

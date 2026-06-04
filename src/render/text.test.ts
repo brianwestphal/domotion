@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText } from "./text.js";
+import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText } from "./text.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -8,6 +8,28 @@ import type { CapturedElement } from "../capture/types.js";
 // assert the glyph-PATH renderer's `<text transform="scale(...)">` / baseline
 // output. Pin paths mode so the path-specific assertions hold.
 beforeEach(() => setRenderTextMode("paths"));
+
+describe("BiDi paired-bracket mirroring across wrapped lines (DM-1055)", () => {
+  // A `direction: rtl` paragraph whose `(...)` pair soft-wraps so the closing
+  // bracket lands alone on the last line. Resolving BiDi per-line sees a lone
+  // trailing `)` at an odd embedding level and mirrors it to `(` — but Chrome
+  // resolves the WHOLE paragraph, where the pair is level 2 (even) and neither
+  // bracket mirrors. The renderer must do the same.
+  const full = "rtl: one two three four (English words but RTL ordering)";
+  const lines = ["rtl: one two three", "four (English", "words but RTL", "ordering)"];
+
+  it("does not mirror a bracket pair split across wrapped RTL lines", () => {
+    const out = __bidiMirrorLinesForTest(full, lines, "rtl");
+    expect(out).toEqual(lines); // brackets unchanged — '(' stays '(', ')' stays ')'
+  });
+
+  it("resolves split lines identically to the un-wrapped paragraph", () => {
+    // The fix's actual goal: wrapping must not change which brackets mirror.
+    const split = __bidiMirrorLinesForTest(full, lines, "rtl").join(" ");
+    const unwrapped = __bidiMirrorLinesForTest(full, [full], "rtl")[0];
+    expect(split).toBe(unwrapped);
+  });
+});
 
 // Tests that exercise glyph emission via the macOS-only FONT_PATHS map
 // (Linux / Windows are roadmap per CLAUDE.md) skip on hosts without
