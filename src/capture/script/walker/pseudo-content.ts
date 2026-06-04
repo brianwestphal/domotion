@@ -226,107 +226,100 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
     return isOpen ? tokens[pairIdx * 2] : tokens[pairIdx * 2 + 1];
   };
 
-  const capturePseudoContent = (el, cs, rect, counterSnapshot) => {
-    const pseudoSegments = [];
-    const pseudoBoxes = [];
-    for (const pseudo of ['::before', '::after']) {
-      const pcs = window.getComputedStyle(el, pseudo);
-      const content = pcs.content;
-      if (content == null || content === 'none' || content === 'normal' || content === '') continue;
-      // DM-665 / DM-677: pseudos with computed `opacity: 0` paint nothing in
-      // Chrome (Material-style ripple / hover overlays use this — Google's
-      // `a.gb_C::before` is the empty-content variant we already skipped;
-      // `a.gb_A::before` on the mobile "Sign in" pill is the same idea but
-      // with `content: " "` (a single space, non-empty) so it slipped past
-      // the previous gate). Skip ALL opacity-zero pseudos before doing any
-      // measurement / box-rect work; capturing them anyway would paint an
-      // opaque box over the host's actual content.
-      const opacityNum = parseFloat(pcs.opacity);
-      if (Number.isFinite(opacityNum) && opacityNum === 0) continue;
-
-      let text = '';
-      let imageUrl = '';
-      let i = 0;
-      while (i < content.length) {
-        const c = content[i];
-        if (c === '"' || c === "'") {
-          const end = content.indexOf(c, i + 1);
-          if (end < 0) break;
-          text += content.slice(i + 1, end);
-          i = end + 1;
-        } else if (content.startsWith('attr(', i)) {
-          const end = content.indexOf(')', i);
-          if (end < 0) break;
-          const attrName = content.slice(i + 5, end).trim();
-          text += el.getAttribute(attrName) || '';
-          i = end + 1;
-        } else if (content.startsWith('url(', i)) {
-          const end = content.indexOf(')', i);
-          if (end < 0) break;
-          let url = content.slice(i + 4, end).trim();
-          if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'"))) {
-            url = url.slice(1, -1);
-          }
-          imageUrl = url;
-          i = end + 1;
-        } else if (content.startsWith('counter(', i) || content.startsWith('counters(', i)) {
-          const isCounters = content.startsWith('counters(', i);
-          const openIdx = i + (isCounters ? 'counters('.length : 'counter('.length);
-          const closeIdx = content.indexOf(')', openIdx);
-          if (closeIdx < 0) { i++; continue; }
-          const args = content.slice(openIdx, closeIdx).split(',').map((s) => {
-            const t = s.trim();
-            if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
-              return t.slice(1, -1);
-            }
-            return t;
-          });
-          const cname = args[0];
-          const sep = isCounters ? (args[1] ?? '') : '';
-          // DM-788: third arg of counters() / second arg of counter() is a
-          // `<counter-style>` name. When that name matches a custom
-          // `@counter-style` rule captured in the pre-walk, run each value
-          // through the resolver so prefix / suffix / pad / negative / range
-          // / fallback descriptors apply — e.g. `counter(step, prefixed)`
-          // produces "Step 01:  " instead of plain decimal "1".
-          const styleArg = isCounters ? args[2] : args[1];
-          const useCustomStyle = styleArg != null && styleArg !== ''
-            && isCustomCounterStyle != null && isCustomCounterStyle(styleArg);
-          const format = (v) => {
-            if (!useCustomStyle) return String(v);
-            const out = resolveCounterValue(styleArg, v);
-            return out != null ? out : String(v);
-          };
-          const snapshot = counterSnapshot.get(el) || [];
-          const matches = snapshot.filter((s) => s.name === cname).map((s) => format(s.value));
-          if (isCounters) {
-            text += matches.length > 0 ? matches.join(sep) : format(0);
-          } else {
-            text += matches.length > 0 ? matches[matches.length - 1] : format(0);
-          }
-          i = closeIdx + 1;
-        } else if (content.startsWith('open-quote', i)) {
-          text += pickQuoteChar(el, true);
-          i += 'open-quote'.length;
-        } else if (content.startsWith('close-quote', i)) {
-          text += pickQuoteChar(el, false);
-          i += 'close-quote'.length;
-        } else if (content.startsWith('no-open-quote', i)) {
-          i += 'no-open-quote'.length;
-        } else if (content.startsWith('no-close-quote', i)) {
-          i += 'no-close-quote'.length;
-        } else {
-          i++;
+  // Parse a pseudo-element's computed `content` string into the resolved text +
+  // image-url it paints. Walks the token list: quoted strings, attr(name),
+  // url(...), counter()/counters() (resolved against the captured counter
+  // snapshot, with custom @counter-style formatting — DM-788), and the
+  // open-quote / close-quote / no-*-quote keywords (DM-602). Closes over the
+  // handler's pickQuoteChar / isCustomCounterStyle / resolveCounterValue.
+  // Extracted from capturePseudoContent (DM-1088).
+  const parsePseudoContent = (content, el, counterSnapshot) => {
+    let text = '';
+    let imageUrl = '';
+    let i = 0;
+    while (i < content.length) {
+      const c = content[i];
+      if (c === '"' || c === "'") {
+        const end = content.indexOf(c, i + 1);
+        if (end < 0) break;
+        text += content.slice(i + 1, end);
+        i = end + 1;
+      } else if (content.startsWith('attr(', i)) {
+        const end = content.indexOf(')', i);
+        if (end < 0) break;
+        const attrName = content.slice(i + 5, end).trim();
+        text += el.getAttribute(attrName) || '';
+        i = end + 1;
+      } else if (content.startsWith('url(', i)) {
+        const end = content.indexOf(')', i);
+        if (end < 0) break;
+        let url = content.slice(i + 4, end).trim();
+        if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'"))) {
+          url = url.slice(1, -1);
         }
+        imageUrl = url;
+        i = end + 1;
+      } else if (content.startsWith('counter(', i) || content.startsWith('counters(', i)) {
+        const isCounters = content.startsWith('counters(', i);
+        const openIdx = i + (isCounters ? 'counters('.length : 'counter('.length);
+        const closeIdx = content.indexOf(')', openIdx);
+        if (closeIdx < 0) { i++; continue; }
+        const args = content.slice(openIdx, closeIdx).split(',').map((s) => {
+          const t = s.trim();
+          if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+            return t.slice(1, -1);
+          }
+          return t;
+        });
+        const cname = args[0];
+        const sep = isCounters ? (args[1] ?? '') : '';
+        // DM-788: third arg of counters() / second arg of counter() is a
+        // `<counter-style>` name. When that name matches a custom
+        // `@counter-style` rule captured in the pre-walk, run each value
+        // through the resolver so prefix / suffix / pad / negative / range
+        // / fallback descriptors apply — e.g. `counter(step, prefixed)`
+        // produces "Step 01:  " instead of plain decimal "1".
+        const styleArg = isCounters ? args[2] : args[1];
+        const useCustomStyle = styleArg != null && styleArg !== ''
+          && isCustomCounterStyle != null && isCustomCounterStyle(styleArg);
+        const format = (v) => {
+          if (!useCustomStyle) return String(v);
+          const out = resolveCounterValue(styleArg, v);
+          return out != null ? out : String(v);
+        };
+        const snapshot = counterSnapshot.get(el) || [];
+        const matches = snapshot.filter((s) => s.name === cname).map((s) => format(s.value));
+        if (isCounters) {
+          text += matches.length > 0 ? matches.join(sep) : format(0);
+        } else {
+          text += matches.length > 0 ? matches[matches.length - 1] : format(0);
+        }
+        i = closeIdx + 1;
+      } else if (content.startsWith('open-quote', i)) {
+        text += pickQuoteChar(el, true);
+        i += 'open-quote'.length;
+      } else if (content.startsWith('close-quote', i)) {
+        text += pickQuoteChar(el, false);
+        i += 'close-quote'.length;
+      } else if (content.startsWith('no-open-quote', i)) {
+        i += 'no-open-quote'.length;
+      } else if (content.startsWith('no-close-quote', i)) {
+        i += 'no-close-quote'.length;
+      } else {
+        i++;
       }
-      if (text === '' && imageUrl === '') {
-        // Empty-content pseudo. The author might be using the pseudo as a
-        // decorative box — common pattern for inline separators (DM-579:
-        // `.css-mx1q46::before { content: ""; height: 0; border-bottom: 2px
-        // solid #121212 }` paints a hairline between sections). Capture
-        // the box rect + per-side border / background only when the
-        // pseudo is `display: block` and has at least one non-zero border
-        // side or a visible background.
+    }
+    return { text, imageUrl };
+  };
+
+  // Capture an empty-content pseudo (no text, no image) that's being used as a
+  // decorative box — a block-like `::before`/`::after` with a visible
+  // background, background-image, or border (DM-579 hairlines, DM-767 accent
+  // stripes, DM-594 speech-bubble tails). Returns the pseudoBox descriptor (rect
+  // + per-side border + background + the pseudo's own transform), or null when
+  // it paints nothing visible. Closes over the handler's probe helpers + vp +
+  // normColor. Extracted from capturePseudoContent (DM-1088).
+  const captureEmptyContentBox = (el, cs, pseudo, pcs, rect) => {
         const bgRaw = pcs.backgroundColor;
         const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
         // DM-767: capture background-image (linear-gradient / radial-gradient /
@@ -450,7 +443,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             // when non-`none` to keep the captured tree compact.
             const pcsTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
             const pcsTransformOrigin = pcsTransform != null ? (pcs.transformOrigin || undefined) : undefined;
-            pseudoBoxes.push({
+            return {
               // DM-1001: track which pseudo emitted this box so the renderer
               // can paint ::after pseudo-elements AFTER the host's text (the
               // CSS render order). The earlier "emit all pseudoBoxes ahead of
@@ -473,9 +466,35 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
               borderRadius: parseFloat(pcs.borderRadius) || 0,
               transform: pcsTransform,
               transformOrigin: pcsTransformOrigin,
-            });
+            };
           }
         }
+    return null;
+  };
+
+
+  const capturePseudoContent = (el, cs, rect, counterSnapshot) => {
+    const pseudoSegments = [];
+    const pseudoBoxes = [];
+    for (const pseudo of ['::before', '::after']) {
+      const pcs = window.getComputedStyle(el, pseudo);
+      const content = pcs.content;
+      if (content == null || content === 'none' || content === 'normal' || content === '') continue;
+      // DM-665 / DM-677: pseudos with computed `opacity: 0` paint nothing in
+      // Chrome (Material-style ripple / hover overlays use this — Google's
+      // `a.gb_C::before` is the empty-content variant we already skipped;
+      // `a.gb_A::before` on the mobile "Sign in" pill is the same idea but
+      // with `content: " "` (a single space, non-empty) so it slipped past
+      // the previous gate). Skip ALL opacity-zero pseudos before doing any
+      // measurement / box-rect work; capturing them anyway would paint an
+      // opaque box over the host's actual content.
+      const opacityNum = parseFloat(pcs.opacity);
+      if (Number.isFinite(opacityNum) && opacityNum === 0) continue;
+
+      const { text, imageUrl } = parsePseudoContent(content, el, counterSnapshot);
+      if (text === '' && imageUrl === '') {
+        const box = captureEmptyContentBox(el, cs, pseudo, pcs, rect);
+        if (box != null) pseudoBoxes.push(box);
         continue;
       }
 
