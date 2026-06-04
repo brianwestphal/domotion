@@ -26,7 +26,7 @@ import { captureElementTree } from "../render/element-tree-to-svg.js";
 import type {
   ScrollPattern, ScrollPatternSegment, FlatSegment, BracketedSegment,
   ScrollPatternAction, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
-  UntilClause,
+  UntilClause, PositionUntil,
 } from "./pattern.js";
 import { diffTrees, type TreeDiff } from "../tree-ops/tree-diff.js";
 
@@ -430,6 +430,11 @@ async function walkPattern(
   }
 }
 
+/** Test-only: drive the pattern walk against a fake `PageQuery` + `runOp` (no
+ *  Playwright / no tree capture), to exercise the `until`-loop and its
+ *  final-iteration target clamp. */
+export const __walkPatternForTest = walkPattern;
+
 async function walkSegment(
   seg: ScrollPatternSegment,
   pageQuery: PageQuery,
@@ -439,22 +444,22 @@ async function walkSegment(
   log: (msg: string) => void,
 ): Promise<void> {
   if (seg.kind === "bracketed") {
-    await runWithMaybeUntil(seg.until, async () => {
-      await walkPattern(seg.pattern, pageQuery, defaultSpeed, runOp, checkTimeout, log);
+    await runWithMaybeUntil(seg.until, async (bodyRunOp) => {
+      await walkPattern(seg.pattern, pageQuery, defaultSpeed, bodyRunOp, checkTimeout, log);
     }, pageQuery, defaultSpeed, runOp, checkTimeout, log);
     return;
   }
   // Flat segment.
-  await runWithMaybeUntil(seg.until, async () => {
+  await runWithMaybeUntil(seg.until, async (bodyRunOp) => {
     for (const a of (seg as FlatSegment).actions) {
-      await runAction(a, pageQuery, defaultSpeed, runOp);
+      await runAction(a, pageQuery, defaultSpeed, bodyRunOp);
     }
   }, pageQuery, defaultSpeed, runOp, checkTimeout, log);
 }
 
 async function runWithMaybeUntil(
   until: UntilClause | undefined,
-  bodyOnce: () => Promise<void>,
+  bodyOnce: (runOp: (op: ResolvedOp) => Promise<void>) => Promise<void>,
   pageQuery: PageQuery,
   defaultSpeed: number,
   runOp: (op: ResolvedOp) => Promise<void>,
@@ -462,22 +467,22 @@ async function runWithMaybeUntil(
   log: (msg: string) => void,
 ): Promise<void> {
   if (until == null) {
-    await bodyOnce();
+    await bodyOnce(runOp);
     return;
   }
   if (until.kind === "count") {
     for (let i = 0; i < until.count; i++) {
       checkTimeout();
-      await bodyOnce();
+      await bodyOnce(runOp);
     }
     return;
   }
   // Position-based until. Iterate until the current scroll position satisfies
-  // the condition. To honor the "clamp on overshoot" rule, the last iteration
-  // is allowed to run even if its body might overshoot — the body's resolver
-  // (`resolveScrollAction`) clamps each scroll's destination to the bounded
-  // axis, so a too-large final delta lands at the page edge naturally.
-  // (More sophisticated clamping at the action level is a follow-up.)
+  // the condition. The final iteration is clamped to land EXACTLY on the target:
+  // we resolve the target against this iteration's snapshot and cap any scroll
+  // op on the until axis that would otherwise pass it, so `until bottom - 1000px`
+  // stops precisely 1000px from the bottom instead of one action-magnitude past
+  // the target. (The resolver's page-bounds clamp still applies underneath.)
   let prevSnap: PageStateSnapshot | null = null;
   const MAX_ITER = 1000;   // hard upper bound on `until <position>` loops
   for (let i = 0; i < MAX_ITER; i++) {
@@ -493,8 +498,47 @@ async function runWithMaybeUntil(
       break;
     }
     prevSnap = snap;
-    await bodyOnce();
+    const axis = untilAxis(until);
+    const target = await resolveAbsoluteTarget(until.target, axis, pageQuery, snap);
+    const cur = axis === "x" ? snap.scrollX : snap.scrollY;
+    await bodyOnce(clampScrollToTarget(runOp, axis, cur, target));
   }
+}
+
+/**
+ * Wrap `runOp` so a scroll op on `axis` that would move PAST `target` (in the
+ * direction away from `cur`) is capped at `target` instead. Used by the
+ * position-`until` loop so the final iteration lands exactly on the target
+ * rather than one action-magnitude beyond it. Only caps when the motion heads
+ * toward `target`; motion away is left alone (the no-progress guard handles a
+ * condition that can never be met).
+ */
+function clampScrollToTarget(
+  runOp: (op: ResolvedOp) => Promise<void>,
+  axis: ScrollAxis,
+  cur: number,
+  target: number,
+): (op: ResolvedOp) => Promise<void> {
+  return (op) => {
+    if (op.kind === "scroll") {
+      const dest = axis === "x" ? op.destX : op.destY;
+      let capped = dest;
+      if (dest > cur && target >= cur) capped = Math.min(dest, target);
+      else if (dest < cur && target <= cur) capped = Math.max(dest, target);
+      if (capped !== dest) op = axis === "x" ? { ...op, destX: capped } : { ...op, destY: capped };
+    }
+    return runOp(op);
+  };
+}
+
+/** Which axis a position-`until` condition watches: the target's explicit
+ *  `.x`/`.y` suffix, else the x-axis when the anchor is `left`/`right`, else y. */
+function untilAxis(until: PositionUntil): ScrollAxis {
+  if (until.target.axisSuffix === "x") return "x";
+  if (until.target.axisSuffix === "y") return "y";
+  const a = until.target.anchor;
+  if (a.kind === "named" && (a.name === "left" || a.name === "right")) return "x";
+  return "y";
 }
 
 async function isUntilConditionMet(
@@ -503,8 +547,7 @@ async function isUntilConditionMet(
   pageQuery: PageQuery,
 ): Promise<boolean> {
   if (until.kind === "count") return false;   // handled separately
-  const axis = (until.target.axisSuffix === "x" || /* x-anchor */
-                (until.target.anchor.kind === "named" && (until.target.anchor.name === "left" || until.target.anchor.name === "right"))) ? "x" : "y";
+  const axis = untilAxis(until);
   const target = await resolveAbsoluteTarget(until.target, axis, pageQuery, snap);
   const cur = axis === "x" ? snap.scrollX : snap.scrollY;
   // Condition is "we've reached or passed the target in the natural direction

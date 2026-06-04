@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  __walkPatternForTest,
   axisOfScroll,
   resolveAbsoluteTarget,
   resolveScrollAction,
   type PageQuery,
   type PageStateSnapshot,
 } from "./executor.js";
+import { parseScrollPattern } from "./pattern.js";
 import type { ScrollAction, AbsoluteTarget } from "./pattern.js";
 
 // ── Fake PageQuery for the pure helpers' tests ─────────────────────────────
@@ -266,5 +268,58 @@ describe("resolveScrollAction", () => {
     const r = await resolveScrollAction(action, query, snap, 1500);
     expect(r.destY).toBe(0);
     expect(r.scrollDurationMs).toBe(0);
+  });
+});
+
+// ── until <position>: final-iteration target clamp (DM-1077) ────────────────
+
+describe("until <position> final-iteration clamp", () => {
+  // Stateful fake page: scrollY advances as each scroll op runs (the op's dest
+  // becomes the new position), and snapshot() reflects it — so the until loop
+  // makes real progress and re-resolves the condition each iteration.
+  function statefulPage(maxScrollY: number): { query: PageQuery; state: PageStateSnapshot; destYs: number[] } {
+    const state: PageStateSnapshot = { maxScrollX: 0, maxScrollY, scrollX: 0, scrollY: 0 };
+    const destYs: number[] = [];
+    const query: PageQuery = {
+      async snapshot() { return { ...state }; },
+      async selectorBbox() { return null; },
+    };
+    return { query, state, destYs };
+  }
+
+  it("`until bottom - 1000px` lands exactly on the target, not one step past", async () => {
+    // maxScrollY 4000 → `bottom - 1000px` resolves to y = 3000. 700px steps from
+    // 0 reach 700/1400/2100/2800; the next step would hit 3500 (past 3000), so
+    // the clamp caps the final destination at exactly 3000. Without the clamp
+    // the loop would land at 3500 — one action-magnitude past the target.
+    const { query, state, destYs } = statefulPage(4000);
+    await __walkPatternForTest(
+      parseScrollPattern("down:700px until bottom - 1000px"),
+      query, 1000,
+      async (op) => {
+        if (op.kind === "scroll") { state.scrollX = op.destX; state.scrollY = op.destY; destYs.push(op.destY); }
+      },
+      () => { /* no timeout */ },
+      () => { /* silent log */ },
+    );
+    expect(destYs).toEqual([700, 1400, 2100, 2800, 3000]);
+    expect(state.scrollY).toBe(3000);
+  });
+
+  it("a step that divides the target evenly is unaffected (no spurious clamp)", async () => {
+    // 600px steps from 0 hit the 3000 target exactly on the fifth step, so the
+    // clamp is a no-op and every destination is a clean multiple of 600.
+    const { query, state, destYs } = statefulPage(4000);
+    await __walkPatternForTest(
+      parseScrollPattern("down:600px until bottom - 1000px"),
+      query, 1000,
+      async (op) => {
+        if (op.kind === "scroll") { state.scrollX = op.destX; state.scrollY = op.destY; destYs.push(op.destY); }
+      },
+      () => {},
+      () => {},
+    );
+    expect(destYs).toEqual([600, 1200, 1800, 2400, 3000]);
+    expect(state.scrollY).toBe(3000);
   });
 });
