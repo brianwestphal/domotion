@@ -370,6 +370,222 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
     };
   };
 
+  // DM-989: build the styled ::first-letter TextSegment from the chars selected
+  // during the per-character loop (firstLetterChars) — pseudo font / color /
+  // pseudoBox, with `initial-letter` cap-height equalisation when present.
+  // Returns the segment plus its bounding box; the caller unshifts the segment,
+  // sets the emit flag, and folds the box into the host's text envelope. Closes
+  // over the factory's vp / measureFontMetrics / normColor. From captureTextSegments (DM-1093).
+  const buildFirstLetterSegment = (firstLetterChars, flStyle, hasInitialLetter, el, cs) => {
+      const styledText = firstLetterChars.map((c) => c.ch).join('');
+      const minL = Math.min(...firstLetterChars.map((c) => c.left));
+      const maxR = Math.max(...firstLetterChars.map((c) => c.right));
+      const minT = Math.min(...firstLetterChars.map((c) => c.top));
+      const maxB = Math.max(...firstLetterChars.map((c) => c.bottom));
+      // Per-char xOffsets in viewport-relative coords (one entry per UTF-16
+      // unit, matching the convention in the body segments).
+      const xoff = [];
+      for (const c of firstLetterChars) {
+        for (let k = 0; k < c.ch.length; k++) xoff.push(c.left - vp.x);
+      }
+      // Measure pseudo font ascent so the renderer baselines the glyph
+      // inside the styled segment correctly (`fontBoundingBoxAscent`
+      // mirrors the canvas measurement the regular-text path uses).
+      const flMetrics = measureFontMetrics(flStyle);
+      // DM-989: `initial-letter: N [M]` cap-height equalisation. Chrome
+      // internally scales the first-letter glyph to a larger font-size
+      // than `getComputedStyle().fontSize` reports — per Blink's
+      // `initial_letter_utils.cc::ComputeInitialLetterBoxBlockOffset`, the
+      // glyph is sized so its cap-height equals N × the parent's
+      // line-height. The naive theoretical formula `effectiveFs =
+      // (N × parentLineHeight) / capHeightRatio(font)` overshoots Chrome
+      // empirically (gave 202 px for drop-5 where Chrome paints ~171 px);
+      // probably Chrome's internal cap-height target uses (N-1)*line-height
+      // + body-line-height-leading or similar nuance buried in the layout
+      // code. Side-step the formula and derive `effectiveFs` from Chrome's
+      // *computed pseudo width* — `flStyle.width` is the content-box width
+      // Chrome already sized the pseudo to, which equals the glyph's
+      // painted extent. Probe the chars' natural width at 100 px via
+      // canvas, scale: `effectiveFs = 100 × paintedGlyphWidth /
+      // naturalWidthAt100`. Same approach for `effectiveAscent` — read
+      // `fontBoundingBoxAscent` from the probe-rendered font and scale.
+      let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
+      let effectiveAscent = flMetrics.ascent;
+      let styledSegY = minT - vp.y;
+      if (hasInitialLetter) {
+        const probeCanvas = document.createElement('canvas');
+        const probeCtx = probeCanvas.getContext('2d');
+        probeCtx.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
+        const probeM = probeCtx.measureText(styledText);
+        const naturalWidthAt100 = probeM.width;
+        const ascentRatio = probeM.fontBoundingBoxAscent / 100;
+        const padLForGlyph = parseFloat(flStyle.paddingLeft) || 0;
+        const padRForGlyph = parseFloat(flStyle.paddingRight) || 0;
+        const pseudoComputedW = parseFloat(flStyle.width);
+        if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
+          // `flStyle.width` is the pseudo's content-box width Chrome sized
+          // the float to. Subtract padding to get the glyph's painted
+          // extent (`paddingRight` for `:left`-float, `paddingLeft` for
+          // `:right`-float — both sides for safety).
+          void padLForGlyph; void padRForGlyph;
+          const paintedGlyphW = pseudoComputedW;
+          effectiveFs = 100 * paintedGlyphW / naturalWidthAt100;
+          effectiveAscent = effectiveFs * ascentRatio;
+          // Position the segment so the rendered baseline matches Chrome's
+          // painted baseline. Chrome paints the first-letter with its
+          // cap-top aligned to line-1's cap-top — i.e. the cap-top sits
+          // at `minT` (Range.top of the painted glyph as captured here).
+          // Use the H-probe cap-height ratio to derive baseline from
+          // cap-top, then seg.y from baseline - effectiveAscent so the
+          // renderer's `seg.y + segAscent = baseline` arithmetic
+          // reconstructs the right paint position.
+          const hM = probeCtx.measureText('H');
+          const capHeightRatio = hM.actualBoundingBoxAscent / 100;
+          if (capHeightRatio > 0) {
+            const effectiveCapHeight = effectiveFs * capHeightRatio;
+            const baseline = minT + effectiveCapHeight;
+            styledSegY = baseline - effectiveAscent - vp.y;
+          }
+        }
+      }
+      // Compute the pseudo's painted padding-box. Reuses the rect-math
+      // that the prior raster overlay used (DM-823 padding expansion for
+      // non-floated; DM-931 paragraph-anchored origin for floats / drop
+      // caps with `initial-letter: N`). The styled segment paints its
+      // text in front; the renderer paints the pseudoBox (background +
+      // border + border-radius) behind.
+      const flFloat = flStyle.float || flStyle.cssFloat || '';
+      const padT = parseFloat(flStyle.paddingTop) || 0;
+      const padR = parseFloat(flStyle.paddingRight) || 0;
+      const padB = parseFloat(flStyle.paddingBottom) || 0;
+      const padL = parseFloat(flStyle.paddingLeft) || 0;
+      let pboxL, pboxT, pboxW, pboxH;
+      if (flFloat === 'left' || flFloat === 'right') {
+        const pBox = el.getBoundingClientRect();
+        const pPadT = parseFloat(cs.paddingTop) || 0;
+        const pPadL = parseFloat(cs.paddingLeft) || 0;
+        const pPadR = parseFloat(cs.paddingRight) || 0;
+        const pBorT = parseFloat(cs.borderTopWidth) || 0;
+        const pBorL = parseFloat(cs.borderLeftWidth) || 0;
+        const pBorR = parseFloat(cs.borderRightWidth) || 0;
+        const flMarT = parseFloat(flStyle.marginTop) || 0;
+        const flMarL = parseFloat(flStyle.marginLeft) || 0;
+        const flMarR = parseFloat(flStyle.marginRight) || 0;
+        const cw = parseFloat(flStyle.width);
+        const ch_ = parseFloat(flStyle.height);
+        pboxW = (Number.isFinite(cw) && cw > 0 ? cw : (maxR - minL)) + padL + padR;
+        pboxH = (Number.isFinite(ch_) && ch_ > 0 ? ch_ : (maxB - minT)) + padT + padB;
+        pboxT = pBox.y + pBorT + pPadT + flMarT - vp.y;
+        pboxL = (flFloat === 'left')
+          ? pBox.x + pBorL + pPadL + flMarL - vp.x
+          : pBox.x + pBox.width - pBorR - pPadR - flMarR - pboxW - vp.x;
+      } else {
+        pboxL = minL - vp.x - padL;
+        pboxT = minT - vp.y - padT;
+        pboxW = (maxR - minL) + padL + padR;
+        pboxH = (maxB - minT) + padT + padB;
+      }
+      // Borders — per-side widths + colors, with uniform shorthand when
+      // all four sides match (same convention as pseudo-content.ts).
+      const bwT = parseFloat(flStyle.borderTopWidth) || 0;
+      const bwR_ = parseFloat(flStyle.borderRightWidth) || 0;
+      const bwB = parseFloat(flStyle.borderBottomWidth) || 0;
+      const bwL = parseFloat(flStyle.borderLeftWidth) || 0;
+      const uniformBw = bwT > 0 && bwT === bwR_ && bwT === bwB && bwT === bwL;
+      const bgRaw = flStyle.backgroundColor;
+      const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
+      const bgImgRaw = flStyle.backgroundImage;
+      const hasBgImg = bgImgRaw && bgImgRaw !== '' && bgImgRaw !== 'none';
+      const brad = parseFloat(flStyle.borderRadius) || 0;
+      const hasAnyBox = hasBg || hasBgImg || brad > 0 || bwT > 0 || bwR_ > 0 || bwB > 0 || bwL > 0;
+      const pseudoBox = hasAnyBox ? {
+        x: pboxL, y: pboxT, width: pboxW, height: pboxH,
+        backgroundColor: hasBg ? normColor(bgRaw) : undefined,
+        backgroundImage: hasBgImg ? bgImgRaw : undefined,
+        borderRadius: brad > 0 ? brad : undefined,
+        borderWidth: uniformBw ? bwT : undefined,
+        borderColor: uniformBw ? normColor(flStyle.borderTopColor) : undefined,
+        borL: bwL, borR: bwR_, borT: bwT, borB: bwB,
+        borderTopColor: !uniformBw && bwT > 0 ? normColor(flStyle.borderTopColor) : undefined,
+        borderRightColor: !uniformBw && bwR_ > 0 ? normColor(flStyle.borderRightColor) : undefined,
+        borderBottomColor: !uniformBw && bwB > 0 ? normColor(flStyle.borderBottomColor) : undefined,
+        borderLeftColor: !uniformBw && bwL > 0 ? normColor(flStyle.borderLeftColor) : undefined,
+      } : undefined;
+      // `text-shadow` carries from pseudo onto the styled segment when the
+      // pseudo's value differs from the host's; the renderer reads
+      // `seg.textShadow` and emits the matching SVG `<filter>` or stacked
+      // `<text>` siblings (whichever path the regular text renderer uses).
+      const flTextShadow = (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow)
+        ? flStyle.textShadow
+        : undefined;
+      // DM-994 capture-time pixel probe for `initial-letter` cases. The
+      // CSS-derived placement (`styledSegY` above) is within ±12 px of
+      // Chrome's painted cap-top on the 24-deep-initial-letter fixtures
+      // — the residual diff is real fragment-state from Blink's inline
+      // layout that doesn't surface in `getComputedStyle`. Tag the
+      // styled seg with a probe rect so the Node-side post-pass can
+      // pixel-walk Chrome's screenshot to find the actual painted ink
+      // top and refine `seg.y` accordingly. Cap-height + ascent travel
+      // alongside so the post-pass can solve `seg.y = chromeInkTop −
+      // ascent + capHeight` without re-deriving font metrics.
+      let initialLetterProbe;
+      if (hasInitialLetter && effectiveFs != null) {
+        const capHeightForProbe = effectiveFs * 0.6929; // fallback ratio; overridden below when we have ratios
+        // Compute the actual cap-height ratio inline so the probe carries
+        // the value matching what we used to derive styledSegY above.
+        const _probeCanvas2 = document.createElement('canvas');
+        const _probeCtx2 = _probeCanvas2.getContext('2d');
+        _probeCtx2.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
+        const _hMetrics2 = _probeCtx2.measureText('H');
+        const _capRatio = _hMetrics2.actualBoundingBoxAscent / 100;
+        const realCapHeight = _capRatio > 0 ? effectiveFs * _capRatio : capHeightForProbe;
+        // Probe rect: cover the full Range area plus generous margin for
+        // raise cases (cap may overflow well above Range.top) and sink
+        // cases (descenders may extend below Range.bottom). The Node
+        // post-pass thresholds at > 8 dark pixels per row, which filters
+        // out section-header text and body-text wrapping that the rect
+        // may also catch.
+        // Probe rect margins scale with effectiveFs so smaller drop caps
+        // (clustered together like the `T A T` multi-row) don't catch
+        // neighboring drop caps' ink — only enough margin to cover the
+        // raise overflow above and the sink overflow below for this
+        // particular drop cap. Large drop caps (W at 185 px) need more
+        // upward margin to catch raised caps; small ones (T multi at
+        // 56 px) need tight bounds.
+        const upMargin = Math.min(100, Math.max(15, effectiveFs * 0.4));
+        const downMargin = Math.min(120, Math.max(20, effectiveFs * 0.5));
+        initialLetterProbe = {
+          rect: {
+            x: minL - vp.x - 5,
+            y: minT - vp.y - upMargin,
+            width: (maxR - minL) + 10,
+            height: (maxB - minT) + upMargin + downMargin,
+          },
+          capHeight: realCapHeight,
+          ascent: effectiveAscent,
+        };
+      }
+      const styledSeg = {
+        text: styledText,
+        x: minL - vp.x,
+        y: styledSegY,
+        width: maxR - minL,
+        height: maxB - minT,
+        xOffsets: xoff,
+        color: normColor(flStyle.color),
+        fontFamily: flStyle.fontFamily,
+        fontSize: effectiveFs,
+        fontWeight: flStyle.fontWeight !== cs.fontWeight ? flStyle.fontWeight : undefined,
+        fontStyle: flStyle.fontStyle !== cs.fontStyle ? flStyle.fontStyle : undefined,
+        fontVariant: flStyle.fontVariant !== cs.fontVariant ? flStyle.fontVariant : undefined,
+        fontAscent: effectiveAscent,
+        textShadow: flTextShadow,
+        pseudoBox,
+        _initialLetterProbe: initialLetterProbe,
+      };
+    return { seg: styledSeg, minL, maxR, minT, maxB };
+  };
+
   const captureTextSegments = (el, cs) => {
     // DM-990: dispatch vertical writing-mode elements to the column-
     // grouping capture path. The horizontal walker below groups chars
@@ -691,221 +907,15 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
     // entries pushed above. Replaces the prior page.screenshot raster
     // overlay (DM-439, DM-823, DM-931).
     if (firstLetterChars != null && firstLetterChars.length > 0) {
-      const styledText = firstLetterChars.map((c) => c.ch).join('');
-      const minL = Math.min(...firstLetterChars.map((c) => c.left));
-      const maxR = Math.max(...firstLetterChars.map((c) => c.right));
-      const minT = Math.min(...firstLetterChars.map((c) => c.top));
-      const maxB = Math.max(...firstLetterChars.map((c) => c.bottom));
-      // Per-char xOffsets in viewport-relative coords (one entry per UTF-16
-      // unit, matching the convention in the body segments).
-      const xoff = [];
-      for (const c of firstLetterChars) {
-        for (let k = 0; k < c.ch.length; k++) xoff.push(c.left - vp.x);
-      }
-      // Measure pseudo font ascent so the renderer baselines the glyph
-      // inside the styled segment correctly (`fontBoundingBoxAscent`
-      // mirrors the canvas measurement the regular-text path uses).
-      const flMetrics = measureFontMetrics(flStyle);
-      // DM-989: `initial-letter: N [M]` cap-height equalisation. Chrome
-      // internally scales the first-letter glyph to a larger font-size
-      // than `getComputedStyle().fontSize` reports — per Blink's
-      // `initial_letter_utils.cc::ComputeInitialLetterBoxBlockOffset`, the
-      // glyph is sized so its cap-height equals N × the parent's
-      // line-height. The naive theoretical formula `effectiveFs =
-      // (N × parentLineHeight) / capHeightRatio(font)` overshoots Chrome
-      // empirically (gave 202 px for drop-5 where Chrome paints ~171 px);
-      // probably Chrome's internal cap-height target uses (N-1)*line-height
-      // + body-line-height-leading or similar nuance buried in the layout
-      // code. Side-step the formula and derive `effectiveFs` from Chrome's
-      // *computed pseudo width* — `flStyle.width` is the content-box width
-      // Chrome already sized the pseudo to, which equals the glyph's
-      // painted extent. Probe the chars' natural width at 100 px via
-      // canvas, scale: `effectiveFs = 100 × paintedGlyphWidth /
-      // naturalWidthAt100`. Same approach for `effectiveAscent` — read
-      // `fontBoundingBoxAscent` from the probe-rendered font and scale.
-      let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
-      let effectiveAscent = flMetrics.ascent;
-      let styledSegY = minT - vp.y;
-      if (hasInitialLetter) {
-        const probeCanvas = document.createElement('canvas');
-        const probeCtx = probeCanvas.getContext('2d');
-        probeCtx.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
-        const probeM = probeCtx.measureText(styledText);
-        const naturalWidthAt100 = probeM.width;
-        const ascentRatio = probeM.fontBoundingBoxAscent / 100;
-        const padLForGlyph = parseFloat(flStyle.paddingLeft) || 0;
-        const padRForGlyph = parseFloat(flStyle.paddingRight) || 0;
-        const pseudoComputedW = parseFloat(flStyle.width);
-        if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
-          // `flStyle.width` is the pseudo's content-box width Chrome sized
-          // the float to. Subtract padding to get the glyph's painted
-          // extent (`paddingRight` for `:left`-float, `paddingLeft` for
-          // `:right`-float — both sides for safety).
-          void padLForGlyph; void padRForGlyph;
-          const paintedGlyphW = pseudoComputedW;
-          effectiveFs = 100 * paintedGlyphW / naturalWidthAt100;
-          effectiveAscent = effectiveFs * ascentRatio;
-          // Position the segment so the rendered baseline matches Chrome's
-          // painted baseline. Chrome paints the first-letter with its
-          // cap-top aligned to line-1's cap-top — i.e. the cap-top sits
-          // at `minT` (Range.top of the painted glyph as captured here).
-          // Use the H-probe cap-height ratio to derive baseline from
-          // cap-top, then seg.y from baseline - effectiveAscent so the
-          // renderer's `seg.y + segAscent = baseline` arithmetic
-          // reconstructs the right paint position.
-          const hM = probeCtx.measureText('H');
-          const capHeightRatio = hM.actualBoundingBoxAscent / 100;
-          if (capHeightRatio > 0) {
-            const effectiveCapHeight = effectiveFs * capHeightRatio;
-            const baseline = minT + effectiveCapHeight;
-            styledSegY = baseline - effectiveAscent - vp.y;
-          }
-        }
-      }
-      // Compute the pseudo's painted padding-box. Reuses the rect-math
-      // that the prior raster overlay used (DM-823 padding expansion for
-      // non-floated; DM-931 paragraph-anchored origin for floats / drop
-      // caps with `initial-letter: N`). The styled segment paints its
-      // text in front; the renderer paints the pseudoBox (background +
-      // border + border-radius) behind.
-      const flFloat = flStyle.float || flStyle.cssFloat || '';
-      const padT = parseFloat(flStyle.paddingTop) || 0;
-      const padR = parseFloat(flStyle.paddingRight) || 0;
-      const padB = parseFloat(flStyle.paddingBottom) || 0;
-      const padL = parseFloat(flStyle.paddingLeft) || 0;
-      let pboxL, pboxT, pboxW, pboxH;
-      if (flFloat === 'left' || flFloat === 'right') {
-        const pBox = el.getBoundingClientRect();
-        const pPadT = parseFloat(cs.paddingTop) || 0;
-        const pPadL = parseFloat(cs.paddingLeft) || 0;
-        const pPadR = parseFloat(cs.paddingRight) || 0;
-        const pBorT = parseFloat(cs.borderTopWidth) || 0;
-        const pBorL = parseFloat(cs.borderLeftWidth) || 0;
-        const pBorR = parseFloat(cs.borderRightWidth) || 0;
-        const flMarT = parseFloat(flStyle.marginTop) || 0;
-        const flMarL = parseFloat(flStyle.marginLeft) || 0;
-        const flMarR = parseFloat(flStyle.marginRight) || 0;
-        const cw = parseFloat(flStyle.width);
-        const ch_ = parseFloat(flStyle.height);
-        pboxW = (Number.isFinite(cw) && cw > 0 ? cw : (maxR - minL)) + padL + padR;
-        pboxH = (Number.isFinite(ch_) && ch_ > 0 ? ch_ : (maxB - minT)) + padT + padB;
-        pboxT = pBox.y + pBorT + pPadT + flMarT - vp.y;
-        pboxL = (flFloat === 'left')
-          ? pBox.x + pBorL + pPadL + flMarL - vp.x
-          : pBox.x + pBox.width - pBorR - pPadR - flMarR - pboxW - vp.x;
-      } else {
-        pboxL = minL - vp.x - padL;
-        pboxT = minT - vp.y - padT;
-        pboxW = (maxR - minL) + padL + padR;
-        pboxH = (maxB - minT) + padT + padB;
-      }
-      // Borders — per-side widths + colors, with uniform shorthand when
-      // all four sides match (same convention as pseudo-content.ts).
-      const bwT = parseFloat(flStyle.borderTopWidth) || 0;
-      const bwR_ = parseFloat(flStyle.borderRightWidth) || 0;
-      const bwB = parseFloat(flStyle.borderBottomWidth) || 0;
-      const bwL = parseFloat(flStyle.borderLeftWidth) || 0;
-      const uniformBw = bwT > 0 && bwT === bwR_ && bwT === bwB && bwT === bwL;
-      const bgRaw = flStyle.backgroundColor;
-      const hasBg = bgRaw && bgRaw !== '' && bgRaw !== 'rgba(0, 0, 0, 0)' && bgRaw !== 'transparent';
-      const bgImgRaw = flStyle.backgroundImage;
-      const hasBgImg = bgImgRaw && bgImgRaw !== '' && bgImgRaw !== 'none';
-      const brad = parseFloat(flStyle.borderRadius) || 0;
-      const hasAnyBox = hasBg || hasBgImg || brad > 0 || bwT > 0 || bwR_ > 0 || bwB > 0 || bwL > 0;
-      const pseudoBox = hasAnyBox ? {
-        x: pboxL, y: pboxT, width: pboxW, height: pboxH,
-        backgroundColor: hasBg ? normColor(bgRaw) : undefined,
-        backgroundImage: hasBgImg ? bgImgRaw : undefined,
-        borderRadius: brad > 0 ? brad : undefined,
-        borderWidth: uniformBw ? bwT : undefined,
-        borderColor: uniformBw ? normColor(flStyle.borderTopColor) : undefined,
-        borL: bwL, borR: bwR_, borT: bwT, borB: bwB,
-        borderTopColor: !uniformBw && bwT > 0 ? normColor(flStyle.borderTopColor) : undefined,
-        borderRightColor: !uniformBw && bwR_ > 0 ? normColor(flStyle.borderRightColor) : undefined,
-        borderBottomColor: !uniformBw && bwB > 0 ? normColor(flStyle.borderBottomColor) : undefined,
-        borderLeftColor: !uniformBw && bwL > 0 ? normColor(flStyle.borderLeftColor) : undefined,
-      } : undefined;
-      // `text-shadow` carries from pseudo onto the styled segment when the
-      // pseudo's value differs from the host's; the renderer reads
-      // `seg.textShadow` and emits the matching SVG `<filter>` or stacked
-      // `<text>` siblings (whichever path the regular text renderer uses).
-      const flTextShadow = (flStyle.textShadow !== '' && flStyle.textShadow !== 'none' && flStyle.textShadow !== cs.textShadow)
-        ? flStyle.textShadow
-        : undefined;
-      // DM-994 capture-time pixel probe for `initial-letter` cases. The
-      // CSS-derived placement (`styledSegY` above) is within ±12 px of
-      // Chrome's painted cap-top on the 24-deep-initial-letter fixtures
-      // — the residual diff is real fragment-state from Blink's inline
-      // layout that doesn't surface in `getComputedStyle`. Tag the
-      // styled seg with a probe rect so the Node-side post-pass can
-      // pixel-walk Chrome's screenshot to find the actual painted ink
-      // top and refine `seg.y` accordingly. Cap-height + ascent travel
-      // alongside so the post-pass can solve `seg.y = chromeInkTop −
-      // ascent + capHeight` without re-deriving font metrics.
-      let initialLetterProbe;
-      if (hasInitialLetter && effectiveFs != null) {
-        const capHeightForProbe = effectiveFs * 0.6929; // fallback ratio; overridden below when we have ratios
-        // Compute the actual cap-height ratio inline so the probe carries
-        // the value matching what we used to derive styledSegY above.
-        const _probeCanvas2 = document.createElement('canvas');
-        const _probeCtx2 = _probeCanvas2.getContext('2d');
-        _probeCtx2.font = `${flStyle.fontStyle || 'normal'} ${flStyle.fontWeight || '400'} 100px ${flStyle.fontFamily || 'serif'}`;
-        const _hMetrics2 = _probeCtx2.measureText('H');
-        const _capRatio = _hMetrics2.actualBoundingBoxAscent / 100;
-        const realCapHeight = _capRatio > 0 ? effectiveFs * _capRatio : capHeightForProbe;
-        // Probe rect: cover the full Range area plus generous margin for
-        // raise cases (cap may overflow well above Range.top) and sink
-        // cases (descenders may extend below Range.bottom). The Node
-        // post-pass thresholds at > 8 dark pixels per row, which filters
-        // out section-header text and body-text wrapping that the rect
-        // may also catch.
-        // Probe rect margins scale with effectiveFs so smaller drop caps
-        // (clustered together like the `T A T` multi-row) don't catch
-        // neighboring drop caps' ink — only enough margin to cover the
-        // raise overflow above and the sink overflow below for this
-        // particular drop cap. Large drop caps (W at 185 px) need more
-        // upward margin to catch raised caps; small ones (T multi at
-        // 56 px) need tight bounds.
-        const upMargin = Math.min(100, Math.max(15, effectiveFs * 0.4));
-        const downMargin = Math.min(120, Math.max(20, effectiveFs * 0.5));
-        initialLetterProbe = {
-          rect: {
-            x: minL - vp.x - 5,
-            y: minT - vp.y - upMargin,
-            width: (maxR - minL) + 10,
-            height: (maxB - minT) + upMargin + downMargin,
-          },
-          capHeight: realCapHeight,
-          ascent: effectiveAscent,
-        };
-      }
-      const styledSeg = {
-        text: styledText,
-        x: minL - vp.x,
-        y: styledSegY,
-        width: maxR - minL,
-        height: maxB - minT,
-        xOffsets: xoff,
-        color: normColor(flStyle.color),
-        fontFamily: flStyle.fontFamily,
-        fontSize: effectiveFs,
-        fontWeight: flStyle.fontWeight !== cs.fontWeight ? flStyle.fontWeight : undefined,
-        fontStyle: flStyle.fontStyle !== cs.fontStyle ? flStyle.fontStyle : undefined,
-        fontVariant: flStyle.fontVariant !== cs.fontVariant ? flStyle.fontVariant : undefined,
-        fontAscent: effectiveAscent,
-        textShadow: flTextShadow,
-        pseudoBox,
-        _initialLetterProbe: initialLetterProbe,
-      };
-      textSegments.unshift(styledSeg);
+      const fl = buildFirstLetterSegment(firstLetterChars, flStyle, hasInitialLetter, el, cs);
+      textSegments.unshift(fl.seg);
       didEmitStyledFirstLetter = true;
-      // Update the bounds reported back to captureInner so the host
-      // element's textLeft/Top/Width/Height envelope includes the styled
-      // run (drop-cap floats often paint outside the host's text envelope).
-      minLeft = Math.min(minLeft, minL);
-      minTop = Math.min(minTop, minT);
-      maxRight = Math.max(maxRight, maxR);
-      maxBottom = Math.max(maxBottom, maxB);
+      // Fold the styled run into the host's textLeft/Top/Width/Height envelope
+      // (drop-cap floats often paint outside the host's text envelope).
+      minLeft = Math.min(minLeft, fl.minL);
+      minTop = Math.min(minTop, fl.minT);
+      maxRight = Math.max(maxRight, fl.maxR);
+      maxBottom = Math.max(maxBottom, fl.maxB);
     }
 
     // ::first-line overrides (DM-294). When DM-989's styled ::first-letter
