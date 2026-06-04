@@ -696,25 +696,7 @@ export function elementTreeToSvgInner(
       // view-box explicitly; the first falls back to border-box (close
       // enough for the html-test fixtures), the SVG-specific ones don't
       // apply to HTML elements.
-      const geoBoxMatch = /\b(content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i.exec(clipPathCss);
-      const geoBox = geoBoxMatch != null ? geoBoxMatch[1].toLowerCase() : "border-box";
-      const shapeValue = geoBoxMatch != null ? (clipPathCss.slice(0, geoBoxMatch.index) + clipPathCss.slice(geoBoxMatch.index + geoBoxMatch[0].length)).trim() : clipPathCss;
-      const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-      const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-      const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-      const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-      const pdT = parseFloat(el.styles.paddingTop ?? "0") || 0;
-      const pdR = parseFloat(el.styles.paddingRight ?? "0") || 0;
-      const pdB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
-      const pdL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-      let cpX = el.x, cpY = el.y, cpW = el.width, cpH = el.height;
-      if (geoBox === "padding-box" || geoBox === "content-box") {
-        cpX += bwL; cpY += bwT; cpW -= bwL + bwR; cpH -= bwT + bwB;
-        if (geoBox === "content-box") {
-          cpX += pdL; cpY += pdT; cpW -= pdL + pdR; cpH -= pdT + pdB;
-        }
-      }
-      const shape = translateClipPath(shapeValue, cpX, cpY, Math.max(0, cpW), Math.max(0, cpH));
+      const shape = clipPathShapeForElement(el, clipPathCss);
       if (shape !== "") {
         clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
         defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
@@ -970,15 +952,7 @@ export function elementTreeToSvgInner(
     // viewport coordinate system the SVG draws in. Chrome resolves every
     // CSS transform function to a matrix in computed style, so we only
     // need to translate matrix() / matrix3d() into SVG syntax.
-    const originParts = (el.styles.transformOrigin ?? "").trim().split(/\s+/);
-    // parseFloat("0px") === 0, which is falsy — guarding with `||` would
-    // silently substitute the bbox center for an explicit `transform-origin: 0 0`
-    // (and rotate around the center instead of the top-left).
-    const parsedOX = parseFloat(originParts[0] ?? "");
-    const parsedOY = parseFloat(originParts[1] ?? "");
-    const tOriginX = el.x + (Number.isFinite(parsedOX) ? parsedOX : el.width / 2);
-    const tOriginY = el.y + (Number.isFinite(parsedOY) ? parsedOY : el.height / 2);
-    const transformAttr = cssTransformToSvg(el.styles.transform, tOriginX, tOriginY);
+    const transformAttr = svgTransformForElement(el);
     // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
     // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
     // contain:paint, transform, filter…) must form an isolated group for
@@ -5690,6 +5664,55 @@ export function buildMaskDef(
  *
  * Unsupported (returns ""): path(), geometry-box references, complex shape mixes.
  */
+/**
+ * Translate an element's CSS `clip-path` into an SVG clip-shape string, honoring
+ * the optional `<geometry-box>` keyword (DM-818): the shape is positioned
+ * relative to the named box, so `padding-box` / `content-box` inset the
+ * reference rect by the element's border (and padding) widths before translating
+ * the shape. Pure (no closure state). Returns "" when the value is a fragment
+ * ref / untranslatable — the caller then tries the inline-`<clipPath>` path.
+ */
+function clipPathShapeForElement(el: CapturedElement, clipPathCss: string): string {
+  const geoBoxMatch = /\b(content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i.exec(clipPathCss);
+  const geoBox = geoBoxMatch != null ? geoBoxMatch[1].toLowerCase() : "border-box";
+  const shapeValue = geoBoxMatch != null ? (clipPathCss.slice(0, geoBoxMatch.index) + clipPathCss.slice(geoBoxMatch.index + geoBoxMatch[0].length)).trim() : clipPathCss;
+  const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+  const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+  const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+  const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+  const pdT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+  const pdR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+  const pdB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+  const pdL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+  let cpX = el.x, cpY = el.y, cpW = el.width, cpH = el.height;
+  if (geoBox === "padding-box" || geoBox === "content-box") {
+    cpX += bwL; cpY += bwT; cpW -= bwL + bwR; cpH -= bwT + bwB;
+    if (geoBox === "content-box") {
+      cpX += pdL; cpY += pdT; cpW -= pdL + pdR; cpH -= pdT + pdB;
+    }
+  }
+  return translateClipPath(shapeValue, cpX, cpY, Math.max(0, cpW), Math.max(0, cpH));
+}
+
+/**
+ * Compose an element's CSS 2D transform into the SVG `<g transform>` value,
+ * resolved around the transform-origin in viewport coords (SK-1134). Chrome
+ * reports `transform-origin` in px relative to the border box, so add el.x/el.y
+ * to reach the viewport space the SVG draws in; an explicit `0px` origin must
+ * survive (parseFloat("0px") === 0 is falsy, so guard on Number.isFinite, not
+ * `||`, else the bbox center would silently replace `transform-origin: 0 0`).
+ * Chrome resolves every transform function to a matrix in computed style, so
+ * only matrix() / matrix3d() need translating. Pure (no closure state).
+ */
+function svgTransformForElement(el: CapturedElement): string {
+  const originParts = (el.styles.transformOrigin ?? "").trim().split(/\s+/);
+  const parsedOX = parseFloat(originParts[0] ?? "");
+  const parsedOY = parseFloat(originParts[1] ?? "");
+  const tOriginX = el.x + (Number.isFinite(parsedOX) ? parsedOX : el.width / 2);
+  const tOriginY = el.y + (Number.isFinite(parsedOY) ? parsedOY : el.height / 2);
+  return cssTransformToSvg(el.styles.transform, tOriginX, tOriginY);
+}
+
 function translateClipPath(value: string, x: number, y: number, w: number, h: number): string {
   const resolvePx = (tok: string, basis: number): number => {
     const t = tok.trim();
