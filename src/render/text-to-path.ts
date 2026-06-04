@@ -2569,73 +2569,43 @@ export function textToPathMarkup(
       const ch = String.fromCodePoint(cp);
       // The char appended to the current run's text. Normally the source char;
       // for a Math-Alpha decomposition it's the substituted base letter/digit.
-      let emitCh = ch;
-      let useDecomposed = false;
-      // Primary-first: many of the chars `fallbackFontChain` routes (∑ ∏ ≠ ●
-      // ™ ←) are present in the requested primary font (Helvetica/Times/SF
-      // Pro) at metrics that match Chrome's painted width. Use primary
-      // whenever it has the glyph; only walk the fallback chain otherwise.
-      let useKey = primaryFontKey;
-      let useFontOverride: FontInstance | null = null;
-      if (primaryFont.glyphForCodePoint(cp).id === 0) {
-        // DM-557: for a partitioned webfont family (Geist split across
-        // Latin / Latin-Ext / Cyrillic / etc. by `unicode-range`), the
-        // Latin-biased `pickWebfontVariant` returns the Latin partition as
-        // primary. Codepoints outside that partition's range have no glyph
-        // in the primary, but they MAY be covered by another registered
-        // variant of the same family. Try a codepoint-aware variant lookup
-        // BEFORE walking the system fallback chain — picking the matching
-        // partition matches Chrome's @font-face cascade and preserves the
-        // family's typographic identity instead of falling to a body system
-        // font.
-        if (primaryFontKey.startsWith("webfont:")) {
-          const family = primaryFontKey.slice("webfont:".length);
-          const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-          if (cpVariant != null && cpVariant.glyphForCodePoint(cp).id !== 0) {
-            // Use the codepoint-aware variant. Keep `useKey` = primary so the
-            // run discriminator still groups with primary at the key level;
-            // the font instance override propagates through the run grouping
-            // below to give this codepoint its own (or coalesced) run.
-            useFontOverride = cpVariant;
-          }
-        }
-        if (useFontOverride == null) {
-          // Walk the chain in order, pick the first font that actually has
-          // the glyph. If nothing in the chain has it (e.g. an exotic emoji
-          // that even Apple Symbols lacks), fall through to the LAST chain
-          // entry anyway — its .notdef has a stable advance the rasterGlyph
-          // overlay can pin a captured emoji PNG against, where switching
-          // to primary's .notdef would shift glyph positions and drift the
-          // rest of the line.
-          const chain = fallbackFontChain(cp, primaryFontKey, lang);
-          let picked: string | null = null;
-          for (const candidate of chain) {
-            const cf = getFontInstance(candidate, weight, fontSize, slant);
-            if (cf != null && cf.glyphForCodePoint != null
-                && cf.glyphForCodePoint(cp).id !== 0) {
-              picked = candidate;
-              break;
-            }
-          }
-          if (picked == null) {
-            // Nothing in the chain has the glyph. If it's a Mathematical
-            // Alphanumeric Symbol, the system math font likely lacks the
-            // U+1D4xx block (true of FreeSans/FreeSerif on Linux) and Chromium
-            // synthesizes the letter from its base form. Decompose to the base
-            // char + bold/italic and render that in the matching FreeFont
-            // sibling (FreeSansOblique etc.), routed through the same chain.
-            const decomp = decomposeMathAlphaRun(cp, chain, weight, fontSize);
-            if (decomp != null) {
-              useKey = decomp.key;
-              useFontOverride = decomp.font;
-              emitCh = decomp.ch;
-              useDecomposed = true;
-            }
-          }
-          if (!useDecomposed) {
-            useKey = picked ?? (chain.length > 0 ? chain[chain.length - 1] : primaryFontKey);
-          }
-        }
+      // DM-1068: the per-codepoint decision is the shared resolver (primary →
+      // webfont variant → chain → system fallback → math-alpha → NFD). This path
+      // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
+      // (the substituted base char) rather than the per-char source index.
+      const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+      // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
+      // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
+      // placing one on a system color font here would split it out of the
+      // surrounding text run and break the overlay's advance pinning (the
+      // embedded path, which has no overlay, does let the resolver place them).
+      const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
+      const emojiToTerminal = primaryFont.glyphForCodePoint(cp).id === 0 && isEmojiCodepoint(cp, nextCp);
+      let emitCh: string;
+      let useKey: string;
+      let useFontOverride: FontInstance | null;
+      let useDecomposed: boolean;
+      if (res.covered && !emojiToTerminal) {
+        emitCh = res.emitCh;
+        useKey = res.key;
+        useFontOverride = res.fontOverride;
+        useDecomposed = res.decomposed;
+      } else {
+        // Glyph-path terminal: nothing covers `cp` (an exotic emoji even Apple
+        // Symbols lacks), or `cp` is an emoji kept off the resolver per above.
+        // Pin to the LAST chain entry's stable `.notdef` advance so a captured
+        // rasterGlyph PNG overlay stays aligned — switching to primary's
+        // `.notdef` would shift glyph positions and drift the rest of the line.
+        // (For the empty emoji chain the last entry is the primary font, grouping
+        // the suppressed-tofu emoji with the surrounding run.) This is the one
+        // place the glyph-path terminal differs from the embedded path's
+        // primary-`.notdef`; the system-fallback + NFD steps the resolver added
+        // are the DM-1068 fidelity fix the glyph-path lacked.
+        const chain = fallbackFontChain(cp, primaryFontKey, lang);
+        emitCh = ch;
+        useKey = chain.length > 0 ? chain[chain.length - 1] : primaryFontKey;
+        useFontOverride = null;
+        useDecomposed = false;
       }
       // DM-557: a per-codepoint webfont variant is a different FontInstance
       // even when its `useKey` matches `curKey` (both are the primary
@@ -3156,6 +3126,123 @@ function codepointResolvesToNotdef(
   return true;
 }
 
+/**
+ * DM-1068: the single per-codepoint font decision shared by the glyph-path
+ * splitter (`textToPathMarkup`), the embedded-font splitter
+ * (`splitTextIntoFontRuns`), and the math fence / radical renderers — previously
+ * five drifting copies. Resolves which font + glyph to use for `cp`, trying in
+ * order: the primary; a per-codepoint webfont variant (partitioned @font-face —
+ * DM-557); the static `fallbackFontChain`; the CoreText system fallback (DM-1018,
+ * the CTFontCreateForString font Blink would substitute); a Math-Alphanumeric
+ * base-letter decomposition; and a canonical (NFD) decomposition (DM-1020/1021,
+ * for CJK compatibility ideographs etc.).
+ *
+ * `covered` is false ONLY when nothing produced a real glyph — the caller then
+ * applies its own terminal, which is the one place the callers legitimately
+ * differ: the glyph-path path pins to the LAST chain entry's stable `.notdef`
+ * advance (so emoji rasterGlyph overlays stay aligned), while the embedded path
+ * renders the PRIMARY font's `.notdef`.
+ */
+interface FontResolution {
+  /** Logical font key (for glyph-def caching / run grouping). */
+  key: string;
+  /** Concrete instance override (webfont variant / decomposition / system
+   *  fallback); null means materialize `key` via `getFontInstance`. */
+  fontOverride: FontInstance | null;
+  /** Char to emit — the substituted base char for a math-alpha / NFD
+   *  decomposition, else the source char. */
+  emitCh: string;
+  /** True when `emitCh` differs from the source char (decomposition) — the
+   *  glyph-path path must then render the run via its text, not the per-char
+   *  source index. */
+  decomposed: boolean;
+  /** True when a font actually covering the glyph (possibly via decomposition)
+   *  was found. False → the caller applies its own uncovered terminal. */
+  covered: boolean;
+}
+
+function resolveFontForCodepoint(
+  cp: number,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined,
+): FontResolution {
+  const ch = String.fromCodePoint(cp);
+  const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
+    ({ key, fontOverride, emitCh, decomposed, covered: true });
+
+  if (primaryFont.glyphForCodePoint(cp).id !== 0) return cover(primaryFontKey, null);
+
+  // Per-codepoint webfont variant (partitioned @font-face family — DM-557). Keep
+  // `key` = primary so runs still group at the key level; the instance override
+  // gives this codepoint its matching partition.
+  if (primaryFontKey.startsWith("webfont:")) {
+    const family = primaryFontKey.slice("webfont:".length);
+    const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
+    if (v != null && v.glyphForCodePoint(cp).id !== 0) return cover(primaryFontKey, v);
+  }
+
+  // Static fallback chain — first candidate that covers the glyph.
+  const chain = fallbackFontChain(cp, primaryFontKey, lang);
+  let picked: string | null = null;
+  for (const candidate of chain) {
+    const cf = getFontInstance(candidate, weight, fontSize, slant);
+    if (cf != null && cf.glyphForCodePoint(cp).id !== 0) { picked = candidate; break; }
+  }
+
+  // CoreText system fallback (DM-1018) when the chain only found `last-resort`
+  // (the tofu placeholder) or nothing.
+  if ((picked == null || picked === "last-resort") && _systemFallbackResolutionEnabled) {
+    const sysKey = resolveSystemFallbackKeyForCp(cp);
+    if (sysKey != null) {
+      const sf = getFontInstance(sysKey, weight, fontSize, slant);
+      if (sf != null && sf.glyphForCodePoint(cp).id !== 0) picked = sysKey;
+    }
+  }
+
+  // Math-Alphanumeric decomposition: render the base letter/digit in the
+  // matching FreeFont sibling when the chain math face lacks the U+1D4xx block.
+  if (picked == null) {
+    const decomp = decomposeMathAlphaRun(cp, chain, weight, fontSize);
+    if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
+  }
+
+  // Canonical (NFD) singleton decomposition (DM-1020/1021): CJK compatibility
+  // ideographs (U+2F800–2FA1F, U+F900–FAFF singletons) etc. aren't in most cmaps;
+  // HarfBuzz shapes their canonical form. Route the SINGLETON NFD codepoint —
+  // but ONLY within the run's PRIMARY font, mirroring Chrome's actual paint.
+  //
+  // Chrome canonical-shapes the decomposed glyph within the font already selected
+  // for the run, NOT an open-ended fallback search. Searching our whole chain for
+  // the canonical form over-renders: it finds the canonical Han in some deep CJK
+  // face Chrome's cascade never reaches, painting a glyph where Chrome paints tofu
+  // (verified on the 2F800 fixture — full-chain drew 24 cells Chrome leaves blank;
+  // restricting to the primary font drops all 24 and roughly halves the per-cell
+  // diff, while a Latin-primary context — where the canonical isn't in the primary
+  // — correctly stays tofu, matching Chrome). The residual under-render (canonical
+  // forms Chrome's primary covers but ours doesn't) is a font-instance coverage
+  // gap, not a decomposition-routing bug. (DM-1080.)
+  if (picked == null || picked === "last-resort") {
+    const nfd = ch.normalize("NFD");
+    const dcp = nfd.codePointAt(0);
+    if (dcp != null && dcp !== cp && String.fromCodePoint(dcp) === nfd) {
+      const cf = getFontInstance(primaryFontKey, weight, fontSize, slant);
+      if (cf != null && cf.glyphForCodePoint(dcp).id !== 0) {
+        return cover(primaryFontKey, null, String.fromCodePoint(dcp), true);
+      }
+    }
+  }
+
+  if (picked != null && picked !== "last-resort") return cover(picked, null);
+
+  // Nothing covers it — caller applies its own uncovered terminal.
+  return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
+}
+
 // DM-1026: synthesize the dotted circle (U+25CC) Chrome's HarfBuzz inserts
 // before an ORPHANED combining mark that NO font covers — e.g. the "no font"
 // Brahmic blocks (Soyombo, Zanabazar, Devanagari-Extended, …) where each mark
@@ -3368,103 +3455,16 @@ function splitTextIntoFontRuns(
     // Math-Alpha decomposition the substituted base letter/digit. The run's
     // startIdx/endIdx stay in source-text indices so xOffsets lookups remain
     // aligned; the embedded loop reads the decomposed outline from run.text.
-    let emitCh = ch;
-    let useKey = primaryFontKey;
-    let useFontOverride: FontInstance | null = null;
-    if (primaryFont.glyphForCodePoint(cp).id === 0) {
-      if (primaryFontKey.startsWith("webfont:")) {
-        const family = primaryFontKey.slice("webfont:".length);
-        const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-        if (cpVariant != null && cpVariant.glyphForCodePoint(cp).id !== 0) {
-          useFontOverride = cpVariant;
-        }
-      }
-      if (useFontOverride == null) {
-        const chain = fallbackFontChain(cp, primaryFontKey, lang);
-        let picked: string | null = null;
-        for (const candidate of chain) {
-          const cf = getFontInstance(candidate, weight, fontSize, slant);
-          if (cf != null && cf.glyphForCodePoint != null
-              && cf.glyphForCodePoint(cp).id !== 0) {
-            picked = candidate;
-            break;
-          }
-        }
-        // DM-1018: if the static chain only found `last-resort` (the tofu
-        // placeholder) — or found nothing — ask CoreText which font Chrome
-        // would actually substitute for this codepoint (CTFontCreateForString,
-        // the exact call Blink's font_cache_mac.mm makes). This recovers fonts
-        // the sampled per-block table misses entirely, e.g. Kana Supplement
-        // (U+1B000) → Mplus 1p, without per-block hand-tuning. When CoreText
-        // also resolves to LastResort we fall through to the primary-`.notdef`
-        // terminal below (Chrome paints its placeholder there too).
-        if ((picked == null || picked === "last-resort") && _systemFallbackResolutionEnabled) {
-          const sysKey = resolveSystemFallbackKeyForCp(cp);
-          if (sysKey != null) {
-            const sf = getFontInstance(sysKey, weight, fontSize, slant);
-            if (sf != null && sf.glyphForCodePoint != null
-                && sf.glyphForCodePoint(cp).id !== 0) {
-              picked = sysKey;
-            }
-          }
-        }
-        if (picked == null) {
-          // Math-Alphanumeric decomposition — same fallback the glyph-path
-          // splitter uses (mathAlphaToBase): render the base letter in the
-          // matching FreeFont oblique/bold sibling when the chain has nothing.
-          const decomp = decomposeMathAlphaRun(cp, chain, weight, fontSize);
-          if (decomp != null) {
-            useKey = decomp.key;
-            useFontOverride = decomp.font;
-            emitCh = decomp.ch;
-          }
-        }
-        // DM-1020/1021: Unicode canonical-decomposition fallback (HarfBuzz
-        // behavior). CJK Compatibility Ideographs (U+2F800–2FA1F, U+F900–FAFF
-        // singletons) and other canonically-decomposable codepoints aren't in
-        // most font cmaps; HarfBuzz falls back to the canonical decomposition
-        // (NFD) and shapes THAT. E.g. U+2F800 → U+4E3D (丽), which Arial Unicode
-        // MS / PingFang cover. When the raw codepoint is uncovered (picked null
-        // or only `last-resort`), route its SINGLETON NFD codepoint instead so
-        // we paint the real ideograph Chrome paints rather than a `.notdef`.
-        if (useFontOverride == null && (picked == null || picked === "last-resort")) {
-          const nfd = String.fromCodePoint(cp).normalize("NFD");
-          const dcp = nfd.codePointAt(0);
-          if (dcp != null && dcp !== cp && String.fromCodePoint(dcp) === nfd) {
-            for (const cand of [primaryFontKey, ...fallbackFontChain(dcp, primaryFontKey, lang)]) {
-              const cf = getFontInstance(cand, weight, fontSize, slant);
-              if (cf != null && cf.glyphForCodePoint != null
-                  && cf.glyphForCodePoint(dcp).id !== 0) {
-                picked = cand;
-                emitCh = String.fromCodePoint(dcp);
-                break;
-              }
-            }
-          }
-        }
-        if (useFontOverride == null) {
-          // DM-1018: when nothing in the chain covers the codepoint (picked is
-          // null, or the only cover is the `last-resort` placeholder), Chrome
-          // paints the PRIMARY font's `.notdef` glyph (glyph 0) — NOT a
-          // universal LastResort tofu. The shape is therefore primary-font-
-          // dependent: Arial Unicode MS's `.notdef` is an empty rectangle
-          // (what Chrome shows for the unassigned/uncovered CJK-extension and
-          // Egyptian-hieroglyph cells), while a blank-`.notdef` primary like
-          // Mplus 1p paints nothing at all (Kana Supplement Hentaigana cells).
-          // Mirror that by rendering the primary font here instead of
-          // `last-resort`: the per-glyph emit shapes the codepoint to the
-          // primary's glyph 0 and draws its outline (empty → blank). Verified
-          // against Chrome: font_cache_mac.mm returns null when CTFontCreate-
-          // ForString resolves to LastResort, and Blink then shapes with the
-          // *primary* font, whose missing-glyph is glyph 0.
-          if (picked == null || picked === "last-resort") {
-            useKey = primaryFontKey; // render primary's glyph 0 (.notdef)
-          } else {
-            useKey = picked;
-          }
-        }
-      }
-    }
+    // DM-1068: the per-codepoint decision (primary → webfont variant → chain →
+    // system fallback → math-alpha → NFD) is now the shared resolver. The
+    // embedded-font terminal when nothing covers `cp` is the PRIMARY font's
+    // `.notdef` (glyph 0) — which is exactly what `covered: false` returns
+    // (key=primary / override=null / emitCh=source), preserving DM-1018.
+    // (`decomposed` is unused here — the embedded loop always renders run.text.)
+    const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang);
+    const emitCh = res.emitCh;
+    const useKey = res.key;
+    const useFontOverride = res.fontOverride;
     const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
     if (runChanged && curText.length > 0) {
       const fvs = curKey === primaryFontKey ? variationSettings : undefined;
@@ -4354,24 +4354,15 @@ export function renderStretchyFenceGlyph(
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
 
-  // Resolve a font that actually has the fence glyph: primary first, then the
-  // system fallback chain (mirrors textToPathMarkup's per-codepoint routing).
+  // Resolve a font that actually has the fence glyph via the shared per-codepoint
+  // resolver (DM-1068). Uncovered → keep the primary (its `.notdef`); the caller
+  // falls back to the synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily);
-  let useKey = primaryFontKey;
-  let font = resolveFont(fontFamily, weight, fontSize, slant);
-  if (font == null) return null;
-  if (font.glyphForCodePoint(cp).id === 0) {
-    const chain = fallbackFontChain(cp, primaryFontKey);
-    for (const candidate of chain) {
-      const cf = getFontInstance(candidate, weight, fontSize, slant);
-      if (cf != null && cf.glyphForCodePoint != null
-          && cf.glyphForCodePoint(cp).id !== 0) {
-        useKey = candidate;
-        font = cf;
-        break;
-      }
-    }
-  }
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
+  if (primaryFont == null) return null;
+  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined);
+  const useKey = res.covered ? res.key : primaryFontKey;
+  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant) ?? primaryFont) : primaryFont;
 
   let layout;
   try { layout = font.layout(ch); } catch { return null; }
@@ -4434,24 +4425,15 @@ export function renderRadicalGlyph(
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
 
-  // Resolve a font that has the √ glyph: primary first, then the fallback
-  // chain (mirrors textToPathMarkup's per-codepoint routing).
+  // Resolve a font that has the √ glyph via the shared per-codepoint resolver
+  // (DM-1068). Uncovered → keep the primary; the caller falls back to the
+  // synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily);
-  let useKey = primaryFontKey;
-  let font = resolveFont(fontFamily, weight, fontSize, slant);
-  if (font == null) return null;
-  if (font.glyphForCodePoint(cp).id === 0) {
-    const chain = fallbackFontChain(cp, primaryFontKey);
-    for (const candidate of chain) {
-      const cf = getFontInstance(candidate, weight, fontSize, slant);
-      if (cf != null && cf.glyphForCodePoint != null
-          && cf.glyphForCodePoint(cp).id !== 0) {
-        useKey = candidate;
-        font = cf;
-        break;
-      }
-    }
-  }
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant);
+  if (primaryFont == null) return null;
+  const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, undefined, undefined);
+  const useKey = res.covered ? res.key : primaryFontKey;
+  const font = res.covered ? (res.fontOverride ?? getFontInstance(res.key, weight, fontSize, slant) ?? primaryFont) : primaryFont;
 
   let layout;
   try { layout = font.layout("√"); } catch { return null; }

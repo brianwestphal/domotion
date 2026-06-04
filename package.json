@@ -37,6 +37,8 @@
     "lint": "eslint .",
     "capture": "npm run build:capture-script && tsx src/cli/index.ts",
     "test": "npm run build:capture-script && vitest run",
+    "test:e2e": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts",
+    "test:coverage": "npm run build:capture-script && vitest run --coverage",
     "release": "bash scripts/release.sh",
     "release:beta": "bash scripts/release.sh --beta",
     "test:watch": "npm run build:capture-script && vitest",
@@ -69,6 +71,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@typescript-eslint/parser": "^8.59.4",
+    "@vitest/coverage-v8": "^3.2.4",
     "esbuild": "^0.27.7",
     "eslint": "^9.39.4",
     "eslint-plugin-kerfjs": "^0.14.0",
