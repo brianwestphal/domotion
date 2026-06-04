@@ -66,6 +66,44 @@ In `src/text-to-path.ts`:
 
 3. Glyph-def cache key (`ensureGlyphDef` in text-to-path.ts) currently keys on `${fontKey}-${weight}-${fontSize}-${slant}-${glyphId}`. The existing `fontKey` covers the new cases since each matched family gets its own logical key.
 
+## Per-codepoint fallback within the chain (DM-1083)
+
+`resolveFontKey` above collapses the author's `font-family` list to ONE key — the
+primary font for the run. But a single run can contain codepoints the primary
+doesn't cover (a CJK ideograph in a Latin-primary paragraph, a symbol the body
+face lacks). For those, the renderer walks the WHOLE declared stack, not just the
+primary. `resolveFontKeyChain(fontFamily)` returns the full ordered list of
+resolvable keys (the same calibration table `resolveFontKey` uses, but keeping
+every match instead of the first), and the per-codepoint resolver
+(`resolveFontForCodepoint` in `src/render/text-to-path.ts`) walks it in Blink's
+`FontFallbackIterator` order:
+
+1. **Primary literal** — the run's primary font covers the codepoint (the common
+   case; fast path).
+2. **kFontFamily** — walk every DECLARED family in order. For each, test the
+   literal cmap, then (mirroring HarfBuzz's default-composed normalizer) the
+   canonical NFD singleton WITHIN THAT SAME FONT. This reaches later-declared
+   families the primary-only resolver dropped — e.g. a stack of
+   `"Hiragino Sans","Arial Unicode MS",…` picks up CJK compatibility ideographs
+   (U+2F800–2FA1F, U+F900–FAFF) whose canonical Han only the second family
+   covers, via in-font decomposition. Crucially, decomposition is confined to the
+   DECLARED cascade, so it never paints a glyph in a deep fallback face Chrome's
+   cascade can't reach (a whole-fallback-chain canonical search over-rendered
+   cells Chrome leaves as tofu — that is the bug this ordering avoids).
+3. **kSystemFonts** — the per-char OS fallback: the calibrated `fallbackFontChain`
+   table (literal only), then the live CoreText `CTFontCreateForString` (literal +
+   in-font decomposition, which catches residue whose canonical form only a system
+   CJK face covers). Platform-specific (CoreText on macOS; fontconfig / DirectWrite
+   are the Linux / Windows roadmap); the rest of the loop is platform-agnostic.
+4. **Math-Alphanumeric** — NFKD compatibility decomposition (a deliberately
+   separate axis: render the base letter/digit in the matching FreeFont sibling).
+5. **Out of luck** — nothing covers it; the caller paints its own tofu terminal.
+
+A Latin-only stack (no CJK family declared) resolves identically to the old
+primary-only path — the walk has nothing later to reach, so it stays tofu exactly
+where Chrome does. The decomposition step matters only when a covering family is
+actually declared.
+
 ## Edge cases
 
 - `@font-face` web fonts (DM-227): supported. `discoverAndRegisterWebfonts` (in `capture.ts`) walks the page's same-origin `@font-face` rules AND every font URL captured by the `attachWebfontTracker` `requestfinished` listener (cross-origin fonts from CDNs like Google Fonts, which don't expose resource-timing entries to JS). Each fetched buffer is parsed with `fontkit.create()` and registered via `registerWebfont(family, weight, style, buffer)` into a runtime registry keyed by lowercase family name. The resolver consults this registry before the on-disk `FONT_PATHS` table — `resolveFontKey` returns a `webfont:<family>` key, `getFontInstance` dispatches that prefix to a closest-(weight, italic)-match picker. Caller is responsible for `clearWebfonts()` between captures.
