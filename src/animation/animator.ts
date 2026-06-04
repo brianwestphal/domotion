@@ -252,6 +252,170 @@ export interface AnimationConfig {
   background?: string;
 }
 
+/**
+ * Emit one magic-move frame (DM-898): the frame-i blob (held [start..holdEnd],
+ * hard-cut out), the bridge composite (visible only across [holdEnd..transEnd]),
+ * the per-element slide / fade keyframes within that window, and the
+ * `prefers-reduced-motion` pinning (DM-901 / DM-903). Returns the SVG group
+ * fragments and the `@keyframes`/rule CSS for the caller to splice in.
+ * Extracted from `generateAnimatedSvg`'s per-frame loop (DM-1089) — byte-identical.
+ */
+function emitMagicMoveFrame(
+  i: number,
+  frame: AnimationFrame,
+  mm: MagicMove,
+  startPct: string,
+  holdEndPct: string,
+  transEndPct: string,
+  totalSec: number,
+): { groups: string[]; keyframes: string[] } {
+  const groups: string[] = [];
+  const keyframes: string[] = [];
+  const sNum = parseFloat(startPct);
+  const hNum = parseFloat(holdEndPct);
+  const tNum = parseFloat(transEndPct);
+  const beforeS = padBefore(sNum, KEYFRAME_EPSILON.cull, 3);
+  const afterH = padAfter(hNum, KEYFRAME_EPSILON.cull, 3);
+  const beforeH = padBefore(hNum, KEYFRAME_EPSILON.cull, 3);
+  const afterT = padAfter(tNum, KEYFRAME_EPSILON.cull, 3);
+
+  // Frame i blob: visible only during its hold, hard-cut out at hold end.
+  groups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
+  keyframes.push(`
+    @keyframes fv-${i} {
+      0% { opacity: 0; visibility: hidden; }
+      ${beforeS}% { opacity: 0; visibility: hidden; }
+      ${sNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${afterH}% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+
+  // Bridge composite: visible during the transition window only.
+  groups.push(`  <g class="f mm-${i}">\n${mm.compositeSvg}\n  </g>`);
+  keyframes.push(`
+    @keyframes mmv-${i} {
+      0% { opacity: 0; visibility: hidden; }
+      ${beforeH}% { opacity: 0; visibility: hidden; }
+      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${tNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${afterT}% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .mm-${i} { animation: mmv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+
+  // Per-element slide / fade keyframes within the window (linear interp).
+  // The composite is only visible [holdEnd..transEnd], so the held values
+  // outside that window are never painted — they just pin the endpoints.
+  //
+  // A dual-render cross-fade copy (DM-903) is BOTH a slide and a fade, so
+  // its element needs two animations. They MUST go in one `animation:`
+  // declaration (comma-joined) — two separate `.cls { animation: … }` rules
+  // would have the later one silently override the former, dropping the
+  // slide. Accumulate per-class animation entries and emit one rule each.
+  const animEntries = new Map<string, string[]>();
+  const addAnim = (cls: string, name: string): void => {
+    const list = animEntries.get(cls) ?? [];
+    list.push(`${name} ${totalSec.toFixed(2)}s infinite`);
+    animEntries.set(cls, list);
+  };
+  for (const s of mm.slides) {
+    keyframes.push(`
+    @keyframes mms-${s.cls} {
+      0%, ${hNum.toFixed(3)}% { transform: ${s.from}; }
+      ${tNum.toFixed(3)}%, 100% { transform: ${s.to}; }
+    }`);
+    addAnim(s.cls, `mms-${s.cls}`);
+  }
+  for (const cls of mm.fadeIn) {
+    keyframes.push(`
+    @keyframes mmf-${cls} {
+      0%, ${hNum.toFixed(3)}% { opacity: 0; }
+      ${tNum.toFixed(3)}%, 100% { opacity: 1; }
+    }`);
+    addAnim(cls, `mmf-${cls}`);
+  }
+  for (const cls of mm.fadeOut) {
+    keyframes.push(`
+    @keyframes mmf-${cls} {
+      0%, ${hNum.toFixed(3)}% { opacity: 1; }
+      ${tNum.toFixed(3)}%, 100% { opacity: 0; }
+    }`);
+    addAnim(cls, `mmf-${cls}`);
+  }
+  for (const [cls, entries] of animEntries) {
+    keyframes.push(`    .${cls} { animation: ${entries.join(", ")}; }`);
+  }
+  // DM-901: honor `prefers-reduced-motion: reduce` — pin everything to the
+  // NEXT state instead of animating, so the transition degrades to a
+  // cut-like reveal for motion-sensitive viewers.
+  const reduceRules: string[] = [];
+  if (mm.slides.length > 0) reduceRules.push(`${mm.slides.map((s) => `.${s.cls}`).join(", ")} { animation: none; transform: none; }`);
+  if (mm.fadeIn.length > 0) reduceRules.push(`${mm.fadeIn.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 1; }`);
+  if (mm.fadeOut.length > 0) reduceRules.push(`${mm.fadeOut.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 0; }`);
+  if (reduceRules.length > 0) {
+    keyframes.push(`
+    @media (prefers-reduced-motion: reduce) {
+      ${reduceRules.join("\n      ")}
+    }`);
+  }
+  return { groups, keyframes };
+}
+
+/**
+ * Emit one crossfade or cut frame (the default transition path): the frame
+ * blob plus its opacity keyframes. `cut` (or zero-duration) uses disjoint
+ * step-end keyframes so opacity flips instantly with no interpolation smear;
+ * crossfade overlaps the fade-in with the previous frame's fade-out, with the
+ * visible window driven by `fadeInStartPct` (precomputed by the caller, which
+ * knows the overlap state). Extracted from `generateAnimatedSvg` (DM-1089).
+ */
+function emitCrossfadeOrCutFrame(
+  i: number,
+  frame: AnimationFrame,
+  transType: string,
+  transDur: number,
+  startPct: string,
+  holdEndPct: string,
+  transEndPct: string,
+  fadeInStartPct: string,
+  totalSec: number,
+): { groups: string[]; keyframes: string[] } {
+  const groups: string[] = [];
+  const keyframes: string[] = [];
+  groups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
+
+  const isCut = transType === "cut" || transDur === 0;
+  if (isCut) {
+    const startNum = parseFloat(startPct);
+    const endNum = parseFloat(transEndPct);
+    const beforeStart = padBefore(startNum, KEYFRAME_EPSILON.cull, 3);
+    const afterEnd = padAfter(endNum, KEYFRAME_EPSILON.cull, 3);
+    keyframes.push(`
+    @keyframes fv-${i} {
+      0% { opacity: 0; visibility: hidden; }
+      ${beforeStart}% { opacity: 0; visibility: hidden; }
+      ${startNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${endNum.toFixed(3)}% { opacity: 1; visibility: visible; }
+      ${afterEnd}% { opacity: 0; visibility: hidden; }
+      100% { opacity: 0; visibility: hidden; }
+    }
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+  } else {
+    const prevEnd = i > 0
+      ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
+      : "";
+    keyframes.push(`
+    @keyframes fv-${i} {
+      0%, ${prevEnd} ${transEndPct}, 100% { opacity: 0; }
+      ${startPct}, ${holdEndPct} { opacity: 1; }
+    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, transEndPct)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
+  }
+  return { groups, keyframes };
+}
+
 export function generateAnimatedSvg(config: AnimationConfig): string {
   const { width, height, frames } = config;
 
@@ -360,165 +524,21 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // final paint and its end state the next frame's initial paint, so both
       // hard cuts are seamless. (When `frame.magicMove` is null the type falls
       // through to the crossfade branch below — the documented fallback.)
-      const mm = frame.magicMove;
-      const sNum = parseFloat(startPct);
-      const hNum = parseFloat(holdEndPct);
-      const tNum = parseFloat(transEndPct);
-      const beforeS = padBefore(sNum, KEYFRAME_EPSILON.cull, 3);
-      const afterH = padAfter(hNum, KEYFRAME_EPSILON.cull, 3);
-      const beforeH = padBefore(hNum, KEYFRAME_EPSILON.cull, 3);
-      const afterT = padAfter(tNum, KEYFRAME_EPSILON.cull, 3);
-
-      // Frame i blob: visible only during its hold, hard-cut out at hold end.
-      frameGroups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
-      keyframes.push(`
-    @keyframes fv-${i} {
-      0% { opacity: 0; visibility: hidden; }
-      ${beforeS}% { opacity: 0; visibility: hidden; }
-      ${sNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${afterH}% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
-    }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
-
-      // Bridge composite: visible during the transition window only.
-      frameGroups.push(`  <g class="f mm-${i}">\n${mm.compositeSvg}\n  </g>`);
-      keyframes.push(`
-    @keyframes mmv-${i} {
-      0% { opacity: 0; visibility: hidden; }
-      ${beforeH}% { opacity: 0; visibility: hidden; }
-      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${tNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${afterT}% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
-    }
-    .mm-${i} { animation: mmv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
-
-      // Per-element slide / fade keyframes within the window (linear interp).
-      // The composite is only visible [holdEnd..transEnd], so the held values
-      // outside that window are never painted — they just pin the endpoints.
-      //
-      // A dual-render cross-fade copy (DM-903) is BOTH a slide and a fade, so
-      // its element needs two animations. They MUST go in one `animation:`
-      // declaration (comma-joined) — two separate `.cls { animation: … }` rules
-      // would have the later one silently override the former, dropping the
-      // slide. Accumulate per-class animation entries and emit one rule each.
-      const animEntries = new Map<string, string[]>();
-      const addAnim = (cls: string, name: string): void => {
-        const list = animEntries.get(cls) ?? [];
-        list.push(`${name} ${totalSec.toFixed(2)}s infinite`);
-        animEntries.set(cls, list);
-      };
-      for (const s of mm.slides) {
-        // Interpolate the element's transform `from → to` across the window.
-        // The next-appearance copy maps its prev rect → `none` (final next
-        // rect); a cross-fade prev copy maps `none` → its next rect, so both
-        // copies trace the same path (DM-899 geometry; DM-903 paired copies).
-        keyframes.push(`
-    @keyframes mms-${s.cls} {
-      0%, ${hNum.toFixed(3)}% { transform: ${s.from}; }
-      ${tNum.toFixed(3)}%, 100% { transform: ${s.to}; }
-    }`);
-        addAnim(s.cls, `mms-${s.cls}`);
-      }
-      for (const cls of mm.fadeIn) {
-        keyframes.push(`
-    @keyframes mmf-${cls} {
-      0%, ${hNum.toFixed(3)}% { opacity: 0; }
-      ${tNum.toFixed(3)}%, 100% { opacity: 1; }
-    }`);
-        addAnim(cls, `mmf-${cls}`);
-      }
-      for (const cls of mm.fadeOut) {
-        keyframes.push(`
-    @keyframes mmf-${cls} {
-      0%, ${hNum.toFixed(3)}% { opacity: 1; }
-      ${tNum.toFixed(3)}%, 100% { opacity: 0; }
-    }`);
-        addAnim(cls, `mmf-${cls}`);
-      }
-      for (const [cls, entries] of animEntries) {
-        keyframes.push(`    .${cls} { animation: ${entries.join(", ")}; }`);
-      }
-      // DM-901: honor `prefers-reduced-motion: reduce` — pin everything to the
-      // NEXT state instead of animating, so the transition degrades to a
-      // cut-like reveal for motion-sensitive viewers. Slides drop to their
-      // final transform (`none` for the next copy; the prev cross-fade copy is
-      // also hidden via its fade-out below). Added / next-appearance fades snap
-      // to opacity 1; removed / prev-appearance fades snap to opacity 0. Static
-      // CSS, so output stays deterministic; rasterizers default to
-      // `no-preference` and play the full move. (DM-903: the fade rules now
-      // also matter — without pinning fade-out to 0 the prev-appearance copy
-      // would stay visible at full opacity.)
-      const reduceRules: string[] = [];
-      if (mm.slides.length > 0) reduceRules.push(`${mm.slides.map((s) => `.${s.cls}`).join(", ")} { animation: none; transform: none; }`);
-      if (mm.fadeIn.length > 0) reduceRules.push(`${mm.fadeIn.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 1; }`);
-      if (mm.fadeOut.length > 0) reduceRules.push(`${mm.fadeOut.map((c) => `.${c}`).join(", ")} { animation: none; opacity: 0; }`);
-      if (reduceRules.length > 0) {
-        keyframes.push(`
-    @media (prefers-reduced-motion: reduce) {
-      ${reduceRules.join("\n      ")}
-    }`);
-      }
+      const r = emitMagicMoveFrame(i, frame, frame.magicMove, startPct, holdEndPct, transEndPct, totalSec);
+      frameGroups.push(...r.groups);
+      keyframes.push(...r.keyframes);
 
     } else {
-      // Crossfade or cut: opacity in/out.
-      //
-      // For `cut` (transDur === 0): use disjoint keyframes with step-end timing
-      // so opacity flips instantly at frame boundaries with no interpolation
-      // smear — frame N is opaque from startPct to transEndPct EXCLUSIVE, and
-      // 0 outside. Without step-end, linear interpolation between distant
-      // keyframes makes adjacent frames bleed across the entire cycle.
-      //
-      // For crossfade: the fade-in OVERLAPS the previous frame's fade-out so
-      // shared pixels stay visible during the transition. Linear interpolation
-      // is what we want here.
-      frameGroups.push(
-        `  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`,
-      );
-
-      const isCut = transType === "cut" || transDur === 0;
-      if (isCut) {
-        const startNum = parseFloat(startPct);
-        const endNum = parseFloat(transEndPct);
-        const beforeStart = padBefore(startNum, KEYFRAME_EPSILON.cull, 3);
-        const afterEnd = padAfter(endNum, KEYFRAME_EPSILON.cull, 3);
-        // DM-599: cut already uses step-end on the opacity animation, so we
-        // fold visibility into the same keyframes block — both snap together.
-        // DM-641: this used to toggle `display`. The base `.f { display: none }`
-        // rule kept the element out of the render tree at t=0, and Chromium
-        // doesn't tick infinite animations on out-of-tree elements — so the
-        // 0% keyframe never ran and the frame stayed permanently hidden.
-        // Switching to `visibility` leaves the element in the render tree
-        // (still skips painting, which was the DM-599 goal) so the animation
-        // ticks normally.
-        keyframes.push(`
-    @keyframes fv-${i} {
-      0% { opacity: 0; visibility: hidden; }
-      ${beforeStart}% { opacity: 0; visibility: hidden; }
-      ${startNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${endNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${afterEnd}% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
-    }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
-      } else {
-        const fadeInStartPct = (i > 0 && !entersViaMagicMove)
-          ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
-          : startPct;
-        const prevEnd = i > 0
-          ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
-          : "";
-        // DM-599: visible window spans the full fade — fadeInStart through
-        // transEnd (display stays `inline` while opacity interpolates).
-        keyframes.push(`
-    @keyframes fv-${i} {
-      0%, ${prevEnd} ${transEndPct}, 100% { opacity: 0; }
-      ${startPct}, ${holdEndPct} { opacity: 1; }
-    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, transEndPct)}
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
-      }
+      // Crossfade or cut: opacity in/out (see emitCrossfadeOrCutFrame). The
+      // crossfade fade-in OVERLAPS the previous frame's fade-out, so its visible
+      // window starts at fadeInStartPct — which depends on the loop's overlap
+      // state (entersViaMagicMove / prevTransDur), so it's computed here.
+      const fadeInStartPct = (i > 0 && !entersViaMagicMove)
+        ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
+        : startPct;
+      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, startPct, holdEndPct, transEndPct, fadeInStartPct, totalSec);
+      frameGroups.push(...r.groups);
+      keyframes.push(...r.keyframes);
     }
 
     // Overlays
