@@ -348,6 +348,129 @@ export function elementTreeToSvgInner(
     return outId;
   }
 
+  // Resolve the element's CSS mask into an SVG <mask> def + the mask="url(#…)"
+  // id. Mutates the shared clipIdx / defsParts via closure (exactly as the
+  // inline code did). Handles mask-border simple-url / 9-slice (DM-758/793),
+  // same-document fragment refs (DM-493), and gradient/url() mask-image with
+  // mask-clip insets (DM-820). Returns the mask url id, or null when no mask
+  // is emitted. Extracted from renderElement (DM-1092).
+  const renderMaskPhase = (el: CapturedElement): string | null => {
+    // mask: if mask-image is a gradient or url(), translate it to an SVG <mask>.
+    // DM-758 / DM-793: `mask-border-source` (legacy `-webkit-mask-box-image`)
+    // layers on top of `mask-image`. The two cases:
+    //   1. Simple full-image (slice 0/1 [fill] + width 0 + outset 0): emit a
+    //      single `<image preserveAspectRatio="none">` inside a `<mask>` so
+    //      the source stretches to the element rect (matches Chrome for the
+    //      `mb-grad` gradient case and the `mb-wide` URL case).
+    //   2. True 9-slice (mb-1 / mb-2 / mb-3 / mb-outset — non-zero `width`,
+    //      `outset`, or non-trivial `slice` with `round` / `space` / `stretch`
+    //      repeat): construct a 9-piece mask from corner / edge / center
+    //      slices, mirroring the existing `renderBorderImage` 9-slice logic
+    //      in `borders.ts` but emitting the pieces inside a `<mask>` instead
+    //      of as direct paint. `mask-border-mode` defaults to `alpha` per
+    //      spec, so the source's alpha channel drives the mask.
+    const mbSrc = el.styles.maskBorderSource;
+    const mbHasSrc = mbSrc != null && mbSrc !== "" && mbSrc !== "none";
+    const mbWidth = (el.styles.maskBorderWidth ?? "0").trim();
+    const mbOutset = (el.styles.maskBorderOutset ?? "0").trim();
+    const mbSlice = (el.styles.maskBorderSlice ?? "").trim();
+    const mbWidthZero = mbWidth === "0" || mbWidth === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbWidth);
+    const mbOutsetZero = mbOutset === "0" || mbOutset === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbOutset);
+    const mbSliceFull = /^[01]\s+fill$/.test(mbSlice) || mbSlice === "1" || mbSlice === "0";
+    const mbIsGradient = mbHasSrc && /-gradient\(/i.test(mbSrc);
+    const mbUrlHref = mbHasSrc ? parseCssUrl(mbSrc) : null;
+    const mbIsUrl = mbUrlHref != null;
+    const mbIsSimple = mbHasSrc && mbWidthZero && mbOutsetZero && mbSliceFull;
+    const usingMaskBorderUrlSimple = mbIsSimple && mbIsUrl && mbUrlHref != null;
+    const usingMaskBorderGradient = mbIsSimple && mbIsGradient;
+    const usingMaskBorder9Slice = mbHasSrc && mbIsUrl && mbUrlHref != null && !mbIsSimple
+      && el.styles.maskBorderIntrinsicWidth != null && el.styles.maskBorderIntrinsicHeight != null
+      && el.styles.maskBorderIntrinsicWidth > 0 && el.styles.maskBorderIntrinsicHeight > 0;
+    const maskImage = usingMaskBorderGradient ? mbSrc : el.styles.maskImage;
+    let maskUrlId: string | null = null;
+    if (usingMaskBorderUrlSimple && mbUrlHref != null) {
+      const dataUri = embedResizedDataUri(mbUrlHref, el.width, el.height);
+      const mid = `${idPrefix}mk${clipIdx++}`;
+      defsParts.push(
+        `<mask id="${mid}" maskUnits="userSpaceOnUse" mask-type="alpha">`
+          + `<image href="${esc(dataUri)}" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" preserveAspectRatio="none" />`
+          + `</mask>`,
+      );
+      maskUrlId = mid;
+    } else if (usingMaskBorder9Slice && mbUrlHref != null) {
+      const mid = `${idPrefix}mk${clipIdx++}`;
+      const built = buildMaskBorder9Slice(
+        el, mbUrlHref, mbSlice, mbWidth, mbOutset, el.styles.maskBorderRepeat ?? "stretch",
+        mid, idPrefix, clipIdx,
+      );
+      if (built != null) {
+        defsParts.push(built.def);
+        clipIdx = built.nextClipIdx;
+        maskUrlId = built.id;
+      }
+    } else if (maskImage != null && maskImage !== "none" && maskImage !== "") {
+      // DM-493: same-document fragment refs (mask-image: url("#id")) emit the
+      // captured inline <mask> verbatim with id rewriting, bypassing the
+      // gradient/url() emission path.
+      const fragRef = resolveFragmentMaskRef(maskImage, el.x, el.y, el.width, el.height);
+      if (fragRef != null) {
+        maskUrlId = fragRef;
+      } else {
+        // DM-758: when the source comes from `mask-border-source`, force
+        // size 100% 100% / no-repeat so the mask stretches across the
+        // element — matches Chrome's paint for `slice: 1 / 0` and
+        // `slice: 0 fill / 0` patterns. The `mask-border-mode` defaults to
+        // alpha vs the regular `mask-mode` default of `match-source`, but
+        // `match-source` already does the right thing for gradient sources
+        // (alpha-mode on grayscale gradients).
+        const maskSize = usingMaskBorderGradient ? "100% 100%" : (el.styles.maskSize ?? "auto");
+        const maskPosition = usingMaskBorderGradient ? "0% 0%" : (el.styles.maskPosition ?? "0% 0%");
+        const maskRepeat = usingMaskBorderGradient ? "no-repeat" : (el.styles.maskRepeat ?? "repeat");
+        // DM-820: honor `mask-clip` by insetting the mask paint region.
+        // `border-box` (default) leaves the border-box rect; `padding-box`
+        // insets by border widths; `content-box` insets by border + padding.
+        // For uniform masks (e.g. `linear-gradient(black, black)`) this
+        // matches Chrome's "mask is transparent outside the clip box" rule
+        // exactly. For position-sensitive gradients the layer is still
+        // sized to the clip box rather than the origin box (mask-origin
+        // not yet captured), which is a visible diff only when both differ
+        // — no fixtures exercise that combination today.
+        const maskClip = el.styles.maskClip ?? "border-box";
+        let maskX = el.x, maskY = el.y, maskW = el.width, maskH = el.height;
+        if (maskClip === "padding-box" || maskClip === "content-box") {
+          const bt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+          const br = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+          const bb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+          const bl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          maskX += bl; maskY += bt; maskW -= bl + br; maskH -= bt + bb;
+          if (maskClip === "content-box") {
+            const pt = parseFloat(el.styles.paddingTop ?? "0") || 0;
+            const pr = parseFloat(el.styles.paddingRight ?? "0") || 0;
+            const pb = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+            const pl = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+            maskX += pl; maskY += pt; maskW -= pl + pr; maskH -= pt + pb;
+          }
+        }
+        const maskDef = buildMaskDef(
+          `${idPrefix}mk${clipIdx++}`,
+          maskImage,
+          maskX, maskY, Math.max(0, maskW), Math.max(0, maskH),
+          el.styles.maskMode ?? "match-source",
+          maskSize,
+          maskPosition,
+          maskRepeat,
+          el.styles.maskComposite ?? "add",
+          elementMaskRasters,
+        );
+        if (maskDef.def !== "") {
+          maskUrlId = maskDef.id;
+          defsParts.push(maskDef.def);
+        }
+      }
+    }
+    return maskUrlId;
+  };
+
   // DM-934: emit captured inline <filter> defs eagerly into the output
   // SVG's top-level <defs>. The original id is preserved so the
   // pass-through-as-inline-style emit of `filter: url(#id)` on the
@@ -831,119 +954,7 @@ export function elementTreeToSvgInner(
         );
       }
     }
-    // mask: if mask-image is a gradient or url(), translate it to an SVG <mask>.
-    // DM-758 / DM-793: `mask-border-source` (legacy `-webkit-mask-box-image`)
-    // layers on top of `mask-image`. The two cases:
-    //   1. Simple full-image (slice 0/1 [fill] + width 0 + outset 0): emit a
-    //      single `<image preserveAspectRatio="none">` inside a `<mask>` so
-    //      the source stretches to the element rect (matches Chrome for the
-    //      `mb-grad` gradient case and the `mb-wide` URL case).
-    //   2. True 9-slice (mb-1 / mb-2 / mb-3 / mb-outset — non-zero `width`,
-    //      `outset`, or non-trivial `slice` with `round` / `space` / `stretch`
-    //      repeat): construct a 9-piece mask from corner / edge / center
-    //      slices, mirroring the existing `renderBorderImage` 9-slice logic
-    //      in `borders.ts` but emitting the pieces inside a `<mask>` instead
-    //      of as direct paint. `mask-border-mode` defaults to `alpha` per
-    //      spec, so the source's alpha channel drives the mask.
-    const mbSrc = el.styles.maskBorderSource;
-    const mbHasSrc = mbSrc != null && mbSrc !== "" && mbSrc !== "none";
-    const mbWidth = (el.styles.maskBorderWidth ?? "0").trim();
-    const mbOutset = (el.styles.maskBorderOutset ?? "0").trim();
-    const mbSlice = (el.styles.maskBorderSlice ?? "").trim();
-    const mbWidthZero = mbWidth === "0" || mbWidth === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbWidth);
-    const mbOutsetZero = mbOutset === "0" || mbOutset === "0px" || /^(0(?:px)?\s+){0,3}0(?:px)?$/.test(mbOutset);
-    const mbSliceFull = /^[01]\s+fill$/.test(mbSlice) || mbSlice === "1" || mbSlice === "0";
-    const mbIsGradient = mbHasSrc && /-gradient\(/i.test(mbSrc);
-    const mbUrlHref = mbHasSrc ? parseCssUrl(mbSrc) : null;
-    const mbIsUrl = mbUrlHref != null;
-    const mbIsSimple = mbHasSrc && mbWidthZero && mbOutsetZero && mbSliceFull;
-    const usingMaskBorderUrlSimple = mbIsSimple && mbIsUrl && mbUrlHref != null;
-    const usingMaskBorderGradient = mbIsSimple && mbIsGradient;
-    const usingMaskBorder9Slice = mbHasSrc && mbIsUrl && mbUrlHref != null && !mbIsSimple
-      && el.styles.maskBorderIntrinsicWidth != null && el.styles.maskBorderIntrinsicHeight != null
-      && el.styles.maskBorderIntrinsicWidth > 0 && el.styles.maskBorderIntrinsicHeight > 0;
-    const maskImage = usingMaskBorderGradient ? mbSrc : el.styles.maskImage;
-    let maskUrlId: string | null = null;
-    if (usingMaskBorderUrlSimple && mbUrlHref != null) {
-      const dataUri = embedResizedDataUri(mbUrlHref, el.width, el.height);
-      const mid = `${idPrefix}mk${clipIdx++}`;
-      defsParts.push(
-        `<mask id="${mid}" maskUnits="userSpaceOnUse" mask-type="alpha">`
-          + `<image href="${esc(dataUri)}" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" preserveAspectRatio="none" />`
-          + `</mask>`,
-      );
-      maskUrlId = mid;
-    } else if (usingMaskBorder9Slice && mbUrlHref != null) {
-      const mid = `${idPrefix}mk${clipIdx++}`;
-      const built = buildMaskBorder9Slice(
-        el, mbUrlHref, mbSlice, mbWidth, mbOutset, el.styles.maskBorderRepeat ?? "stretch",
-        mid, idPrefix, clipIdx,
-      );
-      if (built != null) {
-        defsParts.push(built.def);
-        clipIdx = built.nextClipIdx;
-        maskUrlId = built.id;
-      }
-    } else if (maskImage != null && maskImage !== "none" && maskImage !== "") {
-      // DM-493: same-document fragment refs (mask-image: url("#id")) emit the
-      // captured inline <mask> verbatim with id rewriting, bypassing the
-      // gradient/url() emission path.
-      const fragRef = resolveFragmentMaskRef(maskImage, el.x, el.y, el.width, el.height);
-      if (fragRef != null) {
-        maskUrlId = fragRef;
-      } else {
-        // DM-758: when the source comes from `mask-border-source`, force
-        // size 100% 100% / no-repeat so the mask stretches across the
-        // element — matches Chrome's paint for `slice: 1 / 0` and
-        // `slice: 0 fill / 0` patterns. The `mask-border-mode` defaults to
-        // alpha vs the regular `mask-mode` default of `match-source`, but
-        // `match-source` already does the right thing for gradient sources
-        // (alpha-mode on grayscale gradients).
-        const maskSize = usingMaskBorderGradient ? "100% 100%" : (el.styles.maskSize ?? "auto");
-        const maskPosition = usingMaskBorderGradient ? "0% 0%" : (el.styles.maskPosition ?? "0% 0%");
-        const maskRepeat = usingMaskBorderGradient ? "no-repeat" : (el.styles.maskRepeat ?? "repeat");
-        // DM-820: honor `mask-clip` by insetting the mask paint region.
-        // `border-box` (default) leaves the border-box rect; `padding-box`
-        // insets by border widths; `content-box` insets by border + padding.
-        // For uniform masks (e.g. `linear-gradient(black, black)`) this
-        // matches Chrome's "mask is transparent outside the clip box" rule
-        // exactly. For position-sensitive gradients the layer is still
-        // sized to the clip box rather than the origin box (mask-origin
-        // not yet captured), which is a visible diff only when both differ
-        // — no fixtures exercise that combination today.
-        const maskClip = el.styles.maskClip ?? "border-box";
-        let maskX = el.x, maskY = el.y, maskW = el.width, maskH = el.height;
-        if (maskClip === "padding-box" || maskClip === "content-box") {
-          const bt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-          const br = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-          const bb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-          const bl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          maskX += bl; maskY += bt; maskW -= bl + br; maskH -= bt + bb;
-          if (maskClip === "content-box") {
-            const pt = parseFloat(el.styles.paddingTop ?? "0") || 0;
-            const pr = parseFloat(el.styles.paddingRight ?? "0") || 0;
-            const pb = parseFloat(el.styles.paddingBottom ?? "0") || 0;
-            const pl = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-            maskX += pl; maskY += pt; maskW -= pl + pr; maskH -= pt + pb;
-          }
-        }
-        const maskDef = buildMaskDef(
-          `${idPrefix}mk${clipIdx++}`,
-          maskImage,
-          maskX, maskY, Math.max(0, maskW), Math.max(0, maskH),
-          el.styles.maskMode ?? "match-source",
-          maskSize,
-          maskPosition,
-          maskRepeat,
-          el.styles.maskComposite ?? "add",
-          elementMaskRasters,
-        );
-        if (maskDef.def !== "") {
-          maskUrlId = maskDef.id;
-          defsParts.push(maskDef.def);
-        }
-      }
-    }
+    const maskUrlId = renderMaskPhase(el);
     // CSS 2D transform (SK-1134): wrap the elements rendered group in
     // <g transform=...> composed around the resolved transform-origin in
     // viewport coords. transform-origin is reported by Chrome in pixels

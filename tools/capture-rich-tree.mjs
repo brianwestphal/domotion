@@ -13,6 +13,10 @@ const html = `<!doctype html><meta charset=utf8><body style="margin:0">
   <div style="width:80px;height:60px;overflow:hidden;border-radius:12px;background:#fc0"><div style="width:300px;height:200px;background:#909"></div></div>
   <svg width="0" height="0"><defs><clipPath id="cp1"><path d="M0,0 L50,0 L25,50 Z"/></clipPath></defs></svg>
   <div style="width:70px;height:70px;background:#0aa;clip-path:url(#cp1)"></div>
+  <div style="width:100px;height:60px;background:#e91;-webkit-mask-image:linear-gradient(to right,black,transparent);mask-image:linear-gradient(to right,black,transparent)"></div>
+  <div style="width:80px;height:80px;background:#1ab;-webkit-mask-image:url(data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22><circle cx=%225%22 cy=%225%22 r=%224%22/></svg>);mask-image:url(data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22><circle cx=%225%22 cy=%225%22 r=%224%22/></svg>);mask-size:cover"></div>
+  <svg width=0 height=0><mask id=fragmask><rect x=0 y=0 width=40 height=40 fill=white/><circle cx=20 cy=20 r=10 fill=black/></mask></svg>
+  <div style="width:70px;height:70px;background:#74c;mask-image:url(#fragmask);-webkit-mask-image:url(#fragmask)"></div>
 </div></body>`;
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
