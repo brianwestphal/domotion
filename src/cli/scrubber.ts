@@ -18,12 +18,9 @@
 import { parseArgs } from "node:util";
 import { resolve, basename } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import { chromium } from "@playwright/test";
 import { startScrubberServer } from "../scrubber/server.js";
-
-const execP = promisify(exec);
+import { cliFail, openInBrowser } from "./common.js";
 
 const HELP = `animated-svg-scrubber — video-style playback / scrubbing for animated SVGs
 
@@ -45,13 +42,6 @@ export the current frame as a PNG (rendered server-side via Chromium so it
 matches the SVG's paint exactly), and trim the range to a new animated SVG.
 `;
 
-async function openInBrowser(url: string): Promise<void> {
-  const cmd = process.platform === "darwin" ? `open "${url}"`
-    : process.platform === "win32" ? `start "" "${url}"`
-    : `xdg-open "${url}"`;
-  try { await execP(cmd); } catch { /* user can copy-paste the printed URL */ }
-}
-
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     args: process.argv.slice(2),
@@ -70,7 +60,7 @@ async function main(): Promise<void> {
   const file = positionals[0];
   if (file != null) {
     const p = resolve(file);
-    if (!existsSync(p)) { process.stderr.write(`animated-svg-scrubber: file not found: ${p}\n`); process.exit(2); return; }
+    if (!existsSync(p)) cliFail("animated-svg-scrubber", `file not found: ${p}`, "usage");
     initialSvg = readFileSync(p, "utf-8");
     initialName = basename(p);
   }
@@ -98,6 +88,5 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  process.stderr.write(`animated-svg-scrubber: ${err instanceof Error ? err.message : String(err)}\n`);
-  process.exit(1);
+  cliFail("animated-svg-scrubber", err instanceof Error ? err.message : String(err), "runtime");
 });

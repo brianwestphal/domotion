@@ -17,16 +17,14 @@
  */
 
 import { parseArgs } from "node:util";
-import { resolve, extname, basename, dirname } from "node:path";
-import { mkdtempSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { resolve, extname, basename } from "node:path";
+import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
 import { chromium, type Browser } from "@playwright/test";
 import { comparePngs } from "../review/compare-pngs.js";
 import { startReviewServer } from "../review/server.js";
-
-const execP = promisify(exec);
+import { cliFail, openInBrowser } from "./common.js";
 
 const HELP = `svg-review — compare Domotion's actual.svg against expected.png
 
@@ -92,7 +90,7 @@ async function rasteriseSvg(browser: Browser, svgPath: string, outPng: string): 
   // SVG renderer (matches what consumers' browsers paint when the SVG is
   // embedded as <img> / inline). Resolve width/height from the SVG's
   // viewBox or width/height attributes so the screenshot rect matches.
-  await page.goto(`file://${svgPath}`);
+  await page.goto(pathToFileURL(svgPath).href);
   const dims = await page.evaluate(() => {
     const svg = document.querySelector("svg");
     if (svg == null) return null;
@@ -116,36 +114,23 @@ async function rasteriseSvg(browser: Browser, svgPath: string, outPng: string): 
   return dims;
 }
 
-async function openInBrowser(url: string): Promise<void> {
-  const cmd = process.platform === "darwin" ? `open "${url}"`
-    : process.platform === "win32" ? `start "" "${url}"`
-    : `xdg-open "${url}"`;
-  try { await execP(cmd); } catch { /* user can copy-paste from the printed URL */ }
-}
-
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   let flags: ReviewFlags | { help: true };
   try {
     flags = parseFlags(argv);
   } catch (e) {
-    process.stderr.write(`${(e as Error).message}\n`);
-    process.exit(2);
-    return;
+    cliFail("svg-review", (e as Error).message, "usage");
   }
   if ("help" in flags) {
     process.stdout.write(HELP);
     return;
   }
   if (!existsSync(flags.expected)) {
-    process.stderr.write(`svg-review: expected PNG not found: ${flags.expected}\n`);
-    process.exit(2);
-    return;
+    cliFail("svg-review", `expected PNG not found: ${flags.expected}`, "usage");
   }
   if (!existsSync(flags.actual)) {
-    process.stderr.write(`svg-review: actual file not found: ${flags.actual}\n`);
-    process.exit(2);
-    return;
+    cliFail("svg-review", `actual file not found: ${flags.actual}`, "usage");
   }
 
   const tmp = mkdtempSync(resolve(tmpdir(), "svg-review-"));
@@ -208,15 +193,10 @@ async function main(): Promise<void> {
     await new Promise(() => { /* never resolves; SIGINT exits the process */ });
   } catch (e) {
     await browser.close().catch(() => { /* ignore */ });
-    process.stderr.write(`svg-review: ${(e as Error).message}\n`);
-    process.exit(1);
+    cliFail("svg-review", (e as Error).message, "runtime");
   }
 }
 
 main().catch((e) => {
-  process.stderr.write(`svg-review: fatal: ${(e as Error).message}\n`);
-  process.exit(1);
+  cliFail("svg-review", `fatal: ${(e as Error).message}`, "runtime");
 });
-
-// Silence unused-import warnings on the type-side variables esbuild bundles in.
-void { dirname, statSync };

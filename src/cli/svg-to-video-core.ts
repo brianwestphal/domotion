@@ -215,9 +215,18 @@ export function resolveFormat(format: string, containerOverride?: string): Resol
   return { videoCodec: f.codec, container, pixFmt: f.pixFmt };
 }
 
-// ffmpeg's subtitles filter treats ':' '\' '[' ']' ',' specially in the path.
+// ffmpeg's subtitles filter treats `\ : ' [ ] ,` specially in the path: `\` and
+// `:` / `'` for the filter's own option parser, and `[ ] ,` for the surrounding
+// filtergraph (where they delimit filter labels / options / chain entries). `\`
+// must be escaped first so the later-added backslashes aren't doubled.
 function escapeSubtitlesPath(p: string): string {
-  return p.replace(/\\/g, "\\\\").replace(/:/g, "\\:").replace(/'/g, "\\'");
+  return p
+    .replace(/\\/g, "\\\\")
+    .replace(/:/g, "\\:")
+    .replace(/'/g, "\\'")
+    .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]")
+    .replace(/,/g, "\\,");
 }
 
 export interface FfmpegArgsInput {
@@ -368,8 +377,11 @@ function buildAnimatedImageArgs(o: FfmpegArgsInput): string[] {
   return args;
 }
 
+// Map a container name to the ffmpeg `-f <muxer>` value. Identity today —
+// mp4 / mov / webm are all direct (the muxer name matches the container). Kept
+// as a deliberate seam: it's the single place to add a remap if a future
+// container's muxer name diverges from its name (e.g. `mkv` → `matroska`).
 function containerToMuxer(container: string): string {
-  // ffmpeg muxer names mostly match the extension; mp4/mov/webm are direct.
   return container;
 }
 

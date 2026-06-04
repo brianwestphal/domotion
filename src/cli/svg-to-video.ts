@@ -14,7 +14,7 @@
 
 import { parseArgs } from "node:util";
 import { launchChromium } from "../index.js";
-import { makeLogger } from "./common.js";
+import { cliFail, makeLogger, parsePositiveFloat, parsePositiveInt } from "./common.js";
 import { runSvgToVideo, type SvgToVideoOptions } from "./svg-to-video-core.js";
 
 const HELP = `svg-to-video — render an animated SVG to a video
@@ -81,6 +81,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // Phase 1 — parse + validate args. Any failure here is a usage error (exit 2).
+  let opts: SvgToVideoOptions;
   try {
     const { values, positionals } = parseArgs({
       args: argv,
@@ -119,7 +121,7 @@ async function main(): Promise<void> {
     if (!values.output) throw new Error("missing required -o/--output");
 
     const quiet = values.quiet ?? false;
-    const opts: SvgToVideoOptions = {
+    opts = {
       input,
       output: values.output,
       width: parsePositiveInt(values.width, "width"),
@@ -141,24 +143,15 @@ async function main(): Promise<void> {
       log: makeLogger(quiet),
       launchBrowser: () => launchChromium(),
     };
+  } catch (err) {
+    cliFail("svg-to-video", err instanceof Error ? err.message : String(err), "usage");
+  }
 
+  // Phase 2 — do the work. A failure here is a runtime error (exit 1).
+  try {
     await runSvgToVideo(opts);
   } catch (err) {
-    process.stderr.write(`svg-to-video: ${err instanceof Error ? err.message : String(err)}\n`);
-    process.exit(1);
+    cliFail("svg-to-video", err instanceof Error ? err.message : String(err), "runtime");
   }
 }
 
-function parsePositiveInt(value: string | undefined, name: string): number | undefined {
-  if (value == null) return undefined;
-  const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) throw new Error(`--${name} expects a positive integer, got "${value}"`);
-  return n;
-}
-
-function parsePositiveFloat(value: string | undefined, name: string): number | undefined {
-  if (value == null) return undefined;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`--${name} expects a positive number, got "${value}"`);
-  return n;
-}

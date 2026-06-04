@@ -7,11 +7,15 @@
  * (`makeLogger`, `timed`).
  */
 
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
 import { gzipSvg } from "../index.js";
+
+const execFileP = promisify(execFile);
 
 export function parseIntFlag(value: string | undefined, name: string, def: number): number {
   if (value == null) return def;
@@ -20,6 +24,48 @@ export function parseIntFlag(value: string | undefined, name: string, def: numbe
     throw new Error(`--${name} expects a positive integer, got "${value}"`);
   }
   return n;
+}
+
+/** Parse an OPTIONAL positive-integer flag — `undefined` when absent (no
+ *  default), unlike `parseIntFlag`. Shared by the `svg-to-video` bin. */
+export function parsePositiveInt(value: string | undefined, name: string): number | undefined {
+  if (value == null) return undefined;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) throw new Error(`--${name} expects a positive integer, got "${value}"`);
+  return n;
+}
+
+/** Parse an OPTIONAL positive-float flag — `undefined` when absent. */
+export function parsePositiveFloat(value: string | undefined, name: string): number | undefined {
+  if (value == null) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`--${name} expects a positive number, got "${value}"`);
+  return n;
+}
+
+/**
+ * Open a URL in the user's default browser WITHOUT a shell, so the URL can't be
+ * interpreted as shell syntax (argv form via `execFile`). Best-effort: failures
+ * are swallowed because the caller has already printed the URL for copy-paste.
+ * Shared by the `svg-review` and `animated-svg-scrubber` bins.
+ */
+export async function openInBrowser(url: string): Promise<void> {
+  try {
+    if (process.platform === "darwin") await execFileP("open", [url]);
+    else if (process.platform === "win32") await execFileP("cmd", ["/c", "start", "", url]);
+    else await execFileP("xdg-open", [url]);
+  } catch { /* user can copy-paste the printed URL */ }
+}
+
+/**
+ * Print a CLI error to stderr with the bin's `name:` prefix and exit. The
+ * exit-code convention shared across all four bins (DM-1071): `2` = usage /
+ * argument error (bad flags, missing input, file-not-found before any work),
+ * `1` = runtime failure (something went wrong while doing the work).
+ */
+export function cliFail(name: string, message: string, kind: "usage" | "runtime"): never {
+  process.stderr.write(`${name}: ${message}\n`);
+  process.exit(kind === "usage" ? 2 : 1);
 }
 
 export function parseColorScheme(value: string | undefined): "light" | "dark" | "no-preference" | undefined {
