@@ -107,6 +107,49 @@ function buildVisibilityKeyframes(cls: string, startPct: number, endPct: number,
 }
 
 /**
+ * Render the hoisted sticky overlays (DM-647) into overlay-layer markup. Each
+ * overlay is one stuck window for one sticky element: its rendered subtree is
+ * wrapped in a `<g class="…">` whose visibility keyframe shows it only during
+ * `[firstSegment.start, lastSegment.end]` of the cycle and hides it otherwise
+ * (DM-641 convention: `visibility`, never `display`). An overlay visible for the
+ * whole cycle gets a plain `<g>` with no keyframe. Returns the per-overlay markup
+ * fragments and the visibility `@keyframes` CSS to fold into the top-level
+ * `<style>`. Extracted from `composeScrollSvg` (DM-1090) — byte-identical output.
+ */
+function buildStickyOverlays(
+  stickyOverlays: StickyOverlay[],
+  segments: ScrollSegmentCapture[],
+  totalMs: number,
+  animClass: string,
+  W: number,
+  VH: number,
+  hiDPIFactor: number,
+): { markup: string[]; cullCss: string[] } {
+  const totalSec = totalMs / 1000;
+  const markup: string[] = [];
+  const cullCss: string[] = [];
+  for (let i = 0; i < stickyOverlays.length; i++) {
+    const o: StickyOverlay = stickyOverlays[i];
+    const visStartPct = (segments[o.firstSegmentIdx].segmentStartMs / totalMs) * 100;
+    const visEndPct = (segments[o.lastSegmentIdx].segmentEndMs / totalMs) * 100;
+    const alwaysVisible = visStartPct <= 0 && visEndPct >= 100;
+    const inner = elementTreeToSvgInner([o.subtree], W, VH, `stk${i}-`, true, hiDPIFactor, false);
+    if (alwaysVisible) {
+      markup.push(
+        `\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
+      );
+    } else {
+      const cls = `${animClass}-k${i}`;
+      cullCss.push(buildVisibilityKeyframes(cls, visStartPct, visEndPct, totalSec));
+      markup.push(
+        `\n  <g class="${cls}"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
+      );
+    }
+  }
+  return { markup, cullCss };
+}
+
+/**
  * Compose a sequence of segment-captures into one animated SVG. The output
  * starts at the first capture's content (segment 0 anchor) and animates
  * through each subsequent segment's anchor at its `segmentStartMs` →
@@ -305,31 +348,10 @@ export function composeScrollSvg(
       );
     }
   }
-  // ── Sticky overlay markup + visibility keyframes ──
-  // Each overlay is one stuck window for one sticky element. Wrap the
-  // rendered subtree in a <g class="…"> whose visibility keyframe shows it
-  // only during [firstSegmentStart, lastSegmentEnd] of the cycle and hides
-  // it otherwise. DM-641 convention: visibility, never display.
-  const stickyMarkup: string[] = [];
-  const stickyCullCss: string[] = [];
-  for (let i = 0; i < stickyOverlays.length; i++) {
-    const o: StickyOverlay = stickyOverlays[i];
-    const visStartPct = (segments[o.firstSegmentIdx].segmentStartMs / totalMs) * 100;
-    const visEndPct = (segments[o.lastSegmentIdx].segmentEndMs / totalMs) * 100;
-    const alwaysVisible = visStartPct <= 0 && visEndPct >= 100;
-    const inner = elementTreeToSvgInner([o.subtree], W, VH, `stk${i}-`, true, hiDPIFactor, false);
-    if (alwaysVisible) {
-      stickyMarkup.push(
-        `\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
-      );
-    } else {
-      const cls = `${animClass}-k${i}`;
-      stickyCullCss.push(buildVisibilityKeyframes(cls, visStartPct, visEndPct, totalSec));
-      stickyMarkup.push(
-        `\n  <g class="${cls}"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
-      );
-    }
-  }
+  // ── Sticky overlay markup + visibility keyframes (DM-647) ──
+  const { markup: stickyMarkup, cullCss: stickyCullCss } = buildStickyOverlays(
+    stickyOverlays, segments, totalMs, animClass, W, VH, hiDPIFactor,
+  );
 
   const fixedMarkup = fixedOverlay.length === 0
     ? ""
