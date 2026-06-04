@@ -32,6 +32,8 @@
 // per-element calls within one captureScript invocation but resets on the
 // next.
 
+import { hasCssValue, sideWidths } from "../utils.js";
+
 export const createReplacedElementsHandler = ({ vp }) => {
   let _replacedIdx = 0;
 
@@ -44,10 +46,7 @@ export const createReplacedElementsHandler = ({ vp }) => {
     const customElNeedsSnapshot = isCustomEl && hasOpenShadow;
 
     if (tag === 'iframe' || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed' || customElNeedsSnapshot) {
-      const bl = parseFloat(cs.borderLeftWidth) || 0;
-      const br = parseFloat(cs.borderRightWidth) || 0;
-      const bt = parseFloat(cs.borderTopWidth) || 0;
-      const bb = parseFloat(cs.borderBottomWidth) || 0;
+      const { left: bl, right: br, top: bt, bottom: bb } = sideWidths(cs, 'border', 'Width');
       const pl = parseFloat(cs.paddingLeft) || 0;
       const pr = parseFloat(cs.paddingRight) || 0;
       const pt = parseFloat(cs.paddingTop) || 0;
@@ -74,7 +73,7 @@ export const createReplacedElementsHandler = ({ vp }) => {
 
     const ti = parseFloat(cs.textIndent) || 0;
     const ovX = cs.overflowX === 'hidden' || cs.overflow === 'hidden';
-    const hasBgImage = cs.backgroundImage != null && cs.backgroundImage !== 'none' && cs.backgroundImage !== '';
+    const hasBgImage = hasCssValue(cs.backgroundImage);
     const phark = ti <= -1000;
     const modern = ti < 0 && ovX && cs.whiteSpace === 'nowrap';
     if ((phark || modern) && hasBgImage) {

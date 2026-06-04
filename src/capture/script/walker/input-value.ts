@@ -57,6 +57,8 @@
 // turns out the browser's own layout, prompted via the probe div, is the
 // correct source of truth for the wrap positions, same as for `<input>`).
 
+import { sideWidths } from "../utils.js";
+
 const SKIP_VALUE_TYPES = new Set([
   'range', 'color', 'checkbox', 'radio',
   'file', 'image', 'hidden',
@@ -89,10 +91,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
     const pt = parseFloat(cs.paddingTop) || 0;
     const pr = parseFloat(cs.paddingRight) || 0;
     const pb = parseFloat(cs.paddingBottom) || 0;
-    const bl = parseFloat(cs.borderLeftWidth) || 0;
-    const bt = parseFloat(cs.borderTopWidth) || 0;
-    const br = parseFloat(cs.borderRightWidth) || 0;
-    const bb = parseFloat(cs.borderBottomWidth) || 0;
+    const { left: bl, top: bt, right: br, bottom: bb } = sideWidths(cs, 'border', 'Width');
     let textLeft = rect.left - vp.x + bl + pl;
     let textTop = rect.top - vp.y + bt + pt;
     const textHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;

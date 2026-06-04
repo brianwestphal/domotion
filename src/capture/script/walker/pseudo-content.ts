@@ -53,6 +53,8 @@
 // element's own textSegments. Those depend on text shaping state that
 // hasn't been pulled out of captureInner yet — follow-up.
 
+import { hasCssValue, sideWidths } from "../utils.js";
+
 export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle }) => {
   // DM-785: Chrome's HarfBuzz-shaped layout width differs from
   // `canvas.measureText` by ~1-3px on bold uppercase short strings (the
@@ -328,11 +330,8 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         // strip with a `linear-gradient` background and no color / border —
         // without this check the pseudoBox emit was skipped entirely.
         const bgImgRaw = pcs.backgroundImage;
-        const hasBgImg = bgImgRaw != null && bgImgRaw !== '' && bgImgRaw !== 'none';
-        const bwT = parseFloat(pcs.borderTopWidth) || 0;
-        const bwR = parseFloat(pcs.borderRightWidth) || 0;
-        const bwB = parseFloat(pcs.borderBottomWidth) || 0;
-        const bwL = parseFloat(pcs.borderLeftWidth) || 0;
+        const hasBgImg = hasCssValue(bgImgRaw);
+        const { top: bwT, right: bwR, bottom: bwB, left: bwL } = sideWidths(pcs, 'border', 'Width');
         const hasBorder = bwT > 0 || bwR > 0 || bwB > 0 || bwL > 0;
         const isBlockLike = pcs.display === 'block' || pcs.display === 'inline-block' || pcs.display === 'flex';
         // DM-1073: the `opacity: 0` skip that used to repeat here is dead — the
@@ -345,10 +344,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
           const hostBorT = parseFloat(cs.borderTopWidth) || 0;
           const hostBorR = parseFloat(cs.borderRightWidth) || 0;
           const pMarL = parseFloat(pcs.marginLeft) || 0;
-          const pPadL = parseFloat(pcs.paddingLeft) || 0;
-          const pPadR = parseFloat(pcs.paddingRight) || 0;
-          const pPadT = parseFloat(pcs.paddingTop) || 0;
-          const pPadB = parseFloat(pcs.paddingBottom) || 0;
+          const { left: pPadL, right: pPadR, top: pPadT, bottom: pPadB } = sideWidths(pcs, 'padding', '');
           // Pseudo width / height come from computed style. `width: 350px`
           // resolves directly; `auto` falls back to host content width
           // (minus host padding).
@@ -700,7 +696,7 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
       // linear-gradient(135deg, ...) }`) lost the pill bg behind the white
       // glyphs.
       const pseudoBgImgRaw = pcs.backgroundImage;
-      const hasPseudoBgImg = pseudoBgImgRaw != null && pseudoBgImgRaw !== '' && pseudoBgImgRaw !== 'none';
+      const hasPseudoBgImg = hasCssValue(pseudoBgImgRaw);
       // DM-783: pseudo's own `transform` (rotate/scale/translate/matrix)
       // wraps both the paint box AND the glyph emit at render time.
       const pseudoTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
