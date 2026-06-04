@@ -34,6 +34,7 @@ import {
   type CapturedElement,
 } from "../index.js";
 import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -435,7 +436,7 @@ export async function composeAnimateConfig(
       let acc = 0;
       for (const f of cfg.frames) {
         frameStartsMs.push(acc);
-        acc += f.duration + (f.transition == null ? 300 : f.transition.type === "cut" ? 0 : f.transition.duration);
+        acc += frameAdvanceMs(f);
       }
     }
     for (const ev of explicitCursorEvents) {
@@ -573,9 +574,9 @@ export async function composeAnimateConfig(
         // `elementTreeToSvg` so the renderer sees the mutated tree.
         let frameStartMs = 0;
         for (let pi = 0; pi < i; pi++) {
-          frameStartMs += cfg.frames[pi].duration + (cfg.frames[pi].transition?.type === "cut" ? 0 : (cfg.frames[pi].transition?.duration ?? 300));
+          frameStartMs += frameAdvanceMs(cfg.frames[pi]);
         }
-        const totalDurationMs = cfg.frames.reduce((sum, f) => sum + f.duration + (f.transition?.type === "cut" ? 0 : (f.transition?.duration ?? 300)), 0);
+        const totalDurationMs = cfg.frames.reduce((sum, f) => sum + frameAdvanceMs(f), 0);
         const result = cullElementsOutsideViewBox(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
         frameCullCss = result.css;
         if (i === 0) canvasBg = tree[0]?.styles?.rootBgComputed;

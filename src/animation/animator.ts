@@ -8,10 +8,8 @@
 import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 import type { MagicMove } from "./magic-move.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
-
-/** Default crossfade duration (ms) when a frame specifies no `transition`. The
- *  legacy value; see `transitionDuration()`. (DM-1069) */
-const DEFAULT_TRANSITION_MS = 300;
+import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
+import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -258,7 +256,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   const { width, height, frames } = config;
 
   const totalDuration = frames.reduce(
-    (sum, f) => sum + f.duration + transitionDuration(f),
+    (sum, f) => sum + frameAdvanceMs(f),
     0,
   );
   const totalSec = totalDuration / 1000;
@@ -271,7 +269,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   {
     let t = 0;
     for (const f of frames) {
-      const td = transitionDuration(f);
+      const td = transitionDurationMs(f);
       frameTiming.startPct.push((t / totalDuration) * 100);
       frameTiming.holdEndPct.push(((t + f.duration) / totalDuration) * 100);
       frameTiming.transEndPct.push(((t + f.duration + td) / totalDuration) * 100);
@@ -299,7 +297,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
 
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
-    const transDur = transitionDuration(frame);
+    const transDur = transitionDurationMs(frame);
     const transType = frame.transition?.type ?? "crossfade";
 
     const startPct = pct(timeOffset, totalDuration);
@@ -319,7 +317,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     // one slides out, so its show window starts at `timeOffset - prevTransDur`
     // rather than at `startPct`.
     const entersViaOverlap = entersViaPush || entersViaScroll;
-    const prevTransDur = prevFrame != null ? transitionDuration(prevFrame) : DEFAULT_TRANSITION_MS;
+    const prevTransDur = prevFrame != null ? transitionDurationMs(prevFrame) : DEFAULT_TRANSITION_MS;
     const enterStartPct = entersViaOverlap
       ? pct(timeOffset - prevTransDur, totalDuration)
       : startPct;
@@ -336,24 +334,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // Window is [enterStartPct .. transEndPct] (when the slide has fully
       // exited the viewBox); 0.01% pad on each side keeps the snap inside the
       // existing opacity:0 bookend.
-      const visStart = enterStartPct;
-      const visEnd = transEndPct;
-      keyframes.push(`
-    @keyframes fp-${i} {
-      0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { transform: translateX(${entersViaPush ? width : 0}px); }
-      ${startPct} { transform: translateX(0); }
-      ${holdEndPct} { transform: translateX(0); }
-      ${transEndPct} { transform: translateX(-${width}px); }
-      ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { transform: translateX(-${width}px); }
-    }
-    @keyframes fv-${i} {
-      0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { opacity: 0; }
-      ${enterStartPct} { opacity: 1; }
-      ${transEndPct} { opacity: 1; }
-      ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { opacity: 0; }
-    }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
-    .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`);
+      keyframes.push(slideKeyframes(i, "X", width, entersViaPush, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec));
 
     } else if (transType === "scroll") {
       // DM-609: `scroll` now means real geometric scroll between two frames
@@ -368,24 +349,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
         `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${frame.svgContent}\n  </g></g>`,
       );
 
-      const visStart = enterStartPct;
-      const visEnd = transEndPct;
-      keyframes.push(`
-    @keyframes fp-${i} {
-      0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { transform: translateY(${entersViaScroll ? height : 0}px); }
-      ${startPct} { transform: translateY(0); }
-      ${holdEndPct} { transform: translateY(0); }
-      ${transEndPct} { transform: translateY(-${height}px); }
-      ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { transform: translateY(-${height}px); }
-    }
-    @keyframes fv-${i} {
-      0%, ${Math.max(0, parseFloat(enterStartPct) - 0.1).toFixed(2)}% { opacity: 0; }
-      ${enterStartPct} { opacity: 1; }
-      ${transEndPct} { opacity: 1; }
-      ${Math.min(100, parseFloat(transEndPct) + 0.1).toFixed(2)}%, 100% { opacity: 0; }
-    }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
-    .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`);
+      keyframes.push(slideKeyframes(i, "Y", height, entersViaScroll, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec));
 
     } else if (transType === "magic-move" && frame.magicMove != null) {
       // DM-898: magic-move. Frame i holds [start..holdEnd] then HARD-CUTS out;
@@ -400,10 +364,10 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       const sNum = parseFloat(startPct);
       const hNum = parseFloat(holdEndPct);
       const tNum = parseFloat(transEndPct);
-      const beforeS = Math.max(0, sNum - 0.001).toFixed(3);
-      const afterH = Math.min(100, hNum + 0.001).toFixed(3);
-      const beforeH = Math.max(0, hNum - 0.001).toFixed(3);
-      const afterT = Math.min(100, tNum + 0.001).toFixed(3);
+      const beforeS = padBefore(sNum, KEYFRAME_EPSILON.cull, 3);
+      const afterH = padAfter(hNum, KEYFRAME_EPSILON.cull, 3);
+      const beforeH = padBefore(hNum, KEYFRAME_EPSILON.cull, 3);
+      const afterT = padAfter(tNum, KEYFRAME_EPSILON.cull, 3);
 
       // Frame i blob: visible only during its hold, hard-cut out at hold end.
       frameGroups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
@@ -518,8 +482,8 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       if (isCut) {
         const startNum = parseFloat(startPct);
         const endNum = parseFloat(transEndPct);
-        const beforeStart = Math.max(0, startNum - 0.001).toFixed(3);
-        const afterEnd = Math.min(100, endNum + 0.001).toFixed(3);
+        const beforeStart = padBefore(startNum, KEYFRAME_EPSILON.cull, 3);
+        const afterEnd = padAfter(endNum, KEYFRAME_EPSILON.cull, 3);
         // DM-599: cut already uses step-end on the opacity animation, so we
         // fold visibility into the same keyframes block — both snap together.
         // DM-641: this used to toggle `display`. The base `.f { display: none }`
@@ -544,7 +508,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
           ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
           : startPct;
         const prevEnd = i > 0
-          ? `${Math.max(0, parseFloat(fadeInStartPct) - 0.01).toFixed(2)}%,`
+          ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
           : "";
         // DM-599: visible window spans the full fade — fadeInStart through
         // transEnd (display stays `inline` while opacity interpolates).
@@ -607,7 +571,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     let acc = 0;
     for (const f of frames) {
       frameStarts.push(acc);
-      acc += f.duration + transitionDuration(f);
+      acc += frameAdvanceMs(f);
     }
     const resolved = resolveCursorScript(
       config.cursorOverlay,
@@ -639,17 +603,6 @@ ${canvasBgRect}${frameGroups.join("\n")}${overlayMarkup}
   </g>
 </svg>`;
   return out;
-}
-
-/**
- * Effective transition duration for a frame. `cut` is always 0 — the type
- * means "instant" so any duration on the input is meaningless. Default
- * (no transition specified) is 300ms (legacy crossfade duration).
- */
-function transitionDuration(f: AnimationFrame): number {
-  if (f.transition == null) return DEFAULT_TRANSITION_MS;
-  if (f.transition.type === "cut") return 0;
-  return f.transition.duration;
 }
 
 /**
@@ -915,8 +868,8 @@ function buildDisplayKeyframes(name: string, visibleStartPct: string | number, v
   // ticks in Chromium.
   const start = parseFloat(String(visibleStartPct));
   const end = parseFloat(String(visibleEndPct));
-  const startMinus = Math.max(0, start - 0.01).toFixed(3);
-  const endPlus = Math.min(100, end + 0.01).toFixed(3);
+  const startMinus = padBefore(start, KEYFRAME_EPSILON.display, 3);
+  const endPlus = padAfter(end, KEYFRAME_EPSILON.display, 3);
   return `
     @keyframes ${name} {
       0% { visibility: hidden; }
@@ -926,6 +879,46 @@ function buildDisplayKeyframes(name: string, visibleStartPct: string | number, v
       ${endPlus}% { visibility: hidden; }
       100% { visibility: hidden; }
     }`;
+}
+
+/**
+ * Slide-transition keyframes (push-left / scroll). The two transitions are the
+ * same machinery on different axes: `push-left` slides horizontally (axis `X`,
+ * `size` = width), `scroll` slides vertically (axis `Y`, `size` = height). The
+ * incoming frame starts off-screen (`+size`) only when the predecessor was the
+ * same slide type (`entersSliding`), holds at 0 across its show window, then
+ * exits to `-size`. 0.1% pads on each bookend keep the snap inside the
+ * opacity:0 frame. Emits the fp/fv/fd keyframes + the `.f-`/`.fp-` rules.
+ */
+function slideKeyframes(
+  i: number,
+  axis: "X" | "Y",
+  size: number,
+  entersSliding: boolean,
+  enterStartPct: string,
+  startPct: string,
+  holdEndPct: string,
+  transEndPct: string,
+  visStart: string,
+  visEnd: string,
+  totalSec: number,
+): string {
+  return `
+    @keyframes fp-${i} {
+      0%, ${padBefore(parseFloat(enterStartPct), KEYFRAME_EPSILON.slide, 2)}% { transform: translate${axis}(${entersSliding ? size : 0}px); }
+      ${startPct} { transform: translate${axis}(0); }
+      ${holdEndPct} { transform: translate${axis}(0); }
+      ${transEndPct} { transform: translate${axis}(-${size}px); }
+      ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { transform: translate${axis}(-${size}px); }
+    }
+    @keyframes fv-${i} {
+      0%, ${padBefore(parseFloat(enterStartPct), KEYFRAME_EPSILON.slide, 2)}% { opacity: 0; }
+      ${enterStartPct} { opacity: 1; }
+      ${transEndPct} { opacity: 1; }
+      ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { opacity: 0; }
+    }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
+    .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`;
 }
 
 /**

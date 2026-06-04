@@ -18,6 +18,7 @@
 
 import type { CapturedElement } from "../capture/types.js";
 import type { IntraFrameAnimation } from "../animation/animator.js";
+import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
 
 interface Bbox {
   x: number;
@@ -313,8 +314,8 @@ export function cullElementsOutsideViewBox(
  * so the animation runs every cycle.
  */
 function buildCullKeyframes(name: string, visStartPct: number, visEndPct: number): string {
-  const startMinus = Math.max(0, visStartPct - 0.001).toFixed(3);
-  const endPlus = Math.min(100, visEndPct + 0.001).toFixed(3);
+  const startMinus = padBefore(visStartPct, KEYFRAME_EPSILON.cull, 3);
+  const endPlus = padAfter(visEndPct, KEYFRAME_EPSILON.cull, 3);
   return `    @keyframes ${name} {
       0% { visibility: hidden; }
       ${startMinus}% { visibility: hidden; }

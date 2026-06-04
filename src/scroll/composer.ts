@@ -83,6 +83,17 @@ export interface ScrollComposerOptions {
 }
 
 /**
+ * Step-end `visibility` keyframes for a culled segment / sticky window (DM-641):
+ * hidden until the content first enters [startPct], visible across the window,
+ * hidden again after [endPct]. 0.001% pads keep each step-end snap off the exact
+ * boundary. Returns the `@keyframes` rule plus the `.cls` animation binding.
+ */
+function buildVisibilityKeyframes(cls: string, startPct: number, endPct: number, totalSec: number): string {
+  return `      @keyframes ${cls} { 0% { visibility: hidden } ${Math.max(0, startPct - 0.001).toFixed(3)}% { visibility: hidden } ${startPct.toFixed(3)}% { visibility: visible } ${endPct.toFixed(3)}% { visibility: visible } ${Math.min(100, endPct + 0.001).toFixed(3)}% { visibility: hidden } 100% { visibility: hidden } }
+      .${cls} { animation: ${cls} ${totalSec.toFixed(3)}s infinite; animation-timing-function: step-end; }`;
+}
+
+/**
  * Compose a sequence of segment-captures into one animated SVG. The output
  * starts at the first capture's content (segment 0 anchor) and animates
  * through each subsequent segment's anchor at its `segmentStartMs` →
@@ -125,6 +136,11 @@ export function composeScrollSvg(
   const prevRenderTextMode = getRenderTextMode();
   clearEmbeddedFonts();
   setRenderTextMode(renderTextMode);
+  // DM-1078: the whole body renders in the chosen mode (module-global);
+  // restore on ANY exit — incl. a mid-segment elementTreeToSvgInner throw —
+  // so the mode can't leak to the next caller. (Body left un-indented to
+  // keep the multi-line template literals below byte-for-byte intact.)
+  try {
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -266,10 +282,7 @@ export function composeScrollSvg(
       const cls = `${animClass}-s${i}`;
       // step-end so the segment snaps in/out at the boundary, no fractional
       // opacity that would force the browser to keep compositing it.
-      segmentCullCss.push(
-        `      @keyframes ${cls} { 0% { visibility: hidden } ${Math.max(0, enterPct - 0.001).toFixed(3)}% { visibility: hidden } ${enterPct.toFixed(3)}% { visibility: visible } ${leavePct.toFixed(3)}% { visibility: visible } ${Math.min(100, leavePct + 0.001).toFixed(3)}% { visibility: hidden } 100% { visibility: hidden } }
-      .${cls} { animation: ${cls} ${totalSec.toFixed(3)}s infinite; animation-timing-function: step-end; }`,
-      );
+      segmentCullCss.push(buildVisibilityKeyframes(cls, enterPct, leavePct, totalSec));
       captureGroups.push(
         `  <g class="${cls}" transform="translate(${tx} ${ty})">` +
           `<svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
@@ -298,10 +311,7 @@ export function composeScrollSvg(
       );
     } else {
       const cls = `${animClass}-k${i}`;
-      stickyCullCss.push(
-        `      @keyframes ${cls} { 0% { visibility: hidden } ${Math.max(0, visStartPct - 0.001).toFixed(3)}% { visibility: hidden } ${visStartPct.toFixed(3)}% { visibility: visible } ${visEndPct.toFixed(3)}% { visibility: visible } ${Math.min(100, visEndPct + 0.001).toFixed(3)}% { visibility: hidden } 100% { visibility: hidden } }
-      .${cls} { animation: ${cls} ${totalSec.toFixed(3)}s infinite; animation-timing-function: step-end; }`,
-      );
+      stickyCullCss.push(buildVisibilityKeyframes(cls, visStartPct, visEndPct, totalSec));
       stickyMarkup.push(
         `\n  <g class="${cls}"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
       );
@@ -361,7 +371,6 @@ export function composeScrollSvg(
   // collapse onto one rule. Restore the default render mode now that
   // all per-segment rendering has finished.
   const fontFaceCss = getEmbeddedFontFaceCss();
-  setRenderTextMode(prevRenderTextMode);
 
   // ── Compose final SVG ──
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -385,6 +394,9 @@ ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${
     </g>
   </g>${overlayMarkup}
 </svg>`;
+  } finally {
+    setRenderTextMode(prevRenderTextMode);
+  }
 }
 
 /** Small deterministic string hash (FNV-1a, 32-bit) → 6-char base36. Used to
