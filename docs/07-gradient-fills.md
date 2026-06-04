@@ -2,7 +2,7 @@
 
 Requirements for honoring CSS gradient backgrounds on form-control pseudos in Domotion. Origin: SK-1190 (follow-up from SK-1138).
 
-Today the stylesheet-walker capture for `::-webkit-slider-runnable-track` (and the planned walkers for `::-webkit-slider-thumb`, `::-webkit-progress-value`, `::-webkit-meter-*`, etc.) reduces a `background: linear-gradient(…)` declaration to its first literal color stop via a regex (`_firstColorRe` in `src/dom-to-svg.ts` CAPTURE_SCRIPT). The renderer then paints a flat fill of that single color, which loses the entire gradient effect.
+Today the stylesheet-walker capture for `::-webkit-slider-runnable-track` (and the planned walkers for `::-webkit-slider-thumb`, `::-webkit-progress-value`, `::-webkit-meter-*`, etc.) reduces a `background: linear-gradient(…)` declaration to its first literal color stop via a regex (`_firstColorRe` in `src/capture/script/` CAPTURE_SCRIPT). The renderer then paints a flat fill of that single color, which loses the entire gradient effect.
 
 ## Why now
 
@@ -53,7 +53,7 @@ The renderer parses the gradient text and emits SVG. The work fans out into thre
 
 ### 1. Parser
 
-Add a `parseLinearGradient(text)` helper to `src/form-controls.ts` (or a new `gradients.ts`) that returns:
+Add a `parseLinearGradient(text)` helper to `src/render/form-controls.ts` (or a new `gradients.ts`) that returns:
 
 ```ts
 type LinearGradient = {

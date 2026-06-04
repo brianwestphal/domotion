@@ -39,7 +39,7 @@ Two pickers consult it:
 
 ## Run-splitter integration
 
-`textToPathMarkup` in `src/text-to-path.ts` walks the input text codepoint-by-codepoint, building runs of contiguous codepoints that route to the same font. Pre-DM-557 the routing was:
+`textToPathMarkup` in `src/render/text-to-path.ts` walks the input text codepoint-by-codepoint, building runs of contiguous codepoints that route to the same font. Pre-DM-557 the routing was:
 
 1. If `primaryFont.glyphForCodePoint(cp).id !== 0` → primary.
 2. Otherwise → walk `fallbackFontChain(cp)` (system fonts: Apple Symbols, PingFang, Hiragino, etc.).

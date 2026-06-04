@@ -103,7 +103,7 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 
 ### Out of scope
 
-- CSS animations / transitions — domotion captures a static frame; multi-frame animation is composed at a higher layer (see `src/animator.ts`).
+- CSS animations / transitions — domotion captures a static frame; multi-frame animation is composed at a higher layer (see `src/animation/animator.ts`).
 - `@page` print-media rules — screen capture only.
 
 ## Warning system

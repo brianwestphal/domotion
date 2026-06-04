@@ -88,7 +88,7 @@ For `<g>` and `<path>` targets: simpler — replace `<use x=X y=Y>` with `<g tra
 - `inline-svg-use-group`: `<g id="icon-grp">…</g>` consumed via `<use href="#icon-grp">` — exercises the simpler `<g>`/`<path>` substitution path.
 - `inline-svg-self-contained` (regression): a plain inline `<svg><path/></svg>` continues to round-trip identically (covers the DM-279 path didn't regress).
 
-`src/dom-to-svg.test.ts` (or a new `src/inline-svg.test.ts`): unit tests for the `<use>` resolver — exercise href / xlink:href, missing target, target outside root selector, symbol-with-viewBox vs. plain-group target.
+The `<use>` resolver is covered by the `inline-svg-use-group` / `inline-svg-use-symbol` / `inline-svg-self-contained` feature fixtures (`tests/features.ts`, PNG-vs-SVG diff) — exercising href / xlink:href, plain-group vs. symbol-with-viewBox targets, and the self-contained regression. (The capture-script `<use>` resolution runs in-page and isn't unit-testable on its own per the CAPTURE_SCRIPT discipline.)
 
 ## Open design questions
 

@@ -315,7 +315,7 @@ not yet built — see open questions.)
   "Persistent `--serve` mode" above.
 - ⏳ **Remaining — the probe-then-fallback *trigger* (separate follow-up).** The
   renderer can now *invoke* the Linux helper, but nothing routes through it on
-  Linux yet: the helper is reached only via the static `extractor: "coretext"`
+  Linux yet: the helper is reached only via the static `extractor: "native"`
   flag, set on no Linux `FONT_PATHS` entry. The doc-16 "fontkit-empty path →
   consult the helper for any font" trigger is unbuilt; it pairs with the Linux
   fallback-chain calibration (DM-259) that decides which fonts route through it.

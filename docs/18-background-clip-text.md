@@ -28,7 +28,7 @@ Discovered via DM-460 inspection of `resend-mobile-fold` ("Email for developers"
 
 ## Render
 
-In `src/dom-to-svg.ts` the bg-image layer loop checks each layer's clip value:
+In `src/render/element-tree-to-svg.ts` the bg-image layer loop checks each layer's clip value:
 
 - For non-text clips (`border-box` / `padding-box` / `content-box`), the gradient/image still emits as a `<rect fill="url(#bg)">` over the appropriate box (unchanged).
 - For `text` clips, the renderer:

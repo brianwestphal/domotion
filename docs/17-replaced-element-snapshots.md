@@ -45,7 +45,7 @@ The hide stylesheet is injected once before the rasterize pass and removed in `f
 
 1. **CAPTURE_SCRIPT**: when `tag` is one of the five replaced types and the element has non-zero area and is not `display: none`, emit a `rasterizeAsImage: true` flag plus the element's content-box rect (border-box minus border + padding, viewport-relative). The warning is still emitted on the same code path.
 
-2. **Post-capture pass — `rasterizeReplacedElements()`** in `src/dom-to-svg.ts`. Runs after `rasterizeBitmapGlyphs` inside `captureElementTreeWithWarnings()`. It:
+2. **Post-capture pass — `rasterizeReplacedElements()`** in `src/capture/index.ts`. Runs after `rasterizeBitmapGlyphs` inside `captureElementTreeWithWarnings()`. It:
    - Walks the captured tree collecting `(stableId, contentRect)` pairs for every flagged element.
    - Injects the hide stylesheet via `page.addStyleTag`.
    - For each target: sets `data-domotion-snapshot-target` on the matching element handle (located by a stable `data-domotion-rid` attribute set on the element during the same pass), screenshots its content-box clip with `omitBackground: true`, attaches the data URI back to the captured tree node, and clears the attribute.

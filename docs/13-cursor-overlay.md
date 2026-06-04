@@ -36,15 +36,17 @@ type CursorEvent =
 
 interface CursorStyle {
   pointer: "mouse" | "touch";
-  /** Click pulse ring color. Default rgba(255,255,255,0.9) (white) on a stroked ring. */
-  pulseColor: string;
-  /** Outer ring stroke color. Default rgba(0,0,0,0.4) (subtle dark fringe so the ring shows on white pages too). */
+  /** Inner ring + cursor stroke color. Default white with a thin black outline. */
+  cursorFill: string;
+  cursorStroke: string;
+  /** Click pulse stroke color. Default white with a black hairline. */
   pulseStroke: string;
-  /** Pulse duration in ms. Default 500. */
+  pulseStrokeOuter: string;
+  /** Click pulse duration in ms. Default 500. */
   pulseDurationMs: number;
-  /** Pulse max radius in px (outer edge). Default 32. */
+  /** Click pulse max radius (outer edge) in px. Default 32. */
   pulseRadius: number;
-  /** Cursor scale (1 = 24-px hot-arrow). Default 1. */
+  /** Cursor scale (1 = the 18-px-tall macOS arrow). Default 1. */
   cursorScale: number;
 }
 
@@ -80,7 +82,7 @@ Emits a click pulse at the current cursor position at time `t`. The button affec
 
 ## Render
 
-A new module `src/cursor-overlay.ts`:
+A new module `src/animation/cursor-overlay.ts`:
 
 1. Resolves the script into low-level absolute keyframes:
    - `[ {t, x, y} ]` — cursor position over time, with linear interpolation between adjacent entries when both have the same segment.

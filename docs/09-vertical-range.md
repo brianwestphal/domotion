@@ -36,7 +36,7 @@ No new fields. `CapturedElement.styles.writingMode` and `direction` are already 
 
 ## Render
 
-`renderRange` in `src/form-controls.ts` branches early on `isVertical = s.writingMode != null && s.writingMode !== 'horizontal-tb'`. Both branches share the same fill / border / styled-thumb logic — only the geometry math differs. Specifically:
+`renderRange` in `src/render/form-controls.ts` branches early on `isVertical = s.writingMode != null && s.writingMode !== 'horizontal-tb'`. Both branches share the same fill / border / styled-thumb logic — only the geometry math differs. Specifically:
 
 - Horizontal: `trackRect.w = el.width − thumbW`, `fillRect.w = thumbCx − trackLeft`.
 - Vertical: `trackRect.h = el.height − thumbH`, `fillRect.h` runs from `thumbCy` to `trackBottom` (rtl) or from `trackTop` to `thumbCy` (ltr).

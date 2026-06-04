@@ -20,7 +20,7 @@ shaped Markdown snippet the user can paste directly.
 ## Invocation
 
 ```
-svg-review --expected expected.png --actual actual.svg [--port 3839]
+svg-review --expected expected.png --actual actual.svg [--port <n>]
 ```
 
 - `--expected` — PNG of what Chromium painted on the source page. Required.
@@ -29,8 +29,8 @@ svg-review --expected expected.png --actual actual.svg [--port 3839]
   the same rendering pipeline the in-repo pixel-regression tests use, so what
   the user is comparing is the same byte-for-byte image Domotion's consumers
   would see. Required.
-- `--port` — port the local HTTP server binds to. Defaults to 3839; falls back
-  to the next free port if taken.
+- `--port` — port the local HTTP server binds to. When omitted, binds an
+  OS-assigned free port (the URL is printed on startup).
 
 The tool prints the URL it opens and (on platforms with a default browser
 opener) launches the page automatically.
@@ -107,7 +107,7 @@ two source files when filing:
 - `src/review/server.ts` — the HTTP server. Serves the static UI bundle and
   the three captured images. Distilled from `tests/review-server.tsx` but
   stripped of the Hot Sheet integration (consumers don't have access).
-- `src/review/client.ts` — the page-side script. Reuses
+- `src/review/client.tsx` — the page-side script. Reuses
   `tests/review-region-overlay.ts` for drawing/resizing rects and adds the
   Markdown-builder + clipboard-copy panel.
 - `bin` entry in `package.json` → `svg-review: dist/cli/review.js`.

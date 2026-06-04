@@ -2,9 +2,9 @@
 
 ## Context
 
-Domotion's SVG output today renders every captured page in its **light** variant. Both `captureElementTree` and the renderer assume a light color scheme: form-control stock visuals (`src/form-controls.ts`) hardcode light borders / fills, the body-bg fallback in `tests/real-world.tsx` is `#ffffff`, and there's no signal in the emitted SVG that the captured page intended a particular scheme.
+Domotion's SVG output today renders every captured page in its **light** variant. Both `captureElementTree` and the renderer assume a light color scheme: form-control stock visuals (`src/render/form-controls.ts`) hardcode light borders / fills, the body-bg fallback in `tests/real-world.tsx` is `#ffffff`, and there's no signal in the emitted SVG that the captured page intended a particular scheme.
 
-The capture-time `colorScheme` option (`src/capture.ts:23`) already plumbs through to Playwright's context — Chromium's `getComputedStyle()` correctly evaluates `@media (prefers-color-scheme: dark)` rules and serializes the resolved colors. So the **CSS resolution side is already correct**: when `colorScheme: 'dark'` is set, every author-styled element resolves its dark-variant colors and Domotion emits them faithfully.
+The capture-time `colorScheme` option (`src/capture/index.ts`) already plumbs through to Playwright's context — Chromium's `getComputedStyle()` correctly evaluates `@media (prefers-color-scheme: dark)` rules and serializes the resolved colors. So the **CSS resolution side is already correct**: when `colorScheme: 'dark'` is set, every author-styled element resolves its dark-variant colors and Domotion emits them faithfully.
 
 The gaps are in the **defaults**: stock form controls, transparent-root bg, and the absence of a `color-scheme` declaration on the emitted SVG so consumers know which scheme they got.
 
@@ -13,7 +13,7 @@ The real-world test suite (DM-454) currently forces `colorScheme: 'light'` on ev
 ## Decisions (per DM-455 feedback)
 
 - **Q1 — Capture-side scheme propagation**: caller-chooses (Option B). `captureElementTree` keeps the existing `colorScheme: 'light' | 'dark' | 'no-preference'` option; output SVG carries a matching `color-scheme=` attr (or wrapper `<style>:root { color-scheme: dark }</style>`). No double-capture / no `@media`-scoped style block.
-- **Q2 — Form-controls dark palette**: Option A — empirically calibrate against Chromium's painted dark stock controls on macOS, mirroring the methodology used for the font-fallback chains. Hardcode the resulting RGB values into `src/form-controls.ts` as a parallel dark palette.
+- **Q2 — Form-controls dark palette**: Option A — empirically calibrate against Chromium's painted dark stock controls on macOS, mirroring the methodology used for the font-fallback chains. Hardcode the resulting RGB values into `src/render/form-controls.ts` as a parallel dark palette.
 - **Q3 — Transparent-root fallback**: Option C — capture-side, query `getComputedStyle(document.documentElement).backgroundColor` and trust Chromium's resolved value rather than hardcoding our own dark palette.
 
 ## API surface
@@ -68,7 +68,7 @@ Per user direction: trust Chromium, don't second-guess.
 
 ### Form-controls dark palette
 
-`src/form-controls.ts` exposes named constants for stock visual colors. Today there is one set of constants matching Chromium's macOS light palette. Add a parallel dark palette:
+`src/render/form-controls.ts` exposes named constants for stock visual colors. Today there is one set of constants matching Chromium's macOS light palette. Add a parallel dark palette:
 
 ```ts
 const STOCK_LIGHT = {
@@ -131,7 +131,7 @@ Add a dark-mode counterpart to the existing form-control suite — a single page
 This doc fans out into the following sub-tickets:
 
 1. **DM-455a — Capture-side propagation**: add `rootColorScheme` + `rootBgComputed` to the CAPTURE_SCRIPT, surface them on the captured tree, and emit `color-scheme="dark"` on the root `<svg>` from `elementTreeToSvg`.
-2. **DM-455b — Form-controls dark palette**: empirical probe of Chromium's painted dark stock controls on macOS, hardcode the values into a `STOCK_DARK` table in `src/form-controls.ts`, dispatch via `stockPalette(scheme)`. New dark-mode form-control fixture for calibration.
+2. **DM-455b — Form-controls dark palette**: empirical probe of Chromium's painted dark stock controls on macOS, hardcode the values into a `STOCK_DARK` table in `src/render/form-controls.ts`, dispatch via `stockPalette(scheme)`. New dark-mode form-control fixture for calibration.
 3. **DM-455c — Transparent-root fallback**: renderer's transparent-root path consumes `rootBgComputed`; `tests/real-world.tsx` body-bg fallback consumes `rootBgComputed`. Hardcoded `#ffffff` only fires when the field is missing.
 4. **DM-455d — Real-world suite re-evaluation**: drop the `colorScheme: 'light'` force in `tests/real-world.tsx`, re-run the suite, and verify the diff is dominated by typography drift, not bg-color inversion.
 
@@ -146,9 +146,9 @@ This doc fans out into the following sub-tickets:
 ## Status
 
 - Requirements doc landed (this file).
-- Slice 1 (DM-552 — capture-side propagation) landed. CAPTURE_SCRIPT stamps `rootColorScheme` and `rootBgComputed` on the captured tree's root element. Renderer's `wrapSvg` accepts `{ tree }` and emits `color-scheme="dark"` when applicable. New `rootSvgColorSchemeAttr(elements)` exported helper for the call sites that build their own root `<svg>` (`tests/runner.tsx`, `tests/real-world.tsx`, `src/animator.ts`). Today's SVG output is byte-identical at default light scheme.
+- Slice 1 (DM-552 — capture-side propagation) landed. CAPTURE_SCRIPT stamps `rootColorScheme` and `rootBgComputed` on the captured tree's root element. Renderer's `wrapSvg` accepts `{ tree }` and emits `color-scheme="dark"` when applicable. New `rootSvgColorSchemeAttr(elements)` exported helper for the call sites that build their own root `<svg>` (`tests/runner.tsx`, `tests/real-world.tsx`, `src/animation/animator.ts`). Today's SVG output is byte-identical at default light scheme.
 - Slice 3 (DM-554 — transparent-root fallback) landed. `tests/real-world.tsx` body-bg fallback now reads `cap.tree[0]?.styles?.rootBgComputed` and falls back to a scheme-aware default (`#ffffff` light, `#1c1c1c` dark) only when both the captured `<body>` and `<html>` are transparent. `wrapSvg` now optionally emits a body-bg `<rect>` from the tree's `rootBgComputed` (skipped when missing or explicitly transparent). New exported helper `transparentRootBgRect(elements, w, h)` for callers that build their own `<svg>` opening tag. 17 unit tests total in `src/dark-mode-capture.test.ts` (slice 1 + slice 3).
-- Slice 2 (DM-553 — form-controls dark palette) landed. New `STOCK_LIGHT` + `STOCK_DARK` palette objects in `src/form-controls.ts` with empirically-sampled values from Chromium-on-macOS dark mode. New `stockPalette(scheme)` exported dispatcher. `DefCtx.colorScheme` propagates the page scheme from the captured tree's root through `elementTreeToSvg` to every form-control synthesizer. Routed: checkbox, radio, range (track + thumb + accent fill), progress, meter (green/yellow/red palette), color swatch, file input, select chevron, and the `unfilledTrackColor` helper. Author-styled paths unchanged — only the no-author-CSS stock path picks scheme-aware colors. **Cross-platform debt** (per CLAUDE.md): both palettes are macOS-only literals; Linux + Windows dark palettes need their own probes (filed under DM-258+ once that work picks up). 13 new unit tests in `src/dark-mode-form-controls.test.ts`.
+- Slice 2 (DM-553 — form-controls dark palette) landed. New `STOCK_LIGHT` + `STOCK_DARK` palette objects in `src/render/form-controls.ts` with empirically-sampled values from Chromium-on-macOS dark mode. New `stockPalette(scheme)` exported dispatcher. `DefCtx.colorScheme` propagates the page scheme from the captured tree's root through `elementTreeToSvg` to every form-control synthesizer. Routed: checkbox, radio, range (track + thumb + accent fill), progress, meter (green/yellow/red palette), color swatch, file input, select chevron, and the `unfilledTrackColor` helper. Author-styled paths unchanged — only the no-author-CSS stock path picks scheme-aware colors. **Cross-platform debt** (per CLAUDE.md): both palettes are macOS-only literals; Linux + Windows dark palettes need their own probes (filed under DM-258+ once that work picks up). 13 new unit tests in `src/dark-mode-form-controls.test.ts`.
 - Slice 4 (DM-555 — real-world suite re-evaluation) landed. Dropped the `colorScheme: 'light'` force from `tests/real-world.tsx`'s runJob context. Playwright's default `colorScheme` is `'light'` on all platforms, so the force was an explicit pin against the runner's macOS system theme — its removal doesn't change the default behavior, just removes the workaround now that the dark-mode pipeline is ready. Real-world re-run shows every fixture within ±1pp of the prior baseline (NYT paywall-race swings remain in their known noise envelope per DM-510/DM-556). 30 unit tests total across `dark-mode-capture.test.ts` and `dark-mode-form-controls.test.ts`.
 
 **DM-455 fully closed.** Dark-mode pipeline is wired end-to-end with zero metric regression at default settings. Future work to actively exercise the dark pipeline against real sites (per-site `colorScheme: 'dark'` runs, a dark-mode visual fixture for the form controls) is a separate scope.

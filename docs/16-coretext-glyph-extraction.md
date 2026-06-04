@@ -3,6 +3,8 @@
 Requirements for extracting vector glyph outlines via the host platform's native font engine instead of fontkit, so Domotion can render any font Chromium can paint — including fonts whose outlines are stored in proprietary tables fontkit doesn't parse. Origin: DM-385 (macOS / CoreText), with cross-platform analogues to be filed for Linux (Pango/Cairo) and Windows (DirectWrite).
 
 > **Cross-platform note**: This doc describes a per-platform native-extractor strategy that is the preferred answer on every supported platform. macOS lands first (DM-385) because PingFang is the immediate forcing function (DM-382 / DM-364). Linux + Windows analogues are tracked separately. Bundling OFL fonts (DM-384) is a fallback only for platforms that ship before their native extractor lands.
+>
+> **Naming note (post-DM-888)**: this is the origin doc, so it uses the historical "coretext" naming throughout. In the shipped code the module is `src/render/glyph-helper.ts`, the routing flag literal is `extractor: "native"` (not `"coretext"`), and the dispatch is documented in `docs/49-glyph-helper-dispatch.md`. Read the prose here as the original design; treat doc 49 as the current contract.
 
 ## Why now
 
@@ -148,10 +150,10 @@ Numbers are emitted with a fixed precision (3 decimal places) to keep the output
 - Release workflow (GitHub Actions) builds the universal binary, signs + notarizes it, and uploads it as a release asset under a stable URL pattern (e.g. `https://github.com/<owner>/domotion/releases/download/v<X.Y.Z>/domotion-glyph-paths-darwin-universal`).
 - Domotion locates the helper at `~/Library/Caches/domotion/<package-version>/bin/domotion-glyph-paths`. If absent on first need, it downloads the release asset, verifies its signature (`codesign --verify --strict`), `chmod +x`, and caches it.
 - Download is keyed on Domotion's published `version` from `package.json`, so a `npm install` of a newer Domotion triggers a fresh fetch. Older versions reuse their cache.
-- `--no-network` / `DOMOTION_DISABLE_HELPER=1` env var skips the download and forces the fontkit fallback path — useful for sandboxed CI.
+- `DOMOTION_DISABLE_HELPER=1` skips the download and forces the fontkit fallback path — useful for sandboxed CI. (`DOMOTION_HELPER_PATH` overrides the binary location with a local build.)
 - A README section in `tools/macos-glyph-extractor/` documents how to rebuild from source for contributors.
 
-## Domotion integration (`src/text-to-path.ts`)
+## Domotion integration (`src/render/text-to-path.ts`)
 
 Render-side only — no capture changes.
 
@@ -236,7 +238,7 @@ The IPC protocol is identical across platforms so `text-to-path.ts` only needs o
 ## Follow-ups filed
 
 - **DM-387** — implement the Swift helper (`tools/macos-glyph-extractor/`).
-- **DM-388** — wire probe-then-fallback into `src/text-to-path.ts`.
+- **DM-388** — wire probe-then-fallback into `src/render/text-to-path.ts`.
 - **DM-389** — Linux native glyph extractor (Pango/Cairo).
 - **DM-390** — Windows native glyph extractor (DirectWrite).
 - **DM-391** — codesign / notarize the macOS helper binary (rolled into DM-387's release workflow).

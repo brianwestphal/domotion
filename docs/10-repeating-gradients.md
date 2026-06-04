@@ -15,11 +15,11 @@ Requirements for honoring CSS `repeating-linear-gradient(...)` (and `repeating-r
 }
 ```
 
-Chrome paints visible vertical tick stripes; the previous Domotion output painted a flat track because (a) `parseGradient` in `src/gradients.ts` rejected the `repeating-` prefix, and (b) the calc-based stop boundaries were unparseable. Both pieces are now in scope.
+Chrome paints visible vertical tick stripes; the previous Domotion output painted a flat track because (a) `parseGradient` in `src/render/gradients.ts` rejected the `repeating-` prefix, and (b) the calc-based stop boundaries were unparseable. Both pieces are now in scope.
 
 ## Capture changes
 
-`_resolvePseudo` in `src/dom-to-svg.ts` (`CAPTURE_SCRIPT`) extracts gradient layers from both `rule.style.backgroundImage` and the `rule.style.background` shorthand via a new helper `_extractGradients(text)`. The helper walks balanced parens and emits a comma-joined list of just the gradient calls — necessary because Chromium serializes the `backgroundImage` longhand for a shorthand like `background: <gradient>, #color` as `<gradient>, initial`, and assigning that directly to `host.style.backgroundImage` to resolve `var()` / `calc()` would be rejected (`initial` is not a valid layer value, so the whole assignment fails and the host's computed `backgroundImage` reads back as `none`).
+`_resolvePseudo` in `src/capture/script/` (`CAPTURE_SCRIPT`) extracts gradient layers from both `rule.style.backgroundImage` and the `rule.style.background` shorthand via a new helper `_extractGradients(text)`. The helper walks balanced parens and emits a comma-joined list of just the gradient calls — necessary because Chromium serializes the `backgroundImage` longhand for a shorthand like `background: <gradient>, #color` as `<gradient>, initial`, and assigning that directly to `host.style.backgroundImage` to resolve `var()` / `calc()` would be rejected (`initial` is not a valid layer value, so the whole assignment fails and the host's computed `backgroundImage` reads back as `none`).
 
 After extraction, `_resolveOne(el, 'backgroundImage', gradientText)` round-trips through Chrome's CSS parser and returns the resolved gradient string (with `var()` substituted and color tokens normalized to `rgb()` form). `calc()` expressions in stop positions are **preserved as text** by Chrome — they aren't resolved against the gradient line length until layout, which `getComputedStyle` doesn't expose.
 
@@ -55,7 +55,7 @@ When both a gradient image and a non-transparent track background color are capt
 
 ## Tests
 
-`src/gradients.test.ts` covers parse + emit:
+`src/render/gradients.test.ts` covers parse + emit:
 
 - `parseLinearGradient` recognizes the `repeating-` prefix.
 - `parseGradient` populates `calcOffset` for `calc(N% ± Mpx)` stop positions.

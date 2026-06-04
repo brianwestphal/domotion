@@ -8,7 +8,7 @@ CSS `conic-gradient(...)` and `repeating-conic-gradient(...)` paint color stops 
 - Pie / donut progress meters and ring loaders.
 - Brand artwork (rainbow disks, color wheels, sweep-shaded buttons).
 
-SVG has **no native conic-gradient primitive**. Today the renderer detects a conic layer in `src/dom-to-svg.ts` (`/conic-gradient/i.test(cs.backgroundImage)`), emits a `warn(sel, 'conic-gradient', 'SVG has no conic gradient; layer falls back to nothing')` (line 1631), and drops the layer entirely. Visible fallout: `19-deep-color-mix` shows the currentColor + transparent tinting row against the SVG's white root instead of the intended checkerboard, accounting for the residual ~1 % diff after DM-519.
+SVG has **no native conic-gradient primitive**. Today the renderer detects a conic layer in `src/render/element-tree-to-svg.ts` (`/conic-gradient/i.test(cs.backgroundImage)`), emits a `warn(sel, 'conic-gradient', 'SVG has no conic gradient; layer falls back to nothing')` (line 1631), and drops the layer entirely. Visible fallout: `19-deep-color-mix` shows the currentColor + transparent tinting row against the SVG's white root instead of the intended checkerboard, accounting for the residual ~1 % diff after DM-519.
 
 ## Decision (per DM-547)
 
@@ -27,7 +27,7 @@ Rejected alternatives:
 - `from <angle>` clause (defaults to `from 0deg`, which is the top per CSS spec).
 - `at <position>` clause (single keyword, two-token keyword/length pairs, percent positions). Same position grammar already supported in `parseRadialGradient`.
 - Color stops with all forms supported by linear/radial: `<color>`, `<color> <pct>`, `<color> <pct> <pct>` (range), `<color> <angle>`, hard stops (two stops at the same offset), `currentColor`, full `color()` / `color-mix()` / `oklch()` etc. (resolved through Chromium's serialised computed value, identical to the linear/radial path).
-- Multi-layer composition — conic-gradient as one of several `background-image` layers, alongside linear, radial, and `url(...)` images. Already wired: the layer-iterating loop at `src/dom-to-svg.ts:4477` calls `buildBackgroundLayerDef` per layer; conic just adds a branch.
+- Multi-layer composition — conic-gradient as one of several `background-image` layers, alongside linear, radial, and `url(...)` images. Already wired: the layer-iterating loop at `src/render/element-tree-to-svg.ts` calls `buildBackgroundLayerDef` per layer; conic just adds a branch.
 
 **Out of scope (deferred):**
 
@@ -52,7 +52,7 @@ A future option `domotionConicHiDPIFactor` may decouple this from the image-resi
 
 ### Renderer dispatch
 
-In `src/dom-to-svg.ts:6590 buildBackgroundLayerDef`, add a third branch alongside linear and radial:
+In `src/render/element-tree-to-svg.ts buildBackgroundLayerDef`, add a third branch alongside linear and radial:
 
 ```ts
 const conic = /^(?:repeating-)?conic-gradient\((.+)\)$/i.exec(layer);
@@ -73,7 +73,7 @@ The clip-box rect that consumes this pattern is unchanged — the existing `<rec
 
 ### Conic raster algorithm
 
-Conic-gradient interpolation is angular: at each pixel `(x, y)`, compute `θ = atan2(y - cy, x - cx) - fromAngle` (normalized to `[0, 1)`), look up the color via the stop list (same offset-blend math as linear/radial), and write the resulting RGBA. Implementation lives in a new `src/conic-raster.ts`:
+Conic-gradient interpolation is angular: at each pixel `(x, y)`, compute `θ = atan2(y - cy, x - cx) - fromAngle` (normalized to `[0, 1)`), look up the color via the stop list (same offset-blend math as linear/radial), and write the resulting RGBA. Implementation lives in a new `src/render/conic-raster.ts`:
 
 ```ts
 export interface ConicGradient {
@@ -101,7 +101,7 @@ The rasterizer renders into a raw RGBA buffer at `(tileW × hiDPIFactor) × (til
 
 ### Capture-side parser hook
 
-`parseGradient` in `src/gradients.ts` already detects all three gradient kinds and dispatches; add a third arm:
+`parseGradient` in `src/render/gradients.ts` already detects all three gradient kinds and dispatches; add a third arm:
 
 ```ts
 export type AnyGradient = LinearGradient | RadialGradient | ConicGradient;
@@ -125,7 +125,7 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - **`background-attachment: fixed` on a conic layer**: rare but valid. Tile sizing basis is the viewport, identical to the existing fixed-image path. The rasterizer doesn't need to know — `buildBackgroundLayerDef` already passes the viewport-anchored `(elX, elY, w, h)` for fixed layers.
 - **`background-size: cover / contain` on a conic**: extremely uncommon (conic + cover usually means "fill the element"), but supported by sizing the rasterized tile to the element rect, just like `cover` on a `url()` image.
 - **Animated SVGs (`generateAnimatedSvg`)**: the conic raster is per-frame deterministic. If two frames have different conic stops, they produce two different `<pattern>` defs and the cross-fade swap pipeline handles them like any other per-frame def.
-- **Unrecognised stop syntax**: `parseConicGradient` returns null on parse failure; `buildBackgroundLayerDef` returns `{ def: "" }`; the layer loop skips it; the warning at `src/dom-to-svg.ts:1631` is downgraded from "always emit" to "emit only if parse fails".
+- **Unrecognised stop syntax**: `parseConicGradient` returns null on parse failure; `buildBackgroundLayerDef` returns `{ def: "" }`; the layer loop skips it; the warning at `src/render/element-tree-to-svg.ts` is downgraded from "always emit" to "emit only if parse fails".
 
 ## Performance
 
@@ -146,9 +146,9 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 
 This doc fans out into the following sub-tickets (see DM-547 follow-ups):
 
-1. **Parser** (`parseConicGradient` in `src/gradients.ts` + tests).
-2. **Rasterizer + cache** (`src/conic-raster.ts` + `_conicTileCache` + `rasterizeConicGradients` pre-pass mirroring `resize-embedded-images.ts`).
-3. **Renderer wiring** (`buildConicGradientDef` branch in `src/dom-to-svg.ts:6590`, warning-emit downgrade).
+1. **Parser** (`parseConicGradient` in `src/render/gradients.ts` + tests).
+2. **Rasterizer + cache** (`src/render/conic-raster.ts` + `_conicTileCache` + `rasterizeConicGradients` pre-pass mirroring `resize-embedded-images.ts`).
+3. **Renderer wiring** (`buildConicGradientDef` branch in `src/render/element-tree-to-svg.ts`, warning-emit downgrade).
 4. **Fixtures + acceptance** (`tests/features/<NN>-conic-gradient.html`, `19-deep-color-mix` retest, FEATURES.md row).
 
 ## Status

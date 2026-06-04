@@ -29,7 +29,7 @@ To minimize disruption: keep the existing `xOffsets` field name but record the *
 
 ## Render changes
 
-`renderTextAsPath` and friends in `src/text-to-path.ts` currently emit `<g transform="translate(x, baselineY)" fill=... >` with glyphs flowing along the +x axis at scale (sc, -sc). For vertical writing-mode the wrapper becomes:
+`renderTextAsPath` and friends in `src/render/text-to-path.ts` currently emit `<g transform="translate(x, baselineY)" fill=... >` with glyphs flowing along the +x axis at scale (sc, -sc). For vertical writing-mode the wrapper becomes:
 
 - `vertical-rl` / `vertical-lr` with `text-orientation: mixed` (Asian-script default): `<g transform="translate(x, y) rotate(0)">` for upright glyphs, `<g transform="translate(x, y) rotate(90)">` for Latin runs within the column. Choose per-character based on Unicode block (CJK / kana / Hangul → upright; Latin / digits / punctuation → rotated). Per-char rotation introduces a per-glyph-group emission, which is fine because we already track per-char xOffsets.
 - `sideways-*`: a single `rotate(90)` (rl) or `rotate(-90)` (lr) around the text origin, no per-character branching.

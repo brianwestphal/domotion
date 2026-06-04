@@ -17,7 +17,7 @@ DM-887 (follow-up to DM-881; pairs with DM-259 / DM-260).
 ## The gap
 
 DM-881 made the helper *resolvable + invocable* on all three platforms, but the
-renderer only routes to it via the static `extractor: "coretext"` flag on
+renderer only routes to it via the static `extractor: "native"` flag on
 `FONT_PATHS` — set on macOS PingFang keys only. So:
 
 - On Linux/Windows the helper is reachable but **nothing routes through it** (no
@@ -34,7 +34,7 @@ then shaped with `font.layout(runText)`, and each shaped glyph's
 `.path.commands` is converted to an SVG `<path>` by `ensureGlyphDef`.
 
 The helper enters via `getFontInstance` (~line 1602): when the resolved spec has
-`extractor: "coretext"` and the helper is available, the **whole font instance**
+`extractor: "native"` and the helper is available, the **whole font instance**
 is swapped for a `GlyphHelperFontInstance` that routes *everything* — cmap, metrics,
 shaping (`layout`), and outlines — through the helper. fontkit is not consulted
 for that font at all.
@@ -62,7 +62,7 @@ once per process.
   fontkit. CJK is non-complex (no contextual joining / reordering), so fontkit
   shaping should be byte-equivalent, but this is the flagged render path, so it
   needs the PingFang fixture to stay clean (and a nod).
-- Lets the static `extractor: "coretext"` flag eventually retire (it becomes one
+- Lets the static `extractor: "native"` flag eventually retire (it becomes one
   case of the general probe).
 
 ### Option B — probe-triggered whole-instance swap (incremental)
@@ -126,9 +126,9 @@ the plan I got the "Option A, build now" nod on:
    throws `ENOENT`. So **fontkit cannot be PingFang's primary instance** — the
    whole-instance swap isn't an optimization for PingFang, it's the *only* way
    to render it. Option A therefore **coexists with** the swap; it cannot
-   subsume it, and the static `extractor: "coretext"` flag does **not** retire.
+   subsume it, and the static `extractor: "native"` flag does **not** retire.
    This is also why the swap deliberately does `return null` instead of trying
-   fontkit for `extractor:"coretext"` fonts — fontkit would throw.
+   fontkit for `extractor:"native"` fonts — fontkit would throw.
 
 2. **The naive trigger mis-fires on blank glyphs.** "empty `.path.commands` +
    `.id !== 0`" is *also* true of a space (U+0020) and other inkless glyphs in
@@ -149,7 +149,7 @@ the plan I got the "Option A, build now" nod on:
 
 ### Corrected design
 
-- **Keep** the whole-instance swap for `extractor:"coretext"` / no-file fonts
+- **Keep** the whole-instance swap for `extractor:"native"` / no-file fonts
   (PingFang) unchanged.
 - **Add** a probe-then-fallback that engages only for a fontkit-*opened* font
   whose outline table is absent/undecodable (per-font gate), then fills each
@@ -176,7 +176,7 @@ The **whole-font fallback tier** — the part that handles every real case today
 including PingFang in both macOS configs — shipped in `getFontInstance`
 (`src/render/text-to-path.ts`):
 
-- The static `extractor: "coretext"` flag is retained as a **helper-eligibility
+- The static `extractor: "native"` flag is retained as a **helper-eligibility
   marker** (so we never over-route inkless glyphs / color-bitmap fonts to the
   helper), but its behavior is now **fontkit-first, helper-as-fallback** rather
   than "always swap":

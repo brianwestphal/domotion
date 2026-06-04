@@ -15,7 +15,7 @@ Our output keeps the default heights, ignores the gradients, and skips the radii
 ## Goals
 
 - Capture the full pseudo box model for each WebKit progress/meter pseudo (not just background-color).
-- Apply captured borders, padding, radii, gradients, heights, and box-shadows in `src/form-controls.ts`.
+- Apply captured borders, padding, radii, gradients, heights, and box-shadows in `src/render/form-controls.ts`.
 - Backwards-compatible: if a pseudo style equals the UA default, fall through to current rendering (so unstyled progress/meter elements look unchanged).
 
 > **Update (SK-1193 / SK-1222):** `getComputedStyle(el, '::-webkit-progress-bar')` and the other meter/progress pseudo getters return the **host element's computed style** in Chromium, not the pseudo's cascaded value. The same quirk SK-1138 worked around for `::-webkit-slider-thumb` was confirmed by probe to apply to `::-webkit-progress-bar`, `::-webkit-progress-value`, `::-webkit-meter-bar`, and the meter value pseudos. The original scalar capture was silently broken — author rules were ignored and the host's transparent background was recorded instead.
@@ -47,7 +47,7 @@ The capture is `getComputedStyle(el, pseudo).<each-prop>`. Only emit the field w
 
 ## Render changes
 
-In `src/form-controls.ts`:
+In `src/render/form-controls.ts`:
 
 1. `renderProgress(el)` currently emits a track rect with hardcoded radius and a fill rect for the value. Change to read `el.progressBar.borderRadius`, `el.progressBar.height`, `el.progressBar.boxShadow` for the track, and `el.progressValue.{bg,bgImage,borderRadius}` for the fill.
 2. `renderMeter(el)` mirrors the same with the optimum/suboptimum/even-less-good selection logic (already exists for the bg color, just needs the rest of the props).

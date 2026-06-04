@@ -43,7 +43,7 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 
 ## Wiring
 
-1. **CAPTURE_SCRIPT** — in the per-element style capture path (`src/dom-to-svg.ts` around line 2037), after recording `backgroundColor` and `backdropFilter`, check the trigger conditions. When met, walk to `document.body` and read its `getComputedStyle(...).backgroundColor`, normalize via the existing `normColor()`, and store as `frostedBgFallback`. If body bg is also alpha-0, store `'rgb(255,255,255)'`.
+1. **CAPTURE_SCRIPT** — in the per-element style capture path (`src/capture/script/` around line 2037), after recording `backgroundColor` and `backdropFilter`, check the trigger conditions. When met, walk to `document.body` and read its `getComputedStyle(...).backgroundColor`, normalize via the existing `normColor()`, and store as `frostedBgFallback`. If body bg is also alpha-0, store `'rgb(255,255,255)'`.
 
 2. **CapturedElement.styles** — add `frostedBgFallback?: string` to the `Styles` interface.
 

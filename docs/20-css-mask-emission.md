@@ -10,7 +10,7 @@ Common patterns this ticket scope cares about:
 2. **Bitmap mask**: `mask-image: url("./shape.png"); mask-position: center; mask-size: cover;` — used for irregular shape clipping (Apple Mother's Day decorative orbs).
 3. **Multi-layer mask**: `mask-image: url(a), linear-gradient(...);` — composited per CSS mask-composite (default `add` = additive).
 
-Until DM-470, the capture path warned `mask: captured but not emitted — mask sources need coordinate-aware emission` for any element with a `mask` shorthand. The warning text was stale: `buildMaskDef()` (`src/dom-to-svg.ts:5802`) already emits SVG `<mask>` defs for gradient and url() layers with size / position / repeat / composite handling. The warning predates the emission feature and was never updated.
+Until DM-470, the capture path warned `mask: captured but not emitted — mask sources need coordinate-aware emission` for any element with a `mask` shorthand. The warning text was stale: `buildMaskDef()` (`src/render/element-tree-to-svg.ts`) already emits SVG `<mask>` defs for gradient and url() layers with size / position / repeat / composite handling. The warning predates the emission feature and was never updated.
 
 ## What's already working
 
@@ -21,7 +21,7 @@ Until DM-470, the capture path warned `mask: captured but not emitted — mask s
 - Multi-layer `mask-image: a, b, c` — flattened into one `<mask>` for the additive composite (the common default). `mask-composite: intersect` chains nested masks.
 - `mask-mode: alpha | luminance` — translates to SVG `mask-type` on the `<mask>` element. Defaults to `alpha` for gradients / bitmaps (matches Chromium's practical behavior for `mask-mode: match-source`).
 
-Renderer wiring (`src/dom-to-svg.ts:3266-3284`): when `el.styles.maskImage` is non-empty, the mask def is pushed into `defsParts` and the rendered group gets `mask="url(#mkN)"`.
+Renderer wiring (`src/render/element-tree-to-svg.ts`): when `el.styles.maskImage` is non-empty, the mask def is pushed into `defsParts` and the rendered group gets `mask="url(#mkN)"`.
 
 ## What's NOT working (the actual ticket scope)
 
@@ -35,9 +35,11 @@ The misleading warning text is the most visible symptom of the gap between perce
 
 ## Requirement (this ticket)
 
-1. **Update the warning text** at `src/dom-to-svg.ts:1127`. The current text claims masks aren't emitted; the truth is emission works for the common url + gradient cases. Replace with: `"non-trivial mask source — emission may differ from Chromium's actual blur/composite for masks composed of element() references or unresolved url() fragments"`.
+1. **Update the warning text** at `src/capture/script/walker/masks-clips.ts`. The current text claims masks aren't emitted; the truth is emission works for the common url + gradient cases. Replace with: `"non-trivial mask source — emission may differ from Chromium's actual blur/composite for masks composed of element() references or unresolved url() fragments"`.
 2. **Suppress the warning** when `cs.maskImage` is a recognized gradient or `url()` form — those round-trip cleanly through `buildMaskDef()` and don't deserve a per-element warning at capture time.
 3. **Document** (this file) what's supported, what isn't, and where the gap is so future regression triage stops mistaking \"mask warning\" for \"masks are completely broken\".
+
+> **Shipped**: the warning now lives in `src/capture/script/walker/masks-clips.ts` (the capture walker, post `src/` reorg — not the old flat `src/dom-to-svg.ts`). It only fires for sources that are neither a gradient, a `url()`, nor an `element()` reference, and reads `non-gradient/non-url()/non-element() mask source — not emitted` — a terser final wording than the draft above, but the same intent: warn only on sources the renderer can't emit.
 
 ## What's deferred
 

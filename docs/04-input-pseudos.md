@@ -1,6 +1,6 @@
 # Domotion: custom-styled input pseudos
 
-Requirements for honoring author CSS on `<input>` shadow-DOM pseudos in Domotion. Origin: SK-1125 (follow-up from SK-1094). Today `src/form-controls.ts` synthesizes the UA-default chrome for `<input type="range">` (track + thumb), `<input type="checkbox">`, `<input type="radio">`, `<input type="color">`, etc. When an author overrides those pseudos with custom backgrounds, sizes, or shadows, our pipeline keeps painting the default look.
+Requirements for honoring author CSS on `<input>` shadow-DOM pseudos in Domotion. Origin: SK-1125 (follow-up from SK-1094). Today `src/render/form-controls.ts` synthesizes the UA-default chrome for `<input type="range">` (track + thumb), `<input type="checkbox">`, `<input type="radio">`, `<input type="color">`, etc. When an author overrides those pseudos with custom backgrounds, sizes, or shadows, our pipeline keeps painting the default look.
 
 ## Why now
 
@@ -15,7 +15,7 @@ Requirements for honoring author CSS on `<input>` shadow-DOM pseudos in Domotion
   - `::-webkit-color-swatch-wrapper`
   - `::-webkit-inner-spin-button` (number inputs)
   - `::-webkit-search-cancel-button`
-- Apply the captured backgrounds, borders, border-radius, padding, dimensions, and box-shadow when synthesizing the chrome in `src/form-controls.ts`.
+- Apply the captured backgrounds, borders, border-radius, padding, dimensions, and box-shadow when synthesizing the chrome in `src/render/form-controls.ts`.
 - Keep current UA-default behavior when no author override is detected (compare pseudo style against the default and emit only when distinct).
 
 ## Capture changes
@@ -34,11 +34,11 @@ Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this on
 
 > **Update (SK-1193):** the SK-1138 quirk was confirmed by direct probe to apply to every WebKit-internal input/progress/meter pseudo — `::-webkit-color-swatch`, `::-webkit-color-swatch-wrapper`, `::-webkit-inner-spin-button`, `::-webkit-search-cancel-button`, `::-webkit-progress-bar`, `::-webkit-progress-value`, `::-webkit-meter-bar`, and the meter value pseudos all return the host element's computed style rather than the pseudo's cascaded value. The lone exception is `::file-selector-button`, which Chromium implements as a real shadow DOM element rather than a UA-internal pseudo and resolves correctly via `getComputedStyle(el, pseudo)`.
 >
-> **Update (SK-1222 / SK-1223):** all the affected pseudos now flow through a generalized stylesheet walker (`_pseudoRules` / `_collectPseudoRules` / `_resolvePseudo` in `src/dom-to-svg.ts` `CAPTURE_SCRIPT`). Each pseudo is keyed by short kind name (`'track'`, `'thumb'`, `'progress-bar'`, `'progress-value'`, `'meter-bar'`, `'meter-optimum'`, `'meter-suboptimum'`, `'meter-even-less-good'`, `'color-swatch'`, `'color-swatch-wrapper'`, `'inner-spin-button'`, `'search-cancel-button'`). Var/calc resolution (SK-1191), state-rule support (SK-1192), and gradient-def emission (SK-1224 / SK-1225 / SK-1226) all share that walker. Renderer pickup for the new color-swatch fields (`colorSwatchBg`, `colorSwatchBgImage`, `colorSwatchBorder`, `colorSwatchRadius`, `colorSwatchWrapperPadding`) lives in `renderColorSwatch`. `numberSpinButton*` and `searchCancelButton*` fields are captured but the renderer still emits text-input chrome — see SK-1227 for adding specialized renderers when authored fixtures appear.
+> **Update (SK-1222 / SK-1223):** all the affected pseudos now flow through a generalized stylesheet walker (`_pseudoRules` / `_collectPseudoRules` / `_resolvePseudo` in `src/capture/script/` `CAPTURE_SCRIPT`). Each pseudo is keyed by short kind name (`'track'`, `'thumb'`, `'progress-bar'`, `'progress-value'`, `'meter-bar'`, `'meter-optimum'`, `'meter-suboptimum'`, `'meter-even-less-good'`, `'color-swatch'`, `'color-swatch-wrapper'`, `'inner-spin-button'`, `'search-cancel-button'`). Var/calc resolution (SK-1191), state-rule support (SK-1192), and gradient-def emission (SK-1224 / SK-1225 / SK-1226) all share that walker. Renderer pickup for the new color-swatch fields (`colorSwatchBg`, `colorSwatchBgImage`, `colorSwatchBorder`, `colorSwatchRadius`, `colorSwatchWrapperPadding`) lives in `renderColorSwatch`. `numberSpinButton*` and `searchCancelButton*` fields are captured but the renderer still emits text-input chrome — see SK-1227 for adding specialized renderers when authored fixtures appear.
 
 ## Render changes
 
-`src/form-controls.ts` `renderRange()` currently emits a fixed-style track + thumb. Change to:
+`src/render/form-controls.ts` `renderRange()` currently emits a fixed-style track + thumb. Change to:
 
 1. If `el.rangeTrackBg` differs from the UA default (which we hardcode as `rgb(231, 231, 231)` or similar), use the captured value for the track fill. Same for the thumb.
 2. If `el.rangeTrackHeight` is set, use it for the track rect height (currently fixed 4px).

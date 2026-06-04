@@ -10,7 +10,7 @@ Domotion's contract is: faithful capture of what Chrome painted at the moment of
 
 Implemented in DM-508 (this doc).
 
-`_resolveUseRefs` (`src/dom-to-svg.ts` `tag === 'svg'` block) inlines `<use>` references into the cloned consumer SVG. After cloning the resolved subtree, `_walkBake` walks both the ORIGINAL DOM target and the cloned replacement in parallel, reading `getComputedStyle` from each original node and baking the resolved values onto the clone:
+`_resolveUseRefs` (`src/capture/script/` `tag === 'svg'` block) inlines `<use>` references into the cloned consumer SVG. After cloning the resolved subtree, `_walkBake` walks both the ORIGINAL DOM target and the cloned replacement in parallel, reading `getComputedStyle` from each original node and baking the resolved values onto the clone:
 
 - Presentation attrs (already in the bake list pre-DM-508): `fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `stroke-linecap`, `stroke-linejoin`, `stroke-opacity`, `fill-opacity`, `opacity`. Skipped when the original has the attribute set inline (avoids overwriting author intent in the unanimated case).
 - `transform` (new in DM-508): always baked when the computed value isn't `none`. CSS animations / transitions resolve into the computed transform at the moment of capture, so a `<rect>` with `animation: spin 4s infinite linear` carries e.g. `matrix(0.707, 0.707, -0.707, 0.707, 0, 0)` at one capture moment. Composed with `transform-origin` so the SVG transform attribute (which applies around (0, 0) by default) reproduces what CSS painted around the bbox center.

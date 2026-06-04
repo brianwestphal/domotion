@@ -16,7 +16,7 @@ Other cases Phase 2 covers:
 
 The data needed is already in the pipeline:
 
-- **`CapturedElement.x / y / width / height`** — every captured element carries its bbox in the parent frame's coordinate space (see `src/dom-to-svg.ts`'s `CapturedElement` interface).
+- **`CapturedElement.x / y / width / height`** — every captured element carries its bbox in the parent frame's coordinate space (see `src/capture/types.ts`'s `CapturedElement` interface).
 - **`IntraFrameAnimation.from / to / duration / delay`** — every intra-frame animation has explicit start and end values in CSS units.
 - **`AnimationConfig.width / height`** — the viewBox dimensions.
 
@@ -65,7 +65,7 @@ If easing is non-linear, the inversion is harder; we use the linear approximatio
 Three output shapes, per element:
 
 1. **Always hidden (no animation, off-viewBox)** — emit `style="display:none"` directly on the element's `<g>`. No CSS rule, no keyframes.
-2. **Animated, hide before / after only** — emit a `@keyframes` block with the standard discrete-snap pattern (0.001 % gap between on/off keyframes, animation-timing-function: step-end). Reuse the `buildDisplayKeyframes` helper from `src/animator.ts`. Apply via a per-element class `dh-<n>` (display-hide-N).
+2. **Animated, hide before / after only** — emit a `@keyframes` block with the standard discrete-snap pattern (0.001 % gap between on/off keyframes, animation-timing-function: step-end). Reuse the `buildDisplayKeyframes` helper from `src/animation/animator.ts`. Apply via a per-element class `dh-<n>` (display-hide-N).
 3. **Always hidden during scroll animation** — same `@keyframes` shape but the visible window is empty. Effectively equivalent to `style="display:none"` but parameterized through the keyframe pipeline for uniformity.
 
 Classes are coalesced when N elements share the same visible interval (common in long-scroll captures where contiguous rows have identical t_visible_start / t_visible_end). Map `(t_visible_start, t_visible_end) → className`, emit one keyframes block per unique interval.
@@ -73,8 +73,8 @@ Classes are coalesced when N elements share the same visible interval (common in
 ### Composition pipeline integration
 
 - **Capture time**: no change. `CapturedElement.{x,y,width,height}` already populated.
-- **Render time (`src/dom-to-svg.ts elementTreeToSvg`)**: no change. Each element still emits as `<g>` with its existing transform.
-- **Composition time (`src/animator.ts generateAnimatedSvg`)**: new pre-pass walks the captured trees, classifies each element by visibility behavior (always-visible / always-hidden / window-hidden), and emits the CSS class assignments + keyframes. Static `display:none` elements get the style attribute pasted onto their `<g>` directly via post-emission string surgery (or, preferred: add a `displayNone?: boolean` field to `CapturedElement` and let the renderer honor it).
+- **Render time (`src/render/element-tree-to-svg.ts elementTreeToSvg`)**: no change. Each element still emits as `<g>` with its existing transform.
+- **Composition time (`src/animation/animator.ts generateAnimatedSvg`)**: new pre-pass walks the captured trees, classifies each element by visibility behavior (always-visible / always-hidden / window-hidden), and emits the CSS class assignments + keyframes. Static `display:none` elements get the style attribute pasted onto their `<g>` directly via post-emission string surgery (or, preferred: add a `displayNone?: boolean` field to `CapturedElement` and let the renderer honor it).
 
 The trees passed to the animator are already-rendered `svgContent` strings, not `CapturedElement` objects. To use captured bboxes at composition time, **the AnimationFrame interface needs to also carry the original tree**, or the renderer needs to inline data attributes (`data-bbox="x y w h"`) the animator can parse back out.
 
@@ -100,16 +100,16 @@ The composition-time pre-pass is O(elements) for static analysis, O(elements × 
 
 ## Implementation (shipped)
 
-1. **`CapturedElement.displayNone?: boolean`** and **`CapturedElement.cullClass?: string`** — new fields. The renderer in `src/dom-to-svg.ts` honors them on the element's outermost `<g>` wrapper. `needsGroup` is forced true whenever either field is set so the cull markers never get dropped on elements that otherwise wouldn't have wrapped.
-2. **`src/viewbox-culling.ts`** — new module. Exports:
-   - **`cullFrame(tree, viewportW, viewportH, animations?, frameStartMs, totalDurationMs)`** — walks the tree, mutates `displayNone` / `cullClass` per element, returns `{ css }` containing all the `@keyframes cull-N` blocks keyed by visible-window equivalence. Accepts either a single `CapturedElement` or an array of siblings.
+1. **`CapturedElement.displayNone?: boolean`** and **`CapturedElement.cullClass?: string`** — new fields. The renderer in `src/render/element-tree-to-svg.ts` honors them on the element's outermost `<g>` wrapper. `needsGroup` is forced true whenever either field is set so the cull markers never get dropped on elements that otherwise wouldn't have wrapped.
+2. **`src/tree-ops/viewbox-culling.ts`** — new module. Exports:
+   - **`cullElementsOutsideViewBox(tree, viewportW, viewportH, animations?, frameStartMs, totalDurationMs)`** — walks the tree, mutates `displayNone` / `cullClass` per element, returns `{ css }` containing all the `@keyframes cull-N` blocks keyed by visible-window equivalence. Accepts either a single `CapturedElement` or an array of siblings.
    - **`decideCull(staticBbox, vw, vh, ctx)`** — pure per-element decision function exposed for tests / future reuse.
    - Coalescing: elements with identical `(visStartPct, visEndPct)` share a `cull-N` class so the keyframes block count is bounded by the number of unique intervals (≈ viewport rows, not source rows).
 3. **`AnimationFrame.cullCss?: string`** — new optional field on the animator's frame interface. The animator splices each frame's CSS into the scene-wide `<style>` block alongside the existing `fv-*` / `fd-*` / `tN` keyframes.
 4. **CLI integration** —
-   - **`runCapture` (single frame)** calls `cullFrame(tree, w, h)` with no animations — pure static cull pass, returns empty CSS, mutates `displayNone` only.
-   - **`runAnimate` (multi-frame)** computes `frameStartMs` and `totalDurationMs`, calls `cullFrame(tree, w, h, resolvedAnimations, frameStartMs, totalDurationMs)` BEFORE `elementTreeToSvg`. The keyframes CSS is forwarded to the animator via `AnimationFrame.cullCss`.
-5. **Unit tests** in `src/viewbox-culling.test.ts` (16 tests) — static intersection, enter-during-animation, exit-during-animation, fully-inside, never-visible, path-crosses-during-anim, translateX axis, non-translate property (no bbox shift), tree walk with mixed visibility, coalescing, child-anim-overrides-parent-anim, keyframes structure (step-end timing, `var(--scene-dur)`).
+   - **`runCapture` (single frame)** calls `cullElementsOutsideViewBox(tree, w, h)` with no animations — pure static cull pass, returns empty CSS, mutates `displayNone` only.
+   - **`runAnimate` (multi-frame)** computes `frameStartMs` and `totalDurationMs`, calls `cullElementsOutsideViewBox(tree, w, h, resolvedAnimations, frameStartMs, totalDurationMs)` BEFORE `elementTreeToSvg`. The keyframes CSS is forwarded to the animator via `AnimationFrame.cullCss`.
+5. **Unit tests** in `src/tree-ops/viewbox-culling.test.ts` (16 tests) — static intersection, enter-during-animation, exit-during-animation, fully-inside, never-visible, path-crosses-during-anim, translateX axis, non-translate property (no bbox shift), tree walk with mixed visibility, coalescing, child-anim-overrides-parent-anim, keyframes structure (step-end timing, `var(--scene-dur)`).
 
 ## Algorithm details
 

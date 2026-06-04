@@ -23,7 +23,7 @@ Chromium paints the 20×20 slice of the sprite at `(0, 0)` of the element and re
 Two things go wrong:
 
 **1. Intrinsic dimensions of `url()` background-images are unreliable.**
-`CAPTURE_SCRIPT` (`src/dom-to-svg.ts` ~2279) reads intrinsic width/height by constructing a fresh `new Image(); img.src = url;` and reading `naturalWidth` *synchronously* in the same tick. The `<img>` resource cache is not the same cache the page uses for CSS background-images, so the load is asynchronous and `naturalWidth` is `0` at read time. When `intrinsic` is `null`, `buildImagePatternDef` falls back to `tileW = basisW` (the element box), squishing the entire sprite into the 20×20 cell — which makes the negative `background-position` math meaningless and hides the icon entirely.
+`CAPTURE_SCRIPT` (`src/capture/script/` ~2279) reads intrinsic width/height by constructing a fresh `new Image(); img.src = url;` and reading `naturalWidth` *synchronously* in the same tick. The `<img>` resource cache is not the same cache the page uses for CSS background-images, so the load is asynchronous and `naturalWidth` is `0` at read time. When `intrinsic` is `null`, `buildImagePatternDef` falls back to `tileW = basisW` (the element box), squishing the entire sprite into the 20×20 cell — which makes the negative `background-position` math meaningless and hides the icon entirely.
 
 **2. Off-screen author text is captured and rendered.**
 The element carries `text === "RSS"` and a captured `textLeft` of `~-9970`. The renderer emits the glyph paths at that absolute SVG coordinate. The output SVG's `viewBox` does not extend that far left, so most demos render as if blank — but per `overflow: hidden` Chromium would have clipped the text. We don't apply that clip, so any consumer that re-mounts the SVG inside a wider canvas (or any case where the element's own `overflow: hidden` *should* apply) leaks glyphs into the icon area.
@@ -125,7 +125,7 @@ The replaced-element raster path already captures at the page's actual DPR (doc 
 
 The PNG-vs-SVG diff at the standard 3% threshold should pass after the change. (Pre-fix, the SVG paints either nothing or the entire sprite squished into 20×20 plus glyph "tofu" at the far left of the canvas.)
 
-A unit test in `src/dom-to-svg.test.ts` covers the predicate: `isImageReplacementBox` returns true for the canonical `text-indent: -9999px; overflow: hidden; background: url(…)` form, false for plain text and false for `text-indent` with no background-image.
+The `sprite-icon-text-indent` feature fixture (`tests/features.ts`, PNG-vs-SVG diff) covers the behavior end-to-end: the canonical `text-indent: -9999px; overflow: hidden; background: url(…)` form renders the sprite rather than glyph "tofu". (The image-replacement check is inline in the capture walker, not a standalone `isImageReplacementBox` export — the sketch above is illustrative.)
 
 ## Follow-ups to file when this lands
 

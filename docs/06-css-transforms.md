@@ -31,7 +31,7 @@ Recommendation: keep using the transformed rect for layout (it's what Chrome pai
 
 ## Render changes
 
-In `src/dom-to-svg.ts` `renderElement`, around the existing `<g>` group wrapper that hosts opacity / filter / blend-mode:
+In `src/render/element-tree-to-svg.ts` `renderElement`, around the existing `<g>` group wrapper that hosts opacity / filter / blend-mode:
 
 1. Parse `el.styles.transform`. If `none`, skip.
 2. Resolve `transform-origin` to absolute viewport coords (origin's `(ox, oy)` = `el.x + parsed-x`, `el.y + parsed-y`).
@@ -44,6 +44,10 @@ In `src/dom-to-svg.ts` `renderElement`, around the existing `<g>` group wrapper 
 - `transform-style: preserve-3d` — out of scope for this pass.
 - Pre-transformed bounding rect: the `getBoundingClientRect` returns the screen-space AABB of the rotated element, which is bigger than the unrotated rect. If we wrap our render in a transform around the captured center, the visual size will look right because we're rotating contents BACK from upright. But text inside the rotated box will be re-rendered along the rotated baseline, which is what we want.
 - Nested transforms: each element's captured rect already includes ancestor transforms, but if we apply our own transform we'd double-transform. Solution: apply the element's transform RELATIVE to its OWN center, not the ancestor's coordinate space. This is the same as Chrome's behavior.
+
+## Implementation note (shipped)
+
+The per-named-function mapping above (`rotate(30deg)` → `rotate(30)`, `scale(2)` → `scale(2)`, …) turned out to be unnecessary: `getComputedStyle().transform` always returns the resolved value as `matrix(a, b, c, d, e, f)` (2D) or `matrix3d(…)` (3D), never the named functions. So `src/render/transforms.ts` parses **only** the matrix forms and emits an SVG `matrix(...)` (3D is downgraded to its 2D submatrix `m11, m12, m21, m22, m41, m42`, dropping perspective/depth). The output matches Chrome because the matrix already encodes whatever rotate/scale/skew/translate composition the author wrote.
 
 ## Follow-ups to file
 

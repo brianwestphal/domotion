@@ -19,7 +19,7 @@ Doc 20 covers the gradient + raster `url()` cases that already round-trip cleanl
 
 DM-493 implemented same-document fragment refs (`url("#id")`); DM-496 added external-file refs (`url("./shapes.svg#id")`) by inlining the fetched `<mask>` as a same-document def before the walk (see §2). A capture-time warning now only fires when that resolution fails (fetch error / non-http / missing fragment).
 
-For same-document refs, CAPTURE_SCRIPT resolves `document.getElementById(id)` to the inline `<mask>` element and serialises its `outerHTML` into a top-level `maskDefs` payload on the captured tree. The renderer copies the mask def into the output `<defs>` with id rewriting and per-element coordinate translation so the mask aligns with the element being masked. See `rewriteFragmentMaskDef` and `positionFragmentMaskDef` in `src/dom-to-svg.ts`.
+For same-document refs, CAPTURE_SCRIPT resolves `document.getElementById(id)` to the inline `<mask>` element and serialises its `outerHTML` into a top-level `maskDefs` payload on the captured tree. The renderer copies the mask def into the output `<defs>` with id rewriting and per-element coordinate translation so the mask aligns with the element being masked. See `rewriteFragmentMaskDef` and `positionFragmentMaskDef` in `src/capture/script/`.
 
 Prior behavior: `buildMaskDef()` treated every `url(...)` as a raster image and emitted `<image href="…">` inside the SVG `<mask>` — wrong for fragment refs because there is no raster at that URL. Per DM-470's narrow-warning policy, fragment refs were warned. DM-493's path now bypasses `buildMaskDef()` entirely for `url("#id")` cases and emits the resolved inline mask instead.
 
