@@ -97,6 +97,43 @@ export const computeElementRaster = (el, cs, tag, rect, vp) => {
   return undefined;
 };
 
+// DM-747 / DM-791: map a single Latin/Greek token char to its Mathematical
+// Italic alphabet codepoint (MathML 4 mathvariant=italic). Chrome paints a
+// single-token `<mi>` with these (`<mi>a</mi>` → U+1D44E 𝑎); the computed
+// `font-style` stays `normal` and `font-family` stays `math`, so we can't detect
+// it through CSS and apply the mapping ourselves at capture time. Pure codepoint
+// math + the alternate-Greek-symbol tail. Hoisted to module scope from inside
+// createTextSegmentsHandler (DM-1087) — it closes over nothing.
+const mathItalicChar = (ch) => {
+  const code = ch.codePointAt(0);
+  if (code == null) return ch;
+  // Latin Mathematical Italic Capital A..Z = U+1D434..U+1D44D.
+  if (code >= 0x41 && code <= 0x5A) return String.fromCodePoint(0x1D434 + (code - 0x41));
+  // Latin Mathematical Italic Small a..z = U+1D44E..U+1D467, except
+  // U+1D455 ("h") is reserved — Chrome paints U+210E (ℎ, PLANCK CONSTANT).
+  if (code >= 0x61 && code <= 0x7A) {
+    if (code === 0x68) return 'ℎ';
+    return String.fromCodePoint(0x1D44E + (code - 0x61));
+  }
+  // Greek Mathematical Italic Capital Α..Ω = U+1D6E2..U+1D6FA.
+  if (code >= 0x0391 && code <= 0x03A9) return String.fromCodePoint(0x1D6E2 + (code - 0x0391));
+  // Greek Mathematical Italic Small α..ω = U+1D6FC..U+1D71B.
+  if (code >= 0x03B1 && code <= 0x03C9) return String.fromCodePoint(0x1D6FC + (code - 0x03B1));
+  // Greek symbol variants — alternate forms get their own italic codepoints at
+  // the tail of the lowercase Greek block.
+  switch (code) {
+    case 0x2202: return String.fromCodePoint(0x1D715); // ∂ → italic partial differential
+    case 0x03F5: return String.fromCodePoint(0x1D716); // ϵ (lunate) → italic epsilon symbol
+    case 0x03D1: return String.fromCodePoint(0x1D717); // ϑ (theta sym) → italic theta symbol
+    case 0x03F0: return String.fromCodePoint(0x1D718); // ϰ (kappa sym) → italic kappa symbol
+    case 0x03D5: return String.fromCodePoint(0x1D719); // ϕ (phi sym) → italic phi symbol
+    case 0x03F1: return String.fromCodePoint(0x1D71A); // ϱ (rho sym) → italic rho symbol
+    case 0x03D6: return String.fromCodePoint(0x1D71B); // ϖ (pi sym) → italic pi symbol
+    case 0x2207: return String.fromCodePoint(0x1D6FB); // ∇ (nabla) → italic nabla (upper-block tail)
+    default: return ch;
+  }
+};
+
 export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor }) => {
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
@@ -428,39 +465,6 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
     const mathItalicizeMi = elTag === 'mi'
       && [..._miText].length === 1
       && /^[a-zA-ZΑ-ΩΆΈΉΊΌΎΏα-ωϐϑϕϖϗϰϱϵ∂∇]$/u.test(_miText);
-    const mathItalicChar = (ch) => {
-      const code = ch.codePointAt(0);
-      if (code == null) return ch;
-      // Latin Mathematical Italic Capital A..Z = U+1D434..U+1D44D.
-      if (code >= 0x41 && code <= 0x5A) return String.fromCodePoint(0x1D434 + (code - 0x41));
-      // Latin Mathematical Italic Small a..z = U+1D44E..U+1D467, except
-      // U+1D455 ("h") is reserved — Chrome paints U+210E (ℎ, PLANCK CONSTANT).
-      if (code >= 0x61 && code <= 0x7A) {
-        if (code === 0x68) return 'ℎ';
-        return String.fromCodePoint(0x1D44E + (code - 0x61));
-      }
-      // Greek Mathematical Italic Capital Α..Ω = U+1D6E2..U+1D6FA.
-      // The block is dense: 25 codepoints for Α (U+0391) through Ω (U+03A9),
-      // skipping nothing in the source range.
-      if (code >= 0x0391 && code <= 0x03A9) return String.fromCodePoint(0x1D6E2 + (code - 0x0391));
-      // Greek Mathematical Italic Small α..ω = U+1D6FC..U+1D71B.
-      // U+03C2 (final sigma ς) maps to the regular U+1D70D position; the
-      // block is contiguous.
-      if (code >= 0x03B1 && code <= 0x03C9) return String.fromCodePoint(0x1D6FC + (code - 0x03B1));
-      // Greek symbol variants — these alternate forms get their own italic
-      // codepoints at the tail of the lowercase Greek block.
-      switch (code) {
-        case 0x2202: return String.fromCodePoint(0x1D715); // ∂ → italic partial differential
-        case 0x03F5: return String.fromCodePoint(0x1D716); // ϵ (lunate) → italic epsilon symbol
-        case 0x03D1: return String.fromCodePoint(0x1D717); // ϑ (theta sym) → italic theta symbol
-        case 0x03F0: return String.fromCodePoint(0x1D718); // ϰ (kappa sym) → italic kappa symbol
-        case 0x03D5: return String.fromCodePoint(0x1D719); // ϕ (phi sym) → italic phi symbol
-        case 0x03F1: return String.fromCodePoint(0x1D71A); // ϱ (rho sym) → italic rho symbol
-        case 0x03D6: return String.fromCodePoint(0x1D71B); // ϖ (pi sym) → italic pi symbol
-        case 0x2207: return String.fromCodePoint(0x1D6FB); // ∇ (nabla) → italic nabla (upper-block tail)
-        default: return ch;
-      }
-    };
 
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
