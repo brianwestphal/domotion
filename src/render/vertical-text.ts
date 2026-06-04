@@ -28,6 +28,55 @@
 
 import type { CapturedElement } from "../capture/types.js";
 import { renderTextAsPath } from "./text-to-path.js";
+import { parseTextEmphasisMark } from "./text.js";
+
+/**
+ * DM-1054: text-emphasis marks for vertical writing-mode. The horizontal
+ * `renderTextEmphasisMarks` (text.ts) lays marks along the x-axis above/below
+ * the baseline and is only reached from `renderSingleLineText` — vertical text
+ * dispatches to `renderVerticalSegments`, so its emphasis marks were dropped
+ * entirely. In vertical modes the marks sit in a column BESIDE the text: on the
+ * right for the default `over right` (the "over" edge rotates to the right in
+ * vertical-rl / vertical-lr / sideways-rl), on the left for `over left` /
+ * `left`. Each mark is centered on its char's vertical extent and emitted as a
+ * `<text>` at 0.5em, like the horizontal path.
+ */
+export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: string): string {
+  const mark = parseTextEmphasisMark(el.styles.textEmphasisStyle);
+  if (mark == null || el.textSegments == null) return "";
+  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const fontFamily = el.styles.fontFamily;
+  const fontWeight = el.styles.fontWeight;
+  const color = (el.styles.textEmphasisColor != null && el.styles.textEmphasisColor !== ""
+    && el.styles.textEmphasisColor !== "currentcolor")
+    ? el.styles.textEmphasisColor
+    : (el.styles.color ?? fillColor);
+  const onLeft = /\bleft\b/.test(el.styles.textEmphasisPosition ?? "over right");
+  const markFs = fontSize * 0.5;
+  const out: string[] = [];
+  for (const seg of el.textSegments) {
+    if (seg.verticalWritingMode == null) continue;
+    const yOffsets = seg.yOffsets;
+    const advances = seg.verticalAdvances;
+    if (yOffsets == null || advances == null) continue;
+    // Mark column just outside the line box on the "over" side.
+    const markX = onLeft ? seg.x - markFs * 0.5 : seg.x + seg.width + markFs * 0.5;
+    for (let i = 0; i < seg.text.length;) {
+      const code = seg.text.charCodeAt(i);
+      const step = code >= 0xD800 && code <= 0xDBFF && i + 1 < seg.text.length ? 2 : 1;
+      const ch = seg.text.slice(i, i + step);
+      if (/\s/.test(ch) && step === 1) { i += step; continue; }
+      const charY = yOffsets[i] ?? seg.y;
+      const charH = advances[i] ?? fontSize;
+      // `<text>` y is the baseline; drop ~0.35em below the char's vertical
+      // center so the mark glyph centers on the char.
+      const markBaselineY = charY + charH / 2 + markFs * 0.35;
+      out.push(`<text x="${r(markX)}" y="${r(markBaselineY)}" font-family="${fontFamily}" font-size="${r(markFs)}" font-weight="${fontWeight}" fill="${color}" text-anchor="middle">${mark}</text>`);
+      i += step;
+    }
+  }
+  return out.join("");
+}
 
 function r(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2);
@@ -213,6 +262,10 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
       i += step;
     }
   }
+  // DM-1054: text-emphasis marks beside the column (vertical equivalent of the
+  // horizontal renderTextEmphasisMarks, which the vertical path never reached).
+  const emphasis = renderVerticalEmphasisMarks(el, fillColor);
+  if (emphasis !== "") out.push(emphasis);
   return out.join("");
 }
 

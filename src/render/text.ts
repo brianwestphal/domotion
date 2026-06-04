@@ -127,7 +127,7 @@ function textStrokeParams(styles: { webkitTextStrokeWidth?: string; webkitTextSt
 // core/style/computed_style.cc — the keyword form resolves to a single
 // codepoint per (fill, shape) combination; the `<string>` form (e.g.
 // `text-emphasis: "★"`) uses the literal string as the mark.
-function parseTextEmphasisMark(styleCss: string | undefined): string | null {
+export function parseTextEmphasisMark(styleCss: string | undefined): string | null {
   if (styleCss == null || styleCss === "" || styleCss === "none") return null;
   // `<string>` form: `"★"` / `'·'`
   const stringMatch = /^["']([\s\S]+)["']$/.exec(styleCss.trim());

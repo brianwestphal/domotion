@@ -15,7 +15,7 @@ vi.mock("./text-to-path.js", () => ({
 }));
 
 // Imported AFTER the mock is registered (vi.mock is hoisted, so this is fine).
-const { renderVerticalSegments } = await import("./vertical-text.js");
+const { renderVerticalSegments, renderVerticalEmphasisMarks } = await import("./vertical-text.js");
 
 // renderTextAsPath positional arg indices under test.
 const ARG_TEXT = 0;
@@ -138,5 +138,40 @@ describe("renderVerticalSegments — tate-chu-yoko combine (DM-1032)", () => {
     expect(c[ARG_ASCENT_OVERRIDE]).toBe(0);
     // Each glyph placed at its captured per-char x (Chrome's painted layout).
     expect(c[ARG_XOFFSETS]).toEqual([0, 9.89]);
+  });
+});
+
+describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () => {
+  function makeEmphasisEl(style: string, position?: string): CapturedElement {
+    return {
+      tag: "em",
+      styles: {
+        fontSize: "18px", fontFamily: "sans-serif", fontWeight: "400", color: "rgb(0,0,0)",
+        textEmphasisStyle: style, ...(position != null ? { textEmphasisPosition: position } : {}),
+      },
+      textSegments: [{
+        text: "右側", x: 100, y: 50, width: 18, height: 36,
+        verticalWritingMode: "vertical-rl", yOffsets: [50, 68], verticalAdvances: [18, 18],
+      }],
+    } as unknown as CapturedElement;
+  }
+
+  it("emits one mark per char in a column to the RIGHT for the default over-right", () => {
+    const out = renderVerticalEmphasisMarks(makeEmphasisEl("open sesame"), "rgb(0,0,0)");
+    const marks = [...out.matchAll(/<text[^>]*>([^<]*)<\/text>/g)];
+    expect(marks).toHaveLength(2); // one per CJK char
+    expect(marks[0][1]).toBe("﹆"); // open-sesame glyph ﹆
+    const x0 = Number(/x="([\d.]+)"/.exec(marks[0][0])![1]);
+    expect(x0).toBeGreaterThan(118); // right of the column (x 100 + width 18)
+  });
+
+  it("places marks on the LEFT for over-left", () => {
+    const out = renderVerticalEmphasisMarks(makeEmphasisEl("filled dot", "over left"), "rgb(0,0,0)");
+    const x0 = Number(/x="([\d.]+)"/.exec(out)![1]);
+    expect(x0).toBeLessThan(100); // left of the column
+  });
+
+  it("returns empty markup when the element has no text-emphasis", () => {
+    expect(renderVerticalEmphasisMarks(makeEmphasisEl("none"), "rgb(0,0,0)")).toBe("");
   });
 });
