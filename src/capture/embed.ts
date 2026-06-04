@@ -21,6 +21,12 @@ import { readFileSync, existsSync } from "node:fs";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { getLastCaptureWarnings } from "./warnings.js";
 
+/** True for an absolute http(s) URL — the ones `embedRemoteImages` fetches and
+ *  the data-URI pass-through leaves untouched. */
+function isRemoteUrl(u: string): boolean {
+  return u.startsWith("http://") || u.startsWith("https://");
+}
+
 /**
  * @internal — exposed for `resize-embedded-images.ts` (DM-539). The resize
  * pre-pass reads source bytes from this cache (populated by `embedRemoteImages`)
@@ -44,7 +50,7 @@ function embedAsDataUri(url: string): string {
   // through to the data:/http(s) pass-through would discard that work.
   const cached = _dataUriCache.get(url);
   if (cached != null) return cached;
-  if (url.startsWith("data:") || url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("data:") || isRemoteUrl(url)) return url;
   let path = url;
   if (path.startsWith("file://")) path = decodeURIComponent(path.slice("file://".length));
   if (!existsSync(path)) {
@@ -197,7 +203,7 @@ export async function embedRemoteImages(
     let m: RegExpExecArray | null;
     while ((m = re.exec(cssVal)) != null) {
       const u = (m[1] ?? m[2] ?? m[3] ?? "").trim();
-      if ((u.startsWith("http://") || u.startsWith("https://")) && !refs.has(u)) {
+      if (isRemoteUrl(u) && !refs.has(u)) {
         refs.set(u, selector);
       }
     }
@@ -205,12 +211,12 @@ export async function embedRemoteImages(
   const walk = (els: CapturedElement[], parentPath: string): void => {
     for (const el of els) {
       const sel = parentPath === "" ? el.tag : `${parentPath} > ${el.tag}`;
-      if (el.imageSrc != null && (el.imageSrc.startsWith("http://") || el.imageSrc.startsWith("https://"))) {
+      if (el.imageSrc != null && isRemoteUrl(el.imageSrc)) {
         if (!refs.has(el.imageSrc)) refs.set(el.imageSrc, sel);
       }
       if (el.pseudoImages != null) {
         for (const pi of el.pseudoImages) {
-          if (pi.url != null && (pi.url.startsWith("http://") || pi.url.startsWith("https://"))) {
+          if (pi.url != null && isRemoteUrl(pi.url)) {
             if (!refs.has(pi.url)) refs.set(pi.url, sel);
           }
         }

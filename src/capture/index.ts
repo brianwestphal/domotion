@@ -984,6 +984,55 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
 
 
 /**
+ * The hide-everything-else stylesheet shared by both snapshot rasterizers
+ * (`rasterizeReplacedElements`, `rasterizeMaskSources`). Hides every element by
+ * default, then revives only the element bearing `data-domotion-snapshot-target`
+ * (and its descendants — `visibility: visible` on a descendant overrides the
+ * inherited hidden) so a screenshot of the target rect contains only that
+ * element's painted pixels. Body/html backgrounds are forced transparent so
+ * partially-transparent canvases composite cleanly under `omitBackground: true`.
+ * Previously copy-pasted in both functions with a "must stay aligned" note — now
+ * one source of truth.
+ */
+const SNAPSHOT_HIDE_CSS = [
+  "*, *::before, *::after { visibility: hidden !important; }",
+  "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
+  "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
+  "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
+  "html, body { background: transparent !important; }",
+].join("\n");
+
+/**
+ * Clamp a viewport-relative crop `rect` to `[0, boundW] × [0, boundH]` (the page
+ * extent for screenshots, or the source-image extent for sharp crops), snapping
+ * the requested region outward to whole pixels first. Returns the clamped clip in
+ * absolute pixels, the left/top deltas (how far the clamp pushed the origin —
+ * the caller shifts the stored rect by the same amount so the bitmap isn't
+ * stretched), the pre-clamp `reqW`/`reqH` (to detect whether any clamping
+ * happened), and `offPage` (origin already past the far edge → nothing to grab).
+ * Extracted from the two byte-identical copies in `rasterizeReplacedElements`
+ * (DM-598 / DM-582) that differed only in the bound they clamped against.
+ */
+function clampClipToBounds(
+  rect: { x: number; y: number; width: number; height: number },
+  viewport: { x: number; y: number },
+  boundW: number,
+  boundH: number,
+): { x: number; y: number; width: number; height: number; leftDelta: number; topDelta: number; reqW: number; reqH: number; offPage: boolean } {
+  const reqLeft = Math.floor(rect.x + viewport.x);
+  const reqTop = Math.floor(rect.y + viewport.y);
+  const reqW = Math.max(1, Math.ceil(rect.width));
+  const reqH = Math.max(1, Math.ceil(rect.height));
+  const left = Math.max(0, reqLeft);
+  const top = Math.max(0, reqTop);
+  const leftDelta = left - reqLeft;
+  const topDelta = top - reqTop;
+  const width = Math.max(1, Math.min(reqW - leftDelta, boundW - left));
+  const height = Math.max(1, Math.min(reqH - topDelta, boundH - top));
+  return { x: left, y: top, width, height, leftDelta, topDelta, reqW, reqH, offPage: left >= boundW || top >= boundH };
+}
+
+/**
  * DM-457: rasterize each <canvas> / <video> / <iframe> / <object> / <embed>
  * captured in the tree. CAPTURE_SCRIPT tagged the live DOM nodes with
  * `data-domotion-rid="dr<n>"` and recorded the matching content-box rect on
@@ -1073,22 +1122,12 @@ async function rasterizeReplacedElements(
     const srcW = srcMeta.width ?? 0;
     const srcH = srcMeta.height ?? 0;
     for (const t of cropTargets) {
-      // Requested viewport-relative crop region (may extend off any edge).
-      const reqLeft = Math.floor(t.rect.x + viewport.x);
-      const reqTop = Math.floor(t.rect.y + viewport.y);
-      const reqW = Math.max(1, Math.ceil(t.rect.width));
-      const reqH = Math.max(1, Math.ceil(t.rect.height));
-      // Clamp to the source image bounds.
-      const left = Math.max(0, reqLeft);
-      const top = Math.max(0, reqTop);
-      const leftDelta = left - reqLeft;
-      const topDelta = top - reqTop;
-      const clippedW = Math.max(1, Math.min(reqW - leftDelta, srcW - left));
-      const clippedH = Math.max(1, Math.min(reqH - topDelta, srcH - top));
-      if (left >= srcW || top >= srcH) continue;
+      // Clamp the requested viewport-relative crop to the source image bounds.
+      const c = clampClipToBounds(t.rect, viewport, srcW, srcH);
+      if (c.offPage) continue;
       try {
         const buf = await sharp(opts.sourceImagePath)
-          .extract({ left, top, width: clippedW, height: clippedH })
+          .extract({ left: c.x, top: c.y, width: c.width, height: c.height })
           .png()
           .toBuffer();
         t.setDataUri(`data:image/png;base64,${buf.toString("base64")}`);
@@ -1099,8 +1138,8 @@ async function rasterizeReplacedElements(
         // a video at x=-115 cropped from x=0 would still paint at x=-115,
         // sliding the cropped content 115 px to the left of where Chrome
         // painted it.
-        if (clippedW !== reqW || clippedH !== reqH || leftDelta !== 0 || topDelta !== 0) {
-          t.setRect(t.rect.x + leftDelta, t.rect.y + topDelta, clippedW, clippedH);
+        if (c.width !== c.reqW || c.height !== c.reqH || c.leftDelta !== 0 || c.topDelta !== 0) {
+          t.setRect(t.rect.x + c.leftDelta, t.rect.y + c.topDelta, c.width, c.height);
         }
       } catch {
         /* leave dataUri undefined; renderer falls back to the bare box. */
@@ -1118,22 +1157,11 @@ async function rasterizeReplacedElements(
     return;
   }
 
-  // Inject hide-everything-else stylesheet. Two rules: hide every element by
-  // default; revive only the element bearing data-domotion-snapshot-target
-  // (and its descendants, since visibility:visible on a descendant overrides
-  // the inherited hidden from an ancestor). Body/html backgrounds are forced
-  // transparent so partially-transparent canvases composite cleanly via
-  // omitBackground: true. Restored unconditionally in finally.
-  const HIDE_CSS = [
-    "*, *::before, *::after { visibility: hidden !important; }",
-    "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
-    "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
-    "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
-    "html, body { background: transparent !important; }",
-  ].join("\n");
+  // Inject the hide-everything-else stylesheet (shared SNAPSHOT_HIDE_CSS);
+  // restored unconditionally in finally.
   let styleHandle: ElementHandle | null = null;
   try {
-    styleHandle = await page.addStyleTag({ content: HIDE_CSS });
+    styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
     for (const t of screenshotTargets) {
       // Move the snapshot-target marker to this element and read the LIVE
       // getBoundingClientRect at the same time. DM-584: the captured t.rect
@@ -1180,24 +1208,13 @@ async function rasterizeReplacedElements(
       const clipRect = liveRect != null && liveRect.width > 0 && liveRect.height > 0
         ? liveRect
         : t.rect;
-      // page.screenshot clip wants page-absolute pixels, snapped outward.
-      const reqLeft = Math.floor(clipRect.x + viewport.x);
-      const reqTop = Math.floor(clipRect.y + viewport.y);
-      const reqW = Math.max(1, Math.ceil(clipRect.width));
-      const reqH = Math.max(1, Math.ceil(clipRect.height));
-      // Clamp to page bounds (Playwright errors if clip extends past the
-      // page; same logic as the cropTargets path above). Track left/top
-      // deltas so we can shift the stored frozen rect by the same amount.
+      // Clamp to page bounds (Playwright errors if the clip extends past the
+      // page; same logic as the cropTargets path above), snapped outward.
       const pageW = viewport.x + viewport.width;
       const pageH = viewport.y + viewport.height;
-      const left = Math.max(0, reqLeft);
-      const top = Math.max(0, reqTop);
-      const leftDelta = left - reqLeft;
-      const topDelta = top - reqTop;
-      const clippedW = Math.max(1, Math.min(reqW - leftDelta, pageW - left));
-      const clippedH = Math.max(1, Math.min(reqH - topDelta, pageH - top));
-      if (left >= pageW || top >= pageH) continue;
-      const clip = { x: left, y: top, width: clippedW, height: clippedH };
+      const c = clampClipToBounds(clipRect, viewport, pageW, pageH);
+      if (c.offPage) continue;
+      const clip = { x: c.x, y: c.y, width: c.width, height: c.height };
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
         t.setDataUri(`data:image/png;base64,${Buffer.from(buf).toString("base64")}`);
@@ -1209,8 +1226,8 @@ async function rasterizeReplacedElements(
         // on the element itself this approximation may misposition the
         // snapshot, but no currently-supported real-world fixture exercises
         // that combination on a `<video>` / `<canvas>` / `<iframe>`.
-        if (clippedW !== reqW || clippedH !== reqH || leftDelta !== 0 || topDelta !== 0) {
-          t.setRect(t.rect.x + leftDelta, t.rect.y + topDelta, clippedW, clippedH);
+        if (c.width !== c.reqW || c.height !== c.reqH || c.leftDelta !== 0 || c.topDelta !== 0) {
+          t.setRect(t.rect.x + c.leftDelta, t.rect.y + c.topDelta, c.width, c.height);
         }
       } catch {
         // Screenshot failed (e.g. clip went off-page after a layout shift).
@@ -1261,16 +1278,9 @@ async function rasterizeMaskSources(
   if (tree.length === 0 || tree[0].maskRasters == null || tree[0].maskRasters.length === 0) return;
   const rasters = tree[0].maskRasters;
 
-  const HIDE_CSS = [
-    "*, *::before, *::after { visibility: hidden !important; }",
-    "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
-    "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
-    "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
-    "html, body { background: transparent !important; }",
-  ].join("\n");
   let styleHandle: ElementHandle | null = null;
   try {
-    styleHandle = await page.addStyleTag({ content: HIDE_CSS });
+    styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
     for (const mr of rasters) {
       await page.evaluate((rid) => {
         const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
