@@ -3206,7 +3206,11 @@ export function elementTreeToSvgInner(
     } else {
       childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
     }
-    let sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl);
+    // DM-1052: pass the SC root's actual direct children so a flex/grid
+    // `order` / `*-reverse` reorder of a flattened paint list keeps each
+    // hoisted descendant grouped with (and painting after) its direct-item
+    // ancestor instead of being reversed ahead of it.
+    let sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl, new Set(baseChildren));
     // DM-751: when this element establishes a 3D rendering context
     // (`transform-style: preserve-3d`), CSS Transforms 2 §6 sorts children
     // by their Z position in 3D space — translateZ — not by z-index. Re-
@@ -3940,6 +3944,22 @@ function sortChildrenByPaintOrder(
    * `gatherStackingContextChildren`'s `hoistedAsZSorted` out-parameter.
    */
   paintAsZSorted?: Set<CapturedElement>,
+  /**
+   * DM-1052: when `children` is a *flattened* stacking-context paint list
+   * (produced by `gatherStackingContextChildren` for an SC root), it can
+   * contain hoisted DESCENDANTS of the SC root's direct flex/grid items
+   * interleaved right after their ancestor — e.g. a flex-item badge and the
+   * icon hoisted out of it both land in the list, in `[badge, icon]` order.
+   * The flex `order` / `*-reverse` reordering below must only reorder the
+   * DIRECT flex items, never flip an ancestor and its trailing descendants
+   * (reversing `[badge, icon]` → `[icon, badge]` makes the badge background
+   * paint OVER its own icon — resend.com's animated inbox widget). This set
+   * holds the SC root's actual direct children so the reorder can group each
+   * direct item with its trailing descendants and reorder the GROUPS. When
+   * omitted (non-flattened call), every child is treated as a direct item,
+   * giving the original element-wise behavior.
+   */
+  directChildren?: Set<CapturedElement>,
 ): CapturedElement[] {
   // DM-525: flex/grid items with z-index ≠ auto sort as if position:relative
   // even when position:static (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
@@ -3959,11 +3979,29 @@ function sortChildrenByPaintOrder(
     && (parentFlexDirection === "row-reverse" || parentFlexDirection === "column-reverse");
   let orderedChildren: CapturedElement[];
   if (isFlexGrid) {
-    const sorted = children
-      .map((c, idx) => ({ c, idx, ord: parseInt(c.styles.order ?? "0", 10) || 0 }))
-      .sort((a, b) => a.ord - b.ord || a.idx - b.idx)
-      .map((x) => x.c);
-    orderedChildren = reverseFlex ? sorted.slice().reverse() : sorted;
+    // DM-1052: group the (possibly flattened) list into runs led by a direct
+    // flex item; any following non-direct elements are hoisted descendants of
+    // that item and trail it. Reorder the RUNS by the lead item's `order`
+    // (and reverse them for `*-reverse`), then flatten — so flex ordering
+    // affects only the items, never the ancestor→descendant paint sequence
+    // within an item. For a non-flattened list `directChildren` is omitted, so
+    // every element leads its own singleton run and this reduces to the
+    // original element-wise order/reverse.
+    type Run = { lead: CapturedElement; idx: number; ord: number; items: CapturedElement[] };
+    const runs: Run[] = [];
+    for (const c of children) {
+      const isDirect = directChildren == null || directChildren.has(c);
+      if (isDirect || runs.length === 0) {
+        runs.push({ lead: c, idx: runs.length, ord: parseInt(c.styles.order ?? "0", 10) || 0, items: [c] });
+      } else {
+        runs[runs.length - 1].items.push(c);
+      }
+    }
+    const sortedRuns = runs
+      .slice()
+      .sort((a, b) => a.ord - b.ord || a.idx - b.idx);
+    const orderedRuns = reverseFlex ? sortedRuns.reverse() : sortedRuns;
+    orderedChildren = orderedRuns.flatMap((rn) => rn.items);
   } else {
     orderedChildren = children;
   }
