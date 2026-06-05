@@ -237,6 +237,11 @@ describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle g
     expect(usesComplexShaperDottedCircle(0x0F71)).toBe(true);  // Tibetan vowel sign
     expect(usesComplexShaperDottedCircle(0x1789)).toBe(true);  // Khmer
     expect(usesComplexShaperDottedCircle(0xA8E0)).toBe(true);  // Devanagari Extended
+    // SMP USE blocks that were previously omitted, so their orphaned no-font
+    // marks painted a bare tofu with no leading dotted circle (DM-1097/DM-1100):
+    expect(usesComplexShaperDottedCircle(0x113B9)).toBe(true); // Tulu-Tigalari vowel sign
+    expect(usesComplexShaperDottedCircle(0x113E1)).toBe(true); // Tulu-Tigalari combining tone
+    expect(usesComplexShaperDottedCircle(0x16120)).toBe(true); // Gurung Khema vowel sign
   });
   it("is FALSE for the generic combining-mark blocks (default shaper — Chrome adds NO dotted circle)", () => {
     expect(usesComplexShaperDottedCircle(0x0301)).toBe(false); // Combining acute (Latin)
