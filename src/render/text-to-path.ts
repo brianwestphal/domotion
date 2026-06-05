@@ -1042,6 +1042,20 @@ export function __resolveFontSpecForTest(key: string): { path: string; postscrip
 }
 
 /**
+ * Test-only: resolve a key against the **darwin** `FONT_PATHS` table directly,
+ * independent of `process.platform`. The darwin-chain well-formedness guard
+ * (DM-1030) must check the keys `darwinFallbackChain` emits — including the
+ * darwin-only `u-...` per-block routes (DM-983) — against the darwin table even
+ * when the suite runs on Linux CI; the platform-gated `resolveFontSpec` would
+ * otherwise look the darwin keys up in `LINUX_FONT_PATHS` and spuriously fail.
+ * Mirrors how the win32 routing guard (DM-987) checks `UNICODE_FONT_FILES_WIN32`
+ * directly rather than going through the host resolver.
+ */
+export function __resolveDarwinFontSpecForTest(key: string): { path: string; postscriptName?: string; extractor?: string } | null {
+  return FONT_PATHS[key] ?? null;
+}
+
+/**
  * Ordered list of fallback font keys to try when the primary font lacks a
  * glyph for `codepoint`. Caller iterates the chain and picks the first font
  * whose `glyphForCodePoint(cp).id !== 0`. Returns an empty array when no

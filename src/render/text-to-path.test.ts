@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -961,8 +961,11 @@ describe("darwinFallbackChain well-formedness (DM-1030)", () => {
       for (const k of darwinFallbackChain(cp)) keys.add(k);
     }
     // `last-resort` is a synthetic terminal (bundled LastResort font), not a
-    // FONT_PATHS entry — exempt it. Every other key must resolve.
-    const unresolved = [...keys].filter((k) => k !== "last-resort" && __resolveFontSpecForTest(k) == null);
+    // FONT_PATHS entry — exempt it. Every other key must resolve. Resolve against
+    // the darwin table directly (not the host-platform resolver) so this guard
+    // runs identically on Linux CI — `darwinFallbackChain` emits darwin-only
+    // `u-...` routes that `LINUX_FONT_PATHS` deliberately doesn't carry.
+    const unresolved = [...keys].filter((k) => k !== "last-resort" && __resolveDarwinFontSpecForTest(k) == null);
     expect(unresolved).toEqual([]);
   });
 
