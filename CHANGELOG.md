@@ -2,6 +2,20 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.10.0] - 2026-06-05
+
+
+- Render vertical writing-mode text, drop caps, and `<textarea>` content as native SVG instead of screenshot overlays
+- Vertical writing-mode gains text-emphasis marks, decoration painting, tate-chu-yoko, and baseline/rotation fixes
+- Broaden font fallback: Brahmic complex-script shaping, Unicode NFD decomposition, dotted circles, and bundled LastResort
+- Calibrate per-Unicode-block font routing across macOS, Linux, and Windows DirectWrite
+- New `animated-svg-scrubber` app: play/scrub, zoom/pan, range-to-MP4 export, and trim-to-SVG
+- Fix BiDi paired-bracket mirroring to resolve across wrapped lines, not per line
+- Scroll improvements: per-action easing, exact `until <position>` landing, and linear easing default
+- Soften the host-content glow into a blurred behind-content layer
+- Fix auto-cursor timing so the pointer clicks before the change it triggers
+- Publish a formal JSON Schema for the animate config
+
 ## [0.9.0] - 2026-06-01
 
 
