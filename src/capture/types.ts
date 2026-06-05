@@ -257,6 +257,15 @@ export interface CapturedElement {
    */
   magicKey?: string;
   /**
+   * DM-1106: the element's effective CSS `cursor` keyword (e.g. `pointer`,
+   * `text`, `grab`), resolved in-page — `auto` is resolved per Blink's
+   * `SelectAutoCursor` and `url(...)` reduced to its keyword fallback. Omitted
+   * when it resolves to the default arrow; the auto cursor-overlay hit-test
+   * treats a missing value as `default`. Not used for rendering the element
+   * itself (cursors are OS-drawn, never in the page paint).
+   */
+  cursor?: string;
+  /**
    * DM-603 viewBox culling. Set to `true` by `cullElementsOutsideViewBox()` (or a single-frame
    * static cull) when this element's bbox never intersects the viewBox during
    * the scene cycle. The renderer surfaces it as `style="display:none"` on

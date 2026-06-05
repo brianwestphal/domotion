@@ -37,3 +37,52 @@ export const sideWidths = (cs, prop, suffix) => ({
 // gradient or url() image. Author CSS that hides a non-named color inside a
 // var() round-trips elsewhere via the host-probe path.
 export const firstColorRe = /(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|\b(?:white|black|red|green|blue|yellow|purple|orange|gray|grey|currentColor)\b)/;
+
+// Text-presenting <input> types: the ones Chrome's UA stylesheet gives a `text`
+// (I-beam) cursor and where `auto` would resolve to I-beam. Excludes button-like
+// (button/submit/reset/checkbox/radio/range/color/file/image) which get `default`.
+const _TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email', 'password', 'number']);
+
+/**
+ * DM-1106: resolve an element's EFFECTIVE cursor — the concrete keyword Chrome
+ * paints — from its computed `cursor`. `cursor` inherits, so `cs.cursor` already
+ * carries the effective specified value; this collapses the two cases
+ * getComputedStyle does NOT pre-resolve:
+ *   - `url(...) , <kw>` custom cursors → the mandatory keyword fallback (we can't
+ *     embed the bitmap, and it's the value Chrome falls back to anyway).
+ *   - `auto` → Blink's `SelectAutoCursor` / `ShouldShowIBeamForNode`
+ *     (event_handler.cc): an I-beam (vertical-text in a vertical writing mode)
+ *     over editable or selectable text, otherwise the default arrow. Links and
+ *     text inputs already compute to `pointer` / `text` via the UA sheet, so
+ *     they never reach the `auto` branch.
+ * Returns a single CSS cursor keyword.
+ */
+export const resolveElementCursor = (el, cs) => {
+  let c = (cs.cursor || 'auto').trim();
+  if (c.indexOf('url(') !== -1) {
+    // Keep only the comma-separated keyword fallback (last token).
+    const parts = c.split(',');
+    c = parts[parts.length - 1].trim();
+  }
+  if (c !== 'auto') return c;
+  // `auto` resolution (Blink SelectAutoCursor).
+  const tag = el.tagName;
+  const editable = el.isContentEditable === true
+    || tag === 'TEXTAREA'
+    || (tag === 'INPUT' && _TEXT_INPUT_TYPES.has((el.getAttribute('type') || 'text').toLowerCase()));
+  let selectableText = false;
+  if (!editable) {
+    const us = cs.userSelect || cs.webkitUserSelect || '';
+    if (us !== 'none') {
+      // Selectable only if this element directly bears non-whitespace text.
+      for (let i = 0; i < el.childNodes.length; i++) {
+        const n = el.childNodes[i];
+        if (n.nodeType === 3 && n.textContent && n.textContent.trim() !== '') { selectableText = true; break; }
+      }
+    }
+  }
+  if (editable || selectableText) {
+    return (cs.writingMode || '').indexOf('vertical') === 0 ? 'vertical-text' : 'text';
+  }
+  return 'default';
+};
