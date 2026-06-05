@@ -17,6 +17,7 @@
  */
 
 import { signal, effect, mount, delegate } from "kerfjs";
+import { fitRectToAspect, constrainResizeToAspect } from "./crop.js";
 
 interface Bootstrap { svg: string | null; name: string | null }
 declare global { interface Window { __SCRUBBER_BOOTSTRAP__?: Bootstrap } }
@@ -129,6 +130,11 @@ const trackW = signal(0);          // scrub track px width (for marker positioni
 const cropMode = signal(false);
 const cropRect = signal<{ x: number; y: number; w: number; h: number } | null>(null);
 const cropTick = signal(0);
+// DM-1107: crop aspect-ratio lock. Holds the select value — "free" (default,
+// unconstrained resize), "1" / "1.7778" / "1.3333" (1:1 / 16:9 / 4:3), or
+// "orig" (the SVG's intrinsic w:h, resolved live in `cropAspectRatio`). Reset to
+// "free" whenever crop mode turns off or a new SVG loads.
+const cropAspect = signal<string>("free");
 
 // non-reactive imperative state
 let svgText = "";
@@ -211,6 +217,15 @@ function render() {
           </div>
           <div class="grp">
             <button class={cropMode.value ? "iconbtn active" : "iconbtn"} data-action="croptoggle" title="crop" aria-label="crop" aria-pressed={cropMode.value ? "true" : "false"} disabled={!svgLoaded.value}>{ICON_CROP}</button>
+            {/* DM-1107: aspect-ratio lock for the crop rect. Only meaningful while
+                crop mode is on — disabled otherwise. */}
+            <select data-action="cropaspect" title="crop aspect ratio" disabled={!svgLoaded.value || !cropMode.value}>
+              <option value="free" selected={cropAspect.value === "free"}>Free</option>
+              <option value="1" selected={cropAspect.value === "1"}>1:1</option>
+              <option value="1.7778" selected={cropAspect.value === "1.7778"}>16:9</option>
+              <option value="1.3333" selected={cropAspect.value === "1.3333"}>4:3</option>
+              <option value="orig" selected={cropAspect.value === "orig"}>Original</option>
+            </select>
           </div>
           <div class="grp export-wrap">
             <button class="primary" data-action="exporttoggle" disabled={!svgLoaded.value || busy.value}>Export</button>
@@ -307,9 +322,23 @@ effect(() => {
   cropDimsEl.textContent = `${Math.round(cr.w)} × ${Math.round(cr.h)}`;
 });
 
+// DM-1107: resolve the current aspect-lock selection to a numeric w:h ratio, or
+// null for free-form. "orig" derives from the loaded SVG's intrinsic size so the
+// crop tracks the source aspect even for non-16:9 frames.
+function cropAspectRatio(): number | null {
+  const v = cropAspect.value;
+  if (v === "free") return null;
+  if (v === "orig") { const n = svgNaturalSize(); return n.h > 0 ? n.w / n.h : null; }
+  const r = parseFloat(v);
+  return Number.isFinite(r) && r > 0 ? r : null;
+}
+
 // Resize / move math: apply a pointer delta (in SVG units) to the crop rect for
-// a given handle, clamped to the frame with a CROP_MIN floor.
-function applyCropDrag(start: { x: number; y: number; w: number; h: number }, handle: CropHandle, dxU: number, dyU: number, n: { w: number; h: number }): { x: number; y: number; w: number; h: number } {
+// a given handle, clamped to the frame with a CROP_MIN floor. When `aspect`
+// (w:h) is non-null the free-form result is constrained to that ratio via
+// `constrainResizeToAspect` (DM-1107) — the pure math lives in crop.ts so it's
+// unit-tested.
+function applyCropDrag(start: { x: number; y: number; w: number; h: number }, handle: CropHandle, dxU: number, dyU: number, n: { w: number; h: number }, aspect?: number | null): { x: number; y: number; w: number; h: number } {
   const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(v, hi));
   if (handle === "move") {
     return { x: clamp(start.x + dxU, 0, n.w - start.w), y: clamp(start.y + dyU, 0, n.h - start.h), w: start.w, h: start.h };
@@ -319,7 +348,9 @@ function applyCropDrag(start: { x: number; y: number; w: number; h: number }, ha
   if (handle.includes("e")) R = clamp(start.x + start.w + dxU, L + CROP_MIN, n.w);
   if (handle.includes("n")) T = clamp(start.y + dyU, 0, B - CROP_MIN);
   if (handle.includes("s")) B = clamp(start.y + start.h + dyU, T + CROP_MIN, n.h);
-  return { x: L, y: T, w: R - L, h: B - T };
+  const free = { x: L, y: T, w: R - L, h: B - T };
+  if (aspect == null || aspect <= 0) return free;
+  return constrainResizeToAspect(free, handle, aspect, n.w, n.h, CROP_MIN);
 }
 
 let cropDrag: { handle: CropHandle; start: { x: number; y: number; w: number; h: number }; px: number; py: number } | null = null;
@@ -336,7 +367,7 @@ cropBox.addEventListener("pointermove", (ev) => {
   if (cropDrag == null) return;
   const z = zoom.value || 1;
   const dxU = (ev.clientX - cropDrag.px) / z, dyU = (ev.clientY - cropDrag.py) / z;
-  cropRect.value = applyCropDrag(cropDrag.start, cropDrag.handle, dxU, dyU, svgNaturalSize());
+  cropRect.value = applyCropDrag(cropDrag.start, cropDrag.handle, dxU, dyU, svgNaturalSize(), cropAspectRatio());
 });
 const endCropDrag = (): void => { cropDrag = null; };
 cropBox.addEventListener("pointerup", endCropDrag);
@@ -428,7 +459,7 @@ async function loadSvg(text: string, name: string): Promise<void> {
   durationMs.value = dur; playhead.value = 0; rangeStart.value = 0; rangeEnd.value = dur; playing.value = false;
   seekAll(0);
   zoomMode = "fit"; panX.value = 0; panY.value = 0; fitZoomKeep();
-  cropMode.value = false; cropRect.value = null; cropTick.value++; // DM-1104: reset crop for the new SVG
+  cropMode.value = false; cropRect.value = null; cropAspect.value = "free"; cropTick.value++; // DM-1104 / DM-1107: reset crop + ratio lock for the new SVG
   measureTrack();
 }
 
@@ -521,6 +552,7 @@ const CLICK: Record<string, () => void> = {
       cropRect.value = { x: 0, y: 0, w: n.w, h: n.h };
     } else {
       cropRect.value = null;
+      cropAspect.value = "free"; // DM-1107: reset the ratio lock with the crop
     }
     cropTick.value++;
   },
@@ -547,6 +579,13 @@ void delegate(app, "change", "[data-action=speed]", (e, target) => { speed.value
 void delegate(app, "change", "[data-action=inn]", (e, target) => { rangeStart.value = Math.max(0, Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value)); });
 void delegate(app, "change", "[data-action=outn]", (e, target) => { rangeEnd.value = Math.max(rangeStart.value, Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value)); });
 void delegate(app, "change", "[data-action=loop]", (e, target) => { loop.value = (target as HTMLInputElement).checked; });
+// DM-1107: pick a crop aspect-ratio lock. Snap the existing crop box to the new
+// ratio immediately so the constraint is visible before the next drag.
+void delegate(app, "change", "[data-action=cropaspect]", (e, target) => {
+  cropAspect.value = (target as HTMLSelectElement).value;
+  const ar = cropAspectRatio();
+  if (ar != null && cropRect.value != null) { const n = svgNaturalSize(); cropRect.value = fitRectToAspect(cropRect.value, ar, n.w, n.h); }
+});
 void delegate(app, "change", "[data-action=zoompreset]", (e, target) => {
   const v = (target as HTMLSelectElement).value;
   panX.value = 0; panY.value = 0; // re-center on an explicit preset pick

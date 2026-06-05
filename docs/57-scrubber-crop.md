@@ -25,6 +25,18 @@ zoom controls.
 - **Disabling** crop mode hides the overlay **and resets the crop boundaries**,
   so the next enable starts fresh from the full frame.
 - Loading a new SVG resets crop mode off and clears the rect.
+- **Aspect-ratio lock** (DM-1107): a select next to the crop toggle (enabled only
+  while crop mode is on) constrains resizing to a fixed ratio — **Free** (default,
+  unconstrained), **1:1**, **16:9**, **4:3**, or **Original** (the loaded SVG's
+  intrinsic `viewBox` w:h). Picking a ratio immediately snaps the current box to
+  it (centered, shrunk to fit). While locked, dragging a handle keeps the ratio:
+  the dragged edge is authoritative (width for corners and the left/right edges,
+  height for top/bottom), the perpendicular dimension is derived, and the box is
+  anchored at the corner/edge opposite the dragged handle (a top/bottom or
+  left/right edge grows symmetrically about the box center on its free axis),
+  then ratio-preservingly clamped to the frame. The lock resets to **Free** when
+  crop mode is disabled or a new SVG loads. No server changes — the constrained
+  rect is still applied verbatim to all three exports.
 
 The crop rect is tracked in the SVG's **user-space (viewBox) units**, so it is
 independent of zoom/pan — the overlay is re-laid-out from `stage-center + pan −
@@ -55,18 +67,21 @@ the request boundary (zod → HTTP 400).
 
 ## Code
 
-- `src/scrubber/crop.ts` — `clampCrop()` + `cropSvgViewBox()` (pure, unit-tested
-  in `crop.test.ts`).
+- `src/scrubber/crop.ts` — `clampCrop()` + `cropSvgViewBox()` plus the DM-1107
+  aspect-lock math `constrainResizeToAspect()` (drag-time constraint) and
+  `fitRectToAspect()` (snap-on-select); all pure and unit-tested in
+  `crop.test.ts`.
 - `src/scrubber/server.ts` — the `crop` field on `FRAME_BODY` / `RANGE_VIDEO_BODY`
   / `TRIM_BODY`, and its application in each handler + `renderRangeVideo`.
-- `src/scrubber/client.tsx` — `cropMode` / `cropRect` signals, the crop toggle,
-  the imperative overlay (box + 8 handles + dimensions), pointer drag math
-  (`applyCropDrag`), and `activeCrop()` plumbed into the three exporters.
+- `src/scrubber/client.tsx` — `cropMode` / `cropRect` / `cropAspect` signals, the
+  crop toggle + aspect-ratio select, the imperative overlay (box + 8 handles +
+  dimensions), pointer drag math (`applyCropDrag`, which delegates the ratio
+  constraint to `constrainResizeToAspect`), and `activeCrop()` plumbed into the
+  three exporters.
 - Tests: `server.e2e.test.ts` covers the PNG crop dims, the off-canvas + 400
   cases, the SVG viewBox rewrite, the even-dim MP4 crop, and the toggle showing
   the overlay.
 
 ## Not yet supported (follow-up)
 
-- **Aspect-ratio lock** (e.g. 1:1 / 16:9 / original) — the crop is free-form for
-  now. Tracked as a follow-up.
+- Numeric entry of an exact crop rect (the box is mouse-driven only).
