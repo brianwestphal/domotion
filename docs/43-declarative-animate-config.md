@@ -37,6 +37,8 @@ Every `selector` is a CSS selector resolved **in page context at capture time** 
 
 The config is validated up front by the zod schema in `src/cli/animate.ts` (`animateConfigSchema`) — the schema is the source of truth (see `docs/08-animation-model.md` → "Config validation"). Every new field/action/overlay below extends that schema. Errors are path-specific, e.g. `animate: frames[2].actions[0].selector: Invalid input: expected string, received number`. Runtime failures (selector not found, wait timeout) throw `animate: frames[N]…: <what failed>`.
 
+A standard **JSON Schema** projection of that zod schema ships with the package — see "Published JSON Schema" below — so editors can offer autocompletion and structural validation without running Domotion.
+
 ### String interpolation
 
 All **string** fields in a config (`input`, every `selector`, action `value`/`html`/`text`, overlay text, etc.) are subject to `${name}` interpolation against the top-level `vars` map — see §7. Interpolation happens after parse, before each frame runs.
@@ -261,6 +263,33 @@ Runs the script in page context via `page.evaluate` during the frame's action ph
 - Already sandboxed to the page via `page.evaluate` (no broader access than the page itself).
 
 **Replaces.** Nothing it shouldn't — it's the deliberate catch-all so authors never get *fully* stuck in JSON, while everything common has a declarative form above.
+
+---
+
+## Published JSON Schema
+
+A formal **JSON Schema (draft 2020-12)** for this config ships with the npm package at `schemas/animate-config.schema.json` and is published at a stable URL:
+
+```
+https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json
+```
+
+Point a config's `"$schema"` key at either the URL or a local path to get autocompletion and structural validation in any JSON-Schema-aware editor (VS Code, JetBrains, etc.):
+
+```jsonc
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 600,
+  "height": 360,
+  "frames": [ /* … */ ]
+}
+```
+
+The CLI ignores the `"$schema"` key. Every config under `examples/animate/` carries this pointer as a worked example.
+
+**Source of truth & sync.** The schema is *generated from* the zod `animateConfigSchema` in `src/cli/animate.ts` — never hand-edited — so it cannot drift from what the CLI actually enforces. Regenerate with `npm run build:animate-schema` (also run automatically as part of `npm run build`); the `animate-config-json-schema.test.ts` unit test fails if the committed file is stale.
+
+**Coverage caveat.** JSON Schema captures *structure and types* only. Cross-field and content rules expressed as zod refinements — "frame 0 must load an `input`", a `scroll.pattern` must parse against the scroll-pattern grammar (`docs/37`), a `replaceText.pattern` must be a valid regex — have no JSON Schema equivalent and are **not** represented. Those stay enforced at runtime by `validateAnimateConfig`. A config that passes the JSON Schema can still be rejected by the CLI for one of these reasons; the JSON Schema is an editor aid, not a substitute for the runtime validator.
 
 ---
 

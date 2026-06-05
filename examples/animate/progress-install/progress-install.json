@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
   "width": 700,
   "height": 200,
   "frames": [

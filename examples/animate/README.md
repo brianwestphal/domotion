@@ -17,9 +17,16 @@ Open any `<name>.svg` in a browser to watch it loop.
 | `scroll-feed/` | A **`scroll` block**: one tall page captured at multiple scroll positions via the pattern grammar (`down:bottom/6s`) and composed into one scrolling SVG. The sticky header stays put while the feed scrolls. |
 | `svg-overlay/` | A **`kind: "svg"` overlay** — a separately-authored `badge.svg` inlined into the frame (its ids namespaced to avoid collisions) and slid in from the bottom with the `enter` sugar. |
 
-The config format is documented in `docs/08-animation-model.md` and the CLI
-`--help`. Paths inside a config (`input`, overlay `src`) resolve relative to the
-config file's own directory.
+The config format is documented in `docs/08-animation-model.md`,
+`docs/43-declarative-animate-config.md`, and the CLI `--help`. Paths inside a
+config (`input`, overlay `src`) resolve relative to the config file's own
+directory.
+
+Each config opens with a `"$schema"` pointer to the published
+[JSON Schema](../../schemas/animate-config.schema.json)
+(`schemas/animate-config.schema.json`, also at a stable
+`raw.githubusercontent.com` URL), so a JSON-Schema-aware editor gives you
+autocompletion and structural validation as you write. The CLI ignores the key.
 
 ## Running
 

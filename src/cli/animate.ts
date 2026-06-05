@@ -287,7 +287,11 @@ const cursorSchema = z.union([
   z.object({ style: cursorStyleSchema.optional(), events: z.array(cursorEventSchema).min(1, "must be a non-empty array") }),
 ]);
 
-const animateConfigSchema = z
+// Exported so the published JSON Schema can be generated from it (see
+// `src/cli/animate-config-json-schema.ts` and `scripts/generate-animate-schema.ts`).
+// Keeping the zod schema the single source of truth means the JSON Schema we
+// ship to consumers can never drift from what `validateAnimateConfig` enforces.
+export const animateConfigSchema = z
   .object({
     width: z.number(),
     height: z.number(),
