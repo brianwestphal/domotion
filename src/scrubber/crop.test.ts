@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampCrop, cropSvgViewBox } from "./crop.js";
+import { clampCrop, constrainResizeToAspect, cropSvgViewBox, fitRectToAspect } from "./crop.js";
 
 describe("clampCrop (DM-1104)", () => {
   it("returns the rect unchanged when fully inside the frame", () => {
@@ -49,5 +49,51 @@ describe("cropSvgViewBox (DM-1104)", () => {
 
   it("throws when there is no <svg>", () => {
     expect(() => cropSvgViewBox("<div></div>", { x: 0, y: 0, w: 1, h: 1 })).toThrow(/no <svg>/);
+  });
+});
+
+describe("constrainResizeToAspect (DM-1107)", () => {
+  it("se corner with 1:1 keeps the nw corner fixed and squares off (width authoritative)", () => {
+    const free = { x: 0, y: 0, w: 200, h: 100 };
+    expect(constrainResizeToAspect(free, "se", 1, 400, 400, 8)).toEqual({ x: 0, y: 0, w: 200, h: 200 });
+  });
+  it("nw corner with 1:1 keeps the se corner fixed", () => {
+    const free = { x: 50, y: 50, w: 150, h: 150 };
+    expect(constrainResizeToAspect(free, "nw", 1, 400, 400, 8)).toEqual({ x: 50, y: 50, w: 150, h: 150 });
+  });
+  it("e edge derives height from width and grows symmetrically about the vertical center", () => {
+    const free = { x: 0, y: 100, w: 300, h: 100 };
+    // ar=2 → h=150; vertical center stays at 150 → y = 150 - 75
+    expect(constrainResizeToAspect(free, "e", 2, 400, 400, 8)).toEqual({ x: 0, y: 75, w: 300, h: 150 });
+  });
+  it("n edge derives width from height and grows symmetrically about the horizontal center", () => {
+    const free = { x: 100, y: 0, w: 200, h: 100 };
+    // height authoritative (n is vertical) → ar=1 → w=100; horizontal center 200 → x = 200 - 50
+    expect(constrainResizeToAspect(free, "n", 1, 400, 400, 8)).toEqual({ x: 150, y: 0, w: 100, h: 100 });
+  });
+  it("ratio-preservingly clamps to the frame when the derived size overflows", () => {
+    const free = { x: 0, y: 0, w: 380, h: 100 };
+    // se, ar=1 → h=380 but frameH=300 → shrink to 300×300
+    expect(constrainResizeToAspect(free, "se", 1, 400, 300, 8)).toEqual({ x: 0, y: 0, w: 300, h: 300 });
+  });
+  it("returns the free rect unchanged for a non-positive ratio", () => {
+    const free = { x: 1, y: 2, w: 3, h: 4 };
+    expect(constrainResizeToAspect(free, "se", 0, 400, 400, 8)).toEqual(free);
+  });
+});
+
+describe("fitRectToAspect (DM-1107)", () => {
+  it("snaps a wide rect to 1:1 inside its own box, keeping the center", () => {
+    // {0,0,200,100} center (100,50); ar=1 → fits to 100×100 inside the box
+    expect(fitRectToAspect({ x: 0, y: 0, w: 200, h: 100 }, 1, 400, 400)).toEqual({ x: 50, y: 0, w: 100, h: 100 });
+  });
+  it("clamps the snapped rect into the frame", () => {
+    // tall rect near the bottom edge, ar=1 → 100×100 centered then clamped up
+    const out = fitRectToAspect({ x: 0, y: 250, w: 100, h: 100 }, 1, 300, 300);
+    expect(out).toEqual({ x: 0, y: 200, w: 100, h: 100 });
+  });
+  it("returns the rect unchanged for a non-positive ratio", () => {
+    const rect = { x: 5, y: 6, w: 7, h: 8 };
+    expect(fitRectToAspect(rect, 0, 400, 400)).toEqual(rect);
   });
 });
