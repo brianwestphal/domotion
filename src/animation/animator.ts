@@ -5,7 +5,7 @@
  * animated SVG with CSS keyframe transitions.
  */
 
-import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
+import { type CursorAtResolver, type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 import type { MagicMove } from "./magic-move.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
@@ -242,6 +242,14 @@ export interface AnimationConfig {
    * uses `selector`; otherwise pass undefined / null.
    */
   resolveSelector?: SelectorResolver;
+  /**
+   * DM-1106: auto cursor-TYPE hit-tester — given a viewport point and frame
+   * index, returns the cursor keyword under it (the caller builds this from the
+   * per-frame captured trees via `cursorAtPoint`). When provided, the overlay
+   * paints the matching glyph per element and switches at boundary crossings;
+   * when omitted, the overlay paints the single arrow.
+   */
+  resolveCursorAt?: CursorAtResolver;
   /**
    * Canvas background color painted behind every frame (a full-viewport
    * `<rect>`). Mirrors the single-frame path's `transparentRootBgRect`
@@ -598,8 +606,9 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       totalDuration,
       frameStarts,
       config.resolveSelector ?? null,
+      config.resolveCursorAt ?? null,
     );
-    overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration);
+    overlayMarkup = "\n" + cursorOverlayMarkup(resolved.positions, resolved.clicks, resolved.style, totalDuration, resolved.cursorTimeline);
   }
   // Canvas background rect — only when a non-transparent background is given.
   // Default (none / transparent) emits nothing so the SVG composites over the

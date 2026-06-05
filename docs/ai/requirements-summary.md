@@ -51,6 +51,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   York ships its cuts as separate static OTFs (no `opsz` axis), so the
   `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
   needed a routing fix (it collided with the variable font's Medium weight).
+- **Doc 13 cursor-type matching (DM-1106)** — the cursor overlay now paints
+  the correct cursor glyph for whatever is under the pointer (hand over links,
+  I-beam over text, resize arrows, grab, …) and switches at element boundaries.
+  Capture records the effective `cursor` per element (`auto` resolved per Blink);
+  glyphs are Lucide-composed in `src/animation/cursor-glyphs.ts`.
 
 These two together form the consumer-side bug-report workflow: capture
 with `--debug`, review with `svg-review`, file an issue with the

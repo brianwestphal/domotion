@@ -25,6 +25,7 @@ import {
   launchChromium,
   optimizeSvg,
   parseScrollPattern,
+  cursorAtPoint,
   type AnimationFrame,
   type IntraFrameAnimation,
   type AnimationOverlay,
@@ -407,6 +408,9 @@ export async function composeAnimateConfig(
     // DM-898: the previous frame's captured tree, kept so a magic-move
     // transition can diff (prev, next) once both are captured.
     let prevFrameTree: CapturedElement[] | null = null;
+    // DM-1106: every frame's captured tree, indexed by frame, so the cursor
+    // overlay can hit-test the cursor TYPE under each pointer position.
+    const frameTrees: (CapturedElement[] | null)[] = [];
     // Canvas background for the composed SVG: the captured root background of
     // the first frame, so animated output matches single-frame `capture`
     // output (a transparent page → transparent SVG). Stamped per-frame by the
@@ -621,6 +625,7 @@ export async function composeAnimateConfig(
         );
       }
       prevFrameTree = frameTree;
+      frameTrees[i] = frameTree;
     }
     tracker.detach();
 
@@ -630,12 +635,17 @@ export async function composeAnimateConfig(
     const cursorOverlay = buildCursorOverlay(
       cursorAuto, explicitCursorEvents, cursorStyleCfg, autoCursorTargets, explicitCursorBoxes, frameStartsMs, cfg.frames,
     );
+    // DM-1106: hit-test the cursor TYPE under each pointer position against the
+    // frame's captured tree, so the overlay paints the matching glyph (hand over
+    // links, I-beam over text, …) and switches at element boundaries.
+    const resolveCursorAt = (x: number, y: number, frameIndex: number): string =>
+      cursorAtPoint(frameTrees[frameIndex] ?? [], x, y);
 
     // DM-839: collect the embedded-font @font-face rules accumulated across all
     // frames once, for the animator's top-level <style>.
     const fontFaceCss = getEmbeddedFontFaceCss();
     return await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
-      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, background: canvasBg })),
+      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg })),
     );
   } finally {
     await ctx.close();

@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
+import type { CapturedElement } from "../capture/types.js";
+import { type CursorAtResolver, type CursorOverlay, type SelectorResolver, cursorAtPoint, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 
 const TOTAL = 4000;
 const FRAME_STARTS = [0, 1500, 3000];
+
+// Minimal captured element for hit-test tests.
+function el(x: number, y: number, w: number, h: number, cursor?: string, children: CapturedElement[] = []): CapturedElement {
+  return { tag: "div", text: "", x, y, width: w, height: h, cursor, children } as unknown as CapturedElement;
+}
 
 describe("resolveCursorScript: position keyframes", () => {
   it("anchors a hidden keyframe at t=0 even when the script starts later", () => {
@@ -91,5 +97,88 @@ describe("cursorOverlayMarkup: SVG emission", () => {
     // (both invisible). The markup is non-empty but contains no clicks.
     expect(svg).toContain('class="cursor-overlay"');
     expect(svg).not.toContain('class="cursor-click');
+  });
+});
+
+describe("cursorAtPoint: hit-test (DM-1106)", () => {
+  it("returns the topmost (last-painted, deepest) element's cursor; default when none/omitted", () => {
+    const tree = [
+      el(0, 0, 1000, 1000, undefined, [          // body: default (omitted)
+        el(10, 10, 200, 40, "pointer"),          // a link
+        el(10, 60, 400, 100, "text", [           // a paragraph
+          el(20, 70, 80, 20, "pointer"),         // a nested link inside the text
+        ]),
+      ]),
+    ];
+    expect(cursorAtPoint(tree, 50, 25)).toBe("pointer");   // over the link
+    expect(cursorAtPoint(tree, 300, 120)).toBe("text");    // over the paragraph
+    expect(cursorAtPoint(tree, 40, 78)).toBe("pointer");   // nested link wins over the paragraph
+    expect(cursorAtPoint(tree, 800, 800)).toBe("default"); // only the body (omitted -> default)
+    expect(cursorAtPoint(tree, 5000, 5000)).toBe("default"); // outside everything
+  });
+});
+
+describe("resolveCursorScript: cursor-type timeline (DM-1106)", () => {
+  // A page split at x=100: left half is a link (pointer), right half is text.
+  const resolveCursorAt: CursorAtResolver = (x) => (x < 100 ? "pointer" : "text");
+
+  it("switches the cursor keyword at the boundary the pointer crosses", () => {
+    const overlay: CursorOverlay = {
+      events: [
+        { type: "show", t: 0, x: 0, y: 50 },
+        { type: "move", t: 0, to: { x: 200, y: 50 }, duration: 1000 }, // slides 0->200 over x, crossing 100 at t=500
+      ],
+    };
+    const r = resolveCursorScript(overlay, 1000, [0], null, resolveCursorAt);
+    expect(r.cursorTimeline).not.toBeNull();
+    const tl = r.cursorTimeline!;
+    expect(tl[0]).toMatchObject({ t: 0, cursor: "pointer" });
+    const cross = tl.find((e) => e.cursor === "text")!;
+    expect(cross).toBeDefined();
+    // Boundary x=100 at the midpoint of a 0..200 slide => ~t=500, bisection-refined.
+    expect(Math.abs(cross.t - 500)).toBeLessThan(10);
+  });
+
+  it("a per-event cursor override wins over the hit-test", () => {
+    const overlay: CursorOverlay = {
+      events: [{ type: "show", t: 0, x: 0, y: 50, cursor: "grabbing" }],
+    };
+    const r = resolveCursorScript(overlay, 1000, [0], null, resolveCursorAt);
+    // Even though x<100 would hit-test to "pointer", the override forces grabbing.
+    expect(r.cursorTimeline!.every((e) => e.cursor == null || e.cursor === "grabbing")).toBe(true);
+  });
+
+  it("hidden windows become null timeline entries", () => {
+    const overlay: CursorOverlay = {
+      events: [{ type: "show", t: 200, x: 10, y: 10 }, { type: "hide", t: 600 }],
+    };
+    const r = resolveCursorScript(overlay, 1000, [0], null, resolveCursorAt);
+    const tl = r.cursorTimeline!;
+    expect(tl[0]).toMatchObject({ t: 0, cursor: null });   // hidden before the show
+    expect(tl.some((e) => e.cursor === "pointer")).toBe(true); // visible after show
+  });
+
+  it("is null when no cursor resolver is supplied (back-compat single arrow)", () => {
+    const overlay: CursorOverlay = { events: [{ type: "show", t: 0, x: 0, y: 0 }] };
+    const r = resolveCursorScript(overlay, 1000, [0], null);
+    expect(r.cursorTimeline).toBeNull();
+  });
+});
+
+describe("cursorOverlayMarkup: multi-glyph (DM-1106)", () => {
+  const resolveCursorAt: CursorAtResolver = (x) => (x < 100 ? "pointer" : "text");
+  it("emits a cursor-pointer group with a glyph layer per distinct keyword", () => {
+    const overlay: CursorOverlay = {
+      events: [
+        { type: "show", t: 0, x: 0, y: 50 },
+        { type: "move", t: 0, to: { x: 200, y: 50 }, duration: 1000 },
+      ],
+    };
+    const r = resolveCursorScript(overlay, 1000, [0], null, resolveCursorAt);
+    const svg = cursorOverlayMarkup(r.positions, r.clicks, r.style, 1000, r.cursorTimeline);
+    expect(svg).toContain('class="cursor-pointer"');
+    expect(svg).not.toContain('class="cursor-arrow"'); // not the legacy path
+    // Two glyph layers, each with a discrete opacity track.
+    expect((svg.match(/calcMode="discrete"/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 });
