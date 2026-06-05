@@ -2479,7 +2479,51 @@ export function resolveFontKeyChain(fontFamily: string): string[] {
   return out;
 }
 
+// DM-1103: macOS "optical cut" families. `SFNS.ttf` is one variable font with an
+// `opsz` axis (17–96, default 28); CoreText exposes its optical-size cuts as
+// named faces. When CSS explicitly names a cut — `"SF Pro Text"` (postScript
+// `SFProText-Regular`) — Chrome→CoreText paints from a FIXED opsz instance (the
+// Text design, opsz 17 = the axis floor) REGARDLESS of the used size, and does
+// not re-apply `font-optical-sizing: auto`'s size-derived opsz on top. fontkit
+// only sees the file's default master (opsz 28) and our pipeline sets
+// `opsz = font-size`, so an explicit `"SF Pro Text"` headline renders at the
+// Display optical size — diacritics (ring/dot above/below) sit ~2–3 px too low
+// (the Latin-Extended-Additional fixture, DM-1103). This is Chrome's own
+// macOS-system-font handling, not a generic rule (see Chromium-83 "more variable
+// font options for the macOS system-ui font"). We honor only the EXPLICITLY
+// named cut; the generic `"SF Pro"` / `system-ui` / `-apple-system` path keeps
+// `opsz = size`, whose <20→Text / ≥20→Display mapping already matches Chrome.
+// The Text opsz was measured against Chrome via CDP `getPlatformFontsForNode` +
+// a 4×-DPR glyph probe of the real fixture cell.
+const OPTICAL_CUT_OPSZ: Record<string, number> = {
+  "sf pro text": 17,
+  ".sfnstext": 17,
+};
+
+/**
+ * The pinned `opsz` for an explicitly-named macOS optical-cut family, or null
+ * when the resolved family isn't a named cut (→ keep the `opsz = size` default).
+ * Mirrors `resolveFontKey`'s walk: the FIRST name in the stack that resolves to
+ * an installed key decides — if that name is a named cut, return its opsz; if
+ * it's any other installed face, the cut doesn't apply.
+ */
+function opticalCutOpszFor(fontFamily: string): number | null {
+  for (const name of splitFontFamilyNames(fontFamily)) {
+    if (matchFamilyNameToKey(name) == null) continue; // unrecognized — skip, like resolveFontKey
+    return name in OPTICAL_CUT_OPSZ ? OPTICAL_CUT_OPSZ[name] : null;
+  }
+  return null;
+}
+
 function resolveFont(fontFamily: string, fontWeight: number, fontSize: number, slant: number = 0, variationSettings?: Record<string, number>): FontInstance | null {
+  // DM-1103: pin `opsz` for an explicitly-named optical cut (e.g. "SF Pro
+  // Text" → 17) by injecting it as a variation setting — which wins over the
+  // `opsz = fontSize` default in `applyVariationAxes`. An author-set
+  // `font-variation-settings: "opsz" …` still wins (we don't clobber it).
+  const cutOpsz = opticalCutOpszFor(fontFamily);
+  if (cutOpsz != null && (variationSettings == null || variationSettings.opsz == null)) {
+    variationSettings = { ...(variationSettings ?? {}), opsz: cutOpsz };
+  }
   return getFontInstance(resolveFontKey(fontFamily), fontWeight, fontSize, slant, variationSettings);
 }
 
@@ -2675,7 +2719,11 @@ export function textToPathMarkup(
         // system fallbacks reached for missing glyphs (CJK / emoji / symbols
         // weren't declared by the page's @font-face).
         const fvs = curKey === primaryFontKey ? variationSettings : undefined;
-        const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs);
+        // DM-1103: for the primary key use the already-resolved `primaryFont`
+        // directly — re-resolving via the key would drop the optical-cut `opsz`
+        // that `resolveFont` injected from the family name (it's keyed on the
+        // family, not the collapsed font key), re-emitting at the wrong cut.
+        const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
         if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, decomposed: curDecomposed });
         curText = "";
         curStart = i;
@@ -2688,7 +2736,9 @@ export function textToPathMarkup(
     }
     if (curText.length > 0) {
       const fvs = curKey === primaryFontKey ? variationSettings : undefined;
-      const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs) ?? primaryFont;
+      // DM-1103: prefer the resolved `primaryFont` for the primary key so the
+      // optical-cut opsz (injected by resolveFont from the family name) survives.
+      const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
       runs.push({ fontKey: curKey === primaryFontKey ? primaryFontKey : (f === primaryFont ? primaryFontKey : curKey), font: f, text: curText, startIdx: curStart, endIdx: text.length, decomposed: curDecomposed });
     }
   }
@@ -3572,7 +3622,10 @@ function splitTextIntoFontRuns(
     const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
     if (runChanged && curText.length > 0) {
       const fvs = curKey === primaryFontKey ? variationSettings : undefined;
-      const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs);
+      // DM-1103: for the primary key use the resolved `primaryFont` directly so
+      // the optical-cut opsz (injected by resolveFont from the family name)
+      // survives — re-resolving via the collapsed key would lose it.
+      const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs));
       if (f != null) runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: i, isPrimary: curKey === primaryFontKey && curFontOverride == null });
       curText = "";
       curStart = i;
@@ -3584,7 +3637,9 @@ function splitTextIntoFontRuns(
   }
   if (curText.length > 0) {
     const fvs = curKey === primaryFontKey ? variationSettings : undefined;
-    const f = curFontOverride ?? getFontInstance(curKey, weight, fontSize, slant, fvs) ?? primaryFont;
+    // DM-1103: prefer the resolved `primaryFont` for the primary key (keeps the
+    // optical-cut opsz; see above).
+    const f = curFontOverride ?? (curKey === primaryFontKey ? primaryFont : getFontInstance(curKey, weight, fontSize, slant, fvs)) ?? primaryFont;
     runs.push({ fontKey: curKey, font: f, text: curText, startIdx: curStart, endIdx: text.length, isPrimary: curKey === primaryFontKey && curFontOverride == null });
   }
   return runs;
@@ -3647,6 +3702,11 @@ function renderTextAsEmbedded(
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily);
   const fontKeyChain = resolveFontKeyChain(fontFamily);
+  // DM-1103: the optical-cut opsz `resolveFont` pinned for the primary face,
+  // folded into the per-instance embed key below so a cut-pinned run (e.g.
+  // "SF Pro Text" → opsz 17) doesn't dedup-collide with a generic SF Pro run
+  // that shares the collapsed `sf-pro` key at the same weight/slant.
+  const primaryCutOpsz = opticalCutOpszFor(fontFamily);
 
   const runs = splitTextIntoFontRuns(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
   if (runs.length === 0) return null;
@@ -3792,7 +3852,11 @@ function renderTextAsEmbedded(
     const fvsTuple = run.isPrimary && variationSettings != null
       ? "|" + Object.keys(variationSettings).sort().map((k) => `${k}=${variationSettings[k]}`).join(",")
       : "";
-    const instanceKey = `${run.fontKey}|w=${weight}|s=${slant}${fvsTuple}`;
+    // DM-1103: the optical-cut opsz is pinned on `run.font` (not in
+    // variationSettings), so fold it into the key too — otherwise a cut run and
+    // a generic run with the same key/weight/slant would share one TTF.
+    const cutTuple = run.isPrimary && primaryCutOpsz != null ? `|cut-opsz=${primaryCutOpsz}` : "";
+    const instanceKey = `${run.fontKey}|w=${weight}|s=${slant}${fvsTuple}${cutTuple}`;
 
     // Ascent/descent are font-wide metrics that drive baseline placement
     // when the consumer browser lays out our PUA codepoints. Use the run
