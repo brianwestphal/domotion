@@ -439,6 +439,14 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             // when non-`none` to keep the captured tree compact.
             const pcsTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
             const pcsTransformOrigin = pcsTransform != null ? (pcs.transformOrigin || undefined) : undefined;
+            // DM-1051: a negative z-index pseudo (Resend's `.rainbow-border::after`
+            // glow, `z-index: -10`) paints BEHIND the host content, and its
+            // `filter: blur(20px)` softens the gradient into a halo. Capture both
+            // so the renderer can paint-behind + blur instead of overlaying a
+            // sharp gradient rect on top of the dark pill interior.
+            const pcsZ = parseInt(pcs.zIndex, 10);
+            const pcsZIndex = Number.isFinite(pcsZ) ? pcsZ : undefined;
+            const pcsFilter = pcs.filter && pcs.filter !== 'none' ? pcs.filter : undefined;
             return {
               // DM-1001: track which pseudo emitted this box so the renderer
               // can paint ::after pseudo-elements AFTER the host's text (the
@@ -462,6 +470,8 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
               borderRadius: parseFloat(pcs.borderRadius) || 0,
               transform: pcsTransform,
               transformOrigin: pcsTransformOrigin,
+              zIndex: pcsZIndex,
+              filter: pcsFilter,
             };
           }
         }

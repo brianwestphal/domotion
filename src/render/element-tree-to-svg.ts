@@ -2388,7 +2388,14 @@ export function elementTreeToSvgInner(
             || (pb.borderRightWidth ?? 0) > 0
             || (pb.borderBottomWidth ?? 0) > 0
             || (pb.borderLeftWidth ?? 0) > 0;
-          if (hasBgImage && !hasBgColor && !hasBorder) continue;
+          // DM-1051: a NEGATIVE z-index gradient `::after` is NOT a fade
+          // overlay — it paints BEHIND the host's content (Resend's
+          // `.rainbow-border::after` glow is `z-index: -10; filter: blur(20px)`,
+          // a soft halo behind the dark pill). Don't defer it to the on-top
+          // pass; emit it here in the early loop so it lands behind the child
+          // dark fill. Only the auto / non-negative fade overlays defer.
+          const paintsBehind = pb.zIndex != null && pb.zIndex < 0;
+          if (hasBgImage && !hasBgColor && !hasBorder && !paintsBehind) continue;
         }
         // DM-783: snapshot svgParts.length so we can wrap THIS pb's emit in
         // a `<g transform="…">` when pb.transform is present. The wrap pre-
@@ -2546,27 +2553,45 @@ export function elementTreeToSvgInner(
         // Defined inline here so it closes over `pb` and `svgParts` /
         // `pbStart` from the outer scope.
         function flushPbTransformWrap() {
-          if (pb.transform == null || pb.transform === "" || pb.transform === "none") return;
+          const hasTransform = pb.transform != null && pb.transform !== "" && pb.transform !== "none";
+          // DM-1051: translate a `blur(<px>)` filter into an SVG feGaussianBlur.
+          // CSS `blur(r)` uses r as the Gaussian standard deviation directly
+          // (Filter Effects §4.4), so stdDeviation = the captured px value.
+          const blurMatch = pb.filter != null ? /\bblur\(\s*([\d.]+)px\s*\)/.exec(pb.filter) : null;
+          const blurStd = blurMatch != null ? parseFloat(blurMatch[1]) : null;
+          if (!hasTransform && (blurStd == null || !(blurStd > 0))) return;
           const added = svgParts.splice(pbStart);
           if (added.length === 0) return;
-          // transform-origin: resolved to px values relative to the
-          // pseudo's box top-left (Chrome's getComputedStyle normalises
-          // keywords / % to px). Default = box center (`50% 50%`).
-          let ox = pb.width / 2;
-          let oy = pb.height / 2;
-          if (pb.transformOrigin != null && pb.transformOrigin !== "") {
-            const oParts = pb.transformOrigin.split(/\s+/).map((p) => parseFloat(p));
-            if (oParts.length >= 2 && Number.isFinite(oParts[0]) && Number.isFinite(oParts[1])) {
-              ox = oParts[0]; oy = oParts[1];
-            }
-          }
-          const tx = pb.x + ox;
-          const ty = pb.y + oy;
           // The inner emits were already indented; we keep the same
           // indent for the wrapper and strip leading indent from each
           // inner part so the wrapping `<g>` doesn't double-indent.
-          const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
-          svgParts.push(`${indent}<g transform="translate(${r(tx)} ${r(ty)}) ${pb.transform} translate(${r(-tx)} ${r(-ty)})">${inner}</g>`);
+          let inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+          // Blur is applied in the pseudo's own coordinate space (before its
+          // transform scales the result), so the filter `<g>` nests INSIDE the
+          // transform `<g>`. The filter region is generously over-sized so a
+          // 20px blur on a short pill isn't clipped at the default -10%..110%.
+          if (blurStd != null && blurStd > 0) {
+            const fid = `${idPrefix}pbf${clipIdx++}`;
+            defsParts.push(`<filter id="${fid}" x="-100%" y="-300%" width="300%" height="700%"><feGaussianBlur stdDeviation="${r(blurStd)}" /></filter>`);
+            inner = `<g filter="url(#${fid})">${inner}</g>`;
+          }
+          if (hasTransform) {
+            // transform-origin: resolved to px values relative to the
+            // pseudo's box top-left (Chrome's getComputedStyle normalises
+            // keywords / % to px). Default = box center (`50% 50%`).
+            let ox = pb.width / 2;
+            let oy = pb.height / 2;
+            if (pb.transformOrigin != null && pb.transformOrigin !== "") {
+              const oParts = pb.transformOrigin.split(/\s+/).map((p) => parseFloat(p));
+              if (oParts.length >= 2 && Number.isFinite(oParts[0]) && Number.isFinite(oParts[1])) {
+                ox = oParts[0]; oy = oParts[1];
+              }
+            }
+            const tx = pb.x + ox;
+            const ty = pb.y + oy;
+            inner = `<g transform="translate(${r(tx)} ${r(ty)}) ${pb.transform} translate(${r(-tx)} ${r(-ty)})">${inner}</g>`;
+          }
+          svgParts.push(`${indent}${inner}`);
         }
         flushPbTransformWrap();
       }
@@ -3184,6 +3209,9 @@ export function elementTreeToSvgInner(
           || (pb.borderBottomWidth ?? 0) > 0
           || (pb.borderLeftWidth ?? 0) > 0;
         if (!(hasBgImage && !hasBgColor && !hasBorder)) continue;
+        // DM-1051: a negative z-index glow was already painted behind in the
+        // early loop — don't re-emit it on top here.
+        if (pb.zIndex != null && pb.zIndex < 0) continue;
         const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
         for (let li = pbLayers.length - 1; li >= 0; li--) {
           const layer = pbLayers[li].trim();

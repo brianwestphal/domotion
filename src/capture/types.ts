@@ -218,6 +218,18 @@ export interface TextSegment {
      *  matrix so the rotation/scale pivots around the captured origin instead
      *  of (0, 0). When undefined, renderer defaults to the box center. */
     transformOrigin?: string;
+    /** DM-1051: the pseudo's resolved `z-index` as an integer, when it's a
+     *  numeric value (not `auto`). A NEGATIVE z-index means the pseudo paints
+     *  BEHIND the host's own content — Resend's `.rainbow-border::after` glow
+     *  is `z-index: -10`, so the renderer must paint it before child content
+     *  (a soft halo behind the dark pill) instead of treating it as an NYT-
+     *  style fade overlay deferred ON TOP of the text. Undefined for `auto`. */
+    zIndex?: number;
+    /** DM-1051: the pseudo's own `filter` (e.g. `"blur(20px)"`), captured
+     *  verbatim from `getComputedStyle(host, '::after').filter` when non-`none`.
+     *  Renderer translates a `blur(<px>)` into an SVG `<feGaussianBlur>` wrapper
+     *  so the glow renders soft instead of as a sharp-edged gradient rect. */
+    filter?: string;
   };
 }
 
@@ -952,6 +964,13 @@ export interface PseudoBox {
   borderRadius?: number;
   transform?: string;
   transformOrigin?: string;
+  /** DM-1051: numeric `z-index` (omitted for `auto`). Negative → the pseudo
+   *  paints BEHIND the host content; the renderer emits it before child paint
+   *  instead of deferring it on top as a fade overlay. */
+  zIndex?: number;
+  /** DM-1051: the pseudo's own `filter` (e.g. `"blur(20px)"`), so the renderer
+   *  can wrap the box in an `<feGaussianBlur>` instead of painting a sharp rect. */
+  filter?: string;
 }
 
 export interface MaskFragmentDef {

@@ -966,3 +966,65 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
     expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
   });
 });
+
+describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
+  // Resend's `.rainbow-border::after` is a gradient glow with
+  // `z-index: -10; filter: blur(20px); transform: matrix(0.95,0,0,0.6,0,0)`.
+  // It must paint BEHIND the host's child content (the dark pill interior),
+  // softened by a Gaussian blur — NOT as a sharp gradient rect overlaid on
+  // top of the text (which fully tinted the pill, the regression this guards).
+
+  /** A pill host: transparent background, a dark child fill, and a `::after`
+   *  gradient glow pseudoBox. `zIndex` / `filter` are parameterized so one
+   *  helper covers both the negative-z glow and the z:auto fade-overlay. */
+  function pillTree(after: { zIndex?: number; filter?: string }) {
+    return [makeElement({
+      x: 78, y: 286, width: 233, height: 32,
+      styles: { ...makeElement().styles, position: "relative", backgroundColor: "rgba(0, 0, 0, 0)" },
+      pseudoBoxes: [{
+        pseudo: "::after",
+        x: 78, y: 286, width: 233, height: 32,
+        backgroundImage: "linear-gradient(110deg, rgba(2,252,239,0.44) 0%, rgba(160,43,254,0.44) 100%)",
+        borderRadius: 16,
+        transform: "matrix(0.95, 0, 0, 0.6, 0, 0)",
+        transformOrigin: "116px 16px",
+        ...after,
+      }],
+      children: [
+        // The dark pill interior, painted as a child of the host.
+        makeElement({
+          x: 79, y: 287, width: 231, height: 30,
+          styles: { ...makeElement().styles, backgroundColor: "rgb(11,14,20)" },
+        }),
+      ],
+    } as Partial<CapturedElement>)];
+  }
+
+  it("paints the z-index:-10 glow BEHIND the dark child and wraps it in a feGaussianBlur", () => {
+    const svg = elementTreeToSvgInner(pillTree({ zIndex: -10, filter: "blur(20px)" }), 400, 400);
+    const glowIdx = svg.indexOf('fill="url(#');
+    const darkIdx = svg.indexOf('fill="rgb(11,14,20)"');
+    expect(glowIdx).toBeGreaterThanOrEqual(0);
+    expect(darkIdx).toBeGreaterThanOrEqual(0);
+    // Behind: the gradient glow rect is emitted BEFORE the dark child fill.
+    expect(glowIdx).toBeLessThan(darkIdx);
+    // Softened: a Gaussian blur with stdDeviation = the CSS blur px is emitted
+    // and references the glow (CSS blur(20px) → feGaussianBlur stdDeviation=20).
+    expect(svg).toContain('<feGaussianBlur stdDeviation="20"');
+    expect(svg).toMatch(/<g filter="url\(#[^"]*pbf\d+\)">/);
+    // The pseudo's own transform still wraps the blurred glow.
+    expect(svg).toContain("matrix(0.95, 0, 0, 0.6, 0, 0)");
+  });
+
+  it("still defers a z-index:auto fade-overlay ::after ON TOP of child content (NYT pattern unchanged)", () => {
+    // No negative z-index, no blur — the existing fade-overlay heuristic must
+    // still paint the gradient AFTER the child so a right-edge headline fade
+    // overlays the text it's masking.
+    const svg = elementTreeToSvgInner(pillTree({}), 400, 400);
+    const glowIdx = svg.indexOf('fill="url(#');
+    const darkIdx = svg.indexOf('fill="rgb(11,14,20)"');
+    expect(glowIdx).toBeGreaterThan(darkIdx);
+    // No blur filter when the pseudo carries none.
+    expect(svg).not.toContain("<feGaussianBlur");
+  });
+});

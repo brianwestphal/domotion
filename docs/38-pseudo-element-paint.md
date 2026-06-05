@@ -38,6 +38,8 @@ Per-pseudo CSS properties Domotion honors:
 | `padding`             | yes                 | yes                 | yes            | Inflates the paint box around the text content. |
 | `transform`           | yes                 | yes                 | no             | See § Transform below. |
 | `transform-origin`    | yes                 | yes                 | no             | Pre-baked into a translate-transform-translate matrix at render time. |
+| `z-index` (negative)  | yes                 | no                  | no             | A negative-z `::after` paints BEHIND the host content instead of on top. See § Paint order. |
+| `filter: blur(<px>)`  | yes                 | no                  | no             | Translated to `<feGaussianBlur stdDeviation=<px>>`. See § Filter. |
 | `color`               | n/a                 | yes (overrides host)| n/a            | Pseudo glyphs paint in their own color, not the host's. |
 | `font-size` / `family`| n/a                 | yes (overrides host)| n/a            | Same as `color`. |
 | `position: absolute`  | yes                 | yes                 | yes (in flow)  | Resolves `left/top/right/bottom` against the host's padding box. |
@@ -74,6 +76,44 @@ The wrap covers the pseudo's entire paint set:
   raster-glyph overlays — all rotate together so a `transform: rotate(-15deg)`
   on a gradient pill keeps its label aligned to the pill, not to the host's
   baseline.
+
+## Paint order
+
+CSS paints a host's `::before` UNDER its main content and its `::after` OVER
+it. Domotion follows that order, with two refinements for `::after` empty-
+content boxes:
+
+1. **Fade-overlay `::after`** — a gradient `::after` with no own background-
+   color or border (the right-edge headline-mask pattern) is deferred until
+   AFTER all descendant rendering, so the gradient overlays the child text it's
+   meant to fade rather than painting beneath it.
+2. **Negative-z-index `::after`** — when the `::after` carries a numeric
+   `z-index < 0`, it paints BEHIND the host's content (and its children),
+   overriding the fade-overlay deferral. This is the soft-glow pattern: an
+   absolutely-positioned `::after` with `z-index: -10; filter: blur(20px)` and
+   a translucent gradient, sitting behind a dark pill to bloom a colored halo
+   around its edges (Resend's `.rainbow-border` announcement pill). Painting it
+   on top — as the fade-overlay path would — fully tints the pill instead of
+   leaving the dark interior with a thin gradient border.
+
+The `z-index` is captured only when it resolves to a number (omitted for
+`auto`); a non-negative numeric z-index keeps the default `::before`-under /
+`::after`-over ordering.
+
+## Filter
+
+The pseudo's own `filter` is captured when non-`none`. A `blur(<px>)` function
+translates to an SVG `<feGaussianBlur>` whose `stdDeviation` equals the CSS
+blur length directly (CSS Filter Effects §4.4 defines `blur(r)`'s argument as
+the Gaussian standard deviation). The blur `<g filter="…">` nests INSIDE the
+pseudo's transform `<g>` so the blur is applied in the pseudo's own coordinate
+space and then scaled by its transform — matching Chrome, where `filter`
+applies before the element's `transform` moves the result. The filter region
+is over-sized (`-100% … 700%`) so a large blur on a short box isn't clipped at
+the default `-10% … 110%` filter region.
+
+Only `blur()` is translated today; other filter functions (`drop-shadow`,
+`brightness`, `contrast`, …) on a pseudo are not yet honored.
 
 ## What's NOT honored (known gaps)
 
