@@ -36,6 +36,7 @@ import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
+import { resolveElementCursor } from "./utils.js";
 
 export const captureScript =
 (args) => {
@@ -427,6 +428,10 @@ export const captureScript =
       fieldsetLegendNotch,
       animId: _animId,
       magicKey: _magicKey,
+      // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
+      // Omitted when it resolves to the default arrow (the common case) to keep
+      // the tree lean — the overlay treats a missing value as `default`.
+      cursor: (() => { const _c = resolveElementCursor(el, cs); return _c === 'default' ? undefined : _c; })(),
       styles: {
         // Border + background + outline + box-shadow fields — see
         // walker/borders-backgrounds.ts. Includes the
