@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.10.1] - 2026-06-05
+
+
+- Fix font-rendering crash on Linux when generating SVGs with mixed scripts
+
 ## [0.10.0] - 2026-06-05
 
 
