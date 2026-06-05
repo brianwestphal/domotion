@@ -967,6 +967,65 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
   });
 });
 
+describe("DM-1052 flex-*-reverse keeps a hoisted descendant painting after its ancestor", () => {
+  // resend.com's animated inbox widget: a `flex-direction: column-reverse`
+  // stacking-context column whose rows are flex items. Each row's icon badge
+  // is `display:flex` (so its icon child is a flex item) with a gradient
+  // background + box-shadow, and the icon is `overflow:hidden`. Both the badge
+  // and the icon get hoisted into the column's flattened paint list as
+  // inline-level (flex) items, in `[badge, icon]` document order. The column's
+  // `column-reverse` previously reversed the ENTIRE flat list — flipping
+  // `[badge, icon]` → `[icon, badge]` — so each badge's gradient painted OVER
+  // its own icon and the icons vanished. The fix groups each direct flex item
+  // with its trailing hoisted descendants and reverses the GROUPS, so the
+  // badge background still paints before (below) its icon.
+  function buildBadgeRow(badgeBg: string, iconBg: string): CapturedElement {
+    return makeElement({
+      x: 0, y: 0, width: 200, height: 40,
+      styles: { ...makeElement().styles, display: "flex" },
+      children: [
+        makeElement({
+          x: 0, y: 0, width: 36, height: 36,
+          styles: { ...makeElement().styles, display: "flex", backgroundColor: badgeBg },
+          children: [
+            makeElement({
+              x: 6, y: 6, width: 24, height: 24,
+              styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden", backgroundColor: iconBg },
+            }),
+          ],
+        }),
+      ],
+    });
+  }
+  it("badge gradient paints below its own hoisted icon under column-reverse", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 200, height: 120, // SC root column: relative z:1, flex column-reverse
+      styles: {
+        ...makeElement().styles,
+        position: "relative", zIndex: "1",
+        display: "flex", flexDirection: "column-reverse",
+        backgroundColor: "rgb(1,1,1)",
+      },
+      children: [
+        buildBadgeRow("rgb(220,38,38)", "rgb(37,99,235)"),  // Row A: red badge, blue icon
+        buildBadgeRow("rgb(22,163,74)", "rgb(234,179,8)"),  // Row B: green badge, yellow icon
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 200, 120);
+    const order = fillOrder(svg, [
+      "rgb(220,38,38)", "rgb(37,99,235)", "rgb(22,163,74)", "rgb(234,179,8)",
+    ]);
+    // column-reverse paints Row B's group before Row A's group, and within
+    // each group the badge background paints before (below) its icon.
+    expect(order).toEqual([
+      "rgb(22,163,74)",  // Row B badge (green)
+      "rgb(234,179,8)",  // Row B icon  (yellow) — on top of its badge
+      "rgb(220,38,38)",  // Row A badge (red)
+      "rgb(37,99,235)",  // Row A icon  (blue)  — on top of its badge
+    ]);
+  });
+});
+
 describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
   // Resend's `.rainbow-border::after` is a gradient glow with
   // `z-index: -10; filter: blur(20px); transform: matrix(0.95,0,0,0.6,0,0)`.
