@@ -16,6 +16,8 @@ import * as pkg from "./index.js";
 
 // Keep sorted. Every entry must have a row in docs/api.md.
 const EXPECTED_VALUE_EXPORTS = [
+  "CURSOR_CATEGORIES",
+  "CURSOR_GLYPHS",
   "DemoRecorder",
   "ScrollExecutionError",
   "ScrollPatternError",
@@ -28,6 +30,8 @@ const EXPECTED_VALUE_EXPORTS = [
   "clearWebfonts",
   "composeScrollSvg",
   "cullElementsOutsideViewBox",
+  "cursorAtPoint",
+  "cursorGlyphSvg",
   "cursorOverlayMarkup",
   "diffTrees",
   "elementTreeToSvg",

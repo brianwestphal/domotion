@@ -14,8 +14,21 @@
  * the caller supplies. The frame index is computed from the event's `t`
  * (each frame's start/end time is derived from the animation timing).
  *
+ * Cursor TYPE (DM-1106): by default the overlay paints the right cursor for
+ * whatever is under it — arrow over body, hand over a link, I-beam over text,
+ * resize arrows over a resizer, etc. — switching exactly at element boundaries
+ * as the pointer moves, matching what the browser showed. The keyword comes
+ * from the captured `cursor` field (resolved per Blink, including `auto`); the
+ * caller supplies a `resolveCursorAt(x, y, frameIndex)` hit-tester (built from
+ * the per-frame trees) and the glyphs come from `cursor-glyphs.ts`. A per-event
+ * `cursor` override forces a specific glyph. Without a resolver the overlay
+ * falls back to the single arrow (back-compat).
+ *
  * See docs/13-cursor-overlay.md for the design.
  */
+
+import type { CapturedElement } from "../capture/types.js";
+import { cursorGlyphSvg } from "./cursor-glyphs.js";
 
 export interface CursorStyle {
   /** Pointer variant. v1: only `mouse` is rendered (touch falls through to the same arrow glyph). */
@@ -51,6 +64,8 @@ export interface CursorMoveEvent {
   selector?: string;
   /** Optional offset added to `selector`'s resolved center. */
   offset?: { dx: number; dy: number };
+  /** DM-1106: force a specific cursor keyword for this move (skip auto hit-test). */
+  cursor?: string;
 }
 
 export interface CursorClickEvent {
@@ -67,6 +82,8 @@ export interface CursorShowEvent {
   t: number;
   x: number;
   y: number;
+  /** DM-1106: force a specific cursor keyword from this point (skip auto hit-test). */
+  cursor?: string;
 }
 
 export interface CursorHideEvent {
@@ -85,8 +102,33 @@ export interface CursorOverlay {
 /** Optional resolver for `selector`-based move events. */
 export type SelectorResolver = (sel: string, frameIndex: number) => { x: number; y: number; w: number; h: number } | null;
 
-interface KeyframePoint { t: number; x: number; y: number; visible: boolean }
+/** DM-1106: hit-tester for the cursor TYPE at a viewport point in a given frame. */
+export type CursorAtResolver = (x: number, y: number, frameIndex: number) => string;
+
+interface KeyframePoint { t: number; x: number; y: number; visible: boolean; cursor?: string }
 interface ResolvedClick { t: number; x: number; y: number; button: "primary" | "secondary" | "middle"; style: CursorStyle }
+/** A cursor-keyword timeline entry: from time `t` the active glyph is `cursor`
+ *  (or null = cursor hidden). DM-1106. */
+export interface CursorTimelineEntry { t: number; cursor: string | null }
+
+/**
+ * DM-1106: the effective cursor keyword at viewport point (x, y) for a captured
+ * tree — the LAST element in paint order (DFS pre-order) whose box contains the
+ * point. `cursor` inherits and was resolved per element at capture, so the
+ * topmost element's stored value (or `default` when omitted) is what Chrome
+ * painted. A z-index-agnostic approximation: good for the nested-element and
+ * later-sibling-on-top cases a cursor overlay cares about.
+ */
+export function cursorAtPoint(roots: CapturedElement[], x: number, y: number): string {
+  let best: CapturedElement | null = null;
+  const visit = (n: CapturedElement): void => {
+    if (n.width > 0 && n.height > 0 && x >= n.x && x < n.x + n.width && y >= n.y && y < n.y + n.height) best = n;
+    const kids = (n as { children?: CapturedElement[] }).children;
+    if (kids != null) for (const c of kids) visit(c);
+  };
+  for (const r of roots) visit(r);
+  return (best as CapturedElement | null)?.cursor ?? "default";
+}
 
 const DEFAULT_STYLE: CursorStyle = {
   pointer: "mouse",
@@ -110,7 +152,11 @@ export function resolveCursorScript(
   totalDurationMs: number,
   frameStartTimes: number[],
   resolveSelector: SelectorResolver | null,
-): { positions: KeyframePoint[]; clicks: ResolvedClick[]; style: CursorStyle } {
+  /** DM-1106: auto cursor-type hit-tester. When provided, the result includes a
+   *  `cursorTimeline` driving per-glyph switching; when null, the overlay paints
+   *  the single arrow (back-compat). */
+  resolveCursorAt: CursorAtResolver | null = null,
+): { positions: KeyframePoint[]; clicks: ResolvedClick[]; style: CursorStyle; cursorTimeline: CursorTimelineEntry[] | null } {
   const baseStyle: CursorStyle = { ...DEFAULT_STYLE, ...overlay.style };
   const events = [...overlay.events].sort((a, b) => a.t - b.t);
 
@@ -120,8 +166,8 @@ export function resolveCursorScript(
   let curY = 0;
   let visible = false;
 
-  const pushKey = (t: number, x: number, y: number, vis: boolean): void => {
-    positions.push({ t, x, y, visible: vis });
+  const pushKey = (t: number, x: number, y: number, vis: boolean, cursor?: string): void => {
+    positions.push({ t, x, y, visible: vis, cursor });
     curX = x; curY = y; visible = vis;
   };
 
@@ -136,7 +182,7 @@ export function resolveCursorScript(
 
   for (const ev of events) {
     if (ev.type === "show") {
-      pushKey(ev.t, ev.x, ev.y, true);
+      pushKey(ev.t, ev.x, ev.y, true, ev.cursor);
     } else if (ev.type === "hide") {
       pushKey(ev.t, curX, curY, false);
     } else if (ev.type === "move") {
@@ -148,10 +194,11 @@ export function resolveCursorScript(
         // interpolate to the target over `dur`, so it slides rather than popping
         // in mid-frame. (Both the first-positioning and subsequent-move cases
         // emit the same start keyframe — DM-1073 collapsed a no-op branch here.)
-        pushKey(ev.t, curX, curY, true);
-        pushKey(ev.t + dur, target.x, target.y, true);
+        // The `cursor` override (if any) rides the whole slide.
+        pushKey(ev.t, curX, curY, true, ev.cursor);
+        pushKey(ev.t + dur, target.x, target.y, true, ev.cursor);
       } else {
-        pushKey(ev.t, target.x, target.y, true);
+        pushKey(ev.t, target.x, target.y, true, ev.cursor);
       }
     } else if (ev.type === "click") {
       const button = ev.button ?? "primary";
@@ -170,10 +217,73 @@ export function resolveCursorScript(
   // through the whole loop.
   if (positions[positions.length - 1].t < totalDurationMs) {
     const last = positions[positions.length - 1];
-    positions.push({ t: totalDurationMs, x: last.x, y: last.y, visible: last.visible });
+    positions.push({ t: totalDurationMs, x: last.x, y: last.y, visible: last.visible, cursor: last.cursor });
   }
 
-  return { positions, clicks, style: baseStyle };
+  const cursorTimeline = resolveCursorAt != null
+    ? buildCursorTimeline(positions, totalDurationMs, frameForT, resolveCursorAt)
+    : null;
+
+  return { positions, clicks, style: baseStyle, cursorTimeline };
+}
+
+/** Interpolated cursor state at time `t` from the position keyframes. Position
+ *  lerps within a keyframe interval; visibility + the per-segment cursor
+ *  override are step-held from the interval's start keyframe. */
+function stateAtTime(positions: KeyframePoint[], t: number): { x: number; y: number; visible: boolean; cursor?: string } {
+  if (t <= positions[0].t) return positions[0];
+  const n = positions.length;
+  for (let i = 0; i < n - 1; i++) {
+    const a = positions[i], b = positions[i + 1];
+    if (t >= a.t && t <= b.t) {
+      const span = b.t - a.t;
+      const f = span > 0 ? (t - a.t) / span : 0;
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, visible: a.visible, cursor: a.cursor };
+    }
+  }
+  return positions[n - 1];
+}
+
+/**
+ * Build the cursor-keyword timeline (DM-1106). Samples the position timeline,
+ * resolving the cursor at each sample (an override wins; otherwise hit-test the
+ * frame under the point); emits an entry whenever the keyword changes, with the
+ * change time bisection-refined so the glyph switches AT the element boundary
+ * the pointer crosses (not at the next coarse sample). `null` = cursor hidden.
+ */
+function buildCursorTimeline(
+  positions: KeyframePoint[],
+  totalDurationMs: number,
+  frameForT: (t: number) => number,
+  resolveCursorAt: CursorAtResolver,
+): CursorTimelineEntry[] {
+  const cursorAtTime = (t: number): string | null => {
+    const s = stateAtTime(positions, t);
+    if (!s.visible) return null;
+    return s.cursor ?? resolveCursorAt(s.x, s.y, frameForT(t));
+  };
+  const step = Math.max(8, Math.min(40, totalDurationMs / 400));
+  const timeline: CursorTimelineEntry[] = [];
+  let prev = cursorAtTime(0);
+  timeline.push({ t: 0, cursor: prev });
+  for (let t = step; t <= totalDurationMs; t += step) {
+    const c = cursorAtTime(t);
+    if (c !== prev) {
+      // Refine the crossing time in (t-step, t] so the switch lands on the
+      // boundary, not the sample grid.
+      let lo = t - step, hi = t;
+      for (let k = 0; k < 14; k++) {
+        const mid = (lo + hi) / 2;
+        if (cursorAtTime(mid) === prev) lo = mid; else hi = mid;
+      }
+      timeline.push({ t: Math.min(totalDurationMs, hi), cursor: c });
+      prev = c;
+    }
+  }
+  if (timeline[timeline.length - 1].t < totalDurationMs) {
+    timeline.push({ t: totalDurationMs, cursor: prev });
+  }
+  return timeline;
 }
 
 function resolveMoveTarget(
@@ -206,12 +316,20 @@ function resolveMoveTarget(
  * Emit the `<g class="cursor-overlay">` markup for an already-resolved
  * timeline. Returns "" when the timeline has no positions or every keyframe
  * is invisible.
+ *
+ * When `cursorTimeline` is provided (DM-1106), the pointer's GLYPH switches over
+ * time to match what was under it: each distinct keyword gets a glyph drawn
+ * hotspot-at-origin inside the shared position-animated group, with a discrete
+ * opacity track that turns it on only during its windows (and visibility folds
+ * in as the all-glyphs-off `null` state). Without a timeline, the single white
+ * arrow paints (back-compat).
  */
 export function cursorOverlayMarkup(
   positions: KeyframePoint[],
   clicks: ResolvedClick[],
   style: CursorStyle,
   totalDurationMs: number,
+  cursorTimeline: CursorTimelineEntry[] | null = null,
 ): string {
   if (positions.length === 0 || totalDurationMs <= 0) return "";
   const totalSec = totalDurationMs / 1000;
@@ -224,24 +342,44 @@ export function cursorOverlayMarkup(
   }
   // SMIL animateTransform requires keyTimes to start at 0 and end at 1; the
   // resolveCursorScript anchor at t=0 and t=totalDurationMs guarantees this.
-
-  // Visibility timeline: opacity flips between 0 and 1 at keyframes whose
-  // `visible` differs from the previous one. Use `discrete` calc-mode for
-  // step-wise transitions (no interpolation between 0 and 1).
-  const visValues: string[] = [];
-  for (const p of positions) visValues.push(p.visible ? "1" : "0");
-
-  const cursorPath = macosCursorPath(style.cursorScale);
+  const posAnim = `<animateTransform attributeName="transform" type="translate" values="${valueStrs.join("; ")}" keyTimes="${keyTimes.join("; ")}" dur="${totalSec}s" repeatCount="indefinite" fill="freeze" />`;
 
   // Pulse SVG fragments — one per click, with timing keyed off `t`.
   const pulseMarkup = clicks.map((c, i) => buildPulseFragment(c, i, totalDurationMs)).join("\n");
 
-  return `  <g class="cursor-overlay" pointer-events="none">
-    <g class="cursor-arrow" opacity="0">
-      <animateTransform attributeName="transform" type="translate" values="${valueStrs.join("; ")}" keyTimes="${keyTimes.join("; ")}" dur="${totalSec}s" repeatCount="indefinite" fill="freeze" />
+  let pointerGroup: string;
+  if (cursorTimeline != null && cursorTimeline.length > 0) {
+    // DM-1106: one glyph per distinct keyword, each toggled by a discrete
+    // opacity track derived from the keyword timeline. The shared parent group
+    // carries the position animation; glyphs are hotspot-at-origin so each lands
+    // correctly regardless of its own hotspot.
+    const size = 22 * (style.cursorScale || 1);
+    const tKeyTimes = cursorTimeline.map((e) => (e.t / totalDurationMs).toFixed(4));
+    const kinds = Array.from(new Set(cursorTimeline.map((e) => e.cursor).filter((c): c is string => c != null)));
+    const glyphLayers = kinds.map((kind) => {
+      const glyph = cursorGlyphSvg(kind, 0, 0, size, style.cursorStroke);
+      const opVals = cursorTimeline.map((e) => (e.cursor === kind ? "1" : "0"));
+      return `      <g opacity="0">
+        <animate attributeName="opacity" values="${opVals.join(";")}" keyTimes="${tKeyTimes.join(";")}" dur="${totalSec}s" repeatCount="indefinite" calcMode="discrete" fill="freeze" />
+        ${glyph}
+      </g>`;
+    }).join("\n");
+    pointerGroup = `    <g class="cursor-pointer">
+      ${posAnim}
+${glyphLayers}
+    </g>`;
+  } else {
+    // Legacy single-arrow path (no auto cursor-type resolver supplied).
+    const visValues = positions.map((p) => (p.visible ? "1" : "0"));
+    pointerGroup = `    <g class="cursor-arrow" opacity="0">
+      ${posAnim}
       <animate attributeName="opacity" values="${visValues.join(";")}" keyTimes="${keyTimes.join(";")}" dur="${totalSec}s" repeatCount="indefinite" calcMode="discrete" fill="freeze" />
-      ${cursorPath}
-    </g>
+      ${macosCursorPath(style.cursorScale)}
+    </g>`;
+  }
+
+  return `  <g class="cursor-overlay" pointer-events="none">
+${pointerGroup}
 ${pulseMarkup}
   </g>`;
 }

@@ -24,6 +24,7 @@ export {
 export {
   cursorOverlayMarkup,
   resolveCursorScript,
+  cursorAtPoint,
   type CursorOverlay,
   type CursorEvent,
   type CursorMoveEvent,
@@ -31,5 +32,8 @@ export {
   type CursorShowEvent,
   type CursorHideEvent,
   type CursorStyle,
+  type CursorTimelineEntry,
   type SelectorResolver,
+  type CursorAtResolver,
 } from "./cursor-overlay.js";
+export { CURSOR_GLYPHS, CURSOR_CATEGORIES, cursorGlyphSvg, type CursorGlyph } from "./cursor-glyphs.js";

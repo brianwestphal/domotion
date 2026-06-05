@@ -1,6 +1,19 @@
 # Domotion: cursor / click overlay
 
-Requirements for an opt-in animated cursor + click pulse layer that paints on top of a captured SVG. Origin: DM-277 (filed from DM-272).
+Requirements for an opt-in animated cursor + click pulse layer that paints on top of a captured SVG. Origin: DM-277 (filed from DM-272). Automatic cursor-type matching added in DM-1106.
+
+## Cursor type — automatic, matching the browser (DM-1106)
+
+By default the overlay paints the **right cursor for whatever is under the pointer**, exactly as the browser showed it — the arrow over the page body, the hand over a link, the I-beam over text, resize arrows over a resizer, `grab`/`grabbing` hands over a draggable, and so on across the full CSS `cursor` value set. The glyph **switches the moment the pointer crosses an element boundary**, not on a coarse sample grid.
+
+How it works:
+
+- **Capture**: each element records its effective `cursor` keyword (`CapturedElement.cursor`). `getComputedStyle(el).cursor` is read in-page and the two values it does not pre-resolve are resolved there: a `url(...)` custom cursor reduces to its mandatory keyword fallback (we can't embed the bitmap), and `auto` is resolved per Blink's `SelectAutoCursor` / `ShouldShowIBeamForNode` (`third_party/blink/renderer/core/input/event_handler.cc`) — an I-beam (vertical-text in a vertical writing mode) over editable or selectable text, otherwise the default arrow. Links and text inputs already compute to `pointer` / `text` via the UA sheet. The field is omitted when it resolves to the default arrow (the common case) to keep the tree lean. Helper: `resolveElementCursor` in `src/capture/script/utils.ts`.
+- **Hit-test**: `cursorAtPoint(roots, x, y)` (`src/animation/cursor-overlay.ts`) returns the cursor keyword of the **last element in paint order** (DFS pre-order) whose box contains the point — a z-index-agnostic approximation that handles the nested-element and later-sibling-on-top cases. `cursor` inherits and was resolved per element, so the topmost element's stored value (or `default` when omitted) is what Chrome painted.
+- **Timeline**: `resolveCursorScript` samples the resolved pointer path and emits a `cursorTimeline` entry whenever the keyword changes, **bisection-refining** the change time so the glyph switches at the boundary the pointer crosses. Hidden windows become `null` entries.
+- **Glyphs**: from `src/animation/cursor-glyphs.ts` — one Lucide-composed glyph per CSS `cursor` value, drawn hotspot-at-origin so each lands correctly under the shared position animation. See `tools/cursor-catalog.mts` for the visual catalog.
+- **Override**: a `move` / `show` event can set `cursor: "<keyword>"` to force a specific glyph for that segment, skipping the hit-test.
+- **Wiring**: the CLI (`src/cli/animate.ts`) builds a `resolveCursorAt(x, y, frameIndex)` from the per-frame captured trees and passes it via `generateAnimatedSvg`'s `resolveCursorAt` config. Omitting the resolver falls back to the single white arrow (back-compat).
 
 ## Use case
 
@@ -30,6 +43,7 @@ type CursorEvent =
       by?: { dx: number; dy: number };
       selector?: string;
       offset?: { dx: number; dy: number };
+      cursor?: string;   // DM-1106: force a glyph for this move (skip the auto hit-test)
     }
   | { type: "click"; t: number; button?: "primary" | "secondary" | "middle"; style?: Partial<CursorStyle> }
   | { type: "hide";  t: number };
