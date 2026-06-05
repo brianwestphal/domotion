@@ -754,6 +754,24 @@ const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-1105: an in-flow `::before` text marker (a code-diff "+" gutter) on a
+    // host whose content begins with a CHILD element (a syntax-highlight token
+    // span), not with the host's own text. The injection re-anchor used the
+    // host's first OWN text segment — which sits AFTER the leading token span —
+    // so the "+" landed mid-line instead of at the line start. Chrome paints a
+    // static ::before at the host's content-box left and pushes all following
+    // content (child spans included) right; the marker must clamp to that.
+    // NOTE: the precise positioning is gated by `pseudo-before-marker.e2e.test.ts`
+    // (asserts the captured "+" segment x is at the content-box left, not
+    // mid-line) — the perceptual visual-diff gate is too lenient on a thin
+    // marker to catch a ~110px x-shift on its own. This fixture documents the
+    // case and guards the end-to-end paint.
+    name: "pseudo-before-marker-child-first-content",
+    html: `<div style="background:#0d1117;padding:20px;"><style>.code{position:relative;display:block;white-space:pre;font:22px/30px monospace;color:#c9d1d9;}.code::before{content:"+";color:#3fb950;}.kw{color:#ff7b72;}</style><div class="code"><span class="kw">function</span> run</div></div>`,
+    width: 320,
+    height: 80,
+  },
+  {
     // DM-751: `transform-style: preserve-3d` creates a 3D rendering context
     // where children sort by Z position in 3D space (`translateZ`), NOT by
     // z-index (CSS Transforms 2 §6). Without honoring the Z, a child with
@@ -776,6 +794,20 @@ const tests: FeatureTest[] = [
     html: `<div style="padding:24px;background:#0d1117;font-family:system-ui,sans-serif;font-size:30px;font-weight:700;"><span style="display:inline-block;background-image:linear-gradient(0deg,#ff2ede,#d298ff);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:#061b31;"><div>Patrick</div><div>Collison</div></span></div>`,
     width: 320,
     height: 130,
+  },
+  {
+    // DM-1053: a child element with its OWN `background-clip: text` gradient
+    // nested inside an ancestor that also uses bg-clip:text — AND the child's
+    // text WRAPS to multiple lines (so it renders via the inline-fragment
+    // path). The child's own gradient must win over the ancestor's for its
+    // run of glyphs. Mirrors resend.com's "Integrate this morning" hero where
+    // "this morning" (a gold `... in oklab` gradient) wraps inside a white-
+    // gradient H2; the inline-fragment renderer used to skip the child's
+    // text-clip layer and paint it with the inherited white gradient.
+    name: "background-clip-text-nested-child-wraps",
+    html: `<div style="padding:24px;background:#000;font-family:system-ui,sans-serif;"><h2 style="margin:0;width:250px;font-size:40px;font-weight:800;line-height:1.1;background-image:linear-gradient(to right bottom,#fff 30%,rgba(255,255,255,0.5));background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:transparent;">Integrate <span style="background-image:linear-gradient(to right bottom in oklab,rgb(255,255,146) 0%,rgb(238,137,18) 100%);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:transparent;">this morning</span></h2></div>`,
+    width: 320,
+    height: 150,
   },
   {
     // DM-722: `border-image-source` with a CSS gradient. The 9-slice URL

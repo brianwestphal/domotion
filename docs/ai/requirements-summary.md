@@ -43,6 +43,9 @@ they describe (see `CLAUDE.md` "Documentation"):
 - **Doc 56 (`docs/56-animated-svg-scrubber.md`, DM-1040)** — the
   `animated-svg-scrubber` CLI: a local video-style bench for an animated
   SVG (play / scrub / speed / range-loop / frame-PNG / range-MP4 / trim).
+- **Doc 57 (`docs/57-scrubber-crop.md`, DM-1104)** — the scrubber's crop
+  mode: a draggable crop rect (8 handles) baked into all three exports
+  (raster clip for PNG/MP4, viewBox vector crop for the trimmed SVG).
 
 These two together form the consumer-side bug-report workflow: capture
 with `--debug`, review with `svg-review`, file an issue with the

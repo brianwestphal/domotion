@@ -80,6 +80,14 @@ jobs:
         # Genuine breakage (missing fonts -> tofu) exceeds the floor and fails.
         # Diff PNGs still upload below (if: always()) for review.
         run: npm run demos:test
+      - name: Run browser-driven e2e tests (capture/layout assertions)
+        # The `*.e2e.test.ts` suite (DM-1075) launches Chromium and asserts
+        # capture/render behavior directly (segment positions, external SVG
+        # refs) rather than via the perceptual visual diff — which is too
+        # lenient to gate fine-grained layout bugs (e.g. DM-1105's mis-anchored
+        # ::before gutter marker). The container ships a browser, so these run
+        # here alongside the visual suite.
+        run: npm run test:e2e
       - name: Upload expected/actual/diff PNGs
         if: always()
         uses: actions/upload-artifact@v4

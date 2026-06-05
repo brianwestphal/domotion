@@ -28,7 +28,13 @@ import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
 import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize, resolveDurationMs, findFfmpeg, resolveFormat, buildFfmpegArgs, fitContain, type AnimTiming } from "../cli/svg-to-video-core.js";
 import { trimAnimatedSvg } from "./trim.js";
+import { clampCrop, cropSvgViewBox, type CropRect } from "./crop.js";
 import { SCRUBBER_CLIENT_JS } from "./client.bundle.generated.js";
+
+/** Round down to the nearest even integer (≥ 2) — H.264 yuv420p needs even W/H. */
+function toEven2(n: number): number {
+  return Math.max(2, Math.floor(n / 2) * 2);
+}
 
 /** Fixed export frame rate (DM-1042 — per requested design). */
 const EXPORT_FPS = 30;
@@ -43,15 +49,22 @@ const svgField = z.string().min(1, "must be a non-empty SVG string");
 const finite = z.number().refine(Number.isFinite, "must be a finite number");
 const timeMs = finite.refine((n) => n >= 0, "must be ≥ 0");
 const dim = finite.refine((n) => n > 0 && n <= MAX_DIM, `must be in (0, ${MAX_DIM}]`);
+// DM-1104: optional crop rect (in the SVG's user-space / viewBox units). The
+// PNG / MP4 exports crop the raster output to it; the SVG export rewrites the
+// root viewBox (vector crop). Clamped to the frame server-side via `clampCrop`.
+const CROP = z
+  .object({ x: finite.refine((n) => n >= 0, "must be ≥ 0"), y: finite.refine((n) => n >= 0, "must be ≥ 0"), w: dim, h: dim })
+  .optional();
 const TIMING_BODY = z.object({ svg: svgField });
 const TRIM_BODY = z.object({
   svg: svgField,
   startMs: timeMs,
   endMs: timeMs,
   periodMs: finite.refine((n) => n > 0, "must be > 0"),
+  crop: CROP,
 });
-const FRAME_BODY = z.object({ svg: svgField, timeMs, width: dim, height: dim });
-const RANGE_VIDEO_BODY = z.object({ svg: svgField, startMs: timeMs, endMs: timeMs, width: dim, height: dim });
+const FRAME_BODY = z.object({ svg: svgField, timeMs, width: dim, height: dim, crop: CROP });
+const RANGE_VIDEO_BODY = z.object({ svg: svgField, startMs: timeMs, endMs: timeMs, width: dim, height: dim, crop: CROP });
 
 /** A request-level error carrying the HTTP status to return (e.g. a 400). */
 class HttpError extends Error {
@@ -80,7 +93,7 @@ async function parseBody<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise
  * guidance) when ffmpeg is missing. Runs on the caller's serialized Chromium
  * page.
  */
-async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number, width: number, height: number): Promise<Buffer> {
+async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number, width: number, height: number, crop?: CropRect): Promise<Buffer> {
   const ffmpeg = findFfmpeg(process.env.FFMPEG_PATH || "ffmpeg"); // throws if absent
   const fmt = resolveFormat("h264"); // → mp4 / yuv420p (needs even W/H)
   const { width: outW, height: outH } = fitContain(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
@@ -89,9 +102,26 @@ async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number,
   await page.setViewportSize({ width: outW, height: outH });
   await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
 
+  // DM-1104: crop each frame to the requested rect via Playwright `clip`. Round
+  // the clip to integer px inside the viewport and the dims down to even values
+  // (yuv420p). The encoder frame size becomes the cropped size.
+  let clip: { x: number; y: number; width: number; height: number } | undefined;
+  let frameW = outW, frameH = outH;
+  if (crop != null) {
+    const c = clampCrop(crop, outW, outH);
+    if (c != null) {
+      const cx = Math.min(Math.floor(c.x), outW - 2);
+      const cy = Math.min(Math.floor(c.y), outH - 2);
+      const cw = toEven2(Math.min(c.w, outW - cx));
+      const ch = toEven2(Math.min(c.h, outH - cy));
+      clip = { x: cx, y: cy, width: cw, height: ch };
+      frameW = cw; frameH = ch;
+    }
+  }
+
   const dir = mkdtempSync(join(tmpdir(), "scrubber-mp4-"));
   const outPath = join(dir, "range.mp4");
-  const args = buildFfmpegArgs({ fps: EXPORT_FPS, frameWidth: outW, frameHeight: outH, outWidth: outW, outHeight: outH, fmt, output: outPath, burnCaptions: false });
+  const args = buildFfmpegArgs({ fps: EXPORT_FPS, frameWidth: frameW, frameHeight: frameH, outWidth: frameW, outHeight: frameH, fmt, output: outPath, burnCaptions: false });
   const ff = spawn(ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
   let ffErr = "";
   ff.stderr?.on("data", (d: Buffer) => { ffErr += d.toString(); if (ffErr.length > 8192) ffErr = ffErr.slice(-8192); });
@@ -104,7 +134,10 @@ async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number,
   try {
     for (let i = 0; i < frameCount; i++) {
       await seekTo(page, t0 + (i * 1000) / EXPORT_FPS);
-      await writeFrame(await screenshot(page));
+      const shot = clip != null
+        ? await page.screenshot({ type: "png", scale: "device", clip })
+        : await screenshot(page);
+      await writeFrame(shot);
     }
     ff.stdin!.end();
     await ffDone;
@@ -239,29 +272,44 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         return;
       }
       if (req.method === "POST" && url === "/trim") {
-        const { svg, startMs, endMs, periodMs } = await parseBody(req, TRIM_BODY);
+        const { svg, startMs, endMs, periodMs, crop } = await parseBody(req, TRIM_BODY);
         const r = trimAnimatedSvg(svg, startMs, endMs, periodMs);
-        sendJson(res, 200, { svg: r.svg, slicedCss: r.slicedCss, slicedSmil: r.slicedSmil, shiftedCss: r.shiftedCss, shiftedSmil: r.shiftedSmil });
+        // DM-1104: vector crop — rewrite the trimmed SVG's root viewBox. Clamp
+        // to the frame's intrinsic size; a degenerate / off-canvas crop is
+        // ignored (returns the un-cropped trim).
+        let outSvg = r.svg;
+        if (crop != null) {
+          const size = parseSvgIntrinsicSize(outSvg) ?? parseSvgIntrinsicSize(svg);
+          const c = size != null ? clampCrop(crop, size.w, size.h) : null;
+          if (c != null) outSvg = cropSvgViewBox(outSvg, c);
+        }
+        sendJson(res, 200, { svg: outSvg, slicedCss: r.slicedCss, slicedSmil: r.slicedSmil, shiftedCss: r.shiftedCss, shiftedSmil: r.shiftedSmil });
         return;
       }
       if (req.method === "POST" && url === "/export-frame") {
-        const { svg, timeMs, width, height } = await parseBody(req, FRAME_BODY);
+        const { svg, timeMs, width, height, crop } = await parseBody(req, FRAME_BODY);
         const png = await withChromium(async (page) => {
-          await page.setViewportSize({ width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) });
+          const vw = Math.max(1, Math.round(width)), vh = Math.max(1, Math.round(height));
+          await page.setViewportSize({ width: vw, height: vh });
           await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
           await seekTo(page, timeMs);
-          return screenshot(page);
+          // DM-1104: crop the raster output. width/height === the SVG's natural
+          // size, so the crop's user-units map 1:1 to viewport px.
+          const c = crop != null ? clampCrop(crop, vw, vh) : null;
+          return c != null
+            ? page.screenshot({ type: "png", scale: "device", clip: { x: c.x, y: c.y, width: c.w, height: c.h } })
+            : screenshot(page);
         });
         res.writeHead(200, { "content-type": "image/png", "content-length": png.length });
         res.end(png);
         return;
       }
       if (req.method === "POST" && url === "/export-range-video") {
-        const { svg, startMs, endMs, width, height } = await parseBody(req, RANGE_VIDEO_BODY);
+        const { svg, startMs, endMs, width, height, crop } = await parseBody(req, RANGE_VIDEO_BODY);
         const t0 = Math.max(0, Math.min(startMs, endMs));
         const t1 = Math.max(startMs, endMs);
         if (!(t1 - t0 >= 1)) { sendJson(res, 400, { error: "empty range — set an in/out window first" }); return; }
-        const mp4 = await withChromium((page) => renderRangeVideo(page, svg, t0, t1, width, height));
+        const mp4 = await withChromium((page) => renderRangeVideo(page, svg, t0, t1, width, height, crop));
         res.writeHead(200, { "content-type": "video/mp4", "content-length": mp4.length });
         res.end(mp4);
         return;

@@ -38,7 +38,8 @@ right.
 | Scrub | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range; the ticks are **draggable** along the track to set the in/out points. |
 | Range | **In** / **Out** set the in/out points to the playhead (or type seconds, or drag the ticks). **loop** loops playback over `[in, out]`. **Reset** restores the full loop. |
 | Zoom / pan | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **+** / **-** buttons step zoom; **Center** resets the pan. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
-| Export | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). Export errors surface as a browser alert; there is no persistent status line. |
+| Crop | A **crop** toggle (lucide crop icon) overlays a draggable crop rectangle with 8 resize handles on the stage; the chosen region is baked into every export. Disabling resets the crop. See **doc 57**. |
+| Export | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). Each honors the crop rect when crop mode is on (doc 57). Export errors surface as a browser alert; there is no persistent status line. |
 
 The UI is built with **kerfjs** (signals + `mount` + `delegate`); the loaded SVG
 sits in a `data-morph-skip` host so the reactive re-render never touches it,

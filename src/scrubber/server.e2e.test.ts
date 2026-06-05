@@ -160,4 +160,81 @@ describe("animated-svg-scrubber server (DM-1040)", () => {
       await closeSafely(() => s2.close(), b2, 6_000); // DM-1074: don't hang on a flaky browser.close()
     }
   }, 60_000);
+
+  // DM-1104: crop. The PNG/MP4 exports crop the raster output to the rect; the
+  // SVG trim rewrites the root viewBox (vector crop).
+  it("/export-frame crops the PNG to the requested rect", async () => {
+    if (!chromiumAvailable) return;
+    const sharp = (await import("sharp")).default;
+    const full = await sharp(Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60 })).arrayBuffer())).metadata();
+    expect(full.width).toBe(100); expect(full.height).toBe(60);
+    const cropped = await sharp(Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60, crop: { x: 10, y: 5, w: 40, h: 30 } })).arrayBuffer())).metadata();
+    expect(cropped.width).toBe(40);
+    expect(cropped.height).toBe(30);
+  });
+
+  it("/export-frame ignores a degenerate / off-canvas crop (full frame)", async () => {
+    if (!chromiumAvailable) return;
+    const sharp = (await import("sharp")).default;
+    const m = await sharp(Buffer.from(await (await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60, crop: { x: 500, y: 0, w: 40, h: 30 } })).arrayBuffer())).metadata();
+    expect(m.width).toBe(100); expect(m.height).toBe(60);
+  });
+
+  it("/export-frame rejects a non-positive crop size (400)", async () => {
+    if (!chromiumAvailable) return;
+    const r = await post("/export-frame", { svg: SVG, timeMs: 0, width: 100, height: 60, crop: { x: 0, y: 0, w: 0, h: 10 } });
+    expect(r.status).toBe(400);
+  });
+
+  it("/trim vector-crops the trimmed SVG via the root viewBox", async () => {
+    if (!chromiumAvailable) return;
+    const r = await (await post("/trim", { svg: SVG, startMs: 0, endMs: 1000, periodMs: 2000, crop: { x: 10, y: 5, w: 40, h: 30 } })).json() as { svg: string };
+    expect(r.svg).toMatch(/viewBox="10 5 40 30"/);
+    expect(r.svg).toMatch(/width="40"/);
+    expect(r.svg).toMatch(/height="30"/);
+    expect(r.svg).toContain('class="b"'); // content preserved
+  });
+
+  it("/export-range-video crops each frame to even dims (DM-1104)", async () => {
+    if (!chromiumAvailable) return;
+    let hasFfmpeg = true;
+    try { (await import("node:child_process")).execFileSync(process.env.FFMPEG_PATH || "ffmpeg", ["-version"]); }
+    catch { hasFfmpeg = false; }
+    if (!hasFfmpeg) return;
+    // Odd crop dims (41×31) must round DOWN to even (40×30) for yuv420p so ffmpeg
+    // doesn't reject the stream — a 200 + ftyp proves the pipe succeeded.
+    const r = await post("/export-range-video", { svg: SVG, startMs: 0, endMs: 500, width: 100, height: 60, crop: { x: 8, y: 4, w: 41, h: 31 } });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("video/mp4");
+    const buf = Buffer.from(await r.arrayBuffer());
+    expect(buf.slice(4, 8).toString("ascii")).toBe("ftyp");
+  }, 60_000);
+
+  it("toggling the crop button shows the crop overlay (DM-1104)", async () => {
+    if (!chromiumAvailable) return;
+    const b2 = await chromium.launch();
+    const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: SVG, initialName: "anim.svg" });
+    const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(s2.url, { waitUntil: "load" });
+      await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
+      await page.waitForTimeout(300);
+      // Overlay hidden until crop mode is on.
+      expect(await page.locator(".crop-layer").evaluate((el) => getComputedStyle(el).display)).toBe("none");
+      await page.locator("button[data-action=croptoggle]").click();
+      await page.waitForTimeout(120);
+      expect(await page.locator(".crop-layer").evaluate((el) => getComputedStyle(el).display)).toBe("block");
+      // 8 resize handles + a visible box.
+      expect(await page.locator(".crop-h").count()).toBe(8);
+      expect(await page.locator("button[data-action=croptoggle]").getAttribute("aria-pressed")).toBe("true");
+      // Toggling off hides it again.
+      await page.locator("button[data-action=croptoggle]").click();
+      await page.waitForTimeout(120);
+      expect(await page.locator(".crop-layer").evaluate((el) => getComputedStyle(el).display)).toBe("none");
+    } finally {
+      await ctx.close().catch(() => {});
+      await closeSafely(() => s2.close(), b2, 6_000);
+    }
+  }, 60_000);
 });

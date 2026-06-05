@@ -66,6 +66,20 @@ label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
 .export-menu button{text-align:left;background:transparent;border:0}
 .export-menu button:hover{background:#2f3543}
 a.dl{display:none}
+.iconbtn.active{background:#3257d6;color:#fff}
+/* DM-1104: crop overlay. The layer covers the stage; the box dims everything
+   outside it via a huge spread shadow and carries 8 resize handles. */
+.crop-layer{position:absolute;inset:0;z-index:6;pointer-events:none}
+.crop-box{position:absolute;outline:1px solid #cfe0ff;box-shadow:0 0 0 100vmax rgba(0,0,0,.55);
+  pointer-events:auto;cursor:move;touch-action:none}
+.crop-h{position:absolute;width:12px;height:12px;background:#cfe0ff;border:1px solid #2a2f3a;border-radius:2px;
+  pointer-events:auto;touch-action:none;transform:translate(-50%,-50%)}
+.crop-h[data-handle=nw]{cursor:nwse-resize}.crop-h[data-handle=se]{cursor:nwse-resize}
+.crop-h[data-handle=ne]{cursor:nesw-resize}.crop-h[data-handle=sw]{cursor:nesw-resize}
+.crop-h[data-handle=n]{cursor:ns-resize}.crop-h[data-handle=s]{cursor:ns-resize}
+.crop-h[data-handle=w]{cursor:ew-resize}.crop-h[data-handle=e]{cursor:ew-resize}
+.crop-dims{position:absolute;top:-22px;left:0;background:#1c1f27;border:1px solid #333845;border-radius:4px;
+  padding:1px 6px;font:12px/1.4 ui-monospace,monospace;color:#cfe0ff;white-space:nowrap;pointer-events:none}
 `;
 
 const ZOOM_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 4];
@@ -80,6 +94,10 @@ const ICON_PAUSE = (
 // Lucide "dot" — used for the reset-pan-to-center button.
 const ICON_DOT = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12.1" cy="12.1" r="1" /></svg>
+);
+// Lucide "crop" — toggles crop mode (DM-1104).
+const ICON_CROP = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14" /><path d="M18 22V8a2 2 0 0 0-2-2H2" /></svg>
 );
 
 function fmt(ms: number): string {
@@ -104,6 +122,13 @@ const panY = signal(0);
 const exportMenuOpen = signal(false);
 const busy = signal(false);
 const trackW = signal(0);          // scrub track px width (for marker positioning)
+// DM-1104: crop. `cropMode` toggles the overlay; `cropRect` is the rect in the
+// SVG's user-space (viewBox) units, or null for "whole frame". `cropTick` is a
+// monotonically-bumped repaint nudge so the imperative overlay re-lays-out on
+// zoom / pan / resize without making those a data dependency.
+const cropMode = signal(false);
+const cropRect = signal<{ x: number; y: number; w: number; h: number } | null>(null);
+const cropTick = signal(0);
 
 // non-reactive imperative state
 let svgText = "";
@@ -131,6 +156,9 @@ function render() {
     <div class="wrap">
       <div class="stage" data-stage>
         <div class="svg-host" data-svg-host data-morph-skip></div>
+        {/* DM-1104: crop overlay host — data-morph-skip so the box/handles we
+            append imperatively survive re-renders (like the svg-host). */}
+        <div class="crop-layer" data-crop-layer data-morph-skip style="display:none"></div>
         {(!svgLoaded.value || dragging.value) && (
           <div class={dragging.value ? "drop over" : "drop"} data-drop>
             Drop an animated SVG here
@@ -180,6 +208,9 @@ function render() {
             </select>
             <button class="iconbtn" data-action="zoomin" title="zoom in" disabled={!svgLoaded.value}>+</button>
             <button class="iconbtn" data-action="center" title="reset pan to center" aria-label="center" disabled={!svgLoaded.value}>{ICON_DOT}</button>
+          </div>
+          <div class="grp">
+            <button class={cropMode.value ? "iconbtn active" : "iconbtn"} data-action="croptoggle" title="crop" aria-label="crop" aria-pressed={cropMode.value ? "true" : "false"} disabled={!svgLoaded.value}>{ICON_CROP}</button>
           </div>
           <div class="grp export-wrap">
             <button class="primary" data-action="exporttoggle" disabled={!svgLoaded.value || busy.value}>Export</button>
@@ -231,8 +262,85 @@ function measureTrack(): void {
 // own size (which already excludes the footer, since `.stage` is `flex:1`) means
 // Fit/Fill always account for the footer area.
 const stageEl = app.querySelector<HTMLElement>(".stage")!;
-new ResizeObserver(() => { measureTrack(); fitZoomKeep(); }).observe(stageEl);
-window.addEventListener("resize", () => { measureTrack(); fitZoomKeep(); });
+new ResizeObserver(() => { measureTrack(); fitZoomKeep(); cropTick.value++; }).observe(stageEl);
+window.addEventListener("resize", () => { measureTrack(); fitZoomKeep(); cropTick.value++; });
+
+// ── crop overlay (DM-1104) ──────────────────────────────────────────────────
+// Built imperatively (outside the kerf render tree) so its px geometry can be
+// driven directly from cropRect + zoom/pan without round-tripping through the
+// template. The box dims everything outside it (a huge spread box-shadow) and
+// carries 8 resize handles + a live dimensions readout.
+const CROP_MIN = 8; // minimum crop size in SVG user units
+const cropLayer = app.querySelector<HTMLElement>("[data-crop-layer]")!;
+const cropBox = document.createElement("div"); cropBox.className = "crop-box";
+const cropDimsEl = document.createElement("div"); cropDimsEl.className = "crop-dims"; cropBox.appendChild(cropDimsEl);
+const CROP_HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
+type CropHandle = (typeof CROP_HANDLES)[number] | "move";
+const cropHandleEls: Record<string, HTMLElement> = {};
+for (const hh of CROP_HANDLES) {
+  const d = document.createElement("div"); d.className = "crop-h"; d.dataset.handle = hh; cropBox.appendChild(d); cropHandleEls[hh] = d;
+}
+cropLayer.appendChild(cropBox);
+
+// Lay out the crop box from cropRect (SVG units) → stage-local px. Geometry is
+// derived from first principles (stage center + pan − half-size) so it doesn't
+// depend on effect-ordering vs the transform effect or on getBoundingClientRect.
+effect(() => {
+  const cr = cropRect.value;
+  const on = cropMode.value && svgLoaded.value && cr != null;
+  cropTick.value; // re-run on resize
+  cropLayer.style.display = on ? "block" : "none";
+  if (!on || cr == null) return;
+  const n = svgNaturalSize();
+  const z = zoom.value;
+  const sw = stageEl.clientWidth, sh = stageEl.clientHeight;
+  const originX = sw / 2 + panX.value - (n.w * z) / 2;
+  const originY = sh / 2 + panY.value - (n.h * z) / 2;
+  const bx = originX + cr.x * z, by = originY + cr.y * z;
+  const bw = cr.w * z, bh = cr.h * z;
+  cropBox.style.left = `${bx}px`; cropBox.style.top = `${by}px`;
+  cropBox.style.width = `${bw}px`; cropBox.style.height = `${bh}px`;
+  const pos: Record<string, [number, number]> = {
+    nw: [0, 0], n: [bw / 2, 0], ne: [bw, 0], e: [bw, bh / 2], se: [bw, bh], s: [bw / 2, bh], sw: [0, bh], w: [0, bh / 2],
+  };
+  for (const hh of CROP_HANDLES) { cropHandleEls[hh].style.left = `${pos[hh][0]}px`; cropHandleEls[hh].style.top = `${pos[hh][1]}px`; }
+  cropDimsEl.textContent = `${Math.round(cr.w)} × ${Math.round(cr.h)}`;
+});
+
+// Resize / move math: apply a pointer delta (in SVG units) to the crop rect for
+// a given handle, clamped to the frame with a CROP_MIN floor.
+function applyCropDrag(start: { x: number; y: number; w: number; h: number }, handle: CropHandle, dxU: number, dyU: number, n: { w: number; h: number }): { x: number; y: number; w: number; h: number } {
+  const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(v, hi));
+  if (handle === "move") {
+    return { x: clamp(start.x + dxU, 0, n.w - start.w), y: clamp(start.y + dyU, 0, n.h - start.h), w: start.w, h: start.h };
+  }
+  let L = start.x, R = start.x + start.w, T = start.y, B = start.y + start.h;
+  if (handle.includes("w")) L = clamp(start.x + dxU, 0, R - CROP_MIN);
+  if (handle.includes("e")) R = clamp(start.x + start.w + dxU, L + CROP_MIN, n.w);
+  if (handle.includes("n")) T = clamp(start.y + dyU, 0, B - CROP_MIN);
+  if (handle.includes("s")) B = clamp(start.y + start.h + dyU, T + CROP_MIN, n.h);
+  return { x: L, y: T, w: R - L, h: B - T };
+}
+
+let cropDrag: { handle: CropHandle; start: { x: number; y: number; w: number; h: number }; px: number; py: number } | null = null;
+void delegate(app, "pointerdown", ".crop-box", (e, _box) => {
+  if (cropRect.value == null) return;
+  const ev = e as PointerEvent;
+  const realTarget = ev.target as HTMLElement;
+  const handle = (realTarget.classList.contains("crop-h") ? (realTarget.dataset.handle as CropHandle) : "move");
+  cropDrag = { handle, start: { ...cropRect.value }, px: ev.clientX, py: ev.clientY };
+  cropBox.setPointerCapture(ev.pointerId);
+  ev.preventDefault(); ev.stopPropagation();
+});
+cropBox.addEventListener("pointermove", (ev) => {
+  if (cropDrag == null) return;
+  const z = zoom.value || 1;
+  const dxU = (ev.clientX - cropDrag.px) / z, dyU = (ev.clientY - cropDrag.py) / z;
+  cropRect.value = applyCropDrag(cropDrag.start, cropDrag.handle, dxU, dyU, svgNaturalSize());
+});
+const endCropDrag = (): void => { cropDrag = null; };
+cropBox.addEventListener("pointerup", endCropDrag);
+cropBox.addEventListener("pointercancel", endCropDrag);
 
 // ── animation seeking ───────────────────────────────────────────────────────
 function stageAnims(): Animation[] {
@@ -320,6 +428,7 @@ async function loadSvg(text: string, name: string): Promise<void> {
   durationMs.value = dur; playhead.value = 0; rangeStart.value = 0; rangeEnd.value = dur; playing.value = false;
   seekAll(0);
   zoomMode = "fit"; panX.value = 0; panY.value = 0; fitZoomKeep();
+  cropMode.value = false; cropRect.value = null; cropTick.value++; // DM-1104: reset crop for the new SVG
   measureTrack();
 }
 
@@ -337,11 +446,22 @@ function download(blob: Blob, filename: string): void {
 function rangeSE(): { s: number; e: number } {
   return { s: rangeStart.value, e: rangeEnd.value > rangeStart.value ? rangeEnd.value : durationMs.value };
 }
+// DM-1104: the crop rect to send with an export — only when crop mode is on and
+// the rect is a real sub-region (a whole-frame crop is omitted as a no-op). The
+// server clamps it and applies it to all three export paths.
+function activeCrop(): { x: number; y: number; w: number; h: number } | undefined {
+  if (!cropMode.value) return undefined;
+  const cr = cropRect.value;
+  if (cr == null) return undefined;
+  const n = svgNaturalSize();
+  const full = cr.x <= 0.5 && cr.y <= 0.5 && cr.w >= n.w - 0.5 && cr.h >= n.h - 0.5;
+  return full ? undefined : { x: cr.x, y: cr.y, w: cr.w, h: cr.h };
+}
 async function exportFrame(): Promise<void> {
   busy.value = true;
   try {
     const { w, h } = svgPxSize();
-    const r = await fetch("/export-frame", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, timeMs: playhead.value, width: w, height: h }) });
+    const r = await fetch("/export-frame", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, timeMs: playhead.value, width: w, height: h, crop: activeCrop() }) });
     if (!r.ok) throw new Error(`export failed (${r.status})`);
     download(await r.blob(), `${svgName}-${Math.round(playhead.value)}ms.png`);
   } catch (err) { alert(err instanceof Error ? err.message : "export failed"); }
@@ -350,7 +470,7 @@ async function exportFrame(): Promise<void> {
 async function exportTrim(): Promise<void> {
   const { s, e } = rangeSE(); busy.value = true;
   try {
-    const r = await fetch("/trim", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, periodMs: durationMs.value }) });
+    const r = await fetch("/trim", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, periodMs: durationMs.value, crop: activeCrop() }) });
     if (!r.ok) throw new Error(`trim failed (${r.status})`);
     download(new Blob([(await r.json() as { svg: string }).svg], { type: "image/svg+xml" }), `${svgName}-trim-${Math.round(s)}-${Math.round(e)}ms.svg`);
   } catch (err) { alert(err instanceof Error ? err.message : "trim failed"); }
@@ -359,7 +479,7 @@ async function exportTrim(): Promise<void> {
 async function exportVideo(): Promise<void> {
   const { s, e } = rangeSE(); const { w, h } = svgPxSize(); busy.value = true;
   try {
-    const r = await fetch("/export-range-video", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, width: w, height: h }) });
+    const r = await fetch("/export-range-video", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, width: w, height: h, crop: activeCrop() }) });
     if (!r.ok) {
       let msg = `export failed (${r.status})`;
       try { msg = (await r.json() as { error?: string }).error ?? msg; } catch { /* non-JSON */ }
@@ -391,6 +511,19 @@ const CLICK: Record<string, () => void> = {
   zoomin: () => setZoom(zoom.value * 1.25),
   zoomout: () => setZoom(zoom.value / 1.25),
   center: () => { panX.value = 0; panY.value = 0; },
+  // DM-1104: toggle crop mode. Enabling seeds the rect to the whole frame (drag
+  // the handles in to crop); disabling resets the rect so the next enable starts
+  // fresh from the full frame.
+  croptoggle: () => {
+    cropMode.value = !cropMode.value;
+    if (cropMode.value) {
+      const n = svgNaturalSize();
+      cropRect.value = { x: 0, y: 0, w: n.w, h: n.h };
+    } else {
+      cropRect.value = null;
+    }
+    cropTick.value++;
+  },
   exporttoggle: () => { exportMenuOpen.value = !exportMenuOpen.value; },
   "export-frame": () => { exportMenuOpen.value = false; void exportFrame(); },
   "export-trim": () => { exportMenuOpen.value = false; void exportTrim(); },

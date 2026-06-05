@@ -1235,6 +1235,43 @@ export function elementTreeToSvgInner(
       }
     }
 
+    // DM-1053: a multi-line (inline-fragment) element with its OWN
+    // `background-clip: text` gradient. The bg-layer loop above is gated on
+    // `!useInlineFragments`, and `renderInlineFragments()` deliberately skips
+    // text-clip layers (it can't per-fragment-mask glyphs), so a wrapped
+    // gradient-text run would build NO self def and fall through to the
+    // inherited-ancestor gradient (DM-749) — e.g. Resend's gold "this morning"
+    // inside its white-gradient H2 painted flat white. Build the element's own
+    // text-clip layer def(s) against its bbox and stash them in
+    // `textBgClipFills` so the text-fill decision below prefers them over the
+    // inherited gradient and routes through the glyph-mask path (which spans
+    // all fragments correctly). Only the `text`-clipped layers are built here;
+    // the box-painted layers stay owned by `renderInlineFragments()`.
+    if (useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
+      const layers = splitTopLevelCommas(bgImage);
+      const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+      const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
+      const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
+      const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
+      const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+      const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
+      for (let li = layers.length - 1; li >= 0; li--) {
+        const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
+        if (layerClip !== "text") continue;
+        const layer = layers[li].trim();
+        const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
+        const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
+        const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
+        const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
+        const layerIntrinsic = intrinsicLayers[li] ?? null;
+        const defId = `${idPrefix}bg${clipIdx++}`;
+        const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+        if (out.def === "") continue;
+        defsParts.push(out.def);
+        textBgClipFills[li] = `url(#${defId})`;
+      }
+    }
+
     // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
     // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
     // box shifted by (x, y) and inset by `spread` on each side. The shadow
