@@ -25,6 +25,12 @@ export const createEmojiDetect = () => {
   const rasterCps = new Set([
     0x2713, 0x2714, 0x2716, 0x2717, 0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
     0x274C, 0x274E, 0x2795, 0x2796, 0x2797, 0x27A1, 0x27B0, 0x27BF,
+    // Dingbats with default emoji presentation (Emoji_Presentation=Yes per
+    // Unicode emoji-data) that NO macOS text symbol font covers, so Chrome
+    // always routes them to Apple Color Emoji. Bare (no VS-16), they were
+    // painting as a dropped/empty path-mode glyph: ✅ ✊ ✋. Unconditional like
+    // the ✨ ❌ ➡ family above — emoji presentation wins over the cascade.
+    0x2705, 0x270A, 0x270B,
     // DM-728: U+2B?? "Miscellaneous Symbols and Arrows" block with default
     // emoji presentation per Unicode emoji-data — Chrome paints these as
     // Apple Color Emoji glyphs without needing the U+FE0F variation
@@ -63,7 +69,7 @@ export const createEmojiDetect = () => {
     // pairing routes through the raster overlay path so Apple Color Emoji
     // paints the red heart Chrome shows.
     0x2702, 0x2708, 0x2709, 0x270C, 0x270D, 0x270F, 0x2712, 0x2716,
-    0x2733, 0x2734, 0x2744, 0x2747, 0x2763, 0x2764,
+    0x271D, 0x2721, 0x2733, 0x2734, 0x2744, 0x2747, 0x2763, 0x2764,
   ]);
 
   // DM-1025: the BMP "default emoji presentation" symbols above (zodiac signs,
@@ -138,8 +144,24 @@ export const createEmojiDetect = () => {
     // emoji presentation — Chrome paints the colorful glyph instead of the
     // text-mode path glyph. DM-278.
     if (nextCp === 0xFE0F && (emojiBaseCps.has(cp) || emojiPresentation26.has(cp))) return true;
+    // Bare (no VS-16) text-default emoji base codepoints — Chrome paints the
+    // COLOR glyph only when its font cascade actually reaches the color-emoji
+    // font (e.g. the html-test cells lead the family with "Apple Color Emoji"
+    // when no text font covers the codepoint), and the MONOCHROME text glyph
+    // otherwise. Probe Chrome's actual choice via the canvas (same rule as the
+    // emojiPresentation26 branch above) instead of unconditionally path- OR
+    // raster-rendering. Catches bare ✌ (U+270C) / ✒ (U+2712) the FE0F-only
+    // gate dropped, while leaving cascade-monochrome ✈ (U+2708) on the path.
+    if (emojiBaseCps.has(cp)) return isColorGlyph(cp, font);
     // Regional-indicator flags (pairs are joined into country flag emoji).
     if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
+    // Enclosed Alphanumeric Supplement (U+1F100-1F1FF) squared-letter emoji
+    // with default emoji presentation (Emoji_Presentation=Yes): 🆎 and 🆑–🆚
+    // (CL / COOL / FREE / ID / NEW / NG / OK / SOS / UP! / VS). They sit BELOW
+    // the 0x1F300 floor of the main-block check below, so they were dropped to
+    // an empty path-mode glyph; no text font carries them, so Chrome always
+    // paints the color emoji (unconditional, like the ✨ family).
+    if (cp === 0x1F18E || (cp >= 0x1F191 && cp <= 0x1F19A)) return true;
     // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
     // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
     // Extended-A, Symbols & Pictographs Extended-B.
