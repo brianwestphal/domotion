@@ -18,7 +18,7 @@ Each entry below lists the trigger condition, the code path that captures the ra
 
 ### G1. Color emoji and color-bitmap glyphs
 
-Trigger: a codepoint flagged by `src/capture/script/emoji-detect.ts::needsRaster()` — emoji-presentation defaults from Unicode emoji-data (✨ ❌ ✅ … ❤ ⭐ 🎉 …), explicit emoji presentation via U+FE0F, regional-indicator flag pairs, and the main emoji blocks (Misc Symbols & Pictographs, Emoticons, Transport & Map Symbols, Supplemental Symbols & Pictographs).
+Trigger: a codepoint flagged by `src/capture/script/emoji-detect.ts::needsRaster()` — emoji-presentation defaults from Unicode emoji-data (✨ ❌ ✅ ✊ ✋ … ❤ ⭐ 🎉 …, plus the squared 🆎 🆑–🆚 of the Enclosed Alphanumeric Supplement block), explicit emoji presentation via U+FE0F, regional-indicator flag pairs, and the main emoji blocks (Misc Symbols & Pictographs, Emoticons, Transport & Map Symbols, Supplemental Symbols & Pictographs). For *text-default* emoji codepoints that paint color only when the element's font cascade actually reaches the color-emoji font (e.g. bare ✌ ✒ ✝ ✡, and the U+2600-block symbols), the decision is made per-element by the `isColorGlyph` canvas probe (render the glyph with the element font; raster only if Chromium's rasterizer produced colored pixels) rather than an unconditional list.
 
 Why: fontkit can't extract outlines from `CBDT` / `sbix` color-bitmap tables — those store PNG sub-images per glyph, not vector contours. Even when a path-font *has* an outline for the codepoint, Chromium overrides the choice to the emoji font for emoji-presentation codepoints.
 
