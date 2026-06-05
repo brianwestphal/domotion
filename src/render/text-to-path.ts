@@ -2423,6 +2423,29 @@ function matchFamilyNameToKey(name: string): string | null {
     if (name === "ui-monospace" || name === "ui-rounded" || name === "ui-sans-serif"
       || name === "math" || name === "emoji" || name === "fangsong"
       || name === "-apple-system") return null;
+    // DM-1108: macOS New York optical-size cut "New York Medium" name
+    // collision. Unlike SF Pro (one variable file whose cuts are CoreText-only
+    // named faces — see OPTICAL_CUT_OPSZ below), New York's optical cuts ship
+    // as SEPARATE static OTFs: "New York Small/Medium/Large/Extra Large"
+    // (NewYork{Small,Medium,Large,ExtraLarge}-Regular.otf). Chrome paints each
+    // CSS-named cut from its dedicated OTF. The Small/Large/Extra Large names
+    // are unambiguous, so CoreText's plain family query already returns the
+    // right cut. But "New York Medium" collides with the VARIABLE New York
+    // font's `Medium` *weight* named-instance (PostScript NewYork-Medium), and
+    // CoreText's family query returns that heavier weight instead of the
+    // lighter optical cut Chrome paints. Resolve it via the cut's unambiguous
+    // PostScript name so we match Chrome. When the cut OTF isn't installed
+    // (it's part of Apple's optional "New York" font package, not stock
+    // macOS) this returns null and we fall through to the variable font's
+    // Medium weight below — which is also what Chrome paints in that case.
+    if (name === "new york medium") {
+      const cut = resolveInstalledFont("NewYorkMedium-Regular");
+      if (cut != null) {
+        const key = `sysfb:${cut.postscriptName}`;
+        registerDynamicSystemFont(key, cut.path, cut.postscriptName);
+        return key;
+      }
+    }
     // DM-1018: the name isn't one of our calibrated families or a generic
     // keyword — but it may still be a REAL installed font (SF Compact,
     // Mplus 1p, …). Blink's FontFallbackList sets `first_candidate_` to the

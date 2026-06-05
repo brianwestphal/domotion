@@ -46,6 +46,11 @@ they describe (see `CLAUDE.md` "Documentation"):
 - **Doc 57 (`docs/57-scrubber-crop.md`, DM-1104)** — the scrubber's crop
   mode: a draggable crop rect (8 handles) baked into all three exports
   (raster clip for PNG/MP4, viewBox vector crop for the trimmed SVG).
+- **Doc 58 (`docs/58-new-york-optical-cuts.md`, DM-1108)** — macOS New York
+  serif optical cuts. Unlike SF Pro's single variable file (DM-1103), New
+  York ships its cuts as separate static OTFs (no `opsz` axis), so the
+  `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
+  needed a routing fix (it collided with the variable font's Medium weight).
 
 These two together form the consumer-side bug-report workflow: capture
 with `--debug`, review with `svg-review`, file an issue with the
