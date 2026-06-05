@@ -49,6 +49,33 @@ text-clipped layer, walking bottom→top, so stacked gradients/images all paint
 through the shared glyph mask (CSS first-layer-on-top order preserved) — not just
 the first layer.
 
+**Inherited from an ancestor (DM-749 / DM-908):** when an element's text is
+transparent but it has NO bg-image of its own, and an ancestor sets
+`background-clip: text` + a gradient, the gradient paints through the
+descendant's glyphs (Stripe / Resend pattern). Capture walks up to 8 ancestors
+and records the nearest such gradient as
+`CapturedElement.styles.inheritedTextFillGradient`, plus that ancestor's bbox as
+`inheritedTextFillGradientRect` so the gradient resolves against the ancestor's
+coordinates (two sibling children then share one continuous ramp). The renderer
+uses it only when the element has no text-clip layer of its own.
+
+**Nested child with its own gradient that WRAPS (DM-1053):** a child element can
+have its OWN `background-clip: text` gradient nested inside an ancestor that also
+uses bg-clip:text — e.g. Resend's "Integrate `this morning`" hero, where the H2
+is a white gradient and the inner `<span>` "this morning" is a gold
+`linear-gradient(... in oklab, …)`. The child's own gradient must win over the
+inherited ancestor one for its run of glyphs. This worked for single-line
+children, but when the child's text **wraps to multiple lines** it renders via
+the inline-fragment path (`el.inlineFragments.length > 1`), and that path
+deliberately skips text-clip layers (it can't per-fragment-mask glyphs). The
+result was the child building NO self def and falling through to the inherited
+ancestor gradient — painting "this morning" flat white. Fix: for a multi-line
+(inline-fragment) element, the renderer still builds its own `text`-clip layer
+def(s) against its bbox and stashes them in `textBgClipFills`, so the text-fill
+decision prefers the self gradient and routes through the glyph-mask path (which
+spans all fragments). Only the `text`-clipped layers are built in this branch;
+box-painted layers stay owned by the per-fragment renderer.
+
 ## Why `<mask>`, not `<clipPath>` or fill-on-text-group
 
 Two simpler-looking approaches were tried and don't work:
@@ -66,3 +93,7 @@ Two simpler-looking approaches were tried and don't work:
 ## Test fixture
 
 `tests/features.ts` → `text-bg-clip-gradient`: an `<h1>` with a 90° linear-gradient background, `background-clip: text`, and `-webkit-text-fill-color: transparent`. Verifies the gradient flows through the glyphs (not as a separate rect over the headline area). Residual diff is normal path-text AA-edge noise.
+
+`tests/features.ts` → `background-clip-text-inherited-from-ancestor`: a `<span>` with the gradient + bg-clip:text wrapping child `<div>`s that hold the text (DM-749 inherited path).
+
+`tests/features.ts` → `background-clip-text-nested-child-wraps`: an H2 (white gradient, bg-clip:text) containing a `<span>` with its OWN gold `... in oklab` gradient, sized so the span wraps to two lines (DM-1053). Verifies the child's own gradient — not the inherited ancestor gradient — fills its glyphs across both line fragments.

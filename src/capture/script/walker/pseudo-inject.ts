@@ -102,7 +102,22 @@ export const createPseudoInjectHandler = () => {
         const firstSeg = textSegments[0];
         const bs = p.boxStyles || {};
         const mRb = parseFloat(window.getComputedStyle(el, '::before').marginRight) || 0;
-        p.seg.x = firstSeg.x - p.seg.width - (bs.padR || 0) - (bs.borR || 0) - mRb;
+        // Flush the ::before just left of the host's first OWN text segment.
+        const flushX = firstSeg.x - p.seg.width - (bs.padR || 0) - (bs.borR || 0) - mRb;
+        // DM-1105: `firstSeg` is the host's first OWN-text run, which is NOT the
+        // leftmost content when the host's content begins with a CHILD element —
+        // e.g. a syntax-highlight token span in a code diff:
+        // `<span class="code"><span class="kw">import</span> { … }</span>` with a
+        // `.code::before { content: "+" }` gutter marker. There `firstSeg` is the
+        // ` { … }` text AFTER the token span, so the flush anchor lands the "+"
+        // mid-line. Chrome paints a static ::before at the host's content-box
+        // left and shifts ALL following content (child spans included) right past
+        // it; pseudo-content.ts already put that content-box-left position in
+        // `p.seg.x`. The flush anchor is only valid when it doesn't push the
+        // marker RIGHT of that position, so clamp to it — the marker lands at the
+        // line start instead of mid-line, and the normal own-text-first case is
+        // unchanged (the two agree there).
+        p.seg.x = Math.min(flushX, p.seg.x);
         p.seg.y = firstSeg.y;
         p.seg.height = firstSeg.height;
         textSegments.unshift(p.seg);
