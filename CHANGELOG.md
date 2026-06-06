@@ -2,6 +2,14 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.12.0] - 2026-06-07
+
+
+- Fixed list marker rendering for `<ul>`/`<ol>` items
+- Corrected East-Asian font feature shaping
+- Fixed vertical punctuation positioning in vertical text
+- Fixed disclosure triangle arrows on `<details>`/`<summary>`
+
 ## [0.11.0] - 2026-06-06
 
 
