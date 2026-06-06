@@ -592,6 +592,27 @@ export function createGlyphHelperFont(spec: {
       const fullyCovered = cps0.every((cp) => !missingCp.has(cp) && (cpToGlyph.get(cp)?.id ?? 0) !== 0);
       const shaped = fullyCovered ? shapeText(text) : null;
       if (shaped != null && shaped.length > 0) {
+        // DM-1111: neutralize CoreText's isolated-mark bearing compensation so a
+        // LONE combining mark matches Chrome's (HarfBuzz) paint. When a shaped
+        // run has NO advancing base glyph — i.e. it's nothing but zero-advance
+        // orphan marks with nothing to attach to, as in the per-Unicode-block
+        // mark fixtures (Combining Diacritical Marks for Symbols U+20D0–20FF,
+        // Tai Tham, …) — CoreText positions each mark with a positive xOffset
+        // (dx ≈ −leftSideBearing) that cancels the glyph's native (negative) LSB,
+        // so the mark paints AT the pen as if it were spacing. HarfBuzz applies
+        // NO such offset for a baseless mark: it paints the outline at its native
+        // bearing, with the ink extending LEFT of the pen (verified against
+        // Chrome's painted output — the ink lands ~|LSB| px left of where
+        // CoreText would place it). Zeroing dx for these glyphs reproduces the
+        // HarfBuzz/Chrome position.
+        //
+        // The gate keys off the SHAPED glyphs, not the source text: if the run
+        // contains any advancing glyph (a real base, or the ◌ CoreText inserts
+        // for an orphaned Brahmic mark — DM-1028), the marks are genuinely
+        // attached to it via GPOS, which Chrome also applies, so their dx is
+        // kept untouched. Only when the entire run is zero-advance marks (no base
+        // present) is the dx a CoreText-only spacing artifact to drop.
+        const hasAdvancingBase = shaped.some((sg) => sg.ax > 0);
         const glyphs: GlyphHelperGlyph[] = [];
         const positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }> = [];
         const clusters: number[] = [];
@@ -604,7 +625,8 @@ export function createGlyphHelperFont(spec: {
           // Cache the outline by id so a later getGlyph(id) reuses it.
           if (sg.id !== 0 && !idToGlyph.has(sg.id)) idToGlyph.set(sg.id, glyph);
           glyphs.push(glyph);
-          positions.push({ xAdvance: sg.ax, yAdvance: sg.ay, xOffset: sg.dx, yOffset: sg.dy });
+          const dropBearingComp = !hasAdvancingBase && sg.ax === 0;
+          positions.push({ xAdvance: sg.ax, yAdvance: sg.ay, xOffset: dropBearingComp ? 0 : sg.dx, yOffset: sg.dy });
           clusters.push(sg.cluster);
         }
         return { glyphs, positions, clusters };

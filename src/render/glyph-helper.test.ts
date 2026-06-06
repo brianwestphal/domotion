@@ -398,6 +398,55 @@ describeHelper("CoreText glyph extractor", () => {
     expect(total).toBeGreaterThan(0);
   });
 
+  // DM-1111: a LONE combining mark (no base in its run) must drop CoreText's
+  // isolated-mark bearing compensation so it paints at its native side-bearing,
+  // matching Chrome/HarfBuzz. CoreText shapes such a mark with a positive
+  // xOffset (≈ −leftSideBearing) that cancels the glyph's negative LSB, pushing
+  // the ink ~|LSB| px right of where Chrome paints it. The layout wrapper zeroes
+  // that xOffset for a run with no advancing base glyph. STIX Two Math's
+  // Combining Diacritical Marks for Symbols (U+20D0+) are the canonical case:
+  // zero-advance marks whose outline sits entirely LEFT of the origin.
+  const stixPath = "/System/Library/Fonts/Supplemental/STIXTwoMath.otf";
+  const stixInstalled = existsSync(stixPath);
+  const itStix = stixInstalled ? it : it.skip;
+
+  itStix("zeroes CoreText's bearing-comp xOffset for a lone combining mark (DM-1111)", () => {
+    clearGlyphHelperCache();
+    const font = createGlyphHelperFont({ postscriptName: "STIXTwoMath-Regular", fontPath: stixPath });
+    expect(font).not.toBeNull();
+    for (const cp of [0x20d0, 0x20d1, 0x20db]) {
+      const laid = font!.layout(String.fromCodePoint(cp));
+      expect(laid.glyphs.length).toBe(1);
+      // Zero advance (combining mark) and NO horizontal offset — the CoreText
+      // spacing compensation has been removed.
+      expect(laid.positions[0].xAdvance).toBe(0);
+      expect(laid.positions[0].xOffset).toBe(0);
+      // The native (negative) left side-bearing is preserved in the OUTLINE:
+      // the glyph paints left of the origin, exactly as Chrome paints it.
+      let minX = Infinity;
+      for (const c of laid.glyphs[0].path.commands)
+        for (let i = 0; i < c.args.length; i += 2) if (c.args[i] < minX) minX = c.args[i];
+      expect(minX).toBeLessThan(0);
+    }
+  });
+
+  itJavanese("keeps the mark's GPOS offset when an advancing base (CoreText ◌) is present (DM-1111)", () => {
+    // The DM-1111 neutralization must NOT touch a mark that's genuinely attached
+    // to a base: an orphaned Brahmic mark gets a CoreText-inserted dotted circle
+    // (an advancing glyph), so the run HAS a base and the mark's GPOS position is
+    // real (Chrome inserts the same ◌). Shaping must still yield the 2-glyph
+    // ◌+mark cluster with the base advancing.
+    clearGlyphHelperCache();
+    const font = createGlyphHelperFont({ postscriptName: "NotoSansJavanese-Regular", fontPath: javanesePath });
+    expect(font).not.toBeNull();
+    const laid = font!.layout("\u{A9B8}");
+    expect(laid.glyphs.length).toBe(2);
+    // The inserted dotted circle advances (it's the base); the gate sees an
+    // advancing glyph and leaves the cluster's offsets untouched.
+    expect(laid.positions.some((p) => p.xAdvance > 0)).toBe(true);
+    for (const g of laid.glyphs) expect(g.path.commands.length).toBeGreaterThan(0);
+  });
+
   // DM-1033: `warmGlyphs(cps)` batches the coverage probe for many codepoints
   // into one round-trip, priming the same cache the per-codepoint
   // `glyphForCodePoint` walk reads. It must leave `glyphForCodePoint` returning
