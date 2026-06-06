@@ -2,6 +2,17 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.11.0] - 2026-06-06
+
+
+- Auto-detect and render the correct mouse cursor for each element, matching CSS cursor keywords
+- Render color emoji in more Unicode blocks: Enclosed Ideographic Supplement, Dingbats, and Enclosed Alphanumerics
+- Fix combining-mark and pre-base matra positioning to match Chrome, with expanded dotted-circle script coverage
+- Render "SF Pro Text", "SF Pro" optical sizes, and "New York Medium" with their correct optical-size font cuts
+- Fix `background-clip: text` on nested and multi-line elements, and mis-anchored `::before`/`::after` markers
+- Keep hoisted flex children painting correctly under `flex-direction: *-reverse`
+- Add a crop rectangle with aspect-ratio lock to the animated-SVG scrubber
+
 ## [0.10.1] - 2026-06-05
 
 
