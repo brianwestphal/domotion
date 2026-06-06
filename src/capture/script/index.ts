@@ -575,6 +575,15 @@ export const captureScript =
         // the OpenType smcp feature; renderer applies synthesized small-caps
         // when the active font lacks smcp (Helvetica, Times, etc.). DM-361.
         fontVariantCaps: cs.fontVariantCaps,
+        // CSS font-variant-east-asian / -numeric / -ligatures. Each maps to a
+        // set of OpenType feature tags (e.g. `traditional` → `trad`, `jis78` →
+        // `jp78`, `oldstyle-nums` → `onum`) that the path renderer forwards to
+        // fontkit shaping. Without these, e.g. `font-variant-east-asian:
+        // traditional` paints the simplified/JP default glyph (国) instead of
+        // the traditional form (國). DM-1117.
+        fontVariantEastAsian: cs.fontVariantEastAsian,
+        fontVariantNumeric: cs.fontVariantNumeric,
+        fontVariantLigatures: cs.fontVariantLigatures,
         direction: cs.direction,
         // Computed BCP-47 language tag from el.lang or nearest ancestor
         // [lang], falling back to document.documentElement.lang. Used by the

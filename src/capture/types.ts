@@ -693,6 +693,15 @@ export interface CapturedElement {
      *  Renderer applies the matching OpenType feature (smcp / c2sc / etc.).
      *  DM-361. */
     fontVariantCaps?: string;
+    /** CSS font-variant-east-asian — e.g. 'traditional', 'jis78', 'full-width'.
+     *  Mapped to OpenType features (trad / jp78 / fwid …) at shape time. DM-1117. */
+    fontVariantEastAsian?: string;
+    /** CSS font-variant-numeric — e.g. 'oldstyle-nums', 'tabular-nums', 'diagonal-fractions'.
+     *  Mapped to OpenType features (onum / tnum / frac …). DM-1117. */
+    fontVariantNumeric?: string;
+    /** CSS font-variant-ligatures — e.g. 'no-common-ligatures', 'discretionary-ligatures'.
+     *  Mapped to OpenType features (liga off / dlig …). DM-1117. */
+    fontVariantLigatures?: string;
     /** CSS direction ('ltr' / 'rtl'). Drives BiDi reordering on RTL paragraphs. */
     direction?: string;
     /** BCP-47 language tag inherited from `el.lang` / nearest ancestor `[lang]` /

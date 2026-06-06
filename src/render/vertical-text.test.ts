@@ -23,6 +23,7 @@ const ARG_X = 1;
 const ARG_Y = 2;
 const ARG_XOFFSETS = 9;
 const ARG_ASCENT_OVERRIDE = 11;
+const ARG_FEATURES = 12;
 
 function makeElement(): CapturedElement {
   // One rotated Latin char ("E") followed by one upright kana ("と") in a
@@ -138,6 +139,74 @@ describe("renderVerticalSegments — tate-chu-yoko combine (DM-1032)", () => {
     expect(c[ARG_ASCENT_OVERRIDE]).toBe(0);
     // Each glyph placed at its captured per-char x (Chrome's painted layout).
     expect(c[ARG_XOFFSETS]).toEqual([0, 9.89]);
+  });
+});
+
+// DM-1122: CJK punctuation (。 、 brackets …) takes a vertical-form glyph under
+// the OpenType `vert` feature in vertical writing modes — its ink moves to the
+// cell's top-right corner. The upright path must (a) pass `["vert"]` so fontkit
+// substitutes the vertical form and (b) anchor the FULL em box to the column
+// rather than ink-centering by the captured horizontal natural width (which
+// would shove the corner-set glyph toward the column's middle). Ideographs/kana
+// carry no `vert` substitution, so they keep ink-centering and no feature.
+function makeVerticalPunctElement(): CapturedElement {
+  return {
+    tag: "p",
+    styles: {
+      fontSize: "18px",
+      fontFamily: "sans-serif",
+      fontWeight: "400",
+      fontStyle: "normal",
+      textDecorationLine: "none",
+    },
+    fontAscent: 14,
+    textSegments: [
+      {
+        text: "例。",
+        x: 100,
+        y: 50,
+        width: 21,
+        height: 36,
+        verticalWritingMode: "vertical-rl",
+        verticalOrientations: ["upright", "upright"],
+        yOffsets: [50, 68],
+        verticalAdvances: [18, 18],
+        // Ideograph fills the cell (~1em); 。 ink is narrow (~0.5em) — the
+        // difference is what surfaces the centering bug if we ink-center it.
+        verticalNaturalWidths: [18, 9],
+      },
+    ],
+  } as unknown as CapturedElement;
+}
+
+describe("renderVerticalSegments — vertical-form punctuation (DM-1122)", () => {
+  beforeEach(() => {
+    calls.length = 0;
+  });
+
+  it("passes the `vert` feature for CJK punctuation and none for ideographs", () => {
+    renderVerticalSegments(makeVerticalPunctElement(), "rgb(0,0,0)");
+    const kanji = calls.find((c) => c[0] === "例");
+    const period = calls.find((c) => c[0] === "。");
+    expect(kanji).toBeDefined();
+    expect(period).toBeDefined();
+    // 例 has no vertical form — default shaping, no features.
+    expect(kanji![ARG_FEATURES]).toBeUndefined();
+    // 。 substitutes its vertical-form glyph via `vert`.
+    expect(period![ARG_FEATURES]).toEqual(["vert"]);
+  });
+
+  it("anchors the punctuation em box to the column instead of ink-centering", () => {
+    renderVerticalSegments(makeVerticalPunctElement(), "rgb(0,0,0)");
+    const kanji = calls.find((c) => c[0] === "例");
+    const period = calls.find((c) => c[0] === "。");
+    // Ideograph keeps ink-centering by its natural width (18): xLeft = 100 +
+    // (21 - 18) / 2 = 101.5.
+    expect(kanji![ARG_X]).toBeCloseTo(100 + (21 - 18) / 2, 5);
+    // Punctuation anchors the full em box (fontSize 18, NOT its 9px ink width):
+    // xLeft = 100 + (21 - 18) / 2 = 101.5. If it ink-centered by 9 it would land
+    // at 106 and the corner-set vertical glyph would drift toward the middle.
+    expect(period![ARG_X]).toBeCloseTo(100 + (21 - 18) / 2, 5);
   });
 });
 

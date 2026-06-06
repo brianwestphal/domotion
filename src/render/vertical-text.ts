@@ -82,6 +82,34 @@ function r(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2);
 }
 
+// DM-1122: CJK punctuation that the OpenType `vert` feature substitutes for a
+// vertical-form glyph in vertical writing modes. Chrome enables `vert` for every
+// upright glyph in a vertical run; the only glyphs it actually changes are these
+// punctuation marks, whose ink moves from the horizontal cell corner to the
+// vertical one (e.g. Hiragino's 。 ink goes from bottom-left [55,-65,355,235] to
+// top-right [645,525,945,825] em-units). Ideographs and kana have no `vert`
+// substitution, so they render identically with or without the feature. For the
+// substituted glyphs the full em advance is what fills the column cell, so we
+// anchor the em box to the column instead of ink-centering (which would shove a
+// corner-set glyph toward the column's middle). The set is the CJK Symbols &
+// Punctuation marks + their fullwidth-forms counterparts that carry `vert`
+// glyphs in CoreText/DirectWrite/fontconfig CJK fonts: comma / period / the
+// bracket and quote pairs.
+const VERTICAL_FORM_PUNCTUATION = new Set<number>([
+  0x3001, 0x3002, // 、 。
+  0x3008, 0x3009, 0x300A, 0x300B, // 〈〉《》
+  0x300C, 0x300D, 0x300E, 0x300F, // 「」『』
+  0x3010, 0x3011, // 【】
+  0x3014, 0x3015, 0x3016, 0x3017, 0x3018, 0x3019, 0x301A, 0x301B, // 〔〕〖〗〘〙〚〛
+  0x301D, 0x301E, 0x301F, // 〝〞〟
+  0xFF01, 0xFF08, 0xFF09, 0xFF0C, 0xFF0E, 0xFF1A, 0xFF1B, 0xFF1F, // ！（），．：；？
+  0xFF3B, 0xFF3D, 0xFF5B, 0xFF5D, // ［］｛｝
+]);
+
+function hasVerticalFormPunctuation(ch: string): boolean {
+  return ch.length >= 1 && VERTICAL_FORM_PUNCTUATION.has(ch.codePointAt(0)!);
+}
+
 /**
  * DM-997: emit a vertical text-decoration line (underline / overline /
  * line-through) for a column segment. Vertical text decorations paint
@@ -251,11 +279,20 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
         // resolved. Without the override the ascent was added a second
         // time and every upright glyph dropped ~0.85em below its cell.
         const baseline = charY + fontSize * 0.85;
-        const naturalW = naturalWidths?.[i] ?? fontSize;
+        // DM-1122: CJK punctuation (。 、 brackets …) substitutes a vertical-form
+        // glyph under the `vert` feature, with its ink in the cell's top-right
+        // corner. Anchor the FULL em box to the column (not the ink width) so the
+        // corner-set glyph lands where Chrome paints it; pass `["vert"]` so
+        // fontkit performs the substitution. Other glyphs keep ink-centering and
+        // no feature (a no-op `vert` would be harmless, but skipping it avoids a
+        // needless re-shape per ideograph).
+        const vertPunct = hasVerticalFormPunctuation(ch);
+        const naturalW = vertPunct ? fontSize : (naturalWidths?.[i] ?? fontSize);
         const xLeft = colX + (colW - naturalW) / 2;
         const inner = renderTextAsPath(
           ch, xLeft, baseline, fontSize, fontFamily, fontWeight,
           fillColor, undefined, undefined, undefined, fontStyle, 0,
+          vertPunct ? ["vert"] : undefined,
         );
         if (inner != null) out.push(inner);
       }

@@ -53,13 +53,23 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
       meterHigh: tag === 'meter' ? (el.high != null ? +el.high : undefined) : undefined,
       meterOptimum: tag === 'meter' ? (el.optimum != null ? +el.optimum : undefined) : undefined,
       detailsOpen: tag === 'details' ? !!el.open : undefined,
-      // Detect if author CSS hid the summary's UA disclosure marker (e.g.
-      // ::marker { color: transparent }). If so, skip painting our own
-      // triangle — the author's custom marker (typically ::before) is the
-      // only one that should show. DM-448.
+      // Detect if author CSS hid the summary's UA disclosure marker. If so,
+      // skip painting our own triangle — the author's custom marker (typically
+      // a ::before / ::after pseudo) is the only one that should show.
+      //   - `list-style: none` / `list-style-type: none` removes the disclosure
+      //     marker entirely (the marker IS a list-item ::marker with
+      //     list-style-type `disclosure-closed`/`disclosure-open`; setting it to
+      //     `none` drops it, exactly as for a styled <li>). This is the common
+      //     idiom — `summary { list-style: none }` plus a custom ::after caret.
+      //     DM-1115. Note `display: flex` on the summary does NOT itself suppress
+      //     the marker — Chrome still paints it when list-style-type is a
+      //     disclosure value, so we key off list-style-type, not display.
+      //   - `::marker { color: transparent }` is the other author technique for
+      //     hiding the UA triangle without changing the box model. DM-448.
       summaryMarkerSuppressed: tag === 'details' ? (() => {
         const sum = el.querySelector(':scope > summary');
         if (sum == null) return false;
+        if (window.getComputedStyle(sum).listStyleType === 'none') return true;
         const mc = window.getComputedStyle(sum, '::marker').color;
         // 'transparent' or 'rgba(R, G, B, 0)' → alpha=0. 'rgb(R, G, B)' (no
         // alpha component) is opaque and must NOT trigger suppression.

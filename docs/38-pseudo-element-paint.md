@@ -127,8 +127,15 @@ Only `blur()` is translated today; other filter functions (`drop-shadow`,
   `::first-letter` drop caps are not (see DM-779 — initial-letter / line-
   wrap-around layout is a feature gap).
 - **`::marker`** — list markers paint via the host's marker emit path, not as
-  a pseudo. `@counter-style`-resolved markers fall back to the UA decimal
-  style (DM-770).
+  a pseudo. Built-in `list-style-type` numbering systems are resolved by
+  `formatListMarker` in `src/render/element-tree-to-svg.ts`: decimal /
+  decimal-leading-zero, lower/upper-alpha (latin), lower/upper-roman,
+  lower-greek, plus the non-decimal scripts armenian / upper-armenian /
+  lower-armenian, georgian, hebrew (additive systems), and arabic-indic /
+  cjk-decimal (positional digit substitution) — with the per-style suffix from
+  `listMarkerSuffix` (`、` for the CJK styles, `.` otherwise) (DM-1114).
+  *Custom* `@counter-style`-resolved markers still fall back to the UA decimal
+  style on the render side (DM-770).
 - **`::placeholder`** — input placeholder text routes through the form-
   controls renderer (`src/render/form-controls.ts`), not the pseudo path.
 

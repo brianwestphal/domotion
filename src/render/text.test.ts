@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText } from "./text.js";
+import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText, resolveFontVariantFeatures } from "./text.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -237,6 +237,39 @@ describe("parseFontFeatureSettings (DM-564)", () => {
 
   it("ignores garbage tokens between valid feature declarations", () => {
     expect(parseFontFeatureSettings(', , "cv11", junk, "ss03"')).toEqual(["cv11", "ss03"]);
+  });
+});
+
+// DM-1117: font-variant-east-asian / -numeric / -ligatures longhands map to
+// OpenType feature tags. Without these, e.g. `font-variant-east-asian:
+// traditional` paints the simplified default glyph (国) instead of the
+// traditional form (國), and numeric variants ignore old-style / tabular figures.
+describe("resolveFontVariantFeatures (DM-1117)", () => {
+  it("returns undefined when every longhand is normal / empty", () => {
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined)).toBeUndefined();
+    expect(resolveFontVariantFeatures("normal", "normal", "normal")).toBeUndefined();
+  });
+
+  it("maps east-asian keywords to their OpenType tags", () => {
+    expect(resolveFontVariantFeatures("traditional", undefined, undefined)).toEqual(["trad"]);
+    expect(resolveFontVariantFeatures("jis78", undefined, undefined)).toEqual(["jp78"]);
+    expect(resolveFontVariantFeatures("full-width", undefined, undefined)).toEqual(["fwid"]);
+    expect(resolveFontVariantFeatures("proportional-width", undefined, undefined)).toEqual(["pwid"]);
+    // Combined keywords (`traditional full-width`) both map.
+    expect(resolveFontVariantFeatures("traditional full-width", undefined, undefined)).toEqual(["trad", "fwid"]);
+  });
+
+  it("maps numeric keywords to their OpenType tags", () => {
+    expect(resolveFontVariantFeatures(undefined, "oldstyle-nums", undefined)).toEqual(["onum"]);
+    expect(resolveFontVariantFeatures(undefined, "tabular-nums slashed-zero", undefined)).toEqual(["tnum", "zero"]);
+    expect(resolveFontVariantFeatures(undefined, "diagonal-fractions", undefined)).toEqual(["frac"]);
+  });
+
+  it("maps the enable-only ligature keywords (disables are a known gap)", () => {
+    expect(resolveFontVariantFeatures(undefined, undefined, "discretionary-ligatures")).toEqual(["dlig"]);
+    expect(resolveFontVariantFeatures(undefined, undefined, "historical-ligatures")).toEqual(["hlig"]);
+    // `no-common-ligatures` can't be expressed in fontkit's enable-only list.
+    expect(resolveFontVariantFeatures(undefined, undefined, "no-common-ligatures")).toBeUndefined();
   });
 });
 

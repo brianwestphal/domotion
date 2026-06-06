@@ -761,6 +761,49 @@ function resolveCapsFeatures(segVariant: string | undefined, elCaps: string | un
   return undefined;
 }
 
+// DM-1117: resolve OpenType feature tags from the `font-variant-east-asian`,
+// `font-variant-numeric`, and `font-variant-ligatures` longhands. CSS Fonts 4
+// §6.x defines each keyword's feature mapping; these are the same tags Chrome
+// activates. Without them `font-variant-east-asian: traditional` paints the
+// simplified/JP default glyph (国) instead of the traditional form (國), and
+// numeric variants render lining proportional figures regardless.
+const EAST_ASIAN_FEATURE: Record<string, string> = {
+  "jis78": "jp78", "jis83": "jp83", "jis90": "jp90", "jis04": "jp04",
+  "simplified": "smpl", "traditional": "trad",
+  "full-width": "fwid", "proportional-width": "pwid", "ruby": "ruby",
+};
+const NUMERIC_FEATURE: Record<string, string> = {
+  "lining-nums": "lnum", "oldstyle-nums": "onum",
+  "proportional-nums": "pnum", "tabular-nums": "tnum",
+  "diagonal-fractions": "frac", "stacked-fractions": "afrc",
+  "ordinal": "ordn", "slashed-zero": "zero",
+};
+export function resolveFontVariantFeatures(
+  eastAsian: string | undefined,
+  numeric: string | undefined,
+  ligatures: string | undefined,
+): string[] | undefined {
+  const out: string[] = [];
+  for (const kw of (eastAsian ?? "").split(/\s+/)) {
+    const tag = EAST_ASIAN_FEATURE[kw];
+    if (tag != null) out.push(tag);
+  }
+  for (const kw of (numeric ?? "").split(/\s+/)) {
+    const tag = NUMERIC_FEATURE[kw];
+    if (tag != null) out.push(tag);
+  }
+  // Ligature longhands: the `no-*` keywords DISABLE a default-on feature.
+  // fontkit's `font.layout(text, features)` only accepts an enable list, so we
+  // can't express "liga off" here — handle only the discretionary/historical
+  // enables, which are the ones authors add (the common case the fixture
+  // exercises). Disabling default ligatures is a known gap.
+  const lig = ligatures ?? "";
+  if (/\bdiscretionary-ligatures\b/.test(lig)) out.push("dlig");
+  if (/\bhistorical-ligatures\b/.test(lig)) out.push("hlig");
+  if (/\bcontextual\b/.test(lig)) out.push("calt");
+  return out.length > 0 ? out : undefined;
+}
+
 // DM-564: parse `font-feature-settings` into the OpenType tag list fontkit
 // expects from `font.layout(text, features)`. Author-set tags like `cv11`
 // (Inter's single-story `a` alternate) drive lookup substitutions at shape
@@ -930,7 +973,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // wrap will multiply positions on emit. No-op for uniform-scale text.
   const xOffsetsRel = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
   const features = mergeFeatureLists(
-    resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
+    mergeFeatureLists(
+      resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
+      resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric, el.styles.fontVariantLigatures),
+    ),
     parseFontFeatureSettings(el.styles.fontFeatureSettings),
   );
   const variationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
@@ -1165,7 +1211,10 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // author-set `font-feature-settings` (DM-564) — e.g. Inter's `cv11`
     // single-story `a` alternate is set by next/font marketing pages.
     const segFeatures = mergeFeatureLists(
-      resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
+      mergeFeatureLists(
+        resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
+        resolveFontVariantFeatures(el.styles.fontVariantEastAsian, el.styles.fontVariantNumeric, el.styles.fontVariantLigatures),
+      ),
       parseFontFeatureSettings(el.styles.fontFeatureSettings),
     );
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped

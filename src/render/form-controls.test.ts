@@ -40,3 +40,39 @@ describe("form-controls font-family escaping (DM-866)", () => {
     expect(m![1]).not.toContain(`"`);
   });
 });
+
+describe("details disclosure marker suppression (DM-1115 / DM-448)", () => {
+  function makeDetails(extra: Record<string, unknown>): Parameters<typeof renderFormControl>[0] {
+    return {
+      tag: "details",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 44,
+      styles: {
+        fontSize: "16",
+        color: "rgb(0,0,0)",
+        paddingLeft: "0",
+        borderLeftWidth: "0",
+        paddingTop: "0",
+        borderTopWidth: "0",
+        ...extra,
+      },
+      children: [{ tag: "summary", x: 0, y: 0, width: 200, height: 44, styles: {} }],
+    } as unknown as Parameters<typeof renderFormControl>[0];
+  }
+
+  it("paints a disclosure triangle when the marker is not suppressed", () => {
+    const svg = renderFormControl(makeDetails({}), "");
+    expect(svg).toContain("<polygon");
+  });
+
+  it("suppresses the triangle when the summary marker is hidden (DM-1115: list-style:none, DM-448: transparent ::marker)", () => {
+    // The capture layer collapses both `list-style: none` and a transparent
+    // `::marker` into `summaryMarkerSuppressed: true`; the renderer must paint
+    // nothing so it doesn't stack a UA triangle over the author's custom marker.
+    const svg = renderFormControl(makeDetails({ summaryMarkerSuppressed: true }), "");
+    expect(svg).toBe("");
+    expect(svg).not.toContain("<polygon");
+  });
+});

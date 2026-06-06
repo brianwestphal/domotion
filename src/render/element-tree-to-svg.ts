@@ -2266,6 +2266,12 @@ export function elementTreeToSvgInner(
           // here because it risks false positives on author-painted glyphs.
           const textPresDefault = /[➤]/g;
           label = label.replace(textPresDefault, (ch) => ch + "︎");
+          // DM-1119: the UA `::marker` is `white-space: normal`, so a
+          // `@counter-style` suffix like `":  "` (two spaces) collapses to a
+          // SINGLE space in Chrome's paint. Mirror that — otherwise the earlier
+          // DM-770 `xml:space="preserve"` rendered both spaces and pushed the
+          // marker ~1 space-width left of Chrome (measured on `domo-step`).
+          label = collapseMarkerWhitespace(label);
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
           // DM-790: SVG `<text text-anchor="end">` places the anchor at the
           // last glyph's advance-end, not its visible-right edge. Chromium
@@ -2285,11 +2291,14 @@ export function elementTreeToSvgInner(
           const mx = outside ? el.x - 7 + markerLastRsb : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
           const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          // DM-770: `@counter-style` suffixes like `":  "` carry multiple
-          // consecutive spaces that SVG would collapse to a single space by
-          // default. `xml:space="preserve"` keeps the marker label width
-          // matching Chrome's paint.
-          const xmlSpace = / {2,}/.test(label) ? ` xml:space="preserve"` : "";
+          // DM-1119: after the whitespace collapse above the label never holds
+          // a run of 2+ spaces, and Chrome's `white-space: normal` marker trims
+          // its trailing space (verified: the single-suffix-space emoji markers
+          // here match when we strip it). So no `xml:space="preserve"` — SVG's
+          // default collapse/trim mirrors the marker's own white-space handling.
+          // (The pre-DM-1119 `preserve` on doubled suffix spaces rendered both
+          // and slid the marker ~1 space-width left of Chrome.)
+          const xmlSpace = "";
           svgParts.push(
             `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}"${xmlSpace}>${escLabel}</text>`,
           );
@@ -2343,7 +2352,7 @@ export function elementTreeToSvgInner(
           // previous hardcoded constant; for other suffixes (e.g. Greek-
           // marker styles ending in `)` or `α`) the rsb floats to whatever
           // the actual last glyph dictates.
-          const label = formatListMarker(lsType, idx) + ".";
+          const label = formatListMarker(lsType, idx) + listMarkerSuffix(lsType);
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
           const builtinLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
           const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
@@ -6102,7 +6111,7 @@ function alignFromObjectPosition(pos: string): string {
  * Format a list-item marker label for the given list-style-type + 1-based index.
  * Supports the most common values. Unknown types fall back to decimal.
  */
-function formatListMarker(type: string, n: number): string {
+export function formatListMarker(type: string, n: number): string {
   switch (type) {
     case "decimal": return String(n);
     case "decimal-leading-zero": return n < 10 ? "0" + n : String(n);
@@ -6118,10 +6127,100 @@ function formatListMarker(type: string, n: number): string {
       return romanMarker(n);
     case "lower-greek":
       return greekMarker(n);
+    // DM-1114: non-decimal numbering systems from the CSS Counter Styles spec.
+    // Falling through to `String(n)` painted plain `1 2 3` where Chrome paints
+    // the script's numerals. armenian / georgian / hebrew are additive systems;
+    // arabic-indic / cjk-decimal are positional digit substitutions.
+    case "armenian":
+    case "upper-armenian":
+      return additiveMarker(n, ARMENIAN_UPPER, 1, 9999);
+    case "lower-armenian":
+      return additiveMarker(n, ARMENIAN_LOWER, 1, 9999);
+    case "georgian":
+      return additiveMarker(n, GEORGIAN, 1, 19999);
+    case "hebrew":
+      return additiveMarker(n, HEBREW, 1, 10999);
+    case "arabic-indic":
+      return digitSubstMarker(n, "٠١٢٣٤٥٦٧٨٩");
+    case "cjk-decimal":
+      return digitSubstMarker(n, "〇一二三四五六七八九");
     default:
       return String(n);
   }
 }
+
+// DM-1114: marker suffix per CSS Counter Styles. Most predefined styles use the
+// default `. `; the CJK ideographic styles use the ideographic comma `、`. We
+// only emit the visible suffix char (the trailing space is layout, already
+// encoded in the captured marker x). Mirrors the per-style `suffix` descriptor.
+// DM-1119: collapse runs of horizontal whitespace in a list-marker label to a
+// single space, mirroring the `white-space: normal` of Chrome's `::marker`. A
+// `@counter-style` `suffix: ":  "` reaches us as a label with a doubled space;
+// Chrome paints only one, so without this the marker drifts left of Chrome.
+export function collapseMarkerWhitespace(label: string): string {
+  return label.replace(/[^\S\n]+/g, " ");
+}
+
+export function listMarkerSuffix(type: string): string {
+  switch (type) {
+    case "cjk-decimal":
+    case "cjk-earthly-branch":
+    case "cjk-heavenly-stem":
+      return "、";
+    default:
+      return ".";
+  }
+}
+
+// Positional (numeric-system) marker: substitute each base-10 digit of `n` with
+// the matching glyph from a 10-char symbol set (index 0 = '0'). Used for
+// arabic-indic and cjk-decimal.
+function digitSubstMarker(n: number, digits: string): string {
+  if (n < 0) return "-" + digitSubstMarker(-n, digits);
+  const chars = [...digits];
+  return String(n).split("").map((d) => chars[d.charCodeAt(0) - 48] ?? d).join("");
+}
+
+// Additive-system marker (CSS Counter Styles `system: additive`): greedily
+// subtract the largest weight ≤ remaining, appending its symbol. Out-of-range
+// values fall back to decimal, matching the spec's range clamp.
+function additiveMarker(n: number, table: ReadonlyArray<readonly [number, string]>, lo: number, hi: number): string {
+  if (n < lo || n > hi) return String(n);
+  let v = n;
+  let s = "";
+  for (const [weight, sym] of table) {
+    while (v >= weight && weight > 0) { s += sym; v -= weight; }
+  }
+  return s;
+}
+
+// Armenian uppercase numerals (U+0531…), descending additive weights 9000…1.
+const ARMENIAN_UPPER: ReadonlyArray<readonly [number, string]> = [
+  [9000, "Ք"], [8000, "Փ"], [7000, "Ւ"], [6000, "Ց"], [5000, "Ր"], [4000, "Տ"], [3000, "Վ"], [2000, "Ս"], [1000, "Ռ"],
+  [900, "Ջ"], [800, "Պ"], [700, "Չ"], [600, "Ո"], [500, "Շ"], [400, "Ն"], [300, "Յ"], [200, "Մ"], [100, "Ճ"],
+  [90, "Ղ"], [80, "Ձ"], [70, "Հ"], [60, "Կ"], [50, "Ծ"], [40, "Խ"], [30, "Լ"], [20, "Ի"], [10, "Ժ"],
+  [9, "Թ"], [8, "Ը"], [7, "Է"], [6, "Զ"], [5, "Ե"], [4, "Դ"], [3, "Գ"], [2, "Բ"], [1, "Ա"],
+];
+// Armenian lowercase is the uppercase set shifted +0x30 (U+0561…).
+const ARMENIAN_LOWER: ReadonlyArray<readonly [number, string]> = ARMENIAN_UPPER.map(
+  ([w, sym]) => [w, String.fromCodePoint(sym.codePointAt(0)! + 0x30)] as const,
+);
+// Georgian numerals (Mkhedruli), descending additive weights 10000…1.
+const GEORGIAN: ReadonlyArray<readonly [number, string]> = [
+  [10000, "ჵ"], [9000, "ჰ"], [8000, "ჯ"], [7000, "ჴ"], [6000, "ხ"], [5000, "ჭ"], [4000, "წ"], [3000, "ძ"], [2000, "ც"], [1000, "ჩ"],
+  [900, "შ"], [800, "ყ"], [700, "ღ"], [600, "ქ"], [500, "ფ"], [400, "ჳ"], [300, "ტ"], [200, "ს"], [100, "რ"],
+  [90, "ჟ"], [80, "პ"], [70, "ო"], [60, "ჲ"], [50, "ნ"], [40, "მ"], [30, "ლ"], [20, "კ"], [10, "ი"],
+  [9, "თ"], [8, "ჱ"], [7, "ზ"], [6, "ვ"], [5, "ე"], [4, "დ"], [3, "გ"], [2, "ბ"], [1, "ა"],
+];
+// Hebrew numerals, descending additive weights. 15 and 16 use טו / טז (not יה /
+// יו) to avoid spelling forms of the divine name — explicit entries so the
+// greedy walk picks them over 10+5 / 10+6.
+const HEBREW: ReadonlyArray<readonly [number, string]> = [
+  [400, "ת"], [300, "ש"], [200, "ר"], [100, "ק"],
+  [90, "צ"], [80, "פ"], [70, "ע"], [60, "ס"], [50, "נ"], [40, "מ"], [30, "ל"], [20, "כ"],
+  [19, "יט"], [18, "יח"], [17, "יז"], [16, "טז"], [15, "טו"], [10, "י"],
+  [9, "ט"], [8, "ח"], [7, "ז"], [6, "ו"], [5, "ה"], [4, "ד"], [3, "ג"], [2, "ב"], [1, "א"],
+];
 
 function alphaMarker(n: number, upper: boolean): string {
   if (n <= 0) return String(n);

@@ -50,6 +50,15 @@ describe("resolveFontKey: generic-family resolution", () => {
     expect(resolveFontKey("monospace")).toBe("courier");
   });
 
+  it("routes an explicitly-named Playfair Display to its own key (DM-1120)", () => {
+    // Chrome resolves the installed Playfair Display for the drop-cap; we
+    // mirror it so the `B` isn't painted in the Georgia fallback. The route is
+    // explicit-name only — a bare `serif` still resolves to Times.
+    expect(resolveFontKey("Playfair Display")).toBe("playfair-display");
+    expect(resolveFontKey('"Playfair Display", Georgia, serif')).toBe("playfair-display");
+    expect(resolveFontKey("serif")).toBe("times");
+  });
+
   it("routes bare ui-monospace / ui-rounded / ui-sans-serif to Times (last-resort fallback)", () => {
     // DM-269: macOS Chrome doesn't recognize ui-monospace / ui-rounded as
     // system fonts — painted T width is 9.77px (Times) and q is 8.0px (Times),
@@ -698,6 +707,18 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     // Hangul does NOT — DM-691 routes it to Apple SD Gothic Neo first
     // because neither HiraginoSansGB nor Songti contains Hangul codepoints.
     expect(darwinFallbackChain(0xAC00, "times")).toEqual(["korean", "cjk"]);
+  });
+  // DM-1117: an explicitly-named `Hiragino Mincho ProN` routes Han / kana to the
+  // Mincho face first (it carries the `trad` / `fwid` / `jp78` East-Asian
+  // features Songti lacks), falling back to the generic serif CJK then sans CJK.
+  // The generic `serif` keyword still resolves to Songti (the case above).
+  it("routes CJK through hiragino-mincho when the family is explicitly named (DM-1117)", () => {
+    expect(resolveFontKey("Hiragino Mincho ProN")).toBe("hiragino-mincho");
+    expect(resolveFontKey("Hiragino Mincho ProN, serif")).toBe("hiragino-mincho");
+    expect(darwinFallbackChain(0x4E00, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
+    expect(darwinFallbackChain(0x3042, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
+    // The bare `serif` generic is unchanged — still Songti, not Mincho.
+    expect(darwinFallbackChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]);
   });
   it("routes Han Unified Ideographs through pingfang-sc → cjk for non-serif primaries (DM-388)", () => {
     // U+4F60 is in CJK Unified Ideographs (the 你 in 你好). Sans-serif primary

@@ -525,6 +525,15 @@ const FONT_PATHS: Record<string, FontPath> = {
   // changes when the primary is serif.
   "cjk-serif":       { path: "/System/Library/Fonts/Supplemental/Songti.ttc", postscriptName: "STSongti-SC-Light" },
   "cjk-serif-bold":  { path: "/System/Library/Fonts/Supplemental/Songti.ttc", postscriptName: "STSongti-SC-Bold" },
+  // Hiragino Mincho ProN — the Japanese serif (明朝) family. Routed ONLY when an
+  // author NAMES it explicitly (`font-family: "Hiragino Mincho ProN"`), not for
+  // the generic `serif` keyword (that stays Songti, DM-333). Unlike Songti it
+  // carries the East-Asian OpenType features `trad` / `jp78` / `fwid` / `pwid`,
+  // so `font-variant-east-asian: traditional` substitutes the traditional form
+  // (国→國) and `full-width` substitutes the full-width Latin forms — neither of
+  // which Songti can do. W3 is regular, W6 the bold pair. DM-1117.
+  "hiragino-mincho":      { path: "/System/Library/Fonts/ヒラギノ明朝 ProN.ttc", postscriptName: "HiraMinProN-W3" },
+  "hiragino-mincho-bold": { path: "/System/Library/Fonts/ヒラギノ明朝 ProN.ttc", postscriptName: "HiraMinProN-W6" },
   // Hiragino Sans (the Japanese family, not GB) covers a much wider set of
   // Geometric Shapes and Misc Symbols at em-square width — ◉◌◐◑ ☀☁☂☃ etc. —
   // that the GB family lacks. Chrome on macOS routes these chars here when
@@ -633,6 +642,19 @@ const FONT_PATHS: Record<string, FontPath> = {
   "source-serif-pro-bold":         { path: "/Library/Fonts/SourceSerifPro-Bold.ttf" },
   "source-serif-pro-italic":       { path: "/Library/Fonts/SourceSerifPro-Italic.ttf" },
   "source-serif-pro-bold-italic":  { path: "/Library/Fonts/SourceSerifPro-BoldItalic.ttf" },
+  // Playfair Display — a high-contrast display serif (Google Fonts), commonly
+  // installed under `/Library/Fonts/` for drop caps / headings. Same
+  // present-or-fall-through contract as Source Serif Pro: Chrome on macOS picks
+  // it up when CSS names it AND the file is on disk (verified via
+  // `CSS.getPlatformFontsForNode` on the `24-deep-initial-letter` drop cap —
+  // Chrome paints the `B` from PlayfairDisplay-Regular, with Georgia for the
+  // body), otherwise it falls through to the next family (Georgia / serif).
+  // When the path is absent, `resolveFont` returns null and the family chain
+  // walks on, matching Chrome's fallback on a host without Playfair. DM-1120.
+  "playfair-display":              { path: "/Library/Fonts/PlayfairDisplay-Regular.ttf" },
+  "playfair-display-bold":         { path: "/Library/Fonts/PlayfairDisplay-Bold.ttf" },
+  "playfair-display-italic":       { path: "/Library/Fonts/PlayfairDisplay-Italic.ttf" },
+  "playfair-display-bold-italic":  { path: "/Library/Fonts/PlayfairDisplay-BoldItalic.ttf" },
   // Generic cursive — Chrome on macOS resolves `cursive` to Apple Chancery
   // (NOT Snell Roundhand). Empirical probe at 16px on the sample "The quick
   // brown fox jumps over the lazy dog": Chrome cursive = 290.08px, Apple
@@ -767,6 +789,12 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   "cjk-bold":        { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
   "cjk-serif":       { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
   "cjk-serif-bold":  { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  // DM-1117: no Hiragino Mincho on Linux — collapse the explicit-name route to
+  // the serif CJK face this image ships. The `trad`/`fwid` substitutions won't
+  // fire here (WenQuanYi lacks those GSUB features), a known platform gap on the
+  // not-yet-calibrated Linux chain; the glyph still resolves.
+  "hiragino-mincho":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
+  "hiragino-mincho-bold": { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
   "pingfang-sc":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
   "pingfang-sc-bold": { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
   "pingfang-tc":      { fcMatch: "WenQuanYi Zen Hei", path: WQY, postscriptName: "WenQuanYiZenHei" },
@@ -856,6 +884,11 @@ const WIN32_FONT_PATHS: Record<string, FontPath> = {
   "cjk-bold":        win("msyhbd.ttc", "MicrosoftYaHei-Bold"),
   "cjk-serif":       win("simsun.ttc", "SimSun"),
   "cjk-serif-bold":  win("simsun.ttc", "SimSun"),
+  // DM-1117: no Hiragino Mincho on Windows — route the explicit-name request to
+  // SimSun (the serif CJK DirectWrite face). SimSun ships `trad`, but the
+  // Windows chain isn't calibrated yet; the glyph resolves regardless.
+  "hiragino-mincho":      win("simsun.ttc", "SimSun"),
+  "hiragino-mincho-bold": win("simsun.ttc", "SimSun"),
   "pingfang-sc":      win("msyh.ttc", "MicrosoftYaHei"),
   "pingfang-sc-bold": win("msyhbd.ttc", "MicrosoftYaHei-Bold"),
   "pingfang-tc":      win("msjh.ttc", "MicrosoftJhengHeiRegular"),
@@ -1496,6 +1529,11 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     || (codepoint >= 0x3400 && codepoint <= 0x4DBF)
     || (codepoint >= 0x4E00 && codepoint <= 0x9FFF)
     || (codepoint >= 0xF900 && codepoint <= 0xFAFF)) {
+    // DM-1117: author explicitly named Hiragino Mincho ProN — route its own
+    // glyphs first so the `trad` / `fwid` / `jp78` East-Asian features land on a
+    // font that carries them (Songti doesn't). Falls back to the generic serif
+    // CJK then sans CJK for any codepoint Mincho lacks.
+    if (primaryKey === "hiragino-mincho") return ["hiragino-mincho", "cjk-serif", "cjk"];
     // Serif primary → SERIF CJK font first (DM-333). Keep `cjk`
     // (HiraginoSansGB) as a secondary so chars Songti SC Light lacks (a
     // small set in the rare extension blocks) still resolve.
@@ -1995,7 +2033,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // bold-italic) for headings + emphasis in serif content (DM-269).
   if (key === "helvetica" || key === "arial" || key === "courier" || key === "menlo"
       || key === "times" || key === "times-new-roman" || key === "georgia"
-      || key === "source-serif-pro") {
+      || key === "source-serif-pro" || key === "playfair-display") {
     const isBold = weight >= 600;
     const isItalic = slant !== 0;
     if (isBold && isItalic) effectiveKey = `${key}-bold-italic`;
@@ -2009,6 +2047,9 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   }
   if (key === "cjk-serif" && weight >= 600) {
     effectiveKey = "cjk-serif-bold";
+  }
+  if (key === "hiragino-mincho" && weight >= 600) {
+    effectiveKey = "hiragino-mincho-bold"; // HiraMinProN-W6. DM-1117.
   }
   if (key === "hiragino-jp" && weight >= 600) {
     effectiveKey = "hiragino-jp-bold";
@@ -2352,6 +2393,17 @@ function matchFamilyNameToKey(name: string): string | null {
     // When the file isn't installed on this host, `resolveFont` returns null
     // and the chain falls through to the next family. DM-804.
     if (name === "source serif pro" || name === "sourceserifpro") return "source-serif-pro";
+    // DM-1120: Playfair Display — explicit-name route to the installed display
+    // serif (Chrome resolves it for `font-family: "Playfair Display"` when on
+    // disk; we mirror that, falling through to the next family when absent).
+    if (name === "playfair display" || name === "playfairdisplay") return "playfair-display";
+    // DM-1117: Hiragino Mincho ProN — the Japanese serif (明朝). Only when an
+    // author NAMES it (any of the ProN / Pro / ASCII / native spellings); the
+    // generic `serif` keyword stays Songti. Routing here gives the East-Asian
+    // OpenType features (trad / fwid / jp78) a font that actually carries them.
+    if (name === "hiragino mincho pron" || name === "hiragino mincho pro"
+      || name === "hiragino mincho" || name === "ヒラギノ明朝 pron"
+      || name === "hiraminpron" || name === "hiraminpro") return "hiragino-mincho";
     // Chrome on macOS resolves the CSS `cursive` generic keyword to Apple
     // Chancery (per the empirical probe — bare `cursive` paints at exactly
     // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).
