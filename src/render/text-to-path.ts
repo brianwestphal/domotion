@@ -3226,6 +3226,52 @@ export function usesComplexShaperDottedCircle(cp: number): boolean {
   return false;
 }
 
+// DM-1109: pre-base (LEFT) matras — VOWEL SIGNS the Universal Shaping Engine
+// reorders to BEFORE their base. The set is the INTERSECTION of Unicode
+// IndicPositionalCategory (UCD 18.0) "Left" placement (all six categories whose
+// placement includes a Left component: Left / Top_And_Left / Bottom_And_Left /
+// Top_And_Bottom_And_Left / Left_And_Right / Top_And_Left_And_Right) with
+// IndicSyllabicCategory = Vowel_Dependent. The Vowel_Dependent filter is
+// essential: USE pre-base reordering applies to pre-base VOWELS, not to MEDIAL
+// CONSONANTS that merely sit to the left (e.g. Gurung Khema U+1612A/B MEDIAL
+// YA/VA, Myanmar U+103C medial ra, Ahom U+1171E) — those are InPC=Left but
+// Chrome paints them post-base ("◌ mark"), so flipping them was wrong (it
+// regressed the gurung-khema fixture from clean to a 2-region diff before the
+// filter was added).
+//
+// When `insertSyntheticDottedCircles` synthesizes a ◌ base for an orphaned,
+// uncovered such matra, Chrome (USE) paints "mark ◌" (☐○), not "◌ mark". Verified
+// against Chrome's painted output for the Tulu-Tigalari block: U+113C5 (Left
+// vowel) and U+113C7/C8 (Left_And_Right vowels) all paint tofu-then-circle,
+// while U+113C9 (Right vowel) paints circle-then-tofu. (Two-part Left_And_Right
+// vowels render as a single .notdef tofu on the no-font path, so they reorder
+// wholesale like a pure Left matra.) Flat sorted ranges, inclusive [lo, hi];
+// only consulted for an already-qualified orphaned uncovered mark, so the linear
+// scan is cheap.
+const LEFT_REORDER_MATRA_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x93F, 0x93F], [0x94E, 0x94E], [0x9BF, 0x9BF], [0x9C7, 0x9C8],
+  [0x9CB, 0x9CC], [0xA3F, 0xA3F], [0xABF, 0xABF], [0xB47, 0xB48],
+  [0xB4B, 0xB4C], [0xBC6, 0xBC8], [0xBCA, 0xBCC], [0xD46, 0xD48],
+  [0xD4A, 0xD4C], [0xDD9, 0xDDE], [0x1031, 0x1031], [0x1084, 0x1084],
+  [0x17BE, 0x17C5], [0x1A19, 0x1A19], [0x1A6E, 0x1A72], [0x1B3E, 0x1B41],
+  [0x1BA6, 0x1BA6], [0x1C27, 0x1C29], [0xA9BA, 0xA9BB], [0xAA2F, 0xAA30],
+  [0xAAEB, 0xAAEB], [0xAAEE, 0xAAEE], [0x110B1, 0x110B1], [0x1112C, 0x1112C],
+  [0x111B4, 0x111B4], [0x111CE, 0x111CE], [0x112E1, 0x112E1], [0x11347, 0x11348],
+  [0x1134B, 0x1134C], [0x113C2, 0x113C2], [0x113C5, 0x113C5], [0x113C7, 0x113C8],
+  [0x11436, 0x11436], [0x114B1, 0x114B1], [0x114B9, 0x114B9], [0x114BB, 0x114BC],
+  [0x114BE, 0x114BE], [0x115B0, 0x115B0], [0x115B8, 0x115BB], [0x116AE, 0x116AE],
+  [0x11726, 0x11726], [0x1182D, 0x1182D], [0x11935, 0x11935], [0x11937, 0x11938],
+  [0x119D2, 0x119D2], [0x119E4, 0x119E4], [0x11CB1, 0x11CB1], [0x11EF5, 0x11EF5],
+  [0x11F3E, 0x11F3F],
+];
+
+export function isLeftReorderingMatra(cp: number): boolean {
+  for (const [lo, hi] of LEFT_REORDER_MATRA_RANGES) {
+    if (cp >= lo && cp <= hi) return true;
+  }
+  return false;
+}
+
 // DM-1026: does `cp` resolve to a `.notdef` (no real font in the chain covers
 // it)? Mirrors the coverage resolution in `splitTextIntoFontRuns`'s walk —
 // primary, then per-codepoint webfont variant, then the static fallback chain,
@@ -3478,6 +3524,18 @@ export function insertSyntheticDottedCircles(
     return dottedCircleAdvanceCss;
   };
 
+  // DM-1109: the gap before the synthetic ◌ when it follows a reordered LEFT
+  // matra. The matra paints as the primary font's `.notdef` tofu (the codepoint
+  // is uncovered — that's the gate), and Chrome advances by THAT tofu's width
+  // before the ◌, which is wider than the ◌'s own advance (≈1em vs ~0.6em). Use
+  // the primary `.notdef` advance; fall back to one em, then to the ◌ advance.
+  const resolveMarkTofuAdvance = (cp: number): number => {
+    const g = primaryFont.glyphForCodePoint(cp);
+    const a = (g?.advanceWidth ?? 0) * (fontSize / primaryFont.unitsPerEm);
+    if (a > 0) return a;
+    return fontSize > 0 ? fontSize : resolveDottedCircleAdvance();
+  };
+
   let outText = "";
   const outX: number[] = [];
   const haveX = xOffsets != null;
@@ -3496,12 +3554,23 @@ export function insertSyntheticDottedCircles(
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
-        outText += "◌";
-        if (haveX) outX.push(markX); // ◌ at the mark's captured cell origin
-        // The displaced mark shifts right by the ◌ advance; its units keep that
-        // shifted x (one entry per UTF-16 unit, mirroring the capture's layout).
-        for (let k = 0; k < chLen; k++) outX.push(haveX ? markX + adv : 0);
-        outText += ch;
+        if (isLeftReorderingMatra(cp)) {
+          // DM-1109: a pre-base (left) matra reorders BEFORE its base under the
+          // Universal Shaping Engine, so Chrome paints "mark ◌" (☐○). Emit the
+          // mark at the captured cell origin and the ◌ shifted right by the
+          // mark tofu's advance (the matra leads, so the ◌ clears its full box).
+          for (let k = 0; k < chLen; k++) outX.push(markX);
+          outText += ch;
+          outText += "◌";
+          if (haveX) outX.push(markX + resolveMarkTofuAdvance(cp));
+        } else {
+          outText += "◌";
+          if (haveX) outX.push(markX); // ◌ at the mark's captured cell origin
+          // The displaced mark shifts right by the ◌ advance; its units keep that
+          // shifted x (one entry per UTF-16 unit, mirroring the capture's layout).
+          for (let k = 0; k < chLen; k++) outX.push(haveX ? markX + adv : 0);
+          outText += ch;
+        }
         clusterHasBase = true; // the inserted ◌ is the cluster base now
         changed = true;
         i += chLen;

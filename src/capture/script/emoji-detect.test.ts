@@ -27,6 +27,33 @@ describe("emoji-detect needsRaster (unconditional branches)", () => {
     expect(needsRaster(0x1F19A, 0, "x")).toBe(true); // 🆚
   });
 
+  it("rasters the Enclosed Ideographic Supplement emoji (🈁 🈚 🈯 🈲–🈺 🉐 🉑) — DM-1110", () => {
+    // U+1F200-1F2FF squared/circled CJK emoji below the 0x1F300 floor that
+    // Chrome paints via Apple Color Emoji. Mix of Emoji_Presentation=Yes and the
+    // three text-default ones (1F201/1F202/1F237) no macOS text font covers.
+    expect(needsRaster(0x1F201, 0, "x")).toBe(true); // 🈁
+    expect(needsRaster(0x1F202, 0, "x")).toBe(true); // 🈂
+    expect(needsRaster(0x1F21A, 0, "x")).toBe(true); // 🈚
+    expect(needsRaster(0x1F22F, 0, "x")).toBe(true); // 🈯
+    expect(needsRaster(0x1F232, 0, "x")).toBe(true); // 🈲
+    expect(needsRaster(0x1F237, 0, "x")).toBe(true); // 🈷 (text-default, folded into the run)
+    expect(needsRaster(0x1F23A, 0, "x")).toBe(true); // 🈺
+    expect(needsRaster(0x1F250, 0, "x")).toBe(true); // 🉐
+    expect(needsRaster(0x1F251, 0, "x")).toBe(true); // 🉑
+  });
+
+  it("does NOT raster the monochrome (text-presentation) 1F200 cells — DM-1110", () => {
+    // Squared/bracketed CJK that Chrome paints as a monochrome text glyph, NOT
+    // color — they stay on the path pipeline (verified per-cell against Chrome's
+    // paint for the 1F200 fixture).
+    expect(needsRaster(0x1F200, 0, "x")).toBe(false); // 🈀
+    expect(needsRaster(0x1F210, 0, "x")).toBe(false); // 🈐 squared CJK
+    expect(needsRaster(0x1F22E, 0, "x")).toBe(false); // just below 🈯
+    expect(needsRaster(0x1F23B, 0, "x")).toBe(false); // just past 🈺
+    expect(needsRaster(0x1F240, 0, "x")).toBe(false); // 🉀 tortoise-shell bracket
+    expect(needsRaster(0x1F252, 0, "x")).toBe(false); // just past 🉑
+  });
+
   it("keeps the pre-existing unconditional families and ranges", () => {
     expect(needsRaster(0x2716, 0, "x")).toBe(true);  // rasterCps ✖
     expect(needsRaster(0x1F1E6, 0, "x")).toBe(true); // regional indicator

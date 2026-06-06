@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -258,6 +258,34 @@ describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle g
   });
 });
 
+// DM-1109: the pre-base (left) matra predicate. Unconditional set membership —
+// no DOM. The crux is the Vowel_Dependent filter: InPC=Left medial CONSONANTS
+// must NOT qualify (they don't pre-base-reorder), only left VOWEL signs do.
+describe("isLeftReorderingMatra (pre-base vowel reorder gate)", () => {
+  it("matches left VOWEL signs across Brahmic blocks", () => {
+    expect(isLeftReorderingMatra(0x093F)).toBe(true);  // Devanagari sign I
+    expect(isLeftReorderingMatra(0x113C5)).toBe(true);  // Tulu-Tigalari vowel sign AI (Left)
+    expect(isLeftReorderingMatra(0x113C7)).toBe(true);  // Tulu-Tigalari vowel sign OO (Left_And_Right)
+    expect(isLeftReorderingMatra(0x11347)).toBe(true);  // Grantha vowel sign EE
+    expect(isLeftReorderingMatra(0x119E4)).toBe(true);  // Nandinagari vowel sign prishthamatra E
+    expect(isLeftReorderingMatra(0x17BE)).toBe(true);   // Khmer vowel sign OE
+  });
+  it("does NOT match InPC=Left MEDIAL CONSONANTS (no pre-base reorder)", () => {
+    // These are positioned left but are Consonant_Medial, not Vowel_Dependent —
+    // Chrome paints them post-base. Including them regressed gurung-khema.
+    expect(isLeftReorderingMatra(0x1612A)).toBe(false); // Gurung Khema medial YA
+    expect(isLeftReorderingMatra(0x1612B)).toBe(false); // Gurung Khema medial VA
+    expect(isLeftReorderingMatra(0x103C)).toBe(false);  // Myanmar consonant sign medial RA
+    expect(isLeftReorderingMatra(0x1171E)).toBe(false); // Ahom consonant sign medial RA
+    expect(isLeftReorderingMatra(0xA9BF)).toBe(false);  // Javanese consonant sign cakra
+  });
+  it("does NOT match post-base / above / below marks or plain text", () => {
+    expect(isLeftReorderingMatra(0x113C9)).toBe(false); // Tulu-Tigalari AU length mark (Right)
+    expect(isLeftReorderingMatra(0x0301)).toBe(false);  // Combining acute
+    expect(isLeftReorderingMatra(0x0041)).toBe(false);  // Latin A
+  });
+});
+
 // DM-1026: the synthetic dotted-circle preprocessing. macOS-gated (needs the
 // real font chain to decide coverage). Asserts the FOUR gates compose: a
 // no-font Brahmic orphaned mark gets a leading ◌, while a covered Latin mark, a
@@ -281,6 +309,22 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     // The advance must come from the PRIMARY font (Arial Unicode MS ◌ = 0.6em =
     // 19.2px @32), NOT the fallback chain's full-width Hiragino ◌ (32px).
     expect(r.xOffsets![1] - 98.4).toBeCloseTo(19.2, 1);
+  });
+  it("DM-1109: appends ◌ AFTER a lone left (pre-base) matra so it paints mark-then-circle", () => {
+    const r = run("\u{113C5}"); // Tulu-Tigalari VOWEL SIGN AI — uncovered, InPC=Left
+    expect(r.text).toBe("\u{113C5}◌"); // mark first, ◌ after (Chrome reorders the matra ahead of its base)
+  });
+  it("DM-1109: positions the appended ◌ past the mark tofu's advance", () => {
+    const r = run("\u{113C5}", [40, 40]); // one xOffset per UTF-16 unit
+    expect(r.text).toBe("\u{113C5}◌");
+    expect(r.xOffsets!.length).toBe(3); // surrogate pair + ◌
+    expect(r.xOffsets![0]).toBeCloseTo(40, 3); // mark at the captured cell origin
+    expect(r.xOffsets![1]).toBeCloseTo(40, 3);
+    expect(r.xOffsets![2]).toBeGreaterThan(40); // ◌ shifted right past the tofu
+  });
+  it("DM-1109: still PREPENDS ◌ for a post-base (right) matra in the same block", () => {
+    const r = run("\u{113C9}"); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
+    expect(r.text).toBe("◌\u{113C9}");
   });
   it("does NOT insert ◌ for a generic Latin combining mark (covered + default shaper)", () => {
     const r = run("á"); // a + combining acute — covered, has a base

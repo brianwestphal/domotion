@@ -162,6 +162,22 @@ export const createEmojiDetect = () => {
     // an empty path-mode glyph; no text font carries them, so Chrome always
     // paints the color emoji (unconditional, like the ✨ family).
     if (cp === 0x1F18E || (cp >= 0x1F191 && cp <= 0x1F19A)) return true;
+    // DM-1110: Enclosed Ideographic Supplement (U+1F200-1F2FF) squared / circled
+    // CJK emoji that Chrome paints via Apple Color Emoji: 🈁 U+1F201, 🈂 U+1F202,
+    // 🈚 U+1F21A, 🈯 U+1F22F, 🈲–🈺 U+1F232-1F23A, 🉐 U+1F250, 🉑 U+1F251. Like the
+    // 1F100 squared letters above, they sit BELOW the 0x1F300 floor of the main-
+    // block check below, so they were dropped to an empty path-mode glyph. The
+    // set is unconditional: it's the Emoji_Presentation=Yes codepoints of the
+    // block (color wins over the cascade) PLUS the three text-default ones
+    // (1F201 / 1F202 / 1F237) which no macOS text font covers, so Chrome routes
+    // them to the color font too. The canvas `isColorGlyph` probe can't gate
+    // these — for SMP squared-CJK codepoints canvas font fallback diverges from
+    // page layout and reports monochrome even where the page paints color — so
+    // this is verified directly against Chrome's painted output for the 1F200
+    // fixture (every one of the 15 cells classified COLOR by a per-cell pixel-
+    // saturation scan). 1F232-1F23A is contiguous once 1F237 is folded in.
+    if (cp === 0x1F201 || cp === 0x1F202 || cp === 0x1F21A || cp === 0x1F22F
+        || (cp >= 0x1F232 && cp <= 0x1F23A) || cp === 0x1F250 || cp === 0x1F251) return true;
     // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
     // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
     // Extended-A, Symbols & Pictographs Extended-B.
