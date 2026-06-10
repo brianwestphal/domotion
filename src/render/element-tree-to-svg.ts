@@ -2469,7 +2469,7 @@ export function elementTreeToSvgInner(
             const defId = `${idPrefix}pbg${clipIdx++}`;
             const out = buildBackgroundLayerDef(
               defId, layer, pb.x, pb.y, pb.width, pb.height,
-              "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
+              pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
             );
             if (out.def === "") continue;
             defsParts.push(out.def);
@@ -2605,7 +2605,10 @@ export function elementTreeToSvgInner(
           // (Filter Effects §4.4), so stdDeviation = the captured px value.
           const blurMatch = pb.filter != null ? /\bblur\(\s*([\d.]+)px\s*\)/.exec(pb.filter) : null;
           const blurStd = blurMatch != null ? parseFloat(blurMatch[1]) : null;
-          if (!hasTransform && (blurStd == null || !(blurStd > 0))) return;
+          // DM-1121: a `<g opacity>` wrap also counts as needing a flush so a
+          // dimmed pseudo (e.g. a 45%-opacity glow) paints translucent.
+          const hasOpacity = pb.opacity != null && pb.opacity < 1;
+          if (!hasTransform && !hasOpacity && (blurStd == null || !(blurStd > 0))) return;
           const added = svgParts.splice(pbStart);
           if (added.length === 0) return;
           // The inner emits were already indented; we keep the same
@@ -2637,6 +2640,9 @@ export function elementTreeToSvgInner(
             const ty = pb.y + oy;
             inner = `<g transform="translate(${r(tx)} ${r(ty)}) ${pb.transform} translate(${r(-tx)} ${r(-ty)})">${inner}</g>`;
           }
+          // Opacity wraps OUTERMOST so it dims the transformed/blurred result as
+          // a whole (matching how CSS `opacity` groups the pseudo's painting).
+          if (hasOpacity) inner = `<g opacity="${Number(pb.opacity!.toFixed(2))}">${inner}</g>`;
           svgParts.push(`${indent}${inner}`);
         }
         flushPbTransformWrap();
@@ -3262,18 +3268,29 @@ export function elementTreeToSvgInner(
         // DM-1051: a negative z-index glow was already painted behind in the
         // early loop — don't re-emit it on top here.
         if (pb.zIndex != null && pb.zIndex < 0) continue;
+        // DM-1121: wrap the deferred fade-overlay's rects in a `<g opacity>`
+        // when the pseudo dims itself. Stripe's keynote glow is a 45%-opacity
+        // pink radial; emitting it opaque painted a hard magenta blob.
+        const pbOpacityStart = svgParts.length;
         const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
         for (let li = pbLayers.length - 1; li >= 0; li--) {
           const layer = pbLayers[li].trim();
           const defId = `${idPrefix}pbg${clipIdx++}`;
           const out = buildBackgroundLayerDef(
             defId, layer, pb.x, pb.y, pb.width, pb.height,
-            "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
+            pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
           );
           if (out.def === "") continue;
           defsParts.push(out.def);
           const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
           svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+        }
+        if (pb.opacity != null && pb.opacity < 1) {
+          const added = svgParts.splice(pbOpacityStart);
+          if (added.length > 0) {
+            const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+            svgParts.push(`${indent}<g opacity="${Number(pb.opacity.toFixed(2))}">${inner}</g>`);
+          }
         }
       }
     }
@@ -4154,7 +4171,13 @@ function buildBackgroundLayerDef(
   const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
   if (radial != null) {
     const repeating = /^repeating-/i.test(layer);
-    return { def: buildRadialGradientDef(id, radial[1], repeating, gradX, gradY, gradW, gradH) };
+    // DM-1121: honor `background-position` for radial gradients. For an
+    // auto-sized gradient the image fills the box, so a percentage / keyword
+    // position resolves to a zero offset ((box − image) × pct = 0) and only the
+    // px component slides the gradient. `parseBgPositionPx` extracts that px
+    // component per axis; non-px tokens contribute 0.
+    const [offX, offY] = parseBgPositionPx(posCss);
+    return { def: buildRadialGradientDef(id, radial[1], repeating, gradX, gradY, gradW, gradH, offX, offY) };
   }
   // DM-550: conic. The raster pre-pass (DM-549) populated `_conicTileCache`
   // with PNG bytes for `(layerText, "${tileW}x${tileH}")` tuples; we look up
@@ -4614,9 +4637,44 @@ function normalizeTransparentStops(stops: Array<{ pos: number; color: RGBA }>): 
  * size keywords (closest/farthest side/corner), explicit radii, and position
  * accurately in a non-square box. elX/elY are the element's absolute top-left.
  */
-function buildRadialGradientDef(
+/**
+ * DM-1121: extract the pixel component of a computed `background-position`
+ * (`"-90px 90px"`, `"0% 100%"`, `"left 10px bottom"`, …) as an `[x, y]` px pair.
+ *
+ * Only the px part contributes a real offset for an auto-sized gradient (the
+ * image fills the box, so any percentage / keyword resolves to a zero
+ * `(box − image) × pct` shift). Percentages and bare keywords therefore map to
+ * 0. Two-value computed positions are the common case; the edge-offset form
+ * (`"left 10px top 20px"`) is handled by summing the px token that follows each
+ * horizontal / vertical keyword.
+ */
+export function parseBgPositionPx(posCss: string): [number, number] {
+  const toks = posCss.trim().split(/\s+/).filter((t) => t !== "");
+  if (toks.length === 0) return [0, 0];
+  const px = (t: string): number | null => {
+    const m = /^(-?\d+(?:\.\d+)?)px$/.exec(t);
+    return m != null ? parseFloat(m[1]) : null;
+  };
+  // Edge-offset form: keyword followed by an optional px length, per axis.
+  if (toks.some((t) => /^(left|right|top|bottom|center)$/i.test(t)) && toks.length > 2) {
+    let x = 0, y = 0;
+    for (let i = 0; i < toks.length; i++) {
+      const kw = toks[i].toLowerCase();
+      const next = i + 1 < toks.length ? px(toks[i + 1]) : null;
+      if (kw === "right" && next != null) x = -next;       // offset from the right edge
+      else if (kw === "left" && next != null) x = next;
+      else if (kw === "bottom" && next != null) y = -next; // offset from the bottom edge
+      else if (kw === "top" && next != null) y = next;
+    }
+    return [x, y];
+  }
+  return [px(toks[0]) ?? 0, toks.length > 1 ? (px(toks[1]) ?? 0) : 0];
+}
+
+export function buildRadialGradientDef(
   id: string, args: string, repeating: boolean,
   elX: number, elY: number, w: number, h: number,
+  offsetX: number = 0, offsetY: number = 0,
 ): string {
   const parts = splitTopLevelCommas(args).map((p) => p.trim());
   let stopsStart = 0;
@@ -4697,9 +4755,14 @@ function buildRadialGradientDef(
   const stops = parseGradientStops(parts.slice(stopsStart), radialLineLength);
   if (stops.length === 0) return "";
 
-  // Compute center in absolute user-space coords.
-  const cx = elX + cxFrac * w;
-  const cy = elY + cyFrac * h;
+  // Compute center in absolute user-space coords. DM-1121: `background-position`
+  // translates the whole gradient IMAGE within the box, which for an auto-sized
+  // gradient (image == box) just slides the center by the px offset — the
+  // size-keyword radii below stay image-box-relative (`cxFrac * w`), so they're
+  // unchanged. Stripe's keynote glow uses `background-position: -90px 90px` to
+  // push the pink core into the lower-left corner.
+  const cx = elX + offsetX + cxFrac * w;
+  const cy = elY + offsetY + cyFrac * h;
 
   // Compute effective radii per shape + size keyword.
   const dxL = cxFrac * w;        // distance to left side

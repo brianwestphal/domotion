@@ -32,6 +32,8 @@ Per-pseudo CSS properties Domotion honors:
 |-----------------------|---------------------|---------------------|----------------|-------|
 | `background-color`    | yes                 | yes                 | n/a            | Resolved to sRGB at capture time. |
 | `background-image`    | yes (gradients/url) | yes (gradients/url) | n/a            | Multiple comma-separated layers; emit in reverse order so layer 0 paints on top. |
+| `background-position` / `-size` | yes      | yes                 | n/a            | Captured alongside a `background-image` and threaded into the layer emit. For a radial gradient the px component of the position slides the gradient core (Stripe's keynote glow uses `-90px 90px` to push the pink radial into the lower-left corner). |
+| `opacity` (0 < o < 1) | yes                 | yes                 | n/a            | Wraps the pseudo's box in a `<g opacity>` so a translucent glow paints at its true strength (the Stripe glow is `0.45`). `opacity: 0` is dropped entirely — see below. |
 | `border-radius`       | yes (uniform)       | yes (uniform)       | n/a            | Single-value shorthand; clamped to `min(r, w/2, h/2)` for capsule shapes. |
 | `border` (uniform)    | yes                 | yes                 | n/a            | `<rect stroke=...>` with style: solid / dashed / dotted. |
 | `border` (per-side)   | yes (`<line>` per)  | yes (`<line>` per)  | n/a            | Single-side borders paint as a `<line>`; CSS triangles detected + emitted as `<polygon>`. |

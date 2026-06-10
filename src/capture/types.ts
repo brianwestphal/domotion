@@ -975,6 +975,20 @@ export interface PseudoBox {
   height: number;
   backgroundColor?: string;
   backgroundImage?: string;
+  /** DM-1121: the pseudo's `background-position` / `background-size`, captured
+   *  only when it carries a `background-image`. Stripe's keynote-speaker glow is
+   *  a `::after { background: radial-gradient(...); background-position: -90px
+   *  90px; opacity: 0.45 }` — dropping the position painted the pink core
+   *  centered over the speaker's face instead of offset to the lower-left
+   *  corner. The renderer feeds these into `buildBackgroundLayerDef` instead of
+   *  the previous hardcoded `"0% 0%"` / `"auto"`. */
+  backgroundPosition?: string;
+  backgroundSize?: string;
+  /** DM-1121: the pseudo's own `opacity` when < 1, so the renderer can wrap the
+   *  emitted box in a `<g opacity>` (the Stripe glow is painted at 0.45). Omitted
+   *  for the default `1`. Fully-transparent pseudos (`opacity: 0`) are dropped at
+   *  capture time and never produce a box. */
+  opacity?: number;
   borderTopWidth?: number; borderTopColor?: string; borderTopStyle?: string;
   borderRightWidth?: number; borderRightColor?: string; borderRightStyle?: string;
   borderBottomWidth?: number; borderBottomColor?: string; borderBottomStyle?: string;

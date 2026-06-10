@@ -463,6 +463,14 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
               height: borderBoxH,
               backgroundColor: hasBg ? normColor(bgRaw) : undefined,
               backgroundImage: hasBgImg ? bgImgRaw : undefined,
+              // DM-1121: a gradient pseudo's background-position / -size and its
+              // own opacity steer where the gradient core lands and how strong it
+              // paints (Stripe's keynote glow is an off-center, 45%-opacity pink
+              // radial). Capture position/size only alongside a background-image,
+              // and opacity only when it actually dims the box (< 1).
+              backgroundPosition: hasBgImg ? pcs.backgroundPosition : undefined,
+              backgroundSize: hasBgImg ? pcs.backgroundSize : undefined,
+              opacity: (function () { var o = parseFloat(pcs.opacity); return (isFinite(o) && o < 1) ? o : undefined; })(),
               borderTopWidth: bwT, borderTopColor: bwT > 0 ? normColor(pcs.borderTopColor) : undefined, borderTopStyle: pcs.borderTopStyle,
               borderRightWidth: bwR, borderRightColor: bwR > 0 ? normColor(pcs.borderRightColor) : undefined, borderRightStyle: pcs.borderRightStyle,
               borderBottomWidth: bwB, borderBottomColor: bwB > 0 ? normColor(pcs.borderBottomColor) : undefined, borderBottomStyle: pcs.borderBottomStyle,
