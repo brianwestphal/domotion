@@ -128,3 +128,19 @@ string-out.
 | --- | --- | --- |
 | `optimizeSvg` | function | Run svgo on the output. Aggressive enough to shrink real-world demos ~30-40% without touching paths. |
 | `gzipSvg` | function | gzip the output (for serving as `.svgz`). |
+
+## Declarative animate pipeline
+
+The JSON-config-driven animation pipeline that powers the `domotion animate`
+CLI, exposed (DM-1130) so library callers can run it in-process — anchors,
+declarative actions, cursor `"auto"`, `${vars}`, continuous-session frames —
+without shelling out to the CLI or reimplementing it. See
+`docs/43-declarative-animate-config.md` (the config spec) and
+`docs/60-programmatic-animate-pipeline.md` (the programmatic surface).
+
+| Export | Kind | Description |
+| --- | --- | --- |
+| `validateAnimateConfig` | function | Parse + validate an untrusted config object (e.g. `JSON.parse` of a config file) against the zod schema, returning a typed `AnimateConfig`. Throws an `animate:`-prefixed error listing each offending path on failure. |
+| `interpolateConfigVars` | function | Resolve `${name}` references against the config's top-level `vars` map across every string field, returning a new config. `composeAnimateConfig` calls this itself; exposed for callers who want the resolved config first. |
+| `composeAnimateConfig` | function | Capture + compose every frame of an `AnimateConfig` into one animated SVG string (unoptimized), using a caller-owned Playwright `Browser`. `composeAnimateConfig(browser, cfg)` is the typical call; the optional `configDir` (default `process.cwd()`) resolves relative `input` / svg-overlay `src` paths, and the optional `log` defaults to a no-op. |
+| `AnimateConfig` | type | The validated config shape (`z.infer` of the animate-config zod schema): `{ width, height, frames, vars?, cursor?, … }`. |

@@ -28,6 +28,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "clearEmbeddedFonts",
   "clearGlyphDefs",
   "clearWebfonts",
+  "composeAnimateConfig",
   "composeScrollSvg",
   "cullElementsOutsideViewBox",
   "cursorAtPoint",
@@ -44,6 +45,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "getLastCaptureWarnings",
   "getRenderTextMode",
   "gzipSvg",
+  "interpolateConfigVars",
   "launchChromium",
   "logCaptureWarnings",
   "optimizeSvg",
@@ -52,6 +54,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "resizeEmbeddedImages",
   "resolveCursorScript",
   "setRenderTextMode",
+  "validateAnimateConfig",
   "wrapSvg",
 ] as const;
 

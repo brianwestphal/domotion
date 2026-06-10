@@ -1,0 +1,87 @@
+# 60 — Programmatic declarative-animate pipeline
+
+Status: **shipped** (DM-1130). The JSON-config-driven animation pipeline that
+powers `domotion animate` is now reachable from the public package surface, so a
+library consumer can run a declarative animation in-process instead of shelling
+out to the CLI or reimplementing the capture→compose loop by hand.
+
+## Why
+
+The declarative runner already existed but was unreachable: `composeAnimateConfig`
+/ `validateAnimateConfig` / `interpolateConfigVars` and the `AnimateConfig` type
+lived only in `src/cli/animate.ts`, and the package root re-exported
+capture / render / animation / scroll / tree-ops / post-processing but never
+`cli/`. A programmatic consumer doing `import { … } from "domotion-svg"` therefore
+had to either spawn the `domotion animate` subprocess or hand-reimplement the
+pipeline — losing every declarative convenience (selector anchors, the
+declarative action runner, cursor `"auto"`, `${vars}`, continuous-session
+frames). This surfaced while integrating 0.12.0 into a demo-capture script that
+uses the low-level scripting API.
+
+## Surface
+
+Re-exported from the package root (`domotion-svg`):
+
+| Export | Kind | What it does |
+| --- | --- | --- |
+| `validateAnimateConfig(raw)` | function | Parse + validate an untrusted object (`JSON.parse` of a config) into a typed `AnimateConfig`; throws `animate: <path>: <msg>` on failure. |
+| `interpolateConfigVars(cfg)` | function | Resolve `${name}` against `cfg.vars` in every string field, returning a new config. (Called internally by `composeAnimateConfig`; exposed for callers who want the resolved config first.) |
+| `composeAnimateConfig(browser, cfg, configDir?, log?)` | function | Capture + compose every frame into one animated SVG string (unoptimized), on a caller-owned Playwright `Browser`. |
+| `AnimateConfig` | type | `z.infer` of the animate-config zod schema. |
+
+Typical in-process use:
+
+```ts
+import { chromium } from "@playwright/test";
+import { validateAnimateConfig, composeAnimateConfig, launchChromium } from "domotion-svg";
+
+const cfg = validateAnimateConfig(JSON.parse(jsonText)); // or an object built in memory
+const browser = await launchChromium();
+try {
+  const svg = await composeAnimateConfig(browser, cfg); // configDir / log optional
+} finally {
+  await browser.close();
+}
+```
+
+The `domotion animate` CLI is now exactly this wrapper around the same function:
+read file → `JSON.parse` → `validateAnimateConfig` → `composeAnimateConfig` →
+optional `optimizeSvg` → write.
+
+## `configDir` is optional
+
+`composeAnimateConfig`'s `configDir` resolves a frame's **relative** `input` and
+svg-overlay `src` paths against a base directory. It now **defaults to
+`process.cwd()`**, and `log` defaults to a no-op, so the common in-process call
+is just `composeAnimateConfig(browser, cfg)`:
+
+- Absolute `input` / `src` paths and `http(s)://` URLs ignore `configDir`
+  entirely, so callers that already have concrete locations never need it.
+- Callers loading a config from a file should still pass `dirname(configPath)`
+  (what the CLI does) so the config's relative paths resolve against the config,
+  not the process cwd.
+
+The deeper "split path-resolution out so an in-process caller with content
+already in memory needs no filesystem context at all" idea from the ticket is a
+larger redesign (e.g. an input-loader injection point, support for `data:` /
+inline-HTML inputs) and is **not** done here — relative-path resolution simply
+became optional. Left as a follow-up if a concrete in-memory-input consumer
+needs it.
+
+## Implementation note — barrel cycle
+
+`src/cli/animate.ts` previously imported the capture / render / animation /
+scroll helpers from the package root (`../index.js`). Because the root now
+re-exports `animate.ts`, that would form an import cycle, so `animate.ts` was
+switched to import from the feature sub-barrels directly (`../animation/index
+.js`, `../capture/index.js`, …), which don't depend on the root. No behavior
+change; it just makes the dependency direction one-way (root → cli → features).
+
+## Related
+
+- `docs/43-declarative-animate-config.md` — the config format itself.
+- `docs/59-overlay-schema-ssot.md` — the overlay shapes the config + renderer
+  share.
+- **DM-1132** — exposing the overlay *resolution* step (`anchor` → concrete
+  `x`/`y`/`bgWidth`) as a standalone primitive, so imperative callers building
+  their own frames (not whole configs) can opt into selector anchoring.

@@ -80,3 +80,18 @@ export * from "./tree-ops/index.js";
 
 // ── Post-processing ────────────────────────────────────────────────────────
 export * from "./post-processing/index.js";
+
+// ── Declarative animate pipeline (DM-1130) ───────────────────────────────────
+// The JSON-config-driven animation pipeline that powers `domotion animate`,
+// exposed so library callers can run it in-process instead of shelling out to
+// the CLI or reimplementing it. `composeAnimateConfig(browser, cfg)` captures +
+// composes every frame (anchors, actions, cursor `auto`, vars) into one animated
+// SVG; `validateAnimateConfig` parses untrusted JSON into a typed `AnimateConfig`;
+// `interpolateConfigVars` resolves `${vars}`. `configDir` (for resolving relative
+// `input` / svg-overlay `src` paths) defaults to `process.cwd()`. See `docs/60`.
+export {
+  composeAnimateConfig,
+  validateAnimateConfig,
+  interpolateConfigVars,
+  type AnimateConfig,
+} from "./cli/animate.js";

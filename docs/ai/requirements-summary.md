@@ -51,6 +51,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   York ships its cuts as separate static OTFs (no `opsz` axis), so the
   `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
   needed a routing fix (it collided with the variable font's Medium weight).
+- **Doc 60 (`docs/60-programmatic-animate-pipeline.md`, DM-1130)** — the
+  declarative `animate` pipeline (`composeAnimateConfig` / `validateAnimateConfig`
+  / `interpolateConfigVars` / `AnimateConfig`) is now re-exported from the
+  package root, so library callers run a JSON-config animation in-process.
+  `configDir` defaults to `process.cwd()`; the CLI is a thin file-read wrapper.
 - **Doc 59 (`docs/59-overlay-schema-ssot.md`, DM-1131)** — overlay / intra-frame
   animation shapes are now defined once as zod base schemas in
   `src/animation/overlay-schema.ts`; the renderer's runtime types are `z.infer`red

@@ -22,20 +22,13 @@ import {
   overlaySlideSchema,
   intraFrameAnimationSchema,
 } from "../animation/overlay-schema.js";
+// DM-1130: import from the feature sub-barrels rather than the package root
+// (`../index.js`). This module IS re-exported from the root (so library callers
+// can run the declarative pipeline in-process), so importing the root here would
+// create a barrel import cycle. The sub-barrels don't depend on the root.
 import {
   buildMagicMove,
-  captureElementTree,
-  clearEmbeddedFonts,
-  clearWebfonts,
-  composeScrollSvg,
-  cullElementsOutsideViewBox,
-  elementTreeToSvgInner,
-  executeScrollPattern,
   generateAnimatedSvg,
-  getEmbeddedFontFaceCss,
-  launchChromium,
-  optimizeSvg,
-  parseScrollPattern,
   cursorAtPoint,
   type AnimationFrame,
   type IntraFrameAnimation,
@@ -43,9 +36,13 @@ import {
   type CursorOverlay,
   type CursorEvent,
   type CursorStyle,
-  type CapturedElement,
-} from "../index.js";
-import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+} from "../animation/index.js";
+import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+import type { CapturedElement } from "../capture/types.js";
+import { clearEmbeddedFonts, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
+import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
+import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
+import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import {
   applyReadyWaits,
@@ -363,16 +360,23 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
 
 /**
  * Capture and compose every frame in `cfg` into one animated SVG string
- * (unoptimized). Shared by the `animate` CLI and the example-regression
- * harness so both exercise the exact same capture→compose path. Creates one
- * browser context (sized / emulated per `cfg`) and closes it before returning;
- * the caller owns the `browser` lifecycle.
+ * (unoptimized). Shared by the `animate` CLI, the example-regression harness,
+ * and library callers who run the declarative pipeline in-process (DM-1130) —
+ * all exercise the exact same capture→compose path. Creates one browser context
+ * (sized / emulated per `cfg`) and closes it before returning; the caller owns
+ * the `browser` lifecycle.
+ *
+ * `configDir` resolves a frame's relative `input` and svg-overlay `src` paths;
+ * it defaults to `process.cwd()` so in-process callers with absolute paths /
+ * http(s) URLs can omit it. `log` defaults to a no-op for the same reason. A
+ * typical programmatic call is just `composeAnimateConfig(browser, cfg)` after
+ * `validateAnimateConfig(json)`.
  */
 export async function composeAnimateConfig(
   browser: Browser,
   cfg: AnimateConfig,
-  configDir: string,
-  log: (msg: string) => void,
+  configDir: string = process.cwd(),
+  log: (msg: string) => void = () => {},
 ): Promise<string> {
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
