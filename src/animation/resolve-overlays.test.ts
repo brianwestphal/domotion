@@ -1,0 +1,55 @@
+import { describe, it, expect } from "vitest";
+import type { Page } from "@playwright/test";
+import { resolveOverlays } from "./resolve-overlays.js";
+
+/**
+ * DM-1132: the overlay-resolution engine (selector `anchor` + typing `maxWidth`
+ * → concrete `x` / `y` / `bgWidth`). The page measurement is stubbed so the
+ * resolution logic is unit-tested without a browser; the live-page path is
+ * covered by the scripting-API probe and the existing CLI example regression
+ * (the CLI now delegates to this same engine).
+ */
+
+// A stub Page whose `evaluate` returns a fixed anchor box (border box 50,60
+// 200×100, content width 176), standing in for the page.evaluate measurement.
+const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number } | null): Page =>
+  ({ evaluate: async () => box }) as unknown as Page;
+
+const BOX = { x: 50, y: 60, width: 200, height: 100, contentWidth: 176 };
+
+describe("resolveOverlays (DM-1132)", () => {
+  it("resolves a typing overlay's anchor + maxWidth:'anchor' and strips the authoring keys", async () => {
+    const [ov] = await resolveOverlays(stubPage(BOX), [
+      { kind: "typing", text: "hi", x: 0, y: 0, caret: true, anchor: { selector: "#t", at: "top-left", dx: 2, dy: 2 }, maxWidth: "anchor" },
+    ]);
+    expect(ov).toMatchObject({ kind: "typing", text: "hi", x: 52, y: 62, bgWidth: 176, caret: true });
+    expect("anchor" in ov).toBe(false);
+    expect("maxWidth" in ov).toBe(false);
+  });
+
+  it("resolves a numeric maxWidth without requiring an anchor box", async () => {
+    const [ov] = await resolveOverlays(stubPage(null), [
+      { kind: "typing", text: "x", x: 10, y: 20, maxWidth: 320 },
+    ]);
+    expect(ov).toMatchObject({ kind: "typing", x: 10, y: 20, bgWidth: 320 });
+  });
+
+  it("anchors a tap overlay at the requested corner", async () => {
+    const [ov] = await resolveOverlays(stubPage(BOX), [
+      { kind: "tap", x: 0, y: 0, anchor: { selector: "#t", at: "center" } },
+    ]);
+    expect(ov).toMatchObject({ kind: "tap", x: 150, y: 110 }); // center of the border box
+  });
+
+  it("passes through overlays with neither anchor nor maxWidth unchanged", async () => {
+    const input = { kind: "blink" as const, x: 5, y: 6, width: 4, height: 4 };
+    const [ov] = await resolveOverlays(stubPage(BOX), [input]);
+    expect(ov).toEqual(input);
+  });
+
+  it("throws a clear error when the anchor selector matches nothing", async () => {
+    await expect(
+      resolveOverlays(stubPage(null), [{ kind: "typing", text: "x", x: 0, y: 0, anchor: { selector: "#nope" } }]),
+    ).rejects.toThrow(/anchor selector "#nope" matched no element/);
+  });
+});

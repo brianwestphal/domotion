@@ -22,6 +22,7 @@ import {
   overlaySlideSchema,
   intraFrameAnimationSchema,
 } from "../animation/overlay-schema.js";
+import { resolveAnchoredOverlays } from "../animation/resolve-overlays.js";
 // DM-1130: import from the feature sub-barrels rather than the package root
 // (`../index.js`). This module IS re-exported from the root (so library callers
 // can run the declarative pipeline in-process), so importing the root here would
@@ -777,76 +778,15 @@ function formatConfigIssues(err: z.ZodError): string {
     .join("; ");
 }
 
-interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number }
-
 /**
- * DM-850 §5: resolve any overlay `anchor` against the live page. For each
- * anchored overlay, query the selector's bounding box and set the overlay's
- * x/y from the requested corner + dx/dy. For a typing overlay's `maxWidth`,
- * set `bgWidth` to the anchored element's content width ("anchor") or the
- * given px. A missing anchor selector is a hard error.
+ * DM-850 §5 / DM-1132: resolve any overlay `anchor` (and typing `maxWidth`)
+ * against the live page into concrete `x` / `y` / `bgWidth`. Delegates to the
+ * shared `resolveAnchoredOverlays` engine so the CLI and the public
+ * `resolveOverlays` primitive can't diverge; this wrapper only supplies the
+ * frame-indexed error label.
  */
-async function resolveOverlayAnchors(page: Page, overlays: OverlayInput[] | undefined, frameIdx: number): Promise<OverlayInput[] | undefined> {
-  if (overlays == null) return undefined;
-  const out: OverlayInput[] = [];
-  for (const ov of overlays) {
-    const anchor = ov.anchor;
-    const maxWidth = ov.kind === "typing" ? ov.maxWidth : undefined;
-    if (anchor == null && maxWidth == null) {
-      out.push(ov);
-      continue;
-    }
-
-    let box: AnchorBox | null = null;
-    if (anchor != null) {
-      box = await page.evaluate((sel: string): AnchorBox | null => {
-        const el = document.querySelector(sel);
-        if (el == null) return null;
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        const padL = parseFloat(cs.paddingLeft) || 0;
-        const padR = parseFloat(cs.paddingRight) || 0;
-        return { x: r.x, y: r.y, width: r.width, height: r.height, contentWidth: Math.max(0, el.clientWidth - padL - padR) };
-      }, anchor.selector);
-      if (box == null) throw new Error(`animate: frames[${frameIdx}] overlay anchor selector "${anchor.selector}" matched no element`);
-    }
-
-    const resolved = { ...ov };
-    if (anchor != null && box != null) {
-      const [ax, ay] = anchorPoint(box, anchor.at ?? "top-left");
-      resolved.x = ax + (anchor.dx ?? 0);
-      resolved.y = ay + (anchor.dy ?? 0);
-    }
-    if (resolved.kind === "typing" && maxWidth != null) {
-      if (maxWidth === "anchor") {
-        if (box == null) throw new Error(`animate: frames[${frameIdx}] typing overlay maxWidth:"anchor" requires an anchor`);
-        resolved.bgWidth = box.contentWidth;
-      } else {
-        resolved.bgWidth = maxWidth;
-      }
-    }
-    out.push(resolved);
-  }
-  return out;
-}
-
-function anchorPoint(box: AnchorBox, at: string): [number, number] {
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  const right = box.x + box.width;
-  const bottom = box.y + box.height;
-  switch (at) {
-    case "top": return [cx, box.y];
-    case "top-right": return [right, box.y];
-    case "left": return [box.x, cy];
-    case "center": return [cx, cy];
-    case "right": return [right, cy];
-    case "bottom-left": return [box.x, bottom];
-    case "bottom": return [cx, bottom];
-    case "bottom-right": return [right, bottom];
-    case "top-left":
-    default: return [box.x, box.y];
-  }
+function resolveOverlayAnchors(page: Page, overlays: OverlayInput[] | undefined, frameIdx: number): Promise<OverlayInput[] | undefined> {
+  return resolveAnchoredOverlays(page, overlays, (kind) => `animate: frames[${frameIdx}] ${kind} overlay`);
 }
 
 // ── Cursor overlay (DM-851 §6) ──────────────────────────────────────────────

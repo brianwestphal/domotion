@@ -37,3 +37,8 @@ export {
   type CursorAtResolver,
 } from "./cursor-overlay.js";
 export { CURSOR_GLYPHS, CURSOR_CATEGORIES, cursorGlyphSvg, type CursorGlyph } from "./cursor-glyphs.js";
+
+// DM-1132: lower selector-anchored overlays into concrete-coordinate overlays
+// against a live page — the resolution step the declarative CLI uses, now
+// reachable by imperative `captureElementTree` + `generateAnimatedSvg` callers.
+export { resolveOverlays, type OverlayAnchor, type AnchoredOverlay } from "./resolve-overlays.js";

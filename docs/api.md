@@ -79,6 +79,8 @@ and typing / tap / SVG overlays.
 | `cursorOverlayMarkup` | function | Lower-level builder for the cursor SVG markup if you're not using `generateAnimatedSvg`. |
 | `resolveCursorScript` | function | Resolve a cursor event script against the captured frame coordinate space. |
 | `buildMagicMove` | function | Build the magic-move bridge layer from a `(prevTree, nextTree)` pair (matched elements slide, added/removed cross-fade). Set the result as `AnimationFrame.magicMove` when the frame's `transition.type` is `"magic-move"`. See doc 53. |
+| `resolveOverlays` | function | `resolveOverlays(page, overlays)` → lower each overlay's selector `anchor` (`{ selector, at, dx, dy }`) and a typing overlay's `maxWidth: "anchor"` into concrete `x` / `y` / `bgWidth` against a live page, returning overlays ready for `generateAnimatedSvg`. The same resolution the declarative CLI runs, for imperative callers. See doc 61. |
+| `OverlayAnchor`, `AnchoredOverlay` | type | The anchor descriptor (`{ selector, at?, dx?, dy? }`) and the `resolveOverlays` input (a resolved overlay plus optional `anchor` / typing `maxWidth`). |
 | `MagicMove` | type | The bridge layer `buildMagicMove` returns (composite markup + per-element slide / fade descriptors). |
 | `MagicMoveSlide` | type | One matched-element slide entry within a `MagicMove`. |
 

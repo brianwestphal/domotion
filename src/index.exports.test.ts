@@ -55,6 +55,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "registerWebfont",
   "resizeEmbeddedImages",
   "resolveCursorScript",
+  "resolveOverlays",
   "setRenderTextMode",
   "validateAnimateConfig",
   "wrapSvg",

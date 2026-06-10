@@ -51,6 +51,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   York ships its cuts as separate static OTFs (no `opsz` axis), so the
   `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
   needed a routing fix (it collided with the variable font's Medium weight).
+- **Doc 61 (`docs/61-overlay-resolution-primitive.md`, DM-1132)** — `resolveOverlays(
+  page, overlays)` lowers an overlay's selector `anchor` + typing `maxWidth:
+  "anchor"` into concrete `x`/`y`/`bgWidth` for imperative scripting-API callers.
+  The CLI and the public primitive share one engine; the box helper `contentBox`
+  / `boxAnchorPoint` (DM-1133) and overlay SSOT (DM-1131) underpin it.
 - **Doc 60 (`docs/60-programmatic-animate-pipeline.md`, DM-1130)** — the
   declarative `animate` pipeline (`composeAnimateConfig` / `validateAnimateConfig`
   / `interpolateConfigVars` / `AnimateConfig`) is now re-exported from the
