@@ -61,7 +61,7 @@ interface AnchorableOverlay {
   kind: string;
   x?: number;
   y?: number;
-  bgWidth?: number;
+  wrapWidth?: number;
   anchor?: OverlayAnchor;
   maxWidth?: "anchor" | number;
 }
@@ -117,11 +117,13 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       resolved.y = ay;
     }
     if (ov.kind === "typing" && maxWidth != null) {
+      // DM-1134: maxWidth controls WRAPPING, so it resolves into `wrapWidth`
+      // (the mask width then defaults to the wrap width in the renderer).
       if (maxWidth === "anchor") {
         if (box == null) throw new Error(`${label(ov.kind)} maxWidth:"anchor" requires an anchor`);
-        resolved.bgWidth = box.contentWidth;
+        resolved.wrapWidth = box.contentWidth;
       } else {
-        resolved.bgWidth = maxWidth;
+        resolved.wrapWidth = maxWidth;
       }
     }
     out.push(resolved);
@@ -139,7 +141,7 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
  * const [overlay] = await resolveOverlays(page, [
  *   { kind: "typing", text, anchor: { selector: "#field", at: "top-left", dx: 2, dy: 2 }, maxWidth: "anchor", caret: true },
  * ]);
- * // overlay.x / overlay.y / overlay.bgWidth are now concrete numbers.
+ * // overlay.x / overlay.y are concrete; maxWidth:"anchor" resolved into overlay.wrapWidth (DM-1134).
  * ```
  */
 export async function resolveOverlays(page: Page, overlays: AnchoredOverlay[]): Promise<(TypingOverlay | TapOverlay | SvgOverlay | BlinkOverlay)[]> {

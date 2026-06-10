@@ -171,7 +171,9 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 **Semantics.**
 - `anchor.at` ∈ `top-left | top | top-right | left | center | right | bottom-left | bottom | bottom-right`; `dx`/`dy` offset (px) from that point. Resolved against the **first** match's bounding box.
 - The resolved point replaces `x`/`y` for that overlay; explicit `x`/`y` remain valid for un-anchored overlays.
-- `maxWidth: "anchor"` wraps `typing` text to the anchored element's **content width** (depends on the typing-overlay wrap support — the `bgWidth`-driven textarea-style wrap). `maxWidth` may also take a number (px). With `maxWidth` set, the author never measures the field or pre-splits the string into lines.
+- `maxWidth: "anchor"` wraps `typing` text to the anchored element's **content width** (it resolves into the typing overlay's `wrapWidth` — the textarea-style wrap, DM-1134; `maxWidth` may also take a number in px). With `maxWidth` set, the author never measures the field or pre-splits the string into lines.
+
+> **Typing-overlay wrap vs mask (DM-1134).** A `typing` overlay's wrapping and its placeholder cover are separate knobs: `wrapWidth` (px) controls where the text line-breaks, and `mask: { width, height, color }` controls the cover painted behind it (mask `width` defaults to `wrapWidth`, `height` grows to fit the wrapped lines, and the mask only paints when a `color` is set). The older `bgWidth` / `bgHeight` / `bgColor` fields still work as **deprecated aliases** — `bgWidth` feeds both `wrapWidth` and `mask.width`, `bgHeight` → `mask.height`, `bgColor` → `mask.color` — so existing configs are unchanged; prefer the new fields in new configs.
 - Anchor selector not found → hard error (consistent with §Shared/Selectors).
 
 **Replaces.** The manual pixel-measuring + line-splitting authors do today for field-aligned annotations.

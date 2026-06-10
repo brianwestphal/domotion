@@ -22,7 +22,8 @@ describe("resolveOverlays (DM-1132)", () => {
     const [ov] = await resolveOverlays(stubPage(BOX), [
       { kind: "typing", text: "hi", x: 0, y: 0, caret: true, anchor: { selector: "#t", at: "top-left", dx: 2, dy: 2 }, maxWidth: "anchor" },
     ]);
-    expect(ov).toMatchObject({ kind: "typing", text: "hi", x: 52, y: 62, bgWidth: 176, caret: true });
+    // DM-1134: maxWidth controls wrapping, so it resolves into `wrapWidth`.
+    expect(ov).toMatchObject({ kind: "typing", text: "hi", x: 52, y: 62, wrapWidth: 176, caret: true });
     expect("anchor" in ov).toBe(false);
     expect("maxWidth" in ov).toBe(false);
   });
@@ -31,7 +32,7 @@ describe("resolveOverlays (DM-1132)", () => {
     const [ov] = await resolveOverlays(stubPage(null), [
       { kind: "typing", text: "x", x: 10, y: 20, maxWidth: 320 },
     ]);
-    expect(ov).toMatchObject({ kind: "typing", x: 10, y: 20, bgWidth: 320 });
+    expect(ov).toMatchObject({ kind: "typing", x: 10, y: 20, wrapWidth: 320 });
   });
 
   it("anchors a tap overlay at the requested corner", async () => {

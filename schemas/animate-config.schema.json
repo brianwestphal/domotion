@@ -854,6 +854,23 @@
                     "speed": {
                       "type": "number"
                     },
+                    "wrapWidth": {
+                      "type": "number"
+                    },
+                    "mask": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number"
+                        },
+                        "height": {
+                          "type": "number"
+                        },
+                        "color": {
+                          "type": "string"
+                        }
+                      }
+                    },
                     "bgColor": {
                       "type": "string"
                     },

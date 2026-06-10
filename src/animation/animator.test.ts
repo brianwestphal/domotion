@@ -514,4 +514,56 @@ describe("animator", () => {
       expect(Number(bg![1])).toBeGreaterThan(24);
     });
   });
+
+  // DM-1134: wrap width (`wrapWidth`) and the placeholder mask (`mask: {width,
+  // height, color}`) are now independent knobs; the legacy `bgWidth` / `bgHeight`
+  // / `bgColor` keep working as deprecated aliases.
+  describe("typing overlay wrap vs mask reconciliation (DM-1134)", () => {
+    const longText = "The quick brown fox jumps over the lazy dog repeatedly";
+    const typedLines = (svg: string): string[] =>
+      [...svg.matchAll(/<text class="t0-text"[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+    const bgRect = (svg: string): { width: number; height: number; fill: string } | null => {
+      const m = /<rect class="t0-bg"[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"[^>]*fill="([^"]+)"/.exec(svg);
+      return m == null ? null : { width: Number(m[1]), height: Number(m[2]), fill: m[3] };
+    };
+    const make = (overlay: Record<string, unknown>): string =>
+      generateAnimatedSvg({
+        width: 400, height: 200,
+        frames: [{ svgContent: `<rect width="400" height="200" fill="#fff"/>`, duration: 4000,
+          overlays: [{ kind: "typing", text: longText, x: 20, y: 40, fontSize: 14, ...overlay } as never] }],
+      });
+
+    it("`wrapWidth` wraps identically to the legacy `bgWidth`", () => {
+      const viaNew = typedLines(make({ wrapWidth: 120, mask: { color: "#fff" } }));
+      const viaOld = typedLines(make({ bgWidth: 120, bgColor: "#fff" }));
+      expect(viaNew.length).toBeGreaterThan(1);
+      expect(viaNew).toEqual(viaOld);
+    });
+
+    it("`mask.width` sizes the cover INDEPENDENTLY of the wrap width", () => {
+      // Wrap at 120 (text breaks to several lines) but mask 300 wide.
+      const svg = make({ wrapWidth: 120, mask: { width: 300, color: "#fff" } });
+      expect(typedLines(svg).length).toBeGreaterThan(1);     // still wraps at 120
+      expect(bgRect(svg)!.width).toBe(300);                  // mask is the wider 300
+    });
+
+    it("`mask.color` paints the cover; `mask.height` sets its height floor", () => {
+      const svg = make({ wrapWidth: 400, mask: { color: "rgb(1,2,3)", height: 80 } });
+      const bg = bgRect(svg)!;
+      expect(bg.fill).toBe("rgb(1,2,3)");
+      expect(bg.height).toBeGreaterThanOrEqual(80);
+    });
+
+    it("paints no mask when neither `mask.color` nor `bgColor` is set", () => {
+      const svg = make({ wrapWidth: 120 });
+      expect(svg).not.toContain('class="t0-bg"');
+    });
+
+    it("new `mask` overrides the legacy aliases when both are present", () => {
+      const svg = make({ bgWidth: 120, bgColor: "#000", bgHeight: 24, mask: { width: 260, color: "rgb(9,9,9)" } });
+      const bg = bgRect(svg)!;
+      expect(bg.width).toBe(260);          // mask.width wins over bgWidth
+      expect(bg.fill).toBe("rgb(9,9,9)");  // mask.color wins over bgColor
+    });
+  });
 });

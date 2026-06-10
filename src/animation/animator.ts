@@ -544,12 +544,14 @@ function renderTypingOverlay(
   const typeStartMs = frameStart + delay;
   const id = `t${frameIdx}`;
 
-  // DM-840: wrap to bgWidth so typed text behaves like a browser field
-  // (textarea) — wrapping to the next line instead of running off the right
-  // edge. Text starts at overlay.x and the bg rect starts at overlay.x-2 with
-  // width bgWidth, so the usable text width is bgWidth-4. With no bgWidth we
-  // keep the original single-line behavior (maxChars = Infinity).
-  const maxLineWidth = overlay.bgWidth != null ? overlay.bgWidth - 4 : Infinity;
+  // DM-840 / DM-1134: wrap to `wrapWidth` so typed text behaves like a browser
+  // field (textarea) — wrapping to the next line instead of running off the
+  // right edge. Text starts at overlay.x and the bg rect starts at overlay.x-2
+  // with the mask width, so the usable text width is wrapWidth-4. With no wrap
+  // width we keep the original single-line behavior (maxChars = Infinity).
+  // `wrapWidth` supersedes the deprecated `bgWidth` (which fed both wrap + mask).
+  const wrapWidth = overlay.wrapWidth ?? overlay.bgWidth;
+  const maxLineWidth = wrapWidth != null ? wrapWidth - 4 : Infinity;
   const maxChars = maxLineWidth === Infinity ? Infinity : Math.max(1, Math.floor(maxLineWidth / charWidth));
   const lines = wrapTypingText(overlay.text, maxChars);
   const visibleChars = Math.max(1, lines.reduce((n, l) => n + l.length, 0));
@@ -575,12 +577,17 @@ function renderTypingOverlay(
 
   // Background mask — grown to cover every wrapped line so the typed text
   // always lands on a clean field instead of the captured placeholder.
-  if (overlay.bgColor != null) {
-    const bgW = overlay.bgWidth ?? longestLineChars * charWidth + 8;
-    const bgH = Math.max(overlay.bgHeight ?? fontSize + 6, lines.length * lineHeight + 6);
+  // DM-1134: the mask is sized by `mask: { width, height, color }`, independent
+  // of the wrap width; the legacy `bgColor` / `bgWidth` / `bgHeight` are the
+  // deprecated fallbacks (`bgWidth` also fed the wrap above). Mask width
+  // defaults to the wrap width, then to the longest typed line.
+  const maskColor = overlay.mask?.color ?? overlay.bgColor;
+  if (maskColor != null) {
+    const bgW = overlay.mask?.width ?? wrapWidth ?? longestLineChars * charWidth + 8;
+    const bgH = Math.max(overlay.mask?.height ?? overlay.bgHeight ?? fontSize + 6, lines.length * lineHeight + 6);
     const bgStartPct = pct(typeStartMs, totalDuration);
     parts.push(
-      `  <rect class="${id}-bg" x="${overlay.x - 2}" y="${overlay.y - fontSize + 2}" width="${bgW}" height="${bgH}" fill="${overlay.bgColor}" rx="2" />`,
+      `  <rect class="${id}-bg" x="${overlay.x - 2}" y="${overlay.y - fontSize + 2}" width="${bgW}" height="${bgH}" fill="${maskColor}" rx="2" />`,
     );
     cssRules.push(`
     @keyframes ${id}-bg { 0%, ${bgStartPct} { opacity: 0; } ${pct(typeStartMs + 50, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }

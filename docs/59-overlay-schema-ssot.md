@@ -82,10 +82,11 @@ with those docs.
 
 ## Follow-ups
 
-- **DM-1134** — reconcile the typing-overlay wrap-vs-mask knobs (`bgWidth` means
-  "mask only" in the CLI where `maxWidth` wraps, but "mask + wrap" in the
-  runtime). That field-set unification is a **breaking** change to the
-  typing-overlay shape and is tracked separately; doing it on top of this SSOT is
-  most of the work-once-here.
+- **DM-1134 (done)** — the typing-overlay wrap-vs-mask knobs were reconciled on
+  top of this SSOT: `wrapWidth` (wrap) and `mask: { width, height, color }`
+  (cover) are now separate, with `bgWidth` / `bgHeight` / `bgColor` kept as
+  deprecated aliases (non-breaking). Because both layers derive from the one base
+  schema here, the new fields landed in the config validator + JSON Schema + the
+  renderer types in a single change.
 - **DM-1132** — expose the authoring→resolved resolution (`resolveOverlays`) as a
   public primitive so imperative callers get selector anchoring too.

@@ -37,9 +37,31 @@ export const overlaySlideSchema = z.object({
 export type OverlaySlide = z.infer<typeof overlaySlideSchema>;
 
 /**
- * A typed-text reveal layered onto a captured frame. `bgWidth` both wraps the
- * text (browser-textarea style, DM-840) AND sizes the placeholder mask; see
- * DM-1134 for the wrap-vs-mask reconciliation follow-up.
+ * The placeholder cover painted behind a typing overlay's text, sized
+ * independently of the wrap width (DM-1134). All three fields are optional:
+ * `width` defaults to the wrap width (then to the longest typed line),
+ * `height` grows to fit the wrapped lines, and the mask only paints when a
+ * `color` is resolvable.
+ */
+export const typingMaskSchema = z.object({
+  /** Mask width in px. Defaults to `wrapWidth` (then the longest typed line). */
+  width: z.number().optional(),
+  /** Mask height in px. Grows beyond this if the wrapped text needs more lines. */
+  height: z.number().optional(),
+  /** Mask fill color. The mask only paints when this resolves (here or legacy `bgColor`). */
+  color: z.string().optional(),
+});
+export type TypingMask = z.infer<typeof typingMaskSchema>;
+
+/**
+ * A typed-text reveal layered onto a captured frame.
+ *
+ * DM-1134: wrapping and the placeholder mask are now separate knobs —
+ * `wrapWidth` controls where the text line-breaks (browser-textarea style,
+ * DM-840) and `mask: { width, height, color }` controls the cover. The legacy
+ * `bgWidth` / `bgHeight` / `bgColor` fields still work (deprecated aliases):
+ * `bgWidth` feeds both `wrapWidth` and `mask.width`, `bgHeight` → `mask.height`,
+ * `bgColor` → `mask.color`. Prefer the new fields in new code.
  */
 export const typingOverlaySchema = z.object({
   kind: z.literal("typing"),
@@ -53,20 +75,24 @@ export const typingOverlaySchema = z.object({
   delay: z.number().optional(),
   /** Speed per character (ms). */
   speed: z.number().optional(),
-  /** Background color to mask placeholder text. */
-  bgColor: z.string().optional(),
   /**
-   * Field width in px. When set, the typed text WRAPS to this width like a
-   * browser textarea — breaking on spaces (char-breaking over-long words),
+   * DM-1134: wrap width in px. When set, the typed text WRAPS to this width like
+   * a browser textarea — breaking on spaces (char-breaking over-long words),
    * advancing one line-height per wrapped line — instead of running off the
    * right edge on a single line (DM-840). Omit for unbounded single-line text.
+   * (The CLI's `maxWidth: "anchor"` resolves into this.)
+   */
+  wrapWidth: z.number().optional(),
+  /** DM-1134: the placeholder cover behind the text, sized independently of the wrap. */
+  mask: typingMaskSchema.optional(),
+  /** @deprecated DM-1134 — use `mask.color`. Background color to mask placeholder text. */
+  bgColor: z.string().optional(),
+  /**
+   * @deprecated DM-1134 — use `wrapWidth` (and `mask.width` for the cover).
+   * Field width in px: feeds both the wrap width and the mask width.
    */
   bgWidth: z.number().optional(),
-  /**
-   * Field height in px (used to size the placeholder mask). The mask grows
-   * beyond this if the wrapped text needs more lines, so the typed text always
-   * sits on a clean background.
-   */
+  /** @deprecated DM-1134 — use `mask.height`. Field height in px (sizes the placeholder mask). */
   bgHeight: z.number().optional(),
   /**
    * DM-870: render a blinking insertion caret. The bar sweeps the type
