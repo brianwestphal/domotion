@@ -51,6 +51,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   York ships its cuts as separate static OTFs (no `opsz` axis), so the
   `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
   needed a routing fix (it collided with the variable font's Medium weight).
+- **Doc 59 (`docs/59-overlay-schema-ssot.md`, DM-1131)** — overlay / intra-frame
+  animation shapes are now defined once as zod base schemas in
+  `src/animation/overlay-schema.ts`; the renderer's runtime types are `z.infer`red
+  from them and the declarative config (`src/cli/animate.ts`) extends the same
+  bases. One base, two views (resolved vs authoring) — renames cascade at compile
+  time, and `schemas/animate-config.schema.json` stays generated from the source.
 - **Doc 13 cursor-type matching (DM-1106)** — the cursor overlay now paints
   the correct cursor glyph for whatever is under the pointer (hand over links,
   I-beam over text, resize arrows, grab, …) and switches at element boundaries.

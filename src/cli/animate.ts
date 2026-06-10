@@ -11,6 +11,17 @@ import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
+// DM-1131: the authoring overlay / intra-frame-animation schemas below EXTEND
+// these single-source-of-truth base schemas (which also derive the renderer's
+// runtime types), so a field rename moves both views together instead of
+// silently drifting.
+import {
+  typingOverlaySchema,
+  tapOverlaySchema,
+  blinkOverlaySchema,
+  overlaySlideSchema,
+  intraFrameAnimationSchema,
+} from "../animation/overlay-schema.js";
 import {
   buildMagicMove,
   captureElementTree,
@@ -78,18 +89,17 @@ const scrollSchema = z.object({
   prescroll: z.boolean().optional(),
 });
 
-const frameAnimationSchema = z.object({
-  selector: z.string(),
-  property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "clipPath"]),
-  from: z.string(),
-  to: z.string(),
-  duration: z.number(),
-  easing: z.string().optional(),
-  delay: z.number().optional(),
-  // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
-  repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
-  alternate: z.boolean().optional(),
-});
+// DM-1131: the authoring form of an intra-frame animation is the runtime shape
+// (SSOT `intraFrameAnimationSchema`) with the resolved `animId` swapped for the
+// authoring `selector` (resolved against the captured DOM → `animId`), and the
+// `repeat` count tightened to a positive integer for config-author ergonomics.
+const frameAnimationSchema = intraFrameAnimationSchema
+  .omit({ animId: true })
+  .extend({
+    selector: z.string(),
+    // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
+    repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
+  });
 
 const insertPositionSchema = z.enum(["beforebegin", "afterbegin", "beforeend", "afterend"]);
 const scrollLogicalSchema = z.enum(["start", "center", "end", "nearest"]);
@@ -140,13 +150,6 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("evaluate"), script: z.string() }),
 ]);
 
-const overlaySlideSchema = z.object({
-  from: z.enum(["top", "bottom", "left", "right"]),
-  duration: z.number(),
-  easing: z.string().optional(),
-  delay: z.number().optional(),
-});
-
 // DM-850 §5 — anchor an overlay to an element's bounding box (resolved at
 // capture time), replacing hardcoded x/y. `at` picks the box corner/edge;
 // `dx`/`dy` offset from it.
@@ -157,37 +160,25 @@ const anchorSchema = z.object({
   dy: z.number().optional(),
 });
 
-// Overlay *input* shapes. The `svg` kind takes a `src` path here; the CLI later
-// reads the file, namespaces its ids, and swaps `src` for `innerSvg`/`animId`
-// (see resolveSvgOverlays), producing the runtime `SvgOverlay`. typing/tap
-// inputs already match their runtime overlay shapes 1:1.
+// DM-1131: overlay *authoring* shapes derive from the runtime base schemas in
+// `../animation/overlay-schema.ts`. Each adds the config-only conveniences —
+// `x`/`y` defaulted to 0 (an `anchor` can supply them), and selector
+// `anchor` / typing `maxWidth` (resolved at capture time, see
+// `resolveOverlayAnchors`). The `svg` kind is its own shape because authoring
+// takes a `src` file path that the CLI later reads / namespaces into the
+// runtime `innerSvg` + `animId` (see `resolveSvgOverlays`).
 const overlaySchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("typing"),
-    text: z.string(),
+  typingOverlaySchema.extend({
     x: z.number().default(0),
     y: z.number().default(0),
-    fontSize: z.number().optional(),
-    color: z.string().optional(),
-    delay: z.number().optional(),
-    speed: z.number().optional(),
-    bgColor: z.string().optional(),
-    bgWidth: z.number().optional(),
-    bgHeight: z.number().optional(),
-    // DM-870: blinking insertion caret.
-    caret: z
-      .union([z.boolean(), z.object({ color: z.string().optional(), width: z.number().optional(), blinkMs: z.number().optional() })])
-      .optional(),
     // DM-850 §5: anchor to an element bbox; maxWidth wraps to the anchored
     // element's content width ("anchor") or a fixed px.
     anchor: anchorSchema.optional(),
     maxWidth: z.union([z.literal("anchor"), z.number()]).optional(),
   }),
-  z.object({
-    kind: z.literal("tap"),
+  tapOverlaySchema.extend({
     x: z.number().default(0),
     y: z.number().default(0),
-    delay: z.number().optional(),
     anchor: anchorSchema.optional(),
   }),
   z.object({
@@ -201,17 +192,9 @@ const overlaySchema = z.discriminatedUnion("kind", [
     exit: overlaySlideSchema.optional(),
     anchor: anchorSchema.optional(),
   }),
-  // DM-871: standalone blinking bar/box (recording dot, attention pulse, cursor).
-  z.object({
-    kind: z.literal("blink"),
+  blinkOverlaySchema.extend({
     x: z.number().default(0),
     y: z.number().default(0),
-    width: z.number(),
-    height: z.number(),
-    periodMs: z.number().optional(),
-    color: z.string().optional(),
-    radius: z.number().optional(),
-    delay: z.number().optional(),
     anchor: anchorSchema.optional(),
   }),
 ]);

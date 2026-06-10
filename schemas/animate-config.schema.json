@@ -1182,9 +1182,6 @@
             "items": {
               "type": "object",
               "properties": {
-                "selector": {
-                  "type": "string"
-                },
                 "property": {
                   "type": "string",
                   "enum": [
@@ -1227,14 +1224,17 @@
                 },
                 "alternate": {
                   "type": "boolean"
+                },
+                "selector": {
+                  "type": "string"
                 }
               },
               "required": [
-                "selector",
                 "property",
                 "from",
                 "to",
-                "duration"
+                "duration",
+                "selector"
               ]
             }
           }

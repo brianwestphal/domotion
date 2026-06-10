@@ -7,6 +7,11 @@
 
 import { type CursorAtResolver, type CursorOverlay, type SelectorResolver, cursorOverlayMarkup, resolveCursorScript } from "./cursor-overlay.js";
 import type { MagicMove } from "./magic-move.js";
+// DM-1131: overlay / intra-frame-animation shapes are defined ONCE as zod
+// schemas in `overlay-schema.ts`; the renderer-facing TS types are derived from
+// them via `z.infer`, and the declarative-config layer extends the same base
+// schemas. Re-exported below so the public `domotion-svg` surface is unchanged.
+import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, IntraFrameAnimation } from "./overlay-schema.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
@@ -65,153 +70,12 @@ export interface AnimationFrame {
   animations?: IntraFrameAnimation[];
 }
 
-export interface TypingOverlay {
-  kind: "typing";
-  text: string;
-  x: number;
-  y: number;
-  fontSize?: number;
-  color?: string;
-  /** Delay from frame start before typing begins (ms) */
-  delay?: number;
-  /** Speed per character (ms) */
-  speed?: number;
-  /** Background color to mask placeholder text */
-  bgColor?: string;
-  /**
-   * Field width in px. When set, the typed text WRAPS to this width like a
-   * browser textarea — breaking on spaces (char-breaking over-long words),
-   * advancing one line-height per wrapped line — instead of running off the
-   * right edge on a single line (DM-840). Omit for unbounded single-line text.
-   */
-  bgWidth?: number;
-  /**
-   * Field height in px (used to size the placeholder mask). The mask grows
-   * beyond this if the wrapped text needs more lines, so the typed text always
-   * sits on a clean background.
-   */
-  bgHeight?: number;
-  /**
-   * DM-870: render a blinking insertion caret. The bar sweeps the type
-   * position while typing, then parks at the end of the text and blinks
-   * (opacity 1↔0) until the frame ends. `true` uses defaults (the typing
-   * `color`, 2px wide, ~530ms cadence); an object overrides them.
-   */
-  caret?: boolean | { color?: string; width?: number; blinkMs?: number };
-}
-
-export interface TapOverlay {
-  kind: "tap";
-  x: number;
-  y: number;
-  /** Delay from frame start (ms) */
-  delay?: number;
-}
-
-/**
- * Frame-local SVG overlay: composites a separately-captured SVG (inlined as
- * markup, not referenced as `<image href>`) on top of the captured frame.
- * Used for picture-in-picture effects like sliding a phone-framed preview
- * into the corner of a terminal demo.
- *
- * The overlay is positioned at (x, y), clipped to (width, height), and
- * gets its own `class="ov-<animId>"` wrapper so intra-frame animations
- * (or `enter`/`exit` sugar) can target it without colliding with elements
- * inside the embedded SVG.
- */
-export interface SvgOverlay {
-  kind: "svg";
-  /**
-   * The SVG content to inline. The CLI resolves `src` paths from the
-   * config file's directory and namespaces the embedded SVG's ids before
-   * setting this field.
-   */
-  innerSvg: string;
-  /** Top-left corner in the captured frame's coordinate space. */
-  x: number;
-  y: number;
-  /** Render size — the embedded SVG's viewBox is preserved and scales to fit. */
-  width: number;
-  height: number;
-  /**
-   * Stable id used to key the overlay's wrapper class (`ov-<animId>`) so
-   * `enter`/`exit` / `animations` can target it. The CLI assigns this.
-   */
-  animId: string;
-  /** Slide-in entrance (DM-211). Sugar over `animations`. */
-  enter?: { from: "top" | "bottom" | "left" | "right"; duration: number; easing?: string; delay?: number };
-  /** Slide-out exit (DM-211). */
-  exit?: { from: "top" | "bottom" | "left" | "right"; duration: number; easing?: string; delay?: number };
-}
-
-/**
- * DM-871: a standalone blinking bar/box, for carets/dots not tied to a typing
- * overlay — a recording dot, an attention pulse on a focused field, a cursor.
- * Renders a rect that toggles opacity on a `periodMs` cycle for the frame's
- * hold (sugar over a rect + a repeating opacity animation).
- */
-export interface BlinkOverlay {
-  kind: "blink";
-  /** Top-left corner in the captured frame's coordinate space. */
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  /** Full on/off cycle in ms (default 1000). */
-  periodMs?: number;
-  /** Fill color (default a light gray). */
-  color?: string;
-  /** Corner radius — set to half the width/height for a dot. */
-  radius?: number;
-  /** Ms after the frame becomes visible before blinking starts. Default 0. */
-  delay?: number;
-}
-
-export type AnimationOverlay = TypingOverlay | TapOverlay | SvgOverlay | BlinkOverlay;
-
-/**
- * Animate a CSS property on captured elements that match a selector, while
- * the frame is held on screen. The selector is resolved against the source
- * DOM at capture time (see DM-209) and the matching elements get
- * `class="anim-<id>"` on their rendered SVG groups.
- *
- * Resolution requires the consumer (CLI / `DemoRecorder`) to set
- * `data-domotion-anim="<id>"` on matching DOM elements before capture; the
- * `id` referenced here must be the same id set on the DOM.
- */
-export interface IntraFrameAnimation {
-  /** Anim id — must match the `data-domotion-anim` value set on the DOM pre-capture. */
-  animId: string;
-  /**
-   * CSS property to animate. `clipPath` takes raw CSS `clip-path` values
-   * (e.g. `"inset(0 100% 0 0)"` -> `"inset(0 0 0 0)"`) and is the right
-   * choice for left-to-right reveals like typing-into-captured-text. When
-   * the captured element is wrapped in a `<g class="anim-<id>">`, the
-   * keyframes apply `clip-path` to that wrapper.
-   */
-  property: "width" | "height" | "opacity" | "transform" | "translateX" | "translateY" | "clipPath";
-  /** Start value (CSS string, e.g. `"0%"`, `"240px"`, `"0.3"`). */
-  from: string;
-  /** End value (same syntax as `from`). */
-  to: string;
-  /** Duration in ms. Must be ≤ the parent frame's `duration`. */
-  duration: number;
-  /** CSS easing string. Default `linear`. */
-  easing?: string;
-  /** Ms after the frame becomes visible before animation starts. Default 0. */
-  delay?: number;
-  /**
-   * DM-869: repeat count. A positive integer or `"infinite"`. When set, the
-   * animation loops on its own `duration` clock (CSS `animation-iteration-count`)
-   * rather than playing once — turning a property animation into a blink / pulse
-   * / breathe. The loop is only visible while the frame is on screen (the frame
-   * group's visibility gating). `"infinite"` is the robust choice for a looping
-   * scene; a finite count aligns to the frame's first appearance.
-   */
-  repeat?: number | "infinite";
-  /** DM-869: when true, the loop ping-pongs `from`→`to`→`from` (CSS `animation-direction: alternate`). */
-  alternate?: boolean;
-}
+// DM-1131: `TypingOverlay` / `TapOverlay` / `SvgOverlay` / `BlinkOverlay` /
+// `AnimationOverlay` / `IntraFrameAnimation` are now derived (`z.infer`) from
+// the single zod source of truth in `./overlay-schema.ts` and re-exported here
+// so the public `domotion-svg` type surface is unchanged. The renderer-facing
+// (resolved) shape lives there; the declarative config extends the same base.
+export type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, AnimationOverlay, IntraFrameAnimation };
 
 export interface AnimationConfig {
   width: number;
