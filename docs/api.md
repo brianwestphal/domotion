@@ -28,6 +28,9 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `logCaptureWarnings` | function | Pretty-print the warnings to stderr. |
 | `embedRemoteImages` | function | Walk a captured tree and inline any `<img>` / `<image>` data into `data:` URIs so the SVG is self-contained. |
 | `DemoRecorder` | class | Higher-level helper that captures N frames from a sequence of page states, ready for `generateAnimatedSvg`. |
+| `contentBox` | function | `contentBox(page, selector, { at, dx, dy })` → the padding-inset **content** box of an element on a live page (viewport coords), plus a resolved `at` point. Where text actually starts inside a padded `<input>` / `<textarea>` — the one-liner imperative typing-overlay callers need instead of re-measuring padding by hand. Throws if the selector matches nothing. |
+| `boxAnchorPoint` | function | Pure helper behind `contentBox`: resolve a named corner / edge / center (`"top-left"` … `"bottom-right"`, the overlay `anchor.at` vocabulary) of a `{x,y,width,height}` box, with an optional `dx`/`dy` nudge. |
+| `ContentBox`, `ContentBoxOptions`, `BoxAnchor` | type | The `contentBox` result, its options (`at`/`dx`/`dy`), and the named-anchor union. |
 | `launchChromium` | function | Convenience wrapper around `playwright.chromium.launch` with the headless / font / color-scheme defaults Domotion expects. |
 | `CaptureOptions` | type | Options accepted by `captureElementTree` (viewport, color-scheme, raster pre-pass toggles, etc.). |
 | `CapturedElement` | type | The serializable element-tree node — the contract between capture and render. |
