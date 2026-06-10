@@ -76,3 +76,62 @@ describe("details disclosure marker suppression (DM-1115 / DM-448)", () => {
     expect(svg).not.toContain("<polygon");
   });
 });
+
+describe("details disclosure marker: ::marker color / size / inside (DM-1123)", () => {
+  // A `<details>` whose shown summary marker carries author `::marker` styling
+  // (the `.with-marker` case in 08-deep-details-accordion). `summaryPad` sets
+  // the summary's own padding-left (the inside-position offset driver).
+  function makeDetails(extra: Record<string, unknown>, summaryStyles: Record<string, unknown> = {}): Parameters<typeof renderFormControl>[0] {
+    return {
+      tag: "details",
+      x: 50, y: 0, width: 200, height: 44,
+      styles: { fontSize: "16", color: "rgb(0,0,0)", paddingLeft: "0", borderLeftWidth: "0", paddingTop: "0", borderTopWidth: "0", ...extra },
+      children: [{ tag: "summary", x: 50, y: 0, width: 200, height: 44, styles: summaryStyles }],
+    } as unknown as Parameters<typeof renderFormControl>[0];
+  }
+
+  // Extract the smallest x coordinate from the rendered <polygon points="...">.
+  function minPolygonX(svg: string): number {
+    const m = /<polygon points="([^"]+)"/.exec(svg);
+    if (m == null) throw new Error(`no polygon in: ${svg}`);
+    return Math.min(...m[1].trim().split(/\s+/).map((pt) => parseFloat(pt.split(",")[0])));
+  }
+
+  it("paints the triangle in the computed ::marker color, not the summary text color", () => {
+    const svg = renderFormControl(makeDetails({ summaryMarkerColor: "rgb(109,40,217)" }), "");
+    expect(svg).toContain('fill="rgb(109,40,217)"');
+    expect(svg).not.toContain('fill="rgb(0,0,0)"');
+  });
+
+  it("falls back to the summary text color when no ::marker color was captured (plain summary, pre-DM-1123 captures)", () => {
+    const svg = renderFormControl(makeDetails({ color: "rgb(0,0,0)" }), "");
+    expect(svg).toContain('fill="rgb(0,0,0)"');
+  });
+
+  it("scales the triangle with the ::marker font-size when the author set one", () => {
+    // marker font-size 14 → size max(8, 9.8) = 9.8; summary's own 16 would give
+    // 11.2. A smaller marker font-size yields a vertically shorter triangle.
+    const small = renderFormControl(makeDetails({ summaryMarkerFontSize: 14 }), "");
+    const big = renderFormControl(makeDetails({ summaryMarkerFontSize: 28 }), "");
+    const yExtent = (svg: string): number => {
+      const m = /<polygon points="([^"]+)"/.exec(svg)!;
+      const ys = m[1].trim().split(/\s+/).map((pt) => parseFloat(pt.split(",")[1]));
+      return Math.max(...ys) - Math.min(...ys);
+    };
+    expect(yExtent(big)).toBeGreaterThan(yExtent(small));
+  });
+
+  it("offsets the inside-positioned marker past the summary's own padding-left", () => {
+    // `.with-marker summary { padding-left: 24px }` + list-style-position:inside
+    // → Chrome paints the triangle ~24px right of the border-box-left placement.
+    const inside = renderFormControl(makeDetails({ summaryMarkerInside: true }, { paddingLeft: "24" }), "");
+    const noOffset = renderFormControl(makeDetails({ summaryMarkerInside: false }, { paddingLeft: "24" }), "");
+    expect(minPolygonX(inside) - minPolygonX(noOffset)).toBeCloseTo(24, 1);
+  });
+
+  it("does not shift plain (no-padding) summaries — no regression for the default marker", () => {
+    const withFlag = renderFormControl(makeDetails({ summaryMarkerInside: true }, { paddingLeft: "0" }), "");
+    const withoutFlag = renderFormControl(makeDetails({}, { paddingLeft: "0" }), "");
+    expect(minPolygonX(withFlag)).toBeCloseTo(minPolygonX(withoutFlag), 5);
+  });
+});

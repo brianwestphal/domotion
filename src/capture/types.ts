@@ -521,6 +521,21 @@ export interface CapturedElement {
      *  should NOT paint its own UA disclosure triangle on top of the
      *  author's custom marker. DM-448. */
     summaryMarkerSuppressed?: boolean;
+    /** DM-1123: the computed `::marker` color of a SHOWN summary disclosure
+     *  triangle (e.g. `summary::marker { color: #6d28d9 }` → purple). Chrome
+     *  paints the triangle in this color, not the summary's text color. Unset
+     *  when the marker is suppressed or the element isn't `<details>`. */
+    summaryMarkerColor?: string;
+    /** DM-1123: the computed `::marker` font-size in px (e.g.
+     *  `summary::marker { font-size: 14px }`). The triangle scales with this,
+     *  not the summary's own font-size. Defaults (inherits) to the summary's
+     *  font-size when the author didn't set one. */
+    summaryMarkerFontSize?: number;
+    /** DM-1123: true when the shown marker's `list-style-position` is `inside`
+     *  (the UA default for `<summary>`), so the renderer offsets the triangle
+     *  past the summary's own `padding-left` to the content-start. `outside`
+     *  → the legacy placement at the summary's border-box left edge. */
+    summaryMarkerInside?: boolean;
     selectChevron?: boolean;
     /** Text of the currently-selected option, rendered inside the `<select>`
      *  content rect for closed dropdowns (DM-246). For listbox-mode selects

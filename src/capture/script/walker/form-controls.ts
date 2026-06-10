@@ -33,6 +33,29 @@
 
 export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
   const captureFormControls = (el, cs, tag) => {
+    // DM-1115 / DM-1123: resolve the <summary> disclosure-marker state once.
+    // `suppressed` → author hid the UA triangle (`list-style: none` or a
+    // transparent `::marker`), so the renderer paints nothing. Otherwise the
+    // marker IS shown and we capture its computed `::marker` color / font-size
+    // / inside-position for the renderer to reproduce Chrome's paint.
+    const mk = tag === 'details' ? (() => {
+      const sum = el.querySelector(':scope > summary');
+      if (sum == null) return { suppressed: false };
+      if (window.getComputedStyle(sum).listStyleType === 'none') return { suppressed: true };
+      const mcs = window.getComputedStyle(sum, '::marker');
+      const mc = mcs.color;
+      // 'transparent' or 'rgba(R, G, B, 0)' → alpha=0. 'rgb(R, G, B)' (no
+      // alpha component) is opaque and must NOT trigger suppression.
+      if (mc === 'transparent') return { suppressed: true };
+      const am = /^rgba\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*([0-9.]+)\s*\)$/.exec(mc);
+      if (am != null && parseFloat(am[1]) === 0) return { suppressed: true };
+      return {
+        suppressed: false,
+        color: normColor(mc),
+        fontSize: parseFloat(mcs.fontSize) || undefined,
+        inside: mcs.listStylePosition === 'inside',
+      };
+    })() : null;
     const out = {
       inputType: tag === 'input' ? (el.type || 'text') : undefined,
       // CSS appearance / -webkit-appearance longhand for inputs. When 'none'
@@ -66,18 +89,15 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
       //     disclosure value, so we key off list-style-type, not display.
       //   - `::marker { color: transparent }` is the other author technique for
       //     hiding the UA triangle without changing the box model. DM-448.
-      summaryMarkerSuppressed: tag === 'details' ? (() => {
-        const sum = el.querySelector(':scope > summary');
-        if (sum == null) return false;
-        if (window.getComputedStyle(sum).listStyleType === 'none') return true;
-        const mc = window.getComputedStyle(sum, '::marker').color;
-        // 'transparent' or 'rgba(R, G, B, 0)' → alpha=0. 'rgb(R, G, B)' (no
-        // alpha component) is opaque and must NOT trigger suppression.
-        if (mc === 'transparent') return true;
-        const am = /^rgba\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*([0-9.]+)\s*\)$/.exec(mc);
-        if (am != null && parseFloat(am[1]) === 0) return true;
-        return false;
-      })() : undefined,
+      summaryMarkerSuppressed: tag === 'details' ? (mk == null || mk.suppressed) : undefined,
+      // DM-1123: when the disclosure marker IS shown, Chrome paints the
+      // triangle in the computed `::marker` color, at the `::marker` font-size,
+      // and (for the UA-default `list-style-position: inside`) at the summary's
+      // content-start — not in the summary's text color at a fixed 0.7em
+      // outside the padding. Capture those three so the renderer can match it.
+      summaryMarkerColor: mk != null && !mk.suppressed ? mk.color : undefined,
+      summaryMarkerFontSize: mk != null && !mk.suppressed ? mk.fontSize : undefined,
+      summaryMarkerInside: mk != null && !mk.suppressed ? mk.inside : undefined,
       // Native chevron only when the select keeps UA chrome — appearance:
       // none means the page draws its own arrow via background-image, and
       // we should not stack our default chevron on top. DM-308.

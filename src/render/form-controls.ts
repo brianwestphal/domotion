@@ -1157,7 +1157,13 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
   // U+25B6 / U+25BC in the system sans fonts (DM-448 follow-up). The
   // previous 0.6em multiplier produced a triangle that read visibly small
   // vs Chrome's painted output.
-  const size = Math.max(8, fontSizePx * 0.7);
+  // DM-1123: when the author styled the `::marker` font-size
+  // (`summary::marker { font-size: 14px }`), the triangle scales with the
+  // marker's size, not the summary's. Falls back to the summary font-size
+  // (the marker inherits it) for unstyled markers, so plain summaries are
+  // byte-identical to before.
+  const markerPx = el.styles.summaryMarkerFontSize ?? fontSizePx;
+  const size = Math.max(8, markerPx * 0.7);
   // DM-746: prefer the captured <summary> child's actual y / height when
   // available — that's the line box Chrome paints the marker into. The
   // previous fallback computed `cy` from `el.y + paddingT + borderT +
@@ -1175,7 +1181,17 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
   // is el.x + paddingL + borderL. Offset by half the marker size so the
   // glyph's center sits ~half-marker-width past the summary's left edge,
   // matching Chrome's painted offset (DM-448).
-  const cx = (summaryChild != null ? summaryChild.x : el.x + padL + brL) + size / 2;
+  // DM-1123: for `list-style-position: inside` (the UA default for
+  // `<summary>`) the marker is the first inline box INSIDE the summary's
+  // padding box, so it starts after the summary's own `padding-left`. The
+  // `.with-marker` fixture sets `summary { padding-left: 24px }`, which shifted
+  // Chrome's triangle ~24px right of where the legacy border-box-left placement
+  // painted it. Plain summaries have no padding, so this reduces to the prior
+  // position (no regression).
+  const summaryPadL = el.styles.summaryMarkerInside === true && summaryChild != null
+    ? (parseFloat(summaryChild.styles.paddingLeft ?? "") || 0)
+    : 0;
+  const cx = (summaryChild != null ? summaryChild.x : el.x + padL + brL) + summaryPadL + size / 2;
   // Vertical center: the summary is the first child of <details>; use its
   // captured line-box center when available. Fallback computes from the
   // details' padding/border + a corrected line-height ratio.
@@ -1183,9 +1199,15 @@ function renderDetailsMarker(el: CapturedElement, indent: string): string {
     ? summaryChild.y + summaryChild.height / 2
     : el.y + padT + brT + (parseFloat(el.styles.lineHeight ?? "") || fontSizePx * 1.15) / 2;
   const open = el.styles.detailsOpen === true;
-  // Use the summary's text color when captured, else dark gray.
-  const fill = (el.styles.color != null && el.styles.color !== "")
-    ? el.styles.color : "rgb(0,0,0)";
+  // DM-1123: paint in the computed `::marker` color when captured (Chrome paints
+  // the triangle in the marker color, e.g. `summary::marker { color: #6d28d9 }`
+  // → purple). For an unstyled marker the captured color equals the summary's
+  // text color (the marker inherits it), so this also covers the plain case;
+  // fall back to the summary text color / dark gray for pre-DM-1123 captures.
+  const fill = (el.styles.summaryMarkerColor != null && el.styles.summaryMarkerColor !== "")
+    ? el.styles.summaryMarkerColor
+    : (el.styles.color != null && el.styles.color !== "")
+      ? el.styles.color : "rgb(0,0,0)";
   const half = size / 2;
   // Right-pointing (closed): ▶ — apex at right. Down-pointing (open): ▼ — apex at bottom.
   const p = open
