@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   computeWedgeApexes,
+  dashArrayForStyle,
+  injectSvgSize,
   insetCornerRadii,
+  outsetCornerRadiiForShadow,
   parseCornerRadii,
+  parseSide,
   roundedRectPath,
   roundedRectSvg,
   wedgePolygonPoints,
@@ -252,3 +256,73 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
   });
 });
 
+
+describe("parseSide", () => {
+  it("parses a width/style/color triple into a BorderSide", () => {
+    expect(parseSide("2px", "solid", "rgb(255, 0, 0)")).toEqual({
+      w: 2, style: "solid", color: { r: 255, g: 0, b: 0, a: 1 },
+    });
+  });
+
+  it("treats a zero / unparseable width as 0", () => {
+    expect(parseSide("0px", "dashed", "rgb(0,0,0)")).toMatchObject({ w: 0, style: "dashed" });
+  });
+
+  it("returns null when any of width / style / color is missing", () => {
+    expect(parseSide(undefined, "solid", "rgb(0,0,0)")).toBeNull();
+    expect(parseSide("1px", undefined, "rgb(0,0,0)")).toBeNull();
+    expect(parseSide("1px", "solid", undefined)).toBeNull();
+  });
+
+  it("returns null when the color can't be parsed", () => {
+    expect(parseSide("1px", "solid", "not-a-color")).toBeNull();
+  });
+});
+
+describe("dashArrayForStyle", () => {
+  it("emits a 2:1 dash for `dashed`", () => {
+    expect(dashArrayForStyle("dashed", 2)).toBe("4 2");
+  });
+  it("emits a 1:1 dash for `dotted`", () => {
+    expect(dashArrayForStyle("dotted", 3)).toBe("3 3");
+  });
+  it("emits '' for solid / other styles", () => {
+    expect(dashArrayForStyle("solid", 2)).toBe("");
+    expect(dashArrayForStyle("double", 2)).toBe("");
+  });
+});
+
+describe("outsetCornerRadiiForShadow", () => {
+  const mk = (h: number, v: number) => ({ h, v });
+  it("grows positive corners by the spread and leaves zero corners sharp", () => {
+    const c = { tl: mk(4, 4), tr: mk(0, 0), br: mk(4, 4), bl: mk(0, 0), uniform: false };
+    const out = outsetCornerRadiiForShadow(c, 3);
+    expect(out.tl).toEqual({ h: 7, v: 7 });
+    expect(out.tr).toEqual({ h: 0, v: 0 }); // a 0-radius corner stays sharp
+    expect(out.br).toEqual({ h: 7, v: 7 });
+  });
+
+  it("recomputes the uniform flag and clamps negative growth to 0", () => {
+    const uniform = { tl: mk(4, 4), tr: mk(4, 4), br: mk(4, 4), bl: mk(4, 4), uniform: true };
+    expect(outsetCornerRadiiForShadow(uniform, 2).uniform).toBe(true);
+    // spread more negative than the radius clamps to 0 (no negative radii).
+    expect(outsetCornerRadiiForShadow(uniform, -10).tl).toEqual({ h: 0, v: 0 });
+  });
+});
+
+describe("injectSvgSize", () => {
+  it("replaces existing width/height with the captured layout size", () => {
+    expect(injectSvgSize('<svg width="24" height="24" viewBox="0 0 24 24"><path/></svg>', 12, 12))
+      .toBe('<svg viewBox="0 0 24 24" width="12" height="12"><path/></svg>');
+  });
+
+  it("injects width/height when the source has none", () => {
+    expect(injectSvgSize('<svg viewBox="0 0 1 1"></svg>', 30, 40))
+      .toBe('<svg viewBox="0 0 1 1" width="30" height="40"></svg>');
+  });
+
+  it("leaves the markup untouched for non-positive sizes or non-<svg> input", () => {
+    expect(injectSvgSize('<svg width="24"/>', 0, 10)).toBe('<svg width="24"/>');
+    expect(injectSvgSize("<div></div>", 10, 10)).toBe("<div></div>");
+  });
+});

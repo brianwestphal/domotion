@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { beforeEach, describe, expect, it } from "vitest";
-import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, rasterGlyphOverlays, renderSingleLineText, resolveFontVariantFeatures } from "./text.js";
+import { __bidiMirrorLinesForTest, parseFontFeatureSettings, parseFontVariationSettings, parseTextEmphasisMark, rasterGlyphOverlays, renderSingleLineText, resolveFontVariantFeatures } from "./text.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -313,5 +313,40 @@ describe("parseFontVariationSettings (DM-578)", () => {
   it("handles custom axis tags (e.g. Recursive's CASL, MONO, CRSV)", () => {
     expect(parseFontVariationSettings('"CASL" 0.5, "MONO" 1, "CRSV" 0.5'))
       .toEqual({ CASL: 0.5, MONO: 1, CRSV: 0.5 });
+  });
+});
+
+describe("parseTextEmphasisMark (DM-920)", () => {
+  it("returns null for none / empty / undefined", () => {
+    expect(parseTextEmphasisMark(undefined)).toBeNull();
+    expect(parseTextEmphasisMark("")).toBeNull();
+    expect(parseTextEmphasisMark("none")).toBeNull();
+  });
+
+  it("uses the literal <string> form verbatim", () => {
+    expect(parseTextEmphasisMark('"★"')).toBe("★");
+    expect(parseTextEmphasisMark("'·'")).toBe("·");
+  });
+
+  it("maps filled shape keywords to their solid glyphs (filled is the default)", () => {
+    expect(parseTextEmphasisMark("dot")).toBe("•");
+    expect(parseTextEmphasisMark("filled dot")).toBe("•");
+    expect(parseTextEmphasisMark("circle")).toBe("●");
+    expect(parseTextEmphasisMark("double-circle")).toBe("◉");
+    expect(parseTextEmphasisMark("triangle")).toBe("▲");
+    expect(parseTextEmphasisMark("sesame")).toBe("﹅");
+  });
+
+  it("maps open shape keywords to their hollow glyphs", () => {
+    expect(parseTextEmphasisMark("open dot")).toBe("◦");
+    expect(parseTextEmphasisMark("open circle")).toBe("○");
+    expect(parseTextEmphasisMark("open double-circle")).toBe("◎");
+    expect(parseTextEmphasisMark("open triangle")).toBe("△");
+    expect(parseTextEmphasisMark("open sesame")).toBe("﹆");
+  });
+
+  it("returns null when no shape keyword is present", () => {
+    expect(parseTextEmphasisMark("filled")).toBeNull();
+    expect(parseTextEmphasisMark("open")).toBeNull();
   });
 });
