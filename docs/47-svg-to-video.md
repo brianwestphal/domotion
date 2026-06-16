@@ -75,10 +75,13 @@ What is *not* free:
    `currentTime = i * 1000/fps` ms (+ `setCurrentTime` for SMIL), flush,
    screenshot PNG. **Pipe frames to ffmpeg stdin** (`image2pipe`) by default so
    no intermediate frame files touch disk; `--keep-frames <dir>` switches to
-   writing a numbered PNG sequence for debugging.
-7. **Encode + mux** with ffmpeg: video codec/container from `--format`/
+   writing a numbered PNG sequence for debugging. For a transparent background on
+   an alpha-capable format (below) the page background is left transparent and
+   the screenshot uses `omitBackground: true`, so the PNG frames carry real alpha.
+7. **Encode + mux** with ffmpeg: video codec/container/pix_fmt from `--format`/
    `--container` (default `libx264` / `mp4`, `-pix_fmt yuv420p` for
-   compatibility); then mux optional audio and captions (below).
+   compatibility; an alpha pix_fmt for a transparent output, below); then mux
+   optional audio and captions (below).
 
 ## CLI options
 
@@ -88,10 +91,10 @@ What is *not* free:
 | `--width <px>` / `--height <px>` | intrinsic | Contain within; preserve aspect ratio. Either or both. |
 | `--fps <n>` | `30` | Target frame rate; drives the sampling interval. |
 | `--duration <s>` | one cycle | Override the rendered length (required for SMIL-only or indeterminate general SVGs). |
-| `--format <codec>` | `h264` | Output format: video codecs `h264`, `hevc`, `vp9`, `vp8`, `av1`, or the animated images `gif` / `apng` (no audio track). |
-| `--container <ext>` | per format | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`). Ignored for `gif`/`apng` (the format *is* the container). |
+| `--format <codec>` | `h264` | Output format: video codecs `h264`, `hevc`, `vp9`, `vp8`, `av1`, `prores` (ProRes 4444, `.mov`), or the animated images `gif` / `apng` (no audio track). |
+| `--container <ext>` | per format | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`, prores → `mov`). Ignored for `gif`/`apng` (the format *is* the container). |
 | `--scale <n>` | `2` | Supersample render factor; ffmpeg downscales (lanczos) to the target size for crisper output. |
-| `--background <css>` | `#ffffff` | Page background behind the SVG (video has no alpha). |
+| `--background <css>` | `#ffffff` | Page background behind the SVG. `transparent` / `none` / a zero-alpha color requests a transparent output — see [Transparent backgrounds / alpha](#transparent-backgrounds--alpha). |
 | `--music <path>` | — | Background music; looped (`-stream_loop -1`) + trimmed (`-shortest`) to the video length. |
 | `--audio <path>` | — | Foreground audio; mixed over music via `amix` when both are given. |
 | `--audio-offset <s>` | — | Delay the foreground audio by this many seconds (`-itsoffset`). |
@@ -169,12 +172,31 @@ differs (`buildFfmpegArgs` branches on the container):
 mp4/webm remain the primary path; gif/apng are for inline-loop demos and chat
 embeds where a video element isn't convenient.
 
+## Transparent backgrounds / alpha (DM-1142)
+
+A transparent `--background` — the CSS keyword `transparent` / `none`, or any
+zero-alpha color (`rgba(…, 0)`, `#rrggbb00`) — requests a transparent output.
+`isTransparentBackground` detects it; the page is then loaded with a transparent
+background and frames are captured with `omitBackground: true`, so the PNG stream
+carries real alpha into ffmpeg.
+
+Whether that alpha survives depends on the format. `resolveFormat(format,
+container, transparent)` switches alpha-capable formats to an alpha pixel format
+(and any alpha-specific codec args) and reports `alpha: true`; the rest report
+`alphaCapable: false` and the CLI composites onto opaque white with a note.
+
+| `--format` | Transparent output | How |
+| --- | --- | --- |
+| `vp9` | ✅ alpha | `-pix_fmt yuva420p` (webm). Verified transparent in Chromium's `<video>`; note ffmpeg's own VP9-alpha *decode* round-trip is lossy, but browsers — the real consumer — render it correctly. |
+| `prores` | ✅ alpha | ProRes 4444, `prores_ks -profile:v 4 -pix_fmt yuva444p10le` (`.mov`). The standard alpha video for editing / compositing. Opaque ProRes uses the HQ profile (`3`, `yuv422p10le`). |
+| `apng` | ✅ alpha | `rgba` (already the APNG pixel format). |
+| `gif` | ✅ 1-bit alpha | `palettegen=reserve_transparent=1` + `paletteuse=…:alpha_threshold=128`. GIF alpha is 1-bit, so semi-transparent edges snap fully on/off. |
+| `h264` / `hevc` / `av1` / `vp8` | ⚠️ composited | These can't carry alpha (h264/hevc/av1 have no alpha profile we target; ffmpeg's libvpx VP8 encoder *lists* `yuva420p` but fails to open with it, producing a corrupt file). A transparent request composites onto opaque white with a `note:` and a pointer to `vp9`/`prores`/`apng`/`gif`. |
+
 ## Out of scope (v1)
 
 - Arbitrary JS/`requestAnimationFrame`-driven SVG animation (needs clock
   virtualization; best-effort only).
-- Transparent-background GIF/APNG (frames are captured over `--background`,
-  which defaults to opaque white — alpha capture is a possible follow-up).
 - Per-frame audio sync beyond music/voiceover/captions.
 
 ## Verification
@@ -182,9 +204,19 @@ embeds where a video element isn't convenient.
 - **Unit tests** (`src/cli/svg-to-video-core.test.ts`) cover the pure helpers:
   `fitContain` (aspect-preserving + even dims), `parseSvgIntrinsicSize`,
   `resolveDurationMs` (override / uniform loop / LCM / finite-end / cap), the
-  `--format` map (incl. the gif/apng entries + container-override guard), and
-  `buildFfmpegArgs` for every audio/caption/scale/webm combo plus the gif palette
-  filtergraph and apng encoder branches (audio/soft-caption drop, burn-in kept).
+  `--format` map (incl. the gif/apng entries + container-override guard), the
+  alpha resolution (`isTransparentBackground`, `resolveFormat(…, transparent)`
+  switching alpha-capable formats to their alpha pix_fmt / ProRes profile and
+  leaving the rest opaque), and `buildFfmpegArgs` for every audio/caption/scale/
+  webm combo plus the gif palette filtergraph (incl. the transparent
+  `reserve_transparent` / `alpha_threshold` variant), the ProRes 4444 alpha args,
+  and the apng encoder branch (audio/soft-caption drop, burn-in kept).
+- **Alpha, end-to-end** (validated manually this session, ffmpeg + Chromium): a
+  transparent-background SVG rendered to `vp9` is confirmed transparent at a
+  corner and opaque at the painted center via a Chromium `<video>` → canvas
+  read-back; `prores` (`yuva444p`) and `apng` (`rgba`) carry alpha at the corner;
+  `gif` keys out the transparent index; `h264`/`vp8` emit a `note:` and a valid
+  opaque file.
 - **End-to-end** (`src/cli/svg-to-video-e2e.test.ts`, ffmpeg-gated) renders the
   same animated SVG to mp4, gif, and apng and ffprobes each for codec, geometry,
   and frame count.

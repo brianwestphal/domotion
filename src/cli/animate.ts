@@ -31,6 +31,7 @@ import {
   buildMagicMove,
   generateAnimatedSvg,
   cursorAtPoint,
+  type AnimationConfig,
   type AnimationFrame,
   type IntraFrameAnimation,
   type AnimationOverlay,
@@ -304,7 +305,13 @@ export const animateConfigSchema = z
   });
 
 export type AnimateConfig = z.infer<typeof animateConfigSchema>;
-type AnimateAction = z.infer<typeof actionSchema>;
+/** DM-1140 (doc 63 §2): the declarative action union accepted by `runActions`
+ *  (and the `actions` field of an animate config). Interaction actions (click /
+ *  fill / press / hover / focus / selectOption / scroll / wait / evaluate) plus
+ *  the DOM-mutation set (setText / setHtml / remove / setAttribute / addClass /
+ *  toggleClass / setStyle / insert / setValue / check / clear / scrollIntoView /
+ *  blur / dispatch / selectText / replaceText). Re-exported from the package root. */
+export type AnimateAction = z.infer<typeof actionSchema>;
 type OverlayInput = z.infer<typeof overlaySchema>;
 
 export async function runAnimate(args: string[], help: string): Promise<void> {
@@ -361,25 +368,79 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
 }
 
 /**
- * Capture and compose every frame in `cfg` into one animated SVG string
- * (unoptimized). Shared by the `animate` CLI, the example-regression harness,
- * and library callers who run the declarative pipeline in-process (DM-1130) —
- * all exercise the exact same capture→compose path. Creates one browser context
- * (sized / emulated per `cfg`) and closes it before returning; the caller owns
- * the `browser` lifecycle.
- *
- * `configDir` resolves a frame's relative `input` and svg-overlay `src` paths;
- * it defaults to `process.cwd()` so in-process callers with absolute paths /
- * http(s) URLs can omit it. `log` defaults to a no-op for the same reason. A
- * typical programmatic call is just `composeAnimateConfig(browser, cfg)` after
- * `validateAnimateConfig(json)`.
+ * DM-1138 (doc 62 §2): per-frame hook fired by `composeAnimateConfig` /
+ * `composeAnimateFrames` after each frame is captured + culled + overlays/anchors
+ * resolved and **pushed**, before the prior frame's magic-move bridge is built.
+ * `frame` is the just-pushed `AnimationFrame` (mutating `frame.overlays` etc. IS
+ * reflected in the final SVG); `page` is the live Playwright page (still on this
+ * frame's DOM); `tree` is the captured element tree — `null` for scroll-block
+ * frames, which compose their own sub-SVG and have no single tree. Caveat:
+ * mutating `tree` after the fact does NOT re-render `frame.svgContent` (it was
+ * already serialized) — edit `frame.svgContent` / `frame.overlays` instead. May
+ * be async; it's awaited before the next frame.
  */
-export async function composeAnimateConfig(
+export type OnFrameHook = (
+  frame: AnimationFrame,
+  ctx: { page: Page; tree: CapturedElement[] | null; index: number },
+) => void | Promise<void>;
+
+/**
+ * DM-1138 (doc 62 "Signature compatibility"): the options-object form of the
+ * `composeAnimateConfig` / `composeAnimateFrames` trailing arguments. Accepted as
+ * the 3rd argument in place of the positional `(configDir?, log?)` — both forms
+ * are supported (the positional form is kept for the already-published callers).
+ */
+export interface ComposeAnimateOptions {
+  /** Resolves a frame's relative `input` / svg-overlay `src` paths. Default `process.cwd()`. */
+  configDir?: string;
+  /** Progress logger. Default no-op. */
+  log?: (msg: string) => void;
+  /** DM-1138: per-frame hook (see `OnFrameHook`). */
+  onFrame?: OnFrameHook;
+}
+
+/** Normalize the `(configDir?, log?)` positional form OR the `(opts?)` object
+ *  form into a single shape (DM-1138). */
+function normalizeComposeArgs(
+  configDirOrOpts?: string | ComposeAnimateOptions,
+  log?: (msg: string) => void,
+): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook } {
+  if (configDirOrOpts != null && typeof configDirOrOpts === "object") {
+    return {
+      configDir: configDirOrOpts.configDir ?? process.cwd(),
+      log: configDirOrOpts.log ?? (() => {}),
+      onFrame: configDirOrOpts.onFrame,
+    };
+  }
+  return { configDir: configDirOrOpts ?? process.cwd(), log: log ?? (() => {}), onFrame: undefined };
+}
+
+/**
+ * DM-1137 (doc 62 §1): the "frames-out" variant of `composeAnimateConfig`. Runs
+ * the exact same capture + action + overlay/cursor resolution + cull + magic-move
+ * pipeline but STOPS before `generateAnimatedSvg`, returning the assembled
+ * `AnimationConfig` (`{ width, height, frames, fontFaceCss, cursorOverlay,
+ * resolveCursorAt, background }`). Lets callers inspect / mutate the composed
+ * frames (add an overlay, drop a frame, post-process glyphs) before rendering —
+ * the render is then just `generateAnimatedSvg(config)`. `composeAnimateConfig`
+ * is reduced to exactly that, so the two can't diverge (the doc 60/61 one-engine-
+ * two-callers pattern).
+ *
+ * Creates one browser context (sized / emulated per `cfg`) and closes it before
+ * returning; the caller owns the `browser` lifecycle. The trailing args accept
+ * EITHER the positional `(configDir?, log?)` form OR a single
+ * `ComposeAnimateOptions` object `{ configDir?, log?, onFrame? }` (DM-1138) — the
+ * options form is how you pass the per-frame `onFrame` hook. `configDir` resolves
+ * a frame's relative `input` / svg-overlay `src` paths (default `process.cwd()`);
+ * `log` defaults to a no-op.
+ */
+export async function composeAnimateFrames(
   browser: Browser,
   cfg: AnimateConfig,
-  configDir: string = process.cwd(),
-  log: (msg: string) => void = () => {},
-): Promise<string> {
+  configDirOrOpts?: string | ComposeAnimateOptions,
+  logArg?: (msg: string) => void,
+): Promise<AnimationConfig> {
+  const { configDir, log, onFrame } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
   const ctx = await browser.newContext({
@@ -599,6 +660,13 @@ export async function composeAnimateConfig(
         animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
       });
 
+      // DM-1138 (doc 62 §2): per-frame hook — fired after the frame is pushed
+      // (so `frame.overlays` mutations land in the final SVG) and while the page
+      // is still on this frame's DOM, BEFORE the magic-move bridge below.
+      if (onFrame != null) {
+        await onFrame(frames[frames.length - 1], { page, tree: frameTree, index: i });
+      }
+
       // DM-898: when the PREVIOUS frame's transition is magic-move and both it
       // and this frame captured a tree, build the bridge layer now — BEFORE the
       // glyph/font @font-face defs are finalized below (getEmbeddedFontFaceCss),
@@ -633,15 +701,59 @@ export async function composeAnimateConfig(
     // DM-839: collect the embedded-font @font-face rules accumulated across all
     // frames once, for the animator's top-level <style>.
     const fontFaceCss = getEmbeddedFontFaceCss();
-    return await timed(log, `Composed animated SVG (${cfg.frames.length} frames)`, () =>
-      Promise.resolve(generateAnimatedSvg({ width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg })),
-    );
+    // DM-1137: return the assembled config instead of rendering it here — the
+    // render lives in `composeAnimateConfig` so callers can mutate frames first.
+    return { width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg };
   } finally {
     await ctx.close();
   }
 }
 
-async function runActions(page: Page, actions: AnimateAction[], log: (msg: string) => void): Promise<void> {
+/**
+ * Capture and compose every frame in `cfg` into one animated SVG string
+ * (unoptimized). Shared by the `animate` CLI, the example-regression harness,
+ * and library callers who run the declarative pipeline in-process (DM-1130) —
+ * all exercise the exact same capture→compose path. The caller owns the
+ * `browser` lifecycle.
+ *
+ * DM-1137: this is now exactly `generateAnimatedSvg(await composeAnimateFrames(
+ * …))` — one engine, two callers. Reach for `composeAnimateFrames` directly when
+ * you need to inspect / mutate the assembled `AnimationConfig` before rendering.
+ *
+ * The trailing args accept EITHER the positional `(configDir?, log?)` form OR a
+ * single `ComposeAnimateOptions` object `{ configDir?, log?, onFrame? }`
+ * (DM-1138). `configDir` resolves a frame's relative `input` / svg-overlay `src`
+ * paths (default `process.cwd()`); `log` defaults to a no-op. A typical
+ * programmatic call is just `composeAnimateConfig(browser, cfg)` after
+ * `validateAnimateConfig(json)`.
+ */
+export async function composeAnimateConfig(
+  browser: Browser,
+  cfg: AnimateConfig,
+  configDirOrOpts?: string | ComposeAnimateOptions,
+  logArg?: (msg: string) => void,
+): Promise<string> {
+  const config = await composeAnimateFrames(browser, cfg, configDirOrOpts, logArg);
+  const { log } = normalizeComposeArgs(configDirOrOpts, logArg);
+  return await timed(log, `Composed animated SVG (${config.frames.length} frames)`, () =>
+    Promise.resolve(generateAnimatedSvg(config)),
+  );
+}
+
+/**
+ * DM-1140 (doc 63 §2): apply the declarative action vocabulary against a live
+ * Playwright page, in order. Re-exported from the package root so imperative
+ * scripting-API callers get the DOM-mutation actions (setText / addClass /
+ * insert / replaceText / setStyle / dispatch / …) — the ones that AREN'T
+ * one-line Playwright calls and that already encode the "apply across every
+ * matched element, throw if the selector matches nothing" semantics (doc 43 →
+ * Selectors) — without authoring a whole JSON config. `log` defaults to a no-op
+ * (the CLI passes a logger for the `evaluate`-too-long nudge); the public form
+ * doesn't need one. Throws on the first failing action (e.g. a DOM-mutation
+ * selector that matches nothing), surfacing the bug rather than silently
+ * skipping.
+ */
+export async function runActions(page: Page, actions: AnimateAction[], log: (msg: string) => void = () => {}): Promise<void> {
   for (const a of actions) {
     switch (a.type) {
       // Playwright-native interactions (handle actionability + waiting).

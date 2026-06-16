@@ -179,21 +179,61 @@ export interface ResolvedFormat {
   videoCodec: string;
   container: string;
   pixFmt: string;
+  /** DM-1142: extra codec args (e.g. ProRes `-profile:v`), inserted right after
+   *  `-c:v <codec> -pix_fmt <pixFmt>`. Empty for the simple formats. */
+  extraArgs: string[];
+  /** DM-1142: whether THIS resolution emits an alpha channel (transparent
+   *  requested AND the format can carry it). Drives `omitBackground` capture +
+   *  the GIF transparent-palette graph. */
+  alpha: boolean;
+  /** DM-1142: whether the format CAN carry alpha at all (independent of whether
+   *  transparency was requested). False → a transparent request composites onto
+   *  a fallback color with a warning. */
+  alphaCapable: boolean;
 }
 
-const FORMAT_MAP: Record<string, { codec: string; container: string; pixFmt: string }> = {
+interface FormatEntry {
+  codec: string;
+  container: string;
+  pixFmt: string;
+  /** Pixel format to use when emitting alpha (transparent output). Its presence
+   *  marks a video format as alpha-capable. Animated images (gif/apng) are
+   *  alpha-capable regardless (handled by their own encode path). */
+  alphaPixFmt?: string;
+  /** Codec args applied for the OPAQUE encode (e.g. ProRes HQ profile). */
+  extraArgs?: string[];
+  /** Codec args applied for the ALPHA encode (e.g. ProRes 4444 profile). */
+  alphaExtraArgs?: string[];
+}
+
+const FORMAT_MAP: Record<string, FormatEntry> = {
+  // H.264 / H.265 / AV1: no alpha channel in any common profile we target — a
+  // transparent request composites onto a fallback color (warned by the caller).
   h264: { codec: "libx264", container: "mp4", pixFmt: "yuv420p" },
   avc: { codec: "libx264", container: "mp4", pixFmt: "yuv420p" },
   hevc: { codec: "libx265", container: "mp4", pixFmt: "yuv420p" },
   h265: { codec: "libx265", container: "mp4", pixFmt: "yuv420p" },
-  vp9: { codec: "libvpx-vp9", container: "webm", pixFmt: "yuv420p" },
+  // VP9 (webm) carries alpha via `yuva420p` — the web-native transparent video
+  // path (DM-1142), verified transparent in Chromium's <video>. VP8 is NOT
+  // alpha-capable here: ffmpeg's libvpx VP8 encoder lists yuva420p but fails to
+  // open with it ("Error while opening encoder"), producing a corrupt file — so
+  // a transparent VP8 request composites onto a fallback (like h264). Use VP9.
+  vp9: { codec: "libvpx-vp9", container: "webm", pixFmt: "yuv420p", alphaPixFmt: "yuva420p" },
   vp8: { codec: "libvpx", container: "webm", pixFmt: "yuv420p" },
   av1: { codec: "libaom-av1", container: "mp4", pixFmt: "yuv420p" },
+  // ProRes 4444 (mov) — the standard alpha video format for editing /
+  // compositing (After Effects, Final Cut). `prores_ks` is the alpha-capable
+  // encoder; opaque uses the HQ profile (3, `yuv422p10le`), transparent the 4444
+  // profile (4, `yuva444p10le`). DM-1142.
+  prores: {
+    codec: "prores_ks", container: "mov", pixFmt: "yuv422p10le", alphaPixFmt: "yuva444p10le",
+    extraArgs: ["-profile:v", "3"], alphaExtraArgs: ["-profile:v", "4"],
+  },
   // Animated-image formats (DM-885). These take a distinct ffmpeg path in
   // `buildFfmpegArgs` (no audio/soft-caption track): GIF via a palette
-  // filtergraph, APNG via the apng encoder. The `container` value `gif`/`apng`
-  // is the branch discriminant. pixFmt is unused for gif (the palette graph
-  // sets it); rgba for apng preserves the alpha the encoder supports.
+  // filtergraph (DM-1142: with a reserved transparent index when alpha), APNG
+  // via the apng encoder. The `container` value `gif`/`apng` is the branch
+  // discriminant; both are alpha-capable.
   gif: { codec: "gif", container: "gif", pixFmt: "pal8" },
   apng: { codec: "apng", container: "apng", pixFmt: "rgba" },
 };
@@ -203,8 +243,37 @@ export function isAnimatedImageContainer(container: string): boolean {
   return container === "gif" || container === "apng";
 }
 
-/** Map a `--format` keyword to an ffmpeg codec + default container + pix_fmt. */
-export function resolveFormat(format: string, containerOverride?: string): ResolvedFormat {
+/**
+ * DM-1142: does this CSS `--background` value request a transparent (alpha)
+ * output? Matches the CSS keywords `transparent` / `none` and any fully-
+ * transparent color literal (`rgba(…, 0)`, `#rrggbb00` / `#rgb0`). An opaque
+ * value (default `#ffffff`) returns false — the historical solid-background
+ * behavior.
+ */
+export function isTransparentBackground(background: string): boolean {
+  const b = background.trim().toLowerCase();
+  if (b === "transparent" || b === "none" || b === "") return true;
+  // rgba()/hsla() with a zero (or 0%) alpha component.
+  const fn = b.match(/^(?:rgba|hsla)\(([^)]*)\)$/);
+  if (fn != null) {
+    const parts = fn[1].split(/[,/]/).map((p) => p.trim()).filter((p) => p !== "");
+    const a = parts[parts.length - 1];
+    if (parts.length >= 4 && (a === "0" || a === "0%" || a === "0.0")) return true;
+  }
+  // #rgba / #rrggbbaa hex with a zero alpha nibble/byte.
+  if (/^#[0-9a-f]{4}$/.test(b) && b[4] === "0") return true;
+  if (/^#[0-9a-f]{8}$/.test(b) && b.slice(7) === "00") return true;
+  return false;
+}
+
+/**
+ * Map a `--format` keyword to an ffmpeg codec + default container + pix_fmt.
+ * DM-1142: when `transparent` is set, alpha-capable formats switch to their
+ * alpha pix_fmt (+ any alpha-specific codec args) and `alpha` is true; formats
+ * that can't carry alpha return `alpha: false` / `alphaCapable: false` so the
+ * caller composites onto a fallback color with a warning.
+ */
+export function resolveFormat(format: string, containerOverride?: string, transparent = false): ResolvedFormat {
   const f = FORMAT_MAP[format.toLowerCase()];
   if (!f) {
     throw new Error(`Unsupported --format "${format}". Known: ${Object.keys(FORMAT_MAP).join(", ")}.`);
@@ -212,7 +281,12 @@ export function resolveFormat(format: string, containerOverride?: string): Resol
   // A container override is meaningless for gif/apng (the format *is* the
   // container) — ignore it so `--format gif --container mp4` can't desync.
   const container = isAnimatedImageContainer(f.container) ? f.container : containerOverride ?? f.container;
-  return { videoCodec: f.codec, container, pixFmt: f.pixFmt };
+  const animated = isAnimatedImageContainer(f.container);
+  const alphaCapable = animated || f.alphaPixFmt != null;
+  const alpha = transparent && alphaCapable;
+  const pixFmt = alpha && f.alphaPixFmt != null ? f.alphaPixFmt : f.pixFmt;
+  const extraArgs = alpha ? (f.alphaExtraArgs ?? f.extraArgs ?? []) : (f.extraArgs ?? []);
+  return { videoCodec: f.codec, container, pixFmt, extraArgs, alpha, alphaCapable };
 }
 
 // ffmpeg's subtitles filter treats `\ : ' [ ] ,` specially in the path: `\` and
@@ -309,7 +383,9 @@ export function buildFfmpegArgs(o: FfmpegArgsInput): string[] {
   }
 
   // ── video codec ──
-  args.push("-c:v", o.fmt.videoCodec, "-pix_fmt", o.fmt.pixFmt, "-r", String(o.fps));
+  // DM-1142: `extraArgs` carries format-specific codec options (e.g. ProRes
+  // `-profile:v 4` for the 4444 alpha profile) and must sit with the `-c:v`.
+  args.push("-c:v", o.fmt.videoCodec, ...o.fmt.extraArgs, "-pix_fmt", o.fmt.pixFmt, "-r", String(o.fps));
 
   // ── audio codec ──
   if (hasMusic || hasAudio) {
@@ -359,15 +435,25 @@ function buildAnimatedImageArgs(o: FfmpegArgsInput): string[] {
 
   if (o.fmt.container === "gif") {
     const pre = base.length > 0 ? base.join(",") + "," : "";
+    // DM-1142: a transparent GIF reserves a palette slot for the transparent
+    // index (`reserve_transparent=1`) and keys pixels below `alpha_threshold`
+    // out via `paletteuse`. GIF alpha is 1-bit, so semi-transparent edges snap
+    // to fully on/off — acceptable for the format. Opaque GIFs keep the prior
+    // quality preset unchanged.
+    const palettegen = o.fmt.alpha
+      ? `palettegen=reserve_transparent=1:stats_mode=diff`
+      : `palettegen=stats_mode=diff`;
+    const paletteuse = o.fmt.alpha
+      ? `paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle:alpha_threshold=128`
+      : `paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`;
     args.push(
       "-filter_complex",
-      `[0:v]${pre}split[s0][s1];` +
-        `[s0]palettegen=stats_mode=diff[p];` +
-        `[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle[v]`,
+      `[0:v]${pre}split[s0][s1];[s0]${palettegen}[p];[s1][p]${paletteuse}[v]`,
       "-map", "[v]",
     );
   } else {
-    // apng
+    // apng — the `rgba` pix_fmt preserves the alpha the captured frames carry
+    // (omitBackground when transparent); opaque frames just stay opaque.
     if (base.length > 0) args.push("-vf", base.join(","));
     args.push("-map", "0:v:0", "-c:v", "apng", "-pix_fmt", o.fmt.pixFmt, "-plays", "0");
   }
@@ -463,6 +549,23 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
   const svgMarkup = await readFile(opts.input, "utf-8");
   if (!/<svg[\s>]/i.test(svgMarkup)) throw new Error(`input does not look like an SVG: ${opts.input}`);
 
+  // DM-1142: resolve the output format + transparency up front so the page is
+  // loaded with the right background and the frames are captured with (or
+  // without) alpha. A transparent `--background` (transparent / none / a zero-
+  // alpha color) yields alpha output for alpha-capable formats; for the others
+  // (h264 / hevc / av1) it composites onto an opaque fallback with a warning.
+  const transparent = isTransparentBackground(opts.background);
+  const fmt = resolveFormat(opts.format, opts.container, transparent);
+  let renderBackground = opts.background;
+  let omitBackground = false;
+  if (transparent && fmt.alpha) {
+    renderBackground = "transparent";
+    omitBackground = true;
+  } else if (transparent && !fmt.alphaCapable) {
+    log(`note: ${opts.format} can't carry an alpha channel — compositing onto opaque white. Use vp9/prores/apng/gif for a transparent output.`);
+    renderBackground = "#ffffff";
+  }
+
   // Intrinsic size from the markup (so we can size the browser context — and
   // therefore the supersampling DPR — before the first load).
   const intrinsic = parseSvgIntrinsicSize(svgMarkup);
@@ -487,7 +590,7 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
       deviceScaleFactor: opts.scale,
     });
     const page = await context.newPage();
-    await page.setContent(htmlWrapper(svgMarkup, opts.background), { waitUntil: "load" });
+    await page.setContent(htmlWrapper(svgMarkup, renderBackground), { waitUntil: "load" });
 
     // Collect every CSS/Web-Animation's timing (and whether SMIL is present) so
     // we can derive the render duration. Runs in the page — no outer scope.
@@ -531,7 +634,7 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
 
     // Render frame 0 to size the disk-space estimate accurately.
     await seekTo(page, 0);
-    const firstFrame = await screenshot(page);
+    const firstFrame = await screenshot(page, omitBackground);
 
     const outputDir = path.dirname(path.resolve(opts.output)) || ".";
     let framesDir: string | undefined;
@@ -542,7 +645,7 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     const disk = checkDiskSpace({ sampleFrameBytes: firstFrame.length, frameCount, outputDir, framesDir });
     log(`disk pre-flight: ~${fmtBytes(disk.neededBytes)} needed, ${fmtBytes(disk.freeBytes)} free — ok`);
 
-    const fmt = resolveFormat(opts.format, opts.container);
+    // `fmt` was resolved up front (it drives the page background + alpha capture).
     if (isAnimatedImageContainer(fmt.container)) {
       // GIF/APNG carry no audio and can't soft-mux captions — flag what's
       // dropped (burn-in captions still work; they go into the video filter).
@@ -592,7 +695,7 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     for (let i = 1; i < frameCount; i++) {
       const t = (i * 1000) / opts.fps;
       await seekTo(page, t);
-      const buf = await screenshot(page);
+      const buf = await screenshot(page, omitBackground);
       if (framesDir) writeFileSync(path.join(framesDir, frameName(i)), buf);
       await writeFrame(buf);
       if (!opts.quiet && (i % opts.fps === 0 || i === frameCount - 1)) {
@@ -640,11 +743,13 @@ export async function seekTo(page: import("@playwright/test").Page, t: number): 
   await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 }
 
-export async function screenshot(page: import("@playwright/test").Page): Promise<Buffer> {
+export async function screenshot(page: import("@playwright/test").Page, omitBackground = false): Promise<Buffer> {
   // The context's deviceScaleFactor already supersamples; "device" captures at
   // that DPR (target × scale px). Crucially do NOT pass animations:"disabled" —
   // that fast-forwards/cancels animations for the shot, which would override our
   // per-frame currentTime seek and make every frame identical. We've already
   // paused + seeked, so the default ("allow") captures the exact seeked state.
-  return page.screenshot({ type: "png", scale: "device" });
+  // DM-1142: `omitBackground` makes Chromium capture the page's alpha (with a
+  // transparent page background), so the PNG frames feed real alpha to ffmpeg.
+  return page.screenshot({ type: "png", scale: "device", omitBackground });
 }

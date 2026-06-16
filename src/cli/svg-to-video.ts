@@ -37,14 +37,17 @@ Options:
                            loop, derived from the SVG. Required for SMIL-only SVGs
                            or animations with no derivable cycle.
       --format <codec>     Output format: h264 (default), hevc, vp9, vp8, av1,
-                           or the animated images gif / apng (no audio).
+                           prores (ProRes 4444 .mov), or the animated images
+                           gif / apng (no audio).
       --container <ext>    Container override (default follows --format:
-                           h264/hevc/av1 → mp4, vp9/vp8 → webm). Ignored for
-                           gif/apng.
+                           h264/hevc/av1 → mp4, vp9/vp8 → webm, prores → mov).
+                           Ignored for gif/apng.
       --scale <n>          Supersample render factor for crisper output
                            (default 2; ffmpeg downscales to the target size).
-      --background <css>   Page background behind the SVG (default "#ffffff";
-                           video has no alpha).
+      --background <css>   Page background behind the SVG (default "#ffffff").
+                           "transparent" / "none" / a zero-alpha color emits an
+                           alpha channel on vp9/vp8/prores/apng/gif; h264/hevc/
+                           av1 can't carry alpha and composite onto white.
       --music <path>       Background music; looped + trimmed to the video length.
       --audio <path>       Foreground audio; mixed over the music if both given.
       --audio-offset <s>   Delay the foreground audio by this many seconds.

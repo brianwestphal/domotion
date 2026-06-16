@@ -26,8 +26,10 @@ Re-exported from the package root (`domotion-svg`):
 | --- | --- | --- |
 | `validateAnimateConfig(raw)` | function | Parse + validate an untrusted object (`JSON.parse` of a config) into a typed `AnimateConfig`; throws `animate: <path>: <msg>` on failure. |
 | `interpolateConfigVars(cfg)` | function | Resolve `${name}` against `cfg.vars` in every string field, returning a new config. (Called internally by `composeAnimateConfig`; exposed for callers who want the resolved config first.) |
-| `composeAnimateConfig(browser, cfg, configDir?, log?)` | function | Capture + compose every frame into one animated SVG string (unoptimized), on a caller-owned Playwright `Browser`. |
+| `composeAnimateConfig(browser, cfg, configDir?, log?)` | function | Capture + compose every frame into one animated SVG string (unoptimized), on a caller-owned Playwright `Browser`. Equals `generateAnimatedSvg(await composeAnimateFrames(...))`. |
+| `composeAnimateFrames(browser, cfg, configDir?, log?)` | function | **Frames-out variant (DM-1137, doc 62 §1).** Same pipeline, but returns the assembled `AnimationConfig` (`{ width, height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background }`) instead of rendering — so callers can mutate the composed frames (add an overlay, drop a frame, post-process glyphs) before `generateAnimatedSvg(config)`. |
 | `AnimateConfig` | type | `z.infer` of the animate-config zod schema. |
+| `AnimationConfig` | type | The render-ready config `composeAnimateFrames` returns / `generateAnimatedSvg` accepts (distinct from the authoring-time `AnimateConfig`). |
 
 Typical in-process use:
 
@@ -47,6 +49,52 @@ try {
 The `domotion animate` CLI is now exactly this wrapper around the same function:
 read file → `JSON.parse` → `validateAnimateConfig` → `composeAnimateConfig` →
 optional `optimizeSvg` → write.
+
+### Frames-out: mutate before rendering (DM-1137)
+
+When you need to touch the composed frames before they're rendered — drop a
+frame, graft on an overlay, post-process the per-frame `svgContent` — use
+`composeAnimateFrames`, which returns the `AnimationConfig` instead of the SVG.
+`composeAnimateConfig` is literally `generateAnimatedSvg` applied to its result,
+so there's no divergence:
+
+```ts
+import { composeAnimateFrames, generateAnimatedSvg } from "domotion-svg";
+
+const config = await composeAnimateFrames(browser, cfg, configDir);
+config.frames = config.frames.filter((f) => /* keep some */ true); // mutate
+const svg = generateAnimatedSvg(config);                           // then render
+```
+
+Caveat: mutating a frame's captured tree after the fact does NOT re-render its
+already-composed `svgContent`; edit `svgContent` / `overlays` directly, or drop
+and recompose. (The per-frame `onFrame` hook below is the in-pipeline counterpart
+for touching each frame as it's composed.)
+
+### Per-frame hook — `onFrame` (DM-1138)
+
+To act on each frame **as it's composed** — while the page is still on that
+frame's DOM — pass an `onFrame` hook via the options-object form of the trailing
+argument (`{ configDir?, log?, onFrame? }`). It fires after the frame is captured,
+culled, and pushed, before the magic-move bridge:
+
+```ts
+const svg = await composeAnimateConfig(browser, cfg, {
+  configDir,
+  onFrame: (frame, { page, tree, index }) => {
+    // `frame` is the just-pushed AnimationFrame — mutating `frame.overlays`
+    // (or `frame.svgContent`) IS reflected in the final SVG.
+    if (index === 0) frame.overlays = [...(frame.overlays ?? []), myBadgeOverlay];
+    // `page` is live on this frame's DOM; `tree` is the captured element tree
+    // (null for scroll-block frames). May be async (it's awaited).
+  },
+});
+```
+
+The options form works on both `composeAnimateConfig` and `composeAnimateFrames`;
+the positional `(configDir?, log?)` form stays supported. Caveats: mutating `tree`
+does NOT re-render the already-serialized `frame.svgContent` (edit `svgContent` /
+`overlays` instead); scroll-block frames pass `tree === null`.
 
 ## `configDir` is optional
 

@@ -1,9 +1,11 @@
 # 62 — Frames-out / per-frame hook for the declarative animate pipeline
 
-Status: **proposed** (DM-1136). Design + contract for opening up the
-all-or-nothing `composeAnimateConfig` so a consumer who started from a JSON
-config can inject ONE bit of custom per-frame manipulation without abandoning
-the declarative pipeline. Implementation tracked as follow-up tickets (below).
+Status: **shipped** (DM-1136). Both sections are implemented: §1 (frames-out
+`composeAnimateFrames`) in DM-1137 and §2 (the per-frame `onFrame` hook + the
+options-object signature) in DM-1138. This opened up the all-or-nothing
+`composeAnimateConfig` so a consumer who started from a JSON config can inject
+custom per-frame manipulation without abandoning the declarative pipeline. The
+call surface lives in `docs/60-programmatic-animate-pipeline.md` + `docs/api.md`.
 
 ## Why
 

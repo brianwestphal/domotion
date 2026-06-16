@@ -109,6 +109,8 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 
 **Replaces.** Every DOM edit the review-loop demo needs (rewrite a code line to show the fix, remove resolved annotations, swap a button's id/label, mask an absolute path) — all otherwise `evaluate`.
 
+**Programmatic use (DM-1140, doc 63 §2).** This exact action vocabulary is exposed from the package root as `runActions(page, actions, log?)` and the typed `AnimateAction` union, so imperative scripting-API callers (`captureElementTree` + `generateAnimatedSvg`) can apply the same DOM-mutation set against a live page without authoring a JSON config — the runner is the SSOT the CLI uses, so the two can't diverge. `log` defaults to a no-op; the same all-matched-elements / throw-on-no-match semantics apply.
+
 ---
 
 ## 3. Interaction actions beyond click/fill

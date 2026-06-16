@@ -29,14 +29,15 @@ function ffprobe(file: string): Record<string, string> {
   const p = spawnSync(
     "ffprobe",
     ["-v", "error", "-select_streams", "v:0",
-     "-show_entries", "stream=codec_name,width,height,nb_read_frames",
+     "-show_entries", "stream=codec_name,width,height,nb_read_frames,pix_fmt:stream_tags=alpha_mode",
      "-count_frames", "-of", "default=noprint_wrappers=1", file],
     { encoding: "utf-8" },
   );
   const out: Record<string, string> = {};
   for (const line of p.stdout.split("\n")) {
     const [k, v] = line.split("=");
-    if (k && v != null) out[k.trim()] = v.trim();
+    // ffprobe prints stream tags as `TAG:alpha_mode=1` — normalize to the bare key.
+    if (k && v != null) out[k.trim().replace(/^TAG:/, "")] = v.trim();
   }
   return out;
 }
@@ -127,6 +128,76 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
       expect(Number(meta.width)).toBe(100);
       expect(Number(meta.height)).toBe(100);
       expect(Number(meta.nb_read_frames)).toBe(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // DM-1142: transparent-background / alpha output.
+  it("emits an alpha channel for a transparent ProRes 4444 (.mov)", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-prores-alpha-"));
+    const input = path.join(dir, "anim.svg");
+    const output = path.join(dir, "out.mov");
+    writeFileSync(input, ANIMATED_SVG);
+    try {
+      await runSvgToVideo({
+        input, output, width: 100, height: 100,
+        fps: 4, durationSec: 1,
+        format: "prores", scale: 1, background: "transparent", burnCaptions: false,
+        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        launchBrowser: () => launchChromium(),
+      });
+      const meta = ffprobe(output);
+      expect(meta.codec_name).toBe("prores");
+      // ProRes 4444 alpha pixel format (ffmpeg may widen 10le → 12le).
+      expect(meta.pix_fmt).toMatch(/^yuva444p/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("tags a transparent VP9 webm with alpha_mode", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-vp9-alpha-"));
+    const input = path.join(dir, "anim.svg");
+    const output = path.join(dir, "out.webm");
+    writeFileSync(input, ANIMATED_SVG);
+    try {
+      await runSvgToVideo({
+        input, output, width: 100, height: 100,
+        fps: 4, durationSec: 1,
+        format: "vp9", scale: 1, background: "transparent", burnCaptions: false,
+        ffmpegPath: "ffmpeg", quiet: true, log: () => {},
+        launchBrowser: () => launchChromium(),
+      });
+      const meta = ffprobe(output);
+      expect(meta.codec_name).toBe("vp9");
+      // The webm carries alpha via the Matroska alpha_mode tag (browsers render
+      // it transparent; ffmpeg's own decode round-trip is lossy, so we assert the
+      // container signaling rather than a decoded pixel).
+      expect(meta.alpha_mode).toBe("1");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("warns + composites onto opaque white when a non-alpha format gets a transparent background", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-h264-alpha-"));
+    const input = path.join(dir, "anim.svg");
+    const output = path.join(dir, "out.mp4");
+    writeFileSync(input, ANIMATED_SVG);
+    const notes: string[] = [];
+    try {
+      await runSvgToVideo({
+        input, output, width: 100, height: 100,
+        fps: 4, durationSec: 1,
+        format: "h264", scale: 1, background: "transparent", burnCaptions: false,
+        ffmpegPath: "ffmpeg", quiet: true, log: (m: string) => notes.push(m),
+        launchBrowser: () => launchChromium(),
+      });
+      const meta = ffprobe(output);
+      expect(meta.codec_name).toBe("h264");
+      expect(meta.pix_fmt).toBe("yuv420p"); // opaque — no alpha
+      expect(notes.some((n) => /can't carry an alpha channel/.test(n))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

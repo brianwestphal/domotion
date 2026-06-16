@@ -99,7 +99,18 @@ export * from "./post-processing/index.js";
 // `input` / svg-overlay `src` paths) defaults to `process.cwd()`. See `docs/60`.
 export {
   composeAnimateConfig,
+  // DM-1137 (doc 62 §1): the frames-out variant — returns the assembled
+  // `AnimationConfig` (mutate frames, then `generateAnimatedSvg` it) instead of a
+  // rendered SVG. `composeAnimateConfig` is `generateAnimatedSvg(await this(…))`.
+  composeAnimateFrames,
+  // DM-1138 (doc 62 §2): the per-frame `onFrame` hook + its options-object form.
+  type OnFrameHook,
+  type ComposeAnimateOptions,
   validateAnimateConfig,
   interpolateConfigVars,
   type AnimateConfig,
+  // DM-1140 (doc 63 §2): the declarative action runner + its typed union, so
+  // imperative callers get the DOM-mutation vocabulary without a JSON config.
+  runActions,
+  type AnimateAction,
 } from "./cli/animate.js";
