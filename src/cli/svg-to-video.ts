@@ -17,6 +17,15 @@ import { launchChromium } from "../index.js";
 import { cliFail, makeLogger, parsePositiveFloat, parsePositiveInt } from "./common.js";
 import { runSvgToVideo, type SvgToVideoOptions } from "./svg-to-video-core.js";
 
+/** DM-1146: validate `--color-range` → "tv" (default) | "pc". */
+function parseColorRange(value: string | undefined): "tv" | "pc" {
+  if (value == null) return "tv";
+  const v = value.toLowerCase();
+  if (v === "tv" || v === "limited") return "tv";
+  if (v === "pc" || v === "full") return "pc";
+  throw new Error(`--color-range expects "tv" (limited, default) or "pc" (full); got "${value}"`);
+}
+
 const HELP = `svg-to-video — render an animated SVG to a video
 
 Usage:
@@ -48,6 +57,11 @@ Options:
                            "transparent" / "none" / a zero-alpha color emits an
                            alpha channel on vp9/vp8/prores/apng/gif; h264/hevc/
                            av1 can't carry alpha and composite onto white.
+      --color-range <r>    Color range for h264/hevc/av1: "tv" (limited, default,
+                           most compatible) or "pc" (full, more dynamic range).
+                           These yuv420p formats subsample chroma, so saturated
+                           colors/edges still shift — use prores or apng for
+                           true 4:4:4 / RGBA color fidelity.
       --music <path>       Background music; looped + trimmed to the video length.
       --audio <path>       Foreground audio; mixed over the music if both given.
       --audio-offset <s>   Delay the foreground audio by this many seconds.
@@ -101,6 +115,7 @@ async function main(): Promise<void> {
         container: { type: "string" },
         scale: { type: "string" },
         background: { type: "string" },
+        "color-range": { type: "string" },
         music: { type: "string" },
         audio: { type: "string" },
         "audio-offset": { type: "string" },
@@ -135,6 +150,7 @@ async function main(): Promise<void> {
       container: values.container,
       scale: parsePositiveInt(values.scale, "scale") ?? 2,
       background: values.background ?? "#ffffff",
+      colorRange: parseColorRange(values["color-range"]),
       music: values.music,
       audio: values.audio,
       audioOffsetSec: parsePositiveFloat(values["audio-offset"], "audio-offset"),

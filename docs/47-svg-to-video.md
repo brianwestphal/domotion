@@ -101,6 +101,7 @@ What is *not* free:
 | `--container <ext>` | per format | Container override (default: h264/hevc/av1 → `mp4`, vp9/vp8 → `webm`, prores → `mov`). Ignored for `gif`/`apng` (the format *is* the container). |
 | `--scale <n>` | `2` | Supersample render factor; ffmpeg downscales (lanczos) to the target size for crisper output. |
 | `--background <css>` | `#ffffff` | Page background behind the SVG. `transparent` / `none` / a zero-alpha color requests a transparent output — see [Transparent backgrounds / alpha](#transparent-backgrounds--alpha). |
+| `--color-range <r>` | `tv` | Color range for the yuv420p formats (h264/hevc/av1): `tv` (limited, most compatible) or `pc` (full, more dynamic range). See [Color fidelity](#color-fidelity-dm-1146). |
 | `--music <path>` | — | Background music; looped (`-stream_loop -1`) + trimmed (`-shortest`) to the video length. |
 | `--audio <path>` | — | Foreground audio; mixed over music via `amix` when both are given. |
 | `--audio-offset <s>` | — | Delay the foreground audio by this many seconds (`-itsoffset`). |
@@ -177,6 +178,23 @@ differs (`buildFfmpegArgs` branches on the container):
 
 mp4/webm remain the primary path; gif/apng are for inline-loop demos and chat
 embeds where a video element isn't convenient.
+
+## Color fidelity (DM-1146)
+
+The full-range sRGB frame screenshots are encoded to the format's pixel format. For
+the **yuv420p** video formats (h264 / hevc / av1) the conversion is now explicit
+and TAGGED — `scale=…:in_range=full:out_range=tv:out_color_matrix=bt709` plus the
+matching `-colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv`
+stream tags — so players decode with the same assumptions the encode used and the
+colors don't drift (untagged streams were the worst case). `--color-range pc` keeps
+full range (more dynamic range, slightly less universal playback).
+
+This fixes the *systematic* shift, but yuv420p still **subsamples chroma 4:2:0**, so
+saturated colors and anti-aliased colored edges (neon/fire gradients, colored text)
+desaturate somewhat regardless of range. For true color fidelity use a **4:4:4 /
+RGBA** path — `--format prores` (ProRes 4444 for transparent, HQ otherwise) or
+`--format apng` — which carry full chroma. (Measured: an h264 render's saturated
+region averaged ~18/255 off the source vs ~5 for ProRes.)
 
 ## Transparent backgrounds / alpha (DM-1142)
 

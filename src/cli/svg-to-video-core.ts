@@ -35,6 +35,10 @@ export interface SvgToVideoOptions {
   container?: string;
   scale: number;
   background: string;
+  /** DM-1146: color range for the chroma-subsampled video formats (h264/hevc/av1).
+   *  "tv" = limited-range bt709 (default, most compatible); "pc" = full range
+   *  (better dynamic range, less universally supported). No effect on prores/gif/apng. */
+  colorRange?: "tv" | "pc";
   music?: string;
   audio?: string;
   audioOffsetSec?: number;
@@ -134,6 +138,18 @@ function lcm(a: number, b: number): number {
  */
 export function frameSampleTimeMs(i: number, fps: number): number {
   return ((i + 0.5) * 1000) / fps;
+}
+
+/**
+ * DM-1149: ids that appear more than once in the SVG markup. Duplicate ids are
+ * invalid SVG: a `url(#id)` / `clip-path` / `<use href="#id">` resolves to the
+ * FIRST match, which on a SEEKED render (svg-to-video) may be a now-hidden
+ * element — clipping/voiding the reference and making an element vanish in the
+ * video though the SVG plays fine. svg-to-video warns when it finds any.
+ */
+export function findDuplicateIds(markup: string): string[] {
+  const ids = [...markup.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+  return [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
 }
 
 export interface AnimTiming {
@@ -336,6 +352,8 @@ export interface FfmpegArgsInput {
   audioOffsetSec?: number;
   captions?: string;
   burnCaptions: boolean;
+  /** DM-1146: "tv" (limited, default) or "pc" (full) range for yuv420p formats. */
+  colorRange?: "tv" | "pc";
 }
 
 /**
@@ -375,9 +393,25 @@ export function buildFfmpegArgs(o: FfmpegArgsInput): string[] {
   }
 
   // ── video filter chain ──
+  // DM-1146: the chroma-subsampled formats (yuv420p — h264/hevc/av1) need an
+  // explicit, TAGGED RGB→YUV conversion or the colors drift vs the SVG: ffmpeg
+  // would otherwise pick the matrix/range by heuristic and leave the stream
+  // untagged, so players decode with the wrong assumption (washed / shifted
+  // saturated colors). Convert the full-range RGB screenshots to bt709 with the
+  // requested range and TAG the stream so decode matches encode. "tv" (limited)
+  // is the default — most compatible; "pc" (full) keeps more dynamic range.
+  // (The residual desaturation of saturated edges is the 4:2:0 chroma subsampling
+  // itself — irreducible without 4:4:4 / RGBA, i.e. the prores / apng paths.)
+  const colorManaged = o.fmt.pixFmt === "yuv420p";
+  const rng = o.colorRange === "pc" ? "pc" : "tv";
+  const colorScale = colorManaged ? `:in_range=full:out_range=${rng}:out_color_matrix=bt709` : "";
   const vfilters: string[] = [];
   const needsDownscale = o.frameWidth !== o.outWidth || o.frameHeight !== o.outHeight;
-  if (needsDownscale) vfilters.push(`scale=${o.outWidth}:${o.outHeight}:flags=lanczos`);
+  if (needsDownscale) {
+    vfilters.push(`scale=${o.outWidth}:${o.outHeight}:flags=lanczos${colorScale}`);
+  } else if (colorManaged) {
+    vfilters.push(`scale=iw:ih${colorScale}`);
+  }
   if (o.captions != null && o.burnCaptions) vfilters.push(`subtitles=${escapeSubtitlesPath(o.captions)}`);
   if (vfilters.length > 0) args.push("-vf", vfilters.join(","));
 
@@ -404,6 +438,11 @@ export function buildFfmpegArgs(o: FfmpegArgsInput): string[] {
   // DM-1142: `extraArgs` carries format-specific codec options (e.g. ProRes
   // `-profile:v 4` for the 4444 alpha profile) and must sit with the `-c:v`.
   args.push("-c:v", o.fmt.videoCodec, ...o.fmt.extraArgs, "-pix_fmt", o.fmt.pixFmt, "-r", String(o.fps));
+  // DM-1146: tag the bt709 colorspace + chosen range so the conversion above is
+  // signaled to the decoder (no untagged-stream guessing).
+  if (colorManaged) {
+    args.push("-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", rng);
+  }
 
   // ── audio codec ──
   if (hasMusic || hasAudio) {
@@ -612,15 +651,37 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
 
     // Collect every CSS/Web-Animation's timing (and whether SMIL is present) so
     // we can derive the render duration. Runs in the page — no outer scope.
-    const timings: { anims: AnimTiming[]; smil: boolean } = await page.evaluate(() => {
+    // DM-1147: also find the shortest fully-visible window across opacity-stepped
+    // (flipbook) animations — a frame whose visible window is shorter than one
+    // output frame interval can't be sampled and is silently dropped.
+    const frameIntervalMs = 1000 / opts.fps;
+    const timings: { anims: AnimTiming[]; smil: boolean; minVisibleWindowMs: number; subFrameCount: number } =
+      await page.evaluate((intervalMs: number) => {
       const out: { duration: number; iterations: number; endTime: number }[] = [];
       const anims = typeof document.getAnimations === "function" ? document.getAnimations() : [];
+      let minVisibleWindowMs = Infinity;
+      let subFrameCount = 0;
       for (const a of anims) {
-        const eff = a.effect;
+        const eff = a.effect as KeyframeEffect | null;
         if (!eff) continue;
         try {
           const ct = eff.getComputedTiming();
           out.push({ duration: Number(ct.duration), iterations: Number(ct.iterations), endTime: Number(ct.endTime) });
+          // The fully-visible window = span between the first and last opacity≈1
+          // keyframe, scaled by the iteration duration. Only opacity-stepped
+          // (flipbook) animations carry this; continuous transforms are skipped.
+          if (typeof eff.getKeyframes === "function") {
+            const kfs = eff.getKeyframes() as Array<{ offset: number | null; opacity?: string | number }>;
+            const on = kfs.filter((k) => k.opacity != null && Number(k.opacity) >= 0.99 && k.offset != null).map((k) => Number(k.offset));
+            const dur = Number(ct.duration);
+            if (on.length >= 2 && Number.isFinite(dur)) {
+              const span = (Math.max(...on) - Math.min(...on)) * dur;
+              if (span > 0) {
+                if (span < minVisibleWindowMs) minVisibleWindowMs = span;
+                if (span < intervalMs - 0.5) subFrameCount++;
+              }
+            }
+          }
         } catch {
           // skip animations whose timing can't be read
         }
@@ -631,8 +692,8 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
           smil = true;
         }
       });
-      return { anims: out, smil };
-    });
+      return { anims: out, smil, minVisibleWindowMs, subFrameCount };
+    }, frameIntervalMs);
     let durationMs: number;
     try {
       durationMs = resolveDurationMs(timings.anims, opts.durationSec);
@@ -642,6 +703,26 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
         throw new Error("This SVG uses SMIL animation, whose duration can't be auto-detected — pass --duration <seconds>.");
       }
       throw err;
+    }
+
+    // DM-1147: warn when the SVG holds frames shorter than one output frame —
+    // they fall between samples and won't appear in the video.
+    if (timings.subFrameCount > 0) {
+      const shortest = timings.minVisibleWindowMs;
+      const minFps = Math.ceil(1000 / Math.max(1, shortest));
+      log(`note: ${timings.subFrameCount} frame(s) are shorter than one output frame at ${opts.fps}fps (shortest ≈ ${shortest.toFixed(0)}ms vs ${(1000 / opts.fps).toFixed(0)}ms/frame) — they'll be dropped/aliased; render at --fps ${minFps} or higher to keep them.`);
+    }
+    // DM-1149: seek-vs-playback hazards we can detect. svg-to-video renders by
+    // pausing + seeking currentTime; a few constructs render differently when
+    // seeked than when played continuously, so the video can diverge from the SVG.
+    if (timings.smil) {
+      log(`note: this SVG uses SMIL animation — Chromium's seeked render (svg-to-video pauses + sets the timeline) can differ from continuous playback for additive/accumulate or event-timed SMIL.`);
+    }
+    // Duplicate ids: DM-1145 namespaces these for domotion-generated SVGs; author
+    // SVGs may still carry them.
+    const dupes = findDuplicateIds(svgMarkup);
+    if (dupes.length > 0) {
+      log(`note: ${dupes.length} duplicate id(s) in the SVG (e.g. "${dupes[0]}") — a url(#id)/clip-path/use referencing one may render differently when the timeline is seeked than when played, so an element can vanish in the video.`);
     }
 
     const frameCount = Math.max(1, Math.round((durationMs / 1000) * opts.fps));
@@ -691,6 +772,7 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
       audioOffsetSec: opts.audioOffsetSec,
       captions: opts.captions,
       burnCaptions: opts.burnCaptions,
+      colorRange: opts.colorRange,
     });
 
     log(`ffmpeg ${ffArgs.join(" ")}`);

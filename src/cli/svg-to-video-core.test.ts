@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFfmpegArgs,
+  findDuplicateIds,
   fitContain,
   frameSampleTimeMs,
   isAnimatedImageContainer,
@@ -140,6 +141,17 @@ describe("resolveFormat", () => {
   });
 });
 
+describe("findDuplicateIds (DM-1149)", () => {
+  it("returns ids that appear more than once, de-duplicated", () => {
+    expect(findDuplicateIds(`<a id="x"/><b id="y"/><c id="x"/>`)).toEqual(["x"]);
+    expect(findDuplicateIds(`<a id="p"/><b id="p"/><c id="q"/><d id="q"/>`).sort()).toEqual(["p", "q"]);
+  });
+  it("returns empty when all ids are unique", () => {
+    expect(findDuplicateIds(`<a id="x"/><b id="y"/><c id="z"/>`)).toEqual([]);
+    expect(findDuplicateIds(`<svg><rect/></svg>`)).toEqual([]);
+  });
+});
+
 describe("frameSampleTimeMs (DM-1144)", () => {
   it("samples the CENTER of each frame interval, not the start (avoids keyframe-boundary ghosting)", () => {
     // (i + 0.5) / fps, in ms. At 24fps a frame is 1000/24 ≈ 41.667ms.
@@ -199,7 +211,9 @@ describe("buildFfmpegArgs", () => {
   });
 
   it("adds a lanczos downscale only when supersampled", () => {
-    expect(buildFfmpegArgs(base).join(" ")).not.toContain("scale=");
+    // DM-1146: a non-supersampled yuv420p render still carries a `scale=iw:ih`
+    // color-conversion pass, but NO lanczos downscale to a target size.
+    expect(buildFfmpegArgs(base).join(" ")).not.toContain("flags=lanczos");
     const ss = buildFfmpegArgs({ ...base, frameWidth: 1600, frameHeight: 1000 });
     expect(ss.join(" ")).toContain("scale=800:500:flags=lanczos");
   });
@@ -270,6 +284,34 @@ describe("buildFfmpegArgs", () => {
     const s = buildFfmpegArgs({ ...base, fmt: alphaGif, output: "out.gif" }).join(" ");
     expect(s).toContain("palettegen=reserve_transparent=1");
     expect(s).toContain("alpha_threshold=128");
+  });
+
+  // DM-1146: color metadata for the yuv420p formats.
+  it("tags bt709 + converts to limited range by default for yuv420p (h264)", () => {
+    const s = buildFfmpegArgs(base).join(" ");
+    expect(s).toContain("out_color_matrix=bt709");
+    expect(s).toContain("in_range=full:out_range=tv");
+    expect(s).toContain("-colorspace bt709");
+    expect(s).toContain("-color_primaries bt709");
+    expect(s).toContain("-color_range tv");
+  });
+
+  it("uses full range when colorRange=pc", () => {
+    const s = buildFfmpegArgs({ ...base, colorRange: "pc" }).join(" ");
+    expect(s).toContain("out_range=pc");
+    expect(s).toContain("-color_range pc");
+  });
+
+  it("folds the color conversion into the lanczos downscale (no extra scale pass)", () => {
+    const s = buildFfmpegArgs({ ...base, frameWidth: 1600, frameHeight: 1000 }).join(" ");
+    expect(s).toContain("scale=800:500:flags=lanczos:in_range=full:out_range=tv:out_color_matrix=bt709");
+  });
+
+  it("does NOT color-manage non-yuv420p formats (prores 4:4:4 handles its own color)", () => {
+    const prores: ResolvedFormat = { videoCodec: "prores_ks", container: "mov", pixFmt: "yuv422p10le", extraArgs: ["-profile:v", "3"], alpha: false, alphaCapable: true };
+    const s = buildFfmpegArgs({ ...base, fmt: prores, output: "out.mov" }).join(" ");
+    expect(s).not.toContain("out_color_matrix");
+    expect(s).not.toContain("-color_range");
   });
 
   it("emits the ProRes 4444 profile + yuva pix_fmt for a transparent .mov", () => {
