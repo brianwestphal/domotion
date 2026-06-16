@@ -288,8 +288,49 @@ function emitCrossfadeOrCutFrame(
   return { groups, keyframes };
 }
 
+/**
+ * DM-1145: re-namespace element ids that COLLIDE across frames. A caller that
+ * reuses identical `svgContent` for multiple frames — e.g. caching a captured
+ * frame and replaying it for a long hold — emits the same baked-in ids in two
+ * frame groups. Duplicate ids are invalid SVG: a `clip-path="url(#id)"` / filter
+ * / `<use href="#id">` resolves to the FIRST match, which for the later frame
+ * lives in an earlier (now `visibility:hidden`) frame group. Chromium renders
+ * that fine during continuous playback, but CLIPS THE ELEMENT AWAY when the
+ * timeline is SEEKED to that frame (paused + `currentTime` set) — exactly what
+ * svg-to-video does, so the element vanishes in the rendered video although the
+ * SVG looks fine when played. Rename each frame's colliding ids (and their
+ * in-frame references) to a frame-unique form. ONLY collisions are touched, so
+ * frames whose ids are already unique are emitted byte-for-byte unchanged.
+ */
+export function dedupeFrameIds(frames: AnimationFrame[]): AnimationFrame[] {
+  const seen = new Set<string>();
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return frames.map((frame, i) => {
+    const svg = frame.svgContent;
+    if (svg == null || svg === "") return frame;
+    const defined = new Set<string>();
+    for (const m of svg.matchAll(/\sid="([^"]+)"/g)) defined.add(m[1]);
+    const colliding = [...defined].filter((id) => seen.has(id));
+    for (const id of defined) seen.add(id);
+    if (colliding.length === 0) return frame;
+    let out = svg;
+    for (const id of colliding) {
+      const nid = `d${i}-${id}`;
+      const e = esc(id);
+      out = out
+        .replace(new RegExp(`(\\sid=")${e}(")`, "g"), `$1${nid}$2`)
+        .replace(new RegExp(`url\\(#${e}\\)`, "g"), `url(#${nid})`)
+        .replace(new RegExp(`((?:xlink:)?href=")#${e}(")`, "g"), `$1#${nid}$2`);
+      seen.add(nid);
+    }
+    return { ...frame, svgContent: out };
+  });
+}
+
 export function generateAnimatedSvg(config: AnimationConfig): string {
-  const { width, height, frames } = config;
+  const { width, height } = config;
+  // DM-1145: guard against cross-frame id collisions (reused/cached svgContent).
+  const frames = dedupeFrameIds(config.frames);
 
   const totalDuration = frames.reduce(
     (sum, f) => sum + frameAdvanceMs(f),

@@ -4,7 +4,42 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generateAnimatedSvg } from "./animator.js";
+import { generateAnimatedSvg, dedupeFrameIds } from "./animator.js";
+
+// DM-1145: cross-frame id de-duplication. A caller that reuses identical
+// svgContent for several frames (a cached/held frame) emits duplicate ids; on a
+// SEEKED render (svg-to-video) a `clip-path="url(#id)"` resolves to the first
+// match in an earlier hidden frame group and clips the element away. The animator
+// renames the later frame's colliding ids so the SVG stays valid.
+describe("dedupeFrameIds (DM-1145)", () => {
+  const f = (svgContent: string) => ({ svgContent, duration: 100 });
+
+  it("renames ids that collide with an earlier frame, plus their in-frame refs", () => {
+    const content =
+      `<defs><clipPath id="c4-irc3"><rect/></clipPath><filter id="c4-sh0"/></defs>` +
+      `<g filter="url(#c4-sh0)"><image clip-path="url(#c4-irc3)" href="#c4-irc3"/></g>`;
+    const out = dedupeFrameIds([f(content), f(content)]);
+    // First frame: untouched (it owns the original ids).
+    expect(out[0].svgContent).toBe(content);
+    // Second frame: every colliding id + reference renamed to a frame-unique form.
+    expect(out[1].svgContent).not.toContain(`id="c4-irc3"`);
+    expect(out[1].svgContent).toContain(`id="d1-c4-irc3"`);
+    expect(out[1].svgContent).toContain(`url(#d1-c4-irc3)`);
+    expect(out[1].svgContent).toContain(`href="#d1-c4-irc3"`);
+    expect(out[1].svgContent).toContain(`url(#d1-c4-sh0)`);
+    // No duplicate id="..." survives across the two frames.
+    const allIds = [out[0].svgContent, out[1].svgContent].join("").match(/\sid="([^"]+)"/g) ?? [];
+    expect(new Set(allIds).size).toBe(allIds.length);
+  });
+
+  it("leaves frames with already-unique ids byte-for-byte unchanged", () => {
+    const a = `<clipPath id="c0-x"><rect/></clipPath><g clip-path="url(#c0-x)"/>`;
+    const b = `<clipPath id="c1-x"><rect/></clipPath><g clip-path="url(#c1-x)"/>`;
+    const out = dedupeFrameIds([f(a), f(b)]);
+    expect(out[0].svgContent).toBe(a);
+    expect(out[1].svgContent).toBe(b);
+  });
+});
 
 // DM-893 / DM-894: the animator (and the scroll composer) must NOT paint a
 // hardcoded canvas backdrop. A transparent capture has to stay transparent so
