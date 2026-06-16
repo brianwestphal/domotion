@@ -2448,7 +2448,31 @@ function matchFamilyNameToKey(name: string): string | null {
     // and "o" advances are ~1px wider than Helvetica's at 18px. Let
     // `-apple-system` fall through via the `continue` clause below.
     if (name === "system-ui" || name === "blinkmacsystemfont"
-      || name === "sf pro" || name === "sf pro text" || name === "sf pro display") return "sf-pro";
+      || name === "sf pro") return "sf-pro";
+    // DM-1127: "SF Pro Text" / "SF Pro Display" are DISTINCT installed faces, not
+    // the system variable font. On a host where the user installed Apple's SF Pro
+    // package, CoreText resolves these names to their own OTFs (e.g.
+    // `/Library/Fonts/SF-Pro-Text-Regular.otf`, postscript `SFProText-Regular`),
+    // and Chrome paints from them — those OTFs carry glyphs the system `SFNS.ttf`
+    // LACKS (e.g. the two-digit enclosed alphanumerics U+2469–2473 / U+24EB–24F4:
+    // SFNS has the single-digit circled numbers but not the double-digit ones).
+    // Mapping the name straight to `sf-pro` (SFNS) made those codepoints miss in
+    // the primary and fall through to a LATER author family (Arial Unicode MS's
+    // full-em circled numbers), painting a visibly larger glyph than Chrome's
+    // condensed SF Pro Text one. Probe CoreText first so the named cut resolves to
+    // the same OTF Chrome uses; only when the OTF isn't installed do we fall back
+    // to the `sf-pro` (SFNS) approximation, whose Text optical size is pinned via
+    // `OPTICAL_CUT_OPSZ` (DM-1103) — which is also what Chrome paints there, since
+    // an absent OTF means Chrome can't use it either.
+    if (name === "sf pro text" || name === "sf pro display") {
+      const cut = resolveInstalledFont(name);
+      if (cut != null) {
+        const key = `sysfb:${cut.postscriptName}`;
+        registerDynamicSystemFont(key, cut.path, cut.postscriptName);
+        return key;
+      }
+      return "sf-pro";
+    }
     // DM-806: author-named "Hiragino Sans" / "Hiragino Kaku Gothic ProN" /
     // the underlying ヒラギノ角ゴシック native name maps to the JP variant
     // we already ship under the `hiragino-jp` key (HiraKakuProN-W3 /

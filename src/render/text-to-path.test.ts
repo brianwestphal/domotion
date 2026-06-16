@@ -5,6 +5,7 @@ import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFo
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { resolveInstalledFont } from "./glyph-helper.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
@@ -133,6 +134,50 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("Helvetica")).toBe("helvetica");
     expect(resolveFontKey("Helvetica Neue")).toBe("helvetica");
     expect(resolveFontKey("Arial")).toBe("arial");
+  });
+
+  it("resolves named SF Pro Text / Display to their installed OTF, not system SFNS, so two-digit enclosed alphanumerics match Chrome (DM-1127)", () => {
+    // The system variable font SFNS.ttf ("SF Pro") carries the SINGLE-digit
+    // circled numbers (U+2460–2468) but NOT the two-digit ones (U+2469–2473)
+    // or the negative-circled two-digit set (U+24EB–24F4). Chrome resolves the
+    // explicitly-named "SF Pro Text" / "SF Pro Display" cuts to their OWN
+    // installed OTFs (e.g. /Library/Fonts/SF-Pro-Text-Regular.otf), which DO
+    // carry those glyphs. Mapping the name straight to the "sf-pro" SFNS key
+    // (the pre-DM-1127 behavior) made those codepoints miss in the primary and
+    // fall through to a larger fallback face (Arial Unicode MS's full-em
+    // circled numbers), painting a visibly bigger glyph than Chrome's
+    // condensed one.
+    if (process.platform !== "darwin") {
+      // No CoreText helper off macOS — the name approximates to the system cut.
+      expect(resolveFontKey("SF Pro Text")).toBe("sf-pro");
+      return;
+    }
+    const otf = resolveInstalledFont("SF Pro Text");
+    if (otf == null) {
+      // OTF not installed on this host: Chrome can't use it either, so we keep
+      // the opsz-pinned "sf-pro" (SFNS) approximation (DM-1103).
+      expect(resolveFontKey("SF Pro Text")).toBe("sf-pro");
+      return;
+    }
+    const key = resolveFontKey("SF Pro Text");
+    expect(key).toBe(`sysfb:${otf.postscriptName}`);
+    // The resolved OTF must cover the two-digit enclosed alphanumerics that
+    // SFNS.ttf lacks — that coverage gap was the bug.
+    const spec = __resolveFontSpecForTest(key);
+    expect(spec).not.toBeNull();
+    const font = fontkit.openSync(spec!.path) as unknown as { glyphForCodePoint(cp: number): { id: number } };
+    expect(font.glyphForCodePoint(0x2469).id).not.toBe(0); // ⑩ outlined (Enclosed Alphanumerics)
+    expect(font.glyphForCodePoint(0x24EB).id).not.toBe(0); // ⑪ negative-circled
+    expect(font.glyphForCodePoint(0x3251).id).not.toBe(0); // ㉑ circled 21 (Enclosed CJK — DM-1124)
+    expect(font.glyphForCodePoint(0x32BF).id).not.toBe(0); // ㊿ circled 50 (Enclosed CJK — DM-1124)
+    // Pin the precondition that made the bug possible: SFNS.ttf genuinely has
+    // the single-digit circled numbers but not the two-digit ones (nor the
+    // Enclosed-CJK circled 21–50). Guards against "fixing" this by silently
+    // repointing the routing at another file.
+    const sfns = fontkit.openSync("/System/Library/Fonts/SFNS.ttf") as unknown as { glyphForCodePoint(cp: number): { id: number } };
+    expect(sfns.glyphForCodePoint(0x2460).id).not.toBe(0); // single-digit present
+    expect(sfns.glyphForCodePoint(0x2469).id).toBe(0);     // two-digit absent
+    expect(sfns.glyphForCodePoint(0x3251).id).toBe(0);     // Enclosed-CJK circled 21 absent
   });
 
   it("honors author-named serif families separately", () => {

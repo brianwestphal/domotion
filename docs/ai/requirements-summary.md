@@ -56,6 +56,17 @@ they describe (see `CLAUDE.md` "Documentation"):
   "anchor"` into concrete `x`/`y`/`bgWidth` for imperative scripting-API callers.
   The CLI and the public primitive share one engine; the box helper `contentBox`
   / `boxAnchorPoint` (DM-1133) and overlay SSOT (DM-1131) underpin it.
+- **Doc 62 (`docs/62-frames-out-animate-pipeline.md`, DM-1136)** — **PROPOSED.**
+  Open up the all-or-nothing `composeAnimateConfig`: a frames-out variant
+  (`composeAnimateFrames` returning the assembled `AnimationConfig` before the
+  final `generateAnimatedSvg`) + an optional `onFrame` per-frame hook. Lets a
+  JSON-config consumer inject one custom per-frame edit without reimplementing
+  the capture→compose loop. Implementation tracked as follow-up tickets.
+- **Doc 63 (`docs/63-cursor-action-primitives.md`, DM-1135)** — **PROPOSED.**
+  Expose the cursor selector→point resolution (`borderBox` + `resolveCursorTarget`)
+  and the declarative action runner (`runActions` + the `AnimateAction` union)
+  as public primitives. Companion to doc 62 (per-feature primitives vs the whole
+  pipeline). Notes the border-box (cursor) vs content-box discrepancy.
 - **Doc 60 (`docs/60-programmatic-animate-pipeline.md`, DM-1130)** — the
   declarative `animate` pipeline (`composeAnimateConfig` / `validateAnimateConfig`
   / `interpolateConfigVars` / `AnimateConfig`) is now re-exported from the
