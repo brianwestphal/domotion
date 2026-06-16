@@ -11,6 +11,36 @@ import { generateAnimatedSvg, dedupeFrameIds } from "./animator.js";
 // SEEKED render (svg-to-video) a `clip-path="url(#id)"` resolves to the first
 // match in an earlier hidden frame group and clips the element away. The animator
 // renames the later frame's colliding ids so the SVG stays valid.
+// DM-1148: by default the last frame holds solid to 100% (no loop fade); the
+// `loopFade` flag restores the cross-dissolve back to frame 0.
+describe("last-frame loop fade (DM-1148)", () => {
+  const cfg = (loopFade?: boolean) => ({
+    width: 100, height: 100,
+    frames: [
+      { svgContent: `<rect id="a" width="100" height="100" fill="red"/>`, duration: 500 },
+      { svgContent: `<rect id="b" width="100" height="100" fill="blue"/>`, duration: 500 },
+    ],
+    ...(loopFade != null ? { loopFade } : {}),
+  });
+
+  // The fv-1 keyframe block has nested `{…}`, so span one level of nesting.
+  const lastKeyframe = (svg: string) => svg.match(/@keyframes fv-1 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
+
+  it("holds the last frame to 100% by default (no fade-out)", () => {
+    const kf = lastKeyframe(generateAnimatedSvg(cfg()));
+    // Held to the end (opacity 1 at 100%), and NOT faded out (no opacity 0 at 100%).
+    // The leading `0%, … { opacity: 0 }` off-segment before the frame starts is expected.
+    expect(kf).toMatch(/100%\s*\{\s*opacity:\s*1/);
+    expect(kf).not.toMatch(/100%\s*\{\s*opacity:\s*0/);
+  });
+
+  it("fades the last frame out on loop when loopFade is true", () => {
+    const kf = lastKeyframe(generateAnimatedSvg(cfg(true)));
+    // Restores the cross-dissolve: opacity 0 at 100%.
+    expect(kf).toMatch(/100%\s*\{\s*opacity:\s*0/);
+  });
+});
+
 describe("dedupeFrameIds (DM-1145)", () => {
   const f = (svgContent: string) => ({ svgContent, duration: 100 });
 

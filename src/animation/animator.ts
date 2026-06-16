@@ -122,6 +122,15 @@ export interface AnimationConfig {
    * → no rect, i.e. a transparent SVG that composites over a host background.
    */
   background?: string;
+  /**
+   * DM-1148: whether the LAST frame fades out (over its transition window) to
+   * dissolve back into the loop's frame 0. Default `false` — the last frame
+   * HOLDS solid to 100% and the loop hard-cuts to frame 0, so a one-shot video
+   * ends on the final frame rather than fading to nothing. Set `true` to restore
+   * the cross-dissolve loop (e.g. for a seamless background-loop SVG). Only
+   * affects the crossfade path; cut transitions already hold-then-cut.
+   */
+  loopFade?: boolean;
 }
 
 /**
@@ -253,6 +262,9 @@ function emitCrossfadeOrCutFrame(
   transEndPct: string,
   fadeInStartPct: string,
   totalSec: number,
+  /** DM-1148: the last frame, when the loop must NOT cross-dissolve, holds
+   *  opacity 1 to 100% instead of fading out over its transition window. */
+  holdToEnd: boolean,
 ): { groups: string[]; keyframes: string[] } {
   const groups: string[] = [];
   const keyframes: string[] = [];
@@ -278,12 +290,25 @@ function emitCrossfadeOrCutFrame(
     const prevEnd = i > 0
       ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
       : "";
-    keyframes.push(`
+    if (holdToEnd) {
+      // DM-1148: the final frame holds solid to 100% (no fade-out); the loop
+      // hard-cuts back to frame 0. The `fd` display window also runs to 100%.
+      // `prevEnd` (the prior frame's fade-out boundary) is empty for a lone
+      // frame-0 animation, which then has no opacity:0 segment at all.
+      const offSeg = prevEnd !== "" ? `0%, ${prevEnd.replace(/,$/, "")} { opacity: 0; }\n      ` : "";
+      keyframes.push(`
+    @keyframes fv-${i} {
+      ${offSeg}${startPct}, 100% { opacity: 1; }
+    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, "100")}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
+    } else {
+      keyframes.push(`
     @keyframes fv-${i} {
       0%, ${prevEnd} ${transEndPct}, 100% { opacity: 0; }
       ${startPct}, ${holdEndPct} { opacity: 1; }
     }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, transEndPct)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
+    }
   }
   return { groups, keyframes };
 }
@@ -449,7 +474,12 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       const fadeInStartPct = (i > 0 && !entersViaMagicMove)
         ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration)
         : startPct;
-      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, startPct, holdEndPct, transEndPct, fadeInStartPct, totalSec);
+      // DM-1148: the last frame holds solid to 100% (no loop cross-dissolve)
+      // unless `loopFade` is set. Only the crossfade path fades — cut already
+      // holds-then-cuts — so this is a no-op for cut frames.
+      const isCutFrame = transType === "cut" || transDur === 0;
+      const holdToEnd = i === frames.length - 1 && config.loopFade !== true && !isCutFrame;
+      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, startPct, holdEndPct, transEndPct, fadeInStartPct, totalSec, holdToEnd);
       frameGroups.push(...r.groups);
       keyframes.push(...r.keyframes);
     }
