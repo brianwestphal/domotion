@@ -118,6 +118,24 @@ function lcm(a: number, b: number): number {
   return Math.abs(a / gcd(a, b) * b);
 }
 
+/**
+ * DM-1144: the `currentTime` (ms) to seek for output frame `i` at `fps` — the
+ * CENTER of the frame's display interval, `(i + 0.5) / fps`, not its start
+ * (`i / fps`).
+ *
+ * A start-aligned sample lands exactly on keyframe boundaries. The animator's
+ * per-frame visibility keyframes make a hard cut `[start, end]` visible then
+ * `[end, …]` for the next frame — the two touch at `end` with BOTH at opacity 1
+ * for that instant. The browser never paints that sub-frame instant, but a
+ * boundary-aligned screenshot captures both frames stacked, ghosting consecutive
+ * frames together (the cross-fade the SVG itself never shows — DM-1144). Sampling
+ * the interval midpoint lands inside one frame's solid window. The half-frame
+ * shift is negligible for continuous animations.
+ */
+export function frameSampleTimeMs(i: number, fps: number): number {
+  return ((i + 0.5) * 1000) / fps;
+}
+
 export interface AnimTiming {
   /** single-iteration duration, ms */
   duration: number;
@@ -632,8 +650,9 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     const intrinsicDesc = intrinsic ? `${intrinsic.w}×${intrinsic.h}` : "(unsized)";
     log(`SVG ${intrinsicDesc} → video ${outWidth}×${outHeight} @ ${opts.fps}fps, ${(durationMs / 1000).toFixed(2)}s, ${frameCount} frames (render scale ${opts.scale}×)`);
 
-    // Render frame 0 to size the disk-space estimate accurately.
-    await seekTo(page, 0);
+    // Render frame 0 to size the disk-space estimate accurately. DM-1144: sample
+    // at the interval CENTER (see `frameSampleTimeMs`).
+    await seekTo(page, frameSampleTimeMs(0, opts.fps));
     const firstFrame = await screenshot(page, omitBackground);
 
     const outputDir = path.dirname(path.resolve(opts.output)) || ".";
@@ -693,7 +712,7 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     await writeFrame(firstFrame);
 
     for (let i = 1; i < frameCount; i++) {
-      const t = (i * 1000) / opts.fps;
+      const t = frameSampleTimeMs(i, opts.fps);
       await seekTo(page, t);
       const buf = await screenshot(page, omitBackground);
       if (framesDir) writeFileSync(path.join(framesDir, frameName(i)), buf);

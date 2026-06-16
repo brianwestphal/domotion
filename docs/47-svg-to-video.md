@@ -72,8 +72,14 @@ What is *not* free:
    space on the output (and temp, if `--keep-frames`) volume via `fs.statfs`.
    Abort with a clear message if short. See [Disk space](#disk-space).
 6. **Render frames.** Pause all animations; for `i` in `[0, N)` set
-   `currentTime = i * 1000/fps` ms (+ `setCurrentTime` for SMIL), flush,
-   screenshot PNG. **Pipe frames to ffmpeg stdin** (`image2pipe`) by default so
+   `currentTime` to the **center** of the frame's interval — `(i + 0.5) * 1000/fps`
+   ms (`frameSampleTimeMs`, + `setCurrentTime` for SMIL), flush, screenshot PNG.
+   Sampling the interval center rather than its start (`i/fps`) matters for
+   flipbook-style SVGs: a start-aligned sample lands exactly on a keyframe
+   boundary, where the animator's per-frame visibility keyframes leave the
+   outgoing and incoming frame BOTH at `opacity:1` for that sub-frame instant, so
+   the screenshot ghosts two frames together — a cross-fade the SVG itself never
+   paints (DM-1144). The midpoint lands inside one frame's solid window. **Pipe frames to ffmpeg stdin** (`image2pipe`) by default so
    no intermediate frame files touch disk; `--keep-frames <dir>` switches to
    writing a numbered PNG sequence for debugging. For a transparent background on
    an alpha-capable format (below) the page background is left transparent and

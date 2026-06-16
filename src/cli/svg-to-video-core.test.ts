@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildFfmpegArgs,
   fitContain,
+  frameSampleTimeMs,
   isAnimatedImageContainer,
   isTransparentBackground,
   parseSvgIntrinsicSize,
@@ -136,6 +137,25 @@ describe("resolveFormat", () => {
 
   it("uses ProRes HQ profile (opaque) by default", () => {
     expect(resolveFormat("prores")).toMatchObject({ videoCodec: "prores_ks", container: "mov", pixFmt: "yuv422p10le", extraArgs: ["-profile:v", "3"], alpha: false });
+  });
+});
+
+describe("frameSampleTimeMs (DM-1144)", () => {
+  it("samples the CENTER of each frame interval, not the start (avoids keyframe-boundary ghosting)", () => {
+    // (i + 0.5) / fps, in ms. At 24fps a frame is 1000/24 ≈ 41.667ms.
+    expect(frameSampleTimeMs(0, 24)).toBeCloseTo(20.833, 2);
+    expect(frameSampleTimeMs(1, 24)).toBeCloseTo(62.5, 2);
+    expect(frameSampleTimeMs(6, 24)).toBeCloseTo(270.833, 2); // 6.77% of 4s — INSIDE a frame's window, not the 6.25% boundary
+    // Never lands on a start boundary i/fps (where two cut frames overlap at opacity 1).
+    for (const fps of [24, 25, 30, 60]) {
+      for (let i = 0; i < 5; i++) {
+        const center = frameSampleTimeMs(i, fps);
+        expect(center).toBeGreaterThan((i * 1000) / fps);
+        expect(center).toBeLessThan(((i + 1) * 1000) / fps);
+        // exactly the midpoint
+        expect(center).toBeCloseTo(((i + 0.5) * 1000) / fps, 6);
+      }
+    }
   });
 });
 
