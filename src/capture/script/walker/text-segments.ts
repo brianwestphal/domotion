@@ -430,6 +430,22 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           void padLForGlyph; void padRForGlyph;
           const paintedGlyphW = pseudoComputedW;
           effectiveFs = 100 * paintedGlyphW / naturalWidthAt100;
+          // DM-1120: for a floated drop cap with an explicit content-box HEIGHT
+          // (Chrome sized the float box to the glyph's ink), size the glyph so
+          // its INK fills that height. The width-derived size undersizes here
+          // because the in-page canvas's Playfair metrics don't match the
+          // renderer's font (canvas B-width ratio ≈0.62 vs the painted ≈0.54),
+          // so the width quotient comes out ~15% small and the B doesn't fill
+          // the box vertically. The glyph's own ink height (actualBoundingBox
+          // ascent+descent) is the metric that maps to the captured content
+          // height. Falls back to the width size when there's no usable height.
+          const flFloatForSize = flStyle.float || flStyle.cssFloat || '';
+          const pseudoComputedH = parseFloat(flStyle.height);
+          const glyphInkH100 = (probeM.actualBoundingBoxAscent || 0) + (probeM.actualBoundingBoxDescent || 0);
+          if ((flFloatForSize === 'left' || flFloatForSize === 'right')
+              && Number.isFinite(pseudoComputedH) && pseudoComputedH > 0 && glyphInkH100 > 0) {
+            effectiveFs = 100 * pseudoComputedH / glyphInkH100;
+          }
           effectiveAscent = effectiveFs * ascentRatio;
           // Position the segment so the rendered baseline matches Chrome's
           // painted baseline. Chrome paints the first-letter with its
@@ -484,6 +500,32 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         pboxT = minT - vp.y - padT;
         pboxW = (maxR - minL) + padL + padR;
         pboxH = (maxB - minT) + padT + padB;
+      }
+      // DM-1120: for a FLOATED `initial-letter` drop cap inside a background
+      // box, Chrome paints the glyph's INK to exactly fill the *content* box
+      // (measured on the `.drop-fancy` B: cap-top = content-top, baseline =
+      // content-bottom, and horizontally centered — all gaps ≈0). The earlier
+      // `minT + Hcap-height` placement put the baseline ~22px too high (it keyed
+      // off the padding-box top and the H cap-ratio, not the glyph's own ink in
+      // its content box) and left the glyph ~6px too far left. Position the
+      // styled segment straight from the captured content box instead: baseline
+      // at the content-box bottom (a drop cap is a capital → ink-bottom =
+      // baseline), and the glyph centered in the content box. The width-derived
+      // `effectiveFs` already sizes the ink to the content box. The pixel probe
+      // is skipped here — the content box IS the painted ink box, so there's
+      // nothing left to refine and the probe's cap-height heuristic would
+      // re-introduce the error.
+      let flGlyphX = minL - vp.x;
+      let flSkipProbe = false;
+      const flIsFloat = flFloat === 'left' || flFloat === 'right';
+      if (hasInitialLetter && effectiveFs != null && flIsFloat) {
+        const contentBottom = pboxT + pboxH - padB;        // vp-relative
+        styledSegY = contentBottom - effectiveAscent;
+        const contentLeft = pboxL + padL;
+        const contentW = pboxW - padL - padR;
+        const glyphW = maxR - minL;
+        flGlyphX = contentLeft + (contentW - glyphW) / 2;
+        flSkipProbe = true;
       }
       // Borders — per-side widths + colors, with uniform shorthand when
       // all four sides match (same convention as pseudo-content.ts).
@@ -567,7 +609,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       }
       const styledSeg = {
         text: styledText,
-        x: minL - vp.x,
+        x: flGlyphX,
         y: styledSegY,
         width: maxR - minL,
         height: maxB - minT,
@@ -581,7 +623,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         fontAscent: effectiveAscent,
         textShadow: flTextShadow,
         pseudoBox,
-        _initialLetterProbe: initialLetterProbe,
+        _initialLetterProbe: flSkipProbe ? undefined : initialLetterProbe,
       };
     return { seg: styledSeg, minL, maxR, minT, maxB };
   };
