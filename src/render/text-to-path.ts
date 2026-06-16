@@ -3595,6 +3595,20 @@ function glyphInkBoundsX(glyph: { bbox?: { minX: number; maxX: number }; path?: 
   return maxX > minX ? { minX, maxX } : null;
 }
 
+// DM-1126: does the primary font's OWN shaping of a lone mark already emit a
+// dotted circle? Native-extractor (CoreText/AAT) Indic faces — DevanagariMT, the
+// Sangam MN family, etc. — auto-insert the U+25CC for an orphaned combining mark,
+// so Domotion already renders them correctly and a synthetic insertion would
+// DOUBLE the circle (regressing the standard Indic blocks). fontkit faces like
+// Mukta emit just the bare mark and DO need the synthetic ◌. Detect by GID — the
+// native glyph-helper leaves `codePoints` empty.
+function fontAutoInsertsDottedCircle(primaryFont: FontInstance, ch: string): boolean {
+  const circleGid = primaryFont.glyphForCodePoint(0x25CC).id;
+  if (circleGid === 0) return false;
+  const lone = primaryFont.layout(ch);
+  return lone.glyphs.length > 1 || lone.glyphs.some((g) => g.id === circleGid);
+}
+
 // DM-1126: the CSS-px shift to center a zero-advance combining mark's ink over
 // the synthetic ◌'s ink, replicating HarfBuzz's fallback mark positioning. The
 // fontkit-rendered Indic faces (e.g. Mukta) carry their Vedic marks' ink at
@@ -3731,9 +3745,12 @@ export function insertSyntheticDottedCircles(
       }
       if (orphaned && coveredCircleSet != null && coveredCircleSet.has(i)
           && primaryFont.glyphForCodePoint(cp).id !== 0
-          && primaryFont.glyphForCodePoint(0x25CC).id !== 0) {
+          && primaryFont.glyphForCodePoint(0x25CC).id !== 0
+          && !fontAutoInsertsDottedCircle(primaryFont, ch)) {
         // DM-1126: covered mark Chrome circles (capture-detected) whose fontkit
-        // primary won't auto-insert the ◌. Insert it and anchor the ◌ at the
+        // primary won't auto-insert the ◌ (native-extractor Indic faces already
+        // insert it — the guard above skips them to avoid a DOUBLE circle).
+        // Insert it and anchor the ◌ at the
         // mark's captured cell origin; the combining mark draws onto the circle,
         // re-centered HarfBuzz-style (Mukta's marks have negative-x ink + no
         // GPOS anchor, so the per-char emitter needs the centered x baked in).
