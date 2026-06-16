@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -1806,5 +1806,59 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     const css = getEmbeddedFontFaceCss();
     const faceCount = (css.match(/@font-face/g) ?? []).length;
     expect(faceCount).toBe(1);
+  });
+});
+
+describe("synthSmallCapsCharScale — synthesized font-variant-caps per-char scale (DM-1116)", () => {
+  const S = 0.7; // SMALL_CAP_SCALE
+  // Scale args by caps mode (null = that case class isn't synthesized):
+  //   small-caps      → lower S, upper null
+  //   all-small-caps  → lower S, upper S
+  //   unicase         → lower null, upper S
+  describe("small-caps (smcp): only lowercase letters shrink + up-case", () => {
+    it("up-cases + scales a lowercase letter", () => {
+      expect(synthSmallCapsCharScale("a", S, null)).toEqual({ scale: S, upcase: true });
+    });
+    it("leaves uppercase letters, digits, and punctuation at full size", () => {
+      expect(synthSmallCapsCharScale("A", S, null)).toEqual({ scale: 1, upcase: false });
+      expect(synthSmallCapsCharScale("5", S, null)).toEqual({ scale: 1, upcase: false });
+      expect(synthSmallCapsCharScale("-", S, null)).toEqual({ scale: 1, upcase: false });
+      expect(synthSmallCapsCharScale(":", S, null)).toEqual({ scale: 1, upcase: false });
+    });
+  });
+
+  describe("all-small-caps (smcp+c2sc): EVERYTHING shrinks", () => {
+    it("scales lowercase (up-cased), uppercase, digits, AND punctuation/symbols", () => {
+      expect(synthSmallCapsCharScale("a", S, S)).toEqual({ scale: S, upcase: true });
+      expect(synthSmallCapsCharScale("A", S, S)).toEqual({ scale: S, upcase: false });
+      expect(synthSmallCapsCharScale("5", S, S)).toEqual({ scale: S, upcase: false });
+      // the regression: hyphen + colon must shrink with the rest of the run.
+      expect(synthSmallCapsCharScale("-", S, S)).toEqual({ scale: S, upcase: false });
+      expect(synthSmallCapsCharScale(":", S, S)).toEqual({ scale: S, upcase: false });
+      expect(synthSmallCapsCharScale("&", S, S)).toEqual({ scale: S, upcase: false });
+    });
+  });
+
+  describe("unicase (unic): lowercase stays normal; same-case chars shrink", () => {
+    it("keeps lowercase letters full and un-cased", () => {
+      expect(synthSmallCapsCharScale("a", null, S)).toEqual({ scale: 1, upcase: false });
+    });
+    it("shrinks uppercase letters, digits, AND punctuation (no case change)", () => {
+      expect(synthSmallCapsCharScale("A", null, S)).toEqual({ scale: S, upcase: false });
+      expect(synthSmallCapsCharScale("5", null, S)).toEqual({ scale: S, upcase: false });
+      expect(synthSmallCapsCharScale("-", null, S)).toEqual({ scale: S, upcase: false });
+      expect(synthSmallCapsCharScale(":", null, S)).toEqual({ scale: S, upcase: false });
+    });
+  });
+
+  it("treats a multi-char fold (ß→SS) as same-case so per-char scale arrays stay aligned", () => {
+    // ß is lowercase but up-cases to 2 chars; classifying it as same-case avoids
+    // a length mismatch between shaping text and the per-char scale array.
+    expect(synthSmallCapsCharScale("ß", S, S)).toEqual({ scale: S, upcase: false });
+  });
+
+  it("is a no-op when neither scale is set (no synthesis active)", () => {
+    expect(synthSmallCapsCharScale("a", null, null)).toEqual({ scale: 1, upcase: false });
+    expect(synthSmallCapsCharScale("-", null, null)).toEqual({ scale: 1, upcase: false });
   });
 });

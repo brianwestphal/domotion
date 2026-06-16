@@ -2684,6 +2684,42 @@ export interface TextPathResult {
  *      rect data) and legacy callers.
  *   3. Native fontkit advances — if neither is provided.
  */
+
+/**
+ * DM-294 / DM-1116: the per-character decision for SYNTHESIZED `font-variant-caps`
+ * (the path Chrome takes when the active font lacks the OpenType feature).
+ *
+ * Mirrors Blink's `OpenTypeCapsSupport`: `SmallCapsIterator` classifies a
+ * single-codepoint character that changes when upper-cased as
+ * `kSmallCapsUppercaseNeeded` (a lowercase LETTER); EVERYTHING else — uppercase
+ * letters, digits, punctuation, symbols — is `kSmallCapsSameCase`.
+ * `NeedsSyntheticFont` then gives:
+ *   - a lowercase letter the small synthetic font (+ up-casing) when
+ *     `lowerScale` is set — i.e. `smcp` / `pcap` (and the lower half of
+ *     `all-small-caps` / `all-petite-caps`);
+ *   - a same-case char the small synthetic font (NO case change) when
+ *     `upperScale` is set — i.e. `c2sc` / `c2pc` / `unic` (and the upper half of
+ *     `all-*`). This is the half that was missing: hyphens / colons / other
+ *     punctuation rendered full-size in `all-small-caps` / `unicase`.
+ *
+ * `lowerScale` / `upperScale` are the synthesized multipliers (≈0.7) or `null`
+ * when that class isn't being synthesized. Returns the scale to apply (1 = no
+ * change) and whether to up-case the glyph. The `upper.length === ch.length`
+ * guard keeps multi-char folds (ß→SS) in the same-case branch so per-char scale
+ * arrays stay aligned with the shaping text.
+ */
+export function synthSmallCapsCharScale(
+  ch: string,
+  lowerScale: number | null,
+  upperScale: number | null,
+): { scale: number; upcase: boolean } {
+  const upper = ch.toUpperCase();
+  const isLowerLetter = upper !== ch && upper.length === ch.length;
+  if (isLowerLetter && lowerScale != null) return { scale: lowerScale, upcase: true };
+  if (!isLowerLetter && upperScale != null) return { scale: upperScale, upcase: false };
+  return { scale: 1, upcase: false };
+}
+
 export function textToPathMarkup(
   text: string,
   fontSize: number,
@@ -2927,24 +2963,13 @@ export function textToPathMarkup(
           let ch = String.fromCodePoint(cp);
           let chScale = sc;
           if (synthSmallCaps) {
-            const upper = ch.toUpperCase();
-            const isLower = upper !== ch && upper.length === ch.length;
-            const isUpper = !isLower && ch.toLowerCase() !== ch && ch.toLowerCase().length === ch.length;
-            // DM-700: per CSS Fonts 4 §7.4, `all-small-caps` ALSO scales
-            // digits to small-cap height ("small caps are also applied to
-            // numerals…"). Synthesize that here when the c2sc branch is
-            // active. Use the c2sc scale (synthUpperScale) for digits since
-            // Chrome treats digits the same as upper for all-small-caps,
-            // not the lowercase smcp scale.
-            const isDigit = ch.length === 1 && ch >= "0" && ch <= "9";
-            if (isLower && synthLowerScale != null) {
-              ch = upper;
-              chScale = Number((runScale * synthLowerScale).toFixed(5));
-            } else if (isUpper && synthUpperScale != null) {
-              chScale = Number((runScale * synthUpperScale).toFixed(5));
-            } else if (isDigit && synthUpperScale != null) {
-              chScale = Number((runScale * synthUpperScale).toFixed(5));
-            }
+            // DM-1116: scale uppercase letters, digits, punctuation AND symbols
+            // (Blink's `kSmallCapsSameCase`) under c2sc/c2pc/unic — not just
+            // letters/digits — so hyphens/colons aren't left full-size in
+            // all-small-caps / unicase. See `synthSmallCapsCharScale`.
+            const synth = synthSmallCapsCharScale(ch, synthLowerScale, synthUpperScale);
+            if (synth.upcase) ch = ch.toUpperCase();
+            if (synth.scale !== 1) chScale = Number((runScale * synth.scale).toFixed(5));
           }
           const layout = features != null && features.length > 0 && !synthSmallCaps
             ? run.font.layout(ch, features)
@@ -3923,33 +3948,27 @@ function renderTextAsEmbedded(
     const availableFeatures = Array.isArray((run.font as { availableFeatures?: string[] }).availableFeatures)
       ? ((run.font as { availableFeatures: string[] }).availableFeatures) : [];
     const fontHas = (f: string) => availableFeatures.includes(f);
-    let synthLower = 1; // scale for lowercase chars
-    let synthUpper = 1; // scale for uppercase chars
-    let needsSynthCaseFold = false;
-    if (wantSmcp && !fontHas("smcp")) { synthLower = SMALL_CAP_SCALE; needsSynthCaseFold = true; }
-    if (wantPcap && !fontHas("pcap")) { synthLower = SMALL_CAP_SCALE; needsSynthCaseFold = true; }
+    let synthLower = 1; // scale for lowercase letters
+    let synthUpper = 1; // scale for same-case chars (upper / digit / punct / symbol)
+    if (wantSmcp && !fontHas("smcp")) { synthLower = SMALL_CAP_SCALE; }
+    if (wantPcap && !fontHas("pcap")) { synthLower = SMALL_CAP_SCALE; }
     if (wantC2sc && !fontHas("c2sc")) { synthUpper = SMALL_CAP_SCALE; }
     if (wantC2pc && !fontHas("c2pc")) { synthUpper = SMALL_CAP_SCALE; }
     if (wantUnic && !fontHas("unic")) { synthUpper = SMALL_CAP_SCALE; /* lowercase stays 1.0 per CSS Fonts 4 §3.5 */ }
     const doSynth = synthLower !== 1 || synthUpper !== 1;
     const perCharScale: number[] = new Array(run.text.length).fill(1);
     if (!doSynth) return { shapingText: run.text, perCharScale };
+    // DM-1116: same per-char rule as the per-glyph path — `synthSmallCapsCharScale`
+    // scales same-case chars (upper / digit / punctuation / symbol) under
+    // c2sc/c2pc/unic too, not just letters. (`null` = that class isn't synthesized.)
+    const lowerScale = synthLower !== 1 ? synthLower : null;
+    const upperScale = synthUpper !== 1 ? synthUpper : null;
     let out = "";
     for (let i = 0; i < run.text.length; i++) {
       const ch = run.text[i];
-      const upper = ch.toUpperCase();
-      const isLower = needsSynthCaseFold && ch !== upper && upper !== ch.toLowerCase();
-      const isUpper = ch === upper && ch !== ch.toLowerCase();
-      if (isLower) {
-        out += upper;
-        perCharScale[i] = synthLower;
-      } else if (isUpper) {
-        out += ch;
-        perCharScale[i] = synthUpper;
-      } else {
-        out += ch;
-        perCharScale[i] = 1;
-      }
+      const synth = synthSmallCapsCharScale(ch, lowerScale, upperScale);
+      out += synth.upcase ? ch.toUpperCase() : ch;
+      perCharScale[i] = synth.scale;
     }
     return { shapingText: out, perCharScale };
   }
