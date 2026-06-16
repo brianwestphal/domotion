@@ -2,6 +2,20 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.13.0] - 2026-06-17
+
+
+- New `svg-to-video` export with alpha/transparent output and frame-center sampling to fix boundary ghosting
+- Animations now hold the last frame at 100% by default instead of fading it out on loop
+- New declarative `animate` pipeline with cursor/action, frames-out/onFrame, and overlay-resolution primitives, exposed on the public API
+- Fixed reused SVG content vanishing on seeked animation renders (element-id deduping across frames)
+- New public helpers: `contentBox()` padding-inset box, `resolveOverlays()` anchor→coords, and `borderBox`/`resolveCursorTarget`
+- Better complex-script text: Grantha/Indic matra reordering fixes, synthesized dotted circles for covered combining marks, and path-rendered SMP alchemical symbols
+- "SF Pro Text" now resolves to its installed OTF for full glyph coverage
+- Drop-cap initial letters now fill and center within their content box
+- Synthesized small-caps now scale punctuation and symbols in all-small-caps and unicase
+- `<summary>` markers honor `::marker` color/font-size/inside position; pseudo-element gradient glows honor background-position/-size and opacity
+
 ## [0.12.0] - 2026-06-07
 
 
