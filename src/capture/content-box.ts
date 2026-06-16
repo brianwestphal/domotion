@@ -103,3 +103,62 @@ export async function contentBox(page: Page, selector: string, opts: ContentBoxO
   if (rect == null) throw new Error(`contentBox: selector "${selector}" matched no element`);
   return { ...rect, at: boxAnchorPoint(rect, opts.at ?? "top-left", opts.dx ?? 0, opts.dy ?? 0) };
 }
+
+// ── borderBox + resolveCursorTarget (DM-1139 / doc 63 §1) ──────────────────
+//
+// `borderBox` is the sibling of `contentBox` measured against the BORDER box
+// (`getBoundingClientRect`, border + padding INCLUDED) instead of the padding-
+// inset content box. It shares the `{ at, dx, dy }` anchor vocabulary and the
+// same `boxAnchorPoint` corner math, returning the same `{ x, y, width, height,
+// at }` shape. The two are deliberately NOT unified under one `box:` discriminator
+// (doc 63 "Open questions") — the cursor targets the border box, typing overlays
+// target the content box, and two named helpers read better at call sites.
+
+/** Options for `borderBox` — identical shape to `ContentBoxOptions`. */
+export interface BorderBoxOptions {
+  /** Which corner / edge / center of the border box to resolve as the `at` point. Default `"top-left"`. */
+  at?: BoxAnchor;
+  /** Horizontal nudge applied to the resolved `at` point (px). Default 0. */
+  dx?: number;
+  /** Vertical nudge applied to the resolved `at` point (px). Default 0. */
+  dy?: number;
+}
+
+export interface BorderBox {
+  /** Border-box top-left + size, viewport coordinates (border + padding included). */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** The point at `opts.at` (default `"top-left"`) plus the `dx` / `dy` nudge. */
+  at: [number, number];
+}
+
+/**
+ * Measure the BORDER box of `selector` on `page` (= `getBoundingClientRect`).
+ * Throws if the selector matches no element — same fail-fast policy as
+ * `contentBox`. This is the engine the CLI's cursor resolution
+ * (`queryCursorBox` in `src/cli/animate.ts`) collapses onto, so imperative
+ * cursor choreography and the declarative `cursor: "auto"` / explicit-event
+ * resolution can't diverge.
+ */
+export async function borderBox(page: Page, selector: string, opts: BorderBoxOptions = {}): Promise<BorderBox> {
+  const rect = await page.evaluate((sel: string): Rect | null => {
+    const el = document.querySelector(sel);
+    if (el == null) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }, selector);
+  if (rect == null) throw new Error(`borderBox: selector "${selector}" matched no element`);
+  return { ...rect, at: boxAnchorPoint(rect, opts.at ?? "top-left", opts.dx ?? 0, opts.dy ?? 0) };
+}
+
+/**
+ * The border-box CENTER point of `selector` — the sugar imperative callers reach
+ * for when building a cursor `{ type: "move", to: { x, y } }` event. Exactly
+ * `borderBox(page, selector, { at: "center" }).at`, i.e. what the CLI's cursor
+ * resolution uses. Throws on no-match (via `borderBox`).
+ */
+export async function resolveCursorTarget(page: Page, selector: string): Promise<[number, number]> {
+  return (await borderBox(page, selector, { at: "center" })).at;
+}

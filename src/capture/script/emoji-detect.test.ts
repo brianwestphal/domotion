@@ -60,6 +60,21 @@ describe("emoji-detect needsRaster (unconditional branches)", () => {
     expect(needsRaster(0x1F600, 0, "x")).toBe(true); // 1F300–1FAFF main block
   });
 
+  it("does NOT widen past the Alchemical block — neighbors still raster unconditionally (DM-1125)", () => {
+    // The DM-1125 carve-out gates ONLY U+1F700-1F77F through the cascade probe.
+    // The codepoints immediately outside it are genuine color emoji that NO text
+    // font covers, so they must keep returning the unconditional `true` from the
+    // 0x1F300-0x1FAFF main-block branch — guards against the carve-out range
+    // being accidentally widened and silently dropping real emoji to a tofu path.
+    expect(needsRaster(0x1F6FF, 0, "x")).toBe(true); // just below the block
+    expect(needsRaster(0x1F780, 0, "x")).toBe(true); // just above the block (Geometric Shapes Extended)
+    // In-range with no font context falls back to the raster fail-safe (the
+    // `isColorGlyph` early return) — the MONOCHROME → path outcome is cascade-
+    // dependent and covered by tests/alchemical-symbols-not-rastered.e2e.test.ts
+    // plus the html-test-unicode 1F700-1F77F-alchemical-symbols visual fixture.
+    expect(needsRaster(0x1F770, 0, "")).toBe(true);
+  });
+
   it("does NOT raster non-emoji symbols / arrows / enclosed letters", () => {
     expect(needsRaster(0x2701, 0, "x")).toBe(false); // ✁ scissors (path glyph)
     expect(needsRaster(0x2190, 0, "x")).toBe(false); // ← arrow

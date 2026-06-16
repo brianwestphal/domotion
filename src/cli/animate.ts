@@ -39,6 +39,7 @@ import {
   type CursorStyle,
 } from "../animation/index.js";
 import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+import { borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { clearEmbeddedFonts, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
@@ -794,14 +795,19 @@ function resolveOverlayAnchors(page: Page, overlays: OverlayInput[] | undefined,
 type CursorEventInput = z.infer<typeof cursorEventSchema>;
 type CursorStyleInput = z.infer<typeof cursorStyleSchema>;
 
-/** Resolve a selector's center in page (viewport) coords, or null if absent. */
+/** Resolve a selector's BORDER-box center in page (viewport) coords, or null if
+ *  absent. DM-1139: collapsed onto the shared `borderBox` primitive (doc 63) so
+ *  the CLI cursor and the public `resolveCursorTarget` can't diverge. `borderBox`
+ *  throws on no-match; the `"auto"` recording path tolerates a missing selector
+ *  (the action itself fails later, the cursor recording just skips it), so we map
+ *  that throw back to null here. */
 async function queryCursorBox(page: Page, sel: string): Promise<{ cx: number; cy: number } | null> {
-  return page.evaluate((s: string) => {
-    const el = document.querySelector(s);
-    if (el == null) return null;
-    const r = el.getBoundingClientRect();
-    return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
-  }, sel);
+  try {
+    const [cx, cy] = (await borderBox(page, sel, { at: "center" })).at;
+    return { cx, cy };
+  } catch {
+    return null;
+  }
 }
 
 /**

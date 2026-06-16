@@ -3571,6 +3571,50 @@ export function __resolveFontForCodepointForTest(
   return { key: r.key, decomposed: r.decomposed, covered: r.covered };
 }
 
+// DM-1126: x-extent of a glyph's ink, in font units. Prefers `glyph.bbox`
+// (fontkit supplies it); falls back to scanning the path commands' coordinate
+// pairs (the native CoreText glyph-helper leaves `bbox` undefined). Control
+// points slightly over-estimate the true curve extent, but that's symmetric
+// enough for centering a combining mark over its base. Null when no geometry.
+function glyphInkBoundsX(glyph: { bbox?: { minX: number; maxX: number }; path?: { commands: Array<{ args: number[] }> } }): { minX: number; maxX: number } | null {
+  const bb = glyph.bbox;
+  if (bb != null && Number.isFinite(bb.minX) && Number.isFinite(bb.maxX) && bb.maxX > bb.minX) {
+    return { minX: bb.minX, maxX: bb.maxX };
+  }
+  const cmds = glyph.path?.commands;
+  if (cmds == null) return null;
+  let minX = Infinity, maxX = -Infinity;
+  for (const c of cmds) {
+    const a = c.args;
+    for (let i = 0; i + 1 < a.length; i += 2) {
+      const x = a[i];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+  }
+  return maxX > minX ? { minX, maxX } : null;
+}
+
+// DM-1126: the CSS-px shift to center a zero-advance combining mark's ink over
+// the synthetic ◌'s ink, replicating HarfBuzz's fallback mark positioning. The
+// fontkit-rendered Indic faces (e.g. Mukta) carry their Vedic marks' ink at
+// NEGATIVE x (authored to overhang a preceding base) with NO GPOS mark-to-base
+// anchor, so the shaper reports xOffset 0 and the raw glyph would paint to the
+// circle's left. Aligning ink-centers reproduces the "mark sits on the circle"
+// Chrome paints. Returns 0 when geometry is unavailable.
+function syntheticMarkCenteringOffsetPx(primaryFont: FontInstance, ch: string, fontSize: number): number {
+  // `glyphForCodePoint`'s declared return omits `path`/`bbox`; both backing
+  // implementations populate them at runtime (used for the ink-bounds scan).
+  const circleGlyph = primaryFont.glyphForCodePoint(0x25CC) as unknown as Parameters<typeof glyphInkBoundsX>[0];
+  const circleBounds = glyphInkBoundsX(circleGlyph);
+  const markGlyph = primaryFont.layout(ch).glyphs[0];
+  const markBounds = markGlyph != null ? glyphInkBoundsX(markGlyph) : null;
+  if (circleBounds == null || markBounds == null) return 0;
+  const circleCx = (circleBounds.minX + circleBounds.maxX) / 2;
+  const markCx = (markBounds.minX + markBounds.maxX) / 2;
+  return (circleCx - markCx) * (fontSize / primaryFont.unitsPerEm);
+}
+
 // DM-1026: synthesize the dotted circle (U+25CC) Chrome's HarfBuzz inserts
 // before an ORPHANED combining mark that NO font covers — e.g. the "no font"
 // Brahmic blocks (Soyombo, Zanabazar, Devanagari-Extended, …) where each mark
@@ -3592,8 +3636,16 @@ export function insertSyntheticDottedCircles(
   text: string, xOffsets: number[] | undefined,
   fontFamily: string, weight: number, fontSize: number, slant: number,
   variationSettings: Record<string, number> | undefined, lang: string | undefined,
+  /** DM-1126: UTF-16 indices (into `text`) of COVERED orphaned marks the capture
+   *  layer detected Chrome auto-inserts a U+25CC before. The renderer synthesizes
+   *  the circle for these (fontkit fonts don't replicate HarfBuzz's insertion),
+   *  shaping "◌"+mark as one cluster and centering the combining mark on the ◌.
+   *  The UNCOVERED case stays driven by `codepointResolvesToNotdef` below. */
+  dottedCircleMarks?: number[],
 ): { text: string; xOffsets: number[] | undefined } {
   if (!/\p{M}/u.test(text)) return { text, xOffsets };
+  const coveredCircleSet = dottedCircleMarks != null && dottedCircleMarks.length > 0
+    ? new Set(dottedCircleMarks) : null;
   const primaryFontKey = resolveFontKey(fontFamily);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (primaryFont == null) return { text, xOffsets };
@@ -3673,6 +3725,25 @@ export function insertSyntheticDottedCircles(
           outText += ch;
         }
         clusterHasBase = true; // the inserted ◌ is the cluster base now
+        changed = true;
+        i += chLen;
+        continue;
+      }
+      if (orphaned && coveredCircleSet != null && coveredCircleSet.has(i)
+          && primaryFont.glyphForCodePoint(cp).id !== 0
+          && primaryFont.glyphForCodePoint(0x25CC).id !== 0) {
+        // DM-1126: covered mark Chrome circles (capture-detected) whose fontkit
+        // primary won't auto-insert the ◌. Insert it and anchor the ◌ at the
+        // mark's captured cell origin; the combining mark draws onto the circle,
+        // re-centered HarfBuzz-style (Mukta's marks have negative-x ink + no
+        // GPOS anchor, so the per-char emitter needs the centered x baked in).
+        const markX = haveX ? (xOffsets![i] ?? 0) : 0;
+        const markCenteredX = markX + syntheticMarkCenteringOffsetPx(primaryFont, ch, fontSize);
+        outText += "◌";
+        if (haveX) outX.push(markX);
+        outText += ch;
+        if (haveX) for (let k = 0; k < chLen; k++) outX.push(markCenteredX);
+        clusterHasBase = true;
         changed = true;
         i += chLen;
         continue;
@@ -4350,17 +4421,22 @@ export function renderTextAsPath(
    *  stroke paints UNDER the fill so half the stroke is covered, eliminating
    *  the chunky fill-on-stroke look at large widths. */
   paintOrder?: string,
+  /** DM-1126: UTF-16 indices (into `text`) of covered orphaned marks the capture
+   *  layer detected Chrome auto-circles. Forwarded to `insertSyntheticDottedCircles`. */
+  dottedCircleMarks?: number[],
 ): string | null {
   const weight = parseInt(fontWeight) || 400;
   const slant = slantForStyle(fontStyle);
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-  // DM-1026: synthesize the dotted circle Chrome's HarfBuzz inserts before an
-  // orphaned, uncovered, complex-shaper combining mark (no-font Brahmic blocks).
-  // Run once at the funnel so both the embedded-font and glyph-path branches
-  // below receive the augmented text + xOffsets. A no-op for text with no marks.
+  // DM-1026 / DM-1126: synthesize the dotted circle Chrome's HarfBuzz inserts
+  // before an orphaned complex-shaper combining mark — for UNCOVERED marks
+  // (no-font Brahmic blocks, detected here) and for CAPTURE-flagged COVERED marks
+  // (`dottedCircleMarks`, e.g. Mukta Vedic). Run once at the funnel so both the
+  // embedded-font and glyph-path branches below receive the augmented text +
+  // xOffsets. A no-op for text with no combining marks.
   ({ text, xOffsets } = insertSyntheticDottedCircles(
-    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang));
+    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang, dottedCircleMarks));
 
   // DM-652: opt-in embedded-font path. When `setRenderTextMode("embedded-font")`
   // is active AND we hold a webfont buffer that matches the requested

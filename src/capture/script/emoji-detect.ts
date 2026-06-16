@@ -178,6 +178,19 @@ export const createEmojiDetect = () => {
     // saturation scan). 1F232-1F23A is contiguous once 1F237 is folded in.
     if (cp === 0x1F201 || cp === 0x1F202 || cp === 0x1F21A || cp === 0x1F22F
         || (cp >= 0x1F232 && cp <= 0x1F23A) || cp === 0x1F250 || cp === 0x1F251) return true;
+    // DM-1125: the Alchemical Symbols block (U+1F700-1F77F) sits inside the
+    // main-block range below, but Chrome paints its 116 covered codepoints as
+    // MONOCHROME Apple Symbols path glyphs — not color emoji — when the
+    // element's cascade reaches Apple Symbols (the html-test cells lead with
+    // "Apple Symbols"; CSS.getPlatformFontsForNode confirms it). Unconditionally
+    // rastering them stamped a color-bitmap overlay sized to the font CONTENT
+    // box (ascent+descent ≈ 29px at 32px), which CLIPPED the tall apparatus
+    // glyphs (retort/alembic U+1F76F/U+1F770 etc.) whose ink overflows that box
+    // — Chrome paints the full ink, the raster cropped it. Probe Chrome's actual
+    // choice per element font via the canvas (color → raster, monochrome → path)
+    // exactly like the DM-1025 emojiPresentation26 branch, so the rare cell whose
+    // cascade DOES reach the color font still rasters correctly.
+    if (cp >= 0x1F700 && cp <= 0x1F77F) return isColorGlyph(cp, font);
     // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
     // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
     // Extended-A, Symbols & Pictographs Extended-B.

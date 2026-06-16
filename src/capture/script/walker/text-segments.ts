@@ -134,7 +134,7 @@ const mathItalicChar = (ch) => {
   }
 };
 
-export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor }) => {
+export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor, markGetsDottedCircle }) => {
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
   // ranges that paint upright in vertical text: CJK ideographs, CJK
@@ -882,10 +882,33 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           firstLetterChars = [];
         }
         const rasterGlyphs = [];
+        // DM-1126: UTF-16 indices of orphaned combining marks where Chrome
+        // auto-inserts a U+25CC dotted circle (detected via the canvas probe).
+        // The renderer synthesizes the circle for COVERED such marks (fontkit
+        // fonts don't replicate HarfBuzz's insertion); uncovered marks keep the
+        // existing `codepointResolvesToNotdef` path. `clusterHasBase` tracks
+        // orphan-ness: a spacing base char (or whitespace reset) clears it.
+        const dottedCircleMarks = [];
+        let clusterHasBase = false;
         let utf16Idx = 0;
         for (let ci = 0; ci < line.chars.length; ci++) {
           const cRec = line.chars[ci];
           const cp = cRec.ch.codePointAt(0);
+          const isMark = /\p{M}/u.test(cRec.ch);
+          const isWs = /^\s+$/.test(cRec.ch);
+          if (markGetsDottedCircle != null && isMark && !clusterHasBase && cp != null
+              && markGetsDottedCircle(cp, cRec.ch, cs.fontFamily)) {
+            dottedCircleMarks.push(utf16Idx);
+          }
+          if (isMark) {
+            // an already-flagged ◌ becomes the cluster base, so consecutive
+            // orphaned marks share one circle — mirror the renderer's logic.
+            if (dottedCircleMarks.length > 0 && dottedCircleMarks[dottedCircleMarks.length - 1] === utf16Idx) clusterHasBase = true;
+          } else if (isWs) {
+            clusterHasBase = false;
+          } else {
+            clusterHasBase = true;
+          }
           const nextCh = ci + 1 < line.chars.length ? line.chars[ci + 1].ch : '';
           const nextCp = nextCh ? nextCh.codePointAt(0) : 0;
           const isFirstLetterChar = isFirstStyledLine && ci >= firstLetterStartIdx && ci < firstLetterEndIdx;
@@ -933,6 +956,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           height: line.bottom - line.top,
           xOffsets: line.xOffsets.map((v) => v - vp.x),
           rasterGlyphs: rasterGlyphs.length > 0 ? rasterGlyphs : undefined,
+          dottedCircleMarks: dottedCircleMarks.length > 0 ? dottedCircleMarks : undefined,
         });
         minLeft = Math.min(minLeft, line.left);
         minTop = Math.min(minTop, line.top);

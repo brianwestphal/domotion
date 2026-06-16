@@ -120,6 +120,21 @@ Stroke white-on-black so it's visible on either light or dark backgrounds.
 
 When the selector matches nothing in the active frame, the cursor stays at its previous position and a console warning is logged.
 
+### Public target resolver — `resolveCursorTarget` / `borderBox` (DM-1139, doc 63 §1)
+
+Imperative scripting-API callers building their own `CursorOverlay` (instead of the declarative config) resolve a selector to the **same** border-box center the CLI uses via the package-root exports:
+
+```ts
+import { resolveCursorTarget, borderBox } from "domotion-svg";
+
+const [x, y] = await resolveCursorTarget(page, "#submit"); // border-box CENTER
+// drops straight into a cursor move event: { type: "move", to: { x, y } }
+
+const box = await borderBox(page, "#submit", { at: "center" }); // full box + anchor
+```
+
+`borderBox` is the BORDER-box sibling of `contentBox` (DM-1133) — same `{ at, dx, dy }` vocabulary, measured against `getBoundingClientRect`. The CLI's internal `queryCursorBox` (`src/cli/animate.ts`) is a thin wrapper over `borderBox(page, sel, { at: "center" })`, so imperative and declarative cursor targeting can't diverge. The cursor targets the **border** box; typing overlays target the **content** box — they differ by the element's border + padding, which is why the two helpers stay distinct rather than unifying under a `box:` discriminator.
+
 ## Edge cases / out of scope
 
 - **Pinch-zoom / rotation gestures**: not modeled.

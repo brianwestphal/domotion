@@ -157,6 +157,18 @@ export interface TextSegment {
     suppressGlyph?: boolean;
   }>;
   /**
+   * DM-1126: UTF-16 indices (into `text`) of orphaned complex-shaper combining
+   * marks where Chrome's shaper auto-inserts a U+25CC dotted-circle base. The
+   * decision isn't derivable from Unicode properties — Chrome's HarfBuzz/CoreText
+   * shaping circles some orphaned marks but not others — so the capture layer
+   * probes Chrome directly (render `mark` vs `◌+mark` to a canvas; equal ink ⟹
+   * Chrome already inserts the circle). The renderer synthesizes the circle for
+   * the COVERED such marks (fontkit-rendered fonts like Mukta don't replicate the
+   * insertion); UNCOVERED marks keep the existing `codepointResolvesToNotdef`
+   * path in `insertSyntheticDottedCircles`. Undefined when no mark qualifies.
+   */
+  dottedCircleMarks?: number[];
+  /**
    * Pseudo-element box paint (DM-497): when this segment came from a
    * `::before` / `::after` whose computed style sets a non-trivial
    * `background-color` or `border-radius`, the renderer emits a `<rect>` of

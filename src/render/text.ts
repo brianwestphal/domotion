@@ -1057,7 +1057,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       }
     }
   }
-  const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder);
+  const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder, singleSeg?.dottedCircleMarks);
   if (result != null) {
     const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
       ? el.styles.textDecorationColor : segColor;

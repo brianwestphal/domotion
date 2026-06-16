@@ -19,6 +19,7 @@
 
 import { createColorNorm } from "./color-norm.js";
 import { createEmojiDetect } from "./emoji-detect.js";
+import { createDottedCircleDetect } from "./dotted-circle-detect.js";
 import { createFontMetrics } from "./font-metrics.js";
 import { createPlaceholderShown } from "./placeholder-shown.js";
 import { createPseudoRules } from "./pseudo-rules.js";
@@ -49,6 +50,7 @@ export const captureScript =
   // unchanged.
   const { normColor, normGradientColors } = createColorNorm();
   const { needsRaster, textNeedsRaster } = createEmojiDetect();
+  const { markGetsDottedCircle } = createDottedCircleDetect();
   const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules();
@@ -79,7 +81,7 @@ export const captureScript =
     isCustomCounterStyle,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
-  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster, normColor });
+  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster, normColor, markGetsDottedCircle });
   const { injectPseudoSegments } = createPseudoInjectHandler();
 
   const capture = (el) => {

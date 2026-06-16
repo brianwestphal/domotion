@@ -34,8 +34,11 @@ export type { CapturedElement, CaptureWarning } from "./capture/types.js";
 // DM-1133: the padding-inset content box of a selector on a live page — where
 // text actually starts inside a padded field, for imperative typing-overlay
 // callers (and the building block for DM-1132's overlay resolver).
-export { contentBox, boxAnchorPoint } from "./capture/content-box.js";
-export type { ContentBox, ContentBoxOptions, BoxAnchor } from "./capture/content-box.js";
+// DM-1139 (doc 63 §1): `borderBox` is the symmetric BORDER-box sibling, and
+// `resolveCursorTarget` is the border-box-center sugar the CLI cursor uses — so
+// imperative cursor choreography matches the declarative `cursor` resolution.
+export { contentBox, boxAnchorPoint, borderBox, resolveCursorTarget } from "./capture/content-box.js";
+export type { ContentBox, ContentBoxOptions, BoxAnchor, BorderBox, BorderBoxOptions } from "./capture/content-box.js";
 
 // ── Render ─────────────────────────────────────────────────────────────────
 export * from "./render/index.js";
