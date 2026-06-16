@@ -3746,7 +3746,13 @@ export function insertSyntheticDottedCircles(
       if (orphaned && coveredCircleSet != null && coveredCircleSet.has(i)
           && primaryFont.glyphForCodePoint(cp).id !== 0
           && primaryFont.glyphForCodePoint(0x25CC).id !== 0
-          && !fontAutoInsertsDottedCircle(primaryFont, ch)) {
+          && !fontAutoInsertsDottedCircle(primaryFont, ch)
+          // DM-1126: skip LEFT-reordering matras (pre-base vowels, e.g. Grantha
+          // U+11347/11348). Chrome paints them "matra ◌" (the matra reorders
+          // BEFORE the synthetic circle), not "◌ + centered-mark" — the centering
+          // here would mis-place them. They render correctly via the existing
+          // path; no Vedic combining mark (the motivating case) is a left matra.
+          && !isLeftReorderingMatra(cp)) {
         // DM-1126: covered mark Chrome circles (capture-detected) whose fontkit
         // primary won't auto-insert the ◌ (native-extractor Indic faces already
         // insert it — the guard above skips them to avoid a DOUBLE circle).
