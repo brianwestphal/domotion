@@ -725,10 +725,26 @@ function renderTypingOverlay(
 
     // Position track: hold at line 0 start until typing begins, then sweep each
     // line, then hold at the text end through the blink + disappear.
+    //
+    // DM-1204 (multi-line): a line ends and the next begins at the same instant
+    // (type timing is contiguous — line N+1 starts the ms line N finishes). The
+    // end-of-line stop (x = line width, row N) and the next line's left-margin
+    // stop (x = 0, row N+1) would therefore round to the SAME keyframe percent;
+    // CSS keeps the later declaration, dropping the end-of-line x so the caret
+    // stays pinned at x=0 and merely slides down each row. We keep percentages
+    // strictly increasing (nudging the carriage-return stop a hair past the
+    // line-end stop) so both survive — the jump back to the margin then happens
+    // over ~0.01% of the timeline, i.e. visually instant.
     const posStops: string[] = [`0%, ${typeStartPct} { transform: translate(0px, 0px); }`];
+    let lastPctNum = pctNum(typeStartMs, totalDuration);
+    const pushPosStop = (pn: number, x: number, y: number): void => {
+      const p = Math.max(pn, lastPctNum + 0.01);
+      posStops.push(`${p.toFixed(2)}% { transform: translate(${x}px, ${y}px); }`);
+      lastPctNum = p;
+    };
     for (const lt of lineTimings) {
-      posStops.push(`${pct(lt.startMs, totalDuration)} { transform: translate(0px, ${lt.li * lineHeight}px); }`);
-      posStops.push(`${pct(lt.endMs, totalDuration)} { transform: translate(${lt.len * charWidth}px, ${lt.li * lineHeight}px); }`);
+      pushPosStop(pctNum(lt.startMs, totalDuration), 0, lt.li * lineHeight);
+      pushPosStop(pctNum(lt.endMs, totalDuration), lt.len * charWidth, lt.li * lineHeight);
     }
     posStops.push(`${holdEndPct}, 100% { transform: translate(${endX}px, ${endY}px); }`);
 
@@ -825,6 +841,10 @@ function renderBlinkOverlay(
 
 function pct(ms: number, total: number): string {
   return `${((ms / total) * 100).toFixed(2)}%`;
+}
+
+function pctNum(ms: number, total: number): number {
+  return (ms / total) * 100;
 }
 
 /**

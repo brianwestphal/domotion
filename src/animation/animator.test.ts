@@ -369,6 +369,35 @@ describe("animator", () => {
     expect(svg).toMatch(/\.t0-rev0\s*{[^}]*\blinear\b[^}]*}/);
   });
 
+  it("DM-1204: multi-line typing caret tracks each line instead of sticking at x=0", () => {
+    const svg = generateAnimatedSvg({
+      width: 320,
+      height: 140,
+      // wrapWidth forces wrapping into multiple lines.
+      frames: [{ svgContent: `<rect/>`, duration: 6000, overlays: [{ kind: "typing", text: "hello world this is a long first line second", x: 10, y: 30, fontSize: 14, caret: true, wrapWidth: 220 }] }],
+    });
+    const block = svg.match(/@keyframes t0-caret-pos\s*{([\s\S]*?)}\s*@keyframes/)?.[1] ?? "";
+    const stops = [...block.matchAll(/([\d.]+)%(?:,\s*[\d.]+%)*\s*{\s*transform:\s*translate\(([\d.]+)px,\s*([\d.]+)px\)/g)].map((m) => ({
+      pct: parseFloat(m[1]),
+      x: parseFloat(m[2]),
+      y: parseFloat(m[3]),
+    }));
+    // Must actually wrap (more than one row of caret stops).
+    const rows = new Set(stops.map((s) => s.y));
+    expect(rows.size).toBeGreaterThan(1);
+    // No two caret stops may share a keyframe percentage — a collision drops the
+    // end-of-line x position (CSS keeps the later declaration), pinning the
+    // caret at x=0 for the whole line and sliding it straight down.
+    const pcts = stops.map((s) => s.pct);
+    expect(new Set(pcts).size).toBe(pcts.length);
+    // Every non-final row must reach a non-zero x (the end-of-line caret
+    // position survived rather than being clobbered by the next line's margin).
+    for (const y of rows) {
+      const maxX = Math.max(...stops.filter((s) => s.y === y).map((s) => s.x));
+      expect(maxX).toBeGreaterThan(0);
+    }
+  });
+
   it("DM-870: typing overlay without the caret option emits no caret", () => {
     const svg = generateAnimatedSvg({
       width: 200,
