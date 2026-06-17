@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.13.2] - 2026-06-17
+
+
+Based on the single commit:
+
+- Fix typing-overlay caret sticking at x=0 at the start of each line in multi-line text
+
 ## [0.13.1] - 2026-06-17
 
 
