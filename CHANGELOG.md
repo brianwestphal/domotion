@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.13.1] - 2026-06-17
+
+
+- Fix typing-overlay caret lagging behind revealed text during type-on animation
+
 ## [0.13.0] - 2026-06-17
 
 
