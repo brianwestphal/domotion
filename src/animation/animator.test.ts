@@ -357,6 +357,18 @@ describe("animator", () => {
     expect(svg).toMatch(/\.t0-caret\s*{[^}]*linear[^}]*step-end/);
   });
 
+  it("DM-1204: typing-overlay reveal clip sweeps linearly so it tracks the caret", () => {
+    const svg = generateAnimatedSvg({
+      width: 200,
+      height: 80,
+      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true }] }],
+    });
+    // The reveal-clip width animation must be `linear`, matching the caret's
+    // linear position track. A default (ease) timing function makes the reveal
+    // edge race ahead of the linear caret mid-sweep (caret appears to lag).
+    expect(svg).toMatch(/\.t0-rev0\s*{[^}]*\blinear\b[^}]*}/);
+  });
+
   it("DM-870: typing overlay without the caret option emits no caret", () => {
     const svg = generateAnimatedSvg({
       width: 200,

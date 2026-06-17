@@ -692,9 +692,15 @@ function renderTypingOverlay(
     parts.push(
       `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeHtml(line)}</text>`,
     );
+    // DM-1204: the reveal clip MUST sweep linearly so its right edge tracks the
+    // caret (whose position track is `linear`). Without an explicit timing
+    // function the width animation defaults to CSS `ease`, which races ~80%
+    // through the sweep at the time-midpoint while the linear caret is only at
+    // 50% — that desync read as the caret lagging ~10–20 chars behind the
+    // revealed text mid-type, even though the endpoints (parked state) matched.
     cssRules.push(`
     @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: 0; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: 0; } }
-    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s infinite; }`);
+    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s linear infinite; }`);
   });
 
   // Whole-overlay visibility — shared by every line's <text>.
