@@ -3373,6 +3373,39 @@ export function isLeftReorderingMatra(cp: number): boolean {
   return false;
 }
 
+// DM-1215: right-to-left SMP scripts that bear combining marks. When the
+// synthetic dotted circle is inserted for an orphaned mark in one of these,
+// Chrome paints the cell RTL — "mark ◌" (tofu LEFT, circle RIGHT) — not the
+// LTR "◌ mark". The mark renders at the cell origin and the ◌ to its right,
+// the same layout the pre-base left-matra branch uses. Inclusive [lo, hi].
+// (BMP RTL scripts — Hebrew / Arabic / Syriac / Thaana — keep the existing
+// non-synthetic paths and are intentionally out of scope here.)
+const RTL_SMP_SCRIPT_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x10A00, 0x10A5F], // Kharoshthi
+  [0x10AC0, 0x10AFF], // Manichaean
+  [0x10D00, 0x10D3F], // Hanifi Rohingya
+  [0x10D40, 0x10D8F], // Garay
+  [0x10E80, 0x10EBF], // Yezidi
+  [0x10EC0, 0x10EFF], // Arabic Extended-C
+  [0x10F00, 0x10F2F], // Old Sogdian
+  [0x10F30, 0x10F6F], // Sogdian
+  [0x10F70, 0x10FAF], // Old Uyghur
+  [0x10FB0, 0x10FDF], // Chorasmian
+  [0x10FE0, 0x10FFF], // Elymaic
+  [0x1E800, 0x1E8DF], // Mende Kikakui
+  [0x1E900, 0x1E95F], // Adlam
+  [0x1EC70, 0x1ECBF], // Indic Siyaq Numbers
+  [0x1ED00, 0x1ED4F], // Ottoman Siyaq Numbers
+  [0x1EE00, 0x1EEFF], // Arabic Mathematical Alphabetic Symbols
+];
+
+export function isRtlScriptCodepoint(cp: number): boolean {
+  for (const [lo, hi] of RTL_SMP_SCRIPT_RANGES) {
+    if (cp >= lo && cp <= hi) return true;
+  }
+  return false;
+}
+
 // DM-1026: does `cp` resolve to a `.notdef` (no real font in the chain covers
 // it)? Mirrors the coverage resolution in `splitTextIntoFontRuns`'s walk —
 // primary, then per-codepoint webfont variant, then the static fallback chain,
@@ -3738,11 +3771,16 @@ export function insertSyntheticDottedCircles(
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
-        if (isLeftReorderingMatra(cp)) {
-          // DM-1109: a pre-base (left) matra reorders BEFORE its base under the
-          // Universal Shaping Engine, so Chrome paints "mark ◌" (☐○). Emit the
-          // mark at the captured cell origin and the ◌ shifted right by the
-          // mark tofu's advance (the matra leads, so the ◌ clears its full box).
+        if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {
+          // "mark ◌" layout: the mark paints at the cell origin and the ◌ to its
+          // RIGHT. Two cases land here:
+          //   • DM-1109 — a pre-base (left) matra reorders BEFORE its base under
+          //     the Universal Shaping Engine.
+          //   • DM-1215 — an orphaned mark in an RTL SMP script (Sogdian, Old
+          //     Uyghur, Garay, …): Chrome lays the cell out right-to-left, so the
+          //     mark/tofu sits LEFT and the synthetic ◌ sits to its right.
+          // Either way the leading glyph clears its full box, so the ◌ shifts
+          // right by the mark tofu's advance.
           for (let k = 0; k < chLen; k++) outX.push(markX);
           outText += ch;
           outText += "◌";
