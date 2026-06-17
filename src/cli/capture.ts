@@ -17,6 +17,8 @@ import {
   executeScrollPattern,
   isDeviceChrome,
   DEVICE_CHROMES,
+  isChromeTheme,
+  CHROME_THEMES,
   launchChromium,
   logCaptureWarnings,
   optimizeSvg,
@@ -77,6 +79,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       mobile:             { type: "boolean" },
       chrome:             { type: "string" },
       "chrome-label":     { type: "string" },
+      "chrome-theme":     { type: "string" },
       "color-scheme":     { type: "string" },
       scroll:             { type: "string" },
       "scroll-speed":     { type: "string" },
@@ -98,6 +101,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   }
   if (values.chrome != null && !isDeviceChrome(values.chrome)) {
     throw new Error(`capture: --chrome expects one of ${DEVICE_CHROMES.join(", ")}, got "${values.chrome}"`);
+  }
+  if (values["chrome-theme"] != null && !isChromeTheme(values["chrome-theme"])) {
+    throw new Error(`capture: --chrome-theme expects one of ${CHROME_THEMES.join(", ")}, got "${values["chrome-theme"]}"`);
   }
 
   const input = positionals[0];
@@ -265,7 +271,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // DM-1206: wrap the finished capture in a device bezel. Nests the produced
     // SVG (no re-render), so glyph paths match the bare capture exactly.
     if (values.chrome != null && isDeviceChrome(values.chrome)) {
-      const framed = wrapInDeviceChrome(svg, values.chrome, clip[2], clip[3], { label: values["chrome-label"] });
+      const theme = isChromeTheme(values["chrome-theme"] ?? "") ? (values["chrome-theme"] as "light" | "dark") : undefined;
+      const framed = wrapInDeviceChrome(svg, values.chrome, clip[2], clip[3], { label: values["chrome-label"], theme });
       svg = framed.svg;
       log(`Wrapped in ${values.chrome} chrome (${framed.width}×${framed.height})`);
     }

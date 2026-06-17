@@ -16,6 +16,7 @@ import * as pkg from "./index.js";
 
 // Keep sorted. Every entry must have a row in docs/api.md.
 const EXPECTED_VALUE_EXPORTS = [
+  "CHROME_THEMES",
   "CURSOR_CATEGORIES",
   "CURSOR_GLYPHS",
   "DEVICE_CHROMES",
@@ -51,6 +52,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "getRenderTextMode",
   "gzipSvg",
   "interpolateConfigVars",
+  "isChromeTheme",
   "isDeviceChrome",
   "launchChromium",
   "logCaptureWarnings",

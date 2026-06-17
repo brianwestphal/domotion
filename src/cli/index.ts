@@ -74,6 +74,7 @@ capture options:
       --mobile             Emulate a mobile device (iOS UA, isMobile=true).
       --chrome <device>    Wrap the capture in a device bezel: "phone", "browser", "window".
       --chrome-label <s>   Text for the chrome bar (browser URL / window title).
+      --chrome-theme <s>   browser/window bezel theme: "dark" (default) | "light".
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
       --debug              Write a reproduction bundle next to the output
                            (.debug/ folder with capture.har, expected.png

@@ -34,6 +34,10 @@ export {
   wrapInDeviceChrome,
   isDeviceChrome,
   DEVICE_CHROMES,
+  isChromeTheme,
+  CHROME_THEMES,
   type DeviceChrome,
+  type ChromeTheme,
+  type DeviceChromeOptions,
   type FramedSvg,
 } from "./device-chrome.js";

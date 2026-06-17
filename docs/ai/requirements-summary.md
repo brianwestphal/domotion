@@ -35,10 +35,11 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 65 (`docs/65-device-chrome.md`, DM-1206 / DM-1211)** — `domotion capture
+- **Doc 65 (`docs/65-device-chrome.md`, DM-1206 / DM-1211 / DM-1212)** — `domotion capture
   --chrome <device>` wraps a capture in a hand-drawn device bezel: `phone`,
   `browser` (traffic lights + URL pill), `window` (title bar); `--chrome-label`
-  sets the browser URL / window title. `src/render/device-chrome.ts`
+  sets the browser URL / window title and `--chrome-theme dark|light` themes the
+  bezel (DM-1212). `src/render/device-chrome.ts`
   (`wrapInDeviceChrome`, optional `{ label }`) nests the *rendered* capture as a
   child `<svg>` rather than re-rendering the tree (re-rendering drops the system
   font to `.notdef` tofu). Pure-SVG + cross-platform (the label is the one live

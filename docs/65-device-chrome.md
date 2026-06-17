@@ -1,6 +1,6 @@
 # 65 — Device chrome (`--chrome <device>`)
 
-Status: **shipped** (DM-1206 phone; DM-1211 browser / window).
+Status: **shipped** (DM-1206 phone; DM-1211 browser / window; DM-1212 light/dark theme).
 
 `domotion capture … --chrome <device>` wraps a capture in a hand-drawn device
 bezel — a phone body, a browser window, a plain app window — so a marketing
@@ -29,6 +29,15 @@ listing the supported set.
 `--chrome-label <text>` sets the **browser** URL bar address or the **window**
 title; it's ignored by `phone`, and omitting it leaves an empty URL pill /
 blank title bar.
+
+`--chrome-theme <dark|light>` (DM-1212) themes the **browser** / **window**
+bezel — `dark` (default, matching the demo gallery) or `light` for captures of
+light-themed pages. It's an explicit flag rather than derived from
+`--color-scheme`, since the page's color scheme and the bezel you want around it
+are independent (you might capture a light page but want dark chrome, or vice
+versa). `phone` is theme-agnostic (titanium body). Light theme uses a
+`#e8e8ea` bar, a white screen backdrop, and a bordered white URL pill;
+traffic-light colors are unchanged in both.
 
 ## Devices
 
@@ -82,8 +91,8 @@ const { svg, width, height } = wrapInDeviceChrome(capture, "phone", 390, 844);
 - Combining `--chrome` with `--scroll` (an animated scroll capture nested in a
   bezel) nests an animated inner `<svg>` — it should work mechanically but is
   not yet a verified path; treat it as out of scope until tested.
-- The `browser` / `window` chrome is a single dark theme today (matching the
-  demo gallery's `#0d1117` aesthetic). A light variant — and/or following
-  `--color-scheme` — would be a reasonable future option.
+- The `browser` / `window` chrome ships `dark` (default) and `light` themes
+  (DM-1212) via `--chrome-theme`. Auto-deriving the theme from the capture's
+  dominant background, if ever wanted, would be a further option.
 - `site/scripts/build-install-demo.ts` still has its own inline phone preview;
   it can migrate to `wrapInDeviceChrome` when next touched.

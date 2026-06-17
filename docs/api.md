@@ -51,6 +51,8 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `wrapInDeviceChrome` | function | Wrap a finished capture SVG in a device bezel (`phone` / `browser` / `window`) — nests the capture as a child `<svg>` (no re-render) and returns `{ svg, width, height }`. Takes an optional `{ label }` (browser URL / window title). Pure-SVG, cross-platform. See `docs/65-device-chrome.md`. |
 | `isDeviceChrome` | function | Type-guard: is a string one of the supported `--chrome` devices? |
 | `DEVICE_CHROMES` | const | The readonly list of supported device-chrome names (`["phone", "browser", "window"]`). |
+| `isChromeTheme` | function | Type-guard: is a string one of the supported `--chrome-theme` values (`dark` / `light`)? |
+| `CHROME_THEMES` | const | The readonly list of browser/window chrome themes (`["dark", "light"]`). |
 | `registerWebfont` | function | Pre-register a webfont (family name + binary) so the renderer can shape glyphs against it. Use when capturing pages with custom fonts. |
 | `clearWebfonts` | function | Clear the global webfont registry. Useful between independent captures in the same process. |
 | `getGlyphDefs` | function | Read the accumulated `<defs>` (glyph paths) the renderer collected across calls. Used by frame-by-frame composers to share a single `<defs>` block. |

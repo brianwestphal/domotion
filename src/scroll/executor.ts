@@ -76,6 +76,18 @@ const DEFAULT_SPEED_PX_PER_SEC = 1500;
 const DEFAULT_MAX_TIMEOUT_MS   = 60_000;
 const PRESCROLL_BOTTOM_WAIT_MS = 400;
 const PRESCROLL_TOP_WAIT_MS    = 800;
+// DM-1213 / DM-684: cap how long a capture sits at each scroll anchor before
+// grabbing the tree, INDEPENDENT of the chunk's visual duration. The scroll
+// itself is an instant `window.scrollTo`, so this wait is purely a layout
+// settle — a fixed ~180 ms is plenty. Previously the wait was the full per-
+// chunk visual duration (`op.durationMs / numChunks`), which scales inversely
+// with scroll speed, so a slow cadence (e.g. 300 px/s) idled ~5× longer per
+// chunk and let un-frozen drift (IntersectionObserver CSS animations, scroll-
+// linked layout, third-party paint loops) advance further before each capture,
+// inflating the per-chunk diff. The OUTPUT animation pacing is unaffected: it's
+// built from `segmentStartMs`/`segmentEndMs` (`sceneTime += chunkDur`), not from
+// the real wall-clock spent here.
+const CAPTURE_SETTLE_CAP_MS = 180;
 
 // ── Pure helpers (no Playwright) ───────────────────────────────────────────
 
@@ -623,8 +635,11 @@ async function scrollTo(page: Page, selector: string | null, destX: number, dest
       if (el instanceof HTMLElement) { el.scrollLeft = x; el.scrollTop = y; }
     }, { sel: selector, x: destX, y: destY });
   }
-  // Wait the action's nominal duration plus a small settle for layout.
-  await page.waitForTimeout(durationMs + 50);
+  // DM-1213: settle layout, but cap the wait so it can't scale with the
+  // chunk's visual duration (the scroll is instant; only a short settle is
+  // needed). Decouples capture-time drift from the visual cadence — see
+  // CAPTURE_SETTLE_CAP_MS.
+  await page.waitForTimeout(Math.min(durationMs, CAPTURE_SETTLE_CAP_MS) + 50);
 }
 
 async function runPrescroll(page: Page, selector: string | null): Promise<void> {

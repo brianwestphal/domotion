@@ -29,6 +29,14 @@ export function isDeviceChrome(value: string): value is DeviceChrome {
   return (DEVICE_CHROMES as readonly string[]).includes(value);
 }
 
+/** Chrome theme for the browser / window bezels (DM-1212). `phone` is theme-agnostic. */
+export const CHROME_THEMES = ["dark", "light"] as const;
+export type ChromeTheme = (typeof CHROME_THEMES)[number];
+
+export function isChromeTheme(value: string): value is ChromeTheme {
+  return (CHROME_THEMES as readonly string[]).includes(value);
+}
+
 export interface DeviceChromeOptions {
   /**
    * Text shown in the chrome bar — the address in the `browser` URL bar, or the
@@ -36,7 +44,38 @@ export interface DeviceChromeOptions {
    * pill / blank title bar.
    */
   label?: string;
+  /**
+   * Bezel theme for `browser` / `window` (DM-1212). Default `"dark"` (matches
+   * the demo gallery). `"light"` suits captures of light-themed pages. Ignored
+   * by `phone` (the titanium body is theme-agnostic).
+   */
+  theme?: ChromeTheme;
 }
+
+/** Color palette for the browser / window chrome, per theme. */
+interface ChromePalette {
+  bar: string;       // chrome-bar / window body fill
+  screen: string;    // letterbox backdrop behind the nested capture
+  border: string;    // outer window border
+  hairline: string;  // separator under the bar
+  hairlineOpacity: string;
+  pill: string;      // browser URL-pill fill
+  pillBorder: string | null; // URL-pill border (light theme needs one for contrast)
+  glyph: string;     // lock glyph + label text
+}
+
+const PALETTES: Record<ChromeTheme, ChromePalette> = {
+  dark: {
+    bar: "#2b2b2e", screen: "#0d1117", border: "#3a3a3c",
+    hairline: "#000000", hairlineOpacity: "0.4",
+    pill: "#1c1c1e", pillBorder: null, glyph: "#8b949e",
+  },
+  light: {
+    bar: "#e8e8ea", screen: "#ffffff", border: "#d1d1d6",
+    hairline: "#c6c6c8", hairlineOpacity: "1",
+    pill: "#ffffff", pillBorder: "#d1d1d6", glyph: "#6e6e73",
+  },
+};
 
 export interface FramedSvg {
   /** The complete framed `<svg>` document. */
@@ -88,13 +127,14 @@ export function wrapInDeviceChrome(
   opts: DeviceChromeOptions = {},
 ): FramedSvg {
   const inner = innerOf(captureSvg);
+  const palette = PALETTES[opts.theme ?? "dark"];
   switch (device) {
     case "phone":
       return phoneBezel(inner, screenW, screenH);
     case "browser":
-      return windowFrame(inner, screenW, screenH, "browser", opts.label);
+      return windowFrame(inner, screenW, screenH, "browser", opts.label, palette);
     case "window":
-      return windowFrame(inner, screenW, screenH, "window", opts.label);
+      return windowFrame(inner, screenW, screenH, "window", opts.label, palette);
     default: {
       // Exhaustiveness guard — unreachable while DEVICE_CHROMES is the only source.
       const _never: never = device;
@@ -146,10 +186,10 @@ function trafficLights(barHeight: number): string {
 }
 
 /** A tiny padlock glyph (body rect + arc shackle), centered vertically on `cy`. */
-function lockGlyph(x: number, cy: number): string {
+function lockGlyph(x: number, cy: number, color: string): string {
   return (
-    `<rect x="${x}" y="${cy - 1}" width="9" height="7" rx="1.5" fill="#7d8590"/>` +
-    `<path d="M${x + 2} ${cy - 1} V${cy - 3.5} a2.5 2.5 0 0 1 5 0 V${cy - 1}" fill="none" stroke="#7d8590" stroke-width="1.2"/>`
+    `<rect x="${x}" y="${cy - 1}" width="9" height="7" rx="1.5" fill="${color}"/>` +
+    `<path d="M${x + 2} ${cy - 1} V${cy - 3.5} a2.5 2.5 0 0 1 5 0 V${cy - 1}" fill="none" stroke="${color}" stroke-width="1.2"/>`
   );
 }
 
@@ -168,6 +208,7 @@ function windowFrame(
   screenH: number,
   kind: "browser" | "window",
   label: string | undefined,
+  p: ChromePalette,
 ): FramedSvg {
   const BAR = kind === "browser" ? 44 : 36;
   const RADIUS = 11;
@@ -188,32 +229,33 @@ function windowFrame(
     const pillX = 80;
     const pillW = outerW - pillX - 16;
     const cy = BAR / 2;
+    const pillStroke = p.pillBorder != null ? ` stroke="${p.pillBorder}" stroke-width="1"` : "";
     barContent +=
-      `<rect x="${pillX}" y="${cy - 11}" width="${pillW}" height="22" rx="11" fill="#1c1c1e"/>` +
-      lockGlyph(pillX + 12, cy);
+      `<rect x="${pillX}" y="${cy - 11}" width="${pillW}" height="22" rx="11" fill="${p.pill}"${pillStroke}/>` +
+      lockGlyph(pillX + 12, cy, p.glyph);
     if (label != null && label !== "") {
       barContent +=
-        `<text x="${pillX + 28}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="#8b949e">${escapeXml(label)}</text>`;
+        `<text x="${pillX + 28}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${p.glyph}">${escapeXml(label)}</text>`;
     }
   } else if (label != null && label !== "") {
     // Centered window title.
     barContent +=
-      `<text x="${outerW / 2}" y="${BAR / 2 + 4}" text-anchor="middle" font-family="${SANS}" font-size="13" font-weight="600" fill="#8b949e">${escapeXml(label)}</text>`;
+      `<text x="${outerW / 2}" y="${BAR / 2 + 4}" text-anchor="middle" font-family="${SANS}" font-size="13" font-weight="600" fill="${p.glyph}">${escapeXml(label)}</text>`;
   }
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${outerW}" height="${outerH}" viewBox="0 0 ${outerW} ${outerH}">` +
     `<defs><clipPath id="${clipId}"><path d="${contentClip}"/></clipPath></defs>` +
     // Window body (the chrome-bar color; the content covers the rest).
-    `<rect width="${outerW}" height="${outerH}" rx="${RADIUS}" fill="#2b2b2e"/>` +
-    // Screen backdrop so any letterboxing reads as black.
-    `<g clip-path="url(#${clipId})"><rect x="0" y="${BAR}" width="${screenW}" height="${screenH}" fill="#0d1117"/>` +
+    `<rect width="${outerW}" height="${outerH}" rx="${RADIUS}" fill="${p.bar}"/>` +
+    // Screen backdrop so any letterboxing reads as the theme's screen color.
+    `<g clip-path="url(#${clipId})"><rect x="0" y="${BAR}" width="${screenW}" height="${screenH}" fill="${p.screen}"/>` +
     // Nested capture, clipped to the bottom-rounded content area.
     `<svg x="0" y="${BAR}" width="${screenW}" height="${screenH}" viewBox="0 0 ${screenW} ${screenH}">${inner}</svg></g>` +
     // Chrome-bar furniture + a hairline under the bar and around the window.
     barContent +
-    `<line x1="0" y1="${BAR}" x2="${outerW}" y2="${BAR}" stroke="#000" stroke-width="1" opacity="0.4"/>` +
-    `<rect x="0.5" y="0.5" width="${outerW - 1}" height="${outerH - 1}" rx="${RADIUS}" fill="none" stroke="#3a3a3c" stroke-width="1"/>` +
+    `<line x1="0" y1="${BAR}" x2="${outerW}" y2="${BAR}" stroke="${p.hairline}" stroke-width="1" opacity="${p.hairlineOpacity}"/>` +
+    `<rect x="0.5" y="0.5" width="${outerW - 1}" height="${outerH - 1}" rx="${RADIUS}" fill="none" stroke="${p.border}" stroke-width="1"/>` +
     `</svg>`;
 
   return { svg, width: outerW, height: outerH };
