@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.13.3] - 2026-06-17
+
+
+Based on the single commit:
+
+- Fix multi-line typing animations revealing all lines at once in Safari
+
 ## [0.13.2] - 2026-06-17
 
 
