@@ -3657,9 +3657,16 @@ export function insertSyntheticDottedCircles(
    *  The UNCOVERED case stays driven by `codepointResolvesToNotdef` below. */
   dottedCircleMarks?: number[],
 ): { text: string; xOffsets: number[] | undefined } {
-  if (!/\p{M}/u.test(text)) return { text, xOffsets };
-  const coveredCircleSet = dottedCircleMarks != null && dottedCircleMarks.length > 0
-    ? new Set(dottedCircleMarks) : null;
+  // Fast path: nothing to do when the text has no combining marks AND the
+  // capture probe flagged no codepoints (the latter can be category-Lo cluster
+  // letters — e.g. Soyombo — that carry no \p{M}, DM-1157).
+  if (!/\p{M}/u.test(text) && (dottedCircleMarks == null || dottedCircleMarks.length === 0)) {
+    return { text, xOffsets };
+  }
+  // An EMPTY array means the capture probe ran and circled nothing — that is
+  // authoritative (it vetoes the static block heuristic), so it maps to an empty
+  // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
+  const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
   const primaryFontKey = resolveFontKey(fontFamily);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
   if (primaryFont == null) return { text, xOffsets };
@@ -3715,9 +3722,19 @@ export function insertSyntheticDottedCircles(
     const ch = text.slice(i, i + chLen);
     const isMark = /\p{M}/u.test(ch);
     const isWs = chLen === 1 && /\s/.test(ch);
-    if (isMark) {
+    // DM-1126 / DM-1157 etc.: the capture layer probed Chrome's real shaper and
+    // recorded which orphaned codepoints it circles (`coveredCircleSet`). When
+    // that data is present it is the AUTHORITY — it both adds circles the static
+    // block table misses (no-table blocks: Sogdian, Miao, Garay, … and category-
+    // Lo cluster letters like Soyombo U+11A84) and VETOES ones it would wrongly
+    // add (e.g. Sinhala U+0D81, which Chrome leaves blank). The block-table
+    // heuristic (`usesComplexShaperDottedCircle`) is the fallback only for
+    // captures with no probe data (older trees / the programmatic API).
+    const probeFlagged = coveredCircleSet != null && coveredCircleSet.has(i);
+    if (isMark || probeFlagged) {
       const orphaned = !clusterHasBase;
-      if (orphaned && usesComplexShaperDottedCircle(cp)
+      const wantUncoveredCircle = coveredCircleSet != null ? probeFlagged : usesComplexShaperDottedCircle(cp);
+      if (orphaned && wantUncoveredCircle
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
@@ -3743,7 +3760,13 @@ export function insertSyntheticDottedCircles(
         i += chLen;
         continue;
       }
-      if (orphaned && coveredCircleSet != null && coveredCircleSet.has(i)
+      // DM-1212/DM-1157: this covered-path CENTERS the codepoint on the ◌ (for
+      // combining marks with negative-x ink). It must stay gated to category-M
+      // MARKS — a COVERED category-Lo letter that the ink probe false-positives
+      // (e.g. a wide Egyptian hieroglyph U+130C3) would otherwise get a spurious
+      // centered ◌ stamped over it. Uncovered orphaned Lo cluster letters
+      // (Soyombo) are handled by the notdef path above instead.
+      if (isMark && orphaned && coveredCircleSet != null && coveredCircleSet.has(i)
           && primaryFont.glyphForCodePoint(cp).id !== 0
           && primaryFont.glyphForCodePoint(0x25CC).id !== 0
           && !fontAutoInsertsDottedCircle(primaryFont, ch)

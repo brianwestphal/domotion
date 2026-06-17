@@ -889,6 +889,13 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         // existing `codepointResolvesToNotdef` path. `clusterHasBase` tracks
         // orphan-ness: a spacing base char (or whitespace reset) clears it.
         const dottedCircleMarks = [];
+        // Whether the dotted-circle probe was CONSULTED for this segment (an
+        // orphaned complex-shaper mark/letter was present). Lets the renderer
+        // distinguish "probe ran, circled nothing" (emit []) from "no probe"
+        // (undefined → fall back to the static block heuristic) without bloating
+        // every plain-text segment. DM-1194: Sinhala U+0D81 needs this — Chrome
+        // leaves it blank, so the probe must be able to VETO the block table.
+        let probeConsulted = false;
         let clusterHasBase = false;
         let utf16Idx = 0;
         for (let ci = 0; ci < line.chars.length; ci++) {
@@ -896,18 +903,29 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           const cp = cRec.ch.codePointAt(0);
           const isMark = /\p{M}/u.test(cRec.ch);
           const isWs = /^\s+$/.test(cRec.ch);
-          if (markGetsDottedCircle != null && isMark && !clusterHasBase && cp != null
-              && markGetsDottedCircle(cp, cRec.ch, cs.fontFamily)) {
-            dottedCircleMarks.push(utf16Idx);
+          // DM-1157 etc.: also probe SMP category-Lo cluster-initial letters
+          // (e.g. Soyombo U+11A84), which the USE shaper circles when orphaned.
+          // Scoped to SMP (cp >= 0x10000) so BMP Lo (CJK, Latin, …) isn't probed.
+          const isClusterLetter = !isMark && cp != null && cp >= 0x10000 && /\p{Lo}/u.test(cRec.ch);
+          let flaggedHere = false;
+          if (markGetsDottedCircle != null && (isMark || isClusterLetter) && !clusterHasBase && cp != null) {
+            probeConsulted = true;
+            if (markGetsDottedCircle(cp, cRec.ch, cs.fontFamily)) {
+              dottedCircleMarks.push(utf16Idx);
+              flaggedHere = true;
+            }
           }
-          if (isMark) {
-            // an already-flagged ◌ becomes the cluster base, so consecutive
-            // orphaned marks share one circle — mirror the renderer's logic.
-            if (dottedCircleMarks.length > 0 && dottedCircleMarks[dottedCircleMarks.length - 1] === utf16Idx) clusterHasBase = true;
+          if (flaggedHere) {
+            // a flagged (circled) codepoint becomes its own cluster base, so
+            // consecutive orphaned marks share one circle — mirror the renderer.
+            clusterHasBase = true;
+          } else if (isMark) {
+            // an unflagged combining mark stays attached to its preceding base
+            // (no orphan-state change).
           } else if (isWs) {
             clusterHasBase = false;
           } else {
-            clusterHasBase = true;
+            clusterHasBase = true; // a normal base char (incl. uncircled letters)
           }
           const nextCh = ci + 1 < line.chars.length ? line.chars[ci + 1].ch : '';
           const nextCp = nextCh ? nextCh.codePointAt(0) : 0;
@@ -956,7 +974,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           height: line.bottom - line.top,
           xOffsets: line.xOffsets.map((v) => v - vp.x),
           rasterGlyphs: rasterGlyphs.length > 0 ? rasterGlyphs : undefined,
-          dottedCircleMarks: dottedCircleMarks.length > 0 ? dottedCircleMarks : undefined,
+          dottedCircleMarks: dottedCircleMarks.length > 0 ? dottedCircleMarks : (probeConsulted ? [] : undefined),
         });
         minLeft = Math.min(minLeft, line.left);
         minTop = Math.min(minTop, line.top);

@@ -58,11 +58,16 @@ export const createDottedCircleDetect = () => {
     return { cnt, w: cnt > 0 ? (maxx - minx + 1) : 0 };
   };
 
-  // Does Chrome auto-insert a U+25CC before this lone mark in `font`?
+  // Does Chrome auto-insert a U+25CC before this lone mark/cluster-letter in
+  // `font`? Probes category M (combining marks) AND category Lo (some Brahmic
+  // cluster-initial LETTERS — e.g. Soyombo U+11A84 — that the Universal Shaping
+  // Engine also circles when orphaned). The ink heuristic below is the real gate
+  // (a normal letter renders WITHOUT a circle, so bare ≠ comb → false), so
+  // including Lo only widens what's probed, never forces a false positive.
   const markGetsDottedCircle = (cp, ch, font) => {
     if (cp < 0x0900) return false;
     if (font == null || font === '') return false;
-    if (!/\p{M}/u.test(ch)) return false;
+    if (!/\p{M}|\p{Lo}/u.test(ch)) return false;
     const key = cp + '|' + font;
     const hit = _cache.get(key);
     if (hit !== undefined) return hit;
