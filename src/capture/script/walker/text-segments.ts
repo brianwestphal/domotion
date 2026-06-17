@@ -903,10 +903,12 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
           const cp = cRec.ch.codePointAt(0);
           const isMark = /\p{M}/u.test(cRec.ch);
           const isWs = /^\s+$/.test(cRec.ch);
-          // DM-1157 etc.: also probe SMP category-Lo cluster-initial letters
-          // (e.g. Soyombo U+11A84), which the USE shaper circles when orphaned.
-          // Scoped to SMP (cp >= 0x10000) so BMP Lo (CJK, Latin, …) isn't probed.
-          const isClusterLetter = !isMark && cp != null && cp >= 0x10000 && /\p{Lo}/u.test(cRec.ch);
+          // DM-1157 / DM-1215: also probe SMP category-Lo cluster-initial letters
+          // (e.g. Soyombo U+11A84) and category-Lm modifier letters (e.g. Kirat
+          // Rai U+16D6B/6C), which the USE shaper circles when orphaned. Scoped to
+          // SMP (cp >= 0x10000) so BMP Lo / Lm (CJK, Latin spacing modifiers, …)
+          // isn't probed.
+          const isClusterLetter = !isMark && cp != null && cp >= 0x10000 && /\p{Lo}|\p{Lm}/u.test(cRec.ch);
           let flaggedHere = false;
           if (markGetsDottedCircle != null && (isMark || isClusterLetter) && !clusterHasBase && cp != null) {
             probeConsulted = true;
