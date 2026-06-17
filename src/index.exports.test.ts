@@ -18,6 +18,7 @@ import * as pkg from "./index.js";
 const EXPECTED_VALUE_EXPORTS = [
   "CURSOR_CATEGORIES",
   "CURSOR_GLYPHS",
+  "DEVICE_CHROMES",
   "DemoRecorder",
   "ScrollExecutionError",
   "ScrollPatternError",
@@ -50,6 +51,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "getRenderTextMode",
   "gzipSvg",
   "interpolateConfigVars",
+  "isDeviceChrome",
   "launchChromium",
   "logCaptureWarnings",
   "optimizeSvg",
@@ -62,6 +64,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "runActions",
   "setRenderTextMode",
   "validateAnimateConfig",
+  "wrapInDeviceChrome",
   "wrapSvg",
 ] as const;
 

@@ -72,6 +72,7 @@ capture options:
                            Default: progress messages are on.
       --warnings           Log capture warnings to stderr after capture.
       --mobile             Emulate a mobile device (iOS UA, isMobile=true).
+      --chrome <device>    Wrap the capture in a device bezel. Devices: "phone".
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
       --debug              Write a reproduction bundle next to the output
                            (.debug/ folder with capture.har, expected.png

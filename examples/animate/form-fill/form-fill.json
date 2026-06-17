@@ -5,41 +5,45 @@
   "frames": [
     {
       "input": "./signup.html",
-      "duration": 900,
-      "transition": { "type": "cut", "duration": 0 }
+      "actions": [{ "type": "focus", "selector": ".f-name" }],
+      "duration": 1900,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "typing", "text": "Ada Lovelace", "x": 102, "y": 181, "fontSize": 14, "color": "#e6edf3", "speed": 85, "caret": true }
+      ]
     },
     {
       "continue": true,
       "actions": [
-        { "type": "click", "selector": ".f-name" },
-        { "type": "fill", "selector": ".f-name", "value": "Ada Lovelace" }
+        { "type": "fill", "selector": ".f-name", "value": "Ada Lovelace" },
+        { "type": "focus", "selector": ".f-email" }
       ],
-      "duration": 800,
-      "transition": { "type": "cut", "duration": 0 }
+      "duration": 2200,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "typing", "text": "ada@analytical.dev", "x": 102, "y": 257, "fontSize": 14, "color": "#e6edf3", "speed": 75, "caret": true }
+      ]
     },
     {
       "continue": true,
       "actions": [
-        { "type": "click", "selector": ".f-email" },
-        { "type": "fill", "selector": ".f-email", "value": "ada@analytical.dev" }
+        { "type": "fill", "selector": ".f-email", "value": "ada@analytical.dev" },
+        { "type": "focus", "selector": ".f-pw" }
       ],
-      "duration": 800,
-      "transition": { "type": "cut", "duration": 0 }
+      "duration": 1700,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "typing", "text": "•••••••••••", "x": 102, "y": 333, "fontSize": 14, "color": "#e6edf3", "speed": 75, "caret": true }
+      ]
     },
     {
       "continue": true,
       "actions": [
-        { "type": "click", "selector": ".f-pw" },
-        { "type": "fill", "selector": ".f-pw", "value": "correct-horse-battery" }
+        { "type": "fill", "selector": ".f-pw", "value": "sk-9Qx2vLp4" },
+        { "type": "click", "selector": ".submit" }
       ],
-      "duration": 800,
-      "transition": { "type": "cut", "duration": 0 }
-    },
-    {
-      "continue": true,
-      "actions": [{ "type": "click", "selector": ".submit" }],
-      "wait": 120,
-      "duration": 2000,
+      "wait": 150,
+      "duration": 2400,
       "transition": { "type": "cut", "duration": 0 }
     }
   ]

@@ -48,6 +48,9 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `elementTreeToSvg` | function | Render a captured element tree into a **complete `<svg>` document** (the obvious entry point for "give me a standalone SVG file"). Composes `elementTreeToSvgInner` + `wrapSvg`. |
 | `elementTreeToSvgInner` | function | Render a captured tree into the **inner** body markup (no `<svg>` wrapper) — use this only for multi-frame composition where you emit one outer `<svg>` yourself. Previously called `elementTreeToSvg` (renamed in DM-950 to reflect what it actually emits). |
 | `wrapSvg` | function | Wrap rendered body markup in a top-level `<svg>` element with viewBox + color-scheme attrs. |
+| `wrapInDeviceChrome` | function | Wrap a finished capture SVG in a device bezel (`phone`, …) — nests the capture as a child `<svg>` (no re-render) and returns `{ svg, width, height }`. Pure-SVG, cross-platform. See `docs/65-device-chrome.md`. |
+| `isDeviceChrome` | function | Type-guard: is a string one of the supported `--chrome` devices? |
+| `DEVICE_CHROMES` | const | The readonly list of supported device-chrome names (currently `["phone"]`). |
 | `registerWebfont` | function | Pre-register a webfont (family name + binary) so the renderer can shape glyphs against it. Use when capturing pages with custom fonts. |
 | `clearWebfonts` | function | Clear the global webfont registry. Useful between independent captures in the same process. |
 | `getGlyphDefs` | function | Read the accumulated `<defs>` (glyph paths) the renderer collected across calls. Used by frame-by-frame composers to share a single `<defs>` block. |

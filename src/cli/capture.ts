@@ -15,10 +15,13 @@ import {
   cullElementsOutsideViewBox,
   elementTreeToSvgInner,
   executeScrollPattern,
+  isDeviceChrome,
+  DEVICE_CHROMES,
   launchChromium,
   logCaptureWarnings,
   optimizeSvg,
   parseScrollPattern,
+  wrapInDeviceChrome,
   wrapSvg,
 } from "../index.js";
 import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
@@ -72,6 +75,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "no-optimize":      { type: "boolean" },
       warnings:           { type: "boolean" },
       mobile:             { type: "boolean" },
+      chrome:             { type: "string" },
       "color-scheme":     { type: "string" },
       scroll:             { type: "string" },
       "scroll-speed":     { type: "string" },
@@ -90,6 +94,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   if (positionals.length > 1) throw new Error(`capture: unexpected extra argument "${positionals[1]}"`);
   if (values.optimize === true && values["no-optimize"] === true) {
     throw new Error("capture: --optimize and --no-optimize are mutually exclusive");
+  }
+  if (values.chrome != null && !isDeviceChrome(values.chrome)) {
+    throw new Error(`capture: --chrome expects one of ${DEVICE_CHROMES.join(", ")}, got "${values.chrome}"`);
   }
 
   const input = positionals[0];
@@ -253,6 +260,13 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       clearEmbeddedFonts(); // DM-839: reset embedded-font builder before this single-frame render
       const inner = elementTreeToSvgInner(tree, clip[2], clip[3]);
       svg = wrapSvg(inner, clip[2], clip[3]);
+    }
+    // DM-1206: wrap the finished capture in a device bezel. Nests the produced
+    // SVG (no re-render), so glyph paths match the bare capture exactly.
+    if (values.chrome != null && isDeviceChrome(values.chrome)) {
+      const framed = wrapInDeviceChrome(svg, values.chrome, clip[2], clip[3]);
+      svg = framed.svg;
+      log(`Wrapped in ${values.chrome} chrome (${framed.width}×${framed.height})`);
     }
     if (flags.optimize) {
       svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => Promise.resolve(optimizeSvg(svg)));

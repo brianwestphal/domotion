@@ -27,3 +27,13 @@ export {
 // lazy first-render download. No-op-returns-null on unsupported platforms /
 // offline; the renderer falls back to fontkit either way.
 export { acquireGlyphHelper } from "./helper-acquire.js";
+
+// DM-1206: wrap a finished capture SVG in a device bezel (phone, …). Pure-SVG,
+// cross-platform; nests the capture rather than re-rendering it.
+export {
+  wrapInDeviceChrome,
+  isDeviceChrome,
+  DEVICE_CHROMES,
+  type DeviceChrome,
+  type FramedSvg,
+} from "./device-chrome.js";

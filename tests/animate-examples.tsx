@@ -66,9 +66,13 @@ const EXAMPLES: Example[] = [
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 700 200"`)) f.push("missing viewBox 700x200");
       if (count(svg, /class="f f-\d+"/g) !== 3) f.push("expected 3 frame groups");
-      // Typing overlay (frame 0) + intra-frame width animation (frame 1).
+      // Frame 0 types the command with a blinking caret; frame 1 fills the
+      // progress bar by revealing a full-width fill via a clip-path inset
+      // (not by animating width% on a captured zero-width rect, which doesn't
+      // paint — that was the old bug).
       if (!/typing|domotion-typing|<text/i.test(svg)) f.push("missing typing-overlay text");
       if (!/@keyframes f1-/.test(svg)) f.push("missing intra-frame animation keyframes on frame 1 (progress fill)");
+      if (!/clip-path|clipPath|inset\(/.test(svg)) f.push("missing clip-path reveal on the progress fill");
       return f;
     },
   },
@@ -88,13 +92,16 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 720 400"`)) f.push("missing viewBox 720x400");
-      // 3 frames: before(cut) → after(push-left) → after(cut). The trailing
-      // identical after-cut frame holds solid as the last frame, working around
-      // the push-left last-frame fade (tracked separately as a bug) so the
-      // "after" punchline doesn't dissolve. See docs/64-demo-gallery.md.
-      if (count(svg, /class="f f-\d+"/g) !== 3) f.push("expected 3 frame groups");
-      if (!/@keyframes fp-1/.test(svg)) f.push("missing push (fp-1) keyframes on the after frame");
+      // 2 frames: before(push-left) → after(push-left). Both frames carry the
+      // slide so `after` slides IN as `before` slides out (push-left is a
+      // coordinated pair); `after` is the last frame and holds solid via the
+      // DM-1207 last-frame hold.
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups");
+      if (!/@keyframes fp-0/.test(svg) || !/@keyframes fp-1/.test(svg)) f.push("both frames should carry push (fp-) keyframes");
       if (!/translateX/.test(svg)) f.push("push-left should use translateX");
+      // The last (after) frame must HOLD solid — transform translateX(0) at
+      // 100%, not slide out to -720px (DM-1207 regression guard).
+      if (!/@keyframes fp-1 \{[^@]*100%\s*\{\s*transform:\s*translateX\(0\)/.test(svg)) f.push("after frame should hold at translateX(0) to 100% (DM-1207)");
       return f;
     },
   },
@@ -127,12 +134,15 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 720 360"`)) f.push("missing viewBox 720x360");
-      // 4 onboarding steps with typing overlays, push-left between them, plus a
-      // trailing held cut frame so the final step holds solid (push-left
-      // last-frame fade workaround — see docs/64-demo-gallery.md).
-      if (count(svg, /class="f f-\d+"/g) !== 5) f.push("expected 5 frame groups (4 steps + held final)");
-      if (count(svg, /@keyframes fp-\d+/g) !== 3) f.push("expected 3 push (fp-) transform keyframes");
+      // 4 onboarding steps, each push-left, each with a typing overlay (caret)
+      // and a delayed clip-path wipe that reveals the command's results only
+      // after it finishes typing. The last step holds solid (DM-1207).
+      if (count(svg, /class="f f-\d+"/g) !== 4) f.push("expected 4 frame groups");
+      if (count(svg, /@keyframes fp-\d+/g) !== 4) f.push("expected 4 push (fp-) keyframes (all steps slide)");
       if (!/<text/.test(svg)) f.push("missing typing-overlay text");
+      if (!/clip-path|inset\(/.test(svg)) f.push("missing clip-path results reveal");
+      // Last step (fp-3) holds at translateX(0) to 100%, not sliding out (DM-1207).
+      if (!/@keyframes fp-3 \{[^@]*100%\s*\{\s*transform:\s*translateX\(0\)/.test(svg)) f.push("last step should hold at translateX(0) to 100% (DM-1207)");
       return f;
     },
   },
@@ -141,10 +151,12 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 560 480"`)) f.push("missing viewBox 560x480");
-      // 5 frames: empty → name → email → password → submitted, each driven by
-      // click+fill actions on a continued live page; the final click reveals a
-      // success message.
-      if (count(svg, /class="f f-\d+"/g) !== 5) f.push("expected 5 frame groups");
+      // 4 frames on a continued live page: each field is TYPED with a caret
+      // typing overlay, then `fill`ed for real so it persists while the next
+      // field types; the final frame clicks submit and reveals a success
+      // message. (Typing overlays render <text>.)
+      if (count(svg, /class="f f-\d+"/g) !== 4) f.push("expected 4 frame groups");
+      if (!/<text/.test(svg)) f.push("missing typing-overlay text (fields should type, not instant-fill)");
       if (!/Account created/.test(svg)) f.push("missing submit-success message in final frame");
       return f;
     },

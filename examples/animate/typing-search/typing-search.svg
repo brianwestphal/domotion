@@ -23,6 +23,9 @@
     .t0-rev0 { animation: t0-rev0 3.20s linear infinite; }
     @keyframes t0-vis { 0%, 9.38% { opacity: 0; } 10.31% { opacity: 1; } 95.31% { opacity: 1; } 98.44%, 100% { opacity: 0; } }
     .t0-text { animation: t0-vis 3.20s infinite; }
+    @keyframes t0-caret-pos { 0%, 9.38% { transform: translate(0px, 0px); } 9.38% { transform: translate(0px, 0px); } 48.75% { transform: translate(134.4px, 0px); } 95.31%, 100% { transform: translate(134.4px, 0px); } }
+    @keyframes t0-caret-blink { 0%, 9.38% { opacity: 0; } 10.31% { opacity: 1; } 48.75% { opacity: 1; } 57.03% { opacity: 0; } 65.31% { opacity: 1; } 73.59% { opacity: 0; } 81.88% { opacity: 1; } 90.16% { opacity: 0; } 98.44%, 100% { opacity: 0; } }
+    .t0-caret { animation: t0-caret-pos 3.20s linear infinite, t0-caret-blink 3.20s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">
@@ -44,5 +47,6 @@
   </g>
   <defs><clipPath id="t0-clip0"><rect class="t0-rev0" x="133" y="116" width="0.01px" height="20" /></clipPath></defs>
   <text class="t0-text" x="133" y="132" fill="#e6edf3" font-size="16" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#t0-clip0)">how to install</text>
+  <rect class="t0-caret" x="133" y="118" width="2" height="16" fill="#e6edf3" />
   </g>
 </svg>

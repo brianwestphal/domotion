@@ -3,17 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <style>
-  html, body { margin: 0; }
+  html, body { margin: 0; height: 100%; }
   body { background: #0d1117; font-family: "SF Mono", Menlo, Monaco, monospace; }
   .bar { height: 36px; background: #161b22; display: flex; align-items: center; gap: 8px; padding: 0 14px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; }
   .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
+  .title { margin-left: 8px; font-size: 12px; color: #6e7681; }
   .body { padding: 16px; font-size: 14px; line-height: 22px; color: #c9d1d9; white-space: pre; }
   .prompt { color: #3fb950; }
 </style>
 </head>
 <body>
-  <div class="bar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
-  <div class="body"><span class="prompt">$</span></div>
+  <div class="bar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">zsh — ~/project</span></div>
+  <div class="body"><span class="prompt">$</span> </div>
 </body>
 </html>

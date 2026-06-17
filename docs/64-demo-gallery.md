@@ -66,8 +66,8 @@ cd site/scripts/demos/hero-card && bash capture.sh
 
 - **Source:** `site/scripts/demos/hero-card/hero-card.html`
 - **Command:** `site/scripts/demos/hero-card/capture.sh` — `domotion capture
-  hero-card.html --width 720 --height 280 --optimize -o hero-card.svg`
-- **Output:** `hero-card.svg` (720×280)
+  hero-card.html --width 720 --height 212 --optimize -o hero-card.svg`
+- **Output:** `hero-card.svg` (720×212)
 - **Demonstrates:** a gradient-filled logo tile with a drop shadow, a tight
   letter-spaced headline, and a monospace command chip — all the everyday
   "marketing card" ingredients in a single static capture. Mirrors the
@@ -97,22 +97,16 @@ cd site/scripts/demos/hero-card && bash capture.sh
 ### Phone-framed mobile screen
 
 - **Source:** `site/scripts/demos/phone-screen/mobile-screen.html`
-- **Build:** `capture.sh` → capture at `--width 390 --height 844 --mobile`,
-  then `build-phone-screen.ts` wraps the capture in a phone bezel.
-- **Output:** `mobile-screen.svg` (390×844, the bare capture) +
-  `phone-screen.svg` (418×872, bezel-wrapped)
+- **Command:** `capture.sh` — `domotion capture mobile-screen.html --width 390
+  --height 844 --mobile --chrome phone --optimize -o phone-screen.svg`
+- **Output:** `phone-screen.svg` (418×872)
 - **Demonstrates:** a mobile-viewport capture presented inside device chrome
-  (rounded body, dynamic-island notch, home indicator). The bezel-wrapped form
-  is the marketing asset; the bare capture is the raw single-frame output.
-- **Caveat — no `--chrome` flag yet.** Device chrome is not a CLI feature
-  today, so the bezel is hand-drawn in `build-phone-screen.ts` (the same
-  approach `site/scripts/build-install-demo.ts` uses for its inline phone
-  preview). It nests the *committed capture SVG* inside the bezel rather than
-  re-rendering the element tree, so the glyph paths match the standalone
-  capture exactly (re-rendering through a second path-render dropped the system
-  font and fell back to `.notdef` tofu). When a `--chrome <device>` flag lands,
-  the whole demo collapses to one `domotion capture … --chrome phone` line and
-  the build script can be retired. That flag is tracked as a follow-up feature.
+  (rounded body, dynamic-island notch, home indicator) via the `--chrome phone`
+  flag (DM-1206, `docs/65-device-chrome.md`). The flag nests the rendered
+  capture inside the bezel rather than re-rendering the element tree, so the
+  glyph paths match the bare capture exactly (re-rendering through a second
+  path-render drops the system font to `.notdef` tofu). The bezel is pure SVG,
+  so the demo is cross-platform.
 
 ---
 
@@ -144,16 +138,17 @@ regression suite and embedded on the gallery page.
 
 - **Source:** `examples/animate/before-after-refactor/` (`before.html`,
   `after.html`, `before-after-refactor.json`)
-- **Output:** `before-after-refactor.svg` (720×400, 3 frames, push-left)
+- **Output:** `before-after-refactor.svg` (720×400, 2 frames, push-left)
 - **Demonstrates:** a `push-left` transition between two semantically-distinct
   code cards (a verbose loop → its `filter`/`reduce` refactor).
-- **Why three frames for two files?** A push-left frame that is *last* in the
-  loop currently fades out across its hold (the DM-1148 "hold last frame solid"
-  fix is wired into the crossfade/cut emit path but not the push-left path), so
-  a naive 2-frame `before → after` dissolves the "after" punchline. The config
-  works around it by repeating `after.html` with a trailing `cut` frame, so
-  "after" is a held middle frame followed by an identical held last frame. When
-  the push-left hold-to-end gap is fixed, collapse this back to two frames.
+- **Both frames carry `push-left`.** A push-left transition is a coordinated
+  pair: the outgoing frame slides off to the left *while* the incoming frame
+  slides in from the right. The incoming frame only slides in if its own
+  transition routes it through the slide path — so `after` must also be
+  `push-left`, not `cut` (a `cut` incoming frame would pop in only *after* the
+  push, leaving a blank gap during the slide). `after` is the last frame and
+  holds solid to the end via the last-frame hold (the slide-out is suppressed
+  for the final frame unless `loopFade` is set).
 
 ## Tier 3 — animated, fancy
 
@@ -163,26 +158,40 @@ folder registered in the regression suite and embedded on the gallery page.
 ### Multi-step terminal onboarding
 
 - **Source:** `examples/animate/terminal-onboarding/` (`step-1-clone.html` …
-  `step-4-run.html`, `step-4-run-final.html`, `terminal-onboarding.json`)
-- **Output:** `terminal-onboarding.svg` (720×360, 5 frames)
+  `step-4-run.html`, `terminal-onboarding.json`)
+- **Output:** `terminal-onboarding.svg` (720×360, 4 frames)
 - **Demonstrates:** four terminal panes (clone → install → configure → run),
-  each with terminal chrome, a `typing` overlay that types that step's command
-  (all four overlays share one `x`/`y` anchor over the prompt slot), and a
-  `push-left` transition between steps.
-- **5 frames for 4 steps:** the trailing `step-4-run-final.html` (cut, command
-  baked in statically) holds the final step solid — the push-left last-frame
-  fade workaround again. The typed command on step 4 is an *overlay*, so the
-  held duplicate carries the command as static text instead.
+  each with terminal chrome, a `typing` overlay (with a `caret`) that types that
+  step's command (all four overlays share one `x`/`y` anchor over the prompt
+  slot), and a `push-left` transition between steps. The last step holds solid
+  via the last-frame hold (DM-1207).
+- **Results reveal after the command types.** Each step's command output sits in
+  a `.results` block. The block is authored *fully visible* (so the capture
+  keeps it), and a delayed intra-frame `clipPath` wipe
+  (`inset(0 0 100% 0)` → `inset(0 0 0 0)`) hides it from frame start, then
+  reveals it top-to-bottom *after* the typing finishes — so the output never
+  appears before its command. Authoring the block `opacity: 0` instead does
+  **not** work: a fully-transparent subtree is dropped at capture, leaving
+  nothing to reveal (the same trap as a `width: 0` progress bar). The reveal
+  `delay` ≈ the command's type time (chars × `speed`) plus a short beat.
 
 ### Form fill flow
 
 - **Source:** `examples/animate/form-fill/` (`signup.html`, `form-fill.json`)
-- **Output:** `form-fill.svg` (560×480, 5 frames)
-- **Demonstrates:** a signup form driven entirely by `actions` — each frame
-  `continue`s the live page and runs `click` + `fill` on the next field, then a
-  final frame clicks submit and a small `wait` lets the success message render.
-  The `type=password` field masks its value; the success reveal proves a real
-  interaction outcome is captured.
+- **Output:** `form-fill.svg` (560×480, 4 frames)
+- **Demonstrates:** a signup form filled out with **simulated typing**. Each
+  frame `continue`s the live page, `focus`es the next field, and a `typing`
+  overlay (with a caret) types into it; the *following* frame `fill`s that field
+  for real so its value persists while the next field types. The last frame
+  clicks submit and a small `wait` lets the success banner render.
+- **Why a typing overlay + `fill` handoff?** `fill` alone sets a value
+  instantly — no per-character typing or cursor. The overlay supplies the
+  animated typing + caret; the real `fill` on the next frame makes the value
+  stick (an overlay only paints during its own frame). The form inputs are set
+  to **monospace** to match the overlay's font so the typed text and the
+  `fill`ed value line up seamlessly across the cut. The password field types
+  bullet glyphs and `fill`s a real value the browser masks — the dot counts
+  match.
 
 ### Scroll-through a long page
 

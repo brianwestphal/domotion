@@ -41,6 +41,60 @@ describe("last-frame loop fade (DM-1148)", () => {
   });
 });
 
+// DM-1207: the DM-1148 "hold last frame solid" rule must also cover the slide
+// paths (push-left / scroll). Before this fix, a push-left LAST frame used the
+// slide-out keyframes, which ramp opacity 1 -> 0 across the frame's hold — so a
+// 2-frame "before -> after" push-left washed out the "after" punchline the whole
+// time it was on screen. The fix: the last slide frame slides in then HOLDS
+// (transform 0, opacity 1) to 100%, and the loop hard-cuts back to frame 0.
+describe("push-left / scroll last-frame hold (DM-1207)", () => {
+  const cfg = (type: "push-left" | "scroll", loopFade?: boolean) => ({
+    width: 100, height: 100,
+    frames: [
+      { svgContent: `<rect id="a" width="100" height="100" fill="red"/>`, duration: 500, transition: { type } as const },
+      { svgContent: `<rect id="b" width="100" height="100" fill="blue"/>`, duration: 500, transition: { type } as const },
+    ],
+    ...(loopFade != null ? { loopFade } : {}),
+  });
+
+  // The fv-1 / fp-1 keyframe blocks have nested `{…}`, so span one nesting level.
+  const block = (svg: string, name: string) =>
+    svg.match(new RegExp(`@keyframes ${name} \\{(?:[^{}]|\\{[^}]*\\})*\\}`))?.[0] ?? "";
+
+  for (const type of ["push-left", "scroll"] as const) {
+    it(`holds the last ${type} frame solid to 100% by default (opacity 1, no slide-out)`, () => {
+      const svg = generateAnimatedSvg(cfg(type));
+      const fv = block(svg, "fv-1");
+      const fp = block(svg, "fp-1");
+      // Opacity held to the end (1 at 100%), NOT faded out (no opacity 0 at 100%).
+      expect(fv).toMatch(/100%\s*\{\s*opacity:\s*1/);
+      expect(fv).not.toMatch(/100%\s*\{\s*opacity:\s*0/);
+      // Transform held at translate(0) to 100% — no slide-out to -100px.
+      expect(fp).toMatch(/100%\s*\{\s*transform:\s*translate[XY]\(0\)/);
+      expect(fp).not.toMatch(/100%\s*\{\s*transform:\s*translate[XY]\(-\d/);
+    });
+
+    it(`still slides the last ${type} frame OUT when loopFade is true`, () => {
+      const fp = block(generateAnimatedSvg(cfg(type, true)), "fp-1");
+      // loopFade restores the cross-dissolve loop: the frame slides off-screen.
+      expect(fp).toMatch(/100%\s*\{\s*transform:\s*translate[XY]\(-\d/);
+    });
+  }
+
+  it("does not affect a NON-last push-left frame (frame 0 still slides out)", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect id="a" width="100" height="100"/>`, duration: 500, transition: { type: "push-left" } },
+        { svgContent: `<rect id="b" width="100" height="100"/>`, duration: 500, transition: { type: "cut" } },
+      ],
+    });
+    const fp0 = block(svg, "fp-0");
+    // Frame 0 is not last → it must still slide out to the left.
+    expect(fp0).toMatch(/transform:\s*translateX\(-\d/);
+  });
+});
+
 describe("dedupeFrameIds (DM-1145)", () => {
   const f = (svgContent: string) => ({ svgContent, duration: 100 });
 

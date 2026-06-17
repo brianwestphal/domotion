@@ -61,15 +61,12 @@
     @keyframes fp-2 {
       0%, 58.87% { transform: translateX(640px); }
       66.67% { transform: translateX(0); }
-      92.31% { transform: translateX(0); }
-      100.00% { transform: translateX(-640px); }
-      100.00%, 100% { transform: translateX(-640px); }
+      100% { transform: translateX(0); }
     }
     @keyframes fv-2 {
       0%, 58.87% { opacity: 0; }
       58.97% { opacity: 1; }
-      100.00% { opacity: 1; }
-      100.00%, 100% { opacity: 0; }
+      100% { opacity: 1; }
     }
     @keyframes fd-2 {
       0% { visibility: hidden; }

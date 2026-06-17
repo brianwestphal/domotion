@@ -35,6 +35,12 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 65 (`docs/65-device-chrome.md`, DM-1206)** — `domotion capture
+  --chrome <device>` wraps a capture in a hand-drawn device bezel.
+  `src/render/device-chrome.ts` (`wrapInDeviceChrome`) nests the *rendered*
+  capture as a child `<svg>` rather than re-rendering the tree (re-rendering
+  drops the system font to `.notdef` tofu). Pure-SVG, cross-platform. `phone`
+  shipped; `browser`/`window` are a follow-up.
 - **Doc 64 (`docs/64-demo-gallery.md`, DM-214..223)** — the progressive
   **demo gallery** surfaced on the manual's *Guides → Demo gallery* page. Each
   demo is a self-contained folder under `site/scripts/demos/<demo>/` (HTML

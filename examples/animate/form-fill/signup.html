@@ -17,7 +17,9 @@
   input {
     width: 100%; box-sizing: border-box; background: #0d1117; border: 1px solid #30363d;
     border-radius: 9px; padding: 11px 12px; font-size: 14px; color: #e6edf3;
-    font-family: inherit; outline: none;
+    /* Monospace so the per-field typing overlay (which renders monospace) hands
+       off seamlessly to the real `fill`ed value on the next frame. */
+    font-family: 'SF Mono', Menlo, Monaco, ui-monospace, monospace; outline: none;
   }
   input:focus { border-color: #79b8ff; box-shadow: 0 0 0 3px rgba(121,184,255,0.18); }
   button {

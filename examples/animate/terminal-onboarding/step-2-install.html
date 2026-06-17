@@ -15,6 +15,9 @@
   .body { padding: 18px 20px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; font-size: 13.5px; line-height: 1.7; color: #cdd6f4; min-height: 168px; }
   .step { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #89b4fa; margin-bottom: 10px; }
   .prompt { white-space: pre; }
+  /* Results captured fully visible; the intra-frame clip-path wipe hides them
+     from frame start, then reveals top-to-bottom after the command types. */
+  .results { }
   .g { color: #a6e3a1; } .b { color: #89b4fa; } .d { color: #6c7086; } .y { color: #f9e2af; }
   .cmdslot { display: inline-block; min-width: 1px; }
 </style>
@@ -31,10 +34,12 @@
       <div class="body">
         <div class="step">Step 2 · Install</div>
         <div class="prompt"><span class="g">➜</span> <span class="b">web</span> <span class="cmdslot"></span></div>
-        <div class="d">⠹ resolving dependencies…</div>
-        <div class="d">added 412 packages, audited 413 in 6s</div>
-        <div class="d">found 0 vulnerabilities</div>
-        <div><span class="g">✓</span> Dependencies installed</div>
+        <div class="results">
+          <div class="d">⠹ resolving dependencies…</div>
+          <div class="d">added 412 packages, audited 413 in 6s</div>
+          <div class="d">found 0 vulnerabilities</div>
+          <div><span class="g">✓</span> Dependencies installed</div>
+        </div>
       </div>
     </div>
   </div>

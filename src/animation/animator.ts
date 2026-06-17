@@ -424,6 +424,12 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       ? pct(timeOffset - prevTransDur, totalDuration)
       : startPct;
 
+    // DM-1207: the last frame holds solid to 100% (no loop cross-dissolve)
+    // unless `loopFade` is set — same rule the crossfade/cut path applies via
+    // DM-1148 (see emitCrossfadeOrCutFrame). For the slide paths (push-left /
+    // scroll) this means: slide in, then hold (no slide-out / fade-out).
+    const holdLastFrame = i === frames.length - 1 && config.loopFade !== true;
+
     if (transType === "push-left") {
       // Push: slide in from right, slide out to left
       frameGroups.push(
@@ -436,7 +442,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // Window is [enterStartPct .. transEndPct] (when the slide has fully
       // exited the viewBox); 0.01% pad on each side keeps the snap inside the
       // existing opacity:0 bookend.
-      keyframes.push(slideKeyframes(i, "X", width, entersViaPush, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec));
+      keyframes.push(slideKeyframes(i, "X", width, entersViaPush, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame));
 
     } else if (transType === "scroll") {
       // DM-609: `scroll` now means real geometric scroll between two frames
@@ -451,7 +457,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
         `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${frame.svgContent}\n  </g></g>`,
       );
 
-      keyframes.push(slideKeyframes(i, "Y", height, entersViaScroll, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec));
+      keyframes.push(slideKeyframes(i, "Y", height, entersViaScroll, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame));
 
     } else if (transType === "magic-move" && frame.magicMove != null) {
       // DM-898: magic-move. Frame i holds [start..holdEnd] then HARD-CUTS out;
@@ -909,17 +915,39 @@ function slideKeyframes(
   visStart: string,
   visEnd: string,
   totalSec: number,
+  /** DM-1207: the last frame, when the loop must NOT cross-dissolve, slides in
+   *  and then HOLDS solid (transform 0, opacity 1, visible) to 100% — no
+   *  slide-out / fade-out — and the loop hard-cuts back to frame 0. Mirrors the
+   *  crossfade/cut path's DM-1148 holdToEnd. Without it the slide-out keyframes
+   *  ramp the last frame to opacity 0 across its whole hold, washing it out. */
+  holdToEnd = false,
 ): string {
+  const enterBound = padBefore(parseFloat(enterStartPct), KEYFRAME_EPSILON.slide, 2);
+  if (holdToEnd) {
+    return `
+    @keyframes fp-${i} {
+      0%, ${enterBound}% { transform: translate${axis}(${entersSliding ? size : 0}px); }
+      ${startPct} { transform: translate${axis}(0); }
+      100% { transform: translate${axis}(0); }
+    }
+    @keyframes fv-${i} {
+      0%, ${enterBound}% { opacity: 0; }
+      ${enterStartPct} { opacity: 1; }
+      100% { opacity: 1; }
+    }${buildDisplayKeyframes(`fd-${i}`, visStart, "100")}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
+    .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`;
+  }
   return `
     @keyframes fp-${i} {
-      0%, ${padBefore(parseFloat(enterStartPct), KEYFRAME_EPSILON.slide, 2)}% { transform: translate${axis}(${entersSliding ? size : 0}px); }
+      0%, ${enterBound}% { transform: translate${axis}(${entersSliding ? size : 0}px); }
       ${startPct} { transform: translate${axis}(0); }
       ${holdEndPct} { transform: translate${axis}(0); }
       ${transEndPct} { transform: translate${axis}(-${size}px); }
       ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { transform: translate${axis}(-${size}px); }
     }
     @keyframes fv-${i} {
-      0%, ${padBefore(parseFloat(enterStartPct), KEYFRAME_EPSILON.slide, 2)}% { opacity: 0; }
+      0%, ${enterBound}% { opacity: 0; }
       ${enterStartPct} { opacity: 1; }
       ${transEndPct} { opacity: 1; }
       ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { opacity: 0; }

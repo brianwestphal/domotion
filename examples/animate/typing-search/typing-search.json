@@ -15,7 +15,8 @@
           "y": 132,
           "fontSize": 16,
           "color": "#e6edf3",
-          "speed": 90
+          "speed": 90,
+          "caret": true
         }
       ]
     }
