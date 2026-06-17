@@ -398,6 +398,24 @@ describe("animator", () => {
     }
   });
 
+  it("DM-1205: typing reveal clip hides with a non-zero width (WebKit empty-clip bug)", () => {
+    const svg = generateAnimatedSvg({
+      width: 320,
+      height: 140,
+      frames: [{ svgContent: `<rect/>`, duration: 6000, overlays: [{ kind: "typing", text: "hello world this is a long first line second", x: 10, y: 30, fontSize: 14, caret: true, wrapWidth: 220 }] }],
+    });
+    // WebKit/Safari treats a zero-area clip path as "no clip" and paints the
+    // whole element, so a `width: 0` hidden state made not-yet-typed lines show
+    // in full. The hidden state must therefore use a tiny non-zero width.
+    // The static clip rects must not be width="0".
+    expect(svg).not.toMatch(/class="t0-rev\d+"[^>]*\bwidth="0"/);
+    // The reveal keyframes must not collapse the hidden state to exactly 0.
+    for (const block of svg.matchAll(/@keyframes t0-rev\d+\s*{([^}]*)}/g)) {
+      expect(block[1]).not.toMatch(/width:\s*0\s*[;}]/);
+      expect(block[1]).toMatch(/width:\s*0\.\d+px/); // tiny non-zero hidden width
+    }
+  });
+
   it("DM-870: typing overlay without the caret option emits no caret", () => {
     const svg = generateAnimatedSvg({
       width: 200,

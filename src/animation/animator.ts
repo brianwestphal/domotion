@@ -610,6 +610,14 @@ function renderTypingOverlay(
   const speed = overlay.speed ?? 60;
   const fontSize = overlay.fontSize ?? 14;
   const charWidth = fontSize * 0.6;                 // monospace cell (overlay font is monospace)
+  // DM-1205: the typewriter reveal hides not-yet-typed text with a width-0 clip
+  // rect. Chrome renders a zero-area clip path as "clip everything" (text
+  // hidden, correct), but WebKit/Safari treats an EMPTY clip as "no clip" and
+  // paints the element in full — so on multi-line overlays every line past the
+  // first showed its whole text immediately (the shared text opacity is already
+  // 1 while the line waits its turn). Hiding with a tiny non-zero width keeps
+  // the clip non-empty so WebKit clips it too; 0.01px reveals no visible pixel.
+  const hiddenW = "0.01px";
   const lineHeight = Math.round(fontSize * 1.35);
   const color = overlay.color ?? "#e6edf3";
   const typeStartMs = frameStart + delay;
@@ -688,7 +696,7 @@ function renderTypingOverlay(
     lineTimings.push({ li, startMs: lineStartMs, endMs: lineEndMs, len: line.length });
     cumChars += line.length;
 
-    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="0" height="${textHeight}" /></clipPath></defs>`);
+    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
     parts.push(
       `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeHtml(line)}</text>`,
     );
@@ -698,8 +706,10 @@ function renderTypingOverlay(
     // through the sweep at the time-midpoint while the linear caret is only at
     // 50% — that desync read as the caret lagging ~10–20 chars behind the
     // revealed text mid-type, even though the endpoints (parked state) matched.
+    // DM-1205: the hidden state uses `hiddenW` (a tiny non-zero width), not 0,
+    // so WebKit's empty-clip-path fallback doesn't paint the whole line.
     cssRules.push(`
-    @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: 0; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: 0; } }
+    @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: ${hiddenW}; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: ${hiddenW}; } }
     .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s linear infinite; }`);
   });
 

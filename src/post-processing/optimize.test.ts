@@ -18,6 +18,16 @@ describe("optimizeSvg", () => {
     expect(out.length).toBeLessThan(SAMPLE_SVG.length);
     expect(out).toMatch(/<path\b/);
   });
+
+  it("DM-1205: preserves a tiny non-zero width in CSS (does not round 0.01px to 0)", () => {
+    // The typewriter reveal hides not-yet-typed lines with a sub-pixel clip
+    // width to dodge WebKit's empty-clip-path bug. minifyStyles must keep it
+    // non-zero — rounding it to `width:0` would reintroduce the Safari bug.
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><style>@keyframes r{0%{width:0.01px}100%{width:50px}}</style><rect width="0.01px" height="10"/></svg>`;
+    const out = optimizeSvg(svg);
+    expect(out).not.toMatch(/width:\s*0\s*[;}]/);
+    expect(out).toMatch(/width:\s*\.?0?\.0\d*px/);
+  });
 });
 
 describe("gzipSvg", () => {
