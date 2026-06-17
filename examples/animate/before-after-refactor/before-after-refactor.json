@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 720,
+  "height": 400,
+  "frames": [
+    {
+      "input": "./before.html",
+      "duration": 1800,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "input": "./after.html",
+      "duration": 700,
+      "transition": { "type": "push-left", "duration": 500 }
+    },
+    {
+      "input": "./after.html",
+      "duration": 2200,
+      "transition": { "type": "cut", "duration": 0 }
+    }
+  ]
+}

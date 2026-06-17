@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 560,
+  "height": 480,
+  "frames": [
+    {
+      "input": "./signup.html",
+      "duration": 900,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "continue": true,
+      "actions": [
+        { "type": "click", "selector": ".f-name" },
+        { "type": "fill", "selector": ".f-name", "value": "Ada Lovelace" }
+      ],
+      "duration": 800,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "continue": true,
+      "actions": [
+        { "type": "click", "selector": ".f-email" },
+        { "type": "fill", "selector": ".f-email", "value": "ada@analytical.dev" }
+      ],
+      "duration": 800,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "continue": true,
+      "actions": [
+        { "type": "click", "selector": ".f-pw" },
+        { "type": "fill", "selector": ".f-pw", "value": "correct-horse-battery" }
+      ],
+      "duration": 800,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "continue": true,
+      "actions": [{ "type": "click", "selector": ".submit" }],
+      "wait": 120,
+      "duration": 2000,
+      "transition": { "type": "cut", "duration": 0 }
+    }
+  ]
+}

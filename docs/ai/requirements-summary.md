@@ -35,6 +35,14 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 64 (`docs/64-demo-gallery.md`, DM-214..223)** — the progressive
+  **demo gallery** surfaced on the manual's *Guides → Demo gallery* page. Each
+  demo is a self-contained folder under `site/scripts/demos/<demo>/` (HTML
+  source + `capture.sh`/`build-*.ts` + committed golden SVG); display copies
+  live in `site/assets/img/demos/`. Tier 1 (single-capture: hero card, pricing
+  table, code block, phone-framed screen) is shipped; Tier 2/3 (animated)
+  reuse the runnable `examples/animate/` configs and land incrementally. Notes
+  the missing `--chrome <device>` flag behind the hand-drawn phone bezel.
 - **Doc 54 (`docs/54-svg-review-tool.md`, DM-946)** — the published
   `svg-review` CLI for single-fixture render-fidelity bug reports.
 - **Doc 55 (`docs/55-debug-mode-capture.md`, DM-945)** — the

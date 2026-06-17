@@ -60,6 +60,7 @@ export const SECTIONS: Section[] = [
     blurb: "Cookbook recipes for the most common things people build.",
     pages: [
       { slug: "guides/single-frame",     title: "Capture a single frame" },
+      { slug: "guides/demo-gallery",     title: "Demo gallery" },
       { slug: "guides/animated-demo",    title: "Build an animated demo" },
       { slug: "guides/overlays",         title: "Typing & tap overlays" },
       { slug: "guides/fonts",            title: "Fonts & non-Latin scripts" },

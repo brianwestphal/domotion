@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 640,
+  "height": 320,
+  "frames": [
+    {
+      "input": "./tabs.html",
+      "duration": 1400,
+      "transition": { "type": "crossfade", "duration": 300 }
+    },
+    {
+      "continue": true,
+      "actions": [{ "type": "click", "selector": ".tab-2" }],
+      "duration": 1400,
+      "transition": { "type": "crossfade", "duration": 300 }
+    },
+    {
+      "continue": true,
+      "actions": [{ "type": "click", "selector": ".tab-3" }],
+      "duration": 1600,
+      "transition": { "type": "crossfade", "duration": 300 }
+    }
+  ]
+}

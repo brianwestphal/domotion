@@ -1,0 +1,44 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 720,
+  "height": 360,
+  "frames": [
+    {
+      "input": "./step-1-clone.html",
+      "duration": 1700,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "typing", "text": "git clone https://github.com/acme/web.git", "x": 105, "y": 170, "fontSize": 13.5, "color": "#cdd6f4", "speed": 45 }
+      ]
+    },
+    {
+      "input": "./step-2-install.html",
+      "duration": 1500,
+      "transition": { "type": "push-left", "duration": 420 },
+      "overlays": [
+        { "kind": "typing", "text": "npm install", "x": 105, "y": 170, "fontSize": 13.5, "color": "#cdd6f4", "speed": 70 }
+      ]
+    },
+    {
+      "input": "./step-3-configure.html",
+      "duration": 1500,
+      "transition": { "type": "push-left", "duration": 420 },
+      "overlays": [
+        { "kind": "typing", "text": "npm run setup", "x": 105, "y": 170, "fontSize": 13.5, "color": "#cdd6f4", "speed": 70 }
+      ]
+    },
+    {
+      "input": "./step-4-run.html",
+      "duration": 1300,
+      "transition": { "type": "push-left", "duration": 420 },
+      "overlays": [
+        { "kind": "typing", "text": "npm run dev", "x": 105, "y": 170, "fontSize": 13.5, "color": "#cdd6f4", "speed": 70 }
+      ]
+    },
+    {
+      "input": "./step-4-run-final.html",
+      "duration": 1800,
+      "transition": { "type": "cut", "duration": 0 }
+    }
+  ]
+}

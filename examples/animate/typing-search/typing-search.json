@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 720,
+  "height": 260,
+  "frames": [
+    {
+      "input": "./search-bar.html",
+      "duration": 3200,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        {
+          "kind": "typing",
+          "text": "how to install",
+          "x": 133,
+          "y": 132,
+          "fontSize": 16,
+          "color": "#e6edf3",
+          "speed": 90
+        }
+      ]
+    }
+  ]
+}

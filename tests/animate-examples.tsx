@@ -84,6 +84,85 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    name: "before-after-refactor",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 720 400"`)) f.push("missing viewBox 720x400");
+      // 3 frames: before(cut) → after(push-left) → after(cut). The trailing
+      // identical after-cut frame holds solid as the last frame, working around
+      // the push-left last-frame fade (tracked separately as a bug) so the
+      // "after" punchline doesn't dissolve. See docs/64-demo-gallery.md.
+      if (count(svg, /class="f f-\d+"/g) !== 3) f.push("expected 3 frame groups");
+      if (!/@keyframes fp-1/.test(svg)) f.push("missing push (fp-1) keyframes on the after frame");
+      if (!/translateX/.test(svg)) f.push("push-left should use translateX");
+      return f;
+    },
+  },
+  {
+    name: "tab-switcher",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 640 320"`)) f.push("missing viewBox 640x320");
+      // 3 frames driven by click actions (.tab-2, .tab-3) on a continued live
+      // page, composited with crossfade (per-frame fv- groups, no element merge).
+      if (count(svg, /class="f f-\d+"/g) !== 3) f.push("expected 3 frame groups");
+      if (!/@keyframes fv-2/.test(svg)) f.push("missing fv-2 (crossfade should composite all 3 frames)");
+      if (/@keyframes t\d+\s*{/.test(svg)) f.push("found merge-pipeline tN keyframes — crossfade should not merge");
+      return f;
+    },
+  },
+  {
+    name: "typing-search",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 720 260"`)) f.push("missing viewBox 720x260");
+      if (count(svg, /class="f f-\d+"/g) !== 1) f.push("expected 1 frame group");
+      // The typing overlay reveals "how to install" into the search field.
+      if (!/<text/.test(svg)) f.push("missing typing-overlay text");
+      return f;
+    },
+  },
+  {
+    name: "terminal-onboarding",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 720 360"`)) f.push("missing viewBox 720x360");
+      // 4 onboarding steps with typing overlays, push-left between them, plus a
+      // trailing held cut frame so the final step holds solid (push-left
+      // last-frame fade workaround — see docs/64-demo-gallery.md).
+      if (count(svg, /class="f f-\d+"/g) !== 5) f.push("expected 5 frame groups (4 steps + held final)");
+      if (count(svg, /@keyframes fp-\d+/g) !== 3) f.push("expected 3 push (fp-) transform keyframes");
+      if (!/<text/.test(svg)) f.push("missing typing-overlay text");
+      return f;
+    },
+  },
+  {
+    name: "form-fill",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 560 480"`)) f.push("missing viewBox 560x480");
+      // 5 frames: empty → name → email → password → submitted, each driven by
+      // click+fill actions on a continued live page; the final click reveals a
+      // success message.
+      if (count(svg, /class="f f-\d+"/g) !== 5) f.push("expected 5 frame groups");
+      if (!/Account created/.test(svg)) f.push("missing submit-success message in final frame");
+      return f;
+    },
+  },
+  {
+    name: "scroll-landing",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 480 640"`)) f.push("missing viewBox 480x640");
+      if (count(svg, /class="f f-\d+"/g) !== 1) f.push("expected 1 frame group");
+      // A landing page scrolled top→bottom via a scroll block: nested scroll
+      // composite <svg> animated with translate3d; the sticky nav stays put.
+      if (count(svg, /<svg/g) < 2) f.push("missing nested scroll-composite <svg>");
+      if (!/translate3d/.test(svg)) f.push("scroll composite should animate the inner content (translate3d)");
+      return f;
+    },
+  },
+  {
     name: "scroll-feed",
     check: (svg) => {
       const f: string[] = [];

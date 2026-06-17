@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 480,
+  "height": 640,
+  "frames": [
+    {
+      "input": "./landing.html",
+      "duration": 7000,
+      "scroll": {
+        "pattern": "down:bottom/5s",
+        "prescroll": false
+      }
+    }
+  ]
+}

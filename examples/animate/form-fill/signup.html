@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; height: 100%; }
+  .bg {
+    width: 100%; height: 100%; box-sizing: border-box;
+    background: #0d1117; color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card { width: 380px; background: #161b22; border: 1px solid #30363d; border-radius: 16px; padding: 26px 28px; box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+  h2 { margin: 0 0 4px; font-size: 21px; }
+  .sub { margin: 0 0 20px; font-size: 13px; color: #8b949e; }
+  label { display: block; font-size: 12px; color: #8b949e; margin: 14px 0 6px; }
+  input {
+    width: 100%; box-sizing: border-box; background: #0d1117; border: 1px solid #30363d;
+    border-radius: 9px; padding: 11px 12px; font-size: 14px; color: #e6edf3;
+    font-family: inherit; outline: none;
+  }
+  input:focus { border-color: #79b8ff; box-shadow: 0 0 0 3px rgba(121,184,255,0.18); }
+  button {
+    margin-top: 20px; width: 100%; padding: 12px 0; border: none; border-radius: 9px;
+    background: linear-gradient(135deg, #79b8ff, #d2a8ff); color: #0d1117;
+    font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+  }
+  .success { display: none; margin-top: 16px; padding: 12px 14px; border-radius: 9px;
+    background: rgba(86,211,100,0.12); border: 1px solid rgba(86,211,100,0.4);
+    color: #56d364; font-size: 13px; font-weight: 600; }
+  .success.show { display: block; }
+</style>
+</head>
+<body>
+  <div class="bg">
+    <form class="card" onsubmit="return false;">
+      <h2>Create your account</h2>
+      <p class="sub">Start shipping demos in under a minute.</p>
+
+      <label for="name">Full name</label>
+      <input id="name" class="f-name" type="text" autocomplete="off" />
+
+      <label for="email">Work email</label>
+      <input id="email" class="f-email" type="email" autocomplete="off" />
+
+      <label for="pw">Password</label>
+      <input id="pw" class="f-pw" type="password" autocomplete="off" />
+
+      <button class="submit" type="button"
+        onclick="document.querySelector('.success').classList.add('show')">Create account</button>
+
+      <div class="success">✓ Account created — check your inbox to verify.</div>
+    </form>
+  </div>
+</body>
+</html>

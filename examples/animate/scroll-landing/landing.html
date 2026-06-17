@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .nav {
+    position: sticky; top: 0; height: 52px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; background: #0d1117; border-bottom: 1px solid #21262d;
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; }
+  .logo { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg,#79b8ff,#d2a8ff); display: flex; align-items: center; justify-content: center; color: #0d1117; }
+  .navcta { font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 8px; background: #1f6feb; }
+  section { padding: 56px 28px; }
+  .hero { text-align: center; padding-top: 64px; }
+  .hero h1 { font-size: 40px; line-height: 1.12; letter-spacing: -0.02em; margin: 0; }
+  .hero p { font-size: 16px; color: #8b949e; max-width: 360px; margin: 16px auto 0; line-height: 1.55; }
+  .grad { background: linear-gradient(135deg,#79b8ff,#d2a8ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #79b8ff; margin-bottom: 12px; }
+  .features { display: grid; gap: 16px; }
+  .feat { background: #161b22; border: 1px solid #21262d; border-radius: 14px; padding: 20px; }
+  .feat .ic { font-size: 26px; }
+  .feat h3 { margin: 10px 0 6px; font-size: 18px; }
+  .feat p { margin: 0; font-size: 14px; color: #8b949e; line-height: 1.5; }
+  .quote { background: #161b22; border-radius: 18px; padding: 32px 26px; text-align: center; }
+  .quote blockquote { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 500; }
+  .quote .by { margin-top: 16px; font-size: 13px; color: #8b949e; }
+  .cta { text-align: center; }
+  .cta h2 { font-size: 30px; margin: 0 0 18px; letter-spacing: -0.01em; }
+  .cta .btn { display: inline-block; padding: 14px 28px; border-radius: 11px; background: linear-gradient(135deg,#79b8ff,#d2a8ff); color: #0d1117; font-weight: 700; font-size: 16px; }
+  footer { padding: 28px; text-align: center; color: #6e7681; font-size: 13px; border-top: 1px solid #21262d; }
+</style>
+</head>
+<body>
+  <div class="nav">
+    <div class="brand"><span class="logo">◐</span> Domotion</div>
+    <div class="navcta">Start free</div>
+  </div>
+
+  <section class="hero">
+    <h1>Ship demos that<br><span class="grad">just load.</span></h1>
+    <p>Turn any rendered page into one self-contained, animatable SVG — pixel-faithful and crisp at any scale.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Why teams switch</div>
+    <div class="features">
+      <div class="feat"><div class="ic">📐</div><h3>Pixel-faithful</h3><p>Matches Chromium's painted output on your platform — fonts, gradients, shadows, all of it.</p></div>
+      <div class="feat"><div class="ic">🪶</div><h3>Self-contained</h3><p>Fonts and images embed inline. One file drops into an &lt;img&gt; and lazy-loads with the page.</p></div>
+      <div class="feat"><div class="ic">🎬</div><h3>Animatable</h3><p>Compose frames into looping CSS animations — typing, transitions, scroll-throughs.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="quote">
+      <blockquote>“We replaced a 14&nbsp;MB demo GIF with a 40&nbsp;KB SVG. It loads instantly and stays sharp on retina.”</blockquote>
+      <div class="by">— Jordan P., Staff Engineer</div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Your UI, frozen perfectly.</h2>
+    <div class="btn">Get started free</div>
+  </section>
+
+  <footer>© 2026 Domotion · Built with Chromium &amp; fontkit</footer>
+</body>
+</html>

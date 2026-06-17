@@ -16,6 +16,12 @@ Open any `<name>.svg` in a browser to watch it loop.
 | `slides-pushleft/` | A **`push-left`** transition across three slides — each slides in from the right while the previous slides off to the left. |
 | `scroll-feed/` | A **`scroll` block**: one tall page captured at multiple scroll positions via the pattern grammar (`down:bottom/6s`) and composed into one scrolling SVG. The sticky header stays put while the feed scrolls. |
 | `svg-overlay/` | A **`kind: "svg"` overlay** — a separately-authored `badge.svg` inlined into the frame (its ids namespaced to avoid collisions) and slid in from the bottom with the `enter` sugar. |
+| `typing-search/` | A single frame with a **`typing` overlay** revealing a query into a docs-style search bar; the overlay is anchored over the input's empty text slot. (Gallery demo — see `docs/64-demo-gallery.md`.) |
+| `tab-switcher/` | Three **`continue` frames driven by `click` actions** (`.tab-2`, `.tab-3`) on a live page, composited with **crossfade** — a real interaction recorded frame by frame. |
+| `before-after-refactor/` | A **`push-left`** transition between two code cards (before → after). Uses a trailing repeated `cut` frame so the "after" punchline holds solid (push-left last-frame fade workaround — see `docs/64-demo-gallery.md`). |
+| `terminal-onboarding/` | Four terminal panes (clone → install → configure → run), each with a **`typing` overlay** for its command and a **`push-left`** between steps; a trailing held `cut` frame keeps the final step solid. (Gallery Tier 3.) |
+| `form-fill/` | A signup form driven entirely by **`click` + `fill` actions** on a continued live page — name → email → masked password → submit reveals a success message. (Gallery Tier 3.) |
+| `scroll-landing/` | A tall landing page (hero → features → testimonial → CTA) scrolled top→bottom via a **`scroll` block** (`down:bottom/5s`); the sticky nav stays pinned. (Gallery Tier 3.) |
 
 The config format is documented in `docs/08-animation-model.md`,
 `docs/43-declarative-animate-config.md`, and the CLI `--help`. Paths inside a
