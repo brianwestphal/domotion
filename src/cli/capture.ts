@@ -76,6 +76,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       warnings:           { type: "boolean" },
       mobile:             { type: "boolean" },
       chrome:             { type: "string" },
+      "chrome-label":     { type: "string" },
       "color-scheme":     { type: "string" },
       scroll:             { type: "string" },
       "scroll-speed":     { type: "string" },
@@ -264,7 +265,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // DM-1206: wrap the finished capture in a device bezel. Nests the produced
     // SVG (no re-render), so glyph paths match the bare capture exactly.
     if (values.chrome != null && isDeviceChrome(values.chrome)) {
-      const framed = wrapInDeviceChrome(svg, values.chrome, clip[2], clip[3]);
+      const framed = wrapInDeviceChrome(svg, values.chrome, clip[2], clip[3], { label: values["chrome-label"] });
       svg = framed.svg;
       log(`Wrapped in ${values.chrome} chrome (${framed.width}×${framed.height})`);
     }

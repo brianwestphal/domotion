@@ -107,6 +107,9 @@ cd site/scripts/demos/hero-card && bash capture.sh
   glyph paths match the bare capture exactly (re-rendering through a second
   path-render drops the system font to `.notdef` tofu). The bezel is pure SVG,
   so the demo is cross-platform.
+- **Also available:** `--chrome browser` (a macOS window with traffic lights +
+  a URL bar — add `--chrome-label "your.url/path"`) and `--chrome window` (a
+  plain titled window). Same one-line capture, a different frame.
 
 ---
 

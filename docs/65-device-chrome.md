@@ -1,40 +1,50 @@
 # 65 — Device chrome (`--chrome <device>`)
 
-Status: **partially shipped** (DM-1206). The `phone` device is implemented;
-`browser` / `window` are a tracked follow-up.
+Status: **shipped** (DM-1206 phone; DM-1211 browser / window).
 
 `domotion capture … --chrome <device>` wraps a capture in a hand-drawn device
-bezel — a phone body, a browser window, etc. — so a marketing asset reads as
-"this is a real app on a real device" without a separate image editor.
+bezel — a phone body, a browser window, a plain app window — so a marketing
+asset reads as "this is a real app on a real device" without a separate image
+editor.
 
 ## Usage
 
 ```sh
-domotion capture mobile-screen.html \
-  --width 390 --height 844 --mobile \
-  --chrome phone \
-  -o phone-screen.svg
+# Phone bezel around a mobile capture.
+domotion capture mobile-screen.html --width 390 --height 844 --mobile --chrome phone -o phone.svg
+
+# Browser window with a URL in the address bar.
+domotion capture pricing.html --width 960 --height 410 --chrome browser --chrome-label "domotion.dev/pricing" -o pricing.svg
+
+# Plain app window with a centered title.
+domotion capture editor.html --width 720 --height 360 --chrome window --chrome-label "capture.ts — Domotion" -o editor.svg
 ```
 
 The capture is taken at `--width × --height` (the inner **screen** size); the
-bezel adds an even rim, so the output grows (phone: a 390×844 screen → a
-418×872 framed SVG). An unknown device name is a hard error listing the
-supported set.
+bezel grows the output — `phone` adds an even rim on every side (390×844 →
+418×872); `browser` / `window` add a chrome bar on top only (960×600 → 960×644
+for browser, 960×636 for window). An unknown device name is a hard error
+listing the supported set.
+
+`--chrome-label <text>` sets the **browser** URL bar address or the **window**
+title; it's ignored by `phone`, and omitting it leaves an empty URL pill /
+blank title bar.
 
 ## Devices
 
-| Device | Status | Bezel |
-|---|---|---|
-| `phone` | shipped | iPhone-class: rounded titanium body, dynamic-island notch, home indicator |
-| `browser` | follow-up | macOS-style window: traffic-light buttons + a URL bar |
-| `window` | follow-up | plain rounded window with a title bar |
+| Device | Bezel |
+|---|---|
+| `phone` | iPhone-class: rounded titanium body, dynamic-island notch, home indicator. Pure shapes (no text). |
+| `browser` | macOS-style window: rounded corners, three traffic-light buttons, and a URL pill with a lock + the `--chrome-label` address. 44px bar. |
+| `window` | plain rounded window: traffic-light buttons + a centered `--chrome-label` title. 36px bar. |
 
 ## How it works
 
 - **`src/render/device-chrome.ts`** owns the bezel geometry and exports
-  `wrapInDeviceChrome(captureSvg, device, screenW, screenH) → { svg, width,
-  height }`, plus `isDeviceChrome()` / `DEVICE_CHROMES` for validation. It is
-  re-exported from the render barrel and the package root.
+  `wrapInDeviceChrome(captureSvg, device, screenW, screenH, opts?) → { svg,
+  width, height }` (where `opts.label` is the browser URL / window title), plus
+  `isDeviceChrome()` / `DEVICE_CHROMES` for validation. It is re-exported from
+  the render barrel and the package root.
 - The CLI (`src/cli/capture.ts`) validates `--chrome` up front, then wraps the
   finished SVG **after** rendering and **before** the optimize pass.
 - **Nesting, not re-rendering.** The bezel strips the capture's outer `<svg>`
@@ -43,9 +53,13 @@ supported set.
   second path-render dropped the host system font to `.notdef` tofu (seen
   building the phone demo, DM-217). Nesting reuses the exact glyph paths the
   bare capture produced.
-- **Cross-platform.** The bezel is pure SVG primitives (rects, no text), so it
-  carries no system-font dependency and renders identically on macOS / Linux /
-  Windows — unlike the capture it wraps, which is calibrated per-platform.
+- **Cross-platform.** The bezel is pure SVG primitives (rects, paths). The one
+  exception is the browser/window **label** (`--chrome-label`), drawn as a
+  single `<text>` with a generic font stack — it's decoration painted live by
+  the SVG viewer, not captured content, so a little cross-viewer font variance
+  on a URL/title string is acceptable. Everything else carries no system-font
+  dependency, so the bezel renders consistently on macOS / Linux / Windows —
+  unlike the capture it wraps, which is calibrated per-platform.
 
 ## Programmatic API
 
@@ -68,6 +82,8 @@ const { svg, width, height } = wrapInDeviceChrome(capture, "phone", 390, 844);
 - Combining `--chrome` with `--scroll` (an animated scroll capture nested in a
   bezel) nests an animated inner `<svg>` — it should work mechanically but is
   not yet a verified path; treat it as out of scope until tested.
-- The `browser` / `window` device designs are subjective (traffic-light placement,
-  URL-bar styling, light vs dark), so they're left as a follow-up rather than
-  guessed at here.
+- The `browser` / `window` chrome is a single dark theme today (matching the
+  demo gallery's `#0d1117` aesthetic). A light variant — and/or following
+  `--color-scheme` — would be a reasonable future option.
+- `site/scripts/build-install-demo.ts` still has its own inline phone preview;
+  it can migrate to `wrapInDeviceChrome` when next touched.

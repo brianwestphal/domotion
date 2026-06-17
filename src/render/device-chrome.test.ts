@@ -51,3 +51,56 @@ describe("device-chrome (DM-1206)", () => {
     expect((svg.match(/<svg/g) ?? []).length).toBe(2);
   });
 });
+
+const DESKTOP = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600"><rect width="960" height="600" fill="#0d1117"/><text x="10" y="20">DESKTOP_CONTENT</text></svg>`;
+
+describe("device-chrome: browser / window (DM-1211)", () => {
+  it("knows the new devices", () => {
+    expect(DEVICE_CHROMES).toEqual(["phone", "browser", "window"]);
+    expect(isDeviceChrome("browser")).toBe(true);
+    expect(isDeviceChrome("window")).toBe(true);
+  });
+
+  it("browser grows by a 44px chrome bar in height only (960×600 → 960×644)", () => {
+    const { width, height, svg } = wrapInDeviceChrome(DESKTOP, "browser", 960, 600);
+    expect(width).toBe(960);
+    expect(height).toBe(644);
+    expect(svg).toContain(`viewBox="0 0 960 644"`);
+  });
+
+  it("window grows by a 36px title bar (960×600 → 960×636)", () => {
+    const { width, height } = wrapInDeviceChrome(DESKTOP, "window", 960, 600);
+    expect(width).toBe(960);
+    expect(height).toBe(636);
+  });
+
+  it("draws three traffic-light buttons (the macOS colors) on both", () => {
+    for (const device of ["browser", "window"] as const) {
+      const { svg } = wrapInDeviceChrome(DESKTOP, device, 960, 600);
+      expect(svg).toContain(`fill="#ff5f56"`);
+      expect(svg).toContain(`fill="#ffbd2e"`);
+      expect(svg).toContain(`fill="#27c93f"`);
+    }
+  });
+
+  it("nests the capture at the bar offset (no re-render)", () => {
+    const { svg } = wrapInDeviceChrome(DESKTOP, "browser", 960, 600);
+    expect(svg).toContain("DESKTOP_CONTENT");
+    expect(svg).toMatch(/<svg x="0" y="44" width="960" height="600"/);
+    expect((svg.match(/<svg/g) ?? []).length).toBe(2);
+  });
+
+  it("browser renders the label as the URL (escaped), with no label → no <text>", () => {
+    const labeled = wrapInDeviceChrome(DESKTOP, "browser", 960, 600, { label: "acme.dev/a?b=1&c=2" });
+    expect(labeled.svg).toContain("acme.dev/a?b=1&amp;c=2");
+    expect(labeled.svg).toMatch(/<text[^>]*>acme\.dev/);
+    const bare = wrapInDeviceChrome(DESKTOP, "browser", 960, 600);
+    // No label → only the nested capture's <text>, none for the URL.
+    expect((bare.svg.match(/<text/g) ?? []).length).toBe(1);
+  });
+
+  it("window centers the label as a title", () => {
+    const { svg } = wrapInDeviceChrome(DESKTOP, "window", 960, 600, { label: "Untitled" });
+    expect(svg).toMatch(/<text[^>]*text-anchor="middle"[^>]*>Untitled/);
+  });
+});
