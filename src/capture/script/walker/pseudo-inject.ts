@@ -172,6 +172,32 @@ export const createPseudoInjectHandler = () => {
         if (elBottom - lastBottom >= wrapThreshold) {
           p.seg.x = elRect.x + bdL + pdL;
           p.seg.y = lastBottom; // start of the next line
+          // Chrome collapses leading whitespace at the START of a line, so a
+          // pseudo whose content opens with a space (e.g. a container-query
+          // badge `::after { content: " [inner ≥ 100]" }`) paints its first
+          // real glyph flush at the content-box left when it wraps — the
+          // separating space only shows when the badge stays inline after the
+          // host text. Trim the leading whitespace (and shrink the measured
+          // width to match) so the renderer doesn't shove the wrapped badge
+          // right by one space. Only applies on wrap; the inline case keeps
+          // its space via the un-trimmed seg above.
+          const trimmedText = p.seg.text.replace(/^\s+/, '');
+          if (trimmedText !== p.seg.text && trimmedText !== '') {
+            const aps = window.getComputedStyle(el, '::after');
+            const sp = document.createElement('span');
+            sp.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;left:-99999px;top:-99999px;margin:0;padding:0;border:0';
+            sp.style.fontFamily = aps.fontFamily;
+            sp.style.fontSize = aps.fontSize;
+            sp.style.fontWeight = aps.fontWeight;
+            sp.style.fontStyle = aps.fontStyle;
+            sp.style.letterSpacing = aps.letterSpacing;
+            sp.textContent = trimmedText;
+            document.body.appendChild(sp);
+            const wTrim = sp.getBoundingClientRect().width;
+            sp.remove();
+            p.seg.text = trimmedText;
+            if (wTrim > 0) p.seg.width = wTrim;
+          }
         }
         textSegments.push(p.seg);
       } else if (!p.isBefore) {
