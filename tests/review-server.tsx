@@ -36,7 +36,13 @@ import * as esbuild from "esbuild";
 // Anchor against this file's location so paths resolve correctly regardless
 // of cwd (running from the repo root or from inside tests/).
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
-const OUTPUT_DIR = resolve(TESTS_DIR, "output");
+// DM-1216: REVIEW_OUTPUT_DIR overrides the suite-output root so the SAME review
+// UI can browse results consolidated from a distributed CI run (downloaded +
+// flattened by tools/run-ci-visual-tests.mjs --review) without clobbering the
+// local `tests/output/`. Defaults to `tests/output`.
+const OUTPUT_DIR = process.env.REVIEW_OUTPUT_DIR != null && process.env.REVIEW_OUTPUT_DIR !== ""
+  ? resolve(process.env.REVIEW_OUTPUT_DIR)
+  : resolve(TESTS_DIR, "output");
 const HTML_TEST_DIR = resolve(OUTPUT_DIR, "html-test");
 const HTML_TEST_UNICODE_DIR = resolve(OUTPUT_DIR, "html-test-unicode");
 const REAL_WORLD_DIR = resolve(OUTPUT_DIR, "real-world");

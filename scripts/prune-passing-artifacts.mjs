@@ -16,18 +16,21 @@ const resultsPath = join(dir, "results.json");
 if (!existsSync(resultsPath)) { console.error(`prune-passing-artifacts: no results.json in ${dir}`); process.exit(1); }
 
 const results = JSON.parse(readFileSync(resultsPath, "utf8"));
-// A fixture's PNGs are written as `<flatName>-{expected,actual,diff}.png` where
-// flatName is the fixture name (already `/`→`-` flattened in results.json).
+// A fixture's artifacts are `<flatName>-{expected,actual,diff}.png` + `<flatName>.svg`
+// where flatName is the fixture name (already `/`→`-` flattened in results.json).
+// Keep both the PNG triplet AND the generated .svg for failing fixtures (the
+// .svg lets `svg-review` re-rasterize); drop everything for passing ones.
 const keep = new Set();
 for (const r of results) {
   if (r && r.name && (!r.pass || r.skipped)) {
     for (const kind of ["expected", "actual", "diff"]) keep.add(`${r.name}-${kind}.png`);
+    keep.add(`${r.name}.svg`);
   }
 }
 
 let removed = 0;
 for (const name of readdirSync(dir)) {
-  if (!name.endsWith(".png")) continue; // leave results.json / index.html / meta
+  if (!name.endsWith(".png") && !name.endsWith(".svg")) continue; // leave results.json / index.html / meta
   if (!keep.has(name)) { rmSync(join(dir, name), { force: true }); removed++; }
 }
-console.log(`prune-passing-artifacts: kept ${keep.size} PNGs for failing fixtures, removed ${removed} from ${dir}`);
+console.log(`prune-passing-artifacts: kept ${keep.size} artifacts for failing fixtures, removed ${removed} from ${dir}`);

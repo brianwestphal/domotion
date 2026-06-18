@@ -15,7 +15,18 @@ node tools/run-ci-visual-tests.mjs --suite html --os linux    # Linux debugging
 node tools/run-ci-visual-tests.mjs --suite unicode --only 10  # just the 1xxx blocks
 ```
 
-It dispatches the workflow on your **pushed** branch (it refuses if `origin/<branch>` ≠ your `HEAD` — CI runs the pushed ref, not your working tree), waits for the run, downloads the per-shard artifacts, merges them, and prints the pass/fail summary + the local path to the failing-fixture diff crops. Flags: `--suite unicode|html`, `--os macos|linux|windows|all`, `--shards auto|<N>`, `--only <filter>`, `--ref <branch>`.
+It dispatches the workflow on your **pushed** branch (it refuses if `origin/<branch>` ≠ your `HEAD` — CI runs the pushed ref, not your working tree), waits for the run, downloads the per-shard artifacts, merges them, and prints the pass/fail summary + the local path to the failing-fixture diff crops. Flags: `--suite unicode|html`, `--os macos|linux|windows|all`, `--shards auto|<N>`, `--only <filter>`, `--ref <branch>`, `--no-review`.
+
+### Reviewing the CI diffs locally (same tool)
+
+By default the helper also **consolidates the failing fixtures' `expected`/`actual`/`diff` PNGs (+ the generated `.svg`)** from every shard into one dir laid out the way the review UI expects, and prints:
+
+```sh
+REVIEW_OUTPUT_DIR=<tmp>/review npm run demos:review      # browse all CI failures in the usual review UI
+svg-review --expected <tmp>/review/.../<name>-expected.png --actual <tmp>/review/.../<name>-actual.png   # one fixture
+```
+
+`REVIEW_OUTPUT_DIR` points `tests/review-server.tsx` at the consolidated CI output instead of your local `tests/output/` (so it never clobbers a local run). For `--os all` it consolidates the macOS results (the primary); the raw per-OS shard artifacts are left under `<tmp>/results-<os>-shard*/` for `svg-review`. Pass `--no-review` to skip the consolidation. Only failing fixtures carry images (the workflow prunes passing ones to keep artifacts small).
 
 ## What the workflow does
 

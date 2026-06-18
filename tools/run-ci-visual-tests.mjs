@@ -13,7 +13,7 @@
 // push first — this script refuses to dispatch a ref the remote doesn't have.
 
 import { execFileSync, execFile } from "node:child_process";
-import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, readdirSync, copyFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -115,5 +115,33 @@ if (!downloaded) die(`no artifacts to download after retries — the run may hav
 console.log(`\nMerging…\n`);
 const here = new URL("..", import.meta.url).pathname;
 execFileSync("node", [join(here, "scripts/merge-shard-results.mjs"), "--input", dir], { stdio: "inherit" });
-console.log(`\nDiff crops for failing fixtures (if any) are under: ${dir}/results-<os>-shard*/`);
+
+// --review (default ON): consolidate one OS's shard PNGs + .svg + merged
+// results.json into a flat dir laid out the way tests/review-server.tsx expects,
+// so you can browse the CI diffs in the SAME review UI. Pick macOS when present
+// (the primary), else the single requested OS. Skipped with --no-review.
+if (!process.argv.includes("--no-review")) {
+  const reviewOs = (os === "all" || os === "macos") ? "macos" : os;
+  const suiteDir = suite === "unicode" ? "html-test-unicode" : "html-test";
+  const reviewRoot = join(dir, "review");
+  const dest = join(reviewRoot, suiteDir);
+  mkdirSync(dest, { recursive: true });
+  let pngs = 0;
+  for (const name of readdirSync(dir)) {
+    const m = /^results-([a-z0-9]+)-shard\d+$/i.exec(name);
+    if (m == null || m[1].toLowerCase() !== reviewOs) continue;
+    const shardDir = join(dir, name);
+    for (const f of readdirSync(shardDir)) {
+      if (f.endsWith(".png") || f.endsWith(".svg")) { copyFileSync(join(shardDir, f), join(dest, f)); pngs++; }
+    }
+  }
+  const mergedJson = join(dir, `results-${reviewOs}.json`);
+  if (existsSync(mergedJson)) copyFileSync(mergedJson, join(dest, "results.json"));
+  if (pngs > 0) {
+    console.log(`\nReview the ${reviewOs} ${suite} diffs in the local UI (failing fixtures only):`);
+    console.log(`  REVIEW_OUTPUT_DIR=${reviewRoot} npm run demos:review`);
+    console.log(`Or a single fixture:  svg-review --expected ${dest}/<name>-expected.png --actual ${dest}/<name>-actual.png`);
+  }
+}
+console.log(`\nRaw shard artifacts: ${dir}/results-<os>-shard*/`);
 console.log(`Run page: ${url}`);
