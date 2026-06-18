@@ -174,6 +174,37 @@ export const createPseudoInjectHandler = () => {
           p.seg.y = lastBottom; // start of the next line
         }
         textSegments.push(p.seg);
+      } else if (!p.isBefore) {
+        // No host text to anchor an ::after against — the host's content is
+        // all CHILD elements (e.g. an inert <fieldset> whose `::after` paints
+        // a " — INERT" badge: the fieldset owns no direct text run, so the
+        // re-anchor branches above never fire). Chrome flows the ::after at
+        // the END of the host's content — on a new line at the content-box
+        // left, BELOW the children — not the host's top-right corner where
+        // pseudo-content.ts's analytic `elLeft + rect.width - pseudoWidth`
+        // fallback parked it. Probe the real flow position with a sentinel
+        // <span> carrying the pseudo's content + font, appended as the host's
+        // last child, and read its painted rect. (Coords are raw
+        // getBoundingClientRect, matching the DM-944 wrap-detection block
+        // above — these captures clip at the page origin so vp = 0,0.)
+        const ps = window.getComputedStyle(el, '::after');
+        const sentinel = document.createElement('span');
+        sentinel.style.cssText = 'visibility:hidden;pointer-events:none;white-space:pre';
+        sentinel.style.fontFamily = ps.fontFamily;
+        sentinel.style.fontSize = ps.fontSize;
+        sentinel.style.fontWeight = ps.fontWeight;
+        sentinel.style.fontStyle = ps.fontStyle;
+        sentinel.style.letterSpacing = ps.letterSpacing;
+        sentinel.style.marginLeft = ps.marginLeft;
+        sentinel.textContent = p.seg.text;
+        el.appendChild(sentinel);
+        const sr = sentinel.getBoundingClientRect();
+        sentinel.remove();
+        if (sr.width > 0 || sr.height > 0) {
+          p.seg.x = sr.left;
+          p.seg.y = sr.top + (sr.height - p.seg.height) / 2;
+        }
+        textSegments.push(p.seg);
       } else {
         // No main text — just place at element origin (already set by
         // pseudo-content.ts using elLeft/elTop).
