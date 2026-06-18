@@ -34,9 +34,15 @@ The sbix path activates only when:
 - `glyphForCodePoint(cp).id !== 0` (the font has a glyph for the codepoint).
 - The captured rect is wider than `0.4 ×` its height (filters out zero-width ZWJ joiner chars whose rect is a thin slice — those need pair-aware shaping the bitmap-per-codepoint path can't provide).
 
+## Bitmap sizing — the advance square (DM-1198)
+
+After the sbix bitmap is resolved, `src/capture/emoji.ts::emojiSquareRect` snaps the captured per-char rect to the **square Chrome actually paints the emoji in**: side = the glyph **advance** (the captured `Range.getBoundingClientRect()` width, minus any letter-spacing Chrome appends to the right of the advance), anchored flush-left at `rect.x` and vertically centered in the rect's line box.
+
+The advance — not the font size — is the correct side because Chrome enforces a **minimum emoji advance** that exceeds the font size at small sizes: at `font-size: 16px` the emoji advance is 20px (≈1.25×). Sizing the overlay to the font size (the earlier behavior) painted every inline emoji ~20% too small. The sbix PNG is a full square em bitmap, so drawing it into an `advance × advance` box reproduces both full-bleed emoji and ones with transparent margins (e.g. 📈) without distortion. Verified empirically against Chromium's painted output across `font-size` 16-48 (the square side tracks the advance to the pixel; the vertical center matches within ~1px). The screenshot fallback path (§2) keeps the literal captured rect — it is already a pixel copy of Chrome's paint.
+
 ## Render pipeline
 
-`src/render/text.ts::rasterGlyphOverlays` emits one `<image href="data:image/png;base64,…" x=… y=… width=… height=… preserveAspectRatio="none" clip-path="url(#…)"/>` per `rasterGlyphs` entry. The image is positioned at the captured viewport-relative rect; its width/height matches the painted size so the bitmap stretches/squishes to fit if the strike's aspect ratio differs slightly from the painted rect.
+`src/render/text.ts::rasterGlyphOverlays` emits one `<image href="data:image/png;base64,…" x=… y=… width=… height=… preserveAspectRatio="none" clip-path="url(#…)"/>` per `rasterGlyphs` entry. The image is positioned at the captured viewport-relative rect (already snapped to the advance square at capture time); its width/height matches the painted size so the bitmap stretches/squishes to fit if the strike's aspect ratio differs slightly from the painted rect.
 
 ## Path-pipeline interaction (DM-334)
 

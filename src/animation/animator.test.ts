@@ -51,8 +51,8 @@ describe("push-left / scroll last-frame hold (DM-1207)", () => {
   const cfg = (type: "push-left" | "scroll", loopFade?: boolean) => ({
     width: 100, height: 100,
     frames: [
-      { svgContent: `<rect id="a" width="100" height="100" fill="red"/>`, duration: 500, transition: { type } as const },
-      { svgContent: `<rect id="b" width="100" height="100" fill="blue"/>`, duration: 500, transition: { type } as const },
+      { svgContent: `<rect id="a" width="100" height="100" fill="red"/>`, duration: 500, transition: { type, duration: 300 } as const },
+      { svgContent: `<rect id="b" width="100" height="100" fill="blue"/>`, duration: 500, transition: { type, duration: 300 } as const },
     ],
     ...(loopFade != null ? { loopFade } : {}),
   });
@@ -85,8 +85,8 @@ describe("push-left / scroll last-frame hold (DM-1207)", () => {
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
-        { svgContent: `<rect id="a" width="100" height="100"/>`, duration: 500, transition: { type: "push-left" } },
-        { svgContent: `<rect id="b" width="100" height="100"/>`, duration: 500, transition: { type: "cut" } },
+        { svgContent: `<rect id="a" width="100" height="100"/>`, duration: 500, transition: { type: "push-left", duration: 300 } },
+        { svgContent: `<rect id="b" width="100" height="100"/>`, duration: 500, transition: { type: "cut", duration: 0 } },
       ],
     });
     const fp0 = block(svg, "fp-0");

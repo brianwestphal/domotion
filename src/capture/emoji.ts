@@ -91,6 +91,46 @@ function extractEmojiBitmap(codepoint: number, paintedWidthPx: number): Buffer |
 }
 
 /**
+ * Snap an Apple Color Emoji sbix bitmap to the SQUARE box Chrome actually
+ * paints it in.
+ *
+ * Chrome paints a color-emoji glyph as a square whose side equals the glyph
+ * ADVANCE — the captured `Range.getBoundingClientRect()` width, minus any
+ * letter-spacing Chrome appends to the right of the advance. Two facts make
+ * the advance (not the font size) the correct side:
+ *  - At small font sizes Chrome enforces a minimum emoji advance that exceeds
+ *    the font size — e.g. a 20px advance at font-size 16 (~1.25×). Sizing the
+ *    overlay to the font size painted the emoji ~20% too small (DM-1198: "our
+ *    emojis seem a lot smaller").
+ *  - The sbix PNG is a full square bitmap (the emoji fills a square em), so
+ *    drawing it into an advance × advance box reproduces both full-bleed emoji
+ *    and ones with transparent margins (e.g. 📈) without distortion.
+ *
+ * Geometry:
+ *  - Horizontal: the bitmap sits flush at the advance's left (`rect.x`); any
+ *    letter-spacing pads to the RIGHT, so no horizontal shift is applied
+ *    (DM-919 — the original DM-381 centering pass wrongly shifted it right
+ *    whenever letter-spacing > 0).
+ *  - Vertical: the square is centered in the captured rect's line box, which
+ *    matches Chrome within ~1px across sizes (DM-438 — a 20×17 rect extends
+ *    upward to a 20×20 square; DM-801 — a 56×63 rect with 8px letter-spacing
+ *    snaps to 48×48).
+ */
+export function emojiSquareRect(
+  rect: { x: number; y: number; width: number; height: number },
+  letterSpacing: number,
+): { x: number; y: number; width: number; height: number } {
+  const ls = Math.max(0, letterSpacing) || 0;
+  const side = Math.max(1, rect.width - ls);
+  return {
+    x: rect.x,
+    y: rect.y + (rect.height - side) / 2,
+    width: side,
+    height: side,
+  };
+}
+
+/**
  * For every text segment CAPTURE_SCRIPT flagged with a rasterRect (contains a
  * color-bitmap glyph like U+2713 ✓ or an emoji), ask Playwright for a
  * transparent-background screenshot of that pixel region and embed it back on
@@ -185,28 +225,12 @@ export async function rasterizeBitmapGlyphs(
                   // isn't carried on the segment (only the SVG path needs it,
                   // not the existing screenshot path which already round-trips
                   // a rectangular PNG).
-                  const elFs = parseFloat(el.styles.fontSize ?? "") || 0;
-                  const fs = seg.fontSize ?? (elFs > 0 ? elFs : Math.max(g.rect.width, g.rect.height));
-                  // DM-919: Chrome's per-emoji paint origin = advance start
-                  // (rect.x) when there's NO letter-spacing — the bitmap
-                  // sits flush at the left of the advance. When letter-
-                  // spacing > 0, Chrome ADDS the letter-spacing to the
-                  // advance, which captures as a wider rect — the bitmap
-                  // is still at rect.x (the spacing pads to the right).
-                  // The original DM-381 centering pass mis-handled this:
-                  // it shifted the bitmap by `(rect.width - fs) / 2`,
-                  // moving the emoji right whenever letter-spacing >0.
-                  // Pull out the captured letter-spacing and subtract it
-                  // from rect.width FIRST, then center the bitmap inside
-                  // the REAL advance — handles both the centered emoji-
-                  // alone case (where rect.w ≈ fs) and the letter-spaced
-                  // case (where rect.w = fs + letter-spacing).
                   const ls = parseFloat(el.styles.letterSpacing ?? "") || 0;
-                  const advanceW = Math.max(fs, g.rect.width - Math.max(0, ls));
-                  g.rect.x += (advanceW - fs) / 2;
-                  g.rect.y += (g.rect.height - fs) / 2;
-                  g.rect.width = fs;
-                  g.rect.height = fs;
+                  const sq = emojiSquareRect(g.rect, ls);
+                  g.rect.x = sq.x;
+                  g.rect.y = sq.y;
+                  g.rect.width = sq.width;
+                  g.rect.height = sq.height;
                   continue;
                 }
               }

@@ -1,0 +1,51 @@
+name: CI
+
+# Fast, host-independent validation on every PR and push to main: type-check,
+# unit tests, and a production build. These gates previously ran ONLY in
+# release.yml (which triggers on version tags), so a type error or unit-test
+# regression stayed invisible until release time — exactly how DM-1220 (a
+# stale `AnimationFrame.transition` test fixture missing the required
+# `duration`) reached `main` red without anyone noticing. Running them here
+# catches that drift on the PR that introduces it.
+#
+# The Linux/Windows VISUAL-fidelity suites stay in their own path-filtered
+# workflows (test-linux.yml / windows-fidelity.yml) — they need the calibrated
+# container / a real platform font stack. This workflow is just the
+# platform-independent compile + unit signal, so it runs unconditionally.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22.21.0'
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run build

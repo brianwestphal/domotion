@@ -92,10 +92,22 @@ function _hashFileOrEmpty(path: string): string {
   catch { return "missing"; }
 }
 const CAPTURE_SCRIPT_HASH = _hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/script.generated.ts"));
+// DM-1198: also fold the Node-side post-CAPTURE_SCRIPT tree mutators into the
+// key. `captureElementTreeWithWarnings` rasterizes bitmap glyphs (`emoji.ts`)
+// and replaced / mask-source elements (`index.ts`) INTO the tree before it's
+// cached, so a change to those — e.g. the emoji advance-square sizing fix —
+// must invalidate the cached tree too. The CAPTURE_SCRIPT bundle hash alone
+// doesn't cover them (they run in Node, not in-page), which silently masked
+// the emoji-size fix behind stale cached 16×16 rects until the cache was
+// cleared by hand.
+const CAPTURE_NODE_HASH = createHash("sha256")
+  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/emoji.ts")))
+  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/index.ts")))
+  .digest("hex");
 function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
   return createHash("sha256")
     .update(htmlBytes)
-    .update(`|${WIDTH}x${fixtureHeight}|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}`)
+    .update(`|${WIDTH}x${fixtureHeight}|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}`)
     .digest("hex");
 }
 function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
