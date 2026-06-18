@@ -31,11 +31,20 @@ export const createEmojiDetect = () => {
     // painting as a dropped/empty path-mode glyph: ✅ ✊ ✋. Unconditional like
     // the ✨ ❌ ➡ family above — emoji presentation wins over the cascade.
     0x2705, 0x270A, 0x270B,
-    // DM-728: U+2B?? "Miscellaneous Symbols and Arrows" block with default
-    // emoji presentation per Unicode emoji-data — Chrome paints these as
-    // Apple Color Emoji glyphs without needing the U+FE0F variation
-    // selector. The fixture's ⭐ U+2B50 in `20-deep-font-palette.html` was
-    // painting as a hollow tofu before this list was extended.
+  ]);
+  // DM-1165: the Miscellaneous Symbols and Arrows (U+2B??) code points with
+  // default emoji presentation — ⬅⬆⬇ (2B05-07), ⬛⬜ (2B1B/1C), ⭐ (2B50),
+  // ⭕ (2B55). DM-728 added these to `rasterCps` unconditionally for the ⭐ in
+  // `20-deep-font-palette.html`, but Chrome's choice is actually CASCADE-
+  // DEPENDENT: when the element's font stack reaches a monochrome symbol/math
+  // font that covers them first, Chrome paints text, not color. Verified via
+  // `CSS.getPlatformFontsForNode` on the 2B00 fixture (cells lead with "Apple
+  // Symbols"): 2B05→Apple Symbols, 2B1B & 2B50→STIX Two Math — all MONOCHROME,
+  // so the unconditional raster was stamping blue emoji / a yellow star over
+  // Chrome's black arrows / hollow star. Probe per-element via `isColorGlyph`
+  // in `needsRaster` instead (color → raster, monochrome → path). A Set so the
+  // membership test in `needsRaster` is O(1).
+  const emojiPresentation2B = new Set([
     0x2B05, 0x2B06, 0x2B07, 0x2B1B, 0x2B1C, 0x2B50, 0x2B55,
   ]);
   // Codepoints in the U+2600-26FF Misc Symbols block with EmojiPresentation=Yes
@@ -191,6 +200,28 @@ export const createEmojiDetect = () => {
     // exactly like the DM-1025 emojiPresentation26 branch, so the rare cell whose
     // cascade DOES reach the color font still rasters correctly.
     if (cp >= 0x1F700 && cp <= 0x1F77F) return isColorGlyph(cp, font);
+    // DM-1168: the two Emoji_Presentation=Yes code points in the Enclosed CJK
+    // Letters and Months block (U+3200-32FF) — ㊗ U+3297 CIRCLED IDEOGRAPH
+    // CONGRATULATION and ㊙ U+3299 CIRCLED IDEOGRAPH SECRET. Chrome paints them
+    // as Apple Color Emoji by default (the fixture cells show the red circled
+    // ideographs). But several macOS text fonts (Hiragino, Arial Unicode) also
+    // cover them with a MONOCHROME glyph, so a `lang=ja` cascade that reaches
+    // Hiragino first paints text, not color. Probe Chrome's actual per-element
+    // choice via the canvas (color → raster, monochrome → path), exactly like
+    // the DM-1025 emojiPresentation26 / DM-1125 alchemical branches.
+    if (cp === 0x3297 || cp === 0x3299) return isColorGlyph(cp, font);
+    // DM-1173: 〽 U+303D PART ALTERNATION MARK (CJK Symbols and Punctuation,
+    // U+3000-303F). Emoji=Yes but text-default presentation, so Chrome paints
+    // the color glyph only when the cascade reaches Apple Color Emoji and no
+    // text font covers it first (many do — Hiragino, M+ 1p, Shippori Mincho).
+    // The fixture cell paints the orange color mark, so probe per-element font
+    // (color → raster, monochrome → path) like the branches above.
+    if (cp === 0x303D) return isColorGlyph(cp, font);
+    // DM-1165: the U+2B?? emoji-presentation symbols (arrows ⬅⬆⬇, squares ⬛⬜,
+    // ⭐, ⭕). Cascade-dependent — Chrome paints text when the stack reaches a
+    // monochrome symbol/math font first (Apple Symbols / STIX Two Math), color
+    // otherwise. See `emojiPresentation2B` above.
+    if (emojiPresentation2B.has(cp)) return isColorGlyph(cp, font);
     // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
     // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
     // Extended-A, Symbols & Pictographs Extended-B.

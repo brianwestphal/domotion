@@ -244,3 +244,47 @@ describe("renderVerticalEmphasisMarks — vertical text-emphasis (DM-1054)", () 
     expect(renderVerticalEmphasisMarks(makeEmphasisEl("none"), "rgb(0,0,0)")).toBe("");
   });
 });
+
+// DM-1159: the `text-underline-position: auto` default side for vertical text.
+// Verified against Chrome's painted output: the underline lands on the LEFT of
+// the column for vertical-rl / vertical-lr / sideways-rl, and on the RIGHT only
+// for sideways-lr. (The prior code defaulted vertical-rl to the right, painting
+// the underline on the wrong side.)
+describe("renderVerticalSegments — text-underline-position auto side (DM-1159)", () => {
+  function makeUnderlineEl(wm: string, tup: string): CapturedElement {
+    return {
+      tag: "div",
+      styles: {
+        fontSize: "20px", fontFamily: "sans-serif", fontWeight: "400", fontStyle: "normal",
+        textDecorationLine: "underline", textUnderlinePosition: tup,
+      },
+      fontAscent: 16,
+      textSegments: [{
+        text: "あ", x: 100, y: 50, width: 20, height: 40,
+        verticalWritingMode: wm, verticalOrientations: ["upright"],
+        yOffsets: [50], verticalAdvances: [20], verticalNaturalWidths: [20],
+      }],
+    } as unknown as CapturedElement;
+  }
+  // The decoration `<line>` is vertical (x1===x2); pull its x. seg.x=100,
+  // width=20 → left side x < 100, right side x > 120.
+  const lineX = (markup: string): number => {
+    const m = markup.match(/<line x1="([\d.]+)"/);
+    return m ? parseFloat(m[1]) : NaN;
+  };
+
+  it("auto → LEFT side for vertical-rl", () => {
+    expect(lineX(renderVerticalSegments(makeUnderlineEl("vertical-rl", "auto"), "rgb(0,0,0)"))).toBeLessThan(100);
+  });
+  it("auto → LEFT side for vertical-lr and sideways-rl", () => {
+    expect(lineX(renderVerticalSegments(makeUnderlineEl("vertical-lr", "auto"), "rgb(0,0,0)"))).toBeLessThan(100);
+    expect(lineX(renderVerticalSegments(makeUnderlineEl("sideways-rl", "auto"), "rgb(0,0,0)"))).toBeLessThan(100);
+  });
+  it("auto → RIGHT side only for sideways-lr", () => {
+    expect(lineX(renderVerticalSegments(makeUnderlineEl("sideways-lr", "auto"), "rgb(0,0,0)"))).toBeGreaterThan(120);
+  });
+  it("explicit left / right keywords still pick their literal side (vertical-rl)", () => {
+    expect(lineX(renderVerticalSegments(makeUnderlineEl("vertical-rl", "left"), "rgb(0,0,0)"))).toBeLessThan(100);
+    expect(lineX(renderVerticalSegments(makeUnderlineEl("vertical-rl", "right"), "rgb(0,0,0)"))).toBeGreaterThan(120);
+  });
+});

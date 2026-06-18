@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -396,6 +396,61 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     const r = run("Hello, world", [0, 1, 2]);
     expect(r.text).toBe("Hello, world");
     expect(r.xOffsets).toEqual([0, 1, 2]);
+  });
+});
+
+// DM-1158: orphaned, uncovered variation selectors / tags must be HIDDEN (Chrome
+// paints nothing), not routed to the CoreText last-resort tofu. The pure range
+// predicate is cross-platform; the strip itself is macOS-gated (needs the real
+// font chain to confirm the primary lacks the selector).
+describe("isStrippableOrphanIgnorable (DM-1158 range predicate)", () => {
+  it("flags variation selectors, the supplement block, and language tags", () => {
+    for (const cp of [0xFE00, 0xFE0E, 0xFE0F, 0xE0100, 0xE01EF, 0xE0000, 0xE007F]) {
+      expect(isStrippableOrphanIgnorable(cp)).toBe(true);
+    }
+  });
+  it("does NOT flag joiners, spaces, or ordinary text (they carry width / shaping meaning)", () => {
+    for (const cp of [0x200B, 0x200C, 0x200D, 0x20, 0xA0, 0x41, 0x6F22, 0x0301]) {
+      expect(isStrippableOrphanIgnorable(cp)).toBe(false);
+    }
+  });
+});
+
+(MACOS_FONTS_DC ? describe : describe.skip)("stripOrphanedDefaultIgnorables (DM-1158)", () => {
+  // Helvetica covers no variation selector, so the primary-uncovered gate fires
+  // deterministically (a chain led by a font that DOES cover a given VS — e.g.
+  // Noto Sans for U+FE00 — would keep it, which is also correct but font-version
+  // dependent, so it's the wrong basis for an assertion).
+  const fam = "Helvetica";
+  const run = (text: string, xOffsets?: number[]) =>
+    stripOrphanedDefaultIgnorables(text, xOffsets, fam, 400, 32, 0, undefined);
+
+  it("drops a lone, uncovered variation selector (Chrome paints nothing)", () => {
+    const r = run("︀", [16]);
+    expect(r.text).toBe("");
+    expect(r.xOffsets).toEqual([]);
+  });
+  it("drops a leading orphaned selector but keeps the following base + its x", () => {
+    // The selector at index 0 is orphaned (no preceding base) → dropped; the
+    // 'B' base survives with its captured x.
+    const r = run("︀B", [16, 16]);
+    expect(r.text).toBe("B");
+    expect(r.xOffsets).toEqual([16]);
+  });
+  it("KEEPS a variation selector that follows a base (variation sequence, not orphaned)", () => {
+    const r = run("A︀B", [0, 20, 20]);
+    expect(r.text).toBe("A︀B");
+  });
+  it("KEEPS a variation selector that follows a base (emoji / CJK variation sequence)", () => {
+    // ⛹ (U+26F9, emoji-range base) + VS-16: the selector is meaningful here, so
+    // it must survive for the downstream emoji-presentation / overlay logic.
+    const r = run("\u{26F9}️");
+    expect(r.text).toBe("\u{26F9}️");
+  });
+  it("is a no-op for text with no strippable code points", () => {
+    const r = run("Hello", [0, 1, 2, 3, 4]);
+    expect(r.text).toBe("Hello");
+    expect(r.xOffsets).toEqual([0, 1, 2, 3, 4]);
   });
 });
 

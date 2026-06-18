@@ -134,10 +134,13 @@ function renderVerticalDecoration(
     : Math.max(1, parseFloat(el.styles.fontSize) / 18); // ~1 px at body sizes
   const underlinePos = (styles.textUnderlinePosition ?? "auto").trim();
   const wm = seg.verticalWritingMode ?? "vertical-rl";
-  // Default underline side: `auto` resolves to right for vertical-rl /
-  // sideways-rl and left for vertical-lr / sideways-lr (the inline-end
-  // side of the column).
-  const defaultRight = wm === "vertical-rl" || wm === "sideways-rl";
+  // Default underline side for `auto`. Verified against Chrome's painted output
+  // (DM-1159): the `under`-baseline underline lands on the LEFT of the column
+  // for vertical-rl, vertical-lr AND sideways-rl, and on the RIGHT only for
+  // sideways-lr (its 90° COUNTER-clockwise rotation flips the under side to the
+  // right). The earlier "auto → right for vertical-rl" rule was backwards — the
+  // pos-auto cell painted its underline on the wrong (right) side.
+  const defaultRight = wm === "sideways-lr";
   const onLeft = underlinePos === "left" || (underlinePos === "auto" && !defaultRight);
   const onRight = underlinePos === "right" || (underlinePos === "auto" && defaultRight);
   const offset = 1; // small offset from column edge

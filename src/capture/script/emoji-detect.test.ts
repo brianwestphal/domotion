@@ -75,11 +75,50 @@ describe("emoji-detect needsRaster (unconditional branches)", () => {
     expect(needsRaster(0x1F770, 0, "")).toBe(true);
   });
 
+  it("rasters the Enclosed CJK emoji-presentation pair ㊗ ㊙ via the cascade probe — DM-1168", () => {
+    // U+3297 / U+3299 are Emoji_Presentation=Yes; Chrome paints them color by
+    // default but Hiragino / Arial Unicode cover them as monochrome, so the
+    // branch is cascade-gated (`isColorGlyph`). With no font context the probe
+    // short-circuits to the raster fail-safe — the MONOCHROME → path outcome is
+    // covered by the 3200-32FF-enclosed-cjk-letters-and-months visual fixture.
+    expect(needsRaster(0x3297, 0, "")).toBe(true); // ㊗
+    expect(needsRaster(0x3299, 0, "")).toBe(true); // ㊙
+  });
+
+  it("rasters 〽 U+303D (text-default, cascade-gated) — DM-1173", () => {
+    // PART ALTERNATION MARK: Emoji=Yes but text-default, so it's color only when
+    // the cascade reaches Apple Color Emoji (many text fonts cover it). No-font
+    // context → raster fail-safe; the monochrome outcome is covered by the
+    // 3000-303F-cjk-symbols-and-punctuation visual fixture.
+    expect(needsRaster(0x303D, 0, "")).toBe(true);
+    expect(needsRaster(0x303C, 0, "x")).toBe(false); // 〼 just below — not emoji
+    expect(needsRaster(0x303E, 0, "x")).toBe(false); // 〾 just above — not emoji
+  });
+
+  it("treats the U+2B?? emoji-presentation symbols as cascade-gated, not unconditional — DM-1165", () => {
+    // ⬅⬆⬇ ⬛⬜ ⭐ ⭕ are color OR mono depending on the cascade (Apple Symbols /
+    // STIX Two Math cover several as monochrome). With no font context the probe
+    // short-circuits to the raster fail-safe; the monochrome-cascade outcome
+    // (the 2B00 fixture leads with "Apple Symbols") is covered by the
+    // 2B00-2BFF-miscellaneous-symbols-and-arrows visual fixture.
+    for (const cp of [0x2B05, 0x2B06, 0x2B07, 0x2B1B, 0x2B1C, 0x2B50, 0x2B55]) {
+      expect(needsRaster(cp, 0, "")).toBe(true);   // no-font fail-safe → raster
+    }
+    // A monochrome symbol-font context must NOT raster (would stamp emoji over
+    // Chrome's text glyph). `isColorGlyph` needs a DOM, so this exact path is the
+    // fixture's job; here we only assert the codepoints route THROUGH the probe
+    // rather than the old unconditional `return true` — `0x2B04` (not emoji)
+    // stays false as a control.
+    expect(needsRaster(0x2B04, 0, "x")).toBe(false);
+  });
+
   it("does NOT raster non-emoji symbols / arrows / enclosed letters", () => {
     expect(needsRaster(0x2701, 0, "x")).toBe(false); // ✁ scissors (path glyph)
     expect(needsRaster(0x2190, 0, "x")).toBe(false); // ← arrow
     expect(needsRaster(0x1F100, 0, "x")).toBe(false); // 🄀 (mono, below squared range)
     expect(needsRaster(0x1F18F, 0, "x")).toBe(false); // gap just past 🆎
     expect(needsRaster(0x1F19B, 0, "x")).toBe(false); // just past 🆚
+    expect(needsRaster(0x3298, 0, "x")).toBe(false); // 労 U+3298 — circled, but NOT emoji-presentation
+    expect(needsRaster(0x3296, 0, "x")).toBe(false); // ㊖ just below ㊗
   });
 });

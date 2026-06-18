@@ -3697,6 +3697,69 @@ function syntheticMarkCenteringOffsetPx(primaryFont: FontInstance, ch: string, f
 // combining marks. The ◌ is itself covered (Hiragino etc.), so it routes and
 // renders through the normal pipeline — only the INSERTION is synthetic.
 //
+// DM-1158: code points HarfBuzz/Chrome treat as default-ignorable AND hide
+// entirely (zero-width, no glyph) when the font lacks them — variation
+// selectors, variation selectors supplement, and language tags. Unlike a
+// genuinely-missing inkable glyph (which Chrome paints as a .notdef tofu),
+// these paint NOTHING when uncovered. Our fallback chain otherwise routes an
+// orphaned, uncovered one to the CoreText last-resort box, so each painted a
+// tofu (the FE00-FE0F variation-selector fixture rendered a box per cell).
+// Deliberately narrow: separators (spaces) keep their width and joiners
+// (ZWJ/ZWNJ) carry shaping meaning, so neither is in scope here.
+export function isStrippableOrphanIgnorable(cp: number): boolean {
+  return (cp >= 0xFE00 && cp <= 0xFE0F)      // variation selectors
+      || (cp >= 0xE0100 && cp <= 0xE01EF)    // variation selectors supplement
+      || (cp >= 0xE0000 && cp <= 0xE007F);   // tags
+}
+
+// DM-1158: drop ORPHANED, primary-uncovered default-ignorable code points (see
+// `isStrippableOrphanIgnorable`) from `text` + `xOffsets` so neither the
+// embedded-font nor the glyph-path branch emits the last-resort tofu Chrome
+// never paints. "Orphaned" = no base char precedes it in the cluster: a
+// variation selector that FOLLOWS a base (emoji presentation VS-16, CJK
+// variation sequences) is meaningful, so it is left in place for the
+// downstream emoji-overlay / shaping logic. Primary-covered selectors (a font
+// that actually has the VS glyph) are also kept. A no-op for text with none.
+export function stripOrphanedDefaultIgnorables(
+  text: string, xOffsets: number[] | undefined,
+  fontFamily: string, weight: number, fontSize: number, slant: number,
+  variationSettings: Record<string, number> | undefined,
+): { text: string; xOffsets: number[] | undefined } {
+  let any = false;
+  for (const ch of text) { if (isStrippableOrphanIgnorable(ch.codePointAt(0)!)) { any = true; break; } }
+  if (!any) return { text, xOffsets };
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings);
+  if (primaryFont == null) return { text, xOffsets };
+  const haveX = xOffsets != null;
+  let outText = "";
+  const outX: number[] = [];
+  let clusterHasBase = false;
+  let changed = false;
+  let i = 0;
+  while (i < text.length) {
+    const cp = text.codePointAt(i)!;
+    const chLen = cp > 0xFFFF ? 2 : 1;
+    const ch = text.slice(i, i + chLen);
+    const isWs = chLen === 1 && /\s/.test(ch);
+    const isMark = /\p{M}/u.test(ch);
+    if (isStrippableOrphanIgnorable(cp) && !clusterHasBase
+        && primaryFont.glyphForCodePoint(cp).id === 0) {
+      // Drop it: emit no char and no x entry. The cluster base state is
+      // unchanged (an ignorable never establishes a base).
+      changed = true;
+      i += chLen;
+      continue;
+    }
+    if (isWs) clusterHasBase = false;
+    else if (!isMark && !isStrippableOrphanIgnorable(cp)) clusterHasBase = true;
+    outText += ch;
+    if (haveX) for (let k = 0; k < chLen; k++) outX.push(xOffsets![i + k] ?? xOffsets![i] ?? 0);
+    i += chLen;
+  }
+  if (!changed) return { text, xOffsets };
+  return { text: outText, xOffsets: haveX ? outX : undefined };
+}
+
 // A mark qualifies when it is (a) Unicode category M, (b) in a complex-shaper
 // block (so default-shaper marks like Latin diacritics get NONE — see the range
 // table), (c) uncovered by the whole font chain, and (d) orphaned: no base in
@@ -4547,6 +4610,11 @@ export function renderTextAsPath(
   // xOffsets. A no-op for text with no combining marks.
   ({ text, xOffsets } = insertSyntheticDottedCircles(
     text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings, lang, dottedCircleMarks));
+
+  // DM-1158: hide orphaned, uncovered variation selectors / tags Chrome paints
+  // nothing for (they otherwise fall through to the CoreText last-resort tofu).
+  ({ text, xOffsets } = stripOrphanedDefaultIgnorables(
+    text, xOffsets, fontFamily, weight, fontSize, slant, variationSettings));
 
   // DM-652: opt-in embedded-font path. When `setRenderTextMode("embedded-font")`
   // is active AND we hold a webfont buffer that matches the requested
