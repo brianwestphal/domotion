@@ -1,0 +1,200 @@
+name: Visual tests (sharded)
+
+# DM-1216: fan the html-test / html-test-unicode visual-regression suites out
+# across many free public-repo runners so an ~1h throttled local run becomes a
+# few-minute CI run off the interactive machine. Each shard is one matrix job
+# running a STRIDE of the fixtures (HTML_TEST_SHARD=i/N — see tests/shard.ts);
+# the aggregate job merges the per-shard results.json and writes a Step Summary.
+#
+# Manual dispatch only. Default OS is macOS (the calibration target). Linux runs
+# in the pinned Playwright container so the calibrated FreeType/Liberation font
+# set is used; it is EXPECTED to differ from macOS (separate calibration + the
+# runner's Linux coverage floor) — use it for tofu/missing-font regressions, not
+# pixel-matching. windows-latest is Windows Server (narrower default fonts) — for
+# Windows-specific debugging. See docs/66-ci-visual-tests.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Runner OS'
+        type: choice
+        options: [macos, linux, windows, all]
+        default: macos
+      suite:
+        description: 'Which suite to run'
+        type: choice
+        options: [unicode, html]
+        default: unicode
+      shards:
+        description: 'Shards per OS ("auto" = per-OS concurrency caps: macOS 5 / Linux 16 / Windows 5)'
+        default: auto
+      only:
+        description: 'Optional fixture name filter (passed to --only)'
+        default: ''
+
+env:
+  # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
+  NODE_VERSION: '22.21.0'
+  # Keep in sync with the installed @playwright/test version (test-linux.yml too).
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
+
+concurrency:
+  group: visual-tests-${{ github.ref_name }}-${{ inputs.os }}-${{ inputs.suite }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      macos_on: ${{ steps.m.outputs.macos_on }}
+      macos_total: ${{ steps.m.outputs.macos_total }}
+      macos_matrix: ${{ steps.m.outputs.macos_matrix }}
+      linux_on: ${{ steps.m.outputs.linux_on }}
+      linux_total: ${{ steps.m.outputs.linux_total }}
+      linux_matrix: ${{ steps.m.outputs.linux_matrix }}
+      windows_on: ${{ steps.m.outputs.windows_on }}
+      windows_total: ${{ steps.m.outputs.windows_total }}
+      windows_matrix: ${{ steps.m.outputs.windows_matrix }}
+    steps:
+      - id: m
+        shell: bash
+        env:
+          OS_INPUT: ${{ inputs.os }}
+          SHARDS_INPUT: ${{ inputs.shards }}
+        run: |
+          node <<'EOF'
+          const fs = require("node:fs");
+          const osInput = process.env.OS_INPUT;
+          const shardsInput = (process.env.SHARDS_INPUT || "auto").trim();
+          const AUTO = { macos: 5, linux: 16, windows: 5 };
+          const out = [];
+          for (const os of ["macos", "linux", "windows"]) {
+            const on = osInput === os || osInput === "all";
+            const total = !on ? 0
+              : shardsInput === "auto" ? AUTO[os]
+              : Math.max(1, parseInt(shardsInput, 10) || AUTO[os]);
+            const shards = Array.from({ length: total }, (_, i) => i + 1);
+            out.push(`${os}_on=${on}`);
+            out.push(`${os}_total=${total}`);
+            out.push(`${os}_matrix=${JSON.stringify({ shard: shards.length ? shards : [0] })}`);
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, out.join("\n") + "\n");
+          console.log(out.join("\n"));
+          EOF
+
+  test-macos:
+    needs: setup
+    if: needs.setup.outputs.macos_on == 'true'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.macos_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Clone html-test fixtures
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
+        shell: bash
+        env:
+          HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
+          DOMOTION_NO_NICE: '1'
+          ONLY: ${{ inputs.only }}
+        run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
+      - name: Prune passing artifacts
+        if: always()
+        run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-macos-shard${{ matrix.shard }}
+          path: tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/
+          if-no-files-found: warn
+
+  test-linux:
+    needs: setup
+    if: needs.setup.outputs.linux_on == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.linux_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Clone html-test fixtures
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
+        shell: bash
+        env:
+          HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
+          DOMOTION_NO_NICE: '1'
+          ONLY: ${{ inputs.only }}
+        run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
+      - name: Prune passing artifacts
+        if: always()
+        run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-linux-shard${{ matrix.shard }}
+          path: tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/
+          if-no-files-found: warn
+
+  test-windows:
+    needs: setup
+    if: needs.setup.outputs.windows_on == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.windows_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Clone html-test fixtures
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}
+        shell: bash
+        env:
+          HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}
+          DOMOTION_NO_NICE: '1'
+          ONLY: ${{ inputs.only }}
+        run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
+      - name: Prune passing artifacts
+        if: always()
+        run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-windows-shard${{ matrix.shard }}
+          path: tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/
+          if-no-files-found: warn
+
+  aggregate:
+    needs: [test-macos, test-linux, test-windows]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: shard-artifacts
+          pattern: results-*
+      - name: Merge + write Step Summary
+        run: node scripts/merge-shard-results.mjs --input shard-artifacts --out shard-artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-tests-merged
+          path: |
+            shard-artifacts/results-*.json
+            shard-artifacts/**/*-diff.png
+          if-no-files-found: warn

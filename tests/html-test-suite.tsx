@@ -40,6 +40,7 @@ import { raw } from "kerfjs";
 import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { waitForSettled } from "../src/utils/wait-events.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
+import { parseShardSpec, selectShard } from "./shard.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
@@ -1514,13 +1515,24 @@ async function main(): Promise<void> {
   // --only is matched against the flattened name (with `/` → `-`) so callers
   // can pass either form: `--only niche-foo` and `--only niche/foo` both work.
   const onlyNorm = onlyArg != null ? onlyArg.replace(/\//g, "-") : null;
-  const testFiles = onlyNorm != null
+  const filteredFiles = onlyNorm != null
     ? files.filter((f) => f.replace(/\//g, "-").startsWith(onlyNorm))
     : files;
+  // DM-1216: shard-by-index so independent GitHub Actions jobs can each run a
+  // slice of the suite. `--shard i/N` (or HTML_TEST_SHARD=i/N) keeps a STRIDE of
+  // the sorted list (walkHtmlFiles already `.sort()`s, so every shard sees the
+  // same ordering). No spec / "1/1" → the whole list. See tests/shard.ts.
+  const shardSpec = args.includes("--shard")
+    ? args[args.indexOf("--shard") + 1]
+    : process.env.HTML_TEST_SHARD;
+  const testFiles = selectShard(filteredFiles, shardSpec);
   if (testFiles.length === 0) {
-    console.log(`No test files matched (onlyArg=${onlyArg ?? "(none)"}).`);
+    console.log(`No test files matched (onlyArg=${onlyArg ?? "(none)"}, shard=${shardSpec ?? "(none)"}).`);
     return;
   }
+  const shardNote = parseShardSpec(shardSpec) != null
+    ? ` [shard ${shardSpec} → ${testFiles.length} of ${filteredFiles.length}]`
+    : "";
 
   // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
   lowerProcessPriority();
@@ -1532,7 +1544,7 @@ async function main(): Promise<void> {
   const overrideNote = overrideCount > 0
     ? ` (${overrideCount} fixture${overrideCount === 1 ? "" : "s"} use a taller capture height per DM-781)`
     : "";
-  console.log(`Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT}${overrideNote}) with ${workerCount} workers...\n`);
+  console.log(`Running ${testFiles.length} html-test files (viewport ${WIDTH}x${HEIGHT}${overrideNote})${shardNote} with ${workerCount} workers...\n`);
 
   // Progress-indicator state — updated inside `onResult` below as each
   // fixture completes. `runStartMs` clocks total wall time so the
