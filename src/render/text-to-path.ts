@@ -598,6 +598,18 @@ const FONT_PATHS: Record<string, FontPath> = {
   // collection: pick weight × slant variants by postscriptName in
   // getFontInstance.
   "helvetica":              { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica" },
+  // DM-1189 / DM-1199 / DM-1196 / DM-1183: the REAL Helvetica Neue, distinct
+  // from Helvetica.ttc above (and from the mislabeled generated `u-helvetica-
+  // neue` key, which also points at Helvetica.ttc). On an SF-Pro / system-ui
+  // primary, Blink's CoreText fallback resolves a cluster of letterlike / math /
+  // archaic-Latin / Cyrillic codepoints the primary lacks (ℓ ℮ ŉ Ѫ Ƣ ∕) to THIS
+  // face — BEFORE it reaches the declared `sans-serif`→Helvetica generic — so the
+  // glyphs differ from what Domotion's declared-family walk picks. Routed in
+  // resolveFontForCodepoint for the sf-pro primary case.
+  "helvetica-neue":             { path: "/System/Library/Fonts/HelveticaNeue.ttc", postscriptName: "HelveticaNeue" },
+  "helvetica-neue-bold":        { path: "/System/Library/Fonts/HelveticaNeue.ttc", postscriptName: "HelveticaNeue-Bold" },
+  "helvetica-neue-italic":      { path: "/System/Library/Fonts/HelveticaNeue.ttc", postscriptName: "HelveticaNeue-Italic" },
+  "helvetica-neue-bold-italic": { path: "/System/Library/Fonts/HelveticaNeue.ttc", postscriptName: "HelveticaNeue-BoldItalic" },
   "helvetica-bold":         { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Bold" },
   "helvetica-italic":       { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-Oblique" },
   "helvetica-bold-italic":  { path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica-BoldOblique" },
@@ -2040,7 +2052,7 @@ function getFontInstance(key: string, weight: number, fontSize: number, slant: n
   // "semibold or above is bold" rule Chrome uses when an exact weight isn't
   // installed. Times/Georgia ship four sibling files (regular/bold/italic/
   // bold-italic) for headings + emphasis in serif content (DM-269).
-  if (key === "helvetica" || key === "arial" || key === "courier" || key === "menlo"
+  if (key === "helvetica" || key === "helvetica-neue" || key === "arial" || key === "courier" || key === "menlo"
       || key === "times" || key === "times-new-roman" || key === "georgia"
       || key === "source-serif-pro" || key === "playfair-display") {
     const isBold = weight >= 600;
@@ -2423,15 +2435,20 @@ function matchFamilyNameToKey(name: string): string | null {
     // Chrome on macOS resolves the CSS `fantasy` generic to Papyrus
     // (empirical probe: 313.94px = Papyrus's exact advance on the sample).
     if (name === "fantasy" || name === "papyrus") return "papyrus";
-    // Chrome on macOS resolves `sans-serif`, `helvetica`, and `helvetica neue`
-    // to Helvetica (Blink: font_cache_mac.mm + font_fallback_list.cc — the
-    // generic `sans-serif` keyword is hardcoded to Helvetica on macOS, not
-    // SF Pro). Matching this exactly is critical: SF Pro has different
-    // glyph shapes (notably the `1`, `R`, `g`) and ~2% wider metrics than
-    // Helvetica at the same em size, so substituting it produces visible
-    // drift on every page that uses the default sans-serif.
-    if (name === "sans-serif" || name === "helvetica"
-      || name === "helvetica neue") return "helvetica";
+    // DM-1189 / DM-1199 / DM-1196 / DM-1183: `Helvetica Neue` is its OWN face,
+    // NOT plain Helvetica. Verified with Chrome's `getPlatformFontsForNode`:
+    // `font-family: 'Helvetica Neue'` paints from Helvetica Neue (HelveticaNeue.ttc),
+    // while `sans-serif`/`Helvetica` paint from Helvetica (Helvetica.ttc). The two
+    // differ (e.g. the bold U+212E ℮, the script U+2113 ℓ, archaic Latin/Cyrillic),
+    // so collapsing them lost those glyphs. Map it to its own key.
+    if (name === "helvetica neue" || name === "helveticaneue") return "helvetica-neue";
+    // Chrome on macOS resolves the generic `sans-serif` keyword (and a literal
+    // `Helvetica`) to Helvetica (Blink: font_cache_mac.mm + font_fallback_list.cc
+    // — the generic is hardcoded to Helvetica on macOS, not SF Pro). Matching this
+    // exactly is critical: SF Pro has different glyph shapes (notably the `1`, `R`,
+    // `g`) and ~2% wider metrics than Helvetica at the same em size, so substituting
+    // it produces visible drift on every page that uses the default sans-serif.
+    if (name === "sans-serif" || name === "helvetica") return "helvetica";
     if (name === "arial") return "arial";
     // Arial Unicode MS — the broad-coverage pan-Unicode face many of the
     // html-test unicode fixtures declare as their primary. Recognizing it

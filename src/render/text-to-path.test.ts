@@ -132,7 +132,10 @@ describe("resolveFontKey: explicit-name resolution", () => {
 
   it("honors author-named sans families separately", () => {
     expect(resolveFontKey("Helvetica")).toBe("helvetica");
-    expect(resolveFontKey("Helvetica Neue")).toBe("helvetica");
+    // DM-1189: `Helvetica Neue` is its own face (HelveticaNeue.ttc), distinct from
+    // plain Helvetica — Chrome's getPlatformFontsForNode confirms it paints from
+    // Helvetica Neue, not Helvetica.
+    expect(resolveFontKey("Helvetica Neue")).toBe("helvetica-neue");
     expect(resolveFontKey("Arial")).toBe("arial");
   });
 
@@ -193,7 +196,7 @@ describe("resolveFontKey: explicit-name resolution", () => {
 
   it("is case-insensitive and strips quotes", () => {
     expect(resolveFontKey("MONOSPACE")).toBe("courier");
-    expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica");
+    expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica-neue"); // DM-1189: own face
     expect(resolveFontKey("'SF Mono'")).toBe("sf-mono");
   });
 
