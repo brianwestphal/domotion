@@ -1847,6 +1847,15 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // Without this route the codepoint fell through to `[]` (no fallback)
   // and the renderer dropped to the primary font, which lacks the glyph
   // entirely and substituted a different symbol shape.
+  // DM-1203: U+2215 DIVISION SLASH is an exception inside the math-operators
+  // range below. On an SF-Pro / system-ui primary (which lacks it) Chrome
+  // resolves it to Helvetica Neue via CTFontCreateForString, NOT Apple Symbols
+  // — Apple Symbols' slash sits higher and farther right than Chrome's painted
+  // glyph. Returning [] here drops it through to the CoreText system fallback
+  // (`resolveSystemFallbackKeyForCp`), which runs the same CTFontCreateForString
+  // and lands on the identical Helvetica Neue glyph. (The neighbouring division
+  // operators ∕-adjacent that Apple Symbols DOES match stay on the symbols rule.)
+  if (codepoint === 0x2215) return [];
   if ((codepoint >= 0x2100 && codepoint <= 0x214F)
     || (codepoint >= 0x2190 && codepoint <= 0x21FF)
     || (codepoint >= 0x2200 && codepoint <= 0x22FF)
