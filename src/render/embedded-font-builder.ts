@@ -13,6 +13,19 @@
 // contextual joining (Arabic init/medi/fina), ligatures (fi, ffi), and
 // cluster reordering (Devanagari i-matra) without us having to ship any
 // GSUB/GPOS rules in the custom font.
+//
+// Known limitation (DM-1202, accepted won't-fix): opentype.js writes
+// CFF-flavored OpenType (`OTTO`/CFF outlines, not TrueType `glyf`). For a few
+// rare glyphs, Chrome's CFF rasterizer paints the embedded subset glyph hollow
+// even though the contour data is correct (fontkit reads it back filled). It is
+// data-dependent — the same glyph round-trips fine in a minimal/realistic font
+// and only goes hollow at a specific subset composition — so it is an
+// opentype.js CFF charstring/subroutine-sharing quirk, not a per-glyph bug we
+// can target. Observed once on U+2E4D (a thin supplemental-punctuation flag,
+// "trivial · 0.00% of image"). The only durable fix would be emitting `glyf`
+// outlines instead of CFF, which opentype.js's writer cannot do — that means a
+// different font writer and re-baselining every embedded-font fixture, not
+// warranted for a single cosmetic punctuation glyph.
 
 // opentype.js ships no type declarations; declare the minimal surface we
 // use so callers stay strict-typed at the boundary.

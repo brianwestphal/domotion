@@ -230,40 +230,46 @@ step_release_notes() {
 
   local last_tag
   last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-  local log_range="${last_tag:+${last_tag}..HEAD}"
+  # gitgist range: "<tag>..HEAD" since the last tag, or full history (omit range) for the first release.
+  local gg_range="${last_tag:+${last_tag}..HEAD}"
+  local template="scripts/release-notes-template.md"
 
-  local commit_log
-  commit_log=$(git log ${log_range:-"-30"} --format="%s" --no-decorate)
-
+  # Draft release notes with gitgist (github.com/brianwestphal/gitgist): it groups
+  # the commit range by theme, rewrites terse subjects into user-facing prose, and
+  # drops noise (refactors/tests/CI). We prefer the claude-cli provider (no API key
+  # needed, matches the maintainer's existing setup) and fall back to gitgist's
+  # offline Conventional-Commits grouping (--no-ai) when no Claude CLI is present.
   local generated=""
+  local gg_args=(--yes gitgist)
+  [[ -n "$gg_range" ]] && gg_args+=("$gg_range")
+  [[ -f "$template" ]] && gg_args+=(--template "$template")
+
   if command -v claude &>/dev/null; then
-    info "Drafting release notes with Claude (commits since ${last_tag:-last 30})..."
-    local prompt
-    prompt=$(cat <<EOF
-Draft release notes for domotion, a DOM-to-animated-SVG renderer that captures
-HTML/CSS via Playwright Chromium and emits self-contained SVG with CSS
-animations, from the commit subjects below.
+    info "Drafting release notes with gitgist (claude-cli, commits since ${last_tag:-start})..."
+    generated=$(npx "${gg_args[@]}" --provider claude-cli 2>/dev/null || true)
+  fi
+  if [[ -z "$generated" ]]; then
+    info "Drafting release notes with gitgist (offline --no-ai, commits since ${last_tag:-start})..."
+    generated=$(npx "${gg_args[@]}" --no-ai 2>/dev/null || true)
+  fi
 
-Rules:
-- Output ONLY markdown bullets — no heading, no preamble, no closing remarks.
-- Each bullet is ONE short line (~80 chars max), user-facing.
-- Group related changes into single bullets.
-- INCLUDE: new features, bug fixes, breaking changes — anything a user upgrading would notice.
-- EXCLUDE: ticket IDs, internal refactors, test additions, doc-only changes, build/CI tweaks, implementation rationale.
-- Aim for 5–10 bullets total. Fewer is better.
-
-Commits:
-${commit_log}
-EOF
-)
-    generated=$(claude -p "$prompt" 2>/dev/null || true)
-    generated=$(echo "$generated" | sed -e '/^```/d' -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
+  # Convert gitgist's "## Section" headings to bold labels ("**Section**"). Two
+  # reasons: (1) the entry is nested under a "## [version] - date" changelog heading,
+  # so a flat bold label fits better than another level-2/3 heading; (2) ask_multiline
+  # strips every editor line that starts with '#' (its guidance-comment convention),
+  # which would otherwise delete the section headings when the user saves. Also drop
+  # any stray code fences. This is a line-wise pass that must run BEFORE the
+  # trailing-blank strip below — that idiom uses N to accumulate the pattern space and
+  # would skip the substitution on any heading it pulls in.
+  if [[ -n "$generated" ]]; then
+    generated=$(echo "$generated" | sed -e 's/^## \(.*\)$/**\1**/' -e '/^```/d')
+    generated=$(echo "$generated" | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
   fi
 
   local initial
   if [[ -n "$generated" ]]; then
     success "Draft ready — review and edit in the editor."
-    initial="# Release notes — Claude draft below. Edit freely.
+    initial="# Release notes — gitgist draft below. Edit freely.
 # Lines starting with '#' are removed on save.
 
 ${generated}"
