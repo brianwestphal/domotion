@@ -13,7 +13,7 @@
 // push first — this script refuses to dispatch a ref the remote doesn't have.
 
 import { execFileSync, execFile } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -101,10 +101,14 @@ console.log(`\nDownloading shard artifacts to ${dir} …`);
 let downloaded = false;
 for (let attempt = 0; attempt < 6 && !downloaded; attempt++) {
   if (attempt > 0) await new Promise((r) => setTimeout(r, 5000));
+  // `gh run download` errors with "file exists" if a prior partial extraction
+  // left files behind, so start each attempt from a clean dir.
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
   try {
     sh("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", "results-*"], { stdio: "inherit" });
     downloaded = true;
-  } catch { process.stdout.write(downloaded ? "" : "  (artifacts not ready yet, retrying…)\n"); }
+  } catch { process.stdout.write("  (artifacts not ready yet, retrying…)\n"); }
 }
 if (!downloaded) die(`no artifacts to download after retries — the run may have failed before any shard finished (see ${url}).`);
 
