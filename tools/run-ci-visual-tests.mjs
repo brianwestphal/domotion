@@ -95,11 +95,18 @@ await new Promise((resolve) => {
 
 const dir = mkdtempSync(join(tmpdir(), "visual-tests-"));
 console.log(`\nDownloading shard artifacts to ${dir} …`);
-try {
-  sh("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", "results-*"], { stdio: "inherit" });
-} catch {
-  die(`no artifacts to download (the run may have failed before any shard finished — see ${url}).`);
+// Artifacts finalize a few seconds AFTER `gh run watch` returns, so retry the
+// download a handful of times before giving up (the run may also have failed
+// before any shard uploaded, in which case there genuinely is nothing).
+let downloaded = false;
+for (let attempt = 0; attempt < 6 && !downloaded; attempt++) {
+  if (attempt > 0) await new Promise((r) => setTimeout(r, 5000));
+  try {
+    sh("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", "results-*"], { stdio: "inherit" });
+    downloaded = true;
+  } catch { process.stdout.write(downloaded ? "" : "  (artifacts not ready yet, retrying…)\n"); }
 }
+if (!downloaded) die(`no artifacts to download after retries — the run may have failed before any shard finished (see ${url}).`);
 
 console.log(`\nMerging…\n`);
 const here = new URL("..", import.meta.url).pathname;
