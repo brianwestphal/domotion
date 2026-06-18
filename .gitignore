@@ -29,3 +29,8 @@ data/
 *.tsbuildinfo
 .tmp/
 tools/unicode-fixtures/
+
+# Reusable-but-uncommitted scratch probes/tools (DM-1216 cleanup).
+# The underscore-prefixed one-off debug scripts live here so they persist
+# locally without cluttering `git status` or risking an accidental commit.
+tools/scratch/
