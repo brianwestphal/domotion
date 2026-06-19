@@ -350,6 +350,48 @@ describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)",
   });
 });
 
+// DM-1215: an ORPHANED complex-script combining mark must be shaped via real
+// HarfBuzz so the dotted circle Chrome inserts (and GPOS-positions the mark on)
+// is reproduced. fontkit's USE shaping DROPS the ◌ for Adlam / Miao — it emits
+// only the bare floating mark — so the renderer routes the orphan cluster through
+// the mark's own font as a HarfBuzz instance, which inserts + positions the ◌ like
+// Chrome's HarfBuzz. The gate is "no spacing base in the cluster", so a base+mark
+// sequence (a real letter then its mark) is NOT rerouted. Verified in embedded
+// mode by counting emitted glyphs (one PUA codepoint per shaped glyph).
+describe("orphaned complex marks get a HarfBuzz dotted circle (DM-1215)", () => {
+  const ADLAM = "/System/Library/Fonts/Supplemental/NotoSansAdlam-Regular.ttf";
+  const HAVE_ADLAM = fs.existsSync(ADLAM);
+  beforeEach(() => { clearWebfonts(); clearEmbeddedFonts(); setRenderTextMode("embedded-font"); });
+  afterEach(() => { setRenderTextMode("paths"); });
+  const glyphCount = (out: string): number => {
+    let n = 0;
+    for (const m of out.matchAll(/<text[^>]*>([^<]*)<\/text>/g)) {
+      for (let i = 0; i < m[1].length;) { const cp = m[1].codePointAt(i)!; n++; i += cp > 0xFFFF ? 2 : 1; }
+    }
+    return n;
+  };
+  it.skipIf(!HAVE_ADLAM)("inserts the ◌ for an orphaned Adlam mark (2 glyphs: ◌ + mark)", () => {
+    const out = renderTextAsPath("\u{1E944}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    expect(out).not.toBeNull();
+    expect(glyphCount(out!)).toBe(2); // HarfBuzz-inserted ◌ + the mark (fontkit alone → 1, no ◌)
+  });
+  it.skipIf(!HAVE_ADLAM)("shares ONE ◌ across an orphaned multi-mark cluster (3 glyphs: ◌ + 2 marks)", () => {
+    const out = renderTextAsPath("\u{1E944}\u{1E944}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    expect(out).not.toBeNull();
+    expect(glyphCount(out!)).toBe(3);
+  });
+  it.skipIf(!HAVE_ADLAM)("does NOT insert a ◌ for a based Adlam letter + mark (no orphan → 2 glyphs)", () => {
+    const out = renderTextAsPath("\u{1E921}\u{1E944}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    expect(out).not.toBeNull();
+    expect(glyphCount(out!)).toBe(2); // base + mark, NO inserted circle (would be 3 if mis-routed)
+  });
+  it.skipIf(!HAVE_ADLAM)("does NOT insert a ◌ for a bare Adlam base letter (1 glyph)", () => {
+    const out = renderTextAsPath("\u{1E921}", 0, 0, 32, '"Noto Sans Adlam"', "400", "#000");
+    expect(out).not.toBeNull();
+    expect(glyphCount(out!)).toBe(1);
+  });
+});
+
 // DM-1109: the pre-base (left) matra predicate. Unconditional set membership —
 // no DOM. The crux is the Vowel_Dependent filter: InPC=Left medial CONSONANTS
 // must NOT qualify (they don't pre-base-reorder), only left VOWEL signs do.

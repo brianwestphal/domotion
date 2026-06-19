@@ -68,13 +68,18 @@ they describe (see `CLAUDE.md` "Documentation"):
   York ships its cuts as separate static OTFs (no `opsz` axis), so the
   `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
   needed a routing fix (it collided with the variable font's Medium weight).
-- **Doc 60 (`docs/60-harfbuzz-use-reroute.md`, DM-1197)** — a narrow shaping
-  reroute: USE-shaped precomposed letters with a canonical base+mark NFD (Kaithi
-  `U+110AB`, Balinese, Tulu-Tigalari — 13 cps) shape via real HarfBuzz
-  (harfbuzzjs) instead of the macOS CoreText helper, which recomposes the
-  sequence and mis-places the mark. Scoped to the USE shaper only —
-  `DEDICATED_SHAPER_RANGES` (Indic / Tibetan / Myanmar / …) stay on the CoreText
-  path, which already matches Chrome there.
+- **Doc 60 (`docs/60-harfbuzz-use-reroute.md`, DM-1197 + DM-1215)** — two narrow
+  uses of real HarfBuzz (harfbuzzjs) where macOS shaping diverges from Chrome.
+  (1) DM-1197: USE-shaped precomposed letters with a canonical base+mark NFD
+  (Kaithi `U+110AB`, Balinese, Tulu-Tigalari — 13 cps) shape via HarfBuzz instead
+  of the CoreText helper, which recomposes and mis-places the mark; scoped to the
+  USE shaper, `DEDICATED_SHAPER_RANGES` stay on CoreText. (2) DM-1215: an
+  ORPHANED complex-script combining mark (no spacing base) routes through the
+  mark's own font as a HarfBuzz instance so the dotted circle `U+25CC` Chrome
+  inserts + GPOS-positions the mark on is reproduced — fontkit drops the ◌ for
+  USE faces (Adlam/Miao) and mis-centers it otherwise. Fixed adlam/miao/brahmi/
+  kharoshthi/tagalog/tai-tham/syloti via `resolveDottedCircleHbRun` in both
+  run-splitters.
 - **Doc 61 (`docs/61-overlay-resolution-primitive.md`, DM-1132)** — `resolveOverlays(
   page, overlays)` lowers an overlay's selector `anchor` + typing `maxWidth:
   "anchor"` into concrete `x`/`y`/`bgWidth` for imperative scripting-API callers.

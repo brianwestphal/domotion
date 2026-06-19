@@ -2771,6 +2771,51 @@ export function synthSmallCapsCharScale(
   return { scale: 1, upcase: false };
 }
 
+// DM-1215: resolve the HarfBuzz cluster font for an orphaned combining mark that
+// the synthetic-dotted-circle pass (or the source) placed after a U+25CC. Chrome's
+// HarfBuzz inserts the ◌ from the MARK's OWN font (`hb-ot-shaper-syllabic.cc` →
+// `font->get_nominal_glyph(0x25CC)`) and GPOS-positions the whole cluster within
+// that single font: Indic faces give the mark a real offset (Brahmi U+11038 →
+// -294, centered on the 594-wide ◌), USE faces give offset 0 and self-position via
+// the mark's own outline (Adlam / Kharoshthi / Miao / Tagalog / Tai-Tham / Syloti).
+// Domotion's geometric `syntheticMarkCenteringOffsetPx` only approximated the Indic
+// case, so USE marks floated off the ◌. Shaping ◌+mark with real HarfBuzz in the
+// mark's font (harfbuzzjs — robust on the Indic Noto GSUB tables that crash fontkit)
+// reproduces BOTH styles exactly; both run-splitters route the cluster into one run
+// whose font is the returned HarfBuzz instance, so the shaping path lays the mark
+// out at HarfBuzz's advance + GPOS offset. Returns null (→ caller keeps the per-char
+// centering path) when nothing covers the mark, the mark's font lacks U+25CC, or
+// HarfBuzz can't open the font file. Shared by `textToPathMarkup` (glyph-path) and
+// `splitTextIntoFontRuns` (embedded-font) so both emit the cluster identically.
+function resolveDottedCircleHbRun(
+  markCp: number,
+  primaryFont: FontInstance, primaryFontKey: string,
+  weight: number, fontSize: number, slant: number,
+  variationSettings: Record<string, number> | undefined,
+  lang: string | undefined, fontKeyChain: string[],
+): { key: string; font: FontInstance } | null {
+  // DM-1215 + DM-1197: do NOT reroute marks belonging to a DEDICATED HarfBuzz
+  // shaper (Indic / Thai-Lao / Tibetan / Myanmar / Khmer / Arabic / Hebrew /
+  // Hangul). harfbuzzjs's dedicated-shaper output can itself diverge from Chrome's
+  // paint (the same reason DM-1197 excludes `DEDICATED_SHAPER_RANGES`), so routing
+  // their orphaned marks through HarfBuzz regressed sinhala / lao / tibetan /
+  // myanmar (CI-verified). Vedic Extensions marks (U+1CD0–1CFF) attach to the
+  // dedicated Indic shaper, so they're excluded too. fontkit/CoreText already
+  // matches Chrome for these; only the USE-shaped scripts need the reroute.
+  if (usesDedicatedShaper(markCp) || (markCp >= 0x1CD0 && markCp <= 0x1CFF)) return null;
+  const r = resolveFontForCodepoint(markCp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+  if (!r.covered) return null;
+  const markKey = r.key;
+  const markFont = r.fontOverride ?? (markKey === primaryFontKey ? primaryFont : getFontInstance(markKey, weight, fontSize, slant));
+  if (markFont == null) return null;
+  if (markFont.glyphForCodePoint(0x25CC).id === 0) return null; // ◌ must come from the mark's font, like Chrome
+  const path = resolveFontSpec(markKey)?.path;
+  if (path == null || path === "") return null;
+  const hbInst = makeHarfbuzzShapingInstance(markFont, path);
+  if (hbInst === markFont) return null; // HarfBuzz couldn't open the file
+  return { key: markKey, font: hbInst };
+}
+
 export function textToPathMarkup(
   text: string,
   fontSize: number,
@@ -2826,32 +2871,73 @@ export function textToPathMarkup(
     let curText = "";
     let curStart = 0;
     let i = 0;
+    // DM-1215: an active dotted-circle cluster being routed through real HarfBuzz
+    // (the mark's own font). Set when an ORPHANED combining mark (or an explicit
+    // U+25CC before a mark) is seen; trailing combining marks join the same run;
+    // any spacing base / whitespace clears it. `clusterHasBase` tracks whether the
+    // current cluster already has a spacing base, so a mark with no base is treated
+    // as orphaned — exactly the case Chrome's HarfBuzz paints with an inserted ◌.
+    let hbDottedCircleRun: { key: string; font: FontInstance } | null = null;
+    let clusterHasBase = false;
     while (i < text.length) {
       const cp = text.codePointAt(i)!;
       const ch = String.fromCodePoint(cp);
+      const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
+      let emitCh: string;
+      let useKey: string;
+      let useFontOverride: FontInstance | null;
+      let useDecomposed: boolean;
+      // DM-1215: route a dotted-circle cluster through real HarfBuzz in the mark's
+      // own font so the mark lands on the ◌ exactly as Chrome paints it (see
+      // `resolveDottedCircleHbRun`). An ORPHANED mark (no spacing base) opens the
+      // cluster — HarfBuzz inserts AND positions the ◌ the way Chrome's HarfBuzz
+      // does, where fontkit either omits it (Adlam / Miao) or mis-places it. An
+      // explicit U+25CC before a mark (already inserted upstream) opens it too.
+      // Trailing combining marks join the same HarfBuzz-shaped run; any spacing
+      // base / whitespace ends it.
+      const chIsMark = /\p{M}/u.test(ch);
+      let clusterRun: { key: string; font: FontInstance } | null = null;
+      if (hbDottedCircleRun != null) {
+        if (chIsMark) clusterRun = hbDottedCircleRun;
+        else hbDottedCircleRun = null; // a base/space closes the cluster
+      }
+      if (clusterRun == null) {
+        const markForCluster = (cp === 0x25CC && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp)))
+          ? nextCp                                  // explicit ◌ + mark (mark drives the shaping font)
+          : (chIsMark && !clusterHasBase) ? cp      // orphaned bare mark (HarfBuzz inserts the ◌)
+          : 0;
+        if (markForCluster !== 0) {
+          const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+          if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
+        }
+      }
+      // Track spacing-base presence for the NEXT codepoint's orphan test: a base
+      // (incl. the ◌ itself) sets it, whitespace resets it, marks leave it.
+      if (/\s/.test(ch) && ch.length === 1) clusterHasBase = false;
+      else if (!chIsMark) clusterHasBase = true;
       // The char appended to the current run's text. Normally the source char;
       // for a Math-Alpha decomposition it's the substituted base letter/digit.
       // DM-1068: the per-codepoint decision is the shared resolver (primary →
       // webfont variant → chain → system fallback → math-alpha → NFD). This path
       // also keeps `useDecomposed` so a math-alpha / NFD run renders via its text
       // (the substituted base char) rather than the per-char source index.
-      const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+      const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
       // An UNCOVERED emoji must stay on the glyph-path terminal, NOT take the
       // resolver's system-fallback. Emoji are painted by the rasterGlyph overlay;
       // placing one on a system color font here would split it out of the
       // surrounding text run and break the overlay's advance pinning (the
       // embedded path, which has no overlay, does let the resolver place them).
-      const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
       const emojiToTerminal = primaryFont.glyphForCodePoint(cp).id === 0 && isEmojiCodepoint(cp, nextCp);
-      let emitCh: string;
-      let useKey: string;
-      let useFontOverride: FontInstance | null;
-      let useDecomposed: boolean;
-      if (res.covered && !emojiToTerminal) {
-        emitCh = res.emitCh;
-        useKey = res.key;
-        useFontOverride = res.fontOverride;
-        useDecomposed = res.decomposed;
+      if (clusterRun != null) {
+        emitCh = ch;
+        useKey = clusterRun.key;
+        useFontOverride = clusterRun.font;
+        useDecomposed = true;
+      } else if (res!.covered && !emojiToTerminal) {
+        emitCh = res!.emitCh;
+        useKey = res!.key;
+        useFontOverride = res!.fontOverride;
+        useDecomposed = res!.decomposed;
       } else {
         // Glyph-path terminal: nothing covers `cp` (an exotic emoji even Apple
         // Symbols lacks), or `cp` is an emoji kept off the resolver per above.
@@ -4123,9 +4209,40 @@ function splitTextIntoFontRuns(
   let curText = "";
   let curStart = 0;
   let i = 0;
+  // DM-1215: see `textToPathMarkup` — a dotted-circle cluster routed through real
+  // HarfBuzz in the mark's own font so the mark lands on the ◌ exactly as Chrome
+  // paints it. The embedded loop's cluster-aware anchoring (DM-1028) places each
+  // HarfBuzz cluster at its captured xOffset and lays out the glyphs by shaped
+  // advance + GPOS x/y offset. `clusterHasBase` flags orphaned marks (no spacing
+  // base) — the case Chrome's HarfBuzz paints with an inserted ◌.
+  let hbDottedCircleRun: { key: string; font: FontInstance } | null = null;
+  let clusterHasBase = false;
   while (i < text.length) {
     const cp = text.codePointAt(i)!;
     const ch = String.fromCodePoint(cp);
+    const nextCp = i + ch.length < text.length ? text.codePointAt(i + ch.length)! : 0;
+    // DM-1215: route an orphaned mark (or an explicit ◌ + mark) through HarfBuzz in
+    // the mark's font — HarfBuzz inserts + GPOS-positions the ◌ like Chrome, where
+    // fontkit omits it (Adlam / Miao) or mis-places it. Trailing marks join; a
+    // spacing base / whitespace closes the cluster.
+    const chIsMark = /\p{M}/u.test(ch);
+    let clusterRun: { key: string; font: FontInstance } | null = null;
+    if (hbDottedCircleRun != null) {
+      if (chIsMark) clusterRun = hbDottedCircleRun;
+      else hbDottedCircleRun = null;
+    }
+    if (clusterRun == null) {
+      const markForCluster = (cp === 0x25CC && nextCp !== 0 && /\p{M}/u.test(String.fromCodePoint(nextCp)))
+        ? nextCp
+        : (chIsMark && !clusterHasBase) ? cp
+        : 0;
+      if (markForCluster !== 0) {
+        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+        if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
+      }
+    }
+    if (/\s/.test(ch) && ch.length === 1) clusterHasBase = false;
+    else if (!chIsMark) clusterHasBase = true;
     // The char appended to the run's text — normally the source char; for a
     // Math-Alpha decomposition the substituted base letter/digit. The run's
     // startIdx/endIdx stay in source-text indices so xOffsets lookups remain
@@ -4136,10 +4253,10 @@ function splitTextIntoFontRuns(
     // `.notdef` (glyph 0) — which is exactly what `covered: false` returns
     // (key=primary / override=null / emitCh=source), preserving DM-1018.
     // (`decomposed` is unused here — the embedded loop always renders run.text.)
-    const res = resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
-    const emitCh = res.emitCh;
-    const useKey = res.key;
-    const useFontOverride = res.fontOverride;
+    const res = clusterRun != null ? null : resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+    const emitCh = clusterRun != null ? ch : res!.emitCh;
+    const useKey = clusterRun != null ? clusterRun.key : res!.key;
+    const useFontOverride = clusterRun != null ? clusterRun.font : res!.fontOverride;
     const runChanged = useKey !== curKey || useFontOverride !== curFontOverride;
     if (runChanged && curText.length > 0) {
       const fvs = curKey === primaryFontKey ? variationSettings : undefined;
