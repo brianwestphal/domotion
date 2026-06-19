@@ -45,6 +45,19 @@ npm run test:linux-docker  # run `npm test` inside the Linux container CI uses (
 
 `npm run test:linux-docker` runs the suite inside `mcr.microsoft.com/playwright:v<locked-version>-noble` — the same Linux image CI's `test` job uses. Because the font-fallback chain is calibrated to the host platform's system fonts, text-rendering tests take a different code path on Linux (no `/System/Library/Fonts/...` → glyph-path rendering falls back to `<text>`), so some failures only surface in CI. This reproduces them without pushing a tag. Pass a file/`-t` filter (`npm run test:linux-docker -- src/scroll/composer.test.ts`) or set `CMD=` to run any other command (e.g. `CMD="npm run typecheck"`) in the container. `node_modules` is isolated in a Docker volume so the container's Linux install never clobbers your host's.
 
+### Run large visual sweeps on CI, not locally
+
+**Rule: any time a validation needs to run more than ~50 visual fixtures (e.g. broad `demos:test:html` / `demos:test:unicode` re-validation after a render-pipeline change), run it on CI — do NOT wait ~40-60 min on a local sweep.** The local run blocks for the better part of an hour and only exercises the host's macOS calibration; CI shards across runners (parallel, ~minutes) and can also cross-check the Linux/Windows runners.
+
+CI runs a **pushed git ref**, not your local working tree (`tools/run-ci-visual-tests.mjs` refuses to dispatch unless `origin/<branch>` matches local HEAD). So even though the standing rule is "never commit unless asked," a CI sweep of an in-progress change requires a commit + push. The accepted workflow for that — it does NOT touch `main` and is self-contained:
+
+1. `git checkout -b <topic-branch>` (a throwaway validation branch, never `main`).
+2. Commit the working-tree changes to it.
+3. `git push -u origin <topic-branch>`.
+4. Dispatch the sharded run against that branch, **selecting just what you need** rather than the whole suite: `node tools/run-ci-visual-tests.mjs --suite unicode --only <filter>` (or `--suite html`; default OS macOS, `--os linux`/`windows` only for platform-specific debugging). The `--only` filter takes a fixture-name substring — narrow it to the blocks your change actually touches (e.g. the specific Unicode blocks a shaping change affects) so the run is minutes, not the full sweep.
+
+This is the only case where committing/pushing without an explicit "commit this" request is expected — it's a validation branch, not a merge. See the `tests/html-test-suite.tsx` bullet below and `docs/66-ci-visual-tests.md` for the sharding details; a single shard is reproducible locally with `HTML_TEST_SHARD=i/N`.
+
 ## Code Organization
 
 - **`src/dom-to-svg.ts`** — capture entry point. Exports `captureElementTree()` (runs an in-page CAPTURE_SCRIPT to walk the DOM into a serializable tree) and `elementTreeToSvg()` (renders the tree as SVG markup). The CAPTURE_SCRIPT lives as a string literal that's `evaluate()`d in the page context, so it can't import from the rest of the source — keep it self-contained.

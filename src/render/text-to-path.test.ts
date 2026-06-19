@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -312,6 +312,41 @@ describe("usesComplexShaperDottedCircle (tate-chu-yoko-adjacent: dotted-circle g
     expect(usesComplexShaperDottedCircle(0x0041)).toBe(false); // Latin A
     expect(usesComplexShaperDottedCircle(0x4E00)).toBe(false); // CJK 一
     expect(usesComplexShaperDottedCircle(0x0590)).toBe(false); // Hebrew area
+  });
+});
+
+// DM-1197: the gate that routes a complex-script precomposed letter through real
+// HarfBuzz (matching Chrome) instead of macOS CoreText (which recomposes / shapes
+// it differently). MUST fire only for USE-shaped scripts — the dedicated Indic /
+// Tibetan / Myanmar shapers already match Chrome on the CoreText path, and
+// harfbuzzjs can diverge from Chrome for them (it decomposed Tibetan U+0F43 where
+// Chrome renders the precomposed glyph, regressing the tibetan fixture).
+describe("complexShaperBaseMarkDecomposition (DM-1197 HarfBuzz-rerouting gate)", () => {
+  it("returns the NFD base+mark for USE-shaped precomposed letters", () => {
+    expect(complexShaperBaseMarkDecomposition(0x110AB)).toBe("\u{110A5}\u{110BA}"); // Kaithi VA = BA + nukta
+    expect(complexShaperBaseMarkDecomposition(0x1B06)).not.toBeNull();              // Balinese letter akara tedung
+    expect(complexShaperBaseMarkDecomposition(0x11383)).not.toBeNull();            // Tulu-Tigalari
+    // every returned decomposition is base-first, mark-last
+    for (const cp of [0x110AB, 0x1B06, 0x11383]) {
+      const d = complexShaperBaseMarkDecomposition(cp)!;
+      const cps = [...d];
+      expect(/\p{M}/u.test(cps[0])).toBe(false);
+      expect(/\p{M}/u.test(cps[cps.length - 1])).toBe(true);
+    }
+  });
+  it("is NULL for DEDICATED-shaper scripts (CoreText already matches Chrome there)", () => {
+    expect(complexShaperBaseMarkDecomposition(0x0F43)).toBeNull(); // Tibetan GHA (regressed before the exclusion)
+    expect(complexShaperBaseMarkDecomposition(0x0958)).toBeNull(); // Devanagari QA (Indic shaper)
+    expect(complexShaperBaseMarkDecomposition(0x09DC)).toBeNull(); // Bengali RRA
+    expect(complexShaperBaseMarkDecomposition(0x1026)).toBeNull(); // Myanmar UU
+  });
+  it("is NULL for the default shaper's composed Latin/Greek/Cyrillic diacritics", () => {
+    expect(complexShaperBaseMarkDecomposition(0x00E9)).toBeNull(); // é (e + combining acute)
+    expect(complexShaperBaseMarkDecomposition(0x00F1)).toBeNull(); // ñ
+    expect(complexShaperBaseMarkDecomposition(0x0041)).toBeNull(); // plain Latin A — no decomposition
+  });
+  it("is NULL for an atomic complex-script letter with no canonical decomposition", () => {
+    expect(complexShaperBaseMarkDecomposition(0x110A5)).toBeNull(); // Kaithi BA (the base itself)
   });
 });
 

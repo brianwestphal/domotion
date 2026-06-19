@@ -13,6 +13,7 @@ import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
+import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
@@ -3353,6 +3354,61 @@ export function usesComplexShaperDottedCircle(cp: number): boolean {
   return false;
 }
 
+// DM-1197: Unicode blocks whose script HarfBuzz shapes with a DEDICATED shaper
+// (Indic / Thai-Lao / Tibetan / Myanmar / Khmer / Arabic / Hebrew / Hangul-Jamo)
+// rather than the Universal Shaping Engine. These are EXCLUDED from the HarfBuzz
+// rerouting below: the CoreText-vs-Chrome divergence that motivates it is a USE
+// shaper behavior (its `NO_SHORT_CIRCUIT` normalization always decomposes), while
+// the dedicated shapers don't trigger it — macOS CoreText already matches Chrome
+// for them (verified: the devanagari / bengali / gurmukhi / oriya / tamil /
+// myanmar / tibetan unicode fixtures all PASS on the CoreText path). And
+// harfbuzzjs's dedicated-shaper output can itself diverge from Chrome's paint —
+// e.g. it decomposes Tibetan U+0F43 (`[82,199]`) where Chrome and the `hb-shape`
+// CLI render the precomposed glyph (`[gh.]`), which regressed the tibetan fixture
+// until this exclusion was added. Inclusive [lo, hi].
+const DEDICATED_SHAPER_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x0590, 0x05FF], // Hebrew
+  [0x0600, 0x06FF], [0x0750, 0x077F], [0x0870, 0x089F], [0x08A0, 0x08FF], // Arabic + supplements
+  [0x0900, 0x0DFF], // Indic: Devanagari … Sinhala
+  [0x0E00, 0x0EFF], // Thai + Lao
+  [0x0F00, 0x0FFF], // Tibetan
+  [0x1000, 0x109F], // Myanmar
+  [0x1780, 0x17FF], [0x19E0, 0x19FF], // Khmer
+  [0x1100, 0x11FF], [0x3130, 0x318F], [0xA960, 0xA97F], [0xAC00, 0xD7FF], // Hangul (Jamo / Compat / Ext-B / Syllables)
+  [0xAA60, 0xAA7F], [0xA9E0, 0xA9FF], [0x116D0, 0x116FF], // Myanmar Extended A/B/C
+  [0xFB1D, 0xFB4F], [0xFB50, 0xFDFF], [0xFE70, 0xFEFF], // Hebrew/Arabic presentation forms
+];
+function usesDedicatedShaper(cp: number): boolean {
+  for (const [lo, hi] of DEDICATED_SHAPER_RANGES) {
+    if (cp >= lo && cp <= hi) return true;
+  }
+  return false;
+}
+
+// DM-1197: a UNIVERSAL-SHAPING-ENGINE PRECOMPOSED letter whose canonical NFD is a
+// base followed by combining mark(s) — e.g. Kaithi U+110AB VA = U+110A5 BA +
+// U+110BA NUKTA. These are exactly the codepoints where Chrome's HarfBuzz USE
+// shaper (NO_SHORT_CIRCUIT, `hb-ot-shaper-use.cc`) decomposes + GPOS-positions the
+// mark, while macOS CoreText recomposes to the precomposed glyph (whose built-in
+// mark sits in a different place). `harfbuzzShapeRun` is routed in for these.
+// Returns the NFD string (used only to coverage-check the decomposed pieces), or
+// null. Scoped to complex-shaper blocks MINUS the dedicated-shaper ones, so both
+// the DEFAULT shaper's composed Latin / Greek / Cyrillic diacritics (é, ñ, …) AND
+// the dedicated Indic / Tibetan / Myanmar shapers (which CoreText already matches)
+// are left on the normal path.
+export function complexShaperBaseMarkDecomposition(cp: number): string | null {
+  if (!usesComplexShaperDottedCircle(cp)) return null;
+  if (usesDedicatedShaper(cp)) return null;              // dedicated shaper — CoreText already matches Chrome
+  const ch = String.fromCodePoint(cp);
+  const nfd = ch.normalize("NFD");
+  if (nfd === ch) return null;                           // no canonical decomposition
+  const cps = [...nfd];
+  if (cps.length < 2) return null;                       // singleton — not a base+mark case
+  if (/\p{M}/u.test(cps[0])) return null;                // first element must be a base
+  if (!/\p{M}/u.test(cps[cps.length - 1])) return null;  // last element must be a combining mark
+  return nfd;
+}
+
 // DM-1109: pre-base (LEFT) matras — VOWEL SIGNS the Universal Shaping Engine
 // reorders to BEFORE their base. The set is the INTERSECTION of Unicode
 // IndicPositionalCategory (UCD 18.0) "Left" placement (all six categories whose
@@ -3542,6 +3598,29 @@ function resolveFontForCodepoint(
   const ch = String.fromCodePoint(cp);
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     ({ key, fontOverride, emitCh, decomposed, covered: true });
+
+  // DM-1197: complex-script letters with a canonical base+mark NFD (e.g. Kaithi
+  // U+110AB VA) shape DIFFERENTLY in Chrome (HarfBuzz decomposes + GPOS-positions
+  // the nukta) than in Domotion's macOS CoreText helper (recomposes to the
+  // precomposed glyph, mark in the wrong place). When the primary font covers the
+  // decomposed pieces, route THIS run's shaping through real HarfBuzz (harfbuzzjs)
+  // so the output matches Chrome. The run text stays the SOURCE char (HarfBuzz
+  // decomposes internally, like Chrome), keeping clusters / xOffsets aligned;
+  // `decomposed: true` routes the glyph-path emitter to its run-shaping branch.
+  // Must precede the literal fast-path, which would otherwise lock in the
+  // CoreText-shaped precomposed glyph. Falls through when the font has no on-disk
+  // file HarfBuzz can open or the primary doesn't cover every piece.
+  const csDecomp = complexShaperBaseMarkDecomposition(cp);
+  if (csDecomp != null) {
+    const dcps = [...csDecomp].map((c) => c.codePointAt(0)!);
+    if (dcps.every((d) => primaryFont.glyphForCodePoint(d).id !== 0)) {
+      const hbPath = resolveFontSpec(primaryFontKey)?.path;
+      if (hbPath != null && hbPath !== "") {
+        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbPath);
+        if (hbInst !== primaryFont) return cover(primaryFontKey, hbInst, ch, true);
+      }
+    }
+  }
 
   // 0. Primary fast-path: literal coverage in the run's primary font.
   if (primaryFont.glyphForCodePoint(cp).id !== 0) return cover(primaryFontKey, null);

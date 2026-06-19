@@ -64,6 +64,7 @@
     "@playwright/test": "^1.59.1",
     "bidi-js": "^1.0.3",
     "fontkit": "^2.0.4",
+    "harfbuzzjs": "^1.4.0",
     "kerfjs": "^0.14.0",
     "opentype.js": "^2.0.0",
     "sharp": "^0.34.5",
