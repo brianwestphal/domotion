@@ -1773,11 +1773,12 @@ export function elementTreeToSvgInner(
       // points (clamped to box bounds) as the inner corners, which caps
       // the wedge at the adjacent-side meeting points instead.
       const apexes = computeWedgeApexes(bxL, bxT, bxR, bxB, tw, rw, bw, lw);
+      const wedgeWidths = { tw, rw, bw, lw };
       const annularWedges: string[] = hasOuterRadius ? [
-        wedgePolygonPoints("top",    bxL, bxT, bxR, bxB, apexes),
-        wedgePolygonPoints("right",  bxL, bxT, bxR, bxB, apexes),
-        wedgePolygonPoints("bottom", bxL, bxT, bxR, bxB, apexes),
-        wedgePolygonPoints("left",   bxL, bxT, bxR, bxB, apexes),
+        wedgePolygonPoints("top",    bxL, bxT, bxR, bxB, apexes, wedgeWidths),
+        wedgePolygonPoints("right",  bxL, bxT, bxR, bxB, apexes, wedgeWidths),
+        wedgePolygonPoints("bottom", bxL, bxT, bxR, bxB, apexes, wedgeWidths),
+        wedgePolygonPoints("left",   bxL, bxT, bxR, bxB, apexes, wedgeWidths),
       ] : [];
       // The outer-outline group still wraps the non-solid branches so their
       // straight `<line>` strokes get trimmed to the rounded outline at the

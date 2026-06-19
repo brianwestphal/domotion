@@ -254,6 +254,32 @@ describe("computeWedgeApexes + wedgePolygonPoints (DM-803 / DM-917 / DM-918)", (
     expect(apexes.apexTopX).toBe(50); expect(apexes.apexTopY).toBe(50);
     expect(apexes.apexLeftX).toBe(50); expect(apexes.apexLeftY).toBe(50);
   });
+
+  // DM-1150: a SINGLE-side border with border-radius (e.g. `border-top: 6px; …
+  // border-radius: 8px`, left+right = 0). Blink's BoxBorderPainter computes NO
+  // miter when the adjacent side is zero-width (`ComputeMiter` → `kNoMiter`), so
+  // the top border paints its FULL rounded corner arc. The same-side apex
+  // degenerates to the box centre here; without the widths the wedge would be a
+  // centre-converging TRIANGLE that cuts each corner off mid-arc. Passing the
+  // widths makes the top wedge span the full box edge so both corners are covered.
+  it("spans the full box edge for a single-side border (both adjacent sides zero-width)", () => {
+    const apexes = computeWedgeApexes(0, 0, 240, 100, 6, 0, 0, 0); // top-only
+    // Legacy (no widths): centre-converging triangle — cuts the corners.
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes))
+      .toBe("0,0 240,0 120,50");
+    // DM-1150 (widths passed): box-spanning quad — covers BOTH top corners.
+    expect(wedgePolygonPoints("top", 0, 0, 240, 100, apexes, { tw: 6, rw: 0, bw: 0, lw: 0 }))
+      .toBe("0,0 240,0 240,100 0,100");
+  });
+
+  it("does NOT span the full edge when an adjacent side has nonzero width", () => {
+    // top + left borders, right + bottom zero: the top side's left corner has a
+    // real miter (left has width), so it must NOT switch to the spanning quad.
+    const apexes = computeWedgeApexes(0, 0, 240, 100, 6, 0, 0, 6);
+    const withWidths = wedgePolygonPoints("top", 0, 0, 240, 100, apexes, { tw: 6, rw: 0, bw: 0, lw: 6 });
+    // horizSum = lw + rw = 6 ≠ 0, so the legacy apex form is kept (not the quad).
+    expect(withWidths).toBe(wedgePolygonPoints("top", 0, 0, 240, 100, apexes));
+  });
 });
 
 

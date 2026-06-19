@@ -217,17 +217,31 @@ export function wedgePolygonPoints(
   side: "top" | "right" | "bottom" | "left",
   bxL: number, bxT: number, bxR: number, bxB: number,
   a: WedgeApexes,
+  /** DM-1150: the four border widths. When a side's BOTH adjacent sides have
+   *  zero width, Chrome's BoxBorderPainter computes NO miter (`ComputeMiter`
+   *  returns `kNoMiter` when `!adjacent_edge.UsedWidth()`) — the bordered side
+   *  paints its FULL rounded corner arc rather than tapering at a diagonal
+   *  miter line. The same-side apex degenerates to the box centre in that case
+   *  (`computeWedgeApexes` divides by a zero adjacent-sum), which would cut the
+   *  corner with a centre-converging triangle. Passing the widths lets the wedge
+   *  span the full box edge (the perpendicular-apex quad) so both corners are
+   *  covered, matching Chrome. Omit (undefined) to keep the legacy triangle. */
+  widths?: { tw: number; rw: number; bw: number; lw: number },
 ): string {
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  // DM-1150: force the box-spanning quad when a side's two adjacent sides are
+  // both zero-width (no miter → full corner arc, per Blink's box_border_painter).
+  const horizZero = widths != null && widths.lw === 0 && widths.rw === 0;
+  const vertZero = widths != null && widths.tw === 0 && widths.bw === 0;
   // A side's own apex is INSIDE the box rect when both coordinates lie
   // within the box; we already know one coord stays inside by construction
   // (top apex always has y ≥ bxT, etc.), so the check is the other coord
   // + the cross axis (apex could shift outside horizontally when widths
   // and box aspect both skew).
-  const insideTop = a.apexTopY <= bxB && a.apexTopX >= bxL && a.apexTopX <= bxR;
-  const insideRight = a.apexRightX >= bxL && a.apexRightY >= bxT && a.apexRightY <= bxB;
-  const insideBottom = a.apexBottomY >= bxT && a.apexBottomX >= bxL && a.apexBottomX <= bxR;
-  const insideLeft = a.apexLeftX <= bxR && a.apexLeftY >= bxT && a.apexLeftY <= bxB;
+  const insideTop = !horizZero && a.apexTopY <= bxB && a.apexTopX >= bxL && a.apexTopX <= bxR;
+  const insideRight = !vertZero && a.apexRightX >= bxL && a.apexRightY >= bxT && a.apexRightY <= bxB;
+  const insideBottom = !horizZero && a.apexBottomY >= bxT && a.apexBottomX >= bxL && a.apexBottomX <= bxR;
+  const insideLeft = !vertZero && a.apexLeftX <= bxR && a.apexLeftY >= bxT && a.apexLeftY <= bxB;
   const clLX = clamp(a.apexLeftX, bxL, bxR), clLY = clamp(a.apexLeftY, bxT, bxB);
   const clRX = clamp(a.apexRightX, bxL, bxR), clRY = clamp(a.apexRightY, bxT, bxB);
   const clTX = clamp(a.apexTopX, bxL, bxR), clTY = clamp(a.apexTopY, bxT, bxB);
