@@ -74,3 +74,29 @@ In a vertical writing mode Chrome enables the OpenType `vert` feature for every 
 ## Acceptance criteria
 
 `20-writing-mode.html` test diff drops below 1.5% avg, with the vertical Japanese paragraph rendering top-to-bottom right-to-left and Latin runs inside it sideways-90°. Existing horizontal tests do not regress.
+
+## Horizontal `text-spacing-trim` — CJK fullwidth-punctuation ink shift (DM-1184)
+
+The vertical `vert` story above has a horizontal sibling. CJK fullwidth
+punctuation (`（「」）。、` …) carries built-in half-width side-bearing — its ink
+occupies only one half of the em box: OPENING punctuation (`（「`) sits in the
+RIGHT half, CLOSING (`」）。、`) in the LEFT. CSS `text-spacing-trim` (and Chrome's
+default `normal` between adjacent punctuation) collapses the empty side, so
+trimmed punctuation packs ~0.5em apart instead of the full ~1em advance.
+
+Chrome's already-trimmed pen positions ARE captured (each glyph anchors at its
+captured xOffset), but the rendered glyph OUTLINE is the full-width one. Drawing
+an opening bracket's right-half ink at the trimmed (leftward) pen pushes it
+~0.5em too far right — it lands on the next glyph (the visible "`「` overlaps
+`」`" bug in `20-deep-hanging-punctuation`).
+
+The fix borrows the font's `halt` (alternate half widths) GPOS xOffset, which
+repositions the ink to fit the half-width box (−0.5em for opening punctuation,
+0 for closing). `cjkTrimShiftFontUnits` (`src/render/text-to-path.ts`) applies it
+ONLY when the captured advance is actually ~half the em (so untrimmed `（ ）` are
+untouched), with an ink-geometry fallback (opening = ink centroid in the right
+half) for fonts that can't report `halt`. Applied in the embedded-font path
+(CoreText cluster + fontkit branches) and the paths-mode per-char branch. The
+captured pen is the glyph ORIGIN; the halt xOffset is an intra-glyph ink nudge —
+applying it is not a double-shift. Still open: line-leading and `」「` adjacent-
+bracket contextual cases that trim on a different side.

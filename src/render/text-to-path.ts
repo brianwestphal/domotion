@@ -3140,7 +3140,14 @@ export function textToPathMarkup(
             uses.push(`<use href="#${defId}" x="0" y="0"/>`);
           }
           if (uses.length > 0) {
-            const cssX = Number(xOffsets[i].toFixed(3));
+            let cssX = Number(xOffsets[i].toFixed(3));
+            // DM-1184: shift trimmed fullwidth-punctuation ink (see
+            // cjkTrimShiftFontUnits / the embedded-font path for the rationale).
+            if (isTrimmableCjkPunct(cp) && nextI < xOffsets.length && layout.glyphs.length === 1) {
+              const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, layout.glyphs[0], cp,
+                xOffsets[nextI] - xOffsets[i], fontSize, runScale);
+              if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
+            }
             groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})">${uses.join("")}</g>`);
             if (cssX > rightEdge) rightEdge = cssX;
           } else if (isPua && suppressedNotdef) {
@@ -3250,6 +3257,107 @@ export function textToPathMarkup(
 }
 
 /** Original single-font path (unchanged behavior — preserves xOffsets / targetWidth). */
+// DM-1184: CSS `text-spacing-trim` collapses the built-in half-width side-
+// bearing that CJK fullwidth punctuation (（「」）。、 …) carries, so adjacent
+// trimmed punctuation packs ~0.5em apart instead of the full ~1em advance.
+// Chrome's already-trimmed pen positions ARE captured (and we anchor each glyph
+// at them), but the glyph OUTLINE is still the full-width one, whose ink sits in
+// only one half of the em box. For OPENING punctuation (（「) the ink is in the
+// RIGHT half, so drawing the full glyph at the trimmed (leftward) pen pushes the
+// ink ~0.5em too far right — it overlaps the next glyph (the visible "「 lands on
+// 」" bug). The font's `halt` (alternate half widths) feature is pure GPOS: it
+// halves the advance AND repositions the ink to fit (xOffset −0.5em for opening
+// punctuation, 0 for closing — closing ink is already left-aligned). We borrow
+// only its xOffset to nudge the ink at the already-trimmed anchor; the advance
+// is irrelevant because placement uses the captured pen, not a re-shaped one.
+const HALT_INFO_CACHE = new Map<string, { halved: boolean; xOffset: number }>();
+function haltInfoFor(font: FontInstance, fontKey: string, cp: number): { halved: boolean; xOffset: number } {
+  const key = `${fontKey}|${cp}`;
+  const hit = HALT_INFO_CACHE.get(key);
+  if (hit !== undefined) return hit;
+  let info = { halved: false, xOffset: 0 };
+  try {
+    const ch = String.fromCodePoint(cp);
+    const def = font.layout(ch);
+    const halt = font.layout(ch, ["halt"]);
+    if (def.positions.length === 1 && halt.positions.length === 1
+        && def.glyphs[0]?.id === halt.glyphs[0]?.id) {
+      const dAdv = def.positions[0].xAdvance;
+      const hAdv = halt.positions[0].xAdvance;
+      // `halt` must genuinely narrow this glyph (it has a half-width alternate)
+      // while keeping the SAME outline (pure GPOS) — otherwise it isn't the
+      // fullwidth-punctuation trim case and we leave the glyph alone.
+      if (hAdv > 0 && dAdv > 0 && hAdv <= dAdv * 0.6) {
+        info = { halved: true, xOffset: halt.positions[0].xOffset };
+      }
+    }
+  } catch { /* leave default (not halt-able) */ }
+  HALT_INFO_CACHE.set(key, info);
+  return info;
+}
+
+// CJK fullwidth-punctuation blocks whose glyphs carry trimmable side-bearing.
+// The real filtering is done by `haltInfoFor` (must have a half-width alternate)
+// plus the captured-advance check; this just scopes the probe so it never runs
+// for ordinary ideographs / Latin.
+export function isTrimmableCjkPunct(cp: number): boolean {
+  return (cp >= 0x3000 && cp <= 0x303F)   // CJK Symbols and Punctuation (、。「」（） …)
+    || (cp >= 0xFF00 && cp <= 0xFF60)      // Fullwidth ASCII variants (（）！？： …)
+    || (cp >= 0xFFE0 && cp <= 0xFFEE);     // Fullwidth signs
+}
+
+// Ink x-extent (font units) of a glyph from its outline commands. Used as the
+// fallback opening-vs-closing classifier when a font instance can't report its
+// `halt` adjustment.
+function glyphInkXRange(glyph: { path?: { commands: Array<{ command: string; args: number[] }> } }): { min: number; max: number } | null {
+  const cmds = glyph.path?.commands;
+  if (cmds == null || cmds.length === 0) return null;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const c of cmds) {
+    const a = c.args;
+    // Path command args interleave (x, y); x is at every even index.
+    for (let k = 0; k < a.length; k += 2) {
+      const xv = a[k];
+      if (xv < min) min = xv;
+      if (xv > max) max = xv;
+    }
+  }
+  if (!isFinite(min) || !isFinite(max)) return null;
+  return { min, max };
+}
+
+// DM-1184: the font-unit x-shift that repositions a TRIMMED fullwidth-punctuation
+// glyph's ink so the full-width outline lands where Chrome painted the
+// half-width form. 0 when the glyph isn't trimmed (captured advance ≈ full em)
+// or isn't opening punctuation (closing punctuation's ink is already left-
+// aligned, so it needs no shift). Prefers the font's own `halt` GPOS xOffset;
+// falls back to ink geometry (ink in the RIGHT half of the em box ⇒ opening ⇒
+// shift left by the trimmed amount) when the font instance can't apply `halt`.
+export function cjkTrimShiftFontUnits(
+  font: FontInstance,
+  fontKey: string,
+  glyph: { id: number; advanceWidth?: number; path?: { commands: Array<{ command: string; args: number[] }> }; codePoints?: number[] },
+  cp: number,
+  capturedAdvCss: number,
+  fontSize: number,
+  scale: number,
+): number {
+  void fontSize;
+  const emFU = font.unitsPerEm;
+  const fullAdvCss = (glyph.advanceWidth != null && glyph.advanceWidth > 0 ? glyph.advanceWidth : emFU) * scale;
+  if (!(capturedAdvCss > 0 && fullAdvCss > 0 && capturedAdvCss < fullAdvCss * 0.75)) return 0;
+  const halt = haltInfoFor(font, fontKey, cp);
+  if (halt.halved) return halt.xOffset;
+  // Fallback (font can't report `halt`): classify by ink position.
+  const ink = glyphInkXRange(glyph);
+  if (ink == null) return 0;
+  const inkCenter = (ink.min + ink.max) / 2;
+  if (inkCenter <= emFU * 0.5) return 0; // closing punctuation — already aligned
+  const trimFU = (fullAdvCss - capturedAdvCss) / scale; // amount Chrome removed
+  return -trimFU;
+}
+
 function singleFontMarkup(
   font: FontInstance,
   fontKey: string,
@@ -3340,6 +3448,21 @@ function singleFontMarkup(
         // dividing by `scale`. pos.xOffset (the font's per-glyph subpixel
         // offset, in font units) is added in font-unit space.
         tx = xOffsets![i] / scale + pos.xOffset;
+        // DM-1184: when Chrome trimmed this fullwidth-punctuation glyph under
+        // `text-spacing-trim` — detectable as a captured advance ~half the full
+        // em — shift its ink by the font's `halt` xOffset so the full-width
+        // outline lands where Chrome painted the half-width form (see
+        // haltInfoFor). Gated on the captured advance actually being trimmed so
+        // an untrimmed （ ） is left untouched.
+        const cp0 = glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints[0] : undefined;
+        if (cp0 != null && i + 1 < xOffsets!.length && isTrimmableCjkPunct(cp0)) {
+          const fullAdv = pos.xAdvance * scale;                 // full em advance, CSS px
+          const capturedAdv = xOffsets![i + 1] - xOffsets![i];  // what Chrome used, CSS px
+          if (fullAdv > 0 && capturedAdv > 0 && capturedAdv < fullAdv * 0.75) {
+            const halt = haltInfoFor(font, fontKey, cp0);
+            if (halt.halved) tx += halt.xOffset; // font units
+          }
+        }
       } else {
         tx = (x + pos.xOffset) * xScale;
       }
@@ -4604,7 +4727,19 @@ function renderTextAsEmbedded(
         }
         // pos.xOffset / yOffset are the GPOS adjustment from the glyph's pen
         // origin (font units, y-up); flip y for SVG's y-down axis.
-        xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset) * runScale;
+        // DM-1184: nudge trimmed fullwidth-punctuation ink (see
+        // cjkTrimShiftFontUnits). Only at a cluster's first glyph, gated on the
+        // captured advance to the next char being trimmed (~half em).
+        let trimShiftFU = 0;
+        const cpCl = glyph.codePoints?.[0] ?? text.codePointAt(wholeTextIdx);
+        if (cpCl != null && isTrimmableCjkPunct(cpCl) && xOffsets != null) {
+          const nextCharIdx = wholeTextIdx + (cpCl > 0xFFFF ? 2 : 1);
+          if (xOffsets[wholeTextIdx] != null && xOffsets[nextCharIdx] != null) {
+            trimShiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cpCl,
+              xOffsets[nextCharIdx] - xOffsets[wholeTextIdx], fontSize, runScale);
+          }
+        }
+        xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset + trimShiftFU) * runScale;
         yCss = -pos.yOffset * runScale;
         clusterCursorFU += pos.xAdvance;
         glyphScale = perCharScale[srcIdx] ?? 1;
@@ -4630,6 +4765,17 @@ function renderTextAsEmbedded(
         const wholeTextIdx = run.startIdx + textIdx;
         if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
           xCss = xOffsets[wholeTextIdx];
+          // DM-1184: nudge trimmed fullwidth-punctuation ink (see
+          // cjkTrimShiftFontUnits) in the fontkit-shaped embedded path too.
+          const cp0 = glyph.codePoints?.[0] ?? text.codePointAt(wholeTextIdx);
+          if (cp0 != null && isTrimmableCjkPunct(cp0)) {
+            const nextCharIdx = wholeTextIdx + (cp0 > 0xFFFF ? 2 : 1);
+            if (xOffsets[nextCharIdx] != null) {
+              const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cp0,
+                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx], fontSize, runScale);
+              if (shiftFU !== 0) xCss = xCss + shiftFU * runScale;
+            }
+          }
         } else {
           // Cursor sits in font units; convert to CSS using the run's scale.
           // Anchored at run.startIdx + 0 if xOffsets exists for the run's

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -2040,5 +2040,64 @@ describe("synthSmallCapsCharScale — synthesized font-variant-caps per-char sca
   it("is a no-op when neither scale is set (no synthesis active)", () => {
     expect(synthSmallCapsCharScale("a", null, null)).toEqual({ scale: 1, upcase: false });
     expect(synthSmallCapsCharScale("-", null, null)).toEqual({ scale: 1, upcase: false });
+  });
+});
+
+describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
+  // A minimal FontInstance whose `halt` feature mirrors a real CJK font:
+  // halves the advance (1000 → 500) and shifts OPENING punctuation ink left
+  // (xOffset −500) while leaving CLOSING punctuation (xOffset 0).
+  function fakeFont(haltXOffset: number): Parameters<typeof cjkTrimShiftFontUnits>[0] {
+    return {
+      unitsPerEm: 1000,
+      layout(_text: string, features?: string[]) {
+        const halt = features != null && features.includes("halt");
+        return {
+          glyphs: [{ id: 7, path: { commands: [] }, advanceWidth: halt ? 500 : 1000 }],
+          positions: [{ xAdvance: halt ? 500 : 1000, yAdvance: 0, xOffset: halt ? haltXOffset : 0, yOffset: 0 }],
+        };
+      },
+    } as unknown as Parameters<typeof cjkTrimShiftFontUnits>[0];
+  }
+  const glyph = { id: 7, advanceWidth: 1000, path: { commands: [] } };
+
+  it("scopes the punctuation gate to CJK fullwidth blocks", () => {
+    expect(isTrimmableCjkPunct(0x300C)).toBe(true);  // 「 LEFT CORNER BRACKET
+    expect(isTrimmableCjkPunct(0x300D)).toBe(true);  // 」 RIGHT CORNER BRACKET
+    expect(isTrimmableCjkPunct(0xFF08)).toBe(true);  // （ FULLWIDTH LEFT PAREN
+    expect(isTrimmableCjkPunct(0x3002)).toBe(true);  // 。 IDEOGRAPHIC FULL STOP
+    expect(isTrimmableCjkPunct(0x3042)).toBe(false); // あ HIRAGANA (not punctuation)
+    expect(isTrimmableCjkPunct(0x6587)).toBe(false); // 文 ideograph
+    expect(isTrimmableCjkPunct(0x0041)).toBe(false); // Latin A
+  });
+
+  it("shifts a TRIMMED opening bracket left by the halt xOffset", () => {
+    // fontSize 16, em 1000 → scale 0.016; full advance = 16px, trimmed = 8px.
+    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300C, 8, 16, 0.016);
+    expect(shift).toBe(-500); // font units: opening ink moves left half an em
+  });
+
+  it("leaves a TRIMMED closing bracket unshifted (its ink is already left-aligned)", () => {
+    const shift = cjkTrimShiftFontUnits(fakeFont(0), "k-close", glyph, 0x300D, 8, 16, 0.016);
+    expect(shift).toBe(0);
+  });
+
+  it("does NOT shift an UNTRIMMED opening bracket (full-em captured advance)", () => {
+    // capturedAdv 16 ≈ full advance → not trimmed → no shift even for opening.
+    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open2", glyph, 0xFF08, 16, 16, 0.016);
+    expect(shift).toBe(0);
+  });
+
+  it("falls back to ink geometry when the font can't report halt (ink in right half ⇒ opening)", () => {
+    // A font whose halt layout doesn't narrow the glyph (no half-width form):
+    // classify opening (ink centered in the RIGHT half of the em box) and shift
+    // left by the trimmed amount; here trim = (16−8)/0.016 = 500 font units.
+    const noHaltFont = {
+      unitsPerEm: 1000,
+      layout: () => ({ glyphs: [{ id: 7, path: { commands: [] }, advanceWidth: 1000 }], positions: [{ xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 }] }),
+    } as unknown as Parameters<typeof cjkTrimShiftFontUnits>[0];
+    const openingGlyph = { id: 7, advanceWidth: 1000, path: { commands: [{ command: "moveTo", args: [700, 100] }, { command: "lineTo", args: [950, 800] }] } };
+    const shift = cjkTrimShiftFontUnits(noHaltFont, "k-nohalt", openingGlyph, 0x300C, 8, 16, 0.016);
+    expect(shift).toBe(-500);
   });
 });
