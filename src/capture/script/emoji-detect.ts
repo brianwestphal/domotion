@@ -222,6 +222,17 @@ export const createEmojiDetect = () => {
     // monochrome symbol/math font first (Apple Symbols / STIX Two Math), color
     // otherwise. See `emojiPresentation2B` above.
     if (emojiPresentation2B.has(cp)) return isColorGlyph(cp, font);
+    // DM-1167: the ONLY two codepoints in the Misc Symbols & Pictographs block
+    // (U+1F300-1F5FF) that a macOS text font also covers monochrome are
+    // 🌐 U+1F310 (GLOBE WITH MERIDIANS) and 🎤 U+1F3A4 (MICROPHONE) — Apple
+    // Symbols carries both. When the element's cascade leads with Apple Symbols
+    // (the html-test `.f1` cells do; CSS.getPlatformFontsForNode confirms),
+    // Chrome paints the MONOCHROME path glyph, not the color emoji. Probe
+    // Chrome's actual per-element choice (color → raster, monochrome → path)
+    // exactly like the DM-1125 Alchemical / DM-1168 ㊗㊙ branches, instead of
+    // unconditionally stamping the Apple Color Emoji bitmap over Chrome's text
+    // glyph. The common Apple-Color-Emoji-first cell still rasters (probe → true).
+    if (cp === 0x1F310 || cp === 0x1F3A4) return isColorGlyph(cp, font);
     // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport &
     // Map, Alchemical, Supplemental Symbols & Pictographs, Pictographs
     // Extended-A, Symbols & Pictographs Extended-B.
