@@ -218,6 +218,8 @@ const termThemeSchema = z.union([
 const termOptionsSchema = z.object({
   theme: termThemeSchema.optional(),
   mode: z.enum(["incremental", "full"]).optional(),
+  cursor: z.enum(["block", "bar", "underline", "none"]).optional(),
+  cursorColor: z.string().optional(),
   fontSize: z.number().optional(),
   fontFamily: z.string().optional(),
   padding: z.number().optional(),
@@ -565,7 +567,8 @@ export async function composeAnimateFrames(
         // composed WITHOUT its own font CSS — it defers to that block. The cast
         // renders via the chosen mode (incremental by default).
         const { svg: castSvg, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
-          theme: t.theme, mode: t.mode, fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
+          theme: t.theme, mode: t.mode, cursor: t.cursor, cursorColor: t.cursorColor,
+          fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
           cols: t.cols, rows: t.rows,
           settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
           manageFonts: false,

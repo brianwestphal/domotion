@@ -29,6 +29,8 @@ feed the same backend (see "Architecture").
 | `--cast <file>` | — | asciinema v2 `.cast` to convert (`-` = stdin). Required. |
 | `-o, --output <path>` | `<cast>.svg` / stdout | output SVG path |
 | `--mode <m>` | `incremental` | `incremental` (render each line once, reveal on its timeline) \| `full` (a complete screen frame per settle-point) |
+| `--cursor <s>` | `block` | caret shape: `block` \| `bar` \| `underline` \| `none` (incremental mode) |
+| `--cursor-color <c>` | theme fg | caret color |
 | `--theme <name>` | `catppuccin` | base theme: `catppuccin` \| `dark` \| `github-light` |
 | `--theme-file <path>` | — | JSON overriding `bg` / `fg` / `ansi[16]` on top of `--theme` |
 | `--bg <color>` | — | override the terminal background color |
@@ -122,6 +124,19 @@ stages 2–4 are identical.
 
    Both size the canvas from a full `cols×rows` reference block, so the two modes
    lay out identically.
+
+   **Cursor** (incremental mode, `--cursor`, default `block`): the emulator
+   captures `buffer.active.cursorX/Y` plus DECTCEM visibility (`?25h`/`?25l`,
+   tracked off the byte stream) at each settle-point. `buildCursor` emits a
+   blinking caret rect whose position GLIDES (linear) between those cells — so as
+   a typed line grows the caret slides along it, reading as typed — with a
+   standard ~1.06 s blink. Visibility is gated to INPUT lines so the caret only
+   shows where a user types, never trailing program output: `detectInputFrames`
+   infers the shell prompt as the common prefix of every cursor-row line that
+   gets typed onto (extended at the next settle-point), and a frame counts as
+   input only when the cursor's line starts with that prompt (or is itself
+   growing). Opacities compose through nesting (input-visibility × blink on a
+   transform-positioned group). Hand-drawn as a `<rect>` in the SVG (not captured).
 
 ## What's reused vs new
 

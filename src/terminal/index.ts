@@ -35,6 +35,12 @@ export interface TermToSvgOptions extends FrameBuildOptions {
   fontFamily?: string;
   /** Padding around the grid in px. Default 16. */
   padding?: number;
+  /** Cursor caret shape, or `none` to omit it. Default `block` (incremental
+   *  mode only). A blinking caret follows the recorded cursor — it slides along
+   *  the input as the line grows, so typed commands read as typed. */
+  cursor?: "block" | "bar" | "underline" | "none";
+  /** Caret color. Default: the theme's foreground. */
+  cursorColor?: string;
   /**
    * Composition mode (default `incremental`): `incremental` renders each
    * distinct LINE-STATE once and reveals it during its visible window (small,

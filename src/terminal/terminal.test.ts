@@ -3,7 +3,7 @@ import { parseCast } from "./cast.js";
 import { xterm256ToHex, THEMES, resolveThemeSpec } from "./theme.js";
 import { TerminalEmulator, gridSignature, type TermCell } from "./emulator.js";
 import { buildFrames, gridToHtml, type TermFrame } from "./render.js";
-import { detectScroll, trackLines } from "./incremental.js";
+import { detectScroll, trackLines, detectInputFrames } from "./incremental.js";
 
 const E = "\x1b";
 const castEvent = (t: number, d: string): string => JSON.stringify([t, "o", d]);
@@ -136,6 +136,24 @@ describe("TerminalEmulator", () => {
     emu.dispose();
     expect(grid[0][0].fg).toBe("#ff8000");
   });
+
+  it("tracks the cursor cell as text is written (DM-1225)", async () => {
+    const emu = new TerminalEmulator(20, 3, THEMES.dark);
+    await emu.write("abc");
+    expect(emu.cursor()).toEqual({ x: 3, y: 0, visible: true });
+    await emu.write("\r\nx");
+    expect(emu.cursor()).toEqual({ x: 1, y: 1, visible: true });
+    emu.dispose();
+  });
+
+  it("tracks DECTCEM cursor show/hide off the byte stream", async () => {
+    const emu = new TerminalEmulator(20, 2, THEMES.dark);
+    await emu.write(`${E}[?25lhidden`);
+    expect(emu.cursor().visible).toBe(false); // ?25l hid it
+    await emu.write(`${E}[?25h`);
+    expect(emu.cursor().visible).toBe(true); // ?25h showed it again
+    emu.dispose();
+  });
 });
 
 describe("buildFrames (settle-point selection)", () => {
@@ -208,6 +226,7 @@ describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
   const frame = (rows: string[], cols: number, durationMs: number): TermFrame => ({
     grid: rows.map((r) => cells(r, cols)),
     durationMs,
+    cursor: { x: 0, y: 0, visible: true },
   });
 
   describe("detectScroll", () => {
@@ -255,6 +274,33 @@ describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
       expect(lines).toHaveLength(2);
       expect(lines[0].endMs).toBe(1000); // "spin |" replaced
       expect(lines[1].waypoints[0]).toEqual({ ms: 1000, row: 0 });
+    });
+  });
+
+  describe("detectInputFrames (cursor only on input lines)", () => {
+    const cframe = (rows: string[], x: number, y: number): TermFrame => ({
+      grid: rows.map((r) => cells(r, 24)),
+      durationMs: 1000,
+      cursor: { x, y, visible: true },
+    });
+
+    it("shows the caret on prompt + typed commands, hides it on output", () => {
+      const frames = [
+        cframe(["$ ", "", ""], 2, 0), // bare prompt
+        cframe(["$ ls -la", "", ""], 8, 0), // command typed onto the prompt (prompt grew)
+        cframe(["$ ls -la", "file.txt", ""], 8, 1), // output prints, cursor on output line
+        cframe(["$ ls -la", "file.txt", "$ "], 2, 2), // fresh prompt
+      ];
+      // promptSig = "$ " (the line that grew). Output "file.txt" doesn't start with it.
+      expect(detectInputFrames(frames)).toEqual([true, true, false, true]);
+    });
+
+    it("shows no caret for a pure-output cast (no prompt to type at)", () => {
+      const frames = [
+        cframe(["building...", ""], 11, 0),
+        cframe(["building...", "done."], 5, 1),
+      ];
+      expect(detectInputFrames(frames)).toEqual([false, false]);
     });
   });
 });

@@ -24,7 +24,7 @@
 
 import type { Browser } from "@playwright/test";
 import { parseCast } from "./cast.js";
-import { TerminalEmulator } from "./emulator.js";
+import { TerminalEmulator, type TermCell } from "./emulator.js";
 import { buildFrames, rowInnerHtml, gridToHtml, TERM_TYPE_DEFAULTS, type TermFrame, type HtmlRenderOptions } from "./render.js";
 import { resolveThemeSpec, type TerminalTheme } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
@@ -166,6 +166,127 @@ function lineKeyframes(lines: TrackedLine[], totalMs: number, yOf: (row: number)
   return out.join("\n");
 }
 
+/** Plain text of a grid row with trailing default-blank cells trimmed. */
+function rowPlain(cells: TermCell[]): string {
+  let end = cells.length;
+  while (end > 0) {
+    const c = cells[end - 1];
+    if (c.char !== " " || c.fg != null || c.bg != null) break;
+    end--;
+  }
+  return cells.slice(0, end).map((c) => c.char).join("");
+}
+
+/**
+ * Which frames have the cursor on an INPUT line (a prompt the user types at),
+ * so the caret is shown there and hidden on program output. The shell prompt is
+ * inferred as the common prefix of every cursor-row line that gets typed onto
+ * (extended at the next settle-point); a frame is then "input" when the cursor's
+ * current line starts with that prompt, or is itself actively growing from the
+ * prior frame (mid-type). With no detectable typing the prompt is empty and only
+ * actively-growing frames count (a pure-output cast shows no caret).
+ */
+export function detectInputFrames(frames: TermFrame[]): boolean[] {
+  const cursorRow = (i: number): string => rowPlain(frames[i].grid[frames[i].cursor.y] ?? []);
+  const prompts: string[] = [];
+  for (let i = 0; i < frames.length - 1; i++) {
+    const cur = cursorRow(i);
+    const next = rowPlain(frames[i + 1].grid[frames[i].cursor.y] ?? []);
+    if (cur !== "" && next.length > cur.length && next.startsWith(cur)) prompts.push(cur);
+  }
+  const promptSig = longestCommonPrefix(prompts);
+  return frames.map((_, i) => {
+    const cur = cursorRow(i);
+    if (cur === "") return false;
+    if (promptSig !== "" && cur.startsWith(promptSig)) return true;
+    if (i > 0) {
+      const prev = rowPlain(frames[i - 1].grid[frames[i].cursor.y] ?? []);
+      if (prev !== "" && cur.length > prev.length && cur.startsWith(prev)) return true; // mid-type
+    }
+    return false;
+  });
+}
+
+/** Longest common leading substring of the given strings ("" if none/empty). */
+function longestCommonPrefix(strs: string[]): string {
+  if (strs.length === 0) return "";
+  let prefix = strs[0];
+  for (let i = 1; i < strs.length && prefix !== ""; i++) {
+    const s = strs[i];
+    let k = 0;
+    while (k < prefix.length && k < s.length && prefix[k] === s[k]) k++;
+    prefix = prefix.slice(0, k);
+  }
+  return prefix;
+}
+
+/**
+ * A blinking caret that follows the recorded cursor. Position GLIDES (linear)
+ * between each frame's cursor cell — so as a typed line grows the caret slides
+ * along it (reading as typed) — visibility steps with the program's DECTCEM
+ * show/hide AND is gated to INPUT lines (a prompt the user types at; never
+ * trailing output), and the caret blinks on a standard ~1.06 s cycle. Opacities
+ * compose through nesting: vis (step) × blink (step) on a transform-positioned
+ * group. Returns `null` when `shape === "none"`.
+ */
+function buildCursor(
+  frames: TermFrame[],
+  totalMs: number,
+  charW: number,
+  linePx: number,
+  padding: number,
+  shape: "block" | "bar" | "underline",
+  color: string,
+): { markup: string; css: string } | null {
+  if (frames.length === 0) return null;
+  const starts: number[] = [];
+  let acc = 0;
+  for (const f of frames) {
+    starts.push(acc);
+    acc += f.durationMs;
+  }
+  const pct = (ms: number): string => Math.max(0, Math.min(100, (ms / totalMs) * 100)).toFixed(4);
+  const at = (c: TermFrame["cursor"]): string => `translate(${(padding + c.x * charW).toFixed(2)}px,${(padding + c.y * linePx).toFixed(2)}px)`;
+
+  const pos: string[] = [`0%{transform:${at(frames[0].cursor)}}`];
+  for (let i = 1; i < frames.length; i++) {
+    const slideStart = Math.max(starts[i - 1], starts[i] - SLIDE_MS);
+    pos.push(`${pct(slideStart)}%{transform:${at(frames[i - 1].cursor)}}`, `${pct(starts[i])}%{transform:${at(frames[i].cursor)}}`);
+  }
+  pos.push(`100%{transform:${at(frames[frames.length - 1].cursor)}}`);
+
+  // The caret is only meaningful on INPUT lines (a prompt the user types at) —
+  // trailing it through program output is noise. Gate visibility to input frames.
+  const inputFrame = detectInputFrames(frames);
+  const shown = (i: number): 0 | 1 => (frames[i].cursor.visible && inputFrame[i] ? 1 : 0);
+
+  const vis: string[] = [`0%{opacity:${shown(0)}}`];
+  for (let i = 1; i < frames.length; i++) vis.push(`${pct(starts[i])}%{opacity:${shown(i)}}`);
+  vis.push(`100%{opacity:${shown(frames.length - 1)}}`);
+
+  // Caret rect within the cell.
+  let rx = 0;
+  let ry = 0;
+  let rw = charW;
+  let rh = linePx;
+  if (shape === "bar") rw = Math.max(1.5, charW * 0.16);
+  else if (shape === "underline") {
+    rh = Math.max(1.5, linePx * 0.12);
+    ry = linePx - rh;
+  }
+  const durSec = (totalMs / 1000).toFixed(3);
+  const css = [
+    `@keyframes tcurp{${pos.join("")}}`,
+    `@keyframes tcurv{${vis.join("")}}`,
+    `@keyframes tcurb{0%{opacity:1}50%{opacity:0}100%{opacity:1}}`,
+    `.tcur-v{animation:tcurv ${durSec}s step-end infinite}`,
+    `.tcur-p{animation:tcurp ${durSec}s linear infinite}`,
+    `.tcur-b{animation:tcurb 1.06s step-end infinite}`,
+  ].join("\n");
+  const markup = `<g class="tcur-v"><g class="tcur-p"><rect class="tcur-b" x="${rx.toFixed(2)}" y="${ry.toFixed(2)}" width="${rw.toFixed(2)}" height="${rh.toFixed(2)}" fill="${color}" fill-opacity="${shape === "block" ? 0.7 : 1}"/></g></g>`;
+  return { markup, css };
+}
+
 export interface IncrementalResult {
   svg: string;
   width: number;
@@ -265,9 +386,15 @@ export async function composeIncrementalTermSvg(
     await ctx.close();
   }
 
+  // Blinking caret that follows the recorded cursor (incremental mode). charW is
+  // the monospace cell advance, recovered from the measured content width.
+  const shape = opts.cursor ?? "block";
+  const charW = cols > 0 ? (width - 2 * padding) / cols : fontSize * 0.6;
+  const cursor = shape === "none" ? null : buildCursor(frames, totalMs, charW, linePx, padding, shape, opts.cursorColor ?? theme.fg);
+
   const fontFaceCss = manageFonts ? getEmbeddedFontFaceCss() : "";
-  const styleCss = `${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}${lineKeyframes(lines, totalMs, yOf)}`;
+  const styleCss = `${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}${lineKeyframes(lines, totalMs, yOf)}${cursor != null ? "\n" + cursor.css : ""}`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<style>${styleCss}</style>${inner}</svg>`;
+    + `<style>${styleCss}</style>${inner}${cursor != null ? cursor.markup : ""}</svg>`;
   return { svg, width, height, fontFaceCss, totalDurationMs: totalMs, lineCount: lines.length };
 }

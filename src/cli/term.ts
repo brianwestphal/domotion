@@ -37,6 +37,9 @@ Options:
       --mode <m>       incremental (default — render each line once, reveal on
                        its timeline; best for append/overwrite output) | full
                        (a complete screen frame per settle-point; for scrolling).
+      --cursor <s>     Caret shape: block (default) | bar | underline | none.
+                       A blinking caret follows the recorded cursor.
+      --cursor-color <c>  Caret color (default: the theme's foreground).
       --theme <name>   Base color theme: ${Object.keys(THEMES).join(" | ")} (default catppuccin).
       --theme-file <p> JSON theme overriding bg / fg / ansi[16] on top of --theme
                        (e.g. { "bg": "#0a0e14", "fg": "#b3b1ad", "ansi": [16 hex] }).
@@ -60,6 +63,8 @@ export async function runTerm(argv: string[]): Promise<void> {
       cast: { type: "string" },
       output: { type: "string", short: "o" },
       mode: { type: "string" },
+      cursor: { type: "string" },
+      "cursor-color": { type: "string" },
       theme: { type: "string" },
       "theme-file": { type: "string" },
       bg: { type: "string" },
@@ -119,9 +124,15 @@ export async function runTerm(argv: string[]): Promise<void> {
     if (mode != null && mode !== "incremental" && mode !== "full") {
       cliFail("domotion term", `--mode must be "incremental" or "full", got "${mode}"`, "usage");
     }
+    const cursor = values.cursor;
+    if (cursor != null && !["block", "bar", "underline", "none"].includes(cursor)) {
+      cliFail("domotion term", `--cursor must be block | bar | underline | none, got "${cursor}"`, "usage");
+    }
     const { svg, width, height, frameCount } = await castToAnimatedSvg(castText, browser, {
       theme,
       mode: mode as "incremental" | "full" | undefined,
+      cursor: cursor as "block" | "bar" | "underline" | "none" | undefined,
+      cursorColor: values["cursor-color"],
       fontSize: num(values["font-size"]),
       fontFamily: values["font-family"],
       cols: num(values.cols),

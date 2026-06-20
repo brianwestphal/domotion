@@ -16,7 +16,7 @@
  */
 
 import type { CastOutputEvent } from "./cast.js";
-import { TerminalEmulator, gridSignature, type TermGrid, type TermCell } from "./emulator.js";
+import { TerminalEmulator, gridSignature, type TermGrid, type TermCell, type TermCursor } from "./emulator.js";
 import type { TerminalTheme } from "./theme.js";
 
 export interface FrameBuildOptions {
@@ -33,6 +33,8 @@ export interface FrameBuildOptions {
 export interface TermFrame {
   grid: TermGrid;
   durationMs: number;
+  /** The cursor's cell + visibility at this settle-point (DM-1225). */
+  cursor: TermCursor;
 }
 
 export async function buildFrames(
@@ -55,13 +57,14 @@ export async function buildFrames(
     const gapSec = isLast ? tailMs / 1000 : events[i + 1].time - events[i].time;
     if (gapSec < settleSec && !isLast) continue; // not a settle point yet
     const grid = emu.snapshot();
+    const cursor = emu.cursor();
     const sig = gridSignature(grid);
     const holdMs = Math.min(maxFrameMs, Math.max(minFrameMs, Math.round(gapSec * 1000)));
     if (sig === lastSig && frames.length > 0) {
       // Same screen persisted across the pause — extend the prior frame.
       frames[frames.length - 1].durationMs = Math.min(maxFrameMs, frames[frames.length - 1].durationMs + holdMs);
     } else {
-      frames.push({ grid, durationMs: holdMs });
+      frames.push({ grid, durationMs: holdMs, cursor });
       lastSig = sig;
     }
   }

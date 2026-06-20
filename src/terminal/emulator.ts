@@ -38,11 +38,22 @@ export interface TermCell {
 
 export type TermGrid = TermCell[][];
 
+/** The cursor's cell + visibility at a snapshot. */
+export interface TermCursor {
+  x: number;
+  y: number;
+  /** False while the program has hidden the cursor (DECTCEM `?25l`). */
+  visible: boolean;
+}
+
 export class TerminalEmulator {
   private term: XTerm;
   readonly cols: number;
   readonly rows: number;
   private theme: TerminalTheme;
+  // `@xterm/headless` has no public cursor-visibility getter, so track DECTCEM
+  // (`\x1b[?25h` show / `\x1b[?25l` hide) off the byte stream ourselves.
+  private cursorVisible = true;
 
   constructor(cols: number, rows: number, theme: TerminalTheme = THEMES.catppuccin) {
     this.cols = cols;
@@ -53,7 +64,16 @@ export class TerminalEmulator {
 
   /** Feed raw output bytes; resolves once xterm has parsed them. */
   write(data: string): Promise<void> {
+    // Track the LAST cursor show/hide toggle in this chunk (DECTCEM).
+    const m = data.match(/\x1b\[\?25([hl])(?![\s\S]*\x1b\[\?25[hl])/);
+    if (m != null) this.cursorVisible = m[1] === "h";
     return new Promise((resolve) => this.term.write(data, resolve));
+  }
+
+  /** The cursor's current cell + visibility. */
+  cursor(): TermCursor {
+    const buf = this.term.buffer.active;
+    return { x: buf.cursorX, y: buf.cursorY, visible: this.cursorVisible };
   }
 
   /**
