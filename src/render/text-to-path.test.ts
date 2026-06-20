@@ -2100,4 +2100,21 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
     const shift = cjkTrimShiftFontUnits(noHaltFont, "k-nohalt", openingGlyph, 0x300C, 8, 16, 0.016);
     expect(shift).toBe(-500);
   });
+
+  // DM-1223: the contextual cases (`」「` adjacent brackets, line-leading `「`)
+  // need no special code — the shift is a pure function of the glyph + the
+  // captured advance, NOT the preceding char. Chrome's contextual trim decision
+  // is already encoded in the captured xOffsets; this just re-aligns the trimmed
+  // glyph's ink. So a closing `」` (full advance, no trim) and the adjacent
+  // opening `「` (captured half, trimmed) are each handled per-glyph — exactly
+  // the same shift that fixed `（「` (DM-1184) lands `」「` and line-leading `「`.
+  // (Verified ink-identical to Chrome at both residual regions of
+  // 20-deep-hanging-punctuation: the remaining diff is glyph-AA, not position.)
+  it("handles the 」「 adjacent-bracket boundary per-glyph (DM-1223)", () => {
+    // `」` stays full-width (Chrome doesn't trim a closing bracket here) → no shift.
+    expect(cjkTrimShiftFontUnits(fakeFont(0), "j-close", glyph, 0x300D, 16, 16, 0.016)).toBe(0);
+    // The immediately-following `「` is trimmed to half regardless of the `」`
+    // before it → the same left halt shift as in `（「`.
+    expect(cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300C, 8, 16, 0.016)).toBe(-500);
+  });
 });
