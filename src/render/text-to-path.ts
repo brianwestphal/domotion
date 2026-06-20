@@ -4195,6 +4195,15 @@ export function insertSyntheticDottedCircles(
           && primaryFont.glyphForCodePoint(cp).id !== 0
           && primaryFont.glyphForCodePoint(0x25CC).id !== 0
           && !fontAutoInsertsDottedCircle(primaryFont, ch)
+          // DM-1229: U+302A–302F (combining CJK/Hangul tone marks) must NOT take
+          // this "◌ + centered-mark" path. Real HarfBuzz on the BARE mark in
+          // Arial Unicode MS already reproduces Chrome exactly — it inserts the ◌
+          // and orders the cluster as [mark, ◌] (mark to the LEFT of the circle).
+          // Prepending an explicit ◌ here instead yields "◌ + mark" (◌ to the
+          // left, dots to the right) — the reverse of Chrome. Leaving them bare
+          // routes them through the DM-1215 dotted-circle HarfBuzz path (see
+          // `resolveDottedCircleHbRun`), which matches.
+          && !(cp >= 0x302a && cp <= 0x302f)
           // DM-1126: skip LEFT-reordering matras (pre-base vowels, e.g. Grantha
           // U+11347/11348). Chrome paints them "matra ◌" (the matra reorders
           // BEFORE the synthetic circle), not "◌ + centered-mark" — the centering

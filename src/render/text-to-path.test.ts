@@ -392,6 +392,24 @@ describe("orphaned complex marks get a HarfBuzz dotted circle (DM-1215)", () => 
   });
 });
 
+describe("insertSyntheticDottedCircles: CJK/Hangul tone marks stay bare for HarfBuzz (DM-1229)", () => {
+  const AU = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf";
+  const HAVE_AU = fs.existsSync(AU);
+  // U+302A–302F are covered by Arial Unicode MS (DM-1174 routes them there). When
+  // the capture probe flags one as circled, the covered-centering branch would
+  // prepend an explicit "◌" — but real HarfBuzz on the BARE mark already inserts
+  // and orders the ◌ the way Chrome paints it ([mark, ◌], dots LEFT of the
+  // circle). Prepending "◌" instead yields "◌ + mark" (the reverse). So these
+  // marks must pass through UNCHANGED, leaving the DM-1215 HarfBuzz path to do it.
+  it.skipIf(!HAVE_AU)("does NOT prepend a ◌ to a probe-flagged tone mark (Arial Unicode primary)", () => {
+    for (const cp of [0x302a, 0x302b, 0x302c, 0x302d, 0x302e, 0x302f]) {
+      const ch = String.fromCodePoint(cp);
+      const { text } = insertSyntheticDottedCircles(ch, undefined, '"Arial Unicode MS"', 400, 32, 0, undefined, undefined, [0]);
+      expect(text).toBe(ch); // bare — NOT "◌" + ch (which would be 2 chars / the reversed layout)
+    }
+  });
+});
+
 // DM-1109: the pre-base (left) matra predicate. Unconditional set membership —
 // no DOM. The crux is the Vowel_Dependent filter: InPC=Left medial CONSONANTS
 // must NOT qualify (they don't pre-base-reorder), only left VOWEL signs do.
