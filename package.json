@@ -79,7 +79,7 @@
     "esbuild": "^0.27.7",
     "eslint": "^9.39.4",
     "eslint-plugin-kerfjs": "^0.14.0",
-    "gitgist": "^0.1.0",
+    "gitgist": "^1.0.0",
     "happy-dom": "^20.9.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.3",
