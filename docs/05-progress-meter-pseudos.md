@@ -68,3 +68,28 @@ In `src/render/form-controls.ts`:
 ## Acceptance criteria
 
 `06-forms-style-progress-meter.html` diff drops below 1.5% avg. Author-styled progress bars with gradient fills, custom heights, and rounded corners render correctly. UA-default progress/meter bars elsewhere don't regress.
+
+## Native (UA-default) `<meter>` groove + value inset (DM-1156)
+
+Author-styled meters are covered above; the **UA-default** `<meter>` (no
+`appearance: none`, no pseudo styling) also needed calibration against
+Chrome-on-macOS paint. Sampling `06-forms-style-progress-meter.html`'s
+`meter.base` rows:
+
+- The bar is `floor(h/4)` inset top and bottom (an `h=16` meter paints an 8px
+  bar), centered.
+- Chrome wraps the track + value in a crisp **1px groove border**
+  `rgb(203,203,203)` with ~2px rounded corners. Track fill is
+  `rgb(239,239,239)`, the optimum value is `rgb(16,124,16)`.
+- The value fill sits **1px inside** the groove so the border reads around it.
+
+`renderMeter()` snaps the groove rect to the pixel grid so the 1px stroke lands
+on a single row instead of anti-aliasing across two. Native `<progress>` gets
+**no** groove (sampled: flat blue fill, AA only) — only `<meter>` does.
+
+A second gap affected *author-styled* meters: Chrome insets the **value pseudo**
+to the center ~half-height (inset `floor(h/4)`; `h=16` → center 8px, `h=28` →
+center 14px) while the track pseudo fills full height. The value gradient maps
+to that inset box (matters for the `meter.tall` vertical gradient). Box tops are
+snapped to the pixel grid (`Math.round(el.y)`) so edges land crisply. With both
+fixes `06-forms-style-progress-meter.html` renders clean (0 regions).

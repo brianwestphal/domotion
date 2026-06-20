@@ -41,6 +41,86 @@ describe("form-controls font-family escaping (DM-866)", () => {
   });
 });
 
+describe("::details-content separator (DM-1152)", () => {
+  function makeOpenDetails(box: Record<string, unknown> | undefined): Parameters<typeof renderFormControl>[0] {
+    return {
+      tag: "details",
+      x: 44, y: 263, width: 740, height: 132,
+      styles: {
+        fontSize: "16", color: "rgb(0,0,0)", paddingLeft: "0", borderLeftWidth: "1",
+        paddingTop: "0", borderTopWidth: "1", summaryMarkerSuppressed: true,
+        detailsOpen: true,
+        ...(box ? { detailsContentBox: box } : {}),
+      },
+      children: [{ tag: "summary", x: 44, y: 264, width: 740, height: 47, styles: {} }],
+    } as unknown as Parameters<typeof renderFormControl>[0];
+  }
+
+  it("paints a 1px divider at the summary's bottom edge when ::details-content has a border-top", () => {
+    const svg = renderFormControl(makeOpenDetails({
+      borderTopWidth: 1, borderTopColor: "rgb(226, 232, 240)",
+      paddingBottom: 0, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1,
+    }), "");
+    // Divider at summary.y + summary.height = 264 + 47 = 311, full content width.
+    expect(svg).toContain('y="311"');
+    expect(svg).toContain('height="1"');
+    expect(svg).toContain('fill="rgb(226, 232, 240)"');
+  });
+
+  it("paints the divider even when the summary marker is suppressed (list-style:none idiom)", () => {
+    // The accordion pattern hides the UA triangle; the separator must still show.
+    const svg = renderFormControl(makeOpenDetails({
+      borderTopWidth: 1, borderTopColor: "rgb(226, 232, 240)",
+      paddingBottom: 0, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1,
+    }), "");
+    expect(svg).toContain('fill="rgb(226, 232, 240)"');
+  });
+
+  it("paints nothing extra when ::details-content carries no border (no detailsContentBox)", () => {
+    const svg = renderFormControl(makeOpenDetails(undefined), "");
+    expect(svg).not.toContain('fill="rgb(226, 232, 240)"');
+  });
+});
+
+describe("native vs author-styled <meter> geometry (DM-1156 / DM-1155)", () => {
+  function makeMeter(styles: Record<string, unknown>): Parameters<typeof renderFormControl>[0] {
+    return {
+      tag: "meter",
+      x: 264, y: 100, width: 528, height: 16,
+      styles: { meterValue: 9, meterMin: 0, meterMax: 10, meterLow: 3, meterHigh: 7, meterOptimum: 8, ...styles },
+    } as unknown as Parameters<typeof renderFormControl>[0];
+  }
+
+  it("paints the native UA groove border (rgb(203,203,203)) around the bar", () => {
+    // macOS Chrome paints native <meter> as a grooved bar with a crisp 1px
+    // gray border. Author-styled meters (appearance:none) get no groove.
+    const svg = renderFormControl(makeMeter({}), "");
+    expect(svg).toContain('stroke="rgb(203,203,203)"');
+    expect(svg).toContain('stroke-width="1"');
+  });
+
+  it("does NOT paint a groove on an author-styled (border-radius pill) meter", () => {
+    const svg = renderFormControl(makeMeter({ meterBarRadius: "8px" }), "");
+    expect(svg).not.toContain('stroke="rgb(203,203,203)"');
+    // The pill track keeps its author radius.
+    expect(svg).toContain('rx="8"');
+  });
+
+  it("insets the author-styled value fill to the center half-height (floor(h/4))", () => {
+    // Chrome insets the value pseudo to the center ~half of the track: for a
+    // 16px meter the value spans the center 8px (inset 4 top/bottom), not the
+    // full height. Snapped box top = round(y) = 100, inset 4 → value y = 104.
+    const svg = renderFormControl(makeMeter({ meterBarRadius: "8px" }), "");
+    const rects = [...svg.matchAll(/<rect[^>]*y="([\d.]+)"[^>]*height="([\d.]+)"[^>]*\/>/g)];
+    // Two rects: the full-height track (y=100 h=16) and the inset value (y=104 h=8).
+    const track = rects.find((m) => m[2] === "16");
+    const value = rects.find((m) => m[2] === "8");
+    expect(track).toBeDefined();
+    expect(value).toBeDefined();
+    expect(parseFloat(value![1])).toBe(104);
+  });
+});
+
 describe("details disclosure marker suppression (DM-1115 / DM-448)", () => {
   function makeDetails(extra: Record<string, unknown>): Parameters<typeof renderFormControl>[0] {
     return {

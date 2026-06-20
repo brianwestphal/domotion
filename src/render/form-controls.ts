@@ -214,8 +214,38 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
   // pipeline. (DM-308)
   if (tag === "select" && el.styles.selectDisplayText != null) return renderSelectChevron(el, indent, defCtx);
   if (tag === "select" && el.styles.selectListboxOptions != null) return renderListbox(el, indent);
-  if (tag === "details") return renderDetailsMarker(el, indent);
+  if (tag === "details") {
+    const box = renderDetailsContentBox(el, indent);
+    const marker = renderDetailsMarker(el, indent);
+    return [box, marker].filter((s) => s !== "").join("\n");
+  }
   return "";
+}
+
+/**
+ * DM-1152: paint the `::details-content` separator for an OPEN `<details>`.
+ * Chrome 131+ styles the disclosure body via the `::details-content` pseudo;
+ * a `border-top` there draws a divider line between the summary and the
+ * content. That line doesn't round-trip through element capture (the pseudo
+ * wraps the real content children), so synthesize it here. The line sits in
+ * the gap just below the summary — painting it after the content children is
+ * safe (no text there). The pseudo's background is intentionally NOT painted
+ * here: it would have to render BEHIND the content text (this synthesis paints
+ * on top), and against the typical near-white body it's sub-perceptible.
+ */
+function renderDetailsContentBox(el: CapturedElement, indent: string): string {
+  const box = el.styles.detailsContentBox;
+  if (box == null || box.borderTopWidth <= 0 || box.borderTopColor == null) return "";
+  const summaryChild = el.children?.find((c) => c.tag === "summary");
+  if (summaryChild == null) return "";
+  const boxTop = summaryChild.y + summaryChild.height; // summary bottom = content-box top
+  const left = el.x + box.borderLeftWidth;
+  const width = el.width - box.borderLeftWidth - box.borderRightWidth;
+  if (width <= 0) return "";
+  // Snap to the pixel grid so the 1px divider is crisp (matches Chrome's
+  // border row at the summary's bottom edge).
+  const y = Math.round(boxTop);
+  return `${indent}<rect x="${r(left)}" y="${r(y)}" width="${r(width)}" height="${r(box.borderTopWidth)}" fill="${box.borderTopColor}" />`;
 }
 
 function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
@@ -1037,21 +1067,60 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const inset = Math.floor(el.height / 4);
   const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
   const barY = isAuthorStyled ? el.y : el.y + inset;
+  // Native (non-author-styled) <meter> on macOS Chrome paints a grooved
+  // bar: the track and value sit inside a 1px gray border (rgb(203,203,203))
+  // with small rounded corners (~2px), and the value fill is inset 1px
+  // within that groove so the border shows around it. Sampled from Chromium
+  // paint: 8px bar (inset floor(h/4)), track rgb(239,239,239), green fill
+  // rgb(16,124,16), 1px groove border. Author-styled meters (appearance:none)
+  // get no groove — only the pseudo's own border-radius rounds them.
   const trackRadius = isAuthorStyled
     ? (el.styles.meterBarRadius != null && el.styles.meterBarRadius !== "0px"
         ? parseFloat(el.styles.meterBarRadius) || 0 : 0)
-    : Math.max(0, (barH - 8) / 2);
+    : Math.min(2, barH / 2);
 
   const parts: string[] = [];
   // Gradient fills (SK-1222 + SK-1224 / SK-1225) for meter pseudos.
   const trackRect = { x: el.x, y: barY, w: el.width, h: barH };
   const trackGrad = gradientFillFor(el.styles.meterBarBgImage, trackRect, defCtx);
-  parts.push(`${indent}<rect x="${r(el.x)}" y="${r(barY)}" width="${r(el.width)}" height="${r(barH)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" />`);
-  if (ratio > 0) {
-    const valueW = el.width * ratio;
-    const valueRect = { x: el.x, y: barY, w: valueW, h: barH };
-    const valueGrad = gradientFillFor(valueBgImage, valueRect, defCtx);
-    parts.push(`${indent}<rect x="${r(el.x)}" y="${r(barY)}" width="${r(valueW)}" height="${r(barH)}" rx="${r(trackRadius)}" fill="${valueGrad ?? fill}" />`);
+  if (isAuthorStyled) {
+    // The track (`::-webkit-meter-bar`) fills the full element height, but
+    // Chrome insets the VALUE pseudo to the center ~half-height (inset =
+    // floor(h/4), same as the native bar) — sampled: h=16 value spans the
+    // center 8px, h=28 value spans the center 14px. Snap the box top to the
+    // pixel grid (Chrome paints the snapped border box) so the bar edges land
+    // crisply instead of AA'ing across two rows.
+    const top = Math.round(el.y);
+    const fullH = Math.round(el.height);
+    parts.push(`${indent}<rect x="${r(el.x)}" y="${r(top)}" width="${r(el.width)}" height="${r(fullH)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" />`);
+    if (ratio > 0) {
+      const vInset = Math.floor(fullH / 4);
+      const valueH = fullH - 2 * vInset;
+      const valueTop = top + vInset;
+      const valueRadius = Math.min(trackRadius, valueH / 2);
+      const valueW = el.width * ratio;
+      const valueRect = { x: el.x, y: valueTop, w: valueW, h: valueH };
+      const valueGrad = gradientFillFor(valueBgImage, valueRect, defCtx);
+      parts.push(`${indent}<rect x="${r(el.x)}" y="${r(valueTop)}" width="${r(valueW)}" height="${r(valueH)}" rx="${r(valueRadius)}" fill="${valueGrad ?? fill}" />`);
+    }
+  } else {
+    // Native groove. Chrome paints a crisp 1px gray border (rgb(203,203,203))
+    // around the bar with the track/value fills inside it. Snap to the pixel
+    // grid so the 1px stroke lands on a single row/column instead of AA'ing
+    // across two (sampled Chrome: border row at floor(barY), 6px fill inside,
+    // border row at the bottom). The value fill is inset 1px so the groove
+    // reads around it.
+    const groove = "rgb(203,203,203)";
+    const left = Math.floor(el.x);
+    const top = Math.floor(barY);
+    const fullW = Math.round(el.width);
+    parts.push(`${indent}<rect x="${r(left + 0.5)}" y="${r(top + 0.5)}" width="${r(fullW - 1)}" height="${r(barH - 1)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" stroke="${groove}" stroke-width="1" />`);
+    if (ratio > 0) {
+      const valueW = Math.max(0, Math.round(el.width * ratio) - 1);
+      const valueRect = { x: left + 1, y: top + 1, w: valueW, h: barH - 2 };
+      const valueGrad = gradientFillFor(valueBgImage, valueRect, defCtx);
+      parts.push(`${indent}<rect x="${r(left + 1)}" y="${r(top + 1)}" width="${r(valueW)}" height="${r(barH - 2)}" rx="${r(Math.max(0, trackRadius - 1))}" fill="${valueGrad ?? fill}" />`);
+    }
   }
   return parts.join("\n");
 }

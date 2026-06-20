@@ -144,9 +144,34 @@ export const createPseudoInjectHandler = () => {
         const flexSpread = hostIsFlex && hostJc != null && hostJc !== ''
           && hostJc !== 'flex-start' && hostJc !== 'start' && hostJc !== 'normal';
         if (flexSpread) {
-          // Keep p.seg.x as computed by pseudo-content.ts; only re-anchor y / height.
-          p.seg.y = lastSeg.y;
-          p.seg.height = lastSeg.height;
+          // Keep p.seg.x as computed by pseudo-content.ts; re-anchor y.
+          // DM-1153: when the flex host centers its cross axis
+          // (`align-items: center`, the `<details>` accordion `summary::after`
+          // "+/−" marker pattern), the pseudo is NOT baseline-aligned with the
+          // host text — it's centered in the host's content box. Anchoring to
+          // `lastSeg.y` paints a larger-font marker (e.g. 20px "+" over 16px
+          // summary text) too low because the renderer adds the pseudo's own
+          // (larger) ascent to the host text line's top. Chrome centers the
+          // pseudo's LINE box on the content-box center, so the baseline sits
+          // at centerY − lineH/2 + ascent. The renderer computes baseline as
+          // seg.y + ascent, so set seg.y = centerY − lineH/2.
+          if (hcs.alignItems === 'center') {
+            const elRect = el.getBoundingClientRect();
+            const padT = parseFloat(hcs.paddingTop) || 0;
+            const padB = parseFloat(hcs.paddingBottom) || 0;
+            const borT = parseFloat(hcs.borderTopWidth) || 0;
+            const borB = parseFloat(hcs.borderBottomWidth) || 0;
+            const contentCenterY = elRect.top + borT + padT
+              + (elRect.height - borT - borB - padT - padB) / 2;
+            const pseudoFs = p.seg.fontSize || lastSeg.height;
+            let lineH = parseFloat(window.getComputedStyle(el, '::after').lineHeight);
+            if (isNaN(lineH) || lineH <= 0) lineH = pseudoFs * 1.2; // 'normal'
+            p.seg.y = contentCenterY - lineH / 2;
+            p.seg.height = pseudoFs;
+          } else {
+            p.seg.y = lastSeg.y;
+            p.seg.height = lastSeg.height;
+          }
         } else {
         p.seg.x = lastSeg.x + lastSeg.width + mLa + (bs.borL || 0) + (bs.padL || 0);
         p.seg.y = lastSeg.y;

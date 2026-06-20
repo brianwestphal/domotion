@@ -98,6 +98,33 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
       summaryMarkerColor: mk != null && !mk.suppressed ? mk.color : undefined,
       summaryMarkerFontSize: mk != null && !mk.suppressed ? mk.fontSize : undefined,
       summaryMarkerInside: mk != null && !mk.suppressed ? mk.inside : undefined,
+      // DM-1152: `::details-content` (Chrome 131+) styles the disclosure body
+      // separately from the summary. When an OPEN <details> styles it with a
+      // border-top and/or background, Chrome paints a separator line +
+      // background over the content area below the summary — neither of which
+      // round-trips through plain element capture (the pseudo wraps the real
+      // content children rather than generating its own DOM node). Capture the
+      // border-top color/width + background so the renderer can synthesize the
+      // box; geometry is derived from the details + summary rects at render
+      // time. Only emitted when open AND the pseudo carries non-default paint.
+      detailsContentBox: (tag === 'details' && el.open) ? (() => {
+        const dc = window.getComputedStyle(el, '::details-content');
+        const isPaint = (c) => c != null && c !== '' && c !== 'transparent'
+          && !/^rgba\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*0\s*\)$/.test(c);
+        const btw = parseFloat(dc.borderTopWidth) || 0;
+        const hasBorder = btw > 0 && isPaint(dc.borderTopColor);
+        const hasBg = isPaint(dc.backgroundColor);
+        if (!hasBorder && !hasBg) return undefined;
+        return {
+          borderTopWidth: hasBorder ? btw : 0,
+          borderTopColor: hasBorder ? normColor(dc.borderTopColor) : undefined,
+          bg: hasBg ? normColor(dc.backgroundColor) : undefined,
+          paddingBottom: parseFloat(cs.paddingBottom) || 0,
+          borderLeftWidth: parseFloat(cs.borderLeftWidth) || 0,
+          borderRightWidth: parseFloat(cs.borderRightWidth) || 0,
+          borderBottomWidth: parseFloat(cs.borderBottomWidth) || 0,
+        };
+      })() : undefined,
       // Native chevron only when the select keeps UA chrome — appearance:
       // none means the page draws its own arrow via background-image, and
       // we should not stack our default chevron on top. DM-308.

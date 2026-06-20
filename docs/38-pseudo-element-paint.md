@@ -140,6 +140,17 @@ Only `blur()` is translated today; other filter functions (`drop-shadow`,
   style on the render side (DM-770).
 - **`::placeholder`** — input placeholder text routes through the form-
   controls renderer (`src/render/form-controls.ts`), not the pseudo path.
+- **`::details-content`** (Chrome 131+) — styles the disclosure body of an open
+  `<details>` separately from `<summary>`. The pseudo wraps the real content
+  children rather than generating its own DOM node, so its paint doesn't
+  round-trip through element capture. The capture layer reads the pseudo's
+  `border-top` + `background` (`detailsContentBox`, `src/capture/script/walker/
+  form-controls.ts`); the renderer synthesizes the **border-top divider** at the
+  summary's bottom edge from the details + summary geometry (`renderDetailsContentBox`,
+  `src/render/form-controls.ts`, DM-1152). The divider paints after the content
+  (it sits in the summary→content gap, so on-top layering is safe). The pseudo
+  *background* is intentionally not painted — it would need to render BEHIND the
+  content text, and against the typical near-white body it is sub-perceptible.
 
 ## Capture-side reference
 

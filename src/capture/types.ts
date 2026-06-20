@@ -548,6 +548,20 @@ export interface CapturedElement {
      *  past the summary's own `padding-left` to the content-start. `outside`
      *  → the legacy placement at the summary's border-box left edge. */
     summaryMarkerInside?: boolean;
+    /** DM-1152: paint of an OPEN `<details>`'s `::details-content` pseudo
+     *  (Chrome 131+) when it carries a border-top and/or background. The
+     *  renderer synthesizes a box over the disclosure body (below the summary)
+     *  from these + the details/summary geometry. Unset when the pseudo is
+     *  default-painted or the details is closed. */
+    detailsContentBox?: {
+      borderTopWidth: number;
+      borderTopColor?: string;
+      bg?: string;
+      paddingBottom: number;
+      borderLeftWidth: number;
+      borderRightWidth: number;
+      borderBottomWidth: number;
+    };
     selectChevron?: boolean;
     /** Text of the currently-selected option, rendered inside the `<select>`
      *  content rect for closed dropdowns (DM-246). For listbox-mode selects
