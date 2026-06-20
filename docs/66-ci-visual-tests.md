@@ -13,9 +13,10 @@ The `html-test` (295 fixtures) and `html-test-unicode` (818 fixtures) visual sui
 node tools/run-ci-visual-tests.mjs --suite unicode            # macOS, all 818, auto-sharded
 node tools/run-ci-visual-tests.mjs --suite html --os linux    # Linux debugging
 node tools/run-ci-visual-tests.mjs --suite unicode --only 10  # just the 1xxx blocks
+node tools/run-ci-visual-tests.mjs --suite unicode --update-baseline  # (re)write the committed CI baseline
 ```
 
-It dispatches the workflow on your **pushed** branch (it refuses if `origin/<branch>` ≠ your `HEAD` — CI runs the pushed ref, not your working tree), waits for the run, downloads the per-shard artifacts, merges them, and prints the pass/fail summary + the local path to the failing-fixture diff crops. Flags: `--suite unicode|html`, `--os macos|linux|windows|all`, `--shards auto|<N>`, `--only <filter>`, `--ref <branch>`, `--no-review`.
+It dispatches the workflow on your **pushed** branch (it refuses if `origin/<branch>` ≠ your `HEAD` — CI runs the pushed ref, not your working tree), waits for the run, downloads the per-shard artifacts, merges them, **diffs the run against the committed CI baseline** (`tests/baselines/<suite>-<os>.json` — see "Two baselines" below), and prints the pass/fail summary + the baseline diff + the local path to the failing-fixture diff crops. Flags: `--suite unicode|html`, `--os macos|linux|windows|all`, `--shards auto|<N>`, `--only <filter>`, `--ref <branch>`, `--update-baseline`, `--no-review`.
 
 ### Reviewing the CI diffs locally (same tool)
 
@@ -34,7 +35,7 @@ svg-review --expected <tmp>/review/.../<name>-expected.png --actual <tmp>/review
 
 - A `setup` job computes a per-OS shard matrix. `auto` → **macOS 5 / Linux 16 / Windows 5** (the practical public-repo concurrency ceilings — extra shards just queue).
 - Per-OS test jobs shard the fixtures by **stride** (`HTML_TEST_SHARD=i/N`, `tests/shard.ts`): macOS on `macos-latest`, **Linux inside the pinned Playwright container** (`mcr.microsoft.com/playwright:v<locked>-noble`, for the calibrated FreeType/Liberation fonts — mirrors `test-linux.yml`), Windows on `windows-latest`. Each shard clones the fixtures, runs with the throttle off (`DOMOTION_NO_NICE=1`), prunes passing PNGs (`scripts/prune-passing-artifacts.mjs`), and uploads `results.json` + failing diffs as `results-<os>-shard<i>`.
-- An `aggregate` job downloads every shard, merges (`scripts/merge-shard-results.mjs`) into one `results-<os>.json`, and writes a Markdown Step Summary (per-OS pass/fail + the failing-fixture table).
+- An `aggregate` job downloads every shard, merges (`scripts/merge-shard-results.mjs`) into one `results-<os>.json`, writes a Markdown Step Summary (per-OS pass/fail + the failing-fixture table), then **diffs the merged run against the committed CI baseline** (`scripts/ci-baseline-aggregate.mjs` → `scripts/diff-against-baseline.mjs`) and appends a **Baseline diff** section (regressions / newly-passing / new / dropped). With the `update_baseline` dispatch input set, it also writes `baseline-<suite>-<os>.json` into the `visual-tests-merged` artifact for you to review + commit.
 
 Manual `gh` equivalent (if you skip the helper):
 
@@ -45,10 +46,20 @@ gh run download <id> --pattern 'results-*' --dir /tmp/vt
 node scripts/merge-shard-results.mjs --input /tmp/vt
 ```
 
-## Caveats (results are platform-relative)
+## Two baselines: local Mac vs CI image (DM-1217)
 
-- **macOS runner ≠ your local Mac — the numbers do NOT transfer (measured).** `macos-latest` is currently `macos-15-arm64` (Apple Silicon). A full unicode sweep there returned **742/818 vs 766/818 locally** (commit-matched) — ~24 extra failures, almost all in the COMMON text blocks (basic-latin, latin-1, cyrillic, greek, IPA, punctuation, math, arrows). They fail by a *small* margin that is consistently ~5–7× the local diff (basic-latin: CI 0.18% / worst-tile 2.4% vs local 0.027% / 0.07%): that runner rasterizes text differently enough that Domotion's locally-calibrated output crosses the pass threshold on otherwise-clean blocks (the same Chrome-paints-hinted-vs-Domotion-fills-unhinted gap that Linux/Windows have a coverage floor for — macOS has none, because locally the gap is negligible). **So treat CI-macOS as RELATIVE (did this change make things worse than the previous CI run on the same image?), not as a check against the local baseline.** The calibration is host-specific; matching the local pass count would need a CI-image-specific baseline (or a macos coverage floor calibrated to `macos-15-arm64`).
-- **Linux is expected to differ** from macOS by design (separate fallback calibration + the runner's Linux text-hinting/coverage floor — see `test-linux.yml`). Use it to catch tofu/missing-font regressions, not to match macOS pixels.
+**The macOS runner is not your local Mac, and its pass/fail COUNT does not transfer (measured).** `macos-latest` is currently `macos-15-arm64` (Apple Silicon). A full unicode sweep there returned **742/818 vs 766/818 locally** (commit-matched) — ~24 extra failures, almost all in the COMMON text blocks (basic-latin, latin-1, cyrillic, greek, IPA, punctuation, math, arrows). They fail by a *small* margin that is consistently ~5–7× the local diff (basic-latin: CI 0.18% / worst-tile 2.4% vs local 0.027% / 0.07%): that runner rasterizes text differently enough that Domotion's locally-calibrated output crosses the pass threshold on otherwise-clean blocks (the same Chrome-paints-hinted-vs-Domotion-fills-unhinted gap that Linux/Windows carry a coverage floor for — macOS has none, because locally the gap is negligible).
+
+So we keep **two baselines** rather than pretend one count is authoritative:
+
+- **Local Mac** — the implicit baseline the `demos:test` / `demos:test:unicode` suites already enforce (each fixture diffed against the host's live Chromium screenshot). The calibration target; nothing extra is stored.
+- **CI image** — a *committed* per-fixture snapshot under `tests/baselines/<suite>-<os>.json`. A CI run is judged **relative to its own baseline** ("did this change regress anything vs the last known-good run on the same image?"), which *does* transfer — not against the local count. See `tests/baselines/README.md`.
+
+Establish / refresh a baseline from a reviewed known-good run: `node tools/run-ci-visual-tests.mjs --suite <suite> --update-baseline` (writes `tests/baselines/<suite>-<os>.json` for you to commit). The aggregate job's **Baseline diff** Step-Summary section, and `--strict` on `scripts/diff-against-baseline.mjs`, gate on regressions/new-failures vs that baseline. When the runner image rotates (`macos-15` → a future `macos-N`), the `meta.image` mismatch signals it's time to refresh.
+
+## Other-platform caveats
+
+- **Linux is expected to differ** from macOS by design (separate fallback calibration + the runner's Linux text-hinting/coverage floor — see `test-linux.yml`). Use it to catch tofu/missing-font regressions, not to match macOS pixels. It carries its own `tests/baselines/<suite>-linux.json` once established.
 - **windows-latest is Windows Server**, whose default font set is narrower than desktop Windows 11 (`windows-fidelity.yml`) — limited fidelity, debugging only.
 
 ## Local sharding

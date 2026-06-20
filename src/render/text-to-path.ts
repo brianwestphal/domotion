@@ -1542,6 +1542,16 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     || (codepoint >= 0x3400 && codepoint <= 0x4DBF)
     || (codepoint >= 0x4E00 && codepoint <= 0x9FFF)
     || (codepoint >= 0xF900 && codepoint <= 0xFAFF)) {
+    // DM-1174: U+302A–U+302F are combining CJK/Hangul tone marks that Hiragino
+    // Sans GB (our `cjk`) does NOT carry. Chrome falls to Arial Unicode MS, which
+    // has them AND U+25CC, and lays the orphaned `◌ + mark` cluster as a SPACING
+    // glyph to the RIGHT of the dotted circle (verified against Chrome's painted
+    // output). Without an Arial-Unicode fallback the chain finds no coverage and
+    // the orphaned mark drops to the per-char centering path, which stacked the
+    // mark ON the ◌ — the "soccer ball". Routing them here lets the DM-1215
+    // dotted-circle HarfBuzz path resolve coverage and reproduce Chrome's spacing
+    // layout. (`cjk` stays first so a future Hiragino that gains them still wins.)
+    if (codepoint >= 0x302A && codepoint <= 0x302F) return ["cjk", "u-arial-unicode-ms"];
     // DM-1117: author explicitly named Hiragino Mincho ProN — route its own
     // glyphs first so the `trad` / `fwid` / `jp78` East-Asian features land on a
     // font that carries them (Songti doesn't). Falls back to the generic serif

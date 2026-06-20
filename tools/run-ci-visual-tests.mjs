@@ -116,6 +116,30 @@ console.log(`\nMerging…\n`);
 const here = new URL("..", import.meta.url).pathname;
 execFileSync("node", [join(here, "scripts/merge-shard-results.mjs"), "--input", dir], { stdio: "inherit" });
 
+// DM-1217: the macOS CI runner (macos-15-arm64) rasterizes text differently
+// enough from a local Mac that the raw CI pass/fail COUNT does not transfer — so
+// instead of comparing CI to local, diff this run against the committed CI
+// baseline (tests/baselines/<suite>-<os>.json) and report regressions only. With
+// --update-baseline, (re)write that committed baseline from this run.
+const updateBaseline = process.argv.includes("--update-baseline");
+console.log(`\nDiffing against committed CI baseline${updateBaseline ? " (and rewriting it)" : ""}…\n`);
+execFileSync("node", [join(here, "scripts/ci-baseline-aggregate.mjs"),
+  "--input", dir, "--suite", suite, "--commit", localSha, "--out", dir,
+  ...(updateBaseline ? ["--update-baseline"] : [])],
+  { cwd: here, stdio: "inherit" });
+if (updateBaseline) {
+  // ci-baseline-aggregate wrote baseline-<suite>-<os>.json into `dir`; move each
+  // into the repo's tests/baselines/ so the user can review + commit it.
+  for (const name of readdirSync(dir)) {
+    const m = new RegExp(`^baseline-${suite}-([a-z0-9]+)\\.json$`, "i").exec(name);
+    if (m == null) continue;
+    const target = join(here, "tests/baselines", `${suite}-${m[1].toLowerCase()}.json`);
+    mkdirSync(join(here, "tests/baselines"), { recursive: true });
+    copyFileSync(join(dir, name), target);
+    console.log(`  baseline updated: tests/baselines/${suite}-${m[1].toLowerCase()}.json  (review + commit)`);
+  }
+}
+
 // --review (default ON): consolidate one OS's shard PNGs + .svg + merged
 // results.json into a flat dir laid out the way tests/review-server.tsx expects,
 // so you can browse the CI diffs in the SAME review UI. Pick macOS when present

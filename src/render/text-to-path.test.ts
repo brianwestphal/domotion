@@ -776,6 +776,29 @@ describe("fallbackFontChain: box-drawing chars in monospace context (DM-780)", (
   });
 });
 
+describe("fallbackFontChain: CJK/Hangul combining tone marks U+302A–U+302F (DM-1174)", () => {
+  // Hiragino Sans GB (our `cjk`) does NOT carry U+302A–U+302F (the combining
+  // CJK ideographic / Hangul tone marks). Without an Arial-Unicode fallback the
+  // chain found no coverage and the orphaned mark dropped to the per-char
+  // centering path, which stacked the mark ON the inserted U+25CC dotted circle
+  // (the "soccer ball"). The route must append `u-arial-unicode-ms`, which
+  // carries these marks AND U+25CC, so the DM-1215 dotted-circle HarfBuzz path
+  // resolves coverage and lays the cluster as a spacing glyph like Chrome.
+  it("appends Arial Unicode MS for the combining tone marks", () => {
+    for (const cp of [0x302a, 0x302b, 0x302c, 0x302d, 0x302e, 0x302f]) {
+      expect(darwinFallbackChain(cp)).toEqual(["cjk", "u-arial-unicode-ms"]);
+    }
+  });
+
+  it("leaves the surrounding CJK Symbols & Punctuation on the plain Hiragino route", () => {
+    // The narrow tone-mark window must NOT widen to the rest of the block — the
+    // punctuation (、。「」（） …) is what Chrome paints from Hiragino.
+    expect(darwinFallbackChain(0x3001)).toEqual(["cjk"]); // 、
+    expect(darwinFallbackChain(0x3029)).toEqual(["cjk"]); // just below the window
+    expect(darwinFallbackChain(0x3030)).toEqual(["cjk"]); // 〰 just above the window
+  });
+});
+
 describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
   // The radical was a uniform-stroke synthesized path that couldn't match the
   // stroke-weight contrast of Chrome's painted √ glyph. renderRadicalGlyph

@@ -32,6 +32,10 @@ on:
       only:
         description: 'Optional fixture name filter (passed to --only)'
         default: ''
+      update_baseline:
+        description: 'Write this run as the committed CI baseline artifact (review + commit it locally)'
+        type: boolean
+        default: false
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
@@ -105,6 +109,10 @@ jobs:
           DOMOTION_NO_NICE: '1'
           ONLY: ${{ inputs.only }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
+      - name: Record runner image
+        if: always()
+        shell: bash
+        run: echo "${ImageOS:-unknown}-${RUNNER_ARCH:-unknown}" | tr 'A-Z' 'a-z' > tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Prune passing artifacts
         if: always()
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
@@ -136,6 +144,10 @@ jobs:
           DOMOTION_NO_NICE: '1'
           ONLY: ${{ inputs.only }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
+      - name: Record runner image
+        if: always()
+        shell: bash
+        run: echo "${ImageOS:-unknown}-${RUNNER_ARCH:-unknown}" | tr 'A-Z' 'a-z' > tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Prune passing artifacts
         if: always()
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
@@ -168,6 +180,10 @@ jobs:
           DOMOTION_NO_NICE: '1'
           ONLY: ${{ inputs.only }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
+      - name: Record runner image
+        if: always()
+        shell: bash
+        run: echo "${ImageOS:-unknown}-${RUNNER_ARCH:-unknown}" | tr 'A-Z' 'a-z' > tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Prune passing artifacts
         if: always()
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
@@ -191,10 +207,17 @@ jobs:
           pattern: results-*
       - name: Merge + write Step Summary
         run: node scripts/merge-shard-results.mjs --input shard-artifacts --out shard-artifacts
+      - name: Diff against committed CI baseline (+ optionally rewrite it)
+        run: >-
+          node scripts/ci-baseline-aggregate.mjs
+          --input shard-artifacts --suite ${{ inputs.suite }}
+          --commit ${{ github.sha }}
+          ${{ inputs.update_baseline && '--update-baseline' || '' }}
       - uses: actions/upload-artifact@v4
         with:
           name: visual-tests-merged
           path: |
             shard-artifacts/results-*.json
+            shard-artifacts/baseline-*.json
             shard-artifacts/**/*-diff.png
           if-no-files-found: warn
