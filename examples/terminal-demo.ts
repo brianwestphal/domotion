@@ -13,6 +13,7 @@ import { chromium } from "@playwright/test";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { optimizeSvg } from "./shared.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
+import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../src/render/index.js";
 
 const WIDTH = 720;
 const HEIGHT = 420;
@@ -87,6 +88,10 @@ async function main(): Promise<void> {
 
   const animFrames: AnimationFrame[] = [];
   const transTypes: Array<"push-left" | "crossfade"> = ["push-left", "push-left", "crossfade", "crossfade"];
+  // Embedded-font mode accumulates one growing custom TTF across frames; render
+  // each frame WITHOUT its own @font-face and emit the finished font once below,
+  // or it gets re-embedded per frame (DM-1225 dedup).
+  clearEmbeddedFonts();
 
   for (let i = 0; i < TERMINAL_FRAMES.length; i++) {
     const frame = TERMINAL_FRAMES[i];
@@ -102,7 +107,7 @@ async function main(): Promise<void> {
     // emit self-contained SVGs so they load in offline image viewers.
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
     await embedRemoteImages(tree);
-    const svgContent = elementTreeToSvgInner(tree, WIDTH, HEIGHT, `f${i}-`);
+    const svgContent = elementTreeToSvgInner(tree, WIDTH, HEIGHT, `f${i}-`, true, 2, false);
 
     const animFrame: AnimationFrame = {
       svgContent,
@@ -133,6 +138,7 @@ async function main(): Promise<void> {
     width: WIDTH,
     height: HEIGHT,
     frames: animFrames,
+    fontFaceCss: getEmbeddedFontFaceCss(),
   });
 
   svg = optimizeSvg(svg);

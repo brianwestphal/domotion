@@ -18,8 +18,8 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import { launchChromium } from "../capture/index.js";
-import { castToAnimatedSvg } from "../terminal/index.js";
-import { THEMES } from "../terminal/theme.js";
+import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
+import { THEMES, type TerminalThemeSpec } from "../terminal/theme.js";
 import { cliFail } from "./common.js";
 
 const HELP = `domotion term — record a terminal session as an animated SVG
@@ -34,8 +34,13 @@ Record a session first with asciinema (https://asciinema.org):
 Options:
   --cast <file>        asciinema v2 .cast file to convert (required; "-" = stdin).
   -o, --output <path>  Output SVG path (default: stdout, or <cast>.svg for a file).
-      --theme <name>   Color theme: ${Object.keys(THEMES).join(" | ")} (default catppuccin).
+      --theme <name>   Base color theme: ${Object.keys(THEMES).join(" | ")} (default catppuccin).
+      --theme-file <p> JSON theme overriding bg / fg / ansi[16] on top of --theme
+                       (e.g. { "bg": "#0a0e14", "fg": "#b3b1ad", "ansi": [16 hex] }).
+      --bg <color>     Override the terminal background color.
+      --fg <color>     Override the default text color.
       --font-size <n>  Monospace font size in px (default 14).
+      --font-family <stack>  Monospace font stack (default 'SF Mono', Menlo, …).
       --cols <n>       Override the recorded column count.
       --rows <n>       Override the recorded row count.
       --settle-ms <n>  Output-pause (ms) that marks a frame boundary (default 90).
@@ -52,7 +57,11 @@ export async function runTerm(argv: string[]): Promise<void> {
       cast: { type: "string" },
       output: { type: "string", short: "o" },
       theme: { type: "string" },
+      "theme-file": { type: "string" },
+      bg: { type: "string" },
+      fg: { type: "string" },
       "font-size": { type: "string" },
+      "font-family": { type: "string" },
       cols: { type: "string" },
       rows: { type: "string" },
       "settle-ms": { type: "string" },
@@ -79,11 +88,33 @@ export async function runTerm(argv: string[]): Promise<void> {
     return n;
   };
 
+  // Theme: a bare `--theme <name>` stays a string (built-in). Any of --theme-file
+  // / --bg / --fg makes it a spec object that overrides the named base.
+  const themeFile = values["theme-file"];
+  let theme: TermToSvgOptions["theme"];
+  if (themeFile != null || values.bg != null || values.fg != null) {
+    let spec: TerminalThemeSpec = {};
+    if (themeFile != null) {
+      try {
+        spec = JSON.parse(readFileSync(resolve(themeFile), "utf8")) as TerminalThemeSpec;
+      } catch (e) {
+        cliFail("domotion term", `--theme-file is not valid JSON: ${(e as Error).message}`, "usage");
+      }
+    }
+    if (values.theme != null) spec.extends = values.theme; // --theme is the base
+    if (values.bg != null) spec.bg = values.bg;
+    if (values.fg != null) spec.fg = values.fg;
+    theme = spec;
+  } else {
+    theme = values.theme;
+  }
+
   const browser = await launchChromium();
   try {
     const { svg, width, height, frameCount } = await castToAnimatedSvg(castText, browser, {
-      theme: values.theme,
+      theme,
       fontSize: num(values["font-size"]),
+      fontFamily: values["font-family"],
       cols: num(values.cols),
       rows: num(values.rows),
       settleMs: num(values["settle-ms"]),

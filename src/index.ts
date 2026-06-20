@@ -114,3 +114,21 @@ export {
   runActions,
   type AnimateAction,
 } from "./cli/animate.js";
+
+// ── Terminal capture (DM-1225, doc 67) ───────────────────────────────────────
+// Turn a recorded terminal session (asciinema v2 .cast) into an animated SVG, or
+// into the individual terminal frames so callers can retime / wrap in chrome /
+// re-transition before composing. `castToTermFrames` is the frames-out half;
+// `castToAnimatedSvg` is `generateAnimatedSvg(await castToTermFrames(…))`. The
+// lower-level primitives (parse / emulate / select / render) are re-exported too.
+export {
+  castToAnimatedSvg,
+  castToTermFrames,
+  type TermToSvgOptions,
+  type TermToSvgResult,
+  type TermFramesResult,
+} from "./terminal/index.js";
+export { parseCast, type ParsedCast, type CastHeader, type CastOutputEvent } from "./terminal/cast.js";
+export { TerminalEmulator, gridSignature, type TermCell, type TermGrid } from "./terminal/emulator.js";
+export { buildFrames, gridToHtml, type FrameBuildOptions, type TermFrame, type HtmlRenderOptions } from "./terminal/render.js";
+export { THEMES, xterm256ToHex, resolveThemeSpec, type TerminalTheme, type TerminalThemeSpec } from "./terminal/theme.js";

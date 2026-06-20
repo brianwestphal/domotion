@@ -74,7 +74,7 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
 
     it("errors when frame 0 has no input", () => {
-      expect(() => validateAnimateConfig({ ...base, frames: [{ duration: 1 }] })).toThrow(/frame 0 must load an input/);
+      expect(() => validateAnimateConfig({ ...base, frames: [{ duration: 1 }] })).toThrow(/frame 0 must load an .input. or a .cast./);
     });
 
     it("errors when frame 0 sets continue", () => {
@@ -85,6 +85,42 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       expect(() =>
         validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1 }, { continue: true, input: "b.html", duration: 1 }] }),
       ).toThrow(/cannot set both `continue` and `input`/);
+    });
+  });
+
+  describe("terminal `cast` frames (DM-1225)", () => {
+    it("accepts a cast frame at index 0 with term options", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ cast: "./session.cast", term: { theme: "dark", maxFrameMs: 700, fontSize: 13 }, duration: 8000 }],
+      });
+      expect(cfg.frames[0].cast).toBe("./session.cast");
+      expect(cfg.frames[0].term?.theme).toBe("dark");
+      expect(cfg.frames[0].term?.maxFrameMs).toBe(700);
+    });
+
+    it("composes a cast frame alongside html frames", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [
+          { input: "intro.html", duration: 1500, transition: { type: "crossfade", duration: 300 } },
+          { cast: "build.cast", duration: 9000 },
+        ],
+      });
+      expect(cfg.frames).toHaveLength(2);
+      expect(cfg.frames[1].cast).toBe("build.cast");
+    });
+
+    it("rejects a frame that sets both cast and input", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", input: "y.html", duration: 1 }] }),
+      ).toThrow(/cannot set both `cast` and `input`/);
+    });
+
+    it("rejects a cast frame that also continues a live page", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1 }, { cast: "x.cast", continue: true, duration: 1 }] }),
+      ).toThrow(/`cast` frame cannot also `continue`/);
     });
   });
 

@@ -113,6 +113,8 @@ animate config (JSON):
     "frames": [
       {
         "input":      "./frames/start.html",        // URL or path; OPTIONAL after frame 0 (see Continuous session)
+        "cast":       "./session.cast",             // optional — embed a terminal recording instead of an input (see Terminal cast)
+        "term":       { "theme": "dark", "maxFrameMs": 700 },  // optional — options for a "cast" frame
         "continue":   false,                        // optional — keep the previous frame's live page (no reload)
         "duration":   1500,                         // ms held on screen
         "transition": { "type": "crossfade", "duration": 300 },
@@ -139,6 +141,10 @@ animate config (JSON):
   Continuous session: frame 0 must load an "input"; a later frame that omits
     "input" (or sets "continue": true) captures the live page after its own
     actions instead of reloading — for multi-step interaction demos.
+  Terminal cast: a frame may set "cast": "<file.cast>" (asciinema v2) instead of
+    "input" to embed a recorded terminal session as a nested animated SVG (with
+    an optional "term" options block). Size that frame's "duration" to the cast's
+    recorded play time. See 'domotion term --help' and docs/67-terminal-capture.md.
 
   Actions (each runs in order before capture; all but scroll/press/wait/evaluate take a "selector"):
     Interaction:  click | fill {value} | press {key} | hover | scroll {x,y} | wait {ms}

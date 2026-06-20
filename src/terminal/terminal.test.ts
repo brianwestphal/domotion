@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseCast } from "./cast.js";
-import { xterm256ToHex, THEMES } from "./theme.js";
+import { xterm256ToHex, THEMES, resolveThemeSpec } from "./theme.js";
 import { TerminalEmulator, gridSignature } from "./emulator.js";
 import { buildFrames, gridToHtml } from "./render.js";
 
@@ -46,6 +46,50 @@ describe("parseCast (asciinema v2)", () => {
     expect(() => parseCast(JSON.stringify({ version: 1, width: 80, height: 24 }))).toThrow(/version/);
     expect(() => parseCast("")).toThrow(/empty/);
     expect(() => parseCast(JSON.stringify({ version: 2 }))).toThrow(/width\/height/);
+  });
+});
+
+describe("resolveThemeSpec (custom themes, DM-1225)", () => {
+  it("resolves a built-in theme name", () => {
+    expect(resolveThemeSpec("dark")).toBe(THEMES.dark);
+    expect(resolveThemeSpec("github-light").bg).toBe("#ffffff");
+  });
+
+  it("throws on an unknown theme name", () => {
+    expect(() => resolveThemeSpec("solarized")).toThrow(/unknown theme/);
+  });
+
+  it("overrides bg/fg on top of the default base, keeping the base palette", () => {
+    const t = resolveThemeSpec({ bg: "#000010", fg: "#eeeeee" });
+    expect(t.bg).toBe("#000010");
+    expect(t.fg).toBe("#eeeeee");
+    expect(t.ansi).toEqual(THEMES.catppuccin.ansi); // inherited
+  });
+
+  it("extends a chosen base theme", () => {
+    const t = resolveThemeSpec({ extends: "github-light", bg: "#fafafa" });
+    expect(t.bg).toBe("#fafafa");
+    expect(t.fg).toBe(THEMES["github-light"].fg);
+    expect(t.ansi).toEqual(THEMES["github-light"].ansi);
+  });
+
+  it("accepts a full 16-color palette override", () => {
+    const ansi = Array.from({ length: 16 }, (_, i) => `#0000${i.toString(16)}${i.toString(16)}`);
+    const t = resolveThemeSpec({ ansi });
+    expect(t.ansi).toEqual(ansi);
+  });
+
+  it("rejects an ansi array that isn't exactly 16 colors", () => {
+    expect(() => resolveThemeSpec({ ansi: ["#000", "#fff"] })).toThrow(/16 colors/);
+  });
+
+  it("throws on an unknown base to extend", () => {
+    expect(() => resolveThemeSpec({ extends: "nope", bg: "#000" })).toThrow(/unknown base theme/);
+  });
+
+  it("passes a full TerminalTheme object through unchanged", () => {
+    const t = resolveThemeSpec(THEMES.dark);
+    expect(t).toEqual(THEMES.dark);
   });
 });
 

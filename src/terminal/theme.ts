@@ -17,6 +17,22 @@ export interface TerminalTheme {
   ansi: string[];
 }
 
+/**
+ * A custom-theme spec (DM-1225): override any of `bg` / `fg` / the 16 `ansi`
+ * colors on top of a built-in base (`extends`, default `catppuccin`). Every
+ * field is optional — `{ bg: "#000" }` keeps the base theme's text + palette
+ * and only swaps the background. A full `TerminalTheme` also satisfies this.
+ */
+export interface TerminalThemeSpec {
+  /** Built-in base to inherit unspecified fields from. Default `catppuccin`. */
+  extends?: string;
+  name?: string;
+  bg?: string;
+  fg?: string;
+  /** Exactly 16 colors when present (0–7 normal, 8–15 bright). */
+  ansi?: string[];
+}
+
 /** Default: a Catppuccin-Mocha-style palette (matches the existing terminal demos). */
 const CATPPUCCIN: TerminalTheme = {
   name: "catppuccin",
@@ -55,6 +71,32 @@ export const THEMES: Record<string, TerminalTheme> = {
   "github-light": GITHUB_LIGHT,
   dark: DARK_PLUS,
 };
+
+/**
+ * Resolve a theme spec to a concrete `TerminalTheme`. A string is a built-in
+ * theme name; an object overrides `bg` / `fg` / `ansi` on top of its `extends`
+ * base (default `catppuccin`). A full `TerminalTheme` passes through unchanged.
+ * Throws on an unknown theme name or an `ansi` array that isn't 16 colors.
+ */
+export function resolveThemeSpec(spec: string | TerminalThemeSpec): TerminalTheme {
+  const names = Object.keys(THEMES).join(", ");
+  if (typeof spec === "string") {
+    const t = THEMES[spec];
+    if (t == null) throw new Error(`term: unknown theme "${spec}" (have: ${names})`);
+    return t;
+  }
+  const base = THEMES[spec.extends ?? "catppuccin"];
+  if (base == null) throw new Error(`term: unknown base theme "${spec.extends}" to extend (have: ${names})`);
+  if (spec.ansi != null && spec.ansi.length !== 16) {
+    throw new Error(`term: theme.ansi must have exactly 16 colors, got ${spec.ansi.length}`);
+  }
+  return {
+    name: spec.name ?? base.name,
+    bg: spec.bg ?? base.bg,
+    fg: spec.fg ?? base.fg,
+    ansi: spec.ansi ?? base.ansi,
+  };
+}
 
 /** Resolve an xterm 256-color palette index (16–255) to a hex string. 16–231 is
  *  the 6×6×6 RGB cube; 232–255 is the 24-step grayscale ramp. */

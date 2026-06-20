@@ -19,6 +19,7 @@ import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
+import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../src/render/index.js";
 import { optimizeSvg } from "./shared.js";
 
 const WIDTH = 800;
@@ -158,6 +159,7 @@ async function main(): Promise<void> {
   const pg = await context.newPage();
 
   const animFrames: AnimationFrame[] = [];
+  clearEmbeddedFonts(); // DM-1225: emit the embedded font once, not per frame
 
   for (let i = 0; i < FRAMES.length; i++) {
     const frame = FRAMES[i];
@@ -171,7 +173,7 @@ async function main(): Promise<void> {
     // in image viewers (Preview / QuickLook) that don't fetch remote
     // resources from local files.
     await embedRemoteImages(tree);
-    const svgContent = elementTreeToSvgInner(tree, WIDTH, HEIGHT, `f${i}-`);
+    const svgContent = elementTreeToSvgInner(tree, WIDTH, HEIGHT, `f${i}-`, true, 2, false);
 
     animFrames.push({
       svgContent,
@@ -182,7 +184,7 @@ async function main(): Promise<void> {
 
   await browser.close();
 
-  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames: animFrames });
+  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames: animFrames, fontFaceCss: getEmbeddedFontFaceCss() });
   svg = optimizeSvg(svg);
   writeFileSync(OUTPUT, svg);
   console.log(`Generated: ${OUTPUT} (${(svg.length / 1024).toFixed(1)} KB)`);

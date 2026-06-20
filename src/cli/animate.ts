@@ -47,6 +47,7 @@ import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../s
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
+import { castToTermFrames } from "../terminal/index.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -199,12 +200,46 @@ const overlaySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+// DM-1225 (doc 67): per-frame terminal options for a `cast` frame. All optional;
+// they default to the cast header / the term tool's defaults.
+// A built-in theme name, or a spec overriding bg / fg / ansi[16] on top of an
+// `extends` base (default catppuccin). DM-1225.
+const termThemeSchema = z.union([
+  z.string(),
+  z.object({
+    extends: z.string().optional(),
+    name: z.string().optional(),
+    bg: z.string().optional(),
+    fg: z.string().optional(),
+    ansi: z.array(z.string()).length(16).optional(),
+  }),
+]);
+
+const termOptionsSchema = z.object({
+  theme: termThemeSchema.optional(),
+  fontSize: z.number().optional(),
+  fontFamily: z.string().optional(),
+  padding: z.number().optional(),
+  cols: z.number().int().positive().optional(),
+  rows: z.number().int().positive().optional(),
+  settleMs: z.number().optional(),
+  minFrameMs: z.number().optional(),
+  maxFrameMs: z.number().optional(),
+  tailMs: z.number().optional(),
+});
+
 const frameSchema = z.object({
   // DM-846 §1 — `input` is optional. Frame 0 must load an input; a later frame
   // that omits `input` (or sets `continue: true`) keeps the previous frame's
   // live page. The frame-0 / continue+input rules are enforced in the
   // config-level superRefine below (they need cross-frame context).
   input: z.string().optional(),
+  // DM-1225 (doc 67): a `cast` frame embeds a recorded terminal session
+  // (asciinema v2 .cast) as this frame's content — a self-contained animated
+  // terminal SVG, nested like a `scroll` block. Size `duration` to ≈ the cast's
+  // recorded length (the tool logs it). Mutually exclusive with `input`.
+  cast: z.string().optional(),
+  term: termOptionsSchema.optional(),
   continue: z.boolean().optional(),
   duration: z.number(),
   transition: transitionSchema.optional(),
@@ -292,14 +327,22 @@ export const animateConfigSchema = z
   .superRefine((cfg, ctx) => {
     // DM-846 §1 cross-frame rules for the continuous-session model.
     cfg.frames.forEach((f, i) => {
-      if (i === 0 && f.input == null) {
-        ctx.addIssue({ code: "custom", path: ["frames", 0, "input"], message: "frame 0 must load an input" });
+      if (i === 0 && f.input == null && f.cast == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", 0, "input"], message: "frame 0 must load an `input` or a `cast`" });
       }
       if (i === 0 && f.continue === true) {
         ctx.addIssue({ code: "custom", path: ["frames", 0, "continue"], message: "frame 0 cannot continue — it has no predecessor" });
       }
       if (f.continue === true && f.input != null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "continue"], message: "a frame cannot set both `continue` and `input` (reload or continue, not both)" });
+      }
+      // DM-1225: a `cast` frame is its own content source — it can't also load
+      // an `input`, continue a live page, or run page-oriented options.
+      if (f.cast != null && f.input != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "cast"], message: "a frame cannot set both `cast` and `input`" });
+      }
+      if (f.cast != null && f.continue === true) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "cast"], message: "a `cast` frame cannot also `continue` a live page" });
       }
     });
   });
@@ -505,6 +548,44 @@ export async function composeAnimateFrames(
 
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
+      // DM-1225 (doc 67): a `cast` frame embeds a recorded terminal session as
+      // this frame's content — a self-contained animated terminal SVG nested
+      // like a `scroll` block. It bypasses the page-load/capture path entirely.
+      if (fc.cast != null) {
+        const castPath = resolveFrameInput(fc.cast, configDir);
+        log(`Frame ${i + 1}/${cfg.frames.length}: rendering terminal cast ${castPath}…`);
+        const castText = readFileSync(castPath, "utf8");
+        const t = fc.term ?? {};
+        // manageFonts: false — share THIS pipeline's embedded-font builder (the
+        // loop already cleared it at the start and collects it once below), so
+        // the terminal font lands in the scene-wide @font-face block exactly
+        // once and its glyph PUA family names stay unique vs the other frames'
+        // (no clobber, no per-cast duplicate). The nested terminal SVG is then
+        // composed WITHOUT its own font CSS — it defers to that block.
+        const { frames: termFrames, width: tw, height: th, totalDurationMs } = await castToTermFrames(castText, browser, {
+          theme: t.theme, fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
+          cols: t.cols, rows: t.rows,
+          settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
+          manageFonts: false,
+          log: (m) => log(`  ${m}`),
+        });
+        if (fc.duration < totalDurationMs) {
+          log(`  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`);
+        }
+        const termSvg = generateAnimatedSvg({ width: tw, height: th, frames: termFrames });
+        // The animator wraps `svgContent` in `<g class="f f-N">`, which holds a
+        // nested `<svg>` fine — strip just the XML prolog (same as scroll).
+        frames.push({
+          svgContent: termSvg.replace(/^<\?xml[^>]*\?>\s*/, ""),
+          duration: fc.duration,
+          transition: fc.transition,
+        });
+        // A cast frame has no single captured tree; magic-move to/from it falls
+        // back to crossfade, and the cursor/overlay machinery is skipped.
+        prevFrameTree = null;
+        frameTrees.push(null);
+        continue;
+      }
       // DM-846 §1: a continued frame (explicit `continue: true`, or a non-first
       // frame that omits `input`) captures the previous frame's live page after
       // running its own actions, instead of reloading. The page persists across

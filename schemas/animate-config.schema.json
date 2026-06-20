@@ -161,6 +161,77 @@
           "input": {
             "type": "string"
           },
+          "cast": {
+            "type": "string"
+          },
+          "term": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "extends": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "bg": {
+                        "type": "string"
+                      },
+                      "fg": {
+                        "type": "string"
+                      },
+                      "ansi": {
+                        "minItems": 16,
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "fontSize": {
+                "type": "number"
+              },
+              "fontFamily": {
+                "type": "string"
+              },
+              "padding": {
+                "type": "number"
+              },
+              "cols": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "rows": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "settleMs": {
+                "type": "number"
+              },
+              "minFrameMs": {
+                "type": "number"
+              },
+              "maxFrameMs": {
+                "type": "number"
+              },
+              "tailMs": {
+                "type": "number"
+              }
+            }
+          },
           "continue": {
             "type": "boolean"
           },

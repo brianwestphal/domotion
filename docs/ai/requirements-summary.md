@@ -41,6 +41,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   settle-point frames → terminal HTML → the normal capture→SVG pipeline →
   `generateAnimatedSvg` with hard cuts. Shipped front-end is asciinema import;
   live `node-pty` capture is the planned second front-end onto the same backend.
+  Composes into larger animations two ways: a `cast` frame in the `domotion
+  animate` JSON config (embeds the terminal as a nested animated SVG, sized like
+  a `scroll` block), and the `castToTermFrames` frames-out API (+ the terminal
+  primitives) re-exported from the package root for retiming / chrome-wrapping.
 - **Doc 65 (`docs/65-device-chrome.md`, DM-1206 / DM-1211 / DM-1212)** — `domotion capture
   --chrome <device>` wraps a capture in a hand-drawn device bezel: `phone`,
   `browser` (traffic lights + URL pill), `window` (title bar); `--chrome-label`

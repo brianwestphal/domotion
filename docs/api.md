@@ -161,3 +161,26 @@ without shelling out to the CLI or reimplementing it. See
 | `AnimateConfig` | type | The validated config shape (`z.infer` of the animate-config zod schema): `{ width, height, frames, vars?, cursor?, … }`. |
 | `runActions` | function | `runActions(page, actions, log?)` — apply the declarative action vocabulary against a live Playwright `page`, in order. The payoff for imperative callers is the DOM-mutation set (setText / addClass / insert / replaceText / setStyle / dispatch / …) that aren't one-line Playwright calls; each applies across **every** matched element and throws if the selector matches nothing. `log` defaults to a no-op (the CLI passes one for the `evaluate`-too-long nudge). |
 | `AnimateAction` | type | The declarative action union accepted by `runActions` (and a config frame's `actions`): the interaction actions (click / fill / press / hover / focus / selectOption / scroll / wait / evaluate) plus the DOM-mutation set. |
+
+## Terminal capture
+
+Turn a recorded terminal session (asciinema v2 `.cast`) into an animated SVG. See `docs/67-terminal-capture.md`.
+
+| Export | Kind | Description |
+|--------|------|-------------|
+| `castToAnimatedSvg` | function | `castToAnimatedSvg(castText, browser, opts?)` → `{ svg, width, height, frameCount, totalDurationMs }`. Parse a cast, replay it through the headless VT emulator, select settle-point frames, render each, and stitch them with hard cuts. `opts` (`TermToSvgOptions`): `theme`/`fontSize`/`fontFamily`/`padding`/`cols`/`rows` + the `settleMs`/`minFrameMs`/`maxFrameMs`/`tailMs` timing knobs + `log`. |
+| `castToTermFrames` | function | The **frames-out** half: `castToTermFrames(castText, browser, opts?)` → `{ frames, width, height, totalDurationMs, fontFaceCss }`. Returns one `AnimationFrame` per settle-point (svgContent + duration + `cut` transitions) so you can retime, wrap in window chrome, or re-transition before `generateAnimatedSvg` (pass the returned `fontFaceCss` so the font embeds once, not per frame). `opts.manageFonts: false` defers the font to a host pipeline that collects it. `castToAnimatedSvg` is `generateAnimatedSvg(await this(...))`. |
+| `parseCast` | function | `parseCast(text)` → `{ header, events, duration }` — parse an asciinema v2 cast document (header + `[time, "o", data]` output events). |
+| `TerminalEmulator` | class | `new TerminalEmulator(cols, rows, theme?)` wraps `@xterm/headless`: `.write(data)` feeds bytes, `.snapshot()` reads the screen as a `TermGrid` of resolved styled cells, `.dispose()` frees it. |
+| `gridSignature` | function | `gridSignature(grid)` → a comparable string (trailing blanks trimmed) used to skip snapshots identical to the previous one. |
+| `buildFrames` | function | `buildFrames(emulator, events, opts?)` → `TermFrame[]` (`{ grid, durationMs }`) — replay events and snapshot at settle points, deriving per-frame holds and merging identical screens. |
+| `gridToHtml` | function | `gridToHtml(grid, opts)` → a self-contained terminal HTML document (monospace rows of style-coalesced spans) for the capture→SVG pipeline. |
+| `THEMES` | object | Built-in `TerminalTheme`s: `catppuccin` (default), `dark`, `github-light`. |
+| `resolveThemeSpec` | function | `resolveThemeSpec(spec)` → a concrete `TerminalTheme`. `spec` is a built-in name OR a `TerminalThemeSpec` object overriding `bg` / `fg` / `ansi[16]` on top of an `extends` base. Powers the `--theme` / `--theme-file` / `--bg` / `--fg` CLI flags and the JSON `term.theme`. |
+| `xterm256ToHex` | function | `xterm256ToHex(index)` → hex for an xterm 256-color palette index (16–231 cube, 232–255 grayscale). |
+| `TermToSvgOptions` / `TermToSvgResult` / `TermFramesResult` | type | The options + result shapes for `castToAnimatedSvg` / `castToTermFrames`. |
+| `ParsedCast` / `CastHeader` / `CastOutputEvent` | type | The `parseCast` result shapes. |
+| `TermCell` / `TermGrid` | type | A resolved terminal cell (char + fg/bg/bold/italic/dim/underline) and a grid of them. |
+| `FrameBuildOptions` / `TermFrame` / `HtmlRenderOptions` | type | The `buildFrames` / `gridToHtml` option + frame shapes. |
+| `TerminalTheme` | type | A palette: `{ name, bg, fg, ansi[16] }`. |
+| `TerminalThemeSpec` | type | A custom-theme override: `{ extends?, name?, bg?, fg?, ansi? }` — any subset, merged onto the `extends` base (default catppuccin). |

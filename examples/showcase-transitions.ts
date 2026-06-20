@@ -14,6 +14,7 @@ import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
+import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../src/render/index.js";
 import { optimizeSvg } from "./shared.js";
 
 const WIDTH = 800;
@@ -155,6 +156,7 @@ async function main(): Promise<void> {
   const pg = await context.newPage();
 
   const frames: AnimationFrame[] = [];
+  clearEmbeddedFonts(); // DM-1225: emit the embedded font once, not per frame
 
   // Frame 1: Home (crossfade in, typing overlay on search bar)
   const tmpHome = resolve(OUT_DIR, "trans-tmp-0.html");
@@ -165,7 +167,7 @@ async function main(): Promise<void> {
   let tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
   await embedRemoteImages(tree);
   frames.push({
-    svgContent: elementTreeToSvgInner(tree, WIDTH, HEIGHT, "f0-"),
+    svgContent: elementTreeToSvgInner(tree, WIDTH, HEIGHT, "f0-", true, 2, false),
     duration: 3500,
     transition: { type: "push-left", duration: 400 },
     overlays: [{
@@ -190,7 +192,7 @@ async function main(): Promise<void> {
   tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
   await embedRemoteImages(tree);
   frames.push({
-    svgContent: elementTreeToSvgInner(tree, WIDTH, HEIGHT, "f1-"),
+    svgContent: elementTreeToSvgInner(tree, WIDTH, HEIGHT, "f1-", true, 2, false),
     duration: 3000,
     transition: { type: "push-left", duration: 400 },
     overlays: [{
@@ -214,7 +216,7 @@ async function main(): Promise<void> {
   await pg.waitForTimeout(200);
   // Capture the full tall page
   const fullTree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: 900 });
-  const fullSvg = elementTreeToSvgInner(fullTree, WIDTH, 900, "f2-");
+  const fullSvg = elementTreeToSvgInner(fullTree, WIDTH, 900, "f2-", true, 2, false);
   // Wrap in a group with scroll animation
   frames.push({
     svgContent: fullSvg,
@@ -224,7 +226,7 @@ async function main(): Promise<void> {
 
   await browser.close();
 
-  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames });
+  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames, fontFaceCss: getEmbeddedFontFaceCss() });
   svg = optimizeSvg(svg);
   writeFileSync(OUTPUT, svg);
   console.log(`Generated: ${OUTPUT} (${(svg.length / 1024).toFixed(1)} KB)`);
