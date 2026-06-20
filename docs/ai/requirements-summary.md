@@ -39,8 +39,9 @@ they describe (see `CLAUDE.md` "Documentation"):
   <file.cast>` converts a recorded terminal session (asciinema v2) into an
   animated SVG. Backend in `src/terminal/`: `@xterm/headless` VT emulation →
   settle-point frames → terminal HTML → the normal capture→SVG pipeline →
-  `generateAnimatedSvg` with hard cuts. Shipped front-end is asciinema import;
-  live `node-pty` capture is the planned second front-end onto the same backend.
+  `generateAnimatedSvg` with hard cuts. **Two front-ends** now ship: asciinema
+  `--cast` import, and live `node-pty` capture (`domotion term -- <cmd>`, DM-1226
+  / **doc 68**, `src/terminal/pty.ts`, optional dep) onto the same backend.
   Composes into larger animations two ways: a `cast` frame in the `domotion
   animate` JSON config (embeds the terminal as a nested animated SVG, sized like
   a `scroll` block), and the `castToTermFrames` frames-out API (+ the terminal

@@ -19,20 +19,29 @@ import { resolve } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
+import { recordPtySession } from "../terminal/pty.js";
 import { THEMES, type TerminalThemeSpec } from "../terminal/theme.js";
 import { cliFail } from "./common.js";
 
 const HELP = `domotion term — record a terminal session as an animated SVG
 
 Usage:
-  domotion term --cast <file.cast> [-o out.svg] [options]
+  domotion term --cast <file.cast> [-o out.svg] [options]   # from a recording
+  domotion term [options] -- <cmd ...>                      # run a command live
 
-Record a session first with asciinema (https://asciinema.org):
+Two front-ends, same renderer:
+  # 1. Convert an existing asciinema v2 recording:
   asciinema rec demo.cast -c "your-command"
   domotion term --cast demo.cast -o demo.svg
 
+  # 2. Run a command live in a pseudo-terminal and capture it (needs the
+  #    optional 'node-pty' dependency; everything after '--' is the command):
+  domotion term -o build.svg -- npm test
+  domotion term --theme dark -- git clone https://example.com/repo.git
+
 Options:
-  --cast <file>        asciinema v2 .cast file to convert (required; "-" = stdin).
+  --cast <file>        asciinema v2 .cast file to convert ("-" = stdin). Use this
+                       OR a live command after '--', not both.
   -o, --output <path>  Output SVG path (default: stdout, or <cast>.svg for a file).
       --mode <m>       incremental (default — render each line once, reveal on
                        its timeline; best for append/overwrite output) | full
@@ -57,8 +66,14 @@ Options:
 `;
 
 export async function runTerm(argv: string[]): Promise<void> {
+  // `domotion term -- <cmd …>` runs a live command in a pty; everything after
+  // the first `--` is the command, everything before is our own options.
+  const sepIdx = argv.indexOf("--");
+  const optionArgs = sepIdx >= 0 ? argv.slice(0, sepIdx) : argv;
+  const command = sepIdx >= 0 ? argv.slice(sepIdx + 1) : [];
+
   const { values } = parseArgs({
-    args: argv,
+    args: optionArgs,
     options: {
       cast: { type: "string" },
       output: { type: "string", short: "o" },
@@ -82,13 +97,14 @@ export async function runTerm(argv: string[]): Promise<void> {
     allowPositionals: true,
   });
 
-  if (values.help || values.cast == null) {
+  const live = command.length > 0;
+  if (values.help || (!live && values.cast == null)) {
     (values.help ? process.stdout : process.stderr).write(HELP);
     process.exit(values.help ? 0 : 2);
   }
-
-  const castPath = values.cast;
-  const castText = castPath === "-" ? readFileSync(0, "utf8") : readFileSync(resolve(castPath), "utf8");
+  if (live && values.cast != null) {
+    cliFail("domotion term", "give EITHER --cast <file> OR a live command after `--`, not both", "usage");
+  }
 
   const num = (v: string | undefined): number | undefined => {
     if (v == null) return undefined;
@@ -96,6 +112,22 @@ export async function runTerm(argv: string[]): Promise<void> {
     if (!Number.isFinite(n)) cliFail("domotion term", `invalid numeric value: ${v}`, "usage");
     return n;
   };
+
+  // Source the asciinema cast text from EITHER a recorded file or a live pty run.
+  // The live path runs the command, echoes it to the terminal, and records the
+  // same `[time,"o",data]` events into a cast string for the shared backend.
+  const castPath = values.cast;
+  let castText: string;
+  if (live) {
+    const r = await recordPtySession(command, {
+      cols: num(values.cols),
+      rows: num(values.rows),
+      log: (m) => process.stderr.write(m + "\n"),
+    });
+    castText = r.cast;
+  } else {
+    castText = castPath === "-" ? readFileSync(0, "utf8") : readFileSync(resolve(castPath as string), "utf8");
+  }
 
   // Theme: a bare `--theme <name>` stays a string (built-in). Any of --theme-file
   // / --bg / --fg makes it a spec object that overrides the named base.
@@ -144,7 +176,10 @@ export async function runTerm(argv: string[]): Promise<void> {
       log: (m) => process.stderr.write(m + "\n"),
     });
 
-    const outPath = values.output ?? (castPath !== "-" ? `${castPath.replace(/\.cast$/i, "")}.svg` : null);
+    // Default output: <cast>.svg for a file input; `term.svg` for the live path
+    // (stdout already carried the live session). stdin-cast (`-`) → stdout.
+    const outPath = values.output
+      ?? (live ? "term.svg" : (castPath !== "-" ? `${(castPath as string).replace(/\.cast$/i, "")}.svg` : null));
     if (outPath == null) {
       process.stdout.write(svg);
     } else {

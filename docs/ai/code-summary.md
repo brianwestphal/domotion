@@ -44,8 +44,11 @@ shortest possible map:
   SVG, DM-1225 / doc 67).
 - **`src/terminal/`** — `domotion term` backend (DM-1225): asciinema `.cast`
   parser (`cast.ts`), `@xterm/headless` VT-emulator snapshot wrapper
-  (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), theme palettes
-  (`theme.ts`), and `castToAnimatedSvg` (`index.ts`).
+  (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), the incremental
+  line-pool composer (`incremental.ts`), theme palettes (`theme.ts`), and
+  `castToAnimatedSvg` (`index.ts`). Two front-ends: `--cast` (recording) and the
+  live `pty.ts` shim (`domotion term -- <cmd>`, DM-1226 / doc 68 — optional
+  `node-pty`).
 - **`src/review/`** — the published review-tool surface
   (`compare-pngs.ts`, `region-overlay.ts`, `server.ts`, `client.tsx`)
   shared between the in-repo `tests/review-server.tsx` and the

@@ -234,5 +234,8 @@ render grids to your own HTML (e.g. inside a window-chrome template) directly.
 - **Nested cast in an `animate` config** loops on the document timeline (like a
   `scroll` frame), so it isn't re-synced to when its outer frame appears — put the
   cast frame first or size the scene so the loop lines up.
-- **Live `node-pty` capture** (`domotion term -- <cmd>`) is the planned second
-  front-end onto the same backend.
+- **Live `node-pty` capture** (`domotion term -- <cmd>`) is the second front-end
+  onto this same backend — shipped in DM-1226, see doc
+  [68](./68-live-terminal-capture.md). It runs a command live in a pty and feeds
+  the captured `[time,"o",data]` stream straight into `buildFrames` /
+  `castToAnimatedSvg`; only stage 1 (the source) differs.
