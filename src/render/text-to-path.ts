@@ -5166,6 +5166,32 @@ export function getDecorationMetrics(
  * built-in marker path's previous empirical 3 px offset for `.` is now
  * font-metric-derived through this helper too.
  */
+/**
+ * Advance width (CSS px) of the space glyph in the resolved font. DM-1154: an
+ * outside list marker's trailing suffix space is part of Blink's right-aligned
+ * marker box (box end = content edge), but SVG drops trailing whitespace, so the
+ * renderer must subtract the space's advance manually to place the visible glyph
+ * where Chrome paints it.
+ */
+export function fontSpaceAdvancePx(
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: string | number,
+  fontStyle?: string,
+): number {
+  const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
+  const slant = slantForStyle(fontStyle);
+  const font = resolveFont(fontFamily, weight, fontSize, slant);
+  if (font == null) return fontSize * 0.25;
+  try {
+    const g = font.layout(" ").glyphs[0] as { advanceWidth: number } | undefined;
+    if (g == null) return fontSize * 0.25;
+    return g.advanceWidth * (fontSize / font.unitsPerEm);
+  } catch {
+    return fontSize * 0.25;
+  }
+}
+
 export function measureLastGlyphRsb(
   text: string,
   fontSize: number,

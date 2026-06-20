@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph } from "./text-to-path.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, fontSpaceAdvancePx, renderRadicalGlyph } from "./text-to-path.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
@@ -2289,7 +2289,21 @@ export function elementTreeToSvgInner(
           const markerLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
           const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
           const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          const mx = outside ? el.x - 7 + markerLastRsb : el.x + borderL + padL;
+          // DM-1154: Blink right-aligns the marker box with its END at the list
+          // item's content edge (`margin_end = 0`, `list_marker.cc`), so a marker
+          // whose suffix is a trailing SPACE (e.g. `@counter-style { suffix: " " }`)
+          // has that space's advance as the marker→content gap. SVG drops trailing
+          // whitespace, so anchor the trimmed text's advance-end at
+          // `el.x − (trailing-space advance)`. This lands wide symbols where Chrome
+          // paints them (the prior fixed visible-right-at-`el.x − 7` model lost the
+          // space's width and slid them ~2–4px right). Markers WITHOUT a trailing
+          // space keep that model (it already matches Chrome's `.`-suffix gap).
+          const trailingWs = /[ \t]+$/.exec(label);
+          const mx = outside
+            ? (trailingWs != null
+                ? el.x - [...trailingWs[0]].length * fontSpaceAdvancePx(markerFontSize, markerFontFamily, markerFontWeight)
+                : el.x - 7 + markerLastRsb)
+            : el.x + borderL + padL;
           const anchor = outside ? "end" : "start";
           const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
           // DM-1119: after the whitespace collapse above the label never holds
