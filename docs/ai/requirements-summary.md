@@ -35,6 +35,12 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 67 (`docs/67-terminal-capture.md`, DM-1225)** — `domotion term --cast
+  <file.cast>` converts a recorded terminal session (asciinema v2) into an
+  animated SVG. Backend in `src/terminal/`: `@xterm/headless` VT emulation →
+  settle-point frames → terminal HTML → the normal capture→SVG pipeline →
+  `generateAnimatedSvg` with hard cuts. Shipped front-end is asciinema import;
+  live `node-pty` capture is the planned second front-end onto the same backend.
 - **Doc 65 (`docs/65-device-chrome.md`, DM-1206 / DM-1211 / DM-1212)** — `domotion capture
   --chrome <device>` wraps a capture in a hand-drawn device bezel: `phone`,
   `browser` (traffic lights + URL pill), `window` (title bar); `--chrome-label`

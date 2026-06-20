@@ -2,9 +2,10 @@
 /**
  * Domotion CLI — DOM-to-animated-SVG renderer.
  *
- * Two commands:
+ * Commands:
  *   domotion capture  <input> [options]   single-frame capture
  *   domotion animate  <config.json>       multi-frame animated capture
+ *   domotion term     --cast <file>       terminal session → animated SVG (DM-1225)
  *
  * `<input>` for `capture` may be:
  *   - a URL (`https://...`, `http://...`)
@@ -18,6 +19,7 @@
 import { createRequire } from "node:module";
 import { runCapture } from "./capture.js";
 import { runAnimate } from "./animate.js";
+import { runTerm } from "./term.js";
 
 // Read the version from package.json at runtime rather than hardcoding it, so
 // `domotion --version` always matches the installed package (the literal had
@@ -32,12 +34,16 @@ const HELP = `domotion ${VERSION} — DOM-to-animated-SVG renderer
 Usage:
   domotion capture <input> [options]
   domotion animate <config.json>
+  domotion term --cast <file.cast> [options]
   domotion --help | --version
 
 Commands:
   capture   Capture a single frame from a URL, HTML file, or .har archive as SVG.
   animate   Capture multiple frames described by a JSON config and stitch
             them into one animated SVG with CSS keyframe transitions.
+  term      Convert a recorded terminal session (asciinema v2 .cast) into an
+            animated SVG. Record with: asciinema rec demo.cast -c "<command>".
+            Run 'domotion term --help' for options (theme, font size, timing).
 
 capture options:
   -o, --output <path>      Output SVG path (default: stdout, or <input>.svg
@@ -199,6 +205,8 @@ async function main(): Promise<void> {
       await runCapture(rest, HELP);
     } else if (cmd === "animate") {
       await runAnimate(rest, HELP);
+    } else if (cmd === "term") {
+      await runTerm(rest);
     } else {
       process.stderr.write(`domotion: unknown command "${cmd}"\n\n`);
       process.stderr.write(HELP);

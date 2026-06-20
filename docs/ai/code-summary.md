@@ -39,7 +39,13 @@ shortest possible map:
 - **`src/scroll/`** — scroll-pattern grammar (DM-604) and the composer
   that stitches per-segment captures into one animated SVG.
 - **`src/cli/`** — the four published bins: `domotion`, `svg-to-video`,
-  `svg-review`, `animated-svg-scrubber`.
+  `svg-review`, `animated-svg-scrubber`. The `domotion` bin has three
+  subcommands: `capture`, `animate`, and `term` (terminal-session → animated
+  SVG, DM-1225 / doc 67).
+- **`src/terminal/`** — `domotion term` backend (DM-1225): asciinema `.cast`
+  parser (`cast.ts`), `@xterm/headless` VT-emulator snapshot wrapper
+  (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), theme palettes
+  (`theme.ts`), and `castToAnimatedSvg` (`index.ts`).
 - **`src/review/`** — the published review-tool surface
   (`compare-pngs.ts`, `region-overlay.ts`, `server.ts`, `client.tsx`)
   shared between the in-repo `tests/review-server.tsx` and the

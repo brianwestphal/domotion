@@ -62,6 +62,7 @@
   },
   "dependencies": {
     "@playwright/test": "^1.59.1",
+    "@xterm/headless": "^6.0.0",
     "bidi-js": "^1.0.3",
     "fontkit": "^2.0.4",
     "harfbuzzjs": "^1.4.0",
