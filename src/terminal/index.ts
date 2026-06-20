@@ -19,6 +19,7 @@ import { resolveThemeSpec, type TerminalThemeSpec } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../render/index.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../animation/animator.js";
+import { composeIncrementalTermSvg } from "./incremental.js";
 
 export interface TermToSvgOptions extends FrameBuildOptions {
   /** A built-in theme name (`catppuccin` | `dark` | `github-light`), or a custom
@@ -34,6 +35,15 @@ export interface TermToSvgOptions extends FrameBuildOptions {
   fontFamily?: string;
   /** Padding around the grid in px. Default 16. */
   padding?: number;
+  /**
+   * Composition mode (default `incremental`): `incremental` renders each
+   * distinct LINE-STATE once and reveals it during its visible window (small,
+   * true incremental animation — best for append/overwrite output like build &
+   * test logs); `full` renders every settle-point as a complete screen frame
+   * (handles full-screen scrolling, but re-emits unchanged lines per frame). See
+   * doc 67.
+   */
+  mode?: "incremental" | "full";
   /**
    * Manage the embedded-font lifecycle for this call (default `true`): clear the
    * shared builder, render frames WITHOUT per-frame `@font-face` blocks, and
@@ -185,6 +195,12 @@ export async function castToAnimatedSvg(
   browser: Browser,
   opts: TermToSvgOptions = {},
 ): Promise<TermToSvgResult> {
+  // Default to the incremental line-diff composer (small, true incremental
+  // animation); `mode: "full"` keeps the per-settle-point full-frame path.
+  if (opts.mode !== "full") {
+    const r = await composeIncrementalTermSvg(castText, browser, opts);
+    return { svg: r.svg, width: r.width, height: r.height, frameCount: r.lineCount, totalDurationMs: r.totalDurationMs };
+  }
   const { frames, width, height, totalDurationMs, fontFaceCss } = await castToTermFrames(castText, browser, opts);
   const svg = generateAnimatedSvg({ width, height, frames, fontFaceCss });
   return { svg, width, height, frameCount: frames.length, totalDurationMs };

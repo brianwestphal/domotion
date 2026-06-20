@@ -34,6 +34,9 @@ Record a session first with asciinema (https://asciinema.org):
 Options:
   --cast <file>        asciinema v2 .cast file to convert (required; "-" = stdin).
   -o, --output <path>  Output SVG path (default: stdout, or <cast>.svg for a file).
+      --mode <m>       incremental (default — render each line once, reveal on
+                       its timeline; best for append/overwrite output) | full
+                       (a complete screen frame per settle-point; for scrolling).
       --theme <name>   Base color theme: ${Object.keys(THEMES).join(" | ")} (default catppuccin).
       --theme-file <p> JSON theme overriding bg / fg / ansi[16] on top of --theme
                        (e.g. { "bg": "#0a0e14", "fg": "#b3b1ad", "ansi": [16 hex] }).
@@ -56,6 +59,7 @@ export async function runTerm(argv: string[]): Promise<void> {
     options: {
       cast: { type: "string" },
       output: { type: "string", short: "o" },
+      mode: { type: "string" },
       theme: { type: "string" },
       "theme-file": { type: "string" },
       bg: { type: "string" },
@@ -111,8 +115,13 @@ export async function runTerm(argv: string[]): Promise<void> {
 
   const browser = await launchChromium();
   try {
+    const mode = values.mode;
+    if (mode != null && mode !== "incremental" && mode !== "full") {
+      cliFail("domotion term", `--mode must be "incremental" or "full", got "${mode}"`, "usage");
+    }
     const { svg, width, height, frameCount } = await castToAnimatedSvg(castText, browser, {
       theme,
+      mode: mode as "incremental" | "full" | undefined,
       fontSize: num(values["font-size"]),
       fontFamily: values["font-family"],
       cols: num(values.cols),

@@ -91,6 +91,43 @@ function sameStyle(a: TermCell, b: TermCell): boolean {
     && a.italic === b.italic && a.dim === b.dim && a.underline === b.underline;
 }
 
+/**
+ * Render ONE grid row to coalesced `<span>` runs (trailing default-blank cells
+ * trimmed). Returns "" for a fully-blank row. Shared by `gridToHtml` (full
+ * frames) and the incremental composer (one element per distinct line-state);
+ * the returned string also serves as the row's dedup signature — identical
+ * markup ⟺ identical line.
+ */
+export function rowInnerHtml(row: TermCell[], theme: TerminalTheme): string {
+  let end = row.length;
+  while (end > 0) {
+    const c = row[end - 1];
+    if (c.char !== " " || c.fg != null || c.bg != null) break;
+    end--;
+  }
+  if (end === 0) return "";
+  const spans: string[] = [];
+  let runStart = 0;
+  for (let x = 1; x <= end; x++) {
+    if (x === end || !sameStyle(row[x], row[runStart])) {
+      const text = row.slice(runStart, x).map((c) => c.char).join("");
+      const style = cellStyle(row[runStart], theme);
+      spans.push(style === "" ? escapeHtml(text) : `<span style="${style}">${escapeHtml(text)}</span>`);
+      runStart = x;
+    }
+  }
+  return spans.join("");
+}
+
+/** Default terminal type metrics — shared by the full-frame `gridToHtml` and the
+ *  incremental composer so their row positions / sizing stay identical. */
+export const TERM_TYPE_DEFAULTS = {
+  fontSize: 14,
+  lineHeight: 1.4,
+  padding: 16,
+  fontFamily: "'SF Mono', 'Menlo', 'Consolas', 'DejaVu Sans Mono', monospace",
+} as const;
+
 export interface HtmlRenderOptions {
   theme: TerminalTheme;
   /** Font size in px. Default 14. */
@@ -106,31 +143,14 @@ export interface HtmlRenderOptions {
 /** Render one snapshot grid to a self-contained terminal HTML document. */
 export function gridToHtml(grid: TermGrid, opts: HtmlRenderOptions): string {
   const { theme } = opts;
-  const fontSize = opts.fontSize ?? 14;
-  const lineHeight = opts.lineHeight ?? 1.4;
-  const padding = opts.padding ?? 16;
-  const fontFamily = opts.fontFamily ?? "'SF Mono', 'Menlo', 'Consolas', 'DejaVu Sans Mono', monospace";
+  const fontSize = opts.fontSize ?? TERM_TYPE_DEFAULTS.fontSize;
+  const lineHeight = opts.lineHeight ?? TERM_TYPE_DEFAULTS.lineHeight;
+  const padding = opts.padding ?? TERM_TYPE_DEFAULTS.padding;
+  const fontFamily = opts.fontFamily ?? TERM_TYPE_DEFAULTS.fontFamily;
 
   const rows = grid.map((row) => {
-    // Trim trailing blank (default-styled space) cells so empty tails don't emit spans.
-    let end = row.length;
-    while (end > 0) {
-      const c = row[end - 1];
-      if (c.char !== " " || c.fg != null || c.bg != null) break;
-      end--;
-    }
-    if (end === 0) return `<div class="r">&nbsp;</div>`;
-    const spans: string[] = [];
-    let runStart = 0;
-    for (let x = 1; x <= end; x++) {
-      if (x === end || !sameStyle(row[x], row[runStart])) {
-        const text = row.slice(runStart, x).map((c) => c.char).join("");
-        const style = cellStyle(row[runStart], theme);
-        spans.push(style === "" ? escapeHtml(text) : `<span style="${style}">${escapeHtml(text)}</span>`);
-        runStart = x;
-      }
-    }
-    return `<div class="r">${spans.join("")}</div>`;
+    const inner = rowInnerHtml(row, theme);
+    return `<div class="r">${inner === "" ? "&nbsp;" : inner}</div>`;
   });
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>

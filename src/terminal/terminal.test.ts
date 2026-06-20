@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { parseCast } from "./cast.js";
 import { xterm256ToHex, THEMES, resolveThemeSpec } from "./theme.js";
-import { TerminalEmulator, gridSignature } from "./emulator.js";
-import { buildFrames, gridToHtml } from "./render.js";
+import { TerminalEmulator, gridSignature, type TermCell } from "./emulator.js";
+import { buildFrames, gridToHtml, type TermFrame } from "./render.js";
+import { detectScroll, trackLines } from "./incremental.js";
 
 const E = "\x1b";
 const castEvent = (t: number, d: string): string => JSON.stringify([t, "o", d]);
@@ -194,5 +195,66 @@ describe("gridSignature", () => {
       { char: "h", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false },
     ]];
     expect(gridSignature(a)).toBe(gridSignature(b));
+  });
+});
+
+describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
+  const blank = (): TermCell => ({ char: " ", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false });
+  const cells = (s: string, cols: number): TermCell[] => {
+    const row: TermCell[] = [...s].map((ch) => ({ char: ch, fg: null, bg: null, bold: false, italic: false, dim: false, underline: false }));
+    while (row.length < cols) row.push(blank());
+    return row;
+  };
+  const frame = (rows: string[], cols: number, durationMs: number): TermFrame => ({
+    grid: rows.map((r) => cells(r, cols)),
+    durationMs,
+  });
+
+  describe("detectScroll", () => {
+    it("returns 0 when content only appends (no scroll)", () => {
+      expect(detectScroll(["a", "b", "", ""], ["a", "b", "c", ""], 4)).toBe(0);
+    });
+    it("detects an upward scroll by 1", () => {
+      expect(detectScroll(["a", "b", "c", ""], ["b", "c", "d", ""], 4)).toBe(1);
+    });
+    it("detects an upward scroll by 2", () => {
+      expect(detectScroll(["a", "b", "c", "d"], ["c", "d", "e", "f"], 4)).toBe(2);
+    });
+  });
+
+  describe("trackLines", () => {
+    it("appends a new line without disturbing the existing one", () => {
+      const frames = [frame(["a", ""], 8, 1000), frame(["a", "b"], 8, 1000)];
+      const { lines, totalMs } = trackLines(frames, 2, THEMES.dark);
+      expect(totalMs).toBe(2000);
+      expect(lines.map((l) => l.html)).toEqual(["a", "b"]);
+      const a = lines.find((l) => l.html === "a")!;
+      const b = lines.find((l) => l.html === "b")!;
+      expect(a.waypoints).toEqual([{ ms: 0, row: 0 }]); // born at start, never moves
+      expect(a.endMs).toBe(2000); // persists
+      expect(b.waypoints).toEqual([{ ms: 1000, row: 1 }]); // born in frame 1
+    });
+
+    it("threads a line through a scroll as ONE line that moves up (not re-created)", () => {
+      const frames = [frame(["a", "b"], 8, 1000), frame(["b", "c"], 8, 1000)];
+      const { lines } = trackLines(frames, 2, THEMES.dark);
+      // a scrolled off; b moved row1→row0; c is new at row1.
+      expect(lines.map((l) => l.html)).toEqual(["a", "b", "c"]);
+      const a = lines.find((l) => l.html === "a")!;
+      const b = lines.find((l) => l.html === "b")!;
+      const c = lines.find((l) => l.html === "c")!;
+      expect(a.endMs).toBe(1000); // left the screen at the scroll
+      expect(b.waypoints).toEqual([{ ms: 0, row: 1 }, { ms: 1000, row: 0 }]); // moved up — same line
+      expect(b.endMs).toBe(2000);
+      expect(c.waypoints).toEqual([{ ms: 1000, row: 1 }]);
+    });
+
+    it("overwriting a line's content in place ends the old line and starts a new one", () => {
+      const frames = [frame(["spin |", ""], 8, 1000), frame(["spin /", ""], 8, 1000)];
+      const { lines } = trackLines(frames, 2, THEMES.dark);
+      expect(lines).toHaveLength(2);
+      expect(lines[0].endMs).toBe(1000); // "spin |" replaced
+      expect(lines[1].waypoints[0]).toEqual({ ms: 1000, row: 0 });
+    });
   });
 });

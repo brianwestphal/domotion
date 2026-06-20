@@ -28,6 +28,7 @@ feed the same backend (see "Architecture").
 |------|---------|---------|
 | `--cast <file>` | — | asciinema v2 `.cast` to convert (`-` = stdin). Required. |
 | `-o, --output <path>` | `<cast>.svg` / stdout | output SVG path |
+| `--mode <m>` | `incremental` | `incremental` (render each line once, reveal on its timeline) \| `full` (a complete screen frame per settle-point) |
 | `--theme <name>` | `catppuccin` | base theme: `catppuccin` \| `dark` \| `github-light` |
 | `--theme-file <path>` | — | JSON overriding `bg` / `fg` / `ansi[16]` on top of `--theme` |
 | `--bg <color>` | — | override the terminal background color |
@@ -100,11 +101,27 @@ stages 2–4 are identical.
    is how long that screen stayed up (clamped to `[minFrameMs, maxFrameMs]`);
    identical consecutive screens merge. `gridToHtml` renders a snapshot to a
    monospace terminal HTML document (rows of `<span>` runs coalesced by style).
-4. **Compose** (`index.ts`, `castToAnimatedSvg`) — each HTML frame runs through
-   the normal `captureElementTree` + `elementTreeToSvgInner` pipeline, and the
-   frames are stitched by `generateAnimatedSvg` with hard `cut` transitions
-   (terminals don't crossfade). The canvas is sized from a full `cols×rows`
-   reference block so every frame fits.
+4. **Compose** — two modes (`--mode`, default `incremental`):
+   - **`incremental`** (`incremental.ts`, the default) — a terminal is a POOL of
+     lines that scroll, so this renders each LINE ONCE rather than each screen.
+     `trackLines` threads every logical line through the frames by identity:
+     `detectScroll` finds the per-transition scroll shift, lines that survive get
+     a `(time, row)` waypoint when they move, and a line that's cleared /
+     overwritten / scrolled off ends. Each tracked line is emitted once (an
+     absolutely-positioned element tagged `data-domotion-anim` → `class="anim-<id>"`)
+     and driven by up to two animations on that element: an OPACITY track
+     (`step-end` — hard cut on at birth, off when it leaves) and a TRANSFORM track
+     (`linear` — `translateY` glides between waypoint rows over a short window, so
+     a scroll slides every line up together). One captured tree, far smaller, and
+     a true line-level animation (a 16-frame cast: 142 KB / "Cloning into" ×22 →
+     45 KB / ×1).
+   - **`full`** (`castToTermFrames` + `generateAnimatedSvg`) — each settle-point
+     renders as a complete screen frame, stitched with hard `cut` transitions.
+     Re-emits unchanged lines per frame, but is robust to anything the emulator
+     does. Use it for sessions that don't fit the line-pool model well.
+
+   Both size the canvas from a full `cols×rows` reference block, so the two modes
+   lay out identically.
 
 ## What's reused vs new
 
@@ -194,7 +211,13 @@ render grids to your own HTML (e.g. inside a window-chrome template) directly.
   more.
 - **Cursor/caret** is not yet drawn (the recorded echo of typed input shows the
   text; the blinking block cursor is omitted).
-- **Alt-screen full-screen apps** (vim/htop) work at the buffer level but imply
-  many near-identical frames; the tool is tuned for line-oriented CLIs first.
+- **Incremental line tracking is content-based.** `detectScroll` + identity
+  matching handle append / overwrite / line-oriented scroll well; an alt-screen
+  full-screen redraw (vim/htop) that rewrites many rows at once produces more
+  tracked lines (each row-state once) — still correct, just less of a win.
+  `--mode full` is the robust fallback for those.
+- **Nested cast in an `animate` config** loops on the document timeline (like a
+  `scroll` frame), so it isn't re-synced to when its outer frame appears — put the
+  cast frame first or size the scene so the loop lines up.
 - **Live `node-pty` capture** (`domotion term -- <cmd>`) is the planned second
   front-end onto the same backend.

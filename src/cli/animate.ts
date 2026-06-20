@@ -47,7 +47,7 @@ import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../s
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
-import { castToTermFrames } from "../terminal/index.js";
+import { castToAnimatedSvg } from "../terminal/index.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -217,6 +217,7 @@ const termThemeSchema = z.union([
 
 const termOptionsSchema = z.object({
   theme: termThemeSchema.optional(),
+  mode: z.enum(["incremental", "full"]).optional(),
   fontSize: z.number().optional(),
   fontFamily: z.string().optional(),
   padding: z.number().optional(),
@@ -561,9 +562,10 @@ export async function composeAnimateFrames(
         // the terminal font lands in the scene-wide @font-face block exactly
         // once and its glyph PUA family names stay unique vs the other frames'
         // (no clobber, no per-cast duplicate). The nested terminal SVG is then
-        // composed WITHOUT its own font CSS — it defers to that block.
-        const { frames: termFrames, width: tw, height: th, totalDurationMs } = await castToTermFrames(castText, browser, {
-          theme: t.theme, fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
+        // composed WITHOUT its own font CSS — it defers to that block. The cast
+        // renders via the chosen mode (incremental by default).
+        const { svg: castSvg, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
+          theme: t.theme, mode: t.mode, fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
           cols: t.cols, rows: t.rows,
           settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
           manageFonts: false,
@@ -572,7 +574,7 @@ export async function composeAnimateFrames(
         if (fc.duration < totalDurationMs) {
           log(`  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`);
         }
-        const termSvg = generateAnimatedSvg({ width: tw, height: th, frames: termFrames });
+        const termSvg = castSvg;
         // The animator wraps `svgContent` in `<g class="f f-N">`, which holds a
         // nested `<svg>` fine — strip just the XML prolog (same as scroll).
         frames.push({

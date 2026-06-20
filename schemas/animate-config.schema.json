@@ -199,6 +199,13 @@
                   }
                 ]
               },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "incremental",
+                  "full"
+                ]
+              },
               "fontSize": {
                 "type": "number"
               },
