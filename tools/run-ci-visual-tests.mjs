@@ -95,12 +95,16 @@ await new Promise((resolve) => {
 
 const dir = mkdtempSync(join(tmpdir(), "visual-tests-"));
 console.log(`\nDownloading shard artifacts to ${dir} …`);
-// Artifacts finalize a few seconds AFTER `gh run watch` returns, so retry the
-// download a handful of times before giving up (the run may also have failed
-// before any shard uploaded, in which case there genuinely is nothing).
+// Artifacts finalize AFTER `gh run watch` returns, and large multi-shard
+// uploads (5 × ~20 MB) can take a couple of minutes to become downloadable —
+// `gh run download` errors until then. Retry over a ~3-minute window (DM-1228:
+// a 25 s window was too short and the first --update-baseline runs all gave up
+// with valid artifacts sitting on the run). The run may also have genuinely
+// failed before any shard uploaded, in which case every attempt errors.
 let downloaded = false;
-for (let attempt = 0; attempt < 6 && !downloaded; attempt++) {
-  if (attempt > 0) await new Promise((r) => setTimeout(r, 5000));
+const MAX_ATTEMPTS = 18, RETRY_MS = 10000;
+for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
+  if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_MS));
   // `gh run download` errors with "file exists" if a prior partial extraction
   // left files behind, so start each attempt from a clean dir.
   rmSync(dir, { recursive: true, force: true });
@@ -108,9 +112,9 @@ for (let attempt = 0; attempt < 6 && !downloaded; attempt++) {
   try {
     sh("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", "results-*"], { stdio: "inherit" });
     downloaded = true;
-  } catch { process.stdout.write("  (artifacts not ready yet, retrying…)\n"); }
+  } catch { process.stdout.write(`  (artifacts not ready yet, retrying… ${attempt + 1}/${MAX_ATTEMPTS})\n`); }
 }
-if (!downloaded) die(`no artifacts to download after retries — the run may have failed before any shard finished (see ${url}).`);
+if (!downloaded) die(`no artifacts to download after ~${Math.round(MAX_ATTEMPTS * RETRY_MS / 60000)} min of retries — the run may have failed before any shard finished (see ${url}).`);
 
 console.log(`\nMerging…\n`);
 const here = new URL("..", import.meta.url).pathname;
