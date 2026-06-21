@@ -27,7 +27,7 @@
  */
 
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync, readdirSync, statSync, existsSync, readFileSync, copyFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
@@ -41,6 +41,7 @@ import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST,
 import { waitForSettled } from "../src/utils/wait-events.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 import { parseShardSpec, selectShard } from "./shard.js";
+import { walkHtmlFiles } from "./walk-html-files.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
@@ -1171,30 +1172,8 @@ function categoryOf(name: string): string {
   return "other";
 }
 
-/** DM-714: walk HTML_TEST_DIR recursively. Returns relative paths with `/`
- *  separator (e.g. `niche/foo.html`). Subdirs whose name starts with `.` or
- *  `_` are skipped; everything else under the root is walked. */
-function walkHtmlFiles(rootDir: string): string[] {
-  const out: string[] = [];
-  function visit(dir: string, prefix: string): void {
-    let entries: string[];
-    try { entries = readdirSync(dir); } catch { return; }
-    for (const name of entries) {
-      if (name.startsWith(".") || name.startsWith("_")) continue;
-      const fullPath = resolve(dir, name);
-      const relPath = prefix === "" ? name : `${prefix}/${name}`;
-      let isDir = false;
-      try { isDir = statSync(fullPath).isDirectory(); } catch { continue; }
-      if (isDir) {
-        visit(fullPath, relPath);
-      } else if (name.endsWith(".html") && relPath !== "index.html") {
-        out.push(relPath);
-      }
-    }
-  }
-  visit(rootDir, "");
-  return out.sort();
-}
+// DM-714 / DM-1230: `walkHtmlFiles` lives in ./walk-html-files.ts so it can be
+// unit tested without importing this harness (which runs the suite on import).
 
 interface HtmlTestWorker {
   context: BrowserContext;
