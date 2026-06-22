@@ -15,7 +15,7 @@
  * normal capture→SVG pipeline.
  */
 
-import type { CastOutputEvent } from "./cast.js";
+import type { CastOutputEvent, CastResizeEvent } from "./cast.js";
 import { TerminalEmulator, gridSignature, type TermGrid, type TermCell, type TermCursor } from "./emulator.js";
 import type { TerminalTheme } from "./theme.js";
 
@@ -41,6 +41,7 @@ export async function buildFrames(
   emu: TerminalEmulator,
   events: CastOutputEvent[],
   opts: FrameBuildOptions = {},
+  resizes: CastResizeEvent[] = [],
 ): Promise<TermFrame[]> {
   const settleMs = opts.settleMs ?? 90;
   const minFrameMs = opts.minFrameMs ?? 400;
@@ -48,10 +49,23 @@ export async function buildFrames(
   const tailMs = opts.tailMs ?? 1500;
   const settleSec = settleMs / 1000;
 
+  // DM-1246: apply each mid-session resize to the emulator when the replay clock
+  // reaches its timestamp, so every snapshot taken at/after it reflects the new
+  // grid geometry. Resizes are sorted by time; `ri` walks them as outputs play.
+  const sortedResizes = resizes.length > 1 ? [...resizes].sort((a, b) => a.time - b.time) : resizes;
+  let ri = 0;
+  const applyResizesUpTo = (t: number): void => {
+    while (ri < sortedResizes.length && sortedResizes[ri].time <= t) {
+      emu.resize(sortedResizes[ri].cols, sortedResizes[ri].rows);
+      ri++;
+    }
+  };
+
   const frames: TermFrame[] = [];
   let lastSig: string | null = null;
   const n = events.length;
   for (let i = 0; i < n; i++) {
+    applyResizesUpTo(events[i].time);
     await emu.write(events[i].data);
     const isLast = i === n - 1;
     const gapSec = isLast ? tailMs / 1000 : events[i + 1].time - events[i].time;
@@ -66,6 +80,20 @@ export async function buildFrames(
     } else {
       frames.push({ grid, durationMs: holdMs, cursor });
       lastSig = sig;
+    }
+  }
+  // A resize AFTER the last output event (during the tail) still changes the
+  // final on-screen size — apply any leftovers and append a closing frame at the
+  // new geometry so the recording ends at its true terminal size. The grid
+  // signature ignores dimensions, so compare the row/col counts too: a pure
+  // reflow (same text, new size) must still produce the resized closing frame.
+  if (ri < sortedResizes.length) {
+    applyResizesUpTo(Infinity);
+    const grid = emu.snapshot();
+    const last = frames.length > 0 ? frames[frames.length - 1].grid : null;
+    const dimsChanged = last == null || last.length !== grid.length || (last[0]?.length ?? 0) !== (grid[0]?.length ?? 0);
+    if (dimsChanged || gridSignature(grid) !== lastSig) {
+      frames.push({ grid, durationMs: Math.max(minFrameMs, Math.round(tailMs)), cursor: emu.cursor() });
     }
   }
   // Drop a leading all-blank frame (terminal hadn't printed anything yet).

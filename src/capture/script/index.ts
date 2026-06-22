@@ -1042,9 +1042,14 @@ export const captureScript =
       // resolve against the viewport exactly as Chrome resolves them.
       if (!btn.style.position || btn.style.position === 'static') btn.style.position = 'absolute';
       btn.style.margin = '0';
-      var txt = content;
-      if (txt === '""' || txt === "''" || txt === 'none' || txt === 'normal') txt = '';
-      else if (txt.length >= 2 && ((txt[0] === '"' && txt[txt.length - 1] === '"') || (txt[0] === "'" && txt[txt.length - 1] === "'"))) txt = txt.slice(1, -1);
+      // Only a quoted string `content` becomes a text glyph. DM-1248: a `url()` /
+      // counter() / image content value is NOT text — set no glyph rather than
+      // rendering the literal CSS string (e.g. `url("x.png")`) as garbage text.
+      // (Faithful image-content rendering is a tracked TODO in DM-1248.)
+      var txt = '';
+      if (content.length >= 2 && ((content[0] === '"' && content[content.length - 1] === '"') || (content[0] === "'" && content[content.length - 1] === "'"))) {
+        txt = content.slice(1, -1);
+      }
       btn.textContent = txt;
       doc.body.appendChild(btn);
       var node = capture(btn);
@@ -1360,7 +1365,13 @@ export const captureScript =
     try {
       var _isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       result[0].styles.rootColorScheme = _isDark ? 'dark' : 'light';
-      result[0].styles.rootBgComputed = window.getComputedStyle(document.documentElement).backgroundColor;
+      var _docCs = window.getComputedStyle(document.documentElement);
+      result[0].styles.rootBgComputed = _docCs.backgroundColor;
+      // DM-1244: <html>'s overflow decides whether <body>'s overflow propagates
+      // to the viewport (it only does when <html> is `overflow: visible`). The
+      // renderer needs it to know whether to apply <body>'s own overflow clip.
+      result[0].styles.rootOverflowX = _docCs.overflowX;
+      result[0].styles.rootOverflowY = _docCs.overflowY;
     } catch (_e) { /* no-op — never block capture on this */ }
   }
   return { tree: result, warnings: _warnings };

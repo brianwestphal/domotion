@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLinearGradientDef, parseConicGradient, parseGradient, parseLinearGradient } from "./gradients.js";
+import { buildLinearGradientDef, buildRadialGradientDef, parseConicGradient, parseGradient, parseLinearGradient, parseRadialGradient } from "./gradients.js";
 
 describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", () => {
   it("vertical top-to-bottom from()/to() form (slashdot mobile header)", () => {
@@ -38,12 +38,21 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
     expect(lg.stops[1].offset).toBe(0.5);
   });
 
-  it("diagonal legacy webkit-gradient is skipped (returns null)", () => {
-    // Diagonal endpoints aren't axis-aligned; rare in real CSS — we don't
-    // try to solve a general angle from the endpoint pair.
-    expect(parseGradient(
-      "-webkit-gradient(linear, 0% 0%, 100% 100%, from(red), to(blue))",
-    )).toBeNull();
+  it("diagonal legacy webkit-gradient maps to a 135deg gradient (DM-1241)", () => {
+    // top-left → bottom-right: atan2(dx=1, -dy=-1) = 135deg ("to bottom right").
+    const g = parseGradient("-webkit-gradient(linear, 0% 0%, 100% 100%, from(red), to(blue))");
+    expect(g).not.toBeNull();
+    expect(g!.kind).toBe("linear");
+    expect((g as { angleDeg: number }).angleDeg).toBe(135);
+  });
+
+  it("bottom-left → top-right diagonal maps to 45deg", () => {
+    const g = parseGradient("-webkit-gradient(linear, left bottom, right top, from(red), to(blue))");
+    expect((g as { angleDeg: number }).angleDeg).toBe(45);
+  });
+
+  it("a degenerate webkit-gradient (p1 == p2) returns null", () => {
+    expect(parseGradient("-webkit-gradient(linear, 50% 50%, 50% 50%, from(red), to(blue))")).toBeNull();
   });
 });
 
@@ -217,5 +226,30 @@ describe("parseConicGradient (DM-548)", () => {
   it("parseGradient still picks linear/radial first when matching", () => {
     expect(parseGradient("linear-gradient(red, blue)")?.kind).toBe("linear");
     expect(parseGradient("radial-gradient(red, blue)")?.kind).toBe("radial");
+  });
+});
+
+describe("radial-gradient ellipse corner sizing (DM-1243)", () => {
+  // buildRadialGradientDef emits r="<rx>" (the x-axis radius) + a y-scale; rx is
+  // what distinguishes corner (√2·side) from the old closest-side bug. Box 300×100,
+  // centered → dxFarthest=dxClosest=150, dyFarthest=dyClosest=50.
+  const rect = { x: 0, y: 0, w: 300, h: 100 };
+  const rxOf = (def: string): number => Number(/ r="([\d.]+)"/.exec(def)![1]);
+
+  it("farthest-corner ellipse passes through the corner (√2·side), not the side", () => {
+    const g = parseRadialGradient("radial-gradient(ellipse farthest-corner at center, red, blue)")!;
+    expect(rxOf(buildRadialGradientDef(g, "fc", rect))).toBeCloseTo(Math.SQRT2 * 150, 1); // 212.13
+  });
+
+  it("closest-corner ellipse is √2·closest-side, not closest-side (the k=1 bug)", () => {
+    const g = parseRadialGradient("radial-gradient(ellipse closest-corner at center, red, blue)")!;
+    const rx = rxOf(buildRadialGradientDef(g, "cc", rect));
+    expect(rx).toBeCloseTo(Math.SQRT2 * 150, 1); // 212.13 — NOT 150 (closest-side)
+    expect(rx).not.toBeCloseTo(150, 1);
+  });
+
+  it("farthest-side ellipse stays at the side distance (unchanged)", () => {
+    const g = parseRadialGradient("radial-gradient(ellipse farthest-side at center, red, blue)")!;
+    expect(rxOf(buildRadialGradientDef(g, "fs", rect))).toBeCloseTo(150, 1);
   });
 });

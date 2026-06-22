@@ -48,8 +48,10 @@ export interface TermCursor {
 
 export class TerminalEmulator {
   private term: XTerm;
-  readonly cols: number;
-  readonly rows: number;
+  // Mutable so a mid-session resize (`"r"` cast event, DM-1246) can re-shape the
+  // grid; `snapshot()` reads the current cols/rows.
+  cols: number;
+  rows: number;
   private theme: TerminalTheme;
   // `@xterm/headless` has no public cursor-visibility getter, so track DECTCEM
   // (`\x1b[?25h` show / `\x1b[?25l` hide) off the byte stream ourselves.
@@ -68,6 +70,17 @@ export class TerminalEmulator {
     const m = data.match(/\x1b\[\?25([hl])(?![\s\S]*\x1b\[\?25[hl])/);
     if (m != null) this.cursorVisible = m[1] === "h";
     return new Promise((resolve) => this.term.write(data, resolve));
+  }
+
+  /**
+   * Resize the grid mid-session (DM-1246, asciinema `"r"` event). xterm reflows
+   * the buffer to the new geometry; subsequent `snapshot()`s read the new size.
+   */
+  resize(cols: number, rows: number): void {
+    if (cols <= 0 || rows <= 0 || (cols === this.cols && rows === this.rows)) return;
+    this.term.resize(cols, rows);
+    this.cols = cols;
+    this.rows = rows;
   }
 
   /** The cursor's current cell + visibility. */

@@ -277,6 +277,25 @@ describe("parseScrollPattern: [easing] suffix", () => {
     expect(a.easing).toEqual({ kind: "cubic-bezier", values: [-0.5, 0, 1, 1] });
   });
 
+  it("step-start / step-end named easings (DM-1245)", () => {
+    expect((onlyAction("720px[step-start]") as ScrollAction).easing).toEqual({ kind: "named", name: "step-start" });
+    expect((onlyAction("720px[step-end]") as ScrollAction).easing).toEqual({ kind: "named", name: "step-end" });
+  });
+
+  it("steps(n) and steps(n, position) (DM-1245)", () => {
+    expect((onlyAction("720px[steps(4)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 4, position: undefined });
+    expect((onlyAction("720px/2s[steps(3, jump-start)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 3, position: "jump-start" });
+    expect((onlyAction("720px[steps(2, jump-none)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 2, position: "jump-none" });
+    expect((onlyAction("720px[steps(5, end)]") as ScrollAction).easing).toEqual({ kind: "steps", count: 5, position: "end" });
+  });
+
+  it("rejects invalid steps() (non-positive-int count, bad position, jump-none with count<2)", () => {
+    expect(() => parseScrollPattern("720px[steps(0)]")).toThrow(/positive integer/);
+    expect(() => parseScrollPattern("720px[steps(2.5)]")).toThrow(/positive integer/);
+    expect(() => parseScrollPattern("720px[steps(3, jump-sideways)]")).toThrow(/Unknown steps\(\) position/);
+    expect(() => parseScrollPattern("720px[steps(1, jump-none)]")).toThrow(/jump-none requires a count/);
+  });
+
   it("unknown easing throws", () => {
     expect(() => parseScrollPattern("720px[ease-wibble]")).toThrow(ScrollPatternError);
   });

@@ -110,7 +110,8 @@ export interface TextSegment {
    */
   verticalNaturalWidths?: number[];
   /**
-   * DM-1032: tate-chu-yoko (`text-combine-upright: all` / `digits`). When set,
+   * DM-1032: tate-chu-yoko (`text-combine-upright: all`; Chrome doesn't support
+   * the `digits` value — it computes to `none` — see DM-1238). When set,
    * this vertical segment is a SINGLE horizontally-combined upright group that
    * occupies one ~1em column cell, not a stack of column chars. `text` is the
    * whole combined run (e.g. "31"); the renderer emits it as one upright
@@ -680,6 +681,14 @@ export interface CapturedElement {
      * for dark). ONLY populated on the captured tree's root element.
      */
     rootBgComputed?: string;
+    /**
+     * DM-1244: `<html>`'s computed `overflow-x` / `overflow-y` at capture time.
+     * `<body>`'s overflow only propagates to the viewport (so body renders
+     * WITHOUT its own clip) when `<html>` is `overflow: visible`; otherwise body
+     * applies its own overflow clip. ONLY populated on the captured tree's root.
+     */
+    rootOverflowX?: string;
+    rootOverflowY?: string;
     /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
     transformOrigin?: string;
     /** DM-587: true when the live CSS transform was non-none at capture

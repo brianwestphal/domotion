@@ -113,7 +113,17 @@ export async function castToTermFrames(
   const cast = parseCast(castText);
   const cols = opts.cols ?? cast.header.width;
   const rows = opts.rows ?? cast.header.height;
-  log(`term: ${cols}×${rows} cells, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`);
+  // DM-1246: honor mid-session resize events — unless the caller forced a fixed
+  // grid via opts.cols/rows, in which case the recording is pinned to that size
+  // and resizes are ignored. The canvas is sized to the LARGEST grid across the
+  // initial size + every resize, so frames at any size fit (a smaller post-resize
+  // grid renders top-left, the theme bg fills the rest, matching terminal anchoring).
+  const honorResizes = opts.cols == null && opts.rows == null;
+  const resizes = honorResizes ? cast.resizes : [];
+  let maxCols = cols;
+  let maxRows = rows;
+  for (const rz of resizes) { if (rz.cols > maxCols) maxCols = rz.cols; if (rz.rows > maxRows) maxRows = rz.rows; }
+  log(`term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`);
 
   const manageFonts = opts.manageFonts !== false;
   // Embedded-font mode accumulates glyphs into one growing custom TTF across
@@ -127,7 +137,7 @@ export async function castToTermFrames(
   const emu = new TerminalEmulator(cols, rows, theme);
   let frames;
   try {
-    frames = await buildFrames(emu, cast.events, opts);
+    frames = await buildFrames(emu, cast.events, opts, resizes);
   } finally {
     emu.dispose();
   }
@@ -150,11 +160,13 @@ export async function castToTermFrames(
   try {
     const page = await ctx.newPage();
     page.setDefaultTimeout(60_000);
-    // A terminal is a fixed cols×rows monospace grid, so size the canvas from a
-    // full-width/full-height reference block (every frame fits inside it) rather
-    // than from one frame whose lines may be short.
-    const refGrid = Array.from({ length: rows }, () =>
-      Array.from({ length: cols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
+    // A terminal is a monospace grid, so size the canvas from a full-width/
+    // full-height reference block (every frame fits inside it) rather than from
+    // one frame whose lines may be short. Use the LARGEST grid across all resizes
+    // (DM-1246) so post-resize frames (which may be bigger than the initial size)
+    // still fit; smaller frames render top-left within it.
+    const refGrid = Array.from({ length: maxRows }, () =>
+      Array.from({ length: maxCols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
     );
     const measureHtml = gridToHtml(refGrid, htmlOpts);
     await page.setContent(measureHtml, { waitUntil: "domcontentloaded" });

@@ -6,7 +6,33 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { renderFormControl } from "./form-controls.js";
+import { renderFormControl, parseSpreadOnlyShadows } from "./form-controls.js";
+
+describe("parseSpreadOnlyShadows — slider-thumb donut rings (DM-1240)", () => {
+  it("parses a single spread-only ring (the DM-319 pattern)", () => {
+    expect(parseSpreadOnlyShadows("rgb(0, 200, 0) 0px 0px 0px 2px")).toEqual([{ spread: 2, color: "rgb(0, 200, 0)" }]);
+  });
+
+  it("parses a stacked multi-shadow list into multiple rings in source order", () => {
+    expect(parseSpreadOnlyShadows("rgb(255, 255, 255) 0px 0px 0px 1px, rgb(0, 0, 255) 0px 0px 0px 3px")).toEqual([
+      { spread: 1, color: "rgb(255, 255, 255)" },
+      { spread: 3, color: "rgb(0, 0, 255)" },
+    ]);
+  });
+
+  it("skips shadows with a non-zero offset or blur (not rings) but keeps the spread-only ones", () => {
+    // A soft drop shadow (offset+blur) is not a ring; the spread-only one is.
+    expect(parseSpreadOnlyShadows("rgba(0, 0, 0, 0.4) 0px 2px 4px 0px, rgb(0, 128, 0) 0px 0px 0px 2px")).toEqual([
+      { spread: 2, color: "rgb(0, 128, 0)" },
+    ]);
+  });
+
+  it("returns [] for none / inset / empty", () => {
+    expect(parseSpreadOnlyShadows("none")).toEqual([]);
+    expect(parseSpreadOnlyShadows(undefined)).toEqual([]);
+    expect(parseSpreadOnlyShadows("inset 0px 0px 0px 2px red")).toEqual([]);
+  });
+});
 
 describe("form-controls font-family escaping (DM-866)", () => {
   it("escapes inner double-quotes in a <select>'s font-family attribute", () => {

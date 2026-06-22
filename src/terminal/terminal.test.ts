@@ -22,15 +22,23 @@ describe("parseCast (asciinema v2)", () => {
     expect(c.duration).toBe(1.2);
   });
 
-  it("ignores non-output events (input / resize / marker)", () => {
+  it("ignores input/marker events but captures resize (\"r\") events (DM-1246)", () => {
     const text = [
       JSON.stringify({ version: 2, width: 80, height: 24 }),
       JSON.stringify([0.1, "i", "ls\n"]),
       castEvent(0.2, "out"),
       JSON.stringify([0.3, "r", "100x40"]),
+      JSON.stringify([0.4, "m", "a marker"]),
+      JSON.stringify([0.5, "r", " 120 x 50 "]), // tolerant of surrounding spaces
     ].join("\n");
     const c = parseCast(text);
     expect(c.events).toEqual([{ time: 0.2, data: "out" }]);
+    expect(c.resizes).toEqual([
+      { time: 0.3, cols: 100, rows: 40 },
+      { time: 0.5, cols: 120, rows: 50 },
+    ]);
+    // Duration is the last event of any captured kind (the 0.5 resize here).
+    expect(c.duration).toBe(0.5);
   });
 
   it("stops cleanly at a truncated trailing line", () => {
@@ -185,6 +193,34 @@ describe("buildFrames (settle-point selection)", () => {
     emu.dispose();
     expect(frames.length).toBe(1); // one screen the whole time
     expect(frames[0].durationMs).toBeGreaterThan(1000); // durations accumulated
+  });
+
+  it("applies a mid-session resize so later frames use the new grid (DM-1246)", async () => {
+    const emu = new TerminalEmulator(10, 2, THEMES.dark);
+    const events = [
+      { time: 0.0, data: "before" },
+      { time: 1.0, data: "after" }, // settle point AFTER the 0.5s resize below
+    ];
+    const resizes = [{ time: 0.5, cols: 24, rows: 4 }];
+    const frames = await buildFrames(emu, events, { settleMs: 90, minFrameMs: 100, tailMs: 500 }, resizes);
+    expect(emu.cols).toBe(24);
+    expect(emu.rows).toBe(4);
+    // The final frame's grid is the resized geometry (4 rows × 24 cols).
+    const last = frames[frames.length - 1].grid;
+    expect(last.length).toBe(4);
+    expect(last[0].length).toBe(24);
+    emu.dispose();
+  });
+
+  it("honors a resize that lands after the last output, during the tail (DM-1246)", async () => {
+    const emu = new TerminalEmulator(10, 2, THEMES.dark);
+    const events = [{ time: 0.0, data: "hi" }];
+    const resizes = [{ time: 0.5, cols: 30, rows: 5 }]; // after the only output
+    const frames = await buildFrames(emu, events, { settleMs: 90, minFrameMs: 100, tailMs: 500 }, resizes);
+    expect(emu.cols).toBe(30);
+    expect(emu.rows).toBe(5);
+    expect(frames[frames.length - 1].grid.length).toBe(5); // closing frame at the new size
+    emu.dispose();
   });
 });
 

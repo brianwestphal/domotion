@@ -556,6 +556,17 @@ describe("composeScrollSvg: per-action easing", () => {
     expect(svg).toMatch(/100\.000% \{ transform: translate3d\(0, -1200\.000px, 0\); \}/);
   });
 
+  it("serializes step easings into the per-keyframe timing-function (DM-1245)", () => {
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0, 0, 1000),
+      { ...makeSeg(600, 1000, 4000), easing: { kind: "steps", count: 4, position: "jump-start" } },
+      { ...makeSeg(1200, 4000, 5000), easing: { kind: "named", name: "step-end" } },
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    expect(svg).toMatch(/animation-timing-function: steps\(4, jump-start\);/);
+    expect(svg).toMatch(/animation-timing-function: step-end;/);
+  });
+
   it("a `linear` token emits nothing (it IS the composite default)", () => {
     const segs: ScrollSegmentCapture[] = [
       makeSeg(0, 0, 1000),

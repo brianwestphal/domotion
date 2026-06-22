@@ -123,9 +123,14 @@ export interface Length {
   unit: "px" | "%";
 }
 
+/** A CSS `steps()` jump position; `start`/`end` are the legacy aliases of
+ *  `jump-start`/`jump-end`. */
+export type StepPosition = "jump-start" | "jump-end" | "jump-none" | "jump-both" | "start" | "end";
+
 export type Easing =
-  | { kind: "named"; name: "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out" }
-  | { kind: "cubic-bezier"; values: [number, number, number, number] };
+  | { kind: "named"; name: "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out" | "step-start" | "step-end" }
+  | { kind: "cubic-bezier"; values: [number, number, number, number] }
+  | { kind: "steps"; count: number; position?: StepPosition };
 
 export type UntilClause = PositionUntil | CountUntil;
 
@@ -284,7 +289,8 @@ function isLetter(ch: string): boolean { return (ch >= "a" && ch <= "z") || (ch 
 
 const ANCHOR_NAMES = new Set(["top", "bottom", "left", "right", "start", "end"]);
 const DIRECTION_NAMES = new Set(["up", "down", "left", "right"]);
-const EASING_NAMES = new Set(["linear", "ease", "ease-in", "ease-out", "ease-in-out"]);
+const EASING_NAMES = new Set(["linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"]);
+const STEP_POSITIONS = new Set(["jump-start", "jump-end", "jump-none", "jump-both", "start", "end"]);
 
 class Parser {
   private pos = 0;
@@ -490,14 +496,48 @@ class Parser {
       this.expect("rbracket"); this.consume("rbracket");
       return { kind: "cubic-bezier", values: [a, b, c, d] };
     }
+    if (tok.text === "steps") {
+      // [steps(N)] or [steps(N, <position>)]
+      this.expect("lparen");
+      this.consume("lparen");
+      const count = this.parseSignedNumberLiteral();
+      if (!Number.isInteger(count) || count < 1) {
+        throw new ScrollPatternError(
+          `steps() count must be a positive integer, got "${count}"`,
+          this.source, tok.start,
+        );
+      }
+      let position: StepPosition | undefined;
+      if (this.peek().kind === "comma") {
+        this.consume("comma");
+        const posTok = this.consume("ident");
+        if (!STEP_POSITIONS.has(posTok.text)) {
+          throw new ScrollPatternError(
+            `Unknown steps() position "${posTok.text}" (expected one of ${[...STEP_POSITIONS].join(", ")})`,
+            this.source, posTok.start,
+          );
+        }
+        position = posTok.text as StepPosition;
+        // `jump-none` requires at least 2 steps (CSS Easing Functions L1).
+        if (position === "jump-none" && count < 2) {
+          throw new ScrollPatternError(
+            `steps(${count}, jump-none) is invalid — jump-none requires a count ≥ 2`,
+            this.source, tok.start,
+          );
+        }
+      }
+      this.expect("rparen"); this.consume("rparen");
+      this.expect("rbracket"); this.consume("rbracket");
+      return { kind: "steps", count, position };
+    }
     if (!EASING_NAMES.has(tok.text)) {
       throw new ScrollPatternError(
-        `Unknown easing "${tok.text}" (expected one of ${[...EASING_NAMES].join(", ")} or cubic-bezier(...))`,
+        `Unknown easing "${tok.text}" (expected one of ${[...EASING_NAMES].join(", ")}, steps(...), or cubic-bezier(...))`,
         this.source, tok.start,
       );
     }
     this.expect("rbracket"); this.consume("rbracket");
-    return { kind: "named", name: tok.text as ("linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out") };
+    return { kind: "named", name: tok.text as ("linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out" | "step-start" | "step-end") };
   }
 
   private parseSignedNumberLiteral(): number {

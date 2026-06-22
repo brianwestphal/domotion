@@ -13,7 +13,9 @@
 //      transformed advance, so we mirror `uppercase` / `lowercase` /
 //      `capitalize` on `node.textContent` before measuring — otherwise
 //      our captured `text` and the rect positions would disagree.
-//      `capitalize` uses an ASCII word-boundary heuristic.
+//      `capitalize` uses a Unicode-aware word-boundary titlecase
+//      (`capitalizeCss`, DM-1237) — the old `\b\p{L}` ASCII boundary
+//      skipped non-ASCII leading letters (élan, Cyrillic, …).
 //
 //   2. **Per-character Range rects**: walk one code point at a time
 //      (surrogate-pair-aware so a supplementary-plane emoji gets one
@@ -134,6 +136,39 @@ const mathItalicChar = (ch) => {
   }
 };
 
+// DM-1237: CSS `text-transform: capitalize` — titlecase the first typographic
+// letter of each word. A "word" starts at string start or after a SEPARATOR:
+// any char that is NOT a letter / mark / number / mid-word connector (apostrophes
+// + middle dot). This is Unicode-aware; the old `\b\p{L}` used JS's ASCII-only
+// word boundary, so non-ASCII leading letters were never capitalized. Verified
+// against Chrome's painted output: élan→Élan, привет→Привет, don't→Don't (the
+// apostrophe doesn't start a word), 123abc→123abc (a letter after a digit is
+// mid-word). Titlecasing uses uppercase except the few Latin digraph code points
+// whose titlecase ≠ uppercase (ǆ→ǅ, …). Locale tailoring (e.g. Turkish i→İ) is
+// out of scope — the sibling uppercase/lowercase paths are likewise plain.
+const _RE_LETTER = /\p{L}/u;
+const _RE_WORD_CHAR = /[\p{L}\p{M}\p{N}]/u;
+const _MIDWORD_CONNECTORS = "'’··״"; // ' ’ · · ״
+const TITLECASE_DIGRAPHS = {
+  'Ǆ': 'ǅ', 'ǆ': 'ǅ', 'Ǉ': 'ǈ', 'ǉ': 'ǈ',
+  'Ǌ': 'ǋ', 'ǌ': 'ǋ', 'Ǳ': 'ǲ', 'ǳ': 'ǲ',
+};
+export const capitalizeCss = (s) => {
+  let atWordStart = true;
+  let out = '';
+  for (const ch of s) { // iterates by code point
+    if (atWordStart && _RE_LETTER.test(ch)) {
+      out += TITLECASE_DIGRAPHS[ch] || ch.toUpperCase();
+    } else {
+      out += ch;
+    }
+    // The next char begins a word iff THIS char is a separator (not a word char
+    // and not a mid-word connector).
+    atWordStart = !_RE_WORD_CHAR.test(ch) && _MIDWORD_CONNECTORS.indexOf(ch) < 0;
+  }
+  return out;
+};
+
 export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster, normColor, markGetsDottedCircle }) => {
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
@@ -236,7 +271,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       const tt = cs.textTransform;
       if (tt === 'uppercase') raw = raw.toUpperCase();
       else if (tt === 'lowercase') raw = raw.toLowerCase();
-      else if (tt === 'capitalize') raw = raw.replace(/\b\p{L}/gu, (ch) => ch.toUpperCase());
+      else if (tt === 'capitalize') raw = capitalizeCss(raw);
       if (!raw.trim()) continue;
       text += raw.trim() + ' ';
       for (let i = 0; i < raw.length; i++) {
@@ -265,14 +300,16 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
     // each. Detect the combine here and emit ONE combined segment instead,
     // anchoring each glyph at its CAPTURED per-char x (Chrome's painted
     // positions, including any sub-1em condensing). `all` combines the whole
-    // run; `digits[ N]` only combines when the run is entirely ASCII digits
-    // (the common authored case — a span wrapping just the digits) — a mixed
-    // `digits` run with non-digit chars falls through to normal column flow.
+    // run. DM-1238: Chromium (147 — our capture target) does NOT support the
+    // `digits <N>` value: `text-combine-upright: digits` / `digits N` both
+    // compute to `none`, so the capture only ever sees `none` or `all`. A
+    // `digits` run thus flows as normal upright columns, exactly as Chrome
+    // paints it — there's no digits-combine to honor (the earlier all-digits
+    // branch was dead/never-fired; re-probe Chrome and revisit if a future
+    // version ships `digits`).
     const tcu = cs.textCombineUpright || cs.webkitTextCombine || '';
     const isCombineAll = tcu === 'all';
-    const allDigits = allChars.every((c) => c.ch.length === 1 && c.ch >= '0' && c.ch <= '9');
-    const isCombineDigits = (tcu.indexOf('digits') === 0) && allDigits;
-    if (isCombineAll || isCombineDigits) {
+    if (isCombineAll) {
       const metricsC = measureFontMetrics(cs);
       // Shared cell top/height (all combined chars sit in one column cell), and
       // the horizontal span of the combined glyphs (Chrome's painted extent).
@@ -731,7 +768,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       const tt = cs.textTransform;
       if (tt === 'uppercase') raw = raw.toUpperCase();
       else if (tt === 'lowercase') raw = raw.toLowerCase();
-      else if (tt === 'capitalize') raw = raw.replace(/\b\p{L}/gu, (ch) => ch.toUpperCase());
+      else if (tt === 'capitalize') raw = capitalizeCss(raw);
       if (!raw.trim()) continue;
       // DM-747: when `<mi>` math-italic substitution applies, the element's
       // aggregate `text` field should carry the substituted codepoint too —

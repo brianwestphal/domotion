@@ -31,12 +31,21 @@ export const sideWidths = (cs, prop, suffix) => ({
   left: parseFloat(cs[prop + 'Left' + suffix]) || 0,
 });
 
-// First-color extractor for a CSS background-shorthand. Catches hex / rgba /
-// hsla / common named colors / currentColor. Intentionally narrow — designed
-// for picking the *color* layer out of a shorthand that may also carry a
-// gradient or url() image. Author CSS that hides a non-named color inside a
-// var() round-trips elsewhere via the host-probe path.
-export const firstColorRe = /(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|\b(?:white|black|red|green|blue|yellow|purple|orange|gray|grey|currentColor)\b)/;
+// First-color extractor for a CSS background-shorthand: picks the *color* layer
+// out of a shorthand that may also carry a gradient or url() image. Catches
+// hex / rgba() / hsla() / currentColor / transparent and the full CSS Color 4
+// `<named-color>` set. DM-1236: the named list was previously just 9 popular
+// names, so a shorthand using any other spec-valid name (e.g. `rebeccapurple`,
+// `cornflowerblue`) dropped its color layer. Mirrors render-side `NAMED_COLORS`
+// in `src/render/colors.ts` (DM-1231) — regenerate both from
+// `node tools/scratch/probe-named-colors.mjs` if the CSS color list grows.
+// `\b`-anchored + listed longest-first so a longer name (`darkgray`) is never
+// mis-matched as a shorter one (`gray`).
+const NAMED_COLOR_ALTERNATION =
+  "lightgoldenrodyellow|mediumspringgreen|mediumaquamarine|mediumslateblue|mediumturquoise|mediumvioletred|blanchedalmond|cornflowerblue|darkolivegreen|lightslategray|lightslategrey|lightsteelblue|mediumseagreen|darkgoldenrod|darkslateblue|darkslategray|darkslategrey|darkturquoise|lavenderblush|lightseagreen|palegoldenrod|paleturquoise|palevioletred|rebeccapurple|antiquewhite|darkseagreen|lemonchiffon|lightskyblue|mediumorchid|mediumpurple|midnightblue|darkmagenta|deepskyblue|floralwhite|forestgreen|greenyellow|lightsalmon|lightyellow|navajowhite|saddlebrown|springgreen|yellowgreen|aquamarine|blueviolet|chartreuse|darkorange|darkorchid|darksalmon|darkviolet|dodgerblue|ghostwhite|lightcoral|lightgreen|mediumblue|papayawhip|powderblue|sandybrown|whitesmoke|aliceblue|burlywood|cadetblue|chocolate|darkgreen|darkkhaki|firebrick|gainsboro|goldenrod|indianred|lawngreen|lightblue|lightcyan|lightgray|lightgrey|lightpink|limegreen|mintcream|mistyrose|olivedrab|orangered|palegreen|peachpuff|rosybrown|royalblue|slateblue|slategray|slategrey|steelblue|turquoise|cornsilk|darkblue|darkcyan|darkgray|darkgrey|deeppink|honeydew|lavender|moccasin|seagreen|seashell|crimson|darkred|dimgray|dimgrey|fuchsia|hotpink|magenta|oldlace|skyblue|thistle|bisque|indigo|maroon|orange|orchid|purple|salmon|sienna|silver|tomato|violet|yellow|azure|beige|black|brown|coral|green|ivory|khaki|linen|olive|wheat|white|aqua|blue|cyan|gold|gray|grey|lime|navy|peru|pink|plum|snow|teal|red|tan|transparent|currentColor";
+export const firstColorRe = new RegExp(
+  `(#[0-9a-fA-F]{3,8}|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|\\b(?:${NAMED_COLOR_ALTERNATION})\\b)`,
+);
 
 // Text-presenting <input> types: the ones Chrome's UA stylesheet gives a `text`
 // (I-beam) cursor and where `auto` would resolve to I-beam. Excludes button-like

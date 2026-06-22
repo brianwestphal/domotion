@@ -896,10 +896,17 @@ export function elementTreeToSvgInner(
       // as a clip on body's own bbox, scroll-mode segments at scrollY > 0
       // would clip every descendant out (body.y becomes -scrollY < 0; the
       // clip rect ends at body.y + 100vh = 0, so anything below would be
-      // hidden). We don't capture <html>'s computed style, so this skip is
-      // a conservative match against the overwhelmingly common case of
-      // html { overflow: visible }.
-      const isBodyOverflowPropagated = el.tag === "body";
+      // hidden). DM-1244: <body>'s overflow only propagates to the viewport when
+      // <html> is `overflow: visible`; we now capture <html>'s overflow on the
+      // root element (`rootOverflowX/Y`), so skip the body clip only when <html>
+      // really is visible. When <html> has a non-visible overflow it is the one
+      // propagated to the viewport and <body> applies its OWN overflow clip. Old
+      // captures (no rootOverflow) fall back to the prior assume-visible default.
+      const rootOX = el.styles.rootOverflowX;
+      const rootOY = el.styles.rootOverflowY;
+      const htmlOverflowVisible = (rootOX == null && rootOY == null)
+        || ((rootOX == null || rootOX === "visible") && (rootOY == null || rootOY === "visible"));
+      const isBodyOverflowPropagated = el.tag === "body" && htmlOverflowVisible;
       if ((oxClips || oyClips) && !isBodyOverflowPropagated) {
         // The CSS `outline` is painted OUTSIDE the border box and is NOT
         // affected by the element's own overflow per CSS Backgrounds 3 §3 +
@@ -2101,6 +2108,16 @@ export function elementTreeToSvgInner(
       const contentY = el.y + _bwT + _padT;
       const contentW = Math.max(0, el.width - _bwL - _bwR - _padL - _padR);
       const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
+      // DM-1239: `object-fit: scale-down` is the smaller of `none` and
+      // `contain` — render at intrinsic size when the image fits inside the
+      // content box, otherwise shrink it like `contain`. We capture the <img>
+      // intrinsic size (`imageIntrinsic`), so resolve scale-down concretely
+      // instead of always falling back to `contain`. With no intrinsic size
+      // (broken / not-yet-loaded), leave it as scale-down → the contain fallback.
+      let fitEffective = fit;
+      if (fit === "scale-down" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
+        fitEffective = (el.imageIntrinsic.w <= contentW && el.imageIntrinsic.h <= contentH) ? "none" : "contain";
+      }
       // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
       // image must clip to the rounded content area — otherwise a 40×40
       // `border-radius: 50%` avatar paints as a square photo. Build a
@@ -2116,7 +2133,7 @@ export function elementTreeToSvgInner(
           `<clipPath id="${roundedClipId}">${roundedRectSvg(contentX, contentY, contentW, contentH, innerCorners, "")}</clipPath>`,
         );
       }
-      if (fit === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
+      if (fitEffective === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
         // object-fit: none -> render image at intrinsic size, aligned via
         // object-position inside the element's content box, and clip overflow.
         const iw = el.imageIntrinsic.w;
@@ -2138,7 +2155,7 @@ export function elementTreeToSvgInner(
           `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
         );
       } else {
-        const par = preserveAspectRatioFor(fit, el.styles.objectPosition);
+        const par = preserveAspectRatioFor(fitEffective, el.styles.objectPosition);
         const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";
         // DM-819: Chrome doesn't honor `preserveAspectRatio` on `<image>`
         // when the href is an SVG data URI — the embedded SVG paints at its
@@ -4890,7 +4907,7 @@ function resolvePosFraction(token: string, axis: "h" | "v"): number {
   return 0.5;
 }
 
-function parseGradientStops(tokens: string[], gradientLength: number = 0): GradientStop[] {
+export function parseGradientStops(tokens: string[], gradientLength: number = 0): GradientStop[] {
   // First pass: parse each token into {color, explicitPositions[]} OR {hint}.
   // A color-hint is a bare percentage between two color stops that shifts the
   // midpoint of the interpolation between them. We record hints inline so
@@ -4964,9 +4981,13 @@ function parseGradientStops(tokens: string[], gradientLength: number = 0): Gradi
   }
 
   // Inject color hints: between two stops A (at posA) and B (at posB) with a
-  // hint at posH, CSS shifts the 50% transition point to posH using a power
-  // interpolation. We approximate by adding a single mid-color stop at posH.
-  // This is close enough for visual fidelity on most hint use cases.
+  // hint at posH, CSS shifts the 50% transition point to posH via a power
+  // interpolation — the mix weight at fraction t = (pos-posA)/(posB-posA) is
+  // `t^(ln0.5/lnH)`, where H = (posH-posA)/(posB-posA) is the hint's relative
+  // position (so weight(H) = 0.5, the midpoint color lands on the hint). SVG
+  // only does linear interpolation between stops, so DM-1242: sample that curve
+  // at several interior points and emit a stop at each, approximating the curve
+  // piecewise-linearly instead of with one mid-color stop (which read too linear).
   if (hints.length > 0) {
     const out: GradientStop[] = [];
     let hintIdx = 0;
@@ -4982,14 +5003,35 @@ function parseGradientStops(tokens: string[], gradientLength: number = 0): Gradi
         if (h.afterColorIdx !== thisColorIdx) continue;
         const a = stops[s];
         const b = stops[s + 1];
-        if (h.pos > a.pos && h.pos < b.pos) {
-          const mid: RGBA = {
-            r: Math.round((a.color.r + b.color.r) / 2),
-            g: Math.round((a.color.g + b.color.g) / 2),
-            b: Math.round((a.color.b + b.color.b) / 2),
-            a: (a.color.a + b.color.a) / 2,
-          };
-          out.push({ color: mid, pos: h.pos });
+        if (!(h.pos > a.pos && h.pos < b.pos)) continue;
+        const span = b.pos - a.pos;
+        const hRel = (h.pos - a.pos) / span;
+        const ca = a.color, cb = b.color;
+        const sameColor = ca.r === cb.r && ca.g === cb.g && ca.b === cb.b && ca.a === cb.a;
+        // H ≈ 0.5 ⇒ exponent ≈ 1 ⇒ linear, and identical colors need no curve —
+        // both leave SVG's own A→B linear interpolation to do the right thing.
+        if (sameColor || Math.abs(hRel - 0.5) < 1e-3) continue;
+        const expo = Math.log(0.5) / Math.log(hRel);
+        // Sample at uniform mix-WEIGHT (w = k/N), inverting to the position
+        // t = w^(1/expo). Since SVG interpolates color linearly between stops and
+        // color is linear in w, equal-w steps put a stop exactly where each even
+        // colour increment occurs — which clusters stops near the curve's steep
+        // region (a vertical colour tangent at t→0 for hints below midpoint) and
+        // lands one stop precisely on the hint (w=0.5). Far better fit per stop
+        // than uniform-t sampling. 8 segments → 7 interior stops.
+        const SEGMENTS = 8;
+        for (let k = 1; k < SEGMENTS; k++) {
+          const w = k / SEGMENTS;
+          const t = Math.pow(w, 1 / expo);
+          out.push({
+            color: {
+              r: Math.round(ca.r + (cb.r - ca.r) * w),
+              g: Math.round(ca.g + (cb.g - ca.g) * w),
+              b: Math.round(ca.b + (cb.b - ca.b) * w),
+              a: ca.a + (cb.a - ca.a) * w,
+            },
+            pos: a.pos + t * span,
+          });
         }
       }
     }
@@ -5682,9 +5724,11 @@ export function buildMaskDef(
           return parseFloat(tok) || intrinsicDim;
         };
         if (layerSize === "contain" || layerSize === "cover") {
-          // We don't have intrinsic mask-image dims without new Image(). For
-          // now approximate with element box (contain = fit inside, cover = fill).
-          // This is close enough for the common icon-mask case.
+          // Approximate with the element box (contain = fit inside, cover = fill).
+          // A faithful fit/crop needs the mask image's intrinsic size, which —
+          // unlike <img> (we capture naturalWidth/Height) — requires loading the
+          // mask URL asynchronously at capture time; tracked as DM-1251 (split
+          // from DM-1239). Close enough for the common square/icon-mask case.
           imgW = w; imgH = h;
         } else {
           imgW = resolveSize(sizeTok[0], w, w);

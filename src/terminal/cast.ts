@@ -3,9 +3,12 @@
  *
  * The format (https://docs.asciinema.org/manual/asciicast/v2/) is newline-
  * delimited JSON: the FIRST line is a header object, every subsequent line is a
- * 3-element event array `[time, code, data]`. We only care about output events
- * (`code === "o"`); input (`"i"`), resize (`"r"`), and marker (`"m"`) events are
- * ignored for replay (a future enhancement could honor `"r"` mid-stream).
+ * 3-element event array `[time, code, data]`. We keep output events
+ * (`code === "o"`) and resize events (`code === "r"`, data `"<cols>x<rows>"`);
+ * input (`"i"`) and marker (`"m"`) events are ignored for replay. Resize events
+ * let a recording that changes terminal size mid-session replay faithfully
+ * (DM-1246): the full-frame builder applies each resize to the emulator at its
+ * timestamp and the canvas is sized to the largest grid seen.
  *
  * `time` is seconds-since-start (a float). We keep it as-is; the frame builder
  * derives per-frame durations from the gaps between settle points.
@@ -28,9 +31,22 @@ export interface CastOutputEvent {
   data: string;
 }
 
+/** A mid-session terminal resize (`"r"` event, DM-1246). */
+export interface CastResizeEvent {
+  /** Seconds since recording start. */
+  time: number;
+  /** New terminal width in columns. */
+  cols: number;
+  /** New terminal height in rows. */
+  rows: number;
+}
+
 export interface ParsedCast {
   header: CastHeader;
   events: CastOutputEvent[];
+  /** Mid-session resize events, in recording order (DM-1246). Empty for the
+   *  common fixed-size recording. */
+  resizes: CastResizeEvent[];
   /** Total recording duration in seconds (the last event's time, or 0). */
   duration: number;
 }
@@ -65,6 +81,7 @@ export function parseCast(text: string): ParsedCast {
   }
 
   const events: CastOutputEvent[] = [];
+  const resizes: CastResizeEvent[] = [];
   for (let i = firstEventIdx; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === "") continue;
@@ -77,11 +94,20 @@ export function parseCast(text: string): ParsedCast {
     }
     if (!Array.isArray(ev) || ev.length < 3) continue;
     const [time, code, data] = ev as [number, string, string];
-    if (code !== "o") continue;
     if (typeof time !== "number" || typeof data !== "string") continue;
-    events.push({ time, data });
+    if (code === "o") {
+      events.push({ time, data });
+    } else if (code === "r") {
+      // Resize data is `"<cols>x<rows>"` (e.g. `"80x24"`).
+      const m = /^\s*(\d+)\s*x\s*(\d+)\s*$/.exec(data);
+      if (m != null) resizes.push({ time, cols: +m[1], rows: +m[2] });
+    }
+    // input ("i") + marker ("m") events are not replayable; ignore.
   }
 
-  const duration = events.length > 0 ? events[events.length - 1].time : 0;
-  return { header, events, duration };
+  // Duration is the timestamp of the last event of ANY kind we kept.
+  const lastOut = events.length > 0 ? events[events.length - 1].time : 0;
+  const lastResize = resizes.length > 0 ? resizes[resizes.length - 1].time : 0;
+  const duration = Math.max(lastOut, lastResize);
+  return { header, events, resizes, duration };
 }

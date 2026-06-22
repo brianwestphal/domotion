@@ -43,6 +43,7 @@ import type { Easing } from "./pattern.js";
 function cssTimingFunction(easing: Easing | undefined): string | null {
   if (easing == null) return null;
   if (easing.kind === "named") return easing.name === "linear" ? null : easing.name;
+  if (easing.kind === "steps") return `steps(${easing.count}${easing.position != null ? `, ${easing.position}` : ""})`;
   return `cubic-bezier(${easing.values.map((v) => String(v)).join(", ")})`;
 }
 

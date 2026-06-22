@@ -107,9 +107,12 @@ export function parseGradient(text: string | undefined | null): AnyGradient | nu
  * Grammar (legacy):
  *   -webkit-gradient(linear, <p1>, <p2>, from(<c>), [color-stop(<pos>, <c>)...], to(<c>))
  * where <pN> is either a percentage pair `0% 0%` or a side keyword pair like
- * `left top` / `right bottom`. Only axis-aligned cases (vertical / horizontal)
- * are handled — diagonal legacy-syntax gradients are rare and would need a
- * separate angle solve.
+ * `left top` / `right bottom`. The endpoint vector maps to a CSS angle via
+ * `atan2(dx, -dy)`, covering axis-aligned AND diagonal endpoints (DM-1241). For
+ * a diagonal on a non-square box the modern auto-sized gradient line seats its
+ * 0%/100% ends slightly past the corners (legacy anchors them AT the corners),
+ * so intermediate color-stop positions are approximate — fine for this rare
+ * obsolete syntax; the direction and the from()/to() endpoint colors are right.
  */
 export function convertLegacyWebkitGradient(text: string | undefined | null): string | null {
   if (text == null) return null;
@@ -123,15 +126,12 @@ export function convertLegacyWebkitGradient(text: string | undefined | null): st
   if (p1 == null || p2 == null) return null;
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
-  // Only axis-aligned axes (vertical or horizontal). Skip diagonal cases.
-  let angleDeg: number;
-  if (Math.abs(dx) < 1e-6 && Math.abs(dy) > 1e-6) {
-    angleDeg = dy > 0 ? 180 : 0;
-  } else if (Math.abs(dy) < 1e-6 && Math.abs(dx) > 1e-6) {
-    angleDeg = dx > 0 ? 90 : 270;
-  } else {
-    return null;
-  }
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return null; // degenerate (p1 == p2)
+  // CSS angle from the box-space endpoint vector (y points down): direction
+  // p1→p2 = (dx, dy) ⇒ `atan2(dx, -dy)` deg (0deg up, 90deg right). Reduces to
+  // 0/90/180/270 for axis-aligned and 45/135/… for diagonals.
+  let angleDeg = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  angleDeg = ((angleDeg % 360) + 360) % 360;
   const stopExprs: string[] = [];
   for (let i = 2; i < parts.length; i++) {
     const t = parts[i];
@@ -1011,16 +1011,22 @@ function resolveRadii(g: RadialGradient, cx: number, cy: number, rect: { x: numb
     case "closest-corner": {
       const d = Math.sqrt(dxClosest * dxClosest + dyClosest * dyClosest);
       if (g.shape === "circle") return { rx: d, ry: d };
-      // For ellipse, scale the closest-side radii so the corner sits on the curve.
-      const k = Math.sqrt((dxClosest * dxClosest + dyClosest * dyClosest) / (dxClosest * dxClosest + dyClosest * dyClosest)); // = 1; spec scaling is more nuanced
-      return { rx: dxClosest * k, ry: dyClosest * k };
+      // DM-1243: ellipse closest-corner keeps the closest-SIDE aspect ratio
+      // (dxClosest : dyClosest) and scales it to pass through the closest corner.
+      // Solving (dxClosest/(dxClosest·s))² + (dyClosest/(dyClosest·s))² = 1 gives
+      // s = √2, so rx = √2·dxClosest, ry = √2·dyClosest. The old code scaled by
+      // k = 1 (closest-SIDE sizing — the ellipse was √2× too small); Chrome's
+      // painted ring confirms √2 (centered AND off-center, e.g. closest-corner at
+      // 60px 50px in a 300×100 box paints rx≈85=√2·60, ry≈71=√2·50).
+      return { rx: dxClosest * Math.SQRT2, ry: dyClosest * Math.SQRT2 };
     }
     case "farthest-corner": {
       const d = Math.sqrt(dxFarthest * dxFarthest + dyFarthest * dyFarthest);
       if (g.shape === "circle") return { rx: d, ry: d };
-      // CSS ellipse farthest-corner: rx = farthest x distance scaled so the corner lies on the curve.
-      // Approximation: rx = dxFarthest * sqrt(2), ry = dyFarthest * sqrt(2).
-      // This is the common-case approximation used in browsers.
+      // DM-1243: same derivation as closest-corner — the farthest-SIDE-ratio
+      // ellipse scaled to the farthest corner is EXACTLY √2·(dxFarthest,
+      // dyFarthest), not an approximation (Chrome's painted ring on a 300×100 box
+      // is rx≈212=√2·150, ry≈71=√2·50).
       return { rx: dxFarthest * Math.SQRT2, ry: dyFarthest * Math.SQRT2 };
     }
   }

@@ -53,7 +53,9 @@ function gradientFillFor(
   if (grad == null) return null;
   // Conic on a form-control pseudo (slider thumb / track / etc.) is rare and
   // the pseudo doesn't flow through the captured-tree raster pre-pass that
-  // handles full-element conic backgrounds (DM-547). Fall back to the flat
+  // handles full-element conic backgrounds (DM-547). SVG has no native conic, so
+  // a faithful render needs the async raster pre-pass wired into the (sync)
+  // form-control synth — tracked as DM-1252. Until then, fall back to the flat
   // first-color path by returning null here.
   if (grad.kind === "conic") return null;
   const key = gradientCacheKey(grad, rect);
@@ -518,10 +520,14 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     // stroke width — that puts the stroke band between r=halfThumb-border and
     // r=halfThumb, leaving the outer-ring band (halfThumb..halfThumb+spread)
     // free for the box-shadow.
-    const ringShadow = parseSpreadOnlyShadow(s.rangeThumbBoxShadow);
-    if (ringShadow != null) {
-      const ringR = halfThumb + ringShadow.spread;
-      parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(ringR)}" fill="${ringShadow.color}" />`);
+    // CSS paints the FIRST box-shadow on top; for spread-only outer rings a
+    // larger spread sits further back, so draw largest-spread first and let the
+    // smaller rings (and the thumb fill below) over-paint — yielding concentric
+    // bands (DM-1240: stacked `0 0 0 1px white, 0 0 0 3px blue`).
+    const rings = parseSpreadOnlyShadows(s.rangeThumbBoxShadow).sort((a, b) => b.spread - a.spread);
+    for (const ring of rings) {
+      const ringR = halfThumb + ring.spread;
+      parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(ringR)}" fill="${ring.color}" />`);
     }
     if (thumbBorder != null) {
       const innerR = Math.max(0, halfThumb - thumbBorder.width / 2);
@@ -540,35 +546,45 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
 }
 
 /**
- * Parse a CSS `box-shadow` value of the spread-only form
- *   `<color> 0px 0px 0px <Npx>`  or  `0px 0px 0px <Npx> <color>`
- * (Chrome canonicalizes either author syntax to the color-first form). Used
- * by `renderRange` to detect the donut-ring author pattern
- *   `box-shadow: 0 0 0 1px <color>`
- * on `::-webkit-slider-thumb` (DM-319). Returns `{ spread, color }` for the
- * single-shadow spread-only case; null for missing / `none` / multi-shadow /
- * any-non-zero-offset / any-non-zero-blur.
+ * Parse a CSS `box-shadow` value into the spread-only rings it contains.
+ * Each ring has the form `<color> 0px 0px 0px <Npx>` or `0px 0px 0px <Npx>
+ * <color>` (Chrome canonicalizes either author syntax to the color-first form).
+ * Used by `renderRange` to detect the donut-ring author pattern
+ *   `box-shadow: 0 0 0 1px <color>`  (and stacked variants like
+ *   `0 0 0 1px white, 0 0 0 3px blue`, DM-1240) on `::-webkit-slider-thumb`
+ * (DM-319). Returns one `{ spread, color }` per spread-only shadow in source
+ * order; a comma-separated list yields multiple rings, and non-spread-only
+ * shadows (offset / blur / inset) are skipped. Empty when none qualify.
  */
-function parseSpreadOnlyShadow(value: string | undefined): { spread: number; color: string } | null {
-  if (value == null || value === "" || value === "none") return null;
-  // Multi-shadow lists are comma-separated; we only handle single-shadow so
-  // bail when more than one comma at the top level (parens nesting in `rgb(...)`
-  // is fine because we tokenize with a depth counter via the regex below).
-  // Pattern: optional color prefix, then four <length> tokens, then optional
-  // color suffix. The four lengths are x / y / blur / spread.
-  const m = /^\s*(?:(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+)\s+)?(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+))?\s*$/.exec(value.trim());
-  if (m == null) return null;
-  const colorPrefix = m[1];
-  const x = parseFloat(m[2]);
-  const y = parseFloat(m[3]);
-  const blur = parseFloat(m[4]);
-  const spread = parseFloat(m[5]);
-  const colorSuffix = m[6];
-  const color = colorPrefix ?? colorSuffix;
-  if (color == null || color === "" || /^(?:inset|none)$/i.test(color)) return null;
-  if (x !== 0 || y !== 0 || blur !== 0) return null;
-  if (!isFinite(spread) || spread <= 0) return null;
-  return { spread, color };
+export function parseSpreadOnlyShadows(value: string | undefined): Array<{ spread: number; color: string }> {
+  if (value == null || value === "" || value === "none") return [];
+  // Split the shadow LIST on top-level commas (parens in `rgb(...)` are nested,
+  // so track depth and only split at depth 0).
+  const items: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (c === "," && depth === 0) { items.push(value.slice(start, i)); start = i + 1; }
+  }
+  items.push(value.slice(start));
+  const rings: Array<{ spread: number; color: string }> = [];
+  // Per item: optional color prefix, four <length> tokens (x / y / blur /
+  // spread), optional color suffix.
+  const re = /^\s*(?:(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+)\s+)?(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+))?\s*$/;
+  for (const item of items) {
+    const m = re.exec(item.trim());
+    if (m == null) continue;
+    const color = m[1] ?? m[6];
+    if (color == null || color === "" || /^(?:inset|none)$/i.test(color)) continue;
+    if (parseFloat(m[2]) !== 0 || parseFloat(m[3]) !== 0 || parseFloat(m[4]) !== 0) continue; // offset/blur ⇒ not a ring
+    const spread = parseFloat(m[5]);
+    if (!isFinite(spread) || spread <= 0) continue;
+    rings.push({ spread, color });
+  }
+  return rings;
 }
 
 /** Parse a CSS `border` shorthand like `"2px solid white"` into a width/color

@@ -88,8 +88,10 @@ deliberately source-agnostic — swap stage 1 for a `node-pty` byte stream and
 stages 2–4 are identical.
 
 1. **Parse** (`cast.ts`) — read the asciinema v2 document: a JSON header
-   (`width`/`height`) then `[time, "o", data]` output events. Non-output events
-   (input/resize/marker) and a truncated trailing line are tolerated.
+   (`width`/`height`) then `[time, "o", data]` output events plus
+   `[time, "r", "<cols>x<rows>"]` resize events (DM-1246, see "Mid-session
+   resize" below). Input (`"i"`) / marker (`"m"`) events and a truncated trailing
+   line are tolerated.
 2. **Emulate** (`emulator.ts`) — feed the raw bytes through **`@xterm/headless`**
    (a full xterm.js terminal with no DOM) so cursor moves, `\r` overwrites,
    clears, scroll regions, and SGR/256/truecolor all resolve to the real screen
@@ -217,6 +219,23 @@ A regression guard lives in `src/terminal/font-dedup.e2e.test.ts`.
 The lower-level primitives — `parseCast`, `TerminalEmulator`, `buildFrames`,
 `gridToHtml`, `THEMES` — are re-exported too, so you can drive the emulator and
 render grids to your own HTML (e.g. inside a window-chrome template) directly.
+
+## Mid-session resize (DM-1246)
+
+A recording that changes terminal size mid-session emits asciinema `"r"` events
+(`[time, "r", "<cols>x<rows>"]`). The full-frame path honors them:
+`buildFrames` applies each resize to the emulator (`TerminalEmulator.resize`,
+which reflows the xterm buffer) when the replay clock reaches its timestamp, so
+every snapshot at/after it reflects the new geometry — including a closing frame
+when a resize lands after the last output. The canvas is sized to the **largest**
+grid across the initial size + all resizes, so a grid that grows still fits;
+a smaller post-resize grid renders top-left with the theme background filling the
+rest (matching how a terminal anchors content). Passing `--cols`/`--rows` (or
+`opts.cols`/`opts.rows`) pins the grid to that fixed size and **ignores** resizes.
+
+Caveat: the **`incremental`** compose mode tracks a fixed-height line pool, so it
+does not honor resizes — use `--mode full` for a recording that resizes (the
+parser still captures the events; only the incremental composer ignores them).
 
 ## Known limitations / roadmap
 
