@@ -114,11 +114,93 @@ function rangeMetricSizes(s: CapturedElement["styles"]): {
  * the async conic raster pre-pass (`rasterizeConicGradients`) can rasterize a
  * tile at the right dimensions. Sizes MUST match the rects the render
  * functions pass to `gradientFillFor` (the cache is keyed by `${w}x${h}`); the
- * shared `rangeMetricSizes` keeps the range case in lockstep. Returns `[]` for
- * controls with no conic pseudo background. Currently covers the range
- * thumb/track (the canonical slider case); other consumers (color swatch,
- * progress/meter value) fall back to flat color until added here (DM-1254).
+ * shared `rangeMetricSizes` / `progressBarGeom` / `meterBarGeom` keep each case
+ * in lockstep with its render function. Returns `[]` for controls with no conic
+ * pseudo background. Covers the range thumb/track, color swatch, and
+ * `<progress>` / `<meter>` bar + value pseudos (DM-1252 + DM-1254).
  */
+interface FcRect { x: number; y: number; w: number; h: number }
+
+/**
+ * DM-1254: `<progress>` track + value rects, shared by `renderProgress` and the
+ * conic raster collector so the conic tile is rasterized at exactly the rect the
+ * synth fills (the `_conicTileCache` is keyed by `${w}x${h}`). Mirrors the inline
+ * geometry renderProgress used to compute: UA-default bars inset by floor(h/4),
+ * value width = el.width·ratio (determinate) or a clamped band (indeterminate).
+ */
+function progressBarGeom(el: CapturedElement): {
+  isAuthorStyled: boolean; barY: number; barH: number; isIndeterminate: boolean; ratio: number;
+  trackRect: FcRect; valueRect: FcRect | null;
+} {
+  const s = el.styles;
+  const value = s.progressValue;
+  const max = s.progressMax ?? 1;
+  const isIndeterminate = value == null;
+  const ratio = !isIndeterminate && max > 0 ? Math.max(0, Math.min(1, (value as number) / max)) : 0;
+  const customTrackFill = customPseudoFill(s.progressBarBg, s.progressBarBgImage);
+  const customValueFill = customPseudoFill(s.progressValueBg, s.progressValueBgImage);
+  const isAuthorStyled = customTrackFill != null || customValueFill != null
+    || (s.progressBarRadius != null && s.progressBarRadius !== "0px")
+    || (s.progressValueRadius != null && s.progressValueRadius !== "0px");
+  const inset = Math.floor(el.height / 4);
+  const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
+  const barY = isAuthorStyled ? el.y : el.y + inset;
+  const trackRect: FcRect = { x: el.x, y: barY, w: el.width, h: barH };
+  let valueRect: FcRect | null = null;
+  if (isIndeterminate) valueRect = { x: el.x + el.width * 0.1, y: barY, w: Math.min(el.width * 0.25, 60), h: barH };
+  else if (ratio > 0) valueRect = { x: el.x, y: barY, w: el.width * ratio, h: barH };
+  return { isAuthorStyled, barY, barH, isIndeterminate, ratio, trackRect, valueRect };
+}
+
+/**
+ * DM-1254: `<meter>` track + value rects + the region-selected value bg image,
+ * shared by `renderMeter` and the conic collector. The `trackRect` matches the
+ * rect renderMeter passes to `gradientFillFor` (NOT the pixel-snapped drawn
+ * groove rect). The `valueRect` differs between native-groove and author-styled
+ * meters (mirrored here); the region (optimum/suboptimum/even-less-good) picks
+ * which value-pseudo bg image applies.
+ */
+function meterBarGeom(el: CapturedElement): {
+  isAuthorStyled: boolean; barY: number; barH: number; ratio: number;
+  trackRect: FcRect; valueRect: FcRect | null; valueBgImage: string | undefined;
+} {
+  const s = el.styles;
+  const value = s.meterValue ?? 0;
+  const min = s.meterMin ?? 0;
+  const max = s.meterMax ?? 1;
+  const low = s.meterLow ?? min;
+  const high = s.meterHigh ?? max;
+  const optimum = s.meterOptimum ?? (min + max) / 2;
+  const ratio = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
+  const region = (v: number): 0 | 1 | 2 => (v < low ? 0 : v > high ? 2 : 1);
+  const dist = Math.abs(region(value) - region(optimum));
+  const valueBgImage = dist === 0 ? s.meterOptimumBgImage : dist === 1 ? s.meterSuboptimumBgImage : s.meterEvenLessGoodBgImage;
+  const customTrackFill = customPseudoFill(s.meterBarBg, s.meterBarBgImage);
+  const customValueFill = dist === 0 ? customPseudoFill(s.meterOptimumBg, s.meterOptimumBgImage)
+    : dist === 1 ? customPseudoFill(s.meterSuboptimumBg, s.meterSuboptimumBgImage)
+    : customPseudoFill(s.meterEvenLessGoodBg, s.meterEvenLessGoodBgImage);
+  const isAuthorStyled = customTrackFill != null || customValueFill != null
+    || (s.meterBarRadius != null && s.meterBarRadius !== "0px");
+  const inset = Math.floor(el.height / 4);
+  const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
+  const barY = isAuthorStyled ? el.y : el.y + inset;
+  const trackRect: FcRect = { x: el.x, y: barY, w: el.width, h: barH };
+  let valueRect: FcRect | null = null;
+  if (ratio > 0) {
+    if (isAuthorStyled) {
+      const top = Math.round(el.y);
+      const fullH = Math.round(el.height);
+      const vInset = Math.floor(fullH / 4);
+      valueRect = { x: el.x, y: top + vInset, w: el.width * ratio, h: fullH - 2 * vInset };
+    } else {
+      const left = Math.floor(el.x);
+      const top = Math.floor(barY);
+      valueRect = { x: left + 1, y: top + 1, w: Math.max(0, Math.round(el.width * ratio) - 1), h: barH - 2 };
+    }
+  }
+  return { isAuthorStyled, barY, barH, ratio, trackRect, valueRect, valueBgImage };
+}
+
 export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer: string; w: number; h: number }> {
   const s = el.styles;
   const out: Array<{ layer: string; w: number; h: number }> = [];
@@ -140,6 +222,27 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
       const ellipse = styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2);
       out.push({ layer: s.rangeThumbBgImage, w: thumbW, h: ellipse ? thumbH : thumbW });
     }
+  } else if (tag === "input" && inputType === "color" && isConic(s.colorSwatchBgImage)) {
+    // Mirror renderColorSwatch's `swatchRect`: the inner swatch is the element
+    // box inset by the ::-webkit-color-swatch-wrapper padding (default 4px).
+    let pad = 4;
+    if (s.colorSwatchWrapperPadding != null && s.colorSwatchWrapperPadding !== "") {
+      const tok = s.colorSwatchWrapperPadding.trim().split(/\s+/).map((p) => parseFloat(p) || 0);
+      if (tok.length >= 1) pad = tok[0];
+    }
+    out.push({ layer: s.colorSwatchBgImage, w: el.width - pad * 2, h: el.height - pad * 2 });
+  } else if (tag === "progress") {
+    // DM-1254: progress bar/value rects come from the shared progressBarGeom
+    // (also used by renderProgress), so the conic tile size matches what's filled.
+    const { trackRect, valueRect } = progressBarGeom(el);
+    if (isConic(s.progressBarBgImage)) out.push({ layer: s.progressBarBgImage, w: trackRect.w, h: trackRect.h });
+    if (valueRect != null && isConic(s.progressValueBgImage)) out.push({ layer: s.progressValueBgImage, w: valueRect.w, h: valueRect.h });
+  } else if (tag === "meter") {
+    // DM-1254: meter bar/value rects + the region-selected value bg image come
+    // from the shared meterBarGeom (also used by renderMeter's gradient lookups).
+    const { trackRect, valueRect, valueBgImage } = meterBarGeom(el);
+    if (isConic(s.meterBarBgImage)) out.push({ layer: s.meterBarBgImage, w: trackRect.w, h: trackRect.h });
+    if (valueRect != null && isConic(valueBgImage)) out.push({ layer: valueBgImage, w: valueRect.w, h: valueRect.h });
   }
   return out;
 }
@@ -1033,40 +1136,20 @@ function customPseudoFill(bg: string | undefined, bgImage: string | undefined): 
 function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   // DM-553: scheme-aware UA default track + accent fill.
   const palette = stockPalette(defCtx?.colorScheme);
-  const value = el.styles.progressValue;
-  const max = el.styles.progressMax ?? 1;
-  const isIndeterminate = value == null;
-  const ratio = !isIndeterminate && max > 0 ? Math.max(0, Math.min(1, (value as number) / max)) : 0;
+  // DM-1254: track/value rects come from the shared progressBarGeom (also used
+  // by the conic raster collector). UA-default <progress> on Chrome-macOS is a
+  // centered bar inset by floor(h/4) with a partial pill radius emerging past
+  // barH≈8 (DM-354); author-styled (appearance:none) bars use the pseudo's own
+  // radius (Chrome doesn't propagate the host radius to the pseudos).
+  const { isAuthorStyled, barH, ratio: _ratio, trackRect, valueRect } = progressBarGeom(el);
+  void _ratio;
   const parts: string[] = [];
   const accent = resolveAccent(el, defCtx);
-  // Custom pseudo-element fills override the UA defaults when present
-  // (SK-1222: capture now flows through the stylesheet walker rather than
-  // the broken getComputedStyle-on-pseudo path, so author rules round-trip).
+  // Custom pseudo-element fills override the UA defaults when present (SK-1222).
   const customTrackFill = customPseudoFill(el.styles.progressBarBg, el.styles.progressBarBgImage);
   const customValueFill = customPseudoFill(el.styles.progressValueBg, el.styles.progressValueBgImage);
   const trackFill = customTrackFill ?? palette.trackBg;
   const valueFill = customValueFill ?? accent;
-  // UA-default <progress>: empirical Chrome-on-macOS paint is a centered bar
-  // inset by floor(h/4) top and bottom, with a small pill radius that only
-  // appears once barH exceeds ~8px. Sampled blue value pseudo (DM-354):
-  //   h=8  → barH=4  inset=2  rx=0  (square, AA only)
-  //   h=14 → barH=8  inset=3  rx=0  (square, AA only)
-  //   h=16 → barH=8  inset=4  rx=0  (square, AA only)
-  //   h=40 → barH=20 inset=10 rx≈6 (partial pill, NOT full half-circle)
-  // The previous DM-337 formula (barH=h/2, rx=barH/2) over-rounded at h≤16
-  // and over-rounded at h=40 (full pill instead of partial).
-  //
-  // Author-styled <progress> (appearance:none with custom pseudo bg or
-  // pseudo border-radius) — empirically Chrome does NOT propagate the host's
-  // border-radius to the pseudos; only the pseudo's own border-radius rounds
-  // them. So when no pseudo border-radius is set, default to 0 (square),
-  // not el.height/2 (full pill).
-  const isAuthorStyled = customTrackFill != null || customValueFill != null
-    || (el.styles.progressBarRadius != null && el.styles.progressBarRadius !== "0px")
-    || (el.styles.progressValueRadius != null && el.styles.progressValueRadius !== "0px");
-  const inset = Math.floor(el.height / 4);
-  const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
-  const barY = isAuthorStyled ? el.y : el.y + inset;
   const trackRadius = isAuthorStyled
     ? (el.styles.progressBarRadius != null && el.styles.progressBarRadius !== "0px"
         ? parseFloat(el.styles.progressBarRadius) || 0 : 0)
@@ -1075,26 +1158,15 @@ function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): s
     ? (el.styles.progressValueRadius != null && el.styles.progressValueRadius !== "0px"
         ? parseFloat(el.styles.progressValueRadius) || 0 : 0)
     : Math.max(0, (barH - 8) / 2);
-  // Gradient fills (SK-1224 / SK-1225) for progress pseudos: when the
-  // captured ::-webkit-progress-bar / -value bg-image parses as a gradient,
-  // emit a <linearGradient> / <radialGradient> def and reference it via
-  // fill="url(#...)". Fall back to the flat trackFill / valueFill above.
-  const trackRect = { x: el.x, y: barY, w: el.width, h: barH };
+  // Gradient fills (SK-1224 / SK-1225 / DM-1254 conic) for progress pseudos:
+  // a gradient bg-image emits a def referenced via fill="url(#...)"; flat fills
+  // are the fallback. The <rect>s use the shared rects so the conic tile (keyed
+  // by rect size) lines up with what's painted.
   const trackGrad = gradientFillFor(el.styles.progressBarBgImage, trackRect, defCtx);
-  parts.push(`${indent}<rect x="${r(el.x)}" y="${r(barY)}" width="${r(el.width)}" height="${r(barH)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" />`);
-  if (isIndeterminate) {
-    // Chromium indeterminate progress shows a short moving bar. For a static
-    // frame, approximate with a ~25% bar near the left (matches a mid-cycle).
-    const barW = Math.min(el.width * 0.25, 60);
-    const barX = el.x + el.width * 0.1;
-    const valueRect = { x: barX, y: barY, w: barW, h: barH };
+  parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" />`);
+  if (valueRect != null) {
     const valueGrad = gradientFillFor(el.styles.progressValueBgImage, valueRect, defCtx);
-    parts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barW)}" height="${r(barH)}" rx="${r(valueRadius)}" fill="${valueGrad ?? valueFill}" />`);
-  } else if (ratio > 0) {
-    const valueW = el.width * ratio;
-    const valueRect = { x: el.x, y: barY, w: valueW, h: barH };
-    const valueGrad = gradientFillFor(el.styles.progressValueBgImage, valueRect, defCtx);
-    parts.push(`${indent}<rect x="${r(el.x)}" y="${r(barY)}" width="${r(valueW)}" height="${r(barH)}" rx="${r(valueRadius)}" fill="${valueGrad ?? valueFill}" />`);
+    parts.push(`${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(valueRadius)}" fill="${valueGrad ?? valueFill}" />`);
   }
   return parts.join("\n");
 }
@@ -1124,17 +1196,15 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // green/yellow/red palette. SK-1222 fixed the upstream capture so author
   // rules now round-trip via the stylesheet walker.
   const customTrackFill = customPseudoFill(el.styles.meterBarBg, el.styles.meterBarBgImage);
-  let valueBgImage: string | undefined;
+  // The region-selected value bg image is resolved in meterBarGeom (used for the
+  // gradient lookup); here we only need the matching flat customValueFill.
   let customValueFill: string | null;
   if (dist === 0) {
     customValueFill = customPseudoFill(el.styles.meterOptimumBg, el.styles.meterOptimumBgImage);
-    valueBgImage = el.styles.meterOptimumBgImage;
   } else if (dist === 1) {
     customValueFill = customPseudoFill(el.styles.meterSuboptimumBg, el.styles.meterSuboptimumBgImage);
-    valueBgImage = el.styles.meterSuboptimumBgImage;
   } else {
     customValueFill = customPseudoFill(el.styles.meterEvenLessGoodBg, el.styles.meterEvenLessGoodBgImage);
-    valueBgImage = el.styles.meterEvenLessGoodBgImage;
   }
   const defaultFill = dist === 0 ? palette.meterGreen : dist === 1 ? palette.meterYellow : palette.meterRed;
   const fill = customValueFill ?? defaultFill;
@@ -1162,9 +1232,13 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     : Math.min(2, barH / 2);
 
   const parts: string[] = [];
-  // Gradient fills (SK-1222 + SK-1224 / SK-1225) for meter pseudos.
-  const trackRect = { x: el.x, y: barY, w: el.width, h: barH };
-  const trackGrad = gradientFillFor(el.styles.meterBarBgImage, trackRect, defCtx);
+  // Gradient fills (SK-1222 + SK-1224 / SK-1225 / DM-1254 conic) for meter
+  // pseudos. DM-1254: route the gradient lookups through the shared meterBarGeom
+  // so the conic raster collector and these calls compute the SAME consumer rect
+  // (the conic tile cache is keyed by rect size). The drawn <rect>s below keep
+  // their own pixel-snapped groove geometry, which equals the geom rects.
+  const geom = meterBarGeom(el);
+  const trackGrad = gradientFillFor(el.styles.meterBarBgImage, geom.trackRect, defCtx);
   if (isAuthorStyled) {
     // The track (`::-webkit-meter-bar`) fills the full element height, but
     // Chrome insets the VALUE pseudo to the center ~half-height (inset =
@@ -1181,8 +1255,7 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
       const valueTop = top + vInset;
       const valueRadius = Math.min(trackRadius, valueH / 2);
       const valueW = el.width * ratio;
-      const valueRect = { x: el.x, y: valueTop, w: valueW, h: valueH };
-      const valueGrad = gradientFillFor(valueBgImage, valueRect, defCtx);
+      const valueGrad = gradientFillFor(geom.valueBgImage, geom.valueRect!, defCtx);
       parts.push(`${indent}<rect x="${r(el.x)}" y="${r(valueTop)}" width="${r(valueW)}" height="${r(valueH)}" rx="${r(valueRadius)}" fill="${valueGrad ?? fill}" />`);
     }
   } else {
@@ -1199,8 +1272,7 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(`${indent}<rect x="${r(left + 0.5)}" y="${r(top + 0.5)}" width="${r(fullW - 1)}" height="${r(barH - 1)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" stroke="${groove}" stroke-width="1" />`);
     if (ratio > 0) {
       const valueW = Math.max(0, Math.round(el.width * ratio) - 1);
-      const valueRect = { x: left + 1, y: top + 1, w: valueW, h: barH - 2 };
-      const valueGrad = gradientFillFor(valueBgImage, valueRect, defCtx);
+      const valueGrad = gradientFillFor(geom.valueBgImage, geom.valueRect!, defCtx);
       parts.push(`${indent}<rect x="${r(left + 1)}" y="${r(top + 1)}" width="${r(valueW)}" height="${r(barH - 2)}" rx="${r(Math.max(0, trackRadius - 1))}" fill="${valueGrad ?? fill}" />`);
     }
   }

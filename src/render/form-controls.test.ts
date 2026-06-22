@@ -35,6 +35,39 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
     expect(collectFormControlConicTiles(rangeEl({ inputType: "range", rangeThumbWidth: "36px", rangeThumbBgImage: "linear-gradient(red, blue)" }))).toEqual([]);
     expect(collectFormControlConicTiles(rangeEl({ inputType: "text" }))).toEqual([]);
   });
+
+  it("surfaces a conic color-swatch at the element box minus wrapper padding (DM-1254)", () => {
+    const colorEl = (styles: Record<string, unknown>): CapturedElement =>
+      ({ tag: "input", x: 20, y: 16, width: 80, height: 48, children: [], styles } as unknown as CapturedElement);
+    // default 4px wrapper padding → 80-8 × 48-8
+    expect(collectFormControlConicTiles(colorEl({ inputType: "color", colorSwatchBgImage: "conic-gradient(red, blue)" })))
+      .toContainEqual({ layer: "conic-gradient(red, blue)", w: 72, h: 40 });
+    // explicit wrapper padding
+    expect(collectFormControlConicTiles(colorEl({ inputType: "color", colorSwatchBgImage: "conic-gradient(red, blue)", colorSwatchWrapperPadding: "2px" })))
+      .toContainEqual({ layer: "conic-gradient(red, blue)", w: 76, h: 44 });
+  });
+
+  it("surfaces <progress> bar + value conic at the shared-geom rects (DM-1254)", () => {
+    const el = { tag: "progress", x: 20, y: 12, width: 200, height: 24, children: [], styles: {
+      progressValue: 0.7, progressMax: 1, progressBarRadius: "4px", // author-styled ⇒ barH = el.height
+      progressBarBgImage: "conic-gradient(red, blue)", progressValueBgImage: "conic-gradient(green, yellow)",
+    } } as unknown as CapturedElement;
+    const tiles = collectFormControlConicTiles(el);
+    expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 200, h: 24 });   // track: el.width × barH
+    expect(tiles).toContainEqual({ layer: "conic-gradient(green, yellow)", w: 140, h: 24 }); // value: el.width·0.7 × barH
+  });
+
+  it("surfaces <meter> bar + region-selected value conic at the shared-geom rects (DM-1254)", () => {
+    const el = { tag: "meter", x: 20, y: 12, width: 200, height: 24, children: [], styles: {
+      meterValue: 0.6, meterMin: 0, meterMax: 1, meterOptimum: 1, meterBarRadius: "3px", // author-styled
+      meterBarBgImage: "conic-gradient(red, blue)", meterOptimumBgImage: "conic-gradient(green, yellow)",
+    } } as unknown as CapturedElement;
+    const tiles = collectFormControlConicTiles(el);
+    expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 200, h: 24 });   // track
+    // value=0.6 in [low,high] same region as optimum ⇒ "optimum" pseudo; styled value rect:
+    // top=12 fullH=24 vInset=6 valueH=12, valueW=200·0.6=120.
+    expect(tiles).toContainEqual({ layer: "conic-gradient(green, yellow)", w: 120, h: 12 });
+  });
 });
 
 describe("parseSpreadOnlyShadows — slider-thumb donut rings (DM-1240)", () => {
