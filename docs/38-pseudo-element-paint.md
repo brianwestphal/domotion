@@ -208,6 +208,10 @@ marker-group flex layout, capture builds a hidden **replica**:
   scrollport) and fight the paint-order pass. As a sibling it needs no
   render-side code: every marker is just a styled box (with text for pills).
 
-Not yet handled: `::scroll-button(left/right)` paging arrows (a separate
-generated pseudo; `getComputedStyle` can't disambiguate the `(left)` / `(right)`
-parameterized selector, so the arrows are left for a follow-up).
+Also supported (DM-1234): `::scroll-button(left/right/up/down)` paging arrows.
+`getComputedStyle` can't disambiguate the parameterized pseudo, so the per-side
+`content` + `:disabled` rules are read from the author stylesheet (CSSOM), and
+the geometry is resolved by a replica appended to `<body>` (which, like the real
+button, takes the viewport as its containing block — `top:50%` is 50% of the
+viewport, not the scroller). See
+[`69-scroll-button-rendering.md`](69-scroll-button-rendering.md).

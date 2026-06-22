@@ -35,6 +35,15 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 69 (`docs/69-scroll-button-rendering.md`, DM-1234)** — **Shipped.**
+  `::scroll-button(left/right/up/down)` paging arrows are captured + rendered as
+  replica siblings of the scroller. `getComputedStyle` can't disambiguate the
+  parameterized pseudo, so per-side `content` + the `:disabled` rule are read
+  from the author stylesheet (CSSOM); geometry is resolved by a `<body>`-appended
+  replica that — like the real generated button — takes the **viewport** as its
+  containing block (`top:50%` = 50% of the viewport, not the scroller, verified
+  by probe-and-match); enabled/disabled comes from the captured scroll offset.
+  `_captureScrollButtons` in `src/capture/script/index.ts`. Companion to doc 38.
 - **Doc 67 (`docs/67-terminal-capture.md`, DM-1225)** — `domotion term --cast
   <file.cast>` converts a recorded terminal session (asciinema v2) into an
   animated SVG. Backend in `src/terminal/`: `@xterm/headless` VT emulation →

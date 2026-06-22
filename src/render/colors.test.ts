@@ -22,10 +22,17 @@ describe("parseColor", () => {
     expect(parseColor("#abcf")).toEqual({ r: 0xaa, g: 0xbb, b: 0xcc, a: 1 });
   });
 
-  it("parses the named-color subset (case-insensitive)", () => {
+  it("parses named colors case-insensitively, including the extended set", () => {
     expect(parseColor("red")).toEqual({ r: 255, g: 0, b: 0, a: 1 });
     expect(parseColor("Purple")).toEqual({ r: 128, g: 0, b: 128, a: 1 });
     expect(parseColor("grey")).toEqual(parseColor("gray"));
+    // Extended <named-color>s that the old "common subset" table dropped
+    // (returned null → fill silently lost). Values match Chrome's paint.
+    expect(parseColor("rebeccapurple")).toEqual({ r: 102, g: 51, b: 153, a: 1 });
+    expect(parseColor("cornflowerblue")).toEqual({ r: 100, g: 149, b: 237, a: 1 });
+    expect(parseColor("DarkSlateGray")).toEqual({ r: 47, g: 79, b: 79, a: 1 });
+    expect(parseColor("darkslategrey")).toEqual(parseColor("darkslategray"));
+    expect(parseColor("transparent")).toEqual({ r: 0, g: 0, b: 0, a: 0 });
   });
 
   it("parses color(srgb …) with 0..1 floats, clamping out-of-gamut + scientific notation", () => {

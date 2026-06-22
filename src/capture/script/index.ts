@@ -396,9 +396,16 @@ export const captureScript =
         const _before = c._scrollMarkerGroupBefore;
         delete c.scrollMarkerGroup;
         delete c._scrollMarkerGroupBefore;
+        // DM-1234: `::scroll-button(<dir>)` paging arrows captured as replica
+        // siblings; Chrome paints them OUTSIDE the scroller's overflow clip and
+        // ABOVE its content (the fixture's `z-index:1`), so emit them AFTER the
+        // scroller (and after the marker group) as last-painted siblings.
+        const _btns = c.scrollButtons;
+        delete c.scrollButtons;
         if (_grp && _before) children.push(_grp);
         children.push(c);
         if (_grp && !_before) children.push(_grp);
+        if (_btns) for (let _bi = 0; _bi < _btns.length; _bi++) children.push(_btns[_bi]);
       }
     }
 
@@ -829,6 +836,8 @@ export const captureScript =
     if (!bordersOnlyCell) {
       var _smg = _captureScrollMarkerGroup(el, cs, rect);
       if (_smg) { _captured.scrollMarkerGroup = _smg.node; _captured._scrollMarkerGroupBefore = _smg.before; }
+      var _sbtns = _captureScrollButtons(el, cs, rect);
+      if (_sbtns) _captured.scrollButtons = _sbtns;
     }
     return _captured;
   };
@@ -935,6 +944,114 @@ export const captureScript =
     doc.body.removeChild(container);
     if (!node) return undefined;
     return { node: node, before: position === 'before' };
+  }
+
+  // DM-1234: CSS `::scroll-button(<dir>)` paging arrows (Chrome 135+). Like the
+  // marker-group these are generated boxes with NO DOM node, and — crucially —
+  // Chrome lays them out against the INITIAL CONTAINING BLOCK (the viewport),
+  // NOT the scroller's `position:relative` ancestor: `top:50%` resolves to 50%
+  // of the viewport height and `left`/`right` to insets from the viewport edges
+  // (verified by probe-and-match against Chrome's painted output across two
+  // viewport heights — the button center tracked 50%·viewportHeight while the
+  // scroller stayed put). `getComputedStyle(el, '::scroll-button(left)')` can't
+  // disambiguate the parameterized pseudo — it returns ONE merged style (the
+  // box props are shared, but `content` is the cascade-last value and both
+  // insets are reported) — so the per-side `content` + the `:disabled`
+  // declarations are read from the author stylesheet (CSSOM). Geometry is then
+  // resolved the same trick the marker-group uses: an absolutely-positioned
+  // replica appended to <body> ALSO takes the ICB as its containing block, so
+  // `top:50%`/`left`/`right`/`transform` land exactly where Chrome paints the
+  // real button — capture() measures that, so the rect IS Chrome's geometry.
+  // Enabled/disabled comes from the captured scroll offset vs the scroll range.
+  function _scrollButtonAuthorRules(el) {
+    // Per-direction author declarations + the merged `:disabled` declarations,
+    // gathered from every stylesheet rule whose `::scroll-button(<dir>)`
+    // selector matches `el`. `*` (universal direction) is folded in as a base.
+    var sides = {}; var disabled = {}; var star = {};
+    var sheets = el.ownerDocument.styleSheets;
+    for (var s = 0; s < sheets.length; s++) {
+      var rules;
+      try { rules = sheets[s].cssRules; } catch (e) { continue; }
+      if (!rules) continue;
+      for (var r = 0; r < rules.length; r++) {
+        var rule = rules[r];
+        var sel = rule.selectorText;
+        if (!sel) continue;
+        var at = sel.indexOf('::scroll-button(');
+        if (at < 0) continue;
+        var close = sel.indexOf(')', at);
+        if (close < 0) continue;
+        var dir = sel.slice(at + 16, close).trim();
+        var base = sel.slice(0, at).trim();
+        var matches = false;
+        try { matches = base === '' || el.matches(base); } catch (e) { matches = false; }
+        if (!matches) continue;
+        var isDisabled = sel.slice(close + 1).indexOf(':disabled') >= 0;
+        var bucket = isDisabled ? disabled : (dir === '*' ? star : (sides[dir] || (sides[dir] = {})));
+        var decl = rule.style;
+        for (var d = 0; d < decl.length; d++) bucket[decl[d]] = decl.getPropertyValue(decl[d]);
+      }
+    }
+    // Fold the universal `*` declarations in as a lower-priority base per side.
+    for (var k in sides) {
+      if (!Object.prototype.hasOwnProperty.call(sides, k)) continue;
+      var merged = {};
+      for (var sp in star) if (Object.prototype.hasOwnProperty.call(star, sp)) merged[sp] = star[sp];
+      for (var op in sides[k]) if (Object.prototype.hasOwnProperty.call(sides[k], op)) merged[op] = sides[k][op];
+      sides[k] = merged;
+    }
+    return { sides: sides, disabled: disabled };
+  }
+
+  function _captureScrollButtons(el, cs, rect) {
+    // Cheap gate: only elements that actually generate a scroll-button get the
+    // CSSOM scan. A non-`none` `content` on the merged pseudo means buttons exist.
+    var probe = window.getComputedStyle(el, '::scroll-button(left)').content;
+    if (!probe || probe === 'none' || probe === 'normal') {
+      probe = window.getComputedStyle(el, '::scroll-button(right)').content;
+      if (!probe || probe === 'none' || probe === 'normal') return undefined;
+    }
+    var rules = _scrollButtonAuthorRules(el);
+    var doc = el.ownerDocument;
+    var maxX = el.scrollWidth - el.clientWidth;
+    var maxY = el.scrollHeight - el.clientHeight;
+    var nodes = [];
+    for (var dir in rules.sides) {
+      if (!Object.prototype.hasOwnProperty.call(rules.sides, dir)) continue;
+      var decls = rules.sides[dir];
+      var isDisabled = false;
+      if (dir === 'left' || dir === 'inline-start') isDisabled = el.scrollLeft <= 0;
+      else if (dir === 'right' || dir === 'inline-end') isDisabled = el.scrollLeft >= maxX - 1;
+      else if (dir === 'up' || dir === 'block-start') isDisabled = el.scrollTop <= 0;
+      else if (dir === 'down' || dir === 'block-end') isDisabled = el.scrollTop >= maxY - 1;
+      var btn = doc.createElement('div');
+      var content = '';
+      for (var p in decls) {
+        if (!Object.prototype.hasOwnProperty.call(decls, p)) continue;
+        if (p === 'content') { content = decls[p]; continue; }
+        try { btn.style.setProperty(p, decls[p]); } catch (e) { /* unsupported prop */ }
+      }
+      if (isDisabled) {
+        for (var dp in rules.disabled) {
+          if (!Object.prototype.hasOwnProperty.call(rules.disabled, dp)) continue;
+          try { btn.style.setProperty(dp, rules.disabled[dp]); } catch (e) { /* unsupported */ }
+        }
+      }
+      // Match the real button's containing block (ICB) by living on <body> as an
+      // absolutely-positioned box; the author's left/right/top/transform then
+      // resolve against the viewport exactly as Chrome resolves them.
+      if (!btn.style.position || btn.style.position === 'static') btn.style.position = 'absolute';
+      btn.style.margin = '0';
+      var txt = content;
+      if (txt === '""' || txt === "''" || txt === 'none' || txt === 'normal') txt = '';
+      else if (txt.length >= 2 && ((txt[0] === '"' && txt[txt.length - 1] === '"') || (txt[0] === "'" && txt[txt.length - 1] === "'"))) txt = txt.slice(1, -1);
+      btn.textContent = txt;
+      doc.body.appendChild(btn);
+      var node = capture(btn);
+      doc.body.removeChild(btn);
+      if (node) nodes.push(node);
+    }
+    return nodes.length ? nodes : undefined;
   }
 
   const root = document.querySelector(sel);
