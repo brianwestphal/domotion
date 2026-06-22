@@ -2809,10 +2809,17 @@ function resolveDottedCircleHbRun(
   // Hangul). harfbuzzjs's dedicated-shaper output can itself diverge from Chrome's
   // paint (the same reason DM-1197 excludes `DEDICATED_SHAPER_RANGES`), so routing
   // their orphaned marks through HarfBuzz regressed sinhala / lao / tibetan /
-  // myanmar (CI-verified). Vedic Extensions marks (U+1CD0–1CFF) attach to the
-  // dedicated Indic shaper, so they're excluded too. fontkit/CoreText already
-  // matches Chrome for these; only the USE-shaped scripts need the reroute.
-  if (usesDedicatedShaper(markCp) || (markCp >= 0x1CD0 && markCp <= 0x1CFF)) return null;
+  // myanmar (CI-verified).
+  //
+  // DM-1160: Vedic Extensions marks (U+1CD0–1CFF) are NOT in a dedicated-shaper
+  // range and were previously excluded here on the assumption CoreText already
+  // matched Chrome. It does not — the orphaned vedic marks (rendered on a ◌ via
+  // Mukta, which both Chrome and we use) sat ~1–2px off Chrome's HarfBuzz GPOS
+  // placement. Routing them through HarfBuzz+Mukta (same engine + font as Chrome)
+  // makes the `1CD0-1CFF-vedic-extensions` fixture pixel-clean; the
+  // devanagari / sinhala / tibetan / brahmi / devanagari-extended fixtures stay
+  // green (they're caught by `usesDedicatedShaper`, untouched by this change).
+  if (usesDedicatedShaper(markCp)) return null;
   const r = resolveFontForCodepoint(markCp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
   if (!r.covered) return null;
   const markKey = r.key;

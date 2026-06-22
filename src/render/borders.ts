@@ -10,6 +10,69 @@ import type { CapturedElement } from "../capture/types.js";
 import { embedResizedDataUri } from "../capture/embed.js";
 import { parseGradient, buildLinearGradientDef, buildRadialGradientDef } from "./gradients.js";
 
+/** Minimal rect for collapsed-cell grid analysis. */
+export interface CollapseCellRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * DM-1151: detect `border-collapse: collapse` cells that are laid out OFF the
+ * shared table grid, so the renderer can paint their borders INSIDE their own
+ * border-box (like a non-collapsed cell) instead of centered on the grid line.
+ *
+ * Normally collapsed cells paint each border centered on the shared grid edge
+ * so adjacent cells overlap into a single line. But a cell whose border is
+ * thicker than its neighbors can be laid out with a SMALLER box than its
+ * row/column slot, leaving its rect edges ~1px inside the grid line. Chrome
+ * paints such a cell's borders flush to its own rect on every side (verified
+ * against painted pixels for the 6px-red interior cell in
+ * `18-deep-borders-mixed-sides`).
+ *
+ * Detection uses a consensus vote: an edge is "offset" when ≥2 OTHER cells
+ * share a same-orientation edge coordinate that sits >0.5px (but ≤2px) away —
+ * those agreeing cells define the real grid line and this cell is the minority.
+ * A cell with any offset edge is off-grid. Grid-aligned cells (every edge
+ * coincides with the consensus) return false, so the calibrated collapsed-
+ * border fixtures keep their centered painting unchanged.
+ *
+ * Returns a boolean per input cell (aligned by index): true ⇒ off-grid.
+ */
+export function findOffGridCollapsedCells(cells: CollapseCellRect[]): boolean[] {
+  const result = new Array<boolean>(cells.length).fill(false);
+  if (cells.length <= 1) return result;
+  // All vertical edges (left/right x) and horizontal edges (top/bottom y).
+  const vEdges: number[] = [];
+  const hEdges: number[] = [];
+  for (const c of cells) {
+    vEdges.push(c.x, c.x + c.width);
+    hEdges.push(c.y, c.y + c.height);
+  }
+  // True when ≥2 of `others` agree (within 0.5px of each other) on a coordinate
+  // that is >0.5px (but ≤2px) away from `coord` — i.e. a nearby grid line that
+  // this edge is offset from.
+  const hasShiftedConsensus = (coord: number, others: number[]): boolean => {
+    for (const a of others) {
+      const d = Math.abs(a - coord);
+      if (d <= 0.5 || d > 2) continue;
+      let agree = 0;
+      for (const b of others) if (Math.abs(b - a) <= 0.5) agree++;
+      if (agree >= 2) return true;
+    }
+    return false;
+  };
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    result[i] = hasShiftedConsensus(c.x, vEdges)
+      || hasShiftedConsensus(c.x + c.width, vEdges)
+      || hasShiftedConsensus(c.y, hEdges)
+      || hasShiftedConsensus(c.y + c.height, hEdges);
+  }
+  return result;
+}
+
 /** `border-image-repeat` per-axis keyword. */
 type BorderImageRepeat = "stretch" | "repeat" | "round" | "space";
 const BORDER_IMAGE_REPEATS = new Set<string>(["stretch", "repeat", "round", "space"]);

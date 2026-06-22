@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeWedgeApexes,
   dashArrayForStyle,
+  findOffGridCollapsedCells,
   injectSvgSize,
   insetCornerRadii,
   outsetCornerRadiiForShadow,
@@ -350,5 +351,57 @@ describe("injectSvgSize", () => {
   it("leaves the markup untouched for non-positive sizes or non-<svg> input", () => {
     expect(injectSvgSize('<svg width="24"/>', 0, 10)).toBe('<svg width="24"/>');
     expect(injectSvgSize("<div></div>", 10, 10)).toBe("<div></div>");
+  });
+});
+
+describe("findOffGridCollapsedCells (DM-1151)", () => {
+  // Real geometry from `18-deep-borders-mixed-sides.html` (6 cells, 3 cols × 2
+  // rows). Row 1: .a (2px), .b (6px, laid out 2px smaller so it sits OFF the
+  // grid), .c (2px). Row 2: .d (hidden/0px), .e (4px double), .a2 (2px). The
+  // grid lines are x=33,205,347,486 and y=1175,1277,1313; .b's edges at
+  // 206/346/1175/1275 are offset from them.
+  const a = { x: 33, y: 1175.48, width: 172, height: 102 };
+  const b = { x: 206, y: 1175.48, width: 140.03, height: 100 };
+  const c = { x: 347.03, y: 1175.48, width: 138.53, height: 102 };
+  const d = { x: 33, y: 1277.48, width: 172, height: 36 };
+  const e = { x: 205, y: 1277.48, width: 142.03, height: 36 };
+  const a2 = { x: 347.03, y: 1277.48, width: 138.53, height: 36 };
+  const cells = [a, b, c, d, e, a2];
+
+  it("flags only the off-grid 6px cell, never the grid-aligned cells", () => {
+    const off = findOffGridCollapsedCells(cells);
+    // index 1 is .b — the only cell whose left (206 vs grid 205), right (346 vs
+    // 347) and bottom (1275 vs 1277) sit ~1px off the consensus grid.
+    expect(off).toEqual([false, true, false, false, false, false]);
+  });
+
+  it("keeps the double-border cell (.e) grid-aligned so its centered painting is preserved", () => {
+    // Regression guard: .e shares all four edges (205/347/1277/1313) with ≥2
+    // other cells, so it must NOT be reclassified as non-collapsed — otherwise
+    // its centered double-stroke calibration (DM-689) would shift.
+    const off = findOffGridCollapsedCells(cells);
+    expect(off[4]).toBe(false);
+  });
+
+  it("treats a perfectly aligned grid as all-on-grid (no false positives)", () => {
+    // Three equal cells sharing exact grid lines — every edge coincides.
+    const grid = [
+      { x: 0, y: 0, width: 100, height: 50 },
+      { x: 100, y: 0, width: 100, height: 50 },
+      { x: 0, y: 50, width: 100, height: 50 },
+      { x: 100, y: 50, width: 100, height: 50 },
+    ];
+    expect(findOffGridCollapsedCells(grid)).toEqual([false, false, false, false]);
+  });
+
+  it("does not flag a lone cell or empty input (needs ≥2 agreeing neighbors)", () => {
+    expect(findOffGridCollapsedCells([])).toEqual([]);
+    expect(findOffGridCollapsedCells([{ x: 10, y: 10, width: 50, height: 50 }])).toEqual([false]);
+    // Two cells with a 1px gap can't form a ≥2 consensus, so neither is flagged
+    // (a single gap is ambiguous about which side owns the grid line).
+    expect(findOffGridCollapsedCells([
+      { x: 0, y: 0, width: 100, height: 50 },
+      { x: 101, y: 0, width: 100, height: 50 },
+    ])).toEqual([false, false]);
   });
 });

@@ -28,6 +28,7 @@ import {
   injectSvgSize,
   computeWedgeApexes,
   wedgePolygonPoints,
+  findOffGridCollapsedCells,
   type CornerRadii,
   type CornerRadiusPair,
   type BorderSide,
@@ -275,6 +276,41 @@ export function elementTreeToSvgInner(
       if (!fragmentFilterDefs.has(def.id)) fragmentFilterDefs.set(def.id, def);
     }
   }
+  // DM-1151: identify `border-collapse: collapse` cells that are laid out
+  // OFF the shared table grid. Normally collapsed cells paint their borders
+  // CENTERED on the shared grid line so adjacent cells overlap into a single
+  // line (handled by the `collapse` branches below). But a cell whose border
+  // is thicker than its neighbors can be laid out with a SMALLER box than its
+  // row/column slot, so its rect edges sit ~1px inside the grid line. Chrome
+  // then paints that cell's borders entirely INSIDE its own border-box (outer
+  // edge flush to the cell rect) on every side, exactly like a non-collapsed
+  // box — verified against painted pixels for the 6px-red interior cell in
+  // `18-deep-borders-mixed-sides` (left 206-211, right 340-345, top 1175-1180,
+  // bottom 1269-1274; all flush to the cell rect, not centered on the grid).
+  //
+  // Detection (consensus grid line) lives in `findOffGridCollapsedCells`: an
+  // edge is "offset" when ≥2 OTHER collapsed cells share a same-orientation
+  // edge coordinate >0.5px away (they define the real grid line; this cell is
+  // the minority). A cell with any offset edge is treated as non-collapsed for
+  // border painting so all its sides inset like a normal box. Grid-aligned
+  // cells are untouched, so the calibrated collapsed-border fixtures keep their
+  // centered painting.
+  const offGridCollapsedCells = new Set<CapturedElement>();
+  {
+    const collapsedCells: CapturedElement[] = [];
+    const collect = (el: CapturedElement) => {
+      if (el.styles?.borderCollapse === "collapse" && (el.tag === "td" || el.tag === "th")) {
+        collapsedCells.push(el);
+      }
+      for (const c of el.children) collect(c);
+    };
+    for (const root of elements) collect(root);
+    const offGrid = findOffGridCollapsedCells(collapsedCells);
+    for (let i = 0; i < collapsedCells.length; i++) {
+      if (offGrid[i]) offGridCollapsedCells.add(collapsedCells[i]);
+    }
+  }
+
   let fragmentClipPathCounter = 0;
   const fragmentClipPathOutputId = new Map<string, string>();
   function resolveFragmentClipPathRef(
@@ -1426,7 +1462,7 @@ export function elementTreeToSvgInner(
         // by bt.w/2 in collapse mode (Blink's
         // `CollapsedBorderPainter::PaintCollapsedBorders` centers the
         // collapsed-border rect on the grid line).
-        const collapse = el.styles.borderCollapse === "collapse";
+        const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
         const collapseShift = collapse ? bt.w / 2 : 0;
         const strokeW = bt.w / 3;
         const outerInset = bt.w / 6 - collapseShift;
@@ -1511,7 +1547,7 @@ export function elementTreeToSvgInner(
         // all 4 sides, but the top/bottom and left/right have different
         // lengths, so the pattern would mis-align at every corner. Emit 4
         // lines instead so each side gets its own adjusted pattern.
-        const collapse = el.styles.borderCollapse === "collapse";
+        const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
         const inset = collapse ? 0 : bt.w / 2;
         // For dotted, the dasharray is `0.01 period` and renders dots only
         // when the line has `stroke-linecap="round"` (each near-zero dash
@@ -1591,7 +1627,7 @@ export function elementTreeToSvgInner(
         // Centered painting (no inset) lets the two cells'\'' borders overlap
         // exactly, producing a single 1px line — matching Chrome'\''s collapsed
         // table grid.
-        const collapse = el.styles.borderCollapse === "collapse";
+        const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
         const half = collapse ? 0 : bt.w / 2;
         const strokeCorners = insetCornerRadii(corners, half, half, half, half);
         const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
@@ -1632,7 +1668,7 @@ export function elementTreeToSvgInner(
       // border-collapse:collapse → paint each side ON the cell edge (not
       // inset by half-width), so two adjacent cells'\'' shared sides overlap
       // exactly and produce a single line instead of a doubled one.
-      const collapse = el.styles.borderCollapse === "collapse";
+      const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
       const inset = (w: number) => collapse ? 0 : w / 2;
       const tw = bt?.w ?? 0;
       const rw = br?.w ?? 0;
