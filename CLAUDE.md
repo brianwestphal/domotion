@@ -181,14 +181,8 @@ Before reverse-engineering a render-fidelity bug by reading source, reach for th
 
 ## Ticket-Driven Work
 
-When the user gives you work directly via the CLI (not via MCP channel or Hot Sheet events), analyze the request and create Hot Sheet tickets before starting implementation — especially for substantial or multi-step work. This keeps work visible, trackable, and consistent with the Hot Sheet workflow.
+The general create → track → complete ticket workflow lives in the "Ticket-Driven Work" section further down (inserted by Hot Sheet). Two project-specific rules sit on top of it:
 
-- **Do create tickets** for: feature implementation, bug fixes, refactoring, multi-step tasks, anything that involves changing code.
-- **Don't create tickets** for: simple questions, git commits, quick lookups, trivial one-line changes.
-- **When in doubt, create the tickets.** The overhead is minimal and the tracking value is high.
-- Use the Hot Sheet API to create tickets, mark them as Up Next, then work through them normally (set status to "started", implement, set to "completed" with notes).
-- **Always create follow-up tickets** for work that isn't completed in the current session: unfinished implementation steps, open design questions needing answers, known gaps discovered during work, features designed but not yet built (e.g., a requirements doc without implementation). Never leave follow-up work undocumented — if it's not in a ticket, it will be forgotten.
-- **Use FEEDBACK NEEDED before deferring or asking about follow-up tickets.** When you're about to (a) defer a ticket because it needs more work, (b) ask the user whether to file follow-up tickets, or (c) close a ticket with a question buried in the notes ("let me know if you want X" / "happy to do Y if you want"), DO NOT close it that way. Instead, leave the ticket in `started` status and add a `FEEDBACK NEEDED:` note (per `.hotsheet/worklist.md`), then signal channel done and wait for the user. Closing with an unanswered question buries the question and the user can't easily see it. The FEEDBACK NEEDED mechanism is the only way to reliably get attention on a question.
 - **Deferral is the user's call, not yours.** Never unilaterally mark a ticket as "deferred" or write a note that amounts to "this is too complex / out of session scope / needs broader work — deferred." If you can't finish a ticket in the current session, leave it in `started` status with a `FEEDBACK NEEDED:` note that lays out (i) what you found, (ii) the specific options for how to proceed, (iii) why each option has the cost / risk it does — and then signal channel done. The user decides whether to defer, scope down, escalate, or push you to try harder. "I judged this too big to do now" is not yours to declare.
 - **When a ticket carries a `REGIONS:` block** (left by the demos:review tool — see `docs/31-region-feedback.md`), run `npx tsx tools/crop-regions.ts --ticket DM-{id}` before reasoning about the attached screenshots. It crops each rectangle out of the canonical expected/actual/diff triplet and writes them to `tests/output/region-crops/DM-{id}/{noteId}/[{idx}]-{base}.png`. Read those crops as your primary visual evidence in addition to (not instead of) the full PNGs.
 
@@ -226,3 +220,59 @@ Examples:
 - ✅ Skip the id entirely when the summary is enough: `// repeating-gradient angle stops weren't being normalised…`
 
 The id is optional context for me; the summary is what helps the reader.
+
+<!-- hotsheet:begin section=ticket-driven-work v=1 -->
+## Ticket-Driven Work
+
+When the user gives you work directly (not via the Hot Sheet channel or events), create Hot Sheet tickets before starting implementation — especially for substantial or multi-step work.
+
+- **Do create tickets** for: features, bug fixes, refactoring, multi-step tasks, anything changing code. **Don't** for: simple questions, git commits, quick lookups, trivial one-liners. **When in doubt, create them.**
+- Create via the Hot Sheet API (prefer the `hotsheet_*` MCP tools), mark Up Next, then work through them: set status `started` → implement → set `completed` with notes.
+- **Always create follow-up tickets** for incomplete work (unfinished steps, open design questions, known gaps, designed-but-unbuilt features). If it's not in a ticket, it's forgotten.
+- **Incomplete-work checklist** — before marking a ticket `completed`, file follow-ups for any: (1) UI placeholder text ("coming soon"), (2) TODO/FIXME comments, (3) documented-but-unimplemented requirements, (4) empty/stub functions returning mock data.
+- **Use FEEDBACK NEEDED before deferring or asking about follow-ups.** When about to (a) defer a ticket needing more work, (b) ask whether to file follow-ups, or (c) close with a question buried in notes — DON'T. Leave the ticket `started`, add a `FEEDBACK NEEDED:` note (per `.hotsheet/worklist.md`), signal channel done, and wait. It's the only reliable way to surface a question.
+<!-- hotsheet:end section=ticket-driven-work -->
+
+<!-- hotsheet:begin section=testing-philosophy v=1 -->
+## Testing Philosophy
+
+- **Double coverage**: every feature covered by both unit tests AND E2E tests. Unit = logic in isolation; E2E = real user flows through the running app with minimal mocking.
+- **Unit tests**: Mock external deps (filesystem, network), test real logic.
+- **E2E tests**: As much as possible, use test automation tools to run realistic, user-facing flows. Minimize mocks.
+- **Coverage**: Merge all test coverage (e.g. unit, E2E server, E2E browser) into one report. Low-coverage files should get more of both test types. Aim for 100% coverage of code lines, 100% coverage of branches, and 100% of features described in the requirements documentation.
+- **Manual test plan**: keep a manual test plan doc (e.g. `docs/manual-test-plan.md`) for features that can't be reliably automated. **Keep it up to date** — add such features there; when you add automated coverage for a previously-manual item, remove it and note it in an "Automated Coverage Summary".
+- **Always fix lint and type errors before finishing**: Fix as you go, don't batch.
+
+<!-- hotsheet:begin specifics=testing-philosophy v=1 -->
+### This project's test setup
+
+- **Unit tests** (`src/**/*.test.ts(x)`, `tests/**/*.test.ts(x)`): `vitest` under `vitest.config.ts` (happy-dom environment). Run with `npm test`, which first rebuilds the capture script; `npm run test:watch` for watch mode.
+- **E2E tests** (`src/**/*e2e.test.ts`, `tests/**/*e2e.test.ts`): `vitest` under the separate `vitest.e2e.config.ts`, driving real Chromium via Playwright. Run with `npm run test:e2e`.
+- **Visual-regression suites** — the primary fidelity signal — are bespoke harnesses under `tests/`, not vitest: `npm run demos:test` (one fixture per CSS feature), `npm run demos:test:html` / `:unicode` (broad html-test sweeps), `npm run demos:test:all` (features + snapshot-isolation + showcase + animate + html + real-world). Each renders a fixture via Chromium and via Domotion and diffs the PNGs through `src/review/compare-pngs.ts`; the shared harness is `tests/runner.ts` / `tests/html-test-suite.tsx`. Review diffs in the browser with `npm run demos:review`.
+- **Commands**: unit `npm test` · E2E `npm run test:e2e` · coverage `npm run test:coverage` (v8, via `@vitest/coverage-v8`) · feature regression `npm run demos:test`.
+- For sweeps over ~50 visual fixtures, dispatch to CI rather than running locally — see "Run large visual sweeps on CI, not locally" above.
+<!-- hotsheet:end specifics=testing-philosophy -->
+<!-- hotsheet:end section=testing-philosophy -->
+
+<!-- hotsheet:begin section=requirements-documentation v=1 -->
+## Requirements Documentation
+
+Keep human-readable requirements documents as the source of truth for what the project does, and **keep them up to date in the same change as the code** (add/remove/modify a requirement → update its doc). Create new docs for major new functional areas. Cross-reference related docs with relative links.
+
+### AI Summaries
+
+Maintain two synthesis docs an AI assistant reads at the start of a fresh session — keep them in sync with reality (source doc/code wins on conflict), and prefer small targeted edits over rewrites:
+
+- A **codebase map** — directory tree, entry points, data schema, build, tests, settings, and a "where do I look for X" index. Update it in the same change when you add a file or directory, add a route/endpoint, change the schema, add a client module, or add a setting key.
+- A **requirements summary** — a synthesized view of every requirements doc with status markers (e.g. Shipped / Partial / Design only / Deferred). Update it in the same change when you add a requirements doc, ship a design-only feature, or defer/regress a shipped one.
+
+<!-- hotsheet:begin specifics=requirements-documentation v=1 -->
+### This project's docs layout
+
+- **Requirements docs** live in `docs/` as numbered Markdown files (`docs/NN-topic.md`, e.g. `docs/01-fidelity.md`, `docs/37-scroll-pattern-grammar.md`). Canonical-reference docs that must stay in lockstep with code are called out under "Always-in-sync docs" above; `docs/reference/` holds cross-cutting indexes (e.g. `raster-image-fallback-cases.md`).
+- **Codebase map**: `docs/ai/code-summary.md`.
+- **Requirements summary**: `docs/ai/requirements-summary.md`.
+
+Both AI-summary files already exist and are intentionally thin pointers into this file + the numbered docs — keep them in sync per "AI-summary docs" above.
+<!-- hotsheet:end specifics=requirements-documentation -->
+<!-- hotsheet:end section=requirements-documentation -->
