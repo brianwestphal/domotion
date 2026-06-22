@@ -2,6 +2,29 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.14.0] - 2026-06-23
+
+
+** Features**
+
+- New `domotion term` command turns a recorded terminal session into a self-contained animated SVG with real text and faithful color — import an asciinema v2 `.cast` file, or capture a command live with `domotion term -- <cmd ...>`. Sessions render incrementally as a scrolling line pool (far smaller output), include a blinking cursor on input lines, honor mid-session terminal resizes, and can be themed (light/dark) and composed into larger animations.
+- Add `--chrome` device bezels to the capture CLI — wrap a capture in a `phone`, `browser`, or `window` frame, with `--chrome-label` to set the URL/title text.
+- Render conic-gradient backgrounds on form-control pseudo-elements (range slider thumb/track, color swatch, and `<progress>`/`<meter>` parts), rasterized at the exact part size.
+- Render CSS `scroll-marker-group` dot/pill navigation and `::scroll-button` paging arrows.
+- Complete the CSS named-color table to all 148 CSS Color 4 names, so colors like `rebeccapurple` and `cornflowerblue` now resolve in gradient and conic-gradient stops instead of being dropped.
+- Support `mask-size: contain | cover` positioning.
+
+** Fixes**
+
+- Big batch of text-shaping and emoji fidelity fixes: honor `text-spacing-trim` for CJK fullwidth punctuation, place the synthetic dotted circle for orphaned complex-script marks the way Chrome does (LTR/RTL, CJK/Hangul tone marks, Kirat Rai modifiers), size color emoji to Chrome's advance square instead of ~20% too small, hide orphaned variation selectors instead of painting tofu, and route several precomposed letters through HarfBuzz to match Chrome's mark placement.
+- Resolve `font-family: 'Helvetica Neue'` to the real Helvetica Neue face (not plain Helvetica), and route `U+2215` DIVISION SLASH through the correct system fallback — fixing a range of glyphs that previously diverged from Chrome.
+- Stop stamping a color-emoji bitmap over monochrome glyphs (🌐/🎤) when the font cascade routes them to a non-emoji font.
+- Border fixes: collapsed-table cell borders now paint inside their own box rather than centered on the grid line, and a single bordered side with `border-radius` paints its full rounded corner arc instead of being cut off.
+- Form-control fixes: native `<meter>` paints Chrome's grooved bar with the correct value inset, plus `<details>` marker centering and the `::details-content` divider.
+- Static `::after` badge placement: collapse a wrapped badge's leading space so it left-aligns, and flow an in-flow badge to the end of a text-less block host instead of its top-right corner.
+- Right-align custom `@counter-style` markers via the suffix gap, matching Chrome.
+- Animator: a push-left or scroll frame that is last in the loop no longer fades out across its hold.
+
 ## [0.13.3] - 2026-06-17
 
 
