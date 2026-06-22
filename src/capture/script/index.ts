@@ -386,7 +386,20 @@ export const captureScript =
       // synth output, hiding the option text. Skip them. (DM-355)
       if (tag === 'select' && (child.tagName.toLowerCase() === 'option' || child.tagName.toLowerCase() === 'optgroup')) continue;
       const c = capture(child);
-      if (c) children.push(c);
+      if (c) {
+        // DM-1177: splice a captured `scroll-marker-group` in as a real sibling
+        // of its scroller — before the scroller for `scroll-marker-group: before`,
+        // after it for `after`. As a sibling it sits OUTSIDE the scroller's
+        // overflow clip (Chrome paints the group outside the scrollport) and the
+        // normal paint-order pass places it correctly.
+        const _grp = c.scrollMarkerGroup;
+        const _before = c._scrollMarkerGroupBefore;
+        delete c.scrollMarkerGroup;
+        delete c._scrollMarkerGroupBefore;
+        if (_grp && _before) children.push(_grp);
+        children.push(c);
+        if (_grp && !_before) children.push(_grp);
+      }
     }
 
     const _animId = el.dataset != null ? el.dataset.domotionAnim : undefined;
@@ -807,8 +820,122 @@ export const captureScript =
     // .imageReplacement, and on the sprite-icon path .styles.backgroundImage /
     // .text / .textSegments). See walker/replaced-elements.ts.
     handleReplacedElement(el, cs, tag, rect, _captured, bordersOnlyCell);
+    // DM-1177: CSS `scroll-marker-group` (Chrome 135+). Capture the synthesized
+    // dot/pill marker-group box as a replica subtree (see _captureScrollMarkerGroup).
+    // Stash it (plus its before/after placement) on the node so the PARENT's
+    // children loop can splice it in as a real sibling — emitting it inside the
+    // scroller's own render fights the renderer's paint-order / overflow-clip
+    // machinery, so it must be a first-class tree node next to the scroller.
+    if (!bordersOnlyCell) {
+      var _smg = _captureScrollMarkerGroup(el, cs, rect);
+      if (_smg) { _captured.scrollMarkerGroup = _smg.node; _captured._scrollMarkerGroupBefore = _smg.before; }
+    }
     return _captured;
   };
+
+  // DM-1177: A scroll container with `scroll-marker-group: after | before`
+  // synthesizes an anonymous marker-group box, and each scrollable child whose
+  // `::scroll-marker` has non-`none` content becomes a dot/pill flex item inside
+  // it. The generated boxes have NO DOM node (un-measurable). To reproduce
+  // Chrome's paint faithfully without reimplementing the marker-group flex
+  // layout, build a hidden REPLICA from the resolved `::scroll-marker-group` /
+  // `::scroll-marker` computed styles — `:target-current` is already baked into
+  // the active marker's computed style by the engine — position it where Chrome
+  // paints the real group (after → below the scroller, before → above it, full
+  // scroller width), and walk it with the normal `capture()` so each marker is a
+  // styled box (with centered text for pill labels). Chrome lays out the replica
+  // identically to the real group, so the measured rects ARE Chrome's geometry.
+  function _captureScrollMarkerGroup(el, cs, rect) {
+    var smg = cs.scrollMarkerGroup != null && cs.scrollMarkerGroup !== ''
+      ? cs.scrollMarkerGroup
+      : (cs.getPropertyValue ? cs.getPropertyValue('scroll-marker-group') : '');
+    if (!smg || smg.indexOf('none') === 0) return undefined;
+    var position = smg.indexOf('before') === 0 ? 'before'
+      : (smg.indexOf('after') === 0 ? 'after' : null);
+    if (!position) return undefined;
+    // One marker per child whose ::scroll-marker has real content.
+    var items = [];
+    for (var i = 0; i < el.children.length; i++) {
+      var child = el.children[i];
+      var mcs = window.getComputedStyle(child, '::scroll-marker');
+      var content = mcs.content;
+      if (!content || content === 'none' || content === 'normal') continue;
+      items.push({ mcs: mcs, content: content });
+    }
+    if (items.length === 0) return undefined;
+    var gcs = window.getComputedStyle(el, '::scroll-marker-group');
+    var doc = el.ownerDocument;
+    var container = doc.createElement('div');
+    var groupWidth = rect.width; // scroller border-box width
+    container.style.boxSizing = 'border-box';
+    container.style.position = 'absolute';
+    container.style.margin = '0';
+    container.style.display = gcs.display && gcs.display !== 'inline' ? gcs.display : 'flex';
+    container.style.justifyContent = gcs.justifyContent || 'center';
+    container.style.alignItems = gcs.alignItems && gcs.alignItems !== 'normal' ? gcs.alignItems : 'center';
+    if (gcs.gap && gcs.gap !== 'normal') container.style.gap = gcs.gap;
+    container.style.padding = gcs.padding || '0';
+    container.style.background = gcs.backgroundColor || 'transparent';
+    container.style.borderRadius = gcs.borderRadius || '0';
+    container.style.width = groupWidth + 'px';
+    container.style.left = '-99999px';
+    container.style.top = '0px';
+    for (var j = 0; j < items.length; j++) {
+      var mc = items[j].mcs;
+      var m = doc.createElement('div');
+      var txt = items[j].content;
+      if (txt === '""' || txt === "''") txt = '';
+      else if (txt.length >= 2 && ((txt[0] === '"' && txt[txt.length - 1] === '"') || (txt[0] === "'" && txt[txt.length - 1] === "'"))) txt = txt.slice(1, -1);
+      else txt = '';
+      m.textContent = txt;
+      m.style.boxSizing = mc.boxSizing || 'content-box';
+      m.style.flex = '0 0 auto';
+      // Empty content ⇒ a sized dot (author set explicit width/height). Non-empty
+      // ⇒ a content-sized pill (width/height auto from text + padding).
+      if (txt === '') { m.style.width = mc.width; m.style.height = mc.height; }
+      m.style.borderRadius = mc.borderRadius;
+      m.style.background = mc.backgroundColor;
+      m.style.color = mc.color;
+      // Horizontal margin spaces the markers along the row; vertical margin does
+      // NOT expand Chrome's generated group box (measured), so zero it out so the
+      // replica's measured height matches the real group.
+      m.style.marginTop = '0'; m.style.marginBottom = '0';
+      m.style.marginLeft = mc.marginLeft || '0'; m.style.marginRight = mc.marginRight || '0';
+      m.style.padding = mc.padding;
+      m.style.fontSize = mc.fontSize;
+      m.style.fontWeight = mc.fontWeight;
+      m.style.fontFamily = mc.fontFamily;
+      m.style.lineHeight = mc.lineHeight;
+      m.style.display = mc.display && mc.display !== 'inline' ? mc.display : 'inline-block';
+      if (mc.transform && mc.transform !== 'none') m.style.transform = mc.transform;
+      if (mc.transformOrigin) m.style.transformOrigin = mc.transformOrigin;
+      var bw = parseFloat(mc.borderTopWidth || '0') || 0;
+      if (bw > 0) {
+        m.style.borderStyle = mc.borderTopStyle; m.style.borderWidth = mc.borderTopWidth; m.style.borderColor = mc.borderTopColor;
+      }
+      container.appendChild(m);
+    }
+    doc.body.appendChild(container);
+    var gh = container.getBoundingClientRect().height;
+    // Chrome paints the marker group with its MARKERS flush against the scroller
+    // edge — the group's outer padding overlaps the scroller's own padding band
+    // rather than adding a separate gap (measured: the visible group below an
+    // `after` scroller is ~group-height-minus-top-padding tall, with the dots
+    // sitting right at the scroller's bottom edge). Reproduce that by sliding the
+    // replica so the marker row's content edge meets the scroller edge: for
+    // `after`, content-top (= containerTop + paddingTop) lands at rect.bottom;
+    // for `before`, content-bottom (= containerTop + gh - paddingBottom) lands at
+    // rect.top.
+    var padTop = parseFloat(gcs.paddingTop || '0') || 0;
+    var padBottom = parseFloat(gcs.paddingBottom || '0') || 0;
+    var targetTop = position === 'after' ? (rect.bottom - padTop) : (rect.top - gh + padBottom);
+    container.style.left = (rect.left + window.scrollX) + 'px';
+    container.style.top = (targetTop + window.scrollY) + 'px';
+    var node = capture(container);
+    doc.body.removeChild(container);
+    if (!node) return undefined;
+    return { node: node, before: position === 'before' };
+  }
 
   const root = document.querySelector(sel);
   if (!root) return { tree: [], warnings: [] };

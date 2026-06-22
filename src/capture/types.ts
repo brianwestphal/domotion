@@ -1001,6 +1001,25 @@ export interface CapturedElement {
    * when at least one such pseudo exists on this element.
    */
   pseudoBoxes?: PseudoBox[];
+  /**
+   * DM-1177: CSS `scroll-marker-group` (Chrome 135+). A scroll container with
+   * `scroll-marker-group: after | before` synthesizes an anonymous marker-group
+   * box, and each scrollable child's `::scroll-marker` becomes a dot/pill inside
+   * it. These generated boxes have NO DOM node, so they can't be measured
+   * directly. Capture builds a hidden REPLICA of the group + markers (mirroring
+   * the resolved `::scroll-marker-group` / `::scroll-marker` computed styles,
+   * with `:target-current` already baked into the active marker's computed
+   * style), positions it where Chrome paints the real group (after → below the
+   * scroller, before → above it, markers flush to the scroller edge), and walks
+   * it with the normal element walker — so each marker is just a styled box
+   * (with text for pill labels). The result is stored here TRANSIENTLY: the
+   * capture walker's parent-children loop immediately splices the subtree in as
+   * a real SIBLING of the scroller (before it for `before`, after it for
+   * `after`) and deletes this field, so the group sits outside the scroller's
+   * overflow clip and the normal paint-order pass places it correctly. Absent
+   * on the final captured tree handed to the renderer.
+   */
+  scrollMarkerGroup?: CapturedElement;
 }
 
 export interface PseudoBox {

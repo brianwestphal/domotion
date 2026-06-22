@@ -174,3 +174,40 @@ Only `blur()` is translated today; other filter functions (`drop-shadow`,
 - `RenderTextOpts.emitPseudoBoxBgLayers` — closure injected by the main
   render loop so the text renderer can emit gradient layers without owning
   the `defsParts` / `clipIdx` state directly.
+
+## `::scroll-marker` / `scroll-marker-group` (DM-1177)
+
+Chrome 135+ lets a scroll container declare `scroll-marker-group: after | before`,
+which synthesizes an anonymous marker-group box; each scrollable child whose
+`::scroll-marker` has non-`none` content becomes a dot/pill flex item inside it.
+`::scroll-marker:target-current` styles the marker of the currently-scrolled-to
+item (the active one).
+
+These generated boxes have **no DOM node**, so their geometry can't be measured
+directly (`getBoxQuads()` is unavailable, `getComputedStyle(el,
+'::scroll-marker-group').height` returns `0px`). Rather than reimplement Chrome's
+marker-group flex layout, capture builds a hidden **replica**:
+
+- `src/capture/script/index.ts` (`_captureScrollMarkerGroup`) reads the resolved
+  `::scroll-marker-group` and per-item `::scroll-marker` computed styles —
+  `:target-current` is already folded into the active marker's computed style by
+  the engine, so the active dot/pill needs no special query — and builds a real
+  (off-document-flow) `<div>` group with one child per marker (textContent set
+  for `content: attr(...)` pill labels). Chrome lays out the replica identically
+  to the real group, so its measured rects ARE Chrome's geometry.
+- The replica is positioned so the **markers sit flush to the scroller edge**
+  (the group's outer padding overlaps the scroller's own padding band, matching
+  Chrome's paint): for `after`, the marker row's content-top lands at the
+  scroller's bottom; for `before`, content-bottom lands at the scroller's top.
+  Marker vertical margins are zeroed in the replica (they space the row
+  horizontally but do not expand Chrome's generated group box).
+- The walked subtree is spliced into the captured tree as a real **sibling** of
+  the scroller (before it for `before`, after it for `after`) via the parent's
+  children loop — NOT emitted from inside the scroller's render, which would put
+  it inside the scroller's overflow clip (Chrome paints the group outside the
+  scrollport) and fight the paint-order pass. As a sibling it needs no
+  render-side code: every marker is just a styled box (with text for pills).
+
+Not yet handled: `::scroll-button(left/right)` paging arrows (a separate
+generated pseudo; `getComputedStyle` can't disambiguate the `(left)` / `(right)`
+parameterized selector, so the arrows are left for a follow-up).
