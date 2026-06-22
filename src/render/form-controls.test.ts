@@ -6,7 +6,36 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { renderFormControl, parseSpreadOnlyShadows } from "./form-controls.js";
+import { renderFormControl, parseSpreadOnlyShadows, collectFormControlConicTiles } from "./form-controls.js";
+import type { CapturedElement } from "../capture/types.js";
+
+describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)", () => {
+  const rangeEl = (styles: Record<string, unknown>): CapturedElement =>
+    ({ tag: "input", x: 20, y: 12, width: 200, height: 36, children: [], styles } as unknown as CapturedElement);
+
+  it("surfaces a conic thumb at the thumb-diameter tile and a conic track at the track-thickness tile", () => {
+    const tiles = collectFormControlConicTiles(rangeEl({
+      inputType: "range",
+      rangeThumbWidth: "36px", rangeThumbBgImage: "conic-gradient(red, blue)",
+      rangeTrackBg: "rgb(204, 204, 204)", rangeTrackHeight: "8px", rangeTrackBgImage: "conic-gradient(green, yellow)",
+    }));
+    expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 36, h: 36 });   // circle thumb
+    expect(tiles).toContainEqual({ layer: "conic-gradient(green, yellow)", w: 200, h: 8 }); // horizontal track
+  });
+
+  it("uses thumbW×thumbH for a non-circular (ellipse/rect) styled thumb", () => {
+    const tiles = collectFormControlConicTiles(rangeEl({
+      inputType: "range", rangeThumbWidth: "40px", rangeThumbHeight: "20px", rangeThumbRadius: "4px",
+      rangeThumbBgImage: "conic-gradient(red, blue)",
+    }));
+    expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 40, h: 20 });
+  });
+
+  it("returns [] for a non-conic pseudo bg or a non-range control", () => {
+    expect(collectFormControlConicTiles(rangeEl({ inputType: "range", rangeThumbWidth: "36px", rangeThumbBgImage: "linear-gradient(red, blue)" }))).toEqual([]);
+    expect(collectFormControlConicTiles(rangeEl({ inputType: "text" }))).toEqual([]);
+  });
+});
 
 describe("parseSpreadOnlyShadows — slider-thumb donut rings (DM-1240)", () => {
   it("parses a single spread-only ring (the DM-319 pattern)", () => {

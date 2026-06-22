@@ -189,6 +189,10 @@ export function elementTreeToSvgInner(
     // inputs use scheme-aware UA defaults. Defaults to "light" (or undefined
     // → light) when the captured tree pre-dates DM-552.
     colorScheme: elements[0]?.styles?.rootColorScheme,
+    // DM-1252: let form-control pseudos paint conic backgrounds via the cached
+    // raster tiles (populated by the pre-pass), without form-controls.ts
+    // importing this module (avoids an import cycle).
+    buildConicTile: buildConicGradientDef,
   };
   // Viewport dims for background-attachment: fixed — passed down into layer def building.
   const captureViewport = { w: width, h: height };
@@ -5517,6 +5521,36 @@ function buildMaskBorder9Slice(
   return { id: maskId, def, nextClipIdx: clipIdx };
 }
 
+/**
+ * DM-1251: map a `mask-position` token list to an SVG `preserveAspectRatio`
+ * alignment (`<xAlign><yAlign>`) for the `mask-size: contain|cover` path, where
+ * the <image> fills the element box and the fitted image is aligned within it.
+ * Keywords (left/right/top/bottom/center) and 0/50/100% map exactly; other
+ * percentages / px approximate to the nearest Min/Mid/Max (SVG offers no finer
+ * alignment). Keyword order is irrelevant (`top left` == `left top`).
+ */
+export function maskContainAlign(posTokens: string[]): string {
+  let x = "xMid", y = "YMid";
+  let xSet = false, ySet = false;
+  const pctAlign = (v: number): string => (v <= 0 ? "Min" : v >= 100 ? "Max" : "Mid");
+  for (const tok of posTokens) {
+    const t = tok.trim().toLowerCase();
+    if (t === "left") { x = "xMin"; xSet = true; }
+    else if (t === "right") { x = "xMax"; xSet = true; }
+    else if (t === "top") { y = "YMin"; ySet = true; }
+    else if (t === "bottom") { y = "YMax"; ySet = true; }
+    else if (t === "center" || t === "") { /* ambiguous axis — leave as Mid */ }
+    else if (/%$/.test(t)) {
+      // Positional: first unset axis is horizontal, then vertical.
+      const a = pctAlign(parseFloat(t));
+      if (!xSet) { x = "x" + a; xSet = true; }
+      else if (!ySet) { y = "Y" + a; ySet = true; }
+    }
+    // px / unrecognized: leave as Mid (approximation).
+  }
+  return x + y;
+}
+
 export function buildMaskDef(
   id: string, maskImage: string,
   elX: number, elY: number, w: number, h: number,
@@ -5724,11 +5758,14 @@ export function buildMaskDef(
           return parseFloat(tok) || intrinsicDim;
         };
         if (layerSize === "contain" || layerSize === "cover") {
-          // Approximate with the element box (contain = fit inside, cover = fill).
-          // A faithful fit/crop needs the mask image's intrinsic size, which —
-          // unlike <img> (we capture naturalWidth/Height) — requires loading the
-          // mask URL asynchronously at capture time; tracked as DM-1251 (split
-          // from DM-1239). Close enough for the common square/icon-mask case.
+          // DM-1251: contain/cover scale the mask image (preserving its aspect)
+          // to fit-inside / cover the element box. SVG's
+          // `preserveAspectRatio="<align> meet|slice"` on an <image> sized to the
+          // box does exactly that using the image's OWN intrinsic aspect — so no
+          // captured intrinsic dims are needed (verified vs Chrome). mask-position
+          // maps to the align keyword (left/top→Min, center→Mid, right/bottom→Max;
+          // 0/50/100% positional) — computed below; intermediate %/px approximate
+          // to the nearest Min/Mid/Max (preserveAspectRatio offers no finer grain).
           imgW = w; imgH = h;
         } else {
           imgW = resolveSize(sizeTok[0], w, w);
@@ -5751,7 +5788,13 @@ export function buildMaskDef(
         };
         const ix = elX + resolveH(posTok[0] ?? "0%");
         const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-        contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${layerSize === "contain" ? "meet" : layerSize === "cover" ? "slice" : "meet"}" />`);
+        // For contain/cover, position is expressed via the preserveAspectRatio
+        // align (the <image> fills the box and the fitted image aligns within it);
+        // for an explicit size the image box is the resolved size at ix/iy.
+        const par = (layerSize === "contain" || layerSize === "cover")
+          ? `${maskContainAlign(posTok)} ${layerSize === "contain" ? "meet" : "slice"}`
+          : "xMidYMid meet";
+        contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="${par}" />`);
       } else {
         // Repeating mask: fall back to pattern. Since mask-type=alpha, the
         // pattern itself needs to be backed by an <image> that's clipped to

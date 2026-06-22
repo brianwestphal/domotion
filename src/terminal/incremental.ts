@@ -83,7 +83,17 @@ export function trackLines(frames: TermFrame[], rows: number, theme: TerminalThe
   for (let i = 0; i < frames.length; i++) {
     const t = starts[i];
     const cur = lineRows[i];
-    const shift = i === 0 ? 0 : detectScroll(lineRows[i - 1], cur, rows);
+    // DM-1249: a mid-session resize changes the grid height; the content
+    // reflows, so there's no meaningful line continuity across it. Treat a
+    // grid-height change as a HARD boundary — end every active line and start a
+    // fresh pool. (No resize ⇒ all frames are the same height ⇒ never triggers,
+    // so non-resizing recordings are unaffected.)
+    const resized = i > 0 && frames[i].grid.length !== frames[i - 1].grid.length;
+    if (resized) {
+      for (const line of active.values()) line.endMs = t;
+      active = new Map<number, TrackedLine>();
+    }
+    const shift = (i === 0 || resized) ? 0 : detectScroll(lineRows[i - 1], cur, rows);
     const newActive = new Map<number, TrackedLine>();
     const claimed = new Set<TrackedLine>();
     for (let r = 0; r < rows; r++) {
@@ -317,22 +327,31 @@ export async function composeIncrementalTermSvg(
   const cast = parseCast(castText);
   const cols = opts.cols ?? cast.header.width;
   const rows = opts.rows ?? cast.header.height;
+  // DM-1249: honor mid-session resize (like the full-frame path) unless the
+  // caller pinned the grid via opts.cols/rows. The canvas is sized to the
+  // largest grid across the initial size + all resizes; `trackLines` resets the
+  // line pool at each resize boundary.
+  const honorResizes = opts.cols == null && opts.rows == null;
+  const resizes = honorResizes ? cast.resizes : [];
+  let maxCols = cols;
+  let maxRows = rows;
+  for (const rz of resizes) { if (rz.cols > maxCols) maxCols = rz.cols; if (rz.rows > maxRows) maxRows = rz.rows; }
   const fontSize = opts.fontSize ?? TERM_TYPE_DEFAULTS.fontSize;
   const padding = opts.padding ?? TERM_TYPE_DEFAULTS.padding;
   const lineHeight = TERM_TYPE_DEFAULTS.lineHeight;
   const fontFamily = opts.fontFamily ?? TERM_TYPE_DEFAULTS.fontFamily;
-  log(`term: ${cols}×${rows} cells, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`);
+  log(`term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`);
 
   const emu = new TerminalEmulator(cols, rows, theme);
   let frames;
   try {
-    frames = await buildFrames(emu, cast.events, opts);
+    frames = await buildFrames(emu, cast.events, opts, resizes);
   } finally {
     emu.dispose();
   }
   if (frames.length === 0) throw new Error("term: the cast produced no frames (no terminal output?)");
 
-  const { lines, totalMs } = trackLines(frames, rows, theme);
+  const { lines, totalMs } = trackLines(frames, maxRows, theme);
   log(`term: ${lines.length} tracked lines across ${frames.length} settle point(s) (incremental)`);
 
   if (manageFonts) clearEmbeddedFonts();
@@ -347,10 +366,11 @@ export async function composeIncrementalTermSvg(
   try {
     const page = await ctx.newPage();
     page.setDefaultTimeout(60_000);
-    // Measure the canvas from a full cols×rows reference block (same as the
-    // full-frame path) so the two modes lay out identically.
-    const refGrid = Array.from({ length: rows }, () =>
-      Array.from({ length: cols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
+    // Measure the canvas from a full max-cols×max-rows reference block (same as
+    // the full-frame path) so the two modes lay out identically and a post-resize
+    // grid still fits (DM-1249).
+    const refGrid = Array.from({ length: maxRows }, () =>
+      Array.from({ length: maxCols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
     );
     await page.setContent(gridToHtml(refGrid, htmlOpts), { waitUntil: "domcontentloaded" });
     await page.evaluate(() => document.fonts.ready);

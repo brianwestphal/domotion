@@ -311,6 +311,21 @@ describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
       expect(lines[0].endMs).toBe(1000); // "spin |" replaced
       expect(lines[1].waypoints[0]).toEqual({ ms: 1000, row: 0 });
     });
+
+    it("resets the line pool at a grid-height change (mid-session resize, DM-1249)", () => {
+      // Frame 0 is 2 rows; frame 1 grows to 4 rows (a resize). The line pool
+      // must reset at the boundary — the pre-resize line ends there, even
+      // though its text persists, and the post-resize line is a fresh id.
+      const frames = [frame(["a", ""], 8, 1000), frame(["a", "b", "c", ""], 8, 1000)];
+      const { lines } = trackLines(frames, 4, THEMES.dark);
+      const before = lines.filter((l) => l.waypoints[0].ms === 0);
+      const after = lines.filter((l) => l.waypoints[0].ms === 1000);
+      expect(before).toHaveLength(1);
+      expect(before[0].endMs).toBe(1000); // ended at the resize, not carried over
+      // Post-resize "a" is a NEW line (not the pre-resize "a" continuing).
+      expect(after.map((l) => l.html).sort()).toEqual(["a", "b", "c"]);
+      expect(after.every((l) => l.id !== before[0].id)).toBe(true);
+    });
   });
 
   describe("detectInputFrames (cursor only on input lines)", () => {

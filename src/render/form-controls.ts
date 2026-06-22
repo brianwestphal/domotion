@@ -30,6 +30,16 @@ export interface DefCtx {
   /** Allocate a new gradient id like `${idPrefix}grad${N}`. */
   nextGradId: () => string;
   /**
+   * DM-1252: emit a `<pattern>` def for a conic-gradient layer rasterized at the
+   * given consumer rect, or `""` on a cache miss. Injected by the renderer
+   * (`buildConicGradientDef`, which reads the `_conicTileCache` populated by the
+   * async raster pre-pass) so form-control pseudos can paint conic backgrounds
+   * without form-controls.ts importing the renderer (avoids an import cycle).
+   */
+  buildConicTile?: (
+    id: string, layer: string, x: number, y: number, w: number, h: number, sizeCss: string, posCss: string,
+  ) => string;
+  /**
    * DM-553: page-level color-scheme propagated from the captured tree's root
    * (`elements[0].styles.rootColorScheme`). The form-control synthesizers
    * resolve their stock palette via `stockPalette(defCtx?.colorScheme)` so
@@ -51,13 +61,20 @@ function gradientFillFor(
   if (ctx == null || bgImage == null || bgImage === "" || bgImage === "none") return null;
   const grad = parseGradient(bgImage);
   if (grad == null) return null;
-  // Conic on a form-control pseudo (slider thumb / track / etc.) is rare and
-  // the pseudo doesn't flow through the captured-tree raster pre-pass that
-  // handles full-element conic backgrounds (DM-547). SVG has no native conic, so
-  // a faithful render needs the async raster pre-pass wired into the (sync)
-  // form-control synth — tracked as DM-1252. Until then, fall back to the flat
-  // first-color path by returning null here.
-  if (grad.kind === "conic") return null;
+  // DM-1252: conic on a form-control pseudo. SVG has no native conic, so the
+  // renderer rasterizes conic layers to a PNG `<pattern>` in the async pre-pass
+  // (`rasterizeConicGradients`, which also walks form-control pseudo bgs via
+  // `collectFormControlConicTiles` and keys tiles by the consumer rect size).
+  // Emit the cached tile for THIS consumer rect via the injected builder; a
+  // cache miss (pre-pass didn't run / size mismatch) falls back to flat color.
+  if (grad.kind === "conic") {
+    if (ctx.buildConicTile == null) return null;
+    const id = ctx.nextGradId();
+    const def = ctx.buildConicTile(id, bgImage, rect.x, rect.y, rect.w, rect.h, "auto", "0% 0%");
+    if (def === "") return null;
+    ctx.defsParts.push(def);
+    return `url(#${id})`;
+  }
   const key = gradientCacheKey(grad, rect);
   let id = ctx.gradientCache.get(key);
   if (id == null) {
@@ -69,6 +86,62 @@ function gradientFillFor(
     ctx.gradientCache.set(key, id);
   }
   return `url(#${id})`;
+}
+
+/**
+ * Range slider thumb/track metric sizes. Shared by `renderRange` and the conic
+ * raster pre-pass (`collectFormControlConicTiles`) so a conic layer is
+ * rasterized at exactly the rect the synth fills. Native UA values: Chrome
+ * paints a ~6px solid track and a 16px-diameter thumb regardless of bbox height
+ * (verified via probe-range-native-track.mjs); styled (`appearance: none`)
+ * controls take the author width/height (DM-338).
+ */
+function rangeMetricSizes(s: CapturedElement["styles"]): {
+  styledTrack: boolean; styledThumb: boolean; trackThickness: number; thumbW: number; thumbH: number; thumbRadius: number;
+} {
+  const styledTrack = s.rangeTrackBg != null;
+  const styledThumb = s.rangeThumbWidth != null;
+  const trackThickness = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 6;
+  const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 16;
+  const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 16;
+  const thumbRadius = styledThumb ? (parseFloat(s.rangeThumbRadius ?? "") || thumbW / 2) : thumbW / 2;
+  return { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius };
+}
+
+/**
+ * DM-1252: enumerate the conic-gradient layers a form-control's pseudo
+ * backgrounds will paint, each with the consumer rect SIZE the synth fills, so
+ * the async conic raster pre-pass (`rasterizeConicGradients`) can rasterize a
+ * tile at the right dimensions. Sizes MUST match the rects the render
+ * functions pass to `gradientFillFor` (the cache is keyed by `${w}x${h}`); the
+ * shared `rangeMetricSizes` keeps the range case in lockstep. Returns `[]` for
+ * controls with no conic pseudo background. Currently covers the range
+ * thumb/track (the canonical slider case); other consumers (color swatch,
+ * progress/meter value) fall back to flat color until added here (DM-1254).
+ */
+export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer: string; w: number; h: number }> {
+  const s = el.styles;
+  const out: Array<{ layer: string; w: number; h: number }> = [];
+  const isConic = (bg: string | undefined): bg is string =>
+    bg != null && bg !== "" && bg !== "none" && /^(?:repeating-)?conic-gradient\(/i.test(bg.trim());
+  const tag = el.tag;
+  const inputType = s.inputType;
+  if (tag === "input" && inputType === "range") {
+    const { styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
+    const elW = Math.round(el.x + el.width) - Math.round(el.x);
+    const elH = Math.round(el.y + el.height) - Math.round(el.y);
+    const isVertical = s.writingMode != null && s.writingMode !== "" && s.writingMode !== "horizontal-tb";
+    if (isConic(s.rangeTrackBgImage)) {
+      out.push({ layer: s.rangeTrackBgImage, w: isVertical ? trackThickness : elW, h: isVertical ? elH : trackThickness });
+    }
+    if (isConic(s.rangeThumbBgImage)) {
+      // Mirror renderRange's thumb-shape branch: a non-circular / small-radius
+      // styled thumb is a thumbW×thumbH rect; otherwise a thumbW-diameter circle.
+      const ellipse = styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2);
+      out.push({ layer: s.rangeThumbBgImage, w: thumbW, h: ellipse ? thumbH : thumbW });
+    }
+  }
+  return out;
 }
 
 // ── Chromium macOS UA default palette (sampled from Playwright captures) ──
@@ -387,22 +460,15 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // bottom (matching the test fixture and Chrome's painted behavior for
   // `<input type=range>` with `writing-mode: vertical-*`).
   const s = el.styles;
-  const styledTrack = s.rangeTrackBg != null;
-  const styledThumb = s.rangeThumbWidth != null;
-  // Native UA range slider — empirically Chrome paints a ~6px solid track
-  // (8px painted total with AA) and a 16px-diameter thumb regardless of bbox
-  // height (verified via probe-range-native-track.mjs against bbox h=16/20).
-  // Earlier values trackThickness=4 / thumbW=14 left a ~2-3px diff visible on
-  // the accent-color re-hue sliders. DM-338.
-  const trackThickness = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 6;
+  // DM-1252: the thumb/track metric sizes are shared with the conic raster
+  // pre-pass (`rangeMetricSizes`) so `collectFormControlConicTiles` rasterizes
+  // each conic layer at exactly the rect the synth fills.
+  const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
   const trackR = styledTrack ? (parseFloat(s.rangeTrackRadius ?? "") || 0) : 2;
   // Unfilled-track color: author-set when the slider is `appearance: none` +
   // styled track, otherwise the UA default which depends on `accent-color`
   // (Chrome darkens the unfilled track when the accent is bright — DM-320).
   const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : unfilledTrackColor(s.accentColor, defCtx);
-  const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 16;
-  const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 16;
-  const thumbRadius = styledThumb ? (parseFloat(s.rangeThumbRadius ?? "") || thumbW / 2) : thumbW / 2;
   const accent = resolveAccent(el, defCtx);
   const valStr = s.inputValue;
   const minStr = s.inputMin;

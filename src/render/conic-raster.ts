@@ -16,6 +16,7 @@
 
 import sharp from "sharp";
 import { _conicTileCache } from "./element-tree-to-svg.js";
+import { collectFormControlConicTiles } from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
 import { type RGBA, parseColor } from "./colors.js";
 import { parseConicGradient, type ConicGradient, type ConicStop, type PosValue } from "./gradients.js";
@@ -78,6 +79,10 @@ export async function rasterizeConicGradients(
           consider(layer, tile.w, tile.h);
         }
       }
+      // DM-1252: form-control pseudo backgrounds (slider thumb/track, …) carry
+      // their conic layers in dedicated captured fields, not `backgroundImage`,
+      // and paint at consumer-specific rects — collect + rasterize those too.
+      for (const t of collectFormControlConicTiles(el)) consider(t.layer, t.w, t.h);
       if (el.children.length > 0) walk(el.children);
     }
   };

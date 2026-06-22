@@ -233,9 +233,12 @@ a smaller post-resize grid renders top-left with the theme background filling th
 rest (matching how a terminal anchors content). Passing `--cols`/`--rows` (or
 `opts.cols`/`opts.rows`) pins the grid to that fixed size and **ignores** resizes.
 
-Caveat: the **`incremental`** compose mode tracks a fixed-height line pool, so it
-does not honor resizes — use `--mode full` for a recording that resizes (the
-parser still captures the events; only the incremental composer ignores them).
+The **`incremental`** compose mode honors resizes too (DM-1249): it passes the
+resizes to `buildFrames`, sizes the canvas to the largest grid, and `trackLines`
+treats each grid-height change as a **hard boundary** — the line pool resets
+(every active line ends, a fresh pool starts) since content reflows across a
+resize, so there's no meaningful line continuity through it. Within each
+constant-size segment the usual line-identity threading / scroll-glide applies.
 
 ## Known limitations / roadmap
 
