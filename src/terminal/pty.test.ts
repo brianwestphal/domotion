@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { recordPtySession, buildCastText } from "./pty.js";
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, statSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { recordPtySession, buildCastText, ensureSpawnHelperExecutable } from "./pty.js";
 import { parseCast } from "./cast.js";
 
 // A fake node-pty that emits scripted chunks then exits — lets us exercise the
@@ -64,5 +67,58 @@ describe("recordPtySession (DM-1226 live capture shim)", () => {
     expect(JSON.parse(lines[1])).toEqual([0, "o", "a"]);
     expect(JSON.parse(lines[2])).toEqual([0.5, "o", "b\r\n"]);
     expect(parseCast(text).events).toHaveLength(2);
+  });
+});
+
+// DM-1227: node-pty ships a prebuilt `spawn-helper` whose +x bit can be stripped
+// during install, breaking `pty.fork` with "posix_spawnp failed.". We restore it
+// on the live path. These exercise that self-heal deterministically (no real pty).
+describe("ensureSpawnHelperExecutable (DM-1227 prebuilt-helper self-heal)", () => {
+  // Skip on Windows: there is no spawn-helper, and the function early-returns.
+  const onUnix = process.platform !== "win32";
+
+  function fakePkgWithHelper(mode: number): { dir: string; helper: string } {
+    const dir = mkdtempSync(join(tmpdir(), "nodepty-"));
+    const prebuilds = join(dir, "prebuilds", `${process.platform}-${process.arch}`);
+    mkdirSync(prebuilds, { recursive: true });
+    const helper = join(prebuilds, "spawn-helper");
+    writeFileSync(helper, "#!/bin/sh\n");
+    chmodSync(helper, mode);
+    return { dir, helper };
+  }
+
+  it.runIf(onUnix)("adds the execute bit when the prebuilt helper is missing it", () => {
+    const { dir, helper } = fakePkgWithHelper(0o644);
+    try {
+      expect(statSync(helper).mode & 0o111).toBe(0);
+      ensureSpawnHelperExecutable(() => dir);
+      expect(statSync(helper).mode & 0o111).toBe(0o111); // owner+group+other x
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.runIf(onUnix)("leaves an already-executable helper untouched", () => {
+    const { dir, helper } = fakePkgWithHelper(0o755);
+    try {
+      const before = statSync(helper).mode;
+      ensureSpawnHelperExecutable(() => dir);
+      expect(statSync(helper).mode).toBe(before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("never throws when node-pty can't be located", () => {
+    expect(() => ensureSpawnHelperExecutable(() => null)).not.toThrow();
+  });
+
+  it("never throws when the resolved dir has no helper", () => {
+    const dir = mkdtempSync(join(tmpdir(), "nodepty-empty-"));
+    try {
+      expect(() => ensureSpawnHelperExecutable(() => dir)).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -12,7 +12,19 @@
  * `optionalDependencies` entry loaded behind a lazy `import()` — `--cast` users
  * never pay the native build, and a missing/broken install fails with an install
  * hint instead of a stack trace.
+ *
+ * One sharp edge we self-heal: on macOS/Linux, node-pty forks the child through a
+ * small `spawn-helper` executable that ships inside its `prebuilds/<platform>-<arch>/`
+ * dir. node-pty's own install scripts never `chmod +x` that prebuilt helper — they
+ * rely on the npm tarball preserving the bit — so depending on how the package was
+ * extracted the helper can land as `-rw-r--r--`. When that happens `pty.fork`'s
+ * `posix_spawnp` on the helper fails with the opaque "posix_spawnp failed." and live
+ * capture is dead-on-arrival (DM-1227). `ensureSpawnHelperExecutable()` restores the
+ * bit before the first spawn so a stripped install heals itself.
  */
+import { createRequire } from "node:module";
+import { chmodSync, existsSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 /** Minimal shape of the bits of `node-pty` we use (avoids a type dep). */
 interface PtyProcess {
@@ -57,9 +69,50 @@ export interface PtyCaptureResult {
   rows: number;
 }
 
+/**
+ * Restore the executable bit on node-pty's prebuilt `spawn-helper` if it was lost
+ * during install (see the file header). No-op on Windows (no helper) and when the
+ * bit is already set. Best-effort: any failure (read-only install, missing file)
+ * is swallowed — the subsequent spawn surfaces the real error with the install hint.
+ */
+export function ensureSpawnHelperExecutable(
+  // Injectable for tests; defaults to resolving the installed node-pty package.
+  resolvePackageDir: () => string | null = resolveNodePtyDir,
+): void {
+  if (process.platform === "win32") return;
+  const pkgDir = resolvePackageDir();
+  if (pkgDir == null) return;
+  const candidates = [
+    join(pkgDir, "prebuilds", `${process.platform}-${process.arch}`, "spawn-helper"),
+    join(pkgDir, "build", "Release", "spawn-helper"),
+  ];
+  for (const helper of candidates) {
+    try {
+      if (!existsSync(helper)) continue;
+      const mode = statSync(helper).mode;
+      // Any of the execute bits (owner/group/other) missing → restore rwxr-xr-x.
+      if ((mode & 0o111) !== 0o111) chmodSync(helper, mode | 0o755);
+    } catch {
+      /* read-only or racing install — let the spawn report the real failure */
+    }
+  }
+}
+
+/** Locate the installed node-pty package directory, or null if unresolvable. */
+function resolveNodePtyDir(): string | null {
+  try {
+    const require = createRequire(import.meta.url);
+    // Resolve the package.json so we get the package root regardless of "main".
+    return dirname(require.resolve("node-pty/package.json"));
+  } catch {
+    return null;
+  }
+}
+
 async function loadNodePty(): Promise<PtyModule> {
   try {
     const mod = (await import("node-pty")) as unknown as { default?: PtyModule } & PtyModule;
+    ensureSpawnHelperExecutable();
     return (mod.default ?? mod) as PtyModule;
   } catch (e) {
     throw new Error(

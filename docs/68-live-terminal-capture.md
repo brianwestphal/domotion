@@ -54,6 +54,22 @@ elsewhere). To keep the common `--cast` path free of a native build:
 - A missing / unbuilt install fails with an **install hint** (`npm install
   node-pty`) rather than a stack trace.
 
+### `spawn-helper` self-heal (macOS/Linux)
+
+On Unix, node-pty forks the child through a tiny prebuilt `spawn-helper` binary
+shipped inside its `prebuilds/<platform>-<arch>/` directory. node-pty's own
+install scripts never `chmod +x` that prebuilt helper — they rely on the npm
+tarball preserving the bit — so depending on how the package was extracted the
+helper can land non-executable (`-rw-r--r--`). When that happens `pty.fork`'s
+`posix_spawnp` on the helper fails with the opaque message **`posix_spawnp
+failed.`** and live capture is dead on arrival.
+
+`pty.ts` self-heals this: before the first spawn, `ensureSpawnHelperExecutable()`
+locates the installed node-pty and restores the execute bit on its `spawn-helper`
+(both the `prebuilds/…` and `build/Release/` locations) if it's missing. It's a
+best-effort no-op on Windows, when the bit is already set, and on a read-only
+install (where the spawn then surfaces the real error). No user action required.
+
 ## Code
 
 - **`src/terminal/pty.ts`** — `recordPtySession(command, opts, ptyModule?)`
@@ -61,6 +77,13 @@ elsewhere). To keep the common `--cast` path free of a native build:
   `{ cast, exitCode, cols, rows }`. `buildCastText()` assembles the asciinema v2
   string. The `ptyModule` parameter is injectable so tests exercise the shim
   with a fake pty (no native dep, deterministic) — see `pty.test.ts`.
+  `ensureSpawnHelperExecutable()` (also exported) restores the prebuilt
+  `spawn-helper`'s execute bit before the first spawn (see above).
+- **`src/terminal/pty.e2e.test.ts`** — guarded real-pty coverage: it probes
+  whether a pty can actually be allocated (node-pty present + `/dev/ptmx`
+  reachable) and **skips** the suite otherwise, so it never hard-fails under a
+  sandbox / restricted CI that can't fork a pty. Exercises the genuine native
+  `pty.fork` path the unit tests' fake pty can't reach.
 - **`src/cli/term.ts`** — `runTerm` splits `argv` on the first `--`; a non-empty
   command selects the live path (otherwise `--cast` is required), then both
   paths converge on the shared `castToAnimatedSvg`.
