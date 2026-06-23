@@ -1,0 +1,30 @@
+/**
+ * Template subsystem barrel (DM-1276, doc 70).
+ *
+ * Public surface for building, loading, and rendering Domotion templates —
+ * parameterized generators that produce a self-contained SVG by driving the
+ * existing capture → compose pipeline. See `./types.ts` for the contract.
+ */
+
+export type { Template, TemplateOutput, TemplateRenderContext } from "./types.js";
+export { isTemplate } from "./types.js";
+export {
+  listBuiltinTemplates,
+  getBuiltinTemplate,
+  loadTemplate,
+  templatePackageName,
+} from "./registry.js";
+export {
+  renderTemplateToSvg,
+  validateTemplateParams,
+  type RenderTemplateOptions,
+} from "./render.js";
+export {
+  templateParamsJsonSchema,
+  describeTemplateParams,
+  type ParamInfo,
+} from "./json-schema.js";
+
+// Built-in templates (also reachable via the registry by name).
+export { lowerThirdTemplate, type LowerThirdParams } from "./builtin/lower-third.js";
+export { deviceMockupTemplate, type DeviceMockupParams } from "./builtin/device-mockup.js";

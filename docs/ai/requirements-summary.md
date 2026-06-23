@@ -35,6 +35,19 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 70 (`docs/70-template-system.md`, DM-1276)** — **Spike shipped** (the
+  de-risking spike from the DM-1210 templates investigation). A Domotion
+  *template* is a parameterized generator — `render(params)` produces a
+  self-contained SVG by driving the **existing** capture/compose pipeline (no new
+  rendering code), so it can do arbitrary author-time pre-processing and stay
+  HTML/CSS-native. Ships: the `Template` contract + registry/loader (`src/
+  templates/`), the `domotion template <name>` CLI verb, and two built-ins —
+  `lower-third` (generator) and `device-mockup` (decorator reusing
+  `wrapInDeviceChrome`). Third-party templates are npm `domotion-template-*`
+  packages (same mechanism as built-ins). Decorators must use the `captureToSvg`
+  *static* primitive, not a one-frame animate config (an animated SVG won't nest
+  in a bezel). The wider first-party library + a Lottie **input** adapter are
+  filed follow-ups, **not yet built**.
 - **Doc 69 (`docs/69-scroll-button-rendering.md`, DM-1234)** — **Shipped.**
   `::scroll-button(left/right/up/down)` paging arrows are captured + rendered as
   replica siblings of the scroller. `getComputedStyle` can't disambiguate the

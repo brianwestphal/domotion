@@ -39,9 +39,10 @@ shortest possible map:
 - **`src/scroll/`** — scroll-pattern grammar (DM-604) and the composer
   that stitches per-segment captures into one animated SVG.
 - **`src/cli/`** — the four published bins: `domotion`, `svg-to-video`,
-  `svg-review`, `animated-svg-scrubber`. The `domotion` bin has three
-  subcommands: `capture`, `animate`, and `term` (terminal-session → animated
-  SVG, DM-1225 / doc 67).
+  `svg-review`, `animated-svg-scrubber`. The `domotion` bin has four
+  subcommands: `capture`, `animate`, `term` (terminal-session → animated
+  SVG, DM-1225 / doc 67), and `template` (render a parameterized template,
+  DM-1276 / doc 70).
 - **`src/terminal/`** — `domotion term` backend (DM-1225): asciinema `.cast`
   parser (`cast.ts`), `@xterm/headless` VT-emulator snapshot wrapper
   (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), the incremental
@@ -56,6 +57,13 @@ shortest possible map:
 - **`src/scrubber/`** — the `animated-svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56).
+- **`src/templates/`** — the template system (DM-1276 / doc 70): the `Template`
+  contract (`types.ts`), registry + `domotion-template-*` loader (`registry.ts`),
+  param validation + render driver + the `captureToSvg` static-capture primitive
+  (`render.ts`), zod→JSON-Schema projection (`json-schema.ts`), and the built-ins
+  (`builtin/lower-third.ts`, `builtin/device-mockup.ts`). Templates are
+  front-ends onto the animate/capture pipeline; the verb lives in
+  `src/cli/template.ts`.
 - **`src/tree-ops/`** — element-tree transforms (`frame-merge.ts`,
   `tree-diff.ts`, `viewbox-culling.ts`, `resize-embedded-images.ts`).
 - **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`.

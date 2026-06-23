@@ -20,6 +20,7 @@ import { createRequire } from "node:module";
 import { runCapture } from "./capture.js";
 import { runAnimate } from "./animate.js";
 import { runTerm } from "./term.js";
+import { runTemplate } from "./template.js";
 
 // Read the version from package.json at runtime rather than hardcoding it, so
 // `domotion --version` always matches the installed package (the literal had
@@ -35,6 +36,7 @@ Usage:
   domotion capture <input> [options]
   domotion animate <config.json>
   domotion term --cast <file.cast> [options]
+  domotion template <name> [--param …] -o out.svg
   domotion --help | --version
 
 Commands:
@@ -44,6 +46,9 @@ Commands:
   term      Convert a recorded terminal session (asciinema v2 .cast) into an
             animated SVG. Record with: asciinema rec demo.cast -c "<command>".
             Run 'domotion term --help' for options (theme, font size, timing).
+  template  Render a parameterized template (lower-third, device-mockup, …) to a
+            self-contained SVG. 'domotion template list' shows the built-ins;
+            'domotion template <name> --help' shows a template's parameters.
 
 capture options:
   -o, --output <path>      Output SVG path (default: stdout, or <input>.svg
@@ -213,6 +218,8 @@ async function main(): Promise<void> {
       await runAnimate(rest, HELP);
     } else if (cmd === "term") {
       await runTerm(rest);
+    } else if (cmd === "template") {
+      await runTemplate(rest, HELP);
     } else {
       process.stderr.write(`domotion: unknown command "${cmd}"\n\n`);
       process.stderr.write(HELP);

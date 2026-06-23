@@ -132,3 +132,30 @@ export { parseCast, type ParsedCast, type CastHeader, type CastOutputEvent } fro
 export { TerminalEmulator, gridSignature, type TermCell, type TermGrid } from "./terminal/emulator.js";
 export { buildFrames, gridToHtml, type FrameBuildOptions, type TermFrame, type HtmlRenderOptions } from "./terminal/render.js";
 export { THEMES, xterm256ToHex, resolveThemeSpec, type TerminalTheme, type TerminalThemeSpec } from "./terminal/theme.js";
+
+// ── Templates (DM-1276, doc 70) ──────────────────────────────────────────────
+// Parameterized generators that produce a self-contained SVG by driving the
+// existing capture → compose pipeline (templates add NO new rendering code).
+// `renderTemplateToSvg(template, params)` validates + renders; `loadTemplate`
+// resolves a built-in or a `domotion-template-<name>` npm package; the `Template`
+// contract lets third parties author and publish their own.
+export {
+  type Template,
+  type TemplateOutput,
+  type TemplateRenderContext,
+  isTemplate,
+  listBuiltinTemplates,
+  getBuiltinTemplate,
+  loadTemplate,
+  templatePackageName,
+  renderTemplateToSvg,
+  validateTemplateParams,
+  type RenderTemplateOptions,
+  templateParamsJsonSchema,
+  describeTemplateParams,
+  type ParamInfo,
+  lowerThirdTemplate,
+  type LowerThirdParams,
+  deviceMockupTemplate,
+  type DeviceMockupParams,
+} from "./templates/index.js";
