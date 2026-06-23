@@ -251,6 +251,16 @@
               }
             }
           },
+          "template": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
           "continue": {
             "type": "boolean"
           },

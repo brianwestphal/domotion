@@ -35,6 +35,16 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 73 (`docs/73-template-frames.md`, DM-1287)** — **Shipped.** A `template`
+  frame kind in the `animate` config: `{"template":"lower-third","params":{…}}`
+  embeds a named template (doc 70) as a nested animated SVG, composing it into a
+  larger multi-frame animation. Params validated against the template's own
+  schema; template inherits the canvas size (centered otherwise). The crux is
+  nesting an animated SVG inside another: template frames are pre-rendered before
+  the outer font lifecycle, and the nested document's global names (ids, font
+  families, `.f-N` classes, `@keyframes`, `--scene-dur`) are namespaced per-frame
+  (`namespaceEmbeddedAnimatedSvg`, `src/animation/embed-namespace.ts`) so they
+  can't collide with the outer animation or sibling template frames.
 - **Doc 72 (`docs/72-kinetic-text-template.md`, DM-1277)** — **Shipped.** The
   `kinetic-text` **generator** template: a headline string is expanded at author
   time into per-word / per-char units, each revealed with a staggered one-shot

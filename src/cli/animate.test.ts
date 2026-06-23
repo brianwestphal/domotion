@@ -74,7 +74,7 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
 
     it("errors when frame 0 has no input", () => {
-      expect(() => validateAnimateConfig({ ...base, frames: [{ duration: 1 }] })).toThrow(/frame 0 must load an .input. or a .cast./);
+      expect(() => validateAnimateConfig({ ...base, frames: [{ duration: 1 }] })).toThrow(/frame 0 must load an .input., a .cast., or a .template./);
     });
 
     it("errors when frame 0 sets continue", () => {
@@ -121,6 +121,53 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       expect(() =>
         validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1 }, { cast: "x.cast", continue: true, duration: 1 }] }),
       ).toThrow(/`cast` frame cannot also `continue`/);
+    });
+  });
+
+  describe("template frames (DM-1287)", () => {
+    it("accepts a template frame at index 0 with params", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ template: "lower-third", params: { title: "Ada" }, duration: 3000 }],
+      });
+      expect(cfg.frames[0].template).toBe("lower-third");
+      expect(cfg.frames[0].params).toEqual({ title: "Ada" });
+    });
+
+    it("composes a template frame alongside html frames", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [
+          { input: "intro.html", duration: 1500, transition: { type: "crossfade", duration: 300 } },
+          { template: "lower-third", params: { title: "Ada" }, duration: 3000 },
+        ],
+      });
+      expect(cfg.frames).toHaveLength(2);
+      expect(cfg.frames[1].template).toBe("lower-third");
+    });
+
+    it("rejects a frame that sets both template and input", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", input: "y.html", duration: 1 }] }),
+      ).toThrow(/cannot set both `template` and `input`/);
+    });
+
+    it("rejects a frame that sets both template and cast", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", cast: "x.cast", duration: 1 }] }),
+      ).toThrow(/cannot set both `template` and `cast`/);
+    });
+
+    it("rejects a template frame that also continues a live page", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1 }, { template: "lower-third", continue: true, duration: 1 }] }),
+      ).toThrow(/`template` frame cannot also `continue`/);
+    });
+
+    it("rejects `params` without a `template`", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", params: { title: "x" }, duration: 1 }] }),
+      ).toThrow(/`params` requires a `template`/);
     });
   });
 

@@ -24,6 +24,11 @@ animate / capture pipeline, exactly like the terminal (`--cast`) and live-pty
 front-ends are front-ends onto one terminal backend. Every fidelity fix in the
 core pipeline is inherited automatically.
 
+A template is invokable three ways: the `domotion template <name>` CLI verb
+(below), the programmatic `renderTemplateToSvg` API, and — as of DM-1287 — as a
+`template` frame **inside an `animate` config**, so a template composes
+declaratively into a larger multi-frame animation. See **`docs/73-template-frames.md`**.
+
 Two shapes have emerged, both expressible on one contract:
 
 - **Generator** (e.g. `lower-third`): synthesizes HTML/CSS + an `animate` config
@@ -142,5 +147,14 @@ outputs land in `examples/output/templates/`. The generator uses only the public
 Tracked as separate tickets after the spike validated the contract: kinetic
 typography, chat/message + subscribe pop-up, charts & graphs, backgrounds &
 loops, a Lottie **input adapter** (`domotion-template-lottie` — Lottie stays an
-input, never the engine), a third-party authoring guide + discovery/gallery, and
-folding `capture --chrome` onto the `device-mockup` template to dedupe.
+input, never the engine), and a third-party authoring guide + discovery/gallery.
+
+**Resolved — `capture --chrome` is NOT folded onto the `device-mockup`
+template.** The bezel-drawing logic is already a single source of truth
+(`wrapInDeviceChrome` in `src/render/device-chrome.ts`), called identically by
+both surfaces — there is no duplicated bezel code. They differ only in how they
+*capture* before wrapping, and that difference is deliberate: `capture --chrome`
+runs the full capture-CLI pipeline (`--scroll`, `--debug` bundles, `--clip`, HAR,
+…) while the template's `captureToSvg` is a minimal primitive. Delegating would
+regress those CLI-only features for chromed captures, so the two stay separate
+with `wrapInDeviceChrome` as the shared SSOT.

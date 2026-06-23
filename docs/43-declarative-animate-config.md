@@ -270,6 +270,30 @@ Runs the script in page context via `page.evaluate` during the frame's action ph
 
 ---
 
+## 9. Template frames (DM-1287)
+
+A frame may embed a named **template** (doc 70) instead of an `input` page or a `cast` recording — the declarative way to drop a `lower-third` banner, a `kinetic-text` title, or a `device-mockup` framing into a larger animation.
+
+**Surface.**
+
+```jsonc
+{ "template": "lower-third",
+  "params": { "title": "Ada Lovelace", "subtitle": "First Programmer" },
+  "duration": 3000, "transition": { "type": "cut", "duration": 0 } }
+```
+
+- `template` — a built-in (`lower-third`, `device-mockup`, `background-loop`, `kinetic-text`) or an installed `domotion-template-<name>` package, resolved exactly like the `domotion template` verb.
+- `params` — validated against that template's own zod schema at compose time; an unknown name or bad params fails with a path-specific error. `${vars}` interpolation applies to `params` strings (§7).
+
+**Semantics & guardrails.**
+- `template` is mutually exclusive with `input` / `cast` / `continue`; `params` requires a `template`; frame 0 may be a template frame.
+- The template **inherits the config `width`/`height`** when its schema declares them and they're unset, so it fills the frame; an output that still differs (e.g. `device-mockup`'s bezel growth) is **centered**, and an oversized one is centered + clipped. No auto-scaling.
+- The template's internal animation plays within the frame's `duration` — size `duration` to ≈ the template's play time (same rule as a `cast` frame).
+
+**Implementation.** A template is itself a front-end onto `composeAnimateConfig`, so the embedding nests an animated SVG in the animation. Template frames are pre-rendered before the outer font lifecycle (so the nested compose can't clobber the outer frames' embedded fonts), and the nested document's global names (ids, font families, frame/anim classes, `@keyframes`, `--scene-dur`) are namespaced per-frame so they don't collide with the outer animation or sibling template frames. Full detail in **`docs/73-template-frames.md`**.
+
+---
+
 ## Published JSON Schema
 
 A formal **JSON Schema (draft 2020-12)** for this config ships with the npm package at `schemas/animate-config.schema.json` and is published at a stable URL:

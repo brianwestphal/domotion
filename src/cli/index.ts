@@ -120,6 +120,8 @@ animate config (JSON):
         "input":      "./frames/start.html",        // URL or path; OPTIONAL after frame 0 (see Continuous session)
         "cast":       "./session.cast",             // optional — embed a terminal recording instead of an input (see Terminal cast)
         "term":       { "theme": "dark", "maxFrameMs": 700 },  // optional — options for a "cast" frame
+        "template":   "lower-third",                // optional — embed a named template instead of an input (see Template)
+        "params":     { "title": "Ada Lovelace" },  // optional — params for a "template" frame (validated vs its schema)
         "continue":   false,                        // optional — keep the previous frame's live page (no reload)
         "duration":   1500,                         // ms held on screen
         "transition": { "type": "crossfade", "duration": 300 },
@@ -150,6 +152,12 @@ animate config (JSON):
     "input" to embed a recorded terminal session as a nested animated SVG (with
     an optional "term" options block). Size that frame's "duration" to the cast's
     recorded play time. See 'domotion term --help' and docs/67-terminal-capture.md.
+  Template: a frame may set "template": "<name>" (+ optional "params") instead of
+    "input" to embed a named template (e.g. lower-third, kinetic-text) as a nested
+    animated SVG. "params" is validated against that template's own schema. The
+    template inherits the config's width/height by default (it's centered when its
+    output differs). Size "duration" to the template's play time. See
+    'domotion template list' and docs/73-template-frames.md.
 
   Actions (each runs in order before capture; all but scroll/press/wait/evaluate take a "selector"):
     Interaction:  click | fill {value} | press {key} | hover | scroll {x,y} | wait {ms}

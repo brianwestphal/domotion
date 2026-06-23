@@ -87,6 +87,50 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     }
   }, 90_000);
 
+  // DM-1287 (doc 73): a `template` frame embeds a named template's animated SVG
+  // as one frame, namespaced so its document-global names don't collide with the
+  // outer animation or sibling frames.
+  it("embeds a template frame alongside an html frame without name collisions", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(path.join(tmpdir(), "template-frame-"));
+    try {
+      writeFileSync(path.join(dir, "intro.html"), PAGE("Intro", "#0d1117"));
+      const rawCfg = {
+        width: 320, height: 180,
+        frames: [
+          { input: "intro.html", duration: 800, transition: { type: "crossfade", duration: 200 } },
+          {
+            template: "lower-third",
+            params: { title: "Ada Lovelace", subtitle: "First Programmer", holdMs: 1200 },
+            duration: 1200,
+            transition: { type: "cut", duration: 0 },
+          },
+        ],
+      };
+
+      const svg = await composeAnimateConfig(browser, validateAnimateConfig(rawCfg), dir, () => {});
+
+      // The template rendered: its title text is present (the renderer emits the
+      // string as an aria-label on the glyph group).
+      expect(svg).toContain("Ada Lovelace");
+      // The template frame's content was namespaced with its per-frame token.
+      expect(svg).toContain("tf1_");
+
+      // No two `@font-face` blocks share a family name — the whole point of the
+      // namespacing pass. A duplicate would make a later @font-face win and
+      // reshape the OTHER frame's text to the wrong glyphs.
+      const families = [...svg.matchAll(/@font-face\s*\{[^}]*?font-family:\s*"([^"]+)"/g)].map((m) => m[1]);
+      expect(families.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(families).size).toBe(families.length);
+
+      // Likewise no duplicate `@keyframes` name across the merged document.
+      const kf = [...svg.matchAll(/@keyframes\s+([A-Za-z0-9_-]+)/g)].map((m) => m[1]);
+      expect(new Set(kf).size).toBe(kf.length);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   // DM-1138 (doc 62 §2): the per-frame onFrame hook + options-object signature.
   it("fires onFrame once per frame (correct index/tree) and reflects a frame.overlays mutation", async () => {
     const { browser } = env!;

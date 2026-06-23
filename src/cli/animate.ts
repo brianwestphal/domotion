@@ -47,6 +47,7 @@ import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../s
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
+import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import {
   applyReadyWaits,
@@ -243,6 +244,16 @@ const frameSchema = z.object({
   // recorded length (the tool logs it). Mutually exclusive with `input`.
   cast: z.string().optional(),
   term: termOptionsSchema.optional(),
+  // DM-1287 (doc 73): a `template` frame embeds a named Domotion template's
+  // output (e.g. a `lower-third` banner or a `kinetic-text` title) as this
+  // frame's content — most templates emit an animated SVG, which nests like a
+  // `cast` frame. `params` is validated against the named template's own schema
+  // at compose time (path-specific errors). The template inherits the config's
+  // `width`/`height` when its schema has those params and they're unset, so it
+  // fills the frame by default; a smaller/larger output is centered (+ clipped).
+  // Mutually exclusive with `input` / `cast` / `continue`.
+  template: z.string().optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
   continue: z.boolean().optional(),
   duration: z.number(),
   transition: transitionSchema.optional(),
@@ -330,8 +341,8 @@ export const animateConfigSchema = z
   .superRefine((cfg, ctx) => {
     // DM-846 §1 cross-frame rules for the continuous-session model.
     cfg.frames.forEach((f, i) => {
-      if (i === 0 && f.input == null && f.cast == null) {
-        ctx.addIssue({ code: "custom", path: ["frames", 0, "input"], message: "frame 0 must load an `input` or a `cast`" });
+      if (i === 0 && f.input == null && f.cast == null && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", 0, "input"], message: "frame 0 must load an `input`, a `cast`, or a `template`" });
       }
       if (i === 0 && f.continue === true) {
         ctx.addIssue({ code: "custom", path: ["frames", 0, "continue"], message: "frame 0 cannot continue — it has no predecessor" });
@@ -346,6 +357,21 @@ export const animateConfigSchema = z
       }
       if (f.cast != null && f.continue === true) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "cast"], message: "a `cast` frame cannot also `continue` a live page" });
+      }
+      // DM-1287: a `template` frame is its own content source — it can't also
+      // load an `input`, embed a `cast`, or continue a live page. `params`
+      // without a `template` has nothing to validate against.
+      if (f.template != null && f.input != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a frame cannot set both `template` and `input`" });
+      }
+      if (f.template != null && f.cast != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a frame cannot set both `template` and `cast`" });
+      }
+      if (f.template != null && f.continue === true) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a `template` frame cannot also `continue` a live page" });
+      }
+      if (f.params != null && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "params"], message: "`params` requires a `template`" });
       }
     });
   });
@@ -480,6 +506,90 @@ function normalizeComposeArgs(
  * a frame's relative `input` / svg-overlay `src` paths (default `process.cwd()`);
  * `log` defaults to a no-op.
  */
+/**
+ * DM-1287 (doc 73): render every `template` frame's named template to a finished
+ * SVG string, ready to nest as that frame's `svgContent`. Returns a map keyed by
+ * frame index (only template frames appear).
+ *
+ * Runs BEFORE the caller's outer font lifecycle so the nested per-template
+ * `composeAnimateFrames` (a template is a front-end onto the same engine) can
+ * clear + manage the module-global font builders without clobbering the outer
+ * run's frames — each template's output carries its own `@font-face`.
+ *
+ * Sizing: the template inherits the config's `width`/`height` when its params
+ * schema declares those fields and the caller left them unset, so it fills the
+ * frame by default. A template whose output differs from the canvas (e.g.
+ * `device-mockup`, which grows by its bezel) is centered; an oversized output is
+ * centered and clipped by the frame viewport. The template's own internal
+ * timeline plays within the frame's `duration` (size `duration` to ≈ the
+ * template's play time, same rule as a `cast` frame).
+ *
+ * Loaded via dynamic `import()` to avoid a static import cycle (the template
+ * subsystem already imports `composeAnimateConfig` from this module).
+ */
+async function renderTemplateFrames(
+  cfg: AnimateConfig,
+  browser: Browser,
+  log: (msg: string) => void,
+): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  const idxs = cfg.frames.flatMap((f, i) => (f.template != null ? [i] : []));
+  if (idxs.length === 0) return out;
+
+  const { loadTemplate } = await import("../templates/registry.js");
+  const { renderTemplateToSvg } = await import("../templates/render.js");
+
+  for (const i of idxs) {
+    const fc = cfg.frames[i];
+    const name = fc.template as string;
+    log(`Rendering template "${name}" for frame ${i + 1}/${cfg.frames.length}…`);
+
+    let template;
+    try {
+      template = await loadTemplate(name);
+    } catch (e) {
+      throw new Error(`animate: frames[${i}].template: ${(e as Error).message}`);
+    }
+
+    // Inherit the canvas size into the template's `width`/`height` params when
+    // its schema declares them and the caller didn't set them, so the template
+    // fills the frame. Introspect the zod object shape; templates without those
+    // params (or non-object schemas) just get no injection.
+    const shape = (template.paramsSchema as { shape?: Record<string, unknown> }).shape;
+    const base: Record<string, unknown> = {};
+    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "width")) base.width = cfg.width;
+    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "height")) base.height = cfg.height;
+    const rawParams = { ...base, ...(fc.params ?? {}) };
+
+    let result;
+    try {
+      result = await renderTemplateToSvg(template, rawParams, { browser, log: (m) => log(`  ${m}`) });
+    } catch (e) {
+      // Param-validation errors already carry their own `template "x": …` path.
+      throw new Error(`animate: frames[${i}]: ${(e as Error).message}`);
+    }
+
+    if (result.width > cfg.width || result.height > cfg.height) {
+      log(`  note: template output ${result.width}×${result.height} exceeds the ${cfg.width}×${cfg.height} canvas — it will be centered and clipped`);
+    }
+
+    // Namespace the template's document-global names (ids, font families, frame
+    // classes, @keyframes, --scene-dur) with a per-frame token so they can't
+    // collide with the outer animation or sibling template frames once nested
+    // into one document (a template is a full `generateAnimatedSvg` SVG, and
+    // SVG/CSS names are document-global, not scoped to a nested `<svg>`).
+    let content = namespaceEmbeddedAnimatedSvg(result.svg, `tf${i}_`);
+    // Strip the XML prolog so the `<svg>` nests cleanly in the animator's frame
+    // group (same as a `cast` frame). Center within the canvas when smaller.
+    content = content.replace(/^<\?xml[^>]*\?>\s*/, "");
+    const ox = Math.round((cfg.width - result.width) / 2);
+    const oy = Math.round((cfg.height - result.height) / 2);
+    if (ox !== 0 || oy !== 0) content = `<g transform="translate(${ox},${oy})">${content}</g>`;
+    out.set(i, content);
+  }
+  return out;
+}
+
 export async function composeAnimateFrames(
   browser: Browser,
   cfg: AnimateConfig,
@@ -489,6 +599,15 @@ export async function composeAnimateFrames(
   const { configDir, log, onFrame } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
+  // DM-1287 (doc 73): render `template` frames UP FRONT, before the outer run's
+  // font lifecycle (clearWebfonts / clearEmbeddedFonts) starts below. A template
+  // is itself a front-end onto `composeAnimateConfig`, so rendering one runs a
+  // NESTED `composeAnimateFrames` that clears + manages the module-global font
+  // builders. Doing it here — before the outer clears — keeps each template's
+  // output fully self-contained (its own `@font-face`) and stops the nested run
+  // from clobbering the outer frames' embedded fonts. Each rendered template SVG
+  // is a finished string by the time the outer loop reaches its frame.
+  const templateRenders = await renderTemplateFrames(cfg, browser, log);
   const ctx = await browser.newContext({
     viewport: { width: cfg.width, height: cfg.height },
     isMobile: cfg.mobile === true,
@@ -587,6 +706,20 @@ export async function composeAnimateFrames(
         });
         // A cast frame has no single captured tree; magic-move to/from it falls
         // back to crossfade, and the cursor/overlay machinery is skipped.
+        prevFrameTree = null;
+        frameTrees.push(null);
+        continue;
+      }
+      // DM-1287 (doc 73): a `template` frame embeds a named template's output,
+      // pre-rendered above into a finished (self-contained, possibly animated)
+      // SVG string. Nest it exactly like a `cast` frame.
+      if (fc.template != null) {
+        log(`Frame ${i + 1}/${cfg.frames.length}: embedding template "${fc.template}"…`);
+        frames.push({
+          svgContent: templateRenders.get(i)!,
+          duration: fc.duration,
+          transition: fc.transition,
+        });
         prevFrameTree = null;
         frameTrees.push(null);
         continue;
