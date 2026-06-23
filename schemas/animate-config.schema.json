@@ -261,10 +261,19 @@
             },
             "additionalProperties": {}
           },
+          "fit": {
+            "type": "string",
+            "enum": [
+              "center",
+              "contain",
+              "cover"
+            ]
+          },
           "continue": {
             "type": "boolean"
           },
           "duration": {
+            "default": 0,
             "type": "number"
           },
           "transition": {
@@ -1355,10 +1364,7 @@
               ]
             }
           }
-        },
-        "required": [
-          "duration"
-        ]
+        }
       }
     }
   },

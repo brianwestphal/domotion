@@ -53,18 +53,37 @@ the caller didn't set them in `params`, the config's canvas size is injected, so
 the template fills the frame.
 
 A template whose output still differs from the canvas — e.g. `device-mockup`,
-which grows by its bezel — is **centered** within the frame. An output larger than
-the canvas is centered and **clipped** to the frame viewport (a log note warns).
-There is no auto-scaling; author the template at the frame size for a pixel-exact
-fit. (A `fit: contain | cover | center` option is a filed follow-up.)
+which grows by its bezel — is placed per the frame's optional **`fit`** policy
+(DM-1293), all centered:
+
+- **`center`** (default) — 1:1, no scaling. An output larger than the canvas is
+  clipped to the frame viewport (a log note warns, suggesting `contain`).
+- **`contain`** — scaled down to fit, preserving aspect ratio (letterboxed). Use
+  this to drop an oversized template (a `device-mockup` bezel) into a smaller
+  frame without cropping.
+- **`cover`** — scaled up to fill, preserving aspect ratio; the overflow is
+  clipped.
+
+`fit` is only meaningful on a template frame (it's a validation error elsewhere).
+The geometry is the pure `placeEmbeddedFrame` helper in `src/cli/animate.ts`
+(unit-tested) — a `<g transform="translate(…) scale(…)">` wrapper, omitted
+entirely for the exact-fit common case.
 
 ## Timeline
 
 The template's own internal animation plays within the frame's `duration`, the
-same rule as a `cast` frame: size `duration` to ≈ the template's play time. If the
-frame is longer, the template finishes and holds its last state; if shorter, it is
-cut off. The frame `duration` is authored explicitly — it is not auto-derived from
-the template (a `TemplateOutput.durationMs` for auto-sizing is a filed follow-up).
+same rule as a `cast` frame. If the frame is longer, the template finishes and
+holds its last state; if shorter, it is cut off (a log note warns).
+
+**`duration` is optional on a template frame** (DM-1294). When omitted, it is
+derived from the template's own play time: a generator reports its play time as
+`TemplateOutput.durationMs` (`lower-third` → `holdMs`, `kinetic-text` → the
+computed staggered-reveal end, `background-loop` → one loop period), and the frame
+takes that value. Set an explicit `duration` to override it (shorter → cut off,
+with a warning; longer → holds). A **static** decorator template (e.g.
+`device-mockup`) has no intrinsic play time, so a frame using one **must** set an
+explicit `duration` — omitting it is a clear error. Every *non*-template frame
+still requires a positive `duration`.
 
 ## How it works (implementation)
 
@@ -95,11 +114,13 @@ that nesting correct (`src/cli/animate.ts`):
    renderer-controlled, so the rewrite is precise (it never touches CSS decimals,
    base64 font bytes, or captured content).
 
-   This is the same collision the `cast` path sidesteps for fonts only, by sharing
-   the outer embedded-font builder (`manageFonts: false`). A template can't share
-   that state (it runs a fully independent compose), so it is namespaced after the
-   fact instead. The cast path could adopt the same namespacing for the
-   mixed-cast-plus-input case (a filed follow-up).
+   The `cast` path shares the outer embedded-font builder (`manageFonts: false`),
+   so its font names are already unique — but its other global names (`.f-N`,
+   `@keyframes`, `--scene-dur`, ids) collide the same way. As of DM-1292 the cast
+   path runs the same `namespaceEmbeddedAnimatedSvg` over its SVG, with
+   `namespaceFonts: false` so the deferred-to-the-outer-block font references stay
+   intact. A template can't share the font state (it runs a fully independent
+   compose), so it namespaces fonts too.
 
 ## Tests
 

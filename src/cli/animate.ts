@@ -254,8 +254,19 @@ const frameSchema = z.object({
   // Mutually exclusive with `input` / `cast` / `continue`.
   template: z.string().optional(),
   params: z.record(z.string(), z.unknown()).optional(),
+  // DM-1293: how a `template` frame's output is placed when its size differs from
+  // the canvas. `center` (default) places it 1:1 (oversized → clipped); `contain`
+  // scales it down to fit, preserving aspect (letterboxed); `cover` scales it up
+  // to fill, preserving aspect (cropped). Only meaningful on a template frame.
+  fit: z.enum(["center", "contain", "cover"]).optional(),
   continue: z.boolean().optional(),
-  duration: z.number(),
+  // DM-1294: `duration` is required on every frame EXCEPT a `template` frame,
+  // which may omit it to inherit the template's own play time (its generator
+  // reports `durationMs`). Defaults to `0` (a sentinel for "unset" — a 0 ms frame
+  // is never valid), so the type stays `number` for the timeline math; the
+  // "required-and-positive unless template" rule is enforced in the config-level
+  // superRefine below (it needs the sibling `template` field).
+  duration: z.number().default(0),
   transition: transitionSchema.optional(),
   selector: z.string().optional(),
   wait: z.number().optional(),
@@ -372,6 +383,16 @@ export const animateConfigSchema = z
       }
       if (f.params != null && f.template == null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "params"], message: "`params` requires a `template`" });
+      }
+      // DM-1293: `fit` only governs how a template frame's output is placed.
+      if (f.fit != null && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "fit"], message: "`fit` requires a `template`" });
+      }
+      // DM-1294: `duration` is required (and positive) except on a `template`
+      // frame, which derives it from the template's play time when omitted (the
+      // `0` default is the "unset" sentinel).
+      if (f.duration <= 0 && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "duration"], message: "`duration` is required and must be > 0 (only a `template` frame may omit it — it inherits the template's play time)" });
       }
     });
   });
@@ -527,6 +548,38 @@ function normalizeComposeArgs(
  * Loaded via dynamic `import()` to avoid a static import cycle (the template
  * subsystem already imports `composeAnimateConfig` from this module).
  */
+/**
+ * DM-1293: place a nested frame's `content` (a `srcW × srcH` SVG body) inside a
+ * `dstW × dstH` canvas per the `fit` policy, wrapping it in a `<g transform>` when
+ * a translate/scale is needed (and returning it untouched when neither is — the
+ * exact-fit common case). All modes keep the content centered:
+ *  - `center` — 1:1, no scale (oversized content is clipped by the frame viewport).
+ *  - `contain` — scale to fit, preserving aspect (letterboxed).
+ *  - `cover` — scale to fill, preserving aspect (the overflow is clipped).
+ * Exported for unit testing the geometry without a browser.
+ */
+export function placeEmbeddedFrame(
+  content: string,
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number,
+  fit: "center" | "contain" | "cover" = "center",
+): string {
+  const r = (n: number): number => Math.round(n * 1000) / 1000;
+  let scale = 1;
+  if (fit === "contain") scale = Math.min(dstW / srcW, dstH / srcH);
+  else if (fit === "cover") scale = Math.max(dstW / srcW, dstH / srcH);
+  const ox = r((dstW - srcW * scale) / 2);
+  const oy = r((dstH - srcH * scale) / 2);
+  const parts: string[] = [];
+  if (ox !== 0 || oy !== 0) parts.push(`translate(${ox},${oy})`);
+  // `transform` applies right-to-left, so `translate(…) scale(…)` scales first
+  // (about the content's own origin) then offsets — i.e. the scaled box is centered.
+  if (scale !== 1) parts.push(`scale(${r(scale)})`);
+  return parts.length > 0 ? `<g transform="${parts.join(" ")}">${content}</g>` : content;
+}
+
 async function renderTemplateFrames(
   cfg: AnimateConfig,
   browser: Browser,
@@ -569,8 +622,24 @@ async function renderTemplateFrames(
       throw new Error(`animate: frames[${i}]: ${(e as Error).message}`);
     }
 
-    if (result.width > cfg.width || result.height > cfg.height) {
-      log(`  note: template output ${result.width}×${result.height} exceeds the ${cfg.width}×${cfg.height} canvas — it will be centered and clipped`);
+    const fit = fc.fit ?? "center";
+    if (fit === "center" && (result.width > cfg.width || result.height > cfg.height)) {
+      log(`  note: template output ${result.width}×${result.height} exceeds the ${cfg.width}×${cfg.height} canvas — it will be centered and clipped (set "fit":"contain" to scale it down)`);
+    }
+
+    // DM-1294: resolve the frame's duration. When the author omitted it, inherit
+    // the template's own play time (`durationMs`); a static template (no intrinsic
+    // duration) MUST carry an explicit `duration`. When the author set one that's
+    // shorter than the template plays, warn — the template will be cut off (same
+    // rule as a `cast` frame).
+    if (fc.duration <= 0) {
+      if (result.durationMs == null) {
+        throw new Error(`animate: frames[${i}].duration: template "${name}" has no intrinsic play time (it's a static template) — set an explicit "duration"`);
+      }
+      fc.duration = result.durationMs;
+      log(`  frame duration defaulted to the template's play time: ${result.durationMs}ms`);
+    } else if (result.durationMs != null && fc.duration < result.durationMs) {
+      log(`  note: frame duration ${fc.duration}ms < template play time ${result.durationMs}ms — the template will be cut off; size duration to ≈ ${result.durationMs}ms`);
     }
 
     // Namespace the template's document-global names (ids, font families, frame
@@ -582,9 +651,7 @@ async function renderTemplateFrames(
     // Strip the XML prolog so the `<svg>` nests cleanly in the animator's frame
     // group (same as a `cast` frame). Center within the canvas when smaller.
     content = content.replace(/^<\?xml[^>]*\?>\s*/, "");
-    const ox = Math.round((cfg.width - result.width) / 2);
-    const oy = Math.round((cfg.height - result.height) / 2);
-    if (ox !== 0 || oy !== 0) content = `<g transform="translate(${ox},${oy})">${content}</g>`;
+    content = placeEmbeddedFrame(content, result.width, result.height, cfg.width, cfg.height, fit);
     out.set(i, content);
   }
   return out;
@@ -696,7 +763,19 @@ export async function composeAnimateFrames(
         if (fc.duration < totalDurationMs) {
           log(`  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`);
         }
-        const termSvg = castSvg;
+        // DM-1292: the cast SVG is a full `generateAnimatedSvg` document, so its
+        // document-global names (ids, `.f-N` frame classes + `@keyframes fv-N` in
+        // `mode: "full"`, the incremental `ln…` / `tcur…` keyframes, `--scene-dur`)
+        // collide with the outer animation's identical names, or with a sibling
+        // cast frame's, once concatenated — a duplicate `@keyframes`/rule wins
+        // globally and hijacks the wrong frame's timeline (visible when the
+        // timeline is SEEKED, like the DM-1145 id-collision bug). Namespace them
+        // with a per-frame token, exactly like a `template` frame. Fonts are the
+        // ONE exception: `manageFonts: false` defers them to this pipeline's shared
+        // embedded-font builder (one `@font-face` block, already-unique `dmfN`
+        // names) collected after the loop, so we must NOT prefix the cast's
+        // `font-family` references or they'd dangle.
+        const termSvg = namespaceEmbeddedAnimatedSvg(castSvg, `cf${i}_`, { namespaceFonts: false });
         // The animator wraps `svgContent` in `<g class="f f-N">`, which holds a
         // nested `<svg>` fine — strip just the XML prolog (same as scroll).
         frames.push({

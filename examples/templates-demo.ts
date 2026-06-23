@@ -4,8 +4,8 @@
  *
  *   lower-third     → dark + light themes (different corners)
  *   device-mockup   → phone + browser + window bezels (each a distinct device)
- *   background-loop → aurora + orbs variants
- *   kinetic-text    → rise + slide(char) + fade variants
+ *   background-loop → aurora + orbs + stars + gradient-pan + grid variants
+ *   kinetic-text    → rise + slide(char) + fade + clip variants
  *
  * Outputs land in examples/output/templates/. Uses ONLY the public template API
  * (`renderTemplateToSvg` + `loadTemplate`) the way a consumer would.
@@ -68,7 +68,7 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     params: { input: SAMPLE_APP, device: "window", label: "Acme — Dashboard", width: 900, height: 560 },
   },
 
-  // background-loop — the two looping-background variants.
+  // background-loop — the looping-background variants.
   {
     file: "background-loop-aurora",
     template: backgroundLoopTemplate,
@@ -78,6 +78,21 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     file: "background-loop-orbs",
     template: backgroundLoopTemplate,
     params: { variant: "orbs", colors: ["#f43f5e", "#fb923c", "#facc15"], count: 7, width: 1280, height: 720, seed: 2 },
+  },
+  {
+    file: "background-loop-stars",
+    template: backgroundLoopTemplate,
+    params: { variant: "stars", colors: ["#7aa2f7", "#bb9af7", "#7dcfff", "#9ece6a"], width: 1280, height: 720, seed: 5 },
+  },
+  {
+    file: "background-loop-gradient-pan",
+    template: backgroundLoopTemplate,
+    params: { variant: "gradient-pan", colors: ["#6366f1", "#ec4899", "#22d3ee"], width: 1280, height: 720 },
+  },
+  {
+    file: "background-loop-grid",
+    template: backgroundLoopTemplate,
+    params: { variant: "grid", colors: ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"], width: 1280, height: 720 },
   },
 
   // kinetic-text — the three reveal styles (slide shown per-character).
@@ -95,6 +110,20 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     file: "kinetic-text-fade",
     template: kineticTextTemplate,
     params: { text: "Designed in the browser", variant: "fade", width: 1280, height: 720 },
+  },
+  {
+    file: "kinetic-text-clip",
+    template: kineticTextTemplate,
+    params: { text: "Wipe to reveal", variant: "clip", width: 1280, height: 720 },
+  },
+  {
+    // Multi-line (\n) + inline emphasis tags (<b>, <i>, <font color>).
+    file: "kinetic-text-emphasis",
+    template: kineticTextTemplate,
+    params: {
+      text: 'Build <font color="#22d3ee">motion</font>\\nright in the <i>browser</i>',
+      variant: "rise", width: 1280, height: 720,
+    },
   },
 ];
 

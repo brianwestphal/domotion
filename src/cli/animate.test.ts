@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { validateAnimateConfig, interpolateConfigVars, buildCursorOverlay, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, buildCursorOverlay, placeEmbeddedFrame, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -168,6 +168,43 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       expect(() =>
         validateAnimateConfig({ ...base, frames: [{ input: "a.html", params: { title: "x" }, duration: 1 }] }),
       ).toThrow(/`params` requires a `template`/);
+    });
+
+    // DM-1294: a template frame may omit `duration` (derived from the template's
+    // play time at compose time); every other frame must set a positive one.
+    it("accepts a template frame that omits `duration`", () => {
+      const cfg = validateAnimateConfig({ ...base, frames: [{ template: "lower-third", params: { title: "Ada" } }] });
+      expect(cfg.frames[0].duration).toBe(0); // 0 = the "derive at compose time" sentinel
+    });
+
+    it("rejects a non-template frame that omits `duration`", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html" }] }),
+      ).toThrow(/`duration` is required and must be > 0/);
+    });
+
+    it("rejects a non-template frame with a non-positive `duration`", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 0 }] }),
+      ).toThrow(/`duration` is required and must be > 0/);
+    });
+
+    // DM-1293: per-frame `fit` placement policy (template frames only).
+    it("accepts a template frame with a `fit` policy", () => {
+      const cfg = validateAnimateConfig({ ...base, frames: [{ template: "lower-third", params: { title: "Ada" }, duration: 1, fit: "contain" }] });
+      expect(cfg.frames[0].fit).toBe("contain");
+    });
+
+    it("rejects an invalid `fit` value", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, fit: "stretch" }] }),
+      ).toThrow();
+    });
+
+    it("rejects `fit` without a `template`", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, fit: "contain" }] }),
+      ).toThrow(/`fit` requires a `template`/);
     });
   });
 
@@ -408,5 +445,38 @@ describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
     expect(ct[0]).toBeLessThanOrEqual(rs[0] + reloadFrames[0].duration);
     expect(ct[1]).toBeGreaterThanOrEqual(rs[1]);
     expect(ct[1]).toBeLessThanOrEqual(rs[1] + reloadFrames[1].duration);
+  });
+});
+
+describe("placeEmbeddedFrame: template-frame fit policy (DM-1293)", () => {
+  it("center: exact fit returns content untouched (no wrapper)", () => {
+    expect(placeEmbeddedFrame("<g/>", 800, 450, 800, 450, "center")).toBe("<g/>");
+  });
+
+  it("center: smaller content is translated, not scaled", () => {
+    const out = placeEmbeddedFrame("<g/>", 400, 200, 800, 450, "center");
+    expect(out).toBe(`<g transform="translate(200,125)"><g/></g>`);
+    expect(out).not.toContain("scale(");
+  });
+
+  it("center: oversized content gets a negative offset (clipped by the viewport)", () => {
+    const out = placeEmbeddedFrame("<g/>", 1000, 600, 800, 450, "center");
+    expect(out).toBe(`<g transform="translate(-100,-75)"><g/></g>`);
+  });
+
+  it("contain: scales DOWN by the limiting axis, preserving aspect, centered", () => {
+    // 400×400 into 800×450 → min(2, 1.125) = 1.125; scaled 450×450; centered x.
+    const out = placeEmbeddedFrame("<g/>", 400, 400, 800, 450, "contain");
+    expect(out).toBe(`<g transform="translate(175,0) scale(1.125)"><g/></g>`);
+  });
+
+  it("cover: scales UP by the larger axis, preserving aspect, centered (overflow clipped)", () => {
+    // 400×400 into 800×450 → max(2, 1.125) = 2; scaled 800×800; centered y → (800-800)/2=0, (450-800)/2=-175.
+    const out = placeEmbeddedFrame("<g/>", 400, 400, 800, 450, "cover");
+    expect(out).toBe(`<g transform="translate(0,-175) scale(2)"><g/></g>`);
+  });
+
+  it("contain on an already-fitting square is a no-op-ish identity scale (no wrapper)", () => {
+    expect(placeEmbeddedFrame("<g/>", 800, 450, 800, 450, "contain")).toBe("<g/>");
   });
 });

@@ -45,8 +45,13 @@ interface Template<P> {
   paramsSchema: ZodType<P>;     // validated + projected to JSON Schema for --help
   render(params: P, ctx: TemplateRenderContext): Promise<TemplateOutput>;
 }
-interface TemplateOutput { svg: string; width: number; height: number; }
+interface TemplateOutput { svg: string; width: number; height: number; durationMs?: number; }
 ```
+
+`durationMs` (optional, DM-1294) is the output's intrinsic play time — a
+*generator* reports it (its `holdMs` / computed reveal end / loop period), a
+static *decorator* omits it. A `template` frame in an `animate` config uses it to
+default the frame's `duration` (doc 73).
 
 `render` receives already-validated, defaulted params and a context of building
 blocks:
@@ -112,7 +117,7 @@ a package whose export isn't a valid `Template` fails with an actionable error.
 |---|---|---|
 | `lower-third` | generator | Broadcast-style banner (title + subtitle + accent) that slides + fades in. The reveal is a real intra-frame `animations` (opacity + translateY), not baked into the capture. |
 | `device-mockup` | decorator | Wrap a captured URL/page in a phone / browser / window bezel. Reuses the shipped `wrapInDeviceChrome` (doc 65) as the single source of truth, so it can't diverge from `capture --chrome`. |
-| `background-loop` | generator | Procedural seamlessly-looping animated background — drifting + breathing color blobs (`aurora` / `orbs` variants). Deterministic from a `seed`. See **doc 71**. |
+| `background-loop` | generator | Procedural seamlessly-looping animated background — `aurora` / `orbs` / `stars` blobs, a `gradient-pan` color wash, or a drifting `grid`. Deterministic from a `seed`; comma-separated `--colors`. See **doc 71**. |
 | `kinetic-text` | generator | Kinetic typography — reveal a headline word-by-word or char-by-char with a staggered one-shot animation (`rise` / `slide` / `fade`). See **doc 72**. |
 
 ## Code
@@ -136,7 +141,7 @@ a package whose export isn't a valid `Template` fails with an actionable error.
 ## Examples
 
 `examples/templates/` holds one committed example SVG per built-in concept
-(both `lower-third` themes, all three `device-mockup` bezels, both
+(both `lower-third` themes, all three `device-mockup` bezels, all five
 `background-loop` variants, all three `kinetic-text` reveals). Regenerate with
 `npx tsx examples/templates-demo.ts` (also wired into `npm run demos:examples`);
 outputs land in `examples/output/templates/`. The generator uses only the public

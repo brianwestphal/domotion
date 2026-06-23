@@ -88,6 +88,26 @@ describe("namespaceEmbeddedAnimatedSvg", () => {
     expect(out).not.toMatch(/--scene-dur:/);
   });
 
+  it("with namespaceFonts:false, leaves font families alone but still namespaces classes/keyframes/ids", () => {
+    // A `cast` frame defers its fonts to the shared outer @font-face block, so its
+    // `font-family="dmfN"` refs must stay as-is (renaming would dangle them), while
+    // the class/keyframe/id/scene-dur collisions still get fixed (DM-1292).
+    const svg = `<svg><defs><clipPath id="fc-0"><rect/></clipPath></defs>` +
+      `<style>:root{--scene-dur:4s}@keyframes fv-0{0%{opacity:0}}.f-0{animation:fv-0 4s}</style>` +
+      `<g class="f f-0" clip-path="url(#fc-0)"><text font-family="dmf2">hi</text></g></svg>`;
+    const out = namespaceEmbeddedAnimatedSvg(svg, "cf1_", { namespaceFonts: false });
+    // Fonts untouched (the deferred shared name survives).
+    expect(out).toContain(`font-family="dmf2"`);
+    expect(out).not.toContain("cf1_dmf2");
+    // Everything else namespaced.
+    expect(out).toContain(`id="cf1_fc-0"`);
+    expect(out).toContain(`url(#cf1_fc-0)`);
+    expect(out).toContain(`@keyframes cf1_fv-0`);
+    expect(out).toContain(`animation:cf1_fv-0`);
+    expect(out).toContain(`class="cf1_f cf1_f-0"`);
+    expect(out).toContain(`--scene-dur-cf1_:4s`);
+  });
+
   it("two distinct tokens never collide on the same input", () => {
     const svg = `<svg><style>@font-face{font-family:"dmf0";src:url(x)}.f-0{animation:fv-0 2s}` +
       `@keyframes fv-0{0%{opacity:0}}</style><g class="f f-0"><text font-family="dmf0">a</text></g></svg>`;

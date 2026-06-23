@@ -131,6 +131,77 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     }
   }, 90_000);
 
+  // DM-1294: a template frame may omit `duration` — it's derived from the
+  // template's own play time (here lower-third's `holdMs`).
+  it("derives a template frame's duration from the template's play time when omitted", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(path.join(tmpdir(), "template-dur-"));
+    try {
+      // Two single template frames: one omits duration (→ holdMs 2600), one sets
+      // an explicit 1500. composeAnimateFrames returns frames with the resolved
+      // durations, so the total timeline = 2600 + 1500 (+ default transitions).
+      const rawCfg = {
+        width: 320, height: 180,
+        frames: [
+          { template: "lower-third", params: { title: "Derived", holdMs: 2600 }, transition: { type: "cut", duration: 0 } },
+          { template: "lower-third", params: { title: "Explicit", holdMs: 9999 }, duration: 1500, transition: { type: "cut", duration: 0 } },
+        ],
+      };
+      const config = await composeAnimateFrames(browser, validateAnimateConfig(rawCfg), dir, () => {});
+      expect(config.frames[0].duration).toBe(2600); // derived from holdMs
+      expect(config.frames[1].duration).toBe(1500); // explicit kept
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
+
+  // DM-1292: a `mode: "full"` cast frame is a full `generateAnimatedSvg` document
+  // (`.f-N` classes + `@keyframes fv-N` + `:root --scene-dur`), so mixed with an
+  // html frame it used to duplicate those global names and hijack the outer frame
+  // timeline. The cast path now namespaces them per-frame — but NOT the font
+  // families, which are deferred to the shared outer `@font-face` block.
+  it("embeds a (mode:full) cast frame alongside an html frame without name collisions or dangling fonts", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(path.join(tmpdir(), "cast-frame-"));
+    try {
+      writeFileSync(path.join(dir, "intro.html"), PAGE("Intro", "#0d1117"));
+      // A minimal asciinema v2 cast (header line + two output events).
+      const cast = [
+        JSON.stringify({ version: 2, width: 40, height: 6 }),
+        JSON.stringify([0.4, "o", "$ build\r\n"]),
+        JSON.stringify([0.9, "o", "done\r\n"]),
+      ].join("\n");
+      writeFileSync(path.join(dir, "session.cast"), cast);
+      const rawCfg = {
+        width: 320, height: 180,
+        frames: [
+          { input: "intro.html", duration: 600, transition: { type: "crossfade", duration: 200 } },
+          { cast: "session.cast", duration: 2000, term: { mode: "full", fontSize: 13 } },
+        ],
+      };
+
+      const svg = await composeAnimateConfig(browser, validateAnimateConfig(rawCfg), dir, () => {});
+
+      // The cast frame's global names are namespaced with its per-frame token.
+      expect(svg).toContain("cf1_");
+      // No duplicate `@keyframes` name (the `fv-N` collision is gone).
+      const kf = [...svg.matchAll(/@keyframes\s+([A-Za-z0-9_-]+)/g)].map((m) => m[1]);
+      expect(new Set(kf).size).toBe(kf.length);
+      // Exactly one bare `:root { --scene-dur: … }` declaration (the cast's is
+      // renamed to `--scene-dur-cf1_`); regex pins the colon to avoid matching the
+      // renamed prefix.
+      const sceneDecls = [...svg.matchAll(/--scene-dur(-cf\d+_)?\s*:/g)].map((m) => m[0]);
+      expect(new Set(sceneDecls).size).toBe(sceneDecls.length);
+      // Fonts are NOT namespaced for casts: every `font-family="…"` reference
+      // resolves to a declared `@font-face` (no dangling reference).
+      const usedFams = new Set([...svg.matchAll(/font-family="([^"]+)"/g)].map((m) => m[1]));
+      const declFams = new Set([...svg.matchAll(/@font-face\s*\{[^}]*?font-family:\s*"([^"]+)"/g)].map((m) => m[1]));
+      for (const fam of usedFams) expect(declFams.has(fam)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   // DM-1138 (doc 62 §2): the per-frame onFrame hook + options-object signature.
   it("fires onFrame once per frame (correct index/tree) and reflects a frame.overlays mutation", async () => {
     const { browser } = env!;

@@ -16,6 +16,11 @@ import {
   planBlobs,
   buildBackgroundHtml,
   buildBackgroundAnimations,
+  buildGradientPanHtml,
+  buildGradientPanAnimations,
+  planGridDots,
+  buildGridHtml,
+  buildGridAnimations,
 } from "./builtin/background-loop.js";
 import {
   kineticTextTemplate,
@@ -24,7 +29,14 @@ import {
   buildKineticHtml,
   buildKineticAnimations,
   kineticDurationMs,
+  parseStyledText,
+  unitText,
+  type KineticUnit,
 } from "./builtin/kinetic-text.js";
+
+/** All units of a plan, flattened across lines, in index order. */
+const allUnits = (plan: { lines: KineticUnit[][][] }): KineticUnit[] =>
+  plan.lines.flat(2);
 
 describe("template registry (DM-1276)", () => {
   it("lists the built-in templates", () => {
@@ -183,6 +195,53 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
     expect(backgroundLoopTemplate.name).toBe("background-loop");
     expect(() => parse({ count: 99 })).toThrow(); // max 24
   });
+
+  // DM-1285: comma-separated `colors` convenience flag.
+  it("accepts `colors` as a comma-separated string (the --colors flag)", () => {
+    const p = parse({ colors: "#abc, #def ,#123" });
+    expect(p.colors).toEqual(["#abc", "#def", "#123"]); // split + trimmed
+    expect(parse({ colors: ["#x", "#y"] }).colors).toEqual(["#x", "#y"]); // array still works
+    expect(() => parse({ colors: "" })).toThrow(); // empty → no colors → min(1) fails
+  });
+
+  // DM-1285: "stars" particle field — many tiny dots (count is a density level).
+  it("stars produces ~14× the count in tiny dots", () => {
+    const stars = planBlobs(parse({ variant: "stars", count: 5, seed: 3 }));
+    const orbs = planBlobs(parse({ variant: "orbs", count: 5, seed: 3 }));
+    expect(stars).toHaveLength(70); // 5 × 14
+    expect(orbs).toHaveLength(5);
+    expect(stars[0].size).toBeLessThan(orbs[0].size);
+  });
+
+  // DM-1285: gradient-pan — one sliding layer twice the canvas width.
+  it("gradient-pan slides one 2×-wide gradient layer (translateX, alternate)", () => {
+    const p = parse({ variant: "gradient-pan", colors: ["#111", "#222", "#333"], width: 800, height: 450 });
+    const html = buildGradientPanHtml(p);
+    expect(html).toContain("width: 1600px"); // 2 × 800
+    expect(html).toMatch(/linear-gradient\(60deg, #111 0%, #222 50%, #333 100%\)/);
+    const anims = buildGradientPanAnimations(p);
+    expect(anims).toHaveLength(1);
+    expect(anims[0].property).toBe("transform");
+    expect(anims[0].to).toBe("translate(-800px, 0px)");
+    expect(anims[0].alternate).toBe(true);
+  });
+
+  // DM-1285: grid drift — dots one cell beyond every edge, drift by one cell.
+  it("grid lays dots beyond the edges and drifts by exactly one cell", () => {
+    const p = parse({ variant: "grid", width: 800, height: 450, colors: ["#a", "#b"] });
+    const { dots, cell } = planGridDots(p);
+    // covers [-cell, width+cell] × [-cell, height+cell]
+    expect(dots[0].left).toBe(-cell);
+    expect(dots[0].top).toBe(-cell);
+    expect(dots.some((d) => d.left > p.width)).toBe(true);
+    expect(dots.some((d) => d.top > p.height)).toBe(true);
+    const html = buildGridHtml(p, dots);
+    expect(html).toMatch(/class="gd gd-layer"/);
+    const anims = buildGridAnimations(p, cell);
+    expect(anims).toHaveLength(1);
+    expect(anims[0].to).toBe(`translate(${cell}px, ${cell}px)`);
+    expect(anims[0].alternate).toBe(true);
+  });
 });
 
 describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
@@ -191,28 +250,30 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
   it("splits into one unit per word (word mode), assigning sequential indices", () => {
     const plan = planUnits(parse({ text: "Ship it now" }));
     expect(plan.count).toBe(3);
-    expect(plan.words.map((w) => w.map((u) => u.text))).toEqual([["Ship"], ["it"], ["now"]]);
-    expect(plan.words.flat().map((u) => u.index)).toEqual([0, 1, 2]);
+    expect(plan.lines[0].map((w) => w.map(unitText))).toEqual([["Ship"], ["it"], ["now"]]);
+    expect(allUnits(plan).map((u) => u.index)).toEqual([0, 1, 2]);
   });
 
   it("splits into one unit per character (char mode), indexing across words", () => {
     const plan = planUnits(parse({ text: "Hi yo", by: "char" }));
     expect(plan.count).toBe(4); // H,i,y,o (space is a word boundary, not a unit)
-    expect(plan.words.map((w) => w.map((u) => u.text))).toEqual([["H", "i"], ["y", "o"]]);
-    expect(plan.words.flat().map((u) => u.index)).toEqual([0, 1, 2, 3]);
+    expect(plan.lines[0].map((w) => w.map(unitText))).toEqual([["H", "i"], ["y", "o"]]);
+    expect(allUnits(plan).map((u) => u.index)).toEqual([0, 1, 2, 3]);
   });
 
   it("collapses extra whitespace and ignores empty tokens", () => {
     expect(planUnits(parse({ text: "  a   b  " })).count).toBe(2);
   });
 
-  it("emits a wrapper+inner span pair per unit and escapes the text", () => {
-    const p = parse({ text: "A <b>" });
+  it("emits a wrapper+inner span pair per unit and escapes literal text", () => {
+    // `<` not forming a tag, and `&`, are literal characters (escaped); they are
+    // NOT the emphasis tags, which are consumed (covered below).
+    const p = parse({ text: "5 < 10 & up" });
     const html = buildKineticHtml(p, planUnits(p));
     expect(html).toMatch(/class="kt-w kt-w-0"/);
     expect(html).toMatch(/class="kt-wi kt-wi-0"/);
-    expect(html).toContain("&lt;b&gt;");
-    expect(html).not.toContain("<b>");
+    expect(html).toContain("&lt;");
+    expect(html).toContain("&amp;");
   });
 
   it("char mode wraps each word in a nowrap group so words don't break mid-word", () => {
@@ -239,6 +300,19 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     expect(fade).toHaveLength(2); // 2 words, opacity-only
   });
 
+  // DM-1286: clip variant — a left-to-right wipe via the clipPath property.
+  it("clip wipes the wrapper via clipPath inset (100% → 0% right inset)", () => {
+    const p = parse({ text: "Hi", variant: "clip" });
+    const anims = buildKineticAnimations(p, planUnits(p));
+    const wipe = anims.find((a) => a.selector === ".kt-w-0" && a.property === "clipPath")!;
+    expect(wipe).toBeDefined();
+    expect(wipe.from).toMatch(/100%/); // fully clipped from the right
+    expect(wipe.to).toMatch(/0%/);     // fully revealed
+    expect(wipe.repeat).toBeUndefined(); // one-shot
+    // The inner still fades.
+    expect(anims.some((a) => a.selector === ".kt-wi-0" && a.property === "opacity")).toBe(true);
+  });
+
   it("staggers each unit by staggerMs and sizes the duration to reveal-end + hold", () => {
     const p = parse({ text: "a b c", staggerMs: 100, revealMs: 500, holdMs: 1000 });
     const plan = planUnits(p);
@@ -247,9 +321,55 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     expect(kineticDurationMs(p, plan.count)).toBe(200 + 500 + 1000); // last start + reveal + hold
   });
 
+  // DM-1286: multi-line via `\n` (literal backslash-n OR an actual newline).
+  it("splits the headline into lines on \\n, indexing units across lines", () => {
+    const plan = planUnits(parse({ text: "one two\\nthree" }));
+    expect(plan.lines).toHaveLength(2);
+    expect(plan.lines[0].map((w) => w.map(unitText))).toEqual([["one"], ["two"]]);
+    expect(plan.lines[1].map((w) => w.map(unitText))).toEqual([["three"]]);
+    expect(plan.count).toBe(3); // global indices continue across the line break
+    const html = buildKineticHtml(parse({ text: "a\\nb" }), planUnits(parse({ text: "a\\nb" })));
+    expect((html.match(/class="kt-line"/g) ?? [])).toHaveLength(2);
+  });
+
+  // DM-1286: light inline-markup emphasis.
+  it("parses the emphasis safelist into inline styles and drops unknown tags", () => {
+    const lines = parseStyledText('a <b>B</b> <i>c</i> <font color="#f00">d</font> <x>e</x>');
+    const flat = lines[0].map((sc) => sc.ch + "|" + sc.style).join(" ");
+    expect(flat).toContain("B|font-weight:900");
+    expect(flat).toContain("c|font-style:italic");
+    expect(flat).toContain("d|color:#f00");
+    // The unknown <x> tag is dropped; its text content "e" survives unstyled.
+    expect(lines[0].some((sc) => sc.ch === "e" && sc.style === "")).toBe(true);
+    expect(lines[0].some((sc) => sc.ch === "<")).toBe(false); // the tag chars are consumed
+  });
+
+  it("groups a word's mixed styles into segments and sanitizes a font color", () => {
+    const p = parse({ text: '<b>Bo<font color="red;}#evil">ld</font></b>' });
+    const u = planUnits(p).lines[0][0][0]; // single word, one unit
+    expect(unitText(u)).toBe("Bold");
+    expect(u.segments).toHaveLength(2); // "Bo" (bold) then "ld" (bold + color)
+    expect(u.segments[0].style).toBe("font-weight:900");
+    // `;` and `}` are stripped from the color so it can't break out of the style attr.
+    expect(u.segments[1].style).toBe("font-weight:900;color:red#evil");
+    expect(u.segments[1].style).not.toMatch(/[;]\s*}/);
+  });
+
+  // DM-1286: boomerang loop mode → reveal animations repeat with alternate.
+  it("boomerang makes the reveal animations repeat infinitely with alternate", () => {
+    const loop = buildKineticAnimations(parse({ text: "Hi", loop: "loop" }), planUnits(parse({ text: "Hi" })));
+    expect(loop.every((a) => a.repeat == null)).toBe(true); // default: one-shot
+
+    const boom = buildKineticAnimations(parse({ text: "Hi", loop: "boomerang" }), planUnits(parse({ text: "Hi", loop: "boomerang" })));
+    expect(boom.every((a) => a.repeat === "infinite" && a.alternate === true)).toBe(true);
+    // Boomerang's play time frames an assemble + disassemble cycle (no hold).
+    const p = parse({ text: "a b", loop: "boomerang", staggerMs: 100, revealMs: 500, holdMs: 9999 });
+    expect(kineticDurationMs(p, planUnits(p).count)).toBe(100 + 500 * 2);
+  });
+
   it("the template is registered and rejects empty / overlong text", () => {
     expect(kineticTextTemplate.name).toBe("kinetic-text");
     expect(() => parse({ text: "" })).toThrow();
-    expect(() => parse({ text: "x".repeat(201) })).toThrow();
+    expect(() => parse({ text: "x".repeat(401) })).toThrow();
   });
 });

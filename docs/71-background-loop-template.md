@@ -17,18 +17,21 @@ procedural layout that bakes once and replays forever.
 # Default aurora (soft mesh-gradient look).
 domotion template background-loop -o bg.svg
 
-# Playful floating orbs, custom palette (arrays go through --params).
+# Playful floating orbs, custom palette via the --colors convenience flag.
 domotion template background-loop \
-  --params '{"variant":"orbs","colors":["#f43f5e","#fb923c","#facc15"],"count":7}' \
+  --variant orbs --colors "#f43f5e,#fb923c,#facc15" --count 7 \
   --width 1280 --height 720 -o orbs.svg
+
+# A twinkling star field / particle background.
+domotion template background-loop --variant stars --colors "#7aa2f7,#bb9af7,#7dcfff" -o stars.svg
 ```
 
 ## Parameters
 
 | Param | Type | Default | Meaning |
 |---|---|---|---|
-| `variant` | `aurora` \| `orbs` | `aurora` | `aurora` = large soft mesh; `orbs` = smaller, more opaque floating circles. |
-| `colors` | string[] | indigo/pink/cyan/amber | Blob colors, cycled across the blobs. Array → pass via `--params`. |
+| `variant` | `aurora` \| `orbs` \| `stars` \| `gradient-pan` \| `grid` | `aurora` | See *Variants* below. |
+| `colors` | string[] **or** comma-separated string | indigo/pink/cyan/amber | Colors, cycled across the elements. Pass a JSON array via `--params`, or the comma-separated **`--colors`** convenience flag (DM-1285). |
 | `background` | string | `#0b1020` | Base fill behind the blobs. |
 | `count` | int 1–24 | `5` | Number of blobs. |
 | `width` / `height` | int | `1280` / `720` | Output size in px. |
@@ -68,16 +71,29 @@ browser, unlike `Math.random`).
 
 ## Code
 
-- **`src/templates/builtin/background-loop.ts`** — `planBlobs` (deterministic
-  layout), `buildBackgroundHtml` + `buildBackgroundAnimations` (pure, testable
-  generators), and the `backgroundLoopTemplate`. Registered in
+- **`src/templates/builtin/background-loop.ts`** — the blob path (`planBlobs` +
+  `buildBackgroundHtml` + `buildBackgroundAnimations`, shared by `aurora` / `orbs`
+  / `stars`), the non-blob builders (`buildGradientPanHtml` /
+  `buildGradientPanAnimations`, `planGridDots` / `buildGridHtml` /
+  `buildGridAnimations`), and the `backgroundLoopTemplate` that dispatches by
+  variant. All builders are pure + unit-tested. Registered in
   `src/templates/registry.ts`; re-exported from the package root.
+
+## Variants (DM-1285)
+
+Every variant keeps to the same two-constraint, `alternate`-looped contract above.
+
+| `variant` | Look | Layout |
+|---|---|---|
+| `aurora` | Large soft mesh-gradient blobs | blob (radial-gradient) |
+| `orbs` | Smaller, more opaque floating circles | blob |
+| `stars` | Twinkling particle / star field — many tiny sharp dots that fade and barely drift (`count` is a density level, scaled ~14×) | blob |
+| `gradient-pan` | A sweeping color wash — one angled `linear-gradient` layer, twice the canvas width, sliding horizontally | single sliding layer |
+| `grid` | A drifting dot grid — evenly-spaced colored dots laid one cell beyond every edge, drifting by exactly one cell (so endpoints read seamless) | dot grid |
 
 ## Follow-ups
 
-More variants are the obvious next step (see DM-1280 notes for the filed list):
-panning gradient, wave/ribbon shapes, particle/star field, grid drift. Each is a
-new `variant` value (or a sibling template) on the same contract — the procedural
-layout + the two-constraint animation pattern here are the reusable core. A
-`colors`-as-flag convenience (comma-separated) could complement the `--params`
-array path.
+`wave` / ribbon-shape variants are the remaining item from the DM-1280 list —
+they need flowing path shapes (vs. the positioned-element + translate pattern the
+current variants share), so they're filed separately. Each new variant is a new
+`variant` value on the same contract.

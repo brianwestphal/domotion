@@ -32,12 +32,29 @@
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const byLengthDesc = (a: string, b: string): number => b.length - a.length;
 
+/** Options for {@link namespaceEmbeddedAnimatedSvg}. */
+export interface NamespaceEmbedOptions {
+  /**
+   * Prefix embedded-font family names (`dmfN`) too. Default `true` — correct when
+   * the nested document carries its own `@font-face` rules (a template frame).
+   *
+   * Pass `false` when the nested document's fonts are DEFERRED to the host
+   * pipeline's shared embedded-font builder (a `cast` frame composed with
+   * `manageFonts: false`): its `font-family="dmfN"` attrs reference an
+   * `@font-face` emitted ONCE at the outer top level, where the names are already
+   * globally unique — prefixing them here would dangle the reference. The class /
+   * keyframe / id / `--scene-dur` collisions still need fixing, so the rest of the
+   * pass runs unchanged.
+   */
+  namespaceFonts?: boolean;
+}
+
 /**
  * Prefix every document-global name in a complete animated-SVG document with
  * `token` (e.g. `"e1_"`). Returns the rewritten SVG string; the input is assumed
  * to be a single `<svg>…</svg>` document as produced by `generateAnimatedSvg`.
  */
-export function namespaceEmbeddedAnimatedSvg(svg: string, token: string): string {
+export function namespaceEmbeddedAnimatedSvg(svg: string, token: string, opts: NamespaceEmbedOptions = {}): string {
   let out = svg;
 
   // 1. Element ids + every reference (url(#id) / (xlink:)href="#id"). Longest
@@ -54,10 +71,13 @@ export function namespaceEmbeddedAnimatedSvg(svg: string, token: string): string
 
   // 2. Embedded-font families (`dmfN`). Only the `@font-face` declaration and the
   //    `font-family` attr/decl contexts — never a bare global replace, since the
-  //    base64 `src` payload could contain the same byte sequence.
-  out = out
-    .replace(/(font-family:\s*")(dmf\d+)(")/g, `$1${token}$2$3`)
-    .replace(/(font-family=")(dmf\d+)(")/g, `$1${token}$2$3`);
+  //    base64 `src` payload could contain the same byte sequence. Skipped when the
+  //    fonts are deferred to a shared outer builder (see NamespaceEmbedOptions).
+  if (opts.namespaceFonts !== false) {
+    out = out
+      .replace(/(font-family:\s*")(dmf\d+)(")/g, `$1${token}$2$3`)
+      .replace(/(font-family=")(dmf\d+)(")/g, `$1${token}$2$3`);
+  }
 
   // 3. `@keyframes` names + their `animation:` references. A keyframe name is a
   //    domotion-generated token (`fv-0`, `f0-f0a0-0`, …) that never appears as an

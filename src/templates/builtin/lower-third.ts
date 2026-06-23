@@ -137,6 +137,7 @@ export const lowerThirdTemplate: Template<LowerThirdParams> = {
         },
       ],
     });
-    return { svg, width: params.width, height: params.height };
+    // The banner fades + slides in once and holds; `holdMs` is its play time.
+    return { svg, width: params.width, height: params.height, durationMs: params.holdMs };
   },
 };

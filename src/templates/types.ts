@@ -81,6 +81,16 @@ export interface TemplateOutput {
   /** The output's intrinsic width / height in px (after any bezel growth). */
   width: number;
   height: number;
+  /**
+   * The output's intrinsic play time in ms — how long the template's own
+   * animation runs before it settles (or one loop period for an infinite loop).
+   * A *generator* knows this (its `holdMs` / computed reveal end / loop period);
+   * a static *decorator* (e.g. `device-mockup`) omits it. Used by a `template`
+   * frame in an `animate` config (DM-1294 / doc 73) to default the frame's
+   * `duration` when the author omits it, and to warn when an explicit `duration`
+   * is shorter than the template would play.
+   */
+  durationMs?: number;
 }
 
 /**

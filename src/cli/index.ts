@@ -122,6 +122,7 @@ animate config (JSON):
         "term":       { "theme": "dark", "maxFrameMs": 700 },  // optional — options for a "cast" frame
         "template":   "lower-third",                // optional — embed a named template instead of an input (see Template)
         "params":     { "title": "Ada Lovelace" },  // optional — params for a "template" frame (validated vs its schema)
+        "fit":        "center",                     // optional — template placement: center | contain | cover
         "continue":   false,                        // optional — keep the previous frame's live page (no reload)
         "duration":   1500,                         // ms held on screen
         "transition": { "type": "crossfade", "duration": 300 },
@@ -155,9 +156,11 @@ animate config (JSON):
   Template: a frame may set "template": "<name>" (+ optional "params") instead of
     "input" to embed a named template (e.g. lower-third, kinetic-text) as a nested
     animated SVG. "params" is validated against that template's own schema. The
-    template inherits the config's width/height by default (it's centered when its
-    output differs). Size "duration" to the template's play time. See
-    'domotion template list' and docs/73-template-frames.md.
+    template inherits the config's width/height by default; when its output still
+    differs it's placed per "fit" (center | contain | cover). "duration" is OPTIONAL
+    on a template frame — omit it to inherit the template's own play time (a static
+    template like device-mockup still needs one). See 'domotion template list' and
+    docs/73-template-frames.md.
 
   Actions (each runs in order before capture; all but scroll/press/wait/evaluate take a "selector"):
     Interaction:  click | fill {value} | press {key} | hover | scroll {x,y} | wait {ms}

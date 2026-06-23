@@ -21,12 +21,19 @@ import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 
-const VARIANTS = ["rise", "slide", "fade"] as const;
+const VARIANTS = ["rise", "slide", "fade", "clip"] as const;
 export type KineticVariant = (typeof VARIANTS)[number];
 
+const LOOP_MODES = ["loop", "boomerang"] as const;
+export type KineticLoop = (typeof LOOP_MODES)[number];
+
 export const kineticTextParamsSchema = z.object({
-  text: z.string().min(1).max(200).describe("The headline to animate (required)."),
-  variant: z.enum(VARIANTS).default("rise").describe('Reveal style: "rise" | "slide" | "fade".'),
+  text: z.string().min(1).max(400).describe("The headline to animate (required). Use \\n for line breaks; a light set of inline tags — <b>/<strong>, <i>/<em>, <u>, <s>/<del>, <font color=\"…\"> — styles words (others are ignored)."),
+  variant: z.enum(VARIANTS).default("rise").describe('Reveal style: "rise" | "slide" | "fade" | "clip" (left-to-right wipe).'),
+  // DM-1286: the SVG scene always loops; this picks how. "loop" replays the
+  // staggered reveal each cycle (a hard cut at the loop seam — the existing
+  // behavior); "boomerang" makes each unit assemble + disassemble continuously.
+  loop: z.enum(LOOP_MODES).default("loop").describe('Loop style: "loop" (replay the reveal) | "boomerang" (continuous assemble/disassemble).'),
   by: z.enum(["word", "char"]).default("word").describe("Animate per word or per character."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
@@ -54,42 +61,188 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** One animated unit: a word, or a single character. `index` is its global
- *  stagger position; `word`/`char` tells the HTML how to group it. */
-export interface KineticUnit {
-  index: number;
+/** A run of text sharing one inline style (empty `style` = unstyled). */
+export interface FmtSegment {
   text: string;
+  /** Inline CSS for an emphasis run (e.g. `font-style:italic;color:#f00`), or "". */
+  style: string;
 }
 
-/** Words, each carrying its animated units (one unit per word, or one per char).
- *  Pure — splits on whitespace, drops empty tokens, assigns global indices. */
-export function planUnits(p: KineticTextParams): { words: KineticUnit[][]; count: number } {
-  const words = p.text.trim().split(/\s+/).filter((w) => w.length > 0);
-  const out: KineticUnit[][] = [];
-  let index = 0;
-  for (const word of words) {
-    if (p.by === "char") {
-      out.push([...word].map((ch) => ({ index: index++, text: ch })));
-    } else {
-      out.push([{ index: index++, text: word }]);
-    }
+/** One animated unit: a word, or a single character — its visible text split into
+ *  styled segments. `index` is its global stagger position. */
+export interface KineticUnit {
+  index: number;
+  segments: FmtSegment[];
+}
+
+/** Convenience: a unit's plain text (segments concatenated). */
+export function unitText(u: KineticUnit): string {
+  return u.segments.map((s) => s.text).join("");
+}
+
+/** A styled character produced by the inline-markup parser. */
+interface StyledChar { ch: string; style: string; }
+
+/**
+ * DM-1286: the safelist of inline "light HTML" emphasis tags → the inline CSS
+ * each contributes. Anything outside this list (and any attribute other than
+ * `<font color>`) is ignored, so the markup can never inject arbitrary CSS/markup
+ * — only these styles reach the output.
+ */
+function styleForStack(stack: Array<{ tag: string; color?: string }>): string {
+  let bold = false, italic = false, underline = false, strike = false;
+  let color: string | undefined;
+  for (const e of stack) {
+    if (e.tag === "b" || e.tag === "strong") bold = true;
+    else if (e.tag === "i" || e.tag === "em") italic = true;
+    else if (e.tag === "u" || e.tag === "ins") underline = true;
+    else if (e.tag === "s" || e.tag === "del" || e.tag === "strike") strike = true;
+    else if (e.tag === "font" && e.color != null) color = e.color;
   }
-  return { words: out, count: index };
+  const parts: string[] = [];
+  if (bold) parts.push("font-weight:900");
+  if (italic) parts.push("font-style:italic");
+  const deco: string[] = [];
+  if (underline) deco.push("underline");
+  if (strike) deco.push("line-through");
+  if (deco.length > 0) parts.push(`text-decoration:${deco.join(" ")}`);
+  if (color != null) parts.push(`color:${color}`);
+  return parts.join(";");
+}
+
+const EMPHASIS_TAGS = new Set(["b", "strong", "i", "em", "u", "ins", "s", "del", "strike", "font"]);
+/** Keep only CSS-color-safe characters so a `<font color>` value can't break out
+ *  of the style attribute it lands in. */
+function sanitizeColor(raw: string): string {
+  return raw.trim().replace(/[^#a-zA-Z0-9(),.%\s-]/g, "");
+}
+
+/**
+ * Parse the headline into lines of styled characters. Recognizes `\n` (literal
+ * backslash-n OR an actual newline) as a line break and the emphasis safelist as
+ * inline styling; every other `<…>` that looks like a tag is dropped, and a stray
+ * `<` is treated as literal text. Pure + exported for testing.
+ */
+export function parseStyledText(text: string): StyledChar[][] {
+  const normalized = text.replace(/\\n/g, "\n"); // CLI ergonomics: \n → newline
+  const lines: StyledChar[][] = [[]];
+  const stack: Array<{ tag: string; color?: string }> = [];
+  const tagRe = /^<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^>]*)?)>/;
+  let i = 0;
+  while (i < normalized.length) {
+    const c = normalized[i];
+    if (c === "\n") {
+      lines.push([]);
+      i++;
+      continue;
+    }
+    if (c === "<") {
+      const m = tagRe.exec(normalized.slice(i));
+      if (m != null) {
+        const closing = m[1] === "/";
+        const tag = m[2].toLowerCase();
+        if (EMPHASIS_TAGS.has(tag)) {
+          if (closing) {
+            // Pop the nearest matching open tag.
+            for (let k = stack.length - 1; k >= 0; k--) {
+              if (stack[k].tag === tag) { stack.splice(k, 1); break; }
+            }
+          } else {
+            let color: string | undefined;
+            if (tag === "font") {
+              const cm = /color\s*=\s*"([^"]*)"|color\s*=\s*'([^']*)'/i.exec(m[3]);
+              if (cm != null) color = sanitizeColor(cm[1] ?? cm[2] ?? "");
+            }
+            stack.push({ tag, color });
+          }
+          i += m[0].length;
+          continue;
+        }
+        // Unknown tag → drop it (don't render the markup as literal text).
+        i += m[0].length;
+        continue;
+      }
+      // A stray `<` that isn't a tag → literal character.
+    }
+    lines[lines.length - 1].push({ ch: c, style: styleForStack(stack) });
+    i++;
+  }
+  return lines;
+}
+
+/** Group consecutive same-style chars of a word into segments. */
+function groupSegments(chars: StyledChar[]): FmtSegment[] {
+  const segs: FmtSegment[] = [];
+  for (const sc of chars) {
+    const last = segs[segs.length - 1];
+    if (last != null && last.style === sc.style) last.text += sc.ch;
+    else segs.push({ text: sc.ch, style: sc.style });
+  }
+  return segs;
+}
+
+/**
+ * Lines → words → animated units, with global stagger indices. Pure — parses the
+ * inline markup + line breaks, splits each line on whitespace, drops empty tokens.
+ * In `word` mode each word is one unit (its mixed styles become segments); in
+ * `char` mode each character is a unit.
+ */
+export function planUnits(p: KineticTextParams): { lines: KineticUnit[][][]; count: number } {
+  const parsedLines = parseStyledText(p.text);
+  const lines: KineticUnit[][][] = [];
+  let index = 0;
+  for (const lineChars of parsedLines) {
+    // Split the line into words on whitespace (spaces are separators, not units).
+    const words: StyledChar[][] = [];
+    let cur: StyledChar[] = [];
+    for (const sc of lineChars) {
+      if (/\s/.test(sc.ch)) {
+        if (cur.length > 0) { words.push(cur); cur = []; }
+      } else {
+        cur.push(sc);
+      }
+    }
+    if (cur.length > 0) words.push(cur);
+
+    const lineUnits: KineticUnit[][] = [];
+    for (const wordChars of words) {
+      if (p.by === "char") {
+        lineUnits.push(wordChars.map((sc) => ({ index: index++, segments: [{ text: sc.ch, style: sc.style }] })));
+      } else {
+        lineUnits.push([{ index: index++, segments: groupSegments(wordChars) }]);
+      }
+    }
+    lines.push(lineUnits);
+  }
+  return { lines, count: index };
+}
+
+/** A unit's inner markup: its styled segments (escaped text, optional style span). */
+function unitInner(u: KineticUnit): string {
+  return u.segments
+    .map((s) => (s.style !== "" ? `<span style="${s.style}">${escapeHtml(s.text)}</span>` : escapeHtml(s.text)))
+    .join("");
 }
 
 /** Standalone HTML for the headline (pure — unit-testable without a browser). */
-export function buildKineticHtml(p: KineticTextParams, plan: { words: KineticUnit[][] }): string {
+export function buildKineticHtml(p: KineticTextParams, plan: { lines: KineticUnit[][][] }): string {
   const unitSpan = (u: KineticUnit): string =>
-    `<span class="kt-w kt-w-${u.index}"><span class="kt-wi kt-wi-${u.index}">${escapeHtml(u.text)}</span></span>`;
-  // Word mode: each word is one unit, separated by spaces. Char mode: wrap each
-  // word's char-units in a nowrap group so words never break mid-word.
-  const wordsMarkup = plan.words
-    .map((units) =>
-      p.by === "char"
-        ? `<span class="kt-word">${units.map(unitSpan).join("")}</span>`
-        : unitSpan(units[0]),
-    )
-    .join(" ");
+    `<span class="kt-w kt-w-${u.index}"><span class="kt-wi kt-wi-${u.index}">${unitInner(u)}</span></span>`;
+  // Each line is a block; words within a line are separated by spaces. Char mode:
+  // wrap each word's char-units in a nowrap group so words never break mid-word.
+  const linesMarkup = plan.lines
+    .map((line) => {
+      const wordsMarkup = line
+        .map((units) =>
+          p.by === "char"
+            ? `<span class="kt-word">${units.map(unitSpan).join("")}</span>`
+            : unitSpan(units[0]),
+        )
+        .join(" ");
+      // An empty line (blank between `\n\n`) still occupies a row.
+      return `<div class="kt-line">${wordsMarkup === "" ? "&nbsp;" : wordsMarkup}</div>`;
+    })
+    .join("");
   const justify = p.align === "center" ? "center" : "flex-start";
   const textAlign = p.align;
   return `<!doctype html>
@@ -107,56 +260,73 @@ export function buildKineticHtml(p: KineticTextParams, plan: { words: KineticUni
     color: ${p.color}; letter-spacing: -0.02em; text-align: ${textAlign};
     max-width: 100%;
   }
+  .kt-line { display: block; }
   /* inline-block so per-unit transforms apply; the wrapper carries the move, the
      inner carries the fade (two selectors → two non-colliding animations). */
   .kt-w, .kt-wi { display: inline-block; }
   .kt-word { display: inline-block; white-space: nowrap; }
 </style></head>
 <body>
-  <h1 class="kt-headline">${wordsMarkup}</h1>
+  <h1 class="kt-headline">${linesMarkup}</h1>
 </body></html>`;
 }
 
-/** Per-unit staggered one-shot animations. `rise`/`slide` add a transform on the
- *  wrapper; every variant fades the inner. Pure. */
+/** Per-unit staggered reveal animations. `rise`/`slide`/`clip` animate the
+ *  wrapper; every variant fades the inner. In `boomerang` loop mode the reveals
+ *  repeat with `alternate` (assemble → disassemble → …); in `loop` mode they're
+ *  one-shot and the SVG scene replays them each cycle. Pure. */
 export function buildKineticAnimations(
   p: KineticTextParams,
-  plan: { count: number; words: KineticUnit[][] },
+  plan: { lines: KineticUnit[][][] },
 ): NonNullable<AnimateConfig["frames"][number]["animations"]> {
   const anims: NonNullable<AnimateConfig["frames"][number]["animations"]> = [];
-  for (const units of plan.words) {
-    for (const u of units) {
-      const delay = u.index * p.staggerMs;
-      // Fade in (all variants), on the inner span.
-      anims.push({
-        selector: `.kt-wi-${u.index}`,
-        property: "opacity",
-        from: "0",
-        to: "1",
-        duration: p.revealMs,
-        delay,
-        easing: "ease-out",
-      });
-      // Move in (rise / slide), on the wrapper. `fade` has no transform.
-      if (p.variant === "rise") {
-        anims.push({ selector: `.kt-w-${u.index}`, property: "translateY", from: "0.55em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)" });
-      } else if (p.variant === "slide") {
-        anims.push({ selector: `.kt-w-${u.index}`, property: "translateX", from: "-0.6em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)" });
+  // `boomerang`: each unit assembles then disassembles forever, phase-offset by
+  // its stagger. `loop`: one-shot; the infinitely-looping scene replays it.
+  const loopFields = p.loop === "boomerang" ? { repeat: "infinite" as const, alternate: true } : {};
+  for (const line of plan.lines) {
+    for (const units of line) {
+      for (const u of units) {
+        const delay = u.index * p.staggerMs;
+        // Fade in (all variants), on the inner span.
+        anims.push({
+          selector: `.kt-wi-${u.index}`,
+          property: "opacity",
+          from: "0",
+          to: "1",
+          duration: p.revealMs,
+          delay,
+          easing: "ease-out",
+          ...loopFields,
+        });
+        // Move/reveal in, on the wrapper. `fade` has no wrapper animation.
+        if (p.variant === "rise") {
+          anims.push({ selector: `.kt-w-${u.index}`, property: "translateY", from: "0.55em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", ...loopFields });
+        } else if (p.variant === "slide") {
+          anims.push({ selector: `.kt-w-${u.index}`, property: "translateX", from: "-0.6em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", ...loopFields });
+        } else if (p.variant === "clip") {
+          // Left-to-right wipe via the `clipPath` intra-frame property (doc 08):
+          // `inset(0 100% 0 0)` clips everything but the left edge; animating the
+          // right inset to 0 reveals the unit left→right.
+          anims.push({ selector: `.kt-w-${u.index}`, property: "clipPath", from: "inset(-10% 100% -10% 0)", to: "inset(-10% 0% -10% 0)", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", ...loopFields });
+        }
       }
     }
   }
   return anims;
 }
 
-/** Total on-screen time: the last unit's reveal end + the hold. */
+/** The scene/play time. `loop`: the last unit's reveal end + the hold (the scene
+ *  then replays). `boomerang`: one assemble + disassemble cycle of the last unit
+ *  (the per-unit animations repeat infinitely, so this just frames a cycle). */
 export function kineticDurationMs(p: KineticTextParams, count: number): number {
   const lastStart = Math.max(0, count - 1) * p.staggerMs;
+  if (p.loop === "boomerang") return lastStart + p.revealMs * 2;
   return lastStart + p.revealMs + p.holdMs;
 }
 
 export const kineticTextTemplate: Template<KineticTextParams> = {
   name: "kinetic-text",
-  description: "Kinetic typography — reveal a headline word-by-word or char-by-char (rise / slide / fade).",
+  description: "Kinetic typography — reveal a headline (rise / slide / fade / clip) word- or char-by-char, with multi-line (\\n), inline emphasis tags, and a loop / boomerang mode.",
   paramsSchema: kineticTextParamsSchema,
   async render(params: KineticTextParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const plan = planUnits(params);
@@ -176,6 +346,8 @@ export const kineticTextTemplate: Template<KineticTextParams> = {
         },
       ],
     });
-    return { svg, width: params.width, height: params.height };
+    // Play time = the staggered reveal end plus the hold (the same value used as
+    // the underlying frame's `duration`).
+    return { svg, width: params.width, height: params.height, durationMs: kineticDurationMs(params, plan.count) };
   },
 };

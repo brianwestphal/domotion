@@ -44,14 +44,20 @@ they describe (see `CLAUDE.md` "Documentation"):
   the outer font lifecycle, and the nested document's global names (ids, font
   families, `.f-N` classes, `@keyframes`, `--scene-dur`) are namespaced per-frame
   (`namespaceEmbeddedAnimatedSvg`, `src/animation/embed-namespace.ts`) so they
-  can't collide with the outer animation or sibling template frames.
-- **Doc 72 (`docs/72-kinetic-text-template.md`, DM-1277)** — **Shipped.** The
-  `kinetic-text` **generator** template: a headline string is expanded at author
-  time into per-word / per-char units, each revealed with a staggered one-shot
-  animation (`rise` / `slide` / `fade`) then held assembled. The clearest
-  showcase of the doc-70 "pre-process once, replay free" thesis. Same two
-  animation constraints as doc 71 (transform-wrapper around opacity-inner,
-  origin-safe translate).
+  can't collide with the outer animation or sibling template frames. The same
+  namespacer (with `namespaceFonts:false`) now also fixes the `cast` path's latent
+  class/`@keyframes`/`--scene-dur` collision (DM-1292). A template frame's
+  `duration` is optional (DM-1294) — omitted, it's derived from the template's
+  intrinsic play time (`TemplateOutput.durationMs`).
+- **Doc 72 (`docs/72-kinetic-text-template.md`, DM-1277 + DM-1286)** — **Shipped.**
+  The `kinetic-text` **generator** template: a headline string is expanded at
+  author time into per-word / per-char units, each revealed with a staggered
+  animation (`rise` / `slide` / `fade` / `clip`) then held assembled. DM-1286 added
+  the `clip` wipe, multi-line `\n`, light inline emphasis tags (`<b>`/`<i>`/`<u>`/
+  `<font color>` safelist, others dropped), and `loop` / `boomerang` modes. The
+  clearest showcase of the doc-70 "pre-process once, replay free" thesis; same two
+  animation constraints as doc 71. `blur-in` (DM-1296) + `scale-pop` (DM-1297) are
+  filed, blocked on blur-capture fidelity / a center transform-origin.
 - **Doc 71 (`docs/71-background-loop-template.md`, DM-1280)** — **Shipped.** The
   first deferred first-party template built on the doc-70 contract: a
   `background-loop` **generator** that emits a procedural seamlessly-looping
