@@ -86,6 +86,11 @@ source, run the command, ship the SVG.</p>
 <p>The output of every example is one self-contained SVG — it drops straight
 into an <code>&lt;img&gt;</code> and scales crisply at any size.</p>
 
+<p>Looking for reusable, parameterized generators rather than one-off examples?
+See the <a href="../templates/">Templates</a> page — a banner, a device mockup,
+animated typography, or a looping background from a single command (and how to
+publish your own).</p>
+
 <h2>Tier 1 — single capture</h2>
 
 <p>Static visuals produced by a single <code>domotion capture</code>. No config,

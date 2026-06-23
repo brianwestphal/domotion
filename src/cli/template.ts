@@ -129,7 +129,9 @@ function overviewHelp(): string {
     + "  domotion template <name> [--param …] -o out.svg Render it.\n\n"
     + "Params are passed as flags derived from the template (e.g. --title \"…\"), or as\n"
     + "JSON via --params '<json>' / --params-file <file.json>. Third-party templates are\n"
-    + "npm packages named domotion-template-<name>; install one and use it by <name>.\n\n"
+    + "npm packages named domotion-template-<name>; install one and use it by <name>\n"
+    + "(search npm for the 'domotion-template' keyword). Write your own: see\n"
+    + "docs/74-template-authoring.md + examples/template-package/.\n\n"
     + listHelp()
   );
 }

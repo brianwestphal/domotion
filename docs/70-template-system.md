@@ -108,8 +108,14 @@ whose default (or named `template`) export is a `Template`. `domotion template
 <name>` resolves a built-in first, then dynamically imports
 `domotion-template-<name>`. So **"plugins" and "built-ins" are the same
 mechanism** — first-party templates just live in-repo and seed the registry; the
-npm graph is the registry (a curated gallery can come later). An unknown name or
-a package whose export isn't a valid `Template` fails with an actionable error.
+npm graph is the registry. An unknown name or a package whose export isn't a
+valid `Template` fails with an actionable error.
+
+The full **third-party authoring & publishing guide** is **`docs/74-template-
+authoring.md`** (package shape, generator vs decorator, the animation
+constraints, params, testing, the discovery convention), with a runnable scaffold
+in **`examples/template-package/`** (`domotion-template-quote-card`) and a public
+manual gallery at `site/pages/guides/templates.tsx`.
 
 ## Built-in templates
 
@@ -151,8 +157,10 @@ outputs land in `examples/output/templates/`. The generator uses only the public
 
 Tracked as separate tickets after the spike validated the contract: kinetic
 typography, chat/message + subscribe pop-up, charts & graphs, backgrounds &
-loops, a Lottie **input adapter** (`domotion-template-lottie` — Lottie stays an
-input, never the engine), and a third-party authoring guide + discovery/gallery.
+loops, and a Lottie **input adapter** (`domotion-template-lottie` — Lottie stays
+an input, never the engine). The third-party authoring guide + discovery/gallery
+shipped (DM-1282) — see `docs/74-template-authoring.md`, `examples/template-
+package/`, and the manual's Templates page.
 
 **Resolved — `capture --chrome` is NOT folded onto the `device-mockup`
 template.** The bezel-drawing logic is already a single source of truth

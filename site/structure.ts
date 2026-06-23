@@ -61,6 +61,7 @@ export const SECTIONS: Section[] = [
     pages: [
       { slug: "guides/single-frame",     title: "Capture a single frame" },
       { slug: "guides/demo-gallery",     title: "Demo gallery" },
+      { slug: "guides/templates",        title: "Templates" },
       { slug: "guides/animated-demo",    title: "Build an animated demo" },
       { slug: "guides/overlays",         title: "Typing & tap overlays" },
       { slug: "guides/fonts",            title: "Fonts & non-Latin scripts" },

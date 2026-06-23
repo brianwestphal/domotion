@@ -35,6 +35,14 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 74 (`docs/74-template-authoring.md`, DM-1282)** — **Shipped.** The
+  third-party template authoring + publishing guide: a template is an npm package
+  named `domotion-template-<name>` exporting a `Template` (`domotion-svg` is a
+  types-only peer dep); covers package shape, generator vs decorator, the two
+  animation constraints (incl. `transformOrigin`), params/`z.coerce`, `durationMs`,
+  testing via `renderTemplateToSvg`, and the `domotion-template-*` discovery
+  convention. Runnable scaffold in `examples/template-package/`; public manual
+  gallery at `site/pages/guides/templates.tsx`.
 - **Doc 73 (`docs/73-template-frames.md`, DM-1287)** — **Shipped.** A `template`
   frame kind in the `animate` config: `{"template":"lower-third","params":{…}}`
   embeds a named template (doc 70) as a nested animated SVG, composing it into a

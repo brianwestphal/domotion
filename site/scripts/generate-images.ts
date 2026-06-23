@@ -9,7 +9,7 @@
  * Run: `npx tsx site/scripts/generate-images.ts` (after `npx playwright install chromium`).
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Page } from "@playwright/test";
@@ -276,6 +276,15 @@ async function main(): Promise<void> {
   const animatedSvg = await captureAnimation(page);
   writeFileSync(resolve(OUT_DIR, "install-demo.svg"), animatedSvg);
   console.log(`  install-demo.svg (${(animatedSvg.length / 1024).toFixed(1)} KB, animated)`);
+
+  // DM-1282: the Templates gallery page (site/pages/guides/templates.tsx) embeds
+  // the committed built-in template example SVGs. Mirror them into the site
+  // assets here (regenerate them first with `npm run demos:examples`) so the
+  // gallery and the repo examples can never drift.
+  const TEMPLATES_SRC = resolve(SITE_DIR, "..", "..", "examples", "output", "templates");
+  const TEMPLATES_DST = resolve(OUT_DIR, "templates");
+  cpSync(TEMPLATES_SRC, TEMPLATES_DST, { recursive: true });
+  console.log(`  templates/ (mirrored from ${TEMPLATES_SRC})`);
 
   await browser.close();
   console.log(`\nWrote ${SCENES.length + 4} images to ${OUT_DIR}`);
