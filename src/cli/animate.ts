@@ -880,6 +880,7 @@ export async function composeAnimateFrames(
             delay: a.delay,
             repeat: a.repeat,
             alternate: a.alternate,
+            transformOrigin: a.transformOrigin,
           });
         }
       }

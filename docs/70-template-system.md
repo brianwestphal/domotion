@@ -117,7 +117,7 @@ a package whose export isn't a valid `Template` fails with an actionable error.
 |---|---|---|
 | `lower-third` | generator | Broadcast-style banner (title + subtitle + accent) that slides + fades in. The reveal is a real intra-frame `animations` (opacity + translateY), not baked into the capture. |
 | `device-mockup` | decorator | Wrap a captured URL/page in a phone / browser / window bezel. Reuses the shipped `wrapInDeviceChrome` (doc 65) as the single source of truth, so it can't diverge from `capture --chrome`. |
-| `background-loop` | generator | Procedural seamlessly-looping animated background — `aurora` / `orbs` / `stars` blobs, a `gradient-pan` color wash, or a drifting `grid`. Deterministic from a `seed`; comma-separated `--colors`. See **doc 71**. |
+| `background-loop` | generator | Procedural seamlessly-looping animated background — `aurora` / `orbs` / `stars` blobs, a `gradient-pan` color wash, a drifting `grid`, or `wave` ribbon bands. Deterministic from a `seed`; comma-separated `--colors`. See **doc 71**. |
 | `kinetic-text` | generator | Kinetic typography — reveal a headline word-by-word or char-by-char with a staggered one-shot animation (`rise` / `slide` / `fade`). See **doc 72**. |
 
 ## Code
@@ -141,8 +141,8 @@ a package whose export isn't a valid `Template` fails with an actionable error.
 ## Examples
 
 `examples/templates/` holds one committed example SVG per built-in concept
-(both `lower-third` themes, all three `device-mockup` bezels, all five
-`background-loop` variants, all three `kinetic-text` reveals). Regenerate with
+(both `lower-third` themes, all three `device-mockup` bezels, all six
+`background-loop` variants, all `kinetic-text` reveals). Regenerate with
 `npx tsx examples/templates-demo.ts` (also wired into `npm run demos:examples`);
 outputs land in `examples/output/templates/`. The generator uses only the public
 `renderTemplateToSvg` API, so it doubles as worked usage.

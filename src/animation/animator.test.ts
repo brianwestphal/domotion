@@ -514,6 +514,39 @@ describe("animator", () => {
     expect(svg).toContain("transform: translateY(0px)");
   });
 
+  it("DM-1297: scale desugars to transform: scale(), and transformOrigin emits transform-box: fill-box", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        {
+          svgContent: `<rect/>`,
+          duration: 1000,
+          animations: [{
+            animId: "pop",
+            property: "scale",
+            from: "0.3",
+            to: "1",
+            duration: 400,
+            transformOrigin: "center",
+          }],
+        },
+      ],
+    });
+    expect(svg).toContain("transform: scale(0.3)");
+    expect(svg).toContain("transform: scale(1)");
+    // The center-origin makes the scale resolve about the element's own box.
+    expect(svg).toContain("transform-box: fill-box; transform-origin: center");
+    expect(svg).toMatch(/\.anim-pop\s*\{[^}]*transform-box: fill-box; transform-origin: center/);
+  });
+
+  it("DM-1297: no transformOrigin → no transform-box decl (unchanged for translate)", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [{ svgContent: `<rect/>`, duration: 1000, animations: [{ animId: "t", property: "translateX", from: "0px", to: "10px", duration: 200 }] }],
+    });
+    expect(svg).not.toContain("transform-box");
+  });
+
   it("DM-599/DM-641: push-left frame gets a paired fd-N visibility animation alongside fv-N", () => {
     // push-left is unmergeable (the merge fast path only takes crossfade/cut),
     // so it goes through the unmerged emit path that emits per-frame fv-/fp-

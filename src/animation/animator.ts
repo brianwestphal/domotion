@@ -1066,9 +1066,17 @@ function buildIntraFrameAnimationCss(
       const propValue = (val: string): string => {
         if (a.property === "translateX") return `transform: translateX(${val});`;
         if (a.property === "translateY") return `transform: translateY(${val});`;
+        if (a.property === "scale") return `transform: scale(${val});`;
         if (a.property === "clipPath") return `clip-path: ${val};`;
         return `${a.property}: ${val};`;
       };
+      // DM-1297: SVG transforms are origin-(0,0); a `transformOrigin` makes a
+      // scale/rotate/translate resolve about the element's OWN box (e.g. a
+      // center-origin scale-pop) instead of the SVG origin. `transform-box:
+      // fill-box` switches the reference box to the element's bounding box.
+      const originDecl = a.transformOrigin != null && a.transformOrigin !== ""
+        ? ` transform-box: fill-box; transform-origin: ${a.transformOrigin};`
+        : "";
       const animName = `f${i}-${a.animId}-${ai}`;
       if (a.repeat != null) {
         // DM-869: repeating animation (blink / pulse / breathe). The keyframe is
@@ -1095,7 +1103,7 @@ function buildIntraFrameAnimationCss(
       0% { ${propValue(a.from)} }
       100% { ${propValue(a.to)} }
     }
-    .anim-${a.animId} { animation: ${animName} ${a.duration}ms ${easing} ${startMs.toFixed(0)}ms ${iterations}${direction} both; }`);
+    .anim-${a.animId} { animation: ${animName} ${a.duration}ms ${easing} ${startMs.toFixed(0)}ms ${iterations}${direction} both;${originDecl} }`);
       } else {
         // One-shot: hold `from` until startPct, animate from→to during
         // [startPct, endPct], hold `to` afterwards, mapped onto the global scene
@@ -1106,7 +1114,7 @@ function buildIntraFrameAnimationCss(
       ${endPct.toFixed(3)}% { ${propValue(a.to)} }
       100% { ${propValue(a.to)} }
     }
-    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing}; }`);
+    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing};${originDecl} }`);
       }
     }
   }

@@ -4,8 +4,8 @@
  *
  *   lower-third     → dark + light themes (different corners)
  *   device-mockup   → phone + browser + window bezels (each a distinct device)
- *   background-loop → aurora + orbs + stars + gradient-pan + grid variants
- *   kinetic-text    → rise + slide(char) + fade + clip variants
+ *   background-loop → aurora + orbs + stars + gradient-pan + grid + wave variants
+ *   kinetic-text    → rise + slide(char) + fade + clip + pop variants
  *
  * Outputs land in examples/output/templates/. Uses ONLY the public template API
  * (`renderTemplateToSvg` + `loadTemplate`) the way a consumer would.
@@ -94,6 +94,11 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     template: backgroundLoopTemplate,
     params: { variant: "grid", colors: ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"], width: 1280, height: 720 },
   },
+  {
+    file: "background-loop-wave",
+    template: backgroundLoopTemplate,
+    params: { variant: "wave", colors: ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"], width: 1280, height: 720, seed: 3 },
+  },
 
   // kinetic-text — the three reveal styles (slide shown per-character).
   {
@@ -124,6 +129,12 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
       text: 'Build <font color="#22d3ee">motion</font>\\nright in the <i>browser</i>',
       variant: "rise", width: 1280, height: 720,
     },
+  },
+  {
+    // pop — a per-character center-origin scale-up with overshoot (DM-1297).
+    file: "kinetic-text-pop",
+    template: kineticTextTemplate,
+    params: { text: "POP!", variant: "pop", by: "char", fontSize: 200, width: 1280, height: 720 },
   },
 ];
 

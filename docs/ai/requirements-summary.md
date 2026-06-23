@@ -56,14 +56,18 @@ they describe (see `CLAUDE.md` "Documentation"):
   the `clip` wipe, multi-line `\n`, light inline emphasis tags (`<b>`/`<i>`/`<u>`/
   `<font color>` safelist, others dropped), and `loop` / `boomerang` modes. The
   clearest showcase of the doc-70 "pre-process once, replay free" thesis; same two
-  animation constraints as doc 71. `blur-in` (DM-1296) + `scale-pop` (DM-1297) are
-  filed, blocked on blur-capture fidelity / a center transform-origin.
-- **Doc 71 (`docs/71-background-loop-template.md`, DM-1280)** — **Shipped.** The
-  first deferred first-party template built on the doc-70 contract: a
-  `background-loop` **generator** that emits a procedural seamlessly-looping
-  animated background (a base fill + N soft `radial-gradient` blobs that drift +
-  breathe, staggered, infinitely; `aurora` / `orbs` variants; deterministic from
-  a `seed`). Demonstrates the two animation constraints templates must respect —
+  animation constraints as doc 71. DM-1297 added the `pop` (center-origin
+  scale-up) variant + the underlying intra-frame `scale` property and
+  `transformOrigin` support (emits `transform-box: fill-box; transform-origin` so
+  any transform can pivot about the element's own box — doc 08). `blur-in`
+  (DM-1296) remains filed, blocked on blur-capture fidelity.
+- **Doc 71 (`docs/71-background-loop-template.md`, DM-1280 + DM-1285 + DM-1295)** —
+  **Shipped.** The first deferred first-party template built on the doc-70
+  contract: a `background-loop` **generator** that emits a procedural seamlessly-
+  looping animated background. Six variants: `aurora` / `orbs` / `stars` blobs, a
+  `gradient-pan` color wash, a drifting `grid`, and `wave` ribbon bands (DM-1285 +
+  DM-1295); deterministic from a `seed`; comma-separated `--colors`. Demonstrates
+  the two animation constraints templates must respect —
   one intra-frame animation per captured element (so each blob is a drift-wrapper
   around a breathe-inner), and origin-(0,0) SVG transforms (so motion is
   origin-safe translate + opacity, looped with `alternate`).

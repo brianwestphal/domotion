@@ -26,11 +26,11 @@ import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 
-const VARIANTS = ["aurora", "orbs", "stars", "gradient-pan", "grid"] as const;
+const VARIANTS = ["aurora", "orbs", "stars", "gradient-pan", "grid", "wave"] as const;
 export type BackgroundVariant = (typeof VARIANTS)[number];
 
 /** Blob-laid-out variants (positioned soft circles). The non-blob variants
- *  (`gradient-pan`, `grid`) have their own layout + animation builders below. */
+ *  (`gradient-pan`, `grid`, `wave`) have their own layout + animation builders. */
 const BLOB_VARIANTS = new Set<BackgroundVariant>(["aurora", "orbs", "stars"]);
 
 const DEFAULT_COLORS = ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"];
@@ -52,7 +52,7 @@ const colorsSchema = z
 
 export const backgroundLoopParamsSchema = z.object({
   variant: z.enum(VARIANTS).default("aurora")
-    .describe('"aurora" (soft mesh) | "orbs" (floating circles) | "stars" (twinkling particle field) | "gradient-pan" (sweeping color wash) | "grid" (drifting dot grid).'),
+    .describe('"aurora" (soft mesh) | "orbs" (floating circles) | "stars" (twinkling particle field) | "gradient-pan" (sweeping color wash) | "grid" (drifting dot grid) | "wave" (parallax ribbon bands).'),
   colors: colorsSchema
     .describe("Colors, cycled across the elements (CSS colors; a JSON array, or a comma-separated string)."),
   background: z.string().default("#0b1020").describe("Base fill behind the blobs (CSS color)."),
@@ -299,6 +299,112 @@ export function buildGridAnimations(p: BackgroundLoopParams, cell: number): Anim
   }];
 }
 
+interface WaveBand {
+  idx: number;
+  color: string;
+  /** band geometry (px): wrapper left/top/width/height. */
+  left: number; top: number; width: number; height: number;
+  /** horizontal parallax drift + vertical bob, with periods + phase offsets (ms). */
+  driftX: number; driftMs: number; driftDelay: number;
+  bobY: number; bobMs: number; bobDelay: number;
+  opacity: number;
+}
+
+/**
+ * DM-1295 "wave / ribbon": plan a few wide, soft horizontal bands stacked across
+ * the canvas. Each is wider than the canvas (so the horizontal parallax drift
+ * never exposes a side edge) and drifts/bobs at its own speed for a flowing,
+ * layered wave feel. Pure + deterministic from the seed.
+ */
+export function planWaves(p: BackgroundLoopParams): WaveBand[] {
+  const rnd = mulberry32(p.seed);
+  const bands: WaveBand[] = [];
+  const n = p.count;
+  for (let i = 0; i < n; i++) {
+    const driftX = Math.round((0.06 + rnd() * 0.1) * p.width);
+    const bobY = Math.round((0.02 + rnd() * 0.045) * p.height);
+    const height = Math.round((0.16 + rnd() * 0.14) * p.height);
+    // Spread the bands down the canvas (evenly + a little jitter), centered.
+    const center = ((i + 0.5) / n + (rnd() - 0.5) * 0.12) * p.height;
+    const driftMs = Math.round(p.durationMs * (0.9 + rnd() * 0.8));
+    const bobMs = Math.round(p.durationMs * (0.7 + rnd() * 0.7));
+    bands.push({
+      idx: i,
+      color: p.colors[i % p.colors.length],
+      left: -driftX,
+      top: Math.round(center - height / 2),
+      width: p.width + driftX * 2,
+      height,
+      driftX,
+      driftMs,
+      // NEGATIVE phase offset so every band is already mid-drift at t=0 (seamless,
+      // never freezing) — same rule as the blob loops (DM-1289).
+      driftDelay: -Math.round(rnd() * driftMs),
+      bobY,
+      bobMs,
+      bobDelay: -Math.round(rnd() * bobMs),
+      opacity: 0.45 + rnd() * 0.3,
+    });
+  }
+  return bands;
+}
+
+/** Standalone HTML for the ribbon bands. Each band is a soft horizontal stripe
+ *  (transparent → color → transparent gradient) inside a positioned wrapper that
+ *  drifts; the inner stripe bobs. Pure. */
+export function buildWaveHtml(p: BackgroundLoopParams, bands: WaveBand[]): string {
+  const markup = bands
+    .map(
+      (b) =>
+        `<div class="wv-pos wv-pos-${b.idx}" style="left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px">`
+        + `<div class="wv-band wv-band-${b.idx}" style="background:linear-gradient(to bottom, transparent 0%, ${b.color} 50%, transparent 100%);opacity:${b.opacity.toFixed(3)}"></div>`
+        + `</div>`,
+    )
+    .join("\n  ");
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: ${p.width}px; height: ${p.height}px; overflow: hidden; }
+  body { background: ${p.background}; position: relative; }
+  .wv-pos { position: absolute; }
+  .wv-band { width: 100%; height: 100%; }
+</style></head>
+<body>
+  ${markup}
+</body></html>`;
+}
+
+/** Two looping animations per band: a horizontal parallax drift on the wrapper
+ *  and a vertical bob on the inner stripe (distinct selectors, both `alternate`). */
+export function buildWaveAnimations(bands: WaveBand[]): Anims {
+  const anims: Anims = [];
+  for (const b of bands) {
+    anims.push({
+      selector: `.wv-pos-${b.idx}`,
+      property: "transform",
+      from: "translate(0px, 0px)",
+      to: `translate(${b.driftX}px, 0px)`,
+      duration: b.driftMs,
+      delay: b.driftDelay,
+      easing: "ease-in-out",
+      repeat: "infinite",
+      alternate: true,
+    });
+    anims.push({
+      selector: `.wv-band-${b.idx}`,
+      property: "translateY",
+      from: "0px",
+      to: `${b.bobY}px`,
+      duration: b.bobMs,
+      delay: b.bobDelay,
+      easing: "ease-in-out",
+      repeat: "infinite",
+      alternate: true,
+    });
+  }
+  return anims;
+}
+
 export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
   name: "background-loop",
   description: "Procedural seamlessly-looping animated background (drifting, breathing color blobs).",
@@ -317,6 +423,11 @@ export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
       writeFileSync(htmlPath, buildGradientPanHtml(params));
       animations = buildGradientPanAnimations(params);
       ctx.log(`template background-loop: gradient-pan, ${params.colors.length} colors, ${params.width}×${params.height}`);
+    } else if (params.variant === "wave") {
+      const bands = planWaves(params);
+      writeFileSync(htmlPath, buildWaveHtml(params, bands));
+      animations = buildWaveAnimations(bands);
+      ctx.log(`template background-loop: wave, ${bands.length} bands, ${params.width}×${params.height}`);
     } else {
       const { dots, cell } = planGridDots(params);
       writeFileSync(htmlPath, buildGridHtml(params, dots));

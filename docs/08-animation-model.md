@@ -79,11 +79,12 @@ Per-frame `animations` array:
 | Field | Required | Meaning |
 |---|---|---|
 | `selector` | yes | CSS selector matching one or more elements in the frame's captured tree. Resolved at capture time, not at render time — so the selector is against the source HTML, not the SVG output. |
-| `property` | yes | One of `width`, `height`, `opacity`, `transform`, `translateX`, `translateY`, `clipPath`. |
-| `from` / `to` | yes | CSS value strings (`"0%"`, `"240px"`, `"translateY(-200px)"`, etc). |
+| `property` | yes | One of `width`, `height`, `opacity`, `transform`, `translateX`, `translateY`, `scale`, `clipPath`. `scale` desugars to `transform: scale(<from→to>)` (a unitless factor). |
+| `from` / `to` | yes | CSS value strings (`"0%"`, `"240px"`, `"translateY(-200px)"`, `"0.6"` for `scale`, etc). |
 | `duration` | yes | Animation length in ms, scoped to this frame's hold time. Must be ≤ frame's `duration`. |
 | `easing` | no | CSS easing string. Default `linear`. |
 | `delay` | no | Ms after the frame becomes visible before the animation starts. Default `0`. |
+| `transformOrigin` | no | DM-1297. For a `transform` / `scale` / `translate*` animation, the origin the transform resolves about (`"center"`, `"50% 50%"`, `"left top"`, …). SVG transforms are origin-(0,0) by default, so a `scale`/`rotate` would shrink/orbit toward the SVG origin; setting this emits `transform-box: fill-box; transform-origin: <value>` on the animated group so the transform pivots about the element's OWN bounding box (e.g. a center-origin scale-pop). Ignored for non-transform properties. |
 
 ### Implementation
 

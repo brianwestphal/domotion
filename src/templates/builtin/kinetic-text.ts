@@ -21,7 +21,7 @@ import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 
-const VARIANTS = ["rise", "slide", "fade", "clip"] as const;
+const VARIANTS = ["rise", "slide", "fade", "clip", "pop"] as const;
 export type KineticVariant = (typeof VARIANTS)[number];
 
 const LOOP_MODES = ["loop", "boomerang"] as const;
@@ -29,7 +29,7 @@ export type KineticLoop = (typeof LOOP_MODES)[number];
 
 export const kineticTextParamsSchema = z.object({
   text: z.string().min(1).max(400).describe("The headline to animate (required). Use \\n for line breaks; a light set of inline tags — <b>/<strong>, <i>/<em>, <u>, <s>/<del>, <font color=\"…\"> — styles words (others are ignored)."),
-  variant: z.enum(VARIANTS).default("rise").describe('Reveal style: "rise" | "slide" | "fade" | "clip" (left-to-right wipe).'),
+  variant: z.enum(VARIANTS).default("rise").describe('Reveal style: "rise" | "slide" | "fade" | "clip" (left-to-right wipe) | "pop" (scale up from the center with overshoot).'),
   // DM-1286: the SVG scene always loops; this picks how. "loop" replays the
   // staggered reveal each cycle (a hard cut at the loop seam — the existing
   // behavior); "boomerang" makes each unit assemble + disassemble continuously.
@@ -308,6 +308,11 @@ export function buildKineticAnimations(
           // `inset(0 100% 0 0)` clips everything but the left edge; animating the
           // right inset to 0 reveals the unit left→right.
           anims.push({ selector: `.kt-w-${u.index}`, property: "clipPath", from: "inset(-10% 100% -10% 0)", to: "inset(-10% 0% -10% 0)", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", ...loopFields });
+        } else if (p.variant === "pop") {
+          // Scale-pop: grow from small to full about the unit's OWN CENTER
+          // (`transformOrigin`, DM-1297), with a back-eased overshoot. Without the
+          // center origin an SVG scale would shrink toward the canvas corner.
+          anims.push({ selector: `.kt-w-${u.index}`, property: "scale", from: "0.3", to: "1", duration: p.revealMs, delay, easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center", ...loopFields });
         }
       }
     }
@@ -326,7 +331,7 @@ export function kineticDurationMs(p: KineticTextParams, count: number): number {
 
 export const kineticTextTemplate: Template<KineticTextParams> = {
   name: "kinetic-text",
-  description: "Kinetic typography — reveal a headline (rise / slide / fade / clip) word- or char-by-char, with multi-line (\\n), inline emphasis tags, and a loop / boomerang mode.",
+  description: "Kinetic typography — reveal a headline (rise / slide / fade / clip / pop) word- or char-by-char, with multi-line (\\n), inline emphasis tags, and a loop / boomerang mode.",
   paramsSchema: kineticTextParamsSchema,
   async render(params: KineticTextParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const plan = planUnits(params);

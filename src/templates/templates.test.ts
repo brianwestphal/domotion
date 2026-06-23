@@ -21,6 +21,9 @@ import {
   planGridDots,
   buildGridHtml,
   buildGridAnimations,
+  planWaves,
+  buildWaveHtml,
+  buildWaveAnimations,
 } from "./builtin/background-loop.js";
 import {
   kineticTextTemplate,
@@ -242,6 +245,43 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
     expect(anims[0].to).toBe(`translate(${cell}px, ${cell}px)`);
     expect(anims[0].alternate).toBe(true);
   });
+
+  // DM-1295: wave — soft ribbon bands wider than the canvas, drifting + bobbing.
+  it("wave plans `count` bands wider than the canvas, each with a drift + bob animation", () => {
+    const p = parse({ variant: "wave", width: 800, height: 450, count: 4, colors: ["#a", "#b"] });
+    const bands = planWaves(p);
+    expect(bands).toHaveLength(4);
+    // Each band is wider than the canvas and offset left so the drift never
+    // exposes a side edge.
+    for (const b of bands) {
+      expect(b.width).toBeGreaterThan(p.width);
+      expect(b.left).toBeLessThanOrEqual(0);
+      expect(b.left + b.width).toBeGreaterThanOrEqual(p.width); // covers the canvas at rest
+    }
+    expect(bands.map((b) => b.color)).toEqual(["#a", "#b", "#a", "#b"]); // colors cycle
+    const html = buildWaveHtml(p, bands);
+    expect(html).toMatch(/class="wv-pos wv-pos-0"/);
+    expect(html).toMatch(/class="wv-band wv-band-0"/);
+    expect(html).toContain("linear-gradient(to bottom"); // soft top/bottom edges
+
+    const anims = buildWaveAnimations(bands);
+    expect(anims).toHaveLength(8); // 4 bands × (drift + bob)
+    const drift = anims.find((a) => a.selector === ".wv-pos-0")!;
+    const bob = anims.find((a) => a.selector === ".wv-band-0")!;
+    expect(drift.property).toBe("transform"); // horizontal parallax (origin-safe translate)
+    expect(bob.property).toBe("translateY");  // vertical undulation
+    for (const a of anims) {
+      expect(a.repeat).toBe("infinite");
+      expect(a.alternate).toBe(true);
+      expect(a.delay).toBeLessThanOrEqual(0); // negative phase offset (never freezes)
+    }
+  });
+
+  it("wave is deterministic per seed", () => {
+    const mk = (seed: number) => planWaves(parse({ variant: "wave", seed }));
+    expect(mk(3)).toEqual(mk(3));
+    expect(mk(3)).not.toEqual(mk(4));
+  });
 });
 
 describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
@@ -311,6 +351,18 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     expect(wipe.repeat).toBeUndefined(); // one-shot
     // The inner still fades.
     expect(anims.some((a) => a.selector === ".kt-wi-0" && a.property === "opacity")).toBe(true);
+  });
+
+  // DM-1297: pop variant — a center-origin scale-up (needs transformOrigin so the
+  // SVG scale resolves about the unit's own box, not the canvas origin).
+  it("pop scales the wrapper from small to full about its own center", () => {
+    const p = parse({ text: "Hi", variant: "pop" });
+    const anims = buildKineticAnimations(p, planUnits(p));
+    const scale = anims.find((a) => a.selector === ".kt-w-0" && a.property === "scale")!;
+    expect(scale).toBeDefined();
+    expect(scale.from).toBe("0.3");
+    expect(scale.to).toBe("1");
+    expect(scale.transformOrigin).toBe("center"); // the key — center-origin scale
   });
 
   it("staggers each unit by staggerMs and sizes the duration to reveal-end + hold", () => {

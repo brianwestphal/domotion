@@ -205,8 +205,9 @@ export const intraFrameAnimationSchema = z.object({
    * captured element is wrapped in a `<g class="anim-<id>">`, the keyframes
    * apply `clip-path` to that wrapper.
    */
-  property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "clipPath"]),
-  /** Start value (CSS string, e.g. `"0%"`, `"240px"`, `"0.3"`). */
+  property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "scale", "clipPath"]),
+  /** Start value (CSS string, e.g. `"0%"`, `"240px"`, `"0.3"`). For `scale`,
+   *  a unitless factor (`"0.6"` -> `"1"`). */
   from: z.string(),
   /** End value (same syntax as `from`). */
   to: z.string(),
@@ -214,6 +215,16 @@ export const intraFrameAnimationSchema = z.object({
   duration: z.number(),
   /** CSS easing string. Default `linear`. */
   easing: z.string().optional(),
+  /**
+   * DM-1297: transform-origin for a `transform` / `scale` / `translate*`
+   * animation (e.g. `"center"`, `"50% 50%"`, `"left top"`). SVG transforms are
+   * origin-(0,0) by default, so a `scale`/`rotate` would shrink/orbit toward the
+   * SVG origin instead of the element's own box. Setting this emits
+   * `transform-box: fill-box; transform-origin: <value>` on the animated group so
+   * the transform resolves about the element's OWN bounding box — e.g. a
+   * center-origin scale-pop. Ignored for non-transform properties.
+   */
+  transformOrigin: z.string().optional(),
   /** Ms after the frame becomes visible before animation starts. Default 0. */
   delay: z.number().optional(),
   /**

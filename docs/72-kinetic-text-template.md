@@ -31,7 +31,7 @@ domotion template kinetic-text \
 | Param | Type | Default | Meaning |
 |---|---|---|---|
 | `text` | string (1–400) | — | The headline (**required**). `\n` → line break; a light set of inline tags styles words (see *Multi-line & emphasis*). |
-| `variant` | `rise` \| `slide` \| `fade` \| `clip` | `rise` | Reveal style: rise up, slide in from the left, fade, or `clip` (a left-to-right wipe). |
+| `variant` | `rise` \| `slide` \| `fade` \| `clip` \| `pop` | `rise` | Reveal style: rise up, slide in from the left, fade, `clip` (a left-to-right wipe), or `pop` (scale up from the unit's center with an overshoot). |
 | `loop` | `loop` \| `boomerang` | `loop` | `loop` replays the reveal each scene cycle; `boomerang` makes each unit assemble + disassemble continuously. |
 | `by` | `word` \| `char` | `word` | Animate per word or per character. |
 | `width` / `height` | int | `1280` / `720` | Output size in px. |
@@ -103,6 +103,10 @@ The motion respects the same two constraints as `background-loop` (doc 71):
    via the `clipPath` intra-frame property — `inset(-10% 100% -10% 0)` →
    `inset(-10% 0% -10% 0)` (the right inset animates 100% → 0%; the ±10%
    top/bottom keeps ascenders/descenders from being clipped during the wipe).
+   `pop` (DM-1297) scales the wrapper `0.3 → 1` with a back-eased overshoot, using
+   the new intra-frame `scale` property + `transformOrigin: "center"` so the scale
+   resolves about the unit's OWN box (the renderer emits `transform-box: fill-box;
+   transform-origin: center`) rather than the SVG origin — see doc 08.
 
 All generation is pure and unit-tested without a browser: `planUnits` (split +
 index), `buildKineticHtml`, `buildKineticAnimations`, `kineticDurationMs`.
@@ -116,10 +120,9 @@ index), `buildKineticHtml`, `buildKineticAnimations`, `kineticDurationMs`.
 ## Follow-ups
 
 DM-1286 shipped the `clip` wipe variant, multi-line `\n`, inline emphasis tags,
-and the `loop` / `boomerang` modes. Two reveal variants remain blocked on
-rendering-pipeline capabilities (filed separately):
+and the `loop` / `boomerang` modes; DM-1297 added the center-origin `scale`
+infrastructure (doc 08) and the `pop` variant. One reveal variant remains blocked
+on a rendering-pipeline capability:
 
 - **`blur-in`** (DM-1296) — needs `filter: blur()` capture fidelity, which the SVG
   pipeline doesn't yet reproduce; the `clip` wipe is the soft-reveal substitute.
-- **`scale-pop`** (DM-1297) — needs a *center* `transform-origin`; SVG transforms
-  are origin-(0,0), so a scale shifts the unit instead of popping in place.

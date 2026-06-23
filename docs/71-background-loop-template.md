@@ -75,11 +75,12 @@ browser, unlike `Math.random`).
   `buildBackgroundHtml` + `buildBackgroundAnimations`, shared by `aurora` / `orbs`
   / `stars`), the non-blob builders (`buildGradientPanHtml` /
   `buildGradientPanAnimations`, `planGridDots` / `buildGridHtml` /
-  `buildGridAnimations`), and the `backgroundLoopTemplate` that dispatches by
-  variant. All builders are pure + unit-tested. Registered in
-  `src/templates/registry.ts`; re-exported from the package root.
+  `buildGridAnimations`, `planWaves` / `buildWaveHtml` / `buildWaveAnimations`),
+  and the `backgroundLoopTemplate` that dispatches by variant. All builders are
+  pure + unit-tested. Registered in `src/templates/registry.ts`; re-exported from
+  the package root.
 
-## Variants (DM-1285)
+## Variants (DM-1285, DM-1295)
 
 Every variant keeps to the same two-constraint, `alternate`-looped contract above.
 
@@ -90,10 +91,9 @@ Every variant keeps to the same two-constraint, `alternate`-looped contract abov
 | `stars` | Twinkling particle / star field — many tiny sharp dots that fade and barely drift (`count` is a density level, scaled ~14×) | blob |
 | `gradient-pan` | A sweeping color wash — one angled `linear-gradient` layer, twice the canvas width, sliding horizontally | single sliding layer |
 | `grid` | A drifting dot grid — evenly-spaced colored dots laid one cell beyond every edge, drifting by exactly one cell (so endpoints read seamless) | dot grid |
+| `wave` | Flowing ribbon bands — `count` wide soft horizontal stripes (`transparent → color → transparent`) stacked down the canvas, each wider than the frame and parallax-drifting horizontally while bobbing vertically | ribbon bands |
 
-## Follow-ups
-
-`wave` / ribbon-shape variants are the remaining item from the DM-1280 list —
-they need flowing path shapes (vs. the positioned-element + translate pattern the
-current variants share), so they're filed separately. Each new variant is a new
-`variant` value on the same contract.
+The `wave` ribbon approach (DM-1295) deliberately stays in the positioned-element +
+`translate` model — wide soft `linear-gradient` stripes with horizontal parallax +
+a vertical bob — rather than literal sine `<path>` shapes, so it keeps the same
+seamless-loop guarantees as the other variants.

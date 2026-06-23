@@ -83,8 +83,8 @@ describe("template render end-to-end (DM-1276)", () => {
     expect(out.svg).toMatch(/alternate/);
   }, 60_000);
 
-  // DM-1285: the non-blob variants render through the same pipeline.
-  it("background-loop renders the gradient-pan and grid variants (DM-1285)", async () => {
+  // DM-1285 / DM-1295: the non-blob variants render through the same pipeline.
+  it("background-loop renders the gradient-pan, grid, and wave variants", async () => {
     const pan = await renderTemplateToSvg(
       backgroundLoopTemplate,
       { variant: "gradient-pan", colors: "#111,#abc,#fff", width: 640, height: 360 },
@@ -102,6 +102,16 @@ describe("template render end-to-end (DM-1276)", () => {
     expect(grid.svg).toContain("<svg");
     expect(grid.svg).toMatch(/infinite/);
     expect(grid.svg).toMatch(/alternate/);
+
+    const wave = await renderTemplateToSvg(
+      backgroundLoopTemplate,
+      { variant: "wave", colors: "#6366f1,#22d3ee,#f59e0b", width: 640, height: 360 },
+      { browser: await getBrowser() },
+    );
+    expect(wave.svg).toContain("<svg");
+    expect(wave.svg).toMatch(/linearGradient/); // the soft ribbon stripes
+    expect(wave.svg).toMatch(/infinite/);
+    expect(wave.svg).toMatch(/alternate/);
   }, 60_000);
 
   it("kinetic-text (generator) reveals a headline with staggered per-word animations", async () => {
