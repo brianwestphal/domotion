@@ -72,15 +72,16 @@ browser, unlike `Math.random`).
 ## Code
 
 - **`src/templates/builtin/background-loop.ts`** — the blob path (`planBlobs` +
-  `buildBackgroundHtml` + `buildBackgroundAnimations`, shared by `aurora` / `orbs`
-  / `stars`), the non-blob builders (`buildGradientPanHtml` /
+  `buildBackgroundHtml` + `buildBackgroundAnimations`, shared by `aurora` /
+  `orbs`), and one pure builder trio per non-blob variant: `planStars` /
+  `buildStarsHtml` / `buildStarsAnimations`, `buildGradientPanHtml` /
   `buildGradientPanAnimations`, `planGridDots` / `buildGridHtml` /
-  `buildGridAnimations`, `planWaves` / `buildWaveHtml` / `buildWaveAnimations`),
-  and the `backgroundLoopTemplate` that dispatches by variant. All builders are
-  pure + unit-tested. Registered in `src/templates/registry.ts`; re-exported from
-  the package root.
+  `buildGridAnimations`, `planWaves` / `buildWaveHtml` / `buildWaveAnimations`. The
+  `backgroundLoopTemplate` dispatches by variant. All builders are pure +
+  unit-tested. Registered in `src/templates/registry.ts`; re-exported from the
+  package root.
 
-## Variants (DM-1285, DM-1295)
+## Variants (DM-1285, DM-1295, DM-1298)
 
 Every variant keeps to the same two-constraint, `alternate`-looped contract above.
 
@@ -88,12 +89,13 @@ Every variant keeps to the same two-constraint, `alternate`-looped contract abov
 |---|---|---|
 | `aurora` | Large soft mesh-gradient blobs | blob (radial-gradient) |
 | `orbs` | Smaller, more opaque floating circles | blob |
-| `stars` | Twinkling particle / star field — many tiny sharp dots that fade and barely drift (`count` is a density level, scaled ~14×) | blob |
-| `gradient-pan` | A sweeping color wash — one angled `linear-gradient` layer, twice the canvas width, sliding horizontally | single sliding layer |
-| `grid` | A drifting dot grid — evenly-spaced colored dots laid one cell beyond every edge, drifting by exactly one cell (so endpoints read seamless) | dot grid |
-| `wave` | Flowing ribbon bands — `count` wide soft horizontal stripes (`transparent → color → transparent`) stacked down the canvas, each wider than the frame and parallax-drifting horizontally while bobbing vertically | ribbon bands |
+| `stars` | A twinkling night-sky field — sharp points (white-hot core → coloured glow) of varied size that twinkle (opacity) and sparkle (center-origin scale) fast on their own clocks (`count` is a density level, scaled ~16×) | positioned points |
+| `gradient-pan` | A colour wash that pans **continuously** in one direction — a `repeating-linear-gradient` translated by exactly one period, so the palette tiles into itself seamlessly (never backs out) | single panning layer |
+| `grid` | A dot grid that drifts **continuously** by exactly one cell — periodic, so the one-cell shift wraps seamlessly and reads as an endless drift | dot grid |
+| `wave` | Layered **parallax** sine waves — `count` filled inline-`<svg>` sine `<path>`s stacked back→front, each panning one canvas width at a different speed (front fast/opaque/busy, back slow/faint/gentle); the period divides the canvas so the pan wraps seamlessly | sine-wave fills |
 
-The `wave` ribbon approach (DM-1295) deliberately stays in the positioned-element +
-`translate` model — wide soft `linear-gradient` stripes with horizontal parallax +
-a vertical bob — rather than literal sine `<path>` shapes, so it keeps the same
-seamless-loop guarantees as the other variants.
+The continuous variants (DM-1298: `gradient-pan`, `grid`, `wave`) pan in a single
+direction (`linear`, non-`alternate`) and stay seamless because each translates by
+exactly one pattern period — the content tiles into itself. `wave` uses real
+filled sine `<path>`s (captured inline SVG) for genuine wave crests + obvious
+layer-speed parallax; the others keep to positioned elements + `translate`.

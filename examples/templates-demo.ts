@@ -82,12 +82,12 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "background-loop-stars",
     template: backgroundLoopTemplate,
-    params: { variant: "stars", colors: ["#7aa2f7", "#bb9af7", "#7dcfff", "#9ece6a"], width: 1280, height: 720, seed: 5 },
+    params: { variant: "stars", colors: ["#ffffff", "#bcd2ff", "#a5b4fc", "#fde68a"], background: "#05060f", width: 1280, height: 720, seed: 5 },
   },
   {
     file: "background-loop-gradient-pan",
     template: backgroundLoopTemplate,
-    params: { variant: "gradient-pan", colors: ["#6366f1", "#ec4899", "#22d3ee"], width: 1280, height: 720 },
+    params: { variant: "gradient-pan", colors: ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"], width: 1280, height: 720 },
   },
   {
     file: "background-loop-grid",
@@ -97,7 +97,7 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
   {
     file: "background-loop-wave",
     template: backgroundLoopTemplate,
-    params: { variant: "wave", colors: ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"], width: 1280, height: 720, seed: 3 },
+    params: { variant: "wave", colors: ["#1e3a8a", "#0e7490", "#0891b2", "#22d3ee", "#67e8f9"], background: "#041020", width: 1280, height: 720, seed: 7 },
   },
 
   // kinetic-text — the three reveal styles (slide shown per-character).

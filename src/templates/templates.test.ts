@@ -21,6 +21,9 @@ import {
   planGridDots,
   buildGridHtml,
   buildGridAnimations,
+  planStars,
+  buildStarsHtml,
+  buildStarsAnimations,
   planWaves,
   buildWaveHtml,
   buildWaveAnimations,
@@ -207,33 +210,45 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
     expect(() => parse({ colors: "" })).toThrow(); // empty → no colors → min(1) fails
   });
 
-  // DM-1285: "stars" particle field — many tiny dots (count is a density level).
-  it("stars produces ~14× the count in tiny dots", () => {
-    const stars = planBlobs(parse({ variant: "stars", count: 5, seed: 3 }));
-    const orbs = planBlobs(parse({ variant: "orbs", count: 5, seed: 3 }));
-    expect(stars).toHaveLength(70); // 5 × 14
-    expect(orbs).toHaveLength(5);
-    expect(stars[0].size).toBeLessThan(orbs[0].size);
+  // DM-1298: "stars" — a dense field of sharp points that twinkle (opacity) +
+  // sparkle (center-origin scale). `count` is a density level (×16).
+  it("stars plans ~16× the count of sharp twinkling points", () => {
+    const stars = planStars(parse({ variant: "stars", count: 5, seed: 3 }));
+    expect(stars).toHaveLength(80); // 5 × 16
+    const html = buildStarsHtml(parse({ variant: "stars", count: 1, colors: ["#abc"] }), planStars(parse({ variant: "stars", count: 1, colors: ["#abc"] })));
+    expect(html).toContain("radial-gradient(circle, #ffffff 0%"); // white-hot core
+    const anims = buildStarsAnimations(stars);
+    expect(anims).toHaveLength(160); // 80 stars × (scale sparkle + opacity twinkle)
+    const spark = anims.find((a) => a.selector === ".st-pos-0")!;
+    const twinkle = anims.find((a) => a.selector === ".st-star-0")!;
+    expect(spark.property).toBe("scale");
+    expect(spark.transformOrigin).toBe("center"); // sparkle about the star's center
+    expect(twinkle.property).toBe("opacity");
+    for (const a of anims) {
+      expect(a.repeat).toBe("infinite");
+      expect(a.alternate).toBe(true);
+      expect(a.duration).toBeLessThanOrEqual(3300); // fast twinkle, not the slow loop period
+    }
   });
 
-  // DM-1285: gradient-pan — one sliding layer twice the canvas width.
-  it("gradient-pan slides one 2×-wide gradient layer (translateX, alternate)", () => {
+  // DM-1298: gradient-pan pans CONTINUOUSLY in one direction (no `alternate`),
+  // a repeating gradient translated by exactly one period.
+  it("gradient-pan pans continuously by one period (linear, no alternate)", () => {
     const p = parse({ variant: "gradient-pan", colors: ["#111", "#222", "#333"], width: 800, height: 450 });
     const html = buildGradientPanHtml(p);
-    expect(html).toContain("width: 1600px"); // 2 × 800
-    expect(html).toMatch(/linear-gradient\(60deg, #111 0%, #222 50%, #333 100%\)/);
+    expect(html).toContain("repeating-linear-gradient(60deg");
     const anims = buildGradientPanAnimations(p);
     expect(anims).toHaveLength(1);
     expect(anims[0].property).toBe("transform");
-    expect(anims[0].to).toBe("translate(-800px, 0px)");
-    expect(anims[0].alternate).toBe(true);
+    expect(anims[0].easing).toBe("linear");
+    expect(anims[0].alternate).toBeUndefined(); // continuous, never backs out
+    expect(anims[0].to).toMatch(/^translate\(-\d+px, 0px\)$/);
   });
 
-  // DM-1285: grid drift — dots one cell beyond every edge, drift by one cell.
-  it("grid lays dots beyond the edges and drifts by exactly one cell", () => {
+  // DM-1285/DM-1298: grid drifts CONTINUOUSLY by one cell (no alternate, linear).
+  it("grid lays dots beyond the edges and drifts continuously by exactly one cell", () => {
     const p = parse({ variant: "grid", width: 800, height: 450, colors: ["#a", "#b"] });
     const { dots, cell } = planGridDots(p);
-    // covers [-cell, width+cell] × [-cell, height+cell]
     expect(dots[0].left).toBe(-cell);
     expect(dots[0].top).toBe(-cell);
     expect(dots.some((d) => d.left > p.width)).toBe(true);
@@ -243,37 +258,32 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
     const anims = buildGridAnimations(p, cell);
     expect(anims).toHaveLength(1);
     expect(anims[0].to).toBe(`translate(${cell}px, ${cell}px)`);
-    expect(anims[0].alternate).toBe(true);
+    expect(anims[0].easing).toBe("linear");
+    expect(anims[0].alternate).toBeUndefined(); // continuous one-direction drift
   });
 
-  // DM-1295: wave — soft ribbon bands wider than the canvas, drifting + bobbing.
-  it("wave plans `count` bands wider than the canvas, each with a drift + bob animation", () => {
+  // DM-1295/DM-1298: wave — layered sine-wave fills panning at parallax speeds.
+  it("wave plans `count` sine-wave layers that pan one canvas width at different speeds", () => {
     const p = parse({ variant: "wave", width: 800, height: 450, count: 4, colors: ["#a", "#b"] });
-    const bands = planWaves(p);
-    expect(bands).toHaveLength(4);
-    // Each band is wider than the canvas and offset left so the drift never
-    // exposes a side edge.
-    for (const b of bands) {
-      expect(b.width).toBeGreaterThan(p.width);
-      expect(b.left).toBeLessThanOrEqual(0);
-      expect(b.left + b.width).toBeGreaterThanOrEqual(p.width); // covers the canvas at rest
-    }
-    expect(bands.map((b) => b.color)).toEqual(["#a", "#b", "#a", "#b"]); // colors cycle
-    const html = buildWaveHtml(p, bands);
-    expect(html).toMatch(/class="wv-pos wv-pos-0"/);
-    expect(html).toMatch(/class="wv-band wv-band-0"/);
-    expect(html).toContain("linear-gradient(to bottom"); // soft top/bottom edges
+    const layers = planWaves(p);
+    expect(layers).toHaveLength(4);
+    expect(layers.map((l) => l.color)).toEqual(["#a", "#b", "#a", "#b"]); // colors cycle
+    for (const l of layers) expect(l.path).toMatch(/^M [\d.]+ [\d.]+ (L [\d.]+ [\d.]+ )+L 1600 450 L 0 450 Z$/);
+    // Front layers are more opaque than back layers (depth).
+    expect(layers[layers.length - 1].opacity).toBeGreaterThan(layers[0].opacity);
+    // Parallax: the layer speeds (drift durations) are not all equal.
+    expect(new Set(layers.map((l) => l.driftMs)).size).toBeGreaterThan(1);
 
-    const anims = buildWaveAnimations(bands);
-    expect(anims).toHaveLength(8); // 4 bands × (drift + bob)
-    const drift = anims.find((a) => a.selector === ".wv-pos-0")!;
-    const bob = anims.find((a) => a.selector === ".wv-band-0")!;
-    expect(drift.property).toBe("transform"); // horizontal parallax (origin-safe translate)
-    expect(bob.property).toBe("translateY");  // vertical undulation
+    const html = buildWaveHtml(p, layers);
+    expect(html).toMatch(/class="wv-layer wv-layer-0"/);
+    expect(html).toContain("<svg"); // inline SVG wave paths
+    const anims = buildWaveAnimations(p, layers);
+    expect(anims).toHaveLength(4); // one continuous pan per layer
     for (const a of anims) {
-      expect(a.repeat).toBe("infinite");
-      expect(a.alternate).toBe(true);
-      expect(a.delay).toBeLessThanOrEqual(0); // negative phase offset (never freezes)
+      expect(a.property).toBe("transform");
+      expect(a.to).toBe(`translate(-${p.width}px, 0px)`); // exactly one canvas width
+      expect(a.easing).toBe("linear");
+      expect(a.alternate).toBeUndefined();
     }
   });
 

@@ -91,8 +91,7 @@ describe("template render end-to-end (DM-1276)", () => {
       { browser: await getBrowser() },
     );
     expect(pan.svg).toContain("<svg");
-    expect(pan.svg).toMatch(/linearGradient/); // the panning gradient layer
-    expect(pan.svg).toMatch(/infinite/);
+    expect(pan.svg).toMatch(/infinite/); // the continuous pan animation
 
     const grid = await renderTemplateToSvg(
       backgroundLoopTemplate,
@@ -101,17 +100,25 @@ describe("template render end-to-end (DM-1276)", () => {
     );
     expect(grid.svg).toContain("<svg");
     expect(grid.svg).toMatch(/infinite/);
-    expect(grid.svg).toMatch(/alternate/);
 
+    // DM-1298: wave is layered filled sine `<path>`s (parallax pan, no gradient).
     const wave = await renderTemplateToSvg(
       backgroundLoopTemplate,
       { variant: "wave", colors: "#6366f1,#22d3ee,#f59e0b", width: 640, height: 360 },
       { browser: await getBrowser() },
     );
     expect(wave.svg).toContain("<svg");
-    expect(wave.svg).toMatch(/linearGradient/); // the soft ribbon stripes
+    expect(wave.svg).toMatch(/<path/);
     expect(wave.svg).toMatch(/infinite/);
-    expect(wave.svg).toMatch(/alternate/);
+
+    // DM-1298: stars is a sharp twinkling field (radial-gradient points).
+    const stars = await renderTemplateToSvg(
+      backgroundLoopTemplate,
+      { variant: "stars", colors: ["#fff", "#7aa2f7"], width: 640, height: 360 },
+      { browser: await getBrowser() },
+    );
+    expect(stars.svg).toContain("<svg");
+    expect(stars.svg).toMatch(/infinite/);
   }, 60_000);
 
   it("kinetic-text (generator) reveals a headline with staggered per-word animations", async () => {

@@ -30,8 +30,9 @@ const VARIANTS = ["aurora", "orbs", "stars", "gradient-pan", "grid", "wave"] as 
 export type BackgroundVariant = (typeof VARIANTS)[number];
 
 /** Blob-laid-out variants (positioned soft circles). The non-blob variants
- *  (`gradient-pan`, `grid`, `wave`) have their own layout + animation builders. */
-const BLOB_VARIANTS = new Set<BackgroundVariant>(["aurora", "orbs", "stars"]);
+ *  (`stars`, `gradient-pan`, `grid`, `wave`) have their own layout + animation
+ *  builders. */
+const BLOB_VARIANTS = new Set<BackgroundVariant>(["aurora", "orbs"]);
 
 const DEFAULT_COLORS = ["#6366f1", "#ec4899", "#22d3ee", "#f59e0b"];
 
@@ -89,12 +90,9 @@ interface VariantStyle {
   drift: number;
 }
 
-const VARIANT_STYLES: Record<"aurora" | "orbs" | "stars", VariantStyle> = {
+const VARIANT_STYLES: Record<"aurora" | "orbs", VariantStyle> = {
   aurora: { sizeMin: 0.55, sizeMax: 0.95, falloff: 72, opacityLow: 0.35, opacityHigh: 0.7, drift: 0.18 },
   orbs:   { sizeMin: 0.18, sizeMax: 0.34, falloff: 55, opacityLow: 0.55, opacityHigh: 0.95, drift: 0.28 },
-  // DM-1285 "particle / star field": many tiny, sharp-edged dots that twinkle
-  // (wide opacity range) and drift only slightly — a starscape rather than a mesh.
-  stars:  { sizeMin: 0.012, sizeMax: 0.03, falloff: 90, opacityLow: 0.15, opacityHigh: 1.0, drift: 0.05 },
 };
 
 interface Blob {
@@ -111,13 +109,11 @@ interface Blob {
 /** Lay out the blobs deterministically from the params (pure — no I/O). */
 export function planBlobs(p: BackgroundLoopParams): Blob[] {
   const rnd = mulberry32(p.seed);
-  // Blob variants only (aurora / orbs / stars); the non-blob variants render via
-  // their own builders. Fall back to `orbs` if called with an unexpected variant.
+  // Blob variants only (aurora / orbs); the others render via their own builders.
+  // Fall back to `orbs` if called with an unexpected variant.
   const style = VARIANT_STYLES[(p.variant in VARIANT_STYLES ? p.variant : "orbs") as keyof typeof VARIANT_STYLES];
   const minDim = Math.min(p.width, p.height);
-  // A star field reads as dense; treat `count` as a density level and multiply it
-  // (so the default 5 → ~70 stars) while still honoring the user's knob.
-  const n = p.variant === "stars" ? p.count * 14 : p.count;
+  const n = p.count;
   const blobs: Blob[] = [];
   for (let i = 0; i < n; i++) {
     const size = Math.round((style.sizeMin + rnd() * (style.sizeMax - style.sizeMin)) * minDim);
@@ -210,40 +206,61 @@ export function buildBackgroundAnimations(blobs: Blob[]): NonNullable<AnimateCon
 
 type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
 
-/** Evenly-spaced gradient stops from the palette (a single color → a solid fill). */
-function gradientStops(colors: string[]): string {
-  if (colors.length === 1) return `${colors[0]} 0%, ${colors[0]} 100%`;
-  return colors.map((c, i) => `${c} ${Math.round((i / (colors.length - 1)) * 100)}%`).join(", ");
+const GRADIENT_PAN_ANGLE_DEG = 60;
+
+/**
+ * Shared geometry for the gradient-pan variant so the HTML (gradient period) and
+ * the animation (horizontal shift) agree. The gradient is a `repeating-linear-
+ * gradient` with period `period` px along its 60° line; advancing the element
+ * horizontally by `shift = period / sin(60°)` moves the pattern by exactly one
+ * period, so a CONTINUOUS (non-`alternate`) translate of `-shift` loops with no
+ * seam — the colour scheme tiles into itself (DM-1298). The layer is widened by
+ * `shift` so the canvas stays covered throughout.
+ */
+function gradientPanGeometry(p: BackgroundLoopParams): { period: number; shift: number; layerWidth: number } {
+  const period = Math.round(Math.min(p.width, p.height) * 0.85);
+  const shift = Math.round(period / Math.sin((GRADIENT_PAN_ANGLE_DEG * Math.PI) / 180));
+  return { period, shift, layerWidth: p.width + shift + 4 };
+}
+
+/** Repeating-gradient stops over one `period`: the palette evenly spaced, wrapping
+ *  the first colour back in at `period` so the tile joins itself seamlessly. */
+function repeatingStops(colors: string[], period: number): string {
+  const n = colors.length;
+  const stops = colors.map((c, k) => `${c} ${Math.round((k * period) / n)}px`);
+  stops.push(`${colors[0]} ${period}px`);
+  return stops.join(", ");
 }
 
 /**
- * DM-1285 "panning linear-gradient": a single angled color band on a layer twice
- * the canvas width that slides horizontally so the visible window sweeps the
- * colors. Pure (unit-testable without a browser).
+ * DM-1285/DM-1298 "panning linear-gradient": an angled, repeating colour band on a
+ * layer wider than the canvas that pans CONTINUOUSLY in one direction. Pure.
  */
 export function buildGradientPanHtml(p: BackgroundLoopParams): string {
+  const { period, layerWidth } = gradientPanGeometry(p);
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
   html, body { width: ${p.width}px; height: ${p.height}px; overflow: hidden; }
   body { background: ${p.background}; position: relative; }
-  .gp { position: absolute; top: 0; left: 0; width: ${p.width * 2}px; height: ${p.height}px;
-        background: linear-gradient(60deg, ${gradientStops(p.colors)}); opacity: 0.92; }
+  .gp { position: absolute; top: 0; left: 0; width: ${layerWidth}px; height: ${p.height}px;
+        background: repeating-linear-gradient(${GRADIENT_PAN_ANGLE_DEG}deg, ${repeatingStops(p.colors, period)}); opacity: 0.92; }
 </style></head>
 <body><div class="gp gp-layer"></div></body></html>`;
 }
 
-/** Slide the gradient layer by one canvas width (translateX, `alternate` ping-pong). */
+/** Pan the gradient layer continuously by exactly one period (translateX, linear,
+ *  NON-`alternate` — the repeating pattern wraps into itself, so it never backs out). */
 export function buildGradientPanAnimations(p: BackgroundLoopParams): Anims {
+  const { shift } = gradientPanGeometry(p);
   return [{
     selector: ".gp-layer",
     property: "transform",
     from: "translate(0px, 0px)",
-    to: `translate(-${p.width}px, 0px)`,
+    to: `translate(-${shift}px, 0px)`,
     duration: p.durationMs,
-    easing: "ease-in-out",
+    easing: "linear",
     repeat: "infinite",
-    alternate: true,
   }];
 }
 
@@ -284,8 +301,10 @@ export function buildGridHtml(p: BackgroundLoopParams, dots: GridDot[]): string 
 </div></body></html>`;
 }
 
-/** Drift the whole grid by exactly one cell diagonally (`alternate` — the shifted
- *  grid looks identical to the rest, so even the endpoints read as seamless). */
+/** Drift the whole grid CONTINUOUSLY by exactly one cell diagonally (linear,
+ *  NON-`alternate`, DM-1298). The grid is periodic with period `cell`, so after a
+ *  one-cell shift every dot sits where its neighbour was — the loop is seamless and
+ *  the motion never backs out, reading as an endless drift. */
 export function buildGridAnimations(p: BackgroundLoopParams, cell: number): Anims {
   return [{
     selector: ".gd-layer",
@@ -293,71 +312,60 @@ export function buildGridAnimations(p: BackgroundLoopParams, cell: number): Anim
     from: "translate(0px, 0px)",
     to: `translate(${cell}px, ${cell}px)`,
     duration: p.durationMs,
-    easing: "ease-in-out",
+    easing: "linear",
     repeat: "infinite",
-    alternate: true,
   }];
 }
 
-interface WaveBand {
+interface Star {
   idx: number;
   color: string;
-  /** band geometry (px): wrapper left/top/width/height. */
-  left: number; top: number; width: number; height: number;
-  /** horizontal parallax drift + vertical bob, with periods + phase offsets (ms). */
-  driftX: number; driftMs: number; driftDelay: number;
-  bobY: number; bobMs: number; bobDelay: number;
-  opacity: number;
+  left: number; top: number; size: number;
+  twMs: number; twDelay: number; opacityLow: number;   // opacity twinkle
+  scMs: number; scDelay: number; scaleLow: number;      // scale sparkle
 }
 
 /**
- * DM-1295 "wave / ribbon": plan a few wide, soft horizontal bands stacked across
- * the canvas. Each is wider than the canvas (so the horizontal parallax drift
- * never exposes a side edge) and drifts/bobs at its own speed for a flowing,
- * layered wave feel. Pure + deterministic from the seed.
+ * DM-1298 "star field": many small SHARP points (a white-hot core fading to a
+ * coloured glow), each twinkling fast on its own clock. `count` is a density level
+ * (× ~16, so the default 5 → ~80 stars). Pure + deterministic from the seed.
  */
-export function planWaves(p: BackgroundLoopParams): WaveBand[] {
+export function planStars(p: BackgroundLoopParams): Star[] {
   const rnd = mulberry32(p.seed);
-  const bands: WaveBand[] = [];
-  const n = p.count;
+  const minDim = Math.min(p.width, p.height);
+  const n = p.count * 16;
+  const stars: Star[] = [];
   for (let i = 0; i < n; i++) {
-    const driftX = Math.round((0.06 + rnd() * 0.1) * p.width);
-    const bobY = Math.round((0.02 + rnd() * 0.045) * p.height);
-    const height = Math.round((0.16 + rnd() * 0.14) * p.height);
-    // Spread the bands down the canvas (evenly + a little jitter), centered.
-    const center = ((i + 0.5) / n + (rnd() - 0.5) * 0.12) * p.height;
-    const driftMs = Math.round(p.durationMs * (0.9 + rnd() * 0.8));
-    const bobMs = Math.round(p.durationMs * (0.7 + rnd() * 0.7));
-    bands.push({
+    // `r³` skews toward small dots with the occasional big bright star.
+    const r = rnd();
+    const size = Math.round((0.0035 + r * r * r * 0.024) * minDim) + 2;
+    const twMs = 700 + Math.round(rnd() * 2200);
+    const scMs = 900 + Math.round(rnd() * 2400);
+    stars.push({
       idx: i,
       color: p.colors[i % p.colors.length],
-      left: -driftX,
-      top: Math.round(center - height / 2),
-      width: p.width + driftX * 2,
-      height,
-      driftX,
-      driftMs,
-      // NEGATIVE phase offset so every band is already mid-drift at t=0 (seamless,
-      // never freezing) — same rule as the blob loops (DM-1289).
-      driftDelay: -Math.round(rnd() * driftMs),
-      bobY,
-      bobMs,
-      bobDelay: -Math.round(rnd() * bobMs),
-      opacity: 0.45 + rnd() * 0.3,
+      left: Math.round(rnd() * p.width),
+      top: Math.round(rnd() * p.height),
+      size,
+      twMs,
+      twDelay: -Math.round(rnd() * twMs), // negative phase → already mid-twinkle at t=0
+      opacityLow: 0.06 + rnd() * 0.22,
+      scMs,
+      scDelay: -Math.round(rnd() * scMs),
+      scaleLow: 0.5 + rnd() * 0.3,
     });
   }
-  return bands;
+  return stars;
 }
 
-/** Standalone HTML for the ribbon bands. Each band is a soft horizontal stripe
- *  (transparent → color → transparent gradient) inside a positioned wrapper that
- *  drifts; the inner stripe bobs. Pure. */
-export function buildWaveHtml(p: BackgroundLoopParams, bands: WaveBand[]): string {
-  const markup = bands
+/** Standalone HTML for the star field. Each star is a sharp radial-gradient point
+ *  (white core → coloured glow → transparent) in a positioned wrapper. Pure. */
+export function buildStarsHtml(p: BackgroundLoopParams, stars: Star[]): string {
+  const markup = stars
     .map(
-      (b) =>
-        `<div class="wv-pos wv-pos-${b.idx}" style="left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px">`
-        + `<div class="wv-band wv-band-${b.idx}" style="background:linear-gradient(to bottom, transparent 0%, ${b.color} 50%, transparent 100%);opacity:${b.opacity.toFixed(3)}"></div>`
+      (s) =>
+        `<div class="st-pos st-pos-${s.idx}" style="left:${s.left}px;top:${s.top}px;width:${s.size}px;height:${s.size}px">`
+        + `<div class="st-star st-star-${s.idx}" style="background:radial-gradient(circle, #ffffff 0%, ${s.color} 38%, transparent 72%)"></div>`
         + `</div>`,
     )
     .join("\n  ");
@@ -366,43 +374,140 @@ export function buildWaveHtml(p: BackgroundLoopParams, bands: WaveBand[]): strin
   * { margin: 0; box-sizing: border-box; }
   html, body { width: ${p.width}px; height: ${p.height}px; overflow: hidden; }
   body { background: ${p.background}; position: relative; }
-  .wv-pos { position: absolute; }
-  .wv-band { width: 100%; height: 100%; }
+  .st-pos { position: absolute; }
+  .st-star { width: 100%; height: 100%; border-radius: 50%; }
 </style></head>
 <body>
   ${markup}
 </body></html>`;
 }
 
-/** Two looping animations per band: a horizontal parallax drift on the wrapper
- *  and a vertical bob on the inner stripe (distinct selectors, both `alternate`). */
-export function buildWaveAnimations(bands: WaveBand[]): Anims {
+/** Two looping animations per star: a center-origin scale sparkle on the wrapper
+ *  (DM-1297) and a wide, fast opacity twinkle on the inner point — different fast
+ *  periods + negative phase offsets so the field shimmers, never in lockstep. */
+export function buildStarsAnimations(stars: Star[]): Anims {
   const anims: Anims = [];
-  for (const b of bands) {
+  for (const s of stars) {
     anims.push({
-      selector: `.wv-pos-${b.idx}`,
-      property: "transform",
-      from: "translate(0px, 0px)",
-      to: `translate(${b.driftX}px, 0px)`,
-      duration: b.driftMs,
-      delay: b.driftDelay,
+      selector: `.st-pos-${s.idx}`,
+      property: "scale",
+      from: s.scaleLow.toFixed(3),
+      to: "1.18",
+      duration: s.scMs,
+      delay: s.scDelay,
       easing: "ease-in-out",
       repeat: "infinite",
       alternate: true,
+      transformOrigin: "center",
     });
     anims.push({
-      selector: `.wv-band-${b.idx}`,
-      property: "translateY",
-      from: "0px",
-      to: `${b.bobY}px`,
-      duration: b.bobMs,
-      delay: b.bobDelay,
+      selector: `.st-star-${s.idx}`,
+      property: "opacity",
+      from: s.opacityLow.toFixed(3),
+      to: "1",
+      duration: s.twMs,
+      delay: s.twDelay,
       easing: "ease-in-out",
       repeat: "infinite",
       alternate: true,
     });
   }
   return anims;
+}
+
+interface WaveLayer {
+  idx: number;
+  color: string;
+  /** SVG path of a filled sine wave, 2× canvas wide (periodic over the canvas). */
+  path: string;
+  opacity: number;
+  /** Full canvas-width horizontal pan; the period divides the canvas so a one-
+   *  canvas-width shift wraps seamlessly. Speed varies per layer → parallax. */
+  driftMs: number;
+}
+
+/** Build a filled sine-wave `<path>` spanning `width` px at vertical `baseline`,
+ *  amplitude `amp`, wavelength `period`, filled down to `floor`. */
+function sineWavePath(width: number, floor: number, baseline: number, amp: number, period: number): string {
+  const step = Math.max(6, Math.round(period / 24));
+  const pts: string[] = [];
+  for (let x = 0; x <= width; x += step) {
+    const y = baseline - amp * Math.sin((2 * Math.PI * x) / period);
+    pts.push(`${x} ${y.toFixed(1)}`);
+  }
+  // Pin the final sample exactly at `width` so the tile closes cleanly.
+  const lastY = (baseline - amp * Math.sin((2 * Math.PI * width) / period)).toFixed(1);
+  pts.push(`${width} ${lastY}`);
+  return `M ${pts[0]} ` + pts.slice(1).map((pt) => `L ${pt}`).join(" ") + ` L ${width} ${floor} L 0 ${floor} Z`;
+}
+
+/**
+ * DM-1295/DM-1298 "wave": `count` layered sine-wave fills (back → front) that each
+ * pan horizontally at a DIFFERENT speed for clear parallax. Each wave is 2× the
+ * canvas wide with an integer number of periods across the canvas, so a one-
+ * canvas-width pan wraps seamlessly. Front layers are lower, taller-amplitude, and
+ * more opaque; back layers are higher, gentler, fainter. Pure + deterministic.
+ */
+export function planWaves(p: BackgroundLoopParams): WaveLayer[] {
+  const rnd = mulberry32(p.seed);
+  const layers: WaveLayer[] = [];
+  const n = p.count;
+  const w2 = p.width * 2;
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1); // 0 = back, 1 = front
+    const humps = 2 + Math.round(rnd() * 2) + Math.floor(t * 2); // front waves are busier
+    const period = Math.round(p.width / humps);
+    const amp = Math.round((0.035 + t * 0.05 + rnd() * 0.02) * p.height);
+    const baseline = Math.round((0.34 + t * 0.4) * p.height);
+    layers.push({
+      idx: i,
+      color: p.colors[i % p.colors.length],
+      path: sineWavePath(w2, p.height, baseline, amp, period),
+      opacity: 0.4 + t * 0.45,
+      // Front (fast) → back (slow): clearly different speeds = obvious parallax.
+      driftMs: Math.round(p.durationMs * (2.2 - t * 1.3) * (0.9 + rnd() * 0.2)),
+    });
+  }
+  return layers;
+}
+
+/** Standalone HTML: each wave layer is a 2×-canvas-wide inline `<svg>` with the
+ *  filled sine path, stacked back-to-front. Pure. */
+export function buildWaveHtml(p: BackgroundLoopParams, layers: WaveLayer[]): string {
+  const w2 = p.width * 2;
+  const markup = layers
+    .map(
+      (l) =>
+        `<div class="wv-layer wv-layer-${l.idx}" style="opacity:${l.opacity.toFixed(3)}">`
+        + `<svg width="${w2}" height="${p.height}" viewBox="0 0 ${w2} ${p.height}" preserveAspectRatio="none">`
+        + `<path d="${l.path}" fill="${l.color}"/></svg></div>`,
+    )
+    .join("\n  ");
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: ${p.width}px; height: ${p.height}px; overflow: hidden; }
+  body { background: ${p.background}; position: relative; }
+  .wv-layer { position: absolute; top: 0; left: 0; width: ${w2}px; height: ${p.height}px; }
+</style></head>
+<body>
+  ${markup}
+</body></html>`;
+}
+
+/** Pan each wave layer left by exactly one canvas width, continuously (linear,
+ *  NON-`alternate`) — periodic, so it wraps seamlessly — at its own speed for
+ *  parallax. */
+export function buildWaveAnimations(p: BackgroundLoopParams, layers: WaveLayer[]): Anims {
+  return layers.map((l) => ({
+    selector: `.wv-layer-${l.idx}`,
+    property: "transform",
+    from: "translate(0px, 0px)",
+    to: `translate(-${p.width}px, 0px)`,
+    duration: l.driftMs,
+    easing: "linear",
+    repeat: "infinite",
+  }));
 }
 
 export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
@@ -419,15 +524,20 @@ export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
       writeFileSync(htmlPath, buildBackgroundHtml(params, blobs));
       animations = buildBackgroundAnimations(blobs);
       ctx.log(`template background-loop: ${params.variant}, ${blobs.length} blobs, ${params.width}×${params.height}`);
+    } else if (params.variant === "stars") {
+      const stars = planStars(params);
+      writeFileSync(htmlPath, buildStarsHtml(params, stars));
+      animations = buildStarsAnimations(stars);
+      ctx.log(`template background-loop: stars, ${stars.length} stars, ${params.width}×${params.height}`);
     } else if (params.variant === "gradient-pan") {
       writeFileSync(htmlPath, buildGradientPanHtml(params));
       animations = buildGradientPanAnimations(params);
       ctx.log(`template background-loop: gradient-pan, ${params.colors.length} colors, ${params.width}×${params.height}`);
     } else if (params.variant === "wave") {
-      const bands = planWaves(params);
-      writeFileSync(htmlPath, buildWaveHtml(params, bands));
-      animations = buildWaveAnimations(bands);
-      ctx.log(`template background-loop: wave, ${bands.length} bands, ${params.width}×${params.height}`);
+      const layers = planWaves(params);
+      writeFileSync(htmlPath, buildWaveHtml(params, layers));
+      animations = buildWaveAnimations(params, layers);
+      ctx.log(`template background-loop: wave, ${layers.length} layers, ${params.width}×${params.height}`);
     } else {
       const { dots, cell } = planGridDots(params);
       writeFileSync(htmlPath, buildGridHtml(params, dots));
