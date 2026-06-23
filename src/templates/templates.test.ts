@@ -246,20 +246,45 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
   });
 
   // DM-1285/DM-1298: grid drifts CONTINUOUSLY by one cell (no alternate, linear).
-  it("grid lays dots beyond the edges and drifts continuously by exactly one cell", () => {
+  it("grid is one inline <svg> of circles covering a cell beyond every edge, drifting one cell continuously", () => {
     const p = parse({ variant: "grid", width: 800, height: 450, colors: ["#a", "#b"] });
-    const { dots, cell } = planGridDots(p);
-    expect(dots[0].left).toBe(-cell);
-    expect(dots[0].top).toBe(-cell);
-    expect(dots.some((d) => d.left > p.width)).toBe(true);
-    expect(dots.some((d) => d.top > p.height)).toBe(true);
-    const html = buildGridHtml(p, dots);
-    expect(html).toMatch(/class="gd gd-layer"/);
-    const anims = buildGridAnimations(p, cell);
+    const grid = planGridDots(p);
+    // The layer extends one cell past each edge (so margin dots slide in), in its
+    // own (svg-local) coords from 0.
+    expect(grid.layerW).toBe(p.width + grid.cell * 2);
+    expect(grid.layerH).toBe(p.height + grid.cell * 2);
+    expect(grid.dots[0]).toMatchObject({ cx: 0, cy: 0 });
+    expect(grid.dots.some((d) => d.cx >= p.width + grid.cell)).toBe(true);
+
+    // DM-1299: a single inline <svg> of <circle>s (offset -cell), NOT individual
+    // <div>s — so the off-canvas margin dots survive capture instead of being
+    // culled (which left an empty top-left margin as the grid drifted down-right).
+    const html = buildGridHtml(p, grid);
+    expect(html).toMatch(/class="gd-layer"/);
+    expect(html).toContain("<svg");
+    expect(html).toContain("<circle");
+    expect(html).toContain(`left: -${grid.cell}px`);
+
+    const anims = buildGridAnimations(p, grid.cell);
     expect(anims).toHaveLength(1);
-    expect(anims[0].to).toBe(`translate(${cell}px, ${cell}px)`);
+    expect(anims[0].to).toBe(`translate(${grid.cell}px, ${grid.cell}px)`);
     expect(anims[0].easing).toBe("linear");
     expect(anims[0].alternate).toBeUndefined(); // continuous one-direction drift
+  });
+
+  // DM-1299: grid colours are diagonal, so a dot and its down-right neighbour
+  // share a colour — invariant under the one-cell drift, so the loop seam doesn't
+  // flicker (a dot sliding in carries the colour of the dot it replaces).
+  it("grid colours are invariant under the one-cell diagonal shift (no seam flicker)", () => {
+    const p = parse({ variant: "grid", width: 800, height: 450, colors: ["#a", "#b", "#c"] });
+    const { dots, cell } = planGridDots(p);
+    const colorAt = (col: number, row: number) =>
+      dots.find((d) => d.cx === col * cell && d.cy === row * cell)?.color;
+    // Down-right diagonal neighbours share a colour (the shift maps each onto the next).
+    expect(colorAt(1, 1)).toBe(colorAt(2, 2));
+    expect(colorAt(2, 1)).toBe(colorAt(3, 2));
+    // Still multi-colour: neighbours along a row differ.
+    expect(colorAt(1, 1)).not.toBe(colorAt(2, 1));
   });
 
   // DM-1295/DM-1298: wave — layered sine-wave fills panning at parallax speeds.

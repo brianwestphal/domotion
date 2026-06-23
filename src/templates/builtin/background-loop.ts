@@ -264,40 +264,58 @@ export function buildGradientPanAnimations(p: BackgroundLoopParams): Anims {
   }];
 }
 
-interface GridDot { left: number; top: number; size: number; color: string; }
+/** A grid dot in the layer's own (svg-local) coordinates. */
+interface GridDot { cx: number; cy: number; r: number; color: string; }
 
-/** Lay out a dot grid one cell beyond every edge (so a one-cell drift never
- *  exposes a gap). Returns the dots + the cell size. Pure. */
-export function planGridDots(p: BackgroundLoopParams): { dots: GridDot[]; cell: number } {
+/**
+ * Lay out a dot grid covering one cell beyond every edge, in the grid LAYER's own
+ * coordinate space (the layer is offset `-cell, -cell` so local `cell` sits at the
+ * canvas origin). Returns the dots + the `cell` size + the layer dimensions. Pure.
+ *
+ * The layer is a single inline `<svg>` (DM-1299): each dot is a `<circle>` inside
+ * it, so the margin dots survive capture. (Individual off-viewport `<div>` dots
+ * were CULLED by the capture's outside-viewport pass, leaving nothing to slide in
+ * from the top-left as the grid drifted down-right — a growing empty margin.)
+ *
+ * Colours run along the DIAGONAL `(col - row)`, invariant under the one-cell
+ * down-right drift (`(col-1) - (row-1) === col - row`), so a dot sliding into a
+ * position carries the same colour as the one it replaced (no seam flicker).
+ */
+export function planGridDots(p: BackgroundLoopParams): { dots: GridDot[]; cell: number; layerW: number; layerH: number } {
   const minDim = Math.min(p.width, p.height);
   const cell = Math.max(40, Math.round(minDim / 8));
-  const dotSize = Math.max(4, Math.round(cell * 0.14));
+  const r = Math.max(2, Math.round(cell * 0.07));
+  const n = p.colors.length;
+  // The layer extends one cell past each edge; in local coords that's [0, W+2cell].
+  const layerW = p.width + cell * 2;
+  const layerH = p.height + cell * 2;
+  const cols = Math.round(layerW / cell);
+  const rows = Math.round(layerH / cell);
   const dots: GridDot[] = [];
-  let idx = 0;
-  for (let y = -cell; y <= p.height + cell; y += cell) {
-    for (let x = -cell; x <= p.width + cell; x += cell) {
-      dots.push({ left: x, top: y, size: dotSize, color: p.colors[idx % p.colors.length] });
-      idx++;
+  for (let row = 0; row <= rows; row++) {
+    for (let col = 0; col <= cols; col++) {
+      dots.push({ cx: col * cell, cy: row * cell, r, color: p.colors[(((col - row) % n) + n) % n] });
     }
   }
-  return { dots, cell };
+  return { dots, cell, layerW, layerH };
 }
 
-/** Standalone HTML for the dot grid. Pure. */
-export function buildGridHtml(p: BackgroundLoopParams, dots: GridDot[]): string {
-  const markup = dots
-    .map((d) => `<div class="gd-dot" style="left:${d.left}px;top:${d.top}px;width:${d.size}px;height:${d.size}px;background:${d.color}"></div>`)
-    .join("\n  ");
+/** Standalone HTML for the dot grid: a single inline `<svg>` of `<circle>`s,
+ *  offset `-cell, -cell` so the extra margin row/column sits just off-canvas and
+ *  slides in as the layer drifts. Pure. */
+export function buildGridHtml(p: BackgroundLoopParams, grid: { dots: GridDot[]; cell: number; layerW: number; layerH: number }): string {
+  const circles = grid.dots
+    .map((d) => `<circle cx="${d.cx}" cy="${d.cy}" r="${d.r}" fill="${d.color}"/>`)
+    .join("");
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
   html, body { width: ${p.width}px; height: ${p.height}px; overflow: hidden; }
   body { background: ${p.background}; position: relative; }
-  .gd { position: absolute; top: 0; left: 0; width: ${p.width}px; height: ${p.height}px; }
-  .gd-dot { position: absolute; border-radius: 50%; opacity: 0.5; }
+  .gd-layer { position: absolute; left: -${grid.cell}px; top: -${grid.cell}px; width: ${grid.layerW}px; height: ${grid.layerH}px; opacity: 0.55; }
 </style></head>
-<body><div class="gd gd-layer">
-  ${markup}
+<body><div class="gd-layer">
+  <svg width="${grid.layerW}" height="${grid.layerH}" viewBox="0 0 ${grid.layerW} ${grid.layerH}">${circles}</svg>
 </div></body></html>`;
 }
 
@@ -539,10 +557,10 @@ export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
       animations = buildWaveAnimations(params, layers);
       ctx.log(`template background-loop: wave, ${layers.length} layers, ${params.width}×${params.height}`);
     } else {
-      const { dots, cell } = planGridDots(params);
-      writeFileSync(htmlPath, buildGridHtml(params, dots));
-      animations = buildGridAnimations(params, cell);
-      ctx.log(`template background-loop: grid, ${dots.length} dots, ${params.width}×${params.height}`);
+      const grid = planGridDots(params);
+      writeFileSync(htmlPath, buildGridHtml(params, grid));
+      animations = buildGridAnimations(params, grid.cell);
+      ctx.log(`template background-loop: grid, ${grid.dots.length} dots, ${params.width}×${params.height}`);
     }
 
     const svg = await ctx.runAnimateConfig({
