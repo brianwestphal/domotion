@@ -99,6 +99,8 @@ export function planBlobs(p: BackgroundLoopParams): Blob[] {
     const cy = rnd() * p.height;
     const angle = rnd() * Math.PI * 2;
     const dist = (0.5 + rnd() * 0.5) * style.drift * minDim;
+    const driftMs = Math.round(p.durationMs * (0.8 + rnd() * 0.8));
+    const breatheMs = Math.round(p.durationMs * (0.6 + rnd() * 0.7));
     blobs.push({
       idx: i,
       color: p.colors[i % p.colors.length],
@@ -107,10 +109,16 @@ export function planBlobs(p: BackgroundLoopParams): Blob[] {
       top: Math.round(cy - size / 2),
       dx: Math.round(Math.cos(angle) * dist),
       dy: Math.round(Math.sin(angle) * dist),
-      driftMs: Math.round(p.durationMs * (0.8 + rnd() * 0.8)),
-      breatheMs: Math.round(p.durationMs * (0.6 + rnd() * 0.7)),
-      driftDelay: Math.round(rnd() * p.durationMs),
-      breatheDelay: Math.round(rnd() * p.durationMs),
+      driftMs,
+      breatheMs,
+      // NEGATIVE phase offset (a fraction of the loop's own period), NOT a wait.
+      // A positive animation-delay would FREEZE the blob at its `from` state for
+      // the delay then snap into motion — visibly "appearing"/"disappearing"
+      // rather than fading. A negative delay starts the infinite-`alternate` loop
+      // already mid-cycle, so every blob is drifting/breathing from t=0: the
+      // seamless, always-smooth ambient loop the template is meant to produce.
+      driftDelay: -Math.round(rnd() * driftMs),
+      breatheDelay: -Math.round(rnd() * breatheMs),
       opacityLow: style.opacityLow,
       opacityHigh: style.opacityHigh,
       falloff: style.falloff,

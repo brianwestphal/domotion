@@ -377,7 +377,9 @@ describe("animator", () => {
       ],
     });
     // Loops on its own 530ms clock, infinite + alternating — NOT the global scene clock.
-    expect(svg).toMatch(/\.anim-caret\s*{[^}]*animation:\s*f0-caret-0\s+530ms\s+infinite\s+alternate/);
+    // DM-1289: timing-function / delay / fill-mode live inside the `animation`
+    // shorthand (so the optimizer can't hoist fill-mode out and reset it).
+    expect(svg).toMatch(/\.anim-caret\s*{[^}]*animation:\s*f0-caret-0\s+530ms\s+linear\s+0ms\s+infinite\s+alternate\s+both/);
     // Simple two-stop from→to cycle (no 4-stop global-clock hold).
     expect(svg).toMatch(/@keyframes f0-caret-0\s*{\s*0%\s*{\s*opacity:\s*1;\s*}\s*100%\s*{\s*opacity:\s*0;\s*}\s*}/);
   });
@@ -394,7 +396,7 @@ describe("animator", () => {
         },
       ],
     });
-    expect(svg).toMatch(/\.anim-p\s*{[^}]*animation:\s*f0-p-0\s+400ms\s+3\s*;/);
+    expect(svg).toMatch(/\.anim-p\s*{[^}]*animation:\s*f0-p-0\s+400ms\s+linear\s+0ms\s+3\s+both\s*;/);
     expect(svg).not.toContain("alternate");
   });
 

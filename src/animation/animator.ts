@@ -1075,15 +1075,27 @@ function buildIntraFrameAnimationCss(
         // a single from→to cycle on the animation's own `duration` clock, looped
         // via animation-iteration-count + (optional) direction:alternate. The
         // loop is only visible while the frame is on screen (the frame group's
-        // visibility gating); `animation-delay` aligns the first cycle to the
-        // frame's appearance. `fill-mode: both` holds `from` before the delay.
+        // visibility gating).
+        //
+        // `animation-delay` positions the first cycle: a POSITIVE delay (after the
+        // frame appears) holds `from` until it elapses then plays; a NEGATIVE delay
+        // (a phase offset) starts the loop already mid-cycle so it never freezes —
+        // the right choice for a seamless ambient loop (DM-1289).
+        //
+        // DM-1289: emit timing-function / delay / fill-mode INSIDE the `animation`
+        // shorthand, not as trailing longhands. The optimizer (csso) merges shared
+        // longhands into a separate, earlier grouped rule; a later `animation`
+        // shorthand then resets `animation-fill-mode` back to `none`, so during a
+        // positive delay the element showed its base value (not `from`) and SNAPPED
+        // when the cycle began. Folding everything into the one shorthand leaves
+        // nothing for the optimizer to hoist out of order.
         const iterations = a.repeat === "infinite" ? "infinite" : String(a.repeat);
         const direction = a.alternate === true ? " alternate" : "";
         out.push(`    @keyframes ${animName} {
       0% { ${propValue(a.from)} }
       100% { ${propValue(a.to)} }
     }
-    .anim-${a.animId} { animation: ${animName} ${a.duration}ms ${iterations}${direction}; animation-timing-function: ${easing}; animation-delay: ${startMs.toFixed(0)}ms; animation-fill-mode: both; }`);
+    .anim-${a.animId} { animation: ${animName} ${a.duration}ms ${easing} ${startMs.toFixed(0)}ms ${iterations}${direction} both; }`);
       } else {
         // One-shot: hold `from` until startPct, animate from→to during
         // [startPct, endPct], hold `to` afterwards, mapped onto the global scene

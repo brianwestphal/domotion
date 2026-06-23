@@ -164,6 +164,12 @@ describe("background-loop generation (pure, no browser) — DM-1280", () => {
     expect(breathe.alternate).toBe(true);
     // The two animations target DIFFERENT selectors so neither overrides the other.
     expect(drift.selector).not.toBe(breathe.selector);
+    // DM-1289: delays are NEGATIVE phase offsets (start the loop mid-cycle), not
+    // positive waits — a positive delay freezes the blob at `from` then snaps.
+    for (const a of anims) {
+      expect(a.delay).toBeLessThanOrEqual(0);
+      expect(Math.abs(a.delay ?? 0)).toBeLessThanOrEqual(a.duration);
+    }
   });
 
   it("orbs blobs are smaller and more opaque than aurora blobs", () => {

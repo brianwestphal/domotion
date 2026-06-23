@@ -51,6 +51,15 @@ the markup — both learned from the DM-1276 spike:
    motion is restricted to origin-safe `translate` (drift) and `opacity`
    (breathe), each looped with `alternate: true` so every cycle ping-pongs
    seamlessly (no snap-back at the loop boundary).
+3. **Phase offsets are NEGATIVE delays, not positive waits.** Each blob's drift
+   and breathe carry a negative `delay` (a random fraction of its own period) so
+   the infinite `alternate` loop starts already mid-cycle — every blob is moving
+   from the first frame. A *positive* delay would instead freeze the blob at its
+   `from` state until the delay elapsed, then snap into motion (visible as a blob
+   abruptly appearing/disappearing rather than fading). The animator also emits
+   the per-blob `timing-function` / `delay` / `fill-mode` inside the one
+   `animation` shorthand, so the SVG optimizer can't hoist `fill-mode` into an
+   earlier rule and have the shorthand reset it.
 
 Layout is deterministic: a seeded `mulberry32` PRNG places each blob's center,
 size, drift vector, loop periods, and phase offsets — so a given `seed`
