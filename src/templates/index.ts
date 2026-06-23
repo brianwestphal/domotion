@@ -28,3 +28,13 @@ export {
 // Built-in templates (also reachable via the registry by name).
 export { lowerThirdTemplate, type LowerThirdParams } from "./builtin/lower-third.js";
 export { deviceMockupTemplate, type DeviceMockupParams } from "./builtin/device-mockup.js";
+export {
+  backgroundLoopTemplate,
+  type BackgroundLoopParams,
+  type BackgroundVariant,
+} from "./builtin/background-loop.js";
+export {
+  kineticTextTemplate,
+  type KineticTextParams,
+  type KineticVariant,
+} from "./builtin/kinetic-text.js";

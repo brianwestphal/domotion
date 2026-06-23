@@ -11,11 +11,15 @@
 
 import { lowerThirdTemplate } from "./builtin/lower-third.js";
 import { deviceMockupTemplate } from "./builtin/device-mockup.js";
+import { backgroundLoopTemplate } from "./builtin/background-loop.js";
+import { kineticTextTemplate } from "./builtin/kinetic-text.js";
 import { isTemplate, type Template } from "./types.js";
 
 /** First-party templates, keyed by name. */
 const BUILTINS: ReadonlyMap<string, Template> = new Map<string, Template>(
-  [lowerThirdTemplate, deviceMockupTemplate].map((t) => [t.name, t as Template]),
+  [lowerThirdTemplate, deviceMockupTemplate, backgroundLoopTemplate, kineticTextTemplate].map(
+    (t) => [t.name, t as Template],
+  ),
 );
 
 /** All built-in templates (for `domotion template list`). */

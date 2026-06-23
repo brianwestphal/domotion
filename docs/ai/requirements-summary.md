@@ -35,6 +35,22 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 72 (`docs/72-kinetic-text-template.md`, DM-1277)** — **Shipped.** The
+  `kinetic-text` **generator** template: a headline string is expanded at author
+  time into per-word / per-char units, each revealed with a staggered one-shot
+  animation (`rise` / `slide` / `fade`) then held assembled. The clearest
+  showcase of the doc-70 "pre-process once, replay free" thesis. Same two
+  animation constraints as doc 71 (transform-wrapper around opacity-inner,
+  origin-safe translate).
+- **Doc 71 (`docs/71-background-loop-template.md`, DM-1280)** — **Shipped.** The
+  first deferred first-party template built on the doc-70 contract: a
+  `background-loop` **generator** that emits a procedural seamlessly-looping
+  animated background (a base fill + N soft `radial-gradient` blobs that drift +
+  breathe, staggered, infinitely; `aurora` / `orbs` variants; deterministic from
+  a `seed`). Demonstrates the two animation constraints templates must respect —
+  one intra-frame animation per captured element (so each blob is a drift-wrapper
+  around a breathe-inner), and origin-(0,0) SVG transforms (so motion is
+  origin-safe translate + opacity, looped with `alternate`).
 - **Doc 70 (`docs/70-template-system.md`, DM-1276)** — **Spike shipped** (the
   de-risking spike from the DM-1210 templates investigation). A Domotion
   *template* is a parameterized generator — `render(params)` produces a

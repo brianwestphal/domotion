@@ -61,8 +61,9 @@ shortest possible map:
   contract (`types.ts`), registry + `domotion-template-*` loader (`registry.ts`),
   param validation + render driver + the `captureToSvg` static-capture primitive
   (`render.ts`), zod→JSON-Schema projection (`json-schema.ts`), and the built-ins
-  (`builtin/lower-third.ts`, `builtin/device-mockup.ts`). Templates are
-  front-ends onto the animate/capture pipeline; the verb lives in
+  (`builtin/lower-third.ts`, `builtin/device-mockup.ts`,
+  `builtin/background-loop.ts` — doc 71, `builtin/kinetic-text.ts` — doc 72).
+  Templates are front-ends onto the animate/capture pipeline; the verb lives in
   `src/cli/template.ts`.
 - **`src/tree-ops/`** — element-tree transforms (`frame-merge.ts`,
   `tree-diff.ts`, `viewbox-culling.ts`, `resize-embedded-images.ts`).

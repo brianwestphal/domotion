@@ -7,6 +7,8 @@ import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { renderTemplateToSvg } from "./render.js";
 import { lowerThirdTemplate } from "./builtin/lower-third.js";
 import { deviceMockupTemplate } from "./builtin/device-mockup.js";
+import { backgroundLoopTemplate } from "./builtin/background-loop.js";
+import { kineticTextTemplate } from "./builtin/kinetic-text.js";
 
 /**
  * DM-1276: end-to-end render of both built-in templates through the real
@@ -64,6 +66,37 @@ describe("template render end-to-end (DM-1276)", () => {
     expect(out.svg).toContain("example.dev");
     // The captured page content survives nesting (static SVG nests cleanly).
     expect(out.svg).toMatch(/Hello Mockup|<path|<use/);
+  }, 60_000);
+
+  it("background-loop (generator) renders a looping animated background of blobs", async () => {
+    const out = await renderTemplateToSvg(
+      backgroundLoopTemplate,
+      { variant: "aurora", count: 4, width: 640, height: 360, seed: 2 },
+      { browser: await getBrowser() },
+    );
+    expect([out.width, out.height]).toEqual([640, 360]);
+    expect(out.svg).toContain("<svg");
+    expect(out.svg).toContain("</svg>");
+    // Soft blobs are radial gradients; the loop is infinite + alternate.
+    expect(out.svg).toMatch(/radialGradient/);
+    expect(out.svg).toMatch(/infinite/);
+    expect(out.svg).toMatch(/alternate/);
+  }, 60_000);
+
+  it("kinetic-text (generator) reveals a headline with staggered per-word animations", async () => {
+    const out = await renderTemplateToSvg(
+      kineticTextTemplate,
+      { text: "Ship faster", variant: "rise", width: 800, height: 360 },
+      { browser: await getBrowser() },
+    );
+    expect([out.width, out.height]).toEqual([800, 360]);
+    expect(out.svg).toContain("<svg");
+    expect(out.svg).toContain("</svg>");
+    // Two words → staggered reveal: opacity fade + translateY rise keyframes.
+    expect(out.svg).toMatch(/@keyframes/);
+    expect(out.svg).toMatch(/translateY/);
+    // The headline text is present (as <text> or glyph paths).
+    expect(out.svg).toMatch(/Ship|faster|<path|<use/);
   }, 60_000);
 
   it("phone bezel grows the output by an even rim on every side", async () => {

@@ -10,11 +10,26 @@ import { validateTemplateParams } from "./render.js";
 import { templateParamsJsonSchema, describeTemplateParams } from "./json-schema.js";
 import { lowerThirdTemplate, buildLowerThirdHtml, lowerThirdParamsSchema } from "./builtin/lower-third.js";
 import { deviceMockupTemplate } from "./builtin/device-mockup.js";
+import {
+  backgroundLoopTemplate,
+  backgroundLoopParamsSchema,
+  planBlobs,
+  buildBackgroundHtml,
+  buildBackgroundAnimations,
+} from "./builtin/background-loop.js";
+import {
+  kineticTextTemplate,
+  kineticTextParamsSchema,
+  planUnits,
+  buildKineticHtml,
+  buildKineticAnimations,
+  kineticDurationMs,
+} from "./builtin/kinetic-text.js";
 
 describe("template registry (DM-1276)", () => {
-  it("lists the two built-in templates", () => {
+  it("lists the built-in templates", () => {
     const names = listBuiltinTemplates().map((t) => t.name).sort();
-    expect(names).toEqual(["device-mockup", "lower-third"]);
+    expect(names).toEqual(["background-loop", "device-mockup", "kinetic-text", "lower-third"]);
   });
 
   it("resolves a built-in by name", async () => {
@@ -105,5 +120,130 @@ describe("lower-third HTML generation (pure, no browser)", () => {
     const topCenter = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "x", position: "top-center" }));
     expect(topCenter).toMatch(/justify-content: center/);
     expect(topCenter).toMatch(/align-items: flex-start/);
+  });
+});
+
+describe("background-loop generation (pure, no browser) — DM-1280", () => {
+  const parse = (o: Record<string, unknown>) => backgroundLoopParamsSchema.parse(o);
+
+  it("plans exactly `count` blobs, cycling the colors", () => {
+    const blobs = planBlobs(parse({ count: 4, colors: ["#a", "#b"] }));
+    expect(blobs).toHaveLength(4);
+    expect(blobs.map((b) => b.color)).toEqual(["#a", "#b", "#a", "#b"]);
+  });
+
+  it("is deterministic for a given seed and varies with the seed", () => {
+    const a1 = planBlobs(parse({ seed: 7 }));
+    const a2 = planBlobs(parse({ seed: 7 }));
+    const b = planBlobs(parse({ seed: 8 }));
+    expect(a1).toEqual(a2); // same seed ⇒ identical layout
+    expect(a1).not.toEqual(b); // different seed ⇒ different layout
+  });
+
+  it("emits a base fill, a radial-gradient blob per item, and a pos/blob wrapper pair", () => {
+    const p = parse({ count: 3, background: "#010203" });
+    const html = buildBackgroundHtml(p, planBlobs(p));
+    expect(html).toContain("background: #010203");
+    expect(html.match(/radial-gradient/g) ?? []).toHaveLength(3);
+    expect(html).toMatch(/class="bg-pos bg-pos-0"/);
+    expect(html).toMatch(/class="bg-blob bg-blob-0"/);
+  });
+
+  it("builds two looping animations per blob on distinct selectors (drift + breathe)", () => {
+    const p = parse({ count: 2 });
+    const anims = buildBackgroundAnimations(planBlobs(p));
+    expect(anims).toHaveLength(4); // 2 blobs × (drift + breathe)
+    const drift = anims.find((a) => a.selector === ".bg-pos-0")!;
+    const breathe = anims.find((a) => a.selector === ".bg-blob-0")!;
+    expect(drift.property).toBe("transform"); // origin-safe translate
+    expect(drift.from).toBe("translate(0px, 0px)");
+    expect(drift.repeat).toBe("infinite");
+    expect(drift.alternate).toBe(true);
+    expect(breathe.property).toBe("opacity");
+    expect(breathe.repeat).toBe("infinite");
+    expect(breathe.alternate).toBe(true);
+    // The two animations target DIFFERENT selectors so neither overrides the other.
+    expect(drift.selector).not.toBe(breathe.selector);
+  });
+
+  it("orbs blobs are smaller and more opaque than aurora blobs", () => {
+    const aurora = planBlobs(parse({ variant: "aurora", seed: 3 }));
+    const orbs = planBlobs(parse({ variant: "orbs", seed: 3 }));
+    expect(orbs[0].size).toBeLessThan(aurora[0].size);
+    expect(orbs[0].opacityHigh).toBeGreaterThan(aurora[0].opacityHigh);
+  });
+
+  it("the template is registered and validates params", () => {
+    expect(backgroundLoopTemplate.name).toBe("background-loop");
+    expect(() => parse({ count: 99 })).toThrow(); // max 24
+  });
+});
+
+describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
+  const parse = (o: Record<string, unknown>) => kineticTextParamsSchema.parse(o);
+
+  it("splits into one unit per word (word mode), assigning sequential indices", () => {
+    const plan = planUnits(parse({ text: "Ship it now" }));
+    expect(plan.count).toBe(3);
+    expect(plan.words.map((w) => w.map((u) => u.text))).toEqual([["Ship"], ["it"], ["now"]]);
+    expect(plan.words.flat().map((u) => u.index)).toEqual([0, 1, 2]);
+  });
+
+  it("splits into one unit per character (char mode), indexing across words", () => {
+    const plan = planUnits(parse({ text: "Hi yo", by: "char" }));
+    expect(plan.count).toBe(4); // H,i,y,o (space is a word boundary, not a unit)
+    expect(plan.words.map((w) => w.map((u) => u.text))).toEqual([["H", "i"], ["y", "o"]]);
+    expect(plan.words.flat().map((u) => u.index)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("collapses extra whitespace and ignores empty tokens", () => {
+    expect(planUnits(parse({ text: "  a   b  " })).count).toBe(2);
+  });
+
+  it("emits a wrapper+inner span pair per unit and escapes the text", () => {
+    const p = parse({ text: "A <b>" });
+    const html = buildKineticHtml(p, planUnits(p));
+    expect(html).toMatch(/class="kt-w kt-w-0"/);
+    expect(html).toMatch(/class="kt-wi kt-wi-0"/);
+    expect(html).toContain("&lt;b&gt;");
+    expect(html).not.toContain("<b>");
+  });
+
+  it("char mode wraps each word in a nowrap group so words don't break mid-word", () => {
+    const p = parse({ text: "Go", by: "char" });
+    const html = buildKineticHtml(p, planUnits(p));
+    expect(html).toMatch(/class="kt-word"/);
+  });
+
+  it("rise adds a translateY on the wrapper + opacity on the inner (two selectors)", () => {
+    const p = parse({ text: "Hi", variant: "rise" });
+    const anims = buildKineticAnimations(p, planUnits(p));
+    const fade = anims.find((a) => a.selector === ".kt-wi-0")!;
+    const move = anims.find((a) => a.selector === ".kt-w-0")!;
+    expect(fade.property).toBe("opacity");
+    expect(move.property).toBe("translateY");
+    expect(move.repeat).toBeUndefined(); // one-shot reveal, not a loop
+  });
+
+  it("slide uses translateX; fade has no transform animation (opacity only)", () => {
+    const slide = buildKineticAnimations(parse({ text: "Hi", variant: "slide" }), planUnits(parse({ text: "Hi" })));
+    expect(slide.some((a) => a.property === "translateX")).toBe(true);
+    const fade = buildKineticAnimations(parse({ text: "Hi there", variant: "fade" }), planUnits(parse({ text: "Hi there" })));
+    expect(fade.every((a) => a.property === "opacity")).toBe(true);
+    expect(fade).toHaveLength(2); // 2 words, opacity-only
+  });
+
+  it("staggers each unit by staggerMs and sizes the duration to reveal-end + hold", () => {
+    const p = parse({ text: "a b c", staggerMs: 100, revealMs: 500, holdMs: 1000 });
+    const plan = planUnits(p);
+    const anims = buildKineticAnimations(p, plan);
+    expect(anims.find((a) => a.selector === ".kt-wi-2")!.delay).toBe(200); // 3rd unit
+    expect(kineticDurationMs(p, plan.count)).toBe(200 + 500 + 1000); // last start + reveal + hold
+  });
+
+  it("the template is registered and rejects empty / overlong text", () => {
+    expect(kineticTextTemplate.name).toBe("kinetic-text");
+    expect(() => parse({ text: "" })).toThrow();
+    expect(() => parse({ text: "x".repeat(201) })).toThrow();
   });
 });

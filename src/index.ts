@@ -158,4 +158,10 @@ export {
   type LowerThirdParams,
   deviceMockupTemplate,
   type DeviceMockupParams,
+  backgroundLoopTemplate,
+  type BackgroundLoopParams,
+  type BackgroundVariant,
+  kineticTextTemplate,
+  type KineticTextParams,
+  type KineticVariant,
 } from "./templates/index.js";
