@@ -3660,6 +3660,16 @@ function isFlexOrGridContainerDisplay(display: string | undefined | null): boole
  */
 function establishesStackingContext(el: CapturedElement, parentDisplay?: string): boolean {
   const s = el.styles;
+  // An element targeted by an intra-frame animation (`animId`) is animating
+  // transform / opacity / filter — any of which creates a stacking context in
+  // CSS. Mirror that here so the element's whole subtree renders ATOMICALLY,
+  // nested inside its `anim-<id>` wrapper, instead of being flattened up to an
+  // ancestor SC's paint list. Without this, a flex container that fades (its
+  // flex-item child hoists to the root SC per DM-683) leaves the `anim-` group
+  // empty so the animation moves nothing; and a flex item that slides leaves
+  // its own text/children behind. The lower-third template (panel that fades +
+  // slides) hit exactly this — only the panel's background animated.
+  if (el.animId != null && el.animId !== "") return true;
   const positioned = s.position != null && s.position !== "static";
   const zRaw = s.zIndex;
   if (positioned && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
@@ -3953,6 +3963,11 @@ function gatherStackingContextChildren(
  */
 function isOverflowOnlySC(el: CapturedElement): boolean {
   const s = el.styles;
+  // An animation target must stay atomic so its descendants render INSIDE its
+  // `anim-<id>` wrapper (see establishesStackingContext). Treating it as a
+  // pass-through overflow-only scroller would hoist its children out and the
+  // animation would only move the element's own box, not its content.
+  if (el.animId != null && el.animId !== "") return false;
   // Must actually create an SC via overflow
   const ox = s.overflowX;
   const oy = s.overflowY;
