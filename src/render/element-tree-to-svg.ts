@@ -1420,6 +1420,181 @@ function paintBorder(
   return { svg, defs, clipIdx };
 }
 
+// Background-image layer paint, extracted from renderElement (DM-1306, DM-1311).
+// Emits the comma-separated background-image layers (gradients + url() images)
+// as clipped rects, honoring per-layer size / position / repeat / clip / origin /
+// attachment and background-blend-mode isolation groups. Also collects the
+// background-clip:text layer fills into textBgClipFills, which the caller threads
+// into paintText so the gradient paints inside the glyph shapes. Handles both the
+// box element (the !useInlineFragments loop) and the wrapped-inline element's own
+// text-clip layers (the useInlineFragments loop). clipIdx is threaded in and the
+// advanced value returned so the positional ids stay byte-identical.
+function paintBackgroundImageLayers(
+  el: CapturedElement,
+  indent: string,
+  idPrefix: string,
+  clipIdx: number,
+  corners: ReturnType<typeof parseCornerRadii>,
+  useInlineFragments: boolean,
+  captureViewport: { w: number; h: number },
+): { svg: string[]; defs: string[]; clipIdx: number; textBgClipFills: string[] } {
+  const svg: string[] = [];
+  const defs: string[] = [];
+  const textBgClipFills: string[] = [];
+
+  const bgImage = el.styles.backgroundImage;
+  if (!useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
+    const layers = splitTopLevelCommas(bgImage);
+    const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
+    const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
+    const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
+    const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+    const originLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
+    const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+    const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
+    // DM-817: background-blend-mode per CSS Compositing 2 §6.1 — each layer
+    // blends with the composite below using its mode. Single value applies
+    // to every layer; comma-separated values map per-layer. Capture
+    // emit-time bg-layer indexing is reversed (later index = lower in
+    // stack), so we look up by the ORIGINAL CSS layer index (`li`).
+    const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal").map((s) => s.trim());
+    const hasNonNormalBlend = blendLayers.some((m) => m !== "normal" && m !== "");
+    const bgGroupOpen = hasNonNormalBlend ? `${indent}<g style="isolation:isolate">\n` : "";
+    const bgGroupClose = hasNonNormalBlend ? `\n${indent}</g>` : "";
+    const bgGroupStart = svg.length;
+    // Per-side borders + padding for clip/origin math.
+    const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+    const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+    const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+    const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+    const padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+    const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+    const padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+    const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+    // Box helpers: border-box = captured rect, padding-box = border inset,
+    // content-box = border+padding inset.
+    const boxFor = (key: string): { x: number; y: number; w: number; h: number } => {
+      if (key === "content-box") {
+        return { x: el.x + bwL + padL, y: el.y + bwT + padT, w: el.width - bwL - bwR - padL - padR, h: el.height - bwT - bwB - padT - padB };
+      }
+      if (key === "padding-box") {
+        return { x: el.x + bwL, y: el.y + bwT, w: el.width - bwL - bwR, h: el.height - bwT - bwB };
+      }
+      return { x: el.x, y: el.y, w: el.width, h: el.height };
+    };
+    // CSS: first layer paints on top of later layers. Emit in reverse order
+    // so later SVG elements (= on top) correspond to first CSS layer.
+    for (let li = layers.length - 1; li >= 0; li--) {
+      const layer = layers[li].trim();
+      const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
+      const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
+      const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
+      const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
+      const layerOrigin = (originLayers[li] ?? originLayers[0] ?? "padding-box").trim();
+      const layerIntrinsic = intrinsicLayers[li] ?? null;
+      const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
+      const originBox = boxFor(layerOrigin);
+      const clipBox = boxFor(layerClip);
+      // DM-821: `background-attachment: local` positions and sizes the
+      // layer against the element's full scrollable content area, not its
+      // visible viewport. `background-size: contain` on a 936×220 panel
+      // whose scroll content runs ~820px tall sizes the image to fit the
+      // 936×820 box (one width-filling tile), but using just the visible
+      // box sizes it to 660×220 instead and tiles horizontally with a
+      // visible second copy at the right edge. Substitute the scroll
+      // dimensions when the element actually scrolls.
+      let posOriginX = originBox.x, posOriginY = originBox.y;
+      let posOriginW = originBox.w, posOriginH = originBox.h;
+      if (layerAttachment === "local" && el.styles.scrollHeight != null && el.styles.scrollWidth != null) {
+        const sw = el.styles.scrollWidth as number;
+        const sh = el.styles.scrollHeight as number;
+        if (sw > posOriginW) posOriginW = sw;
+        if (sh > posOriginH) posOriginH = sh;
+      }
+      const defId = `${idPrefix}bg${clipIdx++}`;
+      // Pattern is positioned + sized relative to the origin box (where the image starts)
+      // then painted into a rect clipped to the clip box. For fixed attachment
+      // the origin is the viewport instead.
+      const out = buildBackgroundLayerDef(defId, layer, posOriginX, posOriginY, posOriginW, posOriginH, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+      if (out.def === "") continue;
+      defs.push(out.def);
+      // DM-462: when this layer's clip is `text`, do NOT paint a rect over
+      // the headline area — the gradient should appear inside the glyph
+      // shapes only. Stash the def URL so the text-rendering block below
+      // can use it as the glyph fill (the first text-clipped layer wins).
+      // The non-text-clipped layers (if any) still emit normally.
+      if (layerClip === "text") {
+        // li counts down (loop iterates from layers.length-1 → 0). Storing at
+        // index li lets us emit topmost layer last regardless of loop dir.
+        textBgClipFills[li] = `url(#${defId})`;
+        continue;
+      }
+      // Inner clip corners: subtract the corresponding border-side widths
+      // so a per-corner border-radius becomes the inner radius the bg layer
+      // is clipped to. For padding-box / content-box layers this matches
+      // CSS's "the corner gets pulled in by the adjacent border widths"
+      // semantics (rTL.h shrinks by bwL, rTL.v shrinks by bwT, etc.).
+      const innerCorners = layerClip === "border-box"
+        ? corners
+        : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
+      // DM-817: per-layer mix-blend-mode. Bottom layer (CSS layer
+      // layers.length-1) always paints normal; upper layers blend.
+      const layerBlend = blendLayers[li] ?? blendLayers[0] ?? "normal";
+      const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
+        ? ` style="mix-blend-mode:${layerBlend}"` : "";
+      svg.push(
+        `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
+      );
+    }
+    // DM-817: wrap the bg-layer rects we just emitted in an
+    // isolation-isolate group so the multiply / screen / etc. doesn't
+    // bleed into siblings painted above.
+    if (hasNonNormalBlend && svg.length > bgGroupStart) {
+      const wrapped = bgGroupOpen + svg.slice(bgGroupStart).join("\n") + bgGroupClose;
+      svg.length = bgGroupStart;
+      svg.push(wrapped);
+    }
+  }
+
+  // DM-1053: a multi-line (inline-fragment) element with its OWN
+  // `background-clip: text` gradient. The bg-layer loop above is gated on
+  // `!useInlineFragments`, and `renderInlineFragments()` deliberately skips
+  // text-clip layers (it can't per-fragment-mask glyphs), so a wrapped
+  // gradient-text run would build NO self def and fall through to the
+  // inherited-ancestor gradient (DM-749) — e.g. Resend's gold "this morning"
+  // inside its white-gradient H2 painted flat white. Build the element's own
+  // text-clip layer def(s) against its bbox and stash them in
+  // `textBgClipFills` so the text-fill decision below prefers them over the
+  // inherited gradient and routes through the glyph-mask path (which spans
+  // all fragments correctly). Only the `text`-clipped layers are built here;
+  // the box-painted layers stay owned by `renderInlineFragments()`.
+  if (useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
+    const layers = splitTopLevelCommas(bgImage);
+    const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+    const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
+    const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
+    const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
+    const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+    const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
+    for (let li = layers.length - 1; li >= 0; li--) {
+      const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
+      if (layerClip !== "text") continue;
+      const layer = layers[li].trim();
+      const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
+      const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
+      const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
+      const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
+      const layerIntrinsic = intrinsicLayers[li] ?? null;
+      const defId = `${idPrefix}bg${clipIdx++}`;
+      const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+      if (out.def === "") continue;
+      defs.push(out.def);
+      textBgClipFills[li] = `url(#${defId})`;
+    }
+  }
+  return { svg, defs, clipIdx, textBgClipFills };
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
@@ -2482,158 +2657,10 @@ export function elementTreeToSvgInner(
     // = topmost) and emit each as its own masked rect at render time, in
     // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
     // on top.
-    const textBgClipFills: string[] = [];
-
-    const bgImage = el.styles.backgroundImage;
-    if (!useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
-      const layers = splitTopLevelCommas(bgImage);
-      const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
-      const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
-      const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
-      const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
-      const originLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
-      const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
-      const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
-      // DM-817: background-blend-mode per CSS Compositing 2 §6.1 — each layer
-      // blends with the composite below using its mode. Single value applies
-      // to every layer; comma-separated values map per-layer. Capture
-      // emit-time bg-layer indexing is reversed (later index = lower in
-      // stack), so we look up by the ORIGINAL CSS layer index (`li`).
-      const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal").map((s) => s.trim());
-      const hasNonNormalBlend = blendLayers.some((m) => m !== "normal" && m !== "");
-      const bgGroupOpen = hasNonNormalBlend ? `${indent}<g style="isolation:isolate">\n` : "";
-      const bgGroupClose = hasNonNormalBlend ? `\n${indent}</g>` : "";
-      const bgGroupStart = svgParts.length;
-      // Per-side borders + padding for clip/origin math.
-      const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-      const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-      const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-      const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-      const padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
-      const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
-      const padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
-      const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-      // Box helpers: border-box = captured rect, padding-box = border inset,
-      // content-box = border+padding inset.
-      const boxFor = (key: string): { x: number; y: number; w: number; h: number } => {
-        if (key === "content-box") {
-          return { x: el.x + bwL + padL, y: el.y + bwT + padT, w: el.width - bwL - bwR - padL - padR, h: el.height - bwT - bwB - padT - padB };
-        }
-        if (key === "padding-box") {
-          return { x: el.x + bwL, y: el.y + bwT, w: el.width - bwL - bwR, h: el.height - bwT - bwB };
-        }
-        return { x: el.x, y: el.y, w: el.width, h: el.height };
-      };
-      // CSS: first layer paints on top of later layers. Emit in reverse order
-      // so later SVG elements (= on top) correspond to first CSS layer.
-      for (let li = layers.length - 1; li >= 0; li--) {
-        const layer = layers[li].trim();
-        const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
-        const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
-        const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
-        const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
-        const layerOrigin = (originLayers[li] ?? originLayers[0] ?? "padding-box").trim();
-        const layerIntrinsic = intrinsicLayers[li] ?? null;
-        const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
-        const originBox = boxFor(layerOrigin);
-        const clipBox = boxFor(layerClip);
-        // DM-821: `background-attachment: local` positions and sizes the
-        // layer against the element's full scrollable content area, not its
-        // visible viewport. `background-size: contain` on a 936×220 panel
-        // whose scroll content runs ~820px tall sizes the image to fit the
-        // 936×820 box (one width-filling tile), but using just the visible
-        // box sizes it to 660×220 instead and tiles horizontally with a
-        // visible second copy at the right edge. Substitute the scroll
-        // dimensions when the element actually scrolls.
-        let posOriginX = originBox.x, posOriginY = originBox.y;
-        let posOriginW = originBox.w, posOriginH = originBox.h;
-        if (layerAttachment === "local" && el.styles.scrollHeight != null && el.styles.scrollWidth != null) {
-          const sw = el.styles.scrollWidth as number;
-          const sh = el.styles.scrollHeight as number;
-          if (sw > posOriginW) posOriginW = sw;
-          if (sh > posOriginH) posOriginH = sh;
-        }
-        const defId = `${idPrefix}bg${clipIdx++}`;
-        // Pattern is positioned + sized relative to the origin box (where the image starts)
-        // then painted into a rect clipped to the clip box. For fixed attachment
-        // the origin is the viewport instead.
-        const out = buildBackgroundLayerDef(defId, layer, posOriginX, posOriginY, posOriginW, posOriginH, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
-        if (out.def === "") continue;
-        defsParts.push(out.def);
-        // DM-462: when this layer's clip is `text`, do NOT paint a rect over
-        // the headline area — the gradient should appear inside the glyph
-        // shapes only. Stash the def URL so the text-rendering block below
-        // can use it as the glyph fill (the first text-clipped layer wins).
-        // The non-text-clipped layers (if any) still emit normally.
-        if (layerClip === "text") {
-          // li counts down (loop iterates from layers.length-1 → 0). Storing at
-          // index li lets us emit topmost layer last regardless of loop dir.
-          textBgClipFills[li] = `url(#${defId})`;
-          continue;
-        }
-        // Inner clip corners: subtract the corresponding border-side widths
-        // so a per-corner border-radius becomes the inner radius the bg layer
-        // is clipped to. For padding-box / content-box layers this matches
-        // CSS's "the corner gets pulled in by the adjacent border widths"
-        // semantics (rTL.h shrinks by bwL, rTL.v shrinks by bwT, etc.).
-        const innerCorners = layerClip === "border-box"
-          ? corners
-          : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
-        // DM-817: per-layer mix-blend-mode. Bottom layer (CSS layer
-        // layers.length-1) always paints normal; upper layers blend.
-        const layerBlend = blendLayers[li] ?? blendLayers[0] ?? "normal";
-        const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
-          ? ` style="mix-blend-mode:${layerBlend}"` : "";
-        svgParts.push(
-          `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
-        );
-      }
-      // DM-817: wrap the bg-layer rects we just emitted in an
-      // isolation-isolate group so the multiply / screen / etc. doesn't
-      // bleed into siblings painted above.
-      if (hasNonNormalBlend && svgParts.length > bgGroupStart) {
-        const wrapped = bgGroupOpen + svgParts.slice(bgGroupStart).join("\n") + bgGroupClose;
-        svgParts.length = bgGroupStart;
-        svgParts.push(wrapped);
-      }
-    }
-
-    // DM-1053: a multi-line (inline-fragment) element with its OWN
-    // `background-clip: text` gradient. The bg-layer loop above is gated on
-    // `!useInlineFragments`, and `renderInlineFragments()` deliberately skips
-    // text-clip layers (it can't per-fragment-mask glyphs), so a wrapped
-    // gradient-text run would build NO self def and fall through to the
-    // inherited-ancestor gradient (DM-749) — e.g. Resend's gold "this morning"
-    // inside its white-gradient H2 painted flat white. Build the element's own
-    // text-clip layer def(s) against its bbox and stash them in
-    // `textBgClipFills` so the text-fill decision below prefers them over the
-    // inherited gradient and routes through the glyph-mask path (which spans
-    // all fragments correctly). Only the `text`-clipped layers are built here;
-    // the box-painted layers stay owned by `renderInlineFragments()`.
-    if (useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
-      const layers = splitTopLevelCommas(bgImage);
-      const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
-      const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
-      const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
-      const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
-      const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
-      const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
-      for (let li = layers.length - 1; li >= 0; li--) {
-        const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
-        if (layerClip !== "text") continue;
-        const layer = layers[li].trim();
-        const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
-        const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
-        const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
-        const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
-        const layerIntrinsic = intrinsicLayers[li] ?? null;
-        const defId = `${idPrefix}bg${clipIdx++}`;
-        const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
-        if (out.def === "") continue;
-        defsParts.push(out.def);
-        textBgClipFills[li] = `url(#${defId})`;
-      }
-    }
+    // Background-image layers + the background-clip:text fills consumed by paintText.
+    const _bgi = paintBackgroundImageLayers(el, indent, idPrefix, clipIdx, corners, useInlineFragments, captureViewport);
+    svgParts.push(..._bgi.svg); defsParts.push(..._bgi.defs); clipIdx = _bgi.clipIdx;
+    const textBgClipFills = _bgi.textBgClipFills;
 
     // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
     // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
