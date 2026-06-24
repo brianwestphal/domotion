@@ -21,6 +21,7 @@ import { runCapture } from "./capture.js";
 import { runAnimate } from "./animate.js";
 import { runTerm } from "./term.js";
 import { runTemplate } from "./template.js";
+import { runComposite } from "./composite.js";
 
 // Read the version from package.json at runtime rather than hardcoding it, so
 // `domotion --version` always matches the installed package (the literal had
@@ -37,6 +38,7 @@ Usage:
   domotion animate <config.json>
   domotion term --cast <file.cast> [options]
   domotion template <name> [--param …] -o out.svg
+  domotion composite <config.json> [-o out.svg]
   domotion --help | --version
 
 Commands:
@@ -49,6 +51,9 @@ Commands:
   template  Render a parameterized template (lower-third, device-mockup, …) to a
             self-contained SVG. 'domotion template list' shows the built-ins;
             'domotion template <name> --help' shows a template's parameters.
+  composite Stack layers (cast / template / svg, any animated) into one animated
+            SVG — each placed, on its own timeline, with animation preserved
+            (e.g. a terminal window on a desktop). Run 'domotion composite --help'.
 
 capture options:
   -o, --output <path>      Output SVG path (default: stdout, or <input>.svg
@@ -231,6 +236,8 @@ async function main(): Promise<void> {
       await runTerm(rest);
     } else if (cmd === "template") {
       await runTemplate(rest, HELP);
+    } else if (cmd === "composite") {
+      await runComposite(rest);
     } else {
       process.stderr.write(`domotion: unknown command "${cmd}"\n\n`);
       process.stderr.write(HELP);

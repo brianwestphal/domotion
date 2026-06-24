@@ -35,14 +35,19 @@ shortest possible map:
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
   `text-to-path.ts` + `text.ts` own glyph/decoration/wrap logic;
   `borders.ts` owns border math.
-- **`src/animation/`** — multi-frame composition (animator, magic-move).
+- **`src/animation/`** — multi-frame composition (animator, magic-move) +
+  **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
+  (`composeAnimatedLayers` — stack animated SVGs as placed, independently-timed
+  layers), `embed-namespace.ts` (per-layer name namespacing), `embed-timeline.ts`
+  (per-layer `hold`/`stretch`/`loop` timeline re-anchoring).
 - **`src/scroll/`** — scroll-pattern grammar (DM-604) and the composer
   that stitches per-segment captures into one animated SVG.
 - **`src/cli/`** — the four published bins: `domotion`, `svg-to-video`,
-  `svg-review`, `animated-svg-scrubber`. The `domotion` bin has four
+  `svg-review`, `animated-svg-scrubber`. The `domotion` bin has five
   subcommands: `capture`, `animate`, `term` (terminal-session → animated
-  SVG, DM-1225 / doc 67), and `template` (render a parameterized template,
-  DM-1276 / doc 70).
+  SVG, DM-1225 / doc 67), `template` (render a parameterized template,
+  DM-1276 / doc 70), and `composite` (layer animated SVGs into one —
+  `composite.ts`, DM-1323 / doc 77).
 - **`src/terminal/`** — `domotion term` backend (DM-1225): asciinema `.cast`
   parser (`cast.ts`), `@xterm/headless` VT-emulator snapshot wrapper
   (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), the incremental

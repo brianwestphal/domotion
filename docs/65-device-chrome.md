@@ -7,13 +7,15 @@ bezel — a phone body, a browser window, a plain app window — so a marketing
 asset reads as "this is a real app on a real device" without a separate image
 editor.
 
-> **Static-only.** `--chrome` (and the `device-mockup` template / `wrapInDeviceChrome`)
-> wraps a **single still capture**. It does not preserve animation — there is no
-> way today to draw this bezel around an *animated* layer (a cast, a scroll
-> capture, another animated SVG) and keep it animating. That general
-> nested-animated-compositing capability is tracked in DM-1323; until then, an
-> animated terminal in window chrome is composed by hand (explicit-`x`/`y`
-> overlays on a `cast` frame, or an SVG post-process).
+> **`capture --chrome` is static; animated nesting now has a path.** The
+> `--chrome` flag wraps a **single still capture**. But the underlying
+> `wrapInDeviceChrome` *nests* the screen as a child `<svg>` (it doesn't
+> re-render), so it preserves animation when given an animated screen — exposed
+> via the `device-mockup` template's `screenSvg` param and, more generally, the
+> `composite` primitive / `domotion composite` verb (DM-1323, doc 77), which
+> draws this bezel around an *animated* layer (a cast, a scroll capture, another
+> animated SVG) and keeps it animating. The terminal-window-on-a-desktop demo is
+> `examples/composite-desktop.ts`.
 
 ## Usage
 

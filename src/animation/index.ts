@@ -10,6 +10,21 @@ export {
   type MagicMoveSlide,
 } from "./magic-move.js";
 
+// DM-1323: general animated-SVG compositing — stack already-rendered (animated)
+// SVGs into one, each placed + on its own timeline, with animation intact.
+export {
+  composeAnimatedLayers,
+  type CompositeLayer,
+  type CompositeLayerAnimation,
+  type ComposeLayersOptions,
+  type CompositeResult,
+} from "./composite.js";
+
+// DM-1319 / DM-1323: the nesting building blocks (namespace + per-layer timeline)
+// exposed for callers assembling composites by hand.
+export { namespaceEmbeddedAnimatedSvg, type NamespaceEmbedOptions } from "./embed-namespace.js";
+export { offsetEmbeddedAnimatedSvgTimeline, type OffsetTimelineOptions, type EmbeddedTimelineMode } from "./embed-timeline.js";
+
 export {
   generateAnimatedSvg,
   type AnimationConfig,

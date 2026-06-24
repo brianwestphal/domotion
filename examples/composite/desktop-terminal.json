@@ -1,0 +1,18 @@
+{
+  "_comment": "Declarative composite (domotion composite): a terminal window resting on a macOS-like desktop, animation preserved. The window rises + fades in, then the terminal plays. For the mid-playback WINDOW-RESIZE-with-reflow demo (which needs the terminal reflow timing computed from buildFrames), see the programmatic examples/composite-desktop.ts.",
+  "width": 1100, "height": 720,
+  "output": "examples/output/composite-config-demo.svg",
+  "background": "#000",
+  "duration": 13600,
+  "layers": [
+    { "svg": "desktop.svg", "x": 0, "y": 0, "width": 1100, "height": 720 },
+    { "cast": "../term/sample.cast",
+      "term": { "mode": "incremental", "theme": "dark" },
+      "chrome": { "device": "window", "label": "build — widget", "theme": "dark" },
+      "x": 222, "y": 170,
+      "animations": [
+        { "property": "translateY", "from": 24, "to": 0, "start": 0, "duration": 500, "easing": "ease-out" },
+        { "property": "opacity", "from": 0, "to": 1, "start": 0, "duration": 500, "easing": "ease-out" }
+      ] }
+  ]
+}

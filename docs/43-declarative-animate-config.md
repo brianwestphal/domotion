@@ -305,10 +305,11 @@ Composition primitives differ in whether a **nested animation** survives. This i
 | `template` frame | **Preserved** | An animated template (one with a `durationMs`) plays; re-anchored like a cast (DM-1319). A static template (e.g. `device-mockup`) has nothing to animate. |
 | `scroll` frame (`--scroll` / `scroll` block) | **Preserved** | The composed scroll SVG carries its own keyframe loop. |
 | `input` frame `animations` | **Preserved** | Intra-frame property animations on captured elements run during the frame's hold. |
-| **`svg` overlay** | **Snapshot (NOT preserved)** | A referenced `.svg` is inlined as a **static first-frame** graphic — an *animated* SVG loses its animation. Use a `cast` / `template` frame for an animated inset, not an `svg` overlay. |
-| `device-mockup` / `wrapInDeviceChrome` (decorator) | **Snapshot (NOT preserved)** | The wrapped page is **re-captured to a static SVG** before the bezel is drawn; an animated input is flattened to one frame. General animated nesting (window/device chrome around a still-animating layer) is tracked separately (DM-1323). |
+| **`svg` overlay** | **Snapshot (NOT preserved)** | A referenced `.svg` is inlined as a **static first-frame** graphic — an *animated* SVG loses its animation. Use a `cast` / `template` frame, or the `composite` primitive, for an animated inset — not an `svg` overlay. |
+| `device-mockup` / `wrapInDeviceChrome` (decorator) | **Preserved with animated content** | `wrapInDeviceChrome` *nests* its screen (it doesn't re-render), so it preserves animation. The `device-mockup` template's `input`-capture path is static, but its `screenSvg` param (DM-1323) nests a pre-rendered **animated** SVG with animation intact. |
+| `composite` layers (`composeAnimatedLayers` / `domotion composite`) | **Preserved** | The general animated-nesting primitive (DM-1323, doc 77): every layer keeps its animation, on its own timeline. |
 
-Rule of thumb: **frame kinds** (`cast` / `template` / `scroll` / `input`) preserve animation; **overlays and decorator wrappers** snapshot it.
+Rule of thumb: **frame kinds** (`cast` / `template` / `scroll` / `input`) and **composite layers** preserve animation; an **`svg` overlay** and a decorator's **static capture path** snapshot it. To nest an animated thing inside another (terminal-in-window-on-desktop), reach for `composite` (doc 77).
 
 ---
 

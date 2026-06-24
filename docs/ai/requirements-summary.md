@@ -35,17 +35,18 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 77 (`docs/77-nested-animated-compositing.md`, DM-1323)** — **Design / proposed.**
-  Specifies a primitive to nest one *animated* composition (cast / scroll capture /
-  template / `animate` result) inside another while preserving its animation — the
-  website→window→OS-context composite. Not built yet; a feasibility probe confirms
-  `<svg>`-in-`<svg>` nesting + transform + the existing `namespaceEmbeddedAnimatedSvg`
-  preserves animation, and DM-1319's per-frame timeline offset
-  (`offsetEmbeddedAnimatedSvgTimeline`, `src/animation/embed-timeline.ts`) is the
-  per-layer seed. Decorators (`device-mockup` / `--chrome` / `wrapInDeviceChrome`)
-  are **static-only** today — they re-capture an animated input to a still frame;
-  that caveat is now stated in docs 43/65/70 + `llms.txt`. Phased rollout + open
-  design decisions in the doc.
+- **Doc 77 (`docs/77-nested-animated-compositing.md`, DM-1323)** — **Shipped (core).**
+  General animated-SVG compositing: nest one *animated* composition (cast / scroll
+  capture / template / `animate` result) inside another, animation intact — the
+  terminal-window-on-a-desktop / website-in-a-browser-bezel composite. Ships:
+  `composeAnimatedLayers` (`src/animation/composite.ts`, package-root export) — z-
+  ordered layers, each placed with an independent timeline (`hold`/`stretch`/`loop`,
+  `offsetEmbeddedAnimatedSvgTimeline`) + layer-level animations (move/scale/fade,
+  e.g. a window resized mid-playback); the `domotion composite <config.json>` verb
+  (`src/cli/composite.ts`); and `device-mockup`'s `screenSvg` param (nest an
+  animated screen instead of capturing to static). E2E demo:
+  `examples/composite-desktop.ts` + `examples/composite/`. **Follow-ups:**
+  cross-layer font dedup (DM-1329) and a published composite JSON Schema.
 - **DM-1319 cast/template timeline re-sync (`src/animation/embed-timeline.ts`)** —
   **Shipped.** A `cast` / `template` frame's nested animation now starts when its
   frame becomes visible (offset by preceding frames) and holds before/after,

@@ -1,11 +1,57 @@
 # 77 — Nested animated compositing (DM-1323)
 
-Status: **Design / proposed.** No new capability shipped yet. Two of the three
-hard building blocks already exist (name-collision handling and per-layer
-timeline offsetting — see "What already works"); this doc specifies the
-composition primitive that ties them together, evaluates feasibility against
-Chromium's actual paint, and lays out a phased rollout. Open decisions are
-collected at the end and mirrored to a `FEEDBACK NEEDED` note on DM-1323.
+Status: **Shipped (core).** General animated-SVG compositing is implemented: a
+programmatic primitive (`composeAnimatedLayers`), a declarative `domotion
+composite` config/verb, per-layer independent timelines (`hold` / `stretch` /
+`loop`), layer-level animations (move / scale / fade, plus `clipScaleX` /
+`clipScaleY` to resize a layer's *box* without scaling its contents), and
+`device-mockup` nesting *animated* screen content. The E2E proof — a macOS-like
+desktop with a terminal **window that the cursor resizes mid-run, reflowing the
+terminal (80 → 50 cols) while the title-bar buttons keep their size** — ships as
+`examples/composite-desktop.ts` (and a simpler declarative
+`examples/composite/desktop-terminal.json`). That demo is a genuine **three-step
+composite**: (1) the terminal layer reflows via a mid-session cast `resize` event,
+(2) it's composited into fixed-size window chrome, (3) the window is placed on the
+desktop with a `clipScaleX` resize matched to the terminal's reflow time + a
+cursor dragging the edge. Cross-layer font dedup (DM-1329) and a published JSON
+Schema for the composite config remain follow-ups.
+
+**Resizing a window correctly (not scaling it).** A real window resize changes the
+content's size and reflows it; it does not scale the chrome. So the demo (a) emits
+the terminal at the new column count via a cast `resize` event — reflow happens at
+the *terminal* layer, pre-composite — and (b) shrinks the window's box with
+`clipScaleX` (a `clip-path` whose clip-rect is `transform: scaleX`-animated), which
+trims the window from the right with the traffic-light buttons untouched. The
+reflow's *rendered* time + before/after column counts come from `buildFrames`
+(each settle-point carries its grid + `durationMs`), so the chrome resize lines up
+with the terminal reflow. Animating `clip-path: inset()` directly was tried first
+but fails to clip over nested-SVG content; the `scaleX`-clip-rect approach is
+robust and uses only transforms (cross-browser-safe).
+
+## What shipped
+
+- **`composeAnimatedLayers(layers, opts)`** (`src/animation/composite.ts`,
+  exported from the package root) — stacks already-rendered SVGs (each possibly
+  animated) into one self-contained animated SVG: per-layer namespace → timeline
+  re-anchor → place (`x`/`y`/`width`/`height`/`clip`) → optional layer-level
+  animation. Returns `{ svg, width, height, durationMs }`. Because the output is
+  itself a complete animated SVG, composites **nest recursively**.
+- **Per-layer timeline** (`offsetEmbeddedAnimatedSvgTimeline`,
+  `src/animation/embed-timeline.ts`) generalized to `mode: "hold" | "stretch" |
+  "loop"` + independent `start` / `duration` — a layer's animation starts and
+  runs independently of its container (the user's core requirement).
+- **`domotion composite <config.json>`** (`src/cli/composite.ts`) — the
+  declarative surface: layers whose source is a `cast`, a `template`, or a
+  pre-rendered `svg` (any animated), each with placement, timeline, layer
+  animations, and optional device `chrome`.
+- **`device-mockup` nests animated content** — a new `screenSvg` param nests a
+  pre-rendered animated SVG (a cast / scroll capture / animate output) as the
+  bezel's screen, animation preserved (`wrapInDeviceChrome` already nested; it
+  just needed the screen namespaced + its play length reported). The old
+  `input`-capture path stays for static screens.
+
+The rest of this doc is the original design + feasibility evaluation; the
+"Phased rollout" section marks what's done.
 
 ## Problem
 
@@ -158,23 +204,29 @@ pairs threaded down the tree.
   front-ends onto `composeAnimateConfig`). Most consistent with the codebase, but
   the largest scope.
 
-## Phased rollout (→ follow-up tickets)
+## Phased rollout
 
-1. **Generalize the timeline offset to nested depth** — extend DM-1319's
-   `offsetEmbeddedAnimatedSvgTimeline` / `embeddedAnimationPeriodMs` to
-   (container-start, container-period) threaded down a tree; unit-test depth ≥ 2.
-2. **Core nesting primitive** — `nestAnimatedSvg(inner, { transform, clip, start,
-   period })`: namespace (compound token) → offset → place. Programmatic export +
-   tests + a seek-render regression guard.
-3. **Decorator templates accept animated content** — `device-mockup` /
-   `wrapInDeviceChrome` nest an animated screen instead of re-capturing; flip the
-   doc 65 / 70 "static-only" caveat once shipped.
-4. **Declarative surface** (if chosen) — an `animate`-config layer/overlay that
-   composites already-animated content; schema + doc 43 update.
-5. **Cross-layer font dedup** — one `@font-face` block across nested layers.
-6. **Docs** — promote this doc to "shipped" incrementally; update the
-   preservation table (doc 43, DM-1322) as decorators move from snapshot →
-   preserved.
+1. ✅ **Timeline modes + independent start/duration** — `offsetEmbeddedAnimatedSvgTimeline`
+   now takes `mode: hold | stretch | loop`. (Recursive depth falls out of the
+   primitive: a composite is itself an animated SVG whose anims all run at its
+   master period, so nesting it in a parent re-anchors cleanly.)
+2. ✅ **Core compositing primitive** — `composeAnimatedLayers` (namespace → offset
+   → place + layer animations). Programmatic export + unit tests.
+3. ✅ **Decorator nests animated content** — `device-mockup` `screenSvg` param.
+   The doc 43 / 65 / 70 "static-only" caveats are updated to "static unless you
+   pass animated content."
+4. ✅ **Declarative surface** — `domotion composite` config/verb (`src/cli/composite.ts`).
+5. ⬜ **Cross-layer font dedup** (DM-1329) — one `@font-face` block across nested
+   layers (each animated layer currently embeds its own font payload).
+6. ⬜ **Published JSON Schema** for the composite config (parity with
+   `animate-config.schema.json`).
+
+A layer-level animation currently supports **one transform animation per layer**
+(CSS last-wins if several animate `transform`); compose move-and-scale by nesting
+wrapper layers, the same rule the rest of the pipeline follows. A `loop` layer
+nested inside another composite keeps looping at its own rate (its period doesn't
+collapse to the parent master), which can seam at the parent's loop boundary —
+fine for seamless-by-design loops; documented so it isn't a surprise.
 
 ## Until then (docs already updated)
 

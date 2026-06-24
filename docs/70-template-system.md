@@ -33,14 +33,14 @@ Two shapes have emerged, both expressible on one contract:
 
 - **Generator** (e.g. `lower-third`): synthesizes HTML/CSS + an `animate` config
   and runs it for *animated* output.
-- **Decorator** (e.g. `device-mockup`): captures a user-supplied page to a
-  *static* SVG and wraps/post-processes it. **A decorator is static-only: it
-  re-captures its input to a single still frame, so an *animated* input (a cast,
-  a scroll capture, or another animated SVG) is flattened — its animation is NOT
-  preserved.** Wrapping an animated thing in a bezel and keeping it animated is
-  the general nested-compositing capability tracked in DM-1323; until that lands,
-  use a `cast` / `template` *frame* (doc 73) when you need the inner motion to
-  survive, and reserve decorators for static screens.
+- **Decorator** (e.g. `device-mockup`): wraps/post-processes existing content.
+  Its `input`-capture path renders a page to a *static* SVG and frames it. To
+  frame **animated** content, `device-mockup` takes a `screenSvg` param (DM-1323)
+  that nests a pre-rendered animated SVG (a cast, a scroll capture, an `animate`
+  result) with animation intact — `wrapInDeviceChrome` nests rather than
+  re-renders, so the motion survives. For general multi-layer animated nesting
+  (a framed window *on a desktop*, etc.) use the `composite` primitive /
+  `domotion composite` verb (doc 77).
 
 ## The contract
 

@@ -38,14 +38,35 @@
  * (so names are already per-frame unique) and only touches `<style>` contents.
  */
 
+/**
+ * How an embedded layer's own timeline maps onto its container's master loop
+ * (DM-1323). `hold` plays the content once at its natural rendered rate starting
+ * at `startMs`, then freezes on its last frame (the DM-1319 default). `stretch`
+ * time-scales the content to fill `windowMs` exactly (speed it up / slow it
+ * down). `loop` repeats the content at its own period for the rest of the loop
+ * (a seam can occur at the master-loop boundary when the periods aren't
+ * commensurate — fine for seamless-by-design loops like a background).
+ */
+export type EmbeddedTimelineMode = "hold" | "stretch" | "loop";
+
 /** Options for {@link offsetEmbeddedAnimatedSvgTimeline}. */
 export interface OffsetTimelineOptions {
   /** The embedded content's own animation period (ms) — its rendered play length. */
   periodMs: number;
-  /** When in the master loop this frame becomes visible (ms from the loop origin). */
+  /** When in the master loop this layer's animation begins (ms from the loop origin). */
   startMs: number;
   /** The master loop's total period (ms). */
   masterMs: number;
+  /**
+   * Timeline mode (default `"hold"`). See {@link EmbeddedTimelineMode}.
+   */
+  mode?: EmbeddedTimelineMode;
+  /**
+   * For `"stretch"`, the on-master window (ms) the content is scaled to fill.
+   * Ignored by `"hold"` (plays at its natural `periodMs`) and `"loop"` (repeats
+   * at `periodMs`). Defaults to `periodMs`.
+   */
+  windowMs?: number;
 }
 
 /** Format a number for CSS, dropping trailing zeros (`13.6`, not `13.600`). */
@@ -148,15 +169,41 @@ function remapKeyframeBody(inner: string, offsetPct: number, scale: number): str
 export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimelineOptions): string {
   const { periodMs, startMs, masterMs } = opts;
   if (masterMs <= 0 || periodMs <= 0) return svg;
+  const mode: EmbeddedTimelineMode = opts.mode ?? "hold";
   const periodSec = periodMs / 1000;
   const masterSec = masterMs / 1000;
-  const scale = periodMs / masterMs;
+  const startSec = startMs / 1000;
+  // `hold` plays at the natural rate (window = period); `stretch` time-scales the
+  // content to fill `windowMs`. Both share the keyframe-remap path; only the
+  // scale differs.
+  const windowMs = mode === "stretch" ? (opts.windowMs ?? periodMs) : periodMs;
+  const scale = windowMs / masterMs;
   const offsetPct = (startMs / masterMs) * 100;
-  // Nothing to do: content already starts at the origin and spans the loop.
-  if (offsetPct <= 1e-6 && Math.abs(scale - 1) <= 1e-6) return svg;
   // Duration match tolerance — generous enough to absorb the animator's 2- vs
   // 3-decimal formatting, tight enough not to catch a distinct fixed period.
   const tol = Math.max(0.02, periodSec * 0.01);
+
+  // `loop`: keep the content's own period; just delay its start to `startMs` and
+  // hold frame 0 until then (`animation-fill-mode: backwards`). It then repeats
+  // for the rest of the master loop. No keyframe remap.
+  if (mode === "loop") {
+    if (startMs <= 0) return svg; // already starts at the origin and loops
+    return svg.replace(/<style>([\s\S]*?)<\/style>/g, (_full, css: string) => {
+      const out = css.replace(/animation:\s*([^;}]+)/g, (full: string, value: string) => {
+        const isPeriodMatch = splitTopLevel(value).some((entry) =>
+          tokenizeEntry(entry).some((t) => {
+            const sec = parseTimeSec(t);
+            return sec != null && Math.abs(sec - periodSec) <= tol;
+          }),
+        );
+        return isPeriodMatch ? `${full};animation-delay:${fmt(startSec)}s;animation-fill-mode:backwards` : full;
+      });
+      return `<style>${out}</style>`;
+    });
+  }
+
+  // Nothing to do: content already starts at the origin and fills the loop.
+  if (offsetPct <= 1e-6 && Math.abs(scale - 1) <= 1e-6) return svg;
 
   return svg.replace(/<style>([\s\S]*?)<\/style>/g, (_full, css: string) => {
     const retimed = new Set<string>();
