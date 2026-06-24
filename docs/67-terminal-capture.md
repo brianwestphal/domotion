@@ -2,9 +2,9 @@
 
 `domotion term` turns a recorded terminal session into a self-contained animated
 SVG — real text, real color, native SVG (no raster frames). It replaces the
-hand-authored terminal demos (`examples/terminal-demo.ts`,
-`examples/animate/terminal-onboarding/`) with automatic capture from a real
-program.
+hand-authored terminal demos with automatic capture from a real program.
+`examples/terminal-demo.ts` itself drives this pipeline (`castToAnimatedSvg`),
+composited into macOS window chrome, as the canonical runnable demo of the verb.
 
 ## Front-end: asciinema `.cast`
 
