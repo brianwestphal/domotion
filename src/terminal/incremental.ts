@@ -28,7 +28,7 @@ import { TerminalEmulator, type TermCell } from "./emulator.js";
 import { buildFrames, rowInnerHtml, gridToHtml, TERM_TYPE_DEFAULTS, type TermFrame, type HtmlRenderOptions } from "./render.js";
 import { resolveThemeSpec, type TerminalTheme } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
-import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../render/index.js";
+import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import type { TermToSvgOptions } from "./index.js";
 
 /** A logical terminal line threaded through frames by identity. */
@@ -354,7 +354,7 @@ export async function composeIncrementalTermSvg(
   const { lines, totalMs } = trackLines(frames, maxRows, theme);
   log(`term: ${lines.length} tracked lines across ${frames.length} settle point(s) (incremental)`);
 
-  if (manageFonts) clearEmbeddedFonts();
+  if (manageFonts) { clearEmbeddedFonts(); clearGlyphDefs(); } // DM-1338: glyph registry shares the lifecycle
 
   const htmlOpts: HtmlRenderOptions = { theme, fontSize, padding, fontFamily, lineHeight };
   const linePx = fontSize * lineHeight;

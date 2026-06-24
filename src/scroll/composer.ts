@@ -25,6 +25,7 @@ import type { ScrollSegmentCapture } from "./executor.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import {
   clearEmbeddedFonts,
+  clearGlyphDefs,
   getEmbeddedFontFaceCss,
   getRenderTextMode,
   setRenderTextMode,
@@ -192,6 +193,7 @@ export function composeScrollSvg(
   const renderTextMode: RenderTextMode = opts.renderText ?? "embedded-font";
   const prevRenderTextMode = getRenderTextMode();
   clearEmbeddedFonts();
+  clearGlyphDefs(); // DM-1338: reset the paths-mode glyph registry per generation too
   setRenderTextMode(renderTextMode);
   // DM-1078: the whole body renders in the chosen mode (module-global);
   // restore on ANY exit — incl. a mid-segment elementTreeToSvgInner throw —

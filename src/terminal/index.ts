@@ -17,7 +17,7 @@ import { TerminalEmulator } from "./emulator.js";
 import { buildFrames, gridToHtml, type FrameBuildOptions, type HtmlRenderOptions } from "./render.js";
 import { resolveThemeSpec, type TerminalThemeSpec } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
-import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../render/index.js";
+import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../animation/animator.js";
 import { composeIncrementalTermSvg } from "./incremental.js";
 
@@ -132,7 +132,7 @@ export async function castToTermFrames(
   // WITHOUT the font CSS and collect the finished font ONCE at the end (the
   // same trick `composeAnimateFrames` uses). When we own the lifecycle, clear
   // the shared builder first so this cast's font is self-contained.
-  if (manageFonts) clearEmbeddedFonts();
+  if (manageFonts) { clearEmbeddedFonts(); clearGlyphDefs(); } // DM-1338: glyph registry shares the lifecycle
 
   const emu = new TerminalEmulator(cols, rows, theme);
   let frames;

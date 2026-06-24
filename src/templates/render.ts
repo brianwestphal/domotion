@@ -15,7 +15,7 @@ import {
   discoverAndRegisterWebfonts,
   launchChromium,
 } from "../capture/index.js";
-import { clearEmbeddedFonts, clearWebfonts, elementTreeToSvgInner, wrapSvg } from "../render/index.js";
+import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, wrapSvg } from "../render/index.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { applyReadyWaits, loadInputIntoPage } from "../cli/common.js";
 import { composeAnimateConfig, type AnimateConfig } from "../cli/animate.js";
@@ -52,6 +52,7 @@ async function captureToSvg(
     });
     cullElementsOutsideViewBox(tree, p.width, p.height, undefined, 0, 1);
     clearEmbeddedFonts();
+    clearGlyphDefs(); // DM-1338: glyph registry shares the per-generation lifecycle
     const inner = elementTreeToSvgInner(tree, p.width, p.height);
     log(`template capture: ${p.width}×${p.height} of ${p.input}`);
     return { svg: wrapSvg(inner, p.width, p.height), width: p.width, height: p.height };

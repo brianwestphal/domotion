@@ -89,7 +89,11 @@ const webfontRegistry = new Map<string, WebfontVariant[]>();
 // rendering and emit `getEmbeddedFontFaceCss()` into the output `<style>` once
 // (single-frame producers do this via `elementTreeToSvg`'s `includeGlyphDefs`
 // defs block; multi-frame producers — animator, scroll composer — collect it
-// at the top level).
+// at the top level). The `paths`-mode glyph registry (`getGlyphDefs()`) shares
+// this exact per-generation lifecycle, so producers call `clearGlyphDefs()`
+// alongside `clearEmbeddedFonts()` — otherwise the module-global glyph map
+// accumulates across renders and back-to-back generations emit prior glyphs as
+// dead `<defs>` bloat (DM-1338).
 export type RenderTextMode = "paths" | "embedded-font";
 export let currentRenderTextMode: RenderTextMode = "embedded-font";
 export function setRenderTextMode(mode: RenderTextMode): void { currentRenderTextMode = mode; }
@@ -2593,7 +2597,12 @@ export function getGlyphDefs(): string {
   return [...glyphDefs.values()].join("");
 }
 
-/** Clear the glyph registry (call between independent SVG generations). */
+/**
+ * Clear the `paths`-mode glyph registry. Producers call this once per top-level
+ * generation, alongside `clearEmbeddedFonts()` (DM-1338), so the module-global
+ * `<path id="gN">` defs don't accumulate across back-to-back renders. No-op in
+ * the default `embedded-font` mode, where the registry is never populated.
+ */
 export function clearGlyphDefs(): void {
   glyphDefs.clear();
   glyphKeyToId.clear();

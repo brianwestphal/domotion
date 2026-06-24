@@ -12,7 +12,7 @@ import { elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../rende
 import { embedRemoteImages } from "./embed.js";
 import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
-import { clearEmbeddedFonts, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
+import { clearEmbeddedFonts, clearGlyphDefs, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { refineInitialLetterPositions } from "./initial-letter-probe.js";
@@ -218,6 +218,7 @@ export class DemoRecorder {
     // block contains only its own fonts (the renderer repopulates it during
     // elementTreeToSvg, which emits the CSS into this frame's <defs>).
     clearEmbeddedFonts();
+    clearGlyphDefs(); // DM-1338: glyph registry (paths mode) shares the per-generation lifecycle
     return elementTreeToSvgInner(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
   }
 
@@ -242,6 +243,7 @@ export class DemoRecorder {
     // DM-549: rasterize conic-gradient layers — see captureCurrent above.
     await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
     clearEmbeddedFonts(); // DM-839: see captureCurrent
+    clearGlyphDefs(); // DM-1338: glyph registry shares the per-generation lifecycle
     const svgContent = elementTreeToSvgInner(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
     return { svgContent, pageHeight };
   }

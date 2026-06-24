@@ -18,7 +18,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
-import { clearWebfonts, setRenderTextMode } from "../src/render/text-to-path.js";
+import { clearGlyphDefs, clearWebfonts, setRenderTextMode } from "../src/render/text-to-path.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { raw } from "kerfjs";
 import { comparePngs, passes, type DiffVerdict } from "../src/review/compare-pngs.js";
@@ -145,6 +145,9 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // fixture B. The `requestfinished` listener on `w.page` populates
   // `w.fontUrls` as the test's HTML loads.
   clearWebfonts();
+  // DM-1338: reset the paths-mode glyph registry per fixture too, so fixture A's
+  // <path id="gN"> defs don't accumulate into fixture B's emitted <defs>.
+  clearGlyphDefs();
   w.fontUrls.clear();
   await w.page.goto(`file://${htmlPath}`);
   await w.page.evaluate(() => document.fonts.ready);

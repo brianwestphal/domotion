@@ -42,7 +42,7 @@ import {
 import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
 import { borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
-import { clearEmbeddedFonts, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
+import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { optimizeSvg } from "../post-processing/index.js";
@@ -709,6 +709,7 @@ export async function composeAnimateFrames(
     // collect the deduped @font-face block once into the animator's top-level
     // <style> after the loop — so the base64 font bytes appear once, not per frame.
     clearEmbeddedFonts();
+    clearGlyphDefs(); // DM-1338: reset the paths-mode glyph registry per generation too
     // One tracker for the whole animate run — fonts fetched by any frame
     // get accumulated, and we deduplicate URLs inside discoverAndRegister.
     const tracker = attachWebfontTracker(page);

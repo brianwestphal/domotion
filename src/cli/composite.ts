@@ -25,7 +25,7 @@ import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
-import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome, clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../render/index.js";
+import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome, clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeAnimatedLayers, type CompositeLayer } from "../animation/composite.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { cliFail } from "./common.js";
@@ -148,6 +148,7 @@ export async function composeCompositeConfig(
   let sharedFontCss = "";
   if (castIdxs.length > 0) {
     clearEmbeddedFonts();
+    clearGlyphDefs(); // DM-1338: glyph registry shares the shared-builder lifecycle
     for (const i of castIdxs) {
       const layer = cfg.layers[i];
       log(`Layer ${i + 1}/${n}: cast (shared font)…`);

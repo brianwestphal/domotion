@@ -10,6 +10,7 @@ import { parseArgs } from "node:util";
 import {
   captureElementTree,
   clearEmbeddedFonts,
+  clearGlyphDefs,
   clearWebfonts,
   composeScrollSvg,
   cullElementsOutsideViewBox,
@@ -265,6 +266,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // escape cases where an off-viewport ancestor still gets captured.
       cullElementsOutsideViewBox(tree, clip[2], clip[3], undefined, 0, 1);
       clearEmbeddedFonts(); // DM-839: reset embedded-font builder before this single-frame render
+      clearGlyphDefs(); // DM-1338: glyph registry (paths mode) shares the per-generation lifecycle
       const inner = elementTreeToSvgInner(tree, clip[2], clip[3]);
       svg = wrapSvg(inner, clip[2], clip[3]);
     }
