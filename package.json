@@ -44,6 +44,7 @@
     "test:e2e": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts",
     "test:coverage": "npm run build:capture-script && vitest run --coverage",
     "test:coverage:all": "npm run build:capture-script && node tools/coverage-all.mjs",
+    "test:coverage:full": "npm run build:capture-script && node tools/coverage-all.mjs --full",
     "release": "bash scripts/release.sh",
     "release:beta": "bash scripts/release.sh --beta",
     "commit-msg": "gitgist --staged --commit-message",
