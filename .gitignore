@@ -13,7 +13,6 @@ external/
 dist/
 .release-state.json
 .glassbox/
-.hotsheet/
 .cursor/
 .cursorrules
 *.map
@@ -34,3 +33,5 @@ tools/unicode-fixtures/
 # The underscore-prefixed one-off debug scripts live here so they persist
 # locally without cluttering `git status` or risking an accidental commit.
 tools/scratch/
+/.hotsheet/*
+!/.hotsheet/settings.json
