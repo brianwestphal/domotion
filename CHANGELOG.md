@@ -2,6 +2,29 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.15.0] - 2026-06-24
+
+
+** Features**
+
+- **New template system.** Built-in parameterized generators that produce self-contained SVGs through the existing capture/compose pipeline — drive them with the new `domotion template` verb or the `renderTemplateToSvg` API. Ships seven built-ins: lower-third, device-mockup, chart, chat, subscribe, background-loop, and kinetic-text.
+- **Charts, chat, and subscribe templates** with rich options — charts support column/bar/line styles, single or multi-series data (grouped or stacked) with legends and a nice auto-scaled axis.
+- **Procedural animated backgrounds** (`background-loop`) with seamlessly-looping `aurora`, `orbs`, gradient-pan, grid, stars, and parallax-wave variants, all deterministic from a `seed`.
+- **Animated text reveals** (`kinetic-text`) with rise / slide / fade / clip / pop variants.
+- **Compose templates into animations.** A frame in an `animate` config can now set `"template": "<name>"` (plus optional `"params"`) instead of capturing a page or cast recording, and frames gain duration/fit control.
+- **Third-party templates.** Publish reusable templates as `domotion-template-<name>` npm packages — backed by a new authoring guide, a runnable example package, and a documented discovery convention.
+- **Center-origin transforms.** Intra-frame animations now support `transformOrigin`, so scale/rotate can pivot about an element's own box instead of the SVG origin.
+- **New example:** a scrolling terminal deploy session embedded in a macOS-style window bezel.
+- Added `llms.txt` — a concise, discoverable guide for AI agents that want to use Domotion as a tool.
+
+** Fixes**
+
+- Fixed intra-frame animations that only moved an element's own box and left its subtree static — animated containers (e.g. the lower-third banner) now move their children with them.
+- Fixed `background-loop` blobs snapping in/out instead of fading continuously, and grid drift leaving a growing empty margin at the loop seam.
+- Smoothed the gradient-pan/grid background variants to pan continuously instead of ping-ponging, and improved the star and wave visuals.
+- Fixed template frames in `mode:"full"` cast configs colliding with sibling frames and hijacking the wrong timeline.
+- Fixed `domotion term` live capture failing with `posix_spawnp failed.` by self-healing node-pty's non-executable spawn helper.
+
 ## [0.14.0] - 2026-06-23
 
 
