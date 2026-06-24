@@ -2377,7 +2377,7 @@ export function elementTreeToSvgInner(
     let maskUrlId: string | null = null;
     if (usingMaskBorderUrlSimple && mbUrlHref != null) {
       const dataUri = embedResizedDataUri(mbUrlHref, el.width, el.height);
-      const mid = `${idPrefix}mk${clipIdx++}`;
+      const mid = paintCtx.nextClipId("mk");
       defsParts.push(
         `<mask id="${mid}" maskUnits="userSpaceOnUse" mask-type="alpha">`
           + `<image href="${esc(dataUri)}" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" preserveAspectRatio="none" />`
@@ -2385,14 +2385,14 @@ export function elementTreeToSvgInner(
       );
       maskUrlId = mid;
     } else if (usingMaskBorder9Slice && mbUrlHref != null) {
-      const mid = `${idPrefix}mk${clipIdx++}`;
+      const mid = paintCtx.nextClipId("mk");
       const built = buildMaskBorder9Slice(
         el, mbUrlHref, mbSlice, mbWidth, mbOutset, el.styles.maskBorderRepeat ?? "stretch",
-        mid, idPrefix, clipIdx,
+        mid, idPrefix, paintCtx.peekClipIdx(),
       );
       if (built != null) {
         defsParts.push(built.def);
-        clipIdx = built.nextClipIdx;
+        paintCtx.advanceClipIdx(built.nextClipIdx - paintCtx.peekClipIdx());
         maskUrlId = built.id;
       }
     } else if (maskImage != null && maskImage !== "none" && maskImage !== "") {
@@ -2439,7 +2439,7 @@ export function elementTreeToSvgInner(
           }
         }
         const maskDef = buildMaskDef(
-          `${idPrefix}mk${clipIdx++}`,
+          paintCtx.nextClipId("mk"),
           maskImage,
           maskX, maskY, Math.max(0, maskW), Math.max(0, maskH),
           el.styles.maskMode ?? "match-source",
@@ -2592,7 +2592,7 @@ export function elementTreeToSvgInner(
           let filterAttr = "";
           if (sh.blur > 0) {
             const stdDev = sh.blur / 2;
-            const fid = `${idPrefix}sh${clipIdx++}`;
+            const fid = paintCtx.nextClipId("sh");
             defsParts.push(
               `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
             );
@@ -2625,7 +2625,7 @@ export function elementTreeToSvgInner(
           const layerIntrinsic = bgIntrinsicLayers[li] ?? null;
           const layerAttachment = (bgAttachmentLayers[li] ?? bgAttachmentLayers[0] ?? "scroll").trim();
           if (layerClip === "text") continue;
-          const defId = `${idPrefix}bgf${clipIdx++}`;
+          const defId = paintCtx.nextClipId("bgf");
           const out = buildBackgroundLayerDef(
             defId, layer, f.x, f.y, f.width, f.height,
             layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport,
@@ -2808,7 +2808,7 @@ export function elementTreeToSvgInner(
       // apply to HTML elements.
       const shape = clipPathShapeForElement(el, clipPathCss);
       if (shape !== "") {
-        clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
+        clipPathUrlId = paintCtx.nextClipId("cp");
         defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
       } else {
         // DM-826: shape translator returned "" — try the inline-`<clipPath>`
@@ -2942,7 +2942,7 @@ export function elementTreeToSvgInner(
         const cpW = xVisibleCp ? el.width + UNBOUNDED_CP * 2 : el.width + inflateL + inflateR;
         const cpY = yVisibleCp ? el.y - UNBOUNDED_CP : el.y - inflateT;
         const cpH = yVisibleCp ? el.height + UNBOUNDED_CP * 2 : el.height + inflateT + inflateB;
-        clipPathUrlId = `${idPrefix}cp${clipIdx++}`;
+        clipPathUrlId = paintCtx.nextClipId("cp");
         defsParts.push(
           `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,
         );
@@ -3253,7 +3253,7 @@ export function elementTreeToSvgInner(
           const pbLayers = splitTopLevelCommas(pb.backgroundImage);
           for (let li = pbLayers.length - 1; li >= 0; li--) {
             const layer = pbLayers[li].trim();
-            const defId = `${idPrefix}pbg${clipIdx++}`;
+            const defId = paintCtx.nextClipId("pbg");
             const out = buildBackgroundLayerDef(
               defId, layer, pb.x, pb.y, pb.width, pb.height,
               pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
@@ -3407,7 +3407,7 @@ export function elementTreeToSvgInner(
           // transform `<g>`. The filter region is generously over-sized so a
           // 20px blur on a short pill isn't clipped at the default -10%..110%.
           if (blurStd != null && blurStd > 0) {
-            const fid = `${idPrefix}pbf${clipIdx++}`;
+            const fid = paintCtx.nextClipId("pbf");
             defsParts.push(`<filter id="${fid}" x="-100%" y="-300%" width="300%" height="700%"><feGaussianBlur stdDeviation="${r(blurStd)}" /></filter>`);
             inner = `<g filter="url(#${fid})">${inner}</g>`;
           }
@@ -3505,7 +3505,7 @@ export function elementTreeToSvgInner(
     const isBodyOverflowPropagatedHere = el.tag === "body";
     let overflowClipId: string | null = null;
     if (clipsOverflow && !isBodyOverflowPropagatedHere && el.children.length > 0) {
-      overflowClipId = `${idPrefix}ov${clipIdx++}`;
+      overflowClipId = paintCtx.nextClipId("ov");
       const cbt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
       const cbr = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
       const cbb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
@@ -3663,7 +3663,7 @@ export function elementTreeToSvgInner(
         const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
         for (let li = pbLayers.length - 1; li >= 0; li--) {
           const layer = pbLayers[li].trim();
-          const defId = `${idPrefix}pbg${clipIdx++}`;
+          const defId = paintCtx.nextClipId("pbg");
           const out = buildBackgroundLayerDef(
             defId, layer, pb.x, pb.y, pb.width, pb.height,
             pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
