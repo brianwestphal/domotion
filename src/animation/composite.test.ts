@@ -115,6 +115,26 @@ describe("composeAnimatedLayers (DM-1323)", () => {
     expect(dedupeCompositeFonts(svg)).toBe(svg);
   });
 
+  it("deferFonts keeps a layer's dmfN families un-prefixed and emits fontFaceCss once (DM-1331)", () => {
+    const fontDoc = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><text font-family="dmf0">hi</text></svg>`;
+    const r = composeAnimatedLayers(
+      [{ svg: fontDoc, deferFonts: true, x: 0, y: 0 }],
+      { width: 200, height: 100, fontFaceCss: '@font-face { font-family: "dmf0"; src: url("data:font/ttf;base64,AAAA"); }' },
+    );
+    // The shared family stays un-prefixed (resolves against the shared block)…
+    expect(r.svg).toContain('font-family="dmf0"');
+    expect(r.svg).not.toContain('font-family="c0_dmf0"');
+    // …and the shared @font-face appears exactly once.
+    expect((r.svg.match(/@font-face/g) ?? []).length).toBe(1);
+  });
+
+  it("namespaces a non-deferFonts layer's dmfN families per-layer", () => {
+    const fontDoc = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><style>@font-face { font-family: "dmf0"; src: url("data:font/ttf;base64,AAAA"); }</style><text font-family="dmf0">hi</text></svg>`;
+    const r = composeAnimatedLayers([{ svg: fontDoc, x: 0, y: 0 }], { width: 200, height: 100 });
+    expect(r.svg).toContain('font-family="c0_dmf0"');
+    expect(r.svg).not.toContain('font-family="dmf0"');
+  });
+
   it("paints a background rect only when an opaque background is given", () => {
     const transparent = composeAnimatedLayers([{ svg: staticDoc }], { width: 10, height: 10 });
     expect(transparent.svg).not.toMatch(/<rect width="10" height="10" fill=/);

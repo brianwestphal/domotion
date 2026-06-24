@@ -25,7 +25,7 @@ import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
-import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome } from "../render/index.js";
+import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome, clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeAnimatedLayers, type CompositeLayer } from "../animation/composite.js";
 import { cliFail } from "./common.js";
 
@@ -144,6 +144,9 @@ async function renderLayerSource(
   return { svg, w: size.w, h: size.h, periodMs: layer.period ?? detectPeriodMs(svg) };
 }
 
+/** A rendered layer source (before chrome wrap / placement). */
+interface RenderedSource { svg: string; w: number; h: number; periodMs?: number; deferFonts?: boolean }
+
 /** Render + composite a validated config into one animated SVG. */
 export async function composeCompositeConfig(
   browser: Browser,
@@ -151,29 +154,63 @@ export async function composeCompositeConfig(
   configDir: string,
   log: (m: string) => void = () => {},
 ): Promise<string> {
-  const composeLayers: CompositeLayer[] = [];
-  for (let i = 0; i < cfg.layers.length; i++) {
+  const n = cfg.layers.length;
+  const rendered: (RenderedSource | undefined)[] = new Array(n);
+
+  // DM-1331: render all `cast` layers through ONE shared embedded-font builder so
+  // several terminals that use the same monospace embed its (union) glyph subset
+  // ONCE, not one subset per terminal. `clearEmbeddedFonts()` resets the builder,
+  // each cast renders with `manageFonts:false` (deferring its @font-face), and the
+  // single finished block is collected with `getEmbeddedFontFaceCss()` and emitted
+  // once by composeAnimatedLayers. Must happen BEFORE template layers render —
+  // a generator template runs a nested pipeline that clears the same builder.
+  const castIdxs = cfg.layers.flatMap((l, i) => (l.cast != null ? [i] : []));
+  let sharedFontCss = "";
+  if (castIdxs.length > 0) {
+    clearEmbeddedFonts();
+    for (const i of castIdxs) {
+      const layer = cfg.layers[i];
+      log(`Layer ${i + 1}/${n}: cast (shared font)…`);
+      const castText = readFileSync(resolve(configDir, layer.cast!), "utf8");
+      const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
+        ...(layer.term ?? {}), manageFonts: false, log: (m) => log(`  ${m}`),
+      });
+      rendered[i] = { svg, w: width, h: height, periodMs: totalDurationMs, deferFonts: true };
+    }
+    sharedFontCss = getEmbeddedFontFaceCss();
+  }
+
+  // Remaining (svg / template) layers are self-contained — render after the shared
+  // cast font is collected (a template clears the builder).
+  for (let i = 0; i < n; i++) {
+    if (rendered[i] != null) continue;
     const layer = cfg.layers[i];
-    const kind = layer.cast != null ? "cast" : layer.template != null ? `template "${layer.template}"` : "svg";
-    log(`Layer ${i + 1}/${cfg.layers.length}: ${kind}…`);
-    let { svg, w, h, periodMs } = await renderLayerSource(layer, browser, configDir, log);
+    log(`Layer ${i + 1}/${n}: ${layer.template != null ? `template "${layer.template}"` : "svg"}…`);
+    rendered[i] = await renderLayerSource(layer, browser, configDir, log);
+  }
+
+  // Assemble in z-order: apply optional device chrome, then place.
+  const composeLayers: CompositeLayer[] = cfg.layers.map((layer, i) => {
+    let { svg, w, h, periodMs, deferFonts } = rendered[i]!;
     if (layer.chrome != null) {
       const framed = wrapInDeviceChrome(svg, layer.chrome.device, w, h, { label: layer.chrome.label, theme: layer.chrome.theme });
       svg = framed.svg; w = framed.width; h = framed.height;
     }
-    composeLayers.push({
-      svg, periodMs, contentWidth: w, contentHeight: h,
+    return {
+      svg, periodMs, contentWidth: w, contentHeight: h, deferFonts,
       x: layer.x, y: layer.y,
       width: layer.width ?? w, height: layer.height ?? h,
       clip: layer.clip, clipRadius: layer.clipRadius,
       start: layer.start, mode: layer.mode, duration: layer.duration,
       animations: layer.animations,
-    });
-  }
+    };
+  });
+
   const result = composeAnimatedLayers(composeLayers, {
     width: cfg.width, height: cfg.height, background: cfg.background, durationMs: cfg.duration,
+    fontFaceCss: sharedFontCss,
   });
-  log(`Composited ${cfg.layers.length} layers — ${result.width}×${result.height}px, ${(result.durationMs / 1000).toFixed(1)}s loop`);
+  log(`Composited ${n} layers — ${result.width}×${result.height}px, ${(result.durationMs / 1000).toFixed(1)}s loop`);
   return result.svg;
 }
 

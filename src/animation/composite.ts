@@ -86,6 +86,16 @@ export interface CompositeLayer {
   duration?: number;
   /** Layer-level animations (move / scale / fade / transform the whole layer). */
   animations?: CompositeLayerAnimation[];
+  /**
+   * DM-1331: this layer was rendered through the composite's SHARED embedded-font
+   * builder (`manageFonts:false`), so its `@font-face` is deferred to the single
+   * top-level block in `ComposeLayersOptions.fontFaceCss`. Its `dmfN` family
+   * references are kept un-prefixed during namespacing so they resolve against
+   * that shared block — letting several cast layers that use the same font embed
+   * its (union) subset once instead of one subset per layer. Set by
+   * `composeCompositeConfig` for cast layers; leave off for self-contained SVGs.
+   */
+  deferFonts?: boolean;
   /** Optional label for ids/debugging (sanitized). */
   label?: string;
 }
@@ -97,6 +107,12 @@ export interface ComposeLayersOptions {
   durationMs?: number;
   /** Background fill for the whole composite. Omit / `"transparent"` → transparent. */
   background?: string;
+  /**
+   * DM-1331: one `@font-face` block shared by all `deferFonts` layers, emitted
+   * once at the top of the composite. Produced by rendering those layers through
+   * a shared embedded-font builder (`getEmbeddedFontFaceCss()`).
+   */
+  fontFaceCss?: string;
 }
 
 export interface CompositeResult {
@@ -181,8 +197,13 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
 
   for (const r of resolved) {
     const token = `c${r.i}_`;
-    // 1. Namespace the layer's global names so it can't collide with siblings…
-    let content = namespaceEmbeddedAnimatedSvg(r.layer.svg, token);
+    // 1. Namespace the layer's global names so it can't collide with siblings.
+    //    `deferFonts` layers keep their `dmfN` font families UN-prefixed (DM-1331):
+    //    they were rendered through a shared embedded-font builder, so their
+    //    families are already globally unique and point at the single top-level
+    //    `@font-face` block (`opts.fontFaceCss`) — prefixing them would dangle the
+    //    reference. The id/keyframe/class namespacing still runs.
+    let content = namespaceEmbeddedAnimatedSvg(r.layer.svg, token, { namespaceFonts: r.layer.deferFonts !== true });
     // 2. …then re-anchor its internal timeline to its own start within the master.
     if (r.period > 0) {
       content = offsetEmbeddedAnimatedSvgTimeline(content, {
@@ -259,9 +280,12 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
 
   const defs = styleBlocks.filter((s) => s.startsWith("<clipPath")).join("");
   const css = styleBlocks.filter((s) => s.startsWith("<style")).join("");
+  // DM-1331: the shared embedded-font block for `deferFonts` layers, emitted once.
+  const fontCss = opts.fontFaceCss != null && opts.fontFaceCss !== "" ? `<style>${opts.fontFaceCss}</style>` : "";
   let svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
     (defs ? `<defs>${defs}</defs>` : "") +
+    fontCss +
     css +
     bg +
     groups.join("") +

@@ -220,12 +220,23 @@ pairs threaded down the tree.
    The doc 43 / 65 / 70 "static-only" caveats are updated to "static unless you
    pass animated content."
 4. ✅ **Declarative surface** — `domotion composite` config/verb (`src/cli/composite.ts`).
-5. ✅ **Cross-layer font dedup** (DM-1329) — `dedupeCompositeFonts` collapses
-   byte-identical `@font-face` payloads across layers (same descriptors + same
-   base64 `src`), repointing the removed families' references at the survivor.
-   Only EXACT-payload duplicates merge; layers with *different* glyph subsets of
-   the same font keep their own subset (merging those needs re-subsetting —
-   a deeper follow-up).
+5. ✅ **Cross-layer font dedup.** Two complementary mechanisms:
+   - **Exact-payload dedup** (DM-1329, `dedupeCompositeFonts`, applies to ANY
+     composite incl. the programmatic primitive over pre-rendered SVGs): collapses
+     byte-identical `@font-face` payloads (same descriptors + same base64 `src`),
+     repointing the removed families' references at the survivor. Covers a reused
+     layer / the same composite nested twice.
+   - **Shared-builder merge** (DM-1331, the declarative `domotion composite` path):
+     `cast` layers are rendered through ONE embedded-font builder
+     (`manageFonts:false` → `getEmbeddedFontFaceCss()`), so several terminals in
+     the same monospace but with **different text (different glyph subsets)** embed
+     the font's *union* subset **once**. The layers carry `deferFonts:true` (their
+     `dmfN` families are kept un-prefixed during namespacing) and the single
+     `@font-face` block is emitted once via `ComposeLayersOptions.fontFaceCss`.
+     Scoped to cast layers in the config path — `svg` layers are pre-rendered and
+     `template` layers render via their own pipeline, so they can't share the
+     builder; they fall back to exact-payload dedup. Guarded by
+     `src/cli/composite-font-dedup.e2e.test.ts`.
 6. ✅ **Published JSON Schema** — `schemas/composite-config.schema.json`, generated
    from `compositeConfigSchema` by `npm run build:composite-schema` (the same
    pattern as the animate schema); a config can point its `"$schema"` at it. A

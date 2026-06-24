@@ -47,9 +47,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   animated screen instead of capturing to static). E2E demo:
   `examples/composite-desktop.ts` + `examples/composite/`. A published JSON Schema
   ships at `schemas/composite-config.schema.json` (generated from the zod schema by
-  `npm run build:composite-schema`). Byte-identical embedded fonts are deduped
-  across layers (DM-1329, `dedupeCompositeFonts`). **Deeper follow-up:** merging
-  *different* glyph subsets of a shared font (needs re-subsetting).
+  `npm run build:composite-schema`). Embedded fonts are deduped across layers two
+  ways: byte-identical payloads collapse anywhere (DM-1329, `dedupeCompositeFonts`),
+  and `cast` layers in the declarative `composite` path share ONE embedded-font
+  builder so terminals in the same monospace with *different* text embed the union
+  subset once (DM-1331, `deferFonts` + `fontFaceCss`).
 - **DM-1319 cast/template timeline re-sync (`src/animation/embed-timeline.ts`)** —
   **Shipped.** A `cast` / `template` frame's nested animation now starts when its
   frame becomes visible (offset by preceding frames) and holds before/after,
