@@ -116,6 +116,20 @@ When writing TSX, components return `SafeHtml` (which is `JSX.Element`). Use `ra
 
 ## Investigation
 
+### Code search (prefer ast-grep for structure)
+
+For **structural / syntax-aware** searches over source (this project is `.ts` / `.tsx` — no other languages), use **ast-grep** (the `ast-grep` skill, or the CLI: `ast-grep run --lang <ts|tsx> -p '<pattern>' <path>`) rather than text grep — it matches the AST, so it skips comments/strings and catches multi-line/nested shapes. Same mindset as the AST-based `eslint-plugin-kerfjs` rules the repo already lints with (e.g. `kerfjs/no-raw-with-dynamic-arg`). Good fits for this codebase:
+
+- **`$A as $B`** casts — the "no `any` outside the fontkit / bidi-js boundary" rule (§ Quality gates) means casts are worth auditing; `$X as any` / `$X as unknown as $T` especially.
+- **`document.createElement($X)`**, `document.body`, bare `window.` / `getComputedStyle` in **node-side** `src/render/*` — these belong ONLY inside the page-`evaluate`d CAPTURE_SCRIPT (§ CAPTURE_SCRIPT discipline), never in the renderer; ast-grep finds them where a text match would drown in legit page-context uses.
+- **`execSync($X)` / `exec($X)` / `child_process`** — the no-`exec()` convention from the DM-1332 audit.
+- **`process.platform === $X`** branches — cross-platform font / metric / path routing must be platform-aware from the start (§ Platform support), so these are the audit surface for "is this darwin-only?".
+- **`page.evaluate($X)`** / `page.$eval(...)` shapes when tracing capture-side probes, specific call or JSX shapes, and **codemod-style rewrites** (`ast-grep run -p '<find>' --rewrite '<repl>' src/`).
+
+**`--lang` matters: `tsx` ≠ `ts`** — pick per file extension (`.tsx` lives under `tests/`, `site/`, and a few `src/**/*.tsx`; everything else is `.ts`).
+
+Keep **text search** (ripgrep / the Explore agent) for what it's best at: literal strings (`FEEDBACK NEEDED`, a `DM-` id, a CSS keyword), identifier/symbol lookups, **filenames**, and **non-code files** (markdown / JSON / HAR / logs) — there AST has nothing to match and text is simpler. **Caveat (DM-1338):** plain `grep`/`ripgrep` flag `src/render/text-to-path.ts` as **binary** (high-byte content) and SILENTLY SKIP it — use `grep -a` / `rg -a` for text there. ast-grep parses it as TypeScript regardless, so for that file it's the *more* reliable searcher, not just the structural one.
+
 You have **standing permission to use Playwright freely** for any investigation, debugging, or experimentation — driving live pages, replaying cached HARs (`tests/cache/real-world/*.har`), dumping captured trees with computed styles, comparing painted output against captured rects, or any other interactive probe. Do NOT defer a ticket as "needs DOM access" or "blocked on interactive Playwright session" — write the probe script, run it, and proceed. Probes can land as throwaway scripts or be inlined directly in a Bash invocation; whatever's expedient. **Put reusable-but-uncommitted scratch scripts under `tools/scratch/` — it's gitignored**, so they persist locally without cluttering `git status` or risking an accidental commit (ES imports there are `../../src/...`). A committed, documented probe (referenced from docs/CLAUDE.md) belongs at `tools/` proper.
 
 **Always read Chromium source code when stuck on Chrome-paint behavior.** `chromium.googlesource.com` and `source.chromium.org` are in the sandbox allowlist and reachable via `WebFetch`. The project's fidelity rule says Chrome's actual paint is the source of truth — the Chromium source IS that source of truth, written down and citable. Whenever a ticket investigation reaches "I'm not sure why Chrome does X here," go read the blink renderer code instead of probing-and-curve-fitting. Useful entry points:
