@@ -246,8 +246,6 @@ constant-size segment the usual line-identity threading / scroll-glide applies.
   sampled at pauses, not frame-for-frame — keeps SVGs small but drops the
   in-between spinner states. A future `--fps`/change-threshold mode could capture
   more.
-- **Cursor/caret** is not yet drawn (the recorded echo of typed input shows the
-  text; the blinking block cursor is omitted).
 - **Incremental line tracking is content-based.** `detectScroll` + identity
   matching handle append / overwrite / line-oriented scroll well; an alt-screen
   full-screen redraw (vim/htop) that rewrites many rows at once produces more

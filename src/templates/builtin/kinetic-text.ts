@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const VARIANTS = ["rise", "slide", "fade", "clip", "pop"] as const;
 export type KineticVariant = (typeof VARIANTS)[number];
@@ -53,13 +54,6 @@ export const kineticTextParamsSchema = z.object({
 
 export type KineticTextParams = z.infer<typeof kineticTextParamsSchema>;
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 /** A run of text sharing one inline style (empty `style` = unstyled). */
 export interface FmtSegment {

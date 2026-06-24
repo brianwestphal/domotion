@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { escapeHtml } from "../../utils/escapeHtml.js";
 
 /** One message, after parsing. `me` = right-aligned accent bubble. */
 export interface ChatMessage { from: "me" | "them"; text: string; }
@@ -61,9 +62,6 @@ export const chatParamsSchema = z.object({
 
 export type ChatParams = z.infer<typeof chatParamsSchema>;
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 /** When each message pops, and (for typing-enabled `them` messages) when its
  *  typing indicator appears. A `them` message with typing shows the indicator for

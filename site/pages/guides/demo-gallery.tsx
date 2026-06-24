@@ -76,6 +76,9 @@ function demo(opts: {
 <pre><code>${file(opts.cmdPath)}</code></pre>`;
 }
 
+// Build-time-controlled markup (static copy + escaped file contents via file()),
+// never user input — safe to pass to raw().
+// eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg
 export const content: SafeHtml = raw(`
 <p>This gallery is a progressive set of examples — from a five-line single
 capture to a fully animated marketing clip. Every demo is a self-contained

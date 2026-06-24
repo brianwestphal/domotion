@@ -67,6 +67,5 @@ describe.skipIf(!available)("recordPtySession real pty spawn (DM-1227)", () => {
 if (!available) {
   // Surface why the real-spawn suite was skipped so a silent skip isn't mistaken
   // for coverage (no-silent-caps).
-  // eslint-disable-next-line no-console
   console.warn("[pty.e2e] skipped real-pty tests: no usable pty (node-pty missing or /dev/ptmx blocked)");
 }

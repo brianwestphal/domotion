@@ -20,6 +20,9 @@ function tpl(opts: { img: string; alt: string; cmd: string }): string {
 <pre><code>${opts.cmd}</code></pre>`;
 }
 
+// Build-time-controlled markup (static copy + escaped file contents via tpl()),
+// never user input — safe to pass to raw().
+// eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg
 export const content: SafeHtml = raw(`
 <p>A <strong>template</strong> is a parameterized generator: you hand it a few
 parameters and it produces a complete, self-contained animated SVG. It's authored

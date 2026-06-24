@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const CHART_TYPES = ["column", "bar", "line", "pie", "donut"] as const;
 export type ChartType = (typeof CHART_TYPES)[number];
@@ -62,9 +63,6 @@ export const chartParamsSchema = z.object({
 
 export type ChartParams = z.infer<typeof chartParamsSchema>;
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 /** Round `v` up to a "nice" axis maximum (1 / 2 / 2.5 / 5 × 10ⁿ). */
 function niceMax(v: number): number {

@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { escapeHtml } from "../../utils/escapeHtml.js";
 
 export const subscribeParamsSchema = z.object({
   name: z.string().default("Domotion").describe("Channel / profile name."),
@@ -35,9 +36,6 @@ export const subscribeParamsSchema = z.object({
 
 export type SubscribeParams = z.infer<typeof subscribeParamsSchema>;
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 /** Standalone HTML for the subscribe pop-up. Pure — unit-testable without a browser. */
 export function buildSubscribeHtml(p: SubscribeParams): string {

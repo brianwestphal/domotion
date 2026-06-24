@@ -28,6 +28,7 @@ them: Amazing 🙌" -o thread.svg
 | `typing` | boolean | `true` | Show a "…" typing indicator before each `them` message. |
 | `typingMs` | int | `900` | How long the indicator shows before the message. |
 | `width` / `height` | int | `560` / `760` | Output size. |
+| `fontFamily` | string | system sans | CSS font-family. |
 | `popMs` / `staggerMs` / `holdMs` | int | `360` / `650` / `2000` | Pop duration / gap between messages / hold. |
 
 **Motion.** Each message is a transform-wrapper (`.ct-pop`) around an opacity
@@ -72,6 +73,7 @@ domotion template subscribe --name "Ada Lovelace" --subtitle "@ada · 89.4K foll
 | `clickAfterMs` | int | `1700` | Simulate a click after this delay (CTA flips, bell fills). `0` disables it. |
 | `subscribedLabel` | string | `Subscribed` | Label after the simulated click. |
 | `width` / `height` | int | `760` / `360` | Output size. |
+| `fontFamily` | string | system sans | CSS font-family. |
 | `popMs` / `holdMs` | int | `520` / `2600` | Pop duration / hold. |
 
 **Motion.** A one-shot pop (`.sub-pop` scales `0.82 → 1` about center, `.sub-inner`

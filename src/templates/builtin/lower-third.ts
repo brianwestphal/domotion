@@ -15,6 +15,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const POSITIONS = ["bottom-left", "bottom-center", "bottom-right", "top-left", "top-center", "top-right"] as const;
 const THEMES = ["dark", "light"] as const;
@@ -37,13 +38,6 @@ export const lowerThirdParamsSchema = z.object({
 
 export type LowerThirdParams = z.infer<typeof lowerThirdParamsSchema>;
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 /** Flex alignment for the chosen corner. */
 function alignmentFor(position: LowerThirdParams["position"]): { justify: string; align: string } {
