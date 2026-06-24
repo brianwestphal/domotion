@@ -21,24 +21,36 @@ domotion template chart --type line --data "12,18,15,28,24,38,44" -o dau.svg
 
 | Param | Type | Default | Meaning |
 |---|---|---|---|
-| `type` | `column` \| `bar` \| `line` | `column` | Vertical bars, horizontal bars, or a line. |
-| `data` | number[] **or** CSV string | — | The values (**required**). |
-| `labels` | string[] **or** CSV string | — | Category labels (cycled if shorter than `data`). |
+| `type` | `column` \| `bar` \| `line` \| `pie` \| `donut` | `column` | Bars (vertical/horizontal), a line, or a pie / donut. |
+| `data` | number[] / number[][] / string | — | One or more series (**required**). See below. |
+| `labels` | string[] **or** CSV string | — | Category labels (cycled if shorter than the data). |
+| `seriesNames` | string[] **or** CSV string | — | Legend names, one per series (multi-series only). |
+| `layout` | `grouped` \| `stacked` | `grouped` | Multi-series bars: side-by-side or stacked. |
 | `title` | string | — | Title shown above the plot. |
-| `colors` | string[] **or** CSV string | indigo/cyan/pink/amber/green/violet | Series colors, cycled across the data. |
+| `colors` | string[] **or** CSV string | indigo/cyan/pink/amber/green/violet | Per-**series** when multi-series, else per-bar. |
 | `max` | number | nice round value ≥ largest datum | Axis maximum. |
-| `showValues` | boolean | `true` | Print each value at the bar end / point. |
+| `yTicks` | int | `4` | Value-axis gridline / tick divisions (`0` disables the scale). |
+| `showValues` | boolean | `true` | Print each value at the bar end / point (single series only). |
 | `width` / `height` | int | `1000` / `600` | Output size in px. |
 | `background` / `color` | string | `#0b1020` / `#e6edf3` | Frame background / text color. |
 | `growMs` | int | `750` | Grow / draw duration per element. |
-| `staggerMs` | int | `110` | Delay between bars. |
+| `staggerMs` | int | `110` | Delay between categories. |
 | `holdMs` | int | `1800` | Hold after the chart finishes. |
 
-`data` and `labels` (and `colors`) accept a **comma-separated string** so they
-work as CLI flags (array params are otherwise JSON-only); a JSON array via
-`--params` also works.
+**`data` shapes (DM-1301).** A single series is a `number[]` (or CSV `"1,2,3"`).
+**Multiple series** are a `number[][]` (or a string with `;` between series:
+`"1,2,3;4,5,6"`). With more than one series, the chart draws a **legend**
+(`seriesNames`, or "Series N"), colors **per series**, and lays bars either
+**grouped** (side-by-side) or **stacked** (`layout`). Lines draw one polyline per
+series. Per-bar value labels are shown only for a single series — multi-series
+relies on the value-axis scale.
 
-On-screen time = `(points − 1) × staggerMs + growMs + holdMs`.
+**Value-axis scale + gridlines (DM-1301).** `yTicks` (default 4) draws faint
+gridlines behind the plot at the nice-max divisions with tick labels on the value
+axis — horizontal (left labels) for `column` / `line`, vertical (bottom labels)
+for `bar`. `yTicks: 0` removes them.
+
+On-screen time = `(categories − 1) × staggerMs + growMs + holdMs`.
 
 ## How it animates
 
@@ -48,7 +60,12 @@ point. The motion is intra-frame `animations`:
 
 - **column** — each bar grows up from the baseline via `transform: scaleY(0) → scaleY(1)` with `transformOrigin: "bottom"`.
 - **bar** — each bar grows right from the left axis via `scaleX(0) → scaleX(1)` with `transformOrigin: "left"`.
-- **line** — the line + area are one inline `<svg>` (`<polyline>` + `<path>`) revealed left-to-right by a `clipPath` wipe (`inset(0 100% 0 0) → inset(0 0% 0 0)`); the dots pop (`scale` about center) and the value labels fade in as the wipe passes each point.
+- **line** — each series is a `<g class="ch-reveal-N">` inside one inline `<svg>` (`<polyline>` + area `<path>`), revealed left-to-right by a `clipPath` wipe (`inset(0 100% 0 0) → inset(0 0% 0 0)`); the dots pop (`scale` about center) as the wipe passes each point.
+- **stacked** — a whole category's segments live in one `.ch-stack-N` container that scales up as a unit (`scaleY`/`scaleX` about the axis), so the segments rise together in proportion rather than each from its own floating bottom.
+
+- **pie / donut** — each slice is an SVG `<path>` arc (a wedge, or a ring segment for `donut`). The whole pie spins + scales into place as one `.ch-pie-group` (`transform: scale + rotate` about center) while the slices fade in staggered clockwise — a sweep. A vertical legend shows each slice's **label + percentage**. (`pie`/`donut` take one series; the axis/gridline params don't apply.)
+
+The grow is staggered by **category** (`catIdx × staggerMs`), giving a left-to-right sweep across the categories.
 
 A key detail (DM-1279): the grow uses **`scaleX`/`scaleY` + `transformOrigin`**, not
 the `width`/`height` intra-frame properties. An intra-frame animation lands on a
@@ -67,10 +84,11 @@ grows *away* from the axis rather than from the SVG origin. This relies on the
 ## Examples
 
 `examples/templates-demo.ts` produces `chart-column.svg` / `chart-bar.svg` /
-`chart-line.svg` (`examples/output/templates/`).
+`chart-line.svg`, the multi-series `chart-grouped.svg` / `chart-stacked.svg`, and
+`chart-donut.svg` (`examples/output/templates/`).
 
 ## Follow-ups
 
-Filed separately: pie / donut charts, stacked + grouped (multi-series) bars,
-gridlines + axis ticks, and a y-axis value scale. Each is a new `type` (or a few
-params) on the same generator contract.
+The chart type set is complete: `column` / `bar` / `line` / `pie` / `donut`,
+single- or multi-series (grouped/stacked, DM-1301), with a value-axis scale +
+gridlines and a legend. Pie/donut shipped in DM-1300.

@@ -52,6 +52,8 @@ export const chatParamsSchema = z.object({
   width: z.coerce.number().int().positive().default(560).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(760).describe("Output height in px."),
   fontFamily: z.string().default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif").describe("CSS font-family."),
+  typing: z.coerce.boolean().default(true).describe('Show a "…" typing indicator before each "them" message.'),
+  typingMs: z.coerce.number().int().positive().default(900).describe("How long the typing indicator shows before the message in ms."),
   popMs: z.coerce.number().int().positive().default(360).describe("Pop-in duration per message in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(650).describe("Delay between messages in ms."),
   holdMs: z.coerce.number().int().positive().default(2000).describe("Hold after the last message in ms."),
@@ -61,6 +63,31 @@ export type ChatParams = z.infer<typeof chatParamsSchema>;
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** When each message pops, and (for typing-enabled `them` messages) when its
+ *  typing indicator appears. A `them` message with typing shows the indicator for
+ *  `typingMs` first, so the whole thread runs sequentially: type, send, type,
+ *  send. Pure. */
+export interface ChatTimeline { popStart: number[]; typingStart: (number | null)[]; }
+
+export function chatTimeline(p: ChatParams): ChatTimeline {
+  const popStart: number[] = [];
+  const typingStart: (number | null)[] = [];
+  let cursor = 0;
+  for (const m of p.messages) {
+    if (p.typing && m.from === "them") {
+      typingStart.push(cursor);
+      const pop = cursor + p.typingMs;
+      popStart.push(pop);
+      cursor = pop + p.staggerMs;
+    } else {
+      typingStart.push(null);
+      popStart.push(cursor);
+      cursor += p.staggerMs;
+    }
+  }
+  return { popStart, typingStart };
 }
 
 /** Standalone HTML for the chat thread. Pure — unit-testable without a browser. */
@@ -75,9 +102,20 @@ export function buildChatHtml(p: ChatParams): string {
   const rows = p.messages
     .map((m, i) => {
       const side = m.from === "me" ? "ct-me" : "ct-them";
+      // For a `them` message with typing on, a "…" bubble overlays the bottom-left
+      // of the row (where the bubble lands) and is covered by the message when it
+      // pops. It comes BEFORE the message in the DOM so the message paints on top.
+      const typing = p.typing && m.from === "them"
+        ? `<div class="ct-typing-wrap ct-typing-wrap-${i}">
+          <div class="ct-typing-inner ct-typing-inner-${i}">
+            <div class="ct-typing-bubble"><span class="ct-dot ct-dot-${i}-0"></span><span class="ct-dot ct-dot-${i}-1"></span><span class="ct-dot ct-dot-${i}-2"></span></div>
+          </div>
+        </div>`
+        : "";
       // wrapper carries the pop (scale, origin at the bubble's anchored corner);
       // inner bubble carries the fade — two elements, one animation each.
       return `<div class="ct-row ${side}">
+        ${typing}
         <div class="ct-pop ct-pop-${i}">
           <div class="ct-bubble ct-bubble-${i}">${escapeHtml(m.text)}</div>
         </div>
@@ -94,7 +132,7 @@ export function buildChatHtml(p: ChatParams): string {
   .ct-avatar { width: 40px; height: 40px; border-radius: 50%; background: ${p.accent}; color: #fff; font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; }
   .ct-name { font-size: 19px; font-weight: 600; color: #111; }
   .ct-thread { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; padding: 20px; overflow: hidden; }
-  .ct-row { display: flex; }
+  .ct-row { display: flex; position: relative; }
   .ct-row.ct-me { justify-content: flex-end; }
   .ct-row.ct-them { justify-content: flex-start; }
   .ct-pop { max-width: 76%; transform-origin: bottom left; }
@@ -102,6 +140,10 @@ export function buildChatHtml(p: ChatParams): string {
   .ct-bubble { padding: 12px 17px; border-radius: 22px; font-size: 21px; line-height: 1.32; word-wrap: break-word; }
   .ct-me .ct-bubble { background: ${p.accent}; color: #fff; border-bottom-right-radius: 7px; }
   .ct-them .ct-bubble { background: ${p.themBubble}; color: ${p.themText}; border-bottom-left-radius: 7px; }
+  /* Typing indicator: a "…" bubble overlaying where the them-bubble will land. */
+  .ct-typing-wrap { position: absolute; left: 0; bottom: 0; }
+  .ct-typing-bubble { display: inline-flex; align-items: center; gap: 7px; padding: 17px 18px; border-radius: 22px; border-bottom-left-radius: 7px; background: ${p.themBubble}; }
+  .ct-dot { width: 11px; height: 11px; border-radius: 50%; background: rgba(0,0,0,0.38); }
 </style></head>
 <body>
   ${header}
@@ -114,12 +156,15 @@ export function buildChatHtml(p: ChatParams): string {
 type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
 
 /** Pop each message in turn: the wrapper scales up from its anchored corner while
- *  the bubble fades in, staggered down the thread. Pure. */
+ *  the bubble fades in. With typing on, a `them` message is preceded by a "…"
+ *  indicator (fades in, dots bounce, fades out as the message pops). Pure. */
 export function buildChatAnimations(p: ChatParams): Anims {
   const anims: Anims = [];
   const ease = "cubic-bezier(0.34,1.56,0.64,1)"; // slight overshoot — a "pop"
+  const { popStart, typingStart } = chatTimeline(p);
+
   p.messages.forEach((m, i) => {
-    const delay = i * p.staggerMs;
+    const delay = popStart[i];
     // Scale up from the bubble's anchored corner (the side it sits on), so it
     // grows out of its tail rather than from the SVG origin.
     anims.push({
@@ -131,13 +176,31 @@ export function buildChatAnimations(p: ChatParams): Anims {
       selector: `.ct-bubble-${i}`, property: "opacity", from: "0", to: "1",
       duration: Math.round(p.popMs * 0.6), delay, easing: "ease-out",
     });
+
+    const ts = typingStart[i];
+    if (ts != null) {
+      // The indicator: a nested fade IN (wrapper) + fade OUT (inner) so it appears
+      // for the typing window and is gone by the time the message pops — the
+      // from/to animation model can't do in-and-out on one element.
+      anims.push({ selector: `.ct-typing-wrap-${i}`, property: "opacity", from: "0", to: "1", duration: 200, delay: ts, easing: "ease-out" });
+      anims.push({ selector: `.ct-typing-inner-${i}`, property: "opacity", from: "1", to: "0", duration: 180, delay: delay - 80, easing: "ease-out" });
+      // Three bouncing dots, phase-offset.
+      for (let d = 0; d < 3; d++) {
+        anims.push({
+          selector: `.ct-dot-${i}-${d}`, property: "translateY", from: "0px", to: "-7px",
+          duration: 360, delay: ts + d * 140, easing: "ease-in-out",
+          repeat: "infinite", alternate: true,
+        });
+      }
+    }
   });
   return anims;
 }
 
 /** Total play time: the last message pops, then hold. */
 export function chatDurationMs(p: ChatParams): number {
-  return Math.max(0, p.messages.length - 1) * p.staggerMs + p.popMs + p.holdMs;
+  const { popStart } = chatTimeline(p);
+  return popStart[popStart.length - 1] + p.popMs + p.holdMs;
 }
 
 export const chatTemplate: Template<ChatParams> = {

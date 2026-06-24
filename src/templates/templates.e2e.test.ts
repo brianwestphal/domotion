@@ -159,6 +159,25 @@ describe("template render end-to-end (DM-1276)", () => {
     );
     expect(line.svg).toMatch(/<polyline|<path/);    // the inline-SVG line
     expect(line.svg).toMatch(/clip-path|inset/);    // the draw-in wipe
+
+    // Multi-series stacked, with a legend + value-axis scale (DM-1301).
+    const stacked = await renderTemplateToSvg(
+      chartTemplate,
+      { type: "column", data: [[20, 35], [15, 25]], labels: "Mon,Tue", seriesNames: "A,B", layout: "stacked", width: 700, height: 420 },
+      { browser: await getBrowser() },
+    );
+    expect(stacked.svg).toMatch(/A|B|Mon|Tue|<path|<use/); // legend + labels rendered
+    expect(stacked.svg).toMatch(/@keyframes/);             // stacks grow
+
+    // Pie/donut: arc-path slices that sweep in (DM-1300).
+    const donut = await renderTemplateToSvg(
+      chartTemplate,
+      { type: "donut", data: "50,30,20", labels: "A,B,C", title: "Share", width: 700, height: 420 },
+      { browser: await getBrowser() },
+    );
+    expect(donut.svg).toMatch(/<path/);          // arc slices
+    expect(donut.svg).toMatch(/@keyframes/);      // the spin/sweep
+    expect(donut.svg).toMatch(/50%|A|B|C|<path|<use/); // legend with percentages
   }, 60_000);
 
   it("chat (generator) reveals a message thread with staggered pop-ins (DM-1278)", async () => {
@@ -171,6 +190,7 @@ describe("template render end-to-end (DM-1276)", () => {
     expect(out.svg).toMatch(/@keyframes/);              // the staggered pop
     expect(out.svg).toMatch(/transform-box: fill-box/); // scale about the bubble corner
     expect(out.svg).toMatch(/Hey|Hi|Sam|<path|<use/);   // text present
+    expect(out.svg).toMatch(/ct-dot|translateY/);        // the typing indicator's bouncing dots (DM-1302)
   }, 60_000);
 
   it("subscribe (generator) pops a card in with a pulsing CTA (DM-1278)", async () => {
@@ -183,6 +203,16 @@ describe("template render end-to-end (DM-1276)", () => {
     expect(out.svg).toMatch(/@keyframes/);
     expect(out.svg).toMatch(/infinite/);                // the looping CTA pulse
     expect(out.svg).toMatch(/Domotion|Subscribe|<path|<use/);
+
+    // Click-through: the Subscribed second state is captured (not culled) so it
+    // can cross-fade in (DM-1303).
+    const click = await renderTemplateToSvg(
+      subscribeTemplate,
+      { name: "Domotion", subscribedLabel: "Subscribed", clickAfterMs: 1200, width: 700, height: 340 },
+      { browser: await getBrowser() },
+    );
+    expect(click.svg).toMatch(/Subscribed|✓|<path|<use/);
+    expect(click.durationMs).toBeGreaterThan(1200);     // runs through the click
   }, 60_000);
 
   it("phone bezel grows the output by an even rim on every side", async () => {

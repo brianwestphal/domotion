@@ -53,12 +53,14 @@ import {
   buildChatHtml,
   buildChatAnimations,
   chatDurationMs,
+  chatTimeline,
 } from "./builtin/chat.js";
 import {
   subscribeTemplate,
   subscribeParamsSchema,
   buildSubscribeHtml,
   buildSubscribeAnimations,
+  subscribeDurationMs,
 } from "./builtin/subscribe.js";
 
 /** All units of a plan, flattened across lines, in index order. */
@@ -485,10 +487,13 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
 describe("chart generation (pure, no browser) — DM-1279", () => {
   const parse = (o: Record<string, unknown>) => chartParamsSchema.parse(o);
 
-  it("accepts data + labels as comma-separated strings or arrays", () => {
-    expect(parse({ data: "10, 20 ,30" }).data).toEqual([10, 20, 30]);
+  it("normalizes data to series: number[] → one series, string and 2D → multi (DM-1301)", () => {
+    expect(parse({ data: "10, 20 ,30" }).data).toEqual([[10, 20, 30]]);       // single series
+    expect(parse({ data: "1,2,3;4,5,6" }).data).toEqual([[1, 2, 3], [4, 5, 6]]); // ; splits series
+    expect(parse({ data: [1, 2] }).data).toEqual([[1, 2]]);                    // number[] wrapped
+    expect(parse({ data: [[1, 2], [3, 4]] }).data).toEqual([[1, 2], [3, 4]]);  // 2D as-is
     expect(parse({ data: [1, 2], labels: "a,b" }).labels).toEqual(["a", "b"]);
-    expect(() => parse({ data: "x,y" })).toThrow(); // non-numeric → filtered out → min(1) fails
+    expect(() => parse({ data: "x,y" })).toThrow(); // non-numeric → filtered → min(1) fails
   });
 
   it("column bars are sized to the data over a nice axis max, anchored at the baseline", () => {
@@ -499,8 +504,7 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
     // taller datum → taller bar; bar bottoms sit on the baseline.
     expect(plan.bars[1].height).toBeGreaterThan(plan.bars[0].height);
     for (const b of plan.bars) expect(b.top + b.height).toBe(plan.plot.y + plan.plot.h);
-    // 100/100 of the plot height.
-    expect(plan.bars[1].height).toBe(plan.plot.h);
+    expect(plan.bars[1].height).toBe(plan.plot.h); // 100/100 of the plot height
   });
 
   it("grows columns with scaleY from the bottom and bars with scaleX from the left (transform + origin)", () => {
@@ -508,47 +512,105 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
     const g = col.find((a) => a.selector === ".ch-bar-0")!;
     expect(g.property).toBe("transform");
     expect(g.from).toBe("scaleY(0)");
-    expect(g.to).toBe("scaleY(1)");
     expect(g.transformOrigin).toBe("bottom");
 
     const bar = buildChartAnimations(parse({ type: "bar", data: [3, 7] }), planChart(parse({ type: "bar", data: [3, 7] })));
-    const h = bar.find((a) => a.selector === ".ch-bar-0")!;
-    expect(h.from).toBe("scaleX(0)");
-    expect(h.transformOrigin).toBe("left");
+    expect(bar.find((a) => a.selector === ".ch-bar-0")!.from).toBe("scaleX(0)");
+    expect(bar.find((a) => a.selector === ".ch-bar-0")!.transformOrigin).toBe("left");
   });
 
-  it("line draws in via a clipPath wipe, with dots popping + values fading", () => {
+  it("line draws in via a clipPath wipe per series, with dots popping", () => {
     const p = parse({ type: "line", data: [4, 8, 6, 12] });
     const plan = planChart(p);
-    expect(plan.line).not.toBeNull();
-    expect(plan.line!.dots).toHaveLength(4);
+    expect(plan.lines).toHaveLength(1);
+    expect(plan.lines[0].dots).toHaveLength(4);
     const html = buildChartHtml(p, plan);
-    expect(html).toContain("<polyline"); // the line
-    expect(html).toMatch(/ch-reveal/);
+    expect(html).toContain("<polyline");
+    expect(html).toMatch(/ch-reveal-0/);
     const anims = buildChartAnimations(p, plan);
-    const reveal = anims.find((a) => a.selector === ".ch-reveal")!;
+    const reveal = anims.find((a) => a.selector === ".ch-reveal-0")!;
     expect(reveal.property).toBe("clipPath");
-    expect(reveal.from).toMatch(/100%/); // clipped, then wipes open
-    expect(anims.some((a) => a.selector === ".ch-dot-0" && a.property === "scale")).toBe(true);
+    expect(reveal.from).toMatch(/100%/);
+    expect(anims.some((a) => a.selector === ".ch-dot-0-0" && a.property === "scale")).toBe(true);
   });
 
-  it("renders the title, axis, value labels, and category labels", () => {
-    const p = parse({ type: "column", data: [5, 9], labels: ["A", "B"], title: "Sales" });
+  it("renders the title, gridlines + value-axis ticks, value labels, and category labels", () => {
+    const p = parse({ type: "column", data: [5, 9], labels: ["A", "B"], title: "Sales", yTicks: 4 });
     const html = buildChartHtml(p, planChart(p));
     expect(html).toContain("Sales");
-    expect(html).toMatch(/class="ch-axis"/);
+    expect(html).toMatch(/class="ch-grid"/);            // gridlines
+    expect(html).toMatch(/class="ch-tick"/);            // axis tick labels
     expect(html).toMatch(/class="ch-val ch-val-0"/);
     expect(html).toContain(">A<");
     expect(html).toContain(">B<");
   });
 
+  // DM-1301: multi-series.
+  it("grouped multi-series lays one bar per (category, series), colored per series, with a legend", () => {
+    const p = parse({ type: "column", data: [[10, 20], [30, 40]], labels: ["P", "Q"], seriesNames: ["A", "B"], layout: "grouped", colors: ["#aaa", "#bbb"] });
+    const plan = planChart(p);
+    expect(plan.stacked).toBe(false);
+    expect(plan.bars).toHaveLength(4); // 2 categories × 2 series
+    expect(plan.legend).toEqual([{ name: "A", color: "#aaa" }, { name: "B", color: "#bbb" }]);
+    expect(new Set(plan.bars.map((b) => b.color))).toEqual(new Set(["#aaa", "#bbb"])); // per-series color
+    expect(buildChartHtml(p, plan)).toMatch(/class="ch-legend"/);
+  });
+
+  it("stacked multi-series sums per category for the axis max and grows each stack as one unit", () => {
+    const p = parse({ type: "column", data: [[10, 20], [30, 40]], layout: "stacked" });
+    const plan = planChart(p);
+    expect(plan.stacked).toBe(true);
+    expect(plan.maxVal).toBe(niceMaxOf(70)); // category Q total = 30+40 = 70 is the peak
+    expect(plan.stacks).toHaveLength(2);
+    expect(plan.stacks[0].segments).toHaveLength(2);
+    const anims = buildChartAnimations(p, plan);
+    const grow = anims.find((a) => a.selector === ".ch-stack-0")!;
+    expect(grow.property).toBe("transform");
+    expect(grow.from).toBe("scaleY(0)"); // whole stack scales up together
+  });
+
+  // DM-1300: pie / donut.
+  it("pie lays one arc-path slice per value with a legend of label + percentage", () => {
+    const p = parse({ type: "pie", data: [50, 30, 20], labels: ["A", "B", "C"], title: "T" });
+    const plan = planChart(p);
+    expect(plan.slices).toHaveLength(3);
+    expect(plan.pie).not.toBeNull();
+    expect(plan.slices.every((s) => s.path.startsWith("M"))).toBe(true); // arc paths
+    expect(plan.legend.map((l) => l.name)).toEqual(["A · 50%", "B · 30%", "C · 20%"]);
+
+    const html = buildChartHtml(p, plan);
+    expect(html).toMatch(/class="ch-pie-slice ch-pie-slice-0"/);
+    expect(html).toMatch(/class="ch-pie-group"/);
+    expect(html).toMatch(/class="ch-legend-v"/); // vertical legend
+
+    const anims = buildChartAnimations(p, plan);
+    const spin = anims.find((a) => a.selector === ".ch-pie-group")!;
+    expect(spin.property).toBe("transform");        // scale + rotate sweep-in
+    expect(spin.to).toMatch(/scale\(1\)/);
+    expect(anims.some((a) => a.selector === ".ch-pie-slice-2" && a.property === "opacity")).toBe(true);
+  });
+
+  it("donut slices are ring segments (inner + outer arc)", () => {
+    const pie = planChart(parse({ type: "pie", data: [1, 1] })).slices[0].path;
+    const donut = planChart(parse({ type: "donut", data: [1, 1] })).slices[0].path;
+    expect((pie.match(/A /g) ?? []).length).toBe(1);   // wedge: one arc
+    expect((donut.match(/A /g) ?? []).length).toBe(2); // ring segment: outer + inner arc
+  });
+
   it("the template is registered and validates params", () => {
     expect(chartTemplate.name).toBe("chart");
     const p = parse({ type: "column", data: [1, 2, 3], staggerMs: 100, growMs: 600, holdMs: 1000 });
-    // duration = last bar start + grow + hold
-    expect(chartDurationMs(p, planChart(p))).toBe(200 + 600 + 1000);
+    expect(chartDurationMs(p, planChart(p))).toBe(200 + 600 + 1000); // last cat start + grow + hold
   });
 });
+
+/** niceMax mirror for the stacked-axis assertion (1/2/2.5/5 × 10ⁿ). */
+function niceMaxOf(v: number): number {
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const f = v / pow;
+  const nice = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return nice * pow;
+}
 
 describe("chat generation (pure, no browser) — DM-1278", () => {
   const parse = (o: Record<string, unknown>) => chatParamsSchema.parse(o);
@@ -577,7 +639,7 @@ describe("chat generation (pure, no browser) — DM-1278", () => {
   });
 
   it("pops each message from its anchored corner (scale + origin) with a fade, staggered", () => {
-    const p = parse({ messages: [{ from: "me", text: "a" }, { from: "them", text: "b" }], staggerMs: 500, popMs: 300 });
+    const p = parse({ messages: [{ from: "me", text: "a" }, { from: "them", text: "b" }], staggerMs: 500, popMs: 300, typing: false });
     const anims = buildChatAnimations(p);
     const pop0 = anims.find((a) => a.selector === ".ct-pop-0")!;
     expect(pop0.property).toBe("scale");
@@ -585,6 +647,37 @@ describe("chat generation (pure, no browser) — DM-1278", () => {
     expect(anims.find((a) => a.selector === ".ct-pop-1")!.transformOrigin).toBe("bottom left"); // them → left
     expect(anims.find((a) => a.selector === ".ct-bubble-1")!.delay).toBe(500); // staggered
     expect(chatDurationMs(p)).toBe(500 + 300 + p.holdMs);
+  });
+
+  // DM-1302: a "…" indicator precedes each them message; the thread runs
+  // sequentially (type, send, type, send).
+  it("inserts a typing indicator before each them message and runs the timeline sequentially", () => {
+    const p = parse({ messages: [{ from: "them", text: "a" }, { from: "me", text: "b" }, { from: "them", text: "c" }], typingMs: 900, staggerMs: 500, popMs: 300 });
+    const { popStart, typingStart } = chatTimeline(p);
+    // them0: type[0..900], pop 900, +stagger→1400; me1: pop 1400, +stagger→1900;
+    // them2: type[1900..2800], pop 2800.
+    expect(typingStart).toEqual([0, null, 1900]); // them msgs type; me msg doesn't
+    expect(popStart).toEqual([900, 1400, 2800]);   // them pops after typingMs; sequential
+    expect(chatDurationMs(p)).toBe(2800 + 300 + p.holdMs);
+
+    const html = buildChatHtml(p);
+    expect(html).toMatch(/class="ct-typing-wrap ct-typing-wrap-0"/);
+    expect(html).toMatch(/ct-dot-0-2/);                 // three dots
+    expect(html).not.toMatch(/ct-typing-wrap-1/);        // not on the me message
+
+    const anims = buildChatAnimations(p);
+    expect(anims.find((a) => a.selector === ".ct-typing-wrap-0")!.from).toBe("0");   // fade in
+    expect(anims.find((a) => a.selector === ".ct-typing-inner-0")!.to).toBe("0");    // fade out
+    const dot = anims.find((a) => a.selector === ".ct-dot-0-1")!;
+    expect(dot.property).toBe("translateY"); // bouncing
+    expect(dot.repeat).toBe("infinite");
+  });
+
+  it("omits typing entirely when typing is off", () => {
+    const p = parse({ messages: [{ from: "them", text: "a" }], typing: false });
+    expect(buildChatHtml(p)).not.toMatch(/class="ct-typing-wrap/); // no typing element (CSS rule is harmless)
+    expect(buildChatAnimations(p).some((a) => a.selector!.includes("ct-typing"))).toBe(false);
+    expect(chatTimeline(p).typingStart).toEqual([null]);
   });
 
   it("escapes HTML in message text", () => {
@@ -620,6 +713,35 @@ describe("subscribe generation (pure, no browser) — DM-1278", () => {
     expect(pulse.repeat).toBe("infinite");
     expect(pulse.alternate).toBe(true);
     expect(anims.some((a) => a.selector === ".sub-inner" && a.property === "opacity")).toBe(true);
+  });
+
+  // DM-1303: a simulated click cross-fades Subscribe → Subscribed and fills the bell.
+  it("renders a click-through second state (Subscribed + filled bell) when clickAfterMs > 0", () => {
+    const on = buildSubscribeHtml(parse({ name: "X", subscribedLabel: "Subscribed", clickAfterMs: 1500 }));
+    expect(on).toMatch(/class="sub-state sub-state-done"/);
+    expect(on).toContain("✓ Subscribed");
+    expect(on).toMatch(/class="sub-bell sub-bell-filled"/); // the filled-bell element (not just the CSS rule)
+    // No second state when disabled (sub-state-done appears only as an element, not in CSS).
+    const off = buildSubscribeHtml(parse({ name: "X", clickAfterMs: 0 }));
+    expect(off).not.toMatch(/sub-state-done/);
+    expect(off).not.toMatch(/class="sub-bell sub-bell-filled"/);
+  });
+
+  it("cross-fades the two states at clickAfterMs (and the done button pops); durationMs extends to the click", () => {
+    const p = parse({ name: "X", clickAfterMs: 1500, holdMs: 1000 });
+    const anims = buildSubscribeAnimations(p);
+    const out = anims.find((a) => a.selector === ".sub-state-cta")!;
+    const inn = anims.find((a) => a.selector === ".sub-state-done")!;
+    expect(out.from).toBe("1"); expect(out.to).toBe("0"); expect(out.delay).toBe(1500);
+    expect(inn.from).toBe("0"); expect(inn.to).toBe("1"); expect(inn.delay).toBe(1500);
+    expect(anims.find((a) => a.selector === ".sub-done")!.property).toBe("scale"); // a tap pop
+    expect(anims.some((a) => a.selector === ".sub-bell-on")).toBe(true);
+    // duration runs to the click + cross-fade + hold (not just the pop).
+    expect(subscribeDurationMs(p)).toBe(1500 + 280 + 1000);
+    // disabled → no click anims, duration is pop + hold.
+    const off = parse({ name: "X", clickAfterMs: 0, holdMs: 1000 });
+    expect(buildSubscribeAnimations(off).some((a) => a.selector === ".sub-state-done")).toBe(false);
+    expect(subscribeDurationMs(off)).toBe(off.popMs + 1000);
   });
 
   it("the templates are registered", () => {

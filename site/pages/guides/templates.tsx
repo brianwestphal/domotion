@@ -91,16 +91,30 @@ ${tpl({
 })}
 
 <h3>chart — animated data charts</h3>
-<p>A <code>column</code> / <code>bar</code> / <code>line</code> chart from a list
-of values — the bars grow from the axis and the line draws in. Title, value
-labels, and a cycling palette; <code>data</code> and <code>labels</code> take a
-comma-separated string or a JSON array.</p>
+<p>A <code>column</code> / <code>bar</code> / <code>line</code> chart from one or
+more series — the bars grow from the axis and the line draws in, over a value-axis
+scale with gridlines. Multiple series (<code>"1,2;3,4"</code> or a JSON 2D array)
+draw <strong>grouped</strong> or <strong>stacked</strong> with a legend.</p>
 ${tpl({
   img: "chart-column.svg",
-  alt: "A column chart titled Monthly signups with six colored bars that grow up from the baseline, each labelled with its value and month.",
+  alt: "A column chart titled Monthly signups with six colored bars that grow up from the baseline over a y-axis scale, each labelled with its value and month.",
   cmd: `domotion template chart \\
   --type column --data "42,68,55,90,34,76" \\
   --labels "Jan,Feb,Mar,Apr,May,Jun" --title "Monthly signups" -o chart.svg`,
+})}
+${tpl({
+  img: "chart-grouped.svg",
+  alt: "A grouped column chart titled Revenue by quarter with two series (2024, 2025) shown side by side per quarter, a legend, and a y-axis scale.",
+  cmd: `domotion template chart --type column \\
+  --data "42,68,55;30,52,71" --labels "Q1,Q2,Q3" \\
+  --seriesNames "2024,2025" --title "Revenue by quarter" -o grouped.svg`,
+})}
+${tpl({
+  img: "chart-donut.svg",
+  alt: "A donut chart titled Traffic sources with four colored ring segments that sweep in, and a legend listing each source with its percentage.",
+  cmd: `domotion template chart --type donut \\
+  --data "42,28,18,12" --labels "Search,Direct,Social,Email" \\
+  --title "Traffic sources" -o donut.svg`,
 })}
 ${tpl({
   img: "chart-line.svg",

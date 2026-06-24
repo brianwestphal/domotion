@@ -159,6 +159,24 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     template: chartTemplate,
     params: { type: "line", data: [12, 18, 15, 28, 24, 38, 44], labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], title: "Daily active users", width: 1100, height: 600 },
   },
+  {
+    // grouped multi-series + legend + y-axis scale (DM-1301).
+    file: "chart-grouped",
+    template: chartTemplate,
+    params: { type: "column", data: [[42, 68, 55], [30, 52, 71]], labels: ["Q1", "Q2", "Q3"], seriesNames: ["2024", "2025"], layout: "grouped", title: "Revenue by quarter", width: 1100, height: 620 },
+  },
+  {
+    // stacked multi-series (DM-1301).
+    file: "chart-stacked",
+    template: chartTemplate,
+    params: { type: "column", data: [[20, 35, 30, 28], [15, 25, 40, 22], [10, 15, 20, 30]], labels: ["Mon", "Tue", "Wed", "Thu"], seriesNames: ["Email", "Social", "Direct"], layout: "stacked", title: "Traffic by channel", width: 1100, height: 620 },
+  },
+  {
+    // donut with a legend of label + percentage (DM-1300).
+    file: "chart-donut",
+    template: chartTemplate,
+    params: { type: "donut", data: [42, 28, 18, 12], labels: ["Search", "Direct", "Social", "Email"], title: "Traffic sources", width: 1100, height: 620 },
+  },
 
   // chat — a message thread whose bubbles pop in one at a time (DM-1278).
   {
