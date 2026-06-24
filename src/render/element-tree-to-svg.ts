@@ -154,15 +154,31 @@ export function transparentRootBgRect(elements: CapturedElement[], width: number
 // (DM-1306 / DM-1314). Iterates the shadow list deepest-first, routes blur through
 // an SVG <filter feGaussianBlur>, outsets the corners per spread. clipIdx threaded
 // in/out so the positional filter ids stay byte-identical.
+// Shared paint context threaded through the per-phase paint helpers (DM-1317).
+// Bundles the two output accumulators + the clip-id allocator so the helpers
+// push directly instead of each returning { svg, defs, clipIdx } for the caller
+// to merge. `nextClipId` / `peekClipIdx` / `advanceClipIdx` close over the
+// single `clipIdx` counter in elementTreeToSvgInner, so the inline render code
+// (which still uses that counter directly) and the helpers stay on ONE globally
+// ordered id sequence — making a mis-threaded counter structurally impossible.
+interface PaintCtx {
+  svgParts: string[];
+  defsParts: string[];
+  idPrefix: string;
+  // Allocate the next clip/filter/gradient id: `${idPrefix}${prefix}${n++}`.
+  nextClipId(prefix: string): string;
+  // Read the current counter (to seed a sub-allocator like renderBorderImage).
+  peekClipIdx(): number;
+  // Advance the counter by n (after a sub-allocator consumed n ids).
+  advanceClipIdx(n: number): void;
+}
+
 function paintBoxShadow(
+  ctx: PaintCtx,
   el: CapturedElement,
   corners: ReturnType<typeof parseCornerRadii>,
-  idPrefix: string,
   indent: string,
-  clipIdx: number,
-): { svg: string[]; defs: string[]; clipIdx: number } {
-  const svg: string[] = [];
-  const defs: string[] = [];
+): void {
   const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
   for (let si = shadows.length - 1; si >= 0; si--) {
     const sh = shadows[si];
@@ -186,21 +202,21 @@ function paintBoxShadow(
     let filterAttr = "";
     if (sh.blur > 0) {
       const stdDev = sh.blur / 2;
-      const fid = `${idPrefix}sh${clipIdx++}`;
+      const fid = ctx.nextClipId("sh");
       // Filter region needs to extend beyond the shadow rect by enough
       // padding to keep the Gaussian fall-off from clipping. Use a
       // generous 200% on each side; primitiveUnits inherits the default
       // userSpaceOnUse-equivalent so stdDeviation is in CSS pixels.
-      defs.push(
+      ctx.defsParts.push(
         `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
       );
       filterAttr = ` filter="url(#${fid})"`;
     }
-    svg.push(
+    ctx.svgParts.push(
       `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
     );
   }
-  return { svg, defs, clipIdx };
+  return;
 }
 
 // Image (<img> / <input type=image>) paint, extracted from renderElement (DM-1306,
@@ -208,18 +224,15 @@ function paintBoxShadow(
 // and the rounded-content-box clip for border-radius'd images. clipIdx is threaded
 // in and returned so the positional clipPath ids stay byte-identical.
 function paintImage(
+  ctx: PaintCtx,
   el: CapturedElement,
   borderRadius: number,
   corners: ReturnType<typeof parseCornerRadii>,
-  idPrefix: string,
   indent: string,
-  clipIdx: number,
-): { svg: string[]; defs: string[]; clipIdx: number } {
-  const svg: string[] = [];
-  const defs: string[] = [];
+): void {
   // Caller guards `el.imageSrc != null`; restate it here to narrow the type
   // (the original block was nested inside that guard in renderElement).
-  if (el.imageSrc == null) return { svg, defs, clipIdx };
+  if (el.imageSrc == null) return;
   const fit = el.styles.objectFit ?? "fill";
   // CSS object-fit operates on the CONTENT BOX (inside borders + padding),
   // not the border box (DM-378). For an <img width:200; aspect-ratio:4/1;
@@ -257,9 +270,9 @@ function paintImage(
     ? insetCornerRadii(corners, _bwT, _bwR, _bwB, _bwL)
     : null;
   const roundedClipId = innerCorners != null
-    ? `${idPrefix}irc${clipIdx++}` : null;
+    ? ctx.nextClipId("irc") : null;
   if (innerCorners != null && roundedClipId != null) {
-    defs.push(
+    ctx.defsParts.push(
       `<clipPath id="${roundedClipId}">${roundedRectSvg(contentX, contentY, contentW, contentH, innerCorners, "")}</clipPath>`,
     );
   }
@@ -278,10 +291,10 @@ function paintImage(
     if (roundedClipId != null) {
       clipId = roundedClipId;
     } else {
-      clipId = `${idPrefix}ifn${clipIdx++}`;
-      defs.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
+      clipId = ctx.nextClipId("ifn");
+      ctx.defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
     }
-    svg.push(
+    ctx.svgParts.push(
       `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
     );
   } else {
@@ -298,11 +311,11 @@ function paintImage(
     const finalSrc = embedResizedDataUri(el.imageSrc, contentW, contentH);
     const reHomedSrc = rewriteSvgDataUriPreserveAspectRatio(finalSrc, contentW, contentH, par);
     const outerPar = reHomedSrc !== finalSrc ? "none" : par;
-    svg.push(
+    ctx.svgParts.push(
       `${indent}<image href="${esc(reHomedSrc)}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${outerPar}"${clipAttr} />`,
     );
   }
-  return { svg, defs, clipIdx };
+  return;
 }
 
 // Background-color rect paint, extracted from renderElement (DM-1306, DM-1311).
@@ -617,16 +630,13 @@ function paintListMarker(
 // consumes the textBgClipFills collected by the background-image layer phase.
 // Returns { svg, defs, clipIdx } so the positional ids stay byte-identical.
 function paintText(
+  ctx: PaintCtx,
   el: CapturedElement,
   textColor: ReturnType<typeof parseColor>,
   indent: string,
-  idPrefix: string,
-  clipIdx: number,
   textBgClipFills: string[],
   captureViewport: { w: number; h: number },
-): { svg: string[]; defs: string[]; clipIdx: number } {
-  const svg: string[] = [];
-  const defs: string[] = [];
+): void {
   if (el.text !== "") {
     // DM-462: `background-clip: text` + `-webkit-text-fill-color: transparent`
     // (or `color: transparent`) makes the bg-image paint inside the glyph
@@ -650,7 +660,7 @@ function paintText(
     let topmostTextBgClipFill = textBgClipFills.find((s) => s != null) ?? null;
     if (topmostTextBgClipFill == null && textIsTransparent && el.styles.inheritedTextFillGradient != null && el.styles.inheritedTextFillGradient !== "" && el.styles.inheritedTextFillGradient !== "none") {
       const layer = el.styles.inheritedTextFillGradient;
-      const defId = `${idPrefix}bg${clipIdx++}`;
+      const defId = ctx.nextClipId("bg");
       // DM-908: resolve the gradient against the ANCESTOR's bbox (the
       // element that set `background-clip: text`), not this child's
       // bbox. Falling back to (el.x, el.y, el.width, el.height) for
@@ -664,15 +674,15 @@ function paintText(
       const gh = r != null ? r.height : el.height;
       const out = buildBackgroundLayerDef(defId, layer, gx, gy, gw, gh, "auto", "0% 0%", "no-repeat", null, "scroll", captureViewport);
       if (out.def !== "") {
-        defs.push(out.def);
+        ctx.defsParts.push(out.def);
         topmostTextBgClipFill = `url(#${defId})`;
       }
     }
     const fillColor = (topmostTextBgClipFill != null && textIsTransparent)
       ? topmostTextBgClipFill
       : (textColor != null ? colorStr(textColor) : "#e6edf3");
-    const cid = `${idPrefix}ct${clipIdx++}`;
-    defs.push(`<clipPath id="${cid}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" /></clipPath>`);
+    const cid = ctx.nextClipId("ct");
+    ctx.defsParts.push(`<clipPath id="${cid}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" /></clipPath>`);
 
     // SK-1128: writing-mode != horizontal-tb activates the same element-
     // raster path used for textareas (SK-1108). The text region is
@@ -695,9 +705,9 @@ function paintText(
       // clip-path matching the expanded er rect so the screenshot
       // renders intact (the screenshot is already pixel-faithful to
       // Chrome's paint within its own clip; no need to re-clip here).
-      const erCid = `${idPrefix}ct${clipIdx++}`;
-      defs.push(`<clipPath id="${erCid}"><rect x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" /></clipPath>`);
-      svg.push(`${indent}<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${erCid})"/>`);
+      const erCid = ctx.nextClipId("ct");
+      ctx.defsParts.push(`<clipPath id="${erCid}"><rect x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" /></clipPath>`);
+      ctx.svgParts.push(`${indent}<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${erCid})"/>`);
     } else {
 
     // DM-782: pseudoBox gradient/url() emitter. The text renderer can't
@@ -712,13 +722,13 @@ function paintText(
       const out: string[] = [];
       for (let li = layers.length - 1; li >= 0; li--) {
         const layer = layers[li].trim();
-        const defId = `${idPrefix}pbgt${clipIdx++}`;
+        const defId = ctx.nextClipId("pbgt");
         const built = buildBackgroundLayerDef(
           defId, layer, pb.x, pb.y, pb.width, pb.height,
           "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
         );
         if (built.def === "") continue;
-        defs.push(built.def);
+        ctx.defsParts.push(built.def);
         const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
         out.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
       }
@@ -788,16 +798,16 @@ function paintText(
           rasterGlyphs: undefined,
         })),
       };
-      let body = renderOneText({ el: shifted, idPrefix, clipId: cid, fillColor: shadowFillColor });
+      let body = renderOneText({ el: shifted, idPrefix: ctx.idPrefix, clipId: cid, fillColor: shadowFillColor });
       if (sh.blur > 0) {
         const stdDev = sh.blur / 2;
-        const fid = `${idPrefix}tsh${clipIdx++}`;
-        defs.push(
+        const fid = ctx.nextClipId("tsh");
+        ctx.defsParts.push(
           `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
         );
         body = `<g filter="url(#${fid})">${body}</g>`;
       }
-      svg.push(`${indent}${body}`);
+      ctx.svgParts.push(`${indent}${body}`);
     }
     // DM-993: per-segment text-shadow (DM-989 follow-up). When a styled
     // segment carries its own `seg.textShadow` (the DM-989 ::first-letter
@@ -832,16 +842,16 @@ function paintText(
             // a recolored gradient-pill rect underneath the shadow.
             pseudoBox: undefined,
           };
-          let segBody = renderMultiSegmentText({ el, idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers }, [shiftedSeg]);
+          let segBody = renderMultiSegmentText({ el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers }, [shiftedSeg]);
           if (sh.blur > 0) {
             const stdDev = sh.blur / 2;
-            const fid = `${idPrefix}tssh${clipIdx++}`;
-            defs.push(
+            const fid = ctx.nextClipId("tssh");
+            ctx.defsParts.push(
               `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
             );
             segBody = `<g filter="url(#${fid})">${segBody}</g>`;
           }
-          svg.push(`${indent}${segBody}`);
+          ctx.svgParts.push(`${indent}${segBody}`);
         }
       }
     }
@@ -853,7 +863,7 @@ function paintText(
     const tox = el.styles.overflowX;
     const toy = el.styles.overflowY;
     const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
-    const renderOpts = { el, idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip };
+    const renderOpts = { el, idPrefix: ctx.idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip };
     const hasTextBgClip = textBgClipFills.some((s) => s != null);
     if (hasTextBgClip && textIsTransparent) {
       // DM-462: background-clip:text — the bg-image should fill the glyph
@@ -870,9 +880,9 @@ function paintText(
       // The mask-with-rect approach keeps the gradient in document
       // coordinates on a straight rect.
       const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)" } };
-      const maskBody = renderOneText({ el: maskFillEl, idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip });
-      const mid = `${idPrefix}tbgm${clipIdx++}`;
-      defs.push(
+      const maskBody = renderOneText({ el: maskFillEl, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip });
+      const mid = ctx.nextClipId("tbgm");
+      ctx.defsParts.push(
         `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}">${maskBody}</mask>`,
       );
       // Emit one masked rect per text-clipped layer, walking from BOTTOM
@@ -883,16 +893,16 @@ function paintText(
       for (let li = textBgClipFills.length - 1; li >= 0; li--) {
         const f = textBgClipFills[li];
         if (f == null) continue;
-        svg.push(
+        ctx.svgParts.push(
           `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${f}" mask="url(#${mid})" />`,
         );
       }
     } else {
-      svg.push(`${indent}${renderOneText(renderOpts)}`);
+      ctx.svgParts.push(`${indent}${renderOneText(renderOpts)}`);
     }
     }
   }
-  return { svg, defs, clipIdx };
+  return;
 }
 
 // Border paint phase — border-image 9-slice composition plus the plain per-side
@@ -904,10 +914,9 @@ function paintText(
 // its own), so clipIdx is threaded in and the advanced value returned, keeping the
 // positional id sequence byte-identical. Returns { svg, defs, clipIdx }.
 function paintBorder(
+  ctx: PaintCtx,
   el: CapturedElement,
   indent: string,
-  idPrefix: string,
-  clipIdx: number,
   corners: ReturnType<typeof parseCornerRadii>,
   width: number,
   height: number,
@@ -916,18 +925,16 @@ function paintBorder(
   suppressEmptyCell: boolean,
   useInlineFragments: boolean,
   offGridCollapsedCells: Set<CapturedElement>,
-): { svg: string[]; defs: string[]; clipIdx: number } {
-  const svg: string[] = [];
-  const defs: string[] = [];
+): void {
   // Border-image: if a URL source with intrinsic dimensions is present,
   // emit a 9-slice composition and SKIP the plain-border fallback below.
   // Gradient sources are not supported in this pass (tracked as follow-up).
   const borderImageMarkup = useInlineFragments
     ? { svg: "", usedIds: 0 }
-    : renderBorderImage(el, indent, idPrefix, defs, clipIdx);
-  if (borderImageMarkup.usedIds > 0) clipIdx += borderImageMarkup.usedIds;
+    : renderBorderImage(el, indent, ctx.idPrefix, ctx.defsParts, ctx.peekClipIdx());
+  if (borderImageMarkup.usedIds > 0) ctx.advanceClipIdx(borderImageMarkup.usedIds);
   const borderImagePainted = borderImageMarkup.svg !== "";
-  if (borderImagePainted) svg.push(borderImageMarkup.svg);
+  if (borderImagePainted) ctx.svgParts.push(borderImageMarkup.svg);
 
   // Border — uniform or per-side. Skipped when a border-image painted above.
   const bt = parseSide(el.styles.borderTopWidth, el.styles.borderTopStyle, el.styles.borderTopColor);
@@ -945,11 +952,11 @@ function paintBorder(
   let notchedBorderOpen = false;
   if (el.fieldsetLegendNotch != null) {
     const ln = el.fieldsetLegendNotch;
-    const notchId = `${idPrefix}fln${clipIdx++}`;
-    defs.push(
+    const notchId = ctx.nextClipId("fln");
+    ctx.defsParts.push(
       `<clipPath id="${notchId}" clip-rule="evenodd"><path d="M 0 0 L ${r(width)} 0 L ${r(width)} ${r(height)} L 0 ${r(height)} Z M ${r(ln.x)} ${r(ln.y)} L ${r(ln.x + ln.w)} ${r(ln.y)} L ${r(ln.x + ln.w)} ${r(ln.y + ln.h)} L ${r(ln.x)} ${r(ln.y + ln.h)} Z" clip-rule="evenodd"/></clipPath>`,
     );
-    svg.push(`${indent}<g clip-path="url(#${notchId})">`);
+    ctx.svgParts.push(`${indent}<g clip-path="url(#${notchId})">`);
     notchedBorderOpen = true;
   }
 
@@ -981,10 +988,10 @@ function paintBorder(
       const innerInset = bt.w * 5 / 6 - collapseShift;
       const outerCorners = insetCornerRadii(corners, outerInset, outerInset, outerInset, outerInset);
       const innerCorners = insetCornerRadii(corners, innerInset, innerInset, innerInset, innerInset);
-      svg.push(
+      ctx.svgParts.push(
         `${indent}${roundedRectSvg(el.x + outerInset, el.y + outerInset, el.width - 2 * outerInset, el.height - 2 * outerInset, outerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
       );
-      svg.push(
+      ctx.svgParts.push(
         `${indent}${roundedRectSvg(el.x + innerInset, el.y + innerInset, el.width - 2 * innerInset, el.height - 2 * innerInset, innerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
       );
     } else if ((style === "groove" || style === "ridge" || style === "inset" || style === "outset") && bt.w >= 1) {
@@ -1013,10 +1020,10 @@ function paintBorder(
       const bottomPoly = `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`;
       const leftPoly = `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`;
       if (style === "inset" || style === "outset") {
-        svg.push(`${indent}<polygon points="${topPoly}" fill="${tlColor}" />`);
-        svg.push(`${indent}<polygon points="${leftPoly}" fill="${tlColor}" />`);
-        svg.push(`${indent}<polygon points="${rightPoly}" fill="${brColor}" />`);
-        svg.push(`${indent}<polygon points="${bottomPoly}" fill="${brColor}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${topPoly}" fill="${tlColor}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${leftPoly}" fill="${tlColor}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${rightPoly}" fill="${brColor}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${bottomPoly}" fill="${brColor}" />`);
       } else {
         // Groove / ridge: split each trapezoid horizontally in half so the
         // outer half and inner half can carry inverse shades. The mid-line
@@ -1043,14 +1050,14 @@ function paintBorder(
         const outerBR = style === "ridge" ? darker : lighter;
         const innerTL = outerBR;
         const innerBR = outerTL;
-        svg.push(`${indent}<polygon points="${topOuter}" fill="${outerTL}" />`);
-        svg.push(`${indent}<polygon points="${leftOuter}" fill="${outerTL}" />`);
-        svg.push(`${indent}<polygon points="${rightOuter}" fill="${outerBR}" />`);
-        svg.push(`${indent}<polygon points="${bottomOuter}" fill="${outerBR}" />`);
-        svg.push(`${indent}<polygon points="${topInner}" fill="${innerTL}" />`);
-        svg.push(`${indent}<polygon points="${leftInner}" fill="${innerTL}" />`);
-        svg.push(`${indent}<polygon points="${rightInner}" fill="${innerBR}" />`);
-        svg.push(`${indent}<polygon points="${bottomInner}" fill="${innerBR}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${topOuter}" fill="${outerTL}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${leftOuter}" fill="${outerTL}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${rightOuter}" fill="${outerBR}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${bottomOuter}" fill="${outerBR}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${topInner}" fill="${innerTL}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${leftInner}" fill="${innerTL}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${rightInner}" fill="${innerBR}" />`);
+        ctx.svgParts.push(`${indent}<polygon points="${bottomInner}" fill="${innerBR}" />`);
       }
     } else if ((style === "dashed" || style === "dotted") && corners.uniform && corners.tl.h === 0) {
       // Dashed/dotted uniform borders need per-side dash spacing — Chrome
@@ -1122,7 +1129,7 @@ function paintBorder(
         // positions.
         const phaseOffset = cornerTrim > 0 ? offset + cornerTrim : offset;
         const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}` : "";
-        svg.push(
+        ctx.svgParts.push(
           `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttrs}${linecap} />`,
         );
       }
@@ -1156,7 +1163,7 @@ function paintBorder(
       const boxTop = collapse ? el.y : Math.round(el.y);
       const boxRight = collapse ? el.x + el.width : Math.round(el.x + el.width);
       const boxBottom = collapse ? el.y + el.height : Math.round(el.y + el.height);
-      svg.push(
+      ctx.svgParts.push(
         `${indent}${roundedRectSvg(boxLeft + half, boxTop + half, Math.max(0, boxRight - boxLeft - half * 2), Math.max(0, boxBottom - boxTop - half * 2), strokeCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttr}${linecap}`)}`,
       );
     }
@@ -1246,8 +1253,8 @@ function paintBorder(
     // clipPath per non-solid side and wrap its emission in it.
     const sideClipForStyle = (i: number, side: typeof bt) => {
       if (collapse || side == null || side.w <= 0) return "";
-      const cid = `${idPrefix}bs${clipIdx++}`;
-      defs.push(
+      const cid = ctx.nextClipId("bs");
+      ctx.defsParts.push(
         `<clipPath id="${cid}"><polygon points="${trapezoids[i][1]}"/></clipPath>`,
       );
       return ` clip-path="url(#${cid})"`;
@@ -1341,19 +1348,19 @@ function paintBorder(
         const side = sides[i][0];
         if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
         if (side.style !== "solid") continue;
-        const wid = `${idPrefix}bw${clipIdx++}`;
-        defs.push(
+        const wid = ctx.nextClipId("bw");
+        ctx.defsParts.push(
           `<clipPath id="${wid}"><polygon points="${annularWedges[i]}"/></clipPath>`,
         );
-        svg.push(
+        ctx.svgParts.push(
           `${indent}<path d="${annularPath}" fill="${colorStr(side.color)}" fill-rule="evenodd" clip-path="url(#${wid})"/>`,
         );
       }
-      const rcid = `${idPrefix}br${clipIdx++}`;
-      defs.push(
+      const rcid = ctx.nextClipId("br");
+      ctx.defsParts.push(
         `<clipPath id="${rcid}"><path d="${roundedRectPath(el.x, el.y, el.width, el.height, corners)}"/></clipPath>`,
       );
-      svg.push(`${indent}<g clip-path="url(#${rcid})">`);
+      ctx.svgParts.push(`${indent}<g clip-path="url(#${rcid})">`);
       roundedSideGroupOpen = true;
     }
     for (let i = 0; i < sides.length; i++) {
@@ -1366,7 +1373,7 @@ function paintBorder(
         // the legacy trapezoid emit so we don't double-paint.
         if (hasOuterRadius) continue;
         // Emit as a polygon trapezoid that tapers correctly at corners.
-        svg.push(
+        ctx.svgParts.push(
           `${indent}<polygon points="${trapezoids[i][1]}" fill="${colorStr(side.color)}" />`,
         );
         continue;
@@ -1388,10 +1395,10 @@ function paintBorder(
         const ox = oxN * offset_, oy = oyN * offset_;
         const ix = ixN * offset_, iy = iyN * offset_;
         const clipAttr = sideClipForStyle(i, side);
-        svg.push(
+        ctx.svgParts.push(
           `${indent}<line x1="${r(x1 + ox)}" y1="${r(y1 + oy)}" x2="${r(x2 + ox)}" y2="${r(y2 + oy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
         );
-        svg.push(
+        ctx.svgParts.push(
           `${indent}<line x1="${r(x1 + ix)}" y1="${r(y1 + iy)}" x2="${r(x2 + ix)}" y2="${r(y2 + iy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
         );
         continue;
@@ -1405,19 +1412,19 @@ function paintBorder(
       const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
       const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
       const clipAttr = sideClipForStyle(i, side);
-      svg.push(
+      ctx.svgParts.push(
         `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
       );
     }
-    if (roundedSideGroupOpen) svg.push(`${indent}</g>`);
+    if (roundedSideGroupOpen) ctx.svgParts.push(`${indent}</g>`);
   } else if (borderWidth > 0 && borderColor != null && borderColor.a > 0.01) {
     // Legacy path for elements whose per-side captures weren't parsed cleanly.
-    svg.push(
+    ctx.svgParts.push(
       `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="none" stroke="${colorStr(borderColor)}" stroke-width="${r(borderWidth)}"`)}`,
     );
   }
-  if (notchedBorderOpen) svg.push(`${indent}</g>`);
-  return { svg, defs, clipIdx };
+  if (notchedBorderOpen) ctx.svgParts.push(`${indent}</g>`);
+  return;
 }
 
 // Background-image layer paint, extracted from renderElement (DM-1306, DM-1311).
@@ -1430,16 +1437,13 @@ function paintBorder(
 // text-clip layers (the useInlineFragments loop). clipIdx is threaded in and the
 // advanced value returned so the positional ids stay byte-identical.
 function paintBackgroundImageLayers(
+  ctx: PaintCtx,
   el: CapturedElement,
   indent: string,
-  idPrefix: string,
-  clipIdx: number,
   corners: ReturnType<typeof parseCornerRadii>,
   useInlineFragments: boolean,
   captureViewport: { w: number; h: number },
-): { svg: string[]; defs: string[]; clipIdx: number; textBgClipFills: string[] } {
-  const svg: string[] = [];
-  const defs: string[] = [];
+): string[] {
   const textBgClipFills: string[] = [];
 
   const bgImage = el.styles.backgroundImage;
@@ -1461,7 +1465,7 @@ function paintBackgroundImageLayers(
     const hasNonNormalBlend = blendLayers.some((m) => m !== "normal" && m !== "");
     const bgGroupOpen = hasNonNormalBlend ? `${indent}<g style="isolation:isolate">\n` : "";
     const bgGroupClose = hasNonNormalBlend ? `\n${indent}</g>` : "";
-    const bgGroupStart = svg.length;
+    const bgGroupStart = ctx.svgParts.length;
     // Per-side borders + padding for clip/origin math.
     const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
     const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
@@ -1511,13 +1515,13 @@ function paintBackgroundImageLayers(
         if (sw > posOriginW) posOriginW = sw;
         if (sh > posOriginH) posOriginH = sh;
       }
-      const defId = `${idPrefix}bg${clipIdx++}`;
+      const defId = ctx.nextClipId("bg");
       // Pattern is positioned + sized relative to the origin box (where the image starts)
       // then painted into a rect clipped to the clip box. For fixed attachment
       // the origin is the viewport instead.
       const out = buildBackgroundLayerDef(defId, layer, posOriginX, posOriginY, posOriginW, posOriginH, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
       if (out.def === "") continue;
-      defs.push(out.def);
+      ctx.defsParts.push(out.def);
       // DM-462: when this layer's clip is `text`, do NOT paint a rect over
       // the headline area — the gradient should appear inside the glyph
       // shapes only. Stash the def URL so the text-rendering block below
@@ -1542,17 +1546,17 @@ function paintBackgroundImageLayers(
       const layerBlend = blendLayers[li] ?? blendLayers[0] ?? "normal";
       const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
         ? ` style="mix-blend-mode:${layerBlend}"` : "";
-      svg.push(
+      ctx.svgParts.push(
         `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
       );
     }
     // DM-817: wrap the bg-layer rects we just emitted in an
     // isolation-isolate group so the multiply / screen / etc. doesn't
     // bleed into siblings painted above.
-    if (hasNonNormalBlend && svg.length > bgGroupStart) {
-      const wrapped = bgGroupOpen + svg.slice(bgGroupStart).join("\n") + bgGroupClose;
-      svg.length = bgGroupStart;
-      svg.push(wrapped);
+    if (hasNonNormalBlend && ctx.svgParts.length > bgGroupStart) {
+      const wrapped = bgGroupOpen + ctx.svgParts.slice(bgGroupStart).join("\n") + bgGroupClose;
+      ctx.svgParts.length = bgGroupStart;
+      ctx.svgParts.push(wrapped);
     }
   }
 
@@ -1585,14 +1589,14 @@ function paintBackgroundImageLayers(
       const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
       const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
       const layerIntrinsic = intrinsicLayers[li] ?? null;
-      const defId = `${idPrefix}bg${clipIdx++}`;
+      const defId = ctx.nextClipId("bg");
       const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
       if (out.def === "") continue;
-      defs.push(out.def);
+      ctx.defsParts.push(out.def);
       textBgClipFills[li] = `url(#${defId})`;
     }
   }
-  return { svg, defs, clipIdx, textBgClipFills };
+  return textBgClipFills;
 }
 
 // Inline-SVG content paint, extracted from renderElement (DM-1306, DM-1312).
@@ -1669,14 +1673,11 @@ function paintBrokenImage(el: CapturedElement, textColor: ReturnType<typeof pars
 // filter + clip id per shadow, so clipIdx is threaded in and the advanced value
 // returned. Returns { svg, defs, clipIdx }.
 function paintInsetBoxShadow(
+  ctx: PaintCtx,
   el: CapturedElement,
   corners: ReturnType<typeof parseCornerRadii>,
-  idPrefix: string,
   indent: string,
-  clipIdx: number,
-): { svg: string[]; defs: string[]; clipIdx: number } {
-  const svg: string[] = [];
-  const defs: string[] = [];
+): void {
   const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
   const sbwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
   const sbwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
@@ -1704,14 +1705,14 @@ function paintInsetBoxShadow(
     let filterAttr = "";
     if (sh.blur > 0) {
       const stdDev = sh.blur / 2;
-      const fid = `${idPrefix}ish${clipIdx++}`;
-      defs.push(
+      const fid = ctx.nextClipId("ish");
+      ctx.defsParts.push(
         `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
       );
       filterAttr = ` filter="url(#${fid})"`;
     }
-    const cid = `${idPrefix}ishc${clipIdx++}`;
-    defs.push(
+    const cid = ctx.nextClipId("ishc");
+    ctx.defsParts.push(
       `<clipPath id="${cid}">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, "")}</clipPath>`,
     );
 
@@ -1721,7 +1722,7 @@ function paintInsetBoxShadow(
     // the Gaussian softens it into Chrome's inset-glow falloff. DM-366.
     if (sh.x === 0 && sh.y === 0 && sh.spread === 0) {
       const ringWidth = Math.max(sh.blur / 2, 1);
-      svg.push(
+      ctx.svgParts.push(
         `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="none" stroke="${shadowColor}" stroke-width="${r(ringWidth)}"${filterAttr}`)}</g>`,
       );
       continue;
@@ -1740,7 +1741,7 @@ function paintInsetBoxShadow(
     if (innerW <= 0 || innerH <= 0) {
       // Shadow shape collapsed: per spec the entire padding box fills
       // with shadow color (with blur halo) — emit a solid rect.
-      svg.push(
+      ctx.svgParts.push(
         `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="${shadowColor}"${filterAttr}`)}</g>`,
       );
       continue;
@@ -1754,11 +1755,11 @@ function paintInsetBoxShadow(
     const sharp: CornerRadii = { tl: { h: 0, v: 0 }, tr: { h: 0, v: 0 }, br: { h: 0, v: 0 }, bl: { h: 0, v: 0 }, uniform: true };
     const outerD = roundedRectPath(outerX, outerY, outerR - outerX, outerB - outerY, sharp);
     const innerD = roundedRectPath(innerL, innerT, innerW, innerH, innerC);
-    svg.push(
+    ctx.svgParts.push(
       `${indent}<g clip-path="url(#${cid})"><path d="${outerD} ${innerD}" fill="${shadowColor}" fill-rule="evenodd"${filterAttr}/></g>`,
     );
   }
-  return { svg, defs, clipIdx };
+  return;
 }
 
 // text-overflow truncation marker paint, extracted from renderElement (DM-1306,
@@ -2043,6 +2044,17 @@ export function elementTreeToSvgInner(
   const defsParts: string[] = [];
   let clipIdx = 0;
   let gradIdx = 0;
+  // DM-1317: context handed to the per-phase paint helpers. Its allocators
+  // close over `clipIdx` above, so helpers and the inline render code share the
+  // one counter, keeping the positional id sequence byte-identical.
+  const paintCtx: PaintCtx = {
+    svgParts,
+    defsParts,
+    idPrefix,
+    nextClipId: (prefix) => `${idPrefix}${prefix}${clipIdx++}`,
+    peekClipIdx: () => clipIdx,
+    advanceClipIdx: (n) => { clipIdx += n; },
+  };
   // Form-control gradient defs (SK-1224) — renderFormControl pushes
   // <linearGradient> entries into defsParts via this context.
   const defCtx: DefCtx = {
@@ -2962,8 +2974,7 @@ export function elementTreeToSvgInner(
     // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
     // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
     if (!useInlineFragments) {
-      const _bs = paintBoxShadow(el, corners, idPrefix, indent, clipIdx);
-      svgParts.push(..._bs.svg); defsParts.push(..._bs.defs); clipIdx = _bs.clipIdx;
+      paintBoxShadow(paintCtx, el, corners, indent);
     }
 
     // Background rect(s). CSS lets backgrounds stack via background-image with
@@ -2983,9 +2994,7 @@ export function elementTreeToSvgInner(
     // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
     // on top.
     // Background-image layers + the background-clip:text fills consumed by paintText.
-    const _bgi = paintBackgroundImageLayers(el, indent, idPrefix, clipIdx, corners, useInlineFragments, captureViewport);
-    svgParts.push(..._bgi.svg); defsParts.push(..._bgi.defs); clipIdx = _bgi.clipIdx;
-    const textBgClipFills = _bgi.textBgClipFills;
+    const textBgClipFills = paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport);
 
     // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
     // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
@@ -3003,13 +3012,11 @@ export function elementTreeToSvgInner(
     // the whole thing to the padding box so the outer-margin overflow and
     // the parts of the halo outside the box don't leak.
     if (!useInlineFragments) {
-      const _is = paintInsetBoxShadow(el, corners, idPrefix, indent, clipIdx);
-      svgParts.push(..._is.svg); defsParts.push(..._is.defs); clipIdx = _is.clipIdx;
+      paintInsetBoxShadow(paintCtx, el, corners, indent);
     }
 
     {
-      const _bd = paintBorder(el, indent, idPrefix, clipIdx, corners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
-      svgParts.push(..._bd.svg); defsParts.push(..._bd.defs); clipIdx = _bd.clipIdx;
+      paintBorder(paintCtx, el, indent, corners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
     }
 
     // Outline (SK-1111): drawn outside the border-box and shifted further out
@@ -3051,8 +3058,7 @@ export function elementTreeToSvgInner(
     } else
     // Image (<img> or <input type="image">)
     if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
-      const _img = paintImage(el, borderRadius, corners, idPrefix, indent, clipIdx);
-      svgParts.push(..._img.svg); defsParts.push(..._img.defs); clipIdx = _img.clipIdx;
+      paintImage(paintCtx, el, borderRadius, corners, indent);
     }
 
     // Rasterized snapshot for <canvas> / <video> / <iframe> / <object> /
@@ -3363,8 +3369,7 @@ export function elementTreeToSvgInner(
 
     // Text rendering — delegated to text-renderer.ts based on configured mode
     {
-      const _t = paintText(el, textColor, indent, idPrefix, clipIdx, textBgClipFills, captureViewport);
-      svgParts.push(..._t.svg); defsParts.push(..._t.defs); clipIdx = _t.clipIdx;
+      paintText(paintCtx, el, textColor, indent, textBgClipFills, captureViewport);
     }
 
     // text-overflow truncation marker (DM-373). When an element has
