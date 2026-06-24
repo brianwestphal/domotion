@@ -39,6 +39,27 @@ import {
   unitText,
   type KineticUnit,
 } from "./builtin/kinetic-text.js";
+import {
+  chartTemplate,
+  chartParamsSchema,
+  planChart,
+  buildChartHtml,
+  buildChartAnimations,
+  chartDurationMs,
+} from "./builtin/chart.js";
+import {
+  chatTemplate,
+  chatParamsSchema,
+  buildChatHtml,
+  buildChatAnimations,
+  chatDurationMs,
+} from "./builtin/chat.js";
+import {
+  subscribeTemplate,
+  subscribeParamsSchema,
+  buildSubscribeHtml,
+  buildSubscribeAnimations,
+} from "./builtin/subscribe.js";
 
 /** All units of a plan, flattened across lines, in index order. */
 const allUnits = (plan: { lines: KineticUnit[][][] }): KineticUnit[] =>
@@ -47,7 +68,7 @@ const allUnits = (plan: { lines: KineticUnit[][][] }): KineticUnit[] =>
 describe("template registry (DM-1276)", () => {
   it("lists the built-in templates", () => {
     const names = listBuiltinTemplates().map((t) => t.name).sort();
-    expect(names).toEqual(["background-loop", "device-mockup", "kinetic-text", "lower-third"]);
+    expect(names).toEqual(["background-loop", "chart", "chat", "device-mockup", "kinetic-text", "lower-third", "subscribe"]);
   });
 
   it("resolves a built-in by name", async () => {
@@ -458,5 +479,151 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     expect(kineticTextTemplate.name).toBe("kinetic-text");
     expect(() => parse({ text: "" })).toThrow();
     expect(() => parse({ text: "x".repeat(401) })).toThrow();
+  });
+});
+
+describe("chart generation (pure, no browser) — DM-1279", () => {
+  const parse = (o: Record<string, unknown>) => chartParamsSchema.parse(o);
+
+  it("accepts data + labels as comma-separated strings or arrays", () => {
+    expect(parse({ data: "10, 20 ,30" }).data).toEqual([10, 20, 30]);
+    expect(parse({ data: [1, 2], labels: "a,b" }).labels).toEqual(["a", "b"]);
+    expect(() => parse({ data: "x,y" })).toThrow(); // non-numeric → filtered out → min(1) fails
+  });
+
+  it("column bars are sized to the data over a nice axis max, anchored at the baseline", () => {
+    const p = parse({ type: "column", data: [50, 100], width: 1000, height: 600 });
+    const plan = planChart(p);
+    expect(plan.maxVal).toBe(100); // niceMax(100)
+    expect(plan.bars).toHaveLength(2);
+    // taller datum → taller bar; bar bottoms sit on the baseline.
+    expect(plan.bars[1].height).toBeGreaterThan(plan.bars[0].height);
+    for (const b of plan.bars) expect(b.top + b.height).toBe(plan.plot.y + plan.plot.h);
+    // 100/100 of the plot height.
+    expect(plan.bars[1].height).toBe(plan.plot.h);
+  });
+
+  it("grows columns with scaleY from the bottom and bars with scaleX from the left (transform + origin)", () => {
+    const col = buildChartAnimations(parse({ type: "column", data: [3, 7] }), planChart(parse({ type: "column", data: [3, 7] })));
+    const g = col.find((a) => a.selector === ".ch-bar-0")!;
+    expect(g.property).toBe("transform");
+    expect(g.from).toBe("scaleY(0)");
+    expect(g.to).toBe("scaleY(1)");
+    expect(g.transformOrigin).toBe("bottom");
+
+    const bar = buildChartAnimations(parse({ type: "bar", data: [3, 7] }), planChart(parse({ type: "bar", data: [3, 7] })));
+    const h = bar.find((a) => a.selector === ".ch-bar-0")!;
+    expect(h.from).toBe("scaleX(0)");
+    expect(h.transformOrigin).toBe("left");
+  });
+
+  it("line draws in via a clipPath wipe, with dots popping + values fading", () => {
+    const p = parse({ type: "line", data: [4, 8, 6, 12] });
+    const plan = planChart(p);
+    expect(plan.line).not.toBeNull();
+    expect(plan.line!.dots).toHaveLength(4);
+    const html = buildChartHtml(p, plan);
+    expect(html).toContain("<polyline"); // the line
+    expect(html).toMatch(/ch-reveal/);
+    const anims = buildChartAnimations(p, plan);
+    const reveal = anims.find((a) => a.selector === ".ch-reveal")!;
+    expect(reveal.property).toBe("clipPath");
+    expect(reveal.from).toMatch(/100%/); // clipped, then wipes open
+    expect(anims.some((a) => a.selector === ".ch-dot-0" && a.property === "scale")).toBe(true);
+  });
+
+  it("renders the title, axis, value labels, and category labels", () => {
+    const p = parse({ type: "column", data: [5, 9], labels: ["A", "B"], title: "Sales" });
+    const html = buildChartHtml(p, planChart(p));
+    expect(html).toContain("Sales");
+    expect(html).toMatch(/class="ch-axis"/);
+    expect(html).toMatch(/class="ch-val ch-val-0"/);
+    expect(html).toContain(">A<");
+    expect(html).toContain(">B<");
+  });
+
+  it("the template is registered and validates params", () => {
+    expect(chartTemplate.name).toBe("chart");
+    const p = parse({ type: "column", data: [1, 2, 3], staggerMs: 100, growMs: 600, holdMs: 1000 });
+    // duration = last bar start + grow + hold
+    expect(chartDurationMs(p, planChart(p))).toBe(200 + 600 + 1000);
+  });
+});
+
+describe("chat generation (pure, no browser) — DM-1278", () => {
+  const parse = (o: Record<string, unknown>) => chatParamsSchema.parse(o);
+
+  it("parses the compact `me:` / `them:` line format and a JSON array", () => {
+    const fromLines = parse({ messages: "them: Hi\nme: Hey there\nthem: 👋" }).messages;
+    expect(fromLines).toEqual([
+      { from: "them", text: "Hi" },
+      { from: "me", text: "Hey there" },
+      { from: "them", text: "👋" },
+    ]);
+    const fromArr = parse({ messages: [{ from: "me", text: "yo" }] }).messages;
+    expect(fromArr).toEqual([{ from: "me", text: "yo" }]);
+    expect(() => parse({ messages: "" })).toThrow(); // no messages → min(1) fails
+  });
+
+  it("renders me-bubbles right and them-bubbles left, with a header when titled", () => {
+    const html = buildChatHtml(parse({ messages: [{ from: "me", text: "A" }, { from: "them", text: "B" }], title: "Sam", accent: "#abc123" }));
+    expect(html).toMatch(/class="ct-row ct-me"/);
+    expect(html).toMatch(/class="ct-row ct-them"/);
+    expect(html).toContain("#abc123");           // me-bubble accent
+    expect(html).toMatch(/class="ct-head"/);      // header present
+    expect(html).toContain(">S<");                // avatar initial
+    // No header when untitled.
+    expect(buildChatHtml(parse({ messages: [{ from: "me", text: "x" }] }))).not.toMatch(/class="ct-head"/);
+  });
+
+  it("pops each message from its anchored corner (scale + origin) with a fade, staggered", () => {
+    const p = parse({ messages: [{ from: "me", text: "a" }, { from: "them", text: "b" }], staggerMs: 500, popMs: 300 });
+    const anims = buildChatAnimations(p);
+    const pop0 = anims.find((a) => a.selector === ".ct-pop-0")!;
+    expect(pop0.property).toBe("scale");
+    expect(pop0.transformOrigin).toBe("bottom right"); // me → right
+    expect(anims.find((a) => a.selector === ".ct-pop-1")!.transformOrigin).toBe("bottom left"); // them → left
+    expect(anims.find((a) => a.selector === ".ct-bubble-1")!.delay).toBe(500); // staggered
+    expect(chatDurationMs(p)).toBe(500 + 300 + p.holdMs);
+  });
+
+  it("escapes HTML in message text", () => {
+    expect(buildChatHtml(parse({ messages: [{ from: "me", text: "<script>" }] }))).toContain("&lt;script&gt;");
+  });
+});
+
+describe("subscribe generation (pure, no browser) — DM-1278", () => {
+  const parse = (o: Record<string, unknown>) => subscribeParamsSchema.parse(o);
+
+  it("renders the name, subtitle, CTA, avatar initial, and bell (toggleable)", () => {
+    const html = buildSubscribeHtml(parse({ name: "Domotion", subtitle: "1.2M subs", action: "Subscribe", accent: "#ff0000" }));
+    expect(html).toContain("Domotion");
+    expect(html).toContain("1.2M subs");
+    expect(html).toMatch(/class="sub-cta">Subscribe</);
+    expect(html).toContain("#ff0000");
+    expect(html).toContain(">D<");               // avatar initial
+    expect(html).toMatch(/class="sub-bell"/);
+    expect(buildSubscribeHtml(parse({ name: "X", showBell: false }))).not.toMatch(/class="sub-bell"/);
+  });
+
+  it("uses a dark card under the dark theme", () => {
+    const dark = buildSubscribeHtml(parse({ name: "X", theme: "dark" }));
+    expect(dark).toContain("#1f2430"); // dark card bg
+  });
+
+  it("pops the card in and keeps the CTA pulsing (looping alternate scale)", () => {
+    const anims = buildSubscribeAnimations(parse({ name: "X" }));
+    const pop = anims.find((a) => a.selector === ".sub-pop")!;
+    expect(pop.property).toBe("scale");
+    expect(pop.transformOrigin).toBe("center");
+    const pulse = anims.find((a) => a.selector === ".sub-cta")!;
+    expect(pulse.repeat).toBe("infinite");
+    expect(pulse.alternate).toBe(true);
+    expect(anims.some((a) => a.selector === ".sub-inner" && a.property === "opacity")).toBe(true);
+  });
+
+  it("the templates are registered", () => {
+    expect(chatTemplate.name).toBe("chat");
+    expect(subscribeTemplate.name).toBe("subscribe");
   });
 });

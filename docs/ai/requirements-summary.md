@@ -35,6 +35,19 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 76 (`docs/76-social-templates.md`, DM-1278)** — **Shipped.** Two social
+  built-ins: `chat` (a message thread whose bubbles pop in one at a time,
+  alternating `me`/`them` sides; parsed from a `{from,text}[]` array or `me:`/
+  `them:` lines) and `subscribe` (a follow/subscribe pop-up card that pops in with
+  a looping `alternate` pulse on the CTA). Both are timed-reveal staggered
+  intra-frame animation passes. Code in `src/templates/builtin/{chat,subscribe}.ts`.
+- **Doc 75 (`docs/75-chart-template.md`, DM-1279)** — **Shipped.** The `chart`
+  built-in: an animated `column` / `bar` / `line` chart from a list of values
+  (CSV or JSON `data`). Bars grow from the axis via `scaleY`/`scaleX` +
+  `transformOrigin` (the `width`/`height` intra-frame properties don't apply to
+  the `<g>` wrapper); the line is an inline `<svg>` revealed by a `clipPath` wipe.
+  Title, value/category labels, palette, nice axis max. Code in
+  `src/templates/builtin/chart.ts`.
 - **Doc 74 (`docs/74-template-authoring.md`, DM-1282)** — **Shipped.** The
   third-party template authoring + publishing guide: a template is an npm package
   named `domotion-template-<name>` exporting a `Template` (`domotion-svg` is a

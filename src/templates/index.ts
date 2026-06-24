@@ -38,3 +38,17 @@ export {
   type KineticTextParams,
   type KineticVariant,
 } from "./builtin/kinetic-text.js";
+export {
+  chartTemplate,
+  type ChartParams,
+  type ChartType,
+} from "./builtin/chart.js";
+export {
+  chatTemplate,
+  type ChatParams,
+  type ChatMessage,
+} from "./builtin/chat.js";
+export {
+  subscribeTemplate,
+  type SubscribeParams,
+} from "./builtin/subscribe.js";

@@ -164,4 +164,12 @@ export {
   kineticTextTemplate,
   type KineticTextParams,
   type KineticVariant,
+  chartTemplate,
+  type ChartParams,
+  type ChartType,
+  chatTemplate,
+  type ChatParams,
+  type ChatMessage,
+  subscribeTemplate,
+  type SubscribeParams,
 } from "./templates/index.js";

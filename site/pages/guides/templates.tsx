@@ -38,7 +38,7 @@ domotion template lower-third --help</code></pre>
 
 <h2>Built-in templates</h2>
 
-<p>Four templates ship in the box. Each SVG below was produced by the command
+<p>Seven templates ship in the box. Each SVG below was produced by the command
 under it — copy, tweak the flags, ship the result.</p>
 
 <h3>lower-third — broadcast banner</h3>
@@ -88,6 +88,47 @@ ${tpl({
   img: "background-loop-aurora.svg",
   alt: "Large soft mesh-gradient colour blobs drifting and breathing over a deep navy background.",
   cmd: `domotion template background-loop --variant aurora -o aurora.svg`,
+})}
+
+<h3>chart — animated data charts</h3>
+<p>A <code>column</code> / <code>bar</code> / <code>line</code> chart from a list
+of values — the bars grow from the axis and the line draws in. Title, value
+labels, and a cycling palette; <code>data</code> and <code>labels</code> take a
+comma-separated string or a JSON array.</p>
+${tpl({
+  img: "chart-column.svg",
+  alt: "A column chart titled Monthly signups with six colored bars that grow up from the baseline, each labelled with its value and month.",
+  cmd: `domotion template chart \\
+  --type column --data "42,68,55,90,34,76" \\
+  --labels "Jan,Feb,Mar,Apr,May,Jun" --title "Monthly signups" -o chart.svg`,
+})}
+${tpl({
+  img: "chart-line.svg",
+  alt: "A line chart titled Daily active users with an indigo line drawing in left to right over a soft area fill, colored dots and values at each day.",
+  cmd: `domotion template chart --type line \\
+  --data "12,18,15,28,24,38,44" --labels "Mon,Tue,Wed,Thu,Fri,Sat,Sun" -o dau.svg`,
+})}
+
+<h3>chat — a message thread</h3>
+<p>A messaging thread whose bubbles pop in one at a time, alternating sides like
+iMessage / WhatsApp. Pass the thread as a JSON array or as
+<code>me:</code> / <code>them:</code> lines.</p>
+${tpl({
+  img: "chat-thread.svg",
+  alt: "An iMessage-style chat thread titled Sam with grey received bubbles on the left and blue sent bubbles on the right, appearing one at a time.",
+  cmd: `domotion template chat --title "Sam" --messages "them: Did the build go out? 🚀
+me: Yep — just shipped it
+them: Amazing 🙌" -o thread.svg`,
+})}
+
+<h3>subscribe — a follow / subscribe pop-up</h3>
+<p>A social card that pops into place with a call-to-action button that keeps
+pulsing to draw the click. Light or dark theme; works for Subscribe or Follow.</p>
+${tpl({
+  img: "subscribe-youtube.svg",
+  alt: "A white subscribe pop-up card on a navy background with an avatar, the name Domotion, 1.2M subscribers, a red Subscribe button and a notification bell.",
+  cmd: `domotion template subscribe \\
+  --name "Domotion" --subtitle "1.2M subscribers" -o subscribe.svg`,
 })}
 
 <h2>Use a template inside an animation</h2>

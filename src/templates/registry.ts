@@ -13,11 +13,14 @@ import { lowerThirdTemplate } from "./builtin/lower-third.js";
 import { deviceMockupTemplate } from "./builtin/device-mockup.js";
 import { backgroundLoopTemplate } from "./builtin/background-loop.js";
 import { kineticTextTemplate } from "./builtin/kinetic-text.js";
+import { chartTemplate } from "./builtin/chart.js";
+import { chatTemplate } from "./builtin/chat.js";
+import { subscribeTemplate } from "./builtin/subscribe.js";
 import { isTemplate, type Template } from "./types.js";
 
 /** First-party templates, keyed by name. */
 const BUILTINS: ReadonlyMap<string, Template> = new Map<string, Template>(
-  [lowerThirdTemplate, deviceMockupTemplate, backgroundLoopTemplate, kineticTextTemplate].map(
+  [lowerThirdTemplate, deviceMockupTemplate, backgroundLoopTemplate, kineticTextTemplate, chartTemplate, chatTemplate, subscribeTemplate].map(
     (t) => [t.name, t as Template],
   ),
 );

@@ -6,6 +6,9 @@
  *   device-mockup   → phone + browser + window bezels (each a distinct device)
  *   background-loop → aurora + orbs + stars + gradient-pan + grid + wave variants
  *   kinetic-text    → rise + slide(char) + fade + clip + pop variants
+ *   chart           → column + bar + line
+ *   chat            → a message thread with staggered pop-in
+ *   subscribe       → a follow/subscribe pop-up with a pulsing CTA
  *
  * Outputs land in examples/output/templates/. Uses ONLY the public template API
  * (`renderTemplateToSvg` + `loadTemplate`) the way a consumer would.
@@ -22,6 +25,9 @@ import {
   deviceMockupTemplate,
   backgroundLoopTemplate,
   kineticTextTemplate,
+  chartTemplate,
+  chatTemplate,
+  subscribeTemplate,
   type Template,
 } from "../src/index.js";
 import { optimizeSvg } from "./shared.js";
@@ -135,6 +141,52 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     file: "kinetic-text-pop",
     template: kineticTextTemplate,
     params: { text: "POP!", variant: "pop", by: "char", fontSize: 200, width: 1280, height: 720 },
+  },
+
+  // chart — the three chart types (DM-1279), bars grow / line draws in.
+  {
+    file: "chart-column",
+    template: chartTemplate,
+    params: { type: "column", data: [42, 68, 55, 90, 34, 76], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], title: "Monthly signups", width: 1100, height: 640 },
+  },
+  {
+    file: "chart-bar",
+    template: chartTemplate,
+    params: { type: "bar", data: [120, 88, 64, 40], labels: ["Search", "Direct", "Social", "Email"], title: "Traffic by source", width: 1100, height: 560 },
+  },
+  {
+    file: "chart-line",
+    template: chartTemplate,
+    params: { type: "line", data: [12, 18, 15, 28, 24, 38, 44], labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], title: "Daily active users", width: 1100, height: 600 },
+  },
+
+  // chat — a message thread whose bubbles pop in one at a time (DM-1278).
+  {
+    file: "chat-thread",
+    template: chatTemplate,
+    params: {
+      title: "Sam",
+      messages: [
+        { from: "them", text: "Did the new build go out? 🚀" },
+        { from: "me", text: "Yep — just shipped it" },
+        { from: "them", text: "Nice. How's the SVG size?" },
+        { from: "me", text: "Half what it was. Self-contained too" },
+        { from: "them", text: "Amazing 🙌" },
+      ],
+      width: 560, height: 760,
+    },
+  },
+
+  // subscribe — a follow/subscribe pop-up with a pulsing CTA (DM-1278).
+  {
+    file: "subscribe-youtube",
+    template: subscribeTemplate,
+    params: { name: "Domotion", subtitle: "1.2M subscribers", action: "Subscribe", accent: "#ff0000", width: 760, height: 360 },
+  },
+  {
+    file: "subscribe-follow-dark",
+    template: subscribeTemplate,
+    params: { name: "Ada Lovelace", subtitle: "@ada · 89.4K followers", action: "Follow", accent: "#1d9bf0", theme: "dark", width: 760, height: 360 },
   },
 ];
 

@@ -125,6 +125,9 @@ manual gallery at `site/pages/guides/templates.tsx`.
 | `device-mockup` | decorator | Wrap a captured URL/page in a phone / browser / window bezel. Reuses the shipped `wrapInDeviceChrome` (doc 65) as the single source of truth, so it can't diverge from `capture --chrome`. |
 | `background-loop` | generator | Procedural seamlessly-looping animated background — `aurora` / `orbs` / `stars` blobs, a `gradient-pan` color wash, a drifting `grid`, or `wave` ribbon bands. Deterministic from a `seed`; comma-separated `--colors`. See **doc 71**. |
 | `kinetic-text` | generator | Kinetic typography — reveal a headline word-by-word or char-by-char with a staggered one-shot animation (`rise` / `slide` / `fade`). See **doc 72**. |
+| `chart` | generator | Data/infographics — an animated `column` / `bar` / `line` chart from a list of values (bars grow, the line draws in). See **doc 75**. |
+| `chat` | generator | A message thread whose bubbles pop in one at a time, alternating sides (iMessage / WhatsApp style). See **doc 76**. |
+| `subscribe` | generator | A subscribe / follow pop-up card that pops in with a pulsing call-to-action button. See **doc 76**. |
 
 ## Code
 

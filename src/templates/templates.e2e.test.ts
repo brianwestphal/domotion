@@ -9,6 +9,9 @@ import { lowerThirdTemplate } from "./builtin/lower-third.js";
 import { deviceMockupTemplate } from "./builtin/device-mockup.js";
 import { backgroundLoopTemplate } from "./builtin/background-loop.js";
 import { kineticTextTemplate } from "./builtin/kinetic-text.js";
+import { chartTemplate } from "./builtin/chart.js";
+import { chatTemplate } from "./builtin/chat.js";
+import { subscribeTemplate } from "./builtin/subscribe.js";
 
 /**
  * DM-1276: end-to-end render of both built-in templates through the real
@@ -135,6 +138,51 @@ describe("template render end-to-end (DM-1276)", () => {
     expect(out.svg).toMatch(/translateY/);
     // The headline text is present (as <text> or glyph paths).
     expect(out.svg).toMatch(/Ship|faster|<path|<use/);
+  }, 60_000);
+
+  it("chart (generator) renders a bar chart with grow animations + a line chart that draws in (DM-1279)", async () => {
+    const col = await renderTemplateToSvg(
+      chartTemplate,
+      { type: "column", data: "42,68,90", labels: "A,B,C", title: "Demo", width: 700, height: 420 },
+      { browser: await getBrowser() },
+    );
+    expect([col.width, col.height]).toEqual([700, 420]);
+    expect(col.svg).toContain("<svg");
+    expect(col.svg).toMatch(/@keyframes/);          // the staggered grow
+    expect(col.svg).toMatch(/transform-box: fill-box/); // scaleY about the bar's bottom
+    expect(col.svg).toMatch(/Demo/);                // the title
+
+    const line = await renderTemplateToSvg(
+      chartTemplate,
+      { type: "line", data: [4, 8, 6, 12], width: 700, height: 420 },
+      { browser: await getBrowser() },
+    );
+    expect(line.svg).toMatch(/<polyline|<path/);    // the inline-SVG line
+    expect(line.svg).toMatch(/clip-path|inset/);    // the draw-in wipe
+  }, 60_000);
+
+  it("chat (generator) reveals a message thread with staggered pop-ins (DM-1278)", async () => {
+    const out = await renderTemplateToSvg(
+      chatTemplate,
+      { messages: "them: Hi\nme: Hey!\nthem: 👋", title: "Sam", width: 500, height: 600 },
+      { browser: await getBrowser() },
+    );
+    expect([out.width, out.height]).toEqual([500, 600]);
+    expect(out.svg).toMatch(/@keyframes/);              // the staggered pop
+    expect(out.svg).toMatch(/transform-box: fill-box/); // scale about the bubble corner
+    expect(out.svg).toMatch(/Hey|Hi|Sam|<path|<use/);   // text present
+  }, 60_000);
+
+  it("subscribe (generator) pops a card in with a pulsing CTA (DM-1278)", async () => {
+    const out = await renderTemplateToSvg(
+      subscribeTemplate,
+      { name: "Domotion", subtitle: "1.2M subscribers", action: "Subscribe", width: 700, height: 340 },
+      { browser: await getBrowser() },
+    );
+    expect([out.width, out.height]).toEqual([700, 340]);
+    expect(out.svg).toMatch(/@keyframes/);
+    expect(out.svg).toMatch(/infinite/);                // the looping CTA pulse
+    expect(out.svg).toMatch(/Domotion|Subscribe|<path|<use/);
   }, 60_000);
 
   it("phone bezel grows the output by an even rim on every side", async () => {
