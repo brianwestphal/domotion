@@ -196,7 +196,7 @@ Before reverse-engineering a render-fidelity bug by reading source, reach for th
 
 ## Git
 
-- **Never commit unless explicitly asked.** Do not run `git commit`, `git add`, or any git write operations proactively. Only commit when the user directly asks.
+- **Committing is fine; pushing is not.** You may `git add` / `git commit` as needed to land completed, validated work — no need to ask first. **Never `git push` without explicit permission**, and never run other remote-mutating git operations (force-push, branch deletes on the remote, tag pushes, etc.) without the user directly asking. Leave commits local for the user to review and push.
 
 ## Ticket-Driven Work
 
