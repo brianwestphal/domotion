@@ -305,6 +305,41 @@ function paintImage(
   return { svg, defs, clipIdx };
 }
 
+// Background-color rect paint, extracted from renderElement (DM-1306, DM-1311).
+// The opaque background-color fill (and the DM-476 frosted-backdrop fallback
+// fill) that paints under all background-image layers. When the element paints
+// as inline fragments the per-fragment renderer owns the background, so this
+// no-ops. Reads only el + corners + indent + the resolved bgColor + the two
+// gating flags; appends to no shared accumulator, so it returns its <rect>
+// markup for the caller to push. Behaviour-identical.
+function paintBackgroundColor(
+  el: CapturedElement,
+  corners: ReturnType<typeof parseCornerRadii>,
+  indent: string,
+  bgColor: ReturnType<typeof parseColor>,
+  useInlineFragments: boolean,
+  suppressEmptyCell: boolean,
+): string[] {
+  const out: string[] = [];
+  if (useInlineFragments) {
+    // background painted per-fragment in renderInlineFragments above
+  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01) {
+    out.push(
+      `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
+    );
+  } else if (!suppressEmptyCell && el.styles.frostedBgFallback != null) {
+    // DM-476: backdrop-filter has no SVG equivalent, so when this element
+    // would have read as a frosted-glass surface in Chromium (transparent
+    // bg + non-trivial backdrop-filter), paint the captured body-bg color as
+    // an opaque fill so the element at least covers what's behind it. See
+    // docs/19-frosted-backdrop-fallback.md.
+    out.push(
+      `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${el.styles.frostedBgFallback}"`)}`,
+    );
+  }
+  return out;
+}
+
 // Rasterized-snapshot paint for replaced elements — <canvas> / <video> /
 // <iframe> / <object> / <embed> — extracted from renderElement (DM-1306,
 // DM-1312). The post-capture rasterizeReplacedElements pass hid everything
@@ -1394,22 +1429,7 @@ export function elementTreeToSvgInner(
     // a comma-separated list of linear/radial gradients and url() images. The
     // first layer paints on top — we emit in reverse so the rect order matches
     // CSS layering. The background-color paints *under* all layers.
-    if (useInlineFragments) {
-      // background painted per-fragment in renderInlineFragments above
-    } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01) {
-      svgParts.push(
-        `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
-      );
-    } else if (!suppressEmptyCell && el.styles.frostedBgFallback != null) {
-      // DM-476: backdrop-filter has no SVG equivalent, so when this element
-      // would have read as a frosted-glass surface in Chromium (transparent
-      // bg + non-trivial backdrop-filter), paint the captured body-bg
-      // color as an opaque fill so the element at least covers what's
-      // behind it. See docs/19-frosted-backdrop-fallback.md.
-      svgParts.push(
-        `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${el.styles.frostedBgFallback}"`)}`,
-      );
-    }
+    svgParts.push(...paintBackgroundColor(el, corners, indent, bgColor, useInlineFragments, suppressEmptyCell));
     // DM-462: when the element uses `background-clip: text`, the first
     // text-clipped layer's gradient/image is captured here and used as the
     // fill on the text glyph group (instead of painting it as a normal
