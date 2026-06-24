@@ -17,9 +17,15 @@ import { renderPage, type PageMeta } from "./layout.js";
 import { SafeHtml } from "kerfjs";
 
 const SITE_DIR = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(SITE_DIR, "..");
 const PAGES_DIR = resolve(SITE_DIR, "pages");
 const ASSETS_DIR = resolve(SITE_DIR, "assets");
 const DIST_DIR = resolve(SITE_DIR, "dist");
+// The AI-agent usage guide is served at the site root per the llms.txt
+// convention (https://llmstxt.org), so web-fetching agents can discover it at
+// `<site>/llms.txt`. Sourced from the repo-root file that also ships in the npm
+// package, so the two never drift.
+const LLMS_TXT = resolve(REPO_ROOT, "llms.txt");
 
 interface PageModule {
   meta: PageMeta;
@@ -75,6 +81,10 @@ async function main(): Promise<void> {
   // Copy static assets (CSS, images, favicons).
   if (existsSync(ASSETS_DIR)) {
     cpSync(ASSETS_DIR, resolve(DIST_DIR, "assets"), { recursive: true });
+  }
+  // Serve the AI-agent guide at `<site>/llms.txt` (llms.txt convention).
+  if (existsSync(LLMS_TXT)) {
+    cpSync(LLMS_TXT, resolve(DIST_DIR, "llms.txt"));
   }
   // Disable Jekyll on GitHub Pages so files like _layouts/ aren't ignored
   // and so paths starting with underscore work normally.

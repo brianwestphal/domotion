@@ -119,6 +119,103 @@ svg-to-video demo.svg -o demo.webm --format vp9 --fps 60 --music bed.mp3
 
 For Node scripts instead of the CLI: `captureElementTree()` + `elementTreeToSvg()` (capture → SVG), `generateAnimatedSvg()` (compose frames), `composeAnimatedLayers()` (nest/layer animated SVGs — see `composite` above), `renderTemplateToSvg(template, params, { browser })` (render a template), `launchChromium()` (browser lifecycle), `optimizeSvg()`, `wrapInDeviceChrome()`. All are named exports of `domotion-svg`. See `examples/` in the repo and the API docs.
 
+## Making it compelling — a design playbook for agents
+
+> Domotion faithfully renders whatever HTML/CSS and timing you give it. Whether the result is *good* is on you. When a prompt or ticket asks for an animation or a still, don't just make it work — make a deliberate design decision at each step below. The principles here are distilled from established practice (Disney's 12 principles of animation, Material Design / Apple HIG motion specs, WCAG contrast, Tufte / *Storytelling with Data*) and mapped to Domotion's actual levers. Default to **restraint**: every motion, color, and element must earn its place.
+
+### Work the loop — build → render → *look* → critique → iterate
+
+You cannot judge a visual you haven't seen. **Never ship the first render.** The output is an ordinary, self-contained, standards-compliant SVG, so you can look at it cheaply:
+
+1. **Render**, then **rasterize and actually view it as pixels.** For a still: load the SVG in a headless browser and screenshot it (or run any SVG→PNG rasterizer) and *look at the PNG*. For an animation: `svg-to-video out.svg -o out.mp4` and watch it, or `animated-svg-scrubber out.svg` to scrub the timeline and **export key beats as PNG** (the hook frame, the payoff frame, any frame you suspect is broken). `svg-review` is for pixel-diffing a capture against Chromium (fidelity bugs), not aesthetic review.
+2. **Critique against the checklist** (bottom of this section): hierarchy, contrast, easing, pacing, restraint. Name the single weakest thing.
+3. **Fix that one thing and re-render.** Iterate.
+4. **Prototype cheap, commit late.** Get the *still* frames right first (composition, color, type) — they're fast to render and most problems are visible without motion. Add motion only once the frames look good; motion can't rescue a weak frame.
+5. **Iterate visibly when working with a human.** Show intermediate renders and ask before going further on a fork (format, palette direction, motion style) — a 5-second still is a cheap way to converge.
+
+### Motion — timing, easing, and the cut
+
+**Principle: motion should feel like it has weight and intent. The easing curve is the "adverb"; almost never leave it `linear`.**
+
+- **Override the easing.** Intra-frame `animations` default to **`linear`, which looks robotic** — set `easing` on every one (also available on `transition`, overlay enter/exit, and composite-layer animations; all accept `cubic-bezier(...)`):
+  - **Entrances / things appearing → ease-out** (fast start, soft settle): `cubic-bezier(0.215,0.61,0.355,1)`.
+  - **Exits / things leaving → ease-in** (accelerate away): `cubic-bezier(0.55,0.055,0.675,0.19)`.
+  - **On-screen moves / resizes (start and end at rest) → ease-in-out**: `cubic-bezier(0.645,0.045,0.355,1)`, or Material's standard `cubic-bezier(0.2,0,0,1)`.
+  - **Emphasis / a playful "pop"** (a badge, a success state) → overshoot: `cubic-bezier(0.175,0.885,0.32,1.275)`. Use sparingly.
+  - **Continuous/ambient loops only** (spinner, marquee, background drift) → `linear`. This is the one correct use of linear.
+- **Durations** (`duration` in ms): micro-feedback ~100 ms · default enter/transition **250–300 ms** · larger/hero move 350–450 ms · make **exits ~20–30% shorter** than their entrance. Floors/ceilings: under ~100 ms reads as broken, over ~500 ms drags. Scale duration up with travel distance to keep *perceived* speed constant.
+- **Hold long enough to read.** A frame's `duration` is its on-screen time — budget **reading time**, not a fixed beat: ≥~0.8–1 s for a glanceable state, longer for a sentence the viewer must read. A frame that flashes by is wasted.
+- **One focal motion at a time; sequence the rest.** Don't animate many things simultaneously. Stagger siblings with an increasing `delay` (~**30–60 ms** apart — e.g. list items at delay 0, 50, 100…) so attention cascades instead of scattering. Keep a whole cascade under ~1–2 s.
+- **Pick the transition for what the cut means** (cinematic grammar):
+  - `cut` = hard cut, energetic, "new beat now" — the neutral default between distinct scenes.
+  - `crossfade` = cross-dissolve, soft / passage of time — for loosely related states.
+  - `push-left` = a pan, spatial progression — "next in a sequence."
+  - `scroll` = a reveal — uncover a long page/region.
+  - `magic-move` = a **match cut** — the *same* scene rearranged (a card grows, a list item relocates, a logo moves between slides). It diffs the two frames and slides matched elements, so it reads as one continuous space. Reach for it for before→after where layout persists; pair elements explicitly with `data-magic-key`.
+- **Combine effects by nesting, not stacking.** Only **one animation per element** — to move *and* fade, put the move on a wrapper and the fade on an inner element. To scale/rotate about an element's own center, set `transformOrigin: "center"` (SVG transforms otherwise pivot about the origin).
+- **Seamless loops:** for ambient/looping pieces use `repeat: "infinite"` + **`alternate: true`** (the ping-pong hides the seam), or make the last frame's state identical to the first. A mismatched first/last frame produces a visible stutter.
+- **Stay cross-browser-safe and accessible.** Animate only `opacity` / `transform` / `translate` / `scale` / `clipPath` (see Gotchas — animated `filter`/`blur` is Chromium-only inside an `<img>` SVG). The multi-frame `animate` pipeline **already emits a `@media (prefers-reduced-motion: reduce)` block** that pins motion for users who ask for less — don't fight it; lean on it.
+
+### Stills & frames — color, composition, type
+
+**These apply to the HTML/CSS you author for `capture` inputs and template HTML.** Domotion captures real Chromium paint, so good CSS *is* the lever — design the page well and the SVG inherits it.
+
+- **Color — look intentional, not random.** Build on a neutral base + **one** accent reserved for the single most important thing (the CTA, the key number). Follow **60-30-10** (60% dominant/neutral, 30% secondary, 10% accent). Pick a harmony on purpose (analogous = calm; complementary/split-complementary = punchy). Meet **WCAG contrast: 4.5:1** for body text, **3:1** for large text and UI/graphic marks — check it, don't eyeball it. Dark mode ≠ inverted: use a near-black surface (`#121212`), desaturated accents, off-white (not pure-white) text; pass `--color-scheme dark` so UA defaults match.
+- **Composition — one focal point, lead the eye.** Establish a single focal element via size/weight/contrast or **isolation** (whitespace around it). Start with *too much* whitespace and remove; keep **space between groups > space within a group** or grouping collapses. Align everything to a grid (8-px spacing scale: 4, 8, 12, 16, 24, 32, 48, 64…). Place key elements off-center (rule of thirds); for marketing heroes the eye runs a Z (logo top-left → visual → CTA bottom-right). Body text measure **45–75 characters**; left-align body (center only short headings).
+- **Typography — designed, not defaulted.** One **modular scale** (base 16 px × ~1.25 → 16/20/25/31/39/49…); **1–2 typefaces**, **2 weights** (e.g. 500 body / 700 emphasis), **2 text colors** (dark + muted gray). Hierarchy from size + weight + color *together*, never size alone, and never de-emphasize with a thinner weight. Body line-height ~1.5, headings ~1.15; tighten tracking on large display text, loosen it on ALL-CAPS labels.
+
+### Data & charts
+
+The built-in `chart` template (`column`/`bar`/`line`/`pie`/`donut`) makes the chart; you still make the *choices*:
+
+- **Pick by the question:** comparison/ranking → bar/column; change over time → line; part-to-whole → pie/donut *only* with **≤5 slices** summing to 100% (otherwise a bar is more accurate — prefer it).
+- **Bars must start at zero** (length encodes value; a truncated axis lies). Line charts may use a non-zero baseline if labeled honestly.
+- **Sort categories by value** (unless time/natural order), **label directly** instead of relying on a legend, and **emphasize one series** by coloring it the accent while the rest stay gray. Cap categorical palettes at ~6 colors. Strip chartjunk — no 3D, no heavy gridlines.
+
+### Story — a demo is a tiny three-act
+
+**Principle: even a 10–20 s clip is hook → build → payoff, one idea per scene.**
+
+- **Open with a hook** in the first ~1–3 s — the end-state the viewer wants, or the question the demo answers.
+- **One idea per frame.** Don't stack concepts into one beat; give each its own frame and hold.
+- **Show, don't tell** — let the result *be* the proof (the diff resolves, the chart fills, the build succeeds), rather than a label asserting it.
+- **Vary the rhythm** and put a brief hold just before the payoff so it lands. Frame the piece with a quick intro (`kinetic-text` / a title `template`) and end cleanly on the payoff (don't trail off mid-action).
+- **Terminal demos:** size the `cast` frame's `duration` to the play length `term` prints on stderr; wrap with an intro/outro via `animate`, or place the window on a desktop via `composite`.
+
+### Consistency at scale — lock a house style
+
+When a project needs many on-brand visuals, define the style **once** and reuse it (these are design tokens in practice — color/type/spacing decided once, referenced everywhere):
+
+- **Author a project template package** — `domotion-template-<name>` (see the authoring section + `examples/template-package/`). Bake the brand's palette, type scale, spacing, and motion vocabulary into the template; expose only the content as params. Then every banner/card/chart is `domotion template <name> --title …` and is consistent by construction. This is the strongest consistency mechanism.
+- **Share a brand stylesheet.** Put palette/type/spacing in one `brand.css` and `<link>`/inline it into every `capture` input's HTML, so all stills draw from the same tokens. Capture at a **fixed `--width`/`--height`** per format (e.g. 1200×630 social, 1080×1080 square) for a uniform set.
+- **Parameterize configs with `vars`.** Hoist brand values (colors, copy, URLs, file paths) into the top-level `vars` map and `${}`-interpolate them across frames, so one config retargets without edits.
+- **Reuse framing:** the same `--chrome phone|browser|window` bezel and `--color-scheme` across a set keeps device mockups and screenshots visually uniform.
+
+### Pre-ship checklist
+
+Before returning a result, verify:
+
+- [ ] **Hierarchy:** one clear focal point; the most important thing is the most prominent.
+- [ ] **Contrast:** text/marks meet 4.5:1 (body) / 3:1 (large & UI).
+- [ ] **Color:** a deliberate palette, one accent, 60-30-10 — not default/random colors.
+- [ ] **Type:** one scale, ≤2 fonts, ≤2 weights; comfortable measure & line-height.
+- [ ] **Spacing:** consistent scale; groups separated by whitespace.
+- [ ] **Easing:** set on every animation (not `linear`, except ambient loops); entrances ease-out, exits ease-in.
+- [ ] **Pacing:** frames held long enough to read; one focal motion at a time; staggered where appropriate.
+- [ ] **Story:** reads as hook → build → payoff; one idea per frame.
+- [ ] **Restraint:** removed any motion/decoration that doesn't carry meaning.
+- [ ] **Cross-browser-safe** props only; loop (if any) has no visible seam.
+- [ ] **You looked at the rendered pixels** (still PNG and/or video), not just the config.
+
+### Cheat-sheet
+
+- **Durations (ms):** micro 100 · default enter/transition 250–300 · large/hero 350–450 · exit = entrance −20–30% · hold a readable frame ≥800–1500 (+ reading time) · stagger 30–60 between siblings.
+- **Easing:** enter `cubic-bezier(0.215,0.61,0.355,1)` (ease-out) · exit `cubic-bezier(0.55,0.055,0.675,0.19)` (ease-in) · move `cubic-bezier(0.645,0.045,0.355,1)` (ease-in-out) · pop `cubic-bezier(0.175,0.885,0.32,1.275)` (overshoot) · loops `linear` only.
+- **Color:** neutral base + 1 accent · 60-30-10 · contrast 4.5:1 body / 3:1 large & UI · dark-mode surface `#121212`, off-white text.
+- **Type:** 16 px base × 1.25 → 16/20/25/31/39/49 · 1–2 fonts · 2 weights · body line-height 1.5 / headings 1.15 · measure 45–75 chars.
+- **Spacing (px):** 4, 8, 12, 16, 24, 32, 48, 64, 96 (8-pt grid). Inner spacing ≤ outer spacing.
+- **Charts:** right chart for the question · bars start at 0 · pie ≤5 slices · sort by value · gray + 1 accent · direct labels.
+
 ## Output characteristics
 
 - One **self-contained** `<svg>` document — no external fonts/images/scripts. Embed with `<img src="out.svg">` (CSS animations play, it's lazy-loadable and accessible with `alt`), or inline it if you need CSS to reach in.
