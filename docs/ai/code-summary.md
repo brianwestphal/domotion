@@ -46,12 +46,14 @@ shortest possible map:
   (per-layer `hold`/`stretch`/`loop` timeline re-anchoring).
 - **`src/scroll/`** — scroll-pattern grammar (DM-604) and the composer
   that stitches per-segment captures into one animated SVG.
-- **`src/cli/`** — the four published bins: `domotion`, `svg-to-video`,
-  `svg-review`, `animated-svg-scrubber`. The `domotion` bin has five
-  subcommands: `capture`, `animate`, `term` (terminal-session → animated
-  SVG, DM-1225 / doc 67), `template` (render a parameterized template,
-  DM-1276 / doc 70), and `composite` (layer animated SVGs into one —
-  `composite.ts`, DM-1323 / doc 77).
+- **`src/cli/`** — the five published bins: `domotion`, `svg-to-video`,
+  `svg-to-image` (still SVG → PNG/JPEG/PDF, DM-1353 / doc 78 —
+  `svg-to-image.ts` + `svg-to-image-core.ts`, reusing the `svg-to-video-core`
+  seek+screenshot machinery), `svg-review`, `animated-svg-scrubber`. The
+  `domotion` bin has five subcommands: `capture`, `animate`, `term`
+  (terminal-session → animated SVG, DM-1225 / doc 67), `template` (render a
+  parameterized template, DM-1276 / doc 70), and `composite` (layer animated
+  SVGs into one — `composite.ts`, DM-1323 / doc 77).
 - **`src/terminal/`** — `domotion term` backend (DM-1225): asciinema `.cast`
   parser (`cast.ts`), `@xterm/headless` VT-emulator snapshot wrapper
   (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), the incremental

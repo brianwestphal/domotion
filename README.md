@@ -107,6 +107,19 @@ svg-to-video demo.svg -o demo.webm --format vp9 --fps 60 --music bed.mp3
 
 Supports target size (`--width`/`--height`, aspect-preserving), `--fps`, `--format` / `--container`, supersampling (`--scale`), background music / foreground audio / captions, and a disk-space pre-flight. See `svg-to-video --help`.
 
+### Export to a still image
+
+To turn a single SVG into an image — to look at a render, embed a thumbnail, or hand off a flat asset — the package ships an `svg-to-image` CLI. The output format follows the `-o` extension: PNG (keeps alpha for transparent SVGs), JPEG (`--quality`), or a single-page vector PDF.
+
+```bash
+svg-to-image card.svg -o card.png                 # PNG at the SVG's intrinsic size
+svg-to-image card.svg -o card@2x.png --scale 2    # crisp retina (2×) raster
+svg-to-image demo.svg -o frame.png --at 4000      # one frame of an animated SVG, at 4s
+svg-to-image poster.svg -o poster.pdf             # vector PDF
+```
+
+`--at <ms>` samples an animated SVG's timeline, `--width`/`--height` contain preserving aspect, `--scale` supersamples raster output. See `svg-to-image --help`.
+
 ### Reviewing a regression
 
 If a capture comes out looking different from how Chromium painted the source page, the package ships an `svg-review` CLI to help you file a focused bug report. Capture once with `--debug` to get a reproduction bundle (HAR + the Chromium screenshot of the source + the SVG we produced), then open the bundle in the local review UI:

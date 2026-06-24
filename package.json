@@ -18,6 +18,7 @@
   "bin": {
     "domotion": "dist/cli/index.js",
     "svg-to-video": "dist/cli/svg-to-video.js",
+    "svg-to-image": "dist/cli/svg-to-image.js",
     "svg-review": "dist/cli/review.js",
     "animated-svg-scrubber": "dist/cli/scrubber.js"
   },

@@ -43,6 +43,14 @@ export function parsePositiveFloat(value: string | undefined, name: string): num
   return n;
 }
 
+/** Parse an OPTIONAL non-negative-float flag (0 allowed) — `undefined` when absent. */
+export function parseNonNegativeFloat(value: string | undefined, name: string): number | undefined {
+  if (value == null) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) throw new Error(`--${name} expects a number >= 0, got "${value}"`);
+  return n;
+}
+
 /**
  * Open a URL in the user's default browser WITHOUT a shell, so the URL can't be
  * interpreted as shell syntax (argv form via `execFile`). Best-effort: failures
