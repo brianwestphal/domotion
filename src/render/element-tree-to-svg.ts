@@ -150,6 +150,59 @@ export function transparentRootBgRect(elements: CapturedElement[], width: number
  * wasn't actually a valid SVG document. Callers that want a complete
  * document should switch to the new `elementTreeToSvg()` below.
  */
+// Outset box-shadow paint (the non-fragmented path), extracted from renderElement
+// (DM-1306 / DM-1314). Iterates the shadow list deepest-first, routes blur through
+// an SVG <filter feGaussianBlur>, outsets the corners per spread. clipIdx threaded
+// in/out so the positional filter ids stay byte-identical.
+function paintBoxShadow(
+  el: CapturedElement,
+  corners: ReturnType<typeof parseCornerRadii>,
+  idPrefix: string,
+  indent: string,
+  clipIdx: number,
+): { svg: string[]; defs: string[]; clipIdx: number } {
+  const svg: string[] = [];
+  const defs: string[] = [];
+  const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
+  for (let si = shadows.length - 1; si >= 0; si--) {
+    const sh = shadows[si];
+    if (sh.inset) continue;
+    // Negative spread is allowed: per CSS Backgrounds 3 §6.4 the shadow
+    // shape's width/height = box + 2*spread (so spread < 0 shrinks the
+    // shadow). Chromium's `BoxShadowData::ApplyToBoxOuter` shrinks the
+    // outer rect by `-spread` on each side and zero-clamps the result.
+    // Rect inflated by spread and shifted by (x, y).
+    const sx = el.x + sh.x - sh.spread;
+    const sy = el.y + sh.y - sh.spread;
+    const sw = el.width + sh.spread * 2;
+    const sh2 = el.height + sh.spread * 2;
+    if (sw <= 0 || sh2 <= 0) continue;
+    // Outer shadow corners per CSS Backgrounds 3 §6.4 / Chromium
+    // `FloatRoundedRect::Outset`: a non-zero source corner grows by
+    // `spread`; a zero source corner STAYS sharp. The naive grow-all
+    // path produced visibly rounded corners on the concentric-outline
+    // pattern (box-shadow: 0 0 0 Npx on a 0-radius box).
+    const shadowCorners = outsetCornerRadiiForShadow(corners, sh.spread);
+    let filterAttr = "";
+    if (sh.blur > 0) {
+      const stdDev = sh.blur / 2;
+      const fid = `${idPrefix}sh${clipIdx++}`;
+      // Filter region needs to extend beyond the shadow rect by enough
+      // padding to keep the Gaussian fall-off from clipping. Use a
+      // generous 200% on each side; primitiveUnits inherits the default
+      // userSpaceOnUse-equivalent so stdDeviation is in CSS pixels.
+      defs.push(
+        `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
+      );
+      filterAttr = ` filter="url(#${fid})"`;
+    }
+    svg.push(
+      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
+    );
+  }
+  return { svg, defs, clipIdx };
+}
+
 // Image (<img> / <input type=image>) paint, extracted from renderElement (DM-1306,
 // DM-1312). object-fit placement inside the content box, scale-down resolution,
 // and the rounded-content-box clip for border-radius'd images. clipIdx is threaded
@@ -1294,43 +1347,8 @@ export function elementTreeToSvgInner(
     // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
     // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
     if (!useInlineFragments) {
-      const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
-      for (let si = shadows.length - 1; si >= 0; si--) {
-        const sh = shadows[si];
-        if (sh.inset) continue;
-        // Negative spread is allowed: per CSS Backgrounds 3 §6.4 the shadow
-        // shape's width/height = box + 2*spread (so spread < 0 shrinks the
-        // shadow). Chromium's `BoxShadowData::ApplyToBoxOuter` shrinks the
-        // outer rect by `-spread` on each side and zero-clamps the result.
-        // Rect inflated by spread and shifted by (x, y).
-        const sx = el.x + sh.x - sh.spread;
-        const sy = el.y + sh.y - sh.spread;
-        const sw = el.width + sh.spread * 2;
-        const sh2 = el.height + sh.spread * 2;
-        if (sw <= 0 || sh2 <= 0) continue;
-        // Outer shadow corners per CSS Backgrounds 3 §6.4 / Chromium
-        // `FloatRoundedRect::Outset`: a non-zero source corner grows by
-        // `spread`; a zero source corner STAYS sharp. The naive grow-all
-        // path produced visibly rounded corners on the concentric-outline
-        // pattern (box-shadow: 0 0 0 Npx on a 0-radius box).
-        const shadowCorners = outsetCornerRadiiForShadow(corners, sh.spread);
-        let filterAttr = "";
-        if (sh.blur > 0) {
-          const stdDev = sh.blur / 2;
-          const fid = `${idPrefix}sh${clipIdx++}`;
-          // Filter region needs to extend beyond the shadow rect by enough
-          // padding to keep the Gaussian fall-off from clipping. Use a
-          // generous 200% on each side; primitiveUnits inherits the default
-          // userSpaceOnUse-equivalent so stdDeviation is in CSS pixels.
-          defsParts.push(
-            `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
-          );
-          filterAttr = ` filter="url(#${fid})"`;
-        }
-        svgParts.push(
-          `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
-        );
-      }
+      const _bs = paintBoxShadow(el, corners, idPrefix, indent, clipIdx);
+      svgParts.push(..._bs.svg); defsParts.push(..._bs.defs); clipIdx = _bs.clipIdx;
     }
 
     // Background rect(s). CSS lets backgrounds stack via background-image with
