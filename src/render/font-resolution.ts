@@ -1060,8 +1060,33 @@ const systemFallbackKeyCache = new Map<number, string | null>();
 // system font exists that the sampled per-block table missed (Kana Supplement
 // → Mplus 1p). darwin-only; auto-off when the helper binary isn't present.
 let _systemFallbackResolutionEnabled = process.platform === "darwin";
-/** Test/perf hook to toggle the CoreText per-codepoint fallback resolver. */
+/**
+ * Test/perf hook to toggle the CoreText per-codepoint fallback resolver. This is
+ * a PROCESS-GLOBAL: a caller that flips it without restoring silently changes
+ * the fallback behavior of every later render in the same process. For a
+ * temporary toggle around one render, prefer `withSystemFallbackResolution()`
+ * (guaranteed save/restore) over a bare `set` (DM-1350).
+ */
 export function setSystemFallbackResolution(on: boolean): void { _systemFallbackResolutionEnabled = on; }
+/** Read the current process-global toggle (so callers can save/restore it). */
+export function getSystemFallbackResolution(): boolean { return _systemFallbackResolutionEnabled; }
+/**
+ * Run `fn` with the CoreText per-codepoint fallback resolver toggled to `on`,
+ * restoring the prior value afterward — even if `fn` throws. Use this instead of
+ * a bare `setSystemFallbackResolution(...)` for a temporary toggle so the change
+ * can't leak into the next render in the same process (DM-1350). Synchronous:
+ * scopes a synchronous render — the resolver runs during synchronous text
+ * emission, so the toggle only needs to hold for `fn`'s synchronous duration.
+ */
+export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
+  const prev = _systemFallbackResolutionEnabled;
+  _systemFallbackResolutionEnabled = on;
+  try {
+    return fn();
+  } finally {
+    _systemFallbackResolutionEnabled = prev;
+  }
+}
 
 /**
  * Resolve the system fallback font for a codepoint the way Chrome-on-macOS
