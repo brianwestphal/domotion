@@ -27,7 +27,8 @@
     "schemas",
     "FEATURES.md",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "llms.txt"
   ],
   "scripts": {
     "build:capture-script": "node scripts/build-capture-script.mjs",
