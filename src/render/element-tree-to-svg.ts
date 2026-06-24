@@ -305,6 +305,45 @@ function paintImage(
   return { svg, defs, clipIdx };
 }
 
+// Rasterized-snapshot paint for replaced elements — <canvas> / <video> /
+// <iframe> / <object> / <embed> — extracted from renderElement (DM-1306,
+// DM-1312). The post-capture rasterizeReplacedElements pass hid everything
+// else on the page and screenshotted the element's content box, so the data
+// URI is exactly the pixels Chrome painted inside the element's borders +
+// padding. Painted on top of the normal bg/border and inside the element's
+// own borders, mirroring how <img> sits inside its element box.
+// preserveAspectRatio="none" matches the captured content-box rect exactly.
+//
+// Skip when the element ALSO has imageSrc (DM-598): that means it's an <img>
+// that picked up a sprite-icon snapshot, and the imageSrc branch already
+// emitted the correctly aspected <image>. Capture-side has the same guard; the
+// render-side check protects against any other future path that sets both.
+//
+// Reads only el + indent and appends no shared state, so it returns its
+// <image> markup for the caller to push. Behaviour-identical.
+function paintRasterSnapshot(el: CapturedElement, indent: string): string[] {
+  const out: string[] = [];
+  // Caller guards the same condition; restate it so this stays a standalone
+  // leaf and to narrow el.replacedSnapshot / its dataUri for the type checker.
+  if (el.replacedSnapshot == null || el.replacedSnapshot.dataUri == null || el.imageSrc != null) {
+    return out;
+  }
+  const rs = el.replacedSnapshot;
+  // DM-506: when this is an image-replacement icon (sprite + off-screen text),
+  // wrap the painted raster with an SVG <title> so screen readers and tooltip
+  // UAs still surface the suppressed accessible label.
+  if (el.imageReplacement != null && el.imageReplacement.titleText !== "") {
+    out.push(
+      `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none"><title>${esc(el.imageReplacement.titleText)}</title></image>`,
+    );
+  } else {
+    out.push(
+      `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none" />`,
+    );
+  }
+  return out;
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
@@ -2233,35 +2272,10 @@ export function elementTreeToSvgInner(
       svgParts.push(..._img.svg); defsParts.push(..._img.defs); clipIdx = _img.clipIdx;
     }
 
-    // DM-457: rasterized snapshot for <canvas> / <video> / <iframe> /
-    // <object> / <embed>. The post-capture rasterizeReplacedElements pass
-    // hid everything else on the page and screenshot the element's content
-    // box, so the data URI is exactly the painted pixels Chrome put inside
-    // the element's borders + padding. Painted on top of the normal bg/border
-    // and inside the element's own borders, mirroring how <img> sits inside
-    // its element box. preserveAspectRatio="none" matches the captured
-    // content-box rect dimensions exactly.
-    //
-    // DM-598: skip when the element ALSO has imageSrc — that means it's an
-    // <img> that picked up a sprite-icon snapshot, and the imageSrc branch
-    // above already emitted the correctly aspected <image>. Capture-side has
-    // the same guard, but the render-side check protects against any other
-    // future path that sets both.
-    if (el.replacedSnapshot != null && el.replacedSnapshot.dataUri != null && el.imageSrc == null) {
-      const rs = el.replacedSnapshot;
-      // DM-506: when this is an image-replacement icon (sprite + off-screen
-      // text), wrap the painted raster with an SVG <title> so screen readers
-      // and tooltip UAs still surface the suppressed accessible label.
-      if (el.imageReplacement != null && el.imageReplacement.titleText !== "") {
-        svgParts.push(
-          `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none"><title>${esc(el.imageReplacement.titleText)}</title></image>`,
-        );
-      } else {
-        svgParts.push(
-          `${indent}<image href="${rs.dataUri}" x="${r(rs.x)}" y="${r(rs.y)}" width="${r(rs.width)}" height="${r(rs.height)}" preserveAspectRatio="none" />`,
-        );
-      }
-    }
+    // Rasterized snapshot for <canvas> / <video> / <iframe> / <object> /
+    // <embed> (DM-457; DM-598 guards against double-paint when an <img> also
+    // carries a snapshot). See paintRasterSnapshot for the full rationale.
+    svgParts.push(...paintRasterSnapshot(el, indent));
 
     // List marker — render list-style-image at the marker position for <li>
     // elements. Per CSS spec, the marker image paints at its INTRINSIC size
