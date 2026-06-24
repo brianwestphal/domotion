@@ -259,7 +259,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
 
   const defs = styleBlocks.filter((s) => s.startsWith("<clipPath")).join("");
   const css = styleBlocks.filter((s) => s.startsWith("<style")).join("");
-  const svg =
+  let svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
     (defs ? `<defs>${defs}</defs>` : "") +
     css +
@@ -267,5 +267,59 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
     groups.join("") +
     `</svg>`;
 
+  // DM-1329: collapse byte-identical embedded fonts across layers. Each layer
+  // carries its own `@font-face` payload (a base64 TTF), so two layers built from
+  // the same font + glyph subset — a reused layer, or the same composite nested
+  // twice — embed the same big payload twice. Drop the duplicates and point their
+  // family references at the surviving copy.
+  svg = dedupeCompositeFonts(svg);
+
   return { svg, width, height, durationMs: master };
+}
+
+/**
+ * Drop duplicate `@font-face` blocks (same descriptors + same base64 `src`) from
+ * a composited SVG, renaming the removed families' references to the surviving
+ * copy. The renderer emits byte-identical payloads for identical glyph subsets,
+ * so layers that share a font + glyph set duplicate the (heavy) base64; this
+ * collapses each unique payload to one rule. Only exact-payload duplicates are
+ * merged — layers with *different* glyph subsets of the same font keep their own
+ * subset (merging those would need re-subsetting; tracked separately).
+ */
+export function dedupeCompositeFonts(svg: string): string {
+  const faceRe = /@font-face\s*\{[^{}]*\}/g;
+  const canonicalByKey = new Map<string, string>();
+  const renames = new Map<string, string>(); // duplicate family -> canonical family
+  for (const m of svg.matchAll(faceRe)) {
+    const block = m[0];
+    const fam = /font-family:\s*"([^"]+)"/.exec(block)?.[1];
+    if (fam == null) continue;
+    // Key on everything BUT the family name, so two rules that differ only in
+    // family (the per-layer namespacing) collapse together.
+    const key = block.replace(/font-family:\s*"[^"]+"/, 'font-family:""');
+    const canonical = canonicalByKey.get(key);
+    if (canonical == null) {
+      canonicalByKey.set(key, fam);
+    } else if (fam !== canonical) {
+      renames.set(fam, canonical);
+    }
+  }
+  if (renames.size === 0) return svg;
+
+  // Remove the duplicate `@font-face` blocks (those whose family was renamed).
+  let out = svg.replace(faceRe, (block) => {
+    const fam = /font-family:\s*"([^"]+)"/.exec(block)?.[1];
+    return fam != null && renames.has(fam) ? "" : block;
+  });
+  // Repoint every reference of a removed family at its surviving copy — only in
+  // `font-family` declaration / attribute contexts (never a bare global replace,
+  // so a base64 payload can't be corrupted).
+  const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const [dup, canon] of renames) {
+    const e = esc(dup);
+    out = out
+      .replace(new RegExp(`(font-family:\\s*")${e}(")`, "g"), `$1${canon}$2`)
+      .replace(new RegExp(`(font-family=")${e}(")`, "g"), `$1${canon}$2`);
+  }
+  return out;
 }

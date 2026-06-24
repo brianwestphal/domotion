@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/composite-config.schema.json",
+  "title": "Domotion composite config",
+  "description": "Config for the `domotion composite` CLI: a list of layers (each an svg / cast / template source, optionally wrapped in device chrome), placed and on its own timeline, composited into one animated SVG with every layer's animation preserved. See docs/77-nested-animated-compositing.md. Authoritative validation is the zod schema in src/cli/composite.ts; the exactly-one-source-per-layer rule is enforced at runtime and not expressed here.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this JSON Schema for editor support; ignored by the CLI."
+    },
+    "width": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "height": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "output": {
+      "type": "string"
+    },
+    "background": {
+      "type": "string"
+    },
+    "duration": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "layers": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "svg": {
+            "description": "Path to a pre-rendered SVG (static or animated).",
+            "type": "string"
+          },
+          "cast": {
+            "description": "Path to an asciinema v2 .cast (rendered as an animated terminal).",
+            "type": "string"
+          },
+          "template": {
+            "description": "A template name to render as the source.",
+            "type": "string"
+          },
+          "params": {
+            "description": "Params for a `template` source.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "term": {
+            "description": "Terminal options for a `cast` source.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "period": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "chrome": {
+            "type": "object",
+            "properties": {
+              "device": {
+                "default": "window",
+                "type": "string",
+                "enum": [
+                  "phone",
+                  "browser",
+                  "window"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "theme": {
+                "default": "dark",
+                "type": "string",
+                "enum": [
+                  "dark",
+                  "light"
+                ]
+              }
+            }
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "height": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "clip": {
+            "type": "boolean"
+          },
+          "clipRadius": {
+            "type": "number",
+            "minimum": 0
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hold",
+              "stretch",
+              "loop"
+            ]
+          },
+          "duration": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "animations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "property": {
+                  "type": "string",
+                  "enum": [
+                    "scale",
+                    "translateX",
+                    "translateY",
+                    "opacity",
+                    "transform",
+                    "clipScaleX",
+                    "clipScaleY"
+                  ]
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "start": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "duration": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "easing": {
+                  "type": "string"
+                },
+                "transformOrigin": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "property",
+                "from",
+                "to"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "layers"
+  ]
+}

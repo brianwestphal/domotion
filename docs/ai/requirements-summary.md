@@ -45,8 +45,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   e.g. a window resized mid-playback); the `domotion composite <config.json>` verb
   (`src/cli/composite.ts`); and `device-mockup`'s `screenSvg` param (nest an
   animated screen instead of capturing to static). E2E demo:
-  `examples/composite-desktop.ts` + `examples/composite/`. **Follow-ups:**
-  cross-layer font dedup (DM-1329) and a published composite JSON Schema.
+  `examples/composite-desktop.ts` + `examples/composite/`. A published JSON Schema
+  ships at `schemas/composite-config.schema.json` (generated from the zod schema by
+  `npm run build:composite-schema`). Byte-identical embedded fonts are deduped
+  across layers (DM-1329, `dedupeCompositeFonts`). **Deeper follow-up:** merging
+  *different* glyph subsets of a shared font (needs re-subsetting).
 - **DM-1319 cast/template timeline re-sync (`src/animation/embed-timeline.ts`)** —
   **Shipped.** A `cast` / `template` frame's nested animation now starts when its
   frame becomes visible (offset by preceding frames) and holds before/after,

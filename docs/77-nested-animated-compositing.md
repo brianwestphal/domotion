@@ -13,8 +13,12 @@ terminal (80 → 50 cols) while the title-bar buttons keep their size** — ship
 composite**: (1) the terminal layer reflows via a mid-session cast `resize` event,
 (2) it's composited into fixed-size window chrome, (3) the window is placed on the
 desktop with a `clipScaleX` resize matched to the terminal's reflow time + a
-cursor dragging the edge. Cross-layer font dedup (DM-1329) and a published JSON
-Schema for the composite config remain follow-ups.
+cursor dragging the edge. A published **JSON Schema** for the composite config
+ships at `schemas/composite-config.schema.json` (point a config's `"$schema"`
+key at it for editor autocompletion). Byte-identical embedded fonts are deduped
+across layers (DM-1329): the renderer emits identical base64 for identical glyph
+subsets, so two layers built from the same font + glyph set (a reused layer, or
+the same composite nested twice) embed the heavy payload once.
 
 **Resizing a window correctly (not scaling it).** A real window resize changes the
 content's size and reflows it; it does not scale the chrome. So the demo (a) emits
@@ -216,10 +220,16 @@ pairs threaded down the tree.
    The doc 43 / 65 / 70 "static-only" caveats are updated to "static unless you
    pass animated content."
 4. ✅ **Declarative surface** — `domotion composite` config/verb (`src/cli/composite.ts`).
-5. ⬜ **Cross-layer font dedup** (DM-1329) — one `@font-face` block across nested
-   layers (each animated layer currently embeds its own font payload).
-6. ⬜ **Published JSON Schema** for the composite config (parity with
-   `animate-config.schema.json`).
+5. ✅ **Cross-layer font dedup** (DM-1329) — `dedupeCompositeFonts` collapses
+   byte-identical `@font-face` payloads across layers (same descriptors + same
+   base64 `src`), repointing the removed families' references at the survivor.
+   Only EXACT-payload duplicates merge; layers with *different* glyph subsets of
+   the same font keep their own subset (merging those needs re-subsetting —
+   a deeper follow-up).
+6. ✅ **Published JSON Schema** — `schemas/composite-config.schema.json`, generated
+   from `compositeConfigSchema` by `npm run build:composite-schema` (the same
+   pattern as the animate schema); a config can point its `"$schema"` at it. A
+   sync test (`composite-config-json-schema.test.ts`) keeps it from drifting.
 
 A layer-level animation currently supports **one transform animation per layer**
 (CSS last-wins if several animate `transform`); compose move-and-scale by nesting

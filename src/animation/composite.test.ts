@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { composeAnimatedLayers } from "./composite.js";
+import { composeAnimatedLayers, dedupeCompositeFonts } from "./composite.js";
 
 /** A minimal animated-SVG document with its own period and global names. */
 function animatedDoc(periodS: number, idTag = "a"): string {
@@ -92,6 +92,27 @@ describe("composeAnimatedLayers (DM-1323)", () => {
     const r = composeAnimatedLayers([{ svg: staticDoc, x: 5, y: 6, width: 100, height: 75 }], { width: 400, height: 300 });
     expect(r.svg).toContain('<svg x="5" y="6" width="100" height="75"');
     expect(r.svg).toContain('fill="#222"');
+  });
+
+  it("dedupes byte-identical embedded fonts across layers (DM-1329)", () => {
+    // Two layers (tokens c0_/c1_) carry the same font payload under namespaced
+    // family names — the renderer emits identical base64 for identical glyph sets.
+    const face = (fam: string) => `@font-face { font-family: "${fam}"; font-style: normal; font-weight: 400; src: url("data:font/ttf;base64,AAAABBBBCCCCDDDD"); }`;
+    const svg =
+      `<svg><style>${face("c0_dmf0")}</style><style>${face("c1_dmf0")}</style>` +
+      `<text font-family="c0_dmf0">a</text><text font-family="c1_dmf0">b</text>` +
+      `<g style="font-family:&quot;c1_dmf0&quot;"></g></svg>`;
+    const out = dedupeCompositeFonts(svg);
+    // One @font-face survives; the duplicate is removed.
+    expect((out.match(/@font-face/g) ?? []).length).toBe(1);
+    // The removed family's references are repointed at the survivor.
+    expect(out).not.toContain('font-family="c1_dmf0"');
+    expect(out.match(/font-family="c0_dmf0"/g)?.length).toBe(2);
+  });
+
+  it("leaves distinct font payloads untouched", () => {
+    const svg = `<svg><style>@font-face { font-family: "c0_dmf0"; src: url("data:font/ttf;base64,AAAA"); }@font-face { font-family: "c1_dmf0"; src: url("data:font/ttf;base64,BBBB"); }</style></svg>`;
+    expect(dedupeCompositeFonts(svg)).toBe(svg);
   });
 
   it("paints a background rect only when an opaque background is given", () => {

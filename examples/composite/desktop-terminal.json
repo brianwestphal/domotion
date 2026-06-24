@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/composite-config.schema.json",
   "_comment": "Declarative composite (domotion composite): a terminal window resting on a macOS-like desktop, animation preserved. The window rises + fades in, then the terminal plays. For the mid-playback WINDOW-RESIZE-with-reflow demo (which needs the terminal reflow timing computed from buildFrames), see the programmatic examples/composite-desktop.ts.",
   "width": 1100, "height": 720,
   "output": "examples/output/composite-config-demo.svg",
