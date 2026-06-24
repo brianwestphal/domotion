@@ -9,7 +9,7 @@
 
 import { runFeatureTests, type FeatureTest } from "./runner.js";
 
-const tests: FeatureTest[] = [
+export const tests: FeatureTest[] = [
   // ── Text ──
   {
     name: "text-basic",
@@ -1172,4 +1172,8 @@ const tests: FeatureTest[] = [
   },
 ];
 
-void runFeatureTests(tests, "features");
+// Only auto-run the suite when invoked directly (not when the fixtures are
+// imported by another harness, e.g. the byte-identical refactor baseline).
+if (process.argv[1] != null && process.argv[1].endsWith("features.ts")) {
+  void runFeatureTests(tests, "features");
+}
