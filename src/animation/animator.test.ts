@@ -818,5 +818,30 @@ describe("animator", () => {
       expect(bg.width).toBe(260);          // mask.width wins over bgWidth
       expect(bg.fill).toBe("rgb(9,9,9)");  // mask.color wins over bgColor
     });
+
+    // DM-1344: the placeholder mask must VERTICALLY STRADDLE the typed text's
+    // baseline (overlay.y) — its top above the baseline, its bottom below — so
+    // the typed glyphs always land on the masked field, never above/below it.
+    // The showcase-transitions demo mispositioned its overlay below the search
+    // bar; this pins the renderer's mask-vs-baseline contract demo authors rely
+    // on when placing an overlay against a captured element's box.
+    it("mask rect vertically straddles the typed-text baseline", () => {
+      const baseline = 40; // overlay.y
+      const fontSize = 14;
+      const svg = make({ wrapWidth: 400, mask: { color: "#161b22", height: 24 } });
+      const bg = /<rect class="t0-bg"[^>]*y="([\d.-]+)"[^>]*height="([\d.]+)"/.exec(svg);
+      expect(bg).not.toBeNull();
+      const maskTop = Number(bg![1]);
+      const maskBottom = maskTop + Number(bg![2]);
+      // First line's <text> baseline equals overlay.y.
+      const firstTextY = Number(/<text class="t0-text"[^>]*\by="([\d.]+)"/.exec(svg)![1]);
+      expect(firstTextY).toBe(baseline);
+      // The glyph ink runs from (baseline - ascent) up to ~(baseline + descent).
+      // The mask must cover the ascent (top above baseline) and reach past the
+      // baseline (bottom below it).
+      expect(maskTop).toBeLessThan(baseline);
+      expect(maskTop).toBeLessThanOrEqual(baseline - fontSize + 4); // covers the ascent
+      expect(maskBottom).toBeGreaterThan(baseline);
+    });
   });
 });

@@ -173,14 +173,17 @@ async function main(): Promise<void> {
     overlays: [{
       kind: "typing",
       text: "terminal",
-      x: 232, y: 230,
+      // Land the typed text INSIDE the search bar: it sits at x 200..600, y
+      // 180.6..219.6 (probed), so the baseline (overlay.y) is vertically
+      // centered at ~205 and the text starts at the field's left padding (220).
+      x: 220, y: 205,
       fontSize: 14,
       color: "#e6edf3",
       delay: 800,
       speed: 60,
-      bgColor: "#161b22",
-      bgWidth: 200,
-      bgHeight: 20,
+      // Mask the (center-aligned) "Search the docs..." placeholder with the
+      // field's own background so the typed text lands on a clean field.
+      mask: { color: "#161b22", width: 360, height: 24 },
     }],
   });
 
