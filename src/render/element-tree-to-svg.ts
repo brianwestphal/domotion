@@ -150,6 +150,94 @@ export function transparentRootBgRect(elements: CapturedElement[], width: number
  * wasn't actually a valid SVG document. Callers that want a complete
  * document should switch to the new `elementTreeToSvg()` below.
  */
+// Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
+// el + the resolved borderRadius + indent; appends to no shared state, so it
+// returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
+function paintOutline(el: CapturedElement, borderRadius: number, indent: string): string[] {
+  const out: string[] = [];
+  const ow = parseFloat(el.styles.outlineWidth ?? "0") || 0;
+  const ostyle = el.styles.outlineStyle ?? "none";
+  if (ow > 0 && ostyle !== "none" && ostyle !== "hidden") {
+    const ocolor = parseColor(el.styles.outlineColor ?? el.styles.color);
+    if (ocolor != null && ocolor.a > 0.01) {
+      const offset = parseFloat(el.styles.outlineOffset ?? "0") || 0;
+      // Outline rect outer edge is at border-box + offset. Stroke is
+      // centered, so the rect goes at offset + ow/2 from the border-box.
+      const inflate = offset + ow / 2;
+      const ox = el.x - inflate;
+      const oy = el.y - inflate;
+      const owd = el.width + inflate * 2;
+      const oh = el.height + inflate * 2;
+      // Outline radius: CSS spec says rounded outlines follow the border
+      // radius extended outward by the offset+width. Approximate.
+      const oRadius = borderRadius > 0 ? borderRadius + inflate : 0;
+      if (ostyle === "double" && ow >= 3) {
+        // Chromium's PaintDoubleOutline (third_party/blink/renderer/core/
+        // paint/outline_painter.cc): stroke_width = round(width / 3).
+        // Outer stripe occupies the OUTER `sw` pixels of the outline rect,
+        // inner stripe the INNER `sw` pixels, separated by `ow - 2*sw`.
+        // The captured `ox / owd` is the centerline rect for a standard
+        // ow-wide stroke (outer edge = ox - ow/2). Each stripe is `sw`
+        // wide; the outer stripe's centerline sits at `outer_edge + sw/2`,
+        // the inner stripe's at `inner_edge - sw/2 = outer_edge + ow -
+        // sw/2`. Relative to ox that's −(ow-sw)/2 and +(ow-sw)/2. The
+        // earlier formulation positioned both stripes inside the gap zone
+        // and the inner stripe outside the border-box, producing one
+        // visually-merged stroke. (DM-443.)
+        const sw = Math.round(ow / 3);
+        const half = (ow - sw) / 2;
+        const outerR = Math.max(0, oRadius + half);
+        const innerR = Math.max(0, oRadius - half);
+        out.push(
+          `${indent}<rect x="${r(ox - half)}" y="${r(oy - half)}" width="${r(owd + 2 * half)}" height="${r(oh + 2 * half)}" rx="${r(outerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
+        );
+        out.push(
+          `${indent}<rect x="${r(ox + half)}" y="${r(oy + half)}" width="${r(owd - 2 * half)}" height="${r(oh - 2 * half)}" rx="${r(innerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
+        );
+      } else if ((ostyle === "dashed" || ostyle === "dotted") && oRadius === 0) {
+        // DM-910 / DM-911: a single `<rect stroke-dasharray>` runs the
+        // dash pattern unbroken across all four corners, so the dashes
+        // phase differently from Chrome's `OutlinePainter::PaintOutline`
+        // — Chrome paints each side as a separate path and starts a
+        // fresh dash at each corner. Reproduce that by emitting four
+        // `<line>`s with the same per-side adjusted dash math used for
+        // dashed/dotted borders (`adjustedDashAttrs` → Chrome's
+        // `SelectBestDashGap`), so each side begins flush at its
+        // start corner. We only take this path when the outline is
+        // NOT rounded (oRadius == 0) — for rounded outlines the
+        // single-rect emit is still the closest SVG-native fit.
+        const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
+        const oxR = ox + owd, oyB = oy + oh;
+        const hLen = owd, vLen = oh;
+        const hAttrs = (() => {
+          const { array, offset } = adjustedDashAttrs(ostyle, ow, hLen);
+          return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+        })();
+        const vAttrs = (() => {
+          const { array, offset } = adjustedDashAttrs(ostyle, ow, vLen);
+          return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+        })();
+        const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
+        // Four sides, each starting at its top-left corner so the
+        // dash pattern phases identically per side.
+        out.push(
+          `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+          `${indent}<line x1="${r(oxR)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+          `${indent}<line x1="${r(ox)}" y1="${r(oyB)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+          `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(ox)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+        );
+      } else {
+        const dash = dashArrayForStyle(ostyle, ow);
+        const linecap = "";
+        out.push(
+          `${indent}<rect x="${r(ox)}" y="${r(oy)}" width="${r(owd)}" height="${r(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+        );
+      }
+    }
+  }
+  return out;
+}
+
 export function elementTreeToSvgInner(
   elements: CapturedElement[],
   width: number,
@@ -1929,88 +2017,7 @@ export function elementTreeToSvgInner(
     // by outline-offset (which can be negative). Doesn't take layout space —
     // the captured rect is the border-box, so we inflate from that. Outline
     // styles (solid / dashed / dotted) reuse dashArrayForStyle.
-    {
-      const ow = parseFloat(el.styles.outlineWidth ?? "0") || 0;
-      const ostyle = el.styles.outlineStyle ?? "none";
-      if (ow > 0 && ostyle !== "none" && ostyle !== "hidden") {
-        const ocolor = parseColor(el.styles.outlineColor ?? el.styles.color);
-        if (ocolor != null && ocolor.a > 0.01) {
-          const offset = parseFloat(el.styles.outlineOffset ?? "0") || 0;
-          // Outline rect outer edge is at border-box + offset. Stroke is
-          // centered, so the rect goes at offset + ow/2 from the border-box.
-          const inflate = offset + ow / 2;
-          const ox = el.x - inflate;
-          const oy = el.y - inflate;
-          const owd = el.width + inflate * 2;
-          const oh = el.height + inflate * 2;
-          // Outline radius: CSS spec says rounded outlines follow the border
-          // radius extended outward by the offset+width. Approximate.
-          const oRadius = borderRadius > 0 ? borderRadius + inflate : 0;
-          if (ostyle === "double" && ow >= 3) {
-            // Chromium's PaintDoubleOutline (third_party/blink/renderer/core/
-            // paint/outline_painter.cc): stroke_width = round(width / 3).
-            // Outer stripe occupies the OUTER `sw` pixels of the outline rect,
-            // inner stripe the INNER `sw` pixels, separated by `ow - 2*sw`.
-            // The captured `ox / owd` is the centerline rect for a standard
-            // ow-wide stroke (outer edge = ox - ow/2). Each stripe is `sw`
-            // wide; the outer stripe's centerline sits at `outer_edge + sw/2`,
-            // the inner stripe's at `inner_edge - sw/2 = outer_edge + ow -
-            // sw/2`. Relative to ox that's −(ow-sw)/2 and +(ow-sw)/2. The
-            // earlier formulation positioned both stripes inside the gap zone
-            // and the inner stripe outside the border-box, producing one
-            // visually-merged stroke. (DM-443.)
-            const sw = Math.round(ow / 3);
-            const half = (ow - sw) / 2;
-            const outerR = Math.max(0, oRadius + half);
-            const innerR = Math.max(0, oRadius - half);
-            svgParts.push(
-              `${indent}<rect x="${r(ox - half)}" y="${r(oy - half)}" width="${r(owd + 2 * half)}" height="${r(oh + 2 * half)}" rx="${r(outerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
-            );
-            svgParts.push(
-              `${indent}<rect x="${r(ox + half)}" y="${r(oy + half)}" width="${r(owd - 2 * half)}" height="${r(oh - 2 * half)}" rx="${r(innerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
-            );
-          } else if ((ostyle === "dashed" || ostyle === "dotted") && oRadius === 0) {
-            // DM-910 / DM-911: a single `<rect stroke-dasharray>` runs the
-            // dash pattern unbroken across all four corners, so the dashes
-            // phase differently from Chrome's `OutlinePainter::PaintOutline`
-            // — Chrome paints each side as a separate path and starts a
-            // fresh dash at each corner. Reproduce that by emitting four
-            // `<line>`s with the same per-side adjusted dash math used for
-            // dashed/dotted borders (`adjustedDashAttrs` → Chrome's
-            // `SelectBestDashGap`), so each side begins flush at its
-            // start corner. We only take this path when the outline is
-            // NOT rounded (oRadius == 0) — for rounded outlines the
-            // single-rect emit is still the closest SVG-native fit.
-            const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
-            const oxR = ox + owd, oyB = oy + oh;
-            const hLen = owd, vLen = oh;
-            const hAttrs = (() => {
-              const { array, offset } = adjustedDashAttrs(ostyle, ow, hLen);
-              return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
-            })();
-            const vAttrs = (() => {
-              const { array, offset } = adjustedDashAttrs(ostyle, ow, vLen);
-              return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
-            })();
-            const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
-            // Four sides, each starting at its top-left corner so the
-            // dash pattern phases identically per side.
-            svgParts.push(
-              `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-              `${indent}<line x1="${r(oxR)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
-              `${indent}<line x1="${r(ox)}" y1="${r(oyB)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-              `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(ox)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
-            );
-          } else {
-            const dash = dashArrayForStyle(ostyle, ow);
-            const linecap = "";
-            svgParts.push(
-              `${indent}<rect x="${r(ox)}" y="${r(oy)}" width="${r(owd)}" height="${r(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
-            );
-          }
-        }
-      }
-    }
+    svgParts.push(...paintOutline(el, borderRadius, indent));
 
     // Inline SVG. The captured outerHTML preserves the source attributes,
     // including viewBox, but inline SVGs in the wild often omit width/height
