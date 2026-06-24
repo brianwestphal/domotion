@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { validateAnimateConfig, interpolateConfigVars, buildCursorOverlay, placeEmbeddedFrame, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -478,5 +478,46 @@ describe("placeEmbeddedFrame: template-frame fit policy (DM-1293)", () => {
 
   it("contain on an already-fitting square is a no-op-ish identity scale (no wrapper)", () => {
     expect(placeEmbeddedFrame("<g/>", 800, 450, 800, 450, "contain")).toBe("<g/>");
+  });
+});
+
+// DM-1320: overlays on a cast / template frame have no captured DOM, so a
+// selector anchor (or typing maxWidth:"anchor") can't resolve. Previously the
+// whole overlay was silently dropped; now it warns clearly and falls back to
+// the overlay's explicit x/y so explicit-coordinate overlays still render.
+describe("resolveEmbeddedFrameOverlays — overlays on cast/template frames (DM-1320)", () => {
+  it("warns and strips a selector anchor, keeping the overlay (falls back to x/y)", () => {
+    const logs: string[] = [];
+    const out = resolveEmbeddedFrameOverlays(
+      [{ kind: "tap", x: 0, y: 0, anchor: { selector: ".btn", at: "center" } }],
+      process.cwd(), 0, "cast", (m) => logs.push(m),
+    );
+    expect(out).toHaveLength(1);
+    expect((out![0] as { anchor?: unknown }).anchor).toBeUndefined();
+    expect(logs.join("\n")).toMatch(/anchor.*\.btn.*ignored on a cast frame/);
+  });
+
+  it("warns for typing maxWidth:'anchor' and drops it", () => {
+    const logs: string[] = [];
+    const out = resolveEmbeddedFrameOverlays(
+      [{ kind: "typing", x: 10, y: 20, text: "hi", maxWidth: "anchor" }],
+      process.cwd(), 1, "template", (m) => logs.push(m),
+    );
+    expect((out![0] as { maxWidth?: unknown }).maxWidth).toBeUndefined();
+    expect(logs.join("\n")).toMatch(/maxWidth:"anchor" is ignored on a template frame/);
+  });
+
+  it("passes explicit-coordinate overlays through untouched (no warning)", () => {
+    const logs: string[] = [];
+    const out = resolveEmbeddedFrameOverlays(
+      [{ kind: "tap", x: 100, y: 50 }],
+      process.cwd(), 0, "cast", (m) => logs.push(m),
+    );
+    expect(out).toEqual([{ kind: "tap", x: 100, y: 50 }]);
+    expect(logs).toHaveLength(0);
+  });
+
+  it("returns undefined when there are no overlays", () => {
+    expect(resolveEmbeddedFrameOverlays(undefined, process.cwd(), 0, "cast", () => {})).toBeUndefined();
   });
 });

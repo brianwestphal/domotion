@@ -165,7 +165,10 @@ export function acquireGlyphHelperSync(opts: AcquireOptions = {}): string | unde
   if (proc.status === 0 && existsSync(target.dest)) return target.dest;
 
   syncFailedThisProcess = true;
-  warnOnce(`could not acquire the glyph helper (${target.asset}) — using fontkit. Set DOMOTION_HELPER_PATH to a local binary, or pre-warm with acquireGlyphHelper().`);
+  // DM-1325: this is a PERF-only fallback — fontkit produces the same glyph
+  // paths, so the SVG output is byte-for-byte unaffected; only render speed
+  // differs. Word the warning so it doesn't read as a correctness problem.
+  warnOnce(`glyph helper (${target.asset}) unavailable — using fontkit instead. This is a performance-only fallback; the SVG output is unaffected. To speed up runs, set DOMOTION_HELPER_PATH to a local binary or pre-warm with acquireGlyphHelper().`);
   return undefined;
 }
 

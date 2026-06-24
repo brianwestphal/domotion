@@ -73,6 +73,23 @@ Built-ins: **lower-third** (broadcast banner) · **device-mockup** (wrap a captu
 
 Record with `asciinema rec demo.cast -c "<command>"`, then `domotion term --cast demo.cast -o demo.svg`. Options for theme, font size, and timing (`domotion term --help`).
 
+**Timing:** the *rendered* play length differs from the recording's wall time (the `*-ms` knobs re-time it). `term` prints it on stderr (`… 13.60s play length …`) — use that number when sizing an `animate` cast frame's `duration`. A blank lead-in *before* the first output renders as zero time. (Synthesizing a `.cast` by hand? Each ANSI sequence needs a real ESC byte — in JSON the `\u001b` escape, which is what `JSON.stringify` of a `"\x1b…"` string produces.)
+
+### Recipe: compose a polished terminal demo
+
+1. **Get a cast.** Record (`asciinema rec`) or synthesize one (asciinema v2: a JSON header line, then `[time,"o",data]` lines; put a real `\u001b` before each SGR).
+2. **Find the rendered length.** Run `domotion term --cast x.cast -o x.svg` once and read the `… Ns play length …` it prints.
+3. **Compose with intro/outro** via an `animate` config: an `input`/`template` title frame, then the `cast` frame sized to that play length, then an outro. Cast frames are re-synced to start when shown, so multi-frame casts play correctly (not just frame 0):
+
+   ```json
+   { "width": 720, "height": 400, "frames": [
+     { "template": "kinetic-text", "params": { "text": "Building…" }, "transition": { "type": "crossfade", "duration": 400 } },
+     { "cast": "./build.cast", "term": { "theme": "dark" }, "duration": 13600 },
+     { "input": "./done.html", "duration": 2000 } ] }
+   ```
+4. **Transparent canvas** so the result floats on any host background: give the cast theme a transparent `bg` (or omit a page background on an `input` frame) — a transparent root yields a transparent SVG.
+5. **Window chrome / title bar.** A clean "wrap the *animated* terminal in window chrome" path is still being built (general animated nesting); today either add chrome as explicit-`x`/`y` `svg` overlays on the cast frame, or post-process the output SVG. `domotion capture --chrome window` and the `device-mockup` template draw a bezel but **snapshot** their input to a static frame — they don't preserve a cast's animation.
+
 ## `svg-to-video <input.svg> -o out.mp4` — animated SVG → video
 
 ```bash
@@ -91,6 +108,7 @@ For Node scripts instead of the CLI: `captureElementTree()` + `elementTreeToSvg(
 - One **self-contained** `<svg>` document — no external fonts/images/scripts. Embed with `<img src="out.svg">` (CSS animations play, it's lazy-loadable and accessible with `alt`), or inline it if you need CSS to reach in.
 - **Scales** crisply at any size; **text is real glyph paths**, so it renders identically across browsers.
 - Some content is embedded as a raster `<image>` rather than native SVG (color emoji, vertical text, `<canvas>`/`<iframe>`/`<video>`, conic gradients, `<textarea>` content) — still self-contained.
+- **Transparent background round-trips.** A transparent page/root background (or a transparent terminal theme `bg`) yields a **transparent SVG** — no opaque backdrop rect is painted — so the output composites over whatever host background it lands on. Give the root an opaque background if you want one baked in.
 
 ## Gotchas / constraints
 
@@ -98,6 +116,8 @@ For Node scripts instead of the CLI: `captureElementTree()` + `elementTreeToSvg(
 - **Cross-browser-safe animation only.** Animate `opacity` / `transform` / `translate` / `scale` / `clipPath`. Do **not** rely on animated CSS `filter` (e.g. `blur()`) — it renders in Chromium but not Safari/others inside an `<img>`-embedded SVG.
 - **One intra-frame animation per element** — to move *and* fade an element, wrap it (move on the wrapper, fade on the inner). For a transform to pivot about an element's own box (e.g. a center scale), set `transformOrigin` on the animation.
 - Output reflects Chromium-on-the-capturing-OS; verify text fidelity on macOS until Linux/Windows are calibrated.
+- **Nesting animation:** `cast` / `template` / `scroll` frames (and a frame's intra-frame `animations`) **keep** their animation; an `svg` **overlay** and the `device-mockup` / `--chrome` **bezel** render their input as a **static snapshot** (an animated input loses its motion). For an animated inset, use a frame kind, not an overlay/wrapper.
+- **"glyph helper unavailable — using fontkit" is harmless.** That stderr line is a **performance-only** fallback; the SVG output is identical either way. Pre-warm with `acquireGlyphHelper()` or `DOMOTION_HELPER_PATH` only if you want the faster path.
 
 ## Going deeper
 

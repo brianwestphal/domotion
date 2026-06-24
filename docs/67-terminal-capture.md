@@ -81,6 +81,44 @@ await castToAnimatedSvg(castText, browser, {
 });
 ```
 
+## Timing model (DM-1321)
+
+The rendered play length is **not** the cast's recorded wall time, and three
+behaviors trip up authors sizing a terminal demo:
+
+1. **Rendered duration ≠ recorded timestamps.** `--settle-ms` / `--min-frame-ms`
+   / `--max-frame-ms` / `--tail-ms` re-time the recording: idle gaps are capped,
+   each settle-point frame is clamped to `[minFrameMs, maxFrameMs]`, and the final
+   screen holds for `tailMs`. So a 12 s recording can render as ~13.6 s of play.
+   `domotion term` **prints the rendered play length** on stderr next to the
+   canvas size (`… — 17 frames, 656×346px, 13.60s play length, 45.3 KB`); use that
+   number, not the recording's length. (Programmatically it's
+   `castToAnimatedSvg(...).totalDurationMs`.)
+
+2. **A *leading* idle is collapsed.** A blank period before the first output
+   produces no frame — a "pause, then start typing" lead-in renders as zero time.
+   To hold an opening beat, emit something first (e.g. the prompt) and idle
+   *after* it, or add an intro frame in an `animate` config.
+
+3. **`duration` in an `animate` cast frame is the frame's visible window, and the
+   cast plays at its own rendered rate inside it** (it is NOT stretched to fit
+   `duration`). Size the frame `duration` to ≈ the rendered play length from (1):
+   a longer `duration` holds the final terminal screen for the remainder; a
+   shorter one cuts the cast off (and warns). Since DM-1319 the cast's timeline is
+   re-anchored to start when its frame appears (see "Composing…" and the
+   limitations below), so it always plays from its beginning within that window.
+
+### Synthesizing a `.cast` by hand (DM-1325)
+
+A cast is asciinema v2: a JSON header line then `[time, "o", data]` event lines.
+To get ANSI color / cursor control, the `data` string must contain a **real ESC
+byte** (`0x1b`) before each SGR sequence — in JSON write it as the `\u001b`
+escape (e.g. `"\u001b[1;32m\u001b[0m"`), which parses back to a single ESC. That
+is exactly what `JSON.stringify` of a JS string containing `"\x1b"` emits, so
+building cast lines in code and stringifying them works directly. ANSI SGR color
+is honored (the 16-color theme + the 256-color cube + truecolor), so a
+synthesized cast colors identically to a recorded one.
+
 ## Architecture (4 stages)
 
 `src/terminal/` + the `term` subcommand in `src/cli/index.ts`. The backend is
@@ -251,9 +289,14 @@ constant-size segment the usual line-identity threading / scroll-glide applies.
   full-screen redraw (vim/htop) that rewrites many rows at once produces more
   tracked lines (each row-state once) — still correct, just less of a win.
   `--mode full` is the robust fallback for those.
-- **Nested cast in an `animate` config** loops on the document timeline (like a
-  `scroll` frame), so it isn't re-synced to when its outer frame appears — put the
-  cast frame first or size the scene so the loop lines up.
+- **Nested cast in an `animate` config** is re-synced to when its frame appears
+  (DM-1319): the animator re-anchors the cast's internal timeline to the frame's
+  master-loop offset, so the recording plays from its start when the frame becomes
+  visible and holds its final screen afterward — a cast no longer has to be frame 0.
+  (Implementation: `offsetEmbeddedAnimatedSvgTimeline` in
+  `src/animation/embed-timeline.ts`, driven by the frame's `embeddedAnimationPeriodMs`.
+  Size the frame `duration` to ≈ the rendered cast length; a shorter duration still
+  cuts the cast off and warns.)
 - **Live `node-pty` capture** (`domotion term -- <cmd>`) is the second front-end
   onto this same backend — shipped in DM-1226, see doc
   [68](./68-live-terminal-capture.md). It runs a command live in a pty and feeds

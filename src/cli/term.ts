@@ -160,7 +160,7 @@ export async function runTerm(argv: string[]): Promise<void> {
     if (cursor != null && !["block", "bar", "underline", "none"].includes(cursor)) {
       cliFail("domotion term", `--cursor must be block | bar | underline | none, got "${cursor}"`, "usage");
     }
-    const { svg, width, height, frameCount } = await castToAnimatedSvg(castText, browser, {
+    const { svg, width, height, frameCount, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
       theme,
       mode: mode as "incremental" | "full" | undefined,
       cursor: cursor as "block" | "bar" | "underline" | "none" | undefined,
@@ -184,7 +184,12 @@ export async function runTerm(argv: string[]): Promise<void> {
       process.stdout.write(svg);
     } else {
       writeFileSync(resolve(outPath), svg);
-      process.stderr.write(`Wrote ${resolve(outPath)} — ${frameCount} frames, ${width}×${height}px, ${(svg.length / 1024).toFixed(1)} KB\n`);
+      // DM-1321: print the RENDERED play length too — it differs from the cast's
+      // raw timestamps (minFrameMs/settleMs/maxFrameMs/tailMs re-time it), and an
+      // `animate` cast frame's `duration` should be sized to this value, not the
+      // recording's wall time. Surfacing it here saves the author a parse of the
+      // output SVG's animation duration.
+      process.stderr.write(`Wrote ${resolve(outPath)} — ${frameCount} frames, ${width}×${height}px, ${(totalDurationMs / 1000).toFixed(2)}s play length, ${(svg.length / 1024).toFixed(1)} KB\n`);
     }
   } finally {
     await browser.close();

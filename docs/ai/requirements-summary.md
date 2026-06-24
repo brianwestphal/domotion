@@ -35,6 +35,23 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 77 (`docs/77-nested-animated-compositing.md`, DM-1323)** — **Design / proposed.**
+  Specifies a primitive to nest one *animated* composition (cast / scroll capture /
+  template / `animate` result) inside another while preserving its animation — the
+  website→window→OS-context composite. Not built yet; a feasibility probe confirms
+  `<svg>`-in-`<svg>` nesting + transform + the existing `namespaceEmbeddedAnimatedSvg`
+  preserves animation, and DM-1319's per-frame timeline offset
+  (`offsetEmbeddedAnimatedSvgTimeline`, `src/animation/embed-timeline.ts`) is the
+  per-layer seed. Decorators (`device-mockup` / `--chrome` / `wrapInDeviceChrome`)
+  are **static-only** today — they re-capture an animated input to a still frame;
+  that caveat is now stated in docs 43/65/70 + `llms.txt`. Phased rollout + open
+  design decisions in the doc.
+- **DM-1319 cast/template timeline re-sync (`src/animation/embed-timeline.ts`)** —
+  **Shipped.** A `cast` / `template` frame's nested animation now starts when its
+  frame becomes visible (offset by preceding frames) and holds before/after,
+  instead of running on the shared document origin. New `AnimationFrame.
+  embeddedAnimationPeriodMs` field drives it inside `generateAnimatedSvg`. See
+  `docs/67`.
 - **Doc 76 (`docs/76-social-templates.md`, DM-1278)** — **Shipped.** Two social
   built-ins: `chat` (a message thread whose bubbles pop in one at a time,
   alternating `me`/`them` sides; parsed from a `{from,text}[]` array or `me:`/

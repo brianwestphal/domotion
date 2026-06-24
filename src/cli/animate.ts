@@ -584,8 +584,8 @@ async function renderTemplateFrames(
   cfg: AnimateConfig,
   browser: Browser,
   log: (msg: string) => void,
-): Promise<Map<number, string>> {
-  const out = new Map<number, string>();
+): Promise<Map<number, { content: string; durationMs: number | null }>> {
+  const out = new Map<number, { content: string; durationMs: number | null }>();
   const idxs = cfg.frames.flatMap((f, i) => (f.template != null ? [i] : []));
   if (idxs.length === 0) return out;
 
@@ -652,7 +652,7 @@ async function renderTemplateFrames(
     // group (same as a `cast` frame). Center within the canvas when smaller.
     content = content.replace(/^<\?xml[^>]*\?>\s*/, "");
     content = placeEmbeddedFrame(content, result.width, result.height, cfg.width, cfg.height, fit);
-    out.set(i, content);
+    out.set(i, { content, durationMs: result.durationMs ?? null });
   }
   return out;
 }
@@ -782,6 +782,15 @@ export async function composeAnimateFrames(
           svgContent: termSvg.replace(/^<\?xml[^>]*\?>\s*/, ""),
           duration: fc.duration,
           transition: fc.transition,
+          // DM-1320: overlays render on top of the cast (explicit x/y); a selector
+          // anchor can't resolve (no DOM) and now warns instead of vanishing.
+          overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "cast", log),
+          // DM-1319: the nested cast is a self-contained animated SVG with its
+          // own internal period (the rendered cast length). Tell the animator
+          // so it re-anchors the cast's timeline to start when THIS frame is
+          // shown, rather than running on the shared document origin (which
+          // desyncs a cast that isn't frame 0 to its back half).
+          embeddedAnimationPeriodMs: totalDurationMs,
         });
         // A cast frame has no single captured tree; magic-move to/from it falls
         // back to crossfade, and the cursor/overlay machinery is skipped.
@@ -794,10 +803,19 @@ export async function composeAnimateFrames(
       // SVG string. Nest it exactly like a `cast` frame.
       if (fc.template != null) {
         log(`Frame ${i + 1}/${cfg.frames.length}: embedding template "${fc.template}"…`);
+        const tr = templateRenders.get(i)!;
         frames.push({
-          svgContent: templateRenders.get(i)!,
+          svgContent: tr.content,
           duration: fc.duration,
           transition: fc.transition,
+          // DM-1320: same as a cast frame — a template frame has no captured DOM,
+          // so a selector anchor warns and falls back to explicit x/y.
+          overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "template", log),
+          // DM-1319: an ANIMATED template (one with an intrinsic play time) is a
+          // self-contained animated SVG, same as a `cast` frame — re-anchor its
+          // timeline to this frame's master-loop offset so it begins when shown.
+          // A static template (durationMs == null) carries no internal animation.
+          ...(tr.durationMs != null ? { embeddedAnimationPeriodMs: tr.durationMs } : {}),
         });
         prevFrameTree = null;
         frameTrees.push(null);
@@ -1321,6 +1339,39 @@ function mapCursorStyle(s: CursorStyleInput | undefined): Partial<CursorStyle> |
  * referenced SVG file, namespacing its ids, and replacing `src` with the
  * inlined `innerSvg`. Other overlay kinds pass through verbatim.
  */
+/**
+ * DM-1320: overlays on an embedded-content frame (`cast` / `template`). These
+ * frames have NO captured DOM, so a selector `anchor` (or typing `maxWidth:
+ * "anchor"`) can't resolve — previously the whole overlay was silently dropped,
+ * leaving the author with a vanished overlay and no clue why. Instead: warn
+ * clearly that selector anchoring isn't supported here (use explicit `x`/`y`),
+ * strip the unresolvable anchor so the overlay falls back to its `x`/`y`, then
+ * resolve `svg` overlays as usual so explicit-coordinate overlays DO render on
+ * top of the embedded animation.
+ */
+export function resolveEmbeddedFrameOverlays(
+  overlays: OverlayInput[] | undefined,
+  configDir: string,
+  frameIdx: number,
+  frameKind: "cast" | "template",
+  log: (msg: string) => void,
+): AnimationOverlay[] | undefined {
+  if (overlays == null) return undefined;
+  const stripped = overlays.map((ov) => {
+    let next = ov;
+    if ("anchor" in next && next.anchor != null) {
+      log(`  warning: overlay anchor { selector: ${JSON.stringify(next.anchor.selector)} } is ignored on a ${frameKind} frame — it has no captured DOM to resolve a selector against. The overlay falls back to its x/y (default 0,0); set explicit "x"/"y" to position it.`);
+      next = { ...next, anchor: undefined };
+    }
+    if (next.kind === "typing" && next.maxWidth === "anchor") {
+      log(`  warning: typing overlay maxWidth:"anchor" is ignored on a ${frameKind} frame (no DOM); set a fixed px width instead.`);
+      next = { ...next, maxWidth: undefined };
+    }
+    return next;
+  });
+  return resolveSvgOverlays(stripped, configDir, frameIdx);
+}
+
 function resolveSvgOverlays(overlays: OverlayInput[] | undefined, configDir: string, frameIdx: number): AnimationOverlay[] | undefined {
   if (overlays == null) return undefined;
   const out: AnimationOverlay[] = [];

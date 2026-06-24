@@ -34,7 +34,13 @@ Two shapes have emerged, both expressible on one contract:
 - **Generator** (e.g. `lower-third`): synthesizes HTML/CSS + an `animate` config
   and runs it for *animated* output.
 - **Decorator** (e.g. `device-mockup`): captures a user-supplied page to a
-  *static* SVG and wraps/post-processes it.
+  *static* SVG and wraps/post-processes it. **A decorator is static-only: it
+  re-captures its input to a single still frame, so an *animated* input (a cast,
+  a scroll capture, or another animated SVG) is flattened — its animation is NOT
+  preserved.** Wrapping an animated thing in a bezel and keeping it animated is
+  the general nested-compositing capability tracked in DM-1323; until that lands,
+  use a `cast` / `template` *frame* (doc 73) when you need the inner motion to
+  survive, and reserve decorators for static screens.
 
 ## The contract
 

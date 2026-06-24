@@ -173,6 +173,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 **Semantics.**
 - `anchor.at` ∈ `top-left | top | top-right | left | center | right | bottom-left | bottom | bottom-right`; `dx`/`dy` offset (px) from that point. Resolved against the **first** match's bounding box.
 - The resolved point replaces `x`/`y` for that overlay; explicit `x`/`y` remain valid for un-anchored overlays.
+- **On `cast` / `template` frames there is no captured DOM** (the content is an embedded, pre-rendered animated SVG), so a selector `anchor` — and `maxWidth: "anchor"` — cannot resolve. Such an anchor is **ignored with a clear warning** (DM-1320) and the overlay falls back to its explicit `x`/`y` (default `0,0`); position overlays on these frames with `x`/`y`. Explicit-coordinate overlays still render normally on top of the embedded animation.
 - `maxWidth: "anchor"` wraps `typing` text to the anchored element's **content width** (it resolves into the typing overlay's `wrapWidth` — the textarea-style wrap, DM-1134; `maxWidth` may also take a number in px). With `maxWidth` set, the author never measures the field or pre-splits the string into lines.
 
 > **Typing-overlay wrap vs mask (DM-1134).** A `typing` overlay's wrapping and its placeholder cover are separate knobs: `wrapWidth` (px) controls where the text line-breaks, and `mask: { width, height, color }` controls the cover painted behind it (mask `width` defaults to `wrapWidth`, `height` grows to fit the wrapped lines, and the mask only paints when a `color` is set). The older `bgWidth` / `bgHeight` / `bgColor` fields still work as **deprecated aliases** — `bgWidth` feeds both `wrapWidth` and `mask.width`, `bgHeight` → `mask.height`, `bgColor` → `mask.color` — so existing configs are unchanged; prefer the new fields in new configs.
@@ -291,6 +292,43 @@ A frame may embed a named **template** (doc 70) instead of an `input` page or a 
 - `duration` is **optional** on a template frame — omit it to inherit the template's intrinsic play time (`TemplateOutput.durationMs`); a static template (e.g. `device-mockup`) has none, so it needs an explicit `duration`. The template's internal animation plays within `duration` (size it to ≈ the template's play time, same rule as a `cast` frame).
 
 **Implementation.** A template is itself a front-end onto `composeAnimateConfig`, so the embedding nests an animated SVG in the animation. Template frames are pre-rendered before the outer font lifecycle (so the nested compose can't clobber the outer frames' embedded fonts), and the nested document's global names (ids, font families, frame/anim classes, `@keyframes`, `--scene-dur`) are namespaced per-frame so they don't collide with the outer animation or sibling template frames. Full detail in **`docs/73-template-frames.md`**.
+
+---
+
+## Nested animation: preserved vs snapshotted (DM-1322)
+
+Composition primitives differ in whether a **nested animation** survives. This is the single most surprising thing about composing animated pieces, so the contract is spelled out:
+
+| Primitive | Nested animation? | Notes |
+|---|---|---|
+| `cast` frame | **Preserved** | The terminal recording plays. Since DM-1319 its timeline is re-anchored to start when the frame appears (see `docs/67`). |
+| `template` frame | **Preserved** | An animated template (one with a `durationMs`) plays; re-anchored like a cast (DM-1319). A static template (e.g. `device-mockup`) has nothing to animate. |
+| `scroll` frame (`--scroll` / `scroll` block) | **Preserved** | The composed scroll SVG carries its own keyframe loop. |
+| `input` frame `animations` | **Preserved** | Intra-frame property animations on captured elements run during the frame's hold. |
+| **`svg` overlay** | **Snapshot (NOT preserved)** | A referenced `.svg` is inlined as a **static first-frame** graphic — an *animated* SVG loses its animation. Use a `cast` / `template` frame for an animated inset, not an `svg` overlay. |
+| `device-mockup` / `wrapInDeviceChrome` (decorator) | **Snapshot (NOT preserved)** | The wrapped page is **re-captured to a static SVG** before the bezel is drawn; an animated input is flattened to one frame. General animated nesting (window/device chrome around a still-animating layer) is tracked separately (DM-1323). |
+
+Rule of thumb: **frame kinds** (`cast` / `template` / `scroll` / `input`) preserve animation; **overlays and decorator wrappers** snapshot it.
+
+---
+
+## Output structure & post-processing (DM-1324)
+
+The composed document is **one outer `<svg>`** built by `generateAnimatedSvg` with a predictable, stable shape — useful if you post-process the SVG (e.g. to add custom chrome). The supported seams come first; the raw structure is documented so a reader knows what they're looking at, **not** as an API to depend on.
+
+**Prefer the extension seams** over reaching into the markup:
+
+- **`composeAnimateFrames`** (doc 62) returns the assembled `AnimationConfig` *before* the final `generateAnimatedSvg`, so you can edit frames/overlays/transitions as data.
+- **`onFrame`** (doc 62) is a per-frame hook to mutate each `AnimationFrame` (its `svgContent`, `overlays`, …) as it's composed.
+- **`generateAnimatedSvg`** is itself exported — assemble or wrap frames and render yourself.
+
+**Raw structure** (stable, but treat the seams above as the contract):
+
+- Each frame is a group `<g class="f f-N">` (N = frame index). Visibility/opacity over the master loop is driven by `@keyframes fv-N` (opacity/visibility) and, for the display-culling pass, `@keyframes fd-N`; the rule is `.f-N { animation: fv-N <totalSec>s infinite … }`.
+- A `cast` / `template` / `scroll` frame's content is a **nested `<svg>`** inside its frame group. To avoid document-global name clashes, that nested document's ids / classes / `@keyframes` / `--scene-dur` are prefixed per frame — `cfN_` for casts, `tfN_` for templates (`namespaceEmbeddedAnimatedSvg`, doc 73 / DM-1287 / DM-1292). A cast's nested timeline is additionally re-anchored to the frame's offset (DM-1319, `embeddedAnimationPeriodMs`).
+- Embedded fonts appear **once** as a top-level `@font-face` block (`dmfN` families); frames don't carry their own copies.
+
+If you must hand-edit the markup (e.g. apple-fm's window chrome around a single cast frame), key off `<g class="f f-N">` and the `fv-N` keyframe — but expect those to evolve; the data-level seams won't.
 
 ---
 

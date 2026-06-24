@@ -14,6 +14,7 @@ import type { MagicMove } from "./magic-move.js";
 import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, IntraFrameAnimation } from "./overlay-schema.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
+import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
 
 export interface AnimationFrame {
@@ -33,6 +34,15 @@ export interface AnimationFrame {
   cullCss?: string;
   /** Duration this frame is shown (ms) */
   duration: number;
+  /**
+   * DM-1319: this frame's `svgContent` is itself a self-contained *animated* SVG
+   * (a `cast` / `template` frame) whose internal timeline should start when the
+   * frame becomes visible, not at the master-loop origin. Set to the embedded
+   * content's own play length (ms); the animator re-anchors its keyframes into
+   * the `[frameStart, frameStart + period]` window of the master loop (see
+   * `offsetEmbeddedAnimatedSvgTimeline`). Omit for ordinary captured frames.
+   */
+  embeddedAnimationPeriodMs?: number;
   /** Transition to next frame */
   transition?: {
     /**
@@ -355,13 +365,36 @@ export function dedupeFrameIds(frames: AnimationFrame[]): AnimationFrame[] {
 export function generateAnimatedSvg(config: AnimationConfig): string {
   const { width, height } = config;
   // DM-1145: guard against cross-frame id collisions (reused/cached svgContent).
-  const frames = dedupeFrameIds(config.frames);
+  let frames = dedupeFrameIds(config.frames);
 
   const totalDuration = frames.reduce(
     (sum, f) => sum + frameAdvanceMs(f),
     0,
   );
   const totalSec = totalDuration / 1000;
+
+  // DM-1319: re-anchor any embedded-animation frame (a `cast` / `template` frame
+  // whose svgContent is itself an animated SVG) so its internal timeline starts
+  // when the frame becomes visible — at its cumulative master-loop offset — and
+  // holds before/after, instead of running on the shared document origin (which
+  // desyncs the recording to its back half). Done once now that the master
+  // period (`totalDuration`) and per-frame offsets are known.
+  if (frames.some((f) => f.embeddedAnimationPeriodMs != null)) {
+    let offset = 0;
+    frames = frames.map((f) => {
+      const startMs = offset;
+      offset += frameAdvanceMs(f);
+      if (f.embeddedAnimationPeriodMs == null) return f;
+      return {
+        ...f,
+        svgContent: offsetEmbeddedAnimatedSvgTimeline(f.svgContent, {
+          periodMs: f.embeddedAnimationPeriodMs,
+          startMs,
+          masterMs: totalDuration,
+        }),
+      };
+    });
+  }
 
   // Pre-compute per-frame timing windows (used by both the merge pipeline for
   // timeline keyframes and the atomic push/scroll fallbacks below).

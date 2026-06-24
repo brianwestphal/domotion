@@ -151,6 +151,46 @@ describe("animator: canvas background", () => {
   });
 });
 
+// DM-1319: a `cast` / `template` frame's svgContent is itself an animated SVG.
+// `embeddedAnimationPeriodMs` tells the animator to re-anchor that nested timeline
+// to the frame's master-loop offset (so a cast that isn't frame 0 plays from its
+// start when shown, not from the back half). Guards the wiring in
+// generateAnimatedSvg; the transform itself is unit-tested in embed-timeline.test.ts.
+describe("embedded-animation timeline offset (DM-1319)", () => {
+  const nested = (periodS: number) =>
+    `<svg><style>.anim-a{animation:ka ${periodS.toFixed(3)}s linear infinite}@keyframes ka{0%{opacity:0}100%{opacity:1}}</style></svg>`;
+
+  it("re-anchors a non-first embedded frame's keyframes into its visible window", () => {
+    // Frame 0 holds 2s (+300ms default transition); the 4s cast starts at 2300ms
+    // in a (2000+300 + 4000+300) = 6600ms master loop. offset = 2300/6600 ≈ 34.8%.
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect id="a" width="10" height="10"/>`, duration: 2000 },
+        { svgContent: nested(4), duration: 4000, embeddedAnimationPeriodMs: 4000 },
+      ],
+    });
+    // The nested animation is retimed to the 6.6s master period…
+    expect(svg).toContain("animation:ka 6.6s linear infinite");
+    // …and its keyframes are offset off the origin (a leading 0% hold appears,
+    // and the original 0% stop has moved to ~34.8%).
+    expect(svg).toMatch(/@keyframes ka \{ 0% \{ opacity:0 \} 34\.\d+% \{ opacity:0 \}/);
+  });
+
+  it("leaves frames without embeddedAnimationPeriodMs untouched", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [
+        { svgContent: `<rect id="a" width="10" height="10"/>`, duration: 2000 },
+        { svgContent: nested(4), duration: 4000 },
+      ],
+    });
+    // Nested animation keeps its own 4s period (no offsetting applied).
+    expect(svg).toContain("animation:ka 4.000s linear infinite");
+    expect(svg).toContain("@keyframes ka{0%{opacity:0}100%{opacity:1}}");
+  });
+});
+
 describe("animator", () => {
   it("includes sharedDefs in the top-level <defs>", () => {
     const svg = generateAnimatedSvg({
