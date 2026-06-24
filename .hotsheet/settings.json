@@ -12,10 +12,6 @@
       "fontSize": 17
     }
   ],
-  "terminal_default": {
-    "theme": "github-dark",
-    "fontSize": 17
-  },
   "auto_context": [
     {
       "type": "category",
@@ -146,8 +142,5 @@
         }
       ]
     }
-  ],
-  "layout": "columns",
-  "telemetry_enabled": true,
-  "announcer_enabled": "true"
+  ]
 }
