@@ -1761,6 +1761,165 @@ function paintInsetBoxShadow(
   return { svg, defs, clipIdx };
 }
 
+// text-overflow truncation marker paint, extracted from renderElement (DM-1306,
+// DM-373). When an element has text-overflow ellipsis (or a custom string) +
+// overflow:hidden + white-space:nowrap and the captured text would actually be
+// clipped, Chrome paints a truncation marker at the content-box right edge (we
+// read the full source text and clip with SVG, so the marker is otherwise
+// missing). Emits a background rect that erases the overflowing text plus the
+// marker glyph. Reads only el + textColor + indent; appends to no shared state.
+function paintTruncationMarker(el: CapturedElement, textColor: ReturnType<typeof parseColor>, indent: string): string[] {
+  const out: string[] = [];
+  const to = el.styles.textOverflow;
+  const ws = el.styles.whiteSpace;
+  const ox = el.styles.overflowX;
+  // DM-469: skip the truncation marker when the captured text actually
+  // wrapped onto multiple visual lines. CAPTURE_SCRIPT records one
+  // TextSegment per line box, so `textSegments.length > 1` means
+  // Chromium painted the text on multiple lines — even if the captured
+  // computed style reports `white-space: nowrap` somewhere, our marker
+  // logic for single-line truncation is wrong. Observed on the apple.com
+  // country-switcher banner: the multi-line copy collapsed to a single
+  // `…` because the conditions below tripped, but Chromium clearly
+  // rendered three lines.
+  const wrappedToMultipleLines = el.textSegments != null && el.textSegments.length > 1;
+  // DM-484: don't paint a truncation marker when the captured text
+  // actually fits within the content box. Apple's country-switcher
+  // "Continue" button (and likewise the "Philippines" dropdown text)
+  // has `text-overflow: ellipsis; overflow: hidden; white-space: nowrap`
+  // even though "Continue" easily fits its 89×35 box — Chromium paints
+  // no ellipsis there, but our previous code did. Compare the captured
+  // text's right edge to the content-box right edge; only emit a marker
+  // if the text would actually be clipped.
+  const padRChk = parseFloat(el.styles.paddingRight ?? "") || 0;
+  const padLChk = parseFloat(el.styles.paddingLeft ?? "") || 0;
+  const brRChk = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+  const blLChk = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+  const contentBoxW = Math.max(0, el.width - padLChk - padRChk - blLChk - brRChk);
+  const seg0Chk = el.textSegments?.[0];
+  const xOffsetsChk = seg0Chk?.xOffsets;
+  const lastEdgeX = xOffsetsChk != null && xOffsetsChk.length > 0
+    ? xOffsetsChk[xOffsetsChk.length - 1]
+    : null;
+  const segWidth = seg0Chk?.width;
+  const measuredTextW = lastEdgeX != null && seg0Chk != null
+    ? lastEdgeX - (xOffsetsChk![0] ?? 0)
+    : (segWidth ?? null);
+  // Allow a 0.5 px tolerance for sub-pixel rounding so we don't paint
+  // an ellipsis on a string that visually fits.
+  const textFits = measuredTextW != null && measuredTextW <= contentBoxW + 0.5;
+  const isTruncated = to != null && to !== "" && to !== "clip"
+    && (ws === "nowrap" || ws === "pre")
+    && ox != null && ox !== "visible"
+    && el.text !== ""
+    && !wrappedToMultipleLines
+    && !textFits;
+  if (isTruncated) {
+    // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'.
+    let marker = "…";
+    if (to !== "ellipsis") {
+      // Strip outer quotes if any, take the first string token.
+      const m = /^"([^"]*)"|^'([^']*)'/.exec(to);
+      if (m != null) marker = m[1] ?? m[2] ?? "…";
+    }
+    const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+    const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
+    const padR = parseFloat(el.styles.paddingRight ?? "") || 0;
+    const brR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+    // Position: right edge of the content box. Baseline at the same y as
+    // the element's text baseline (textTop + fontAscent if captured).
+    const contentRightX = el.x + el.width - padR - brR;
+    const tx = contentRightX;
+    const ty = (el.textTop != null && el.fontAscent != null)
+      ? el.textTop + el.fontAscent
+      : el.y + fontSizePx * 1.1;
+    const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // Paint a background rect under the marker so the overflowing text
+    // behind it gets visually erased — mirrors Chrome where the
+    // truncated text doesn't bleed past the marker. Extend the rect all
+    // the way to the element's right edge so any clipped trailing chars
+    // sitting inside the right padding are also covered.
+    // markerW: per-char ~0.95 of fontSize is a conservative width for
+    // "…" in Helvetica/Arial/SF Pro; custom strings may be slightly off
+    // but this is much closer than the previous 0.55 ratio.
+    const bgCol = el.styles.backgroundColor != null && el.styles.backgroundColor !== "rgba(0, 0, 0, 0)"
+      ? el.styles.backgroundColor : "rgb(255,255,255)";
+    // "…" in Helvetica/Arial/SF Pro has an advance of ~1000-1100 font
+    // units / em (≈1.0× fontSize). Custom strings use length × 0.55 as
+    // a generic ratio.
+    const markerW = marker === "…" ? fontSizePx * 1.0 : marker.length * fontSizePx * 0.55;
+    // Position the marker at Chrome's truncation point: just past the
+    // right edge of the last char that fits with the marker after it.
+    // xOffsets[i] is the captured viewport-x of char i's left edge, so
+    // char k's right edge ≈ xOffsets[k+1]. Find max k such that
+    // xOffsets[k+1] ≤ contentRightX - markerW; place the marker so its
+    // left edge is at xOffsets[k+1].
+    let markerRightX = contentRightX;
+    const seg0 = el.textSegments?.[0];
+    const xOffsets = seg0?.xOffsets;
+    if (xOffsets != null && xOffsets.length > 1) {
+      const limitX = contentRightX - markerW;
+      let markerLeftAtX = xOffsets[0];
+      for (let i = 1; i < xOffsets.length; i++) {
+        if (xOffsets[i] <= limitX) markerLeftAtX = xOffsets[i];
+        else break;
+      }
+      markerRightX = Math.min(markerLeftAtX + markerW, contentRightX);
+    }
+    // Clamp the bg-rect to the padding box (inside all four borders) so
+    // it doesn't paint over the element's own borders. DM-449 fix: the
+    // previous bgRightX = el.x + el.width covered the right border, and
+    // a tall bgH could spill past the bottom border, leaving a faded /
+    // missing border at the right and bottom corners.
+    const btTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+    const bbBot = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+    const bgX = markerRightX - markerW;
+    const bgRightX = el.x + el.width - brR;
+    const bgYRaw = el.textTop != null ? el.textTop : ty - fontSizePx;
+    const bgY = Math.max(bgYRaw, el.y + btTop);
+    const bgBottomCap = el.y + el.height - bbBot;
+    const bgH = Math.max(0, Math.min(fontSizePx * 1.4, bgBottomCap - bgY));
+    out.push(`${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`);
+    out.push(`${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`);
+  }
+  return out;
+}
+
+// Resize handle paint, extracted from renderElement (DM-1306, DM-339). When CSS
+// `resize` is in effect (non-none + overflow != visible, or a textarea), Chrome
+// paints a small ~7x7 diagonal-line grippy in the bottom-right corner; we
+// approximate it with three mid-gray diagonal strokes inside the padding box.
+// Reads only el + indent; appends to no shared state.
+function paintResizeHandle(el: CapturedElement, indent: string): string[] {
+  const out: string[] = [];
+  const resizeInEffect = el.styles.resize != null && el.styles.resize !== "none"
+    && (el.tag === "textarea"
+      || (el.styles.overflowX != null && el.styles.overflowX !== "visible")
+      || (el.styles.overflowY != null && el.styles.overflowY !== "visible"));
+  if (resizeInEffect) {
+    const handleColor = "rgb(153,153,153)";
+    const handleSize = 7;
+    // Position the handle so its bottom-right corner sits just INSIDE the
+    // inner (padding-box) corner — the diagonals then sweep up-left into
+    // the padding area where they're visible against the content
+    // background. Inset by the border widths plus a small 1 px gap.
+    // (Matches Chrome's painted offset; previously we used a fixed 2 px
+    // inset from the border-box which worked for thin-border textareas
+    // but parked the handle on top of the dark border on thicker-bordered
+    // divs in `30-resize`. DM-707.)
+    const borderR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+    const borderB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+    const cx = el.x + el.width - borderR;
+    const cy = el.y + el.height - borderB;
+    // Three diagonal strokes 2px apart sloping from bottom-right to upper-left.
+    for (let i = 0; i < 3; i++) {
+      const off = i * 2.5;
+      out.push(`${indent}<line x1="${r(cx - handleSize + off)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - handleSize + off)}" stroke="${handleColor}" stroke-width="1" />`);
+    }
+  }
+  return out;
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
@@ -3217,120 +3376,7 @@ export function elementTreeToSvgInner(
     // missing visually. Approximate Chrome's behavior by emitting a
     // small `<text>` with the marker glyph at the right edge of the
     // visible content area when the truncation conditions are met.
-    {
-      const to = el.styles.textOverflow;
-      const ws = el.styles.whiteSpace;
-      const ox = el.styles.overflowX;
-      // DM-469: skip the truncation marker when the captured text actually
-      // wrapped onto multiple visual lines. CAPTURE_SCRIPT records one
-      // TextSegment per line box, so `textSegments.length > 1` means
-      // Chromium painted the text on multiple lines — even if the captured
-      // computed style reports `white-space: nowrap` somewhere, our marker
-      // logic for single-line truncation is wrong. Observed on the apple.com
-      // country-switcher banner: the multi-line copy collapsed to a single
-      // `…` because the conditions below tripped, but Chromium clearly
-      // rendered three lines.
-      const wrappedToMultipleLines = el.textSegments != null && el.textSegments.length > 1;
-      // DM-484: don't paint a truncation marker when the captured text
-      // actually fits within the content box. Apple's country-switcher
-      // "Continue" button (and likewise the "Philippines" dropdown text)
-      // has `text-overflow: ellipsis; overflow: hidden; white-space: nowrap`
-      // even though "Continue" easily fits its 89×35 box — Chromium paints
-      // no ellipsis there, but our previous code did. Compare the captured
-      // text's right edge to the content-box right edge; only emit a marker
-      // if the text would actually be clipped.
-      const padRChk = parseFloat(el.styles.paddingRight ?? "") || 0;
-      const padLChk = parseFloat(el.styles.paddingLeft ?? "") || 0;
-      const brRChk = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-      const blLChk = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-      const contentBoxW = Math.max(0, el.width - padLChk - padRChk - blLChk - brRChk);
-      const seg0Chk = el.textSegments?.[0];
-      const xOffsetsChk = seg0Chk?.xOffsets;
-      const lastEdgeX = xOffsetsChk != null && xOffsetsChk.length > 0
-        ? xOffsetsChk[xOffsetsChk.length - 1]
-        : null;
-      const segWidth = seg0Chk?.width;
-      const measuredTextW = lastEdgeX != null && seg0Chk != null
-        ? lastEdgeX - (xOffsetsChk![0] ?? 0)
-        : (segWidth ?? null);
-      // Allow a 0.5 px tolerance for sub-pixel rounding so we don't paint
-      // an ellipsis on a string that visually fits.
-      const textFits = measuredTextW != null && measuredTextW <= contentBoxW + 0.5;
-      const isTruncated = to != null && to !== "" && to !== "clip"
-        && (ws === "nowrap" || ws === "pre")
-        && ox != null && ox !== "visible"
-        && el.text !== ""
-        && !wrappedToMultipleLines
-        && !textFits;
-      if (isTruncated) {
-        // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'.
-        let marker = "…";
-        if (to !== "ellipsis") {
-          // Strip outer quotes if any, take the first string token.
-          const m = /^"([^"]*)"|^'([^']*)'/.exec(to);
-          if (m != null) marker = m[1] ?? m[2] ?? "…";
-        }
-        const fontSizePx = parseFloat(el.styles.fontSize) || 14;
-        const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
-        const padR = parseFloat(el.styles.paddingRight ?? "") || 0;
-        const brR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-        // Position: right edge of the content box. Baseline at the same y as
-        // the element's text baseline (textTop + fontAscent if captured).
-        const contentRightX = el.x + el.width - padR - brR;
-        const tx = contentRightX;
-        const ty = (el.textTop != null && el.fontAscent != null)
-          ? el.textTop + el.fontAscent
-          : el.y + fontSizePx * 1.1;
-        const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        // Paint a background rect under the marker so the overflowing text
-        // behind it gets visually erased — mirrors Chrome where the
-        // truncated text doesn't bleed past the marker. Extend the rect all
-        // the way to the element's right edge so any clipped trailing chars
-        // sitting inside the right padding are also covered.
-        // markerW: per-char ~0.95 of fontSize is a conservative width for
-        // "…" in Helvetica/Arial/SF Pro; custom strings may be slightly off
-        // but this is much closer than the previous 0.55 ratio.
-        const bgCol = el.styles.backgroundColor != null && el.styles.backgroundColor !== "rgba(0, 0, 0, 0)"
-          ? el.styles.backgroundColor : "rgb(255,255,255)";
-        // "…" in Helvetica/Arial/SF Pro has an advance of ~1000-1100 font
-        // units / em (≈1.0× fontSize). Custom strings use length × 0.55 as
-        // a generic ratio.
-        const markerW = marker === "…" ? fontSizePx * 1.0 : marker.length * fontSizePx * 0.55;
-        // Position the marker at Chrome's truncation point: just past the
-        // right edge of the last char that fits with the marker after it.
-        // xOffsets[i] is the captured viewport-x of char i's left edge, so
-        // char k's right edge ≈ xOffsets[k+1]. Find max k such that
-        // xOffsets[k+1] ≤ contentRightX - markerW; place the marker so its
-        // left edge is at xOffsets[k+1].
-        let markerRightX = contentRightX;
-        const seg0 = el.textSegments?.[0];
-        const xOffsets = seg0?.xOffsets;
-        if (xOffsets != null && xOffsets.length > 1) {
-          const limitX = contentRightX - markerW;
-          let markerLeftAtX = xOffsets[0];
-          for (let i = 1; i < xOffsets.length; i++) {
-            if (xOffsets[i] <= limitX) markerLeftAtX = xOffsets[i];
-            else break;
-          }
-          markerRightX = Math.min(markerLeftAtX + markerW, contentRightX);
-        }
-        // Clamp the bg-rect to the padding box (inside all four borders) so
-        // it doesn't paint over the element's own borders. DM-449 fix: the
-        // previous bgRightX = el.x + el.width covered the right border, and
-        // a tall bgH could spill past the bottom border, leaving a faded /
-        // missing border at the right and bottom corners.
-        const btTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-        const bbBot = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-        const bgX = markerRightX - markerW;
-        const bgRightX = el.x + el.width - brR;
-        const bgYRaw = el.textTop != null ? el.textTop : ty - fontSizePx;
-        const bgY = Math.max(bgYRaw, el.y + btTop);
-        const bgBottomCap = el.y + el.height - bbBot;
-        const bgH = Math.max(0, Math.min(fontSizePx * 1.4, bgBottomCap - bgY));
-        svgParts.push(`${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`);
-        svgParts.push(`${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`);
-      }
-    }
+    svgParts.push(...paintTruncationMarker(el, textColor, indent));
 
     // Resize handle (DM-339): when CSS `resize` is non-none and the element
     // is a resizable type, Chrome paints a small ~7×7 diagonal-line pattern
@@ -3347,31 +3393,7 @@ export function elementTreeToSvgInner(
     // when the property is "in effect"). So textareas always qualify
     // (textarea UA style sets overflow:auto), but plain divs with
     // `overflow: auto; resize: both` qualify too.
-    const resizeInEffect = el.styles.resize != null && el.styles.resize !== "none"
-      && (el.tag === "textarea"
-        || (el.styles.overflowX != null && el.styles.overflowX !== "visible")
-        || (el.styles.overflowY != null && el.styles.overflowY !== "visible"));
-    if (resizeInEffect) {
-      const handleColor = "rgb(153,153,153)";
-      const handleSize = 7;
-      // Position the handle so its bottom-right corner sits just INSIDE the
-      // inner (padding-box) corner — the diagonals then sweep up-left into
-      // the padding area where they're visible against the content
-      // background. Inset by the border widths plus a small 1 px gap.
-      // (Matches Chrome's painted offset; previously we used a fixed 2 px
-      // inset from the border-box which worked for thin-border textareas
-      // but parked the handle on top of the dark border on thicker-bordered
-      // divs in `30-resize`. DM-707.)
-      const borderR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-      const borderB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-      const cx = el.x + el.width - borderR;
-      const cy = el.y + el.height - borderB;
-      // Three diagonal strokes 2px apart sloping from bottom-right to upper-left.
-      for (let i = 0; i < 3; i++) {
-        const off = i * 2.5;
-        svgParts.push(`${indent}<line x1="${r(cx - handleSize + off)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - handleSize + off)}" stroke="${handleColor}" stroke-width="1" />`);
-      }
-    }
+    svgParts.push(...paintResizeHandle(el, indent));
 
     // Overflow clipping: when a parent has overflow != visible (hidden/scroll/
     // auto/clip on either axis), its children must be clipped to its box.
