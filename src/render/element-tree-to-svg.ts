@@ -379,6 +379,235 @@ function paintRasterSnapshot(el: CapturedElement, indent: string): string[] {
   return out;
 }
 
+// List-item ::marker paint, extracted from renderElement (DM-1306, DM-1313).
+// Synthesizes the list-style-image marker, the disc/circle/square shape marker,
+// and the text marker (decimal / lower-alpha / lower-roman / custom ::marker
+// content), with baseline + inline-size geometry calibrated against Chromium's
+// list_marker.cc. Reads only el + the resolved textColor + indent; appends to no
+// shared accumulator (no clipIdx, no defs) and does not recurse, so it returns
+// its marker markup for the caller to push. Behaviour-identical.
+function paintListMarker(
+  el: CapturedElement,
+  textColor: ReturnType<typeof parseColor>,
+  indent: string,
+): string[] {
+  const out: string[] = [];
+    const isListItem = el.tag !== "summary"
+      && el.styles.display != null
+      && el.styles.display.includes("list-item");
+    if (isListItem) {
+      const lsImage = el.styles.listStyleImage;
+      const lsType = el.styles.listStyleType ?? "disc";
+      const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+      const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
+      const outside = el.styles.listStylePosition !== "inside";
+      if (lsImage != null && lsImage !== "none") {
+        const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(lsImage);
+        if (urlMatch != null) {
+          const intrinsic = el.listMarkerIntrinsic;
+          const markerW = intrinsic != null && intrinsic.w > 0 ? intrinsic.w : 16;
+          const markerH = intrinsic != null && intrinsic.h > 0 ? intrinsic.h : 16;
+          // Chrome's outside list-style-image marker positioning (DM-298):
+          // - Horizontal: image right edge sits ~7px to the left of the li's
+          //   inline-start edge — pixel probe of `03-lists-style-image-position`
+          //   showed Chrome's painted gap is 7-8px, not the 4px we previously
+          //   used; the previous 4 left the marker 3px too far right.
+          // - Vertical: image TOP aligns with li.top, not (el.height - markerH)/2.
+          //   Chrome stretches the li's height to fit the marker but does NOT
+          //   center it vertically — the marker is top-aligned with whatever
+          //   line box would have started there. Pixel probe confirmed the
+          //   2px Y offset that centering introduced.
+          const mx = outside ? el.x - markerW - 7 : el.x;
+          const my = outside ? el.y : el.y + (el.height - markerH) / 2;
+          out.push(
+            `${indent}<image href="${esc(embedResizedDataUri(urlMatch[1], markerW, markerH))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
+          );
+        }
+      } else if (lsType !== "none" && lsType !== "") {
+        // Synthesize a text/shape marker per list-style-type. Numeric and
+        // alpha-based markers use el.listItemIndex (captured below).
+        // Author CSS can override the markers color / font-weight / font-size
+        // via the ::marker pseudo (SK-1115). Use those when present, falling
+        // back to the lis own text color and font-size when not set.
+        const markerStyleColor = el.markerColor != null ? parseColor(el.markerColor) : null;
+        const markerColor = markerStyleColor != null && markerStyleColor.a > 0.01
+          ? colorStr(markerStyleColor)
+          : (textColor != null ? colorStr(textColor) : "rgb(0,0,0)");
+        const markerFontSize = parseFloat(el.markerFontSize ?? "") || fontSizePx;
+        const markerFontWeight = el.markerFontWeight ?? el.styles.fontWeight;
+        // Text-marker baseline = li's text baseline. When CAPTURE_SCRIPT
+        // recorded fontAscent (canvas.measureText().fontBoundingBoxAscent),
+        // textTop+fontAscent is exactly where Chrome painted the body text
+        // baseline (DM-237). Falling back to a 0.72*lineHeight approximation
+        // when we don't have either textTop or fontAscent — that path is rare
+        // (li with empty direct text), and visually close enough.
+        const my = (el.textTop != null && el.fontAscent != null)
+          ? el.textTop + el.fontAscent
+          : el.y + lineHeightPx * 0.72;
+        const shapeY = el.y + lineHeightPx / 2;
+        // Default gap between marker right edge and the li's content-left.
+        // Verified vs Chromium source `list_marker.cc::InlineMarginsForOutside`:
+        //   const int kCMarkerPaddingPx = 7;
+        //   margin_end = offset + kCMarkerPaddingPx + 1 - marker_inline_size;
+        //   offset = font_metrics.Ascent() * 2 / 3;
+        // So for 16 px Helvetica (Ascent ≈ 12.32, disc size ≈ 4.5):
+        //   margin_end = 12.32*2/3 + 8 - 4.5 = 11.7 ≈ 12
+        // Use the source formula directly — gives the right gap across
+        // font sizes (vs the previous constant 12 which was only tuned at
+        // 16 px). DM-403 (verified vs Chromium source).
+        // Marker inline size is approximated as the disc diameter
+        // (markerFontSize * 0.28 from the existing 0.14em-radius probe).
+        // Ascent estimated as 0.77 * fontSize (Helvetica HHEA ratio
+        // 1577/2048; close enough for the 8 px constant to dominate).
+        const ascentForGap = markerFontSize * 0.77;
+        const markerInlineSize = markerFontSize * 0.28;
+        const gap = (ascentForGap * 2 / 3) + 8 - markerInlineSize;
+        const idx = el.listItemIndex ?? 1;
+        // Custom `::marker { content: "..." }` (DM-447). When set, Chrome
+        // replaces the list-style-type bullet/number with the content
+        // string. getComputedStyle returns content as a quoted CSS-string
+        // (e.g. '"➤ "') or 'normal' for the default. Take any non-default
+        // content as the marker label.
+        const rawContent = el.markerContent;
+        const hasCustomContent = rawContent != null
+          && rawContent !== ""
+          && rawContent !== "normal"
+          && rawContent !== "none";
+        if (hasCustomContent) {
+          // Parse CSS `<string>`: strip surrounding quotes, take the first
+          // string token, unescape backslash sequences. Multiple tokens
+          // ("..." attr(x) "...") aren't supported here — first token wins.
+          let label = rawContent;
+          const sm = /^"((?:[^"\\]|\\.)*)"|^'((?:[^'\\]|\\.)*)'/.exec(label);
+          if (sm != null) label = sm[1] ?? sm[2] ?? "";
+          label = label.replace(/\\([0-9a-fA-F]{1,6})\s?/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)));
+          // DM-452: Codepoints with Emoji=Yes / Emoji_Presentation=No (e.g.
+          // ➤ U+27A4 in the Dingbats block) default to text presentation in
+          // HTML, but our SVG <text> on macOS often falls through to Apple
+          // Color Emoji which paints them wider/right. Appending VS-15
+          // (U+FE0E) forces text presentation, matching Chrome's HTML
+          // ::marker paint. We restrict to codepoints we have empirically
+          // observed to coerce-to-emoji in our SVG output; the broader
+          // "every text-default emoji char" list is intentionally NOT applied
+          // here because it risks false positives on author-painted glyphs.
+          const textPresDefault = /[➤]/g;
+          label = label.replace(textPresDefault, (ch) => ch + "︎");
+          // DM-1119: the UA `::marker` is `white-space: normal`, so a
+          // `@counter-style` suffix like `":  "` (two spaces) collapses to a
+          // SINGLE space in Chrome's paint. Mirror that — otherwise the earlier
+          // DM-770 `xml:space="preserve"` rendered both spaces and pushed the
+          // marker ~1 space-width left of Chrome (measured on `domo-step`).
+          label = collapseMarkerWhitespace(label);
+          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
+          // DM-790: SVG `<text text-anchor="end">` places the anchor at the
+          // last glyph's advance-end, not its visible-right edge. Chromium
+          // paints the marker so its visible right sits ~7 px from the
+          // content edge (`kCMarkerPaddingPx` in
+          // `list_marker.cc::InlineMarginsForOutside`). Shape the label
+          // through fontkit and read the last non-whitespace glyph's rsb so
+          // the anchor compensates exactly: `mx = el.x − 7 + rsb`. The
+          // helper trims trailing whitespace before measuring because
+          // Chrome's SVG renderer collapses trailing whitespace under
+          // `xml:space="preserve"` (DM-789 probed this). Built-in numeric
+          // markers ending in `.` resolve back to `el.x − 4` via this same
+          // formula (period rsb ≈ 3 px in system-ui).
+          const markerLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
+          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          // DM-1154: Blink right-aligns the marker box with its END at the list
+          // item's content edge (`margin_end = 0`, `list_marker.cc`), so a marker
+          // whose suffix is a trailing SPACE (e.g. `@counter-style { suffix: " " }`)
+          // has that space's advance as the marker→content gap. SVG drops trailing
+          // whitespace, so anchor the trimmed text's advance-end at
+          // `el.x − (trailing-space advance)`. This lands wide symbols where Chrome
+          // paints them (the prior fixed visible-right-at-`el.x − 7` model lost the
+          // space's width and slid them ~2–4px right). Markers WITHOUT a trailing
+          // space keep that model (it already matches Chrome's `.`-suffix gap).
+          const trailingWs = /[ \t]+$/.exec(label);
+          const mx = outside
+            ? (trailingWs != null
+                ? el.x - [...trailingWs[0]].length * fontSpaceAdvancePx(markerFontSize, markerFontFamily, markerFontWeight)
+                : el.x - 7 + markerLastRsb)
+            : el.x + borderL + padL;
+          const anchor = outside ? "end" : "start";
+          const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          // DM-1119: after the whitespace collapse above the label never holds
+          // a run of 2+ spaces, and Chrome's `white-space: normal` marker trims
+          // its trailing space (verified: the single-suffix-space emoji markers
+          // here match when we strip it). So no `xml:space="preserve"` — SVG's
+          // default collapse/trim mirrors the marker's own white-space handling.
+          // (The pre-DM-1119 `preserve` on doubled suffix spaces rendered both
+          // and slid the marker ~1 space-width left of Chrome.)
+          const xmlSpace = "";
+          out.push(
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}"${xmlSpace}>${escLabel}</text>`,
+          );
+        } else if (lsType === "disc" || lsType === "circle" || lsType === "square") {
+          // Chrome's `::marker` paints disc/circle/square at a hardcoded
+          // size that's LARGER than the bullet glyph U+2022's natural bbox
+          // in the inherited font: empirical pixel probe (DM-374) of `<ul
+          // style="font-family:Helvetica;font-size:16px"><li>` shows the
+          // painted disc diameter is ~4.5px (radius ~0.14em), while
+          // canvas.measureText("•") reports a 3.45px bbox (the smaller
+          // glyph the prior 0.11em multiplier was calibrated against). The
+          // marker doesn't actually use the bullet GLYPH — Chrome draws a
+          // separate filled circle at its own scale (Blink::LayoutListMarker).
+          // Same scaling applies to circle (stroked, same diameter) and
+          // square (rect, same side). Empirical at multiple sizes: 16px →
+          // ~4.5px, 32px → ~8px (linear in fontSize), so 0.14em is a clean
+          // single value that lands close to Chrome at every font size we
+          // care about. Apple Times / Times New Roman / SF Pro probe all
+          // produced indistinguishable disc paints at the same em-radius —
+          // Chrome's marker isn't font-family-aware (DM-340/350/358/371/etc.).
+          const r0 = markerFontSize * 0.165;
+          // Inside markers paint inside the principal block at the content
+          // edge, not at the border-box edge. Per Chromium
+          // `list_marker.cc::InlineMarginsForInside`, the marker box is
+          // followed by a 1em end-margin before the text — the captured
+          // textLeft already encodes that, so we just need to anchor the
+          // marker glyph at content-edge + half-symbol-width.
+          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          const contentEdge = el.x + borderL + padL;
+          const mx = outside ? el.x - gap - r0 : contentEdge + r0;
+          if (lsType === "disc") {
+            out.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="${markerColor}" />`);
+          } else if (lsType === "circle") {
+            out.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="none" stroke="${markerColor}" stroke-width="1" />`);
+          } else {
+            out.push(`${indent}<rect x="${r(mx - r0)}" y="${r(shapeY - r0)}" width="${r(r0 * 2)}" height="${r(r0 * 2)}" fill="${markerColor}" />`);
+          }
+        } else {
+          // Text-based marker (decimal / lower-alpha / lower-roman / etc.).
+          // Chrome's painted ::marker right edge sits ~7px left of li.x for
+          // 16px sans-serif (pixel-probed on 03-lists-style-types DM-678 — the
+          // VISIBLE last-pixel-of-"." sits at li.x - 7).
+          //
+          // SVG `text-anchor="end"` aligns the END of the LAST GLYPH'S ADVANCE
+          // at `x`, not the visible right edge of that glyph. DM-790: measure
+          // the last glyph's right-side-bearing through fontkit and add it
+          // back to the visible-right target (`el.x − 7`, Chromium's
+          // `kCMarkerPaddingPx`). For "01." the `.` glyph has ~3 px rsb in
+          // system-ui Helvetica so `mx = el.x − 7 + 3 = el.x − 4` — the
+          // previous hardcoded constant; for other suffixes (e.g. Greek-
+          // marker styles ending in `)` or `α`) the rsb floats to whatever
+          // the actual last glyph dictates.
+          const label = formatListMarker(lsType, idx) + listMarkerSuffix(lsType);
+          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
+          const builtinLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
+          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+          const mx = outside ? el.x - 7 + builtinLastRsb : el.x + borderL + padL;
+          const anchor = outside ? "end" : "start";
+          out.push(
+            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}">${label}</text>`,
+          );
+        }
+      }
+    }
+  return out;
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
@@ -2313,219 +2542,7 @@ export function elementTreeToSvgInner(
     // `<li>` with `display: inline-block` (no marker per CSS spec). The
     // previous `tag === "li" || ...` check painted spurious bullets in
     // front of every social icon.
-    const isListItem = el.tag !== "summary"
-      && el.styles.display != null
-      && el.styles.display.includes("list-item");
-    if (isListItem) {
-      const lsImage = el.styles.listStyleImage;
-      const lsType = el.styles.listStyleType ?? "disc";
-      const fontSizePx = parseFloat(el.styles.fontSize) || 14;
-      const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
-      const outside = el.styles.listStylePosition !== "inside";
-      if (lsImage != null && lsImage !== "none") {
-        const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(lsImage);
-        if (urlMatch != null) {
-          const intrinsic = el.listMarkerIntrinsic;
-          const markerW = intrinsic != null && intrinsic.w > 0 ? intrinsic.w : 16;
-          const markerH = intrinsic != null && intrinsic.h > 0 ? intrinsic.h : 16;
-          // Chrome's outside list-style-image marker positioning (DM-298):
-          // - Horizontal: image right edge sits ~7px to the left of the li's
-          //   inline-start edge — pixel probe of `03-lists-style-image-position`
-          //   showed Chrome's painted gap is 7-8px, not the 4px we previously
-          //   used; the previous 4 left the marker 3px too far right.
-          // - Vertical: image TOP aligns with li.top, not (el.height - markerH)/2.
-          //   Chrome stretches the li's height to fit the marker but does NOT
-          //   center it vertically — the marker is top-aligned with whatever
-          //   line box would have started there. Pixel probe confirmed the
-          //   2px Y offset that centering introduced.
-          const mx = outside ? el.x - markerW - 7 : el.x;
-          const my = outside ? el.y : el.y + (el.height - markerH) / 2;
-          svgParts.push(
-            `${indent}<image href="${esc(embedResizedDataUri(urlMatch[1], markerW, markerH))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
-          );
-        }
-      } else if (lsType !== "none" && lsType !== "") {
-        // Synthesize a text/shape marker per list-style-type. Numeric and
-        // alpha-based markers use el.listItemIndex (captured below).
-        // Author CSS can override the markers color / font-weight / font-size
-        // via the ::marker pseudo (SK-1115). Use those when present, falling
-        // back to the lis own text color and font-size when not set.
-        const markerStyleColor = el.markerColor != null ? parseColor(el.markerColor) : null;
-        const markerColor = markerStyleColor != null && markerStyleColor.a > 0.01
-          ? colorStr(markerStyleColor)
-          : (textColor != null ? colorStr(textColor) : "rgb(0,0,0)");
-        const markerFontSize = parseFloat(el.markerFontSize ?? "") || fontSizePx;
-        const markerFontWeight = el.markerFontWeight ?? el.styles.fontWeight;
-        // Text-marker baseline = li's text baseline. When CAPTURE_SCRIPT
-        // recorded fontAscent (canvas.measureText().fontBoundingBoxAscent),
-        // textTop+fontAscent is exactly where Chrome painted the body text
-        // baseline (DM-237). Falling back to a 0.72*lineHeight approximation
-        // when we don't have either textTop or fontAscent — that path is rare
-        // (li with empty direct text), and visually close enough.
-        const my = (el.textTop != null && el.fontAscent != null)
-          ? el.textTop + el.fontAscent
-          : el.y + lineHeightPx * 0.72;
-        const shapeY = el.y + lineHeightPx / 2;
-        // Default gap between marker right edge and the li's content-left.
-        // Verified vs Chromium source `list_marker.cc::InlineMarginsForOutside`:
-        //   const int kCMarkerPaddingPx = 7;
-        //   margin_end = offset + kCMarkerPaddingPx + 1 - marker_inline_size;
-        //   offset = font_metrics.Ascent() * 2 / 3;
-        // So for 16 px Helvetica (Ascent ≈ 12.32, disc size ≈ 4.5):
-        //   margin_end = 12.32*2/3 + 8 - 4.5 = 11.7 ≈ 12
-        // Use the source formula directly — gives the right gap across
-        // font sizes (vs the previous constant 12 which was only tuned at
-        // 16 px). DM-403 (verified vs Chromium source).
-        // Marker inline size is approximated as the disc diameter
-        // (markerFontSize * 0.28 from the existing 0.14em-radius probe).
-        // Ascent estimated as 0.77 * fontSize (Helvetica HHEA ratio
-        // 1577/2048; close enough for the 8 px constant to dominate).
-        const ascentForGap = markerFontSize * 0.77;
-        const markerInlineSize = markerFontSize * 0.28;
-        const gap = (ascentForGap * 2 / 3) + 8 - markerInlineSize;
-        const idx = el.listItemIndex ?? 1;
-        // Custom `::marker { content: "..." }` (DM-447). When set, Chrome
-        // replaces the list-style-type bullet/number with the content
-        // string. getComputedStyle returns content as a quoted CSS-string
-        // (e.g. '"➤ "') or 'normal' for the default. Take any non-default
-        // content as the marker label.
-        const rawContent = el.markerContent;
-        const hasCustomContent = rawContent != null
-          && rawContent !== ""
-          && rawContent !== "normal"
-          && rawContent !== "none";
-        if (hasCustomContent) {
-          // Parse CSS `<string>`: strip surrounding quotes, take the first
-          // string token, unescape backslash sequences. Multiple tokens
-          // ("..." attr(x) "...") aren't supported here — first token wins.
-          let label = rawContent;
-          const sm = /^"((?:[^"\\]|\\.)*)"|^'((?:[^'\\]|\\.)*)'/.exec(label);
-          if (sm != null) label = sm[1] ?? sm[2] ?? "";
-          label = label.replace(/\\([0-9a-fA-F]{1,6})\s?/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)));
-          // DM-452: Codepoints with Emoji=Yes / Emoji_Presentation=No (e.g.
-          // ➤ U+27A4 in the Dingbats block) default to text presentation in
-          // HTML, but our SVG <text> on macOS often falls through to Apple
-          // Color Emoji which paints them wider/right. Appending VS-15
-          // (U+FE0E) forces text presentation, matching Chrome's HTML
-          // ::marker paint. We restrict to codepoints we have empirically
-          // observed to coerce-to-emoji in our SVG output; the broader
-          // "every text-default emoji char" list is intentionally NOT applied
-          // here because it risks false positives on author-painted glyphs.
-          const textPresDefault = /[➤]/g;
-          label = label.replace(textPresDefault, (ch) => ch + "︎");
-          // DM-1119: the UA `::marker` is `white-space: normal`, so a
-          // `@counter-style` suffix like `":  "` (two spaces) collapses to a
-          // SINGLE space in Chrome's paint. Mirror that — otherwise the earlier
-          // DM-770 `xml:space="preserve"` rendered both spaces and pushed the
-          // marker ~1 space-width left of Chrome (measured on `domo-step`).
-          label = collapseMarkerWhitespace(label);
-          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
-          // DM-790: SVG `<text text-anchor="end">` places the anchor at the
-          // last glyph's advance-end, not its visible-right edge. Chromium
-          // paints the marker so its visible right sits ~7 px from the
-          // content edge (`kCMarkerPaddingPx` in
-          // `list_marker.cc::InlineMarginsForOutside`). Shape the label
-          // through fontkit and read the last non-whitespace glyph's rsb so
-          // the anchor compensates exactly: `mx = el.x − 7 + rsb`. The
-          // helper trims trailing whitespace before measuring because
-          // Chrome's SVG renderer collapses trailing whitespace under
-          // `xml:space="preserve"` (DM-789 probed this). Built-in numeric
-          // markers ending in `.` resolve back to `el.x − 4` via this same
-          // formula (period rsb ≈ 3 px in system-ui).
-          const markerLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
-          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          // DM-1154: Blink right-aligns the marker box with its END at the list
-          // item's content edge (`margin_end = 0`, `list_marker.cc`), so a marker
-          // whose suffix is a trailing SPACE (e.g. `@counter-style { suffix: " " }`)
-          // has that space's advance as the marker→content gap. SVG drops trailing
-          // whitespace, so anchor the trimmed text's advance-end at
-          // `el.x − (trailing-space advance)`. This lands wide symbols where Chrome
-          // paints them (the prior fixed visible-right-at-`el.x − 7` model lost the
-          // space's width and slid them ~2–4px right). Markers WITHOUT a trailing
-          // space keep that model (it already matches Chrome's `.`-suffix gap).
-          const trailingWs = /[ \t]+$/.exec(label);
-          const mx = outside
-            ? (trailingWs != null
-                ? el.x - [...trailingWs[0]].length * fontSpaceAdvancePx(markerFontSize, markerFontFamily, markerFontWeight)
-                : el.x - 7 + markerLastRsb)
-            : el.x + borderL + padL;
-          const anchor = outside ? "end" : "start";
-          const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          // DM-1119: after the whitespace collapse above the label never holds
-          // a run of 2+ spaces, and Chrome's `white-space: normal` marker trims
-          // its trailing space (verified: the single-suffix-space emoji markers
-          // here match when we strip it). So no `xml:space="preserve"` — SVG's
-          // default collapse/trim mirrors the marker's own white-space handling.
-          // (The pre-DM-1119 `preserve` on doubled suffix spaces rendered both
-          // and slid the marker ~1 space-width left of Chrome.)
-          const xmlSpace = "";
-          svgParts.push(
-            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}"${xmlSpace}>${escLabel}</text>`,
-          );
-        } else if (lsType === "disc" || lsType === "circle" || lsType === "square") {
-          // Chrome's `::marker` paints disc/circle/square at a hardcoded
-          // size that's LARGER than the bullet glyph U+2022's natural bbox
-          // in the inherited font: empirical pixel probe (DM-374) of `<ul
-          // style="font-family:Helvetica;font-size:16px"><li>` shows the
-          // painted disc diameter is ~4.5px (radius ~0.14em), while
-          // canvas.measureText("•") reports a 3.45px bbox (the smaller
-          // glyph the prior 0.11em multiplier was calibrated against). The
-          // marker doesn't actually use the bullet GLYPH — Chrome draws a
-          // separate filled circle at its own scale (Blink::LayoutListMarker).
-          // Same scaling applies to circle (stroked, same diameter) and
-          // square (rect, same side). Empirical at multiple sizes: 16px →
-          // ~4.5px, 32px → ~8px (linear in fontSize), so 0.14em is a clean
-          // single value that lands close to Chrome at every font size we
-          // care about. Apple Times / Times New Roman / SF Pro probe all
-          // produced indistinguishable disc paints at the same em-radius —
-          // Chrome's marker isn't font-family-aware (DM-340/350/358/371/etc.).
-          const r0 = markerFontSize * 0.165;
-          // Inside markers paint inside the principal block at the content
-          // edge, not at the border-box edge. Per Chromium
-          // `list_marker.cc::InlineMarginsForInside`, the marker box is
-          // followed by a 1em end-margin before the text — the captured
-          // textLeft already encodes that, so we just need to anchor the
-          // marker glyph at content-edge + half-symbol-width.
-          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          const contentEdge = el.x + borderL + padL;
-          const mx = outside ? el.x - gap - r0 : contentEdge + r0;
-          if (lsType === "disc") {
-            svgParts.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="${markerColor}" />`);
-          } else if (lsType === "circle") {
-            svgParts.push(`${indent}<circle cx="${r(mx)}" cy="${r(shapeY)}" r="${r(r0)}" fill="none" stroke="${markerColor}" stroke-width="1" />`);
-          } else {
-            svgParts.push(`${indent}<rect x="${r(mx - r0)}" y="${r(shapeY - r0)}" width="${r(r0 * 2)}" height="${r(r0 * 2)}" fill="${markerColor}" />`);
-          }
-        } else {
-          // Text-based marker (decimal / lower-alpha / lower-roman / etc.).
-          // Chrome's painted ::marker right edge sits ~7px left of li.x for
-          // 16px sans-serif (pixel-probed on 03-lists-style-types DM-678 — the
-          // VISIBLE last-pixel-of-"." sits at li.x - 7).
-          //
-          // SVG `text-anchor="end"` aligns the END of the LAST GLYPH'S ADVANCE
-          // at `x`, not the visible right edge of that glyph. DM-790: measure
-          // the last glyph's right-side-bearing through fontkit and add it
-          // back to the visible-right target (`el.x − 7`, Chromium's
-          // `kCMarkerPaddingPx`). For "01." the `.` glyph has ~3 px rsb in
-          // system-ui Helvetica so `mx = el.x − 7 + 3 = el.x − 4` — the
-          // previous hardcoded constant; for other suffixes (e.g. Greek-
-          // marker styles ending in `)` or `α`) the rsb floats to whatever
-          // the actual last glyph dictates.
-          const label = formatListMarker(lsType, idx) + listMarkerSuffix(lsType);
-          const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
-          const builtinLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
-          const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-          const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          const mx = outside ? el.x - 7 + builtinLastRsb : el.x + borderL + padL;
-          const anchor = outside ? "end" : "start";
-          svgParts.push(
-            `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}">${label}</text>`,
-          );
-        }
-      }
-    }
+    svgParts.push(...paintListMarker(el, textColor, indent));
 
     // CSS paint order: floats paint AFTER block descendants but BEFORE the
     // parent's inline content. The "inline content" here is `el.text` — when
