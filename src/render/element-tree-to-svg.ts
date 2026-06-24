@@ -150,6 +150,108 @@ export function transparentRootBgRect(elements: CapturedElement[], width: number
  * wasn't actually a valid SVG document. Callers that want a complete
  * document should switch to the new `elementTreeToSvg()` below.
  */
+// Image (<img> / <input type=image>) paint, extracted from renderElement (DM-1306,
+// DM-1312). object-fit placement inside the content box, scale-down resolution,
+// and the rounded-content-box clip for border-radius'd images. clipIdx is threaded
+// in and returned so the positional clipPath ids stay byte-identical.
+function paintImage(
+  el: CapturedElement,
+  borderRadius: number,
+  corners: ReturnType<typeof parseCornerRadii>,
+  idPrefix: string,
+  indent: string,
+  clipIdx: number,
+): { svg: string[]; defs: string[]; clipIdx: number } {
+  const svg: string[] = [];
+  const defs: string[] = [];
+  // Caller guards `el.imageSrc != null`; restate it here to narrow the type
+  // (the original block was nested inside that guard in renderElement).
+  if (el.imageSrc == null) return { svg, defs, clipIdx };
+  const fit = el.styles.objectFit ?? "fill";
+  // CSS object-fit operates on the CONTENT BOX (inside borders + padding),
+  // not the border box (DM-378). For an <img width:200; aspect-ratio:4/1;
+  // border:2px; object-fit:contain> the captured rect is 204x54 (border
+  // box) but the image content must paint inside the 200x50 content area.
+  // Subtract per-side border + padding before placing the <image>.
+  const _bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+  const _bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+  const _bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+  const _bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+  const _padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+  const _padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+  const _padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+  const _padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+  const contentX = el.x + _bwL + _padL;
+  const contentY = el.y + _bwT + _padT;
+  const contentW = Math.max(0, el.width - _bwL - _bwR - _padL - _padR);
+  const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
+  // DM-1239: `object-fit: scale-down` is the smaller of `none` and
+  // `contain` — render at intrinsic size when the image fits inside the
+  // content box, otherwise shrink it like `contain`. We capture the <img>
+  // intrinsic size (`imageIntrinsic`), so resolve scale-down concretely
+  // instead of always falling back to `contain`. With no intrinsic size
+  // (broken / not-yet-loaded), leave it as scale-down → the contain fallback.
+  let fitEffective = fit;
+  if (fit === "scale-down" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
+    fitEffective = (el.imageIntrinsic.w <= contentW && el.imageIntrinsic.h <= contentH) ? "none" : "contain";
+  }
+  // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
+  // image must clip to the rounded content area — otherwise a 40×40
+  // `border-radius: 50%` avatar paints as a square photo. Build a
+  // rounded-content-box clip once, reuse it whether we take the
+  // object-fit:none branch or the standard branch below.
+  const innerCorners = (borderRadius > 0 || (corners.tl.h + corners.tr.h + corners.bl.h + corners.br.h) > 0)
+    ? insetCornerRadii(corners, _bwT, _bwR, _bwB, _bwL)
+    : null;
+  const roundedClipId = innerCorners != null
+    ? `${idPrefix}irc${clipIdx++}` : null;
+  if (innerCorners != null && roundedClipId != null) {
+    defs.push(
+      `<clipPath id="${roundedClipId}">${roundedRectSvg(contentX, contentY, contentW, contentH, innerCorners, "")}</clipPath>`,
+    );
+  }
+  if (fitEffective === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
+    // object-fit: none -> render image at intrinsic size, aligned via
+    // object-position inside the element's content box, and clip overflow.
+    const iw = el.imageIntrinsic.w;
+    const ih = el.imageIntrinsic.h;
+    const { hPct, vPct } = parseObjectPosition(el.styles.objectPosition ?? "50% 50%");
+    const ix = contentX + (contentW - iw) * (hPct / 100);
+    const iy = contentY + (contentH - ih) * (vPct / 100);
+    // When a border-radius is present, prefer the rounded clip over the
+    // plain content-box rect (a rounded clip subsumes the rect clip:
+    // anything inside the rounded shape is also inside the box).
+    let clipId: string;
+    if (roundedClipId != null) {
+      clipId = roundedClipId;
+    } else {
+      clipId = `${idPrefix}ifn${clipIdx++}`;
+      defs.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
+    }
+    svg.push(
+      `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
+    );
+  } else {
+    const par = preserveAspectRatioFor(fitEffective, el.styles.objectPosition);
+    const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";
+    // DM-819: Chrome doesn't honor `preserveAspectRatio` on `<image>`
+    // when the href is an SVG data URI — the embedded SVG paints at its
+    // own intrinsic size (viewBox or width/height) regardless of the
+    // outer slice/meet directive. Workaround: rewrite the inner SVG's
+    // top-level attrs to bake in our consumer width / height and the
+    // matching preserveAspectRatio so the inner SVG self-aligns, then
+    // emit the outer `<image>` with `preserveAspectRatio="none"` (which
+    // Chrome does honor for SVG sources). Pass-through for raster images.
+    const finalSrc = embedResizedDataUri(el.imageSrc, contentW, contentH);
+    const reHomedSrc = rewriteSvgDataUriPreserveAspectRatio(finalSrc, contentW, contentH, par);
+    const outerPar = reHomedSrc !== finalSrc ? "none" : par;
+    svg.push(
+      `${indent}<image href="${esc(reHomedSrc)}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${outerPar}"${clipAttr} />`,
+    );
+  }
+  return { svg, defs, clipIdx };
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
@@ -2109,88 +2211,8 @@ export function elementTreeToSvgInner(
     } else
     // Image (<img> or <input type="image">)
     if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
-      const fit = el.styles.objectFit ?? "fill";
-      // CSS object-fit operates on the CONTENT BOX (inside borders + padding),
-      // not the border box (DM-378). For an <img width:200; aspect-ratio:4/1;
-      // border:2px; object-fit:contain> the captured rect is 204x54 (border
-      // box) but the image content must paint inside the 200x50 content area.
-      // Subtract per-side border + padding before placing the <image>.
-      const _bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-      const _bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-      const _bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-      const _bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-      const _padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
-      const _padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
-      const _padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
-      const _padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-      const contentX = el.x + _bwL + _padL;
-      const contentY = el.y + _bwT + _padT;
-      const contentW = Math.max(0, el.width - _bwL - _bwR - _padL - _padR);
-      const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
-      // DM-1239: `object-fit: scale-down` is the smaller of `none` and
-      // `contain` — render at intrinsic size when the image fits inside the
-      // content box, otherwise shrink it like `contain`. We capture the <img>
-      // intrinsic size (`imageIntrinsic`), so resolve scale-down concretely
-      // instead of always falling back to `contain`. With no intrinsic size
-      // (broken / not-yet-loaded), leave it as scale-down → the contain fallback.
-      let fitEffective = fit;
-      if (fit === "scale-down" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
-        fitEffective = (el.imageIntrinsic.w <= contentW && el.imageIntrinsic.h <= contentH) ? "none" : "contain";
-      }
-      // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
-      // image must clip to the rounded content area — otherwise a 40×40
-      // `border-radius: 50%` avatar paints as a square photo. Build a
-      // rounded-content-box clip once, reuse it whether we take the
-      // object-fit:none branch or the standard branch below.
-      const innerCorners = (borderRadius > 0 || (corners.tl.h + corners.tr.h + corners.bl.h + corners.br.h) > 0)
-        ? insetCornerRadii(corners, _bwT, _bwR, _bwB, _bwL)
-        : null;
-      const roundedClipId = innerCorners != null
-        ? `${idPrefix}irc${clipIdx++}` : null;
-      if (innerCorners != null && roundedClipId != null) {
-        defsParts.push(
-          `<clipPath id="${roundedClipId}">${roundedRectSvg(contentX, contentY, contentW, contentH, innerCorners, "")}</clipPath>`,
-        );
-      }
-      if (fitEffective === "none" && el.imageIntrinsic != null && el.imageIntrinsic.w > 0 && el.imageIntrinsic.h > 0) {
-        // object-fit: none -> render image at intrinsic size, aligned via
-        // object-position inside the element's content box, and clip overflow.
-        const iw = el.imageIntrinsic.w;
-        const ih = el.imageIntrinsic.h;
-        const { hPct, vPct } = parseObjectPosition(el.styles.objectPosition ?? "50% 50%");
-        const ix = contentX + (contentW - iw) * (hPct / 100);
-        const iy = contentY + (contentH - ih) * (vPct / 100);
-        // When a border-radius is present, prefer the rounded clip over the
-        // plain content-box rect (a rounded clip subsumes the rect clip:
-        // anything inside the rounded shape is also inside the box).
-        let clipId: string;
-        if (roundedClipId != null) {
-          clipId = roundedClipId;
-        } else {
-          clipId = `${idPrefix}ifn${clipIdx++}`;
-          defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
-        }
-        svgParts.push(
-          `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
-        );
-      } else {
-        const par = preserveAspectRatioFor(fitEffective, el.styles.objectPosition);
-        const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";
-        // DM-819: Chrome doesn't honor `preserveAspectRatio` on `<image>`
-        // when the href is an SVG data URI — the embedded SVG paints at its
-        // own intrinsic size (viewBox or width/height) regardless of the
-        // outer slice/meet directive. Workaround: rewrite the inner SVG's
-        // top-level attrs to bake in our consumer width / height and the
-        // matching preserveAspectRatio so the inner SVG self-aligns, then
-        // emit the outer `<image>` with `preserveAspectRatio="none"` (which
-        // Chrome does honor for SVG sources). Pass-through for raster images.
-        const finalSrc = embedResizedDataUri(el.imageSrc, contentW, contentH);
-        const reHomedSrc = rewriteSvgDataUriPreserveAspectRatio(finalSrc, contentW, contentH, par);
-        const outerPar = reHomedSrc !== finalSrc ? "none" : par;
-        svgParts.push(
-          `${indent}<image href="${esc(reHomedSrc)}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${outerPar}"${clipAttr} />`,
-        );
-      }
+      const _img = paintImage(el, borderRadius, corners, idPrefix, indent, clipIdx);
+      svgParts.push(..._img.svg); defsParts.push(..._img.defs); clipIdx = _img.clipIdx;
     }
 
     // DM-457: rasterized snapshot for <canvas> / <video> / <iframe> /
