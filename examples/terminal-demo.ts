@@ -1,8 +1,10 @@
 /**
- * Example: Terminal demo using the SVG demo generator.
+ * Example: a `domotion` CLI session rendered as an animated terminal SVG.
  *
  * Renders terminal-style HTML pages and converts them to native SVG
- * (no PNGs, real text, native animations).
+ * (no PNGs, real text, native animations). For capturing a REAL recorded
+ * session, see `domotion term --cast` (doc 67); this hand-authored demo just
+ * showcases the renderer.
  *
  * Usage: npx tsx examples/terminal-demo.ts
  */
@@ -25,39 +27,39 @@ const TERMINAL_FRAMES = [
       { text: "$ ", color: "#28c840", bold: true },
     ],
     duration: 1500,
-    typing: { text: "sk search error-handling", x: 24, y: 32 },
+    typing: { text: "domotion capture https://example.com -o hero.svg", x: 24, y: 32 },
   },
   {
     lines: [
-      { text: "$ sk search error-handling", color: "#8b8fa3" },
+      { text: "$ domotion capture https://example.com -o hero.svg", color: "#8b8fa3" },
       { text: "" },
-      { text: "  @community/error-handling-patterns", color: "#58a6ff", bold: true },
-      { text: "  Structured error handling with typed errors", color: "#8b8fa3" },
-      { text: "  Score: 42/100  |  1,234 downloads  |  universal", color: "#6e7681" },
+      { text: "  ✓ Captured body → hero.svg", color: "#28c840", bold: true },
+      { text: "    52 KB · self-contained · text as glyph paths", color: "#8b8fa3" },
+      { text: "    scales crisply at any size", color: "#6e7681" },
       { text: "" },
       { text: "$ ", color: "#28c840", bold: true },
     ],
     duration: 2500,
-    typing: { text: "sk install @community/error-handling-patterns", x: 24, y: 172 },
+    typing: { text: "domotion term --cast build.cast -o build.svg", x: 24, y: 172 },
   },
   {
     lines: [
-      { text: "$ sk install @community/error-handling-patterns", color: "#8b8fa3" },
+      { text: "$ domotion term --cast build.cast -o build.svg", color: "#8b8fa3" },
       { text: "" },
-      { text: "  ✓ Installed @community/error-handling-patterns v1.0.0", color: "#28c840" },
-      { text: "    → Written to CLAUDE.md", color: "#8b8fa3" },
+      { text: "  ✓ 17 frames · 656×346px · 13.60s · 45.3 KB", color: "#28c840" },
+      { text: "    → real text, native SVG animation", color: "#8b8fa3" },
     ],
     duration: 3000,
   },
   {
     lines: [
-      { text: "  ── CLAUDE.md ─────────────────────────────────────", color: "#30363d" },
+      { text: "  ── embed anywhere ───────────────────────────────", color: "#30363d" },
       { text: "" },
-      { text: "  ## Error Handling", color: "#e6edf3", bold: true },
+      { text: "  <img src=\"build.svg\" alt=\"terminal demo\">", color: "#e6edf3", bold: true },
       { text: "" },
-      { text: "  - Always use typed errors extending AppError", color: "#e6edf3" },
-      { text: "  - Never catch and swallow errors silently", color: "#e6edf3" },
-      { text: "  - Use Result<T, E> for expected failures", color: "#e6edf3" },
+      { text: "  • animations play inside <img>, lazy-loadable", color: "#e6edf3" },
+      { text: "  • identical across browsers (glyph paths)", color: "#e6edf3" },
+      { text: "  • no external fonts, images, or scripts", color: "#e6edf3" },
     ],
     duration: 4000,
   },

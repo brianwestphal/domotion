@@ -34,7 +34,11 @@ shortest possible map:
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
   `text-to-path.ts` + `text.ts` own glyph/decoration/wrap logic;
-  `borders.ts` owns border math.
+  `font-resolution.ts` owns font-key resolution + the per-Unicode-block
+  fallback chains + `FONT_PATHS`/`LINUX_FONT_PATHS`/`WIN32_FONT_PATHS`
+  (extracted out of `text-to-path.ts`, DM-1305/DM-1307; still re-exported from
+  it); `unicode-classification.ts` owns the Unicode predicates;
+  `mask.ts` owns mask-def emission; `borders.ts` owns border math.
 - **`src/animation/`** — multi-frame composition (animator, magic-move) +
   **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
   (`composeAnimatedLayers` — stack animated SVGs as placed, independently-timed

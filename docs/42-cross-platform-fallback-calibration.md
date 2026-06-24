@@ -13,7 +13,7 @@ together here and cross-referenced from each ticket.
 ## The problem this solves
 
 `fallbackFontChain(codepoint, primaryKey, lang?)` in
-`src/render/text-to-path.ts` decides, for a codepoint the primary font lacks,
+`src/render/font-resolution.ts` decides, for a codepoint the primary font lacks,
 which fallback face to shape it with. Today every branch is reverse-engineered
 from **Chromium-on-macOS's CoreText cascade** (Hiragino Sans GB for CJK, Apple
 Symbols for math operators, Zapf Dingbats for ✂✈, STIX Two Math for 𝐀𝒜,
@@ -130,7 +130,7 @@ actually paints (baseline = bare image, **option A**):
 | Math-script 𝒜 / double-struck 𝕊 | FreeSerif | `free-sans`, `free-serif` |
 | Emoji 😀🚀 | Noto Color Emoji | raster overlay (doc 15) |
 
-Implemented as `linuxFallbackChain` in `src/render/text-to-path.ts` (the macOS
+Implemented as `linuxFallbackChain` in `src/render/font-resolution.ts` (the macOS
 body is preserved verbatim as the darwin path). `LINUX_FONT_PATHS` was corrected
 from the original DejaVu/Noto assumptions to these real faces.
 
@@ -157,7 +157,7 @@ on Linux as a result.
 > the letters directly from FreeSans; no synthesis is needed on this image.
 
 DM-838 also added a **Math-Alphanumeric → base-letter decomposition**
-(`mathAlphaToBase` in `src/render/text-to-path.ts`): when a U+1D400–1D7FF (or
+(`mathAlphaToBase` in `src/render/unicode-classification.ts`): when a U+1D400–1D7FF (or
 U+210E ℎ) codepoint resolves to `.notdef` across the *whole* fallback chain, it
 maps the codepoint to its base char + the implied bold/italic style and renders
 that base glyph in a FreeFont sibling. On the noble image FreeSans covers the
@@ -230,7 +230,7 @@ First `windows-latest` painted-width probe (run 26430174100, Chromium 147). Two 
    codepoints in Arial itself** (the `sans-serif` painted width equals Arial's
    exactly for `∑ ∏ ≠ ∫ ■ ● ◆ ★ ─ ┼`), not in a dedicated symbol face.
 
-`win32FallbackChain` (`src/render/text-to-path.ts`) is populated accordingly:
+`win32FallbackChain` (`src/render/font-resolution.ts`) is populated accordingly:
 
 | Block | Chain | Basis |
 | --- | --- | --- |

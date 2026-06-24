@@ -2,7 +2,7 @@
 
 Status: **shipped** (DM-1132). `resolveOverlays(page, overlays)` lowers an
 overlay's selector `anchor` (`{ selector, at, dx, dy }`) and a typing overlay's
-`maxWidth: "anchor"` into concrete `x` / `y` / `bgWidth` against a live
+`maxWidth: "anchor"` into concrete `x` / `y` / `wrapWidth` against a live
 Playwright page — the resolution step that previously lived only inside
 `composeAnimateConfig`, now reachable by imperative scripting-API callers.
 
@@ -31,14 +31,14 @@ const [overlay] = await resolveOverlays(page, [
     caret: true,
   },
 ]);
-// overlay.x / overlay.y / overlay.bgWidth are now concrete numbers, the
+// overlay.x / overlay.y / overlay.wrapWidth are now concrete numbers, the
 // anchor / maxWidth keys are gone — ready for generateAnimatedSvg.
 ```
 
 - **Input** (`AnchoredOverlay[]`): a resolved overlay (`TypingOverlay` /
   `TapOverlay` / `SvgOverlay` / `BlinkOverlay`) plus optional `anchor`, and — for
   typing — `maxWidth: "anchor" | number`.
-- **Output**: the same overlays with `x` / `y` (and typing `bgWidth`) concrete
+- **Output**: the same overlays with `x` / `y` (and typing `wrapWidth`) concrete
   and the `anchor` / `maxWidth` keys stripped.
 - **Anchor point**: resolved against the element's **border** box
   (`getBoundingClientRect`), matching the declarative anchor's long-standing
@@ -46,7 +46,7 @@ const [overlay] = await resolveOverlays(page, [
   default `"top-left"`); `dx` / `dy` nudge from it. The corner math is shared
   with `contentBox` via `boxAnchorPoint` (DM-1133).
 - **`maxWidth`**: `"anchor"` resolves to the anchored element's **content** width
-  (`clientWidth` − horizontal padding); a number passes through to `bgWidth`.
+  (`clientWidth` − horizontal padding); a number passes through to `wrapWidth`.
 - A missing anchor selector is a **hard error** (fail-fast, like the declarative
   anchor).
 

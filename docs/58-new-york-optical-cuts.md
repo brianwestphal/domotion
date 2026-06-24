@@ -29,7 +29,7 @@ Three of the four cut names are unambiguous, so CoreText's family query already 
 
 `New York Medium` is special: `Medium` is **also a weight name**. The variable `NewYork.ttf` exposes a `Medium`-*weight* named instance (PostScript `NewYork-Medium`), and CoreText's family query for `"New York Medium"` returns **that heavier weight** rather than the lighter `New York Medium` optical *cut* (`NewYorkMedium-Regular.otf`) that Chrome paints. Result before the fix: an explicit `font-family:"New York Medium"` run rendered visibly too bold.
 
-`matchFamilyNameToKey` (`src/render/text-to-path.ts`) now resolves `"new york medium"` via the cut's unambiguous PostScript name `NewYorkMedium-Regular`, matching Chrome. When that OTF isn't installed, the lookup returns null and the name falls through to the variable font's `Medium` weight — which is also what Chrome paints in that case.
+`matchFamilyNameToKey` (`src/render/font-resolution.ts`) now resolves `"new york medium"` via the cut's unambiguous PostScript name `NewYorkMedium-Regular`, matching Chrome. When that OTF isn't installed, the lookup returns null and the name falls through to the variable font's `Medium` weight — which is also what Chrome paints in that case.
 
 ## Bare `New York` and `ui-serif`
 

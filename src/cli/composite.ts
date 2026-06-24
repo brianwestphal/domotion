@@ -27,6 +27,7 @@ import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome, clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeAnimatedLayers, type CompositeLayer } from "../animation/composite.js";
+import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { cliFail } from "./common.js";
 
 const layerAnimationSchema = z.object({
@@ -94,27 +95,6 @@ export function validateCompositeConfig(raw: unknown): CompositeConfig {
   return parsed.data;
 }
 
-/** Read an animated SVG's play length (ms): `--scene-dur`, else the longest `animation:` duration. */
-function detectPeriodMs(svg: string): number | undefined {
-  const scene = /--scene-dur:\s*([\d.]+)s/i.exec(svg);
-  if (scene != null) return Math.round(parseFloat(scene[1]) * 1000);
-  let maxSec = 0;
-  for (const m of svg.matchAll(/animation:\s*[^;}]*?\b([\d.]+)s\b/gi)) {
-    const s = parseFloat(m[1]);
-    if (s > maxSec) maxSec = s;
-  }
-  return maxSec > 0 ? Math.round(maxSec * 1000) : undefined;
-}
-
-function svgSize(svg: string): { w: number; h: number } | null {
-  const open = /<svg\b[^>]*>/i.exec(svg)?.[0] ?? "";
-  const w = /\bwidth="([\d.]+)(px)?"/i.exec(open);
-  const h = /\bheight="([\d.]+)(px)?"/i.exec(open);
-  if (w != null && h != null) return { w: parseFloat(w[1]), h: parseFloat(h[1]) };
-  const vb = /\bviewBox="[\d.\s-]*?([\d.]+)\s+([\d.]+)"/i.exec(open);
-  if (vb != null) return { w: parseFloat(vb[1]), h: parseFloat(vb[2]) };
-  return null;
-}
 
 /** Render one layer's source to an animated SVG + intrinsic size + period. */
 async function renderLayerSource(
@@ -140,8 +120,8 @@ async function renderLayerSource(
   }
   // svg source: read a pre-rendered (static or animated) SVG.
   const svg = readFileSync(resolve(configDir, layer.svg!), "utf8");
-  const size = svgSize(svg) ?? { w: layer.width ?? 0, h: layer.height ?? 0 };
-  return { svg, w: size.w, h: size.h, periodMs: layer.period ?? detectPeriodMs(svg) };
+  const size = parseSvgIntrinsicSize(svg) ?? { w: layer.width ?? 0, h: layer.height ?? 0 };
+  return { svg, w: size.w, h: size.h, periodMs: layer.period ?? detectAnimationPeriodMs(svg) };
 }
 
 /** A rendered layer source (before chrome wrap / placement). */

@@ -6,7 +6,7 @@ cross-platform roadmap — DM-259 / DM-260 / DM-261 / DM-262 all build on it).
 
 ## Problem
 
-`FONT_PATHS` in `src/render/text-to-path.ts` was a flat table of macOS-only
+`FONT_PATHS` in `src/render/font-resolution.ts` was a flat table of macOS-only
 paths (`/System/Library/Fonts/...`). On Linux and Windows none of those paths
 exist, so `getFontInstance` returned null for every primary and fallback font
 and the renderer produced `.notdef` tofu (or `<text>` fallback) for everything.

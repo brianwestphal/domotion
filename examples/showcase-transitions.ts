@@ -63,87 +63,87 @@ pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; paddin
 // Frame 1: Home page (scene start)
 const HOME_HTML = page(`
   <div class="hero">
-    <h1>SliceKit</h1>
-    <p>Snippet Library for Instruction Context Exchange</p>
+    <h1>Domotion</h1>
+    <p>HTML/CSS → self-contained, animated SVG</p>
     <div style="max-width: 400px; margin: 24px auto 0;">
-      <div class="search-bar">Search snippets and stacks...</div>
+      <div class="search-bar">Search the docs...</div>
     </div>
     <div class="cta">
       <span class="btn btn-primary">Get started</span>
-      <span class="btn btn-secondary">Browse snippets</span>
+      <span class="btn btn-secondary">Browse demos</span>
     </div>
   </div>
-  <h2 style="margin-top: 24px;">Popular</h2>
+  <h2 style="margin-top: 24px;">Tools</h2>
   <div class="card">
-    <div class="card-title">@community/error-handling-patterns</div>
-    <div class="card-desc">Structured error handling with typed errors</div>
-    <div class="card-meta">42/100 · 1,234 downloads</div>
+    <div class="card-title">domotion capture</div>
+    <div class="card-desc">Capture a URL / HTML file as a self-contained SVG</div>
+    <div class="card-meta">one frame · text as glyph paths</div>
   </div>
   <div class="card">
-    <div class="card-title">@community/typescript-strict</div>
-    <div class="card-desc">TypeScript strict mode conventions</div>
-    <div class="card-meta">38/100 · 987 downloads</div>
+    <div class="card-title">domotion term</div>
+    <div class="card-desc">Terminal recording → animated SVG</div>
+    <div class="card-meta">real color · native SVG</div>
   </div>
 `);
 
 // Frame 2: Search results (push-left from home)
 const SEARCH_HTML = page(`
   <div class="nav">
-    <span class="nav-logo">SliceKit</span>
-    <span class="nav-link">Browse</span>
-    <span class="nav-link">Help</span>
+    <span class="nav-logo">Domotion</span>
+    <span class="nav-link">Docs</span>
+    <span class="nav-link">Demos</span>
   </div>
-  <h1>Search: "error handling"</h1>
+  <h1>Search: "terminal"</h1>
   <p>3 results</p>
   <div class="card">
-    <div class="card-title">@community/error-handling-patterns</div>
-    <div class="card-desc">Structured error handling with typed errors and Result patterns</div>
-    <div class="card-meta">Score: 42/100 · 1,234 downloads · universal</div>
+    <div class="card-title">domotion term --cast</div>
+    <div class="card-desc">Convert an asciinema recording into an animated terminal SVG</div>
+    <div class="card-meta">incremental / full mode · theming · doc 67</div>
   </div>
   <div class="card">
-    <div class="card-title">@community/typescript-strict-conventions</div>
-    <div class="card-desc">TypeScript strict mode conventions and type safety</div>
-    <div class="card-meta">Score: 38/100 · 987 downloads · universal</div>
+    <div class="card-title">domotion composite</div>
+    <div class="card-desc">Layer animated SVGs — a terminal window on a desktop</div>
+    <div class="card-meta">independent timelines · animation preserved · doc 77</div>
   </div>
   <div class="card">
-    <div class="card-title">@community/api-design-rest</div>
-    <div class="card-desc">RESTful API design conventions and response formatting</div>
-    <div class="card-meta">Score: 35/100 · 756 downloads · universal</div>
+    <div class="card-title">animated-svg-scrubber</div>
+    <div class="card-desc">Play / scrub / trim / export-frame an animated SVG locally</div>
+    <div class="card-meta">video-style bench · doc 56</div>
   </div>
 `);
 
-// Frame 3: Snippet detail (push-left from search, then scrolls)
+// Frame 3: Feature detail (push-left from search, then scrolls)
 const DETAIL_HTML = page(`
   <div class="nav">
-    <span class="nav-logo">SliceKit</span>
-    <span class="nav-link">Browse</span>
-    <span class="nav-link">Help</span>
+    <span class="nav-logo">Domotion</span>
+    <span class="nav-link">Docs</span>
+    <span class="nav-link">Demos</span>
   </div>
-  <div class="breadcrumb"><a href="#">Snippets</a> / @community / error-handling-patterns</div>
-  <h1>@community/error-handling-patterns</h1>
-  <p>Structured error handling with typed errors and Result patterns</p>
-  <div class="install-cmd"><code>sk install @community/error-handling-patterns</code></div>
+  <div class="breadcrumb"><a href="#">Docs</a> / CLI / domotion term</div>
+  <h1>domotion term</h1>
+  <p>Turn a recorded terminal session into a self-contained animated SVG</p>
+  <div class="install-cmd"><code>npm install domotion-svg</code></div>
   <div style="display: flex; gap: 24px; margin-bottom: 20px;">
-    <div><span class="label">AUTHOR</span><p><a href="#">@community</a></p></div>
-    <div><span class="label">DOWNLOADS</span><p>1,234</p></div>
-    <div><span class="label">RATING</span><p>92% positive</p></div>
-    <div><span class="label">TAGS</span><div><span class="tag">error-handling</span><span class="tag">typescript</span></div></div>
+    <div><span class="label">FORMAT</span><p>asciinema v2</p></div>
+    <div><span class="label">OUTPUT</span><p>animated SVG</p></div>
+    <div><span class="label">TEXT</span><p>glyph paths</p></div>
+    <div><span class="label">TAGS</span><div><span class="tag">terminal</span><span class="tag">animated</span></div></div>
   </div>
-  <h2>Content</h2>
-  <pre>## Error Handling
+  <h2>Output characteristics</h2>
+  <pre>## Self-contained animated SVG
 
-- Always use typed errors extending a base AppError class
-- Never catch and swallow errors silently
-- Use Result&lt;T, E&gt; pattern for expected failures
-- Reserve try/catch for truly unexpected exceptions
-- Include context in error messages
-- Log errors with structured data</pre>
+- No external fonts, images, or scripts
+- Embeds with &lt;img src="out.svg"&gt; — animations play
+- Text is real glyph paths — identical across browsers
+- Scales crisply at any size
+- Optional SVGO optimize pass (--optimize)
+- Pixel-faithful to Chromium on the capturing OS</pre>
   <div class="section">
-    <h2>Versions</h2>
+    <h2>Recent</h2>
     <ul class="version-list">
-      <li><a href="#">v1.2.0</a> — April 20, 2026</li>
-      <li><a href="#">v1.1.0</a> — April 15, 2026</li>
-      <li><a href="#">v1.0.0</a> — April 10, 2026</li>
+      <li><a href="#">composite</a> — nested animated compositing</li>
+      <li><a href="#">chart / chat</a> — data + social templates</li>
+      <li><a href="#">term</a> — terminal capture → animated SVG</li>
     </ul>
   </div>
 `, 900); // extra tall for scroll
@@ -172,7 +172,7 @@ async function main(): Promise<void> {
     transition: { type: "push-left", duration: 400 },
     overlays: [{
       kind: "typing",
-      text: "error handling",
+      text: "terminal",
       x: 232, y: 230,
       fontSize: 14,
       color: "#e6edf3",

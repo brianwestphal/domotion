@@ -2,7 +2,7 @@
  * `resolveOverlays(page, overlays)` — DM-1132.
  *
  * Lower an overlay's selector `anchor` (`{ selector, at, dx, dy }`) and a typing
- * overlay's `maxWidth: "anchor"` into concrete `x` / `y` / `bgWidth` against a
+ * overlay's `maxWidth: "anchor"` into concrete `x` / `y` / `wrapWidth` against a
  * live Playwright page, returning overlays ready for `generateAnimatedSvg`.
  *
  * This is the resolution step that previously lived only inside
@@ -38,7 +38,7 @@ export interface OverlayAnchor {
 /**
  * The input to `resolveOverlays`: a resolved overlay PLUS optional selector
  * anchoring sugar. After resolution the `anchor` / `maxWidth` keys are gone and
- * `x` / `y` (and a typing overlay's `bgWidth`) are concrete — i.e. a plain
+ * `x` / `y` (and a typing overlay's `wrapWidth`) are concrete — i.e. a plain
  * `AnimationOverlay`. (Note: the `svg` kind here takes the resolved `innerSvg`,
  * not a file `src` — file inlining is a CLI-only concern, not page resolution.)
  */
@@ -70,7 +70,7 @@ interface AnchorableOverlay {
  * Shared resolution engine (DM-1132). For each overlay: if it carries an
  * `anchor`, measure the selector's border box + content width and set `x` / `y`
  * from the requested corner + `dx`/`dy`; for a typing overlay's `maxWidth`, set
- * `bgWidth` to the content width (`"anchor"`) or the given px. The `anchor` /
+ * `wrapWidth` to the content width (`"anchor"`) or the given px. The `anchor` /
  * `maxWidth` keys are stripped from the result. Overlays without either pass
  * through unchanged. A missing anchor selector is a hard error (matching the
  * declarative anchor's fail-fast policy); `label` customizes the message

@@ -66,28 +66,28 @@ const FRAMES = [
   {
     title: "Typography & Colors",
     html: page("Typography & Colors", `
-      <h1>SliceKit</h1>
-      <p>Snippet Library for Instruction Context Exchange. <a href="#">Learn more</a></p>
+      <h1>Domotion</h1>
+      <p>Turn HTML/CSS into a self-contained, animated SVG. <a href="#">Read the docs</a></p>
       <h2>Text Styles</h2>
       <div class="grid">
         <div>
           <p class="label">BADGES</p>
           <div class="flex">
-            <span class="badge badge-green">Published</span>
-            <span class="badge badge-blue">v1.2.0</span>
-            <span class="badge badge-amber">Stack</span>
+            <span class="badge badge-green">Self-contained</span>
+            <span class="badge badge-blue">v0.15.0</span>
+            <span class="badge badge-amber">SVG</span>
           </div>
         </div>
         <div>
           <p class="label">STATUS</p>
-          <p><span class="success">✓ Installed successfully</span></p>
-          <p><span class="error">✗ Version conflict</span></p>
-          <p><span class="dim">Last updated 3 days ago</span></p>
+          <p><span class="success">✓ Captured successfully</span></p>
+          <p><span class="error">✗ Needs Chromium</span></p>
+          <p><span class="dim">Pixel-faithful to Chromium</span></p>
         </div>
       </div>
       <h2>Code</h2>
-      <pre>sk install @community/error-handling-patterns</pre>
-      <p>Inline code: <code>slicekit.json</code> and <code>CLAUDE.md</code></p>
+      <pre>npm install domotion-svg</pre>
+      <p>Inline code: <code>domotion capture</code> writes a self-contained <code>out.svg</code></p>
     `),
     duration: 4000,
   },
@@ -95,29 +95,29 @@ const FRAMES = [
     title: "Cards & Components",
     html: page("Cards & Components", `
       <div class="title-row">
-        <h1>@community/error-handling</h1>
-        <span class="version">v1.2.0</span>
+        <h1>domotion</h1>
+        <span class="version">v0.15.0</span>
       </div>
-      <p>Structured error handling with typed errors and Result patterns.</p>
+      <p>One CLI, four verbs — each renders pixel-faithful, self-contained SVG.</p>
       <div class="card">
         <div class="card-header">
-          <span class="card-title">@community/typescript-strict</span>
-          <span class="badge badge-blue">universal</span>
+          <span class="card-title">domotion capture</span>
+          <span class="badge badge-blue">one frame</span>
         </div>
-        <p class="card-desc">TypeScript strict mode conventions and type safety rules</p>
-        <p class="card-meta">Score: 42/100 · 1,234 downloads · 92% positive</p>
+        <p class="card-desc">Capture a URL / HTML file as a self-contained SVG (text as glyph paths)</p>
+        <p class="card-meta">--scroll for a scrolling demo · --chrome for a device bezel</p>
       </div>
       <div class="card">
         <div class="card-header">
-          <span class="card-title">@community/testing-philosophy</span>
-          <span class="badge badge-green">featured</span>
+          <span class="card-title">domotion term</span>
+          <span class="badge badge-green">animated</span>
         </div>
-        <p class="card-desc">Testing philosophy focusing on behavior, not implementation</p>
-        <p class="card-meta">Score: 38/100 · 987 downloads · 88% positive</p>
+        <p class="card-desc">Turn a recorded terminal session (asciinema .cast) into an animated SVG</p>
+        <p class="card-meta">real color · native SVG · no raster frames</p>
       </div>
       <div class="flex" style="margin-top: 16px">
-        <button class="btn btn-primary">Publish</button>
-        <button class="btn btn-secondary">Fork</button>
+        <button class="btn btn-primary">Render</button>
+        <button class="btn btn-secondary">Optimize</button>
       </div>
     `),
     duration: 4000,
@@ -125,26 +125,26 @@ const FRAMES = [
   {
     title: "Forms & Inputs",
     html: page("Forms & Inputs", `
-      <h1>Publish a Snippet</h1>
-      <p>Share your AI coding configuration with the community.</p>
+      <h1>Capture a page</h1>
+      <p>Render any URL or HTML file to a self-contained animated SVG.</p>
       <div style="margin-top: 16px">
-        <p class="label">NAME</p>
+        <p class="label">INPUT</p>
         <div class="flex" style="margin-bottom: 16px">
-          <span style="color: #e6edf3; font-size: 14px; font-weight: 500;">@devuser/</span>
-          <input class="input" value="error-handling" />
+          <span style="color: #e6edf3; font-size: 14px; font-weight: 500;">URL</span>
+          <input class="input" value="https://example.com" />
         </div>
-        <p class="label">VERSION</p>
-        <input class="input" value="1.0.0" style="margin-bottom: 16px; width: 150px;" />
-        <p class="label">DESCRIPTION</p>
-        <input class="input" value="Custom error handling rules for our team" style="margin-bottom: 16px; width: 100%;" />
-        <p class="label">CONTENT</p>
-        <pre style="min-height: 80px;">## Error Handling
+        <p class="label">WIDTH</p>
+        <input class="input" value="1200" style="margin-bottom: 16px; width: 150px;" />
+        <p class="label">OUTPUT</p>
+        <input class="input" value="hero.svg" style="margin-bottom: 16px; width: 100%;" />
+        <p class="label">COMMAND</p>
+        <pre style="min-height: 80px;">domotion capture https://example.com \\
+  --width 1200 --optimize -o hero.svg
 
-- Always use typed errors extending AppError
-- Use Result&lt;T, E&gt; for expected failures</pre>
+# embed with &lt;img src="hero.svg"&gt;</pre>
       </div>
       <div class="flex" style="margin-top: 16px">
-        <button class="btn btn-primary">Publish</button>
+        <button class="btn btn-primary">Capture</button>
       </div>
     `),
     duration: 4000,

@@ -50,7 +50,7 @@ import {
   mergeGaps,
   opticalCutOpszFor,
   pickWebfontVariantForCodepoint,
-  r,
+  r2,
   resolveDottedCircleHbRun,
   resolveFont,
   resolveFontForCodepoint,
@@ -487,9 +487,9 @@ export function textToPathMarkup(
             const iy0 = y0 + borderFu;
             const iy1 = y1 - borderFu;
             if (ix1 > ix0 && iy1 > iy0) {
-              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><path d="M${r(x0)} ${r(y0)} L${r(x1)} ${r(y0)} L${r(x1)} ${r(y1)} L${r(x0)} ${r(y1)} Z M${r(ix0)} ${r(iy0)} L${r(ix0)} ${r(iy1)} L${r(ix1)} ${r(iy1)} L${r(ix1)} ${r(iy0)} Z" fill-rule="evenodd"/></g>`);
+              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><path d="M${r2(x0)} ${r2(y0)} L${r2(x1)} ${r2(y0)} L${r2(x1)} ${r2(y1)} L${r2(x0)} ${r2(y1)} Z M${r2(ix0)} ${r2(iy0)} L${r2(ix0)} ${r2(iy1)} L${r2(ix1)} ${r2(iy1)} L${r2(ix1)} ${r2(iy0)} Z" fill-rule="evenodd"/></g>`);
             } else {
-              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><rect x="${r(x0)}" y="${r(y0)}" width="${r(tofuW)}" height="${r(tofuH)}"/></g>`);
+              groups.push(`<g transform="translate(${cssX},0) scale(${chScale},${-chScale})"><rect x="${r2(x0)}" y="${r2(y0)}" width="${r2(tofuW)}" height="${r2(tofuH)}"/></g>`);
             }
             if (cssX > rightEdge) rightEdge = cssX;
           }
@@ -517,7 +517,7 @@ export function textToPathMarkup(
             const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
             const tx = runFontUnits + pos.xOffset;
             const ty = -pos.yOffset;
-            uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
+            uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
           }
           runFontUnits += pos.xAdvance;
         }
@@ -550,13 +550,13 @@ export function textToPathMarkup(
         const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds);
         const tx = runX + pos.xOffset;
         const ty = -pos.yOffset;
-        uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
+        uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
       }
       runX += pos.xAdvance;
     }
     if (uses.length > 0) {
       const sc = Number(runScale.toFixed(5));
-      groups.push(`<g transform="translate(${r(xCss)},0) scale(${sc},${-sc})">${uses.join("")}</g>`);
+      groups.push(`<g transform="translate(${r2(xCss)},0) scale(${sc},${-sc})">${uses.join("")}</g>`);
     }
     xCss += runX * runScale;
   }
@@ -656,7 +656,7 @@ function singleFontMarkup(
         const defId = ensureGlyphDef(fontKey, weight, fontSize, slant, glyph.id, dCmds);
         const tx = xOffsets[textIdx] / scale + pos.xOffset;
         const ty = -pos.yOffset;
-        uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
+        uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
       }
       // Advance the text-index cursor by the cluster's char span: each BMP
       // codepoint in the cluster consumes 1 text index, each astral codepoint
@@ -721,7 +721,7 @@ function singleFontMarkup(
         tx = (x + pos.xOffset) * xScale;
       }
       const ty = -pos.yOffset;
-      uses.push(`<use href="#${defId}" x="${r(tx)}" y="${r(ty)}"/>`);
+      uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
     } else if (skipNotdefHere) {
       // DM-769: PUA codepoint with no glyph coverage in the host font. The
       // glyph path is suppressed (to avoid painting a giant notdef tofu
@@ -759,10 +759,10 @@ function singleFontMarkup(
       const iy0 = y0 + borderFu;
       const iy1 = y1 - borderFu;
       if (ix1 > ix0 && iy1 > iy0) {
-        uses.push(`<path d="M${r(x0)} ${r(y0)} L${r(x1)} ${r(y0)} L${r(x1)} ${r(y1)} L${r(x0)} ${r(y1)} Z M${r(ix0)} ${r(iy0)} L${r(ix0)} ${r(iy1)} L${r(ix1)} ${r(iy1)} L${r(ix1)} ${r(iy0)} Z" fill-rule="evenodd"/>`);
+        uses.push(`<path d="M${r2(x0)} ${r2(y0)} L${r2(x1)} ${r2(y0)} L${r2(x1)} ${r2(y1)} L${r2(x0)} ${r2(y1)} Z M${r2(ix0)} ${r2(iy0)} L${r2(ix0)} ${r2(iy1)} L${r2(ix1)} ${r2(iy1)} L${r2(ix1)} ${r2(iy0)} Z" fill-rule="evenodd"/>`);
       } else {
         // Degenerate (very thin advance) — fall back to a solid filled rect.
-        uses.push(`<rect x="${r(x0)}" y="${r(y0)}" width="${r(tofuW)}" height="${r(tofuH)}"/>`);
+        uses.push(`<rect x="${r2(x0)}" y="${r2(y0)}" width="${r2(tofuW)}" height="${r2(tofuH)}"/>`);
       }
     }
     x += pos.xAdvance;
@@ -1611,7 +1611,7 @@ function renderTextAsEmbedded(
 
     let strokeAttr = "";
     if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
-      strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r(textStrokeWidth)}"`;
+      strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(textStrokeWidth)}"`;
       if (paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder)) {
         strokeAttr += ` paint-order="stroke fill"`;
       }
@@ -1654,17 +1654,17 @@ function renderTextAsEmbedded(
       let runEnd = runStart + 1;
       while (runEnd < p.perGlyph.length && p.perGlyph[runEnd].scale === runScale) runEnd++;
       const slice = p.perGlyph.slice(runStart, runEnd);
-      const xList = slice.map((g) => r(x + g.xCss * xScale)).join(" ");
+      const xList = slice.map((g) => r2(x + g.xCss * xScale)).join(" ");
       const puaStream = slice.map((g) => g.pua).join("");
-      const emitFontSize = r(fontSize * runScale);
+      const emitFontSize = r2(fontSize * runScale);
       // DM-1028: emit a per-glyph y-list only when a glyph carries a vertical
       // GPOS offset (Brahmic marks stacked above/below their base). The common
       // case (all glyphs on the baseline) keeps the single `y` attribute and
       // the smaller markup.
       const anyY = slice.some((g) => g.yCss !== 0);
       const yAttr = anyY
-        ? `y="${slice.map((g) => r(baselineY + g.yCss)).join(" ")}"`
-        : `y="${r(baselineY)}"`;
+        ? `y="${slice.map((g) => r2(baselineY + g.yCss)).join(" ")}"`
+        : `y="${r2(baselineY)}"`;
       segments.push(`<text x="${xList}" ${yAttr} font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr} fill="${fill}"${p.strokeAttr}>${puaStream}</text>`);
       runStart = runEnd;
     }
@@ -1812,12 +1812,12 @@ export function renderTextAsPath(
   if (textStrokeWidth != null && textStrokeWidth > 0 && textStrokeColor != null && textStrokeColor !== "") {
     const inverseScale = font.unitsPerEm / fontSize;
     const swInEm = textStrokeWidth * inverseScale;
-    strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r(swInEm)}"`;
+    strokeAttr = ` stroke="${textStrokeColor}" stroke-width="${r2(swInEm)}"`;
     if (paintOrder != null && /^\s*stroke(?:\s|$)/.test(paintOrder)) {
       strokeAttr += ` paint-order="stroke fill"`;
     }
   }
-  return `<g transform="translate(${r(x)},${r(baselineY)})" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
+  return `<g transform="translate(${r2(x)},${r2(baselineY)})" fill="${fill}"${strokeAttr} role="img" aria-label="${esc(text)}"><title>${esc(text)}</title>${result.markup}</g>`;
 }
 
 /**
@@ -2125,13 +2125,13 @@ export function renderStretchyFenceGlyph(
   // the per-char baseline path). Vertical: map ink [minY,maxY] (font units,
   // y-up) onto [boxY, boxY+boxH] (SVG y-down) — `sy` is the stretch factor.
   // Scale factors need 5-decimal precision (em is ~1000-2048, so 2dp would be
-  // a ~7% size error); the translate keeps `r()`'s 2dp px precision.
+  // a ~7% size error); the translate keeps `r2()`'s 2dp px precision.
   const sx = fontSize / em;
   const sy = boxH / (bbox.maxY - bbox.minY);
   const ty = boxY + sy * bbox.maxY;
   const sxStr = Number(sx.toFixed(5)).toString();
   const syStr = Number((-sy).toFixed(5)).toString();
-  return `<g transform="translate(${r(x)},${r(ty)}) scale(${sxStr},${syStr})" fill="${fill}"><use href="#${defId}"/></g>`;
+  return `<g transform="translate(${r2(x)},${r2(ty)}) scale(${sxStr},${syStr})" fill="${fill}"><use href="#${defId}"/></g>`;
 }
 
 /**
@@ -2211,7 +2211,7 @@ export function renderRadicalGlyph(
   const ty = overbarY + s * bbox.maxY;
   const sStr = Number(s.toFixed(5)).toString();
   const negS = Number((-s).toFixed(5)).toString();
-  const glyphMarkup = `<g transform="translate(${r(tx)},${r(ty)}) scale(${sStr},${negS})" fill="${fill}"><use href="#${defId}"/></g>`;
+  const glyphMarkup = `<g transform="translate(${r2(tx)},${r2(ty)}) scale(${sStr},${negS})" fill="${fill}"><use href="#${defId}"/></g>`;
 
   // Overbar (vinculum): continue the glyph's top stub across the radicand to
   // the radical's right edge, at the SAME y the glyph ink-top was anchored to
@@ -2222,7 +2222,7 @@ export function renderRadicalGlyph(
   const overbarRight = x + width;
   let overbar = "";
   if (overbarRight > glyphRight) {
-    overbar = `<rect x="${r(glyphRight)}" y="${r(overbarY)}" width="${r(overbarRight - glyphRight)}" height="1" fill="${fill}"/>`;
+    overbar = `<rect x="${r2(glyphRight)}" y="${r2(overbarY)}" width="${r2(overbarRight - glyphRight)}" height="1" fill="${fill}"/>`;
   }
   return glyphMarkup + overbar;
 }

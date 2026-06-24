@@ -48,7 +48,7 @@ When both a gradient image and a non-transparent track background color are capt
 
 ## Edge cases / out of scope
 
-- `repeating-conic-gradient` — `parseGradient` doesn't yet route conic, repeating or not. File a ticket if a fixture surfaces it.
+- `repeating-conic-gradient` — handled: `parseGradient` routes conic (`parseConicGradient`, `gradients.ts` ~lines 369–407 parse the `repeating-` prefix), which the conic raster pre-pass renders to a PNG `<pattern>`.
 - `calc()` involving more than one percentage or one pixel term (e.g. `calc(50% + 10% + 5px)`) — `parseCalcPosition` sums all `%` and `px` terms regardless of count, so this works incidentally; mixed-unit terms (`em`, `vh`, etc.) are not supported.
 - Gradient line length for radial repeating gradients uses `rx` (the x-axis radius) as the canonical ray, matching the non-repeating path.
 - `spreadMethod="repeat"` on the SVG element is not used; tile expansion is preferred for predictable cross-renderer behavior.

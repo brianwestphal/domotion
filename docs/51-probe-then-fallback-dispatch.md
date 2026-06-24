@@ -174,7 +174,7 @@ a Linux/Windows fixture (DM-259/DM-260):
 
 The **whole-font fallback tier** — the part that handles every real case today,
 including PingFang in both macOS configs — shipped in `getFontInstance`
-(`src/render/text-to-path.ts`):
+(`src/render/font-resolution.ts`):
 
 - The static `extractor: "native"` flag is retained as a **helper-eligibility
   marker** (so we never over-route inkless glyphs / color-bitmap fonts to the
@@ -200,7 +200,7 @@ including PingFang in both macOS configs — shipped in `getFontInstance`
 
 The second tier — a font fontkit **opens with** an outline table but **can't
 decode a specific glyph** (a partial CFF/CJK face) — is implemented in
-`text-to-path.ts` (`commandsFor`). When a shaped glyph's `.path.commands` is
+`font-resolution.ts` (`commandsFor`). When a shaped glyph's `.path.commands` is
 empty, fontkit kept the shaping/metrics and `commandsFor` supplies just that
 glyph's outline from the helper, fetched by glyph id from the **same file**
 fontkit loaded (ids match across engines). The file is found via a `WeakMap`

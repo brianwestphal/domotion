@@ -10,7 +10,7 @@ fontkit can read the path glyph for almost every Unicode codepoint we care about
 
 ## Capture pipeline
 
-`src/capture/script/::CAPTURE_SCRIPT::needsRaster(cp, nextCp)` is the predicate that decides whether a codepoint needs the bitmap path. It covers:
+`src/capture/script/::CAPTURE_SCRIPT::needsRaster(cp, nextCp, font)` is the predicate that decides whether a codepoint needs the bitmap path. It covers:
 
 - The Misc Symbols block (U+2600..26FF) chars with default emoji presentation per Unicode emoji-data v15.1 (☔ ☕ ⛏ ⛹ ♈..♓ ⛏️ etc.).
 - Dingbats Chrome on macOS routes to Apple Color Emoji rather than Zapf Dingbats: ✨ ❌ ❎ ❓ ❔ ❕ ❗ ➕ ➖ ➗ ➡ ➰ ➿.
@@ -22,7 +22,7 @@ When `needsRaster` returns true for a char, the capture pass appends a `rasterGl
 
 ## Bitmap source: Apple Color Emoji sbix table (DM-335)
 
-`rasterizeBitmapGlyphs` in `src/capture/index.ts` walks the captured tree post-capture and fills in each `dataUri`. There are two sources:
+`rasterizeBitmapGlyphs` in `src/capture/emoji.ts` walks the captured tree post-capture and fills in each `dataUri`. There are two sources:
 
 1. **Apple Color Emoji's `sbix` table** (preferred on macOS). `extractEmojiBitmap(codepoint, paintedWidthPx)` opens `/System/Library/Fonts/Apple Color Emoji.ttc` once (lazy + cached), looks up the glyph via `font.glyphForCodePoint(cp)`, and calls fontkit's `glyph.getImageForSize(ppem)` which returns the embedded PNG bytes for that strike directly. The strike is picked adaptively as `max(64, paintedWidthPx × 3)` rounded up to the nearest available strike (20, 26, 32, 40, 48, 52, 64, 96, 160 ppem). For a typical 18-20px painted rect this lands on the 64-ppem strike (~6KB embedded) which gives ~3× supersampling — sharp through 1×-2× DPR rasterization without bloating file size. Going larger (160-ppem ~24KB) would supersample 8× but adds 18KB per emoji for diminishing visual gain.
 
@@ -46,7 +46,7 @@ The advance — not the font size — is the correct side because Chrome enforce
 
 ## Path-pipeline interaction (DM-334)
 
-The path pipeline still walks the emoji codepoint and, when the resolved font (typically Apple Symbols as the last-resort fallback) returns a `.notdef` tofu, USED to emit the tofu rectangle under the raster overlay. PNG anti-aliasing left visible dark edges around the emoji where the raster's sub-pixel transparency exposed the tofu's outline. `src/render/text-to-path.ts::isEmojiCodepoint` mirrors the capture-side `needsRaster` predicate; the path-pipeline per-char emit loop suppresses any `<use>` whose glyph id is 0 when the codepoint is in an emoji range. Non-emoji unknown-char codepoints (PUA, deeply-exotic scripts) keep emitting their tofu as a "missing glyph" indicator.
+The path pipeline still walks the emoji codepoint and, when the resolved font (typically Apple Symbols as the last-resort fallback) returns a `.notdef` tofu, USED to emit the tofu rectangle under the raster overlay. PNG anti-aliasing left visible dark edges around the emoji where the raster's sub-pixel transparency exposed the tofu's outline. `src/render/font-resolution.ts::isEmojiCodepoint` mirrors the capture-side `needsRaster` predicate; the path-pipeline per-char emit loop suppresses any `<use>` whose glyph id is 0 when the codepoint is in an emoji range. Non-emoji unknown-char codepoints (PUA, deeply-exotic scripts) keep emitting their tofu as a "missing glyph" indicator.
 
 ## File-size budget
 

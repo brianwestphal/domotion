@@ -32,6 +32,7 @@
 
 import { namespaceEmbeddedAnimatedSvg } from "./embed-namespace.js";
 import { offsetEmbeddedAnimatedSvgTimeline, type EmbeddedTimelineMode } from "./embed-timeline.js";
+import { parseSvgIntrinsicSize } from "./svg-meta.js";
 
 /** A layer-level animation: move / scale / fade / transform / resize-clip the whole layer. */
 export interface CompositeLayerAnimation {
@@ -127,17 +128,6 @@ export interface CompositeResult {
 const fmt = (n: number): string => String(Number(n.toFixed(4)));
 const clampPct = (p: number): number => (p < 0 ? 0 : p > 100 ? 100 : p);
 
-/** Best-effort intrinsic size of an SVG document (width/height attrs, else viewBox). */
-function svgIntrinsicSize(svg: string): { w: number; h: number } {
-  const open = /<svg\b[^>]*>/i.exec(svg)?.[0] ?? "";
-  const wAttr = /\bwidth="([\d.]+)(px)?"/i.exec(open);
-  const hAttr = /\bheight="([\d.]+)(px)?"/i.exec(open);
-  if (wAttr != null && hAttr != null) return { w: parseFloat(wAttr[1]), h: parseFloat(hAttr[1]) };
-  const vb = /\bviewBox="[\d.\s-]*?([\d.]+)\s+([\d.]+)"/i.exec(open);
-  if (vb != null) return { w: parseFloat(vb[1]), h: parseFloat(vb[2]) };
-  return { w: 0, h: 0 };
-}
-
 /** Strip the XML prolog + outer `<svg…>…</svg>` wrapper, keeping inner markup (incl. `<style>`). */
 function innerOf(svg: string): string {
   return svg
@@ -168,7 +158,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
   const resolved = layers.map((layer, i) => {
     const intrinsic = (layer.contentWidth != null && layer.contentHeight != null)
       ? { w: layer.contentWidth, h: layer.contentHeight }
-      : svgIntrinsicSize(layer.svg);
+      : parseSvgIntrinsicSize(layer.svg) ?? { w: 0, h: 0 };
     const w = layer.width ?? intrinsic.w;
     const h = layer.height ?? intrinsic.h;
     const x = layer.x ?? 0;
@@ -192,7 +182,11 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
   );
   const masterSec = master / 1000;
 
-  const styleBlocks: string[] = [];
+  // `defsParts` holds `<clipPath>` defs; `styleParts` holds CSS (keyframes + rules)
+  // that all go in one combined `<style>`. Two arrays (vs one filtered by string
+  // prefix) so a future entry can't silently land in neither bucket.
+  const defsParts: string[] = [];
+  const styleParts: string[] = [];
   const groups: string[] = [];
 
   for (const r of resolved) {
@@ -220,7 +214,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
     if (r.layer.clip === true) {
       const clipId = `${token}clip`;
       const rad = r.layer.clipRadius ?? 0;
-      styleBlocks.push(`<clipPath id="${clipId}"><rect x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad ? ` rx="${fmt(rad)}"` : ""}/></clipPath>`);
+      defsParts.push(`<clipPath id="${clipId}"><rect x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad ? ` rx="${fmt(rad)}"` : ""}/></clipPath>`);
       nested = `<g clip-path="url(#${clipId})">${nested}</g>`;
     }
 
@@ -239,7 +233,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
       const prop = a.property === "opacity" ? "opacity" : "transform";
       const from = renderAnimValue(a.property, a.from);
       const to = renderAnimValue(a.property, a.to);
-      styleBlocks.push(`<style>@keyframes ${name}{0%,${fmt(sPct)}%{${prop}:${from}}${fmt(ePct)}%,100%{${prop}:${to}}}</style>`);
+      styleParts.push(`@keyframes ${name}{0%,${fmt(sPct)}%{${prop}:${from}}${fmt(ePct)}%,100%{${prop}:${to}}}`);
       groupDecls.push(`${name} ${fmt(masterSec)}s ${a.easing ?? "ease"} infinite`);
       if (a.property !== "opacity" && transformOrigin == null) transformOrigin = a.transformOrigin ?? "0 0";
     });
@@ -266,27 +260,30 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
       const ox = sx?.transformOrigin ?? "left";
       const oy = sy?.transformOrigin ?? "top";
       const rad = r.layer.clipRadius != null ? ` rx="${fmt(r.layer.clipRadius)}"` : "";
-      styleBlocks.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect class="${token}clipper" x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad}/></clipPath>`);
-      styleBlocks.push(`<style>@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-box:fill-box;transform-origin:${ox} ${oy};animation:${name} ${fmt(masterSec)}s ${anchor.easing ?? "ease"} infinite}</style>`);
+      defsParts.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect class="${token}clipper" x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad}/></clipPath>`);
+      styleParts.push(`@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-box:fill-box;transform-origin:${ox} ${oy};animation:${name} ${fmt(masterSec)}s ${anchor.easing ?? "ease"} infinite}`);
       clipAttr = ` clip-path="url(#${clipId})"`;
     }
 
     groups.push(`<g class="${token}layer"${clipAttr}${groupStyle}>${nested}</g>`);
   }
 
-  const bg = opts.background != null && opts.background !== "" && opts.background !== "transparent" && opts.background !== "rgba(0, 0, 0, 0)"
-    ? `<rect width="${width}" height="${height}" fill="${opts.background}"/>`
-    : "";
+  // Transparent when empty / `transparent` / a fully-transparent rgba (matched
+  // whitespace-insensitively, so `rgba(0,0,0,0)` and `rgba(0, 0, 0, 0)` both count).
+  const bgNorm = (opts.background ?? "").replace(/\s+/g, "").toLowerCase();
+  const bg = bgNorm === "" || bgNorm === "transparent" || bgNorm === "rgba(0,0,0,0)"
+    ? ""
+    : `<rect width="${width}" height="${height}" fill="${opts.background}"/>`;
 
-  const defs = styleBlocks.filter((s) => s.startsWith("<clipPath")).join("");
-  const css = styleBlocks.filter((s) => s.startsWith("<style")).join("");
-  // DM-1331: the shared embedded-font block for `deferFonts` layers, emitted once.
-  const fontCss = opts.fontFaceCss != null && opts.fontFaceCss !== "" ? `<style>${opts.fontFaceCss}</style>` : "";
+  const defs = defsParts.join("");
+  // DM-1331: the shared embedded-font block for `deferFonts` layers goes first in
+  // the one combined <style>, ahead of the layer-animation keyframes.
+  const fontCss = opts.fontFaceCss != null && opts.fontFaceCss !== "" ? opts.fontFaceCss : "";
+  const styleInner = fontCss + styleParts.join("");
   let svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
     (defs ? `<defs>${defs}</defs>` : "") +
-    fontCss +
-    css +
+    (styleInner !== "" ? `<style>${styleInner}</style>` : "") +
     bg +
     groups.join("") +
     `</svg>`;
@@ -311,6 +308,11 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
  * subset (merging those would need re-subsetting; tracked separately).
  */
 export function dedupeCompositeFonts(svg: string): string {
+  // Invariants this relies on (all hold for domotion-emitted `@font-face`):
+  //  - one `font-family` declaration per block (so the key-collapse / rename below
+  //    target the right name), and
+  //  - the base64 `src` payload contains no `{`/`}` (the base64 alphabet excludes
+  //    them), so `[^{}]*` safely matches the whole block body.
   const faceRe = /@font-face\s*\{[^{}]*\}/g;
   const canonicalByKey = new Map<string, string>();
   const renames = new Map<string, string>(); // duplicate family -> canonical family

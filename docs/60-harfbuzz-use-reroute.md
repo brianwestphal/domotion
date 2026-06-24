@@ -39,7 +39,7 @@ Chrome (DM-1197 — the Kaithi `U+110AB` "dot position" diff).
 
 ## The reroute
 
-`resolveFontForCodepoint` (`src/render/text-to-path.ts`) detects these
+`resolveFontForCodepoint` (`src/render/font-resolution.ts`) detects these
 codepoints via `complexShaperBaseMarkDecomposition(cp)` and, when the primary
 font covers the decomposed pieces, sets the run's `fontOverride` to a HarfBuzz
 shaping instance (`src/render/harfbuzz-shaper.ts::makeHarfbuzzShapingInstance`).

@@ -1,6 +1,6 @@
 # Domotion: CSS font-family chain resolution
 
-Requirements for honoring author-specified font-family chains in Domotion. Origin: SK-1124 (follow-up from SK-1095). Today `resolveFontKey` in `src/render/text-to-path.ts` only distinguishes mono from sans-serif, so a page declaring `font-family: "Helvetica Neue", "Times New Roman", monospace` always paints with SF Pro regardless of the requested family.
+Requirements for honoring author-specified font-family chains in Domotion. Origin: SK-1124 (follow-up from SK-1095). Today `resolveFontKey` in `src/render/font-resolution.ts` only distinguishes mono from sans-serif, so a page declaring `font-family: "Helvetica Neue", "Times New Roman", monospace` always paints with SF Pro regardless of the requested family.
 
 > **Cross-platform note (DM-258 / DM-259 / DM-260)**: This doc describes the macOS calibration of the chain resolver and `FONT_PATHS`. The same logic must work on Linux (fontconfig — Noto / DejaVu / Liberation) and Windows (DirectWrite — Arial / Consolas / Times New Roman / Segoe UI Symbol / Cambria Math / Yu Gothic).
 >
@@ -25,7 +25,7 @@ No new fields. CAPTURE_SCRIPT already records `cs.fontFamily` (the computed stri
 
 ## Render changes
 
-In `src/render/text-to-path.ts`:
+In `src/render/font-resolution.ts`:
 
 1. Replace `resolveFontKey(fontFamily: string): string` with `resolveFontKey(fontFamily: string): string` that splits on top-level commas, trims quotes, and matches each token in priority order:
    - Quoted family names (`"Helvetica Neue"`, `"Times New Roman"`) match against an explicit table.
@@ -75,7 +75,7 @@ face lacks). For those, the renderer walks the WHOLE declared stack, not just th
 primary. `resolveFontKeyChain(fontFamily)` returns the full ordered list of
 resolvable keys (the same calibration table `resolveFontKey` uses, but keeping
 every match instead of the first), and the per-codepoint resolver
-(`resolveFontForCodepoint` in `src/render/text-to-path.ts`) walks it in Blink's
+(`resolveFontForCodepoint` in `src/render/font-resolution.ts`) walks it in Blink's
 `FontFallbackIterator` order:
 
 1. **Primary literal** — the run's primary font covers the codepoint (the common

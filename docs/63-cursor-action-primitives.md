@@ -1,11 +1,12 @@
 # 63 — Cursor-target + action-runner public primitives
 
-Status: **proposed** (DM-1135). Design + contract for exposing the cursor
-selector → point resolution and the declarative action runner as public
-primitives, so imperative scripting-API callers (`captureElementTree` +
+Status: **shipped** (DM-1135). `borderBox` + `resolveCursorTarget` and
+`runActions` + the `AnimateAction` union are exported from the package root
+(`src/index.ts`), so imperative scripting-API callers (`captureElementTree` +
 `generateAnimatedSvg`) get the same selector-anchoring and DOM-mutation
-vocabulary the declarative CLI uses. Implementation tracked as follow-up tickets
-(below).
+vocabulary the declarative CLI uses. (The action set also includes
+`removeAttribute` / `removeClass`.) The rest of this doc is the original
+design + contract.
 
 ## Why
 

@@ -3112,5 +3112,8 @@ export function glyphPathIntercepts(
   return { minX, maxX };
 }
 
-export function r(n: number): string { return Number(n.toFixed(2)).toString(); }
+/** Two-decimal SVG coordinate formatter for glyph-path geometry (math radical /
+ *  stretchy-fence markup). Named distinctly from the one-decimal `r` in
+ *  `format.ts` so the precision is explicit at the call site (DM-1340). */
+export function r2(n: number): string { return Number(n.toFixed(2)).toString(); }
 

@@ -15,6 +15,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome } from "../../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../../animation/embed-namespace.js";
+import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../../animation/svg-meta.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 
 export const deviceMockupParamsSchema = z.object({
@@ -44,35 +45,6 @@ function resolveInput(input: string): string {
   return resolve(input);
 }
 
-/** Best-effort intrinsic size of an SVG document (width/height attrs, else viewBox). */
-function svgSize(svg: string): { w: number; h: number } | null {
-  const open = /<svg\b[^>]*>/i.exec(svg)?.[0] ?? "";
-  const w = /\bwidth="([\d.]+)(px)?"/i.exec(open);
-  const h = /\bheight="([\d.]+)(px)?"/i.exec(open);
-  if (w != null && h != null) return { w: parseFloat(w[1]), h: parseFloat(h[1]) };
-  const vb = /\bviewBox="[\d.\s-]*?([\d.]+)\s+([\d.]+)"/i.exec(open);
-  if (vb != null) return { w: parseFloat(vb[1]), h: parseFloat(vb[2]) };
-  return null;
-}
-
-/**
- * Read an animated SVG's own play length (ms) — from its `--scene-dur` custom
- * property when present (full-mode casts / animate output), else the longest
- * `animation:` shorthand duration (incremental-mode casts carry no `--scene-dur`
- * but every line/cursor track runs at the scene period). `undefined` if neither
- * is found (a static SVG).
- */
-function sceneDurationMs(svg: string): number | undefined {
-  const scene = /--scene-dur:\s*([\d.]+)s/i.exec(svg);
-  if (scene != null) return Math.round(parseFloat(scene[1]) * 1000);
-  let maxSec = 0;
-  for (const m of svg.matchAll(/animation:\s*[^;}]*?\b([\d.]+)s\b/gi)) {
-    const s = parseFloat(m[1]);
-    if (s > maxSec) maxSec = s;
-  }
-  return maxSec > 0 ? Math.round(maxSec * 1000) : undefined;
-}
-
 export const deviceMockupTemplate: Template<DeviceMockupParams> = {
   name: "device-mockup",
   description: "Wrap a captured URL/page (or a pre-rendered animated SVG) in a device bezel (phone, browser window, or app window).",
@@ -86,11 +58,11 @@ export const deviceMockupTemplate: Template<DeviceMockupParams> = {
     // (doc 73) re-syncs it.
     if (params.screenSvg != null && params.screenSvg !== "") {
       const screen = readFileSync(resolve(params.screenSvg), "utf8");
-      const size = svgSize(screen) ?? { w: params.width, h: params.height };
+      const size = parseSvgIntrinsicSize(screen) ?? { w: params.width, h: params.height };
       const namespaced = namespaceEmbeddedAnimatedSvg(screen, "dms_");
       ctx.log(`template device-mockup: ${params.device} bezel around an animated ${size.w}×${size.h} screen (${params.screenSvg})`);
       const framed = wrapInDeviceChrome(namespaced, params.device, size.w, size.h, { label: params.label, theme: params.theme });
-      const durationMs = params.screenDurationMs ?? sceneDurationMs(screen);
+      const durationMs = params.screenDurationMs ?? detectAnimationPeriodMs(screen);
       return { svg: framed.svg, width: framed.width, height: framed.height, durationMs };
     }
 

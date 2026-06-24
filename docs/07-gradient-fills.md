@@ -22,7 +22,7 @@ Our output paints a flat `#4f46e5` (or no fill if the regex misses) instead of t
 - Capture the full `background-image` value (including gradient text) for each pseudo handled by the stylesheet walker.
 - For `linear-gradient(...)` backgrounds, emit an SVG `<linearGradient>` def per gradient occurrence and apply it to the painted rect via `fill="url(#sk-grad-N)"`.
 - Round-trip color stops with explicit positions, color-mix / oklch / lab colors (via the existing `normColor` probe), and `currentColor` references.
-- Pass through unsupported gradient types (`radial-gradient`, `conic-gradient`, `repeating-*`) unchanged at capture time and **emit a `warn()`**, falling back to the first literal color stop (current behavior). Filed as SK-???? follow-ups.
+- `radial-gradient(...)`, `conic-gradient(...)`, and the `repeating-*` variants are now all handled too (radial → `<radialGradient>`, conic → rasterized PNG `<pattern>`, repeating → tiled stops); see the Edge-cases / Status sections below.
 - Generalize the gradient-emission helper so the same plumbing works for slider track + thumb (SK-1138, SK-1192, SK-1191), progress / meter (SK-1222, doc 27), and the future input pseudos `::-webkit-color-swatch` etc. (SK-1223, doc 26).
 
 ## Capture changes
@@ -99,7 +99,7 @@ The same ensure-gradient helper handles the thumb fill (`renderRange` thumb path
 
 - **Radial gradients (SK-1225)**: shipped via `<radialGradient>`. Supports `circle`/`ellipse` shapes, the four extent keywords (`closest-side` / `closest-corner` / `farthest-side` / `farthest-corner`), explicit length sizing, and the `at <position>` clause (single keyword, two-token keyword/length pairs, percent positions). Ellipses use `gradientTransform="translate(cx, cy) scale(1, ry/rx) translate(-cx, -cy)"` to bend the natively-circular SVG radial into the desired aspect. For the corner keywords the ellipse keeps the matching side's aspect ratio and is scaled to pass through the corner — exactly `√2 ×` the side radii (DM-1243; verified against Chrome's painted ring).
 - **Color hints (DM-1242)**: the bare `<percentage>` between two color stops (e.g. `linear-gradient(red, 20%, blue)`) shifts the 50% transition to that position via a power curve (`weight(t) = t^(ln0.5/lnH)`). SVG only interpolates linearly between stops, so `parseGradientStops` samples that curve at uniform mix-weight and emits a stop at each sample — clustering stops where the curve is steep and landing one exactly on the hint. Matches Chrome's paint within ~Δ4/channel (vs. the old single-mid-stop, which read too linear).
-- **Conic gradients**: still out of scope. Capture the text but `parseGradient()` returns null for conic, so the renderer falls back to the flat color path. File as a follow-up if author demand surfaces.
+- **Conic gradients**: shipped. `parseGradient()` routes `parseConicGradient` (`gradients.ts`), and because SVG has no native conic, `form-controls.ts` rasterizes each conic layer to a PNG `<pattern>` (`buildConicGradientDef`, fed by the async raster pre-pass) that the form-control pseudo paints as its background.
 - **Multi-layer backgrounds** (`background: red, linear-gradient(...)` or two gradients stacked): paint only the topmost layer. CSS `background` lists paint top-to-bottom in source order; we honor the first item that is a renderable gradient. Emit a warning if a layer is dropped.
 - **`background-attachment`, `background-position`, `background-size` on a gradient**: ignore — their effect on a small fixed-size pseudo box is usually nil, and modeling them in SVG is non-trivial.
 - **`currentColor` in stops**: resolve via the host's computed `color`, captured during the host-probe.
@@ -127,5 +127,6 @@ The gradient pipeline lands in three slices, each tracked as a separate ticket:
 
 - **SK-1224 — Linear-gradient track + thumb**: shipped. parseLinearGradient + buildLinearGradientDef + DefCtx integration in form-controls.ts. 06-forms-style-range diff dropped from 1.85% to 1.54% avg.
 - **SK-1226 — Px-positioned color stops**: shipped. parser captures pxOffset; resolveStops converts to fractions at emit time using the rect's gradient line length. Em / pt / pc / in / cm / mm coerce to px via approximate conversions.
-- **SK-1225 — Radial gradient support**: shipped (per user direction "support radial, skip conic"). parseRadialGradient + buildRadialGradientDef. Conic remains deferred.
+- **SK-1225 — Radial gradient support**: shipped. parseRadialGradient + buildRadialGradientDef.
+- **Conic gradient support**: shipped. parseConicGradient + buildConicGradientDef rasterize each conic layer into a PNG `<pattern>` (SVG has no native conic) via the async raster pre-pass.
 - **SK-1222 / SK-1223 hand-off**: progress / meter / color-swatch / inner-spin / search-cancel pickups happen automatically once those pseudos move to the stylesheet walker — gradientFillFor and DefCtx are already factored.

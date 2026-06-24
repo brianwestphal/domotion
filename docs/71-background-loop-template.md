@@ -30,7 +30,7 @@ domotion template background-loop --variant stars --colors "#7aa2f7,#bb9af7,#7dc
 
 | Param | Type | Default | Meaning |
 |---|---|---|---|
-| `variant` | `aurora` \| `orbs` \| `stars` \| `gradient-pan` \| `grid` | `aurora` | See *Variants* below. |
+| `variant` | `aurora` \| `orbs` \| `stars` \| `gradient-pan` \| `grid` \| `wave` | `aurora` | See *Variants* below. |
 | `colors` | string[] **or** comma-separated string | indigo/pink/cyan/amber | Colors, cycled across the elements. Pass a JSON array via `--params`, or the comma-separated **`--colors`** convenience flag (DM-1285). |
 | `background` | string | `#0b1020` | Base fill behind the blobs. |
 | `count` | int 1–24 | `5` | Number of blobs. |

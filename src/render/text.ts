@@ -6,6 +6,7 @@
 
 import bidiFactory from "bidi-js";
 import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, measureInkMetrics, renderStretchyFenceGlyph, renderTextAsPath } from "./text-to-path.js";
+import { r, esc } from "./format.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 
 // ── Rendering helpers ──
@@ -17,9 +18,6 @@ import type { CapturedElement, TextSegment } from "../capture/types.js";
 // fences are handled earlier by `renderStretchyFenceGlyph` and never reach the
 // ink-metric path.
 const MATH_TOKEN_TAGS = new Set(["mo", "mi", "mn", "mtext", "ms"]);
-
-function r(n: number): string { return Number(n.toFixed(1)).toString(); }
-function esc(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
 /**
  * Emit `<line>` markup for each non-zero side border on a pseudo-element box.

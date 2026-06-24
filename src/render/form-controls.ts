@@ -13,6 +13,7 @@
 
 import type { CapturedElement } from "../capture/types.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
+import { r } from "./format.js";
 
 /**
  * Per-render context for emitting <defs> entries. Form-controls populate
@@ -340,7 +341,6 @@ const DISABLED_BORDER = STOCK_LIGHT.disabledBorder;
 void UA_BORDER; void UA_FILL; void ACCENT_BLUE; void TRACK_BG; void TRACK_FG;
 void METER_GREEN; void METER_YELLOW; void METER_RED; void DISABLED_BORDER;
 
-function r(n: number): string { return Number(n.toFixed(1)).toString(); }
 
 /** Resolve CSS accent-color to a concrete fill. 'auto' (or missing) falls back
  *  to the Chromium macOS default blue (DM-553: scheme-aware via defCtx).

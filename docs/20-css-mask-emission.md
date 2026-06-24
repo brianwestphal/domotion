@@ -10,7 +10,7 @@ Common patterns this ticket scope cares about:
 2. **Bitmap mask**: `mask-image: url("./shape.png"); mask-position: center; mask-size: cover;` — used for irregular shape clipping (Apple Mother's Day decorative orbs).
 3. **Multi-layer mask**: `mask-image: url(a), linear-gradient(...);` — composited per CSS mask-composite (default `add` = additive).
 
-Until DM-470, the capture path warned `mask: captured but not emitted — mask sources need coordinate-aware emission` for any element with a `mask` shorthand. The warning text was stale: `buildMaskDef()` (`src/render/element-tree-to-svg.ts`) already emits SVG `<mask>` defs for gradient and url() layers with size / position / repeat / composite handling. The warning predates the emission feature and was never updated.
+Until DM-470, the capture path warned `mask: captured but not emitted — mask sources need coordinate-aware emission` for any element with a `mask` shorthand. The warning text was stale: `buildMaskDef()` (`src/render/mask.ts`) already emits SVG `<mask>` defs for gradient and url() layers with size / position / repeat / composite handling. The warning predates the emission feature and was never updated.
 
 ## What's already working
 
@@ -23,15 +23,16 @@ Until DM-470, the capture path warned `mask: captured but not emitted — mask s
 
 Renderer wiring (`src/render/element-tree-to-svg.ts`): when `el.styles.maskImage` is non-empty, the mask def is pushed into `defsParts` and the rendered group gets `mask="url(#mkN)"`.
 
-## What's NOT working (the actual ticket scope)
+## Also implemented (previously the ticket gap)
 
-Cases where emission still falls through with no SVG output:
+These two cases now emit SVG output:
 
-1. **`mask-image: element(#id)`** — references another DOM element as the mask source. Not common on real-world fixtures, low priority.
-2. **`mask-image: url("inline.svg#fragment")`** — fragment into an inline SVG. Not currently parsed; the URL is taken as-is and emitted but the fragment doesn't resolve cross-document.
-3. **CSS-only `-webkit-mask` shorthand** — when the author uses the vendor-prefixed shorthand and Chromium resolves `getComputedStyle().maskImage` to `none` (some browser-version combos), our emission path bails. CAPTURE_SCRIPT already fallbacks to `cs.webkitMaskImage` on lines 2141-2148; verify that's still firing correctly post-DM-470.
+1. **`mask-image: element(#id)`** — references another DOM element as the mask source. Implemented (DM-494): the referenced element is captured as a painted snapshot and threaded through `elementMaskRasters` (built from `tree[0].maskRasters`), so an `element()` layer paints from that raster.
+2. **same-document `url(#fragment)` masks** (`mask-image: url("#mask-id")` referencing an inline `<mask>` defined in the page) — implemented (DM-493): `rewriteFragmentMaskDef` (`src/render/mask.ts`) rewrites the referenced inline `<mask>` def into the output and resolves the fragment, with `positionFragmentMaskDef` placing it.
 
-The misleading warning text is the most visible symptom of the gap between perceived and actual support.
+Still imperfect:
+
+- **CSS-only `-webkit-mask` shorthand** — when the author uses the vendor-prefixed shorthand and Chromium resolves `getComputedStyle().maskImage` to `none` (some browser-version combos), our emission path bails. CAPTURE_SCRIPT already fallbacks to `cs.webkitMaskImage` on lines 2141-2148; verify that's still firing correctly post-DM-470.
 
 ## Requirement (this ticket)
 
@@ -41,16 +42,16 @@ The misleading warning text is the most visible symptom of the gap between perce
 
 > **Shipped**: the warning now lives in `src/capture/script/walker/masks-clips.ts` (the capture walker, post `src/` reorg — not the old flat `src/dom-to-svg.ts`). It only fires for sources that are neither a gradient, a `url()`, nor an `element()` reference, and reads `non-gradient/non-url()/non-element() mask source — not emitted` — a terser final wording than the draft above, but the same intent: warn only on sources the renderer can't emit.
 
-## What's deferred
+## What was deferred (now shipped)
 
-- `element()` paint reference support — out of scope for DM-470; file follow-up if a real-world fixture surfaces the need.
-- Inline-SVG fragment URL resolution (`url("#mask-id")` referencing an inline `<mask>` defined earlier in the page) — same.
+- `element()` paint reference support — implemented in DM-494 (raster-snapshot mask layer via `elementMaskRasters`).
+- Inline-SVG fragment URL resolution (`url("#mask-id")` referencing an inline `<mask>` defined earlier in the page) — implemented in DM-493 (`rewriteFragmentMaskDef` / `positionFragmentMaskDef` in `src/render/mask.ts`).
 
 ## Test fixture
 
 Existing `src/mask.test.ts` exercises `buildMaskDef()` for gradients and url() at the unit level (9 tests). No additional integration fixture is added in this pass — existing real-world coverage on Apple / Resend hits the path.
 
-## Open questions for the user
+## Resolved questions
 
-- **Should the warning be removed entirely, or downgraded to fire only on truly-unsupported sources?** I lean toward downgrade (still useful as a heads-up for cases the renderer can't reproduce pixel-perfect), but the user may prefer the cleaner \"warning only when broken\" semantics.
-- **Should `element()` paint reference and inline-SVG fragment masks be filed as separate follow-ups now or wait for a real-world fixture to flag them?**
+- **Warning scope**: downgraded — it now fires only on sources the renderer can't emit (neither a gradient, a `url()`, nor an `element()` reference). See the "Shipped" note above.
+- **`element()` paint reference and inline-SVG fragment masks**: both implemented (DM-494 / DM-493) rather than deferred — see "What was deferred (now shipped)" above.

@@ -8,6 +8,9 @@ tests/output/*
 tests/cache/
 examples/output/*.mp4
 examples/output/*.webm
+# Intermediate capture HTML the example scripts write next to their SVG output —
+# scratch artifacts, regenerated on every run (DM-1334).
+examples/output/*.html
 node_modules/
 external/
 dist/
