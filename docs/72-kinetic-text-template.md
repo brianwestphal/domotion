@@ -121,8 +121,14 @@ index), `buildKineticHtml`, `buildKineticAnimations`, `kineticDurationMs`.
 
 DM-1286 shipped the `clip` wipe variant, multi-line `\n`, inline emphasis tags,
 and the `loop` / `boomerang` modes; DM-1297 added the center-origin `scale`
-infrastructure (doc 08) and the `pop` variant. One reveal variant remains blocked
-on a rendering-pipeline capability:
+infrastructure (doc 08) and the `pop` variant. One reveal variant was attempted
+and **dropped**:
 
-- **`blur-in`** (DM-1296) — needs `filter: blur()` capture fidelity, which the SVG
-  pipeline doesn't yet reproduce; the `clip` wipe is the soft-reveal substitute.
+- **`blur-in`** (DM-1296) — a `filter: blur(Npx) → blur(0)` reveal. It was built
+  and worked in Chromium, but an animated CSS `filter` on an `<img>`-embedded SVG
+  does **not** render reliably in Safari and other engines, so it isn't
+  cross-browser-safe (Domotion output must look identical everywhere). Reverted —
+  do not re-attempt the `filter`-keyframe approach without a cross-engine fix. The
+  shipped `clip` wipe is the soft/standout reveal substitute. (The original
+  "blocked on capture fidelity" framing was a red herring; the real blocker is
+  cross-browser `filter`-animation support in `<img>`-SVG.)

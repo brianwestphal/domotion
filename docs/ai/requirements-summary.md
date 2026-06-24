@@ -80,8 +80,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   animation constraints as doc 71. DM-1297 added the `pop` (center-origin
   scale-up) variant + the underlying intra-frame `scale` property and
   `transformOrigin` support (emits `transform-box: fill-box; transform-origin` so
-  any transform can pivot about the element's own box — doc 08). `blur-in`
-  (DM-1296) remains filed, blocked on blur-capture fidelity.
+  any transform can pivot about the element's own box — doc 08). A `blur-in`
+  variant (DM-1296) was built (a `filter: blur()` keyframe reveal) but **dropped**:
+  animated CSS `filter` on an `<img>`-embedded SVG works in Chromium but not
+  Safari/other engines, so it isn't cross-browser-safe. Do not re-attempt the
+  `filter`-keyframe approach.
 - **Doc 71 (`docs/71-background-loop-template.md`, DM-1280 + DM-1285 + DM-1295)** —
   **Shipped.** The first deferred first-party template built on the doc-70
   contract: a `background-loop` **generator** that emits a procedural seamlessly-
