@@ -1595,6 +1595,72 @@ function paintBackgroundImageLayers(
   return { svg, defs, clipIdx, textBgClipFills };
 }
 
+// Inline-SVG content paint, extracted from renderElement (DM-1306, DM-1312).
+// Injects width/height from the captured content box (inline SVGs in the wild
+// often omit them, falling back to the 300x150 default) and translates to the
+// content-box top-left, with the wrapping group's `color` set to the captured
+// text color so `currentColor` icons resolve to Chrome's paint. Replaced
+// elements suppress text/children, so when el.svgContent is present this is the
+// element's entire content: the helper returns `handled: true` and the caller
+// closes the open wrapper groups and returns. The DM-499 0x0-host skip emits no
+// markup but still reports handled (the consumer-side <use> resolver already
+// inlined the defs SVG's contents). Reads only el + indent.
+function paintInlineSvg(el: CapturedElement, indent: string): { svg: string[]; handled: boolean } {
+  const svg: string[] = [];
+  if (el.svgContent == null) return { svg, handled: false };
+  // The captured el.x/y/width/height are border-box coords. The SVG draws into
+  // the CONTENT-BOX, so subtract the left/top border + padding from the
+  // translate offset so the SVG's (0, 0) lands at the content-box top-left
+  // (DM-416 — otherwise it paints 1-2 px up + left of Chrome).
+  const blW = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+  const btW = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+  const plW = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+  const ptW = parseFloat(el.styles.paddingTop ?? "0") || 0;
+  const contentW = Math.max(0, el.width - blW - (parseFloat(el.styles.borderRightWidth ?? "0") || 0) - plW - (parseFloat(el.styles.paddingRight ?? "0") || 0));
+  const contentH = Math.max(0, el.height - btW - (parseFloat(el.styles.borderBottomWidth ?? "0") || 0) - ptW - (parseFloat(el.styles.paddingBottom ?? "0") || 0));
+  // DM-499: hidden defs SVGs (position:absolute;width:0;height:0) capture as
+  // 0x0. injectSvgSize would no-op (its w<=0/h<=0 short-circuit), the SVG would
+  // fall back to its 300x150 default viewport, and the defs contents would
+  // paint visibly. Skip emission for 0x0 host elements.
+  if (contentW <= 0 || contentH <= 0) return { svg, handled: true };
+  const sized = injectSvgSize(el.svgContent, contentW, contentH);
+  // Inline SVG icons commonly use fill/stroke="currentColor" so the icon picks
+  // up the host's text color. Set the wrapping group's `color` to the captured
+  // text color so currentColor resolves to what Chrome painted (DM-279).
+  const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
+  svg.push(`${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`);
+  return { svg, handled: true };
+}
+
+// Broken-image fallback paint, extracted from renderElement (DM-1306, DM-1312).
+// When an <img> failed to load (or has empty src), Chrome paints a small
+// broken-image placeholder icon plus the alt text in the host font. We
+// approximate the icon with a 16x16 outlined box containing a small mountain
+// polyline and emit the alt text right after it (DM-372). Reads only el + the
+// resolved textColor + indent; appends to no shared state.
+function paintBrokenImage(el: CapturedElement, textColor: ReturnType<typeof parseColor>, indent: string): string[] {
+  const out: string[] = [];
+  const ix = el.x;
+  const iy = el.y;
+  const iconSize = 16;
+  const iconX = ix + 1;
+  const iconY = iy + 1;
+  // Icon: a rectangle with a tiny mountain inside (Chrome's broken-image icon
+  // is more elaborate but a simple framed mountain is recognizable).
+  out.push(`${indent}<rect x="${r(iconX)}" y="${r(iconY)}" width="${iconSize - 2}" height="${iconSize - 2}" fill="none" stroke="rgb(128,128,128)" stroke-width="1" />`);
+  out.push(`${indent}<polyline points="${r(iconX + 2)},${r(iconY + iconSize - 4)} ${r(iconX + 5)},${r(iconY + iconSize / 2)} ${r(iconX + 8)},${r(iconY + iconSize - 6)} ${r(iconX + 12)},${r(iconY + iconSize - 4)}" fill="none" stroke="rgb(128,128,128)" stroke-width="0.8" />`);
+  // Alt text emitted next to the icon. Use the element's font / color.
+  if (el.imageAlt != null && el.imageAlt !== "") {
+    const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+    const tx = ix + iconSize + 4;
+    const ty = iy + Math.min(iconSize - 2, fontSizePx);
+    const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
+    const escAlt = el.imageAlt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    out.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escAlt}</text>`);
+  }
+  return out;
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behaviour-identical.
@@ -2772,57 +2838,21 @@ export function elementTreeToSvgInner(
     // styles (solid / dashed / dotted) reuse dashArrayForStyle.
     svgParts.push(...paintOutline(el, borderRadius, indent));
 
-    // Inline SVG. The captured outerHTML preserves the source attributes,
-    // including viewBox, but inline SVGs in the wild often omit width/height
-    // (size is set by CSS on the element, e.g. width: 16px). Without explicit
-    // width/height on the <svg> tag, browsers fall back to the 300x150 SVG
-    // default, which produces giant rendering when we re-embed it. Inject
-    // width/height from the captured rect so the SVG renders at its actual
-    // on-page size.
-    if (el.svgContent != null) {
-      // The captured `el.x / el.y / el.width / el.height` are border-box
-      // coords. The SVG draws into the CONTENT-BOX (CSS box-sizing default
-      // for `<svg>` is content-box), so the actual paint area sits inside
-      // the element's border. Without subtracting border + padding from
-      // the translate offset, our SVG content paints 1-2 px up + left of
-      // where Chrome paints it (DM-416). Subtract the left/top border +
-      // padding so the SVG'\\'s (0, 0) lands at the content-box top-left.
-      const blW = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-      const btW = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-      const plW = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-      const ptW = parseFloat(el.styles.paddingTop ?? "0") || 0;
-      const contentW = Math.max(0, el.width - blW - (parseFloat(el.styles.borderRightWidth ?? "0") || 0) - plW - (parseFloat(el.styles.paddingRight ?? "0") || 0));
-      const contentH = Math.max(0, el.height - btW - (parseFloat(el.styles.borderBottomWidth ?? "0") || 0) - ptW - (parseFloat(el.styles.paddingBottom ?? "0") || 0));
-      // DM-499: hidden defs SVGs (style="position:absolute;width:0;height:0")
-      // capture as 0×0 elements. Without this guard, `injectSvgSize` returns
-      // the markup unchanged (its w<=0 / h<=0 short-circuit), the SVG falls
-      // back to its 300×150 default viewport, and the defs contents paint
-      // visibly in the output. Skip emission for 0×0 host elements — the
-      // consumer-side `<use>` resolver has already inlined whatever the defs
-      // SVG was holding into each consumer.
-      if (contentW <= 0 || contentH <= 0) {
+    // Inline SVG content (see paintInlineSvg). A replaced element's SVG content
+    // is its entire paint, so when present we push the content, close the
+    // wrapper groups opened above (animClass + opacity/transform/clip/mask
+    // group, plus the DM-704 filter-outer wrapper) and return — otherwise an
+    // inline-SVG element with e.g. `opacity < 1` would emit an unbalanced <g>
+    // and break the document (observable on resend/stripe nav chevrons).
+    {
+      const _isvg = paintInlineSvg(el, indent);
+      if (_isvg.handled) {
+        svgParts.push(..._isvg.svg);
         if (animClass !== "") svgParts.push(`${indent}</g>`);
         if (opened) svgParts.push(`${indent}</g>`);
         if (needsFilterOuter) svgParts.push(`${indent}</g>`);
         return;
       }
-      const sized = injectSvgSize(el.svgContent, contentW, contentH);
-      // Inline SVG icons commonly use `fill="currentColor"` / `stroke="currentColor"`
-      // so the icon picks up the button's text color. Set the wrapping group's
-      // CSS `color` to the captured text color so currentColor resolves to
-      // what Chrome painted, not the SVG document root's default black. DM-279.
-      const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
-      svgParts.push(`${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`);
-      // Close the wrappers opened above (animClass + opacity/transform/clip/mask
-      // group, plus the DM-704 filter-outer wrapper when present). Without
-      // these closes, an inline-SVG element with `opacity < 1` (or any other
-      // group-triggering style) emits an unbalanced `<g>` and breaks the
-      // document — observable on resend/stripe whose nav chevrons sit
-      // inside `opacity: 0.7` wrappers.
-      if (animClass !== "") svgParts.push(`${indent}</g>`);
-      if (opened) svgParts.push(`${indent}</g>`);
-      if (needsFilterOuter) svgParts.push(`${indent}</g>`);
-      return;
     }
 
     // Form control chrome (checkbox, radio, range, color, progress, meter,
@@ -2834,31 +2864,10 @@ export function elementTreeToSvgInner(
     const fc = renderFormControl(el, indent, defCtx);
     if (fc !== "") svgParts.push(fc);
 
-    // Broken-image fallback (DM-372): when the img failed to load (or has
-    // empty src), Chrome paints a small broken-image placeholder icon plus
-    // the alt text in the host font. We approximate the icon with a 16×16
-    // outlined box containing a small triangle (mountain glyph) — close
-    // enough to Chrome's stock broken-image icon — and emit the alt text
-    // as an inline <text> right after the icon.
+    // Broken-image fallback (DM-372): a placeholder icon + alt text when an
+    // <img> failed to load. See paintBrokenImage.
     if (el.tag === "img" && el.imageBroken === true) {
-      const ix = el.x;
-      const iy = el.y;
-      const iconSize = 16;
-      const iconX = ix + 1;
-      const iconY = iy + 1;
-      // Icon: a rectangle with a tiny mountain inside (Chrome's broken-image
-      // icon is more elaborate but a simple framed mountain is recognizable).
-      svgParts.push(`${indent}<rect x="${r(iconX)}" y="${r(iconY)}" width="${iconSize - 2}" height="${iconSize - 2}" fill="none" stroke="rgb(128,128,128)" stroke-width="1" />`);
-      svgParts.push(`${indent}<polyline points="${r(iconX + 2)},${r(iconY + iconSize - 4)} ${r(iconX + 5)},${r(iconY + iconSize / 2)} ${r(iconX + 8)},${r(iconY + iconSize - 6)} ${r(iconX + 12)},${r(iconY + iconSize - 4)}" fill="none" stroke="rgb(128,128,128)" stroke-width="0.8" />`);
-      // Alt text emitted next to the icon. Use the element's font / color.
-      if (el.imageAlt != null && el.imageAlt !== "") {
-        const fontSizePx = parseFloat(el.styles.fontSize) || 14;
-        const tx = ix + iconSize + 4;
-        const ty = iy + Math.min(iconSize - 2, fontSizePx);
-        const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
-        const escAlt = el.imageAlt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        svgParts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escAlt}</text>`);
-      }
+      svgParts.push(...paintBrokenImage(el, textColor, indent));
     } else
     // Image (<img> or <input type="image">)
     if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
