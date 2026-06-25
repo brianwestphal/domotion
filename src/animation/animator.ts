@@ -362,6 +362,60 @@ export function dedupeFrameIds(frames: AnimationFrame[]): AnimationFrame[] {
   });
 }
 
+/**
+ * Push-left (horizontal) / scroll (vertical) slide frame. Both emit the SAME
+ * clipped frame group and a `slideKeyframes` track — they differ only in the
+ * slide axis (`X`/`Y`) and the slid extent (viewport width / height). The group
+ * rect always spans `width × height`; the incoming frame overlaps its entry with
+ * the previous frame's transition, so its show window opens at `enterStartPct`.
+ * Extracted from generateAnimatedSvg (DM-1375), mirroring emit*Frame.
+ */
+function emitSlideFrame(
+  i: number, svgContent: string, axis: "X" | "Y", extent: number, entersViaSlide: boolean,
+  width: number, height: number,
+  enterStartPct: string, startPct: string, holdEndPct: string, transEndPct: string,
+  totalSec: number, holdLastFrame: boolean,
+): { group: string; keyframe: string } {
+  const group = `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${svgContent}\n  </g></g>`;
+  const keyframe = slideKeyframes(i, axis, extent, entersViaSlide, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame);
+  return { group, keyframe };
+}
+
+/**
+ * Render a frame's overlays (typing / tap / svg / blink), in declaration order,
+ * to parallel group-markup + keyframe-css arrays. The cursor overlay is global
+ * (one per scene) and stays in generateAnimatedSvg. Extracted from
+ * generateAnimatedSvg (DM-1375).
+ */
+function emitFrameOverlays(
+  frame: AnimationFrame, i: number, timeOffset: number, totalDuration: number, totalSec: number,
+): { groups: string[]; keyframes: string[] } {
+  const groups: string[] = [];
+  const keyframes: string[] = [];
+  if (frame.overlays != null) {
+    for (const overlay of frame.overlays) {
+      if (overlay.kind === "typing") {
+        const { svgMarkup, css } = renderTypingOverlay(overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        groups.push(svgMarkup);
+        keyframes.push(css);
+      } else if (overlay.kind === "tap") {
+        const { svgMarkup, css } = renderTapOverlay(overlay, i, timeOffset, totalDuration, totalSec);
+        groups.push(svgMarkup);
+        keyframes.push(css);
+      } else if (overlay.kind === "svg") {
+        const { svgMarkup, css } = renderSvgOverlay(overlay, i, timeOffset, frame.duration, totalDuration, totalSec);
+        groups.push(svgMarkup);
+        keyframes.push(css);
+      } else if (overlay.kind === "blink") {
+        const { svgMarkup, css } = renderBlinkOverlay(overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        groups.push(svgMarkup);
+        keyframes.push(css);
+      }
+    }
+  }
+  return { groups, keyframes };
+}
+
 export function generateAnimatedSvg(config: AnimationConfig): string {
   const { width, height } = config;
   // DM-1145: guard against cross-frame id collisions (reused/cached svgContent).
@@ -464,33 +518,20 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     const holdLastFrame = i === frames.length - 1 && config.loopFade !== true;
 
     if (transType === "push-left") {
-      // Push: slide in from right, slide out to left
-      frameGroups.push(
-        `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${frame.svgContent}\n  </g></g>`,
-      );
-
-      // DM-599: parallel `fd-${i}` animation snaps `display` between none /
-      // inline at the visibility boundary so the browser can skip painting
-      // this frame's content while it's fully off-screen between cycles.
-      // Window is [enterStartPct .. transEndPct] (when the slide has fully
-      // exited the viewBox); 0.01% pad on each side keeps the snap inside the
-      // existing opacity:0 bookend.
-      keyframes.push(slideKeyframes(i, "X", width, entersViaPush, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame));
+      // Push: slide in from right, slide out to left. The parallel `fd-${i}`
+      // display snap (inside slideKeyframes) lets the browser skip painting this
+      // frame's content while it's fully off-screen between cycles (DM-599).
+      const r = emitSlideFrame(i, frame.svgContent, "X", width, entersViaPush, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
+      frameGroups.push(r.group);
+      keyframes.push(r.keyframe);
 
     } else if (transType === "scroll") {
-      // DM-609: `scroll` now means real geometric scroll between two frames
-      // (was opacity-only — see DM-604 §10a "replace with new geometric
-      // semantics"). Vertical equivalent of `push-left`: incoming frame
-      // slides up from the bottom of the viewport, outgoing slides up off
-      // the top. Uses height instead of width and translateY instead of
-      // translateX, otherwise identical machinery (incl. the cull-friendly
-      // `fd-${i}` display animation). (`entersViaScroll` is already computed in
-      // the outer scope above — same value, no need to redeclare/shadow it.)
-      frameGroups.push(
-        `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${frame.svgContent}\n  </g></g>`,
-      );
-
-      keyframes.push(slideKeyframes(i, "Y", height, entersViaScroll, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame));
+      // DM-609: `scroll` is a real geometric scroll — the vertical equivalent of
+      // push-left (translateY over height instead of translateX over width),
+      // otherwise identical machinery.
+      const r = emitSlideFrame(i, frame.svgContent, "Y", height, entersViaScroll, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
+      frameGroups.push(r.group);
+      keyframes.push(r.keyframe);
 
     } else if (transType === "magic-move" && frame.magicMove != null) {
       // DM-898: magic-move. Frame i holds [start..holdEnd] then HARD-CUTS out;
@@ -523,36 +564,10 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       keyframes.push(...r.keyframes);
     }
 
-    // Overlays
-    if (frame.overlays != null) {
-      for (const overlay of frame.overlays) {
-        if (overlay.kind === "typing") {
-          const { svgMarkup, css } = renderTypingOverlay(
-            overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec,
-          );
-          frameGroups.push(svgMarkup);
-          keyframes.push(css);
-        } else if (overlay.kind === "tap") {
-          const { svgMarkup, css } = renderTapOverlay(
-            overlay, i, timeOffset, totalDuration, totalSec,
-          );
-          frameGroups.push(svgMarkup);
-          keyframes.push(css);
-        } else if (overlay.kind === "svg") {
-          const { svgMarkup, css } = renderSvgOverlay(
-            overlay, i, timeOffset, frame.duration, totalDuration, totalSec,
-          );
-          frameGroups.push(svgMarkup);
-          keyframes.push(css);
-        } else if (overlay.kind === "blink") {
-          const { svgMarkup, css } = renderBlinkOverlay(
-            overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec,
-          );
-          frameGroups.push(svgMarkup);
-          keyframes.push(css);
-        }
-      }
-    }
+    // Overlays (typing / tap / svg / blink), in declaration order.
+    const ov = emitFrameOverlays(frame, i, timeOffset, totalDuration, totalSec);
+    frameGroups.push(...ov.groups);
+    keyframes.push(...ov.keyframes);
 
     timeOffset += frame.duration + transDur;
   }
@@ -646,6 +661,139 @@ const MONO_CHAR_WIDTH_RATIO = 0.6;
 const DEFAULT_TAP_DELAY_MS = 50;
 const DEFAULT_BLINK_PERIOD_MS = 1000;
 
+/** Per-line type-timing collected while building the reveal, consumed by the caret. */
+interface TypingLineTiming { li: number; startMs: number; endMs: number; len: number }
+
+/**
+ * Typewriter reveal: one `<text>` per wrapped line, each unveiled by a
+ * width-growing clip during the slice of the type timeline when that line's
+ * characters are typed (line N starts after line N-1 finishes), so the caret
+ * advances down the field exactly as it would in the browser. Returns the line
+ * markup + reveal keyframes and the per-line timings the caret needs. Extracted
+ * from renderTypingOverlay (DM-1375).
+ */
+function buildTypingLines(
+  lines: string[], overlay: TypingOverlay, id: string,
+  charWidth: number, lineHeight: number, fontSize: number, textHeight: number, hiddenW: string, color: string,
+  typeStartMs: number, visibleChars: number, effTypeDur: number,
+  totalDuration: number, holdEndPct: string, disappearPct: string, totalSec: number,
+): { parts: string[]; cssRules: string[]; lineTimings: TypingLineTiming[] } {
+  const parts: string[] = [];
+  const cssRules: string[] = [];
+  // DM-870: per-line type timing, collected for the optional caret below.
+  const lineTimings: TypingLineTiming[] = [];
+
+  let cumChars = 0;
+  lines.forEach((line, li) => {
+    const lineY = overlay.y + li * lineHeight;
+    // +1 cell of slack so the last glyph never clips: the real monospace
+    // advance is slightly wider than the 0.6em estimate, and the trailing cell
+    // is where the caret would sit just after the typed character anyway.
+    const lineWidth = line.length * charWidth + charWidth;
+    const clipId = `${id}-clip${li}`;
+    const lineStartMs = typeStartMs + (cumChars / visibleChars) * effTypeDur;
+    const lineEndMs = typeStartMs + ((cumChars + line.length) / visibleChars) * effTypeDur;
+    const lineStartPct = pct(lineStartMs, totalDuration);
+    const lineEndPct = pct(lineEndMs, totalDuration);
+    lineTimings.push({ li, startMs: lineStartMs, endMs: lineEndMs, len: line.length });
+    cumChars += line.length;
+
+    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
+    parts.push(
+      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeHtml(line)}</text>`,
+    );
+    // DM-1204: the reveal clip MUST sweep linearly so its right edge tracks the
+    // caret (whose position track is `linear`). Without an explicit timing
+    // function the width animation defaults to CSS `ease`, which races ~80%
+    // through the sweep at the time-midpoint while the linear caret is only at
+    // 50% — that desync read as the caret lagging ~10–20 chars behind the
+    // revealed text mid-type, even though the endpoints (parked state) matched.
+    // DM-1205: the hidden state uses `hiddenW` (a tiny non-zero width), not 0,
+    // so WebKit's empty-clip-path fallback doesn't paint the whole line.
+    cssRules.push(`
+    @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: ${hiddenW}; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: ${hiddenW}; } }
+    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s linear infinite; }`);
+  });
+  return { parts, cssRules, lineTimings };
+}
+
+/**
+ * DM-870: blinking insertion caret. Sweeps the type position while typing (one
+ * linear translate segment per wrapped line, jumping to the next line's start),
+ * then parks at the end of the last line and blinks (step-end opacity toggle)
+ * until the overlay disappears. Two animations on one rect: a linear position
+ * track + a step-end opacity blink. Returns empty arrays when no caret is
+ * requested. Extracted from renderTypingOverlay (DM-1375).
+ */
+function buildTypingCaret(
+  overlay: TypingOverlay, id: string, color: string,
+  charWidth: number, lineHeight: number, fontSize: number, lineTimings: TypingLineTiming[],
+  typeStartPct: string, typeStartMs: number, textEndMs: number, holdEndMs: number, holdEndPct: string, disappearPct: string,
+  totalDuration: number, totalSec: number,
+): { parts: string[]; cssRules: string[] } {
+  const parts: string[] = [];
+  const cssRules: string[] = [];
+  if (overlay.caret != null && overlay.caret !== false && lineTimings.length > 0) {
+    const caretOpts = typeof overlay.caret === "object" ? overlay.caret : {};
+    const caretColor = caretOpts.color ?? color;
+    const caretW = caretOpts.width ?? 2;
+    const blinkMs = caretOpts.blinkMs ?? 530;
+    const last = lineTimings[lineTimings.length - 1];
+    const endX = last.len * charWidth;
+    const endY = last.li * lineHeight;
+
+    // Position track: hold at line 0 start until typing begins, then sweep each
+    // line, then hold at the text end through the blink + disappear.
+    //
+    // DM-1204 (multi-line): a line ends and the next begins at the same instant
+    // (type timing is contiguous — line N+1 starts the ms line N finishes). The
+    // end-of-line stop (x = line width, row N) and the next line's left-margin
+    // stop (x = 0, row N+1) would therefore round to the SAME keyframe percent;
+    // CSS keeps the later declaration, dropping the end-of-line x so the caret
+    // stays pinned at x=0 and merely slides down each row. We keep percentages
+    // strictly increasing (nudging the carriage-return stop a hair past the
+    // line-end stop) so both survive — the jump back to the margin then happens
+    // over ~0.01% of the timeline, i.e. visually instant.
+    const posStops: string[] = [`0%, ${typeStartPct} { transform: translate(0px, 0px); }`];
+    let lastPctNum = pctNum(typeStartMs, totalDuration);
+    const pushPosStop = (pn: number, x: number, y: number): void => {
+      const p = Math.max(pn, lastPctNum + 0.01);
+      posStops.push(`${p.toFixed(2)}% { transform: translate(${x}px, ${y}px); }`);
+      lastPctNum = p;
+    };
+    for (const lt of lineTimings) {
+      pushPosStop(pctNum(lt.startMs, totalDuration), 0, lt.li * lineHeight);
+      pushPosStop(pctNum(lt.endMs, totalDuration), lt.len * charWidth, lt.li * lineHeight);
+    }
+    posStops.push(`${holdEndPct}, 100% { transform: translate(${endX}px, ${endY}px); }`);
+
+    // Blink: invisible until typing starts, solid through typing, then toggle
+    // on/off every half-period until the overlay disappears.
+    const blinkStops: string[] = [
+      `0%, ${typeStartPct} { opacity: 0; }`,
+      `${pct(typeStartMs + 30, totalDuration)} { opacity: 1; }`,
+      `${pct(textEndMs, totalDuration)} { opacity: 1; }`,
+    ];
+    let t = textEndMs + blinkMs / 2;
+    let on = false;
+    while (t < holdEndMs) {
+      blinkStops.push(`${pct(t, totalDuration)} { opacity: ${on ? 1 : 0}; }`);
+      t += blinkMs / 2;
+      on = !on;
+    }
+    blinkStops.push(`${disappearPct}, 100% { opacity: 0; }`);
+
+    parts.push(
+      `  <rect class="${id}-caret" x="${overlay.x}" y="${overlay.y - fontSize + 2}" width="${caretW}" height="${fontSize}" fill="${caretColor}" />`,
+    );
+    cssRules.push(`
+    @keyframes ${id}-caret-pos { ${posStops.join(" ")} }
+    @keyframes ${id}-caret-blink { ${blinkStops.join(" ")} }
+    .${id}-caret { animation: ${id}-caret-pos ${totalSec.toFixed(2)}s linear infinite, ${id}-caret-blink ${totalSec.toFixed(2)}s step-end infinite; }`);
+  }
+  return { parts, cssRules };
+}
+
 function renderTypingOverlay(
   overlay: TypingOverlay,
   frameIdx: number,
@@ -721,45 +869,12 @@ function renderTypingOverlay(
     .${id}-bg { animation: ${id}-bg ${totalSec.toFixed(2)}s infinite; }`);
   }
 
-  // Typewriter reveal: one <text> per wrapped line, each unveiled by a
-  // width-growing clip during the slice of the type timeline when that line's
-  // characters are typed (line N starts after line N-1 finishes), so the caret
-  // advances down the field exactly as it would in the browser.
-
-  // DM-870: per-line type timing, collected for the optional caret below.
-  const lineTimings: Array<{ li: number; startMs: number; endMs: number; len: number }> = [];
-
-  let cumChars = 0;
-  lines.forEach((line, li) => {
-    const lineY = overlay.y + li * lineHeight;
-    // +1 cell of slack so the last glyph never clips: the real monospace
-    // advance is slightly wider than the 0.6em estimate, and the trailing cell
-    // is where the caret would sit just after the typed character anyway.
-    const lineWidth = line.length * charWidth + charWidth;
-    const clipId = `${id}-clip${li}`;
-    const lineStartMs = typeStartMs + (cumChars / visibleChars) * effTypeDur;
-    const lineEndMs = typeStartMs + ((cumChars + line.length) / visibleChars) * effTypeDur;
-    const lineStartPct = pct(lineStartMs, totalDuration);
-    const lineEndPct = pct(lineEndMs, totalDuration);
-    lineTimings.push({ li, startMs: lineStartMs, endMs: lineEndMs, len: line.length });
-    cumChars += line.length;
-
-    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
-    parts.push(
-      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeHtml(line)}</text>`,
-    );
-    // DM-1204: the reveal clip MUST sweep linearly so its right edge tracks the
-    // caret (whose position track is `linear`). Without an explicit timing
-    // function the width animation defaults to CSS `ease`, which races ~80%
-    // through the sweep at the time-midpoint while the linear caret is only at
-    // 50% — that desync read as the caret lagging ~10–20 chars behind the
-    // revealed text mid-type, even though the endpoints (parked state) matched.
-    // DM-1205: the hidden state uses `hiddenW` (a tiny non-zero width), not 0,
-    // so WebKit's empty-clip-path fallback doesn't paint the whole line.
-    cssRules.push(`
-    @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: ${hiddenW}; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: ${hiddenW}; } }
-    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s linear infinite; }`);
-  });
+  // Typewriter reveal — one <text> per wrapped line, each unveiled by a width-
+  // growing clip during its slice of the type timeline. Collects the per-line
+  // timings the caret sweeps over.
+  const ln = buildTypingLines(lines, overlay, id, charWidth, lineHeight, fontSize, textHeight, hiddenW, color, typeStartMs, visibleChars, effTypeDur, totalDuration, holdEndPct, disappearPct, totalSec);
+  parts.push(...ln.parts);
+  cssRules.push(...ln.cssRules);
 
   // Whole-overlay visibility — shared by every line's <text>.
   const typeStartPct = pct(typeStartMs, totalDuration);
@@ -767,69 +882,10 @@ function renderTypingOverlay(
     @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }
     .${id}-text { animation: ${id}-vis ${totalSec.toFixed(2)}s infinite; }`);
 
-  // DM-870: blinking insertion caret. Sweeps the type position while typing
-  // (one linear translate segment per wrapped line, jumping to the next line's
-  // start), then parks at the end of the last line and blinks (step-end opacity
-  // toggle) until the overlay disappears. Two animations on one rect: a linear
-  // position track + a step-end opacity blink.
-  if (overlay.caret != null && overlay.caret !== false && lineTimings.length > 0) {
-    const caretOpts = typeof overlay.caret === "object" ? overlay.caret : {};
-    const caretColor = caretOpts.color ?? color;
-    const caretW = caretOpts.width ?? 2;
-    const blinkMs = caretOpts.blinkMs ?? 530;
-    const last = lineTimings[lineTimings.length - 1];
-    const endX = last.len * charWidth;
-    const endY = last.li * lineHeight;
-
-    // Position track: hold at line 0 start until typing begins, then sweep each
-    // line, then hold at the text end through the blink + disappear.
-    //
-    // DM-1204 (multi-line): a line ends and the next begins at the same instant
-    // (type timing is contiguous — line N+1 starts the ms line N finishes). The
-    // end-of-line stop (x = line width, row N) and the next line's left-margin
-    // stop (x = 0, row N+1) would therefore round to the SAME keyframe percent;
-    // CSS keeps the later declaration, dropping the end-of-line x so the caret
-    // stays pinned at x=0 and merely slides down each row. We keep percentages
-    // strictly increasing (nudging the carriage-return stop a hair past the
-    // line-end stop) so both survive — the jump back to the margin then happens
-    // over ~0.01% of the timeline, i.e. visually instant.
-    const posStops: string[] = [`0%, ${typeStartPct} { transform: translate(0px, 0px); }`];
-    let lastPctNum = pctNum(typeStartMs, totalDuration);
-    const pushPosStop = (pn: number, x: number, y: number): void => {
-      const p = Math.max(pn, lastPctNum + 0.01);
-      posStops.push(`${p.toFixed(2)}% { transform: translate(${x}px, ${y}px); }`);
-      lastPctNum = p;
-    };
-    for (const lt of lineTimings) {
-      pushPosStop(pctNum(lt.startMs, totalDuration), 0, lt.li * lineHeight);
-      pushPosStop(pctNum(lt.endMs, totalDuration), lt.len * charWidth, lt.li * lineHeight);
-    }
-    posStops.push(`${holdEndPct}, 100% { transform: translate(${endX}px, ${endY}px); }`);
-
-    // Blink: invisible until typing starts, solid through typing, then toggle
-    // on/off every half-period until the overlay disappears.
-    const blinkStops: string[] = [
-      `0%, ${typeStartPct} { opacity: 0; }`,
-      `${pct(typeStartMs + 30, totalDuration)} { opacity: 1; }`,
-      `${pct(textEndMs, totalDuration)} { opacity: 1; }`,
-    ];
-    let t = textEndMs + blinkMs / 2;
-    let on = false;
-    while (t < holdEndMs) {
-      blinkStops.push(`${pct(t, totalDuration)} { opacity: ${on ? 1 : 0}; }`);
-      t += blinkMs / 2;
-      on = !on;
-    }
-    blinkStops.push(`${disappearPct}, 100% { opacity: 0; }`);
-
-    parts.push(
-      `  <rect class="${id}-caret" x="${overlay.x}" y="${overlay.y - fontSize + 2}" width="${caretW}" height="${fontSize}" fill="${caretColor}" />`,
-    );
-    cssRules.push(`
-    @keyframes ${id}-caret-pos { ${posStops.join(" ")} }
-    @keyframes ${id}-caret-blink { ${blinkStops.join(" ")} }
-    .${id}-caret { animation: ${id}-caret-pos ${totalSec.toFixed(2)}s linear infinite, ${id}-caret-blink ${totalSec.toFixed(2)}s step-end infinite; }`);
-  }
+  // Optional blinking insertion caret that sweeps the type position then parks.
+  const cr = buildTypingCaret(overlay, id, color, charWidth, lineHeight, fontSize, ln.lineTimings, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec);
+  parts.push(...cr.parts);
+  cssRules.push(...cr.cssRules);
 
   return { svgMarkup: parts.join("\n"), css: cssRules.join("") };
 }
