@@ -31,6 +31,7 @@
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import type { CapturedElement, TextSegment } from "./types.js";
+import { clipRectForScreenshot } from "./clip-rect.js";
 
 // `seg._initialLetterProbe` is added by the capture script; declared loosely
 // since it lives only between capture and this post-pass (the renderer never
@@ -71,14 +72,7 @@ export async function refineInitialLetterPositions(
       delete (seg as unknown as { _initialLetterProbe?: unknown })._initialLetterProbe;
     };
     // Convert viewport-relative probe rect to page-absolute clip coordinates;
-    // floor / ceil outward so the screenshot covers the full painted area
-    // (Playwright clips at integer boundaries and rejects zero-size clips).
-    const clip = {
-      x: Math.max(0, Math.floor(probe.rect.x + viewport.x)),
-      y: Math.max(0, Math.floor(probe.rect.y + viewport.y)),
-      width: Math.max(1, Math.ceil(probe.rect.width)),
-      height: Math.max(1, Math.ceil(probe.rect.height)),
-    };
+    const clip = clipRectForScreenshot(probe.rect, viewport);
     let buf: Buffer;
     try {
       buf = await page.screenshot({ clip, omitBackground: false, type: "png" });

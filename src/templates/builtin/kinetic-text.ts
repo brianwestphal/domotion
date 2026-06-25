@@ -15,8 +15,7 @@
  * staggered turn, animate in, then hold `to` so the headline stays assembled.
  */
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -329,24 +328,16 @@ export const kineticTextTemplate: Template<KineticTextParams> = {
   paramsSchema: kineticTextParamsSchema,
   async render(params: KineticTextParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const plan = planUnits(params);
-    const htmlPath = join(ctx.workDir, "kinetic-text.html");
-    writeFileSync(htmlPath, buildKineticHtml(params, plan));
     ctx.log(`template kinetic-text: ${params.variant}/${params.by}, ${plan.count} units, "${params.text}"`);
-
-    const svg = await ctx.runAnimateConfig({
-      width: params.width,
-      height: params.height,
-      frames: [
-        {
-          input: "kinetic-text.html",
-          duration: kineticDurationMs(params, plan.count),
-          transition: { type: "cut", duration: 0 },
-          animations: buildKineticAnimations(params, plan),
-        },
-      ],
-    });
     // Play time = the staggered reveal end plus the hold (the same value used as
     // the underlying frame's `duration`).
-    return { svg, width: params.width, height: params.height, durationMs: kineticDurationMs(params, plan.count) };
+    return runSingleFrameGenerator(ctx, {
+      name: "kinetic-text",
+      html: buildKineticHtml(params, plan),
+      width: params.width,
+      height: params.height,
+      durationMs: kineticDurationMs(params, plan.count),
+      animations: buildKineticAnimations(params, plan),
+    });
   },
 };

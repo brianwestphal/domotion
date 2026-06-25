@@ -9,8 +9,7 @@
  * animation constraints as the other generators).
  */
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -204,22 +203,14 @@ export const chatTemplate: Template<ChatParams> = {
   description: "A message thread whose bubbles pop in one at a time (iMessage / WhatsApp style).",
   paramsSchema: chatParamsSchema,
   async render(params: ChatParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
-    const htmlPath = join(ctx.workDir, "chat.html");
-    writeFileSync(htmlPath, buildChatHtml(params));
     ctx.log(`template chat: ${params.messages.length} messages, ${params.width}×${params.height}`);
-
-    const svg = await ctx.runAnimateConfig({
+    return runSingleFrameGenerator(ctx, {
+      name: "chat",
+      html: buildChatHtml(params),
       width: params.width,
       height: params.height,
-      frames: [
-        {
-          input: "chat.html",
-          duration: chatDurationMs(params),
-          transition: { type: "cut", duration: 0 },
-          animations: buildChatAnimations(params),
-        },
-      ],
+      durationMs: chatDurationMs(params),
+      animations: buildChatAnimations(params),
     });
-    return { svg, width: params.width, height: params.height, durationMs: chatDurationMs(params) };
   },
 };

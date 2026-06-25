@@ -1279,6 +1279,14 @@ async function queryCursorBox(page: Page, sel: string): Promise<{ cx: number; cy
  * target, spaced across each frame's hold; the explicit form maps each
  * `{ frame, at }` event to global time. Move events carry absolute `to` coords.
  */
+// Auto-cursor timing. Each interaction glides the pointer to its target over
+// CURSOR_MOVE_DUR_MS, then a short beat (CURSOR_CLICK_TAIL_FRAC of the frame's
+// hold, capped at CURSOR_CLICK_TAIL_MAX_MS) elapses before the transition so the
+// click reads as cause-then-effect rather than landing on the cut.
+const CURSOR_MOVE_DUR_MS = 400;
+const CURSOR_CLICK_TAIL_MAX_MS = 250;
+const CURSOR_CLICK_TAIL_FRAC = 0.25;
+
 export function buildCursorOverlay(
   auto: boolean,
   explicitEvents: CursorEventInput[],
@@ -1288,7 +1296,7 @@ export function buildCursorOverlay(
   frameStarts: number[],
   frames: AnimateConfig["frames"],
 ): CursorOverlay | undefined {
-  const moveDur = 400;
+  const moveDur = CURSOR_MOVE_DUR_MS;
   const events: CursorEvent[] = [];
 
   if (auto) {
@@ -1321,7 +1329,7 @@ export function buildCursorOverlay(
       // Leave a short beat after the last click before the transition reveals
       // the result, so the click reads as cause-then-effect rather than landing
       // exactly on the cut.
-      const tail = Math.min(250, frames[stage].duration * 0.25);
+      const tail = Math.min(CURSOR_CLICK_TAIL_MAX_MS, frames[stage].duration * CURSOR_CLICK_TAIL_FRAC);
       const lastHit = holdEnd - tail;
       const span = Math.max(0, lastHit - start);
       targets.forEach((tg, m) => {

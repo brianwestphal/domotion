@@ -11,8 +11,7 @@
  * Transparent background by default so the SVG overlays whatever it's placed on.
  */
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
@@ -110,28 +109,20 @@ export const lowerThirdTemplate: Template<LowerThirdParams> = {
   description: "Broadcast-style lower-third banner (title + subtitle + accent) that slides and fades in.",
   paramsSchema: lowerThirdParamsSchema,
   async render(params: LowerThirdParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
-    const htmlPath = join(ctx.workDir, "lower-third.html");
-    writeFileSync(htmlPath, buildLowerThirdHtml(params));
     ctx.log(`template lower-third: ${params.width}×${params.height}, "${params.title}"`);
-
     // A slide-down distance that reads as "rising into place" from below.
     const rise = params.position.startsWith("top") ? "-24px" : "24px";
-    const svg = await ctx.runAnimateConfig({
+    // The banner fades + slides in once and holds; `holdMs` is its play time.
+    return runSingleFrameGenerator(ctx, {
+      name: "lower-third",
+      html: buildLowerThirdHtml(params),
       width: params.width,
       height: params.height,
-      frames: [
-        {
-          input: "lower-third.html",
-          duration: params.holdMs,
-          transition: { type: "cut", duration: 0 },
-          animations: [
-            { selector: ".lt", property: "opacity", from: "0", to: "1", duration: 450, easing: "ease-out" },
-            { selector: ".lt-panel", property: "translateY", from: rise, to: "0px", duration: 600, easing: "cubic-bezier(0.22,1,0.36,1)" },
-          ],
-        },
+      durationMs: params.holdMs,
+      animations: [
+        { selector: ".lt", property: "opacity", from: "0", to: "1", duration: 450, easing: "ease-out" },
+        { selector: ".lt-panel", property: "translateY", from: rise, to: "0px", duration: 600, easing: "cubic-bezier(0.22,1,0.36,1)" },
       ],
     });
-    // The banner fades + slides in once and holds; `holdMs` is its play time.
-    return { svg, width: params.width, height: params.height, durationMs: params.holdMs };
   },
 };

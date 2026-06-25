@@ -15,6 +15,7 @@ import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { clearEmbeddedFonts, clearGlyphDefs, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
+import { clipRectForScreenshot } from "./clip-rect.js";
 import { refineInitialLetterPositions } from "./initial-letter-probe.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
@@ -1302,12 +1303,7 @@ async function rasterizeMaskSources(
         const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
         if (next != null) next.setAttribute("data-domotion-snapshot-target", "");
       }, mr.rid);
-      const clip = {
-        x: Math.max(0, Math.floor(mr.rect.x + viewport.x)),
-        y: Math.max(0, Math.floor(mr.rect.y + viewport.y)),
-        width: Math.max(1, Math.ceil(mr.rect.width)),
-        height: Math.max(1, Math.ceil(mr.rect.height)),
-      };
+      const clip = clipRectForScreenshot(mr.rect, viewport);
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
         mr.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;

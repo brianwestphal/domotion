@@ -8,8 +8,7 @@
  * grow about the axis for bars, a `clipPath` left-to-right reveal for the line).
  */
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -481,22 +480,14 @@ export const chartTemplate: Template<ChartParams> = {
   paramsSchema: chartParamsSchema,
   async render(params: ChartParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const plan = planChart(params);
-    const htmlPath = join(ctx.workDir, "chart.html");
-    writeFileSync(htmlPath, buildChartHtml(params, plan));
     ctx.log(`template chart: ${params.type}, ${params.data.length} series × ${params.data[0].length}, ${params.width}×${params.height}`);
-
-    const svg = await ctx.runAnimateConfig({
+    return runSingleFrameGenerator(ctx, {
+      name: "chart",
+      html: buildChartHtml(params, plan),
       width: params.width,
       height: params.height,
-      frames: [
-        {
-          input: "chart.html",
-          duration: chartDurationMs(params, plan),
-          transition: { type: "cut", duration: 0 },
-          animations: buildChartAnimations(params, plan),
-        },
-      ],
+      durationMs: chartDurationMs(params, plan),
+      animations: buildChartAnimations(params, plan),
     });
-    return { svg, width: params.width, height: params.height, durationMs: chartDurationMs(params, plan) };
   },
 };

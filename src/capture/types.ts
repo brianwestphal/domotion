@@ -246,6 +246,526 @@ export interface TextSegment {
   };
 }
 
+/**
+ * The computed-style snapshot captured per element. Every field is the
+ * resolved `getComputedStyle` value (already serialized to a string, or a
+ * pre-parsed number where noted) the renderer reads to reproduce the paint.
+ * Extracted from the inline `CapturedElement.styles` object type (DM-1371) so
+ * it can be named + referenced (e.g. the emoji raster pass casts to it).
+ */
+export interface CapturedStyles {
+  backgroundColor: string;
+  borderColor: string;
+  borderWidth: string;
+  borderRadius: string;
+  /**
+   * Resolved per-corner border-radius (top-left, top-right, bottom-right,
+   * bottom-left). Chrome returns longhand corner values in pixels even when
+   * the author used percentages, so capturing these lets the renderer pick
+   * a circle radius for `border-radius: 50%` instead of treating the "50"
+   * from the shorthand as a 50-px corner. See SK-1093.
+   */
+  borderTopLeftRadius?: string;
+  borderTopRightRadius?: string;
+  borderBottomRightRadius?: string;
+  borderBottomLeftRadius?: string;
+  /** Per-side border widths as strings (e.g. "6px"). All set together so we can decide uniform-vs-split in the renderer. */
+  borderTopWidth: string;
+  borderRightWidth: string;
+  borderBottomWidth: string;
+  borderLeftWidth: string;
+  borderTopStyle: string;
+  borderRightStyle: string;
+  borderBottomStyle: string;
+  borderLeftStyle: string;
+  borderTopColor: string;
+  borderRightColor: string;
+  borderBottomColor: string;
+  borderLeftColor: string;
+  /**
+   * For table cells: `"collapse"` means the parent table sets
+   * `border-collapse: collapse` so adjacent cells share a single painted
+   * border instead of stacking two adjacent ones. The renderer paints
+   * cell borders centered on the cell edge (no half-inset) in this mode
+   * so that two cells'\'' shared edges overlap exactly into one line
+   * instead of doubling.
+   */
+  borderCollapse: string;
+  overflowX: string;
+  overflowY: string;
+  /**
+   * CSS `overflow-clip-margin` shorthand value as computed by Chrome
+   * (e.g. `"20px"`, `"content-box 12px"`, or the empty string when the
+   * default `0px` resolves and the element doesn't paint outside its
+   * reference box). Only takes effect when `overflow: clip` (DM-761) —
+   * `hidden` ignores it per CSS Overflow 3.
+   */
+  overflowClipMargin?: string;
+  scrollbarGutter: string;
+  /** el.scrollHeight / scrollWidth vs client* — used to decide whether to paint a scrollbar. */
+  scrollWidth: number;
+  scrollHeight: number;
+  clientWidth: number;
+  clientHeight: number;
+  scrollTop: number;
+  scrollLeft: number;
+  objectFit: string;
+  objectPosition: string;
+  filter: string;
+  backdropFilter: string;
+  /**
+   * DM-476 frosted-glass fallback: when the element has a non-trivial
+   * `backdrop-filter` AND a near-transparent `background-color` (alpha
+   * ≤ 0.1), CAPTURE_SCRIPT reads `document.body`'s computed background
+   * color and stores it here as a normalized `rgb(...)` / `rgba(...)`
+   * string so the renderer can paint a synthesized opaque fill where
+   * Chromium would have painted blurred underlying pixels. Undefined
+   * when the element doesn't trigger the frosted condition. See
+   * `docs/19-frosted-backdrop-fallback.md`.
+   */
+  frostedBgFallback?: string;
+  mixBlendMode: string;
+  clipPath: string;
+  mask: string;
+  maskImage: string;
+  maskMode: string;
+  maskSize: string;
+  maskPosition: string;
+  maskRepeat: string;
+  maskComposite: string;
+  /**
+   * CSS `mask-clip` — the box (border-box / padding-box / content-box / etc.)
+   * the mask painted area is clipped to. Defaults to `border-box`. Captured
+   * separately from `mask-origin` because Chromium retains both verbatim
+   * (mask-clip controls visibility, mask-origin controls layer positioning).
+   */
+  maskClip?: string;
+  /**
+   * CSS `mask-border-source` / legacy `-webkit-mask-box-image` source.
+   * Chrome exposes this only via the legacy webkit name (DM-758). The
+   * renderer routes it through the mask-image pipeline ONLY for the
+   * "simple" 9-slice cases (`slice 0 fill / 0 / 0` and `slice 1 fill / 0
+   * / 0`) where the entire source is used as a stretched full-element
+   * mask. Real 9-slice tiling (non-zero `width` / `outset`, `round` /
+   * `space` repeat) needs its own implementation.
+   */
+  maskBorderSource?: string;
+  /** Resolved `-webkit-mask-box-image-slice` (e.g. `"1 fill"`, `"30 fill"`). */
+  maskBorderSlice?: string;
+  /** Resolved `-webkit-mask-box-image-width` (e.g. `"0"`, `"20px"`). */
+  maskBorderWidth?: string;
+  /** Resolved `-webkit-mask-box-image-outset` (e.g. `"0"`, `"15px"`). */
+  maskBorderOutset?: string;
+  /** Resolved `-webkit-mask-box-image-repeat` (`stretch` / `repeat` /
+   *  `round` / `space`, optionally one per axis). DM-793. */
+  maskBorderRepeat?: string;
+  /** Intrinsic dimensions of the `mask-border-source` asset (px). Same
+   *  probe pattern as `borderImageIntrinsicWidth`. DM-793. */
+  maskBorderIntrinsicWidth?: number;
+  maskBorderIntrinsicHeight?: number;
+  listStyleType: string;
+  listStyleImage: string;
+  listStylePosition: string;
+  /** CSS `display` (e.g. `block`, `list-item`, `flex`). Used by the
+   *  renderer to detect display:list-item on non-li tags. DM-451. */
+  display?: string;
+  backgroundImage: string;
+  backgroundSize: string;
+  backgroundPosition: string;
+  backgroundRepeat: string;
+  backgroundClip: string;
+  backgroundOrigin: string;
+  backgroundAttachment: string;
+  /**
+   * CSS `background-blend-mode` — per-layer blend mode (comma-separated to
+   * match the layer count). Captured verbatim from `getComputedStyle`. The
+   * renderer applies each layer's mode as `style="mix-blend-mode:<mode>"`
+   * on the layer's `<rect>`, wrapped in a `<g style="isolation:isolate">`
+   * so the blend doesn't escape the element's bg-layer stack.
+   */
+  backgroundBlendMode?: string;
+  /**
+   * CSS `-webkit-text-fill-color`. When `backgroundClip` is `text` the
+   * common pattern is `webkit-text-fill-color: transparent` so the
+   * background-image (gradient / url) shows through the glyph shapes —
+   * a "gradient headline" effect (Stripe / Resend / Linear hero copy).
+   * Captured separately because `color` may still report a normal value
+   * when the rendered text is actually transparent. DM-462.
+   */
+  webkitTextFillColor?: string;
+  /**
+   * DM-749: Stripe / Resend pattern — when an element has
+   * `webkit-text-fill-color: transparent` but its own background-image is
+   * `none`, the gradient lives on an ANCESTOR with `background-clip:
+   * text`. Chrome's paint propagates that gradient through descendant
+   * glyphs. Captured as the resolved `background-image` string of the
+   * nearest ancestor with `background-clip: text` (walked up to 8 levels).
+   */
+  inheritedTextFillGradient?: string;
+  /** DM-908: bbox of the ancestor that supplied `inheritedTextFillGradient`.
+   *  The gradient must resolve against the ANCESTOR's coordinates so two
+   *  sibling children inheriting from the same ancestor share one
+   *  continuous gradient span instead of each painting a fresh ramp
+   *  within its own (smaller) bbox. */
+  inheritedTextFillGradientRect?: { x: number; y: number; width: number; height: number };
+  /** `-webkit-text-stroke-width` (e.g. "2px"). DM-719. */
+  webkitTextStrokeWidth?: string;
+  /** `-webkit-text-stroke-color` (e.g. "rgb(220,38,38)"). DM-719. */
+  webkitTextStrokeColor?: string;
+  /** `paint-order` (e.g. "stroke fill"). Controls whether the text stroke
+   *  paints before or after the fill — `stroke fill` puts the stroke
+   *  UNDER the fill so the fill rests on top of half the stroke width,
+   *  eliminating the chunky "fill-on-top-of-stroke" artifact at large
+   *  stroke widths. DM-719. */
+  paintOrder?: string;
+  paddingTop: string;
+  paddingRight: string;
+  paddingBottom: string;
+  paddingLeft: string;
+  /** Intrinsic dimensions per background-image layer (same order as splitTopLevelCommas). */
+  backgroundIntrinsic?: Array<{ w: number; h: number } | null>;
+  borderImageSource: string;
+  borderImageSlice: string;
+  borderImageWidth: string;
+  borderImageOutset: string;
+  borderImageRepeat: string;
+  /** Intrinsic pixel dimensions of a border-image url() source, resolved at capture time. */
+  borderImageIntrinsicWidth?: number;
+  borderImageIntrinsicHeight?: number;
+  zIndex: string;
+  position: string;
+  float: string;
+  /** CSS `order` (flex/grid items). Per CSS Flexbox 1 §5.4.1 and CSS Grid 1
+   *  §17, paint order is order-modified document order — items are painted
+   *  in ascending `order` value, ties broken by source (DOM) order. The
+   *  property has no effect on non-flex/non-grid items but Chrome still
+   *  reports it on every computed style, so we capture unconditionally. */
+  order: string;
+  /** CSS `flex-direction` on a flex container (`row` / `row-reverse` /
+   *  `column` / `column-reverse`). Empirically Chrome paints children of a
+   *  `*-reverse` flex container in REVERSE of their order-modified document
+   *  order, so the rightmost (or bottommost) item paints LAST in every
+   *  flex-direction — matching what users expect from a visually-reordered
+   *  layout. Captured on the parent so the child sorter can read it. */
+  flexDirection: string;
+  /** For <td>/<th> with empty-cells: hide — suppress bg + border. */
+  emptyCellsHidden?: boolean;
+  /** Form-control state captured so we can synthesize native chrome. */
+  inputType?: string;
+  /** CSS `appearance` / `-webkit-appearance` longhand. 'none' means the
+   *  author has opted out of UA chrome — the renderer should let the host
+   *  rect (background / border / border-radius) show through and only
+   *  overlay the :checked indicator. DM-285. */
+  inputAppearance?: string;
+  checked?: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+  progressValue?: number;
+  progressMax?: number;
+  /** Custom CSS on ::-webkit-progress-bar (the track) — when set, overrides the default track. */
+  progressBarBg?: string;
+  progressBarBgImage?: string;
+  progressBarRadius?: string;
+  /** Custom CSS on ::-webkit-progress-value (the fill) — when set, overrides the synthesized fill. */
+  progressValueBg?: string;
+  progressValueBgImage?: string;
+  progressValueRadius?: string;
+  meterValue?: number;
+  meterMin?: number;
+  meterMax?: number;
+  meterLow?: number;
+  meterHigh?: number;
+  meterOptimum?: number;
+  /** Custom CSS on ::-webkit-meter-bar / ::-webkit-meter-*-value pseudo-elements. */
+  meterBarBg?: string;
+  meterBarBgImage?: string;
+  meterBarRadius?: string;
+  meterOptimumBg?: string;
+  meterOptimumBgImage?: string;
+  meterSuboptimumBg?: string;
+  meterSuboptimumBgImage?: string;
+  meterEvenLessGoodBg?: string;
+  meterEvenLessGoodBgImage?: string;
+  detailsOpen?: boolean;
+  /** True when the `<summary>`'s `::marker` was hidden by author CSS
+   *  (e.g. `::marker { color: transparent }` or
+   *  `::-webkit-details-marker { color: transparent }`), so the renderer
+   *  should NOT paint its own UA disclosure triangle on top of the
+   *  author's custom marker. DM-448. */
+  summaryMarkerSuppressed?: boolean;
+  /** DM-1123: the computed `::marker` color of a SHOWN summary disclosure
+   *  triangle (e.g. `summary::marker { color: #6d28d9 }` → purple). Chrome
+   *  paints the triangle in this color, not the summary's text color. Unset
+   *  when the marker is suppressed or the element isn't `<details>`. */
+  summaryMarkerColor?: string;
+  /** DM-1123: the computed `::marker` font-size in px (e.g.
+   *  `summary::marker { font-size: 14px }`). The triangle scales with this,
+   *  not the summary's own font-size. Defaults (inherits) to the summary's
+   *  font-size when the author didn't set one. */
+  summaryMarkerFontSize?: number;
+  /** DM-1123: true when the shown marker's `list-style-position` is `inside`
+   *  (the UA default for `<summary>`), so the renderer offsets the triangle
+   *  past the summary's own `padding-left` to the content-start. `outside`
+   *  → the legacy placement at the summary's border-box left edge. */
+  summaryMarkerInside?: boolean;
+  /** DM-1152: paint of an OPEN `<details>`'s `::details-content` pseudo
+   *  (Chrome 131+) when it carries a border-top and/or background. The
+   *  renderer synthesizes a box over the disclosure body (below the summary)
+   *  from these + the details/summary geometry. Unset when the pseudo is
+   *  default-painted or the details is closed. */
+  detailsContentBox?: {
+    borderTopWidth: number;
+    borderTopColor?: string;
+    bg?: string;
+    paddingBottom: number;
+    borderLeftWidth: number;
+    borderRightWidth: number;
+    borderBottomWidth: number;
+  };
+  selectChevron?: boolean;
+  /** Text of the currently-selected option, rendered inside the `<select>`
+   *  content rect for closed dropdowns (DM-246). For listbox-mode selects
+   *  (`size > 1` or `multiple`) this is undefined and per-option rendering
+   *  flows through the listbox path instead. */
+  selectDisplayText?: string;
+  /** Captured option list for listbox-mode `<select>` (size > 1 or
+   *  multiple). Each entry is one row the renderer paints inside the
+   *  select's content rect. DM-282. */
+  selectListboxOptions?: Array<{
+    text: string;
+    selected: boolean;
+    disabled: boolean;
+    /** Optgroup label row (italic + bold; not user-selectable). */
+    isOptgroupLabel?: boolean;
+    /** Indented child of an optgroup. */
+    isOptgroupChild?: boolean;
+  }>;
+  accentColor?: string;
+  caretColor?: string;
+  /** For <input type=range/color/date/time/...> — the current value. */
+  inputValue?: string;
+  inputMin?: string;
+  inputMax?: string;
+  inputStep?: string;
+  /** True for inputs with the `multiple` attribute (file / email / select). DM-271. */
+  inputMultiple?: boolean;
+  /** For <input type=file> — name of the first selected file, or empty. */
+  inputFileName?: string;
+  /** Custom-styled <input type=range> ::-webkit-slider-runnable-track / ::-webkit-slider-thumb (SK-1131). */
+  rangeTrackBg?: string;
+  rangeTrackHeight?: string;
+  rangeTrackRadius?: string;
+  /** Resolved gradient text for the slider track (SK-1224). Captured when the rule sets background or background-image to a *-gradient(). */
+  rangeTrackBgImage?: string;
+  rangeThumbBg?: string;
+  rangeThumbWidth?: string;
+  rangeThumbHeight?: string;
+  rangeThumbRadius?: string;
+  /** Resolved gradient text for the slider thumb (SK-1224). */
+  rangeThumbBgImage?: string;
+  /** ::-webkit-slider-runnable-track border shorthand (DM-273). */
+  rangeTrackBorder?: string;
+  /** ::-webkit-slider-thumb border shorthand (DM-273). */
+  rangeThumbBorder?: string;
+  /** ::-webkit-slider-thumb box-shadow (DM-319). Used for the donut-ring
+   *  effect: `box-shadow: 0 0 0 Npx <color>` paints an outer ring of width
+   *  N around the thumb. We only render the spread-only form. */
+  rangeThumbBoxShadow?: string;
+  /** ::-webkit-color-swatch pseudo styles (SK-1223). */
+  colorSwatchBg?: string;
+  colorSwatchBgImage?: string;
+  colorSwatchBorder?: string;
+  colorSwatchRadius?: string;
+  colorSwatchWrapperPadding?: string;
+  /** ::-webkit-inner-spin-button pseudo styles (SK-1223; capture only — renderer pickup is a follow-up). */
+  numberSpinButtonBg?: string;
+  numberSpinButtonBorder?: string;
+  numberSpinButtonRadius?: string;
+  /** ::-webkit-search-cancel-button pseudo styles (SK-1223; capture only — renderer pickup is a follow-up). */
+  searchCancelButtonBg?: string;
+  searchCancelButtonBorder?: string;
+  searchCancelButtonRadius?: string;
+  /** For <input type=file> — captured ::file-selector-button pseudo styles. */
+  fileButtonBg?: string;
+  fileButtonColor?: string;
+  fileButtonBorder?: string;
+  fileButtonBorderRadius?: string;
+  fileButtonPadding?: string;
+  fileButtonFontWeight?: string;
+  fileButtonFontSize?: string;
+  fileButtonFontFamily?: string;
+  fileButtonMarginRight?: string;
+  /** Canvas-measureText width of the button label at the captured font (DM-288).
+   *  Lets the renderer position the trailing 'No file chosen' placeholder at
+   *  exactly Chrome's painted x rather than overestimating via a per-char ratio. */
+  fileButtonLabelWidth?: number;
+  /** CSS outline (drawn outside the border-box, doesn't take layout space). */
+  outlineStyle?: string;
+  outlineWidth?: string;
+  outlineColor?: string;
+  outlineOffset?: string;
+  /** CSS box-shadow (raw value: outset/inset, x y blur spread color, comma-separated). */
+  boxShadow?: string;
+  /** CSS text-shadow (raw value: x y blur color, comma-separated; no inset/spread). */
+  textShadow?: string;
+  /** CSS transform (e.g. `rotate(30deg)`, `scale(1.5)`, `matrix(1,0,0,1,0,0)`). 'none' → no transform. */
+  transform?: string;
+  /** CSS will-change (DM-498): a comma-separated hint listing properties the
+   *  author intends to animate. When the list contains a property whose
+   *  non-initial value WOULD create a stacking context (transform, opacity,
+   *  filter, mask, clip-path, perspective, top/right/bottom/left, position,
+   *  z-index, isolation, mix-blend-mode), the element itself becomes a
+   *  stacking-context root regardless of whether that property has a
+   *  non-initial value applied. Used by `establishesStackingContext`. */
+  willChange?: string;
+  /** CSS contain (DM-498): `layout`, `paint`, `strict`, `content`, `size`,
+   *  or combinations. `paint` / `strict` / `content` (which includes paint)
+   *  create a stacking context per spec. */
+  contain?: string;
+  /** CSS isolation (DM-498): `isolate` creates a stacking context. */
+  isolation?: string;
+  /**
+   * DM-552: page-level color-scheme inferred from the capture context.
+   * Sourced from `matchMedia('(prefers-color-scheme: dark)').matches` at
+   * capture time and ONLY populated on the captured tree's root element
+   * (other elements omit it). Renderer reads this to decide whether to
+   * emit `color-scheme="dark"` on the root `<svg>`.
+   */
+  rootColorScheme?: "light" | "dark";
+  /**
+   * DM-552: `getComputedStyle(document.documentElement).backgroundColor`
+   * resolved by Chromium at capture time. Covers the transparent-root
+   * case where the page declares no background and Chromium fills its
+   * UA default per scheme (`#ffffff` for light, `rgb(28, 28, 28)`-ish
+   * for dark). ONLY populated on the captured tree's root element.
+   */
+  rootBgComputed?: string;
+  /**
+   * DM-1244: `<html>`'s computed `overflow-x` / `overflow-y` at capture time.
+   * `<body>`'s overflow only propagates to the viewport (so body renders
+   * WITHOUT its own clip) when `<html>` is `overflow: visible`; otherwise body
+   * applies its own overflow clip. ONLY populated on the captured tree's root.
+   */
+  rootOverflowX?: string;
+  rootOverflowY?: string;
+  /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
+  transformOrigin?: string;
+  /** DM-587: true when the live CSS transform was non-none at capture
+   *  time. We record `transform: 'none'` in this struct (because captured
+   *  rects are in live viewport coords post-transforms and the renderer
+   *  must not wrap them in a duplicate transform `<g>`), but CSS Transforms
+   *  2 §4 says any non-none transform creates a stacking context, and
+   *  `establishesStackingContext` needs that bit to keep z-index ordering
+   *  correct (e.g. `transform: translate(0)` on a positioned element traps
+   *  its descendants' z-indices). */
+  transformCreatesSc?: boolean;
+  /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
+  transformStyle?: string;
+  /**
+   * DM-751: extracted Z translation from `matrix3d(...)` when the
+   * element's transform has a non-zero translateZ component. Used by the
+   * paint-order sort when the parent has `transform-style: preserve-3d`
+   * (CSS Transforms 2 §6 sorts children by Z in 3D space, not z-index).
+   * SVG can't render perspective, so this is paint-order only.
+   */
+  translateZ?: number;
+  /** CSS writing-mode (`horizontal-tb` | `vertical-rl` | `vertical-lr` | `sideways-rl` | `sideways-lr`). */
+  writingMode?: string;
+  /** CSS text-orientation (`mixed` | `upright` | `sideways`). Used in vertical writing-modes. */
+  textOrientation?: string;
+  /** CSS resize. Non-none on textareas paints the bottom-right resize handle. */
+  resize?: string;
+  /** CSS text-overflow ('clip' | 'ellipsis' | "<string>" | …). Renderer paints
+   *  the truncation marker at the visible right edge when overflow is hidden
+   *  and white-space prevents wrapping. (DM-373) */
+  textOverflow?: string;
+  /** Whitespace handling — needed alongside text-overflow to determine if the
+   *  truncation marker should paint. */
+  whiteSpace?: string;
+  color: string;
+  fontSize: string;
+  fontFamily: string;
+  fontWeight: string;
+  /** 'italic' | 'oblique' | 'normal' — drives the SF Pro slnt axis in
+   *  text-to-path so <em>, <i>, [style=font-style:italic] etc. render
+   *  slanted instead of upright. */
+  fontStyle?: string;
+  opacity: string;
+  lineHeight: string;
+  letterSpacing: string;
+  fontKerning: string;
+  fontStretch: string;
+  fontVariationSettings: string;
+  fontFeatureSettings: string;
+  /** CSS font-variant-caps — 'normal' | 'small-caps' | 'all-small-caps' |
+   *  'petite-caps' | 'all-petite-caps' | 'unicase' | 'titling-caps'.
+   *  Renderer applies the matching OpenType feature (smcp / c2sc / etc.).
+   *  DM-361. */
+  fontVariantCaps?: string;
+  /** CSS font-variant-east-asian — e.g. 'traditional', 'jis78', 'full-width'.
+   *  Mapped to OpenType features (trad / jp78 / fwid …) at shape time. DM-1117. */
+  fontVariantEastAsian?: string;
+  /** CSS font-variant-numeric — e.g. 'oldstyle-nums', 'tabular-nums', 'diagonal-fractions'.
+   *  Mapped to OpenType features (onum / tnum / frac …). DM-1117. */
+  fontVariantNumeric?: string;
+  /** CSS font-variant-ligatures — e.g. 'no-common-ligatures', 'discretionary-ligatures'.
+   *  Mapped to OpenType features (liga off / dlig …). DM-1117. */
+  fontVariantLigatures?: string;
+  /** CSS direction ('ltr' / 'rtl'). Drives BiDi reordering on RTL paragraphs. */
+  direction?: string;
+  /** BCP-47 language tag inherited from `el.lang` / nearest ancestor `[lang]` /
+   *  `<html lang>`. Routes Han fallback to the matching PingFang regional
+   *  variant (TC / HK / MO) or Hiragino Kaku for `ja`. (DM-394) */
+  lang?: string;
+  /** `text-decoration-line` — 'underline', 'line-through', 'overline', or
+   *  combinations. 'none' means no decoration; renderer draws an SVG line
+   *  below / through / above the text when present. */
+  textDecorationLine?: string;
+  /** `text-decoration-color` — color for the decoration line. Falls back to
+   *  the element's text color when undefined. */
+  textDecorationColor?: string;
+  /** `text-decoration-style` — 'solid' / 'dashed' / 'dotted' / 'double' /
+   *  'wavy'. Undefined or 'solid' = plain line. */
+  textDecorationStyle?: string;
+  /** `text-decoration-thickness` — explicit length (e.g. `5px`) or `auto`.
+   *  When set to a length, overrides the auto thickness in
+   *  `getDecorationMetrics`. DM-431. */
+  textDecorationThickness?: string;
+  /** `text-underline-offset` — extra distance below the baseline for the
+   *  underline stroke. Adds to the auto offset. DM-431. */
+  textUnderlineOffset?: string;
+  /** DM-936: `text-underline-position` (`auto` / `from-font` / `under` /
+   *  `left` / `right`) — drives where the underline paints. Needed for
+   *  the elementRaster dedupe key so vertical-mode columns with
+   *  different underline-position values don't share screenshots. */
+  textUnderlinePosition?: string;
+  /** DM-920: `text-emphasis-style` — `none`, a `<string>` (`"★"`), or a
+   *  `[filled | open] [dot | circle | double-circle | triangle | sesame]`
+   *  combination. Renderer maps the keyword form to a single mark
+   *  character per Chromium's `ComputedStyle::TextEmphasisMarkString`. */
+  textEmphasisStyle?: string;
+  /** DM-920: `text-emphasis-color` — defaults to `currentcolor`. */
+  textEmphasisColor?: string;
+  /** DM-920: `text-emphasis-position` — `over` / `under` (×
+   *  `left` / `right` in horizontal-tb). */
+  textEmphasisPosition?: string;
+  /** `text-decoration-skip-ink` — 'auto' (default; break around descenders),
+   *  'none' (always solid), or 'all'. Per Chromium's
+   *  `decoration_line_painter.cc`, only solid + double underlines honor
+   *  skip-ink; dashed / dotted / wavy ignore it. DM-446. */
+  textDecorationSkipInk?: string;
+  /**
+   * `box-decoration-break` — `slice` (default) or `clone`. Controls how
+   * inline elements that wrap across multiple line boxes paint their
+   * background / border / padding / shadow: `slice` paints the box once
+   * across all fragments (first fragment gets the left side, last gets the
+   * right side); `clone` paints a complete box on every fragment. Captured
+   * so the renderer can split the per-fragment paint at line-box boundaries
+   * when `inlineFragments` is present.
+   */
+  boxDecorationBreak?: string;
+}
+
 export interface CapturedElement {
   tag: string;
   text: string;
@@ -294,518 +814,7 @@ export interface CapturedElement {
    * outer `<g>`.
    */
   cullClass?: string;
-  styles: {
-    backgroundColor: string;
-    borderColor: string;
-    borderWidth: string;
-    borderRadius: string;
-    /**
-     * Resolved per-corner border-radius (top-left, top-right, bottom-right,
-     * bottom-left). Chrome returns longhand corner values in pixels even when
-     * the author used percentages, so capturing these lets the renderer pick
-     * a circle radius for `border-radius: 50%` instead of treating the "50"
-     * from the shorthand as a 50-px corner. See SK-1093.
-     */
-    borderTopLeftRadius?: string;
-    borderTopRightRadius?: string;
-    borderBottomRightRadius?: string;
-    borderBottomLeftRadius?: string;
-    /** Per-side border widths as strings (e.g. "6px"). All set together so we can decide uniform-vs-split in the renderer. */
-    borderTopWidth: string;
-    borderRightWidth: string;
-    borderBottomWidth: string;
-    borderLeftWidth: string;
-    borderTopStyle: string;
-    borderRightStyle: string;
-    borderBottomStyle: string;
-    borderLeftStyle: string;
-    borderTopColor: string;
-    borderRightColor: string;
-    borderBottomColor: string;
-    borderLeftColor: string;
-    /**
-     * For table cells: `"collapse"` means the parent table sets
-     * `border-collapse: collapse` so adjacent cells share a single painted
-     * border instead of stacking two adjacent ones. The renderer paints
-     * cell borders centered on the cell edge (no half-inset) in this mode
-     * so that two cells'\'' shared edges overlap exactly into one line
-     * instead of doubling.
-     */
-    borderCollapse: string;
-    overflowX: string;
-    overflowY: string;
-    /**
-     * CSS `overflow-clip-margin` shorthand value as computed by Chrome
-     * (e.g. `"20px"`, `"content-box 12px"`, or the empty string when the
-     * default `0px` resolves and the element doesn't paint outside its
-     * reference box). Only takes effect when `overflow: clip` (DM-761) —
-     * `hidden` ignores it per CSS Overflow 3.
-     */
-    overflowClipMargin?: string;
-    scrollbarGutter: string;
-    /** el.scrollHeight / scrollWidth vs client* — used to decide whether to paint a scrollbar. */
-    scrollWidth: number;
-    scrollHeight: number;
-    clientWidth: number;
-    clientHeight: number;
-    scrollTop: number;
-    scrollLeft: number;
-    objectFit: string;
-    objectPosition: string;
-    filter: string;
-    backdropFilter: string;
-    /**
-     * DM-476 frosted-glass fallback: when the element has a non-trivial
-     * `backdrop-filter` AND a near-transparent `background-color` (alpha
-     * ≤ 0.1), CAPTURE_SCRIPT reads `document.body`'s computed background
-     * color and stores it here as a normalized `rgb(...)` / `rgba(...)`
-     * string so the renderer can paint a synthesized opaque fill where
-     * Chromium would have painted blurred underlying pixels. Undefined
-     * when the element doesn't trigger the frosted condition. See
-     * `docs/19-frosted-backdrop-fallback.md`.
-     */
-    frostedBgFallback?: string;
-    mixBlendMode: string;
-    clipPath: string;
-    mask: string;
-    maskImage: string;
-    maskMode: string;
-    maskSize: string;
-    maskPosition: string;
-    maskRepeat: string;
-    maskComposite: string;
-    /**
-     * CSS `mask-clip` — the box (border-box / padding-box / content-box / etc.)
-     * the mask painted area is clipped to. Defaults to `border-box`. Captured
-     * separately from `mask-origin` because Chromium retains both verbatim
-     * (mask-clip controls visibility, mask-origin controls layer positioning).
-     */
-    maskClip?: string;
-    /**
-     * CSS `mask-border-source` / legacy `-webkit-mask-box-image` source.
-     * Chrome exposes this only via the legacy webkit name (DM-758). The
-     * renderer routes it through the mask-image pipeline ONLY for the
-     * "simple" 9-slice cases (`slice 0 fill / 0 / 0` and `slice 1 fill / 0
-     * / 0`) where the entire source is used as a stretched full-element
-     * mask. Real 9-slice tiling (non-zero `width` / `outset`, `round` /
-     * `space` repeat) needs its own implementation.
-     */
-    maskBorderSource?: string;
-    /** Resolved `-webkit-mask-box-image-slice` (e.g. `"1 fill"`, `"30 fill"`). */
-    maskBorderSlice?: string;
-    /** Resolved `-webkit-mask-box-image-width` (e.g. `"0"`, `"20px"`). */
-    maskBorderWidth?: string;
-    /** Resolved `-webkit-mask-box-image-outset` (e.g. `"0"`, `"15px"`). */
-    maskBorderOutset?: string;
-    /** Resolved `-webkit-mask-box-image-repeat` (`stretch` / `repeat` /
-     *  `round` / `space`, optionally one per axis). DM-793. */
-    maskBorderRepeat?: string;
-    /** Intrinsic dimensions of the `mask-border-source` asset (px). Same
-     *  probe pattern as `borderImageIntrinsicWidth`. DM-793. */
-    maskBorderIntrinsicWidth?: number;
-    maskBorderIntrinsicHeight?: number;
-    listStyleType: string;
-    listStyleImage: string;
-    listStylePosition: string;
-    /** CSS `display` (e.g. `block`, `list-item`, `flex`). Used by the
-     *  renderer to detect display:list-item on non-li tags. DM-451. */
-    display?: string;
-    backgroundImage: string;
-    backgroundSize: string;
-    backgroundPosition: string;
-    backgroundRepeat: string;
-    backgroundClip: string;
-    backgroundOrigin: string;
-    backgroundAttachment: string;
-    /**
-     * CSS `background-blend-mode` — per-layer blend mode (comma-separated to
-     * match the layer count). Captured verbatim from `getComputedStyle`. The
-     * renderer applies each layer's mode as `style="mix-blend-mode:<mode>"`
-     * on the layer's `<rect>`, wrapped in a `<g style="isolation:isolate">`
-     * so the blend doesn't escape the element's bg-layer stack.
-     */
-    backgroundBlendMode?: string;
-    /**
-     * CSS `-webkit-text-fill-color`. When `backgroundClip` is `text` the
-     * common pattern is `webkit-text-fill-color: transparent` so the
-     * background-image (gradient / url) shows through the glyph shapes —
-     * a "gradient headline" effect (Stripe / Resend / Linear hero copy).
-     * Captured separately because `color` may still report a normal value
-     * when the rendered text is actually transparent. DM-462.
-     */
-    webkitTextFillColor?: string;
-    /**
-     * DM-749: Stripe / Resend pattern — when an element has
-     * `webkit-text-fill-color: transparent` but its own background-image is
-     * `none`, the gradient lives on an ANCESTOR with `background-clip:
-     * text`. Chrome's paint propagates that gradient through descendant
-     * glyphs. Captured as the resolved `background-image` string of the
-     * nearest ancestor with `background-clip: text` (walked up to 8 levels).
-     */
-    inheritedTextFillGradient?: string;
-    /** DM-908: bbox of the ancestor that supplied `inheritedTextFillGradient`.
-     *  The gradient must resolve against the ANCESTOR's coordinates so two
-     *  sibling children inheriting from the same ancestor share one
-     *  continuous gradient span instead of each painting a fresh ramp
-     *  within its own (smaller) bbox. */
-    inheritedTextFillGradientRect?: { x: number; y: number; width: number; height: number };
-    /** `-webkit-text-stroke-width` (e.g. "2px"). DM-719. */
-    webkitTextStrokeWidth?: string;
-    /** `-webkit-text-stroke-color` (e.g. "rgb(220,38,38)"). DM-719. */
-    webkitTextStrokeColor?: string;
-    /** `paint-order` (e.g. "stroke fill"). Controls whether the text stroke
-     *  paints before or after the fill — `stroke fill` puts the stroke
-     *  UNDER the fill so the fill rests on top of half the stroke width,
-     *  eliminating the chunky "fill-on-top-of-stroke" artifact at large
-     *  stroke widths. DM-719. */
-    paintOrder?: string;
-    paddingTop: string;
-    paddingRight: string;
-    paddingBottom: string;
-    paddingLeft: string;
-    /** Intrinsic dimensions per background-image layer (same order as splitTopLevelCommas). */
-    backgroundIntrinsic?: Array<{ w: number; h: number } | null>;
-    borderImageSource: string;
-    borderImageSlice: string;
-    borderImageWidth: string;
-    borderImageOutset: string;
-    borderImageRepeat: string;
-    /** Intrinsic pixel dimensions of a border-image url() source, resolved at capture time. */
-    borderImageIntrinsicWidth?: number;
-    borderImageIntrinsicHeight?: number;
-    zIndex: string;
-    position: string;
-    float: string;
-    /** CSS `order` (flex/grid items). Per CSS Flexbox 1 §5.4.1 and CSS Grid 1
-     *  §17, paint order is order-modified document order — items are painted
-     *  in ascending `order` value, ties broken by source (DOM) order. The
-     *  property has no effect on non-flex/non-grid items but Chrome still
-     *  reports it on every computed style, so we capture unconditionally. */
-    order: string;
-    /** CSS `flex-direction` on a flex container (`row` / `row-reverse` /
-     *  `column` / `column-reverse`). Empirically Chrome paints children of a
-     *  `*-reverse` flex container in REVERSE of their order-modified document
-     *  order, so the rightmost (or bottommost) item paints LAST in every
-     *  flex-direction — matching what users expect from a visually-reordered
-     *  layout. Captured on the parent so the child sorter can read it. */
-    flexDirection: string;
-    /** For <td>/<th> with empty-cells: hide — suppress bg + border. */
-    emptyCellsHidden?: boolean;
-    /** Form-control state captured so we can synthesize native chrome. */
-    inputType?: string;
-    /** CSS `appearance` / `-webkit-appearance` longhand. 'none' means the
-     *  author has opted out of UA chrome — the renderer should let the host
-     *  rect (background / border / border-radius) show through and only
-     *  overlay the :checked indicator. DM-285. */
-    inputAppearance?: string;
-    checked?: boolean;
-    indeterminate?: boolean;
-    disabled?: boolean;
-    progressValue?: number;
-    progressMax?: number;
-    /** Custom CSS on ::-webkit-progress-bar (the track) — when set, overrides the default track. */
-    progressBarBg?: string;
-    progressBarBgImage?: string;
-    progressBarRadius?: string;
-    /** Custom CSS on ::-webkit-progress-value (the fill) — when set, overrides the synthesized fill. */
-    progressValueBg?: string;
-    progressValueBgImage?: string;
-    progressValueRadius?: string;
-    meterValue?: number;
-    meterMin?: number;
-    meterMax?: number;
-    meterLow?: number;
-    meterHigh?: number;
-    meterOptimum?: number;
-    /** Custom CSS on ::-webkit-meter-bar / ::-webkit-meter-*-value pseudo-elements. */
-    meterBarBg?: string;
-    meterBarBgImage?: string;
-    meterBarRadius?: string;
-    meterOptimumBg?: string;
-    meterOptimumBgImage?: string;
-    meterSuboptimumBg?: string;
-    meterSuboptimumBgImage?: string;
-    meterEvenLessGoodBg?: string;
-    meterEvenLessGoodBgImage?: string;
-    detailsOpen?: boolean;
-    /** True when the `<summary>`'s `::marker` was hidden by author CSS
-     *  (e.g. `::marker { color: transparent }` or
-     *  `::-webkit-details-marker { color: transparent }`), so the renderer
-     *  should NOT paint its own UA disclosure triangle on top of the
-     *  author's custom marker. DM-448. */
-    summaryMarkerSuppressed?: boolean;
-    /** DM-1123: the computed `::marker` color of a SHOWN summary disclosure
-     *  triangle (e.g. `summary::marker { color: #6d28d9 }` → purple). Chrome
-     *  paints the triangle in this color, not the summary's text color. Unset
-     *  when the marker is suppressed or the element isn't `<details>`. */
-    summaryMarkerColor?: string;
-    /** DM-1123: the computed `::marker` font-size in px (e.g.
-     *  `summary::marker { font-size: 14px }`). The triangle scales with this,
-     *  not the summary's own font-size. Defaults (inherits) to the summary's
-     *  font-size when the author didn't set one. */
-    summaryMarkerFontSize?: number;
-    /** DM-1123: true when the shown marker's `list-style-position` is `inside`
-     *  (the UA default for `<summary>`), so the renderer offsets the triangle
-     *  past the summary's own `padding-left` to the content-start. `outside`
-     *  → the legacy placement at the summary's border-box left edge. */
-    summaryMarkerInside?: boolean;
-    /** DM-1152: paint of an OPEN `<details>`'s `::details-content` pseudo
-     *  (Chrome 131+) when it carries a border-top and/or background. The
-     *  renderer synthesizes a box over the disclosure body (below the summary)
-     *  from these + the details/summary geometry. Unset when the pseudo is
-     *  default-painted or the details is closed. */
-    detailsContentBox?: {
-      borderTopWidth: number;
-      borderTopColor?: string;
-      bg?: string;
-      paddingBottom: number;
-      borderLeftWidth: number;
-      borderRightWidth: number;
-      borderBottomWidth: number;
-    };
-    selectChevron?: boolean;
-    /** Text of the currently-selected option, rendered inside the `<select>`
-     *  content rect for closed dropdowns (DM-246). For listbox-mode selects
-     *  (`size > 1` or `multiple`) this is undefined and per-option rendering
-     *  flows through the listbox path instead. */
-    selectDisplayText?: string;
-    /** Captured option list for listbox-mode `<select>` (size > 1 or
-     *  multiple). Each entry is one row the renderer paints inside the
-     *  select's content rect. DM-282. */
-    selectListboxOptions?: Array<{
-      text: string;
-      selected: boolean;
-      disabled: boolean;
-      /** Optgroup label row (italic + bold; not user-selectable). */
-      isOptgroupLabel?: boolean;
-      /** Indented child of an optgroup. */
-      isOptgroupChild?: boolean;
-    }>;
-    accentColor?: string;
-    caretColor?: string;
-    /** For <input type=range/color/date/time/...> — the current value. */
-    inputValue?: string;
-    inputMin?: string;
-    inputMax?: string;
-    inputStep?: string;
-    /** True for inputs with the `multiple` attribute (file / email / select). DM-271. */
-    inputMultiple?: boolean;
-    /** For <input type=file> — name of the first selected file, or empty. */
-    inputFileName?: string;
-    /** Custom-styled <input type=range> ::-webkit-slider-runnable-track / ::-webkit-slider-thumb (SK-1131). */
-    rangeTrackBg?: string;
-    rangeTrackHeight?: string;
-    rangeTrackRadius?: string;
-    /** Resolved gradient text for the slider track (SK-1224). Captured when the rule sets background or background-image to a *-gradient(). */
-    rangeTrackBgImage?: string;
-    rangeThumbBg?: string;
-    rangeThumbWidth?: string;
-    rangeThumbHeight?: string;
-    rangeThumbRadius?: string;
-    /** Resolved gradient text for the slider thumb (SK-1224). */
-    rangeThumbBgImage?: string;
-    /** ::-webkit-slider-runnable-track border shorthand (DM-273). */
-    rangeTrackBorder?: string;
-    /** ::-webkit-slider-thumb border shorthand (DM-273). */
-    rangeThumbBorder?: string;
-    /** ::-webkit-slider-thumb box-shadow (DM-319). Used for the donut-ring
-     *  effect: `box-shadow: 0 0 0 Npx <color>` paints an outer ring of width
-     *  N around the thumb. We only render the spread-only form. */
-    rangeThumbBoxShadow?: string;
-    /** ::-webkit-color-swatch pseudo styles (SK-1223). */
-    colorSwatchBg?: string;
-    colorSwatchBgImage?: string;
-    colorSwatchBorder?: string;
-    colorSwatchRadius?: string;
-    colorSwatchWrapperPadding?: string;
-    /** ::-webkit-inner-spin-button pseudo styles (SK-1223; capture only — renderer pickup is a follow-up). */
-    numberSpinButtonBg?: string;
-    numberSpinButtonBorder?: string;
-    numberSpinButtonRadius?: string;
-    /** ::-webkit-search-cancel-button pseudo styles (SK-1223; capture only — renderer pickup is a follow-up). */
-    searchCancelButtonBg?: string;
-    searchCancelButtonBorder?: string;
-    searchCancelButtonRadius?: string;
-    /** For <input type=file> — captured ::file-selector-button pseudo styles. */
-    fileButtonBg?: string;
-    fileButtonColor?: string;
-    fileButtonBorder?: string;
-    fileButtonBorderRadius?: string;
-    fileButtonPadding?: string;
-    fileButtonFontWeight?: string;
-    fileButtonFontSize?: string;
-    fileButtonFontFamily?: string;
-    fileButtonMarginRight?: string;
-    /** Canvas-measureText width of the button label at the captured font (DM-288).
-     *  Lets the renderer position the trailing 'No file chosen' placeholder at
-     *  exactly Chrome's painted x rather than overestimating via a per-char ratio. */
-    fileButtonLabelWidth?: number;
-    /** CSS outline (drawn outside the border-box, doesn't take layout space). */
-    outlineStyle?: string;
-    outlineWidth?: string;
-    outlineColor?: string;
-    outlineOffset?: string;
-    /** CSS box-shadow (raw value: outset/inset, x y blur spread color, comma-separated). */
-    boxShadow?: string;
-    /** CSS text-shadow (raw value: x y blur color, comma-separated; no inset/spread). */
-    textShadow?: string;
-    /** CSS transform (e.g. `rotate(30deg)`, `scale(1.5)`, `matrix(1,0,0,1,0,0)`). 'none' → no transform. */
-    transform?: string;
-    /** CSS will-change (DM-498): a comma-separated hint listing properties the
-     *  author intends to animate. When the list contains a property whose
-     *  non-initial value WOULD create a stacking context (transform, opacity,
-     *  filter, mask, clip-path, perspective, top/right/bottom/left, position,
-     *  z-index, isolation, mix-blend-mode), the element itself becomes a
-     *  stacking-context root regardless of whether that property has a
-     *  non-initial value applied. Used by `establishesStackingContext`. */
-    willChange?: string;
-    /** CSS contain (DM-498): `layout`, `paint`, `strict`, `content`, `size`,
-     *  or combinations. `paint` / `strict` / `content` (which includes paint)
-     *  create a stacking context per spec. */
-    contain?: string;
-    /** CSS isolation (DM-498): `isolate` creates a stacking context. */
-    isolation?: string;
-    /**
-     * DM-552: page-level color-scheme inferred from the capture context.
-     * Sourced from `matchMedia('(prefers-color-scheme: dark)').matches` at
-     * capture time and ONLY populated on the captured tree's root element
-     * (other elements omit it). Renderer reads this to decide whether to
-     * emit `color-scheme="dark"` on the root `<svg>`.
-     */
-    rootColorScheme?: "light" | "dark";
-    /**
-     * DM-552: `getComputedStyle(document.documentElement).backgroundColor`
-     * resolved by Chromium at capture time. Covers the transparent-root
-     * case where the page declares no background and Chromium fills its
-     * UA default per scheme (`#ffffff` for light, `rgb(28, 28, 28)`-ish
-     * for dark). ONLY populated on the captured tree's root element.
-     */
-    rootBgComputed?: string;
-    /**
-     * DM-1244: `<html>`'s computed `overflow-x` / `overflow-y` at capture time.
-     * `<body>`'s overflow only propagates to the viewport (so body renders
-     * WITHOUT its own clip) when `<html>` is `overflow: visible`; otherwise body
-     * applies its own overflow clip. ONLY populated on the captured tree's root.
-     */
-    rootOverflowX?: string;
-    rootOverflowY?: string;
-    /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
-    transformOrigin?: string;
-    /** DM-587: true when the live CSS transform was non-none at capture
-     *  time. We record `transform: 'none'` in this struct (because captured
-     *  rects are in live viewport coords post-transforms and the renderer
-     *  must not wrap them in a duplicate transform `<g>`), but CSS Transforms
-     *  2 §4 says any non-none transform creates a stacking context, and
-     *  `establishesStackingContext` needs that bit to keep z-index ordering
-     *  correct (e.g. `transform: translate(0)` on a positioned element traps
-     *  its descendants' z-indices). */
-    transformCreatesSc?: boolean;
-    /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
-    transformStyle?: string;
-    /**
-     * DM-751: extracted Z translation from `matrix3d(...)` when the
-     * element's transform has a non-zero translateZ component. Used by the
-     * paint-order sort when the parent has `transform-style: preserve-3d`
-     * (CSS Transforms 2 §6 sorts children by Z in 3D space, not z-index).
-     * SVG can't render perspective, so this is paint-order only.
-     */
-    translateZ?: number;
-    /** CSS writing-mode (`horizontal-tb` | `vertical-rl` | `vertical-lr` | `sideways-rl` | `sideways-lr`). */
-    writingMode?: string;
-    /** CSS text-orientation (`mixed` | `upright` | `sideways`). Used in vertical writing-modes. */
-    textOrientation?: string;
-    /** CSS resize. Non-none on textareas paints the bottom-right resize handle. */
-    resize?: string;
-    /** CSS text-overflow ('clip' | 'ellipsis' | "<string>" | …). Renderer paints
-     *  the truncation marker at the visible right edge when overflow is hidden
-     *  and white-space prevents wrapping. (DM-373) */
-    textOverflow?: string;
-    /** Whitespace handling — needed alongside text-overflow to determine if the
-     *  truncation marker should paint. */
-    whiteSpace?: string;
-    color: string;
-    fontSize: string;
-    fontFamily: string;
-    fontWeight: string;
-    /** 'italic' | 'oblique' | 'normal' — drives the SF Pro slnt axis in
-     *  text-to-path so <em>, <i>, [style=font-style:italic] etc. render
-     *  slanted instead of upright. */
-    fontStyle?: string;
-    opacity: string;
-    lineHeight: string;
-    letterSpacing: string;
-    fontKerning: string;
-    fontStretch: string;
-    fontVariationSettings: string;
-    fontFeatureSettings: string;
-    /** CSS font-variant-caps — 'normal' | 'small-caps' | 'all-small-caps' |
-     *  'petite-caps' | 'all-petite-caps' | 'unicase' | 'titling-caps'.
-     *  Renderer applies the matching OpenType feature (smcp / c2sc / etc.).
-     *  DM-361. */
-    fontVariantCaps?: string;
-    /** CSS font-variant-east-asian — e.g. 'traditional', 'jis78', 'full-width'.
-     *  Mapped to OpenType features (trad / jp78 / fwid …) at shape time. DM-1117. */
-    fontVariantEastAsian?: string;
-    /** CSS font-variant-numeric — e.g. 'oldstyle-nums', 'tabular-nums', 'diagonal-fractions'.
-     *  Mapped to OpenType features (onum / tnum / frac …). DM-1117. */
-    fontVariantNumeric?: string;
-    /** CSS font-variant-ligatures — e.g. 'no-common-ligatures', 'discretionary-ligatures'.
-     *  Mapped to OpenType features (liga off / dlig …). DM-1117. */
-    fontVariantLigatures?: string;
-    /** CSS direction ('ltr' / 'rtl'). Drives BiDi reordering on RTL paragraphs. */
-    direction?: string;
-    /** BCP-47 language tag inherited from `el.lang` / nearest ancestor `[lang]` /
-     *  `<html lang>`. Routes Han fallback to the matching PingFang regional
-     *  variant (TC / HK / MO) or Hiragino Kaku for `ja`. (DM-394) */
-    lang?: string;
-    /** `text-decoration-line` — 'underline', 'line-through', 'overline', or
-     *  combinations. 'none' means no decoration; renderer draws an SVG line
-     *  below / through / above the text when present. */
-    textDecorationLine?: string;
-    /** `text-decoration-color` — color for the decoration line. Falls back to
-     *  the element's text color when undefined. */
-    textDecorationColor?: string;
-    /** `text-decoration-style` — 'solid' / 'dashed' / 'dotted' / 'double' /
-     *  'wavy'. Undefined or 'solid' = plain line. */
-    textDecorationStyle?: string;
-    /** `text-decoration-thickness` — explicit length (e.g. `5px`) or `auto`.
-     *  When set to a length, overrides the auto thickness in
-     *  `getDecorationMetrics`. DM-431. */
-    textDecorationThickness?: string;
-    /** `text-underline-offset` — extra distance below the baseline for the
-     *  underline stroke. Adds to the auto offset. DM-431. */
-    textUnderlineOffset?: string;
-    /** DM-936: `text-underline-position` (`auto` / `from-font` / `under` /
-     *  `left` / `right`) — drives where the underline paints. Needed for
-     *  the elementRaster dedupe key so vertical-mode columns with
-     *  different underline-position values don't share screenshots. */
-    textUnderlinePosition?: string;
-    /** DM-920: `text-emphasis-style` — `none`, a `<string>` (`"★"`), or a
-     *  `[filled | open] [dot | circle | double-circle | triangle | sesame]`
-     *  combination. Renderer maps the keyword form to a single mark
-     *  character per Chromium's `ComputedStyle::TextEmphasisMarkString`. */
-    textEmphasisStyle?: string;
-    /** DM-920: `text-emphasis-color` — defaults to `currentcolor`. */
-    textEmphasisColor?: string;
-    /** DM-920: `text-emphasis-position` — `over` / `under` (×
-     *  `left` / `right` in horizontal-tb). */
-    textEmphasisPosition?: string;
-    /** `text-decoration-skip-ink` — 'auto' (default; break around descenders),
-     *  'none' (always solid), or 'all'. Per Chromium's
-     *  `decoration_line_painter.cc`, only solid + double underlines honor
-     *  skip-ink; dashed / dotted / wavy ignore it. DM-446. */
-    textDecorationSkipInk?: string;
-    /**
-     * `box-decoration-break` — `slice` (default) or `clone`. Controls how
-     * inline elements that wrap across multiple line boxes paint their
-     * background / border / padding / shadow: `slice` paints the box once
-     * across all fragments (first fragment gets the left side, last gets the
-     * right side); `clone` paints a complete box on every fragment. Captured
-     * so the renderer can split the per-fragment paint at line-box boundaries
-     * when `inlineFragments` is present.
-     */
-    boxDecorationBreak?: string;
-  };
+  styles: CapturedStyles;
   /**
    * Per-line-fragment rects (viewport-relative px) for inline elements that
    * wrap across multiple line boxes. Populated by capture when the element

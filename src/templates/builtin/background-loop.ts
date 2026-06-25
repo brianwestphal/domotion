@@ -20,8 +20,7 @@
  *  not `filter: blur()`.
  */
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { AnimateConfig, Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -526,56 +525,57 @@ export function buildWaveAnimations(p: BackgroundLoopParams, layers: WaveLayer[]
   }));
 }
 
+/** A variant family's built HTML + intra-frame animations + log line. */
+interface VariantBuild { html: string; animations: Anims; log: string }
+type VariantFamily = "blob" | "stars" | "gradient-pan" | "wave" | "grid";
+
+/** Map a variant name to its layout family. The blob layout backs several
+ *  variant names (aurora / orbs); the others are 1:1. */
+function variantFamily(v: BackgroundVariant): VariantFamily {
+  if (BLOB_VARIANTS.has(v)) return "blob";
+  if (v === "stars" || v === "gradient-pan" || v === "wave") return v;
+  return "grid";
+}
+
+/** Dispatch table: each variant family lays out its own elements + animation
+ *  builder. All share the origin-safe translate + opacity, `alternate`-looped
+ *  contract (doc 71). Replaces the per-variant if/else chain (DM-1371). */
+const VARIANT_BUILDERS: Record<VariantFamily, (p: BackgroundLoopParams) => VariantBuild> = {
+  blob: (p) => {
+    const blobs = planBlobs(p);
+    return { html: buildBackgroundHtml(p, blobs), animations: buildBackgroundAnimations(blobs), log: `template background-loop: ${p.variant}, ${blobs.length} blobs, ${p.width}×${p.height}` };
+  },
+  stars: (p) => {
+    const stars = planStars(p);
+    return { html: buildStarsHtml(p, stars), animations: buildStarsAnimations(stars), log: `template background-loop: stars, ${stars.length} stars, ${p.width}×${p.height}` };
+  },
+  "gradient-pan": (p) => ({ html: buildGradientPanHtml(p), animations: buildGradientPanAnimations(p), log: `template background-loop: gradient-pan, ${p.colors.length} colors, ${p.width}×${p.height}` }),
+  wave: (p) => {
+    const layers = planWaves(p);
+    return { html: buildWaveHtml(p, layers), animations: buildWaveAnimations(p, layers), log: `template background-loop: wave, ${layers.length} layers, ${p.width}×${p.height}` };
+  },
+  grid: (p) => {
+    const grid = planGridDots(p);
+    return { html: buildGridHtml(p, grid), animations: buildGridAnimations(p, grid.cell), log: `template background-loop: grid, ${grid.dots.length} dots, ${p.width}×${p.height}` };
+  },
+};
+
 export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
   name: "background-loop",
   description: "Procedural seamlessly-looping animated background (drifting, breathing color blobs).",
   paramsSchema: backgroundLoopParamsSchema,
   async render(params: BackgroundLoopParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
-    const htmlPath = join(ctx.workDir, "background-loop.html");
-    // Each variant family has its own layout + animation builder; all share the
-    // origin-safe translate + opacity, `alternate`-looped contract (doc 71).
-    let animations: Anims;
-    if (BLOB_VARIANTS.has(params.variant)) {
-      const blobs = planBlobs(params);
-      writeFileSync(htmlPath, buildBackgroundHtml(params, blobs));
-      animations = buildBackgroundAnimations(blobs);
-      ctx.log(`template background-loop: ${params.variant}, ${blobs.length} blobs, ${params.width}×${params.height}`);
-    } else if (params.variant === "stars") {
-      const stars = planStars(params);
-      writeFileSync(htmlPath, buildStarsHtml(params, stars));
-      animations = buildStarsAnimations(stars);
-      ctx.log(`template background-loop: stars, ${stars.length} stars, ${params.width}×${params.height}`);
-    } else if (params.variant === "gradient-pan") {
-      writeFileSync(htmlPath, buildGradientPanHtml(params));
-      animations = buildGradientPanAnimations(params);
-      ctx.log(`template background-loop: gradient-pan, ${params.colors.length} colors, ${params.width}×${params.height}`);
-    } else if (params.variant === "wave") {
-      const layers = planWaves(params);
-      writeFileSync(htmlPath, buildWaveHtml(params, layers));
-      animations = buildWaveAnimations(params, layers);
-      ctx.log(`template background-loop: wave, ${layers.length} layers, ${params.width}×${params.height}`);
-    } else {
-      const grid = planGridDots(params);
-      writeFileSync(htmlPath, buildGridHtml(params, grid));
-      animations = buildGridAnimations(params, grid.cell);
-      ctx.log(`template background-loop: grid, ${grid.dots.length} dots, ${params.width}×${params.height}`);
-    }
-
-    const svg = await ctx.runAnimateConfig({
+    const built = VARIANT_BUILDERS[variantFamily(params.variant)](params);
+    ctx.log(built.log);
+    // Hold for one full base period (params.durationMs) so the looping reads in
+    // the timeline; the variants loop infinitely.
+    return runSingleFrameGenerator(ctx, {
+      name: "background-loop",
+      html: built.html,
       width: params.width,
       height: params.height,
-      frames: [
-        {
-          input: "background-loop.html",
-          // Hold for one full base period so the looping reads in the timeline.
-          duration: params.durationMs,
-          transition: { type: "cut", duration: 0 },
-          animations,
-        },
-      ],
+      durationMs: params.durationMs,
+      animations: built.animations,
     });
-    // One base loop period; the blobs loop infinitely, so this is the seamless-
-    // cycle length to size a frame to.
-    return { svg, width: params.width, height: params.height, durationMs: params.durationMs };
   },
 };

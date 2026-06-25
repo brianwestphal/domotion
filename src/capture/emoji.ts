@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import type { CapturedElement } from "./types.js";
+import { clipRectForScreenshot } from "./clip-rect.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 let _aceFont: any = null;
@@ -240,10 +241,12 @@ export async function rasterizeBitmapGlyphs(
         // paints in different places per pos-* but tag+text+color+size
         // alone hashes them all together → wrong-side underline in 2/3
         // of the columns). Same for text-shadow / writing-mode variants.
-        // Several of the keys aren't on the strict CapturedStyles surface;
-        // cast through Record so the optional reads compile.
-        const sty = el.styles as unknown as Record<string, string | undefined>;
-        const tdKey = `${sty.textDecorationLine ?? sty.textDecoration ?? ""}|${sty.textUnderlinePosition ?? ""}|${sty.textUnderlineOffset ?? ""}|${sty.textDecorationStyle ?? ""}|${sty.textDecorationColor ?? ""}|${sty.textDecorationThickness ?? ""}|${sty.textShadow ?? ""}|${sty.writingMode ?? ""}`;
+        // All the decoration keys are typed reads off CapturedStyles now; only
+        // the `text-decoration` shorthand isn't captured (just the longhands),
+        // so narrow-cast that single fallback read.
+        const s = el.styles;
+        const tdShorthand = (s as { textDecoration?: string }).textDecoration;
+        const tdKey = `${s.textDecorationLine ?? tdShorthand ?? ""}|${s.textUnderlinePosition ?? ""}|${s.textUnderlineOffset ?? ""}|${s.textDecorationStyle ?? ""}|${s.textDecorationColor ?? ""}|${s.textDecorationThickness ?? ""}|${s.textShadow ?? ""}|${s.writingMode ?? ""}`;
         candidates.push({
           rect: { x: er.x, y: er.y, width: er.width, height: er.height },
           key: `el|${el.tag}|${el.text}|${el.styles.color}|${el.styles.fontSize}|${er.width}x${er.height}|${tdKey}`,
@@ -278,12 +281,7 @@ export async function rasterizeBitmapGlyphs(
       // CSS pixels, so add vp.x/vp.y back. Snap floor/ceil outward to
       // guarantee the glyph is fully contained (Playwright rejects zero-size
       // clips and clips at integer boundaries anyway).
-      const clip = {
-        x: Math.max(0, Math.floor(cand.rect.x + viewport.x)),
-        y: Math.max(0, Math.floor(cand.rect.y + viewport.y)),
-        width: Math.max(1, Math.ceil(cand.rect.width)),
-        height: Math.max(1, Math.ceil(cand.rect.height)),
-      };
+      const clip = clipRectForScreenshot(cand.rect, viewport);
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
         dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;

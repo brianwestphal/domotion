@@ -8,8 +8,7 @@
  * plus a looping `alternate` pulse on the button — one animation per element).
  */
 
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -172,22 +171,14 @@ export const subscribeTemplate: Template<SubscribeParams> = {
   description: "A subscribe / follow pop-up card that pops in with a pulsing call-to-action button.",
   paramsSchema: subscribeParamsSchema,
   async render(params: SubscribeParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
-    const htmlPath = join(ctx.workDir, "subscribe.html");
-    writeFileSync(htmlPath, buildSubscribeHtml(params));
     ctx.log(`template subscribe: "${params.name}", ${params.width}×${params.height}`);
-
-    const svg = await ctx.runAnimateConfig({
+    return runSingleFrameGenerator(ctx, {
+      name: "subscribe",
+      html: buildSubscribeHtml(params),
       width: params.width,
       height: params.height,
-      frames: [
-        {
-          input: "subscribe.html",
-          duration: subscribeDurationMs(params),
-          transition: { type: "cut", duration: 0 },
-          animations: buildSubscribeAnimations(params),
-        },
-      ],
+      durationMs: subscribeDurationMs(params),
+      animations: buildSubscribeAnimations(params),
     });
-    return { svg, width: params.width, height: params.height, durationMs: subscribeDurationMs(params) };
   },
 };
