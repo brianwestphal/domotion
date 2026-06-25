@@ -12,6 +12,10 @@
  * and scale. SK-1135 tracks the warning emission for 3D.
  */
 
+/** Decimal places for emitted SVG coordinates (translate/origin) vs. the matrix scale/rotation terms (which need more to avoid visible drift). */
+const COORD_PRECISION = 2;
+const MATRIX_PRECISION = 5;
+
 export function cssTransformToSvg(transform: string | undefined, originX: number, originY: number): string {
   if (transform == null || transform === "" || transform === "none") return "";
   const m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\)$/.exec(transform);
@@ -33,9 +37,9 @@ export function cssTransformToSvg(transform: string | undefined, originX: number
   // origin: SVG `translate(ox,oy) matrix(...) translate(-ox,-oy)`. When the
   // CSS matrix has a translation component (e, f), that already shifts; the
   // outer translate-origin pair makes the rotate/scale pivot correct.
-  const ox = Number(originX.toFixed(2));
-  const oy = Number(originY.toFixed(2));
-  const matrixStr = `matrix(${Number(a.toFixed(5))} ${Number(b.toFixed(5))} ${Number(c.toFixed(5))} ${Number(d.toFixed(5))} ${Number(e.toFixed(2))} ${Number(f.toFixed(2))})`;
+  const ox = Number(originX.toFixed(COORD_PRECISION));
+  const oy = Number(originY.toFixed(COORD_PRECISION));
+  const matrixStr = `matrix(${Number(a.toFixed(MATRIX_PRECISION))} ${Number(b.toFixed(MATRIX_PRECISION))} ${Number(c.toFixed(MATRIX_PRECISION))} ${Number(d.toFixed(MATRIX_PRECISION))} ${Number(e.toFixed(COORD_PRECISION))} ${Number(f.toFixed(COORD_PRECISION))})`;
   if (ox === 0 && oy === 0) return matrixStr;
   return `translate(${ox} ${oy}) ${matrixStr} translate(${-ox} ${-oy})`;
 }

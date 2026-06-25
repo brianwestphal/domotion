@@ -637,6 +637,15 @@ function wrapTypingText(text: string, maxChars: number): string[] {
   return lines;
 }
 
+// Default overlay timings/metrics, applied when the overlay omits them.
+const DEFAULT_TYPING_DELAY_MS = 300;
+const DEFAULT_TYPING_SPEED_CPS = 60;
+const DEFAULT_OVERLAY_FONT_SIZE = 14;
+/** Monospace cell advance as a fraction of font size (the overlay font is monospace). */
+const MONO_CHAR_WIDTH_RATIO = 0.6;
+const DEFAULT_TAP_DELAY_MS = 50;
+const DEFAULT_BLINK_PERIOD_MS = 1000;
+
 function renderTypingOverlay(
   overlay: TypingOverlay,
   frameIdx: number,
@@ -645,10 +654,10 @@ function renderTypingOverlay(
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
-  const delay = overlay.delay ?? 300;
-  const speed = overlay.speed ?? 60;
-  const fontSize = overlay.fontSize ?? 14;
-  const charWidth = fontSize * 0.6;                 // monospace cell (overlay font is monospace)
+  const delay = overlay.delay ?? DEFAULT_TYPING_DELAY_MS;
+  const speed = overlay.speed ?? DEFAULT_TYPING_SPEED_CPS;
+  const fontSize = overlay.fontSize ?? DEFAULT_OVERLAY_FONT_SIZE;
+  const charWidth = fontSize * MONO_CHAR_WIDTH_RATIO;
   // DM-1205: the typewriter reveal hides not-yet-typed text with a width-0 clip
   // rect. Chrome renders a zero-area clip path as "clip everything" (text
   // hidden, correct), but WebKit/Safari treats an EMPTY clip as "no clip" and
@@ -832,7 +841,7 @@ function renderTapOverlay(
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
-  const delay = overlay.delay ?? 50;
+  const delay = overlay.delay ?? DEFAULT_TAP_DELAY_MS;
   const tapMs = frameStart + delay;
   const rippleDur = 500;
   const id = `tap${frameIdx}`;
@@ -864,7 +873,7 @@ function renderBlinkOverlay(
   totalSec: number,
 ): { svgMarkup: string; css: string } {
   const id = `blink${frameIdx}`;
-  const period = overlay.periodMs ?? 1000;
+  const period = overlay.periodMs ?? DEFAULT_BLINK_PERIOD_MS;
   const color = overlay.color ?? "#e6edf3";
   const startMs = frameStart + (overlay.delay ?? 0);
   const radiusAttr = overlay.radius != null ? ` rx="${overlay.radius}" ry="${overlay.radius}"` : "";
