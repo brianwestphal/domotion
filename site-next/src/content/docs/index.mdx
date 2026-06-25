@@ -1,0 +1,87 @@
+---
+title: Domotion
+description: Turn HTML/CSS into a self-contained, animated SVG — pixel-faithful to Chromium, scales crisply at any size, embeds anywhere.
+template: splash
+hero:
+  tagline: |
+    Capture how Chromium actually paints your HTML/CSS and emit one
+    self-contained animated SVG. Embeds with a plain image tag, scales crisply at
+    any size, and looks identical across browsers.
+  image:
+    html: |
+      <img src="/domotion/demos/domotion-word-demo.svg" alt="The word 'domotion' cycling through twenty neon-retro typographic styles" style="width:100%;max-width:560px;height:auto" />
+  actions:
+    - text: See the showcase
+      link: /domotion/showcase/
+      icon: right-arrow
+      variant: primary
+    - text: Why Domotion
+      link: /domotion/why-domotion/
+      icon: right-arrow
+    - text: Install & quick start
+      link: /domotion/start/quickstart/
+      icon: right-arrow
+      variant: minimal
+    - text: View on GitHub
+      link: https://github.com/brianwestphal/domotion
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## One file. It moves. It scales. It embeds anywhere.
+
+A Domotion output is a single `<svg>` — no external fonts, images, or scripts.
+Drop it into a README, an npm page, an email, a slide, or a docs site and it
+plays its CSS animation, lazy-loads, stays crisp at any zoom, and carries real
+selectable text. No video file, no iframe, no re-encode per device.
+
+<figure>
+  <img src="/domotion/demos/showcase-transitions.svg" alt="A product landing page animating through search, results, and a feature detail with crossfade, push, and scroll transitions" style="width:100%;height:auto;border-radius:12px;border:1px solid var(--sl-color-gray-5)" />
+  <figcaption>Multi-frame capture stitched with CSS keyframe transitions — one self-contained SVG.</figcaption>
+</figure>
+
+## A few things it does
+
+<CardGrid>
+  <Card title="Faithful capture" icon="laptop">
+    Renders real HTML/CSS in headless Chromium and emits the same pixels as
+    native SVG — text becomes glyph `<path>`s, so it looks identical in every
+    browser.
+  </Card>
+  <Card title="Terminal sessions" icon="seti:shell">
+    Turn an asciinema recording into an animated terminal — real text, real ANSI
+    color, native SVG (no raster frames).
+  </Card>
+  <Card title="Templates" icon="puzzle">
+    A few flags become a polished animated SVG — lower-thirds, charts, kinetic
+    text, device mockups, and more.
+  </Card>
+  <Card title="Compositing" icon="document">
+    Nest animated layers inside animated layers — a terminal window resizing on
+    a desktop, a scrolling site inside a browser bezel.
+  </Card>
+</CardGrid>
+
+<figure>
+  <img src="/domotion/demos/terminal-onboarding.svg" alt="A macOS terminal window running git clone, npm install, npm run setup, and npm run dev in one continuous session" style="width:100%;max-width:680px;height:auto;border-radius:12px" />
+  <figcaption>A real <code>domotion term</code> capture, composited into window chrome.</figcaption>
+</figure>
+
+## Where to go next
+
+<CardGrid>
+  <Card title="Showcase" icon="open-book">
+    [Capability demos and full-app captures →](/domotion/showcase/)
+  </Card>
+  <Card title="Why Domotion" icon="approve-check">
+    [The case vs. video, GIFs, and screenshots →](/domotion/why-domotion/)
+  </Card>
+  <Card title="Quick start" icon="rocket">
+    [Install and capture your first SVG →](/domotion/start/quickstart/)
+  </Card>
+  <Card title="Developer docs" icon="seti:config">
+    [API, the animate-config format, custom templates, AI →](/domotion/developer/api/)
+  </Card>
+</CardGrid>

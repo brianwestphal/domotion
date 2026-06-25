@@ -1,0 +1,21 @@
+/* DM-1308: Domotion site theme tweaks on top of Starlight.
+   Accent picked from the brand indigo used across the demos/templates. */
+:root {
+  --sl-color-accent-low: #1e1b4b;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-high: #c7d2fe;
+}
+
+/* Demo figures: center, cap width, give captions a muted voice. */
+figure {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+figure img {
+  display: inline-block;
+}
+figcaption {
+  margin-top: 0.5rem;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}

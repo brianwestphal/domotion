@@ -2,6 +2,14 @@
   <img src="examples/output/domotion-word-demo.svg" alt="Domotion — an animated wordmark cycling through twenty neon-retro typographic variants of the word domotion" width="600">
 </p>
 
+<p align="center">
+  <strong><a href="https://brianwestphal.github.io/domotion/">🌐 Website &amp; docs</a></strong>
+  &nbsp;·&nbsp;
+  <a href="https://brianwestphal.github.io/domotion/start/quickstart/">Quick start</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/brianwestphal/domotion">GitHub</a>
+</p>
+
 DOM-to-animated-SVG renderer. Captures HTML/CSS rendered in headless Chromium and converts the captured tree into a self-contained SVG with optional CSS animations — pixel-faithful to what Chromium painted, scales crisply at any size, and embeds without external assets.
 
 Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), multi-frame **animation** with transitions and overlays, **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool. Text is emitted as real glyph paths, so the output looks identical across browsers.

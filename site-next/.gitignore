@@ -1,0 +1,10 @@
+# build output
+dist/
+.astro/
+# deps
+node_modules/
+# generated demo assets (produced by scripts/build-demos.mjs at build time)
+public/demos/
+src/content/docs/developer/_synced/
+# os
+.DS_Store

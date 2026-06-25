@@ -1,0 +1,82 @@
+---
+title: Showcase
+description: What Domotion produces — capability demos and full-application captures, every one a single self-contained animated SVG.
+---
+
+import { Card, CardGrid, Aside } from "@astrojs/starlight/components";
+
+Every demo on this page is **one self-contained `.svg` file** embedded with a
+plain `<img>`. Nothing here is a video, a GIF, or an iframe. Right-click → open
+in a new tab and watch it stay crisp at any zoom.
+
+## Capability demos
+
+### Faithful capture
+
+A real page rendered in Chromium and emitted as native SVG — badges, status
+rows, code blocks, and inline styles, with text as glyph paths.
+
+<img src="/domotion/demos/showcase-rendering.svg" alt="A dark UI showing text styles, badges, status indicators, and a code block, captured faithfully" style="width:100%;height:auto;border-radius:12px" />
+
+### Transitions
+
+Multi-frame capture stitched into one animation with `crossfade`, `push-left`,
+`scroll`, and `magic-move` transitions.
+
+<img src="/domotion/demos/showcase-transitions.svg" alt="A landing page animating through search, results, and a feature detail" style="width:100%;height:auto;border-radius:12px" />
+
+### Terminal sessions
+
+An asciinema recording rendered as an animated terminal — real ANSI color, real
+text, composited into macOS window chrome.
+
+<CardGrid>
+  <img src="/domotion/demos/terminal-onboarding.svg" alt="A terminal running clone, install, configure, and run in one session" style="width:100%;height:auto;border-radius:12px" />
+  <img src="/domotion/demos/terminal-window-scroll.svg" alt="A scrolling terminal session of install, test, and build output" style="width:100%;height:auto;border-radius:12px" />
+</CardGrid>
+
+### Templates
+
+A few flags become a polished animated SVG. Charts emphasize the standout, not a
+rainbow; device mockups wrap a real page in a bezel.
+
+<CardGrid>
+  <img src="/domotion/demos/templates/chart-column.svg" alt="A column chart with the peak month emphasized in the accent color" style="width:100%;height:auto;border-radius:12px" />
+  <img src="/domotion/demos/templates/device-mockup-browser.svg" alt="A SaaS dashboard wrapped in a browser window bezel" style="width:100%;height:auto;border-radius:12px" />
+</CardGrid>
+
+### Compositing
+
+Animated layers inside animated layers — a terminal window on a desktop, on its
+own timeline.
+
+<img src="/domotion/demos/composite-config-demo.svg" alt="A macOS desktop with a terminal window running a git clone" style="width:100%;height:auto;border-radius:12px" />
+
+## Full-application demos
+
+<Aside type="note" title="Coming next (placeholder)">
+These two demos are **placeholders** in this preview. Once the rest of the site
+is approved, they'll be replaced with real `domotion` captures of two live local
+apps:
+
+- **Hotsheet** — the lightweight ticket / Up-Next worklist tool. Planned flow:
+  open the board → create a ticket → categorize + prioritize → mark Up Next →
+  export the worklist. Captured as a continuous-session `animate` config (real
+  clicks + typing), composited into a browser bezel.
+- **Glassbox** — the AI-code-review tool. Planned flow: open a diff → annotate a
+  line → add a region note → export the structured feedback. Same approach.
+
+Both run locally; the captures will be produced with the standard
+`domotion animate` interaction pipeline and committed as gallery SVGs.
+</Aside>
+
+<CardGrid>
+  <Card title="Hotsheet — ticket & worklist tool" icon="seti:todo">
+    *Placeholder.* A real capture of creating, prioritizing, and exporting an
+    Up-Next worklist will land here.
+  </Card>
+  <Card title="Glassbox — AI code review" icon="seti:git">
+    *Placeholder.* A real capture of reviewing a diff, annotating lines, and
+    exporting feedback will land here.
+  </Card>
+</CardGrid>
