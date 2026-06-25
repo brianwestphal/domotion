@@ -73,8 +73,8 @@ extension is a usage error that names the supported set.
   Give either or both; omitted → the SVG's intrinsic size (from `viewBox`, else
   the `width`/`height` attributes). An SVG with no derivable size requires both.
 - `--scale <n>` — device-pixel-ratio / supersample factor for **raster** output
-  (default `1`; output px = size × scale). Use `2` for a crisp retina raster.
-  Ignored for PDF (vector, resolution-independent).
+  (a positive **integer**; default `1`; output px = size × scale). Use `2` for a
+  crisp retina raster. Ignored for PDF (vector, resolution-independent).
 - `--background <css>` — page background behind the SVG (default `transparent`).
   PNG/WebP/AVIF/TIFF keep the SVG's own alpha; JPEG/PDF can't carry alpha and
   composite onto white when the background is transparent.

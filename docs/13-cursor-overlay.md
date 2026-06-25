@@ -109,7 +109,7 @@ A new module `src/animation/cursor-overlay.ts`:
 The cursor arrow itself is a small SVG path approximating macOS's pointer:
 
 ```
-M 0 0 L 0 16 L 4.5 12 L 7 18 L 9 17 L 6.5 11 L 12 11 Z
+M 0 0 L 0 16 L 4 12 L 7 18 L 9 17 L 6 11 L 12 11 Z
 ```
 
 Stroke white-on-black so it's visible on either light or dark backgrounds.
