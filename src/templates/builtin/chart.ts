@@ -18,6 +18,10 @@ const CHART_TYPES = ["column", "bar", "line", "pie", "donut"] as const;
 export type ChartType = (typeof CHART_TYPES)[number];
 
 const DEFAULT_COLORS = ["#6366f1", "#22d3ee", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6"];
+// DM-1383: muted slate for the "context" bars of a single-series column/bar
+// chart, so only the standout bar (the max, painted in the accent) carries
+// color. Recedes on the default dark background.
+const BAR_NEUTRAL = "#3a4661";
 
 /** One or more numeric series. Accepts a JSON `number[]` (one series), a JSON
  *  `number[][]` (multi-series), or a string: comma-separated values, with `;`
@@ -260,7 +264,18 @@ export function planChart(p: ChartParams): ChartPlan {
   const multi = nSeries > 1;
   const stacked = multi && p.layout === "stacked" && p.type !== "line";
   const val = (s: number, c: number): number => series[s][c] ?? 0;
-  const colorOf = (s: number, c: number): string => p.colors[(multi ? s : c) % p.colors.length];
+  // DM-1383: a SINGLE-series column/bar chart's bars are already distinguished by
+  // position + label, so coloring each bar differently encodes nothing — our own
+  // design guidance (llms.txt "Data & charts") says to keep them one neutral
+  // color and emphasize the standout (the max) in the accent. That's the DEFAULT
+  // here; an explicit `colors` override still wins, and multi-series / line / pie
+  // keep the distinct palette (there color DOES encode the series / slice).
+  const usingDefaultPalette =
+    p.colors.length === DEFAULT_COLORS.length && p.colors.every((c, i) => c === DEFAULT_COLORS[i]);
+  const emphasizeOne = !multi && (p.type === "column" || p.type === "bar") && usingDefaultPalette;
+  const peakCat = emphasizeOne ? series[0].reduce((best, v, i) => (v > series[0][best] ? i : best), 0) : -1;
+  const colorOf = (s: number, c: number): string =>
+    emphasizeOne ? (c === peakCat ? p.colors[0] : BAR_NEUTRAL) : p.colors[(multi ? s : c) % p.colors.length];
   const catLabel = (c: number): string => (p.labels != null && p.labels.length > 0 ? p.labels[c % p.labels.length] : "");
 
   if (p.type === "pie" || p.type === "donut") return planPie(p, series, catLabel);
