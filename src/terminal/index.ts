@@ -14,8 +14,8 @@
 import type { Browser } from "@playwright/test";
 import { parseCast } from "./cast.js";
 import { TerminalEmulator } from "./emulator.js";
-import { buildFrames, gridToHtml, type FrameBuildOptions, type HtmlRenderOptions } from "./render.js";
-import { resolveThemeSpec, type TerminalThemeSpec } from "./theme.js";
+import { buildFrames, gridToHtml, makeReferenceGrid, measureTermCanvas, type FrameBuildOptions, type HtmlRenderOptions } from "./render.js";
+import { resolveTheme, type TerminalThemeSpec } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../animation/animator.js";
@@ -71,10 +71,6 @@ export interface TermToSvgResult {
   frameCount: number;
   /** Sum of frame hold durations (ms) — the cast's effective play time. */
   totalDurationMs: number;
-}
-
-function resolveTheme(theme: string | TerminalThemeSpec | undefined): ReturnType<typeof resolveThemeSpec> {
-  return resolveThemeSpec(theme ?? "catppuccin");
 }
 
 export interface TermFramesResult {
@@ -165,20 +161,7 @@ export async function castToTermFrames(
     // one frame whose lines may be short. Use the LARGEST grid across all resizes
     // (DM-1246) so post-resize frames (which may be bigger than the initial size)
     // still fit; smaller frames render top-left within it.
-    const refGrid = Array.from({ length: maxRows }, () =>
-      Array.from({ length: maxCols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
-    );
-    const measureHtml = gridToHtml(refGrid, htmlOpts);
-    await page.setContent(measureHtml, { waitUntil: "domcontentloaded" });
-    await page.evaluate(() => document.fonts.ready);
-    const box = await page.evaluate(() => {
-      const el = document.querySelector(".term") as HTMLElement;
-      const r = el.getBoundingClientRect();
-      return { w: Math.ceil(r.width), h: Math.ceil(r.height) };
-    });
-    width = box.w;
-    height = box.h;
-    log(`term: canvas ${width}×${height}px`);
+    ({ width, height } = await measureTermCanvas(page, makeReferenceGrid(maxRows, maxCols), htmlOpts, log));
 
     for (let i = 0; i < frames.length; i++) {
       const html = gridToHtml(frames[i].grid, htmlOpts);

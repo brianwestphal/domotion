@@ -406,6 +406,38 @@ export function injectSvgSize(svgHtml: string, w: number, h: number): string {
  * Returns { svg, usedIds }. usedIds indicates how many clipIdx values were
  * consumed so the caller can keep its own counter in sync.
  */
+// ── border-image token parsers (shared by the gradient + URL 9-slice paths) ──
+// All three are pure functions of their args; lifted to module scope (DM-1370)
+// from the identical closures that renderBorderImageGradient and
+// renderBorderImage each defined inline.
+
+/** A `border-image-outset` token → px. `%` is of `basis`, a length unit is
+ *  absolute px, a bare number multiplies the side's border-width; empty → 0. */
+function parseOutset(tok: string | undefined, basis: number, borderW: number): number {
+  if (tok == null || tok === "") return 0;
+  if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+  if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
+  const n = parseFloat(tok);
+  return Number.isFinite(n) ? n * borderW : 0;
+}
+
+/** A `border-image-width` token → px. Like {@link parseOutset} but `auto` /
+ *  empty / a non-finite bare number default to the side's border-width. */
+function parseBorderImageLen(tok: string | undefined, basis: number, borderW: number): number {
+  if (tok == null || tok === "" || tok === "auto") return borderW;
+  if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+  if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
+  // Unitless number -> multiplier of border-width.
+  const n = parseFloat(tok);
+  return Number.isFinite(n) ? n * borderW : borderW;
+}
+
+/** A parsed `border-image-slice` token (`{ pct }` of `basis`, or `{ px }`) → px. */
+function resolveSlice(tok: { pct?: number; px?: number }, basis: number): number {
+  if (tok.pct != null) return (tok.pct / 100) * basis;
+  return tok.px ?? 0;
+}
+
 /**
  * Render a `border-image-source` that's a CSS gradient as a proper 9-slice.
  *
@@ -446,26 +478,12 @@ function renderBorderImageGradient(
 
   // Outsets: default 0. Same parsing as URL path.
   const outsetTokens = (el.styles.borderImageOutset ?? "0").trim().split(/\s+/);
-  const parseOutset = (tok: string | undefined, basis: number, borderW: number): number => {
-    if (tok == null || tok === "") return 0;
-    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-    const n = parseFloat(tok);
-    return Number.isFinite(n) ? n * borderW : 0;
-  };
   const ot = parseOutset(outsetTokens[0], el.height, bwTop);
   const or_ = parseOutset(outsetTokens[1] ?? outsetTokens[0], el.width, bwRight);
   const ob = parseOutset(outsetTokens[2] ?? outsetTokens[0], el.height, bwBottom);
   const ol = parseOutset(outsetTokens[3] ?? outsetTokens[1] ?? outsetTokens[0], el.width, bwLeft);
 
   // Border-image-width per side; default = element's border-width. Same as URL path.
-  const parseBorderImageLen = (tok: string | undefined, basis: number, borderW: number): number => {
-    if (tok == null || tok === "" || tok === "auto") return borderW;
-    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-    const n = parseFloat(tok);
-    return Number.isFinite(n) ? n * borderW : borderW;
-  };
   const widthTokens = (el.styles.borderImageWidth ?? "").trim().split(/\s+/);
   const wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
   const wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
@@ -488,10 +506,6 @@ function renderBorderImageGradient(
     if (/%$/.test(t)) return { pct: parseFloat(t) };
     return { px: parseFloat(t) };
   });
-  const resolveSlice = (tok: { pct?: number; px?: number }, basis: number): number => {
-    if (tok.pct != null) return (tok.pct / 100) * basis;
-    return tok.px ?? 0;
-  };
   const st = resolveSlice(sliceNums[0] ?? { px: 0 }, natH);
   const sr = resolveSlice(sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
   const sb = resolveSlice(sliceNums[2] ?? sliceNums[0] ?? { px: 0 }, natH);
@@ -675,10 +689,6 @@ export function renderBorderImage(
     }
     return { px: parseFloat(t) };
   });
-  const resolveSlice = (tok: { pct?: number; px?: number }, basis: number): number => {
-    if (tok.pct != null) return (tok.pct / 100) * basis;
-    return tok.px ?? 0;
-  };
   const st = resolveSlice(sliceNums[0] ?? { px: 0 }, natH);
   const sr = resolveSlice(sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
   const sb = resolveSlice(sliceNums[2] ?? sliceNums[0] ?? { px: 0 }, natH);
@@ -690,14 +700,6 @@ export function renderBorderImage(
   const bwRight = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
   const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
   const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-  const parseBorderImageLen = (tok: string | undefined, basis: number, borderW: number): number => {
-    if (tok == null || tok === "" || tok === "auto") return borderW;
-    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-    // Unitless number -> multiplier of border-width.
-    const n = parseFloat(tok);
-    return Number.isFinite(n) ? n * borderW : borderW;
-  };
   const widthTokens = (el.styles.borderImageWidth ?? "").trim().split(/\s+/);
   const wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
   const wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
@@ -706,13 +708,6 @@ export function renderBorderImage(
 
   // Outsets: same parsing; default 0.
   const outsetTokens = (el.styles.borderImageOutset ?? "0").trim().split(/\s+/);
-  const parseOutset = (tok: string | undefined, basis: number, borderW: number): number => {
-    if (tok == null || tok === "") return 0;
-    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-    const n = parseFloat(tok);
-    return Number.isFinite(n) ? n * borderW : 0;
-  };
   const ot = parseOutset(outsetTokens[0], el.height, bwTop);
   const or_ = parseOutset(outsetTokens[1] ?? outsetTokens[0], el.width, bwRight);
   const ob = parseOutset(outsetTokens[2] ?? outsetTokens[0], el.height, bwBottom);

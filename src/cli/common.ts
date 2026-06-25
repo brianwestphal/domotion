@@ -77,6 +77,30 @@ export async function openInBrowser(url: string): Promise<void> {
 }
 
 /**
+ * Whether a CSS background string carries no opaque color, so the output should
+ * be transparent. Shared by `svg-to-image` and `svg-to-video` (DM-1370) — the
+ * two bins had diverged regexes for the same concept; this is the union, so it
+ * matches everything either one matched (the keywords + empty string, any hex
+ * color with a zero alpha nibble/byte, and rgba()/hsla() with a zero `0` / `0%`
+ * / `0.0…` alpha component, comma- or slash-separated).
+ */
+export function isTransparentBackground(bg: string): boolean {
+  const v = bg.trim().toLowerCase();
+  if (v === "" || v === "transparent" || v === "none") return true;
+  // #rgba / #rrggbbaa hex with a zero alpha nibble / byte.
+  if (/^#[0-9a-f]{4}$/.test(v) && v[4] === "0") return true;
+  if (/^#[0-9a-f]{8}$/.test(v) && v.slice(7) === "00") return true;
+  // rgba()/hsla() with a zero (or 0%) alpha component.
+  const fn = v.match(/^(?:rgba|hsla)\(([^)]*)\)$/);
+  if (fn != null) {
+    const parts = fn[1].split(/[,/]/).map((p) => p.trim()).filter((p) => p !== "");
+    const a = parts[parts.length - 1];
+    if (parts.length >= 4 && (a === "0%" || /^0(?:\.0+)?$/.test(a))) return true;
+  }
+  return false;
+}
+
+/**
  * Print a CLI error to stderr with the bin's `name:` prefix and exit. The
  * exit-code convention shared across all four bins (DM-1071): `2` = usage /
  * argument error (bad flags, missing input, file-not-found before any work),

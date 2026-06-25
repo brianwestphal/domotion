@@ -15,6 +15,7 @@
  * normal capture→SVG pipeline.
  */
 
+import type { Page } from "@playwright/test";
 import type { CastOutputEvent, CastResizeEvent } from "./cast.js";
 import { TerminalEmulator, gridSignature, type TermGrid, type TermCell, type TermCursor } from "./emulator.js";
 import type { TerminalTheme } from "./theme.js";
@@ -192,4 +193,38 @@ export function gridToHtml(grid: TermGrid, opts: HtmlRenderOptions): string {
     font-variant-ligatures:none;-webkit-font-smoothing:antialiased}
   .r{white-space:pre;min-height:${(fontSize * lineHeight).toFixed(2)}px}
 </style></head><body><div class="term">${rows.join("")}</div></body></html>`;
+}
+
+/**
+ * A full `rows × cols` grid of plain "M" cells. Both terminal render paths
+ * (full-frame + incremental) size the SVG canvas from this reference block —
+ * every frame fits inside it, so a smaller post-resize grid renders top-left
+ * with the theme bg filling the rest (DM-1246 / DM-1249). Extracted DM-1370.
+ */
+export function makeReferenceGrid(rows: number, cols: number): TermGrid {
+  return Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
+  );
+}
+
+/**
+ * Render `refGrid` to a page and measure the painted `.term` box — the once-per-
+ * cast canvas sizing both terminal render paths share. Returns the ceil'd px
+ * dimensions and logs them. Extracted DM-1370.
+ */
+export async function measureTermCanvas(
+  page: Page,
+  refGrid: TermGrid,
+  htmlOpts: HtmlRenderOptions,
+  log: (m: string) => void,
+): Promise<{ width: number; height: number }> {
+  await page.setContent(gridToHtml(refGrid, htmlOpts), { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => document.fonts.ready);
+  const box = await page.evaluate(() => {
+    const el = document.querySelector(".term") as HTMLElement;
+    const r = el.getBoundingClientRect();
+    return { w: Math.ceil(r.width), h: Math.ceil(r.height) };
+  });
+  log(`term: canvas ${box.w}×${box.h}px`);
+  return { width: box.w, height: box.h };
 }

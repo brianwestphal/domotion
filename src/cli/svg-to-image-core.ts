@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { extname } from "node:path";
 import type { Browser } from "@playwright/test";
 import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize } from "./svg-to-video-core.js";
+import { isTransparentBackground } from "./common.js";
 
 export type ImageFormat = "png" | "jpeg" | "pdf" | "webp" | "avif" | "tiff";
 
@@ -80,17 +81,9 @@ export function resolveImageFormat(outputPath: string, override?: string): Image
   return fmt;
 }
 
-/** Whether a CSS background string carries no opaque color (so the output should be transparent). */
-export function isTransparentBg(bg: string): boolean {
-  const v = bg.trim().toLowerCase();
-  return (
-    v === "transparent" ||
-    v === "none" ||
-    v === "#0000" ||
-    v === "#00000000" ||
-    /^(?:rgba|hsla)\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(v)
-  );
-}
+// DM-1370: the transparent-background predicate is shared with svg-to-video in
+// cli/common.ts. Re-exported here under the bin's historical name.
+export { isTransparentBackground as isTransparentBg };
 
 /**
  * Contain `natural` within `target`, preserving aspect ratio. Unlike
@@ -134,7 +127,7 @@ export async function runSvgToImage(
     throw new Error("SVG has no viewBox/width/height; pass both --width and --height.");
   }
 
-  const transparent = isTransparentBg(background);
+  const transparent = isTransparentBackground(background);
   // JPEG and PDF can't carry an alpha channel — composite on white when no
   // opaque background was requested. PNG/WebP/AVIF/TIFF all keep the alpha.
   const opaqueOnly = format === "jpeg" || format === "pdf";

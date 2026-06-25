@@ -31,8 +31,10 @@ import { trimAnimatedSvg } from "./trim.js";
 import { clampCrop, cropSvgViewBox, type CropRect } from "./crop.js";
 import { SCRUBBER_CLIENT_JS } from "./client.bundle.generated.js";
 
-/** Round down to the nearest even integer (≥ 2) — H.264 yuv420p needs even W/H. */
-function toEven2(n: number): number {
+/** Round DOWN to the nearest even integer ≥ 2 — H.264 yuv420p needs even W/H.
+ *  The direction is in the name to avoid confusing it with `evenCeil`
+ *  (svg-to-video): a crop box rounds down to stay inside the source. */
+function evenFloor(n: number): number {
   return Math.max(2, Math.floor(n / 2) * 2);
 }
 
@@ -112,8 +114,8 @@ async function renderRangeVideo(page: Page, svg: string, t0: number, t1: number,
     if (c != null) {
       const cx = Math.min(Math.floor(c.x), outW - 2);
       const cy = Math.min(Math.floor(c.y), outH - 2);
-      const cw = toEven2(Math.min(c.w, outW - cx));
-      const ch = toEven2(Math.min(c.h, outH - cy));
+      const cw = evenFloor(Math.min(c.w, outW - cx));
+      const ch = evenFloor(Math.min(c.h, outH - cy));
       clip = { x: cx, y: cy, width: cw, height: ch };
       frameW = cw; frameH = ch;
     }

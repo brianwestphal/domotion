@@ -23,6 +23,7 @@ import { existsSync, mkdirSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import type { Browser } from "@playwright/test";
+import { isTransparentBackground } from "./common.js";
 
 export interface SvgToVideoOptions {
   input: string;
@@ -54,8 +55,9 @@ export interface SvgToVideoOptions {
 
 // ── pure helpers ────────────────────────────────────────────────────────────
 
-/** Round up to the nearest even integer ≥ 2 (h264 yuv420p needs even W/H). */
-function toEven(n: number): number {
+/** Round UP to the nearest even integer ≥ 2 (h264 yuv420p needs even W/H). The
+ *  direction is in the name to avoid confusing it with `evenFloor` (scrubber). */
+function evenCeil(n: number): number {
   const r = Math.max(2, Math.round(n));
   return r % 2 === 0 ? r : r + 1;
 }
@@ -83,7 +85,7 @@ export function fitContain(
     w = naturalW * s;
     h = naturalH * s;
   }
-  return { width: toEven(w), height: toEven(h) };
+  return { width: evenCeil(w), height: evenCeil(h) };
 }
 
 /**
@@ -277,28 +279,10 @@ export function isAnimatedImageContainer(container: string): boolean {
   return container === "gif" || container === "apng";
 }
 
-/**
- * DM-1142: does this CSS `--background` value request a transparent (alpha)
- * output? Matches the CSS keywords `transparent` / `none` and any fully-
- * transparent color literal (`rgba(…, 0)`, `#rrggbb00` / `#rgb0`). An opaque
- * value (default `#ffffff`) returns false — the historical solid-background
- * behavior.
- */
-export function isTransparentBackground(background: string): boolean {
-  const b = background.trim().toLowerCase();
-  if (b === "transparent" || b === "none" || b === "") return true;
-  // rgba()/hsla() with a zero (or 0%) alpha component.
-  const fn = b.match(/^(?:rgba|hsla)\(([^)]*)\)$/);
-  if (fn != null) {
-    const parts = fn[1].split(/[,/]/).map((p) => p.trim()).filter((p) => p !== "");
-    const a = parts[parts.length - 1];
-    if (parts.length >= 4 && (a === "0" || a === "0%" || a === "0.0")) return true;
-  }
-  // #rgba / #rrggbbaa hex with a zero alpha nibble/byte.
-  if (/^#[0-9a-f]{4}$/.test(b) && b[4] === "0") return true;
-  if (/^#[0-9a-f]{8}$/.test(b) && b.slice(7) === "00") return true;
-  return false;
-}
+// DM-1142 / DM-1370: `isTransparentBackground` now lives in cli/common.ts
+// (shared, as the union of this bin's and svg-to-image's predicates). Re-exported
+// here so the existing `svg-to-video-core` import surface is unchanged.
+export { isTransparentBackground };
 
 /**
  * Map a `--format` keyword to an ffmpeg codec + default container + pix_fmt.

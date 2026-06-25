@@ -96,6 +96,13 @@ export const THEMES: Record<string, TerminalTheme> = {
  * base (default `catppuccin`). A full `TerminalTheme` passes through unchanged.
  * Throws on an unknown theme name or an `ansi` array that isn't 16 colors.
  */
+/** Resolve a theme name / spec / undefined to a concrete `TerminalTheme`,
+ *  defaulting to `catppuccin`. The shared entry point for both terminal render
+ *  paths (full-frame `index.ts` + incremental composer) — DM-1370. */
+export function resolveTheme(theme: string | TerminalThemeSpec | undefined): TerminalTheme {
+  return resolveThemeSpec(theme ?? "catppuccin");
+}
+
 export function resolveThemeSpec(spec: string | TerminalThemeSpec): TerminalTheme {
   const names = Object.keys(THEMES).join(", ");
   if (typeof spec === "string") {

@@ -25,8 +25,8 @@
 import type { Browser } from "@playwright/test";
 import { parseCast } from "./cast.js";
 import { TerminalEmulator, type TermCell } from "./emulator.js";
-import { buildFrames, rowInnerHtml, gridToHtml, TERM_TYPE_DEFAULTS, type TermFrame, type HtmlRenderOptions } from "./render.js";
-import { resolveThemeSpec, type TerminalTheme } from "./theme.js";
+import { buildFrames, rowInnerHtml, makeReferenceGrid, measureTermCanvas, TERM_TYPE_DEFAULTS, type TermFrame, type HtmlRenderOptions } from "./render.js";
+import { resolveTheme, type TerminalTheme } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import type { TermToSvgOptions } from "./index.js";
@@ -312,9 +312,6 @@ export interface IncrementalResult {
   lineCount: number;
 }
 
-function resolveTheme(theme: TermToSvgOptions["theme"]): TerminalTheme {
-  return resolveThemeSpec(theme ?? "catppuccin");
-}
 
 /**
  * Compose a cast into an animated SVG via the incremental line-pool model.
@@ -374,19 +371,7 @@ export async function composeIncrementalTermSvg(
     // Measure the canvas from a full max-cols×max-rows reference block (same as
     // the full-frame path) so the two modes lay out identically and a post-resize
     // grid still fits (DM-1249).
-    const refGrid = Array.from({ length: maxRows }, () =>
-      Array.from({ length: maxCols }, () => ({ char: "M", fg: null, bg: null, bold: false, italic: false, dim: false, underline: false })),
-    );
-    await page.setContent(gridToHtml(refGrid, htmlOpts), { waitUntil: "domcontentloaded" });
-    await page.evaluate(() => document.fonts.ready);
-    const box = await page.evaluate(() => {
-      const el = document.querySelector(".term") as HTMLElement;
-      const r = el.getBoundingClientRect();
-      return { w: Math.ceil(r.width), h: Math.ceil(r.height) };
-    });
-    width = box.w;
-    height = box.h;
-    log(`term: canvas ${width}×${height}px`);
+    ({ width, height } = await measureTermCanvas(page, makeReferenceGrid(maxRows, maxCols), htmlOpts, log));
 
     // Each line is positioned at its BIRTH row; translateY animates the delta.
     const divs = lines

@@ -15,15 +15,14 @@
 import { parseArgs } from "node:util";
 import { launchChromium } from "../index.js";
 import { cliFail, makeLogger, parseNonNegativeFloat, parsePositiveInt } from "./common.js";
-import { runSvgToImage, SUPPORTED_IMAGE_EXTS, type ImageFormat, type SvgToImageOptions } from "./svg-to-image-core.js";
+import { resolveImageFormat, runSvgToImage, SUPPORTED_IMAGE_EXTS, type ImageFormat, type SvgToImageOptions } from "./svg-to-image-core.js";
 
+// DM-1370: delegate the `--format` keyword parsing to `resolveImageFormat`'s
+// override branch (the format-keyword list + aliases + error message live there)
+// instead of duplicating it. With a non-empty override, the output path is
+// ignored, so the placeholder is fine.
 function parseFormat(value: string | undefined): ImageFormat | undefined {
-  if (value == null) return undefined;
-  const v = value.toLowerCase();
-  if (v === "png" || v === "jpeg" || v === "pdf" || v === "webp" || v === "avif" || v === "tiff") return v;
-  if (v === "jpg") return "jpeg";
-  if (v === "tif") return "tiff";
-  throw new Error(`--format expects png | jpeg | pdf | webp | avif | tiff; got "${value}"`);
+  return value == null ? undefined : resolveImageFormat("", value);
 }
 
 function parseQuality(value: string | undefined): number | undefined {
