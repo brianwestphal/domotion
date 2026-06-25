@@ -33,6 +33,7 @@ domotion template chart --type line --data "12,18,15,28,24,38,44" -o dau.svg
 | `showValues` | boolean | `true` | Print each value at the bar end / point (single series only). |
 | `width` / `height` | int | `1000` / `600` | Output size in px. |
 | `background` / `color` | string | `#0b1020` / `#e6edf3` | Frame background / text color. |
+| `fontFamily` | string | `-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif` | Font for the title / labels / values. |
 | `growMs` | int | `750` | Grow / draw duration per element. |
 | `staggerMs` | int | `110` | Delay between categories. |
 | `holdMs` | int | `1800` | Hold after the chart finishes. |
