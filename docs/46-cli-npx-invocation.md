@@ -1,8 +1,7 @@
-# Domotion: CLI invocation as an npm bin (`npx domotion-svg`)
+# Domotion: CLI invocation as an npm bin (`npx -p domotion-svg domotion`)
 
 Requirements for running Domotion's command-line interface without a local
-clone — i.e. `npx domotion-svg …` against the published package. Origin:
-DM-877.
+clone — against the published package. Origin: DM-877.
 
 ## Problem
 
@@ -10,7 +9,7 @@ Domotion ships as the npm package `domotion-svg` and exposes a CLI. A consumer
 who has not cloned the repo should be able to run the tool in one line:
 
 ```bash
-npx domotion-svg capture https://example.com -o demo.svg
+npx -p domotion-svg domotion capture https://example.com -o demo.svg
 ```
 
 For that to work the package must (a) declare an executable bin, (b) ship the
@@ -20,13 +19,17 @@ the contract for that invocation surface.
 
 ## Invocation forms
 
-All of these resolve to the single `domotion` bin:
+The package declares **five** bins (`domotion`, `svg-to-video`, `svg-to-image`,
+`svg-review`, `animated-svg-scrubber`), none of which is named `domotion-svg`.
+npx only auto-runs a package's bin when the package declares exactly one, or one
+whose name matches the requested command — neither holds here — so the bin to
+run must be named explicitly:
 
 | Form | Notes |
 | --- | --- |
-| `npx domotion-svg <cmd> …` | Package name ≠ bin name, but the package declares exactly one bin, so npx runs it. |
-| `npx -p domotion-svg domotion <cmd> …` | Explicit bin name; equivalent. |
-| `domotion <cmd> …` | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. |
+| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `animated-svg-scrubber` to run the other bins. |
+| `npx domotion-svg <cmd> …` | **Does NOT work** — with five bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding the other four bins broke the bare form — DM-1362.) |
+| `domotion <cmd> …` | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all five bins by name. |
 | `npx tsx src/cli/index.ts <cmd> …` | Local dev from a clone (the `npm run capture` script). |
 
 Subcommands and their flags are documented by `domotion --help`; they are out
@@ -35,8 +38,12 @@ reports correct top-level metadata.
 
 ## Package contract
 
-- **`bin`** — `package.json` maps `"domotion": "dist/cli/index.js"`. Exactly
-  one bin, so `npx domotion-svg` runs it without a name match.
+- **`bin`** — `package.json` maps `"domotion": "dist/cli/index.js"` plus four
+  more bins (`svg-to-video`, `svg-to-image`, `svg-review`,
+  `animated-svg-scrubber`). Because there are multiple bins and none matches the
+  package name `domotion-svg`, the bin must be named explicitly
+  (`npx -p domotion-svg domotion …`); the bare `npx domotion-svg …` no longer
+  auto-resolves (DM-1362).
 - **Shebang** — `src/cli/index.ts` (and therefore the compiled
   `dist/cli/index.js`) begins with `#!/usr/bin/env node`. npm sets the
   executable bit on bin targets at pack/install time, so the committed file
@@ -56,7 +63,8 @@ reports correct top-level metadata.
 
 ## Runtime prerequisites
 
-`npx domotion-svg` downloads and runs the package, but the tool itself needs:
+`npx -p domotion-svg domotion` downloads and runs the package, but the tool
+itself needs:
 
 - **Node.js 22+** — the engine the package targets.
 - **A Playwright Chromium browser binary** — a separate download from the

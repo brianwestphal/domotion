@@ -7,8 +7,8 @@ This doc teaches an AI agent (Claude, Cursor, etc.) to **use** Domotion. It is n
 ## Install
 
 ```bash
-npm install domotion-svg          # library + the `domotion` CLI (+ svg-to-video, svg-review, animated-svg-scrubber)
-# or one-off:  npx domotion-svg capture https://example.com -o out.svg
+npm install domotion-svg          # library + the `domotion` CLI (+ svg-to-video, svg-to-image, svg-review, animated-svg-scrubber)
+# or one-off:  npx -p domotion-svg domotion capture https://example.com -o out.svg
 ```
 
 First run auto-installs Playwright's Chromium (`npx playwright install chromium`). It needs a real Chromium — this does not run in a pure-sandbox with no browser.
