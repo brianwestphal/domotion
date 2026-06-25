@@ -11,7 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { AnimateConfig } from "../../cli/animate.js";
+import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
@@ -379,8 +379,6 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan): string {
   ${catMarkup}
 </body></html>`;
 }
-
-type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
 
 /** Per-slice fade delay for the pie/donut sweep. */
 const PIE_SLICE_STAGGER = 90;

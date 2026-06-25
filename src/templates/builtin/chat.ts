@@ -12,7 +12,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { AnimateConfig } from "../../cli/animate.js";
+import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
@@ -150,8 +150,6 @@ export function buildChatHtml(p: ChatParams): string {
   </div>
 </body></html>`;
 }
-
-type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
 
 /** Pop each message in turn: the wrapper scales up from its anchored corner while
  *  the bubble fades in. With typing on, a `them` message is preceded by a "…"

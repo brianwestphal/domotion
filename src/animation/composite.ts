@@ -32,7 +32,7 @@
 
 import { namespaceEmbeddedAnimatedSvg } from "./embed-namespace.js";
 import { offsetEmbeddedAnimatedSvgTimeline, type EmbeddedTimelineMode } from "./embed-timeline.js";
-import { parseSvgIntrinsicSize } from "./svg-meta.js";
+import { parseSvgIntrinsicSize, fmt, clampPct } from "./svg-meta.js";
 
 /** A layer-level animation: move / scale / fade / transform / resize-clip the whole layer. */
 export interface CompositeLayerAnimation {
@@ -125,8 +125,6 @@ export interface CompositeResult {
   durationMs: number;
 }
 
-const fmt = (n: number): string => String(Number(n.toFixed(4)));
-const clampPct = (p: number): number => (p < 0 ? 0 : p > 100 ? 100 : p);
 
 /** Strip the XML prolog + outer `<svg…>…</svg>` wrapper, keeping inner markup (incl. `<style>`). */
 function innerOf(svg: string): string {

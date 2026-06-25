@@ -41,3 +41,9 @@ export function detectAnimationPeriodMs(svg: string): number | undefined {
   }
   return maxSec > 0 ? Math.round(maxSec * 1000) : undefined;
 }
+
+/** Format a number for CSS/SVG output: up to 4 decimals, trailing zeros trimmed. */
+export const fmt = (n: number): string => String(Number(n.toFixed(4)));
+
+/** Clamp a percentage to the [0, 100] range. */
+export const clampPct = (p: number): number => (p < 0 ? 0 : p > 100 ? 100 : p);

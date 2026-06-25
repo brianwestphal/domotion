@@ -38,6 +38,8 @@
  * (so names are already per-frame unique) and only touches `<style>` contents.
  */
 
+import { fmt, clampPct } from "./svg-meta.js";
+
 /**
  * How an embedded layer's own timeline maps onto its container's master loop
  * (DM-1323). `hold` plays the content once at its natural rendered rate starting
@@ -68,12 +70,6 @@ export interface OffsetTimelineOptions {
    */
   windowMs?: number;
 }
-
-/** Format a number for CSS, dropping trailing zeros (`13.6`, not `13.600`). */
-const fmt = (n: number): string => String(Number(n.toFixed(4)));
-
-/** Clamp to the valid keyframe-percentage range. */
-const clampPct = (p: number): number => (p < 0 ? 0 : p > 100 ? 100 : p);
 
 /** Parse a CSS `<time>` token (`13.6s` / `1060ms`) to seconds, or `null`. */
 function parseTimeSec(token: string): number | null {

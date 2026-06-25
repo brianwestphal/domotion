@@ -23,7 +23,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { AnimateConfig } from "../../cli/animate.js";
+import type { AnimateConfig, Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 
 const VARIANTS = ["aurora", "orbs", "stars", "gradient-pan", "grid", "wave"] as const;
@@ -203,8 +203,6 @@ export function buildBackgroundAnimations(blobs: Blob[]): NonNullable<AnimateCon
   }
   return anims;
 }
-
-type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
 
 const GRADIENT_PAN_ANGLE_DEG = 60;
 

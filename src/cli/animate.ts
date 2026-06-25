@@ -398,6 +398,8 @@ export const animateConfigSchema = z
   });
 
 export type AnimateConfig = z.infer<typeof animateConfigSchema>;
+/** The intra-frame `animations` array of a frame — the working type templates build. */
+export type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
 /** DM-1140 (doc 63 §2): the declarative action union accepted by `runActions`
  *  (and the `actions` field of an animate config). Interaction actions (click /
  *  fill / press / hover / focus / selectOption / scroll / wait / evaluate) plus

@@ -11,7 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { AnimateConfig } from "../../cli/animate.js";
+import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
@@ -119,8 +119,6 @@ export function buildSubscribeHtml(p: SubscribeParams): string {
   </div>
 </body></html>`;
 }
-
-type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
 
 /** Cross-fade duration for the simulated click (Subscribe → Subscribed). */
 const CLICK_FADE_MS = 280;
