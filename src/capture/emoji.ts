@@ -143,6 +143,78 @@ export function emojiSquareRect(
  * repeated glyphs (common for list markers, repeating checkmarks, etc.) share
  * a single screenshot. See SK-1058.
  */
+// A pixel rect to screenshot + where to stash the resulting data URI. Two kinds
+// share the pipeline: segment-level rasterRect (SK-1058) and per-char
+// rasterGlyphs (SK-1090).
+interface RasterCandidate {
+  rect: { x: number; y: number; width: number; height: number };
+  key: string;
+  setDataUri: (uri: string) => void;
+}
+
+type RasterTextSeg = NonNullable<CapturedElement["textSegments"]>[number];
+type RasterGlyph = NonNullable<RasterTextSeg["rasterGlyphs"]>[number];
+
+/**
+ * Per-rasterGlyph sbix-vs-screenshot decision (the deepest level of the walk in
+ * `rasterizeBitmapGlyphs`, extracted to flatten it). Tries Apple Color Emoji's
+ * sbix bitmap first (sharper than a 1× page screenshot); on a hit it stamps
+ * `g.dataUri` + snaps the rect square and returns. Otherwise it queues a
+ * screenshot candidate. Behavior is identical to the former inline block.
+ */
+function queueRasterGlyph(
+  g: RasterGlyph,
+  seg: RasterTextSeg,
+  el: CapturedElement,
+  candidates: RasterCandidate[],
+): void {
+  // DM-989: ::first-letter chars get a zero-rect rasterGlyph entry whose only
+  // role is to suppress the body-text glyph at that index (the styled-first-
+  // letter segment paints in front). Skip the screenshot — there's nothing to
+  // capture, and Playwright rejects zero-area clips anyway.
+  if (g.rect.width === 0 && g.rect.height === 0) return;
+  const cp = seg.text.codePointAt(g.charIndex);
+  // DM-335: try Apple Color Emoji's sbix table first. Returns the high-DPI
+  // bitmap Chrome itself paints from CoreText — sharper than a 1× page
+  // screenshot at the same emoji rect. Falls through to the page.screenshot
+  // path for codepoints the color font doesn't cover (text-presentation
+  // glyphs, regional-indicator pairs, ZWJ sequences) or non-darwin platforms
+  // where the .ttc isn't available.
+  if (cp != null && g.rect.width > g.rect.height * EMOJI_SBIX_MIN_ASPECT) {
+    const sbixPng = extractEmojiBitmap(cp, g.rect.width);
+    if (sbixPng != null) {
+      g.dataUri = `data:image/png;base64,${sbixPng.toString("base64")}`;
+      // sbix bitmaps are square (em-square sized). Chrome paints them centered
+      // horizontally on the glyph advance and bottom-aligned to the line-box.
+      // The captured rect spans the typographic line-box (advance × line-
+      // height), which is bigger than the em-square on either axis when letter-
+      // spacing or line-height add slack. DM-438: smiley rendered 20×17 in a
+      // 20-wide / 17-tall rect — fixed by extending the rect upward to 20×20.
+      // DM-801: at font-size 48 with letter-spacing 8, the rect was 56×63, so
+      // emoji painted vertically stretched; snap to fontSize × fontSize
+      // centered horizontally on the rect's advance and bottom-aligned (falls
+      // back to max(w,h) when fontSize isn't carried on the segment).
+      const ls = parseFloat(el.styles.letterSpacing ?? "") || 0;
+      const sq = emojiSquareRect(g.rect, ls);
+      g.rect.x = sq.x;
+      g.rect.y = sq.y;
+      g.rect.width = sq.width;
+      g.rect.height = sq.height;
+      return;
+    }
+  }
+  // Include rect width+height (rounded) in the dedupe key so a ::first-letter
+  // raster of the letter "F" doesn't collide with a regular-sized "F" elsewhere
+  // (different render sizes need different screenshots). See SK-1114.
+  const w = Math.round(g.rect.width);
+  const h = Math.round(g.rect.height);
+  candidates.push({
+    rect: g.rect,
+    key: `glyph|${cp}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}`,
+    setDataUri: (uri) => { g.dataUri = uri; },
+  });
+}
+
 export async function rasterizeBitmapGlyphs(
   page: Page,
   tree: CapturedElement[],
@@ -154,12 +226,7 @@ export async function rasterizeBitmapGlyphs(
   //  - Per-char rasterGlyphs (SK-1090): an emoji in the middle of an
   //    otherwise path-rendered plain-text run; renderer stamps an <image>
   //    over each char on top of the text path.
-  interface Candidate {
-    rect: { x: number; y: number; width: number; height: number };
-    key: string;
-    setDataUri: (uri: string) => void;
-  }
-  const candidates: Candidate[] = [];
+  const candidates: RasterCandidate[] = [];
   const walk = (els: CapturedElement[]): void => {
     for (const el of els) {
       // Element-level raster (SK-1108): textarea content region, too
@@ -193,63 +260,7 @@ export async function rasterizeBitmapGlyphs(
             });
           }
           if (seg.rasterGlyphs != null) {
-            for (const g of seg.rasterGlyphs) {
-              // DM-989: ::first-letter chars get a zero-rect rasterGlyph
-              // entry whose only role is to suppress the body-text glyph at
-              // that index (the styled-first-letter segment paints in front).
-              // Skip the screenshot — there's nothing to capture, and
-              // Playwright rejects zero-area clips anyway.
-              if (g.rect.width === 0 && g.rect.height === 0) continue;
-              const cp = seg.text.codePointAt(g.charIndex);
-              // DM-335: try Apple Color Emoji's sbix table first. Returns
-              // the high-DPI bitmap Chrome itself paints from CoreText —
-              // sharper than a 1× page screenshot at the same emoji rect.
-              // Falls through to the page.screenshot path for codepoints
-              // the color font doesn't cover (text-presentation glyphs,
-              // regional-indicator pairs, ZWJ sequences) or non-darwin
-              // platforms where the .ttc isn't available.
-              if (cp != null && g.rect.width > g.rect.height * EMOJI_SBIX_MIN_ASPECT) {
-                const sbixPng = extractEmojiBitmap(cp, g.rect.width);
-                if (sbixPng != null) {
-                  g.dataUri = `data:image/png;base64,${sbixPng.toString("base64")}`;
-                  // sbix bitmaps are square (em-square sized). Chrome paints
-                  // them centered horizontally on the glyph advance and bottom-
-                  // aligned to the line-box. The captured rect spans the
-                  // typographic line-box (advance × line-height), which is
-                  // bigger than the em-square on either axis when letter-spacing
-                  // or line-height add slack. DM-438: smiley rendered 20×17 in a
-                  // 20-wide / 17-tall rect (height shorter than width) — fixed
-                  // by extending the rect upward to a 20×20 square. DM-801: at
-                  // font-size 48 with letter-spacing 8, the rect was 56×63
-                  // (width INCLUDES letter-spacing, height bigger than em-
-                  // square), so emoji painted as 56×63 — vertically stretched
-                  // hearts and wide smileys. Snap to fontSize × fontSize
-                  // centered horizontally on the rect's advance and bottom-
-                  // aligned vertically; falls back to max(w,h) when fontSize
-                  // isn't carried on the segment (only the SVG path needs it,
-                  // not the existing screenshot path which already round-trips
-                  // a rectangular PNG).
-                  const ls = parseFloat(el.styles.letterSpacing ?? "") || 0;
-                  const sq = emojiSquareRect(g.rect, ls);
-                  g.rect.x = sq.x;
-                  g.rect.y = sq.y;
-                  g.rect.width = sq.width;
-                  g.rect.height = sq.height;
-                  continue;
-                }
-              }
-              // Include rect width+height (rounded) in the dedupe key so a
-              // ::first-letter raster of the letter "F" doesnt collide with
-              // a regular-sized "F" elsewhere on the page (different render
-              // sizes need different screenshots). See SK-1114.
-              const w = Math.round(g.rect.width);
-              const h = Math.round(g.rect.height);
-              candidates.push({
-                rect: g.rect,
-                key: `glyph|${cp}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}`,
-                setDataUri: (uri) => { g.dataUri = uri; },
-              });
-            }
+            for (const g of seg.rasterGlyphs) queueRasterGlyph(g, seg, el, candidates);
           }
         }
       }
