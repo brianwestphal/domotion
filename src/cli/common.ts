@@ -38,7 +38,7 @@ export function parsePositiveInt(value: string | undefined, name: string): numbe
 /** Parse an OPTIONAL `--port` flag — an integer in the TCP range 0..65535, or
  *  `undefined` when absent. **0 is valid and meaningful**: it tells
  *  `server.listen` to bind an OS-assigned free ephemeral port, which is exactly
- *  what the server-backed bins (`svg-review`, `animated-svg-scrubber`) default to
+ *  what the server-backed bins (`svg-review`, `svg-scrubber`) default to
  *  (`inputs.port ?? 0`) and what callers/tests pass to avoid a fixed-port
  *  collision. Rejects NaN / non-integers / negatives / > 65535 at the CLI
  *  boundary so a bad port fails there instead of inside `server.listen`. */
@@ -71,7 +71,7 @@ export function parseNonNegativeFloat(value: string | undefined, name: string): 
  * Open a URL in the user's default browser WITHOUT a shell, so the URL can't be
  * interpreted as shell syntax (argv form via `execFile`). Best-effort: failures
  * are swallowed because the caller has already printed the URL for copy-paste.
- * Shared by the `svg-review` and `animated-svg-scrubber` bins.
+ * Shared by the `svg-review` and `svg-scrubber` bins.
  */
 export async function openInBrowser(url: string): Promise<void> {
   try {

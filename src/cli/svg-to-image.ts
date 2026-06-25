@@ -3,7 +3,7 @@
  * svg-to-image — convert a (still or animated) SVG to a single image file.
  *
  * A standalone CLI (its own `bin`, sibling to `domotion` / `svg-to-video` /
- * `svg-review` / `animated-svg-scrubber`) that loads an SVG in Playwright
+ * `svg-review` / `svg-scrubber`) that loads an SVG in Playwright
  * Chromium and writes one PNG, JPEG, or PDF. The headless, one-shot counterpart
  * to the scrubber's interactive "Export frame" — built for the agent review
  * loop ("render → look at the pixels → critique → iterate"), but works on any

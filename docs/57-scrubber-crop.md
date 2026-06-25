@@ -1,4 +1,4 @@
-# 57 — `animated-svg-scrubber` crop (DM-1104)
+# 57 — `svg-scrubber` crop (DM-1104)
 
 Status: **shipped**. Adds an optional crop rectangle to the scrubber (doc 56) so
 you can trim the framing of an animated SVG and export just that region — works

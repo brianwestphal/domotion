@@ -4,7 +4,7 @@ import { startScrubberServer, type ScrubberServerHandle } from "./server.js";
 import { closeSafely } from "../test-support/close-browser-safely.js";
 
 /**
- * DM-1040: end-to-end coverage for the `animated-svg-scrubber` server — the
+ * DM-1040: end-to-end coverage for the `svg-scrubber` server — the
  * three Chromium-backed endpoints (`/timing`, `/trim`, `/export-frame`) plus the
  * static shell/client. Drives the server in-process (injected `launchBrowser`)
  * so it runs wherever Playwright's Chromium is available; the whole block skips
@@ -19,7 +19,7 @@ const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" width=
 .b{animation:m 2s linear infinite}</style>
 <rect class="b" width="20" height="20" y="20" fill="#ee2233"/></svg>`;
 
-describe("animated-svg-scrubber server (DM-1040)", () => {
+describe("svg-scrubber server (DM-1040)", () => {
   let browser: Browser | null = null;
   let srv: ScrubberServerHandle | null = null;
 

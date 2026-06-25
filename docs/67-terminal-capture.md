@@ -185,7 +185,7 @@ stages 2–4 are identical.
 
 Stages 3–4's rendering/animation infrastructure already shipped (the capture
 pipeline, the animator, the device-chrome `--chrome window` bezel from doc 65
-can frame the terminal, and the `animated-svg-scrubber` from doc 56 reviews the
+can frame the terminal, and the `svg-scrubber` from doc 56 reviews the
 result). The new code is the cast parser, the `@xterm/headless` snapshot wrapper,
 the frame-selection heuristic, and the grid→HTML mapper.
 

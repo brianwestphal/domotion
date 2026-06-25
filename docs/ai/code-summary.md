@@ -50,7 +50,7 @@ shortest possible map:
   `svg-to-image` (still SVG → PNG/JPEG/PDF/WebP/AVIF/TIFF, DM-1353 + DM-1354 /
   doc 78 — `svg-to-image.ts` + `svg-to-image-core.ts`, reusing the
   `svg-to-video-core` seek+screenshot machinery; WebP/AVIF/TIFF transcode via a
-  lazy `sharp` import), `svg-review`, `animated-svg-scrubber`. The
+  lazy `sharp` import), `svg-review`, `svg-scrubber`. The
   `domotion` bin has five subcommands: `capture`, `animate`, `term`
   (terminal-session → animated SVG, DM-1225 / doc 67), `template` (render a
   parameterized template, DM-1276 / doc 70), and `composite` (layer animated
@@ -66,7 +66,7 @@ shortest possible map:
   (`compare-pngs.ts`, `region-overlay.ts`, `server.ts`, `client.tsx`)
   shared between the in-repo `tests/review-server.tsx` and the
   consumer-facing `svg-review` CLI.
-- **`src/scrubber/`** — the `animated-svg-scrubber` server + kerfjs
+- **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56).
 - **`src/templates/`** — the template system (DM-1276 / doc 70): the `Template`

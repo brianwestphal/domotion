@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Pre-build: bundle `src/scrubber/client.ts` into a single IIFE the
-// `animated-svg-scrubber` HTTP server serves as `/client.js`. Output is written
+// `svg-scrubber` HTTP server serves as `/client.js`. Output is written
 // to `src/scrubber/client.bundle.generated.ts` as an exported string so
 // `tsc -p tsconfig.build.json` picks it up and ships it inside `dist/`. Mirrors
 // scripts/build-review-client.mjs (DM-1040).

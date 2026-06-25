@@ -2,7 +2,7 @@
 /** @jsxImportSource kerfjs */
 
 /**
- * DM-1040 / DM-1047: `animated-svg-scrubber` page-side client (bundled to
+ * DM-1040 / DM-1047: `svg-scrubber` page-side client (bundled to
  * /client.js). Built with kerfjs — reactive signals drive the transport bar
  * (play / scrub / range / export menu / zoom presets); the loaded SVG itself
  * lives in a `data-morph-skip` host that the morph never touches, so we can

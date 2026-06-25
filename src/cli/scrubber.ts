@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `animated-svg-scrubber` CLI (DM-1040).
+ * `svg-scrubber` CLI (DM-1040).
  *
  * Launches a local web UI that gives an animated SVG video-style transport:
  * play / pause, playback speed, manual scrubbing, range select + loop, plus
@@ -9,10 +9,10 @@
  * on the command line to preload it.
  *
  * Usage:
- *   animated-svg-scrubber [file.svg] [--port <n>] [--no-open]
+ *   svg-scrubber [file.svg] [--port <n>] [--no-open]
  *
  * Spins up an HTTP server on 127.0.0.1, opens the default browser, and stays
- * alive until Ctrl-C. See docs/56-animated-svg-scrubber.md.
+ * alive until Ctrl-C. See docs/56-svg-scrubber.md.
  */
 
 import { parseArgs } from "node:util";
@@ -22,10 +22,10 @@ import { launchChromium } from "../capture/index.js";
 import { startScrubberServer } from "../scrubber/server.js";
 import { cliFail, openInBrowser, parsePort } from "./common.js";
 
-const HELP = `animated-svg-scrubber — video-style playback / scrubbing for animated SVGs
+const HELP = `svg-scrubber — video-style playback / scrubbing for animated SVGs
 
 Usage:
-  animated-svg-scrubber [file.svg] [options]
+  svg-scrubber [file.svg] [options]
 
 Arguments:
   file.svg               Optional animated SVG to preload into the UI.
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
   const file = positionals[0];
   if (file != null) {
     const p = resolve(file);
-    if (!existsSync(p)) cliFail("animated-svg-scrubber", `file not found: ${p}`, "usage");
+    if (!existsSync(p)) cliFail("svg-scrubber", `file not found: ${p}`, "usage");
     initialSvg = readFileSync(p, "utf-8");
     initialName = basename(p);
   }
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     log: (m) => process.stderr.write(`${m}\n`),
   });
 
-  process.stdout.write(`\n  animated-svg-scrubber running at ${server.url}\n  Press Ctrl-C to stop.\n\n`);
+  process.stdout.write(`\n  svg-scrubber running at ${server.url}\n  Press Ctrl-C to stop.\n\n`);
   if (!values["no-open"]) await openInBrowser(server.url);
 
   let closing = false;
@@ -88,5 +88,5 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  cliFail("animated-svg-scrubber", err instanceof Error ? err.message : String(err), "runtime");
+  cliFail("svg-scrubber", err instanceof Error ? err.message : String(err), "runtime");
 });

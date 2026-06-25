@@ -7,7 +7,7 @@ This doc teaches an AI agent (Claude, Cursor, etc.) to **use** Domotion. It is n
 ## Install
 
 ```bash
-npm install domotion-svg          # library + the `domotion` CLI (+ svg-to-video, svg-to-image, svg-review, animated-svg-scrubber)
+npm install domotion-svg          # library + the `domotion` CLI (+ svg-to-video, svg-to-image, svg-review, svg-scrubber)
 # or one-off:  npx -p domotion-svg domotion capture https://example.com -o out.svg
 ```
 
@@ -23,7 +23,7 @@ First run auto-installs Playwright's Chromium (`npx playwright install chromium`
 | `svg-to-video` | Render an animated SVG to MP4/WebM/MOV. |
 | `svg-to-image` | Rasterize a still (or one frame of an animated) SVG to PNG/JPEG/PDF/WebP/AVIF/TIFF — your "look at the pixels" tool. |
 | `svg-review` | Diff a capture against the Chromium screenshot (for filing fidelity bugs). |
-| `animated-svg-scrubber` | Play / scrub / trim / export-frame an animated SVG locally. |
+| `svg-scrubber` | Play / scrub / trim / export-frame an animated SVG locally. |
 
 ## `domotion capture <input>` — one frame → SVG
 
@@ -141,7 +141,7 @@ For Node scripts instead of the CLI: `captureElementTree()` + `elementTreeToSvg(
 
 You cannot judge a visual you haven't seen. **Never ship the first render.** The output is an ordinary, self-contained, standards-compliant SVG, so you can look at it cheaply:
 
-1. **Render**, then **rasterize and actually view it as pixels.** For a still: `svg-to-image out.svg -o out.png` (the published one-shot rasterizer) and *look at the PNG*. For an animation: pull key beats as stills with `svg-to-image out.svg -o payoff.png --at <ms>` (the hook frame, the payoff frame, any frame you suspect is broken), and/or `svg-to-video out.svg -o out.mp4` to watch it; `animated-svg-scrubber out.svg` is the interactive timeline bench. `svg-review` is for pixel-diffing a capture against Chromium (fidelity bugs), not aesthetic review.
+1. **Render**, then **rasterize and actually view it as pixels.** For a still: `svg-to-image out.svg -o out.png` (the published one-shot rasterizer) and *look at the PNG*. For an animation: pull key beats as stills with `svg-to-image out.svg -o payoff.png --at <ms>` (the hook frame, the payoff frame, any frame you suspect is broken), and/or `svg-to-video out.svg -o out.mp4` to watch it; `svg-scrubber out.svg` is the interactive timeline bench. `svg-review` is for pixel-diffing a capture against Chromium (fidelity bugs), not aesthetic review.
 2. **Critique against the checklist** (bottom of this section): hierarchy, contrast, easing, pacing, restraint. Name the single weakest thing.
 3. **Fix that one thing and re-render.** Iterate.
 4. **Prototype cheap, commit late.** Get the *still* frames right first (composition, color, type) — they're fast to render and most problems are visible without motion. Add motion only once the frames look good; motion can't rescue a weak frame.

@@ -1,4 +1,4 @@
-# 56 — `animated-svg-scrubber` (video-style playback for animated SVGs)
+# 56 — `svg-scrubber` (video-style playback for animated SVGs)
 
 A command-line app that launches a local web UI for inspecting animated SVGs
 the way a video editor inspects a clip: play / pause, change playback speed,
@@ -12,7 +12,7 @@ you want before (or instead of) baking.
 ## Usage
 
 ```sh
-animated-svg-scrubber [file.svg] [--port <n>] [--no-open]
+svg-scrubber [file.svg] [--port <n>] [--no-open]
 ```
 
 - `file.svg` (optional) preloads an SVG into the UI; otherwise drag-drop or use
@@ -137,7 +137,7 @@ follow-up and reuse the same `svg-to-video` / per-frame machinery.
 
 ## Code map
 
-- `src/cli/scrubber.ts` — the `animated-svg-scrubber` bin (arg parsing, browser
+- `src/cli/scrubber.ts` — the `svg-scrubber` bin (arg parsing, browser
   launch, open, lifecycle).
 - `src/scrubber/server.ts` — HTTP server: static shell + client bundle;
   `/timing`, `/trim`, `/export-frame`, `/export-range-video` endpoints; one

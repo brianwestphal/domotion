@@ -106,7 +106,7 @@ const SEARCH_HTML = page(`
     <div class="card-meta">independent timelines · animation preserved · doc 77</div>
   </div>
   <div class="card">
-    <div class="card-title">animated-svg-scrubber</div>
+    <div class="card-title">svg-scrubber</div>
     <div class="card-desc">Play / scrub / trim / export-frame an animated SVG locally</div>
     <div class="card-meta">video-style bench · doc 56</div>
   </div>

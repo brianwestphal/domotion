@@ -2,6 +2,12 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [Unreleased]
+
+** Changed**
+
+- **Renamed the `animated-svg-scrubber` bin to `svg-scrubber`.** The command for the local video-style timeline bench is now `svg-scrubber` (e.g. `npx svg-scrubber out.svg`). This is a breaking change for any script or shortcut that invoked the old name; update call sites to `svg-scrubber`. The flags, behavior, and `src/cli/scrubber.js` entry point are unchanged.
+
 ## [0.15.0] - 2026-06-24
 
 

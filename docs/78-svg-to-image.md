@@ -1,7 +1,7 @@
 # 78 — `svg-to-image`: still SVG → PNG / JPEG / PDF / WebP / AVIF / TIFF
 
 Status: **shipped** (DM-1353). A fifth published bin (sibling to `domotion`,
-`svg-to-video`, `svg-review`, `animated-svg-scrubber`) that converts a single SVG
+`svg-to-video`, `svg-review`, `svg-scrubber`) that converts a single SVG
 into one image file. It is the headless, one-shot counterpart to the scrubber's
 interactive **Export frame** (doc 56) and the still analogue of `svg-to-video`
 (which only emits video).
@@ -14,7 +14,7 @@ without a renderer. The agent review loop the `llms.txt` playbook prescribes —
 one-shot rasterizer for a **still**:
 
 - `svg-to-video` outputs video (mp4/webm/mov), not an image.
-- `animated-svg-scrubber` can export a frame as PNG, but only through its
+- `svg-scrubber` can export a frame as PNG, but only through its
   interactive web UI.
 - `svg-review` rasterizes via Chromium but is a diff tool that requires an
   `--expected` image.
@@ -107,7 +107,7 @@ requires headless Chromium, which `launchChromium()` always is.
 
 ## See also
 
-- doc 56 — `animated-svg-scrubber` (interactive frame export + MP4/trim).
+- doc 56 — `svg-scrubber` (interactive frame export + MP4/trim).
 - doc 54 — `svg-review` (still-fidelity diff against a Chromium screenshot).
 - the `svg-to-video` bin — animated SVG → video.
 - `llms.txt` "Work the loop" — the agent review loop this command serves.

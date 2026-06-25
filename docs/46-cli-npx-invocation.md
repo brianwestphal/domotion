@@ -20,14 +20,14 @@ the contract for that invocation surface.
 ## Invocation forms
 
 The package declares **five** bins (`domotion`, `svg-to-video`, `svg-to-image`,
-`svg-review`, `animated-svg-scrubber`), none of which is named `domotion-svg`.
+`svg-review`, `svg-scrubber`), none of which is named `domotion-svg`.
 npx only auto-runs a package's bin when the package declares exactly one, or one
 whose name matches the requested command — neither holds here — so the bin to
 run must be named explicitly:
 
 | Form | Notes |
 | --- | --- |
-| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `animated-svg-scrubber` to run the other bins. |
+| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `svg-scrubber` to run the other bins. |
 | `npx domotion-svg <cmd> …` | **Does NOT work** — with five bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding the other four bins broke the bare form — DM-1362.) |
 | `domotion <cmd> …` | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all five bins by name. |
 | `npx tsx src/cli/index.ts <cmd> …` | Local dev from a clone (the `npm run capture` script). |
@@ -40,7 +40,7 @@ reports correct top-level metadata.
 
 - **`bin`** — `package.json` maps `"domotion": "dist/cli/index.js"` plus four
   more bins (`svg-to-video`, `svg-to-image`, `svg-review`,
-  `animated-svg-scrubber`). Because there are multiple bins and none matches the
+  `svg-scrubber`). Because there are multiple bins and none matches the
   package name `domotion-svg`, the bin must be named explicitly
   (`npx -p domotion-svg domotion …`); the bare `npx domotion-svg …` no longer
   auto-resolves (DM-1362).

@@ -186,8 +186,8 @@ they describe (see `CLAUDE.md` "Documentation"):
 - **Doc 55 (`docs/55-debug-mode-capture.md`, DM-945)** — the
   `domotion capture --debug` flag's reproduction bundle (HAR +
   screenshot + actual SVG + captured-tree JSON).
-- **Doc 56 (`docs/56-animated-svg-scrubber.md`, DM-1040)** — the
-  `animated-svg-scrubber` CLI: a local video-style bench for an animated
+- **Doc 56 (`docs/56-svg-scrubber.md`, DM-1040)** — the
+  `svg-scrubber` CLI: a local video-style bench for an animated
   SVG (play / scrub / speed / range-loop / frame-PNG / range-MP4 / trim).
 - **Doc 57 (`docs/57-scrubber-crop.md`, DM-1104)** — the scrubber's crop
   mode: a draggable crop rect (8 handles) baked into all three exports

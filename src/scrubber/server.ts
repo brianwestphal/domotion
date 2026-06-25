@@ -1,5 +1,5 @@
 /**
- * DM-1040: `animated-svg-scrubber` HTTP server.
+ * DM-1040: `svg-scrubber` HTTP server.
  *
  * Serves a single-page web UI (`/` shell + `/client.js` bundle) for loading an
  * animated SVG and giving it video-style transport — play / pause / speed /
@@ -167,7 +167,7 @@ export interface ScrubberServerHandle {
 const SHELL = (bootstrap: string): string => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>animated-svg-scrubber</title>
+<title>svg-scrubber</title>
 </head><body>
 <div id="app"></div>
 <script>window.__SCRUBBER_BOOTSTRAP__ = ${bootstrap};</script>
