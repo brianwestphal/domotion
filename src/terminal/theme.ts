@@ -8,6 +8,8 @@
  * surface + text colors for cells that carry no explicit color.
  */
 
+import { z } from "zod";
+
 export interface TerminalTheme {
   name: string;
   bg: string;
@@ -32,6 +34,22 @@ export interface TerminalThemeSpec {
   /** Exactly 16 colors when present (0–7 normal, 8–15 bright). */
   ansi?: string[];
 }
+
+/**
+ * Runtime validator for `TerminalThemeSpec`, so external theme JSON (the
+ * `domotion term --theme-file` surface) is shape-checked at the CLI boundary
+ * instead of being cast straight through with `as`. Shared with `animate.ts`'s
+ * per-frame `cast` theme option so the two `--theme-file` / config code paths
+ * can't drift. Keep in sync with the interface above. `.length(16)` enforces the
+ * exact ANSI palette size; unknown keys are stripped (non-strict).
+ */
+export const terminalThemeSpecSchema: z.ZodType<TerminalThemeSpec> = z.object({
+  extends: z.string().optional(),
+  name: z.string().optional(),
+  bg: z.string().optional(),
+  fg: z.string().optional(),
+  ansi: z.array(z.string()).length(16).optional(),
+});
 
 /** Default: a Catppuccin-Mocha-style palette (matches the existing terminal demos). */
 const CATPPUCCIN: TerminalTheme = {

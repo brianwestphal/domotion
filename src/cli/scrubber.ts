@@ -18,9 +18,9 @@
 import { parseArgs } from "node:util";
 import { resolve, basename } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { chromium } from "@playwright/test";
+import { launchChromium } from "../capture/index.js";
 import { startScrubberServer } from "../scrubber/server.js";
-import { cliFail, openInBrowser } from "./common.js";
+import { cliFail, openInBrowser, parsePort } from "./common.js";
 
 const HELP = `animated-svg-scrubber — video-style playback / scrubbing for animated SVGs
 
@@ -66,10 +66,10 @@ async function main(): Promise<void> {
   }
 
   const server = await startScrubberServer({
-    port: values.port != null ? Number(values.port) : undefined,
+    port: parsePort(values.port),
     initialSvg,
     initialName,
-    launchBrowser: () => chromium.launch(),
+    launchBrowser: () => launchChromium(),
     log: (m) => process.stderr.write(`${m}\n`),
   });
 

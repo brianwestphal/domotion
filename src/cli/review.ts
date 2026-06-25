@@ -21,10 +21,11 @@ import { resolve, extname, basename } from "node:path";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser } from "@playwright/test";
+import { type Browser } from "@playwright/test";
+import { launchChromium } from "../capture/index.js";
 import { comparePngs } from "../review/compare-pngs.js";
 import { startReviewServer } from "../review/server.js";
-import { cliFail, openInBrowser } from "./common.js";
+import { cliFail, openInBrowser, parsePort } from "./common.js";
 
 const HELP = `svg-review — compare Domotion's actual.svg against expected.png
 
@@ -77,7 +78,7 @@ function parseFlags(argv: string[]): ReviewFlags | { help: true } {
   return {
     expected: resolve(values.expected),
     actual: resolve(values.actual),
-    port: values.port != null ? Number(values.port) : undefined,
+    port: parsePort(values.port),
     open: !values["no-open"],
   };
 }
@@ -139,7 +140,7 @@ async function main(): Promise<void> {
   let actualPng: string;
   let actualSvg: string;
 
-  const browser = await chromium.launch();
+  const browser = await launchChromium();
   try {
     if (ext === ".svg") {
       actualSvg = flags.actual;

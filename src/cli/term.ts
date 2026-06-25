@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
 import { recordPtySession } from "../terminal/pty.js";
-import { THEMES, type TerminalThemeSpec } from "../terminal/theme.js";
+import { THEMES, terminalThemeSpecSchema, type TerminalThemeSpec } from "../terminal/theme.js";
 import { cliFail } from "./common.js";
 
 const HELP = `domotion term — record a terminal session as an animated SVG
@@ -136,11 +136,23 @@ export async function runTerm(argv: string[]): Promise<void> {
   if (themeFile != null || values.bg != null || values.fg != null) {
     let spec: TerminalThemeSpec = {};
     if (themeFile != null) {
+      let raw: unknown;
       try {
-        spec = JSON.parse(readFileSync(resolve(themeFile), "utf8")) as TerminalThemeSpec;
+        raw = JSON.parse(readFileSync(resolve(themeFile), "utf8"));
       } catch (e) {
         cliFail("domotion term", `--theme-file is not valid JSON: ${(e as Error).message}`, "usage");
       }
+      // Shape-check the external JSON instead of casting it through with `as` —
+      // a malformed theme (wrong-length ansi[], non-string bg) would otherwise
+      // flow unvalidated into the renderer.
+      const parsed = terminalThemeSpecSchema.safeParse(raw);
+      if (!parsed.success) {
+        const detail = parsed.error.issues
+          .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join("; ");
+        cliFail("domotion term", `--theme-file has an invalid theme shape: ${detail}`, "usage");
+      }
+      spec = parsed.data;
     }
     if (values.theme != null) spec.extends = values.theme; // --theme is the base
     if (values.bg != null) spec.bg = values.bg;

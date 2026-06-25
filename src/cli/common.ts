@@ -35,6 +35,17 @@ export function parsePositiveInt(value: string | undefined, name: string): numbe
   return n;
 }
 
+/** Parse an OPTIONAL `--port` flag — a positive integer in the valid TCP range
+ *  (1..65535), or `undefined` when absent. Builds on `parsePositiveInt` (which
+ *  rejects NaN / non-integers / values ≤ 0) and adds the upper bound so a bad
+ *  port fails at the CLI boundary instead of inside `server.listen`. Shared by
+ *  the server-backed bins (`svg-review`, `animated-svg-scrubber`). */
+export function parsePort(value: string | undefined): number | undefined {
+  const n = parsePositiveInt(value, "port");
+  if (n != null && n > 65535) throw new Error(`--port expects a value in 1..65535, got "${value}"`);
+  return n;
+}
+
 /** Parse an OPTIONAL positive-float flag — `undefined` when absent. */
 export function parsePositiveFloat(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;

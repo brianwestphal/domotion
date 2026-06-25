@@ -49,6 +49,7 @@ import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
+import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -204,17 +205,10 @@ const overlaySchema = z.discriminatedUnion("kind", [
 // DM-1225 (doc 67): per-frame terminal options for a `cast` frame. All optional;
 // they default to the cast header / the term tool's defaults.
 // A built-in theme name, or a spec overriding bg / fg / ansi[16] on top of an
-// `extends` base (default catppuccin). DM-1225.
-const termThemeSchema = z.union([
-  z.string(),
-  z.object({
-    extends: z.string().optional(),
-    name: z.string().optional(),
-    bg: z.string().optional(),
-    fg: z.string().optional(),
-    ansi: z.array(z.string()).length(16).optional(),
-  }),
-]);
+// `extends` base (default catppuccin). DM-1225. The spec form is the shared
+// `terminalThemeSpecSchema` (also used by `term --theme-file`) so the two theme
+// surfaces validate identically.
+const termThemeSchema = z.union([z.string(), terminalThemeSpecSchema]);
 
 const termOptionsSchema = z.object({
   theme: termThemeSchema.optional(),
