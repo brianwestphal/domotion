@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 560,
+  "height": 320,
+  "cursor": "auto",
+  "frames": [
+    {
+      "input": "./page.html",
+      "duration": 1400,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "continue": true,
+      "actions": [{ "type": "click", "selector": ".cta" }],
+      "wait": 150,
+      "duration": 1800,
+      "transition": { "type": "cut", "duration": 0 }
+    }
+  ]
+}

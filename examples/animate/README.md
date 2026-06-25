@@ -22,6 +22,8 @@ Open any `<name>.svg` in a browser to watch it loop.
 | `terminal-onboarding/` | Four terminal panes (clone → install → configure → run), each with a **`typing` overlay** (caret) for its command, a delayed **`clipPath` wipe** that reveals the command's results only after it types, and a **`push-left`** between steps; the final step holds solid. (Gallery Tier 3.) |
 | `form-fill/` | A signup form filled with **simulated typing**: each field is `focus`ed and typed by a caret **`typing` overlay**, then `fill`ed for real so it persists while the next field types; submit reveals a success banner. Inputs are monospace to match the overlay font. (Gallery Tier 3.) |
 | `scroll-landing/` | A tall landing page (hero → features → testimonial → CTA) scrolled top→bottom via a **`scroll` block** (`down:bottom/5s`); the sticky nav stays pinned. (Gallery Tier 3.) |
+| `cursor-auto/` | A config-level **`cursor: "auto"`** overlay: the pointer auto-glides to each `click`/`hover`/`fill` target and pulses on click. Here it glides to the "Deploy now" button on a continued page and clicks it. |
+| `cursor-events/` | A config-level **`cursor: { events: [...] }`** overlay: an explicit timeline of pointer moves. A `move` to fixed coords, then a `moveClick` whose `selector` resolves to the button's center — with a `style.scale` tweak. |
 
 The config format is documented in `docs/08-animation-model.md`,
 `docs/43-declarative-animate-config.md`, and the CLI `--help`. Paths inside a

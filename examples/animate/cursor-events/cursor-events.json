@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 560,
+  "height": 320,
+  "cursor": {
+    "style": { "scale": 1.1 },
+    "events": [
+      { "frame": 0, "at": 0, "type": "move", "to": { "x": 60, "y": 60 } },
+      { "frame": 1, "at": 200, "type": "moveClick", "selector": ".cta" }
+    ]
+  },
+  "frames": [
+    {
+      "input": "./page.html",
+      "duration": 1400,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "continue": true,
+      "duration": 1800,
+      "transition": { "type": "cut", "duration": 0 }
+    }
+  ]
+}

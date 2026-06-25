@@ -752,6 +752,210 @@ function buildTemplateFrame(
   };
 }
 
+/**
+ * Per-frame loop state threaded into `buildCapturedFrame` (DM-1379). These are
+ * the slices of `composeAnimateFrames`' shared state the captured/default frame
+ * body reads or appends to: the live `page`, the run config + paths + logger,
+ * the shared webfont tracker, and the cursor-recording accumulators (`auto`
+ * targets get pushed; explicit-event selector boxes get set). Everything else
+ * the loop owns (frames array, prevFrameTree, frameTrees, canvasBg) stays in the
+ * caller — the helper returns what the caller needs to update them.
+ */
+interface CapturedFrameContext {
+  page: Page;
+  cfg: AnimateConfig;
+  configDir: string;
+  log: (msg: string) => void;
+  tracker: ReturnType<typeof attachWebfontTracker>;
+  cursorAuto: boolean;
+  explicitCursorEvents: CursorEventInput[];
+  autoCursorTargets: Array<{ frame: number; cx: number; cy: number }>;
+  explicitCursorBoxes: Map<string, { cx: number; cy: number }>;
+}
+
+/**
+ * Build a captured/default frame (DM-1379): the loop's main fall-through path —
+ * continue-vs-load → readyWaits → webfont discovery → scrollTo → cursor
+ * recording → actions → intra-frame animations → scroll-block-vs-capture →
+ * overlays. Extracted from `composeAnimateFrames`' loop; unlike the cast/template
+ * continue-branches (`buildCastFrame` / `buildTemplateFrame`) this is entangled
+ * with shared loop state, so it takes a `CapturedFrameContext` (DM-1342-style
+ * context struct) and returns `{ frame, frameTree, rootBg }` rather than pushing
+ * itself. The caller owns the cross-frame after-build orchestration: set
+ * `canvasBg` from `rootBg` on frame 0, push the frame, fire the `onFrame` hook,
+ * build the magic-move bridge, and update `prevFrameTree` / `frameTrees`.
+ *
+ * The cursor-recording paths (`autoCursorTargets.push` / `explicitCursorBoxes
+ * .set`) are byte-gated by the `cursor-auto` / `cursor-events` examples.
+ */
+async function buildCapturedFrame(
+  fc: AnimateFrameCfg,
+  i: number,
+  ctx: CapturedFrameContext,
+): Promise<{ frame: AnimationFrame; frameTree: CapturedElement[] | null; rootBg: string | undefined }> {
+  const { page, cfg, configDir, log, tracker, cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes } = ctx;
+  // The captured root background of this frame (the caller stamps it onto the
+  // composed canvas only for frame 0 — see DM-893); computed in both the scroll
+  // and capture branches below.
+  let rootBg: string | undefined;
+  // DM-846 §1: a continued frame (explicit `continue: true`, or a non-first
+  // frame that omits `input`) captures the previous frame's live page after
+  // running its own actions, instead of reloading. The page persists across
+  // the whole loop, so "continue" simply means "don't navigate".
+  const isContinue = i > 0 && (fc.continue === true || fc.input == null);
+  if (isContinue) {
+    log(`Frame ${i + 1}/${cfg.frames.length}: continuing live page…`);
+  } else {
+    const inputStr = fc.input;
+    if (inputStr == null) throw new Error(`animate: frames[${i}] has no input and is not a continue frame`);
+    const input = resolveFrameInput(inputStr, configDir);
+    log(`Frame ${i + 1}/${cfg.frames.length}: loading ${input}…`);
+    await timed(log, `  loaded`, () => loadInputIntoPage(page, input));
+  }
+  await applyReadyWaits(page, {
+    wait: fc.wait ?? 200,
+    waitFor: fc.waitFor,
+    fontsReady: true,
+    frameIndex: i,
+    waitForText: fc.waitForText,
+    waitForGone: fc.waitForGone,
+    waitForCount: fc.waitForCount,
+  });
+  await discoverAndRegisterWebfonts(page, tracker.urls);
+  if (fc.scrollTo != null) {
+    const sx = fc.scrollTo[0], sy = fc.scrollTo[1];
+    await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
+  }
+  // DM-851 §6: for `cursor: "auto"`, record each interaction target's
+  // center BEFORE the action runs (that's where the pointer clicks).
+  if (cursorAuto && fc.actions != null) {
+    for (const a of fc.actions) {
+      if (a.type === "click" || a.type === "hover" || a.type === "fill") {
+        const c = await queryCursorBox(page, a.selector);
+        if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy });
+      }
+    }
+  }
+  if (fc.actions != null) await runActions(page, fc.actions, log);
+  // Explicit cursor-event selectors resolve against the post-action DOM.
+  for (const ev of explicitCursorEvents) {
+    if (ev.frame === i && ev.selector != null) {
+      const c = await queryCursorBox(page, ev.selector);
+      if (c == null) throw new Error(`animate: cursor.events selector "${ev.selector}" matched no element in frame ${i}`);
+      explicitCursorBoxes.set(`${i}:${ev.selector}`, c);
+    }
+  }
+
+  // Intra-frame animations (DM-209): tag the live DOM with
+  // `data-domotion-anim="<id>"` for each animation's selector. The capture
+  // pass picks up the data attribute and the renderer surfaces it as
+  // class="anim-<id>" on the rendered group, which the animator targets
+  // with a CSS keyframe block.
+  const resolvedAnimations: IntraFrameAnimation[] = [];
+  if (fc.animations != null && fc.animations.length > 0) {
+    for (let ai = 0; ai < fc.animations.length; ai++) {
+      const a = fc.animations[ai];
+      const animId = `f${i}a${ai}`;
+      await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const els = document.querySelectorAll(args.selector);
+          els.forEach((el) => {
+            if (el instanceof HTMLElement) el.dataset.domotionAnim = args.animId;
+          });
+        },
+        { selector: a.selector, animId },
+      );
+      resolvedAnimations.push({
+        animId,
+        property: a.property,
+        from: a.from,
+        to: a.to,
+        duration: a.duration,
+        easing: a.easing,
+        delay: a.delay,
+        repeat: a.repeat,
+        alternate: a.alternate,
+        transformOrigin: a.transformOrigin,
+      });
+    }
+  }
+
+  let svgContent: string;
+  let frameCullCss: string;
+  // DM-898: retain this frame's captured tree so a magic-move transition
+  // can diff it against the next frame's. `null` for scroll-block frames
+  // (no single tree) — magic-move then falls back to crossfade.
+  let frameTree: CapturedElement[] | null = null;
+  if (fc.scroll != null) {
+    // DM-612: scroll-demo block. Run the executor against the loaded
+    // page, cull each segment's tree (DM-603), compose into one
+    // animated SVG, and use as this frame's svgContent. The composed
+    // SVG carries its own internal keyframes loop (animation-duration =
+    // pattern's total scroll time) — caller is expected to size the
+    // frame's `duration` to match so the outer scene cycle aligns with
+    // the inner scroll loop.
+    log(`  scroll pattern: ${fc.scroll.pattern}`);
+    const scrollPattern = parseScrollPattern(fc.scroll.pattern);
+    const segments = await executeScrollPattern(page, scrollPattern, {
+      selector: fc.scroll.selector,
+      viewportW: cfg.width,
+      viewportH: cfg.height,
+      defaultSpeed: fc.scroll.speed,
+      prescroll: fc.scroll.prescroll !== false,
+      log,
+    });
+    for (const seg of segments) {
+      cullElementsOutsideViewBox(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
+    }
+    rootBg = segments[0]?.tree?.[0]?.styles?.rootBgComputed;
+    const composed = composeScrollSvg(segments, { viewportW: cfg.width, viewportH: cfg.height });
+    // The composer emits a full `<?xml ...><svg>...</svg>` document. The
+    // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
+    // happily contains a nested `<svg>` element — strip just the XML
+    // prolog so we don't end up with `<?xml ...>` inside a `<g>`.
+    svgContent = composed.replace(/^<\?xml[^>]*\?>\s*/, "");
+    frameCullCss = "";
+  } else {
+    const tree = await captureElementTree(page, fc.selector ?? "body", {
+      x: 0, y: 0, width: cfg.width, height: cfg.height,
+    });
+    // DM-603: viewBox-cull pass — mutates the tree (sets `displayNone` /
+    // `cullClass` on elements that fall outside the viewBox during this
+    // frame's segment of the scene cycle) and returns the keyframes CSS
+    // mapping each `cull-N` class to its visible window. Must run BEFORE
+    // `elementTreeToSvg` so the renderer sees the mutated tree.
+    let frameStartMs = 0;
+    for (let pi = 0; pi < i; pi++) {
+      frameStartMs += frameAdvanceMs(cfg.frames[pi]);
+    }
+    const totalDurationMs = cfg.frames.reduce((sum, f) => sum + frameAdvanceMs(f), 0);
+    const result = cullElementsOutsideViewBox(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
+    frameCullCss = result.css;
+    rootBg = tree[0]?.styles?.rootBgComputed;
+    svgContent = elementTreeToSvgInner(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
+    frameTree = tree;
+  }
+
+  // DM-850 §5: resolve selector-anchored overlays against the live page
+  // (bbox → x/y, and maxWidth:"anchor" → the element's content width) BEFORE
+  // the svg-inlining pass, while the page is still loaded.
+  const anchoredOverlays = await resolveOverlayAnchors(page, fc.overlays, i);
+  // Resolve SVG-kind overlays: read each `src` from disk, namespace its
+  // ids, and replace with `innerSvg`. Other overlay kinds pass through
+  // verbatim. (DM-210.)
+  const overlays = resolveSvgOverlays(anchoredOverlays, configDir, i);
+
+  const frame: AnimationFrame = {
+    svgContent,
+    cullCss: frameCullCss === "" ? undefined : frameCullCss,
+    duration: fc.duration,
+    transition: fc.transition,
+    overlays,
+    animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
+  };
+  return { frame, frameTree, rootBg };
+}
+
 export async function composeAnimateFrames(
   browser: Browser,
   cfg: AnimateConfig,
@@ -831,6 +1035,12 @@ export async function composeAnimateFrames(
       }
     }
 
+    // DM-1379: the per-frame loop state `buildCapturedFrame` reads/appends to.
+    const capturedCtx: CapturedFrameContext = {
+      page, cfg, configDir, log, tracker,
+      cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes,
+    };
+
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
       // DM-1225 (doc 67): a `cast` frame embeds a recorded terminal session as
@@ -853,161 +1063,14 @@ export async function composeAnimateFrames(
         frameTrees.push(null);
         continue;
       }
-      // DM-846 §1: a continued frame (explicit `continue: true`, or a non-first
-      // frame that omits `input`) captures the previous frame's live page after
-      // running its own actions, instead of reloading. The page persists across
-      // the whole loop, so "continue" simply means "don't navigate".
-      const isContinue = i > 0 && (fc.continue === true || fc.input == null);
-      if (isContinue) {
-        log(`Frame ${i + 1}/${cfg.frames.length}: continuing live page…`);
-      } else {
-        const inputStr = fc.input;
-        if (inputStr == null) throw new Error(`animate: frames[${i}] has no input and is not a continue frame`);
-        const input = resolveFrameInput(inputStr, configDir);
-        log(`Frame ${i + 1}/${cfg.frames.length}: loading ${input}…`);
-        await timed(log, `  loaded`, () => loadInputIntoPage(page, input));
-      }
-      await applyReadyWaits(page, {
-        wait: fc.wait ?? 200,
-        waitFor: fc.waitFor,
-        fontsReady: true,
-        frameIndex: i,
-        waitForText: fc.waitForText,
-        waitForGone: fc.waitForGone,
-        waitForCount: fc.waitForCount,
-      });
-      await discoverAndRegisterWebfonts(page, tracker.urls);
-      if (fc.scrollTo != null) {
-        const sx = fc.scrollTo[0], sy = fc.scrollTo[1];
-        await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
-      }
-      // DM-851 §6: for `cursor: "auto"`, record each interaction target's
-      // center BEFORE the action runs (that's where the pointer clicks).
-      if (cursorAuto && fc.actions != null) {
-        for (const a of fc.actions) {
-          if (a.type === "click" || a.type === "hover" || a.type === "fill") {
-            const c = await queryCursorBox(page, a.selector);
-            if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy });
-          }
-        }
-      }
-      if (fc.actions != null) await runActions(page, fc.actions, log);
-      // Explicit cursor-event selectors resolve against the post-action DOM.
-      for (const ev of explicitCursorEvents) {
-        if (ev.frame === i && ev.selector != null) {
-          const c = await queryCursorBox(page, ev.selector);
-          if (c == null) throw new Error(`animate: cursor.events selector "${ev.selector}" matched no element in frame ${i}`);
-          explicitCursorBoxes.set(`${i}:${ev.selector}`, c);
-        }
-      }
-
-      // Intra-frame animations (DM-209): tag the live DOM with
-      // `data-domotion-anim="<id>"` for each animation's selector. The capture
-      // pass picks up the data attribute and the renderer surfaces it as
-      // class="anim-<id>" on the rendered group, which the animator targets
-      // with a CSS keyframe block.
-      const resolvedAnimations: IntraFrameAnimation[] = [];
-      if (fc.animations != null && fc.animations.length > 0) {
-        for (let ai = 0; ai < fc.animations.length; ai++) {
-          const a = fc.animations[ai];
-          const animId = `f${i}a${ai}`;
-          await page.evaluate(
-            (args: { selector: string; animId: string }) => {
-              const els = document.querySelectorAll(args.selector);
-              els.forEach((el) => {
-                if (el instanceof HTMLElement) el.dataset.domotionAnim = args.animId;
-              });
-            },
-            { selector: a.selector, animId },
-          );
-          resolvedAnimations.push({
-            animId,
-            property: a.property,
-            from: a.from,
-            to: a.to,
-            duration: a.duration,
-            easing: a.easing,
-            delay: a.delay,
-            repeat: a.repeat,
-            alternate: a.alternate,
-            transformOrigin: a.transformOrigin,
-          });
-        }
-      }
-
-      let svgContent: string;
-      let frameCullCss: string;
-      // DM-898: retain this frame's captured tree so a magic-move transition
-      // can diff it against the next frame's. `null` for scroll-block frames
-      // (no single tree) — magic-move then falls back to crossfade.
-      let frameTree: CapturedElement[] | null = null;
-      if (fc.scroll != null) {
-        // DM-612: scroll-demo block. Run the executor against the loaded
-        // page, cull each segment's tree (DM-603), compose into one
-        // animated SVG, and use as this frame's svgContent. The composed
-        // SVG carries its own internal keyframes loop (animation-duration =
-        // pattern's total scroll time) — caller is expected to size the
-        // frame's `duration` to match so the outer scene cycle aligns with
-        // the inner scroll loop.
-        log(`  scroll pattern: ${fc.scroll.pattern}`);
-        const scrollPattern = parseScrollPattern(fc.scroll.pattern);
-        const segments = await executeScrollPattern(page, scrollPattern, {
-          selector: fc.scroll.selector,
-          viewportW: cfg.width,
-          viewportH: cfg.height,
-          defaultSpeed: fc.scroll.speed,
-          prescroll: fc.scroll.prescroll !== false,
-          log,
-        });
-        for (const seg of segments) {
-          cullElementsOutsideViewBox(seg.tree, cfg.width, cfg.height, undefined, 0, 1);
-        }
-        if (i === 0) canvasBg = segments[0]?.tree?.[0]?.styles?.rootBgComputed;
-        const composed = composeScrollSvg(segments, { viewportW: cfg.width, viewportH: cfg.height });
-        // The composer emits a full `<?xml ...><svg>...</svg>` document. The
-        // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
-        // happily contains a nested `<svg>` element — strip just the XML
-        // prolog so we don't end up with `<?xml ...>` inside a `<g>`.
-        svgContent = composed.replace(/^<\?xml[^>]*\?>\s*/, "");
-        frameCullCss = "";
-      } else {
-        const tree = await captureElementTree(page, fc.selector ?? "body", {
-          x: 0, y: 0, width: cfg.width, height: cfg.height,
-        });
-        // DM-603: viewBox-cull pass — mutates the tree (sets `displayNone` /
-        // `cullClass` on elements that fall outside the viewBox during this
-        // frame's segment of the scene cycle) and returns the keyframes CSS
-        // mapping each `cull-N` class to its visible window. Must run BEFORE
-        // `elementTreeToSvg` so the renderer sees the mutated tree.
-        let frameStartMs = 0;
-        for (let pi = 0; pi < i; pi++) {
-          frameStartMs += frameAdvanceMs(cfg.frames[pi]);
-        }
-        const totalDurationMs = cfg.frames.reduce((sum, f) => sum + frameAdvanceMs(f), 0);
-        const result = cullElementsOutsideViewBox(tree, cfg.width, cfg.height, resolvedAnimations, frameStartMs, totalDurationMs);
-        frameCullCss = result.css;
-        if (i === 0) canvasBg = tree[0]?.styles?.rootBgComputed;
-        svgContent = elementTreeToSvgInner(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
-        frameTree = tree;
-      }
-
-      // DM-850 §5: resolve selector-anchored overlays against the live page
-      // (bbox → x/y, and maxWidth:"anchor" → the element's content width) BEFORE
-      // the svg-inlining pass, while the page is still loaded.
-      const anchoredOverlays = await resolveOverlayAnchors(page, fc.overlays, i);
-      // Resolve SVG-kind overlays: read each `src` from disk, namespace its
-      // ids, and replace with `innerSvg`. Other overlay kinds pass through
-      // verbatim. (DM-210.)
-      const overlays = resolveSvgOverlays(anchoredOverlays, configDir, i);
-
-      frames.push({
-        svgContent,
-        cullCss: frameCullCss === "" ? undefined : frameCullCss,
-        duration: fc.duration,
-        transition: fc.transition,
-        overlays,
-        animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
-      });
+      // DM-1379: the captured/default frame body (continue-vs-load →
+      // readyWaits → webfont discovery → scrollTo → cursor recording → actions
+      // → intra-frame animations → scroll-block-vs-capture → overlays) lives in
+      // `buildCapturedFrame`. It appends to the shared cursor accumulators via
+      // `capturedCtx`; we keep the cross-frame after-build orchestration here.
+      const { frame, frameTree, rootBg } = await buildCapturedFrame(fc, i, capturedCtx);
+      if (i === 0) canvasBg = rootBg;
+      frames.push(frame);
 
       // DM-1138 (doc 62 §2): per-frame hook — fired after the frame is pushed
       // (so `frame.overlays` mutations land in the final SVG) and while the page

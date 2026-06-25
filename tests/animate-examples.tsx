@@ -200,6 +200,38 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    name: "cursor-auto",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 560 320"`)) f.push("missing viewBox 560x320");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups");
+      // `cursor: "auto"` derives a global cursor overlay that glides the pointer
+      // to each click/hover/fill target and pulses on click. Exercises the
+      // `autoCursorTargets.push` recording path in the captured-frame body.
+      if (!/class="cursor-overlay"/.test(svg)) f.push("missing cursor-overlay group");
+      if (!/<animateTransform[^>]*type="translate"/.test(svg)) f.push("missing cursor glide (animateTransform translate)");
+      if (!/class="cursor-click cursor-click-\d+"/.test(svg)) f.push("missing auto click-pulse (cursor-click-N)");
+      if (!/class="cursor-pointer"/.test(svg)) f.push("missing cursor glyph");
+      return f;
+    },
+  },
+  {
+    name: "cursor-events",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 560 320"`)) f.push("missing viewBox 560x320");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups");
+      // An explicit `cursor.events` list: a `move` to fixed coords (60,60) then a
+      // `moveClick` whose `.cta` selector resolves to the button center. Exercises
+      // the `explicitCursorBoxes.set` recording path in the captured-frame body —
+      // the glide must pass through the literal 60,60 waypoint.
+      if (!/class="cursor-overlay"/.test(svg)) f.push("missing cursor-overlay group");
+      if (!/<animateTransform[^>]*type="translate"[^>]*values="[^"]*\b60,60\b/.test(svg)) f.push("missing explicit 60,60 waypoint in cursor glide");
+      if (!/class="cursor-click cursor-click-\d+"/.test(svg)) f.push("missing moveClick click-pulse (cursor-click-N)");
+      return f;
+    },
+  },
+  {
     name: "magic-move",
     check: (svg) => {
       const f: string[] = [];
