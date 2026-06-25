@@ -353,26 +353,40 @@ export function rasterGlyphOverlays(seg: TextSegment, fallbackFontSize: number, 
  * tables — the same metrics Chromium consults — so placement matches the
  * browser within ~0.5px instead of relying on fontSize fractions (SK-1236).
  */
-function renderTextDecoration(
-  textDecorationLine: string | undefined,
-  decorationColor: string,
-  style: string | undefined,
-  segX: number, baselineY: number, segWidth: number,
-  fontSize: number, fontFamily: string, fontWeight: string | number, fontStyle: string | undefined,
+/** Args for {@link renderTextDecoration} — an options object so the 15 fields
+ *  can't be transposed at the (two) call sites. */
+interface TextDecorationOptions {
+  textDecorationLine: string | undefined;
+  decorationColor: string;
+  style: string | undefined;
+  segX: number;
+  baselineY: number;
+  segWidth: number;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: string | number;
+  fontStyle: string | undefined;
   /** CSS `text-decoration-thickness` (e.g. `5px` or `auto`). DM-431. */
-  thicknessOverride?: string,
+  thicknessOverride?: string;
   /** CSS `text-underline-offset` (e.g. `6px` or `auto`). DM-431. */
-  underlineOffset?: string,
+  underlineOffset?: string;
   /** Run text used to compute `text-decoration-skip-ink: auto` glyph
    *  intercepts. Required for skip-ink to apply. DM-446. */
-  runText?: string,
+  runText?: string;
   /** CSS `text-decoration-skip-ink` — `auto` (default) or `none`. Only solid /
    *  double underlines honor it (matches Chromium). DM-446. */
-  skipInk?: string,
+  skipInk?: string;
   /** OpenType feature tags forwarded to fontkit shaping when computing skip-
    *  ink intercepts so small-caps / petite-caps glyphs match the painted text. */
-  features?: string[],
-): string {
+  features?: string[];
+}
+
+function renderTextDecoration(opts: TextDecorationOptions): string {
+  const {
+    textDecorationLine, decorationColor, style, segX, baselineY, segWidth,
+    fontSize, fontFamily, fontWeight, fontStyle, thicknessOverride,
+    underlineOffset, runText, skipInk, features,
+  } = opts;
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
   const m = getDecorationMetrics(fontFamily, fontSize, fontWeight, fontStyle, thicknessOverride, underlineOffset);
   const lines: string[] = [];
@@ -1065,7 +1079,13 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // Round to integer px so Chrome's pixel-aligned decoration paint
     // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
     const decoBaselineY = Math.round(tt + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration(el.styles.textDecorationLine, decoColor, el.styles.textDecorationStyle, tl, decoBaselineY, el.textWidth ?? 0, segFontSize, segFontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, pathText, el.styles.textDecorationSkipInk, features);
+    const decoMarkup = renderTextDecoration({
+      textDecorationLine: el.styles.textDecorationLine, decorationColor: decoColor, style: el.styles.textDecorationStyle,
+      segX: tl, baselineY: decoBaselineY, segWidth: el.textWidth ?? 0,
+      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
+      thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
+      runText: pathText, skipInk: el.styles.textDecorationSkipInk, features,
+    });
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
     const rasterOverlay = singleSeg != null ? rasterGlyphOverlays(singleSeg, fontSize, clipId) : "";
@@ -1255,7 +1275,13 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
-    const decoMarkup = renderTextDecoration(decoLine, decoColor, decoStyle, seg.x, segDecoBaselineY, seg.width, segFontSize, segFontFamily, segFontWeight, el.styles.fontStyle, el.styles.textDecorationThickness, el.styles.textUnderlineOffset, reordered.text, el.styles.textDecorationSkipInk, segFeatures);
+    const decoMarkup = renderTextDecoration({
+      textDecorationLine: decoLine, decorationColor: decoColor, style: decoStyle,
+      segX: seg.x, baselineY: segDecoBaselineY, segWidth: seg.width,
+      fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
+      thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
+      runText: reordered.text, skipInk: el.styles.textDecorationSkipInk, features: segFeatures,
+    });
     if (decoMarkup !== "") segParts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered
     // text get their actual Chrome-painted pixels stamped over the position.
