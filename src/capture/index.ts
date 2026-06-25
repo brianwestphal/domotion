@@ -304,7 +304,103 @@ export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: (
  * Caller is responsible for `clearWebfonts()` between captures if needed.
  * No-op when the page declares no `@font-face` rules.
  */
-export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: Iterable<string> = []): Promise<{ family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string }[]> {
+// Node-side discovered-font item shapes (the page.evaluate body declares its
+// own structurally-identical inline copies; these are the Node-side types).
+type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> };
+type ResourceUrl = { kind: "resource"; url: string };
+type LocalFace = { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null };
+type DiscoveredItem = FaceRule | LocalFace | ResourceUrl;
+/** One row of the report returned by discoverAndRegisterWebfonts. */
+type WebfontRegisterReport = { family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string };
+
+/**
+ * Register ONE discovered font item: a local() alias, or a fetched
+ * @font-face/resource URL (trying each ranked candidate until one fetches and
+ * fontkit parses). Pushes a report row. Extracted verbatim from
+ * discoverAndRegisterWebfonts' Node-side loop (DM-1373).
+ */
+async function registerDiscoveredFont(item: DiscoveredItem, page: Page, report: WebfontRegisterReport[]): Promise<void> {
+  if (item.kind === "local") {
+    // The page-side probe identified which local() candidate Chrome
+    // actually resolved the alias to (by comparing rendered widths). We
+    // route to that one specifically — NOT the first candidate we happen
+    // to recognize — because Chrome's local() lookup only matches a font's
+    // PostScript or full name, not its CSS family name (DM-445). Walking
+    // the candidate list with a family-name-based lookup table would
+    // mis-route e.g. `src: local("Menlo"), local("Monaco")` to Menlo when
+    // Chrome actually paints Monaco (Menlo's PostScript name is
+    // "Menlo-Regular", so the bare "Menlo" form doesn't match).
+    //
+    // If the probe didn't identify a match (none of the candidates
+    // measured the same width as the alias), we fall back to the legacy
+    // family-name lookup over the full candidate list — better than
+    // nothing, and preserves behavior for cases the probe can't resolve
+    // (e.g. an alias whose width happened to disagree with all candidates
+    // due to layout shaping that the simple sample didn't exercise).
+    const declaredWeight = parseWeightDescriptor(item.weight);
+    const declaredStyle = item.style.toLowerCase();
+    const declaredItalic = declaredStyle !== "" && declaredStyle !== "normal";
+    const candidates = item.resolvedLocalName != null ? [item.resolvedLocalName] : item.localNames;
+    for (const localName of candidates) {
+      const key = systemFontKeyForLocalName(localName);
+      if (key != null) {
+        registerLocalFontAlias(item.family, key, declaredWeight, declaredItalic);
+        break;
+      }
+    }
+    return;
+  }
+  // DM-513: try each URL in the ranked list (highest-priority format first)
+  // until one fetches AND fontkit can parse the bytes. Falls through eot/svg-
+  // first cascades like Slashdot's sdicon font where the woff is the 3rd or
+  // 4th `url()` in `src:`.
+  const candidates: string[] = item.kind === "font-face" && Array.isArray(item.urls) && item.urls.length > 0
+    ? item.urls
+    : [item.url];
+  let lastError: string | undefined;
+  let registered = false;
+  for (const candidateUrl of candidates) {
+    try {
+      const resp = await page.context().request.get(candidateUrl);
+      if (!resp.ok()) {
+        lastError = `HTTP ${resp.status()}`;
+        continue;
+      }
+      const fetched = Buffer.from(await resp.body());
+      const buf = await ensureNonWoff2(fetched);
+
+      if (item.kind === "font-face") {
+        // Verify fontkit can actually parse the bytes before registering;
+        // otherwise the registry holds an unusable entry and `pickWebfontVariant`
+        // returns it without scoring against later candidates.
+        const meta = await readFontMetadata(buf);
+        if (meta == null) {
+          lastError = "fontkit could not parse";
+          continue;
+        }
+        const weightNum = parseWeightDescriptor(item.weight);
+        registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange);
+        report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
+      } else {
+        const meta = await readFontMetadata(buf);
+        if (meta == null) {
+          lastError = "fontkit could not parse";
+          continue;
+        }
+        registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf);
+        report.push({ family: meta.family, weight: meta.weight, style: meta.italic ? "italic" : "normal", url: candidateUrl, source: "resource", ok: true });
+      }
+      registered = true;
+      break;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  if (!registered) {
+    report.push({ family: item.kind === "font-face" ? item.family : "", weight: item.kind === "font-face" ? parseWeightDescriptor(item.weight) : 400, style: item.kind === "font-face" ? item.style : "normal", url: item.url, source: item.kind, ok: false, error: lastError ?? "no candidates" });
+  }
+}
+export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: Iterable<string> = []): Promise<WebfontRegisterReport[]> {
   // Two-pass discovery:
   //
   //   1. Same-origin `@font-face` rules — gives us the CSS-declared family
@@ -323,10 +419,6 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
   // Pass 1 names match CSS exactly (good when authors rename a face);
   // pass 2 catches fonts that pass 1 missed and uses the font's internal
   // name (good for Google Fonts which keep names in sync).
-  type FaceRule = { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> };
-  type ResourceUrl = { kind: "resource"; url: string };
-  type LocalFace = { kind: "local"; family: string; localNames: string[]; weight: string; style: string; resolvedLocalName: string | null };
-  type DiscoveredItem = FaceRule | LocalFace | ResourceUrl;
   const fromPage = await page.evaluate(() => {
     // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
     // stack traces. That helper isn't injected into page.evaluate's
@@ -534,88 +626,8 @@ export async function discoverAndRegisterWebfonts(page: Page, observedFontUrls: 
     discovered.push({ kind: "resource", url });
   }
 
-  const report: { family: string; weight: number; style: string; url: string; source: "font-face" | "resource"; ok: boolean; error?: string }[] = [];
-  for (const item of discovered) {
-    if (item.kind === "local") {
-      // The page-side probe identified which local() candidate Chrome
-      // actually resolved the alias to (by comparing rendered widths). We
-      // route to that one specifically — NOT the first candidate we happen
-      // to recognize — because Chrome's local() lookup only matches a font's
-      // PostScript or full name, not its CSS family name (DM-445). Walking
-      // the candidate list with a family-name-based lookup table would
-      // mis-route e.g. `src: local("Menlo"), local("Monaco")` to Menlo when
-      // Chrome actually paints Monaco (Menlo's PostScript name is
-      // "Menlo-Regular", so the bare "Menlo" form doesn't match).
-      //
-      // If the probe didn't identify a match (none of the candidates
-      // measured the same width as the alias), we fall back to the legacy
-      // family-name lookup over the full candidate list — better than
-      // nothing, and preserves behavior for cases the probe can't resolve
-      // (e.g. an alias whose width happened to disagree with all candidates
-      // due to layout shaping that the simple sample didn't exercise).
-      const declaredWeight = parseWeightDescriptor(item.weight);
-      const declaredStyle = item.style.toLowerCase();
-      const declaredItalic = declaredStyle !== "" && declaredStyle !== "normal";
-      const candidates = item.resolvedLocalName != null ? [item.resolvedLocalName] : item.localNames;
-      for (const localName of candidates) {
-        const key = systemFontKeyForLocalName(localName);
-        if (key != null) {
-          registerLocalFontAlias(item.family, key, declaredWeight, declaredItalic);
-          break;
-        }
-      }
-      continue;
-    }
-    // DM-513: try each URL in the ranked list (highest-priority format first)
-    // until one fetches AND fontkit can parse the bytes. Falls through eot/svg-
-    // first cascades like Slashdot's sdicon font where the woff is the 3rd or
-    // 4th `url()` in `src:`.
-    const candidates: string[] = item.kind === "font-face" && Array.isArray(item.urls) && item.urls.length > 0
-      ? item.urls
-      : [item.url];
-    let lastError: string | undefined;
-    let registered = false;
-    for (const candidateUrl of candidates) {
-      try {
-        const resp = await page.context().request.get(candidateUrl);
-        if (!resp.ok()) {
-          lastError = `HTTP ${resp.status()}`;
-          continue;
-        }
-        const fetched = Buffer.from(await resp.body());
-        const buf = await ensureNonWoff2(fetched);
-
-        if (item.kind === "font-face") {
-          // Verify fontkit can actually parse the bytes before registering;
-          // otherwise the registry holds an unusable entry and `pickWebfontVariant`
-          // returns it without scoring against later candidates.
-          const meta = await readFontMetadata(buf);
-          if (meta == null) {
-            lastError = "fontkit could not parse";
-            continue;
-          }
-          const weightNum = parseWeightDescriptor(item.weight);
-          registerWebfont(item.family, weightNum, item.style, buf, item.unicodeRange);
-          report.push({ family: item.family, weight: weightNum, style: item.style, url: candidateUrl, source: "font-face", ok: true });
-        } else {
-          const meta = await readFontMetadata(buf);
-          if (meta == null) {
-            lastError = "fontkit could not parse";
-            continue;
-          }
-          registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf);
-          report.push({ family: meta.family, weight: meta.weight, style: meta.italic ? "italic" : "normal", url: candidateUrl, source: "resource", ok: true });
-        }
-        registered = true;
-        break;
-      } catch (e) {
-        lastError = e instanceof Error ? e.message : String(e);
-      }
-    }
-    if (!registered) {
-      report.push({ family: item.kind === "font-face" ? item.family : "", weight: item.kind === "font-face" ? parseWeightDescriptor(item.weight) : 400, style: item.kind === "font-face" ? item.style : "normal", url: item.url, source: item.kind, ok: false, error: lastError ?? "no candidates" });
-    }
-  }
+  const report: WebfontRegisterReport[] = [];
+  for (const item of discovered) await registerDiscoveredFont(item, page, report);
   return report;
 }
 
