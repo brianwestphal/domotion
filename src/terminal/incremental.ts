@@ -31,6 +31,11 @@ import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "..
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import type { TermToSvgOptions } from "./index.js";
 
+/** Max rows to search when detecting an inter-frame scroll shift (scroll is normally small). */
+const MAX_SCROLL_SEARCH_ROWS = 12;
+/** Monospace cell advance as a fraction of font size, used only as a fallback when the measured width is unavailable. */
+const MONO_ADVANCE_RATIO = 0.6;
+
 /** A logical terminal line threaded through frames by identity. */
 export interface TrackedLine {
   id: number;
@@ -51,7 +56,7 @@ export interface TrackedLine {
 export function detectScroll(prev: string[], cur: string[], rows: number): number {
   let bestS = 0;
   let bestScore = 0;
-  const maxS = Math.min(rows - 1, 12);
+  const maxS = Math.min(rows - 1, MAX_SCROLL_SEARCH_ROWS);
   for (let S = 0; S <= maxS; S++) {
     let score = 0;
     for (let r = 0; r + S < rows; r++) {
@@ -409,7 +414,7 @@ export async function composeIncrementalTermSvg(
   // Blinking caret that follows the recorded cursor (incremental mode). charW is
   // the monospace cell advance, recovered from the measured content width.
   const shape = opts.cursor ?? "block";
-  const charW = cols > 0 ? (width - 2 * padding) / cols : fontSize * 0.6;
+  const charW = cols > 0 ? (width - 2 * padding) / cols : fontSize * MONO_ADVANCE_RATIO;
   const cursor = shape === "none" ? null : buildCursor(frames, totalMs, charW, linePx, padding, shape, opts.cursorColor ?? theme.fg);
 
   const fontFaceCss = manageFonts ? getEmbeddedFontFaceCss() : "";

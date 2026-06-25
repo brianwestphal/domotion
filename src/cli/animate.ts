@@ -1086,7 +1086,9 @@ export async function runActions(page: Page, actions: AnimateAction[], log: (msg
       case "evaluate": {
         // DM-853 §8: last resort. Nudge toward declarative actions / the API
         // once a snippet outgrows a line or two, but don't block it.
-        if (a.script.length > 200 || a.script.split("\n").length > 2) {
+        const EVALUATE_NUDGE_MAX_CHARS = 200;
+        const EVALUATE_NUDGE_MAX_LINES = 2;
+        if (a.script.length > EVALUATE_NUDGE_MAX_CHARS || a.script.split("\n").length > EVALUATE_NUDGE_MAX_LINES) {
           log(`  warning: evaluate script is ${a.script.length} chars / ${a.script.split("\n").length} lines — more than a line or two means you've outgrown the config; consider the declarative actions or the programmatic API`);
         }
         await page.evaluate(a.script);

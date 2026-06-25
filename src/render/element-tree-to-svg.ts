@@ -701,11 +701,11 @@ function paintText(
       // legacy captures missing the new field would produce the
       // pre-fix behaviour where each child re-runs the gradient over
       // its own (smaller) area.
-      const r = el.styles.inheritedTextFillGradientRect;
-      const gx = r != null ? r.x : el.x;
-      const gy = r != null ? r.y : el.y;
-      const gw = r != null ? r.width : el.width;
-      const gh = r != null ? r.height : el.height;
+      const gradRect = el.styles.inheritedTextFillGradientRect;
+      const gx = gradRect != null ? gradRect.x : el.x;
+      const gy = gradRect != null ? gradRect.y : el.y;
+      const gw = gradRect != null ? gradRect.width : el.width;
+      const gh = gradRect != null ? gradRect.height : el.height;
       const out = buildBackgroundLayerDef(defId, layer, gx, gy, gw, gh, "auto", "0% 0%", "no-repeat", null, "scroll", captureViewport);
       if (out.def !== "") {
         ctx.defsParts.push(out.def);

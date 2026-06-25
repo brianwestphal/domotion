@@ -173,6 +173,7 @@ export function trackGlyphInEmbedFont(
       case "quadraticCurveTo": otPath.quadraticCurveTo(cmd.args[0], cmd.args[1], cmd.args[2], cmd.args[3]); break;
       case "bezierCurveTo":    otPath.curveTo(cmd.args[0], cmd.args[1], cmd.args[2], cmd.args[3], cmd.args[4], cmd.args[5]); break;
       case "closePath":        otPath.close(); break;
+      default: throw new Error(`embedded-font-builder: unknown glyph path command "${(cmd as { command: string }).command}"`);
     }
   }
   entry.glyphs.set(glyphId, new ot.Glyph({

@@ -94,7 +94,7 @@ export function parseCast(text: string): ParsedCast {
     }
     if (!Array.isArray(ev) || ev.length < 3) continue;
     const [time, code, data] = ev as [number, string, string];
-    if (typeof time !== "number" || typeof data !== "string") continue;
+    if (typeof time !== "number" || typeof code !== "string" || typeof data !== "string") continue;
     if (code === "o") {
       events.push({ time, data });
     } else if (code === "r") {

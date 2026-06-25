@@ -27,6 +27,10 @@ let _aceFontLoaded = false;
 // Available sbix strikes on macOS Apple Color Emoji.ttc.
 const SBIX_STRIKES = [20, 26, 32, 40, 48, 52, 64, 96, 160] as const;
 const _sbixCache = new Map<string, Buffer | null>();
+// Only take the sbix path when the glyph rect is roughly emoji-shaped (wide
+// enough relative to its height). Narrow rects are usually text-presentation
+// dingbats / partial clusters where the page-screenshot fallback is safer.
+const EMOJI_SBIX_MIN_ASPECT = 0.4;
 
 function loadAppleColorEmojiFont(): any {
   if (_aceFontLoaded) return _aceFont;
@@ -204,7 +208,7 @@ export async function rasterizeBitmapGlyphs(
               // the color font doesn't cover (text-presentation glyphs,
               // regional-indicator pairs, ZWJ sequences) or non-darwin
               // platforms where the .ttc isn't available.
-              if (cp != null && g.rect.width > g.rect.height * 0.4) {
+              if (cp != null && g.rect.width > g.rect.height * EMOJI_SBIX_MIN_ASPECT) {
                 const sbixPng = extractEmojiBitmap(cp, g.rect.width);
                 if (sbixPng != null) {
                   g.dataUri = `data:image/png;base64,${sbixPng.toString("base64")}`;

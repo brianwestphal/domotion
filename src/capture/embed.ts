@@ -31,6 +31,12 @@ function isRemoteUrl(u: string): boolean {
  * @internal — exposed for `resize-embedded-images.ts` (DM-539). The resize
  * pre-pass reads source bytes from this cache (populated by `embedRemoteImages`)
  * and writes per-(URL, size) resized variants into `_resizedDataUriCache`.
+ *
+ * Lifecycle: process-global and keyed by source URL, so it dedupes re-fetches
+ * within and across captures. It is NOT evicted — a long-lived process that
+ * captures many distinct URLs grows it unbounded. That's fine for the CLI's
+ * one-shot use; a long-running embedder should call `clearEmbeddedImageCaches()`
+ * between unrelated jobs.
  */
 export const _dataUriCache = new Map<string, string>();
 
@@ -42,6 +48,17 @@ export const _dataUriCache = new Map<string, string>();
  * Empty at module load — first capture with the resize flag fills it.
  */
 export const _resizedDataUriCache = new Map<string, Map<string, string>>();
+
+/**
+ * Evict the process-global embedded-image caches (`_dataUriCache` +
+ * `_resizedDataUriCache`). Unnecessary for the one-shot CLI, but a long-running
+ * embedder that processes many unrelated documents can call this between jobs to
+ * release memory (the caches are otherwise never evicted — see `_dataUriCache`).
+ */
+export function clearEmbeddedImageCaches(): void {
+  _dataUriCache.clear();
+  _resizedDataUriCache.clear();
+}
 
 function embedAsDataUri(url: string): string {
   if (url == null || url === "") return url;

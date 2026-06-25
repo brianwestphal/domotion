@@ -68,6 +68,12 @@ export function __helperBinaryForPlatform(platform: NodeJS.Platform): string | u
   return HELPER_BINARIES[platform];
 }
 
+// Module-level helper-process state, memoized for the lifetime of the Node
+// process (one render run). `helperAvailable`/`helperPath` cache the one-time
+// availability probe; the long-lived server fds below are lazily opened on first
+// use and reused for every glyph query. This is intentionally process-global
+// (single-process model) — there is no reset hook because a fresh process starts
+// clean and the helper binary/path can't change mid-run.
 let helperAvailable: boolean | null = null;
 let helperPath: string | undefined;
 export function isGlyphHelperAvailable(): boolean {
