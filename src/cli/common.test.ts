@@ -6,27 +6,30 @@ describe("parsePort", () => {
     expect(parsePort(undefined)).toBeUndefined();
   });
 
-  it("accepts a valid port in 1..65535", () => {
+  it("accepts a valid port in 0..65535", () => {
     expect(parsePort("1")).toBe(1);
     expect(parsePort("8080")).toBe(8080);
     expect(parsePort("65535")).toBe(65535);
   });
 
-  it("rejects a non-numeric value", () => {
-    expect(() => parsePort("abc")).toThrow(/positive integer/);
+  it("accepts 0 — the OS-assigned-free-port sentinel the servers default to", () => {
+    expect(parsePort("0")).toBe(0);
   });
 
-  it("rejects zero and negatives (inherited from parsePositiveInt)", () => {
-    expect(() => parsePort("0")).toThrow(/positive integer/);
-    expect(() => parsePort("-5")).toThrow(/positive integer/);
+  it("rejects a non-numeric value", () => {
+    expect(() => parsePort("abc")).toThrow(/0\.\.65535/);
+  });
+
+  it("rejects negatives", () => {
+    expect(() => parsePort("-5")).toThrow(/0\.\.65535/);
   });
 
   it("rejects a non-integer", () => {
-    expect(() => parsePort("80.5")).toThrow(/positive integer/);
+    expect(() => parsePort("80.5")).toThrow(/0\.\.65535/);
   });
 
   it("rejects a port above the TCP range", () => {
-    expect(() => parsePort("65536")).toThrow(/1\.\.65535/);
-    expect(() => parsePort("70000")).toThrow(/1\.\.65535/);
+    expect(() => parsePort("65536")).toThrow(/0\.\.65535/);
+    expect(() => parsePort("70000")).toThrow(/0\.\.65535/);
   });
 });

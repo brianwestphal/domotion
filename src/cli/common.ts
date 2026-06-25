@@ -35,14 +35,19 @@ export function parsePositiveInt(value: string | undefined, name: string): numbe
   return n;
 }
 
-/** Parse an OPTIONAL `--port` flag — a positive integer in the valid TCP range
- *  (1..65535), or `undefined` when absent. Builds on `parsePositiveInt` (which
- *  rejects NaN / non-integers / values ≤ 0) and adds the upper bound so a bad
- *  port fails at the CLI boundary instead of inside `server.listen`. Shared by
- *  the server-backed bins (`svg-review`, `animated-svg-scrubber`). */
+/** Parse an OPTIONAL `--port` flag — an integer in the TCP range 0..65535, or
+ *  `undefined` when absent. **0 is valid and meaningful**: it tells
+ *  `server.listen` to bind an OS-assigned free ephemeral port, which is exactly
+ *  what the server-backed bins (`svg-review`, `animated-svg-scrubber`) default to
+ *  (`inputs.port ?? 0`) and what callers/tests pass to avoid a fixed-port
+ *  collision. Rejects NaN / non-integers / negatives / > 65535 at the CLI
+ *  boundary so a bad port fails there instead of inside `server.listen`. */
 export function parsePort(value: string | undefined): number | undefined {
-  const n = parsePositiveInt(value, "port");
-  if (n != null && n > 65535) throw new Error(`--port expects a value in 1..65535, got "${value}"`);
+  if (value == null) return undefined;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 65535) {
+    throw new Error(`--port expects an integer in 0..65535 (0 = an OS-assigned free port), got "${value}"`);
+  }
   return n;
 }
 
