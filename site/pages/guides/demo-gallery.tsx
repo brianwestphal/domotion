@@ -19,6 +19,7 @@ export const meta = {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEMOS_DIR = resolve(HERE, "../../scripts/demos");
 const ANIMATE_DIR = resolve(HERE, "../../../examples/animate");
+const EXAMPLES_DIR = resolve(HERE, "../../../examples");
 
 function esc(s: string): string {
   return s
@@ -33,6 +34,29 @@ function file(rel: string): string {
 
 function animFile(rel: string): string {
   return esc(readFileSync(resolve(ANIMATE_DIR, rel), "utf8").trim());
+}
+
+function exampleFile(rel: string): string {
+  return esc(readFileSync(resolve(EXAMPLES_DIR, rel), "utf8").trim());
+}
+
+/** One animated gallery entry built by a runnable example *script* (not an
+ *  animate config): the looping SVG + the script source + the command. */
+function scriptDemo(opts: { img: string; alt: string; scriptPath: string }): string {
+  return `
+<figure style="margin:0 0 12px;">
+  <img src="../../assets/img/demos/${opts.img}" alt="${esc(opts.alt)}"
+       style="width:100%;height:auto;border-radius:12px;border:1px solid var(--line);" />
+</figure>
+
+<details>
+  <summary>example script (TypeScript)</summary>
+  <pre><code>${exampleFile(opts.scriptPath)}</code></pre>
+</details>
+
+<p>Render it:</p>
+
+<pre><code>npx tsx examples/${opts.scriptPath}</code></pre>`;
 }
 
 /** One animated gallery entry: the looping SVG + its copyable JSON config. */
@@ -220,16 +244,18 @@ ${animDemo({
 <p>The marketing-video tier — multi-step flows, terminal chrome, real recorded
 interactions, and scroll-throughs.</p>
 
-<h3>Multi-step terminal onboarding</h3>
+<h3>Terminal onboarding</h3>
 
-<p>Four terminal panes — clone, install, configure, run — each typed by a
-<code>typing</code> overlay and revealed with a <code>push-left</code>
-transition. The marketing-video demo.</p>
+<p>A real <code>domotion term</code> capture: one continuous recorded session —
+clone, install, configure, run — replayed through the terminal pipeline and
+composited into a macOS window. The terminal types each command and streams its
+output natively (real text as glyph paths, real ANSI color), so it reads like an
+actual session rather than faked panes. The marketing-video demo.</p>
 
-${animDemo({
+${scriptDemo({
   img: "terminal-onboarding.svg",
-  alt: "A terminal window stepping through git clone, npm install, npm run setup, and npm run dev, each command typing itself in as the panes slide left.",
-  configPath: "terminal-onboarding/terminal-onboarding.json",
+  alt: "A macOS terminal window running git clone, npm install, npm run setup, and npm run dev in one continuous session, each command typing itself in and streaming its output, ending with the dev server running.",
+  scriptPath: "terminal-onboarding.ts",
 })}
 
 <h3>Form fill flow</h3>

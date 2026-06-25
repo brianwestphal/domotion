@@ -32,7 +32,7 @@ short enough code to copy. Each demo demonstrates one headline capability:
 | 2 — animated, simple | Tab switcher | `actions` click-through + crossfade |
 | 2 — animated, simple | Typing search | a `typing` overlay |
 | 2 — animated, simple | Before / after refactor | `push-left` transition across two files |
-| 3 — animated, fancy | Terminal onboarding | multi-step push-left + typing overlays + terminal chrome |
+| 3 — animated, fancy | Terminal onboarding | a real `domotion term` cast (clone → install → configure → run) in window chrome |
 | 3 — animated, fancy | Form fill flow | a real interaction recorded entirely via `actions` |
 | 3 — animated, fancy | Scroll-through page | `--scroll` capture composed with a `scroll` transition |
 
@@ -155,28 +155,29 @@ regression suite and embedded on the gallery page.
 
 ## Tier 3 — animated, fancy
 
-The marketing-video tier. Like Tier 2, each is an `examples/animate/<demo>/`
-folder registered in the regression suite and embedded on the gallery page.
+The marketing-video tier. Most are an `examples/animate/<demo>/` folder
+registered in the regression suite and embedded on the gallery page; the
+terminal-onboarding demo is instead a runnable example script
+(`examples/terminal-onboarding.ts`) that drives the `domotion term` pipeline.
 
-### Multi-step terminal onboarding
+### Terminal onboarding
 
-- **Source:** `examples/animate/terminal-onboarding/` (`step-1-clone.html` …
-  `step-4-run.html`, `terminal-onboarding.json`)
-- **Output:** `terminal-onboarding.svg` (720×360, 4 frames)
-- **Demonstrates:** four terminal panes (clone → install → configure → run),
-  each with terminal chrome, a `typing` overlay (with a `caret`) that types that
-  step's command (all four overlays share one `x`/`y` anchor over the prompt
-  slot), and a `push-left` transition between steps. The last step holds solid
-  via the last-frame hold (DM-1207).
-- **Results reveal after the command types.** Each step's command output sits in
-  a `.results` block. The block is authored *fully visible* (so the capture
-  keeps it), and a delayed intra-frame `clipPath` wipe
-  (`inset(0 0 100% 0)` → `inset(0 0 0 0)`) hides it from frame start, then
-  reveals it top-to-bottom *after* the typing finishes — so the output never
-  appears before its command. Authoring the block `opacity: 0` instead does
-  **not** work: a fully-transparent subtree is dropped at capture, leaving
-  nothing to reveal (the same trap as a `width: 0` progress bar). The reveal
-  `delay` ≈ the command's type time (chars × `speed`) plus a short beat.
+- **Source:** `examples/terminal-onboarding.ts` (a runnable example *script*, not
+  an animate config — run with `npx tsx examples/terminal-onboarding.ts`)
+- **Output:** `examples/output/terminal-onboarding.svg`
+- **Demonstrates:** a real `domotion term` capture (doc 67). One continuous
+  asciinema v2 cast — clone → install → configure → run — is replayed through the
+  terminal pipeline (`castToAnimatedSvg`, the exact `domotion term --cast` path)
+  and composited into macOS window chrome via `composeAnimatedLayers`, mirroring
+  `terminal-demo.ts`. The terminal types each command and streams its output
+  natively/incrementally (real text as glyph paths, real ANSI color, native
+  animation), so it reads as one genuine session.
+- **Why a real cast, not faked panes.** The previous version faked four terminal
+  panes with static HTML + `typing` overlays + delayed `clipPath` reveals, whose
+  hand-tuned per-frame `delay` values drifted out of sync with the overlay typing
+  speed — the typed command collided with the revealed output and the terminal
+  showed dead/empty beats. A cast removes the timing hacks entirely: the VT
+  emulator paces the typing and output reveal, so it can't desync (DM-1384).
 
 ### Form fill flow
 

@@ -130,23 +130,6 @@ const EXAMPLES: Example[] = [
     },
   },
   {
-    name: "terminal-onboarding",
-    check: (svg) => {
-      const f: string[] = [];
-      if (!svg.includes(`viewBox="0 0 720 360"`)) f.push("missing viewBox 720x360");
-      // 4 onboarding steps, each push-left, each with a typing overlay (caret)
-      // and a delayed clip-path wipe that reveals the command's results only
-      // after it finishes typing. The last step holds solid (DM-1207).
-      if (count(svg, /class="f f-\d+"/g) !== 4) f.push("expected 4 frame groups");
-      if (count(svg, /@keyframes fp-\d+/g) !== 4) f.push("expected 4 push (fp-) keyframes (all steps slide)");
-      if (!/<text/.test(svg)) f.push("missing typing-overlay text");
-      if (!/clip-path|inset\(/.test(svg)) f.push("missing clip-path results reveal");
-      // Last step (fp-3) holds at translateX(0) to 100%, not sliding out (DM-1207).
-      if (!/@keyframes fp-3 \{[^@]*100%\s*\{\s*transform:\s*translateX\(0\)/.test(svg)) f.push("last step should hold at translateX(0) to 100% (DM-1207)");
-      return f;
-    },
-  },
-  {
     name: "form-fill",
     check: (svg) => {
       const f: string[] = [];
