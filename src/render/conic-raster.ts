@@ -15,6 +15,7 @@
  */
 
 import sharp from "sharp";
+import { splitTopLevelCommas } from "./css-tokens.js";
 import { _conicTileCache } from "./element-tree-to-svg.js";
 import { collectFormControlConicTiles } from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -291,21 +292,4 @@ function rememberConicTile(layerText: string, sizeKey: string, dataUri: string):
     _conicTileCache.set(layerText, sizeCache);
   }
   sizeCache.set(sizeKey, dataUri);
-}
-
-function splitTopLevelCommas(s: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (c === "(") depth++;
-    else if (c === ")") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(s.slice(start, i));
-      start = i + 1;
-    }
-  }
-  out.push(s.slice(start));
-  return out;
 }

@@ -13,6 +13,8 @@
  * adds px-positioned color stops.
  */
 
+import { splitTopLevelCommas } from "./css-tokens.js";
+
 export interface LinearStop {
   /** Resolved CSS color (Chromium serializes to rgb()/rgba() form). */
   color: string;
@@ -546,23 +548,6 @@ export function buildRadialGradientDef(
 
 function num(n: number): string {
   return Number(n.toFixed(3)).toString();
-}
-
-function splitTopLevelCommas(s: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (c === "(") depth++;
-    else if (c === ")") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(s.slice(start, i));
-      start = i + 1;
-    }
-  }
-  out.push(s.slice(start));
-  return out;
 }
 
 /** Parse a CSS gradient angle token. Returns degrees, or null if not an angle. */
