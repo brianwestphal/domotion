@@ -106,7 +106,8 @@ package root. Committed examples: `chat-thread.svg`, `subscribe-youtube.svg`,
 
 ## Follow-ups
 
-Filed separately: a **typing indicator** (an animated "…" bubble that appears
-before a `them` message, then is replaced by it) for `chat`, and a
-**click-through** state for `subscribe` (the CTA flips to "Subscribed" + the bell
-fills) — both need a two-state reveal beyond the current single-pass stagger.
+Both formerly-deferred items have **shipped**: the `chat` **typing indicator**
+(an animated "…" bubble before each `them` message, then replaced by it — DM-1302,
+the `typing` param, §"Typing indicator" above) and the `subscribe`
+**click-through** state (the CTA flips to "Subscribed" + the bell fills — DM-1303,
+the `clickAfterMs` param, §"Click-through" above). No open follow-ups.

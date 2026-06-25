@@ -1,10 +1,10 @@
 # 70 — Template system
 
-Status: **spike shipped** (DM-1276; the de-risking spike from the DM-1210
-investigation). The `Template` contract, the registry/loader, the `domotion
-template` CLI verb, and two built-in templates (`lower-third`, `device-mockup`)
-are implemented and tested. The broader first-party library and the Lottie input
-adapter are tracked as follow-ups, not yet built.
+Status: **shipped** (DM-1276 spike + the first-party library). The `Template`
+contract, the registry/loader, the `domotion template` CLI verb, and **seven**
+built-in templates (`lower-third`, `device-mockup`, `background-loop`,
+`kinetic-text`, `chart`, `chat`, `subscribe`) are implemented and tested. The
+only remaining follow-up is the Lottie input adapter (not yet built).
 
 ## What a template is (and isn't)
 
@@ -147,29 +147,33 @@ manual gallery at `site/pages/guides/templates.tsx`.
 - **`src/templates/json-schema.ts`** — `templateParamsJsonSchema` /
   `describeTemplateParams` (zod → JSON Schema, the same machinery as the animate
   config).
-- **`src/templates/builtin/lower-third.ts`** / **`device-mockup.ts`** — the two
-  built-ins (`buildLowerThirdHtml` is a pure, unit-tested HTML generator).
+- **`src/templates/builtin/`** — the seven built-ins (`lower-third`,
+  `device-mockup`, `background-loop`, `kinetic-text`, `chart`, `chat`,
+  `subscribe`), registered in `registry.ts`. Their pure HTML/plan builders
+  (e.g. `buildLowerThirdHtml`) are unit-tested without a browser.
 - **`src/cli/template.ts`** — the `domotion template` verb.
 - Public API: the contract, registry, render, and both built-ins are re-exported
   from the package root (`src/index.ts`).
 
 ## Examples
 
-`examples/templates/` holds one committed example SVG per built-in concept
-(both `lower-third` themes, all three `device-mockup` bezels, all six
-`background-loop` variants, all `kinetic-text` reveals). Regenerate with
-`npx tsx examples/templates-demo.ts` (also wired into `npm run demos:examples`);
-outputs land in `examples/output/templates/`. The generator uses only the public
-`renderTemplateToSvg` API, so it doubles as worked usage.
+`examples/output/templates/` holds committed example SVGs across the built-ins
+(both `lower-third` themes, the `device-mockup` bezels, the `background-loop`
+variants, `kinetic-text` reveals, `chart` types, `chat`, `subscribe`).
+Regenerate with `npx tsx examples/templates-demo.ts` (also wired into
+`npm run demos:examples`). The generator uses only the public
+`renderTemplateToSvg` API, so it doubles as worked usage. (`examples/templates/`
+itself holds the authoring scaffold — `README.md` + `sample-app.html`.)
 
-## Follow-ups (not in the spike)
+## Follow-ups
 
-Tracked as separate tickets after the spike validated the contract: kinetic
-typography, chat/message + subscribe pop-up, charts & graphs, backgrounds &
-loops, and a Lottie **input adapter** (`domotion-template-lottie` — Lottie stays
-an input, never the engine). The third-party authoring guide + discovery/gallery
-shipped (DM-1282) — see `docs/74-template-authoring.md`, `examples/template-
-package/`, and the manual's Templates page.
+The first-party library that the spike validated is now **shipped** — kinetic
+typography (doc 72), chat + subscribe (doc 76), charts (doc 75), and
+backgrounds/loops (doc 71) are all built-ins. The third-party authoring guide +
+discovery/gallery shipped too (DM-1282) — see `docs/74-template-authoring.md`,
+`examples/template-package/`, and the manual's Templates page. The **only**
+remaining follow-up is a Lottie **input adapter** (`domotion-template-lottie` —
+Lottie stays an input, never the engine), not yet built.
 
 **Resolved — `capture --chrome` is NOT folded onto the `device-mockup`
 template.** The bezel-drawing logic is already a single source of truth
