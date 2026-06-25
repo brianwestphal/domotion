@@ -197,7 +197,7 @@ they describe (see `CLAUDE.md` "Documentation"):
   York ships its cuts as separate static OTFs (no `opsz` axis), so the
   `OPTICAL_CUT_OPSZ` mechanism does not apply; only `"New York Medium"`
   needed a routing fix (it collided with the variable font's Medium weight).
-- **Doc 60 (`docs/60-harfbuzz-use-reroute.md`, DM-1197 + DM-1215)** — two narrow
+- **Doc 79 (`docs/79-harfbuzz-use-reroute.md`, DM-1197 + DM-1215)** — two narrow
   uses of real HarfBuzz (harfbuzzjs) where macOS shaping diverges from Chrome.
   (1) DM-1197: USE-shaped precomposed letters with a canonical base+mark NFD
   (Kaithi `U+110AB`, Balinese, Tulu-Tigalari — 13 cps) shape via HarfBuzz instead
