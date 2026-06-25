@@ -166,6 +166,32 @@ without shelling out to the CLI or reimplementing it. See
 | `runActions` | function | `runActions(page, actions, log?)` — apply the declarative action vocabulary against a live Playwright `page`, in order. The payoff for imperative callers is the DOM-mutation set (setText / addClass / insert / replaceText / setStyle / dispatch / …) that aren't one-line Playwright calls; each applies across **every** matched element and throws if the selector matches nothing. `log` defaults to a no-op (the CLI passes one for the `evaluate`-too-long nudge). |
 | `AnimateAction` | type | The declarative action union accepted by `runActions` (and a config frame's `actions`): the interaction actions (click / fill / press / hover / focus / selectOption / scroll / wait / evaluate) plus the DOM-mutation set. |
 
+## Templates
+
+Parameterized generators that produce a self-contained SVG by driving the existing capture → compose pipeline (templates add no new rendering code). See `docs/70-template-system.md`; authoring a third-party `domotion-template-<name>` package is `docs/74-template-authoring.md`.
+
+| Export | Kind | Description |
+| --- | --- | --- |
+| `renderTemplateToSvg` | function | `renderTemplateToSvg(template, params, opts?)` → `TemplateOutput` (`{ svg, width, height, durationMs? }`). Validates `params` against the template's schema, then renders it (owns a temp `workDir` + browser unless one is passed in `opts`). The primary entry point. |
+| `RenderTemplateOptions` | type | Options for `renderTemplateToSvg` (`{ browser?, … }`). |
+| `Template` | type | The template contract a generator/decorator implements: `{ name, description, paramsSchema, render(params, ctx) }`. |
+| `TemplateRenderContext` | type | The building blocks passed to `render`: `{ browser, workDir, log, runAnimateConfig, captureToSvg }`. |
+| `TemplateOutput` | type | A template's result: `{ svg, width, height, durationMs? }`. |
+| `validateTemplateParams` | function | Validate + default a params object against a template's `paramsSchema` (throws a path-specific error on bad input). |
+| `isTemplate` | function | Type-guard that a value is a valid `Template` (used by the third-party package loader). |
+| `loadTemplate` | function | Resolve a bare name to a built-in, else `import("domotion-template-<name>")`; the registry mechanism behind `domotion template <name>`. |
+| `listBuiltinTemplates` / `getBuiltinTemplate` | function | Enumerate / look up the seven first-party built-ins. |
+| `templatePackageName` | function | Map a bare name → its `domotion-template-<name>` npm package name. |
+| `templateParamsJsonSchema` / `describeTemplateParams` | function | Project a template's zod `paramsSchema` to a JSON Schema / a `ParamInfo[]` flag list (powers `--help` + editor autocompletion). |
+| `ParamInfo` | type | One projected param (name, type, default, description) from `describeTemplateParams`. |
+| `lowerThirdTemplate` / `LowerThirdParams` | const / type | Built-in: broadcast lower-third banner. |
+| `deviceMockupTemplate` / `DeviceMockupParams` | const / type | Built-in: wrap a captured page in a phone/browser/window bezel (decorator; `screenSvg` nests an animated screen). |
+| `backgroundLoopTemplate` / `BackgroundLoopParams` / `BackgroundVariant` | const / type | Built-in: seamless looping background (aurora/orbs/stars/gradient-pan/grid/wave). |
+| `kineticTextTemplate` / `KineticTextParams` / `KineticVariant` | const / type | Built-in: kinetic typography (rise/slide/fade/clip/pop). |
+| `chartTemplate` / `ChartParams` / `ChartType` | const / type | Built-in: animated column/bar/line/pie/donut chart. |
+| `chatTemplate` / `ChatParams` / `ChatMessage` | const / type | Built-in: message-thread bubbles popping in. |
+| `subscribeTemplate` / `SubscribeParams` | const / type | Built-in: subscribe/follow pop-up card. |
+
 ## Terminal capture
 
 Turn a recorded terminal session (asciinema v2 `.cast`) into an animated SVG. See `docs/67-terminal-capture.md`.
