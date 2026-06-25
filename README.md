@@ -109,7 +109,7 @@ Supports target size (`--width`/`--height`, aspect-preserving), `--fps`, `--form
 
 ### Export to a still image
 
-To turn a single SVG into an image — to look at a render, embed a thumbnail, or hand off a flat asset — the package ships an `svg-to-image` CLI. The output format follows the `-o` extension: PNG (keeps alpha for transparent SVGs), JPEG (`--quality`), or a single-page vector PDF.
+To turn a single SVG into an image — to look at a render, embed a thumbnail, or hand off a flat asset — the package ships an `svg-to-image` CLI. The output format follows the `-o` extension: PNG / WebP / AVIF / TIFF (keep alpha for transparent SVGs), JPEG (`--quality`), or a single-page vector PDF. (WebP/AVIF/TIFF are transcoded with the bundled `sharp` — no extra install.)
 
 ```bash
 svg-to-image card.svg -o card.png                 # PNG at the SVG's intrinsic size

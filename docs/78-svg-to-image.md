@@ -1,4 +1,4 @@
-# 78 — `svg-to-image`: still SVG → PNG / JPEG / PDF
+# 78 — `svg-to-image`: still SVG → PNG / JPEG / PDF / WebP / AVIF / TIFF
 
 Status: **shipped** (DM-1353). A fifth published bin (sibling to `domotion`,
 `svg-to-video`, `svg-review`, `animated-svg-scrubber`) that converts a single SVG
@@ -51,9 +51,17 @@ The format is inferred from the `-o` **extension** (override with `--format`):
 | `.png` | PNG | Lossless raster; keeps an alpha channel for transparent SVGs. |
 | `.jpg` / `.jpeg` | JPEG | Lossy raster; no alpha → transparent input composites onto the background. `--quality 1–100` (default 92). |
 | `.pdf` | PDF | A single page sized to the SVG, rendered by Chromium's `page.pdf()` (vector where the content is vector; resolution-independent). |
+| `.webp` | WebP | Raster; keeps alpha. Lossy `--quality` (default 92). |
+| `.avif` | AVIF | Raster; keeps alpha. Lossy `--quality` (default 92). |
+| `.tiff` / `.tif` | TIFF | Lossless raster (LZW); keeps alpha. |
 
-An unrecognized extension is a usage error that names the supported set. WebP /
-AVIF / TIFF need an extra image encoder and are a deferred follow-up.
+PNG / JPEG / PDF are produced natively by Chromium (`page.screenshot` /
+`page.pdf`). WebP / AVIF / TIFF are **transcoded from the PNG buffer with
+[`sharp`](https://sharp.pixelplumbing.com/)** — already a Domotion dependency
+(capture image-resize, conic-gradient raster, …), so no extra install — and
+`sharp` is **imported lazily**, only when one of those formats is requested, so
+the common PNG/JPEG/PDF path doesn't pay its native-load cost. An unrecognized
+extension is a usage error that names the supported set.
 
 ## Options
 
@@ -65,12 +73,13 @@ AVIF / TIFF need an extra image encoder and are a deferred follow-up.
   Give either or both; omitted → the SVG's intrinsic size (from `viewBox`, else
   the `width`/`height` attributes). An SVG with no derivable size requires both.
 - `--scale <n>` — device-pixel-ratio / supersample factor for **raster** output
-  (default `1`; output px = size × scale). Use `2` for a crisp retina PNG.
+  (default `1`; output px = size × scale). Use `2` for a crisp retina raster.
   Ignored for PDF (vector, resolution-independent).
 - `--background <css>` — page background behind the SVG (default `transparent`).
-  PNG keeps the SVG's own alpha; JPEG/PDF can't carry alpha and composite onto
-  white when the background is transparent.
-- `--quality <1-100>` — JPEG quality (default 92). Ignored for png/pdf.
+  PNG/WebP/AVIF/TIFF keep the SVG's own alpha; JPEG/PDF can't carry alpha and
+  composite onto white when the background is transparent.
+- `--quality <1-100>` — quality for JPEG / WebP / AVIF (default 92). Ignored for
+  png / pdf / tiff (tiff is lossless LZW).
 - `--quiet` — suppress the one-line progress on stderr.
 
 ## Fidelity
@@ -88,11 +97,13 @@ requires headless Chromium, which `launchChromium()` always is.
 - CLI: `src/cli/svg-to-image.ts` (arg parsing + help) → `runSvgToImage` in
   `src/cli/svg-to-image-core.ts` (format resolution, sizing, render, write).
 - Reuses `htmlWrapper` / `seekTo` / `screenshot` / `parseSvgIntrinsicSize` from
-  `src/cli/svg-to-video-core.ts`.
+  `src/cli/svg-to-video-core.ts`; WebP/AVIF/TIFF transcode via a lazy
+  `import("sharp")`.
 - Bin registered in `package.json` (`"svg-to-image": "dist/cli/svg-to-image.js"`).
 - Tests: `svg-to-image-core.test.ts` (pure helpers) + `svg-to-image-e2e.test.ts`
   (real Chromium: PNG geometry/alpha, `--scale`, `--width`, JPEG/PDF magic
-  bytes, `--at` frame distinctness).
+  bytes, WebP/AVIF/TIFF magic bytes + WebP alpha round-trip, `--at` frame
+  distinctness).
 
 ## See also
 

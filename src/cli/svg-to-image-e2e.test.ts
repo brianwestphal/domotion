@@ -139,6 +139,49 @@ describe("svg-to-image end-to-end (Chromium)", () => {
     }
   });
 
+  it("transcodes to WebP / AVIF / TIFF via sharp (correct magic bytes)", async () => {
+    const d = setup();
+    const input = path.join(d, "in.svg");
+    writeFileSync(input, STATIC_SVG);
+    try {
+      // WebP: "RIFF"...."WEBP"
+      const webp = path.join(d, "out.webp");
+      expect((await runSvgToImage(opts(input, webp))).format).toBe("webp");
+      const wb = readFileSync(webp);
+      expect(wb.subarray(0, 4).toString("latin1")).toBe("RIFF");
+      expect(wb.subarray(8, 12).toString("latin1")).toBe("WEBP");
+
+      // AVIF: ISOBMFF — "ftyp" box at offset 4.
+      const avif = path.join(d, "out.avif");
+      expect((await runSvgToImage(opts(input, avif))).format).toBe("avif");
+      expect(readFileSync(avif).subarray(4, 8).toString("latin1")).toBe("ftyp");
+
+      // TIFF: "II*\0" (LE) or "MM\0*" (BE).
+      const tiff = path.join(d, "out.tiff");
+      expect((await runSvgToImage(opts(input, tiff))).format).toBe("tiff");
+      const tb = readFileSync(tiff).subarray(0, 4).toString("hex");
+      expect(["49492a00", "4d4d002a"]).toContain(tb);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps alpha when transcoding a transparent SVG to WebP", async () => {
+    const d = setup();
+    const input = path.join(d, "in.svg");
+    const output = path.join(d, "out.webp");
+    writeFileSync(input, TRANSPARENT_SVG);
+    try {
+      await runSvgToImage(opts(input, output));
+      const sharp = (await import("sharp")).default;
+      const meta = await sharp(readFileSync(output)).metadata();
+      expect(meta.format).toBe("webp");
+      expect(meta.hasAlpha).toBe(true);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
   it("samples distinct frames of an animated SVG via --at", async () => {
     const d = setup();
     const input = path.join(d, "anim.svg");

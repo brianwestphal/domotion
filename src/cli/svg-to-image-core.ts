@@ -15,7 +15,7 @@ import { extname } from "node:path";
 import type { Browser } from "@playwright/test";
 import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize } from "./svg-to-video-core.js";
 
-export type ImageFormat = "png" | "jpeg" | "pdf";
+export type ImageFormat = "png" | "jpeg" | "pdf" | "webp" | "avif" | "tiff";
 
 export interface SvgToImageOptions {
   /** Path to the input `.svg` file. */
@@ -46,18 +46,28 @@ const EXT_FORMAT: Record<string, ImageFormat> = {
   ".jpg": "jpeg",
   ".jpeg": "jpeg",
   ".pdf": "pdf",
+  ".webp": "webp",
+  ".avif": "avif",
+  ".tiff": "tiff",
+  ".tif": "tiff",
 };
 
 /** A human-readable list of the supported output extensions. */
-export const SUPPORTED_IMAGE_EXTS = ".png, .jpg/.jpeg, .pdf";
+export const SUPPORTED_IMAGE_EXTS = ".png, .jpg/.jpeg, .pdf, .webp, .avif, .tiff";
+
+/** Whether a format is produced by transcoding the PNG buffer with sharp (vs. native Chromium). */
+export function isSharpFormat(format: ImageFormat): boolean {
+  return format === "webp" || format === "avif" || format === "tiff";
+}
 
 /** Resolve the output image format from an explicit override or the path extension. */
 export function resolveImageFormat(outputPath: string, override?: string): ImageFormat {
   if (override != null && override !== "") {
     const o = override.toLowerCase();
-    if (o === "png" || o === "jpeg" || o === "pdf") return o;
+    if (o === "png" || o === "jpeg" || o === "pdf" || o === "webp" || o === "avif" || o === "tiff") return o;
     if (o === "jpg") return "jpeg";
-    throw new Error(`--format expects png | jpeg | pdf; got "${override}"`);
+    if (o === "tif") return "tiff";
+    throw new Error(`--format expects png | jpeg | pdf | webp | avif | tiff; got "${override}"`);
   }
   const ext = extname(outputPath).toLowerCase();
   const fmt = EXT_FORMAT[ext];
@@ -126,8 +136,9 @@ export async function runSvgToImage(
 
   const transparent = isTransparentBg(background);
   // JPEG and PDF can't carry an alpha channel — composite on white when no
-  // opaque background was requested.
-  const renderBackground = transparent && format !== "png" ? "#ffffff" : background;
+  // opaque background was requested. PNG/WebP/AVIF/TIFF all keep the alpha.
+  const opaqueOnly = format === "jpeg" || format === "pdf";
+  const renderBackground = transparent && opaqueOnly ? "#ffffff" : background;
 
   const browser = await opts.launchBrowser();
   try {
@@ -149,7 +160,7 @@ export async function runSvgToImage(
       buf = await screenshot(page, transparent);
     } else if (format === "jpeg") {
       buf = await page.screenshot({ type: "jpeg", quality: opts.quality ?? 92, scale: "device" });
-    } else {
+    } else if (format === "pdf") {
       // PDF — a single page sized to the SVG. Force `screen` media so a print
       // stylesheet can't change the paint, and print backgrounds so fills show.
       // `page.pdf()` requires headless Chromium (launchChromium is headless).
@@ -161,6 +172,21 @@ export async function runSvgToImage(
         pageRanges: "1",
         margin: { top: "0", right: "0", bottom: "0", left: "0" },
       });
+    } else {
+      // WebP / AVIF / TIFF — Chromium's screenshot can't emit these, so capture
+      // a PNG (keeping alpha when transparent) and transcode with sharp. sharp
+      // is already a dependency (capture image-resize, conic raster, …), but
+      // only this path needs it — import it lazily so the common PNG/JPEG/PDF
+      // path doesn't pay sharp's native-load cost.
+      const pngBuf = await screenshot(page, transparent);
+      const sharp = (await import("sharp")).default;
+      const img = sharp(pngBuf);
+      const quality = opts.quality ?? 92;
+      if (format === "webp") buf = await img.webp({ quality }).toBuffer();
+      else if (format === "avif") buf = await img.avif({ quality }).toBuffer();
+      // TIFF: lossless LZW (sharp's default is lossy JPEG) — a "still" should be
+      // faithful, and TIFF is usually chosen precisely because it's lossless.
+      else buf = await img.tiff({ compression: "lzw" }).toBuffer();
     }
     writeFileSync(opts.output, buf);
   } finally {

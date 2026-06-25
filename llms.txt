@@ -21,7 +21,7 @@ First run auto-installs Playwright's Chromium (`npx playwright install chromium`
 |---|---|
 | `domotion` | The main tool: `capture`, `animate`, `template`, `term`, `composite`. |
 | `svg-to-video` | Render an animated SVG to MP4/WebM/MOV. |
-| `svg-to-image` | Rasterize a still (or one frame of an animated) SVG to PNG/JPEG/PDF — your "look at the pixels" tool. |
+| `svg-to-image` | Rasterize a still (or one frame of an animated) SVG to PNG/JPEG/PDF/WebP/AVIF/TIFF — your "look at the pixels" tool. |
 | `svg-review` | Diff a capture against the Chromium screenshot (for filing fidelity bugs). |
 | `animated-svg-scrubber` | Play / scrub / trim / export-frame an animated SVG locally. |
 
@@ -116,9 +116,9 @@ svg-to-video demo.svg -o demo.webm --format vp9 --fps 60 --music bed.mp3
 
 `--width`/`--height` (contain, aspect-preserving), `--fps` (default 30), `--duration <s>` (default: one animation loop), `--music <file>`.
 
-## `svg-to-image <input.svg> -o out.png` — SVG → still image (PNG/JPEG/PDF)
+## `svg-to-image <input.svg> -o out.png` — SVG → still image (PNG/JPEG/PDF/WebP/AVIF/TIFF)
 
-The one-shot rasterizer for *looking at* what you produced (see "Work the loop" below). Output format follows the `-o` extension: `.png` (keeps alpha for transparent SVGs), `.jpg`/`.jpeg` (`--quality 1-100`), or `.pdf` (a single vector page sized to the SVG).
+The one-shot rasterizer for *looking at* what you produced (see "Work the loop" below). Output format follows the `-o` extension: `.png` / `.webp` / `.avif` / `.tiff` (keep alpha for transparent SVGs; webp/avif take `--quality`), `.jpg`/`.jpeg` (`--quality 1-100`), or `.pdf` (a single vector page sized to the SVG). WebP/AVIF/TIFF are transcoded via the bundled `sharp` (no extra install).
 
 ```bash
 svg-to-image card.svg -o card.png                 # still → PNG at intrinsic size

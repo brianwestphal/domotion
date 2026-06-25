@@ -35,16 +35,19 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 78 (`docs/78-svg-to-image.md`, DM-1353)** — **Shipped.** A fifth published
-  bin, `svg-to-image`: convert one SVG to a single image file — PNG / JPEG / PDF,
-  format inferred from the `-o` extension (or `--format`). The headless, one-shot
-  counterpart to the scrubber's interactive frame export and the still analogue of
-  `svg-to-video`; built for the agent review loop ("render → look at the pixels →
-  critique"). `--at <ms>` samples an animated SVG's timeline; `--scale` supersamples
-  raster output (retina); `--width/--height` contain preserving aspect; transparent
-  SVGs keep alpha in PNG (JPEG/PDF composite on white). Input is an SVG file only
-  (URL/HTML → image is `domotion capture` then this). Reuses the
-  `svg-to-video-core` seek+screenshot machinery (`src/cli/svg-to-image{,-core}.ts`).
+- **Doc 78 (`docs/78-svg-to-image.md`, DM-1353 + DM-1354)** — **Shipped.** A fifth
+  published bin, `svg-to-image`: convert one SVG to a single image file — PNG /
+  JPEG / PDF / WebP / AVIF / TIFF, format inferred from the `-o` extension (or
+  `--format`). The headless, one-shot counterpart to the scrubber's interactive
+  frame export and the still analogue of `svg-to-video`; built for the agent review
+  loop ("render → look at the pixels → critique"). `--at <ms>` samples an animated
+  SVG's timeline; `--scale` supersamples raster output (retina); `--width/--height`
+  contain preserving aspect; PNG/WebP/AVIF/TIFF keep alpha (JPEG/PDF composite on
+  white). PNG/JPEG/PDF are native Chromium (`page.screenshot`/`page.pdf`); WebP/AVIF/
+  TIFF transcode from the PNG buffer via the already-bundled `sharp` (DM-1354),
+  lazy-`import()`ed only when requested. Input is an SVG file only (URL/HTML → image
+  is `domotion capture` then this). Reuses the `svg-to-video-core` seek+screenshot
+  machinery (`src/cli/svg-to-image{,-core}.ts`).
 - **Doc 77 (`docs/77-nested-animated-compositing.md`, DM-1323)** — **Shipped (core).**
   General animated-SVG compositing: nest one *animated* composition (cast / scroll
   capture / template / `animate` result) inside another, animation intact — the

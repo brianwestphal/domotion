@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { containSize, isTransparentBg, resolveImageFormat } from "./svg-to-image-core.js";
+import { containSize, isSharpFormat, isTransparentBg, resolveImageFormat } from "./svg-to-image-core.js";
+
+describe("isSharpFormat", () => {
+  it("is true only for the sharp-transcoded formats", () => {
+    expect(isSharpFormat("webp")).toBe(true);
+    expect(isSharpFormat("avif")).toBe(true);
+    expect(isSharpFormat("tiff")).toBe(true);
+    expect(isSharpFormat("png")).toBe(false);
+    expect(isSharpFormat("jpeg")).toBe(false);
+    expect(isSharpFormat("pdf")).toBe(false);
+  });
+});
 
 describe("resolveImageFormat", () => {
   it("infers the format from the output extension (case-insensitive)", () => {
@@ -11,21 +22,32 @@ describe("resolveImageFormat", () => {
     expect(resolveImageFormat("/a/b/c/frame.JPG")).toBe("jpeg");
   });
 
-  it("honors an explicit override (and maps jpg → jpeg) regardless of extension", () => {
+  it("infers the sharp-transcoded formats from the extension", () => {
+    expect(resolveImageFormat("out.webp")).toBe("webp");
+    expect(resolveImageFormat("out.avif")).toBe("avif");
+    expect(resolveImageFormat("out.tiff")).toBe("tiff");
+    expect(resolveImageFormat("out.tif")).toBe("tiff");
+    expect(resolveImageFormat("out.WEBP")).toBe("webp");
+  });
+
+  it("honors an explicit override (and maps jpg → jpeg, tif → tiff) regardless of extension", () => {
     expect(resolveImageFormat("out.png", "jpeg")).toBe("jpeg");
     expect(resolveImageFormat("out.bin", "jpg")).toBe("jpeg");
     expect(resolveImageFormat("out.bin", "PNG")).toBe("png");
     expect(resolveImageFormat("out.bin", "pdf")).toBe("pdf");
+    expect(resolveImageFormat("out.png", "webp")).toBe("webp");
+    expect(resolveImageFormat("out.png", "avif")).toBe("avif");
+    expect(resolveImageFormat("out.bin", "tif")).toBe("tiff");
   });
 
   it("throws on an unknown extension, naming the supported set", () => {
-    expect(() => resolveImageFormat("out.webp")).toThrow(/\.png/);
+    expect(() => resolveImageFormat("out.gif")).toThrow(/\.png/);
     expect(() => resolveImageFormat("out.bmp")).toThrow(/extension "\.bmp"/);
     expect(() => resolveImageFormat("out")).toThrow(/\(none\)/);
   });
 
   it("throws on an invalid override", () => {
-    expect(() => resolveImageFormat("out.png", "webp")).toThrow(/--format expects/);
+    expect(() => resolveImageFormat("out.png", "gif")).toThrow(/--format expects/);
   });
 });
 

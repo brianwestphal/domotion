@@ -20,9 +20,10 @@ import { runSvgToImage, SUPPORTED_IMAGE_EXTS, type ImageFormat, type SvgToImageO
 function parseFormat(value: string | undefined): ImageFormat | undefined {
   if (value == null) return undefined;
   const v = value.toLowerCase();
-  if (v === "png" || v === "jpeg" || v === "pdf") return v;
+  if (v === "png" || v === "jpeg" || v === "pdf" || v === "webp" || v === "avif" || v === "tiff") return v;
   if (v === "jpg") return "jpeg";
-  throw new Error(`--format expects png | jpeg | pdf; got "${value}"`);
+  if (v === "tif") return "tiff";
+  throw new Error(`--format expects png | jpeg | pdf | webp | avif | tiff; got "${value}"`);
 }
 
 function parseQuality(value: string | undefined): number | undefined {
@@ -32,7 +33,7 @@ function parseQuality(value: string | undefined): number | undefined {
   return n;
 }
 
-const HELP = `svg-to-image — convert an SVG to a PNG / JPEG / PDF
+const HELP = `svg-to-image — convert an SVG to an image (PNG / JPEG / PDF / WebP / AVIF / TIFF)
 
 Usage:
   svg-to-image <input.svg> -o <output> [options]
@@ -44,7 +45,7 @@ Arguments:
 Options:
   -o, --output <path>      Output path (required). The extension picks the format:
                            ${SUPPORTED_IMAGE_EXTS}. Override with --format.
-      --format <fmt>       Force the output format: png | jpeg | pdf.
+      --format <fmt>       Force the output format: png | jpeg | pdf | webp | avif | tiff.
       --at <ms>            For an animated SVG, the timeline position to sample
                            (default 0 = the first frame).
       --width <px>         Target width; contains within, preserving aspect ratio.
@@ -52,11 +53,12 @@ Options:
                            Give either or both; omitted → the SVG's intrinsic size.
       --scale <n>          Device-pixel-ratio / supersample factor for raster
                            output (default 1; output px = size × scale). Use 2 for
-                           a crisp retina PNG. Ignored for PDF (vector).
+                           a crisp retina raster. Ignored for PDF (vector).
       --background <css>   Page background behind the SVG (default "transparent").
-                           PNG keeps the SVG's own alpha; JPEG/PDF can't carry
-                           alpha and composite onto white when transparent.
-      --quality <1-100>    JPEG quality (default 92). Ignored for png/pdf.
+                           PNG/WebP/AVIF/TIFF keep the SVG's own alpha; JPEG/PDF
+                           can't carry alpha and composite onto white.
+      --quality <1-100>    Quality for JPEG / WebP / AVIF (default 92). Ignored for
+                           png / pdf / tiff.
       --quiet              Suppress the progress line on stderr.
   -h, --help               Show this help.
 
@@ -68,13 +70,14 @@ Examples:
   # A retina (2×) PNG.
   svg-to-image card.svg -o card@2x.png --scale 2
 
-  # Grab the payoff frame of an animation at 4s as a JPEG.
-  svg-to-image demo.svg -o frame.jpg --at 4000 --quality 90
+  # Grab the payoff frame of an animation at 4s as a WebP.
+  svg-to-image demo.svg -o frame.webp --at 4000 --quality 90
 
   # A vector PDF sized to the SVG.
   svg-to-image poster.svg -o poster.pdf
 
-Needs Chromium (Playwright); auto-installed on first run.
+Needs Chromium (Playwright); auto-installed on first run. WebP/AVIF/TIFF are
+transcoded with sharp (already a dependency), loaded only when requested.
 `;
 
 void main();
