@@ -118,7 +118,142 @@ export interface ChartPlan {
   legend: { name: string; color: string }[];
 }
 
-/** Lay out the chart geometry from the params. Pure — no browser. */
+/** Shared layout context the per-chart-type planners read. */
+interface PlanCtx {
+  p: ChartParams;
+  nSeries: number;
+  nCats: number;
+  multi: boolean;
+  stacked: boolean;
+  val: (s: number, c: number) => number;
+  colorOf: (s: number, c: number) => string;
+  catLabel: (c: number) => string;
+  maxVal: number;
+  plot: { x: number; y: number; w: number; h: number };
+  mLeft: number;
+  mRight: number;
+  showVals: boolean;
+}
+
+/** Pie / donut: one ring of arc slices with a label·percentage legend. No axes /
+ *  gridlines — a complete plan on its own. */
+function planPie(p: ChartParams, series: number[][], catLabel: (c: number) => string): ChartPlan {
+  const vals = series[0].map((v) => Math.max(0, v));
+  const total = vals.reduce((a, b) => a + b, 0) || 1;
+  const hasLegend = vals.length > 0;
+  const legendW = hasLegend ? Math.min(280, Math.round(p.width * 0.32)) : 0;
+  const top = p.title != null && p.title !== "" ? 70 : 20;
+  const areaW = p.width - legendW;
+  const r = Math.round(Math.min(areaW, p.height - top - 24) / 2 - 8);
+  const cx = Math.round(areaW / 2);
+  const cy = Math.round(top + (p.height - top) / 2);
+  const ri = p.type === "donut" ? Math.round(r * 0.58) : 0;
+  const slices: PieSlice[] = [];
+  const pieLegend: { name: string; color: string }[] = [];
+  let acc = 0;
+  vals.forEach((v, i) => {
+    const start = (acc / total) * 360;
+    acc += v;
+    const end = (acc / total) * 360;
+    slices.push({ path: arcPath(cx, cy, r, ri, start, Math.max(end, start + 0.0001)), color: p.colors[i % p.colors.length] });
+    const pct = Math.round((v / total) * 1000) / 10;
+    pieLegend.push({ name: `${catLabel(i) || `Slice ${i + 1}`} · ${pct}%`, color: p.colors[i % p.colors.length] });
+  });
+  return {
+    type: p.type, stacked: false, maxVal: total,
+    plot: { x: 0, y: top, w: areaW, h: p.height - top }, bars: [], stacks: [], lines: [],
+    slices, pie: { cx, cy, r }, gridlines: [], catLabels: [], valueLabels: [], legend: pieLegend,
+  };
+}
+
+/** Line series: a polyline (+ area fill for single series) + dots per series,
+ *  with category labels under the shared x positions. */
+function planLine(ctx: PlanCtx): { lines: SeriesLine[]; catLabels: Box[]; valueLabels: Box[] } {
+  const { p, nSeries, nCats, multi, val, colorOf, catLabel, maxVal, plot, showVals } = ctx;
+  const lines: SeriesLine[] = [];
+  const catLabels: Box[] = [];
+  const valueLabels: Box[] = [];
+  for (let s = 0; s < nSeries; s++) {
+    const pts: { x: number; y: number }[] = [];
+    for (let c = 0; c < nCats; c++) {
+      const x = nCats === 1 ? plot.x + plot.w / 2 : Math.round(plot.x + (c / (nCats - 1)) * plot.w);
+      const y = Math.round(plot.y + plot.h - (val(s, c) / maxVal) * plot.h);
+      pts.push({ x, y });
+    }
+    const baseY = plot.y + plot.h;
+    lines.push({
+      seriesIdx: s,
+      color: p.colors[s % p.colors.length],
+      points: pts.map((q) => `${q.x},${q.y}`).join(" "),
+      areaPath: multi ? null : `M ${pts[0].x} ${baseY} ` + pts.map((q) => `L ${q.x} ${q.y}`).join(" ") + ` L ${pts[pts.length - 1].x} ${baseY} Z`,
+      dots: pts.map((q) => ({ cx: q.x, cy: q.y })),
+    });
+    if (showVals) {
+      pts.forEach((q, c) => valueLabels.push({ text: fmt(val(s, c)), left: q.x - 40, top: q.y - 34, width: 80, height: 22, align: "center" }));
+    }
+  }
+  // Category labels under each point (x positions shared across series).
+  for (let c = 0; c < nCats; c++) {
+    const x = nCats === 1 ? plot.x + plot.w / 2 : Math.round(plot.x + (c / (nCats - 1)) * plot.w);
+    catLabels.push({ text: catLabel(c), left: x - 60, top: plot.y + plot.h + 10, width: 120, height: 34, align: "center" });
+  }
+  return { lines, catLabels, valueLabels };
+}
+
+/** Column (vertical) and bar (horizontal) share one algorithm — the category
+ *  axis and the value axis are swapped. `orientation` selects which screen axis
+ *  is which; everything else (slot sizing, grouped-vs-stacked, the grow stagger)
+ *  is identical. `vertical` columns grow UP from the plot's bottom edge; `bar`s
+ *  grow RIGHT from the plot's left edge. */
+function planBars(ctx: PlanCtx, orientation: "column" | "bar"): { bars: BarRect[]; stacks: StackBox[]; catLabels: Box[]; valueLabels: Box[] } {
+  const { nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals } = ctx;
+  const bars: BarRect[] = [];
+  const stacks: StackBox[] = [];
+  const catLabels: Box[] = [];
+  const valueLabels: Box[] = [];
+  const vertical = orientation === "column";
+  const catExtent = vertical ? plot.w : plot.h;   // along which the categories spread
+  const valExtent = vertical ? plot.h : plot.w;    // along which a value's bar grows
+  const catOrigin = vertical ? plot.x : plot.y;
+  const baseY = plot.y + plot.h;                    // columns grow up from here
+  const slot = catExtent / nCats;
+  const groupSize = Math.min(slot * 0.7, multi ? slot * 0.7 : (vertical ? 130 : 90));
+  for (let c = 0; c < nCats; c++) {
+    const g = catOrigin + c * slot + (slot - groupSize) / 2; // group start on the category axis
+    if (stacked) {
+      let acc = 0; // px consumed so far along the value axis (below / left)
+      const segs: { color: string; offset: number; size: number }[] = [];
+      for (let s = 0; s < nSeries; s++) {
+        const px = Math.round((val(s, c) / maxVal) * valExtent);
+        segs.push({ color: colorOf(s, c), offset: acc, size: px });
+        acc += px;
+      }
+      stacks.push(vertical
+        ? { catIdx: c, left: Math.round(g), top: Math.round(baseY - acc), width: Math.round(groupSize), height: acc, segments: segs }
+        : { catIdx: c, left: plot.x, top: Math.round(g), width: acc, height: Math.round(groupSize), segments: segs });
+    } else {
+      const sub = groupSize / nSeries;
+      for (let s = 0; s < nSeries; s++) {
+        const px = Math.round((val(s, c) / maxVal) * valExtent);
+        if (vertical) {
+          bars.push({ catIdx: c, color: colorOf(s, c), left: Math.round(g + s * sub), top: baseY - px, width: Math.round(sub), height: px });
+          if (showVals) valueLabels.push({ text: fmt(val(s, c)), left: Math.round(g + s * sub - 10), top: baseY - px - 30, width: Math.round(sub + 20), height: 24, align: "center" });
+        } else {
+          bars.push({ catIdx: c, color: colorOf(s, c), left: plot.x, top: Math.round(g + s * sub), width: px, height: Math.round(sub) });
+          if (showVals) valueLabels.push({ text: fmt(val(s, c)), left: plot.x + px + 10, top: Math.round(g + s * sub), width: mRight - 4, height: Math.round(sub), align: "left" });
+        }
+      }
+    }
+    catLabels.push(vertical
+      ? { text: catLabel(c), left: Math.round(plot.x + c * slot), top: baseY + 10, width: Math.round(slot), height: 34, align: "center" }
+      : { text: catLabel(c), left: 0, top: Math.round(g), width: mLeft - 12, height: Math.round(groupSize), align: "right" });
+  }
+  return { bars, stacks, catLabels, valueLabels };
+}
+
+/** Lay out the chart geometry from the params. Pure — no browser. Dispatches to
+ *  the per-type planner (`planPie` / `planLine` / `planBars`) after the shared
+ *  axis + gridline setup. */
 export function planChart(p: ChartParams): ChartPlan {
   const series = p.data;
   const nSeries = series.length;
@@ -129,36 +264,7 @@ export function planChart(p: ChartParams): ChartPlan {
   const colorOf = (s: number, c: number): string => p.colors[(multi ? s : c) % p.colors.length];
   const catLabel = (c: number): string => (p.labels != null && p.labels.length > 0 ? p.labels[c % p.labels.length] : "");
 
-  // Pie / donut: one series of slices, each an arc path, with a legend of
-  // label + percentage. No axes / gridlines.
-  if (p.type === "pie" || p.type === "donut") {
-    const vals = series[0].map((v) => Math.max(0, v));
-    const total = vals.reduce((a, b) => a + b, 0) || 1;
-    const hasLegend = vals.length > 0;
-    const legendW = hasLegend ? Math.min(280, Math.round(p.width * 0.32)) : 0;
-    const top = p.title != null && p.title !== "" ? 70 : 20;
-    const areaW = p.width - legendW;
-    const r = Math.round(Math.min(areaW, p.height - top - 24) / 2 - 8);
-    const cx = Math.round(areaW / 2);
-    const cy = Math.round(top + (p.height - top) / 2);
-    const ri = p.type === "donut" ? Math.round(r * 0.58) : 0;
-    const slices: PieSlice[] = [];
-    const pieLegend: { name: string; color: string }[] = [];
-    let acc = 0;
-    vals.forEach((v, i) => {
-      const start = (acc / total) * 360;
-      acc += v;
-      const end = (acc / total) * 360;
-      slices.push({ path: arcPath(cx, cy, r, ri, start, Math.max(end, start + 0.0001)), color: p.colors[i % p.colors.length] });
-      const pct = Math.round((v / total) * 1000) / 10;
-      pieLegend.push({ name: `${catLabel(i) || `Slice ${i + 1}`} · ${pct}%`, color: p.colors[i % p.colors.length] });
-    });
-    return {
-      type: p.type, stacked: false, maxVal: total,
-      plot: { x: 0, y: top, w: areaW, h: p.height - top }, bars: [], stacks: [], lines: [],
-      slices, pie: { cx, cy, r }, gridlines: [], catLabels: [], valueLabels: [], legend: pieLegend,
-    };
-  }
+  if (p.type === "pie" || p.type === "donut") return planPie(p, series, catLabel);
 
   // Axis maximum: stacked uses per-category totals; everything else the largest datum.
   const peak = stacked
@@ -178,13 +284,7 @@ export function planChart(p: ChartParams): ChartPlan {
   const plot = { x: mLeft, y: mTop, w: p.width - mLeft - mRight, h: p.height - mTop - mBottom };
   const showVals = p.showValues && !multi; // per-bar labels only read cleanly for one series
 
-  const bars: BarRect[] = [];
-  const stacks: StackBox[] = [];
-  const lines: SeriesLine[] = [];
-  const catLabels: Box[] = [];
-  const valueLabels: Box[] = [];
   const gridlines: GridLine[] = [];
-
   // Value-axis gridlines + tick labels.
   for (let k = 0; p.yTicks > 0 && k <= p.yTicks; k++) {
     const frac = k / p.yTicks;
@@ -198,81 +298,10 @@ export function planChart(p: ChartParams): ChartPlan {
     }
   }
 
-  if (p.type === "line") {
-    for (let s = 0; s < nSeries; s++) {
-      const pts: { x: number; y: number }[] = [];
-      for (let c = 0; c < nCats; c++) {
-        const x = nCats === 1 ? plot.x + plot.w / 2 : Math.round(plot.x + (c / (nCats - 1)) * plot.w);
-        const y = Math.round(plot.y + plot.h - (val(s, c) / maxVal) * plot.h);
-        pts.push({ x, y });
-      }
-      const baseY = plot.y + plot.h;
-      lines.push({
-        seriesIdx: s,
-        color: p.colors[s % p.colors.length],
-        points: pts.map((q) => `${q.x},${q.y}`).join(" "),
-        areaPath: multi ? null : `M ${pts[0].x} ${baseY} ` + pts.map((q) => `L ${q.x} ${q.y}`).join(" ") + ` L ${pts[pts.length - 1].x} ${baseY} Z`,
-        dots: pts.map((q) => ({ cx: q.x, cy: q.y })),
-      });
-      if (showVals) {
-        pts.forEach((q, c) => valueLabels.push({ text: fmt(val(s, c)), left: q.x - 40, top: q.y - 34, width: 80, height: 22, align: "center" }));
-      }
-    }
-    // Category labels under each point (x positions shared across series).
-    for (let c = 0; c < nCats; c++) {
-      const x = nCats === 1 ? plot.x + plot.w / 2 : Math.round(plot.x + (c / (nCats - 1)) * plot.w);
-      catLabels.push({ text: catLabel(c), left: x - 60, top: plot.y + plot.h + 10, width: 120, height: 34, align: "center" });
-    }
-  } else if (p.type === "column") {
-    const slot = plot.w / nCats;
-    const groupW = Math.min(slot * 0.7, multi ? slot * 0.7 : 130);
-    for (let c = 0; c < nCats; c++) {
-      const gx = plot.x + c * slot + (slot - groupW) / 2;
-      if (stacked) {
-        let below = 0;
-        const segs: { color: string; offset: number; size: number }[] = [];
-        for (let s = 0; s < nSeries; s++) {
-          const h = Math.round((val(s, c) / maxVal) * plot.h);
-          segs.push({ color: colorOf(s, c), offset: below, size: h });
-          below += h;
-        }
-        stacks.push({ catIdx: c, left: Math.round(gx), top: Math.round(plot.y + plot.h - below), width: Math.round(groupW), height: below, segments: segs });
-      } else {
-        const bw = groupW / nSeries;
-        for (let s = 0; s < nSeries; s++) {
-          const h = Math.round((val(s, c) / maxVal) * plot.h);
-          bars.push({ catIdx: c, color: colorOf(s, c), left: Math.round(gx + s * bw), top: plot.y + plot.h - h, width: Math.round(bw), height: h });
-          if (showVals) valueLabels.push({ text: fmt(val(s, c)), left: Math.round(gx + s * bw - 10), top: plot.y + plot.h - h - 30, width: Math.round(bw + 20), height: 24, align: "center" });
-        }
-      }
-      catLabels.push({ text: catLabel(c), left: Math.round(plot.x + c * slot), top: plot.y + plot.h + 10, width: Math.round(slot), height: 34, align: "center" });
-    }
-  } else {
-    // bar (horizontal)
-    const slot = plot.h / nCats;
-    const groupH = Math.min(slot * 0.7, multi ? slot * 0.7 : 90);
-    for (let c = 0; c < nCats; c++) {
-      const gy = plot.y + c * slot + (slot - groupH) / 2;
-      if (stacked) {
-        let left = 0;
-        const segs: { color: string; offset: number; size: number }[] = [];
-        for (let s = 0; s < nSeries; s++) {
-          const w = Math.round((val(s, c) / maxVal) * plot.w);
-          segs.push({ color: colorOf(s, c), offset: left, size: w });
-          left += w;
-        }
-        stacks.push({ catIdx: c, left: plot.x, top: Math.round(gy), width: left, height: Math.round(groupH), segments: segs });
-      } else {
-        const bh = groupH / nSeries;
-        for (let s = 0; s < nSeries; s++) {
-          const w = Math.round((val(s, c) / maxVal) * plot.w);
-          bars.push({ catIdx: c, color: colorOf(s, c), left: plot.x, top: Math.round(gy + s * bh), width: w, height: Math.round(bh) });
-          if (showVals) valueLabels.push({ text: fmt(val(s, c)), left: plot.x + w + 10, top: Math.round(gy + s * bh), width: mRight - 4, height: Math.round(bh), align: "left" });
-        }
-      }
-      catLabels.push({ text: catLabel(c), left: 0, top: Math.round(gy), width: mLeft - 12, height: Math.round(groupH), align: "right" });
-    }
-  }
+  const ctx: PlanCtx = { p, nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals };
+  const { bars, stacks, lines, catLabels, valueLabels } = p.type === "line"
+    ? { bars: [], stacks: [], ...planLine(ctx) }
+    : { lines: [], ...planBars(ctx, p.type) };
 
   return { type: p.type, stacked, maxVal, plot, bars, stacks, lines, slices: [], pie: null, gridlines, catLabels, valueLabels, legend };
 }
