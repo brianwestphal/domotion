@@ -197,9 +197,26 @@ export function composeScrollSvg(
   setRenderTextMode(renderTextMode);
   // DM-1078: the whole body renders in the chosen mode (module-global);
   // restore on ANY exit — incl. a mid-segment elementTreeToSvgInner throw —
-  // so the mode can't leak to the next caller. (Body left un-indented to
-  // keep the multi-line template literals below byte-for-byte intact.)
+  // so the mode can't leak to the next caller.
   try {
+    return composeScrollSvgBody(segments, opts, { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize });
+  } finally {
+    setRenderTextMode(prevRenderTextMode);
+  }
+}
+
+/**
+ * Build the scroll composite SVG. Split out of composeScrollSvg (DM-1374) so the
+ * body indents normally; composeScrollSvg only arms + restores the module-global
+ * text-render mode around this call. `ctx` carries the resolved options the body
+ * reads (axis / viewport / background / hiDPI / chunk size).
+ */
+function composeScrollSvgBody(
+  segments: ScrollSegmentCapture[],
+  opts: ScrollComposerOptions,
+  ctx: { axis: "x" | "y"; W: number; VH: number; bg: string | undefined; paintBg: boolean; hiDPIFactor: number; chunkSize: number },
+): string {
+  const { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize } = ctx;
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -447,9 +464,6 @@ ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${
     </g>
   </g>${overlayMarkup}
 </svg>`;
-  } finally {
-    setRenderTextMode(prevRenderTextMode);
-  }
 }
 
 /** Small deterministic string hash (FNV-1a, 32-bit) → 6-char base36. Used to
