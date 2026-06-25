@@ -653,6 +653,105 @@ async function renderTemplateFrames(
   return out;
 }
 
+type AnimateFrameCfg = AnimateConfig["frames"][number];
+
+/**
+ * Build a `cast` frame (DM-1225): render the recorded terminal session to a
+ * self-contained animated SVG, namespace its document-global names, and return
+ * the frame. Extracted from `composeAnimateFrames`' loop (DM-1376); the caller
+ * pushes it and resets `prevFrameTree`/`frameTrees` (a cast has no captured tree).
+ */
+async function buildCastFrame(
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  configDir: string,
+  browser: Browser,
+  log: (msg: string) => void,
+): Promise<AnimationFrame> {
+  const castPath = resolveFrameInput(fc.cast!, configDir);
+  log(`Frame ${i + 1}/${cfg.frames.length}: rendering terminal cast ${castPath}…`);
+  const castText = readFileSync(castPath, "utf8");
+  const t = fc.term ?? {};
+  // manageFonts: false — share THIS pipeline's embedded-font builder (the
+  // loop already cleared it at the start and collects it once below), so
+  // the terminal font lands in the scene-wide @font-face block exactly
+  // once and its glyph PUA family names stay unique vs the other frames'
+  // (no clobber, no per-cast duplicate). The nested terminal SVG is then
+  // composed WITHOUT its own font CSS — it defers to that block. The cast
+  // renders via the chosen mode (incremental by default).
+  const { svg: castSvg, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
+    theme: t.theme, mode: t.mode, cursor: t.cursor, cursorColor: t.cursorColor,
+    fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
+    cols: t.cols, rows: t.rows,
+    settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
+    manageFonts: false,
+    log: (m) => log(`  ${m}`),
+  });
+  if (fc.duration < totalDurationMs) {
+    log(`  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`);
+  }
+  // DM-1292: the cast SVG is a full `generateAnimatedSvg` document, so its
+  // document-global names (ids, `.f-N` frame classes + `@keyframes fv-N` in
+  // `mode: "full"`, the incremental `ln…` / `tcur…` keyframes, `--scene-dur`)
+  // collide with the outer animation's identical names, or with a sibling
+  // cast frame's, once concatenated — a duplicate `@keyframes`/rule wins
+  // globally and hijacks the wrong frame's timeline (visible when the
+  // timeline is SEEKED, like the DM-1145 id-collision bug). Namespace them
+  // with a per-frame token, exactly like a `template` frame. Fonts are the
+  // ONE exception: `manageFonts: false` defers them to this pipeline's shared
+  // embedded-font builder (one `@font-face` block, already-unique `dmfN`
+  // names) collected after the loop, so we must NOT prefix the cast's
+  // `font-family` references or they'd dangle.
+  const termSvg = namespaceEmbeddedAnimatedSvg(castSvg, `cf${i}_`, { namespaceFonts: false });
+  // The animator wraps `svgContent` in `<g class="f f-N">`, which holds a
+  // nested `<svg>` fine — strip just the XML prolog (same as scroll).
+  return {
+    svgContent: termSvg.replace(/^<\?xml[^>]*\?>\s*/, ""),
+    duration: fc.duration,
+    transition: fc.transition,
+    // DM-1320: overlays render on top of the cast (explicit x/y); a selector
+    // anchor can't resolve (no DOM) and now warns instead of vanishing.
+    overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "cast", log),
+    // DM-1319: the nested cast is a self-contained animated SVG with its own
+    // internal period (the rendered cast length). Tell the animator so it
+    // re-anchors the cast's timeline to start when THIS frame is shown, rather
+    // than running on the shared document origin (which desyncs a cast that
+    // isn't frame 0 to its back half).
+    embeddedAnimationPeriodMs: totalDurationMs,
+  };
+}
+
+/**
+ * Build a `template` frame (DM-1287): wrap a template's pre-rendered (self-
+ * contained, possibly animated) SVG. Extracted from `composeAnimateFrames`'
+ * loop (DM-1376); the caller pushes it and resets `prevFrameTree`/`frameTrees`.
+ */
+function buildTemplateFrame(
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  configDir: string,
+  templateRenders: Awaited<ReturnType<typeof renderTemplateFrames>>,
+  log: (msg: string) => void,
+): AnimationFrame {
+  log(`Frame ${i + 1}/${cfg.frames.length}: embedding template "${fc.template}"…`);
+  const tr = templateRenders.get(i)!;
+  return {
+    svgContent: tr.content,
+    duration: fc.duration,
+    transition: fc.transition,
+    // DM-1320: same as a cast frame — a template frame has no captured DOM,
+    // so a selector anchor warns and falls back to explicit x/y.
+    overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "template", log),
+    // DM-1319: an ANIMATED template (one with an intrinsic play time) is a
+    // self-contained animated SVG, same as a `cast` frame — re-anchor its
+    // timeline to this frame's master-loop offset so it begins when shown.
+    // A static template (durationMs == null) carries no internal animation.
+    ...(tr.durationMs != null ? { embeddedAnimationPeriodMs: tr.durationMs } : {}),
+  };
+}
+
 export async function composeAnimateFrames(
   browser: Browser,
   cfg: AnimateConfig,
@@ -738,57 +837,7 @@ export async function composeAnimateFrames(
       // this frame's content — a self-contained animated terminal SVG nested
       // like a `scroll` block. It bypasses the page-load/capture path entirely.
       if (fc.cast != null) {
-        const castPath = resolveFrameInput(fc.cast, configDir);
-        log(`Frame ${i + 1}/${cfg.frames.length}: rendering terminal cast ${castPath}…`);
-        const castText = readFileSync(castPath, "utf8");
-        const t = fc.term ?? {};
-        // manageFonts: false — share THIS pipeline's embedded-font builder (the
-        // loop already cleared it at the start and collects it once below), so
-        // the terminal font lands in the scene-wide @font-face block exactly
-        // once and its glyph PUA family names stay unique vs the other frames'
-        // (no clobber, no per-cast duplicate). The nested terminal SVG is then
-        // composed WITHOUT its own font CSS — it defers to that block. The cast
-        // renders via the chosen mode (incremental by default).
-        const { svg: castSvg, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
-          theme: t.theme, mode: t.mode, cursor: t.cursor, cursorColor: t.cursorColor,
-          fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
-          cols: t.cols, rows: t.rows,
-          settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
-          manageFonts: false,
-          log: (m) => log(`  ${m}`),
-        });
-        if (fc.duration < totalDurationMs) {
-          log(`  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`);
-        }
-        // DM-1292: the cast SVG is a full `generateAnimatedSvg` document, so its
-        // document-global names (ids, `.f-N` frame classes + `@keyframes fv-N` in
-        // `mode: "full"`, the incremental `ln…` / `tcur…` keyframes, `--scene-dur`)
-        // collide with the outer animation's identical names, or with a sibling
-        // cast frame's, once concatenated — a duplicate `@keyframes`/rule wins
-        // globally and hijacks the wrong frame's timeline (visible when the
-        // timeline is SEEKED, like the DM-1145 id-collision bug). Namespace them
-        // with a per-frame token, exactly like a `template` frame. Fonts are the
-        // ONE exception: `manageFonts: false` defers them to this pipeline's shared
-        // embedded-font builder (one `@font-face` block, already-unique `dmfN`
-        // names) collected after the loop, so we must NOT prefix the cast's
-        // `font-family` references or they'd dangle.
-        const termSvg = namespaceEmbeddedAnimatedSvg(castSvg, `cf${i}_`, { namespaceFonts: false });
-        // The animator wraps `svgContent` in `<g class="f f-N">`, which holds a
-        // nested `<svg>` fine — strip just the XML prolog (same as scroll).
-        frames.push({
-          svgContent: termSvg.replace(/^<\?xml[^>]*\?>\s*/, ""),
-          duration: fc.duration,
-          transition: fc.transition,
-          // DM-1320: overlays render on top of the cast (explicit x/y); a selector
-          // anchor can't resolve (no DOM) and now warns instead of vanishing.
-          overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "cast", log),
-          // DM-1319: the nested cast is a self-contained animated SVG with its
-          // own internal period (the rendered cast length). Tell the animator
-          // so it re-anchors the cast's timeline to start when THIS frame is
-          // shown, rather than running on the shared document origin (which
-          // desyncs a cast that isn't frame 0 to its back half).
-          embeddedAnimationPeriodMs: totalDurationMs,
-        });
+        frames.push(await buildCastFrame(fc, i, cfg, configDir, browser, log));
         // A cast frame has no single captured tree; magic-move to/from it falls
         // back to crossfade, and the cursor/overlay machinery is skipped.
         prevFrameTree = null;
@@ -799,21 +848,7 @@ export async function composeAnimateFrames(
       // pre-rendered above into a finished (self-contained, possibly animated)
       // SVG string. Nest it exactly like a `cast` frame.
       if (fc.template != null) {
-        log(`Frame ${i + 1}/${cfg.frames.length}: embedding template "${fc.template}"…`);
-        const tr = templateRenders.get(i)!;
-        frames.push({
-          svgContent: tr.content,
-          duration: fc.duration,
-          transition: fc.transition,
-          // DM-1320: same as a cast frame — a template frame has no captured DOM,
-          // so a selector anchor warns and falls back to explicit x/y.
-          overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "template", log),
-          // DM-1319: an ANIMATED template (one with an intrinsic play time) is a
-          // self-contained animated SVG, same as a `cast` frame — re-anchor its
-          // timeline to this frame's master-loop offset so it begins when shown.
-          // A static template (durationMs == null) carries no internal animation.
-          ...(tr.durationMs != null ? { embeddedAnimationPeriodMs: tr.durationMs } : {}),
-        });
+        frames.push(buildTemplateFrame(fc, i, cfg, configDir, templateRenders, log));
         prevFrameTree = null;
         frameTrees.push(null);
         continue;
