@@ -24,7 +24,7 @@ Why: fontkit can't extract outlines from `CBDT` / `sbix` color-bitmap tables —
 
 Capture: each affected char gets a `rasterGlyphs[]` entry on its `textSegments` with `charIndex` (UTF-16) and the painted rect. The post-capture `rasterizeBitmapGlyphs` pass fills in `dataUri` from either (a) the Apple Color Emoji `.ttc`'s sbix tables on macOS, or (b) `page.screenshot({ clip })` for codepoints sbix lacks / non-darwin platforms.
 
-Emit: `src/render/text.ts::rasterGlyphOverlays` (~line 306) stamps one `<image>` per entry at the captured rect with the per-char `suppressGlyph: true` flag preventing the body-size path glyph from rendering underneath.
+Emit: `src/render/text.ts::rasterGlyphOverlays` (~line 304; the `<image>` at ~line 339) stamps one `<image>` per entry at the captured rect with the per-char `suppressGlyph: true` flag preventing the body-size path glyph from rendering underneath.
 
 Doc: [15-color-emoji-rendering.md](../15-color-emoji-rendering.md).
 
@@ -34,9 +34,9 @@ Trigger: a whole text segment — typically a `::before` / `::after` pseudo-elem
 
 Why: unlike G1 (which rasters one char and keeps the surrounding run as paths), the *entire segment* has no faithful path representation — the glyph the icon font draws isn't in any outline table we can read. Screenshotting Chromium's painted rect for the segment is the only faithful fallback.
 
-Capture: CAPTURE_SCRIPT sets `pseudoSeg.rasterRect` on the segment (`src/capture/script/walker/pseudo-content.ts` ~lines 777–784). The post-capture `rasterizeBitmapGlyphs` pass screenshots that rect and writes `seg.rasterDataUri` (`src/capture/emoji.ts` ~lines 144–148).
+Capture: CAPTURE_SCRIPT sets `pseudoSeg.rasterRect` on the segment (`src/capture/script/walker/pseudo-content.ts` ~lines 805–812). The post-capture `rasterizeBitmapGlyphs` pass screenshots that rect and writes `seg.rasterDataUri` (`src/capture/emoji.ts` ~lines 255–259).
 
-Emit: `src/render/text.ts` emits one `<image>` at the segment's `rasterRect`, clipped to the segment box, in place of the path run — the single-segment overlay (~line 852) and the multi-segment path (~line 1062).
+Emit: `src/render/text.ts` emits one `<image>` at the segment's `rasterRect`, clipped to the segment box, in place of the path run — the single-segment overlay (~line 950) and the multi-segment path (~line 1178).
 
 Doc: [38-pseudo-element-paint.md](../38-pseudo-element-paint.md). Tickets: SK-1058 / DM-626.
 
@@ -50,9 +50,9 @@ Trigger: tag is one of those five, OR a custom element (hyphenated tag with `sha
 
 Why: nothing here is reachable through the DOM walk. `<canvas>` is a pixel surface. `<iframe>` is a separate document. `<video>` is decoded native pixels. Custom elements' shadow DOM is opaque to the light-DOM walker. Snapshotting at t=0 gives a faithful single-frame raster; live playback / interaction are explicitly out of scope.
 
-Capture: `src/capture/script/walker/replaced-elements.ts` tags the live DOM with `data-domotion-rid` and stashes the content-box rect on `captured.replacedSnapshot`. The post-capture `rasterizeReplacedElements()` in `src/capture/index.ts` (~line 997) injects a hide-everything-else stylesheet, screenshots the target's content-box clip with `omitBackground: true`, and writes the data URI back.
+Capture: `src/capture/script/walker/replaced-elements.ts` tags the live DOM with `data-domotion-rid` and stashes the content-box rect on `captured.replacedSnapshot`. The post-capture `rasterizeReplacedElements()` in `src/capture/index.ts` (~line 1048) injects a hide-everything-else stylesheet, screenshots the target's content-box clip with `omitBackground: true`, and writes the data URI back.
 
-Emit: `src/render/element-tree-to-svg.ts` (~line 2115–2122) emits the `<image>` at the content-box rect. If an `imageReplacement.titleText` was captured (sprite path — see E5), a `<title>` child is included so screen readers and tooltips still get accessible text.
+Emit: `src/render/element-tree-to-svg.ts::paintRasterSnapshot` (~line 409–419) emits the `<image>` at the content-box rect. If an `imageReplacement.titleText` was captured (sprite path — see E5), a `<title>` child is included so screen readers and tooltips still get accessible text.
 
 Doc: [17-replaced-element-snapshots.md](../17-replaced-element-snapshots.md). Ticket: DM-457.
 
@@ -66,6 +66,18 @@ Capture: same `data-domotion-rid` + content-box rect mechanism as E4. The handle
 
 Doc: [23-css-sprite-icons.md](../23-css-sprite-icons.md). Ticket: DM-457 (sprite path).
 
+### E6. Element-level text raster — `<textarea>` content + vertical writing-mode
+
+Trigger: an element whose text the horizontal path/segment pipeline can't reproduce faithfully — (a) a `<textarea>` whose content soft-wraps (SK-1108), or (b) any element with `writing-mode != horizontal-tb` (vertical text, SK-1128). Both funnel through the one `elementRaster` field.
+
+Why: the renderer lays glyphs out from per-segment horizontal runs; it can't reproduce a textarea's browser-driven soft-wrapping or vertical writing-mode line-breaking + glyph orientation. Screenshotting the element's painted text region is the faithful fallback (a whole-element `<image>`, like E4/E5, rather than per-glyph like G1).
+
+Capture: `computeElementRaster` (`src/capture/script/walker/text-segments.ts` ~line 91) records `el.elementRaster` (the rect + a dedupe key on tag+text+color+size+decoration so identical columns don't collapse). The post-capture `rasterizeBitmapGlyphs` pass (`src/capture/emoji.ts` ~line 235) screenshots the rect and fills `elementRaster.dataUri`.
+
+Emit: `src/render/element-tree-to-svg.ts::emitVerticalRasterText` (~line 668) emits one `<image>` at the element's raster rect, clipped to its box.
+
+Tickets: SK-1108 (`<textarea>`) / SK-1128 (vertical text).
+
 ---
 
 ## CSS-feature fallbacks
@@ -78,7 +90,7 @@ Why: SVG has no native conic-gradient primitive. The cleanest fallback is to ras
 
 Capture: handled at the rendering / post-capture seam. A pre-pass `rasterizeConicGradients` (`src/capture/index.ts`) walks the captured tree, identifies each conic-gradient background layer, calls `rasterizeConic` (custom RGBA writer in `src/render/conic-raster.ts`) at `tile × hiDPIFactor` device pixels, `sharp.resize(..., { kernel: 'lanczos3' })` down to the CSS tile size, and stashes the PNG bytes in a `_conicTileCache` keyed by `(layerText, tileWidth, tileHeight, hiDPIFactor)`. DM-1252: the pre-pass also rasterizes conic backgrounds on **form-control pseudos** (e.g. a `::-webkit-slider-thumb` `background: conic-gradient(...)`) — those layers live in dedicated captured fields rather than `backgroundImage`, so `collectFormControlConicTiles` (`form-controls.ts`) surfaces each with its consumer rect size (thumb diameter, track thickness, …) and the form-control synth emits the cached tile via the injected `DefCtx.buildConicTile`. Covers the range thumb/track (DM-1252) and the color swatch + `<progress>`/`<meter>` bar + value pseudos (DM-1254), each via a shared geometry helper (`rangeMetricSizes` / `progressBarGeom` / `meterBarGeom`) used by both the render function and the collector so the rasterized tile size matches the painted rect exactly.
 
-Emit: `src/render/element-tree-to-svg.ts::buildConicGradientDef` (~line 4140) emits `<pattern id="..." patternUnits="userSpaceOnUse" ...><image href="data:image/png;base64,..." width="..." height="..."/></pattern>` and refers to it from the element's `fill="url(#...)"`.
+Emit: `src/render/element-tree-to-svg.ts::buildConicGradientDef` (~line 4323) emits `<pattern id="..." patternUnits="userSpaceOnUse" ...><image href="data:image/png;base64,..." width="..." height="..."/></pattern>` and refers to it from the element's `fill="url(#...)"`.
 
 Doc: [28-conic-gradient.md](../28-conic-gradient.md).
 
@@ -90,7 +102,7 @@ Why: the spec defines this as "rasterise the target element's paint and use that
 
 Capture: CAPTURE_SCRIPT finds each `mask-image: element(#id)` reference, marks the target element with `data-domotion-rid="mr<n>"`, and records `(id, rid, rect, width, height)` on the root tree's `maskRasters[]`. Post-capture, `rasterizeMaskSources` (`src/capture/index.ts`) runs the same hide-everything-else stylesheet pass as E4 / E5 and screenshots the target's painted rect at the page's actual DPR.
 
-Emit: `src/render/element-tree-to-svg.ts::buildMaskDef` (the `<image>` emit is ~line 5427) resolves the data URI from the per-element `elementRasters` lookup when building `<mask>` defs; emits an `<image>` directly inside the `<mask>` with `mask-position` / `mask-size` honored. `mask-mode: match-source` resolves to `luminance` (per the CSS Masking spec — element() paint refs drive mask alpha from RGB luminance).
+Emit: `src/render/mask.ts::buildMaskDef` (moved out of element-tree-to-svg.ts in DM-1305; the element()-raster `<image>` emit is ~line 656) resolves the data URI from the per-element `elementRasters` lookup when building `<mask>` defs; emits an `<image>` directly inside the `<mask>` with `mask-position` / `mask-size` honored. `mask-mode: match-source` resolves to `luminance` (per the CSS Masking spec — element() paint refs drive mask alpha from RGB luminance).
 
 Doc: [22-mask-element-paint-references.md](../22-mask-element-paint-references.md).
 
