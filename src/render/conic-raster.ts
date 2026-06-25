@@ -52,6 +52,10 @@ export async function rasterizeConicGradients(
 
   type Tuple = { layerText: string; gradient: ConicGradient; sizeKey: string; tileW: number; tileH: number };
   const tuples = new Map<string, Tuple>();
+  // Warn once per distinct unparseable conic layer (a layer can be considered
+  // at several tile sizes) so broken `conic-gradient(...)` syntax is visible to
+  // authors instead of silently painting nothing.
+  const warnedFailures = new Set<string>();
 
   const consider = (layerText: string, tileW: number, tileH: number): void => {
     const tw = Math.max(1, Math.round(tileW));
@@ -62,7 +66,13 @@ export async function rasterizeConicGradients(
     const sizeCache = _conicTileCache.get(layerText);
     if (sizeCache != null && sizeCache.has(sizeKey)) return;
     const gradient = parseConicGradient(layerText);
-    if (gradient == null) return;
+    if (gradient == null) {
+      if (!warnedFailures.has(layerText)) {
+        warnedFailures.add(layerText);
+        console.warn(`[domotion] could not parse conic-gradient; the layer will paint nothing: ${layerText}`);
+      }
+      return;
+    }
     tuples.set(dedupeKey, { layerText, gradient, sizeKey, tileW: tw, tileH: th });
   };
 

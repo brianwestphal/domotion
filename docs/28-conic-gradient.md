@@ -126,7 +126,7 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - **`background-attachment: fixed` on a conic layer**: rare but valid. Tile sizing basis is the viewport, identical to the existing fixed-image path. The rasterizer doesn't need to know — `buildBackgroundLayerDef` already passes the viewport-anchored `(elX, elY, w, h)` for fixed layers.
 - **`background-size: cover / contain` on a conic**: extremely uncommon (conic + cover usually means "fill the element"), but supported by sizing the rasterized tile to the element rect, just like `cover` on a `url()` image.
 - **Animated SVGs (`generateAnimatedSvg`)**: the conic raster is per-frame deterministic. If two frames have different conic stops, they produce two different `<pattern>` defs and the cross-fade swap pipeline handles them like any other per-frame def.
-- **Unrecognised stop syntax**: `parseConicGradient` returns null on parse failure; the raster pre-pass skips the layer, so `_conicTileCache` has no tile for it; `buildConicGradientDef` then misses the cache and returns `{ def: "" }` and the layer loop skips it. This is **silent** — no warning is emitted on a conic parse failure (the layer simply paints nothing).
+- **Unrecognised stop syntax**: `parseConicGradient` returns null on parse failure; the raster pre-pass (`rasterizeConicGradients` in `conic-raster.ts`) emits a `console.warn` (`[domotion] could not parse conic-gradient; the layer will paint nothing: …`, once per distinct unparseable layer) and skips the layer, so `_conicTileCache` has no tile for it; `buildConicGradientDef` then misses the cache and returns `{ def: "" }` and the layer loop skips it. The layer paints nothing, but the author is warned so broken syntax is noticeable.
 
 ## Performance
 
@@ -140,7 +140,7 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - A standalone fixture demonstrating `conic-gradient(red, yellow, green, blue, red)` at `200×200` renders a smooth color-wheel. New: `tests/features/<NN>-conic-gradient.html`.
 - A standalone fixture demonstrating `repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px` renders a 24×24 alpha-checkerboard tiled across a `300×300` div.
 - A multi-layer fixture (`background: conic-gradient(...), linear-gradient(...), url(bg.png)`) renders with all three layers in the right stacking order.
-- Captured SVG contains no `conic-gradient` warning when the layer parses successfully. A parse failure is handled silently — the layer paints nothing and no warning is emitted. (If author-visible diagnostics on broken conic syntax are wanted, a `console.warn` in `conic-raster.ts`'s parse-failure path would be the place to add it; see the implementation note below.)
+- Captured SVG contains no `conic-gradient` warning when the layer parses successfully. A parse failure emits a `console.warn` (once per distinct unparseable layer) from the `rasterizeConicGradients` pre-pass so authors notice broken syntax, and the layer paints nothing.
 - All previously passing html-test, features, and showcase tests stay passing — the conic branch is additive and doesn't touch linear/radial paths.
 
 ## Implementation slices

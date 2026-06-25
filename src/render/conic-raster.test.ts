@@ -194,6 +194,32 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
     expect(_conicTileCache.size).toBe(0);
   });
+
+  it("warns once per distinct unparseable conic layer so broken syntax is noticeable", async () => {
+    const { rasterizeConicGradients } = await import("./conic-raster.js");
+    const { _conicTileCache } = await import("./element-tree-to-svg.js");
+    _conicTileCache.clear();
+
+    const warnings: string[] = [];
+    const orig = console.warn;
+    console.warn = (msg?: unknown) => { warnings.push(String(msg)); };
+    try {
+      // A syntactically-broken conic that parseConicGradient rejects, painted by
+      // two sibling consumers (same layer at the same tile size) — must warn ONCE.
+      const broken = "conic-gradient(this is not a gradient)";
+      const tree: any = [
+        { tagName: "div", x: 0, y: 0, width: 50, height: 50, styles: { backgroundImage: broken }, children: [] },
+        { tagName: "div", x: 0, y: 50, width: 50, height: 50, styles: { backgroundImage: broken }, children: [] },
+      ];
+      await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
+      expect(_conicTileCache.size).toBe(0); // nothing cached for the broken layer
+      const conicWarnings = warnings.filter((w) => w.includes("could not parse conic-gradient"));
+      expect(conicWarnings).toHaveLength(1);
+      expect(conicWarnings[0]).toContain(broken);
+    } finally {
+      console.warn = orig;
+    }
+  });
 });
 
 describe("rasterizeConic: at <position> moves the center (DM-549)", () => {
