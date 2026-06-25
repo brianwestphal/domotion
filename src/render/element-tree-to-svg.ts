@@ -4378,7 +4378,8 @@ function buildConicGradientDef(
  *   ellipse(<rx> <ry> at <x> <y>)
  *   polygon(<x1> <y1>, <x2> <y2>, ...) — supports percentages and px values
  *
- * Unsupported (returns ""): path(), geometry-box references, complex shape mixes.
+ * Returns "" for: path() (handled separately in `clip-path.ts`), geometry-box
+ * references, complex shape mixes.
  */
 /**
  * Translate an element's CSS `clip-path` into an SVG clip-shape string, honoring

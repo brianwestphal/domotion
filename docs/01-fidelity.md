@@ -44,9 +44,9 @@ Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partia
 - [x] opacity (element-level, applies to whole subtree)
 - [x] filter (blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate, sepia, chained)
 - [x] mix-blend-mode
-- [ ] backdrop-filter — captured but not emitted (no SVG equivalent in img-rendered SVG)
+- [x] backdrop-filter — approximated via a frosted-glass background fallback for the transparent-backdrop case (see doc 19); no true backdrop blur (no SVG equivalent in img-rendered SVG)
 - [x] clip-path: inset(), circle(), ellipse(), polygon()
-- [ ] clip-path: path() — not supported (warning logged if detected)
+- [x] clip-path: path() — supported (emitted as an SVG `<path>` clip; `src/render/clip-path.ts`)
 - [x] mask (mask-image gradient/url() fragment/element() paint refs) — emitted as SVG `<mask>`. See `20-css-mask-emission.md` / `21` / `22`.
 
 ### Transforms
@@ -130,6 +130,6 @@ Warnings are deduped by `(feature, selector)` within one capture. They're stored
 
 ## Testing approach
 
-- `tests/features.ts` — 36 focused feature tests exercising one rendering property each. Target <3% pixel diff vs. captured HTML. Every change to fidelity must pass these.
+- `tests/features.ts` — 100 focused feature tests exercising one rendering property each. Target <3% pixel diff vs. captured HTML. Every change to fidelity must pass these.
 - `tests/showcase.ts` — 3 full-page integration tests derived from real product frames.
 - `tests/html-test-suite.tsx` — large external suite covering broadly-supported HTML5 + stable CSS, sourced from `external/html-test/` (clone of `github.com/brianwestphal/html-test`, gitignored). Baseline tracked in `tests/output/html-test/results.json` and visualized via `tests/output/html-test/index.html`. Bootstrap with `git clone https://github.com/brianwestphal/html-test.git external/html-test` (set `HTML_TEST_DIR` env to override).

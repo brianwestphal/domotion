@@ -197,7 +197,7 @@ export const captureScript =
       warn(sel, 'transform-3d', 'matrix3d/translate3d/rotate3d/perspective downgraded to 2D submatrix; z component + perspective dropped (SK-1135)');
     }
     if (cs.backdropFilter && cs.backdropFilter !== 'none') {
-      warn(sel, 'backdrop-filter', 'captured but not emitted — no SVG equivalent');
+      warn(sel, 'backdrop-filter', 'approximated via a frosted-glass background fallback for the transparent-backdrop case (doc 19); no true backdrop blur');
     }
     // writing-mode != horizontal-tb is handled via elementRaster (SK-1128)
     // — the text region is screenshot-rasterized so vertical text and
