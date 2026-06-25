@@ -655,6 +655,87 @@ function paintListMarker(
   return out;
 }
 
+// Vertical writing-mode text (SK-1128 / DM-990): writing-mode != horizontal-tb
+// is captured as an element-raster screenshot and stamped as an <image>,
+// bypassing the path pipeline entirely (per-char rotation for
+// text-orientation: mixed is more involved than the faithful raster of what
+// Chrome painted buys us). DM-957: the raster rect was expanded outward in
+// `computeElementRaster` (DM-936) to capture the vertical-mode text-decoration
+// underlines that paint just outside the inline content box, so mint a
+// dedicated clip-path matching the EXPANDED rect — the element's content-rect
+// clip would crop those underline pixels off. Extracted from paintText
+// (DM-1369) — pure code move, byte-identical.
+function emitVerticalRasterText(ctx: PaintCtx, el: CapturedElement, indent: string): void {
+  const er = el.elementRaster!;
+  const dataUri = er.dataUri!;
+  const erCid = ctx.nextClipId("ct");
+  ctx.defsParts.push(`<clipPath id="${erCid}"><rect x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" /></clipPath>`);
+  ctx.svgParts.push(`${indent}<image href="${dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${erCid})"/>`);
+}
+
+// DM-782: pseudoBox gradient/url() emitter for the text renderers. They can't
+// own defsParts / clipIdx (those live on the paint ctx), so paintText hands the
+// downstream renderers a closure that produces the gradient layer rects +
+// appends each layer's paint server to defsParts. Comma-separated layers are
+// walked in reverse so layer 0 (first in CSS source) ends up on top. Lifted out
+// of paintText to module scope (DM-1369), ctx + captureViewport threaded in.
+function buildPseudoBoxBgLayers(
+  ctx: PaintCtx,
+  captureViewport: { w: number; h: number },
+  pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number },
+): string {
+  const layers = splitTopLevelCommas(pb.backgroundImage);
+  const out: string[] = [];
+  for (let li = layers.length - 1; li >= 0; li--) {
+    const layer = layers[li].trim();
+    const defId = ctx.nextClipId("pbgt");
+    const built = buildBackgroundLayerDef(
+      defId, layer, pb.x, pb.y, pb.width, pb.height,
+      "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
+    );
+    if (built.def === "") continue;
+    ctx.defsParts.push(built.def);
+    const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
+    out.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+  }
+  return out.join("");
+}
+
+// Single text element → SVG markup, dispatching to the vertical / input /
+// multi-segment / multi-line / single-line renderer based on captured shape.
+// `emit` is the bound pseudoBox layer emitter (binds ctx + captureViewport).
+// Lifted out of paintText to module scope (DM-1369). DM-1029: timed per element
+// (font resolution + shaping + outline/embedded-font build + markup).
+function renderOneText(
+  ctx: PaintCtx,
+  opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string; overflowClip?: boolean },
+  emit: (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }) => string,
+): string {
+  const _tText = profNow();
+  try {
+    const optsWithEmit = { ...opts, emitPseudoBoxBgLayers: emit };
+    const hasMultipleSegments = opts.el.textSegments != null && opts.el.textSegments.length > 1;
+    const isMultiLine = opts.el.text.includes("\n");
+    // DM-990: vertical writing-mode dispatch BEFORE any other branch. Vertical
+    // segments carry their per-char positions in `yOffsets` (not `xOffsets`)
+    // and need per-char rotation for text-orientation: mixed / sideways — the
+    // horizontal renderers would mis-paint them along the wrong axis.
+    if (hasVerticalSegments(opts.el)) return renderVerticalSegments(opts.el, opts.fillColor);
+    // DM-799: input/textarea dispatch must come BEFORE the multi-line branch. A
+    // textarea with newline-bearing value (`\n` in `el.text`) would otherwise
+    // hit `renderMultiLineText`, which path-renders each source line without
+    // word-wrap — Lorem-ipsum lines overflowed the textarea's right edge
+    // instead of being painted from the captured `elementRaster` PNG (which
+    // carries Chrome's own wrapping).
+    if (opts.el.tag === "input" || opts.el.tag === "textarea") return renderInputText(optsWithEmit);
+    if (hasMultipleSegments) return renderMultiSegmentText(optsWithEmit, opts.el.textSegments!);
+    if (isMultiLine) return renderMultiLineText(optsWithEmit);
+    return renderSingleLineText(optsWithEmit);
+  } finally {
+    profAccum("text-render", profNow() - _tText);
+  }
+}
+
 // Text + text-shadow rendering dispatch, extracted from renderElement (DM-1306,
 // DM-1315). Chooses single-line / multi-segment / multi-line / input rendering
 // (delegating the glyph work to text-renderer.ts), paints the element-level and
@@ -718,86 +799,18 @@ function paintText(
     const cid = ctx.nextClipId("ct");
     ctx.defsParts.push(`<clipPath id="${cid}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" /></clipPath>`);
 
-    // SK-1128: writing-mode != horizontal-tb activates the same element-
-    // raster path used for textareas (SK-1108). The text region is
-    // screenshotted via Playwright and stamped as <image>, bypassing the
-    // path pipeline entirely. character-by-character rotation logic for
-    // text-orientation: mixed (CJK upright vs Latin sideways) is a lot
-    // more involved than the work we get from a faithful raster of what
-    // Chrome painted, and the test corpus has only one vertical-mode
-    // case for now.
+    // SK-1128: writing-mode != horizontal-tb activates the same element-raster
+    // path used for textareas (SK-1108) — screenshot stamped as <image>,
+    // bypassing the path pipeline. See `emitVerticalRasterText`.
     if (el.elementRaster != null && el.elementRaster.dataUri != null
         && el.styles.writingMode != null && el.styles.writingMode !== "horizontal-tb") {
-      const er = el.elementRaster;
-      // DM-957: the elementRaster rect was expanded outward in
-      // `computeElementRaster` (DM-936) to capture the vertical-mode
-      // text-decoration underlines that paint just outside the inline
-      // content box. The default `cid` clip-path here is the element's
-      // content rect (el.x / el.y / el.width / el.height) — which is
-      // NARROWER than the captured screenshot, so the underline pixels
-      // inside the expansion margin get CLIPPED OFF. Mint a dedicated
-      // clip-path matching the expanded er rect so the screenshot
-      // renders intact (the screenshot is already pixel-faithful to
-      // Chrome's paint within its own clip; no need to re-clip here).
-      const erCid = ctx.nextClipId("ct");
-      ctx.defsParts.push(`<clipPath id="${erCid}"><rect x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" /></clipPath>`);
-      ctx.svgParts.push(`${indent}<image href="${er.dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${erCid})"/>`);
+      emitVerticalRasterText(ctx, el, indent);
     } else {
 
-    // DM-782: pseudoBox gradient/url() emitter. The text renderer can't
-    // own defsParts / clipIdx (those live in the element-tree render loop)
-    // so we hand it a closure that produces the gradient layer rects +
-    // appends each layer's `<linearGradient>` / `<radialGradient>` paint
-    // server to defsParts. Same emit shape as the empty-content pseudoBox
-    // path below — comma-separated layers walked in reverse so layer 0
-    // (first in CSS source) ends up on top.
-    const emitPseudoBoxBgLayers = (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }): string => {
-      const layers = splitTopLevelCommas(pb.backgroundImage);
-      const out: string[] = [];
-      for (let li = layers.length - 1; li >= 0; li--) {
-        const layer = layers[li].trim();
-        const defId = ctx.nextClipId("pbgt");
-        const built = buildBackgroundLayerDef(
-          defId, layer, pb.x, pb.y, pb.width, pb.height,
-          "auto", "0% 0%", "repeat", null, "scroll", captureViewport,
-        );
-        if (built.def === "") continue;
-        ctx.defsParts.push(built.def);
-        const rxAttr = pb.borderRadius != null && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}" ry="${r(pb.borderRadius)}"` : "";
-        out.push(`<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
-      }
-      return out.join("");
-    };
-    const renderOneText = (opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string; overflowClip?: boolean }): string => {
-      // DM-1029: time all text rendering (font resolution + shaping + glyph
-      // outline / embedded-font build + markup) per element. The helper
-      // `spawnSync` time accumulated separately is a sub-component of this;
-      // `text − helper` is the in-process text cost. No-op unless DEMO_TIMING.
-      const _tText = profNow();
-      try {
-      const optsWithEmit = { ...opts, emitPseudoBoxBgLayers };
-      const hasMultipleSegments = opts.el.textSegments != null && opts.el.textSegments.length > 1;
-      const isMultiLine = opts.el.text.includes("\n");
-      // DM-990: vertical writing-mode dispatch BEFORE any other
-      // branch. Vertical segments carry their per-char positions in
-      // `yOffsets` (not `xOffsets`) and need per-char rotation for
-      // text-orientation: mixed / sideways — the horizontal renderers
-      // would mis-paint them along the wrong axis.
-      if (hasVerticalSegments(opts.el)) return renderVerticalSegments(opts.el, opts.fillColor);
-      // DM-799: input/textarea dispatch must come BEFORE the multi-line
-      // branch. A textarea with newline-bearing value (`\n` in `el.text`)
-      // would otherwise hit `renderMultiLineText`, which path-renders each
-      // source line without word-wrap — Lorem-ipsum lines overflowed the
-      // textarea's right edge instead of being painted from the captured
-      // `elementRaster` PNG (which carries Chrome's own wrapping).
-      if (opts.el.tag === "input" || opts.el.tag === "textarea") return renderInputText(optsWithEmit);
-      if (hasMultipleSegments) return renderMultiSegmentText(optsWithEmit, opts.el.textSegments!);
-      if (isMultiLine) return renderMultiLineText(optsWithEmit);
-      return renderSingleLineText(optsWithEmit);
-      } finally {
-        profAccum("text-render", profNow() - _tText);
-      }
-    };
+    // Bound pseudoBox layer emitter handed to the downstream text renderers
+    // (binds ctx + captureViewport to the module-scope `buildPseudoBoxBgLayers`).
+    const emit = (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }): string =>
+      buildPseudoBoxBgLayers(ctx, captureViewport, pb);
 
     // text-shadow (SK-1113): render each shadow as a recolored copy of
     // the same text, shifted by the shadows (x, y) and wrapped in a
@@ -832,7 +845,7 @@ function paintText(
           rasterGlyphs: undefined,
         })),
       };
-      let body = renderOneText({ el: shifted, idPrefix: ctx.idPrefix, clipId: cid, fillColor: shadowFillColor });
+      let body = renderOneText(ctx, { el: shifted, idPrefix: ctx.idPrefix, clipId: cid, fillColor: shadowFillColor }, emit);
       if (sh.blur > 0) {
         const stdDev = sh.blur / 2;
         const fid = ctx.nextClipId("tsh");
@@ -876,7 +889,7 @@ function paintText(
             // a recolored gradient-pill rect underneath the shadow.
             pseudoBox: undefined,
           };
-          let segBody = renderMultiSegmentText({ el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers }, [shiftedSeg]);
+          let segBody = renderMultiSegmentText({ el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers: emit }, [shiftedSeg]);
           if (sh.blur > 0) {
             const stdDev = sh.blur / 2;
             const fid = ctx.nextClipId("tssh");
@@ -914,7 +927,7 @@ function paintText(
       // The mask-with-rect approach keeps the gradient in document
       // coordinates on a straight rect.
       const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)" } };
-      const maskBody = renderOneText({ el: maskFillEl, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip });
+      const maskBody = renderOneText(ctx, { el: maskFillEl, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip }, emit);
       const mid = ctx.nextClipId("tbgm");
       ctx.defsParts.push(
         `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}">${maskBody}</mask>`,
@@ -932,7 +945,7 @@ function paintText(
         );
       }
     } else {
-      ctx.svgParts.push(`${indent}${renderOneText(renderOpts)}`);
+      ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
     }
     }
   }
