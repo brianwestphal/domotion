@@ -1180,6 +1180,48 @@ export function pingfangKeyForLang(lang: string | undefined): string | null {
 }
 
 /**
+ * Shared Unicode script-block boundaries for the platform fallback chains.
+ *
+ * `darwinFallbackChain` / `linuxFallbackChain` / `win32FallbackChain` are three
+ * parallel routers over the SAME Unicode ranges; only the font KEY chosen per
+ * block legitimately differs per platform (CoreText vs fontconfig vs
+ * DirectWrite). The boundaries themselves used to be copy-pasted into all three
+ * — so they could silently drift apart, and the range (not the key) is what
+ * decides which script a codepoint routes as, making any drift a cross-platform
+ * correctness bug. Defining each block ONCE here keeps the three chains in
+ * lockstep on WHERE a script starts/ends while leaving each free to pick its
+ * own per-block keys. Granularity is the individual Unicode block so the darwin
+ * chain (which groups several blocks into one branch) can compose them; every
+ * range below is byte-for-byte the boundary the chains previously inlined.
+ */
+const isHebrewBlock = (cp: number): boolean =>
+  (cp >= 0x0590 && cp <= 0x05FF) || (cp >= 0xFB1D && cp <= 0xFB4F);
+const isArabicBlock = (cp: number): boolean =>
+  (cp >= 0x0600 && cp <= 0x06FF) || (cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF);
+const isDevanagariBlock = (cp: number): boolean => cp >= 0x0900 && cp <= 0x097F;
+const isThaiBlock = (cp: number): boolean => cp >= 0x0E00 && cp <= 0x0E7F;
+const isHangulBlock = (cp: number): boolean =>
+  (cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0x1100 && cp <= 0x11FF);
+// CJK in the BMP: Symbols & Punctuation, Hiragana, Katakana (+ phonetic exts),
+// Unified Ideographs + Ext A, and Compatibility Ideographs. (Hangul is its own
+// block above; the supplementary-plane CJK extensions are darwin-only.)
+const isCjkBmpBlock = (cp: number): boolean =>
+  (cp >= 0x3000 && cp <= 0x303F) || (cp >= 0x3040 && cp <= 0x309F)
+  || (cp >= 0x30A0 && cp <= 0x30FF) || (cp >= 0x31F0 && cp <= 0x31FF)
+  || (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF)
+  || (cp >= 0xF900 && cp <= 0xFAFF);
+const isBoxDrawingBlock = (cp: number): boolean => cp >= 0x2500 && cp <= 0x259F;
+const isDingbatsBlock = (cp: number): boolean => cp >= 0x2700 && cp <= 0x27BF;
+const isMathAlphanumericBlock = (cp: number): boolean => cp >= 0x1D400 && cp <= 0x1D7FF;
+const isSuperSubscriptBlock = (cp: number): boolean => cp >= 0x2070 && cp <= 0x209F;
+const isLetterlikeBlock = (cp: number): boolean => cp >= 0x2100 && cp <= 0x214F;
+const isMathOperatorsBlock = (cp: number): boolean => cp >= 0x2200 && cp <= 0x22FF;
+// Pictograph residue not caught by the color-emoji raster path (doc 15):
+// Misc Symbols & Pictographs + Transport & Map Symbols.
+const isPictographResidueBlock = (cp: number): boolean =>
+  (cp >= 0x1F300 && cp <= 0x1F5FF) || (cp >= 0x1F680 && cp <= 0x1F6FF);
+
+/**
  * Linux fallback chain (DM-259) — calibrated to what Chromium-on-Linux paints
  * in the Playwright `*-noble` CI image, measured via CDP
  * `CSS.getPlatformFontsForNode` (tools/probe-fallbacks-linux.mjs). Returns
@@ -1193,27 +1235,27 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   const cp = codepoint;
   // Hebrew — Liberation Sans covers it, so route to the sans key (probe: hebrew
   // → Liberation Sans, i.e. the primary itself when sans-serif).
-  if ((cp >= 0x0590 && cp <= 0x05FF) || (cp >= 0xFB1D && cp <= 0xFB4F)) return ["helvetica"];
+  if (isHebrewBlock(cp)) return ["helvetica"];
   // Arabic core + presentation forms — FreeSerif (probe: arabic → FreeSerif).
-  if ((cp >= 0x0600 && cp <= 0x06FF) || (cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF)) {
+  if (isArabicBlock(cp)) {
     return ["sf-arabic"]; // → FreeSerif on Linux
   }
   // Devanagari — FreeSans (probe: devanagari → FreeSans).
-  if (cp >= 0x0900 && cp <= 0x097F) return ["devanagari"]; // → FreeSans
+  if (isDevanagariBlock(cp)) return ["devanagari"]; // → FreeSans
   // Thai — Loma (probe: thai → Loma).
-  if (cp >= 0x0E00 && cp <= 0x0E7F) return ["thai"];
+  if (isThaiBlock(cp)) return ["thai"];
   // Hangul — WenQuanYi Zen Hei (probe: hangul → WenQuanYi).
-  if ((cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0x1100 && cp <= 0x11FF)) return ["cjk"];
+  if (isHangulBlock(cp)) return ["cjk"];
   // Box Drawing / Block — mono primary keeps the primary (WenQuanYi Zen Hei
   // Mono covers them at cell width); non-mono falls to Liberation Sans, then CJK
   // (probe: box-drawing mono → WQY Mono; box-drawing-sans → Liberation Sans).
-  if (cp >= 0x2500 && cp <= 0x259F) {
+  if (isBoxDrawingBlock(cp)) {
     const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     return monoPrimary ? [primaryKey!, "cjk"] : ["helvetica", "cjk"];
   }
   // Dingbats — FreeSans (probe: ✂✈❤ → FreeSans).
-  if (cp >= 0x2700 && cp <= 0x27BF) return ["free-sans", "free-serif"];
+  if (isDingbatsBlock(cp)) return ["free-sans", "free-serif"];
   // Chess pieces — FreeSerif (probe: ♔♚ → FreeSerif).
   if (cp >= 0x2654 && cp <= 0x265F) return ["free-serif", "free-sans"];
   // Diagonal arrows ↗↙ — WenQuanYi (probe: arrows-diag → WenQuanYi); the rest of
@@ -1227,24 +1269,21 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   // + IPAGothic).
   if (cp >= 0x2600 && cp <= 0x26FF) return ["helvetica", "hiragino-jp", "free-sans"];
   // Mathematical Alphanumeric — FreeSans + FreeSerif (probe: 𝐀𝒜𝕊 → FreeSans/FreeSerif).
-  if (cp >= 0x1D400 && cp <= 0x1D7FF) return ["free-sans", "free-serif"];
+  if (isMathAlphanumericBlock(cp)) return ["free-sans", "free-serif"];
   // Superscripts / Subscripts — Liberation Sans + FreeSans (probe: aₙ₁).
-  if (cp >= 0x2070 && cp <= 0x209F) return ["helvetica", "free-sans"];
+  if (isSuperSubscriptBlock(cp)) return ["helvetica", "free-sans"];
   // Letterlike + Math Operators — FreeSans first, then Liberation Sans (probe:
   // ℝ™ℕℤ → FreeSans + Liberation Sans; ∑∫≠ is covered by the Liberation Sans primary).
-  if ((cp >= 0x2100 && cp <= 0x214F) || (cp >= 0x2200 && cp <= 0x22FF)) return ["free-sans", "helvetica"];
+  if (isLetterlikeBlock(cp) || isMathOperatorsBlock(cp)) return ["free-sans", "helvetica"];
   // CJK Han / Kana / CJK Symbols & Punctuation — WenQuanYi Zen Hei (probe:
   // 漢字/あ/ア → WenQuanYi). Japanese-tagged text prefers IPAGothic; left as a
   // refinement (untagged probe resolved to WenQuanYi). DM-259 follow-up.
-  if ((cp >= 0x3000 && cp <= 0x303F) || (cp >= 0x3040 && cp <= 0x309F)
-    || (cp >= 0x30A0 && cp <= 0x30FF) || (cp >= 0x31F0 && cp <= 0x31FF)
-    || (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF)
-    || (cp >= 0xF900 && cp <= 0xFAFF)) {
+  if (isCjkBmpBlock(cp)) {
     return ["cjk"];
   }
   // Pictographs / Transport residue not caught by the color-emoji raster path
   // (doc 15) — FreeSans as a monochrome last resort.
-  if ((cp >= 0x1F300 && cp <= 0x1F5FF) || (cp >= 0x1F680 && cp <= 0x1F6FF)) return ["free-sans"];
+  if (isPictographResidueBlock(cp)) return ["free-sans"];
   // DM-984: per-Unicode-block fallback derived from a Chrome CDP sweep inside
   // the Playwright Docker container — `CSS.getPlatformFontsForNode` for every
   // block in tools/unicode-fixtures/*.html. Resolved to bare-image paths by
@@ -1298,27 +1337,24 @@ function lookupLinuxUnicodeFontRange(codepoint: number): string | null {
 export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
   const cp = codepoint;
   // Hebrew — Segoe UI covers it.
-  if ((cp >= 0x0590 && cp <= 0x05FF) || (cp >= 0xFB1D && cp <= 0xFB4F)) return ["sf-hebrew"];
+  if (isHebrewBlock(cp)) return ["sf-hebrew"];
   // Arabic core + presentation forms — Segoe UI.
-  if ((cp >= 0x0600 && cp <= 0x06FF) || (cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF)) {
+  if (isArabicBlock(cp)) {
     return ["sf-arabic"];
   }
   // Devanagari — Nirmala UI.
-  if (cp >= 0x0900 && cp <= 0x097F) return ["devanagari"];
+  if (isDevanagariBlock(cp)) return ["devanagari"];
   // Thai — Tahoma (painted-font probe DM-836 confirms Chromium falls back to
   // Tahoma under sans-serif), Leelawadee UI as a secondary.
-  if (cp >= 0x0E00 && cp <= 0x0E7F) return ["tahoma", "thai"];
+  if (isThaiBlock(cp)) return ["tahoma", "thai"];
   // Hangul — Malgun Gothic (painted-font probe confirmed); YaHei last resort.
-  if ((cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0x1100 && cp <= 0x11FF)) return ["korean", "cjk"];
+  if (isHangulBlock(cp)) return ["korean", "cjk"];
   // Math Alphanumeric — Cambria Math carries the whole block; the
   // `mathAlphaToBase` decomposition handles any residue.
-  if (cp >= 0x1D400 && cp <= 0x1D7FF) return ["stix-math", "helvetica"];
+  if (isMathAlphanumericBlock(cp)) return ["stix-math", "helvetica"];
   // CJK Han / Kana / CJK Symbols & Punctuation. Serif primary → SimSun;
   // Japanese-tagged → Yu Gothic; otherwise Microsoft YaHei.
-  if ((cp >= 0x3000 && cp <= 0x303F) || (cp >= 0x3040 && cp <= 0x309F)
-    || (cp >= 0x30A0 && cp <= 0x30FF) || (cp >= 0x31F0 && cp <= 0x31FF)
-    || (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF)
-    || (cp >= 0xF900 && cp <= 0xFAFF)) {
+  if (isCjkBmpBlock(cp)) {
     const serifPrimary = primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia";
     if (serifPrimary) return ["cjk-serif", "cjk"];
     if (_lang != null && /^ja\b/i.test(_lang)) return ["hiragino-jp", "cjk"];
@@ -1327,13 +1363,13 @@ export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang
   // Box Drawing / Block Elements — mono primary keeps its own cell-width glyphs
   // (Consolas), then Consolas as a safety net; non-mono falls to Arial (the
   // probe paints `─ ┼ ┬` at Arial's width for sans-serif).
-  if (cp >= 0x2500 && cp <= 0x259F) {
+  if (isBoxDrawingBlock(cp)) {
     const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     return monoPrimary ? [primaryKey!, "sf-mono"] : ["helvetica", "symbols"];
   }
   // Dingbats — Arial lacks most; Segoe UI Symbol covers them.
-  if (cp >= 0x2700 && cp <= 0x27BF) return ["symbols"];
+  if (isDingbatsBlock(cp)) return ["symbols"];
   // Geometric Shapes / Misc Symbols / Arrows — Arial covers the common ones
   // (probe: ■ ● ◆ ★ ✒ ← → at Arial's width); Segoe UI Symbol for the residue.
   if ((cp >= 0x2190 && cp <= 0x21FF) || (cp >= 0x25A0 && cp <= 0x25FF) || (cp >= 0x2600 && cp <= 0x26FF)) {
@@ -1341,11 +1377,11 @@ export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang
   }
   // Superscripts / Subscripts, Letterlike, Math Operators — Arial carries the
   // common members (probe: ∑ ∏ ≠ ∫ at Arial's width); Cambria Math for the rest.
-  if (cp >= 0x2070 && cp <= 0x209F) return ["helvetica"];
-  if ((cp >= 0x2100 && cp <= 0x214F) || (cp >= 0x2200 && cp <= 0x22FF)) return ["helvetica", "stix-math"];
+  if (isSuperSubscriptBlock(cp)) return ["helvetica"];
+  if (isLetterlikeBlock(cp) || isMathOperatorsBlock(cp)) return ["helvetica", "stix-math"];
   // Pictographs not caught by the color-emoji raster path — Segoe UI Symbol
   // monochrome as a last resort.
-  if ((cp >= 0x1F300 && cp <= 0x1F5FF) || (cp >= 0x1F680 && cp <= 0x1F6FF)) return ["symbols"];
+  if (isPictographResidueBlock(cp)) return ["symbols"];
   // DM-987: per-Unicode-block fallback derived from a Chrome CDP sweep on a
   // Windows 11 host — `CSS.getPlatformFontsForNode` for every block in
   // ../html-test/unicode/*.html. Resolved to C:\Windows\Fonts faces by
@@ -1438,38 +1474,28 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // Chrome's `font-family: sans-serif` paint in 02-text-bidi land at 63.766
   // for ש's ink-left, suggesting a run width around 75 (closer to LucidaGrande
   // — Chrome's Helvetica → Hebrew CoreText fallback). Track DM-347 follow-up.
-  if ((codepoint >= 0x0590 && codepoint <= 0x05FF)
-    || (codepoint >= 0xFB1D && codepoint <= 0xFB4F)) {
+  if (isHebrewBlock(codepoint)) {
     return ["lucida-grande", "sf-hebrew"];
   }
   // Arabic core block + presentation forms A and B.
-  if ((codepoint >= 0x0600 && codepoint <= 0x06FF)
-    || (codepoint >= 0xFB50 && codepoint <= 0xFDFF)
-    || (codepoint >= 0xFE70 && codepoint <= 0xFEFF)) {
+  if (isArabicBlock(codepoint)) {
     return ["sf-arabic"];
   }
   // Devanagari (U+0900..097F).
-  if (codepoint >= 0x0900 && codepoint <= 0x097F) return ["devanagari"];
+  if (isDevanagariBlock(codepoint)) return ["devanagari"];
   // Thai (U+0E00..0E7F).
-  if (codepoint >= 0x0E00 && codepoint <= 0x0E7F) return ["thai"];
+  if (isThaiBlock(codepoint)) return ["thai"];
   // Hangul (Korean) — Syllables + Jamo. Route to Apple SD Gothic Neo FIRST
   // because Hiragino Sans GB and PingFang SC don't carry Hangul codepoints;
   // without this branch Korean text falls all the way through to tofu
   // boxes. Keep `cjk` as a final fallback for the rare codepoint Apple SD
   // Gothic Neo lacks. DM-691.
-  if ((codepoint >= 0xAC00 && codepoint <= 0xD7AF)
-    || (codepoint >= 0x1100 && codepoint <= 0x11FF)) {
+  if (isHangulBlock(codepoint)) {
     return ["korean", "cjk"];
   }
   // CJK: Unified Ideographs + Ext A, Hiragana, Katakana (+ phonetic exts),
   // CJK Symbols & Punctuation. Hangul is handled above.
-  if ((codepoint >= 0x3000 && codepoint <= 0x303F)
-    || (codepoint >= 0x3040 && codepoint <= 0x309F)
-    || (codepoint >= 0x30A0 && codepoint <= 0x30FF)
-    || (codepoint >= 0x31F0 && codepoint <= 0x31FF)
-    || (codepoint >= 0x3400 && codepoint <= 0x4DBF)
-    || (codepoint >= 0x4E00 && codepoint <= 0x9FFF)
-    || (codepoint >= 0xF900 && codepoint <= 0xFAFF)) {
+  if (isCjkBmpBlock(codepoint)) {
     // DM-1174: U+302A–U+302F are combining CJK/Hangul tone marks that Hiragino
     // Sans GB (our `cjk`) does NOT carry. Chrome falls to Arial Unicode MS, which
     // has them AND U+25CC, and lays the orphaned `◌ + mark` cluster as a SPACING
@@ -1554,7 +1580,7 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // box chars in Helvetica, others falling through to Menlo's narrower
   // glyphs and breaking corner joins) is exactly what we want to avoid
   // here too. Menlo stays as the final safety net.
-  if (codepoint >= 0x2500 && codepoint <= 0x259F) {
+  if (isBoxDrawingBlock(codepoint)) {
     const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     if (monoPrimary) return [primaryKey, "menlo", "hiragino-jp"];
@@ -1563,7 +1589,7 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // Dingbats → Zapf Dingbats. macOS Chrome paints ✂✈✏✔✘✚✦❄❤❶ via Zapf
   // Dingbats; Apple Symbols has the same codepoints but at different (often
   // narrower) widths — empirical match shows Chrome consistently picks Zapf.
-  if (codepoint >= 0x2700 && codepoint <= 0x27BF) return ["zapf-dingbats", "symbols"];
+  if (isDingbatsBlock(codepoint)) return ["zapf-dingbats", "symbols"];
   // Geometric Shapes (▲△▽★☆♀♂…) and Misc Symbols (☀☁☂♠♥♦…) — Chrome on
   // macOS paints many of these at the CJK em-square width (16px @16px font-
   // size) via Hiragino Sans GB, NOT Apple Symbols (which has them at
@@ -1759,7 +1785,7 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // Mathematical Alphanumeric Symbols (𝐀 𝒜 𝕊 𝟬 𝔄 𝛼 etc.) — Chrome paints
   // via STIX Two Math (the system math-coverage font); Apple Symbols
   // and Hiragino lack these glyphs entirely. DM-257.
-  if (codepoint >= 0x1D400 && codepoint <= 0x1D7FF) {
+  if (isMathAlphanumericBlock(codepoint)) {
     return ["stix-math", "symbols"];
   }
   // DM-807: Superscripts and Subscripts block (U+2070-U+209F). The label
@@ -1770,7 +1796,7 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // the macOS font that DOES cover U+2099 and the Latin subscript range
   // (system-ui pulls in SFNS / SF Pro which has glyphs for these); put
   // it first so `aₙ` paints instead of falling through to .notdef tofu.
-  if (codepoint >= 0x2070 && codepoint <= 0x209F) {
+  if (isSuperSubscriptBlock(codepoint)) {
     return ["sf-pro", "stix-math", "hiragino-jp", "symbols"];
   }
   // General Punctuation overline / Latin-1 macron (U+203E OVERLINE, U+00AF
@@ -1807,12 +1833,11 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // and lands on the identical Helvetica Neue glyph. (The neighbouring division
   // operators ∕-adjacent that Apple Symbols DOES match stay on the symbols rule.)
   if (codepoint === 0x2215) return [];
-  if ((codepoint >= 0x2100 && codepoint <= 0x214F)
-    || (codepoint >= 0x2190 && codepoint <= 0x21FF)
-    || (codepoint >= 0x2200 && codepoint <= 0x22FF)
-    || (codepoint >= 0x2300 && codepoint <= 0x23FF)
-    || (codepoint >= 0x1F300 && codepoint <= 0x1F5FF)
-    || (codepoint >= 0x1F680 && codepoint <= 0x1F6FF)) {
+  if (isLetterlikeBlock(codepoint)
+    || (codepoint >= 0x2190 && codepoint <= 0x21FF)   // Arrows residue
+    || isMathOperatorsBlock(codepoint)
+    || (codepoint >= 0x2300 && codepoint <= 0x23FF)   // Misc Technical
+    || isPictographResidueBlock(codepoint)) {
     return ["symbols"];
   }
   // DM-983: per-Unicode-block fallback derived from a Chrome CDP sweep —
