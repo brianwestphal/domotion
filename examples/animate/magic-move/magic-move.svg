@@ -53,8 +53,8 @@
     }
 
     @keyframes fv-1 {
-      0%, 49.99%, 100.00%, 100% { opacity: 0; }
-      50.00%, 81.58% { opacity: 1; }
+      0%, 49.99% { opacity: 0; }
+      50.00%, 100% { opacity: 1; }
     }
     @keyframes fd-1 {
       0% { visibility: hidden; }

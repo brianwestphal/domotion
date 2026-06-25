@@ -10,8 +10,7 @@
     .f { opacity: 0; visibility: hidden; }
     
     @keyframes fv-0 {
-      0%,  100.00%, 100% { opacity: 0; }
-      0.00%, 89.66% { opacity: 1; }
+      0.00%, 100% { opacity: 1; }
     }
     @keyframes fd-0 {
       0% { visibility: hidden; }

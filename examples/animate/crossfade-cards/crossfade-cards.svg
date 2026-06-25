@@ -24,8 +24,8 @@
     .f-0 { animation: fv-0 3.80s infinite, fd-0 3.80s infinite step-end; }
 
     @keyframes fv-1 {
-      0%, 36.83%, 100.00%, 100% { opacity: 0; }
-      50.00%, 86.84% { opacity: 1; }
+      0%, 36.83% { opacity: 0; }
+      50.00%, 100% { opacity: 1; }
     }
     @keyframes fd-1 {
       0% { visibility: hidden; }
