@@ -35,8 +35,8 @@ In `src/render/font-resolution.ts`:
      - `sans-serif` / `ui-sans-serif` → **Helvetica** (NOT SF Pro — Chrome's macOS sans-serif default is Helvetica; SF Pro is the `system-ui` / `-apple-system` mapping).
      - `system-ui` / `-apple-system` / `BlinkMacSystemFont` → SF Pro.
      - `monospace` / `ui-monospace` → **Courier** (NOT SF Mono or Menlo — Chrome's macOS monospace default per Blink's `kMonospaceFamily → kCourier`. SF Mono is ~3% wider and has a 2px taller rounded ascent at 13px, which misaligns `<code>` baselines vs surrounding text).
-     - `cursive` → Snell Roundhand (if present, else SF Pro).
-     - `fantasy` → SF Pro (warning logged).
+     - `cursive` → **Apple Chancery** (Chrome on macOS resolves bare `cursive` to Apple Chancery, NOT Snell Roundhand — verified by empirical advance-width probe; author-named "Snell Roundhand" still gets its own face).
+     - `fantasy` → **Papyrus** (Chrome on macOS resolves bare `fantasy` to Papyrus — verified by empirical advance-width probe).
    - Anything else → next token, then SF Pro.
 
 2. New `FONT_PATHS` entries for the common families. Initial set (all macOS system fonts). Helvetica is a TTC with separate sub-fonts per weight×slant; pick the right sub-font in `getFontInstance` based on weight (≥600 → Bold) and slant.
@@ -54,15 +54,15 @@ In `src/render/font-resolution.ts`:
    "courier-bold-italic":  { path: "/System/Library/Fonts/Courier.ttc", postscriptName: "Courier-BoldOblique" },
    "georgia":          { path: "/System/Library/Fonts/Georgia.ttc", postscriptName: "Georgia" },
    "georgia-italic":   { path: "/System/Library/Fonts/Georgia.ttc", postscriptName: "Georgia-Italic" },
-   "arial":            { path: "/Library/Fonts/Arial.ttf" },
-   "verdana":          { path: "/Library/Fonts/Verdana.ttf" },
+   "arial":            { path: "/System/Library/Fonts/Supplemental/Arial.ttf" },
    "menlo":              { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Regular" },
    "menlo-bold":         { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Bold" },
    "menlo-italic":       { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-Italic" },
    "menlo-bold-italic":  { path: "/System/Library/Fonts/Menlo.ttc", postscriptName: "Menlo-BoldItalic" },
    "monaco":           { path: "/System/Library/Fonts/Monaco.ttf" },
-   "new-york":         { path: "/System/Library/Fonts/NewYork.ttf" },
    ```
+
+   (New York and Verdana are NOT flat `FONT_PATHS` keys — Verdana isn't routed at all, and New York's optical cuts are reached dynamically through `matchFamilyNameToKey` + a `sysfb:` key resolved via `resolveInstalledFont`, described under "Per-codepoint fallback" / the optical-cut notes below.)
 
 3. Glyph-def cache key (`ensureGlyphDef` in text-to-path.ts) currently keys on `${fontKey}-${weight}-${fontSize}-${slant}-${glyphId}`. The existing `fontKey` covers the new cases since each matched family gets its own logical key.
 

@@ -34,7 +34,7 @@ Implemented in DM-499 (this doc). `CAPTURE_SCRIPT` clones the host `<svg>`'s out
 - `currentColor` substitution: any `fill="currentColor"` / `stroke="currentColor"` in the resolved subtree is eagerly replaced with the host SVG's resolved `cs.color` so it survives re-embedding outside the original cascade.
 - Cycle / depth guard: 5-level recursion limit on `<use>` chains.
 
-When the resolved subtree contains an active CSS animation (`getAnimations({subtree:true})` non-empty), capture warns and falls back to the page-screenshot raster path (mirrors doc 17 / doc 22). Declarative keyframe extraction is tracked in DM-508.
+When the resolved subtree contains an active CSS animation (`getAnimations({subtree:true})` non-empty), capture no longer raster-falls-back (DM-508). The `_walkBake` pass bakes the subtree's computed presentation attributes and transforms at the moment of capture, so the t=0 paint state is captured declaratively in the inlined SVG — vector, self-contained, frozen at one frame. Capture still emits a warning so consumers know the snapshot is a single frame; animation timing and later frames don't survive (the same one-frame contract Domotion provides for any other time-varying content).
 
 Hidden-defs SVGs (`<svg style="position:absolute;width:0;height:0">` containing `<symbol>` definitions) capture as 0×0 elements; the renderer skips emission of their content so they don't paint visibly in the output.
 
@@ -55,11 +55,11 @@ Concretely:
 
 The output SVG is fully self-contained (no fragment refs to dangle) and stays vector-scalable.
 
-### B. Rasterise the SVG element when (A) can't resolve
+### B. Rasterize the SVG element when (A) can't resolve
 
-Some `<use>` refs point at external files (`<use href="./icons.svg#foo"/>`) or at content with non-trivial CSS animations on the symbol that don't survive the clone. For these, fall back to `page.screenshot({ clip: svg-rect, omitBackground: true })` and emit as `<image>` (same pattern as doc 17 / doc 22).
+Some `<use>` refs point at an UNRESOLVABLE target — an external file (`<use href="./icons.svg#foo"/>`), or a fragment whose `getElementById` returns null / resolves outside the captured root. (CSS-animated subtrees are NOT in this set: per "Today's behavior" they now resolve via (A), baking the t=0 computed paint declaratively rather than rasterizing.) For an unresolvable ref the SVG element can fall back to `page.screenshot({ clip: svg-rect, omitBackground: true })` and emit as `<image>` (same pattern as doc 17 / doc 22).
 
-This loses vector scalability for those cases but is a strict improvement over emitting a dangling reference.
+This loses vector scalability for those cases but is a strict improvement over emitting a dangling reference. (In the shipped code an external / unresolved ref is simply left in place — the dangling ref doesn't paint — rather than being raster-substituted; the rasterization fallback below is the designed escalation for it.)
 
 ## Detection rules
 
@@ -68,7 +68,7 @@ When walking the cloned SVG, an unresolvable `<use>` is one whose `href`/`xlink:
 - starts with `#` but `getElementById(id)` returns null, OR
 - starts with `#` but the resolved target lives outside the captured tree's root selector (per the docs — Domotion's capture is rooted at a selector, not the entire document).
 
-For each unresolvable case, the host SVG element is flagged for rasterisation in the post-capture pass (doc 17 machinery) and the cloned outerHTML is discarded.
+For each unresolvable case, the host SVG element is flagged for rasterization in the post-capture pass (doc 17 machinery) and the cloned outerHTML is discarded.
 
 ## Symbol vs. direct-path targets
 
@@ -94,11 +94,11 @@ The `<use>` resolver is covered by the `inline-svg-use-group` / `inline-svg-use-
 
 1. **Symbol viewBox translation**: emit `<svg x y w h viewBox=…>{symbol.children}</svg>` or fully resolve to `<g transform=scale(…)>` after computing the scale factor manually? The first preserves declarative spec compliance; the second produces fewer nested SVG elements. Recommend the first (declarative form).
 2. **External-file refs (`./icons.svg#foo`)**: out of scope for this ticket? File a follow-up if seen in the wild — probably needs to fetch the external file at capture time, which is async and adds I/O cost similar to DM-258 font discovery.
-3. **CSS-animated symbols**: if `<symbol id="icon">` has a child with a CSS animation, the cloned outerHTML captures the animation declaration, but the keyframe rules don't survive. Should we fall through to rasterisation when `getAnimations()` is non-empty on any symbol descendant? My read: yes, conservatively; warn at capture time.
+3. **CSS-animated symbols**: if `<symbol id="icon">` has a child with a CSS animation, the cloned outerHTML captures the animation declaration, but the keyframe rules don't survive. *Resolved (DM-508): we do NOT rasterize these.* The `_walkBake` pass bakes each animated node's computed presentation attributes and transforms at t=0, so the inlined SVG carries the correct paint for the captured frame (vector, self-contained); capture only warns that the snapshot is one frame.
 4. **`fill="currentColor"` resolution**: `<use>` consumers commonly set `color:` on the host and the symbol uses `fill="currentColor"`. After our resolve-and-inline pass, `currentColor` resolves against the symbol's *own* DOM context (which has no inherited color), not the consumer's. Should we eagerly substitute `currentColor` with the resolved color from the consumer's `cs.color` at capture time? Recommend yes — simpler than deferring resolution to render time.
 
 ## Follow-ups to file when this lands
 
 - External-file `<use>` refs (`<use href="./icons.svg#foo">`) — needs an external-fetch capture path.
 - `<use>` chains (`<symbol id="a"><use href="#b"/></symbol>`) — recursive resolution with cycle detection.
-- Rasterisation fallback bench step in `npm run demos:test` to ensure resolve-and-inline wins for the common case (no per-icon screenshots).
+- Rasterization fallback bench step in `npm run demos:test` to ensure resolve-and-inline wins for the common case (no per-icon screenshots).

@@ -4,7 +4,10 @@
 SVG — real text, real color, native SVG (no raster frames). It replaces the
 hand-authored terminal demos with automatic capture from a real program.
 `examples/terminal-demo.ts` itself drives this pipeline (`castToAnimatedSvg`),
-composited into macOS window chrome, as the canonical runnable demo of the verb.
+then hand-rolls macOS window chrome (traffic lights + title bar, as a plain SVG
+string) and composites it over the terminal via `composeAnimatedLayers` — it does
+*not* use the doc-65 `--chrome window` bezel. It's the canonical runnable demo of
+the verb.
 
 ## Front-end: asciinema `.cast`
 

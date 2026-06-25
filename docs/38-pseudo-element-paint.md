@@ -10,8 +10,9 @@ and routes it through the same render machinery that paints regular elements
 
 Each pseudo is one of four shapes, decided at capture time:
 
-1. **Image pseudo** — `content: url(...)`. Captured as a `pseudoImage` entry
-   on the host element; renders as `<image>` at the inline-block content-box.
+1. **Image pseudo** — `content: url(...)`. Captured as an entry in the host
+   element's `pseudoImages[]` array; renders as `<image>` at the inline-block
+   content-box.
 2. **Empty-content pseudo** — `content: ""` with a visible paint surface
    (background, border, gradient). Captured as a `pseudoBoxes[]` entry on the
    host; renders as `<rect>` + optional border lines / triangle polygon /

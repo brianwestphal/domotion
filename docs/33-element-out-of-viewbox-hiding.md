@@ -65,7 +65,7 @@ If easing is non-linear, the inversion is harder; we use the linear approximatio
 Three output shapes, per element:
 
 1. **Always hidden (no animation, off-viewBox)** — emit `style="display:none"` directly on the element's `<g>`. No CSS rule, no keyframes.
-2. **Animated, hide before / after only** — emit a `@keyframes` block with the standard discrete-snap pattern (0.001 % gap between on/off keyframes, animation-timing-function: step-end). Reuse the `buildDisplayKeyframes` helper from `src/animation/animator.ts`. Apply via a per-element class `dh-<n>` (display-hide-N).
+2. **Animated, hide before / after only** — emit a `@keyframes` block with the standard discrete-snap pattern (0.001 % gap between on/off keyframes, animation-timing-function: step-end). The shipped `buildCullKeyframes` helper in `src/tree-ops/viewbox-culling.ts` produces this block (toggling `visibility`, not `display`). Apply via a per-element class `dh-<n>` (display-hide-N).
 3. **Always hidden during scroll animation** — same `@keyframes` shape but the visible window is empty. Effectively equivalent to `style="display:none"` but parameterized through the keyframe pipeline for uniformity.
 
 Classes are coalesced when N elements share the same visible interval (common in long-scroll captures where contiguous rows have identical t_visible_start / t_visible_end). Map `(t_visible_start, t_visible_end) → className`, emit one keyframes block per unique interval.
@@ -109,7 +109,7 @@ The composition-time pre-pass is O(elements) for static analysis, O(elements × 
 4. **CLI integration** —
    - **`runCapture` (single frame)** calls `cullElementsOutsideViewBox(tree, w, h)` with no animations — pure static cull pass, returns empty CSS, mutates `displayNone` only.
    - **`runAnimate` (multi-frame)** computes `frameStartMs` and `totalDurationMs`, calls `cullElementsOutsideViewBox(tree, w, h, resolvedAnimations, frameStartMs, totalDurationMs)` BEFORE `elementTreeToSvg`. The keyframes CSS is forwarded to the animator via `AnimationFrame.cullCss`.
-5. **Unit tests** in `src/tree-ops/viewbox-culling.test.ts` (16 tests) — static intersection, enter-during-animation, exit-during-animation, fully-inside, never-visible, path-crosses-during-anim, translateX axis, non-translate property (no bbox shift), tree walk with mixed visibility, coalescing, child-anim-overrides-parent-anim, keyframes structure (step-end timing, `var(--scene-dur)`).
+5. **Unit tests** in `src/tree-ops/viewbox-culling.test.ts` (18 tests) — static intersection, enter-during-animation, exit-during-animation, fully-inside, never-visible, path-crosses-during-anim, translateX axis, non-translate property (no bbox shift), tree walk with mixed visibility, coalescing, child-anim-overrides-parent-anim, keyframes structure (step-end timing, `var(--scene-dur)`).
 
 ## Algorithm details
 

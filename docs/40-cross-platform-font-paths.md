@@ -91,8 +91,9 @@ key resolves to is:
 
 Keys with no per-platform entry resolve to `null`, which makes the family chain
 walk to the next candidate — identical to the macOS "font not installed"
-behavior. The macOS-only CoreText `extractor` flag is never set on the Linux /
-Windows tables; those faces open through fontkit like any other file.
+behavior. The macOS-only `extractor: "native"` flag (which routes to the
+CoreText helper) is never set on the Linux / Windows tables; those faces open
+through fontkit like any other file.
 
 ## Edge cases
 

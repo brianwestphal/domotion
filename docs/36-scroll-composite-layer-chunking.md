@@ -14,7 +14,7 @@ A chunk is a contiguous group of segment wrappers that share a single `<g style=
 
 - **Default policy**: group every consecutive pair of segments into one chunk. For an 8-segment scroll that yields 4 chunks of ~1600 px each. Each chunk fits well within typical per-layer caps (Chromium's effective cap is around 4096 px on the long axis on most desktop GPUs; mobile is lower).
 - **Tail chunk**: if the segment count is odd, the last chunk holds the trailing single segment.
-- **Configurable**: `ScrollComposerOptions.chunkSize?: number` — default `2`, callers can override to `1` (every segment its own layer) or any positive integer. `chunkSize <= 0` is rejected.
+- **Configurable**: `ScrollComposerOptions.chunkSize?: number` — default `2`, callers can override to `1` (every segment its own layer) or any positive integer. Values `< 1` or non-integers (e.g. `0`, `-1`, `1.5`) are rejected.
 
 The pairing policy is a compromise: layer count grows linearly with the page but stays small (a 16-segment scroll = 8 chunks, still tractable), and each chunk stays comfortably below 4096 px even at hi-DPI = 2. Tuning is straightforward if a real fixture demonstrates a sweet spot.
 

@@ -90,14 +90,15 @@ export interface ConicGradient {
 export function parseConicGradient(text: string | null | undefined): ConicGradient | null;
 export function rasterizeConic(
   gradient: ConicGradient,
-  tileW: number, tileH: number,
-  hiDPIFactor: number,
-): Promise<Buffer>; // PNG bytes
+  width: number, height: number,
+): Buffer; // raw RGBA, width × height × 4
 ```
+
+`rasterizeConic` is synchronous and pure CPU — it writes raw RGBA bytes, no I/O. The HiDPI scale-up and the lanczos downsample-plus-PNG-encode happen in the `rasterizeConicGradients` pre-pass around it: the pre-pass renders at `width × hiDPI` / `height × hiDPI`, then routes the raw buffer through `sharp(...).resize(...).png()` to produce the embedded tile.
 
 Stops use `<angle>` (e.g. `red 0deg, blue 90deg`) or `<percentage>` (e.g. `red 0%, blue 25%`); both normalize to `[0, 1)` along the sweep. The `0deg/0%` reference point is `from <angle>` (top by default). Hard stops emit two stops at the same offset.
 
-The rasterizer renders into a raw RGBA buffer at `(tileW × hiDPIFactor) × (tileH × hiDPIFactor)`, then asks `sharp.resize(tileW, tileH, { fit: 'fill', kernel: 'lanczos3' })` to downsample. Output is PNG (per the embed pipeline's "every embed is PNG" rule from DM-526).
+`rasterizeConic` renders into a raw RGBA buffer at the `width × height` it's handed; the pre-pass passes `(tileW × hiDPIFactor) × (tileH × hiDPIFactor)`, then asks `sharp.resize(tileW, tileH, { fit: 'fill', kernel: 'lanczos3' })` to downsample the raw buffer. Output is PNG (per the embed pipeline's "every embed is PNG" rule from DM-526).
 
 ### Capture-side parser hook
 
@@ -125,7 +126,7 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - **`background-attachment: fixed` on a conic layer**: rare but valid. Tile sizing basis is the viewport, identical to the existing fixed-image path. The rasterizer doesn't need to know — `buildBackgroundLayerDef` already passes the viewport-anchored `(elX, elY, w, h)` for fixed layers.
 - **`background-size: cover / contain` on a conic**: extremely uncommon (conic + cover usually means "fill the element"), but supported by sizing the rasterized tile to the element rect, just like `cover` on a `url()` image.
 - **Animated SVGs (`generateAnimatedSvg`)**: the conic raster is per-frame deterministic. If two frames have different conic stops, they produce two different `<pattern>` defs and the cross-fade swap pipeline handles them like any other per-frame def.
-- **Unrecognised stop syntax**: `parseConicGradient` returns null on parse failure; `buildBackgroundLayerDef` returns `{ def: "" }`; the layer loop skips it; the warning at `src/render/element-tree-to-svg.ts` is downgraded from "always emit" to "emit only if parse fails".
+- **Unrecognised stop syntax**: `parseConicGradient` returns null on parse failure; the raster pre-pass skips the layer, so `_conicTileCache` has no tile for it; `buildConicGradientDef` then misses the cache and returns `{ def: "" }` and the layer loop skips it. This is **silent** — no warning is emitted on a conic parse failure (the layer simply paints nothing).
 
 ## Performance
 
@@ -139,7 +140,7 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - A standalone fixture demonstrating `conic-gradient(red, yellow, green, blue, red)` at `200×200` renders a smooth color-wheel. New: `tests/features/<NN>-conic-gradient.html`.
 - A standalone fixture demonstrating `repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px` renders a 24×24 alpha-checkerboard tiled across a `300×300` div.
 - A multi-layer fixture (`background: conic-gradient(...), linear-gradient(...), url(bg.png)`) renders with all three layers in the right stacking order.
-- Captured SVG contains no `conic-gradient` warning when the layer parses successfully. The warning still fires when the parse fails (so authors notice broken syntax).
+- Captured SVG contains no `conic-gradient` warning when the layer parses successfully. A parse failure is handled silently — the layer paints nothing and no warning is emitted. (If author-visible diagnostics on broken conic syntax are wanted, a `console.warn` in `conic-raster.ts`'s parse-failure path would be the place to add it; see the implementation note below.)
 - All previously passing html-test, features, and showcase tests stay passing — the conic branch is additive and doesn't touch linear/radial paths.
 
 ## Implementation slices

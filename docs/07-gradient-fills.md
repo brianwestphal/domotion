@@ -20,7 +20,7 @@ Our output paints a flat `#4f46e5` (or no fill if the regex misses) instead of t
 ## Goals
 
 - Capture the full `background-image` value (including gradient text) for each pseudo handled by the stylesheet walker.
-- For `linear-gradient(...)` backgrounds, emit an SVG `<linearGradient>` def per gradient occurrence and apply it to the painted rect via `fill="url(#sk-grad-N)"`.
+- For `linear-gradient(...)` backgrounds, emit an SVG `<linearGradient>` def per gradient occurrence and apply it to the painted rect via `fill="url(#${idPrefix}gradN)"`.
 - Round-trip color stops with explicit positions, color-mix / oklch / lab colors (via the existing `normColor` probe), and `currentColor` references.
 - `radial-gradient(...)`, `conic-gradient(...)`, and the `repeating-*` variants are now all handled too (radial → `<radialGradient>`, conic → rasterized PNG `<pattern>`, repeating → tiled stops); see the Edge-cases / Status sections below.
 - Generalize the gradient-emission helper so the same plumbing works for slider track + thumb (SK-1138, SK-1192, SK-1191), progress / meter (SK-1222, doc 27), and the future input pseudos `::-webkit-color-swatch` etc. (SK-1223, doc 26).
@@ -49,6 +49,8 @@ The capture layer needs the **declared gradient text**, not a reduced color, so 
 
 ## Render changes
 
+> **Two gradient modules.** There are two parser/emitter modules with distinct callers: `src/render/gradients.ts` builds gradient defs for **form-control pseudos** (`parseGradient` + `buildLinearGradientDef` / `buildRadialGradientDef` + `gradientCacheKey`, consumed by `form-controls.ts`), while `src/render/gradient-defs.ts` builds the element-background (and mask) gradient defs (`buildLinearGradientDef(id, args, …)` / `buildRadialGradientDef`, consumed by the background renderer and `mask.ts`). They share the `userSpaceOnUse` convention but are not the same code.
+
 The renderer parses the gradient text and emits SVG. The work fans out into three pieces:
 
 ### 1. Parser
@@ -74,26 +76,37 @@ Handle:
 
 ### 2. Emit `<defs>`
 
-Each unique gradient gets a `<linearGradient id="sk-grad-N" gradientUnits="userSpaceOnUse" x1=… y1=… x2=… y2=…>` with one `<stop offset=… stop-color=… stop-opacity=… />` per parsed stop. ID counter is module-scoped per-SVG-output (reset on each `generateSvg(scene)` call so two scenes don't collide).
+Each unique gradient gets a `<linearGradient id="${idPrefix}gradN" gradientUnits="userSpaceOnUse" x1=… y1=… x2=… y2=…>` with one `<stop offset=… stop-color=… stop-opacity=… />` per parsed stop. IDs are minted by the render context's `nextGradId()` (`() => \`${idPrefix}grad${gradIdx++}\``); the per-render `idPrefix` keeps gradient IDs from different frames/scenes from colliding.
 
 `gradientUnits="userSpaceOnUse"` is preferred over the default `objectBoundingBox` because the painted shape might not be the bounding box of the rect (e.g. when the rect has a border-radius and we're painting via a clipPath). Setting absolute coords keeps the math straightforward.
 
 The defs accumulate in a per-render `gradientDefs` array; the SVG composer emits `<defs>...</defs>` once at the top alongside the existing glyph defs.
 
-### 3. Apply via `fill="url(#sk-grad-N)"`
+### 3. Apply via `fill="url(#${idPrefix}gradN)"`
 
-In `renderRange()`:
+A single `gradientFillFor(bgImage, rect, ctx)` helper in `form-controls.ts` does
+parse + emit + apply for every form-control pseudo. It returns a `url(#…)` fill
+string (or `null` to fall back to the flat color):
 
 ```ts
-const trackFill = el.styles.rangeTrackBgImage != null && el.styles.rangeTrackBgImage !== "none"
-  ? `url(#${ensureGradientDef(parseLinearGradient(el.styles.rangeTrackBgImage), trackRect)})`
-  : trackBg;
+const trackGrad = gradientFillFor(el.styles.rangeTrackBgImage, trackRect, defCtx);
+const trackFill = trackGrad ?? trackBg;
 parts.push(`<rect ... fill="${trackFill}" .../>`);
 ```
 
-`ensureGradientDef(gradient, rect)` deduplicates: it hashes the gradient + its mapped coords and returns the existing ID if a matching def is already in the array, otherwise appends a new def and returns its ID. Two sliders sharing the same `linear-gradient(90deg, #4f46e5, #ec4899)` therefore share one `<linearGradient>` def.
+Deduplication is inline, not via a separate `ensureGradientDef` function:
+`gradientFillFor` computes `gradientCacheKey(grad, rect)` (a string over the
+parsed gradient + its mapped rect) and looks it up in the render context's
+`gradientCache` map. On a hit it reuses the existing ID; on a miss it mints a new
+ID via `nextGradId()`, builds the def (`buildLinearGradientDef` /
+`buildRadialGradientDef`), pushes it onto `defsParts`, and records the ID under
+the cache key. Two sliders sharing the same `linear-gradient(90deg, #4f46e5,
+#ec4899)` over the same rect therefore share one `<linearGradient>` def. (Conic
+layers take a separate branch — they rasterize to a PNG `<pattern>` via
+`buildConicTile`.)
 
-The same ensure-gradient helper handles the thumb fill (`renderRange` thumb path) and, once SK-1222 lands, progress-value / meter-value fills.
+The same `gradientFillFor` helper handles the thumb fill (`renderRange` thumb
+path) and the progress-value / meter-value fills (SK-1222).
 
 ## Edge cases
 

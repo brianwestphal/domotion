@@ -20,8 +20,10 @@ Out for now (separate tickets when fixtures arrive):
 
 The captured element rect is the slider's viewport box (e.g. `30 × 150` for the test fixture). The renderer chooses an axis based on `s.writingMode`:
 
-- `horizontal-tb` (or unset): track runs along the x-axis, length = `el.width − thumbW`, thickness = `trackHeight` (4 px UA default). Thumb moves along x; ratio 0 → left, ratio 1 → right.
-- `vertical-rl` / `vertical-lr`: track runs along the y-axis, length = `el.height − thumbH`, thickness = `trackHeight`. Thumb moves along y. The track is centered horizontally inside `el`.
+- `horizontal-tb` (or unset): track runs along the x-axis and spans the **full** `el.width`, thickness = `trackHeight` (4 px UA default). The thumb *travel* is inset by `halfThumb` at each end (`thumbTravelLeft = elL + halfThumb`, `thumbTravelRight = elR − halfThumb`) so the thumb center stays inside the track at value min/max, but the track rect itself is not shortened. Ratio 0 → left, ratio 1 → right.
+- `vertical-rl` / `vertical-lr`: track runs along the y-axis and spans the **full** `el.height`, thickness = `trackHeight`. As above, only the thumb travel is inset by `halfThumb` (`thumbTravelTop = elT + halfThumb`, `thumbTravelBottom = elT + elH − halfThumb`); the track rect is not shortened. The track is centered horizontally inside `el`.
+
+> The track once was shortened by ±`halfThumb` on each end, but that left it ~22 px narrower than Chrome's painted track for the gradient sliders (verified against painted output) — Chrome paints the track at the full element extent and insets only the thumb travel.
 
 `direction: rtl` flips the value-to-position mapping on the active axis:
 
@@ -38,8 +40,8 @@ No new fields. `CapturedElement.styles.writingMode` and `direction` are already 
 
 `renderRange` in `src/render/form-controls.ts` branches early on `isVertical = s.writingMode != null && s.writingMode !== 'horizontal-tb'`. Both branches share the same fill / border / styled-thumb logic — only the geometry math differs. Specifically:
 
-- Horizontal: `trackRect.w = el.width − thumbW`, `fillRect.w = thumbCx − trackLeft`.
-- Vertical: `trackRect.h = el.height − thumbH`, `fillRect.h` runs from `thumbCy` to `trackBottom` (rtl) or from `trackTop` to `thumbCy` (ltr).
+- Horizontal: `trackRect.w = el.width` (full extent), `fillRect.w = thumbCx − elL`. The thumb center `thumbCx` interpolates between `elL + halfThumb` and `elR − halfThumb`.
+- Vertical: `trackRect.h = el.height` (full extent), `fillRect.h` runs from `thumbCy` to `elB` (rtl, low at bottom) or from `elT` to `thumbCy` (ltr). The thumb center `thumbCy` interpolates between `elT + halfThumb` and `elT + el.height − halfThumb`.
 
 Author-styled track (`::-webkit-slider-runnable-track { width: ..., height: ... }`) is interpreted along the **inline axis** of the writing mode. In a vertical mode, a CSS `height: 8px` declaration on the track describes the track's *thickness* (not its length), matching how Chrome interprets it. The current implementation uses `rangeTrackHeight` as the thickness regardless of writing mode, which is correct.
 

@@ -24,35 +24,46 @@ Our output keeps the default heights, ignores the gradients, and skips the radii
 
 ## Capture changes
 
-Replace the existing scalar fields with full pseudo-style records on `CapturedElement`:
+The nested per-pseudo style record originally sketched here was not what
+shipped. Capture instead records a **flat set of scalar fields** per pseudo on
+`CapturedElement.styles` (`src/capture/types.ts`) — only the three properties the
+renderer actually consumes (background color, background image, border radius):
 
 ```ts
-progressBar: {
-  bg: string;
-  bgImage: string;
-  borderRadius: string;
-  border: string;
-  padding: string;
-  height: string;
-  boxShadow: string;
-} | undefined;
-progressValue: { same shape };
-meterBar: { same shape };
-meterOptimum: { same shape };
-meterSuboptimum: { same shape };
-meterEvenLessGood: { same shape };
+// ::-webkit-progress-bar (the track)
+progressBarBg?: string;
+progressBarBgImage?: string;
+progressBarRadius?: string;
+// ::-webkit-progress-value (the fill)
+progressValueBg?: string;
+progressValueBgImage?: string;
+progressValueRadius?: string;
+// ::-webkit-meter-bar
+meterBarBg?: string;
+meterBarBgImage?: string;
+meterBarRadius?: string;
+// meter value pseudos (no per-pseudo radius captured — bg + bgImage only)
+meterOptimumBg?: string;       meterOptimumBgImage?: string;
+meterSuboptimumBg?: string;    meterSuboptimumBgImage?: string;
+meterEvenLessGoodBg?: string;  meterEvenLessGoodBgImage?: string;
 ```
 
-The capture is `getComputedStyle(el, pseudo).<each-prop>`. Only emit the field when `el.tag === 'progress'` (for progress bars) or `el.tag === 'meter'` (for meter bars), and only when at least one prop differs from the UA default. The existing `progressBarBg` etc. become deprecated aliases that read from the new records for one release cycle.
+The pseudo styles are resolved through the `document.styleSheets` walker (see the
+SK-1222 update above), not a raw `getComputedStyle(el, pseudo)` read — the latter
+returns the host's computed style in Chromium, not the pseudo's cascaded value.
+There are no `border`, `padding`, `height`, or `boxShadow` fields: those parts of
+the box model are **not** captured (the renderer derives bar height/inset
+geometry from the host element's measured rect instead). Each `*Bg` / `*BgImage`
+field is left unset when the pseudo equals the UA default, so unstyled
+progress/meter elements fall through to the stock rendering.
 
 ## Render changes
 
 In `src/render/form-controls.ts`:
 
-1. `renderProgress(el)` currently emits a track rect with hardcoded radius and a fill rect for the value. Change to read `el.progressBar.borderRadius`, `el.progressBar.height`, `el.progressBar.boxShadow` for the track, and `el.progressValue.{bg,bgImage,borderRadius}` for the fill.
-2. `renderMeter(el)` mirrors the same with the optimum/suboptimum/even-less-good selection logic (already exists for the bg color, just needs the rest of the props).
-3. Gradient backgrounds (`bgImage`) feed into the existing `buildBackgroundLayerDef` helper used for ordinary element backgrounds.
-4. Box-shadow applies through the SK-1113 `parseBoxShadow` + filter pipeline.
+1. `renderProgress(el)` reads `el.styles.progressBarBg` / `progressBarBgImage` / `progressBarRadius` for the track rect and `el.styles.progressValueBg` / `progressValueBgImage` / `progressValueRadius` for the value rect. Track/value rect geometry (inset, height) comes from the shared `progressBarGeom(el)` helper — derived from the host element's measured rect, not from a captured pseudo `height`. There is no border, padding, or box-shadow handling.
+2. `renderMeter(el)` mirrors the same with the optimum/suboptimum/even-less-good selection logic, reading the matching `meter*Bg` / `meter*BgImage` fields (the meter value pseudos carry no captured radius).
+3. Gradient backgrounds (`bgImage`) feed through the `gradientFillFor` helper, which emits a gradient def referenced via `fill="url(#...)"` (flat `*Bg` colors are the fallback).
 
 ## Edge cases
 
