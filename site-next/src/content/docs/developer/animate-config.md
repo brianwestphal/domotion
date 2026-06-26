@@ -52,8 +52,13 @@ JSON-Schema-aware editor at the `$schema` key for autocomplete and validation.
   `{ events: [...] }` timeline.
 - **`vars` + `${name}`** — interpolated into any string field.
 
-:::note
-This summary will be replaced by the canonical grammar synced from the repo's
-scroll-pattern and animate docs in a later phase. Run `domotion animate --help`
-for the authoritative reference today.
-:::
+## Every field
+
+This page is the guided tour. For the exhaustive, always-current list of every
+config and frame field — including each `actions` verb, every `overlays` kind,
+the `cursor` event timeline, and intra-frame `animations` — see the
+[full field reference](/domotion/developer/reference/animate-config-reference/).
+That page is generated directly from `schemas/animate-config.schema.json` at
+build time, so it can never drift from what the CLI actually validates. Point a
+JSON-Schema-aware editor at the `$schema` key for the same data inline, or run
+`domotion animate --help`.

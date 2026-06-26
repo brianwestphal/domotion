@@ -5,6 +5,7 @@ dist/
 node_modules/
 # generated demo assets (produced by scripts/build-demos.mjs at build time)
 public/demos/
-src/content/docs/developer/_synced/
+# generated reference pages (produced by scripts/sync-docs.mjs at build time)
+src/content/docs/developer/reference/
 # os
 .DS_Store

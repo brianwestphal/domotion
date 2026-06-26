@@ -48,6 +48,11 @@ export default defineConfig({
           items: [
             { label: "Scripting API", slug: "developer/api" },
             { label: "Animate config format", slug: "developer/animate-config" },
+            {
+              label: "Animate config — full field reference",
+              slug: "developer/reference/animate-config-reference",
+              badge: { text: "generated", variant: "note" },
+            },
             { label: "Building custom templates", slug: "developer/custom-templates" },
             { label: "Using AI to drive Domotion", slug: "developer/using-ai" },
           ],

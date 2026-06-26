@@ -13,6 +13,7 @@ const OUT = resolve(HERE, "..", "public", "demos");
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 mkdirSync(resolve(OUT, "templates"), { recursive: true });
+mkdirSync(resolve(OUT, "apps"), { recursive: true });
 
 /** Copy every *.svg in `srcDir` into `dstDir` (flat). */
 function copySvgs(srcDir, dstDir) {
@@ -31,5 +32,9 @@ total += copySvgs(resolve(ROOT, "examples/output"), OUT);
 total += copySvgs(resolve(ROOT, "examples/output/templates"), resolve(OUT, "templates"));
 // The animate gallery goldens (typing-search, tab-switcher, form-fill, …).
 total += copySvgs(resolve(ROOT, "site/assets/img/demos"), OUT);
+// Full-application demos — real domotion captures of two live local apps,
+// committed in-repo (so CI has them without those external repos checked out).
+// Provenance is documented in demo-assets/apps/README.md.
+total += copySvgs(resolve(HERE, "..", "demo-assets", "apps"), resolve(OUT, "apps"));
 
 console.log(`[build-demos] copied ${total} demo SVGs → ${OUT}`);

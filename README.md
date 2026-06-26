@@ -5,6 +5,8 @@
 <p align="center">
   <strong><a href="https://brianwestphal.github.io/domotion/">🌐 Website &amp; docs</a></strong>
   &nbsp;·&nbsp;
+  <a href="https://brianwestphal.github.io/domotion/showcase/">Showcase</a>
+  &nbsp;·&nbsp;
   <a href="https://brianwestphal.github.io/domotion/start/quickstart/">Quick start</a>
   &nbsp;·&nbsp;
   <a href="https://github.com/brianwestphal/domotion">GitHub</a>

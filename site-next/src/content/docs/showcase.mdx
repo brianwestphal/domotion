@@ -54,29 +54,40 @@ own timeline.
 
 ## Full-application demos
 
-<Aside type="note" title="Coming next (placeholder)">
-These two demos are **placeholders** in this preview. Once the rest of the site
-is approved, they'll be replaced with real `domotion` captures of two live local
-apps:
+A capability demo shows one trick. The real test is a whole product: a dense,
+stateful, real application, rendered faithfully as a single SVG. Both demos
+below are genuine Domotion captures of live local apps — not mockups, not
+screenshots.
 
-- **Hotsheet** — the lightweight ticket / Up-Next worklist tool. Planned flow:
-  open the board → create a ticket → categorize + prioritize → mark Up Next →
-  export the worklist. Captured as a continuous-session `animate` config (real
-  clicks + typing), composited into a browser bezel.
-- **Glassbox** — the AI-code-review tool. Planned flow: open a diff → annotate a
-  line → add a region note → export the structured feedback. Same approach.
+### Glassbox — an AI code-review tool, start to finish
 
-Both run locally; the captures will be produced with the standard
-`domotion animate` interaction pipeline and committed as gallery SVGs.
-</Aside>
+One infinitely-looping SVG walks the entire workflow: launch from the CLI → the
+sidebar triages each file by AI-assessed risk → open a split diff → annotate a
+line → complete the review → export the structured feedback → a Claude Code
+agent reads it back and applies the fix. Every frame is a real capture of the
+running app, composited into window chrome with a lower-third caption.
+
+<img src="/domotion/demos/apps/glassbox-review.svg" alt="Glassbox: an animated walkthrough from CLI launch through AI risk triage, a split diff, a line annotation, completing the review, exporting feedback, and a Claude Code agent applying the fix" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+
+<img src="/domotion/demos/apps/glassbox-risk-mode.svg" alt="Glassbox sidebar in AI risk-triage mode, files badged by assessed risk" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+
+### Hot Sheet — a ticket & worklist tool
+
+A genuinely complex single-page app — multi-column board, inline category and
+priority chips, a live detail panel, an AI worklist, a dashboard of charts —
+captured pixel-faithfully. The point isn't motion; it's that an entire working
+application round-trips to one self-contained, infinitely-scalable SVG with real
+selectable text.
 
 <CardGrid>
-  <Card title="Hotsheet — ticket & worklist tool" icon="seti:todo">
-    *Placeholder.* A real capture of creating, prioritizing, and exporting an
-    Up-Next worklist will land here.
-  </Card>
-  <Card title="Glassbox — AI code review" icon="seti:git">
-    *Placeholder.* A real capture of reviewing a diff, annotating lines, and
-    exporting feedback will land here.
-  </Card>
+  <img src="/domotion/demos/apps/hotsheet-board.svg" alt="Hot Sheet's main board: tickets across status columns with a ticket detail panel open" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+  <img src="/domotion/demos/apps/hotsheet-up-next.svg" alt="Hot Sheet's AI worklist: Up Next tickets with notes" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
 </CardGrid>
+
+<img src="/domotion/demos/apps/hotsheet-dashboard.svg" alt="Hot Sheet's dashboard: stats and charts over the ticket set" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+
+<Aside type="tip" title="These are real captures">
+Both apps already depend on Domotion to produce these images for their own
+READMEs. The provenance and regeneration steps live in the site repo at
+`site-next/demo-assets/apps/README.md`.
+</Aside>

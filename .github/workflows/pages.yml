@@ -1,12 +1,19 @@
-name: Build & deploy user manual to GitHub Pages
+name: Build & deploy site to GitHub Pages
 
+# DM-1308: deploys the Astro + Starlight site in site-next/ to
+# brianwestphal.github.io/domotion. The site builds entirely from assets already
+# committed in the repo — scripts/build-demos.mjs copies the demo SVGs from
+# examples/output, site/assets/img/demos, and site-next/demo-assets/apps, and
+# scripts/sync-docs.mjs generates the schema reference from schemas/ — so no
+# Playwright/capture step is needed here (unlike the legacy site/ build).
 on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
-      - 'src/**'
-      - 'examples/**'
+      - 'site-next/**'
+      - 'examples/output/**'
+      - 'schemas/**'
+      - 'site/assets/img/demos/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -29,22 +36,19 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+          cache-dependency-path: site-next/package-lock.json
 
-      - run: npm ci
+      - name: Install site deps
+        working-directory: site-next
+        run: npm ci
 
-      # Playwright Chromium is needed by the image-generation script.
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Generate manual images
-        run: npx tsx site/scripts/generate-images.ts
-
-      - name: Build manual
-        run: npx tsx site/build.ts
+      - name: Build site
+        working-directory: site-next
+        run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site/dist
+          path: site-next/dist
 
   deploy:
     needs: build
