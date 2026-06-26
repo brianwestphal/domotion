@@ -15,15 +15,10 @@ node_modules/
 external/
 dist/
 .release-state.json
-.glassbox/
-.cursor/
-.cursorrules
 *.map
 .DS_Store
 coverage/
 scheduled_tasks.lock
-.mcp.json
-.claude
 test-results/
 .env
 .env.local
@@ -36,5 +31,10 @@ tools/unicode-fixtures/
 # The underscore-prefixed one-off debug scripts live here so they persist
 # locally without cluttering `git status` or risking an accidental commit.
 tools/scratch/
+
+.mcp.json
+.claude/settings.local.json
 /.hotsheet/*
 !/.hotsheet/settings.json
+/.glassbox/*
+!/.glassbox/settings.json
