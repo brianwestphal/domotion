@@ -25,8 +25,10 @@ frame's `duration`.
 
 ## Compose with intro/outro and window chrome
 
-A terminal session shines wrapped in an intro/outro and macOS window chrome. Use
-an [`animate`](/domotion/usage/animate/) config with a `cast` frame, or
+A terminal session shines wrapped in an intro/outro and window chrome. The window
+frame is just an SVG you supply — the bundled demos use a macOS-style window, but
+a Windows- or Linux-style frame composites the same way. Use an
+[`animate`](/domotion/usage/animate/) config with a `cast` frame, or
 [`composite`](/domotion/usage/composite/) to place the animated terminal window
 on a desktop. The [showcase](/domotion/showcase/) terminal demos are built this
 way.

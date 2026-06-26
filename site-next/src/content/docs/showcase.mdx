@@ -16,23 +16,25 @@ in a new tab and watch it stay crisp at any zoom.
 A real page rendered in Chromium and emitted as native SVG — badges, status
 rows, code blocks, and inline styles, with text as glyph paths.
 
-<img src="/domotion/demos/showcase-rendering.svg" alt="A dark UI showing text styles, badges, status indicators, and a code block, captured faithfully" style="width:100%;height:auto;border-radius:12px" />
+<img src="/domotion/demos/showcase-rendering.svg" alt="A dark UI showing text styles, badges, status indicators, and a code block, captured faithfully" style="width:100%;height:auto" />
 
 ### Transitions
 
 Multi-frame capture stitched into one animation with `crossfade`, `push-left`,
 `scroll`, and `magic-move` transitions.
 
-<img src="/domotion/demos/showcase-transitions.svg" alt="A landing page animating through search, results, and a feature detail" style="width:100%;height:auto;border-radius:12px" />
+<img src="/domotion/demos/showcase-transitions.svg" alt="A landing page animating through search, results, and a feature detail" style="width:100%;height:auto" />
 
 ### Terminal sessions
 
 An asciinema recording rendered as an animated terminal — real ANSI color, real
-text, composited into macOS window chrome.
+text, optionally composited into window chrome. The frame is just an SVG you
+supply: these demos use a macOS-style window, but a Windows- or Linux-style one
+(or no chrome at all) works the same way.
 
 <CardGrid>
-  <img src="/domotion/demos/terminal-onboarding.svg" alt="A terminal running clone, install, configure, and run in one session" style="width:100%;height:auto;border-radius:12px" />
-  <img src="/domotion/demos/terminal-window-scroll.svg" alt="A scrolling terminal session of install, test, and build output" style="width:100%;height:auto;border-radius:12px" />
+  <img src="/domotion/demos/terminal-onboarding.svg" alt="A terminal running clone, install, configure, and run in one session" style="width:100%;height:auto" />
+  <img src="/domotion/demos/terminal-window-scroll.svg" alt="A scrolling terminal session of install, test, and build output" style="width:100%;height:auto" />
 </CardGrid>
 
 ### Templates
@@ -41,8 +43,8 @@ A few flags become a polished animated SVG. Charts emphasize the standout, not a
 rainbow; device mockups wrap a real page in a bezel.
 
 <CardGrid>
-  <img src="/domotion/demos/templates/chart-column.svg" alt="A column chart with the peak month emphasized in the accent color" style="width:100%;height:auto;border-radius:12px" />
-  <img src="/domotion/demos/templates/device-mockup-browser.svg" alt="A SaaS dashboard wrapped in a browser window bezel" style="width:100%;height:auto;border-radius:12px" />
+  <img src="/domotion/demos/templates/chart-column.svg" alt="A column chart with the peak month emphasized in the accent color" style="width:100%;height:auto" />
+  <img src="/domotion/demos/templates/device-mockup-browser.svg" alt="A SaaS dashboard wrapped in a browser window bezel" style="width:100%;height:auto" />
 </CardGrid>
 
 ### Compositing
@@ -50,7 +52,7 @@ rainbow; device mockups wrap a real page in a bezel.
 Animated layers inside animated layers — a terminal window on a desktop, on its
 own timeline.
 
-<img src="/domotion/demos/composite-config-demo.svg" alt="A macOS desktop with a terminal window running a git clone" style="width:100%;height:auto;border-radius:12px" />
+<img src="/domotion/demos/composite-config-demo.svg" alt="A macOS desktop with a terminal window running a git clone" style="width:100%;height:auto" />
 
 ## Full-application demos
 
@@ -67,9 +69,9 @@ line → complete the review → export the structured feedback → a Claude Cod
 agent reads it back and applies the fix. Every frame is a real capture of the
 running app, composited into window chrome with a lower-third caption.
 
-<img src="/domotion/demos/apps/glassbox-review.svg" alt="Glassbox: an animated walkthrough from CLI launch through AI risk triage, a split diff, a line annotation, completing the review, exporting feedback, and a Claude Code agent applying the fix" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+<img src="/domotion/demos/apps/glassbox-review.svg" alt="Glassbox: an animated walkthrough from CLI launch through AI risk triage, a split diff, a line annotation, completing the review, exporting feedback, and a Claude Code agent applying the fix" style="width:100%;height:auto" loading="lazy" />
 
-<img src="/domotion/demos/apps/glassbox-risk-mode.svg" alt="Glassbox sidebar in AI risk-triage mode, files badged by assessed risk" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+<img src="/domotion/demos/apps/glassbox-risk-mode.svg" alt="Glassbox sidebar in AI risk-triage mode, files badged by assessed risk" style="width:100%;height:auto" loading="lazy" />
 
 ### Hot Sheet — a ticket & worklist tool
 
@@ -80,11 +82,11 @@ application round-trips to one self-contained, infinitely-scalable SVG with real
 selectable text.
 
 <CardGrid>
-  <img src="/domotion/demos/apps/hotsheet-board.svg" alt="Hot Sheet's main board: tickets across status columns with a ticket detail panel open" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
-  <img src="/domotion/demos/apps/hotsheet-up-next.svg" alt="Hot Sheet's AI worklist: Up Next tickets with notes" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+  <img src="/domotion/demos/apps/hotsheet-board.svg" alt="Hot Sheet's main board: tickets across status columns with a ticket detail panel open" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/apps/hotsheet-up-next.svg" alt="Hot Sheet's AI worklist: Up Next tickets with notes" style="width:100%;height:auto" loading="lazy" />
 </CardGrid>
 
-<img src="/domotion/demos/apps/hotsheet-dashboard.svg" alt="Hot Sheet's dashboard: stats and charts over the ticket set" style="width:100%;height:auto;border-radius:12px" loading="lazy" />
+<img src="/domotion/demos/apps/hotsheet-dashboard.svg" alt="Hot Sheet's dashboard: stats and charts over the ticket set" style="width:100%;height:auto" loading="lazy" />
 
 <Aside type="tip" title="These are real captures">
 Both apps already depend on Domotion to produce these images for their own
