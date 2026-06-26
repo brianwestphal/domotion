@@ -1024,6 +1024,68 @@ function paintBevelBorder(
   }
 }
 
+// The four CSS border styles that paint a light/dark 3D bevel.
+function isBevelStyle(style: string): boolean {
+  return style === "groove" || style === "ridge" || style === "inset" || style === "outset";
+}
+
+// Per-side 3D bevel border (DM-1275): the SAME Chrome-calibrated shading as
+// paintBevelBorder (darker = base × 2/3, lighter = base — DM-293) and identical
+// trapezoid geometry, but each side renders its OWN 3D style. This covers the
+// mixed case paintBevelBorder's uniform-STYLE guard skips — e.g. `ridge` top/
+// bottom + `groove` left/right ("3D pair flip") — which otherwise fell through to
+// paintPerSideBorder and painted as a flat solid border with no bevel at all.
+// The caller gates on uniform width + color + square corners (the single base
+// color + trapezoid geometry assume that); anything else falls back.
+function paintMixedBevelBorder(
+  ctx: PaintCtx,
+  el: CapturedElement,
+  indent: string,
+  w: number,
+  color: { r: number; g: number; b: number; a: number },
+  styles: { top: string; right: string; bottom: string; left: string },
+): void {
+  const x0 = el.x, y0 = el.y, x1 = el.x + el.width, y1 = el.y + el.height;
+  const darker = colorStr({ r: Math.round(color.r * 2 / 3), g: Math.round(color.g * 2 / 3), b: Math.round(color.b * 2 / 3), a: color.a });
+  const lighter = colorStr(color);
+  const halfW = w / 2;
+  // Full trapezoids (inset/outset) + outer/inner halves (groove/ridge) — same
+  // geometry as paintBevelBorder, keyed per side.
+  const full = {
+    top: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
+    right: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
+    bottom: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
+    left: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
+  };
+  const outer = {
+    top: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - halfW)},${r(y0 + halfW)} ${r(x0 + halfW)},${r(y0 + halfW)}`,
+    right: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x1 - halfW)},${r(y0 + halfW)}`,
+    bottom: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x0 + halfW)},${r(y1 - halfW)}`,
+    left: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + halfW)},${r(y1 - halfW)} ${r(x0 + halfW)},${r(y0 + halfW)}`,
+  };
+  const inner = {
+    top: `${r(x0 + halfW)},${r(y0 + halfW)} ${r(x1 - halfW)},${r(y0 + halfW)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
+    right: `${r(x1 - halfW)},${r(y0 + halfW)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
+    bottom: `${r(x0 + halfW)},${r(y1 - halfW)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
+    left: `${r(x0 + halfW)},${r(y0 + halfW)} ${r(x0 + halfW)},${r(y1 - halfW)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
+  };
+  for (const side of ["top", "right", "bottom", "left"] as const) {
+    const style = styles[side];
+    const isTL = side === "top" || side === "left";
+    if (style === "inset" || style === "outset") {
+      const fill = style === "outset" ? (isTL ? lighter : darker) : (isTL ? darker : lighter);
+      ctx.svgParts.push(`${indent}<polygon points="${full[side]}" fill="${fill}" />`);
+    } else {
+      // groove / ridge: outer + inner halves carry inverse shades (matches the
+      // uniform path's TL/BR grouping, applied per-side).
+      const outerFill = style === "ridge" ? (isTL ? lighter : darker) : (isTL ? darker : lighter);
+      const innerFill = style === "ridge" ? (isTL ? darker : lighter) : (isTL ? lighter : darker);
+      ctx.svgParts.push(`${indent}<polygon points="${outer[side]}" fill="${outerFill}" />`);
+      ctx.svgParts.push(`${indent}<polygon points="${inner[side]}" fill="${innerFill}" />`);
+    }
+  }
+}
+
 // Uniform `double` border: two parallel strokes each 1/3 of border-width with a
 // 1/3 gap, collapse-aware. Extracted from paintBorder (DM-1342) — byte-identical.
 function paintUniformDoubleBorder(
@@ -1265,7 +1327,21 @@ function paintBorder(
       paintUniformSolidBorder(ctx, el, indent, corners, bt, offGridCollapsedCells);
     }
   } else if (!uniform) {
-    paintPerSideBorder(ctx, el, indent, corners, bt, br, bb, bl, offGridCollapsedCells);
+    // Mixed per-side 3D bevel (e.g. ridge top/bottom + groove left/right): same
+    // width + color, all four styles 3D-bevel. paintBevelBorder's uniform-STYLE
+    // guard above skips it, so without this it falls through to a flat solid
+    // per-side border with no bevel (DM-1275). Requires square corners (the
+    // bevel trapezoid geometry assumes no radius).
+    const allBevel = bt != null && br != null && bb != null && bl != null
+      && bt.w > 0 && bt.w === br.w && br.w === bb.w && bb.w === bl.w
+      && sameColor(bt.color, br.color) && sameColor(br.color, bb.color) && sameColor(bb.color, bl.color)
+      && isBevelStyle(bt.style) && isBevelStyle(br.style) && isBevelStyle(bb.style) && isBevelStyle(bl.style)
+      && corners.uniform && corners.tl.h === 0;
+    if (allBevel && bt != null && br != null && bb != null && bl != null) {
+      paintMixedBevelBorder(ctx, el, indent, bt.w, bt.color, { top: bt.style, right: br.style, bottom: bb.style, left: bl.style });
+    } else {
+      paintPerSideBorder(ctx, el, indent, corners, bt, br, bb, bl, offGridCollapsedCells);
+    }
   } else if (borderWidth > 0 && borderColor != null && borderColor.a > 0.01) {
     // Legacy path for elements whose per-side captures weren't parsed cleanly.
     ctx.svgParts.push(
