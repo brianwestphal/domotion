@@ -16,7 +16,7 @@ function keyframeBlock(svg: string, name: string): string {
   return m ? m[0] : "";
 }
 
-function gen(types: AnimationFrame["transition"]["type"][]): string {
+function gen(types: NonNullable<AnimationFrame["transition"]>["type"][]): string {
   const colors = ["#3366ff", "#33cc66", "#ffaa00", "#cc3366"];
   return generateAnimatedSvg({
     width: W,
