@@ -2,6 +2,28 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.16.0] - 2026-06-26
+
+
+**⚠️ Breaking Changes**
+
+- The bare `npx domotion-svg capture …` one-liner no longer resolves now that the package ships multiple bins. Invoke a specific bin instead, e.g. `npx -p domotion-svg domotion capture …`.
+- The animated-SVG scrubber bin was renamed from `animated-svg-scrubber` to `svg-scrubber`. Update any scripts or invocations to the new command name (flags and behavior are unchanged).
+
+**🚀 Features**
+
+- New `svg-to-image` bin rasterizes a still SVG to an image in one shot — PNG, JPEG, and PDF, plus WebP, AVIF, and TIFF output.
+- New `domotion composite` verb and `composeAnimatedLayers` primitive let you nest one already-animated SVG (cast, scroll capture, template, animate result, or another composite) inside another, each layer independently placed and timed — and composites nest recursively. Ships with a published JSON Schema for the composite config and cross-layer embedded-font de-duplication.
+- `svg-to-image` and `svg-review` now accept `--port 0` to bind an OS-assigned free port, and validate `--port` / `--theme-file` at the CLI boundary.
+- Single-series column/bar charts now default to a neutral palette with the peak bar in the accent color, instead of per-bar rainbow coloring.
+
+**🐛 Fixes**
+
+- Fixed chained animation transitions: mixing different transition types (crossfade → push-left → scroll → magic-move) no longer leaves frames with missing slide-in/fade-in keyframes — push-left, scroll, and crossfade now animate correctly instead of cutting or revealing empty canvas.
+- Nested cast/template animations are now re-anchored to start when their frame becomes visible, fixing desync and mid-loop playback when composited.
+- Terminal captures no longer emit a full-viewport background rect that bled past the window edge when composited into window chrome.
+- In paths render mode, the glyph registry now resets per generation, so back-to-back in-process renders no longer accumulate stale glyph defs.
+
 ## [Unreleased]
 
 ** Changed**
