@@ -1,19 +1,19 @@
 name: Build & deploy site to GitHub Pages
 
-# DM-1308: deploys the Astro + Starlight site in site-next/ to
+# DM-1308: deploys the Astro + Starlight site in site/ to
 # brianwestphal.github.io/domotion. The site builds entirely from assets already
 # committed in the repo — scripts/build-demos.mjs copies the demo SVGs from
-# examples/output, site/assets/img/demos, and site-next/demo-assets/apps, and
-# scripts/sync-docs.mjs generates the schema reference from schemas/ — so no
-# Playwright/capture step is needed here (unlike the legacy site/ build).
+# examples/output, examples/animate/<name>/<name>.svg, and site/demo-assets/apps,
+# and scripts/sync-docs.mjs generates the schema reference from schemas/ — so no
+# Playwright/capture step is needed here.
 on:
   push:
     branches: [main]
     paths:
-      - 'site-next/**'
+      - 'site/**'
       - 'examples/output/**'
+      - 'examples/animate/**'
       - 'schemas/**'
-      - 'site/assets/img/demos/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -36,19 +36,19 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: site-next/package-lock.json
+          cache-dependency-path: site/package-lock.json
 
       - name: Install site deps
-        working-directory: site-next
+        working-directory: site
         run: npm ci
 
       - name: Build site
-        working-directory: site-next
+        working-directory: site
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site-next/dist
+          path: site/dist
 
   deploy:
     needs: build

@@ -90,8 +90,9 @@ they describe (see `CLAUDE.md` "Documentation"):
   types-only peer dep); covers package shape, generator vs decorator, the two
   animation constraints (incl. `transformOrigin`), params/`z.coerce`, `durationMs`,
   testing via `renderTemplateToSvg`, and the `domotion-template-*` discovery
-  convention. Runnable scaffold in `examples/template-package/`; public manual
-  gallery at `site/pages/guides/templates.tsx`.
+  convention. Runnable scaffold in `examples/template-package/`; public template
+  gallery + authoring guide on the site (`site/src/content/docs/usage/templates.md`,
+  `site/src/content/docs/developer/custom-templates.md`).
 - **Doc 73 (`docs/73-template-frames.md`, DM-1287)** — **Shipped.** A `template`
   frame kind in the `animate` config: `{"template":"lower-third","params":{…}}`
   embeds a named template (doc 70) as a nested animated SVG, composing it into a
@@ -174,13 +175,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   font to `.notdef` tofu). Pure-SVG + cross-platform (the label is the one live
   `<text>`).
 - **Doc 64 (`docs/64-demo-gallery.md`, DM-214..223)** — the progressive
-  **demo gallery** surfaced on the manual's *Guides → Demo gallery* page. Each
-  demo is a self-contained folder under `site/scripts/demos/<demo>/` (HTML
-  source + `capture.sh`/`build-*.ts` + committed golden SVG); display copies
-  live in `site/assets/img/demos/`. Tier 1 (single-capture: hero card, pricing
-  table, code block, phone-framed screen) is shipped; Tier 2/3 (animated)
-  reuse the runnable `examples/animate/` configs and land incrementally. Notes
-  the missing `--chrome <device>` flag behind the hand-drawn phone bezel.
+  **demo gallery** concept. NOTE: the legacy kerfjs manual it described
+  (`site/scripts/demos/`, `site/pages/guides/`) was removed when the site was
+  rebuilt as Astro + Starlight (DM-1308); the gallery now lives across the new
+  `site/` Showcase + Usage pages, sourced from `examples/output`,
+  `examples/output/templates`, and the runnable `examples/animate/` goldens. Doc
+  64 itself is partly historical — reconciliation tracked separately.
 - **Doc 54 (`docs/54-svg-review-tool.md`, DM-946)** — the published
   `svg-review` CLI for single-fixture render-fidelity bug reports.
 - **Doc 55 (`docs/55-debug-mode-capture.md`, DM-945)** — the

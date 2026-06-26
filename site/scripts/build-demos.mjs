@@ -1,8 +1,10 @@
 // DM-1308: copy the committed demo SVGs the site embeds into public/demos/ at
 // build time, so we don't duplicate large SVGs in git. Sources are the same
-// artifacts the regression suites produce (examples/output + the gallery copies
-// under the legacy site/assets/img). Astro then serves public/ at the site base.
-import { cpSync, mkdirSync, readdirSync, existsSync, rmSync } from "node:fs";
+// artifacts the regression suites produce: examples/output (single-frame +
+// composed demos), examples/output/templates (template gallery), the runnable
+// animate-example goldens (examples/animate/<name>/<name>.svg), and the
+// full-app captures in demo-assets/apps. Astro then serves public/ at the base.
+import { cpSync, mkdirSync, readdirSync, existsSync, rmSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,12 +29,28 @@ function copySvgs(srcDir, dstDir) {
   return n;
 }
 
+/** Copy each examples/animate/<name>/<name>.svg golden into `dstDir` (flat). */
+function copyAnimateGoldens(dstDir) {
+  const root = resolve(ROOT, "examples/animate");
+  if (!existsSync(root)) return 0;
+  let n = 0;
+  for (const name of readdirSync(root)) {
+    const dir = resolve(root, name);
+    if (!statSync(dir).isDirectory()) continue;
+    const golden = resolve(dir, `${name}.svg`);
+    if (existsSync(golden)) {
+      cpSync(golden, resolve(dstDir, `${name}.svg`));
+      n++;
+    }
+  }
+  return n;
+}
+
 let total = 0;
-// The animate gallery goldens (typing-search, tab-switcher, form-fill, …) live
-// only in the legacy site/assets mirror. Copy them FIRST so that for any name
-// that also exists in examples/output (e.g. terminal-onboarding), the canonical
-// freshly-generated examples/output copy below wins over the legacy mirror.
-total += copySvgs(resolve(ROOT, "site/assets/img/demos"), OUT);
+// The runnable animate-example goldens (before-after-refactor, scroll-landing,
+// typing-search, …) are the canonical source. Copy them FIRST so that for any
+// name also produced into examples/output, the examples/output copy below wins.
+total += copyAnimateGoldens(OUT);
 total += copySvgs(resolve(ROOT, "examples/output"), OUT);
 total += copySvgs(resolve(ROOT, "examples/output/templates"), resolve(OUT, "templates"));
 // Full-application demos — real domotion captures of two live local apps,
