@@ -1029,9 +1029,12 @@ const dynamicSystemFontPaths = new Map<string, FontPath>();
  *  routes through the CoreText helper (handles hvgl / GSUB-crashing faces and
  *  the `.notdef` extraction), and the path lets the helper open the exact file
  *  CoreText chose. No-op if already registered. */
-function registerDynamicSystemFont(key: string, path: string, postscriptName: string): void {
+function registerDynamicSystemFont(
+  key: string, path: string, postscriptName: string,
+  extractor: "fontkit" | "native" = "native",
+): void {
   if (dynamicSystemFontPaths.has(key)) return;
-  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor: "native" });
+  dynamicSystemFontPaths.set(key, { path, postscriptName, extractor });
   resolvedSpecCache.delete(key); // in case a prior null was cached
 }
 
@@ -1099,18 +1102,52 @@ export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
  * fallback engines and aren't wired here yet.
  */
 function resolveSystemFallbackKeyForCp(cp: number): string | null {
-  if (process.platform !== "darwin") return null;
   if (systemFallbackKeyCache.has(cp)) return systemFallbackKeyCache.get(cp)!;
   let key: string | null = null;
   try {
-    const resolved = resolveSystemFallbackFonts([cp]).get(cp);
-    if (resolved != null && resolved.path !== "") {
-      key = `sysfb:${resolved.postscriptName}`;
-      registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
+    if (process.platform === "darwin") {
+      // CoreText CTFontCreateForString via the native helper (always on).
+      const resolved = resolveSystemFallbackFonts([cp]).get(cp);
+      if (resolved != null && resolved.path !== "") {
+        key = `sysfb:${resolved.postscriptName}`;
+        registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
+      }
+    } else if (process.platform === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK) {
+      // DM-1403: fontconfig live fallback for Linux — opt-in (off by default)
+      // until it's calibrated against Chromium-on-Linux paint, so it doesn't
+      // shift the committed CI baselines yet. Windows (DirectWrite
+      // IDWriteFontFallback::MapCharacters) is a follow-up.
+      key = resolveLinuxSystemFallbackKeyForCp(cp);
     }
   } catch { key = null; }
   systemFallbackKeyCache.set(cp, key);
   return key;
+}
+
+/**
+ * DM-1403: fontconfig live system-fallback for a codepoint the static Linux
+ * table (`LINUX_FONT_PATHS`) misses — the analogue of the darwin CoreText
+ * resolver. `fc-match :charset=<hex>` returns the best-priority installed font
+ * whose charset covers `cp`; register it as a `sysfb:` key (fontkit-extracted,
+ * like the rest of the Linux chain) so the chain walker opens it through the
+ * normal path. Returns null when fontconfig finds nothing (→ the codepoint
+ * falls through to LastResort tofu, unchanged from before). Behind the
+ * `DOMOTION_SYSTEM_FALLBACK` opt-in (see the caller).
+ */
+function resolveLinuxSystemFallbackKeyForCp(cp: number): string | null {
+  const matched = fcMatch(`:charset=${cp.toString(16)}`);
+  if (matched == null) return null;
+  const name = matched.postscriptName ?? matched.path.split("/").pop() ?? "fallback";
+  const key = `sysfb:${name}`;
+  registerDynamicSystemFont(key, matched.path, matched.postscriptName ?? name, "fontkit");
+  return key;
+}
+
+/** Test-only: drive the per-codepoint live system-fallback resolver directly
+ *  (DM-1403). Honors the platform routing + the `DOMOTION_SYSTEM_FALLBACK`
+ *  opt-in, so a Linux/Docker probe can confirm fontconfig resolution end to end. */
+export function __resolveSystemFallbackKeyForCpForTest(cp: number): string | null {
+  return resolveSystemFallbackKeyForCp(cp);
 }
 
 /** Test-only window into the platform path resolver (DM-258). */

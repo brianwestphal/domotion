@@ -209,6 +209,21 @@ they describe (see `CLAUDE.md` "Documentation"):
   USE faces (Adlam/Miao) and mis-centers it otherwise. Fixed adlam/miao/brahmi/
   kharoshthi/tagalog/tai-tham/syloti via `resolveDottedCircleHbRun` in both
   run-splitters.
+- **Doc 80 (`docs/80-cross-platform-system-fallback-resolver.md`, DM-1403)** —
+  **macOS Shipped / Linux Shipped (opt-in) / Windows Design only.** The
+  per-codepoint live system-fallback resolver (macOS CoreText
+  `CTFontCreateForString`) that catches codepoints the static per-block table
+  misses — previously hard-gated `process.platform !== "darwin" → null` — is now
+  one platform-dispatched entry point (`resolveSystemFallbackKeyForCp`). Linux
+  backend shipped via fontconfig `fc-match :charset=<hex>`
+  (`resolveLinuxSystemFallbackKeyForCp`, reusing the existing `fcMatch` — no new
+  native code), gated behind the `DOMOTION_SYSTEM_FALLBACK` opt-in so it lands
+  with zero CI-baseline churn until calibrated against Chromium-on-Linux paint
+  (the follow-up flips it default-on + re-seeds the Linux baseline). Windows
+  (DirectWrite `IDWriteFontFallback::MapCharacters`) designed, follow-up on the
+  Parallels VM. The chain walker's `glyphForCodePoint` check makes a
+  non-covering backend result harmless (falls through to tofu, never a wrong
+  glyph).
 - **Doc 61 (`docs/61-overlay-resolution-primitive.md`, DM-1132)** — `resolveOverlays(
   page, overlays)` lowers an overlay's selector `anchor` + typing `maxWidth:
   "anchor"` into concrete `x`/`y`/`bgWidth` for imperative scripting-API callers.
