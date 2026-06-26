@@ -22,6 +22,101 @@ const OUT = resolve(HERE, "..", "src", "content", "docs", "developer", "referenc
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
+// COMMON-FIRST ordering. The generated reference is exhaustive, but raw
+// JSON-Schema property order buries the everyday fields under rarely-used ones.
+// These priority lists pull the most-common fields/variants to the front of each
+// table and sub-section list; anything NOT listed falls back to the schema's
+// natural order and still appears (completeness must never regress when the
+// schema grows new fields).
+const TOP_LEVEL_ORDER = [
+  "width",
+  "height",
+  "frames",
+  "output",
+  "optimize",
+  "mobile",
+  "colorScheme",
+  "vars",
+  "cursor",
+];
+const FRAME_ORDER = [
+  // Source: where the frame's content comes from.
+  "input",
+  "template",
+  "cast",
+  // Timing / sequencing.
+  "continue",
+  "duration",
+  "transition",
+  // The workhorses: scripted interaction, overlays, intra-frame motion.
+  "actions",
+  "overlays",
+  "animations",
+  // Less-common knobs and waits.
+  "waitForText",
+  "waitForCount",
+  "waitForGone",
+  "waitFor",
+  "wait",
+  "fit",
+  "scroll",
+  "scrollTo",
+  "selector",
+  "params",
+  "term",
+];
+// Variant order shared by `actions` (const `type`) and `overlays` (const `kind`);
+// the two label spaces don't collide, so one list serves both. Everyday verbs and
+// the common overlay kinds lead; the long tail follows in schema order.
+const VARIANT_ORDER = [
+  // actions — everyday verbs first.
+  "click",
+  "fill",
+  "press",
+  "type",
+  "hover",
+  "scroll",
+  "wait",
+  "waitForText",
+  // overlays — common kinds first.
+  "typing",
+  "tap",
+  "svg",
+  "blink",
+];
+
+/** Reorder `keys` by a priority list; unlisted keys keep their original order. */
+function orderKeys(keys, priority) {
+  const rank = new Map(priority.map((k, i) => [k, i]));
+  return [...keys].sort((a, b) => {
+    const ra = rank.has(a) ? rank.get(a) : Infinity;
+    const rb = rank.has(b) ? rank.get(b) : Infinity;
+    if (ra !== rb) return ra - rb;
+    return keys.indexOf(a) - keys.indexOf(b); // stable: natural schema order
+  });
+}
+
+/** `Object.entries(props)` reordered COMMON-FIRST by `priority`. */
+function orderedEntries(props, priority) {
+  const obj = props || {};
+  return orderKeys(Object.keys(obj), priority).map((k) => [k, obj[k]]);
+}
+
+/** Reorder oneOf/anyOf variants COMMON-FIRST by their label (kind/type const). */
+function orderedVariants(variants, priority) {
+  const labels = variants.map((v) => variantLabel(v));
+  const rank = new Map(priority.map((k, i) => [k, i]));
+  return [...variants]
+    .map((v, i) => ({ v, i, label: labels[i] }))
+    .sort((a, b) => {
+      const ra = rank.has(a.label) ? rank.get(a.label) : Infinity;
+      const rb = rank.has(b.label) ? rank.get(b.label) : Infinity;
+      if (ra !== rb) return ra - rb;
+      return a.i - b.i; // stable: natural schema order
+    })
+    .map((e) => e.v);
+}
+
 /** A short, human type label for a JSON-Schema node. */
 function typeLabel(node) {
   if (!node || typeof node !== "object") return "";
@@ -63,11 +158,12 @@ function cleanDesc(s) {
   return String(s).replace(/\bSee docs\/[0-9][^.]*\.md\.?/gi, "").replace(/\s+/g, " ").trim();
 }
 
-/** Render an object node's properties as a markdown table. */
-function propsTable(node, requiredSet) {
+/** Render an object node's properties as a markdown table (COMMON-FIRST if `order` given). */
+function propsTable(node, requiredSet, order) {
   const props = node.properties || {};
-  const keys = Object.keys(props);
+  let keys = Object.keys(props);
   if (!keys.length) return "";
+  if (order) keys = orderKeys(keys, order);
   const rows = keys.map((k) => {
     const p = props[k];
     const req = requiredSet.has(k) ? "✔" : "";
@@ -110,7 +206,7 @@ function emitSection(out, node, title, level, seen) {
     const d = cleanDesc(node.description || obj.description || "");
     if (d) out.push(d, "");
     out.push(`One of ${variants.length} variants:`, "");
-    for (const v of variants) {
+    for (const v of orderedVariants(variants, VARIANT_ORDER)) {
       if (!v.properties) continue;
       emitSection(out, v, `${title}: \`${variantLabel(v)}\``, level + 1, seen);
     }
@@ -151,10 +247,19 @@ function generateAnimateConfigReference() {
   );
   out.push("");
   out.push(
-    "This page is generated directly from `schemas/animate-config.schema.json` — " +
+    "This is the **exhaustive** reference for every field of the `domotion animate` " +
+      "config. It is generated directly from `schemas/animate-config.schema.json` — " +
       "the same schema the CLI validates against and ships in the npm package — so " +
-      "it can never drift from what `domotion animate` actually accepts. For a " +
-      "guided introduction see [Animate config format](/domotion/developer/animate-config/)."
+      "it can never drift from what `domotion animate` actually accepts."
+  );
+  out.push("");
+  out.push(
+    "**New here? Start with the guided " +
+      "[Animate config format](/domotion/developer/animate-config/) page** for a " +
+      "narrative introduction, then come back here for the complete field list. " +
+      "Within each table and section below, fields are ordered **most-common-first** " +
+      "(not in raw schema order), so the everyday options come before the rarely-used " +
+      "ones."
   );
   out.push("");
 
@@ -165,8 +270,8 @@ function generateAnimateConfigReference() {
   out.push("## Top-level config", "");
   const d = cleanDesc(schema.description || "");
   if (d) out.push(d, "");
-  out.push(propsTable(schema, new Set(schema.required || [])), "");
-  for (const [k, p] of Object.entries(schema.properties || {})) {
+  out.push(propsTable(schema, new Set(schema.required || []), TOP_LEVEL_ORDER), "");
+  for (const [k, p] of orderedEntries(schema.properties, TOP_LEVEL_ORDER)) {
     if (k === "frames") continue;
     const child = p.type === "array" && p.items ? p.items : p;
     const hasShape =
@@ -185,8 +290,8 @@ function generateAnimateConfigReference() {
       ""
     );
     const frameObj = frames.items || frames;
-    out.push(propsTable(frameObj, new Set(frameObj.required || [])), "");
-    for (const [k, p] of Object.entries(frameObj.properties || {})) {
+    out.push(propsTable(frameObj, new Set(frameObj.required || []), FRAME_ORDER), "");
+    for (const [k, p] of orderedEntries(frameObj.properties, FRAME_ORDER)) {
       const child = p.type === "array" && p.items ? p.items : p;
       const hasShape =
         child && (child.properties || ((child.oneOf || child.anyOf) || []).some((v) => v.properties));
