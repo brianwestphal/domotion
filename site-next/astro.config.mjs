@@ -17,6 +17,15 @@ export default defineConfig({
         "Domotion captures how headless Chromium paints real HTML/CSS and emits a single self-contained animated SVG — embeds anywhere, scales crisply, looks identical across browsers.",
       logo: { src: "./src/assets/logo.svg", replacesTitle: false },
       favicon: "/favicon.svg",
+      // Safari pinned-tab (mask) icon — monochrome, tinted to the brand pink.
+      // Served from public/ by scripts/build-icons.mjs; the href carries the
+      // site base. (The SVG favicon above already covers modern browsers.)
+      head: [
+        {
+          tag: "link",
+          attrs: { rel: "mask-icon", href: "/domotion/mask-icon.svg", color: "#ec4899" },
+        },
+      ],
       social: [
         { icon: "github", label: "GitHub", href: "https://github.com/brianwestphal/domotion" },
       ],

@@ -6,9 +6,10 @@
   "description": "Marketing + docs site for Domotion (Astro + Starlight). Built alongside the legacy site/ during the DM-1308 rebuild.",
   "scripts": {
     "build-demos": "node scripts/build-demos.mjs",
+    "build-icons": "node scripts/build-icons.mjs",
     "sync-docs": "node scripts/sync-docs.mjs",
-    "prebuild": "npm run build-demos && npm run sync-docs",
-    "predev": "npm run build-demos && npm run sync-docs",
+    "prebuild": "npm run build-demos && npm run build-icons && npm run sync-docs",
+    "predev": "npm run build-demos && npm run build-icons && npm run sync-docs",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
