@@ -21,8 +21,16 @@ inline styles, with text as glyph paths.
 ### Transitions
 
 Stitch multiple captured frames into one animation. Domotion ships four
-transition types — each demo below is a single self-contained SVG looping
-between two scenes.
+transition types, and they **compose** — chain different ones in a row and each
+scene enters the way the previous transition handed off to it, then exits its own
+way:
+
+<figure>
+  <img src="/domotion/demos/transition-tour.svg" alt="Four scenes chained with different transitions: scene one crossfades into scene two, which pushes left to scene three, which scrolls up to scene four, which crossfades back — each scene's entrance composed from the previous transition" style="width:100%;height:auto" loading="lazy" />
+  <figcaption>One SVG, four scenes, four transition types in a row — crossfade → push-left → scroll → crossfade.</figcaption>
+</figure>
+
+Each type on its own:
 
 <CardGrid>
   <figure>

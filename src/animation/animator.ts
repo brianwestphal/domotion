@@ -363,21 +363,33 @@ export function dedupeFrameIds(frames: AnimationFrame[]): AnimationFrame[] {
 }
 
 /**
+ * DM-1414: how a slide frame ENTERS — driven by the PREVIOUS frame's transition
+ * type, not this frame's own (exit) type. `slide` slides in from off-screen on
+ * `axis` (the predecessor was a push/scroll); `fade` fades in (the predecessor
+ * was a crossfade); `cut` appears at its own start (cut / magic-move / loop top).
+ */
+type SlideEnter =
+  | { mode: "slide"; axis: "X" | "Y"; size: number }
+  | { mode: "fade" }
+  | { mode: "cut" };
+
+/**
  * Push-left (horizontal) / scroll (vertical) slide frame. Both emit the SAME
  * clipped frame group and a `slideKeyframes` track — they differ only in the
- * slide axis (`X`/`Y`) and the slid extent (viewport width / height). The group
- * rect always spans `width × height`; the incoming frame overlaps its entry with
- * the previous frame's transition, so its show window opens at `enterStartPct`.
+ * EXIT slide axis (`X`/`Y`) and the slid extent (viewport width / height). The
+ * group rect always spans `width × height`. The frame's ENTRANCE is composed
+ * separately from `enter` (DM-1414): a slide frame after a crossfade fades in,
+ * after a different-axis slide slides in on the predecessor's axis, etc.
  * Extracted from generateAnimatedSvg (DM-1375), mirroring emit*Frame.
  */
 function emitSlideFrame(
-  i: number, svgContent: string, axis: "X" | "Y", extent: number, entersViaSlide: boolean,
+  i: number, svgContent: string, exitAxis: "X" | "Y", exitSize: number, enter: SlideEnter,
   width: number, height: number,
   enterStartPct: string, startPct: string, holdEndPct: string, transEndPct: string,
   totalSec: number, holdLastFrame: boolean,
 ): { group: string; keyframe: string } {
   const group = `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${svgContent}\n  </g></g>`;
-  const keyframe = slideKeyframes(i, axis, extent, entersViaSlide, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame);
+  const keyframe = slideKeyframes(i, exitAxis, exitSize, enter, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame);
   return { group, keyframe };
 }
 
@@ -494,18 +506,27 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     const transEndPct = pct(timeOffset + frame.duration + transDur, totalDuration);
 
     const prevFrame = i > 0 ? frames[i - 1] : null;
-    const entersViaPush = prevFrame?.transition?.type === "push-left";
-    const entersViaScroll = prevFrame?.transition?.type === "scroll";
+    const prevType = prevFrame?.transition?.type;
+    // DM-1414: a frame's ENTRANCE is driven by the PREVIOUS frame's transition
+    // type (how it hands off TO this frame), independently of this frame's OWN
+    // type (how it exits TO the next). So a push/scroll frame entered from a
+    // crossfade fades in; entered from a different-axis slide it slides in on the
+    // predecessor's axis; entered from the same slide it slides in (unchanged).
+    // Same-type chains stay byte-identical — only genuinely-mixed chains differ.
+    const slideEnter: SlideEnter =
+      prevType === "push-left" ? { mode: "slide", axis: "X", size: width }
+      : prevType === "scroll" ? { mode: "slide", axis: "Y", size: height }
+      : prevType === "crossfade" ? { mode: "fade" }
+      : { mode: "cut" }; // cut / magic-move / first frame — appears at its own start
     // DM-898: a frame entered from a magic-move transition appears at its own
     // start (= the predecessor's transition end), NOT overlap-faded — the
     // magic-move bridge layer already covered the window, so a crossfade
     // overlap here would double-show the next frame on top of the bridge.
-    const entersViaMagicMove = prevFrame?.transition?.type === "magic-move" && prevFrame?.magicMove != null;
-    // Both push-left and scroll overlap their transition with the next
-    // frame's entry — the next frame is already sliding in while the current
-    // one slides out, so its show window starts at `timeOffset - prevTransDur`
-    // rather than at `startPct`.
-    const entersViaOverlap = entersViaPush || entersViaScroll;
+    const entersViaMagicMove = prevType === "magic-move" && prevFrame?.magicMove != null;
+    // A slide or fade entrance OVERLAPS the predecessor's transition window — the
+    // next frame is already sliding/fading in while the current one slides/fades
+    // out, so its show window opens at `timeOffset - prevTransDur`.
+    const entersViaOverlap = slideEnter.mode === "slide" || slideEnter.mode === "fade";
     const prevTransDur = prevFrame != null ? transitionDurationMs(prevFrame) : DEFAULT_TRANSITION_MS;
     const enterStartPct = entersViaOverlap
       ? pct(timeOffset - prevTransDur, totalDuration)
@@ -518,18 +539,19 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     const holdLastFrame = i === frames.length - 1 && config.loopFade !== true;
 
     if (transType === "push-left") {
-      // Push: slide in from right, slide out to left. The parallel `fd-${i}`
-      // display snap (inside slideKeyframes) lets the browser skip painting this
-      // frame's content while it's fully off-screen between cycles (DM-599).
-      const r = emitSlideFrame(i, frame.svgContent, "X", width, entersViaPush, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
+      // Push: exit by sliding out to the left; enter per `slideEnter` (DM-1414).
+      // The parallel `fd-${i}` display snap (inside slideKeyframes) lets the
+      // browser skip painting this frame's content while it's fully off-screen
+      // between cycles (DM-599).
+      const r = emitSlideFrame(i, frame.svgContent, "X", width, slideEnter, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
     } else if (transType === "scroll") {
       // DM-609: `scroll` is a real geometric scroll — the vertical equivalent of
       // push-left (translateY over height instead of translateX over width),
-      // otherwise identical machinery.
-      const r = emitSlideFrame(i, frame.svgContent, "Y", height, entersViaScroll, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
+      // otherwise identical machinery. Exit slides up; enter per `slideEnter`.
+      const r = emitSlideFrame(i, frame.svgContent, "Y", height, slideEnter, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
@@ -1003,9 +1025,9 @@ function buildDisplayKeyframes(name: string, visibleStartPct: string | number, v
  */
 function slideKeyframes(
   i: number,
-  axis: "X" | "Y",
-  size: number,
-  entersSliding: boolean,
+  exitAxis: "X" | "Y",
+  exitSize: number,
+  enter: SlideEnter,
   enterStartPct: string,
   startPct: string,
   holdEndPct: string,
@@ -1021,16 +1043,51 @@ function slideKeyframes(
   holdToEnd = false,
 ): string {
   const enterBound = padBefore(parseFloat(enterStartPct), KEYFRAME_EPSILON.slide, 2);
+
+  // Transform stops. Single-axis form — byte-identical to the pre-DM-1414 output
+  // — for same-axis slide / fade / cut entrances; the full translate(x,y) form is
+  // used ONLY when the entrance and exit slides are on DIFFERENT axes (the one
+  // genuinely-new mixed case), so its two stops interpolate cleanly.
+  const crossAxis = enter.mode === "slide" && enter.axis !== exitAxis;
+  let enterT: string;
+  let midT: string;
+  let exitT: string;
+  if (crossAxis) {
+    const ex = enter.axis === "X" ? (enter as { size: number }).size : 0;
+    const ey = enter.axis === "Y" ? (enter as { size: number }).size : 0;
+    const xx = exitAxis === "X" ? -exitSize : 0;
+    const xy = exitAxis === "Y" ? -exitSize : 0;
+    enterT = `translate(${ex}px, ${ey}px)`;
+    midT = `translate(0px, 0px)`;
+    exitT = `translate(${xx}px, ${xy}px)`;
+  } else {
+    const enterOffsetPx = enter.mode === "slide" ? exitSize : 0; // same-axis slide vs fade/cut
+    enterT = `translate${exitAxis}(${enterOffsetPx}px)`;
+    midT = `translate${exitAxis}(0)`;
+    exitT = `translate${exitAxis}(-${exitSize}px)`;
+  }
+
+  // Opacity entrance: a `fade` entrance ramps 0→1 across the entrance window
+  // [enterStart, frameStart] (cross-dissolving with the predecessor's fade-out);
+  // a slide / cut entrance snaps to 1 at enterStart (the clip hides the still
+  // off-screen content). Byte-identical to the old code for slide / cut.
+  const fadeIn = enter.mode === "fade";
+  const fvEnter = fadeIn
+    ? `0%, ${enterBound}% { opacity: 0; }
+      ${enterStartPct} { opacity: 0; }
+      ${startPct} { opacity: 1; }`
+    : `0%, ${enterBound}% { opacity: 0; }
+      ${enterStartPct} { opacity: 1; }`;
+
   if (holdToEnd) {
     return `
     @keyframes fp-${i} {
-      0%, ${enterBound}% { transform: translate${axis}(${entersSliding ? size : 0}px); }
-      ${startPct} { transform: translate${axis}(0); }
-      100% { transform: translate${axis}(0); }
+      0%, ${enterBound}% { transform: ${enterT}; }
+      ${startPct} { transform: ${midT}; }
+      100% { transform: ${midT}; }
     }
     @keyframes fv-${i} {
-      0%, ${enterBound}% { opacity: 0; }
-      ${enterStartPct} { opacity: 1; }
+      ${fvEnter}
       100% { opacity: 1; }
     }${buildDisplayKeyframes(`fd-${i}`, visStart, "100")}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
@@ -1038,15 +1095,14 @@ function slideKeyframes(
   }
   return `
     @keyframes fp-${i} {
-      0%, ${enterBound}% { transform: translate${axis}(${entersSliding ? size : 0}px); }
-      ${startPct} { transform: translate${axis}(0); }
-      ${holdEndPct} { transform: translate${axis}(0); }
-      ${transEndPct} { transform: translate${axis}(-${size}px); }
-      ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { transform: translate${axis}(-${size}px); }
+      0%, ${enterBound}% { transform: ${enterT}; }
+      ${startPct} { transform: ${midT}; }
+      ${holdEndPct} { transform: ${midT}; }
+      ${transEndPct} { transform: ${exitT}; }
+      ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { transform: ${exitT}; }
     }
     @keyframes fv-${i} {
-      0%, ${enterBound}% { opacity: 0; }
-      ${enterStartPct} { opacity: 1; }
+      ${fvEnter}
       ${transEndPct} { opacity: 1; }
       ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { opacity: 0; }
     }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
