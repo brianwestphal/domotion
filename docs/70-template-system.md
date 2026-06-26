@@ -121,7 +121,7 @@ The full **third-party authoring & publishing guide** is **`docs/74-template-
 authoring.md`** (package shape, generator vs decorator, the animation
 constraints, params, testing, the discovery convention), with a runnable scaffold
 in **`examples/template-package/`** (`domotion-template-quote-card`) and a public
-manual gallery at `site/pages/guides/templates.tsx`.
+template gallery on the site (`site/src/content/docs/usage/templates.md`).
 
 ## Built-in templates
 

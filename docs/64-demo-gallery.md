@@ -1,115 +1,68 @@
 # 64 — Demo gallery
 
-Status: **in progress.** Tier 1 (single-capture) demos are shipped; Tier 2/3
-(animated) are landing incrementally.
+Status: **rebuilt.** The demo gallery now lives on the Astro + Starlight site
+under `site/`, not the retired kerfjs manual. This doc is the requirements +
+provenance reference for the progressive set of copy-pasteable examples that
+sell what Domotion does, simplest to fanciest.
 
-This doc is the requirements + provenance reference for the **demo gallery** —
-the progressive set of copy-pasteable examples that sells what Domotion does,
-simplest to fanciest. Each demo is a self-contained folder under
-`site/scripts/demos/<demo>/` holding its HTML source, the exact command (or
-build script) that produces the output, and the committed golden SVG, so a
-reader can open the SVG in a browser and copy the source without running
-anything. The manual surfaces them on the **Guides → Demo gallery** page
-(`site/pages/guides/demo-gallery.tsx`).
+> **Site rebuild (DM-1308).** The original gallery was a kerfjs manual page
+> (`site/pages/guides/demo-gallery.tsx`) backed by per-demo folders under
+> `site/scripts/demos/<demo>/`. That whole legacy generator was removed when the
+> site was rebuilt as Astro + Starlight. The gallery is now spread across the new
+> site's **Showcase** and **Usage** pages (`site/src/content/docs/`), and the
+> build copies the committed demo artifacts under `examples/` into the site at
+> build time via `site/scripts/build-demos.mjs`.
 
-The animated (Tier 2/3) demos reuse the runnable `domotion animate` configs
-under `examples/animate/` where one already covers the pattern (see the table
-below) rather than duplicating them; the gallery page links those.
+## Where the demos live now
 
-## Why a gallery
+- **Capability + full-app demos** — `site/src/content/docs/showcase.mdx`, drawing
+  on `examples/output/*.svg` (showcase-rendering, hero-product-demo, the four
+  transition mini-demos + the chained transition-tour, terminal-onboarding,
+  terminal-window-scroll, composite-config-demo), the template gallery
+  (`examples/output/templates/*.svg`), and the real app captures
+  (`site/demo-assets/apps/*.svg`).
+- **Animated demos** — the runnable `domotion animate` configs under
+  `examples/animate/<demo>/` (each with a committed golden SVG, registered in the
+  `tests/animate-examples.tsx` regression suite) and the example scripts under
+  `examples/` (e.g. `terminal-onboarding.ts`). These are surfaced and
+  cross-linked from the site's Showcase / Usage pages.
 
-The brainstorm behind this (the parent "killer demos" effort) wanted the
-manual to have a progressive examples gallery — an "oh, I get it" Tier 1, an
-animated-but-simple Tier 2, and a marketing-video Tier 3 — all expressed in
-short enough code to copy. Each demo demonstrates one headline capability:
+The still-current animated demos and their headline capabilities:
 
 | Tier | Demo | Headline capability |
 |---|---|---|
-| 1 — single capture | Hero card | gradient + shadow + monospace fidelity in one `capture` |
-| 1 — single capture | Pricing table | multi-column marketing layout, crisp at any scale |
-| 1 — single capture | Code block | syntax-highlighted `<pre>` — text stays selectable in the SVG |
-| 1 — single capture | Phone-framed screen | a mobile capture wrapped in device chrome |
-| 2 — animated, simple | Tab switcher | `actions` click-through + crossfade |
-| 2 — animated, simple | Typing search | a `typing` overlay |
-| 2 — animated, simple | Before / after refactor | `push-left` transition across two files |
-| 3 — animated, fancy | Terminal onboarding | a real `domotion term` cast (clone → install → configure → run) in window chrome |
-| 3 — animated, fancy | Form fill flow | a real interaction recorded entirely via `actions` |
-| 3 — animated, fancy | Scroll-through page | `--scroll` capture composed with a `scroll` transition |
+| animated, simple | Tab switcher | `actions` click-through + crossfade |
+| animated, simple | Typing search | a `typing` overlay |
+| animated, simple | Before / after refactor | `push-left` transition across two files |
+| animated, fancy | Terminal onboarding | a real `domotion term` cast (clone → install → configure → run) in window chrome |
+| animated, fancy | Form fill flow | a real interaction recorded entirely via `actions` |
+| animated, fancy | Scroll-through page | `--scroll` capture composed with a `scroll` transition |
+| transitions | Transition tour | crossfade → push-left → scroll → crossfade chained in one SVG (DM-1414) |
 
-## Authoring conventions
+## Tier 1 (single-capture) — retired
 
-- **One folder per demo** under `site/scripts/demos/<demo>/`.
-- **Real HTML source files** (not inline strings) so the manual can show
-  copyable, runnable source. Tier 1 demos are plain `*.html`; animated demos
-  reuse the `examples/animate/<demo>/` config + frame files.
-- **A `capture.sh`** (Tier 1) holding the exact published-CLI command, or a
-  **`build-*.ts`** script where a plain `capture` can't express the demo.
-- **A committed golden SVG** next to the source, browser-openable.
-- Dark theme (`#0d1117` background, `#e6edf3` text) to match the rest of the
-  manual's imagery. Each demo's viewport is sized to its content (probe
-  `document.body.scrollHeight` and trim) so there's no dead space.
+The original Tier-1 single-capture demos (hero card, pricing table, code block,
+phone-framed screen) lived as `site/scripts/demos/<demo>/` folders and were
+removed with the legacy site. On the new site they were superseded by richer
+demos — the faithful-capture **showcase-rendering** and the product-dashboard
+**hero-product-demo**. They have **not** been re-homed under `examples/`; if a
+simple single-capture gallery is wanted again, re-create them as
+`examples/<demo>/` with a `capture.sh` and a committed golden. The device-chrome
+capability they exercised (`--chrome phone|browser|window`) is documented in
+`docs/65-device-chrome.md`.
 
-## Regenerating
+## Authoring conventions (animated demos)
 
-Tier 1 demos regenerate from their folder with the published CLI form in
-`capture.sh` (from a checkout, swap `domotion` for `npx tsx src/cli/index.ts`):
+- **One folder per demo** under `examples/animate/<demo>/`: a `domotion animate`
+  config, the HTML frame(s) it captures, and a committed golden `<demo>.svg`.
+- **Real HTML source files** (not inline strings) so the source is copyable and
+  runnable.
+- **A committed golden SVG** next to the config, browser-openable, verified by
+  the `tests/animate-examples.tsx` byte-diff + structural regression suite.
+- Each demo's viewport is sized to its content so there's no dead space.
 
-```sh
-cd site/scripts/demos/hero-card && bash capture.sh
-```
-
----
-
-## Tier 1 — single capture
-
-### Hero card
-
-- **Source:** `site/scripts/demos/hero-card/hero-card.html`
-- **Command:** `site/scripts/demos/hero-card/capture.sh` — `domotion capture
-  hero-card.html --width 720 --height 212 --optimize -o hero-card.svg`
-- **Output:** `hero-card.svg` (720×212)
-- **Demonstrates:** a gradient-filled logo tile with a drop shadow, a tight
-  letter-spaced headline, and a monospace command chip — all the everyday
-  "marketing card" ingredients in a single static capture. Mirrors the
-  long-standing `site/assets/img/hero-card.svg` imagery, but now with the
-  copyable HTML beside it (which is what the gallery was missing).
-
-### Pricing table
-
-- **Source:** `site/scripts/demos/pricing-table/pricing-table.html`
-- **Command:** `capture.sh` — `--width 960 --height 410 --optimize`
-- **Output:** `pricing-table.svg` (960×410)
-- **Demonstrates:** a polished three-tier (Free / Pro / Enterprise) table with
-  a highlighted middle column, a gradient "Popular" badge, gradient CTA, and
-  check/cross feature rows. The kind of static marketing visual people pay a
-  monthly design-tool subscription to produce — captured crisp and scalable.
-
-### Code block
-
-- **Source:** `site/scripts/demos/code-block/code-block.html`
-- **Command:** `capture.sh` — `--width 720 --height 360 --optimize`
-- **Output:** `code-block.svg` (720×360)
-- **Demonstrates:** a real `<pre><code>` with hand-rolled `<span>`-colored
-  syntax tokens inside a window-chrome card. The headline point: the captured
-  text is emitted as glyph paths, so it stays sharp at any zoom — and the
-  document structure is inspectable in the SVG rather than a flattened raster.
-
-### Phone-framed mobile screen
-
-- **Source:** `site/scripts/demos/phone-screen/mobile-screen.html`
-- **Command:** `capture.sh` — `domotion capture mobile-screen.html --width 390
-  --height 844 --mobile --chrome phone --optimize -o phone-screen.svg`
-- **Output:** `phone-screen.svg` (418×872)
-- **Demonstrates:** a mobile-viewport capture presented inside device chrome
-  (rounded body, dynamic-island notch, home indicator) via the `--chrome phone`
-  flag (DM-1206, `docs/65-device-chrome.md`). The flag nests the rendered
-  capture inside the bezel rather than re-rendering the element tree, so the
-  glyph paths match the bare capture exactly (re-rendering through a second
-  path-render drops the system font to `.notdef` tofu). The bezel is pure SVG,
-  so the demo is cross-platform.
-- **Also available:** `--chrome browser` (a macOS window with traffic lights +
-  a URL bar — add `--chrome-label "your.url/path"`) and `--chrome window` (a
-  plain titled window). Same one-line capture, a different frame.
+See `examples/animate/README.md` for how the runnable examples are organized,
+regenerated (`npm run demos:test:animate -- --update`), and verified.
 
 ---
 
@@ -117,7 +70,7 @@ cd site/scripts/demos/hero-card && bash capture.sh
 
 Each is a `domotion animate` config + HTML frame(s) + committed golden under
 `examples/animate/<demo>/`, registered in the `tests/animate-examples.tsx`
-regression suite and embedded on the gallery page.
+regression suite and surfaced on the site.
 
 ### Typing search
 
@@ -146,17 +99,16 @@ regression suite and embedded on the gallery page.
   code cards (a verbose loop → its `filter`/`reduce` refactor).
 - **Both frames carry `push-left`.** A push-left transition is a coordinated
   pair: the outgoing frame slides off to the left *while* the incoming frame
-  slides in from the right. The incoming frame only slides in if its own
-  transition routes it through the slide path — so `after` must also be
-  `push-left`, not `cut` (a `cut` incoming frame would pop in only *after* the
-  push, leaving a blank gap during the slide). `after` is the last frame and
-  holds solid to the end via the last-frame hold (the slide-out is suppressed
-  for the final frame unless `loopFade` is set).
+  slides in from the right. (As of DM-1414 a frame's entrance is composed from
+  the *previous* frame's transition, so mixed-type chains also compose — see the
+  transition-tour demo — but a same-type pair like this is the simplest case.)
+  `after` is the last frame and holds solid to the end via the last-frame hold
+  (the slide-out is suppressed for the final frame unless `loopFade` is set).
 
 ## Tier 3 — animated, fancy
 
 The marketing-video tier. Most are an `examples/animate/<demo>/` folder
-registered in the regression suite and embedded on the gallery page; the
+registered in the regression suite and surfaced on the site; the
 terminal-onboarding demo is instead a runnable example script
 (`examples/terminal-onboarding.ts`) that drives the `domotion term` pipeline.
 
@@ -168,7 +120,7 @@ terminal-onboarding demo is instead a runnable example script
 - **Demonstrates:** a real `domotion term` capture (doc 67). One continuous
   asciinema v2 cast — clone → install → configure → run — is replayed through the
   terminal pipeline (`castToAnimatedSvg`, the exact `domotion term --cast` path)
-  and composited into macOS window chrome via `composeAnimatedLayers`, mirroring
+  and composited into window chrome via `composeAnimatedLayers`, mirroring
   `terminal-demo.ts`. The terminal types each command and streams its output
   natively/incrementally (real text as glyph paths, real ANSI color, native
   animation), so it reads as one genuine session.

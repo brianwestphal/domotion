@@ -212,9 +212,11 @@ valid template fails saying so.
 
 **Finding templates.** Third-party templates are plain npm packages, so the
 registry is the discovery surface: search npm for the **`domotion-template`**
-keyword (or the `domotion-template-` name prefix). The published manual's
-[Templates page](../site/pages/guides/templates.tsx) showcases the built-ins and
-links here for "write your own"; a curated community gallery can layer on top of
+keyword (or the `domotion-template-` name prefix). The site's
+[Templates page](../site/src/content/docs/usage/templates.md) showcases the
+built-ins and the
+[custom-templates guide](../site/src/content/docs/developer/custom-templates.md)
+covers "write your own"; a curated community gallery can layer on top of
 the same npm convention without any new infrastructure.
 
 ## See also

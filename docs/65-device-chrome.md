@@ -94,15 +94,13 @@ const { svg, width, height } = wrapInDeviceChrome(capture, "phone", 390, 844);
 
 ## Scope notes
 
-- This replaces the hand-rolled phone bezel that previously lived in
-  `site/scripts/demos/phone-screen/build-phone-screen.ts` (now retired) and the
-  inline preview in `site/scripts/build-install-demo.ts` (which can be migrated
-  to `wrapInDeviceChrome` when next touched).
+- This replaces the hand-rolled phone bezels that lived in the legacy site's
+  demo/build scripts (the old `site/scripts/demos/phone-screen/` builder and the
+  install-demo inline preview), all removed in the DM-1308 site rebuild;
+  `wrapInDeviceChrome` is now the single source for device framing.
 - Combining `--chrome` with `--scroll` (an animated scroll capture nested in a
   bezel) nests an animated inner `<svg>` — it should work mechanically but is
   not yet a verified path; treat it as out of scope until tested.
 - The `browser` / `window` chrome ships `dark` (default) and `light` themes
   (DM-1212) via `--chrome-theme`. Auto-deriving the theme from the capture's
   dominant background, if ever wanted, would be a further option.
-- `site/scripts/build-install-demo.ts` still has its own inline phone preview;
-  it can migrate to `wrapInDeviceChrome` when next touched.
