@@ -48,6 +48,8 @@ const HTML_TEST_UNICODE_DIR = resolve(OUTPUT_DIR, "html-test-unicode");
 const REAL_WORLD_DIR = resolve(OUTPUT_DIR, "real-world");
 const PROJECT_ROOT = resolve(TESTS_DIR, "..");
 const SETTINGS_PATH = resolve(PROJECT_ROOT, ".hotsheet/settings.json");
+const SECRET_PATH = resolve(PROJECT_ROOT, ".hotsheet/secret.json");
+const WORKLIST_PATH = resolve(PROJECT_ROOT, ".hotsheet/worklist.md");
 
 const MANIFEST_FILES: Array<{ suite: SuiteName; path: string; imagesDir: string; isBareArray: boolean }> = [
   { suite: "features",          path: resolve(OUTPUT_DIR,             "features-results.json"), imagesDir: OUTPUT_DIR,             isBareArray: false },
@@ -62,13 +64,33 @@ type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "
 // ── Config ──
 
 interface Settings { port: number; secret: string }
-function loadSettings(): Settings {
-  if (!existsSync(SETTINGS_PATH)) {
-    throw new Error(`Hot Sheet settings not found at ${SETTINGS_PATH} — is Hot Sheet set up?`);
+// Hot Sheet's API `port` + `secret` enable the optional "file a ticket" button;
+// browsing the expected/actual/diff PNGs works without them. Resolve from the
+// current Hot Sheet layout — the secret lives in `.hotsheet/secret.json` and the
+// API port is embedded in the worklist's curl examples — falling back to the old
+// `settings.json` schema. Returns null (browse-only) when neither is available,
+// so the review UI still starts.
+function loadSettings(): Settings | null {
+  let port: number | undefined;
+  let secret: string | undefined;
+  const readJson = (p: string): Record<string, unknown> => {
+    try { return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown> : {}; }
+    catch { return {}; }
+  };
+  // Preferred: secret.json (current) + worklist API port. Then settings.json (legacy).
+  secret = readJson(SECRET_PATH).secret as string | undefined;
+  const legacy = readJson(SETTINGS_PATH);
+  port ??= legacy.port as number | undefined;
+  secret ??= legacy.secret as string | undefined;
+  if (port == null && existsSync(WORKLIST_PATH)) {
+    const m = readFileSync(WORKLIST_PATH, "utf8").match(/localhost:(\d+)\/api/);
+    if (m != null) port = parseInt(m[1], 10);
   }
-  const raw = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as { port?: number; secret?: string };
-  if (raw.port == null || raw.secret == null) throw new Error(`Hot Sheet settings missing port or secret`);
-  return { port: raw.port, secret: raw.secret };
+  if (port == null || secret == null) {
+    console.warn("⚠ Hot Sheet port/secret not found — the 'file a ticket' button is disabled (browsing diffs still works).");
+    return null;
+  }
+  return { port, secret };
 }
 
 // Normalized test record used by the UI and ticket filer.
@@ -553,6 +575,10 @@ async function main(): Promise<void> {
       }
 
       if (req.method === "POST" && url.pathname === "/api/file-ticket") {
+        if (settings == null) {
+          sendJson(res, 503, { error: "Hot Sheet isn't configured (no port/secret found) — the 'file a ticket' button is unavailable. Browsing the diffs still works." });
+          return;
+        }
         const body = await readBody(req);
         const parsed = JSON.parse(body) as { suite?: string; name?: string; comment?: string; regions?: unknown };
         const suite = parsed.suite as SuiteName | undefined;
