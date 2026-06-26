@@ -6,16 +6,61 @@
   --sl-color-accent-high: #c7d2fe;
 }
 
-/* Demo figures: center, cap width, give captions a muted voice. */
-figure {
+/* Demo figures: center, cap width, give captions a muted voice.
+   DM-1387: scope to figures that hold an image — Starlight's Expressive Code
+   wraps every code block in <figure class="frame">, and a bare `figure` rule
+   would center all code/terminal blocks too. */
+figure:has(> img) {
   margin: 1.5rem 0;
   text-align: center;
 }
-figure img {
+figure:has(> img) img {
   display: inline-block;
 }
-figcaption {
+figure:has(> img) figcaption {
   margin-top: 0.5rem;
   font-size: var(--sl-text-sm);
   color: var(--sl-color-gray-3);
+}
+
+/* DM-1386: the animated "domotion" wordmark (the splash hero image) IS the
+   title. Visually hide the redundant static <h1> so there aren't two titles,
+   but keep it in the accessibility tree / document outline for screen readers
+   and SEO. */
+.hero .copy h1[data-page-title] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* With the static title hidden, drop the two-column hero and stack the wordmark
+   on top of the tagline + actions — so the animated wordmark sits where the
+   title used to be (top, left-aligned) instead of floating off to the side. */
+.hero {
+  grid-template-columns: 100%;
+  justify-items: start;
+}
+.hero > .hero-html {
+  order: -1;
+  justify-content: flex-start;
+  /* Starlight centers the (narrow) hero image with margin-inline:auto; reset it
+     so the wordmark sits flush-left where the title used to be. */
+  margin-inline: 0;
+  width: min(100%, 460px);
+}
+.hero > .hero-html img {
+  margin-inline: 0;
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+}
+.hero .copy {
+  align-items: flex-start;
+  text-align: start;
 }
