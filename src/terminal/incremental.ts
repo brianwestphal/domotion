@@ -381,7 +381,12 @@ export async function composeIncrementalTermSvg(
       .join("");
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body{background:${theme.bg}}
+  /* No background on html/body: the page renders at a 1280px viewport, so a
+     body background would be captured as a full-viewport-width rect that the
+     term's own viewBox clips — but a compositor that nests this layer with
+     overflow:visible would let it bleed past the window chrome (DM-1385). The
+     content-sized .term carries the background instead. */
+  html,body{background:transparent}
   .term{position:relative;overflow:hidden;width:${width}px;height:${height}px;background:${theme.bg};color:${theme.fg};
     font-family:${fontFamily};font-size:${fontSize}px;line-height:${lineHeight};
     font-variant-ligatures:none;-webkit-font-smoothing:antialiased}

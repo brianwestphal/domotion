@@ -28,10 +28,13 @@ function copySvgs(srcDir, dstDir) {
 }
 
 let total = 0;
+// The animate gallery goldens (typing-search, tab-switcher, form-fill, …) live
+// only in the legacy site/assets mirror. Copy them FIRST so that for any name
+// that also exists in examples/output (e.g. terminal-onboarding), the canonical
+// freshly-generated examples/output copy below wins over the legacy mirror.
+total += copySvgs(resolve(ROOT, "site/assets/img/demos"), OUT);
 total += copySvgs(resolve(ROOT, "examples/output"), OUT);
 total += copySvgs(resolve(ROOT, "examples/output/templates"), resolve(OUT, "templates"));
-// The animate gallery goldens (typing-search, tab-switcher, form-fill, …).
-total += copySvgs(resolve(ROOT, "site/assets/img/demos"), OUT);
 // Full-application demos — real domotion captures of two live local apps,
 // committed in-repo (so CI has them without those external repos checked out).
 // Provenance is documented in demo-assets/apps/README.md.
