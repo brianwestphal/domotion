@@ -12,9 +12,15 @@
   <a href="https://github.com/brianwestphal/domotion">GitHub</a>
 </p>
 
-DOM-to-animated-SVG renderer. Captures HTML/CSS rendered in headless Chromium and converts the captured tree into a self-contained SVG with optional CSS animations — pixel-faithful to what Chromium painted, scales crisply at any size, and embeds without external assets.
+**Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. Text is emitted as real glyph paths, so it looks identical across browsers; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
 
-Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), multi-frame **animation** with transitions and overlays, **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool. Text is emitted as real glyph paths, so the output looks identical across browsers.
+Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), multi-frame **animation** with transitions, overlays, and simulated interaction, **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
+
+<p align="center">
+  <img src="examples/output/hero-product-demo.svg" alt="An analytics dashboard assembling itself inside a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked — all in one self-contained animated SVG" width="760">
+</p>
+
+<p align="center"><sub>A real UI captured and brought to life — one self-contained SVG. <a href="https://brianwestphal.github.io/domotion/showcase/">More demos →</a></sub></p>
 
 ## Why
 
@@ -28,15 +34,13 @@ Domotion captures real HTML/CSS as it renders in Chromium, then emits a single i
 
 ## Status
 
-Early — extracted in 2026-04 from the slicekit project where it had been incubating as `tools/svg-demo-gen`. APIs may still shift while the project's external surface stabilizes.
+Actively developed, with a broad shipped surface — capture, multi-frame animation (transitions, overlays, simulated interaction), the template library, terminal capture, nested compositing, and the video/image exports — exercised by an extensive visual-regression suite. The CLIs and the animate-config schema are stable in practice.
 
 ## Platform support
 
-Domotion ships as a normal npm package and is **designed** to work on macOS, Linux, and Windows — the captured SVG is meant to be pixel-faithful to Chromium on whichever platform the capture is running on (CoreText fallback on macOS, fontconfig on Linux, DirectWrite on Windows).
+Domotion runs on **macOS, Linux, and Windows**, and all three are calibrated. It renders text by extracting real system-font glyph outlines and matching how the browser falls back between fonts on the platform you run it on (CoreText on macOS, fontconfig on Linux, DirectWrite on Windows). macOS is held to pixel-exact parity; Linux and Windows match the browser's glyph selection and metrics within a small native-hinting margin (the residual is unhinted-outline-vs-native-raster rasterization, not missing calibration), and both are gated by visual-regression CI.
 
-**Today it's only actively tested and calibrated on macOS.** Linux and Windows are roadmap items: cross-platform system-font path discovery, per-platform fallback-font chains calibrated against the host Chromium, optional bundled fallback fonts when no local match resolves, and CI coverage on both platforms. The package will install and run on Linux/Windows, but text rendering won't yet match the host Chromium as faithfully as it does on macOS.
-
-If you'd like to help with cross-platform support — testing on Linux or Windows, reporting issues you hit, or sending fixes — please open an issue or PR on [GitHub](https://github.com/brianwestphal/domotion). Bug reports against macOS are also welcome.
+Issues, fixes, and platform feedback are welcome on [GitHub](https://github.com/brianwestphal/domotion).
 
 ## Install
 

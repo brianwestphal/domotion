@@ -1,6 +1,6 @@
 # Domotion — using it as a tool (guide for AI agents)
 
-> Domotion (`domotion-svg` on npm) turns HTML/CSS into a **self-contained, animated SVG** by capturing how headless Chromium actually paints it. The output embeds with a plain `<img src="out.svg">`, scales crisply at any size, needs no external assets, and (because text is emitted as glyph `<path>`s) looks identical across browsers. Reach for it to produce marketing/docs demos, UI screenshots, animated diagrams, terminal recordings, or charts as one portable file.
+> Domotion (`domotion-svg` on npm) turns HTML/CSS into a **self-contained, animated SVG** by faithfully reproducing how a browser paints it. The output embeds with a plain `<img src="out.svg">`, scales crisply at any size, needs no external assets, and (because text is emitted as glyph `<path>`s) looks identical across browsers. Reach for it to produce marketing/docs demos, UI screenshots, animated diagrams, terminal recordings, or charts as one portable file.
 
 This doc teaches an AI agent (Claude, Cursor, etc.) to **use** Domotion. It is not about editing Domotion's source. When unsure of a flag, run `domotion --help` or `domotion <verb> --help` — that's the source of truth.
 
@@ -13,7 +13,7 @@ npm install domotion-svg          # library + the `domotion` CLI (+ svg-to-video
 
 First run auto-installs Playwright's Chromium (`npx playwright install chromium`). It needs a real Chromium — this does not run in a pure-sandbox with no browser.
 
-**Platform note:** output is pixel-faithful to Chromium *on the host OS*. Today only **macOS** is fully calibrated; on Linux/Windows it installs and runs but text rendering isn't yet as faithful (roadmap).
+**Platform note:** output is pixel-faithful to the browser's paint *on the host OS*. macOS, Linux, and Windows are all calibrated — macOS is held pixel-exact; Linux/Windows match the browser's glyph selection and metrics within a small native-hinting margin.
 
 ## The CLIs (5 bins)
 
@@ -56,7 +56,7 @@ Stitches captured frames with CSS keyframe transitions. The config is JSON valid
 }
 ```
 
-Frame kinds: `input` (capture HTML/URL), `template` (embed a built-in template, below), or `cast` (a terminal recording). Transitions: `crossfade`, `cut`, `push-left`, `scroll`, `magic-move`. A frame also supports **intra-frame `animations`** (animate a captured element: `opacity`, `transform`, `translateX/Y`, `scale`, `width`/`height`, `clipPath`), **overlays** (`typing` / `tap` / `svg` / `blink`, optionally anchored to an element), a config-level **`cursor`**, **continuous-session** frames that carry client state across steps (`"continue": true` + DOM-mutation/interaction `actions` + `waitForText`/`waitForGone`/`waitForCount`), and `vars` + `${}` interpolation.
+Frame kinds: `input` (capture HTML/URL), `template` (embed a built-in template, below), or `cast` (a terminal recording). Transitions: `crossfade`, `cut`, `push-left`, `scroll`, `magic-move` — and they **compose** when chained: a frame enters the way the previous transition handed off to it (fades in after a crossfade, slides in after a push/scroll) and exits its own way, so you can mix types freely across a sequence. A frame also supports **intra-frame `animations`** (animate a captured element: `opacity`, `transform`, `translateX/Y`, `scale`, `width`/`height`, `clipPath`), **overlays** (`typing` / `tap` / `svg` / `blink`, optionally anchored to an element), a config-level **`cursor`**, **continuous-session** frames that carry client state across steps (`"continue": true` + DOM-mutation/interaction `actions` + `waitForText`/`waitForGone`/`waitForCount`), and `vars` + `${}` interpolation.
 
 ## `domotion template <name>` — parameterized animated SVGs from a few flags
 
@@ -242,7 +242,7 @@ Before returning a result, verify:
 - **Needs Chromium** (Playwright). CI: pre-install with `npx playwright install chromium` to keep the first run fast.
 - **Cross-browser-safe animation only.** Animate `opacity` / `transform` / `translate` / `scale` / `clipPath`. Do **not** rely on animated CSS `filter` (e.g. `blur()`) — it renders in Chromium but not Safari/others inside an `<img>`-embedded SVG.
 - **One intra-frame animation per element** — to move *and* fade an element, wrap it (move on the wrapper, fade on the inner). For a transform to pivot about an element's own box (e.g. a center scale), set `transformOrigin` on the animation.
-- Output reflects Chromium-on-the-capturing-OS; verify text fidelity on macOS until Linux/Windows are calibrated.
+- Output reflects the browser's paint on the capturing OS; all three platforms (macOS / Linux / Windows) are calibrated — macOS pixel-exact, Linux/Windows within a small native-hinting margin.
 - **Nesting animation:** `cast` / `template` / `scroll` frames (and a frame's intra-frame `animations`) **keep** their animation, as do **`composite` layers** (below). An `svg` **overlay** renders its input as a **static snapshot**. For a general animated-inside-animated composite (a terminal window on a desktop, a scrolling site inside a browser bezel), use `domotion composite`.
 - **"glyph helper unavailable — using fontkit" is harmless.** That stderr line is a **performance-only** fallback; the SVG output is identical either way. Pre-warm with `acquireGlyphHelper()` or `DOMOTION_HELPER_PATH` only if you want the faster path.
 
