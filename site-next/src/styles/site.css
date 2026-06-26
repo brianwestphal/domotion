@@ -48,10 +48,9 @@ figure:has(> img) figcaption {
 }
 .hero > .hero-html {
   order: -1;
-  justify-content: flex-start;
-  /* Starlight centers the (narrow) hero image with margin-inline:auto; reset it
-     so the wordmark sits flush-left where the title used to be. */
-  margin-inline: 0;
+  /* Horizontally center the animated wordmark over the hero. */
+  justify-self: center;
+  margin-inline: auto;
   width: min(100%, 460px);
 }
 .hero > .hero-html img {
