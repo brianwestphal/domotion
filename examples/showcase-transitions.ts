@@ -1,19 +1,18 @@
 /**
- * Showcase: Transition Types — a labeled tour of every transition Domotion can
- * stitch between captured frames.
+ * Showcase: Transition Types — FOUR separate, self-contained mini-demos, one per
+ * transition, each a clean two-scene loop.
  *
- * Five scenes, each captioned with the transition it is about to perform, so the
- * output is self-documenting:
- *   1. crossfade  — scene 1 dissolves into scene 2 (opacity fades overlap)
- *   2. push-left  — scene 2 slides off left as scene 3 slides in from the right
- *   3. scroll     — scene 3 slides up and off as scene 4 rises from the bottom
- *   4. magic-move — shared `data-magic-key` cards glide to new positions (before
- *                   → after), then a final crossfade closes the loop.
+ * Why four demos instead of one chained tour: the animator drives a frame's
+ * ENTRANCE from the PREVIOUS frame's transition type but routes the frame by its
+ * OWN type, so chaining *different* transition types (crossfade → push → scroll)
+ * leaves each incoming frame in the wrong branch and it never slides/fades IN —
+ * the crossfade dips to black and slides reveal empty canvas. Keeping each demo
+ * to a single, consistent transition type sidesteps that (the mixed-type
+ * composition limitation is tracked separately). `loopFade: true` makes the last
+ * frame transition back to the first for a seamless loop.
  *
- * The magic-move bridge is built caller-side from the two frames' element trees
- * via `buildMagicMove`, exactly like the declarative `domotion animate` pipeline
- * (src/cli/animate.ts). It must run BEFORE `getEmbeddedFontFaceCss()` so the
- * bridge's re-rendered glyphs land in the embedded @font-face defs.
+ * Produces: transition-crossfade.svg, transition-pushleft.svg,
+ * transition-scroll.svg, transition-magicmove.svg under examples/output/.
  */
 
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -25,170 +24,146 @@ import { buildMagicMove } from "../src/animation/magic-move.js";
 import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../src/render/index.js";
 import { optimizeSvg } from "./shared.js";
 
-const WIDTH = 800;
-const HEIGHT = 500;
+const W = 560;
+const H = 340;
 const OUT_DIR = resolve("examples/output");
-const OUTPUT = resolve(OUT_DIR, "showcase-transitions.svg");
 
-/**
- * Shared chrome: a "step N / 4" badge, big title, subtitle. Each scene gets a
- * DISTINCT full-bleed gradient background (`bg`) so the transitions are actually
- * visible — a uniform background hides crossfade/slide/scroll motion entirely.
- */
-function scene(opts: { step: string; accent: string; title: string; desc: string; body: string; bg: string }): string {
+/** A full-bleed scene: gradient background, a transition-name chip, and content. */
+function scene(opts: { bg: string; chip: string; accent: string; body: string }): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0a0f1e; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
-.page { padding: 40px 48px; width: ${WIDTH}px; height: ${HEIGHT}px; position: relative; background: ${opts.bg}; }
-.badge { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #0d1117; background: ${opts.accent}; padding: 4px 12px; border-radius: 20px; }
-.title { font-size: 44px; font-weight: 800; margin-top: 18px; letter-spacing: -0.02em; }
-.desc { font-size: 16px; color: #8b949e; margin-top: 10px; max-width: 560px; line-height: 1.5; }
-.body { margin-top: 30px; }
-.card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px 18px; }
-.card-title { font-weight: 600; color: ${opts.accent}; font-size: 15px; }
-.card-desc { font-size: 13px; color: #8b949e; margin-top: 4px; }
-.row { display: flex; gap: 16px; }
-.row .card { flex: 1; }
-.arrow { font-size: 64px; color: ${opts.accent}; line-height: 1; }
-.panel { position: absolute; width: 280px; height: 150px; border-radius: 12px; border: 1px solid #30363d; }
-.mm-stage { position: relative; height: 300px; }
-.mm-card { position: absolute; width: 220px; height: 84px; background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 14px 16px; transition: none; }
-.mm-card .k { font-weight: 700; font-size: 15px; }
-.mm-card .v { font-size: 12px; color: #8b949e; margin-top: 6px; }
-</style></head><body><div class="page">
-  <span class="badge">${opts.step}</span>
-  <div class="title">${opts.title}</div>
-  <div class="desc">${opts.desc}</div>
-  <div class="body">${opts.body}</div>
-</div></body></html>`;
+body { width: ${W}px; height: ${H}px; background: #0a0f1e; color: #eef1fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
+.page { width: ${W}px; height: ${H}px; padding: 26px 30px; position: relative; background: ${opts.bg}; }
+.chip { position: absolute; top: 20px; right: 22px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #0a0f1e; background: ${opts.accent}; padding: 4px 11px; border-radius: 20px; }
+.h { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.sub { font-size: 13px; color: #aab2d5; margin-top: 4px; }
+.big { font-size: 52px; font-weight: 800; letter-spacing: -0.03em; margin-top: 18px; }
+.delta { display: inline-block; font-size: 14px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-top: 12px; }
+.card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; padding: 14px 16px; }
+.list { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.row { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.col { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.mm-stage { position: relative; height: 220px; margin-top: 14px; }
+.mm { position: absolute; width: 200px; height: 70px; border-radius: 12px; padding: 12px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); }
+.mm .k { font-weight: 800; font-size: 15px; }
+.mm .v { font-size: 12px; color: #aab2d5; margin-top: 5px; }
+</style></head><body><div class="page"><span class="chip">${opts.chip}</span>${opts.body}</div></body></html>`;
 }
 
-// 1 — Crossfade: two overlapping translucent panels suggest a dissolve.
-const CROSSFADE = scene({
-  step: "Transition 1 / 4",
-  accent: "#58a6ff",
-  bg: "radial-gradient(130% 130% at 0% 0%, #11315c 0%, #0a0f1e 62%)",
-  title: "Crossfade",
-  desc: "One scene dissolves into the next — the outgoing frame fades out while the incoming frame fades in, overlapping.",
-  body: `<div style="position:relative;height:180px;margin-top:8px">
-    <div class="panel" style="left:60px;top:10px;background:rgba(88,166,255,0.18)"></div>
-    <div class="panel" style="left:180px;top:40px;background:rgba(188,140,255,0.18)"></div>
-  </div>`,
-});
-
-// 2 — Push-left: a left arrow + a strip of frames.
-const PUSHLEFT = scene({
-  step: "Transition 2 / 4",
-  accent: "#3fb950",
-  bg: "radial-gradient(130% 130% at 100% 0%, #0c3a2a 0%, #0a0f1e 62%)",
-  title: "Push left",
-  desc: "Page-to-page navigation — the current scene slides off to the left as the next one slides in from the right.",
-  body: `<div class="row" style="align-items:center">
-    <div class="card"><div class="card-title">Search</div><div class="card-desc">results list</div></div>
-    <div class="arrow">←</div>
-    <div class="card"><div class="card-title">Detail</div><div class="card-desc">item page</div></div>
-  </div>`,
-});
-
-// 3 — Scroll: a down arrow; the frames slide vertically.
-const SCROLL = scene({
-  step: "Transition 3 / 4",
-  accent: "#d29922",
-  bg: "radial-gradient(130% 130% at 0% 100%, #3a2c0c 0%, #0a0f1e 62%)",
-  title: "Scroll",
-  desc: "Same-page motion on the vertical axis — the outgoing frame slides up and off the top as the next rises from the bottom.",
-  body: `<div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:4px">
-    <div class="card" style="width:320px"><div class="card-title">Above the fold</div></div>
-    <div class="arrow" style="font-size:48px">↓</div>
-    <div class="card" style="width:320px"><div class="card-title">Further down</div></div>
-  </div>`,
-});
-
-// 4 — Magic-move (before): three keyed cards in a row.
-function mmCard(key: string, label: string, value: string, left: number, top: number, accent: string): string {
-  return `<div class="mm-card" data-magic-key="${key}" style="left:${left}px;top:${top}px"><div class="k" style="color:${accent}">${label}</div><div class="v">${value}</div></div>`;
-}
-const MAGIC_BEFORE = scene({
-  step: "Transition 4 / 4",
-  accent: "#bc8cff",
-  bg: "radial-gradient(130% 130% at 100% 100%, #2a1450 0%, #0a0f1e 62%)",
-  title: "Magic move",
-  desc: "Elements shared between two layouts (matched by key) glide to their new positions instead of cutting — like a reordering UI.",
-  body: `<div class="mm-stage">
-    ${mmCard("mm-capture", "capture", "URL → SVG", 0, 0, "#58a6ff")}
-    ${mmCard("mm-animate", "animate", "frames → motion", 248, 0, "#3fb950")}
-    ${mmCard("mm-composite", "composite", "layered SVGs", 496, 0, "#d29922")}
-  </div>`,
-});
-
-// 5 — Magic-move (after): the same three keyed cards, rearranged → they slide.
-const MAGIC_AFTER = scene({
-  step: "Transition 4 / 4",
-  accent: "#bc8cff",
-  bg: "radial-gradient(130% 130% at 100% 100%, #2a1450 0%, #0a0f1e 62%)",
-  title: "Magic move",
-  desc: "Elements shared between two layouts (matched by key) glide to their new positions instead of cutting — like a reordering UI.",
-  body: `<div class="mm-stage">
-    ${mmCard("mm-composite", "composite", "layered SVGs", 0, 0, "#d29922")}
-    ${mmCard("mm-capture", "capture", "URL → SVG", 290, 108, "#58a6ff")}
-    ${mmCard("mm-animate", "animate", "frames → motion", 540, 216, "#3fb950")}
-  </div>`,
-});
-
-async function captureScene(pg: Page, html: string, prefix: string): Promise<{ tree: Awaited<ReturnType<typeof captureElementTree>>; svg: string }> {
-  const tmp = resolve(OUT_DIR, `trans-tmp-${prefix}.html`);
+async function capture(pg: Page, html: string, prefix: string): Promise<{ tree: Awaited<ReturnType<typeof captureElementTree>>; svg: string }> {
+  const tmp = resolve(OUT_DIR, `tr-tmp-${prefix}.html`);
   writeFileSync(tmp, html);
   await pg.goto(`file://${tmp}`);
-  await pg.waitForTimeout(200);
-  const tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+  await pg.waitForTimeout(180);
+  const tree = await captureElementTree(pg, "body", { x: 0, y: 0, width: W, height: H });
   await embedRemoteImages(tree);
-  const svg = elementTreeToSvgInner(tree, WIDTH, HEIGHT, prefix, true, 2, false);
-  return { tree, svg };
+  return { tree, svg: elementTreeToSvgInner(tree, W, H, prefix, true, 2, false) };
+}
+
+// ─── Scene content ────────────────────────────────────────────────────────────
+
+const INDIGO = "radial-gradient(130% 130% at 0% 0%, #1b2350 0%, #0a0f1e 60%)";
+const PURPLE = "radial-gradient(130% 130% at 100% 0%, #2a1450 0%, #0a0f1e 60%)";
+const TEAL = "radial-gradient(130% 130% at 100% 100%, #0c3a3a 0%, #0a0f1e 60%)";
+const GREEN = "radial-gradient(130% 130% at 0% 100%, #0c3a2a 0%, #0a0f1e 60%)";
+const AMBER = "radial-gradient(130% 130% at 100% 0%, #3a2c0c 0%, #0a0f1e 60%)";
+
+// Crossfade — two clearly different stat cards dissolve into each other.
+const CF_A = scene({ bg: INDIGO, chip: "Crossfade", accent: "#7c9cff", body:
+  `<div class="h">Revenue</div><div class="sub">This month</div>
+   <div class="big">$48.2k</div><span class="delta" style="color:#34d399;background:rgba(52,211,153,0.14)">▲ 12.4% vs last month</span>` });
+const CF_B = scene({ bg: PURPLE, chip: "Crossfade", accent: "#c4a3ff", body:
+  `<div class="h">Signups</div><div class="sub">This month</div>
+   <div class="big">1,204</div><span class="delta" style="color:#c4a3ff;background:rgba(196,163,255,0.16)">▲ 8.1% vs last month</span>` });
+
+// Push-left — a list page slides off as a detail page slides in.
+const PL_A = scene({ bg: GREEN, chip: "Push left", accent: "#4ade80", body:
+  `<div class="h">Inbox</div>
+   <div class="list">
+     <div class="card row"><span class="dot" style="background:#4ade80"></span>Ada Lovelace — Deploy is green</div>
+     <div class="card row"><span class="dot" style="background:#fbbf24"></span>Billing — Invoice #1042 paid</div>
+     <div class="card row"><span class="dot" style="background:#60a5fa"></span>CI — 214 tests passed</div>
+   </div>` });
+const PL_B = scene({ bg: AMBER, chip: "Push left", accent: "#fbbf24", body:
+  `<div class="h">Deploy is green</div><div class="sub">Ada Lovelace · 2m ago</div>
+   <div class="card" style="margin-top:18px">Production rollout finished — all 12 regions healthy, error rate 0.00%. Nice and boring. 🎉</div>
+   <div class="card" style="margin-top:12px">build #4821 · 38s · main@2b86906</div>` });
+
+// Scroll — top of a page and its continuation; scrolling reveals real content.
+const SC_A = scene({ bg: INDIGO, chip: "Scroll", accent: "#7c9cff", body:
+  `<div class="h">Acme Cloud</div><div class="sub">Ship faster, scale calmly.</div>
+   <div class="card" style="margin-top:18px"><b>Overview</b><div class="sub">One platform for build, deploy, and observe.</div></div>
+   <div class="card" style="margin-top:12px"><b>Get started in minutes</b><div class="sub">No card required.</div></div>` });
+const SC_B = scene({ bg: INDIGO, chip: "Scroll", accent: "#7c9cff", body:
+  `<div class="col">
+     <div class="card"><b>Features</b><div class="sub">Edge functions, queues, cron, KV — batteries included.</div></div>
+     <div class="card"><b>Metrics</b><div class="sub">p50 32&nbsp;ms · 99.99% uptime · 8.1k req/s</div></div>
+     <div class="card"><b>Pricing</b><div class="sub">Free to start, usage-based after.</div></div>
+   </div>` });
+
+// Magic-move — three keyed cards glide from a row to a staggered column.
+function mm(key: string, k: string, v: string, left: number, top: number, accent: string): string {
+  return `<div class="mm" data-magic-key="${key}" style="left:${left}px;top:${top}px"><div class="k" style="color:${accent}">${k}</div><div class="v">${v}</div></div>`;
+}
+const MM_A = scene({ bg: TEAL, chip: "Magic move", accent: "#5eead4", body:
+  `<div class="h">Reorder</div>
+   <div class="mm-stage">
+     ${mm("a", "capture", "URL → SVG", 0, 0, "#7c9cff")}
+     ${mm("b", "animate", "frames → motion", 0, 80, "#4ade80")}
+     ${mm("c", "composite", "layered SVGs", 0, 160, "#fbbf24")}
+   </div>` });
+const MM_B = scene({ bg: TEAL, chip: "Magic move", accent: "#5eead4", body:
+  `<div class="h">Reorder</div>
+   <div class="mm-stage">
+     ${mm("c", "composite", "layered SVGs", 300, 0, "#fbbf24")}
+     ${mm("a", "capture", "URL → SVG", 300, 80, "#7c9cff")}
+     ${mm("b", "animate", "frames → motion", 300, 160, "#4ade80")}
+   </div>` });
+
+// ─── Build ─────────────────────────────────────────────────────────────────────
+
+async function buildDemo(
+  pg: Page,
+  name: string,
+  a: { html: string; p: string },
+  b: { html: string; p: string },
+  type: "crossfade" | "push-left" | "scroll" | "magic-move",
+  durMs: number,
+): Promise<void> {
+  clearEmbeddedFonts();
+  const sa = await capture(pg, a.html, a.p);
+  const sb = await capture(pg, b.html, b.p);
+  const frames: AnimationFrame[] = [
+    { svgContent: sa.svg, duration: 2000, transition: { type, duration: durMs } },
+    { svgContent: sb.svg, duration: 2000, transition: { type, duration: durMs } },
+  ];
+  if (type === "magic-move") {
+    const render = (roots: Parameters<Parameters<typeof buildMagicMove>[2]>[0], prefix: string): string =>
+      elementTreeToSvgInner(roots, W, H, prefix, true, 2, false);
+    frames[0].magicMove = buildMagicMove(sa.tree, sb.tree, render, "mmA-");
+    frames[1].magicMove = buildMagicMove(sb.tree, sa.tree, render, "mmB-");
+  }
+  let svg = generateAnimatedSvg({ width: W, height: H, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: "#0a0f1e", loopFade: true });
+  svg = optimizeSvg(svg);
+  const out = resolve(OUT_DIR, `transition-${name}.svg`);
+  writeFileSync(out, svg);
+  console.log(`Generated: ${out} (${(svg.length / 1024).toFixed(1)} KB)`);
 }
 
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
-
   const browser = await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
-  const pg = await context.newPage();
-
-  clearEmbeddedFonts(); // DM-1225: emit the embedded font once, not per frame
-
-  // Capture every scene up front; render svgContent for each (registers glyphs).
-  const s0 = await captureScene(pg, CROSSFADE, "f0-");
-  const s1 = await captureScene(pg, PUSHLEFT, "f1-");
-  const s2 = await captureScene(pg, SCROLL, "f2-");
-  const s3 = await captureScene(pg, MAGIC_BEFORE, "f3-");
-  const s4 = await captureScene(pg, MAGIC_AFTER, "f4-");
-
-  await browser.close();
-
-  const frames: AnimationFrame[] = [
-    { svgContent: s0.svg, duration: 2600, transition: { type: "crossfade", duration: 600 } },
-    { svgContent: s1.svg, duration: 2400, transition: { type: "push-left", duration: 500 } },
-    { svgContent: s2.svg, duration: 2400, transition: { type: "scroll", duration: 700 } },
-    { svgContent: s3.svg, duration: 2200, transition: { type: "magic-move", duration: 800 } },
-    { svgContent: s4.svg, duration: 2600, transition: { type: "crossfade", duration: 600 } },
-  ];
-
-  // The magic-move bridge for frame 3 → frame 4 (before → after). Built BEFORE
-  // getEmbeddedFontFaceCss() so its re-rendered glyphs make it into the font defs.
-  frames[3].magicMove = buildMagicMove(
-    s3.tree,
-    s4.tree,
-    (roots, prefix) => elementTreeToSvgInner(roots, WIDTH, HEIGHT, prefix, true, 2, false),
-    "mm3-",
-  );
-
-  // Opaque canvas background so the crossfades dissolve through the scene color
-  // rather than flashing the host page background while both frames are partly
-  // transparent (the scenes' own bg is #0d1117).
-  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: "#0a0f1e" });
-  svg = optimizeSvg(svg);
-  writeFileSync(OUTPUT, svg);
-  const mm = frames[3].magicMove != null ? "magic-move bridge built" : "magic-move fell back to crossfade";
-  console.log(`Generated: ${OUTPUT} (${(svg.length / 1024).toFixed(1)} KB, ${mm})`);
+  try {
+    const ctx = await browser.newContext({ viewport: { width: W, height: H } });
+    const pg = await ctx.newPage();
+    await buildDemo(pg, "crossfade", { html: CF_A, p: "cfa-" }, { html: CF_B, p: "cfb-" }, "crossfade", 700);
+    await buildDemo(pg, "pushleft", { html: PL_A, p: "pla-" }, { html: PL_B, p: "plb-" }, "push-left", 600);
+    await buildDemo(pg, "scroll", { html: SC_A, p: "sca-" }, { html: SC_B, p: "scb-" }, "scroll", 800);
+    await buildDemo(pg, "magicmove", { html: MM_A, p: "mma-" }, { html: MM_B, p: "mmb-" }, "magic-move", 800);
+  } finally {
+    await browser.close();
+  }
 }
 
 void main();

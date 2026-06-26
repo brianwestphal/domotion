@@ -14,7 +14,7 @@ on `PATH`).
 
 ```bash
 # A 1280-wide mp4 at 30fps (duration auto-derived from one animation loop).
-svg-to-video showcase-transitions.svg -o demo.mp4 --width 1280
+svg-to-video hero-product-demo.svg -o demo.mp4 --width 1280
 
 # 60fps webm (VP9), 2× supersampled, with looping background music.
 svg-to-video demo.svg -o demo.webm --format vp9 --fps 60 --scale 2 --music bed.mp3
