@@ -30,12 +30,16 @@ const HEIGHT = 500;
 const OUT_DIR = resolve("examples/output");
 const OUTPUT = resolve(OUT_DIR, "showcase-transitions.svg");
 
-/** Shared chrome: a dark scene with a "step N / 4" badge, big title, subtitle. */
-function scene(opts: { step: string; accent: string; title: string; desc: string; body: string }): string {
+/**
+ * Shared chrome: a "step N / 4" badge, big title, subtitle. Each scene gets a
+ * DISTINCT full-bleed gradient background (`bg`) so the transitions are actually
+ * visible — a uniform background hides crossfade/slide/scroll motion entirely.
+ */
+function scene(opts: { step: string; accent: string; title: string; desc: string; body: string; bg: string }): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
-.page { padding: 40px 48px; width: ${WIDTH}px; height: ${HEIGHT}px; position: relative; }
+body { background: #0a0f1e; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
+.page { padding: 40px 48px; width: ${WIDTH}px; height: ${HEIGHT}px; position: relative; background: ${opts.bg}; }
 .badge { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #0d1117; background: ${opts.accent}; padding: 4px 12px; border-radius: 20px; }
 .title { font-size: 44px; font-weight: 800; margin-top: 18px; letter-spacing: -0.02em; }
 .desc { font-size: 16px; color: #8b949e; margin-top: 10px; max-width: 560px; line-height: 1.5; }
@@ -63,6 +67,7 @@ body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMac
 const CROSSFADE = scene({
   step: "Transition 1 / 4",
   accent: "#58a6ff",
+  bg: "radial-gradient(130% 130% at 0% 0%, #11315c 0%, #0a0f1e 62%)",
   title: "Crossfade",
   desc: "One scene dissolves into the next — the outgoing frame fades out while the incoming frame fades in, overlapping.",
   body: `<div style="position:relative;height:180px;margin-top:8px">
@@ -75,6 +80,7 @@ const CROSSFADE = scene({
 const PUSHLEFT = scene({
   step: "Transition 2 / 4",
   accent: "#3fb950",
+  bg: "radial-gradient(130% 130% at 100% 0%, #0c3a2a 0%, #0a0f1e 62%)",
   title: "Push left",
   desc: "Page-to-page navigation — the current scene slides off to the left as the next one slides in from the right.",
   body: `<div class="row" style="align-items:center">
@@ -88,6 +94,7 @@ const PUSHLEFT = scene({
 const SCROLL = scene({
   step: "Transition 3 / 4",
   accent: "#d29922",
+  bg: "radial-gradient(130% 130% at 0% 100%, #3a2c0c 0%, #0a0f1e 62%)",
   title: "Scroll",
   desc: "Same-page motion on the vertical axis — the outgoing frame slides up and off the top as the next rises from the bottom.",
   body: `<div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:4px">
@@ -104,6 +111,7 @@ function mmCard(key: string, label: string, value: string, left: number, top: nu
 const MAGIC_BEFORE = scene({
   step: "Transition 4 / 4",
   accent: "#bc8cff",
+  bg: "radial-gradient(130% 130% at 100% 100%, #2a1450 0%, #0a0f1e 62%)",
   title: "Magic move",
   desc: "Elements shared between two layouts (matched by key) glide to their new positions instead of cutting — like a reordering UI.",
   body: `<div class="mm-stage">
@@ -117,6 +125,7 @@ const MAGIC_BEFORE = scene({
 const MAGIC_AFTER = scene({
   step: "Transition 4 / 4",
   accent: "#bc8cff",
+  bg: "radial-gradient(130% 130% at 100% 100%, #2a1450 0%, #0a0f1e 62%)",
   title: "Magic move",
   desc: "Elements shared between two layouts (matched by key) glide to their new positions instead of cutting — like a reordering UI.",
   body: `<div class="mm-stage">
@@ -175,7 +184,7 @@ async function main(): Promise<void> {
   // Opaque canvas background so the crossfades dissolve through the scene color
   // rather than flashing the host page background while both frames are partly
   // transparent (the scenes' own bg is #0d1117).
-  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: "#0d1117" });
+  let svg = generateAnimatedSvg({ width: WIDTH, height: HEIGHT, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: "#0a0f1e" });
   svg = optimizeSvg(svg);
   writeFileSync(OUTPUT, svg);
   const mm = frames[3].magicMove != null ? "magic-move bridge built" : "magic-move fell back to crossfade";

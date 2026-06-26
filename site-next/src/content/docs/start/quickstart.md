@@ -13,6 +13,24 @@ Domotion auto-installs Playwright's Chromium on first use
 (`npx playwright install chromium`). On CI you may want to pre-install it to keep
 the first job fast.
 
+## What's included
+
+The package ships several command-line tools:
+
+- **`domotion`** — the main CLI: `capture` a page, `animate` multi-frame flows,
+  `template` polished graphics, `term` terminal recordings, and `composite`
+  layered SVGs.
+- **`svg-to-video`** — render an animated SVG to MP4 / WebM / GIF (and more).
+  [→ Export](/domotion/usage/export/)
+- **`svg-to-image`** — render any frame of an SVG to a PNG / JPEG still.
+  [→ Export](/domotion/usage/export/)
+- **`svg-scrubber`** — a video-style bench to play, scrub, trim, and
+  export-frame an animated SVG locally.
+- **`svg-review`** — a local diff viewer comparing a generated SVG against an
+  expected PNG (the same pixel-diff the regression suites use).
+
+Every tool takes `--help`.
+
 ## Capture a page
 
 The fastest way in is the `domotion` CLI. Point it at a URL or HTML file:

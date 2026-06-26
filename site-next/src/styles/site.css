@@ -61,7 +61,13 @@ figure:has(> img) figcaption {
   max-width: 920px;
   height: auto;
 }
+/* Center the hero copy (tagline + actions) under the centered wordmark, and let
+   the tagline use the available width — the old left-alignment was a leftover
+   from when the wordmark sat in a right-hand image column (DM-1406). */
 .hero .copy {
-  align-items: flex-start;
-  text-align: start;
+  align-items: center;
+  text-align: center;
+}
+.hero .copy .tagline {
+  max-width: 52rem;
 }
