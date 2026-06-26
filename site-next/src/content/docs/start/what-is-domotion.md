@@ -1,20 +1,22 @@
 ---
 title: What is Domotion?
-description: A DOM-to-animated-SVG renderer — capture real HTML/CSS as it paints in Chromium and emit one self-contained animated SVG.
+description: Turn real HTML/CSS into one self-contained, animated SVG — accurate, scalable, embeddable anywhere, with animation and simulated interaction built in.
 ---
 
-**Domotion is a DOM-to-animated-SVG renderer.** It captures HTML/CSS rendered in
-headless Chromium and converts the captured tree into a single self-contained SVG
-with optional CSS animations.
+**Domotion turns real HTML/CSS into a single self-contained, animated SVG.** It
+renders your markup exactly as a browser paints it, then emits one SVG file —
+with optional animation and *simulated interaction* (recorded clicks, typing,
+and navigation) baked in.
 
 The output is:
 
-- **Pixel-faithful** to what Chromium painted — text is emitted as real glyph
-  `<path>`s, so it looks identical across browsers.
+- **Accurate** — a faithful reproduction of the rendered page, down to fonts:
+  text is emitted as real glyph `<path>`s, so it looks identical in every
+  browser.
 - **Self-contained** — no external fonts, images, or scripts. It embeds with a
   plain `<img src="demo.svg">`.
-- **Scalable** — vector + CSS keyframes, so it stays crisp at any size and loads
-  lazily.
+- **Scalable** — vector + CSS keyframes, so it stays crisp at any size, on any
+  device, and loads lazily.
 
 It's purpose-built for **marketing and documentation demos** that need to load
 fast, embed anywhere (including where video can't go), and look identical
@@ -23,20 +25,31 @@ the [showcase](/domotion/showcase/) for what it produces.
 
 ## What you can make
 
-- **Single-frame captures** of a page or component (`domotion capture`).
-- **Multi-frame animations** with transitions, overlays, and recorded
-  interactions (`domotion animate`).
-- **Templates** — polished animated SVGs from a few flags (`domotion template`).
-- **Terminal sessions** from asciinema recordings (`domotion term`).
-- **Composites** — animated layers nested inside animated layers
-  (`domotion composite`).
-- **Exports** — render any animated SVG to video (`svg-to-video`) or a still
-  image (`svg-to-image`).
+- **Web app demos** — capture a whole running app and drive it like a user
+  (click, type, navigate), then ship the flow as one looping SVG.
+  [→ Web app demos](/domotion/usage/web-app-demos/)
+- **Scroll-throughs** — pan down a long page or article as one smooth animation.
+  [→ Capture](/domotion/usage/capture/)
+- **Scalable screen captures** — a faithful snapshot of any page or component
+  that stays crisp at any size (retina, print, projector).
+  [→ Capture](/domotion/usage/capture/)
+- **Animated product demos** — multi-frame flows with transitions, overlays, and
+  simulated interaction. [→ Animate](/domotion/usage/animate/)
+- **Templated graphics** — charts, kinetic text, lower-thirds, and device
+  mockups from a few flags. [→ Templates](/domotion/usage/templates/)
+- **Terminal sessions** — an asciinema recording rendered as an animated
+  terminal. [→ Terminal](/domotion/usage/terminal/)
+- **Composites & exports** — nest animated layers inside one another, and export
+  any animated SVG to video or a still image.
+  [→ Compositing](/domotion/usage/composite/) ·
+  [→ Export](/domotion/usage/export/)
 
-## Status & platform support
+## Platform support
 
-Domotion is an early-stage npm package. It's designed to work on macOS, Linux,
-and Windows, but today the font-fidelity calibration is **only complete on
-macOS** — the package installs and runs everywhere, but text rendering on
-Linux/Windows isn't yet as faithful. Contributions welcome on
+Domotion is a normal npm package that runs on **macOS, Linux, and Windows**. It
+renders text by extracting real system-font glyph outlines and matching how the
+browser falls back between fonts on the platform you run it on — and all three
+platforms are calibrated for that. macOS is held to pixel-exact parity; Linux
+and Windows match the browser's glyph selection and metrics within a small
+native-hinting margin. Contributions and platform feedback are welcome on
 [GitHub](https://github.com/brianwestphal/domotion).

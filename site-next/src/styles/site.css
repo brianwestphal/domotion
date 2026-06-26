@@ -51,12 +51,14 @@ figure:has(> img) figcaption {
   /* Horizontally center the animated wordmark over the hero. */
   justify-self: center;
   margin-inline: auto;
-  width: min(100%, 460px);
+  /* Fill the available content width (minus normal margins), capped at ~2x the
+     old 460px so the wordmark reads as the title without overpowering the page. */
+  width: min(100%, 920px);
 }
 .hero > .hero-html img {
   margin-inline: 0;
   width: 100%;
-  max-width: 460px;
+  max-width: 920px;
   height: auto;
 }
 .hero .copy {
