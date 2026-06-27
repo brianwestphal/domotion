@@ -14,9 +14,11 @@
 //   - `url(...)` (rendered as `<image>` with intrinsic dims captured here)
 //   - `counter(name)` / `counters(name, sep)` resolved against the
 //     element's snapshot of active CSS counter scopes (built in the
-//     pre-walk; passed in as `counterSnapshot`). counter-style argument
-//     (third arg of counters, second of counter) is currently ignored —
-//     decimal is the only output style. DM-357.
+//     pre-walk; passed in as `counterSnapshot`). The counter-style argument
+//     (third arg of counters, second of counter) is applied via the counter-
+//     style resolver — both custom @counter-style rules (DM-788) and the
+//     built-in styles like `upper-roman` / `lower-alpha` (DM-1274). Bare
+//     `counter(name)` with no style is plain decimal. DM-357.
 //   - `open-quote` / `close-quote` resolved against the element's
 //     computed `quotes` property at the current q-element nesting depth.
 //     Falls back to English curly defaults when `quotes` is missing /
@@ -276,16 +278,19 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         const cname = args[0];
         const sep = isCounters ? (args[1] ?? '') : '';
         // DM-788: third arg of counters() / second arg of counter() is a
-        // `<counter-style>` name. When that name matches a custom
-        // `@counter-style` rule captured in the pre-walk, run each value
-        // through the resolver so prefix / suffix / pad / negative / range
-        // / fallback descriptors apply — e.g. `counter(step, prefixed)`
-        // produces "Step 01:  " instead of plain decimal "1".
+        // `<counter-style>` name. Run each value through the resolver so the
+        // style applies — both custom `@counter-style` rules (prefix / suffix
+        // / pad / negative / range / fallback descriptors, e.g.
+        // `counter(step, prefixed)` → "Step 01:  ") AND the built-in styles
+        // (`upper-roman`, `lower-alpha`, `decimal-leading-zero`, …). The
+        // resolver handles BUILTINS internally; the earlier `isCustomCounterStyle`
+        // gate wrongly excluded them, so `counters(outline, " · ", upper-roman)`
+        // rendered decimal `1 · 1` instead of `I · I` (DM-1274). Bare
+        // `counter(name)` with no style stays plain decimal.
         const styleArg = isCounters ? args[2] : args[1];
-        const useCustomStyle = styleArg != null && styleArg !== ''
-          && isCustomCounterStyle != null && isCustomCounterStyle(styleArg);
+        const useStyle = styleArg != null && styleArg !== '' && resolveCounterValue != null;
         const format = (v) => {
-          if (!useCustomStyle) return String(v);
+          if (!useStyle) return String(v);
           const out = resolveCounterValue(styleArg, v);
           return out != null ? out : String(v);
         };
