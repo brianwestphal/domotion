@@ -58,6 +58,21 @@
 import { hasCssValue, sideWidths } from "../utils.js";
 
 export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle }) => {
+  // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
+  // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
+  // MINIMUM emoji advance (~1.25× font-size — a 20px advance for a 16px emoji);
+  // a span measures the bare glyph outline (~18.8px) and misses it. Used only to
+  // size the color-emoji raster square, where the in-flow advance is what matters.
+  let _emojiAdvCv = null;
+  let _emojiAdvCtx = null;
+  const measureGlyphAdvance = (s, pcs) => {
+    if (_emojiAdvCtx == null) {
+      _emojiAdvCv = document.createElement('canvas');
+      _emojiAdvCtx = _emojiAdvCv.getContext('2d');
+    }
+    _emojiAdvCtx.font = (pcs.fontStyle || 'normal') + ' ' + (pcs.fontWeight || 'normal') + ' ' + (pcs.fontSize || '16px') + ' ' + (pcs.fontFamily || 'sans-serif');
+    return _emojiAdvCtx.measureText(s).width;
+  };
   // DM-785: Chrome's HarfBuzz-shaped layout width differs from
   // `canvas.measureText` by ~1-3px on bold uppercase short strings (the
   // gradient-pill / MOST POPULAR / NEW badge pattern). Measuring via an
@@ -820,6 +835,25 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             width: pseudoWidth,
             height: lineH,
           };
+          // DM-1271: a color emoji's painted square equals its glyph ADVANCE,
+          // which Chrome can enforce LARGER than the line box (a 20px emoji square
+          // in an 18px `line-height:normal` line box). A line-box-tall screenshot
+          // then clips the emoji's vertical overflow and re-embeds it ~1-2px low
+          // ("emoji looks clipped on top a bit"). Record the emoji's own advance
+          // (CSS content delimiters + surrounding whitespace excluded — `content:
+          // " 📄"` spans 24.45px but the emoji is 20px), measured via canvas
+          // measureText so Chrome's minimum emoji advance is included (an off-
+          // screen <span> measures the bare outline and misses it). The post-
+          // injection re-anchor grows rasterRect to this square against the REAL
+          // line box (`seg.height`); a glyph that fits the line box gets no field,
+          // leaving dingbats and ordinary glyphs untouched.
+          const emojiInner = text.replace(/^["']|["']$/g, '').replace(/^\s+|\s+$/g, '');
+          if (emojiInner.length > 0) {
+            // Clamp to a single emoji's height (~1.4× font-size) so multi-glyph
+            // pseudo content can't inflate the square vertically beyond one row.
+            const emojiSide = Math.min(measureGlyphAdvance(emojiInner, pcs), elFontSize * 1.4);
+            if (emojiSide > lineH) pseudoSeg.rasterEmojiSide = emojiSide;
+          }
         }
       }
       pseudoSegments.push({

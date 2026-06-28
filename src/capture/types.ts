@@ -136,6 +136,17 @@ export interface TextSegment {
    * covering rasterRect and skips the text pipeline entirely. See SK-1058.
    */
   rasterRect?: { x: number; y: number; width: number; height: number };
+  /**
+   * DM-1271: the painted square side (CSS px) of a color emoji in `::before` /
+   * `::after` content — its glyph advance. Chrome enforces a minimum emoji
+   * advance (~1.25× font-size — a 20px emoji square in an 18px `line-height:
+   * normal` line box), so a line-box-tall `rasterRect` clips the emoji's vertical
+   * overflow and re-embeds it ~1-2px low. The post-injection re-anchor grows
+   * `rasterRect` to this square, centered on the line box (`seg.height`), so the
+   * screenshot captures the full emoji (the extra area is transparent under
+   * `omitBackground`). Undefined when the emoji fits the line box.
+   */
+  rasterEmojiSide?: number;
   /** data:image/png;base64,… populated by Node-side raster. Renderer checks this. */
   rasterDataUri?: string;
   /**

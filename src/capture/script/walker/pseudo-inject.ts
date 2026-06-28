@@ -285,6 +285,17 @@ export const createPseudoInjectHandler = () => {
           p.seg.rasterRect.x = p.seg.x;
           p.seg.rasterRect.y = p.seg.y;
           p.seg.rasterRect.height = p.seg.height;
+          // DM-1271: a color emoji whose painted square overflows the line box
+          // recorded its side in pseudo-content. Grow the rect to that square,
+          // centered on the REAL line box (`seg.height`) — computing the pad here
+          // (not in pseudo-content) keeps it consistent with the finalized
+          // line-box height, so the screenshot captures the emoji's full vertical
+          // extent instead of clipping its top/bottom.
+          if (p.seg.rasterEmojiSide != null && p.seg.rasterEmojiSide > p.seg.height) {
+            const vpad = (p.seg.rasterEmojiSide - p.seg.height) / 2;
+            p.seg.rasterRect.y -= vpad;
+            p.seg.rasterRect.height += 2 * vpad;
+          }
         }
       }
 

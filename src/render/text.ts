@@ -949,7 +949,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const ssSeg = (el.textSegments != null && el.textSegments.length === 1) ? el.textSegments[0] : undefined;
   if (ssSeg != null && ssSeg.rasterDataUri != null && ssSeg.rasterRect != null) {
     const rr = ssSeg.rasterRect;
-    return `<image href="${ssSeg.rasterDataUri}" x="${r(rr.x)}" y="${r(rr.y)}" width="${r(rr.width)}" height="${r(rr.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
+    // DM-1271: skip the line-box clip when the rect was grown to a color emoji's
+    // overflowing painted square (see the multi-segment path for the rationale).
+    const rasterClip = ssSeg.rasterEmojiSide != null ? "" : ` clip-path="url(#${clipId})"`;
+    return `<image href="${ssSeg.rasterDataUri}" x="${r(rr.x)}" y="${r(rr.y)}" width="${r(rr.width)}" height="${r(rr.height)}" preserveAspectRatio="none"${rasterClip}/>`;
   }
   const fontSize = parseFloat(el.styles.fontSize) || 14;
   const fontFamily = el.styles.fontFamily;
@@ -1175,7 +1178,12 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // to the full line box, so y/height here use that same rect so the image
     // lands exactly where Chrome painted it.
     if (seg.rasterDataUri != null && seg.rasterRect != null) {
-      parts.push(`<image href="${seg.rasterDataUri}" x="${r(seg.rasterRect.x)}" y="${r(seg.rasterRect.y)}" width="${r(seg.rasterRect.width)}" height="${r(seg.rasterRect.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`);
+      // DM-1271: when the rect was grown to a color emoji's painted square (its
+      // advance overflows the line box), skip the line-box clip — an inline
+      // pseudo doesn't clip overflow, so Chrome paints the emoji past the line
+      // box and clipping it back re-cuts the glyph's top/bottom.
+      const rasterClip = seg.rasterEmojiSide != null ? "" : ` clip-path="url(#${clipId})"`;
+      parts.push(`<image href="${seg.rasterDataUri}" x="${r(seg.rasterRect.x)}" y="${r(seg.rasterRect.y)}" width="${r(seg.rasterRect.width)}" height="${r(seg.rasterRect.height)}" preserveAspectRatio="none"${rasterClip}/>`);
       continue;
     }
     // DM-497: pseudo-element paint box. ::before / ::after with their own

@@ -715,6 +715,21 @@ export const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-1271: a color emoji in `::after` content (`content: " 📄"`) whose
+    // painted square (its glyph advance, ~1.25× font-size — 20px at font-size
+    // 16) is TALLER than the `line-height:normal` line box (18px). The segment-
+    // level raster screenshots the line box, so a line-box-tall rect clipped the
+    // emoji's vertical overflow and re-embedded it ~2px low ("emoji looks clipped
+    // on top a bit"). The capture pass now grows the raster rect to the emoji's
+    // square (whitespace + CSS quote delimiters excluded from the advance),
+    // centered on the real line box, and the renderer drops the line-box clip for
+    // the overflowing emoji so the full glyph paints where Chrome puts it.
+    name: "pseudo-after-emoji-overflows-line-box",
+    html: `<div style="padding:40px;background:#fff;font-family:system-ui,-apple-system,sans-serif;font-size:16px;line-height:normal;"><a href="report.pdf" style="color:#1d4ed8;text-decoration:none;">Quarterly report</a><style>a[href$=".pdf"]::after{content:" 📄";}</style></div>`,
+    width: 360,
+    height: 120,
+  },
+  {
     // DM-783: CSS check-mark idiom — empty `::before` with a right + bottom
     // border, sized 6×12, rotated 45° around its centre. Before the pseudo's
     // own `transform` was captured + emitted as a `<g transform="…">` wrapper,
