@@ -671,8 +671,22 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
         const pcsMarginL = parseFloat(pcs.marginLeft) || 0;
         const pcsBorderL = parseFloat(pcs.borderLeftWidth) || 0;
         const pcsPaddingL = parseFloat(pcs.paddingLeft) || 0;
+        const justify = cs.justifyContent || '';
+        const hostFlex = cs.display === 'flex' || cs.display === 'inline-flex';
+        const pushesEnd = justify.indexOf('space-between') >= 0 || justify.indexOf('flex-end') >= 0
+          || justify === 'end' || justify === 'right';
         if (pseudo === '::before') {
           xPos = elLeft + pcsMarginL + pcsBorderL + pcsPaddingL;
+        } else if (hostFlex && pushesEnd) {
+          // DM-1256: ::after is the LAST flex item; `justify-content:
+          // space-between / flex-end / end / right` pushes it to the flex line's
+          // end — the content-right edge (LTR). Anchor its right edge there
+          // (text-left = content-right - pseudoWidth) instead of the legacy
+          // `elLeft + rect.width - 2·padR` heuristic, which double-counts
+          // padding-left and overshoots ~border+padding px past the content edge
+          // (the accordion `summary::after` "+" rendered ~8px too far right).
+          const contentRight = rect.right - vp.x - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);
+          xPos = contentRight - pseudoWidth;
         } else {
           xPos = elLeft + rect.width - pseudoWidth - 2 * (parseFloat(cs.paddingRight) || 0);
         }
