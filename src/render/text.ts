@@ -838,7 +838,19 @@ export function parseFontFeatureSettings(css: string | undefined): string[] | un
     const tag = m[1];
     const value = m[2];
     const enabled = value == null || value === "on" || (value !== "off" && parseInt(value, 10) !== 0);
-    if (enabled) out.push(tag);
+    if (enabled) {
+      // DM-1267: map `numr` / `dnom` to `sups` / `subs`. Authors use bare
+      // `font-feature-settings: "numr"` as a faux-superscript (Apple's
+      // `sup.footnote` footnote numbers). Chrome/HarfBuzz apply `numr` on
+      // explicit request and substitute the font's small raised numerator glyph,
+      // but fontkit only fires the font's `numr`/`dnom` GSUB lookups inside a
+      // `frac` run (they're frac-contextual in SF Pro / most fonts), so a bare
+      // `numr` is a no-op and the digit renders full-size on the baseline. `sups`
+      // / `subs` ARE applied standalone by fontkit and select near-identical
+      // glyphs (same advance; SF Pro's sups "1" sits ~0.8px higher than its numr
+      // "1" at 19px) — a faithful stand-in that reproduces the small raised mark.
+      out.push(tag === "numr" ? "sups" : tag === "dnom" ? "subs" : tag);
+    }
   }
   return out.length > 0 ? out : undefined;
 }

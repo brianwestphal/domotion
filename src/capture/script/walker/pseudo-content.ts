@@ -57,7 +57,7 @@
 
 import { hasCssValue, sideWidths } from "../utils.js";
 
-export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle }) => {
+export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle, composeEffectiveTransform }) => {
   // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
   // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
   // MINIMUM emoji advance (~1.25× font-size — a 20px advance for a 16px emoji);
@@ -457,7 +457,13 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
             // resolved px values relative to the pseudo's box top-left — both
             // can be pasted directly into an SVG `<g>` wrapper. Captured only
             // when non-`none` to keep the captured tree compact.
-            const pcsTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
+            // DM-1268: compose the standalone `scale` / `rotate` / `translate`
+            // properties WITH `transform` (CSS Transforms 2). Apple's
+            // `media-gallery-dotnav-link::before` carousel dots are empty-content
+            // background boxes that shrink toward the edges via the `scale` property
+            // (scale: 0.75 / 0.5), a separate computed entry from `transform`.
+            const pcsComposed = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+            const pcsTransform = pcsComposed && pcsComposed !== 'none' ? pcsComposed : undefined;
             const pcsTransformOrigin = pcsTransform != null ? (pcs.transformOrigin || undefined) : undefined;
             // DM-1051: a negative z-index pseudo (Resend's `.rainbow-border::after`
             // glow, `z-index: -10`) paints BEHIND the host content, and its
@@ -751,7 +757,15 @@ export const createPseudoContentHandler = ({ vp, normColor, measureFontMetrics, 
       const hasPseudoBgImg = hasCssValue(pseudoBgImgRaw);
       // DM-783: pseudo's own `transform` (rotate/scale/translate/matrix)
       // wraps both the paint box AND the glyph emit at render time.
-      const pseudoTransform = pcs.transform && pcs.transform !== 'none' ? pcs.transform : undefined;
+      // DM-1268: compose the pseudo's standalone `scale` / `rotate` / `translate`
+      // properties (CSS Transforms 2) WITH `transform`, not just `transform` — the
+      // Apple `media-gallery-dotnav-link::before` carousel dots shrink via the
+      // `scale` property (scale: 0.75 / 0.5), which is a separate computed entry
+      // from `transform`. `composeEffectiveTransform` folds all four into one
+      // matrix() (spec order translate → rotate → scale → transform), the same way
+      // regular elements are captured (DM-943).
+      const pseudoComposed = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+      const pseudoTransform = pseudoComposed && pseudoComposed !== 'none' ? pseudoComposed : undefined;
       const pseudoTransformOrigin = pseudoTransform != null ? (pcs.transformOrigin || undefined) : undefined;
       let pseudoBoxStyles = null;
       if (pseudoBgColor !== '' || hasPseudoBgImg || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)') || hasPerSideBorder || pseudoTransform != null) {

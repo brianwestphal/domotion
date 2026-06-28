@@ -229,6 +229,18 @@ describe("parseFontFeatureSettings (DM-564)", () => {
     expect(parseFontFeatureSettings('"kern" 0')).toBeUndefined();
   });
 
+  it("DM-1267: maps numr/dnom to sups/subs (fontkit applies those standalone)", () => {
+    // Authors use bare `font-feature-settings: "numr"` as a faux-superscript
+    // (Apple's `sup.footnote` footnote numbers). fontkit only fires a font's
+    // numr/dnom GSUB lookups inside a `frac` run, so a bare numr is a no-op;
+    // sups/subs ARE applied standalone and select near-identical glyphs.
+    expect(parseFontFeatureSettings('"numr"')).toEqual(["sups"]);
+    expect(parseFontFeatureSettings('"dnom"')).toEqual(["subs"]);
+    expect(parseFontFeatureSettings('"numr", "kern"')).toEqual(["sups", "kern"]);
+    // Non-mapped tags pass through unchanged alongside.
+    expect(parseFontFeatureSettings('"tnum", "numr"')).toEqual(["tnum", "sups"]);
+  });
+
   it("supports stylistic-alternate selectors with numeric index", () => {
     // `salt 2` picks alternate #2; we currently flatten to enabling the tag
     // (fontkit's userFeatures is on/off only). Confirms we still emit the tag.

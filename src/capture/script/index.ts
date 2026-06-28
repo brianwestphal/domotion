@@ -31,7 +31,7 @@ import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
-import { createTransformsHandler } from "./walker/transforms.js";
+import { createTransformsHandler, composeEffectiveTransform } from "./walker/transforms.js";
 import { createBordersBackgroundsHandler } from "./walker/borders-backgrounds.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
@@ -79,6 +79,7 @@ export const captureScript =
     textNeedsRaster,
     resolveCounterValue,
     isCustomCounterStyle,
+    composeEffectiveTransform,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
   const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, needsRaster, normColor, markGetsDottedCircle });

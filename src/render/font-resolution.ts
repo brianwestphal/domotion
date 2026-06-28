@@ -2475,7 +2475,12 @@ function matchFamilyNameToKey(name: string): string | null {
       const cut = resolveInstalledFont(name);
       if (cut != null) {
         const key = `sysfb:${cut.postscriptName}`;
-        registerDynamicSystemFont(key, cut.path, cut.postscriptName);
+        // DM-1267: extract via fontkit (not the default native CoreText helper)
+        // so the OTF's GSUB survives — `font-feature-settings` (e.g. Apple's
+        // `sup.footnote { "numr" }` footnote superscripts, mapped to `sups`) needs
+        // the feature lookups, which the native per-glyph extractor strips. SF Pro
+        // Text/Display are clean OTFs fontkit reads cleanly (no hvgl / GSUB-crash).
+        registerDynamicSystemFont(key, cut.path, cut.postscriptName, "fontkit");
         return key;
       }
       return "sf-pro";

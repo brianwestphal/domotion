@@ -104,7 +104,7 @@ const transformHasRotationOrSkew = (transformStr) => {
 // renderer (which only parses matrix() / matrix3d()) picks them up
 // unchanged. Returns 'none' when all four properties are absent /
 // 'none', otherwise a `matrix(a, b, c, d, e, f)` string.
-const composeEffectiveTransform = (cs) => {
+export const composeEffectiveTransform = (cs) => {
   const t = cs.translate;
   const r = cs.rotate;
   const s = cs.scale;
