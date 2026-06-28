@@ -26,8 +26,26 @@ export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isC
 
     let listMarkerIntrinsic = undefined;
     let listItemIndex = undefined;
+    let markerFirstLineDy = undefined;
+    let markerFirstLineHeight = undefined;
 
     if (isListItem) {
+      // DM-1270: the marker aligns to the FIRST line of text, not to the li's
+      // border-box top. A tall inline on the first line (e.g. an emoji `::after`
+      // that extends above the text) raises the li's border box, so the text
+      // line sits below `el` top. Capture the first line-box rect (relative to
+      // the li top + its height) so the renderer can center the marker on it
+      // instead of guessing from `line-height`.
+      try {
+        const liTop = el.getBoundingClientRect().top;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const rects = range.getClientRects();
+        if (rects.length > 0) {
+          markerFirstLineDy = rects[0].top - liTop;
+          markerFirstLineHeight = rects[0].height;
+        }
+      } catch (e) { /* no line box */ }
       // Intrinsic dims of list-style-image so the renderer paints the marker
       // at its natural size (CSS default).
       if (cs.listStyleImage && cs.listStyleImage !== 'none') {
@@ -103,6 +121,8 @@ export const createListsCountersHandler = ({ normColor, resolveCounterStyle, isC
       markerFontSize: markerCs ? markerCs.fontSize : undefined,
       markerContent,
       markerFontFamily: markerCs ? markerCs.fontFamily : undefined,
+      markerFirstLineDy,
+      markerFirstLineHeight,
     };
   };
 

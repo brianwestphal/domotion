@@ -488,10 +488,17 @@ function paintListMarker(
         // baseline (DM-237). Falling back to a 0.72*lineHeight approximation
         // when we don't have either textTop or fontAscent — that path is rare
         // (li with empty direct text), and visually close enough.
-        const my = (el.textTop != null && el.fontAscent != null)
+        // DM-1270: the marker aligns to the FIRST line of text. Prefer the
+        // captured first-line box (handles a li whose border box is raised by a
+        // tall inline on the first line — e.g. an emoji `::after` — so the text
+        // line sits below `el.y`); fall back to `el.y` + the line-height guess.
+        const firstLineTop = el.markerFirstLineDy != null ? el.y + el.markerFirstLineDy : el.y;
+        const firstLineH = el.markerFirstLineHeight != null && el.markerFirstLineHeight > 0
+          ? el.markerFirstLineHeight : lineHeightPx;
+        const my = (el.textTop != null && el.fontAscent != null && el.fontAscent > 0)
           ? el.textTop + el.fontAscent
-          : el.y + lineHeightPx * 0.72;
-        const shapeY = el.y + lineHeightPx / 2;
+          : firstLineTop + firstLineH * 0.72;
+        const shapeY = firstLineTop + firstLineH / 2;
         // Default gap between marker right edge and the li's content-left.
         // Verified vs Chromium source `list_marker.cc::InlineMarginsForOutside`:
         //   const int kCMarkerPaddingPx = 7;

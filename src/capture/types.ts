@@ -877,6 +877,18 @@ export interface CapturedElement {
   /** Computed `::marker { font-family }`. Defaults to inherit, but authors
    *  can override (e.g. `font-family: monospace` on numeric markers). */
   markerFontFamily?: string;
+  /**
+   * DM-1270: the list item's FIRST line-box, relative to `el.y` (`dy`) and its
+   * height. The marker (disc / number) aligns to the first line of TEXT, not to
+   * `el.y` or a `line-height` guess — and when a tall inline on the first line
+   * (e.g. an emoji that extends above the text) raises the li's border box, the
+   * text line sits BELOW `el.y` (`dy` > 0). Captured via `Range.getClientRects()`
+   * over the li's contents. The renderer centers the shape marker on this line
+   * box and anchors the text marker's baseline within it. Undefined when the li
+   * has no line box (empty).
+   */
+  markerFirstLineDy?: number;
+  markerFirstLineHeight?: number;
   /** ::before / ::after pseudo-element image content (content: url(...)). */
   pseudoImages?: Array<{ url: string; x: number; y: number; width: number; height: number }>;
   svgContent?: string;
