@@ -127,16 +127,25 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
     const metrics = measureFontMetrics(cs);
     const fontAscent = metrics.ascent;
     const fontDescent = metrics.descent;
-    // DM-581: when CSS `line-height` is shorter than the font's natural
-    // ascent+descent (e.g. framer's `font-size:14;line-height:14` button
-    // with Inter SemiBold whose natural fontHeight is 17), Chrome paints
-    // the line box with negative half-leading on each side — so the line
-    // box top sits ~(fontHeight - lineHeight)/2 above the content-box top.
-    // The renderer treats `textTop` as the line-box top, so without this
-    // adjustment the rendered baseline ends up ~(fontHeight - lineHeight)/2
-    // below where Chrome paints it.
+    // Half-leading: a single line of height `textHeight` (the used line-height)
+    // centers the font box (ascent + descent) within it by (textHeight - fontH)/2
+    // on each side. The renderer treats `textTop` as the line-box top and draws
+    // the baseline at textTop + ascent, so fold the half-leading into textTop.
     const fontH = fontAscent + fontDescent;
-    if (fontH > textHeight + 0.5) {
+    if (cs.lineHeight !== 'normal' && textHeight > fontH + 0.5) {
+      // DM-1259: an EXPLICIT line-height TALLER than the font → positive
+      // half-leading; the single line's text is centered in the line box, LOWER
+      // than the line-box top (`06-deep-input-baseline`'s `line-height:35.2` /
+      // `font-size:16` email field rendered ~8px too high without this).
+      // Gated to an explicit line-height: for `line-height: normal` we estimate
+      // textHeight as 1.2×font-size, which OVER-counts the real normal line box
+      // (≈ fontH) — applying the down-shift there mis-centered every
+      // field-sizing input (DM-1259 regression).
+      textTop += (textHeight - fontH) / 2;
+    } else if (fontH > textHeight + 0.5) {
+      // DM-581: line-height SHORTER than the font (framer's `font-size:14;
+      // line-height:14` button, Inter natural height 17) → negative leading; the
+      // glyphs sit ~(fontH - lineHeight)/2 ABOVE the content-box top.
       textTop -= (fontH - textHeight) / 2;
     }
 
