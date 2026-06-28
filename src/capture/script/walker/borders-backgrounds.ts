@@ -168,6 +168,143 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     return out;
   };
 
+  // DM-1260: full CSS 2.1 §17.6.2.1 collapsed-border conflict resolution. Each
+  // grid edge paints the SINGLE winning border, chosen per Blink
+  // `table_borders.cc`: `hidden` suppresses; else widest wins; tie → higher
+  // style rank; true tie → the source merged first wins (cell > row > section >
+  // col > colgroup > table; among cells, the earlier one in DOM order). The
+  // renderer already paints collapsed borders CENTERED on the grid line, so when
+  // both cells adjacent to an internal edge resolve to the SAME winner they
+  // overlap exactly — and structural-element box borders are suppressed (their
+  // contribution is folded into the cells' edges here). Scoped to simple tables
+  // (no rowspan / colspan); complex tables fall back to `cellHiddenNeighbors`.
+  // Blink EBorderStyle ordering (higher wins the `>` tiebreak): double > solid >
+  // dashed > dotted > ridge > outset > groove > inset > none; `hidden` separate.
+  const COLLAPSE_STYLE_RANK = { none: 0, inset: 2, groove: 3, outset: 4, ridge: 5, dotted: 6, dashed: 7, solid: 8, double: 9 };
+  const sideBorder = (element, side, order) => {
+    if (element == null) return null;
+    const c = getComputedStyle(element);
+    return { w: parseFloat(c['border' + side + 'Width']) || 0, style: c['border' + side + 'Style'], color: c['border' + side + 'Color'], order };
+  };
+  const resolveEdge = (cands) => {
+    let best = null;
+    for (const c of cands) {
+      if (c == null) continue;
+      if (c.style === 'hidden') return { hidden: true };
+      if (c.style === 'none' || c.w === 0) continue;
+      if (best == null) { best = c; continue; }
+      if (c.w > best.w) { best = c; continue; }
+      if (c.w < best.w) continue;
+      const cr = COLLAPSE_STYLE_RANK[c.style] || 0, br = COLLAPSE_STYLE_RANK[best.style] || 0;
+      if (cr > br) best = c;
+      else if (cr === br && c.order < best.order) best = c;
+    }
+    return best;
+  };
+  const resolveCollapsedCellBorders = (el, tag, cs) => {
+    if ((tag !== 'td' && tag !== 'th') || cs.borderCollapse !== 'collapse') return null;
+    const tr = el.parentElement;
+    if (tr == null || tr.tagName !== 'TR') return null;
+    let table = tr.parentElement;
+    while (table != null && table.tagName !== 'TABLE') table = table.parentElement;
+    if (table == null) return null;
+    const allRows = Array.from(table.querySelectorAll('tr')).filter((t) => {
+      let p = t.parentElement; while (p != null && p.tagName !== 'TABLE') p = p.parentElement; return p === table;
+    });
+    const grid = [];
+    for (const row of allRows) {
+      const cells = Array.from(row.children).filter((x) => x.tagName === 'TD' || x.tagName === 'TH');
+      for (const cell of cells) { if ((cell.colSpan || 1) > 1 || (cell.rowSpan || 1) > 1) return null; }
+      grid.push({ row: row, cells: cells });
+    }
+    let rIdx = -1, cIdx = -1;
+    for (let i = 0; i < grid.length; i++) { const j = grid[i].cells.indexOf(el); if (j >= 0) { rIdx = i; cIdx = j; break; } }
+    if (rIdx < 0) return null;
+    const R = grid.length, C = grid[rIdx].cells.length;
+    let section = tr.parentElement;
+    if (section == null || (section.tagName !== 'THEAD' && section.tagName !== 'TBODY' && section.tagName !== 'TFOOT')) section = null;
+    // Expand <colgroup>/<col> into a per-column [{col, colgroup}] list.
+    const colOf = [];
+    for (const cg of Array.from(table.children).filter((x) => x.tagName === 'COLGROUP')) {
+      const colEls = Array.from(cg.children).filter((x) => x.tagName === 'COL');
+      if (colEls.length === 0) { const span = cg.span || 1; for (let i = 0; i < span; i++) colOf.push({ col: null, colgroup: cg }); }
+      else for (const col of colEls) { const span = col.span || 1; for (let i = 0; i < span; i++) colOf.push({ col: col, colgroup: cg }); }
+    }
+    const ci = colOf[cIdx] || { col: null, colgroup: null };
+    // Tiny, position-encoded order so earlier cells win ties AND cells (<1) beat
+    // structural sources (≥1). row=1, section=2, col=3, colgroup=4, table=5.
+    const cellOrd = (r, c) => (r * 1000 + c) / 1000000;
+    const cellAt = (r, c) => (grid[r] && grid[r].cells[c]) || null;
+    // DM-1260: bail out of conflict resolution when this cell — or any cell that
+    // shares one of its edges — is laid OFF the grid by Chrome (a sub-pixel
+    // offset, detected by the same shifted-consensus heuristic the renderer uses
+    // for collapsed-border centering). For off-grid cells the two "shared" borders
+    // do NOT actually coincide (Chrome paints both, a couple px apart), so
+    // collapsing them to one winner is wrong — fall back to per-cell own borders
+    // (+ the `hidden` neighbor handling). Computed once per table and cached on the
+    // table node (page-context scratch property, discarded with the page).
+    let offSet = table.__dmOffGridCells;
+    if (offSet == null) {
+      const rects = [];
+      for (const g of grid) for (const cell of g.cells) rects.push({ cell: cell, r: cell.getBoundingClientRect() });
+      const vE = [], hE = [];
+      for (const o of rects) { vE.push(o.r.left, o.r.right); hE.push(o.r.top, o.r.bottom); }
+      const shifted = (coord, others) => {
+        for (const a of others) { const d = Math.abs(a - coord); if (d <= 0.5 || d > 2) continue; let agree = 0; for (const b of others) if (Math.abs(b - a) <= 0.5) agree++; if (agree >= 2) return true; }
+        return false;
+      };
+      offSet = new Set();
+      for (const o of rects) {
+        if (shifted(o.r.left, vE) || shifted(o.r.right, vE) || shifted(o.r.top, hE) || shifted(o.r.bottom, hE)) offSet.add(o.cell);
+      }
+      table.__dmOffGridCells = offSet;
+    }
+    for (const n of [el, cellAt(rIdx - 1, cIdx), cellAt(rIdx + 1, cIdx), cellAt(rIdx, cIdx - 1), cellAt(rIdx, cIdx + 1)]) {
+      if (n != null && offSet.has(n)) return null;
+    }
+    // Each grid edge is painted EXACTLY ONCE so two cells can't double-paint a
+    // shared edge (which mis-renders when one cell is laid off-grid — its inset
+    // paint and the neighbor's centered paint land a few px apart). Convention:
+    // every cell paints its RIGHT and BOTTOM edges; it paints TOP/LEFT only when
+    // it's the outermost cell (first row / first column). Internal top/left edges
+    // are owned by the cell above / to the left (its bottom / right). The winner
+    // is resolved from BOTH adjacent cells (+ structural sources) either way, so
+    // the single painted border is the correct one.
+    const colR = colOf[cIdx + 1] || { col: null, colgroup: null };
+    const top = rIdx === 0 ? resolveEdge([
+      sideBorder(el, 'Top', cellOrd(rIdx, cIdx)),
+      sideBorder(tr, 'Top', 1), sideBorder(section, 'Top', 2), sideBorder(table, 'Top', 5),
+    ]) : null;
+    const left = cIdx === 0 ? resolveEdge([
+      sideBorder(el, 'Left', cellOrd(rIdx, cIdx)),
+      sideBorder(ci.col, 'Left', 3), sideBorder(ci.colgroup, 'Left', 4),
+      sideBorder(tr, 'Left', 1), sideBorder(table, 'Left', 5),
+    ]) : null;
+    const right = resolveEdge([
+      sideBorder(el, 'Right', cellOrd(rIdx, cIdx)),
+      cIdx < C - 1 ? sideBorder(cellAt(rIdx, cIdx + 1), 'Left', cellOrd(rIdx, cIdx + 1)) : null,
+      sideBorder(ci.col, 'Right', 3), sideBorder(ci.colgroup, 'Right', 4),
+      cIdx < C - 1 ? sideBorder(colR.col, 'Left', 3) : null,
+      cIdx === C - 1 ? sideBorder(tr, 'Right', 1) : null,
+      cIdx === C - 1 ? sideBorder(table, 'Right', 5) : null,
+    ]);
+    const bottom = resolveEdge([
+      sideBorder(el, 'Bottom', cellOrd(rIdx, cIdx)),
+      rIdx < R - 1 ? sideBorder(cellAt(rIdx + 1, cIdx), 'Top', cellOrd(rIdx + 1, cIdx)) : null,
+      sideBorder(tr, 'Bottom', 1),
+      rIdx < R - 1 ? sideBorder(grid[rIdx + 1].row, 'Top', 1) : null,
+      rIdx === R - 1 ? sideBorder(section, 'Bottom', 2) : null,
+      rIdx === R - 1 ? sideBorder(table, 'Bottom', 5) : null,
+    ]);
+    return { top: top, right: right, bottom: bottom, left: left };
+  };
+  // DM-1260: under border-collapse, the table / row / section / column-group /
+  // column box borders don't paint as boxes — their contribution is resolved into
+  // the cell edges above. Suppress them so we don't paint concentric structural
+  // borders on top of the resolved cell borders.
+  const isCollapsedStructural = (tag, cs) => cs.borderCollapse === 'collapse'
+    && (tag === 'table' || tag === 'tr' || tag === 'thead' || tag === 'tbody' || tag === 'tfoot' || tag === 'colgroup' || tag === 'col');
+
   const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture) => ({
     backgroundColor: (function () {
       if (isPlaceholderCapture) {
@@ -207,6 +344,35 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     borderBottomColor: tintedBorderColor(tag, el, cs, 'borderBottomColor'),
     borderLeftColor: tintedBorderColor(tag, el, cs, 'borderLeftColor'),
     borderCollapse: cs.borderCollapse,
+    // DM-1260: full collapsed-border conflict resolution. For a cell, override
+    // each side with the resolved winning border (overlapping the adjacent cell's
+    // matching resolved side); for a collapsed structural element, suppress its
+    // box border (folded into the cells). Placed AFTER the per-side width/style/
+    // color fields above so it wins. Complex tables (no resolution) fall through.
+    ...(function () {
+      if (isCollapsedStructural(tag, cs)) {
+        return {
+          borderTopStyle: 'none', borderRightStyle: 'none', borderBottomStyle: 'none', borderLeftStyle: 'none',
+          borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',
+          // Also clear the shorthands — the renderer's legacy uniform-border path
+          // falls back to `borderWidth` / `borderColor` when the per-side parses
+          // resolve to a zero-width border, which would re-paint the structural box.
+          borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)',
+        };
+      }
+      const rb = resolveCollapsedCellBorders(el, tag, cs);
+      if (rb == null) return {};
+      const sideOut = (resolved, side) => {
+        if (resolved == null) return { ['border' + side + 'Style']: 'none', ['border' + side + 'Width']: '0px' };
+        if (resolved.hidden) return { ['border' + side + 'Style']: 'hidden' };
+        return {
+          ['border' + side + 'Style']: resolved.style,
+          ['border' + side + 'Width']: resolved.w + 'px',
+          ['border' + side + 'Color']: normColor(resolved.color),
+        };
+      };
+      return { ...sideOut(rb.top, 'Top'), ...sideOut(rb.right, 'Right'), ...sideOut(rb.bottom, 'Bottom'), ...sideOut(rb.left, 'Left') };
+    })(),
     frostedBgFallback: computeFrostedBgFallback(cs),
     backgroundImage: normGradientColors(cs.backgroundImage, cs.color),
     backgroundSize: cs.backgroundSize,

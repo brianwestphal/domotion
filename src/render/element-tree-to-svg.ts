@@ -2380,17 +2380,27 @@ export function elementTreeToSvgInner(
   // centered painting.
   const offGridCollapsedCells = new Set<CapturedElement>();
   {
-    const collapsedCells: CapturedElement[] = [];
-    const collect = (el: CapturedElement) => {
-      if (el.styles?.borderCollapse === "collapse" && (el.tag === "td" || el.tag === "th")) {
-        collapsedCells.push(el);
+    // DM-1260: scope the off-grid detection PER TABLE. The shifted-consensus
+    // heuristic compares cell edges against each other, so running it over every
+    // collapsed cell in the document lets cells in one table falsely "vote" a cell
+    // in a DIFFERENT table off-grid whenever their unrelated x/y coordinates land
+    // 1-2px apart — which disabled collapsed-border centering on innocent tables
+    // (e.g. the conflict-resolution fixture's tie-test). Group by the owning
+    // <table> first, then detect within each.
+    const groups = new Map<CapturedElement, CapturedElement[]>();
+    const collect = (el: CapturedElement, table: CapturedElement | null) => {
+      const t = el.tag === "table" ? el : table;
+      if (t != null && el.styles?.borderCollapse === "collapse" && (el.tag === "td" || el.tag === "th")) {
+        const arr = groups.get(t); if (arr) arr.push(el); else groups.set(t, [el]);
       }
-      for (const c of el.children) collect(c);
+      for (const c of el.children) collect(c, t);
     };
-    for (const root of elements) collect(root);
-    const offGrid = findOffGridCollapsedCells(collapsedCells);
-    for (let i = 0; i < collapsedCells.length; i++) {
-      if (offGrid[i]) offGridCollapsedCells.add(collapsedCells[i]);
+    for (const root of elements) collect(root, null);
+    for (const cells of groups.values()) {
+      const offGrid = findOffGridCollapsedCells(cells);
+      for (let i = 0; i < cells.length; i++) {
+        if (offGrid[i]) offGridCollapsedCells.add(cells[i]);
+      }
     }
   }
 
