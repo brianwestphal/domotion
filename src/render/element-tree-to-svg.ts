@@ -785,7 +785,27 @@ function paintText(
       ? topmostTextBgClipFill
       : (textColor != null ? colorStr(textColor) : "#e6edf3");
     const cid = ctx.nextClipId("ct");
-    ctx.defsParts.push(`<clipPath id="${cid}"><rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" /></clipPath>`);
+    // DM-1266: a form field's value text clips to the element's CONTENT box
+    // (inside border + padding), not the border box. Chrome paints an
+    // overflowing <input> value clipped at the content edge — a long value shows
+    // "…cu" with the next glyph cut at the content/padding boundary, ~border+
+    // padding px inside the right border. Clipping to the border box (the default
+    // here) let the overflowing glyph paint into the padding strip. Inset only
+    // HORIZONTALLY: the value is single-line and vertically centered, and our
+    // captured input baseline can sit a hair outside a padding-tight vertical
+    // box, so a vertical inset risks clipping text Chrome shows. Other elements
+    // keep the border-box text clip (it only applies when overflow != visible,
+    // where the padding-box children clip already bounds descendants).
+    let ctX = el.x, ctW = el.width;
+    if (el.tag === "input" || el.tag === "textarea") {
+      const bl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+      const br = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const pl = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+      const pr = parseFloat(el.styles.paddingRight ?? "0") || 0;
+      ctX = el.x + bl + pl;
+      ctW = Math.max(0, el.width - bl - br - pl - pr);
+    }
+    ctx.defsParts.push(`<clipPath id="${cid}"><rect x="${r(ctX)}" y="${r(el.y)}" width="${r(ctW)}" height="${r(el.height)}" /></clipPath>`);
 
     // SK-1128: writing-mode != horizontal-tb activates the same element-raster
     // path used for textareas (SK-1108) — screenshot stamped as <image>,
