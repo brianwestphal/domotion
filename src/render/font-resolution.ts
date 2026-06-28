@@ -1057,12 +1057,28 @@ export function resolveFontSpec(key: string): FontPath | null {
 // there, handled by the primary-`.notdef` terminal).
 const systemFallbackKeyCache = new Map<number, string | null>();
 
-// DM-1018: gate for the per-codepoint CoreText system-fallback resolution.
-// Each first-seen uncovered codepoint costs one `CTFontCreateForString`
-// subprocess round-trip (memoized after). Worth it for blocks where a real
-// system font exists that the sampled per-block table missed (Kana Supplement
-// → Mplus 1p). darwin-only; auto-off when the helper binary isn't present.
-let _systemFallbackResolutionEnabled = process.platform === "darwin";
+// DM-1018: gate for the per-codepoint live system-fallback resolution. Each
+// first-seen uncovered codepoint costs one resolver round-trip (memoized after).
+// Worth it for blocks where a real system font exists that the sampled per-block
+// table missed (macOS: Kana Supplement → Mplus 1p; Linux: any covering face the
+// generated table's block-level route lacks at the codepoint level).
+//
+// macOS: CoreText `CTFontCreateForString` (always on; auto-off when the helper
+// binary isn't present).
+//
+// Linux: fontconfig `fc-match :charset` (DM-1403). Default-ON as of DM-1416 —
+// calibrated against Chromium-on-noble paint (tools/scratch probe-1416), which
+// proved every fc-match-vs-Chromium divergence is harmless: non-covering picks
+// are rejected by the coverage guard (→ tofu, matching Chromium), covered picks
+// duplicate the static chain (so the resolver never fires there), and the only
+// "glyph where Chromium tofus" cases are orphaned variation selectors already
+// stripped upstream by `stripOrphanedDefaultIgnorables` (DM-1158). Set
+// `DOMOTION_SYSTEM_FALLBACK=0` to force it off (e.g. to reproduce the pre-flip
+// bare-table baseline). Other platforms (Windows) stay off until their
+// resolver backend ships (DM-1403 follow-up).
+let _systemFallbackResolutionEnabled =
+  process.platform === "darwin"
+  || (process.platform === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0");
 /**
  * Test/perf hook to toggle the CoreText per-codepoint fallback resolver. This is
  * a PROCESS-GLOBAL: a caller that flips it without restoring silently changes
@@ -1092,14 +1108,15 @@ export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
 }
 
 /**
- * Resolve the system fallback font for a codepoint the way Chrome-on-macOS
- * does — via CoreText's `CTFontCreateForString` (see `resolveSystemFallbackFonts`
- * in glyph-helper). Registers the resolved on-disk font as a dynamic
+ * Resolve the system fallback font for a codepoint the way the browser does,
+ * per platform: macOS via CoreText `CTFontCreateForString` (the native
+ * `resolveSystemFallbackFonts` helper); Linux via fontconfig `fc-match :charset`
+ * (DM-1403/DM-1416). Registers the resolved on-disk font as a dynamic
  * `sysfb:<postscriptName>` key and returns it, so the chain walker can open it
- * through the normal `getFontInstance` path. Returns null when CoreText
- * resolves to LastResort (keep `last-resort`) or the helper isn't available
- * (non-macOS / unbuilt). darwin-only: Linux/Windows have their own system
- * fallback engines and aren't wired here yet.
+ * through the normal `getFontInstance` path. Returns null when the platform
+ * engine resolves to LastResort / a non-covering default (keep `last-resort`),
+ * or the backend isn't available. Windows (DirectWrite
+ * `IDWriteFontFallback::MapCharacters`) is not wired here yet (DM-1403 follow-up).
  */
 function resolveSystemFallbackKeyForCp(cp: number): string | null {
   if (systemFallbackKeyCache.has(cp)) return systemFallbackKeyCache.get(cp)!;
@@ -1112,11 +1129,12 @@ function resolveSystemFallbackKeyForCp(cp: number): string | null {
         key = `sysfb:${resolved.postscriptName}`;
         registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
       }
-    } else if (process.platform === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK) {
-      // DM-1403: fontconfig live fallback for Linux — opt-in (off by default)
-      // until it's calibrated against Chromium-on-Linux paint, so it doesn't
-      // shift the committed CI baselines yet. Windows (DirectWrite
-      // IDWriteFontFallback::MapCharacters) is a follow-up.
+    } else if (process.platform === "linux") {
+      // DM-1403/DM-1416: fontconfig live fallback for Linux, default-on (gated
+      // by `_systemFallbackResolutionEnabled`, which honors DOMOTION_SYSTEM_FALLBACK=0).
+      // Calibrated against Chromium-on-noble paint — see the flag comment above
+      // and docs/80. Windows (DirectWrite IDWriteFontFallback::MapCharacters) is
+      // a follow-up.
       key = resolveLinuxSystemFallbackKeyForCp(cp);
     }
   } catch { key = null; }
@@ -1131,16 +1149,52 @@ function resolveSystemFallbackKeyForCp(cp: number): string | null {
  * whose charset covers `cp`; register it as a `sysfb:` key (fontkit-extracted,
  * like the rest of the Linux chain) so the chain walker opens it through the
  * normal path. Returns null when fontconfig finds nothing (→ the codepoint
- * falls through to LastResort tofu, unchanged from before). Behind the
- * `DOMOTION_SYSTEM_FALLBACK` opt-in (see the caller).
+ * falls through to LastResort tofu, unchanged from before).
+ *
+ * DM-1416 (coverage guard): `fc-match :charset` ALWAYS returns a font — when
+ * nothing actually covers `cp` it returns fontconfig's default face (e.g. it
+ * returns WenQuanYi Zen Hei for U+17000 Tangut, which WenQuanYi does not
+ * contain). The empirical Chromium-on-noble calibration (tools/scratch
+ * probe-1416) showed this is by far the dominant divergence between fc-match's
+ * pick and Chromium's painted family: ~91% of divergences are exactly this
+ * non-covering default, and the chain walker already drops them to tofu — which
+ * matches Chromium, since Chromium also tofus those codepoints. So we verify the
+ * matched font genuinely covers `cp` (`glyphForCodePoint(cp).id !== 0`) before
+ * registering it; a non-covering pick returns null (→ tofu, as before) rather
+ * than registering a face that would only be rejected downstream. Net effect:
+ * the resolver registers ONLY covering faces (doc 80, calibration step 3).
  */
 function resolveLinuxSystemFallbackKeyForCp(cp: number): string | null {
   const matched = fcMatch(`:charset=${cp.toString(16)}`);
   if (matched == null) return null;
+  // Coverage guard (DM-1416): fc-match returns a default even when nothing
+  // covers cp; only register a face that actually has a glyph for it.
+  if (!fontFileCoversCodepoint(matched.path, matched.postscriptName, cp)) return null;
   const name = matched.postscriptName ?? matched.path.split("/").pop() ?? "fallback";
   const key = `sysfb:${name}`;
   registerDynamicSystemFont(key, matched.path, matched.postscriptName ?? name, "fontkit");
   return key;
+}
+
+// DM-1416: does the on-disk font at `path` (TTC member `postscriptName`) contain
+// a real glyph for `cp`? Used by the Linux live system-fallback resolver to
+// reject fc-match's non-covering default picks. Mirrors the TTC member-selection
+// logic in `getFontInstance`. Cheap + cached: fontkit memoizes opened files, and
+// resolver results are memoized per codepoint by the caller.
+function fontFileCoversCodepoint(path: string, postscriptName: string | undefined, cp: number): boolean {
+  try {
+    const opened: any = fontkit.openSync(path);
+    let font: any = opened;
+    if (opened != null && Array.isArray(opened.fonts)) {
+      font = (postscriptName != null && opened.getFont != null)
+        ? (opened.getFont(postscriptName) ?? opened.fonts[0])
+        : opened.fonts[0];
+    }
+    return font != null && typeof font.glyphForCodePoint === "function"
+      && font.glyphForCodePoint(cp).id !== 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Test-only: drive the per-codepoint live system-fallback resolver directly
