@@ -478,6 +478,23 @@ const MACOS_FONTS_DC = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
     const r = run("\u{113C9}"); // Tulu-Tigalari AU LENGTH MARK — InPC=Right, not reordered
     expect(r.text).toBe("◌\u{113C9}");
   });
+  it("DM-1215: an orphaned RTL-SMP-script mark paints mark-then-circle (tofu LEFT, ◌ RIGHT)", () => {
+    // Sogdian COMBINING DOT BELOW U+10F46 — no font covers it. Chrome lays the
+    // cell out right-to-left, so the .notdef tofu sits LEFT and the synthetic ◌
+    // sits to its right. The capture probe flags index 0 (dottedCircleMarks).
+    const r = insertSyntheticDottedCircles("\u{10F46}", undefined, fam, 400, 32, 0, undefined, undefined, [0]);
+    expect(r.text).toBe("\u{10F46}◌"); // mark FIRST, ◌ after — NOT "◌ mark"
+  });
+  it("DM-1215: positions the appended ◌ past the RTL mark tofu's advance", () => {
+    const r = insertSyntheticDottedCircles("\u{10F46}", [674.39, 674.39], fam, 400, 32, 0, undefined, undefined, [0]);
+    expect(r.text).toBe("\u{10F46}◌");
+    expect(r.xOffsets!.length).toBe(3); // surrogate pair + ◌
+    expect(r.xOffsets![0]).toBeCloseTo(674.39, 3); // mark at the captured cell origin
+    expect(r.xOffsets![1]).toBeCloseTo(674.39, 3);
+    // ◌ shifted right by the mark tofu's advance so it clears the box rather than
+    // overlapping it (the bug DM-1255/1261/1262/1265/1272/1273 reported).
+    expect(r.xOffsets![2]).toBeGreaterThan(674.39 + 16);
+  });
   it("does NOT insert ◌ for a generic Latin combining mark (covered + default shaper)", () => {
     const r = run("á"); // a + combining acute — covered, has a base
     expect(r.text).toBe("á");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-// @ts-expect-error — page-context module is untyped (@ts-nocheck)
+// page-context module is untyped (@ts-nocheck) but resolves cleanly here
 import { createCounterStyleResolver } from "./counter-style-resolver.js";
 
 // DM-1274: `counter()` / `counters()` with a BUILT-IN style argument (e.g.
