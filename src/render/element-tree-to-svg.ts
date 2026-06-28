@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, fontSpaceAdvancePx, renderRadicalGlyph } from "./text-to-path.js";
+import { getEmbeddedFontFaceCss, getGlyphDefs, measureLastGlyphRsb, renderRadicalGlyph } from "./text-to-path.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
@@ -546,53 +546,34 @@ function paintListMarker(
           // here because it risks false positives on author-painted glyphs.
           const textPresDefault = /[➤]/g;
           label = label.replace(textPresDefault, (ch) => ch + "︎");
-          // DM-1119: the UA `::marker` is `white-space: normal`, so a
-          // `@counter-style` suffix like `":  "` (two spaces) collapses to a
-          // SINGLE space in Chrome's paint. Mirror that — otherwise the earlier
-          // DM-770 `xml:space="preserve"` rendered both spaces and pushed the
-          // marker ~1 space-width left of Chrome (measured on `domo-step`).
-          label = collapseMarkerWhitespace(label);
           const markerFontFamily = el.markerFontFamily ?? el.styles.fontFamily;
-          // DM-790: SVG `<text text-anchor="end">` places the anchor at the
-          // last glyph's advance-end, not its visible-right edge. Chromium
-          // paints the marker so its visible right sits ~7 px from the
-          // content edge (`kCMarkerPaddingPx` in
-          // `list_marker.cc::InlineMarginsForOutside`). Shape the label
-          // through fontkit and read the last non-whitespace glyph's rsb so
-          // the anchor compensates exactly: `mx = el.x − 7 + rsb`. The
-          // helper trims trailing whitespace before measuring because
-          // Chrome's SVG renderer collapses trailing whitespace under
-          // `xml:space="preserve"` (DM-789 probed this). Built-in numeric
-          // markers ending in `.` resolve back to `el.x − 4` via this same
-          // formula (period rsb ≈ 3 px in system-ui).
-          const markerLastRsb = measureLastGlyphRsb(label, markerFontSize, markerFontFamily, markerFontWeight);
           const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
           const borderL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-          // DM-1154: Blink right-aligns the marker box with its END at the list
-          // item's content edge (`margin_end = 0`, `list_marker.cc`), so a marker
-          // whose suffix is a trailing SPACE (e.g. `@counter-style { suffix: " " }`)
-          // has that space's advance as the marker→content gap. SVG drops trailing
-          // whitespace, so anchor the trimmed text's advance-end at
-          // `el.x − (trailing-space advance)`. This lands wide symbols where Chrome
-          // paints them (the prior fixed visible-right-at-`el.x − 7` model lost the
-          // space's width and slid them ~2–4px right). Markers WITHOUT a trailing
-          // space keep that model (it already matches Chrome's `.`-suffix gap).
-          const trailingWs = /[ \t]+$/.exec(label);
-          const mx = outside
-            ? (trailingWs != null
-                ? el.x - [...trailingWs[0]].length * fontSpaceAdvancePx(markerFontSize, markerFontFamily, markerFontWeight)
-                : el.x - 7 + markerLastRsb)
-            : el.x + borderL + padL;
+          const contentEdge = el.x + borderL + padL;
+          // DM-1258: an OUTSIDE `::marker` is `white-space: pre` (style_adjuster.cc
+          // SetWhiteSpace(kPre): "Do not break inside the marker, and honor the
+          // trailing spaces"), and Blink right-aligns the marker box with its END
+          // FLUSH at the content edge (`margin_end = 0` — the kLanguage / default
+          // branch of `list_marker.cc::InlineMarginsForOutside`, where
+          // `margin_start = -marker_inline_size`). So the FULL marker text — prefix
+          // + value + suffix, with EVERY space PRESERVED — has its advance-end at the
+          // content edge; the suffix spaces ARE the marker→content gap. Verified at
+          // 4× against Chrome: `domo-step` "Step 01:  " colon lands at
+          // contentEdge − 2×space (visible-right 87.3px at content 96), and a cyclic
+          // " " suffix shifts the symbol left by exactly one space. The earlier
+          // collapse + `el.x − 7 + rsb` / trailing-space-subtraction models
+          // (DM-790 / DM-1119 / DM-1154) were curve-fit to noisy 1× probes and
+          // over/under-shot wide or multi-space suffixes. `xml:space="preserve"`
+          // makes SVG honor the suffix spaces exactly as the `white-space: pre`
+          // marker does. INSIDE markers join the content line (white-space: normal),
+          // so their suffix whitespace collapses — keep the collapse + start-anchor.
+          const renderLabel = outside ? label : collapseMarkerWhitespace(label);
+          const mx = contentEdge;
           const anchor = outside ? "end" : "start";
-          const escLabel = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          // DM-1119: after the whitespace collapse above the label never holds
-          // a run of 2+ spaces, and Chrome's `white-space: normal` marker trims
-          // its trailing space (verified: the single-suffix-space emoji markers
-          // here match when we strip it). So no `xml:space="preserve"` — SVG's
-          // default collapse/trim mirrors the marker's own white-space handling.
-          // (The pre-DM-1119 `preserve` on doubled suffix spaces rendered both
-          // and slid the marker ~1 space-width left of Chrome.)
-          const xmlSpace = "";
+          const escLabel = renderLabel.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          // DM-1258: outside markers preserve their suffix spaces (white-space: pre);
+          // inside markers fold into the content line, so let SVG collapse there.
+          const xmlSpace = outside ? ' xml:space="preserve"' : "";
           out.push(
             `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}"${xmlSpace}>${escLabel}</text>`,
           );
