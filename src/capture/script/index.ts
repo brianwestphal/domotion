@@ -882,7 +882,14 @@ export const captureScript =
     container.style.margin = '0';
     container.style.display = gcs.display && gcs.display !== 'inline' ? gcs.display : 'flex';
     container.style.justifyContent = gcs.justifyContent || 'center';
-    container.style.alignItems = gcs.alignItems && gcs.alignItems !== 'normal' ? gcs.alignItems : 'center';
+    // DM-1257: the markers overflow the padding-height group box (see below), and
+    // Chrome top-aligns them at padding-top + marker-margin from the group's TOP
+    // edge for BOTH `before` and `after` (verified: `after` dots sit padTop+margin
+    // below the scroller-bottom; `before` dots sit padTop+margin below the
+    // before-group's top, i.e. flush against the scroller's top edge). So always
+    // flex-start — default `normal`/`center` would center them in the zero-height
+    // content box and mis-place the row.
+    container.style.alignItems = 'flex-start';
     if (gcs.gap && gcs.gap !== 'normal') container.style.gap = gcs.gap;
     container.style.padding = gcs.padding || '0';
     container.style.background = gcs.backgroundColor || 'transparent';
@@ -906,10 +913,10 @@ export const captureScript =
       m.style.borderRadius = mc.borderRadius;
       m.style.background = mc.backgroundColor;
       m.style.color = mc.color;
-      // Horizontal margin spaces the markers along the row; vertical margin does
-      // NOT expand Chrome's generated group box (measured), so zero it out so the
-      // replica's measured height matches the real group.
-      m.style.marginTop = '0'; m.style.marginBottom = '0';
+      // DM-1257: keep the marker's vertical margin — it offsets each dot inside
+      // the group (dot-top = group padding-top + marker margin-top). Horizontal
+      // margin spaces the row.
+      m.style.marginTop = mc.marginTop || '0'; m.style.marginBottom = mc.marginBottom || '0';
       m.style.marginLeft = mc.marginLeft || '0'; m.style.marginRight = mc.marginRight || '0';
       m.style.padding = mc.padding;
       m.style.fontSize = mc.fontSize;
@@ -925,20 +932,24 @@ export const captureScript =
       }
       container.appendChild(m);
     }
-    doc.body.appendChild(container);
-    var gh = container.getBoundingClientRect().height;
-    // Chrome paints the marker group with its MARKERS flush against the scroller
-    // edge — the group's outer padding overlaps the scroller's own padding band
-    // rather than adding a separate gap (measured: the visible group below an
-    // `after` scroller is ~group-height-minus-top-padding tall, with the dots
-    // sitting right at the scroller's bottom edge). Reproduce that by sliding the
-    // replica so the marker row's content edge meets the scroller edge: for
-    // `after`, content-top (= containerTop + paddingTop) lands at rect.bottom;
-    // for `before`, content-bottom (= containerTop + gh - paddingBottom) lands at
-    // rect.top.
+    // DM-1257: Chrome's generated `::scroll-marker-group` box is PADDING-height —
+    // its content height is ~0 and the markers OVERFLOW it (verified with a
+    // contrast probe: the group background spans exactly [scroller-border-edge,
+    // edge + padding-top + padding-bottom], while the dots sit at padding-top +
+    // marker-margin and hang past the box). The box's outer edge is flush against
+    // the scroller's border-box edge (top edge at `rect.bottom` for `after`,
+    // bottom edge at `rect.top` for `before`). Force the replica to that geometry:
+    // padding-only height with overflow visible, so the captured group bg rect
+    // matches Chrome AND the captured marker rects land where Chrome paints them.
+    // (The earlier `rect.bottom - padTop` + full-flex-height model painted the
+    // dots ~16px too high and the bg band the wrong length.)
     var padTop = parseFloat(gcs.paddingTop || '0') || 0;
     var padBottom = parseFloat(gcs.paddingBottom || '0') || 0;
-    var targetTop = position === 'after' ? (rect.bottom - padTop) : (rect.top - gh + padBottom);
+    var groupBoxH = padTop + padBottom;
+    container.style.height = groupBoxH + 'px';
+    container.style.overflow = 'visible';
+    doc.body.appendChild(container);
+    var targetTop = position === 'after' ? rect.bottom : (rect.top - groupBoxH);
     container.style.left = (rect.left + window.scrollX) + 'px';
     container.style.top = (targetTop + window.scrollY) + 'px';
     var node = capture(container);
