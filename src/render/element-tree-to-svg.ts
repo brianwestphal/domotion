@@ -3152,7 +3152,21 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
           ocmInflate = Math.max(0, margin - Math.min(offT, offR, offB, offL));
         }
       }
-      const inflateT = Math.max(outlineInflate, shadowInflateT, ocmInflate);
+      // DM-1264: a <fieldset>'s rendered <legend> is part of the block-start
+      // BORDER, not the scrollport — per Blink `fieldset_layout_algorithm.cc`:
+      // "the rendered legend shouldn't be part of the scrollport; the legend is
+      // essentially a part of the block-start border ... scrollbars are handled by
+      // the anonymous child box." So the fieldset's own `overflow` clip (which we
+      // bind to its border box) must NOT cut the legend, which straddles the
+      // border line and protrudes above the border-box top. Raise the clip's top
+      // edge by the legend's protrusion so it clears the legend (the block-start
+      // border strip holds nothing else). Without this, `fieldset { overflow:
+      // auto }` (resize needs overflow != visible) clipped the top half of the
+      // legend text.
+      const legendInflateT = el.fieldsetLegendNotch != null
+        ? Math.max(0, el.y - el.fieldsetLegendNotch.y)
+        : 0;
+      const inflateT = Math.max(outlineInflate, shadowInflateT, ocmInflate, legendInflateT);
       const inflateR = Math.max(outlineInflate, shadowInflateR, ocmInflate);
       const inflateB = Math.max(outlineInflate, shadowInflateB, ocmInflate);
       const inflateL = Math.max(outlineInflate, shadowInflateL, ocmInflate);
@@ -3757,6 +3771,18 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     let ocY = el.y + cbt;
     let ocW = Math.max(0, el.width - cbl - cbr);
     let ocH = Math.max(0, el.height - cbt - cbb);
+    // DM-1264: a <fieldset>'s rendered <legend> is part of the block-start BORDER,
+    // not the scrollport — per Blink `fieldset_layout_algorithm.cc`: "the rendered
+    // legend shouldn't be part of the scrollport; the legend is essentially a part
+    // of the block-start border ... scrollbars are handled by the anonymous child
+    // box." So a `fieldset { overflow: auto }` (resize needs overflow != visible)
+    // must NOT clip the legend, which straddles the border line and protrudes above
+    // the padding box. Raise the clip's top edge to clear the legend (the block-
+    // start border strip holds nothing else that could leak out).
+    if (el.fieldsetLegendNotch != null) {
+      const protrude = ocY - el.fieldsetLegendNotch.y;
+      if (protrude > 0) { ocY -= protrude; ocH += protrude; }
+    }
     const isClip = ox === "clip" || oy === "clip";
     // DM-787: CSS Overflow 3 allows mixing `overflow-x: clip; overflow-y:
     // visible` (only `clip` permits this — `hidden + visible` coerces to
