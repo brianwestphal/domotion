@@ -3187,6 +3187,77 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement): string 
 }
 
 
+function computeGroupWrapperAttrs(
+  el: CapturedElement,
+  clipPathUrlId: string | null,
+  maskUrlId: string | null,
+  opacity: number,
+  filterCss: string,
+  blendCss: string,
+): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean } {
+  const transformAttr = svgTransformForElement(el);
+  // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
+  // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
+  // contain:paint, transform, filter…) must form an isolated group for
+  // mix-blend-mode descendants. SVG2 honors `isolation:isolate` natively on
+  // <g>, so emit it as inline style. Don't apply when this element ITSELF
+  // uses mix-blend-mode — that group is the blender, not an isolator. The
+  // explicit `isolation: isolate` value must always apply (even with
+  // mix-blend-mode the group can be both blender and isolator for its own
+  // descendants); but for implicit isolators, only honor when no blend mode
+  // is set on the group, otherwise we'd convert intentional blends into
+  // no-ops.
+  const explicitIsolate = el.styles.isolation === "isolate";
+  const implicitIsolate = blendCss === "" && (
+    opacity < 1
+    || (el.styles.position != null && el.styles.position !== "static"
+        && el.styles.zIndex != null && el.styles.zIndex !== "" && el.styles.zIndex !== "auto")
+    || (el.styles.contain != null && /\b(?:paint|strict|content)\b/i.test(el.styles.contain))
+  );
+  const needsIsolation = explicitIsolate || implicitIsolate;
+  // DM-603: an element marked for viewBox culling forces a wrapping <g>
+  // even if none of the above attributes would otherwise have demanded one,
+  // since that's where `style="display:none"` / `class="cull-N"` lives.
+  const needsCullWrapper = el.displayNone === true || (el.cullClass != null && el.cullClass !== "");
+  const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation || needsCullWrapper;
+  const groupAttrs: string[] = [];
+  if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
+  if (opacity < 1) groupAttrs.push(`opacity="${r(opacity)}"`);
+  if (clipPathUrlId != null) groupAttrs.push(`clip-path="url(#${clipPathUrlId})"`);
+  if (maskUrlId != null) groupAttrs.push(`mask="url(#${maskUrlId})"`);
+  // animId (DM-209): elements tagged with `data-domotion-anim="<id>"` in the
+  // source DOM get a `class="anim-<id>"` on an extra inner `<g>` wrapper so
+  // the animator can target them via CSS keyframes for intra-frame motion.
+  // The class lives on a SEPARATE wrapper from any merger-added visibility
+  // class (which gets applied to the outer group) so the two `animation`
+  // declarations don't clobber each other.
+  const animClass = el.animId != null && el.animId !== "" ? `anim-${el.animId}` : "";
+  // DM-603: viewBox-cull class (`cull-N`) goes on the OUTER group so it
+  // composes with any inner animation/transform wrappers cleanly. Likewise
+  // `style="display:none"` is on the outer group so the entire subtree is
+  // skipped from paint.
+  if (el.cullClass != null && el.cullClass !== "") groupAttrs.push(`class="${esc(el.cullClass)}"`);
+  // DM-704: SVG applies `filter` BEFORE `clip-path` when both sit on the
+  // same `<g>` (the spec: "the filter is applied to the source graphic
+  // before the clip path"). For drop-shadow / blur, that means the
+  // filter's ink area extends beyond the element box but then gets
+  // clipped back to the box and never paints — the shadow vanishes. Hoist
+  // `filter` onto an OUTER wrapper so it processes already-clipped
+  // content; the unclipped ink area then renders.
+  const needsFilterOuter = filterCss !== "" && (clipPathUrlId != null || maskUrlId != null);
+  const styleParts: string[] = [];
+  if (filterCss !== "" && !needsFilterOuter) styleParts.push(`filter:${filterCss}`);
+  if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
+  if (needsIsolation) styleParts.push("isolation:isolate");
+  if (el.displayNone === true) styleParts.push("display:none");
+  // DM-486: HTML-escape the style attribute value. Chromium normalises
+  // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
+  // produced `style="filter:url("#id")"` and broke the SVG parser.
+  if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
+  return { needsGroup, groupAttrs, animClass, needsFilterOuter };
+}
+
+
 function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
   const {
     svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
@@ -3289,65 +3360,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // viewport coordinate system the SVG draws in. Chrome resolves every
   // CSS transform function to a matrix in computed style, so we only
   // need to translate matrix() / matrix3d() into SVG syntax.
-  const transformAttr = svgTransformForElement(el);
-  // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
-  // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
-  // contain:paint, transform, filter…) must form an isolated group for
-  // mix-blend-mode descendants. SVG2 honors `isolation:isolate` natively on
-  // <g>, so emit it as inline style. Don't apply when this element ITSELF
-  // uses mix-blend-mode — that group is the blender, not an isolator. The
-  // explicit `isolation: isolate` value must always apply (even with
-  // mix-blend-mode the group can be both blender and isolator for its own
-  // descendants); but for implicit isolators, only honor when no blend mode
-  // is set on the group, otherwise we'd convert intentional blends into
-  // no-ops.
-  const explicitIsolate = el.styles.isolation === "isolate";
-  const implicitIsolate = blendCss === "" && (
-    opacity < 1
-    || (el.styles.position != null && el.styles.position !== "static"
-        && el.styles.zIndex != null && el.styles.zIndex !== "" && el.styles.zIndex !== "auto")
-    || (el.styles.contain != null && /\b(?:paint|strict|content)\b/i.test(el.styles.contain))
-  );
-  const needsIsolation = explicitIsolate || implicitIsolate;
-  // DM-603: an element marked for viewBox culling forces a wrapping <g>
-  // even if none of the above attributes would otherwise have demanded one,
-  // since that's where `style="display:none"` / `class="cull-N"` lives.
-  const needsCullWrapper = el.displayNone === true || (el.cullClass != null && el.cullClass !== "");
-  const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation || needsCullWrapper;
-  const groupAttrs: string[] = [];
-  if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
-  if (opacity < 1) groupAttrs.push(`opacity="${r(opacity)}"`);
-  if (clipPathUrlId != null) groupAttrs.push(`clip-path="url(#${clipPathUrlId})"`);
-  if (maskUrlId != null) groupAttrs.push(`mask="url(#${maskUrlId})"`);
-  // animId (DM-209): elements tagged with `data-domotion-anim="<id>"` in the
-  // source DOM get a `class="anim-<id>"` on an extra inner `<g>` wrapper so
-  // the animator can target them via CSS keyframes for intra-frame motion.
-  // The class lives on a SEPARATE wrapper from any merger-added visibility
-  // class (which gets applied to the outer group) so the two `animation`
-  // declarations don't clobber each other.
-  const animClass = el.animId != null && el.animId !== "" ? `anim-${el.animId}` : "";
-  // DM-603: viewBox-cull class (`cull-N`) goes on the OUTER group so it
-  // composes with any inner animation/transform wrappers cleanly. Likewise
-  // `style="display:none"` is on the outer group so the entire subtree is
-  // skipped from paint.
-  if (el.cullClass != null && el.cullClass !== "") groupAttrs.push(`class="${esc(el.cullClass)}"`);
-  // DM-704: SVG applies `filter` BEFORE `clip-path` when both sit on the
-  // same `<g>` (the spec: "the filter is applied to the source graphic
-  // before the clip path"). For drop-shadow / blur, that means the
-  // filter's ink area extends beyond the element box but then gets
-  // clipped back to the box and never paints — the shadow vanishes. Hoist
-  // `filter` onto an OUTER wrapper so it processes already-clipped
-  // content; the unclipped ink area then renders.
-  const needsFilterOuter = filterCss !== "" && (clipPathUrlId != null || maskUrlId != null);
-  const styleParts: string[] = [];
-  if (filterCss !== "" && !needsFilterOuter) styleParts.push(`filter:${filterCss}`);
-  if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
-  if (needsIsolation) styleParts.push("isolation:isolate");
-  if (el.displayNone === true) styleParts.push("display:none");
-  // DM-486: HTML-escape the style attribute value. Chromium normalises
-  // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
-  // produced `style="filter:url("#id")"` and broke the SVG parser.
-  if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
+  const { needsGroup, groupAttrs, animClass, needsFilterOuter } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
   const opened = needsGroup;
   if (needsFilterOuter) svgParts.push(`${indent}<g style="${esc(`filter:${filterCss}`)}">`);
   if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
