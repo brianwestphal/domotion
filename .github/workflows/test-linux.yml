@@ -70,6 +70,11 @@ jobs:
           if-no-files-found: error
 
   regression:
+    # DM-1405: distinct check-run name so this can be a REQUIRED status check
+    # without colliding with windows-fidelity.yml's `regression` job (GitHub
+    # matches required checks by name; two checks named "regression" would let
+    # the most-recent one alone satisfy the requirement).
+    name: Linux fidelity regression
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble

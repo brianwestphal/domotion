@@ -61,6 +61,9 @@ jobs:
           if-no-files-found: error
 
   regression:
+    # DM-1405: distinct check-run name (see test-linux.yml) so this Windows gate
+    # is a separately-required status check from the Linux one.
+    name: Windows fidelity regression
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
