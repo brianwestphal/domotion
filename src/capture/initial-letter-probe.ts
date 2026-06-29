@@ -32,6 +32,7 @@ import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import type { CapturedElement, TextSegment } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
+import { forEachElement } from "../tree-ops/for-each-element.js";
 
 // `seg._initialLetterProbe` is added by the capture script; declared loosely
 // since it lives only between capture and this post-pass (the renderer never
@@ -53,18 +54,14 @@ export async function refineInitialLetterPositions(
   }
   const jobs: Job[] = [];
 
-  const walk = (els: CapturedElement[]): void => {
-    for (const el of els) {
-      if (el.textSegments != null) {
-        for (const seg of el.textSegments) {
-          const probe = (seg as unknown as { _initialLetterProbe?: InitialLetterProbe })._initialLetterProbe;
-          if (probe != null) jobs.push({ seg, probe });
-        }
+  forEachElement(tree, (el) => {
+    if (el.textSegments != null) {
+      for (const seg of el.textSegments) {
+        const probe = (seg as unknown as { _initialLetterProbe?: InitialLetterProbe })._initialLetterProbe;
+        if (probe != null) jobs.push({ seg, probe });
       }
-      if (el.children.length > 0) walk(el.children);
     }
-  };
-  walk(tree);
+  });
   if (jobs.length === 0) return;
 
   for (const { seg, probe } of jobs) {

@@ -114,6 +114,38 @@ export function cliFail(name: string, message: string, kind: "usage" | "runtime"
   process.exit(kind === "usage" ? 2 : 1);
 }
 
+/**
+ * Shared entry-point harness for the standalone one-shot bins (`svg-to-image`,
+ * `svg-to-video`). Wraps the identical two-phase contract (DM-1434): print
+ * `help` for no-args / `-h` / `--help`, then `parse` the args (any throw → usage
+ * error, exit 2) and `run` the work (any throw → runtime error, exit 1). The bin
+ * supplies its own `parseArgs` + options-building inside `parse` (so the precise
+ * per-bin option types stay local) and the worker in `run`.
+ */
+export async function runBin<O>(spec: {
+  name: string;
+  help: string;
+  parse: (argv: string[]) => O;
+  run: (opts: O) => Promise<unknown>;
+}): Promise<void> {
+  const argv = process.argv.slice(2);
+  if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help") {
+    process.stdout.write(spec.help);
+    process.exit(0);
+  }
+  let opts: O;
+  try {
+    opts = spec.parse(argv);
+  } catch (err) {
+    cliFail(spec.name, err instanceof Error ? err.message : String(err), "usage");
+  }
+  try {
+    await spec.run(opts);
+  } catch (err) {
+    cliFail(spec.name, err instanceof Error ? err.message : String(err), "runtime");
+  }
+}
+
 export function parseColorScheme(value: string | undefined): "light" | "dark" | "no-preference" | undefined {
   if (value == null) return undefined;
   if (value === "light" || value === "dark" || value === "no-preference") return value;

@@ -14,7 +14,7 @@
 
 import { parseArgs } from "node:util";
 import { launchChromium } from "../index.js";
-import { cliFail, makeLogger, parsePositiveFloat, parsePositiveInt } from "./common.js";
+import { runBin, makeLogger, parsePositiveFloat, parsePositiveInt } from "./common.js";
 import { runSvgToVideo, type SvgToVideoOptions } from "./svg-to-video-core.js";
 
 /** DM-1146: validate `--color-range` → "tv" (default) | "pc". */
@@ -89,18 +89,10 @@ Examples:
 Requires ffmpeg on PATH (brew / apt / dnf / winget install ffmpeg).
 `;
 
-void main();
-
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help") {
-    process.stdout.write(HELP);
-    process.exit(0);
-  }
-
-  // Phase 1 — parse + validate args. Any failure here is a usage error (exit 2).
-  let opts: SvgToVideoOptions;
-  try {
+void runBin<SvgToVideoOptions>({
+  name: "svg-to-video",
+  help: HELP,
+  parse: (argv) => {
     const { values, positionals } = parseArgs({
       args: argv,
       allowPositionals: true,
@@ -139,7 +131,7 @@ async function main(): Promise<void> {
     if (!values.output) throw new Error("missing required -o/--output");
 
     const quiet = values.quiet ?? false;
-    opts = {
+    return {
       input,
       output: values.output,
       width: parsePositiveInt(values.width, "width"),
@@ -162,15 +154,7 @@ async function main(): Promise<void> {
       log: makeLogger(quiet),
       launchBrowser: () => launchChromium(),
     };
-  } catch (err) {
-    cliFail("svg-to-video", err instanceof Error ? err.message : String(err), "usage");
-  }
-
-  // Phase 2 — do the work. A failure here is a runtime error (exit 1).
-  try {
-    await runSvgToVideo(opts);
-  } catch (err) {
-    cliFail("svg-to-video", err instanceof Error ? err.message : String(err), "runtime");
-  }
-}
+  },
+  run: runSvgToVideo,
+});
 

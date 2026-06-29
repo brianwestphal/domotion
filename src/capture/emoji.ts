@@ -21,6 +21,7 @@ import type { Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import type { CapturedElement } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
+import { forEachElement } from "../tree-ops/for-each-element.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 let _aceFont: any = null;
@@ -241,8 +242,7 @@ export async function rasterizeBitmapGlyphs(
   //    otherwise path-rendered plain-text run; renderer stamps an <image>
   //    over each char on top of the text path.
   const candidates: RasterCandidate[] = [];
-  const walk = (els: CapturedElement[]): void => {
-    for (const el of els) {
+  forEachElement(tree, (el) => {
       // Element-level raster (SK-1108): textarea content region, too
       // involved to word-wrap in the path pipeline. Key on text+size+color so
       // identical textareas dedupe to one screenshot.
@@ -280,10 +280,7 @@ export async function rasterizeBitmapGlyphs(
           }
         }
       }
-      if (el.children.length > 0) walk(el.children);
-    }
-  };
-  walk(tree);
+  });
   if (candidates.length === 0) return;
 
   const cache = new Map<string, string>();

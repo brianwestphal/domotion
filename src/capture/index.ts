@@ -19,6 +19,7 @@ import { clipRectForScreenshot } from "./clip-rect.js";
 import { refineInitialLetterPositions } from "./initial-letter-probe.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
+import { forEachElement } from "../tree-ops/for-each-element.js";
 
 export interface CaptureOptions {
   width: number;
@@ -1080,22 +1081,18 @@ async function rasterizeReplacedElements(
     setRect: (x: number, y: number, w: number, h: number) => void;
   }
   const targets: Target[] = [];
-  const walk = (els: CapturedElement[]): void => {
-    for (const el of els) {
-      if (el.replacedSnapshot != null) {
-        const rs = el.replacedSnapshot;
-        targets.push({
-          rid: rs.rid,
-          tag: el.tag,
-          rect: { x: rs.x, y: rs.y, width: rs.width, height: rs.height },
-          setDataUri: (uri) => { rs.dataUri = uri; },
-          setRect: (x, y, w, h) => { rs.x = x; rs.y = y; rs.width = w; rs.height = h; },
-        });
-      }
-      if (el.children.length > 0) walk(el.children);
+  forEachElement(tree, (el) => {
+    if (el.replacedSnapshot != null) {
+      const rs = el.replacedSnapshot;
+      targets.push({
+        rid: rs.rid,
+        tag: el.tag,
+        rect: { x: rs.x, y: rs.y, width: rs.width, height: rs.height },
+        setDataUri: (uri) => { rs.dataUri = uri; },
+        setRect: (x, y, w, h) => { rs.x = x; rs.y = y; rs.width = w; rs.height = h; },
+      });
     }
-  };
-  walk(tree);
+  });
   if (targets.length === 0) return;
 
   // DM-562: custom elements (hyphenated tag — DM-511 routed them through
@@ -1349,15 +1346,11 @@ export async function calibrateBaselines(
   // Flatten the tree into a list of text-bearing elements with stable keys
   const flat: Array<{ key: string; el: CapturedElement }> = [];
   let counter = 0;
-  const walk = (els: CapturedElement[]) => {
-    for (const e of els) {
-      if ((e.text != null && e.text !== "") && e.textTop != null && e.textWidth != null && e.textWidth > 0 && e.textHeight != null && e.textHeight > 0) {
-        flat.push({ key: `c${counter++}`, el: e });
-      }
-      if (e.children != null && e.children.length > 0) walk(e.children);
+  forEachElement(elements, (e) => {
+    if ((e.text != null && e.text !== "") && e.textTop != null && e.textWidth != null && e.textWidth > 0 && e.textHeight != null && e.textHeight > 0) {
+      flat.push({ key: `c${counter++}`, el: e });
     }
-  };
-  walk(elements);
+  });
   if (flat.length === 0) return;
 
   const items = flat.map((f) => ({

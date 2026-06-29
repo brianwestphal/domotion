@@ -19,7 +19,8 @@
  * on shutdown.
  */
 
-import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { startLocalServer } from "../utils/local-server.js";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -328,24 +329,12 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
     }
   };
 
-  const server: Server = createServer((req, res) => { void handler(req, res); });
-  const port: number = await new Promise((resolve, reject) => {
-    server.on("error", reject);
-    server.listen(inputs.port ?? 0, "127.0.0.1", () => {
-      const addr = server.address();
-      resolve(typeof addr === "object" && addr != null ? addr.port : (inputs.port ?? 0));
-    });
-  });
-
+  const local = await startLocalServer(handler, inputs.port ?? 0);
   return {
-    url: `http://127.0.0.1:${port}/`,
-    port,
+    url: local.url,
+    port: local.port,
     close: async () => {
-      // `server.close()` stops accepting NEW connections but waits for every
-      // existing socket to go idle before firing the callback; a keep-alive
-      // client (Node's `fetch`/undici pools a socket) can delay that by tens of
-      // seconds — undesirable on Ctrl-C. Drop idle sockets so it fires promptly.
-      await new Promise<void>((r) => { server.close(() => r()); server.closeIdleConnections(); });
+      await local.close();
       if (browser != null) { await browser.close().catch(() => {}); browser = null; }
     },
   };

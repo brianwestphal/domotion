@@ -14,7 +14,7 @@
 
 import { parseArgs } from "node:util";
 import { launchChromium } from "../index.js";
-import { cliFail, makeLogger, parseNonNegativeFloat, parsePositiveInt } from "./common.js";
+import { runBin, makeLogger, parseNonNegativeFloat, parsePositiveInt } from "./common.js";
 import { resolveImageFormat, runSvgToImage, SUPPORTED_IMAGE_EXTS, type ImageFormat, type SvgToImageOptions } from "./svg-to-image-core.js";
 
 // DM-1370: delegate the `--format` keyword parsing to `resolveImageFormat`'s
@@ -79,18 +79,10 @@ Needs Chromium (Playwright); auto-installed on first run. WebP/AVIF/TIFF are
 transcoded with sharp (already a dependency), loaded only when requested.
 `;
 
-void main();
-
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help") {
-    process.stdout.write(HELP);
-    process.exit(0);
-  }
-
-  // Phase 1 — parse + validate args. Any failure here is a usage error (exit 2).
-  let opts: SvgToImageOptions;
-  try {
+void runBin<SvgToImageOptions>({
+  name: "svg-to-image",
+  help: HELP,
+  parse: (argv) => {
     const { values, positionals } = parseArgs({
       args: argv,
       allowPositionals: true,
@@ -120,7 +112,7 @@ async function main(): Promise<void> {
     if (!values.output) throw new Error("missing required -o/--output");
 
     const quiet = values.quiet ?? false;
-    opts = {
+    return {
       input,
       output: values.output,
       format: parseFormat(values.format),
@@ -134,14 +126,6 @@ async function main(): Promise<void> {
       log: makeLogger(quiet),
       launchBrowser: () => launchChromium(),
     };
-  } catch (err) {
-    cliFail("svg-to-image", err instanceof Error ? err.message : String(err), "usage");
-  }
-
-  // Phase 2 — do the work. A failure here is a runtime error (exit 1).
-  try {
-    await runSvgToImage(opts);
-  } catch (err) {
-    cliFail("svg-to-image", err instanceof Error ? err.message : String(err), "runtime");
-  }
-}
+  },
+  run: runSvgToImage,
+});

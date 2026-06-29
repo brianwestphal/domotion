@@ -23,7 +23,8 @@
  *   // server stays alive until Ctrl-C
  */
 
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { startLocalServer, sendBuffer } from "../utils/local-server.js";
 import { readFileSync, existsSync } from "node:fs";
 import { extname } from "node:path";
 import { REVIEW_CLIENT_JS } from "./client.bundle.generated.js";
@@ -156,8 +157,7 @@ export async function startReviewServer(inputs: ReviewServerInputs): Promise<Rev
       }
       const asset = assetByRoute[url];
       if (asset != null) {
-        res.writeHead(200, { "content-type": asset.contentType, "content-length": asset.buf.length });
-        res.end(asset.buf);
+        sendBuffer(res, 200, asset.contentType, asset.buf);
         return;
       }
       res.writeHead(404, { "content-type": "text/plain" });
@@ -171,18 +171,6 @@ export async function startReviewServer(inputs: ReviewServerInputs): Promise<Rev
     }
   };
 
-  const server = createServer(handler);
-  const port = await new Promise<number>((resolveFn, rejectFn) => {
-    server.once("error", rejectFn);
-    server.listen(inputs.port ?? 0, "127.0.0.1", () => {
-      const addr = server.address();
-      if (addr != null && typeof addr === "object") resolveFn(addr.port);
-      else rejectFn(new Error("svg-review: server.address() returned unexpected value"));
-    });
-  });
-  const url = `http://127.0.0.1:${port}/`;
-  // DM-1074: drop idle keep-alive sockets so `close()` fires promptly on Ctrl-C
-  // instead of waiting out a pooled client's keep-alive timeout.
-  const close = () => new Promise<void>((resolveFn) => { server.close(() => resolveFn()); server.closeIdleConnections(); });
+  const { url, port, close } = await startLocalServer(handler, inputs.port ?? 0);
   return { url, port, close };
 }
