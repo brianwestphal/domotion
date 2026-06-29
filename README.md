@@ -14,7 +14,7 @@
 
 **Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. Text is emitted as real glyph paths, so it looks identical across browsers; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
 
-Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), multi-frame **animation** with transitions, overlays, and simulated interaction, **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
+Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with transitions, overlays, and simulated interaction, **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
 
 <p align="center">
   <img src="examples/output/hero-product-demo.svg" alt="An analytics dashboard assembling itself inside a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked — all in one self-contained animated SVG" width="760">
@@ -74,6 +74,9 @@ domotion capture ./demo.html \
 
 # Capture HTML piped on stdin.
 cat demo.html | domotion capture - -o demo.svg
+
+# Capture a long page as one animated scrolling SVG (scrolls to the bottom over 8s).
+domotion capture https://example.com --scroll "down:bottom/8s" -o scroll.svg
 ```
 
 For a multi-frame animated SVG, write a small JSON config and run `domotion animate`:
