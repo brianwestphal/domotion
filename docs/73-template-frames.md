@@ -28,8 +28,9 @@ A new frame kind, alongside `input` / `cast` / `continue`:
 ```
 
 - **`template`** — a template name resolved exactly like the CLI verb: a built-in
-  (`lower-third`, `device-mockup`, `background-loop`, `kinetic-text`) or an
-  installed `domotion-template-<name>` package (see doc 70).
+  (`lower-third`, `device-mockup`, `background-loop`, `kinetic-text`, `chart`,
+  `chat`, `subscribe` — see the full registry in doc 74) or an installed
+  `domotion-template-<name>` package (see doc 70).
 - **`params`** — the template's parameters, **validated against that template's
   own zod schema** at compose time. Unknown template name or invalid params fail
   with a path-specific error (`animate: frames[2]: template "lower-third": invalid

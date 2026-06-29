@@ -90,7 +90,7 @@ Why: SVG has no native conic-gradient primitive. The cleanest fallback is to ras
 
 Capture: handled at the rendering / post-capture seam. A pre-pass `rasterizeConicGradients` (`src/capture/index.ts`) walks the captured tree, identifies each conic-gradient background layer, calls `rasterizeConic` (custom RGBA writer in `src/render/conic-raster.ts`) at `tile × hiDPIFactor` device pixels, `sharp.resize(..., { kernel: 'lanczos3' })` down to the CSS tile size, and stashes the PNG bytes in a `_conicTileCache` keyed by `(layerText, tileWidth, tileHeight, hiDPIFactor)`. DM-1252: the pre-pass also rasterizes conic backgrounds on **form-control pseudos** (e.g. a `::-webkit-slider-thumb` `background: conic-gradient(...)`) — those layers live in dedicated captured fields rather than `backgroundImage`, so `collectFormControlConicTiles` (`form-controls.ts`) surfaces each with its consumer rect size (thumb diameter, track thickness, …) and the form-control synth emits the cached tile via the injected `DefCtx.buildConicTile`. Covers the range thumb/track (DM-1252) and the color swatch + `<progress>`/`<meter>` bar + value pseudos (DM-1254), each via a shared geometry helper (`rangeMetricSizes` / `progressBarGeom` / `meterBarGeom`) used by both the render function and the collector so the rasterized tile size matches the painted rect exactly.
 
-Emit: `src/render/element-tree-to-svg.ts::buildConicGradientDef` (~line 4323) emits `<pattern id="..." patternUnits="userSpaceOnUse" ...><image href="data:image/png;base64,..." width="..." height="..."/></pattern>` and refers to it from the element's `fill="url(#...)"`.
+Emit: `src/render/element-tree-to-svg.ts::buildConicGradientDef` (~line 4500) emits `<pattern id="..." patternUnits="userSpaceOnUse" ...><image href="data:image/png;base64,..." width="..." height="..."/></pattern>` and refers to it from the element's `fill="url(#...)"`.
 
 Doc: [28-conic-gradient.md](../28-conic-gradient.md).
 
@@ -102,7 +102,7 @@ Why: the spec defines this as "rasterise the target element's paint and use that
 
 Capture: CAPTURE_SCRIPT finds each `mask-image: element(#id)` reference, marks the target element with `data-domotion-rid="mr<n>"`, and records `(id, rid, rect, width, height)` on the root tree's `maskRasters[]`. Post-capture, `rasterizeMaskSources` (`src/capture/index.ts`) runs the same hide-everything-else stylesheet pass as E4 / E5 and screenshots the target's painted rect at the page's actual DPR.
 
-Emit: `src/render/mask.ts::buildMaskDef` (moved out of element-tree-to-svg.ts in DM-1305; the element()-raster `<image>` emit is ~line 656) resolves the data URI from the per-element `elementRasters` lookup when building `<mask>` defs; emits an `<image>` directly inside the `<mask>` with `mask-position` / `mask-size` honored. `mask-mode: match-source` resolves to `luminance` (per the CSS Masking spec — element() paint refs drive mask alpha from RGB luminance).
+Emit: `src/render/mask.ts::buildMaskDef` (moved out of element-tree-to-svg.ts in DM-1305; `buildMaskDef` is at ~line 496) resolves the data URI from the per-element `elementRasters` lookup when building `<mask>` defs; emits an `<image>` directly inside the `<mask>` with `mask-position` / `mask-size` honored. `mask-mode: match-source` resolves to `luminance` (per the CSS Masking spec — element() paint refs drive mask alpha from RGB luminance).
 
 Doc: [22-mask-element-paint-references.md](../22-mask-element-paint-references.md).
 

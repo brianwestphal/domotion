@@ -27,7 +27,7 @@ await embedRemoteImages(tree);                 // ← new pre-pass (DM-512)
 const svg = elementTreeToSvg(tree, w, h);      // every URL is now inline
 ```
 
-Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Type) don't abort the capture: the URL stays as-is in the output so the rest of the SVG isn't held hostage by one broken image, AND the failure is surfaced as a `remote-image` warning via `getLastCaptureWarnings` (DM-528) so it's diagnosable. Each fetch also has a per-URL timeout (`fetchTimeoutMs`, default 10000 ms) so a stalled CDN host can't hang the capture.
+Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Type) don't abort the capture: the URL stays as-is in the output so the rest of the SVG isn't held hostage by one broken image, AND the failure is surfaced as a `remote-image` warning via `getLastCaptureWarnings` (DM-528) so it's diagnosable. Each fetch also has a per-URL timeout (`timeoutMs`, default 10000 ms) so a stalled CDN host can't hang the capture, and transient failures (5xx / network / timeout) are retried (`retries`, default 1, with `retryBackoffMs`).
 
 ## CLI / API integration
 
@@ -65,7 +65,7 @@ The HTTP response's `Content-Type` header is preferred when present and starts w
 
 ## Cost
 
-One `fetch()` per unique URL. For a typical news-site capture (~30-50 unique images), that's a handful of seconds of additional capture time at typical CDN latencies. The fetches run in parallel (`Promise.all`), so wall-clock cost scales with slowest-image latency rather than total-image latency.
+Up to `retries + 1` `fetch()` attempts per unique URL (default: one attempt, one retry on a transient failure). For a typical news-site capture (~30-50 unique images), that's a handful of seconds of additional capture time at typical CDN latencies. The fetches run in parallel (`Promise.all`), so wall-clock cost scales with slowest-image latency rather than total-image latency.
 
 A captured nytimes.com homepage: ~1.5 MB SVG with all images inline (vs. ~50 KB with URLs as references). The 30× size penalty is the cost of portability — for distribution / archival use cases that's worth it; for live web embedding where the SVG sits on a CDN and the host page's CSP allows remote refs, leaving the URLs as references stays cheaper.
 
@@ -76,6 +76,6 @@ A captured nytimes.com homepage: ~1.5 MB SVG with all images inline (vs. ~50 KB 
 ## Follow-ups
 
 - ✅ **Surface fetch failures via `getLastCaptureWarnings`** — done (DM-528): each failed fetch pushes a `remote-image` warning.
-- ✅ **Configurable timeout per fetch** — done (DM-528): a per-URL `fetchTimeoutMs` (default 10000 ms) via `AbortController` so a stalled host can't hang the capture.
-- **Retry on transient errors** — single fetch attempt today.
+- ✅ **Configurable timeout per fetch** — done (DM-528): a per-URL `timeoutMs` (default 10000 ms) via `AbortController` so a stalled host can't hang the capture.
+- ✅ **Retry on transient errors** — done (DM-529): `retries` (default 1) with `retryBackoffMs`, retrying 5xx / network / timeout failures (`embed.ts`).
 - **Data-URI size budget** — for captures with many high-resolution images the inlined SVG can balloon. Optional resize / re-encode would be a natural extension.

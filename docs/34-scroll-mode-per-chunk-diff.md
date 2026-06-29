@@ -47,7 +47,7 @@ Chunk 0's metrics mirror the canonical metrics for the same triplet.
 
 ## Pass criterion
 
-Unchanged from before this feature: real-world `scroll` mode never `pass`es (the criterion is `mode === "fold" && cmp.nonAaPixels === 0`). The chunk metrics are informational — they let the review surface and ticket-filing flow reason about which scroll position a regression appears at, not whether the test passes overall.
+Unchanged from before this feature: real-world `scroll` mode never `pass`es (the criterion is `mode === "fold" && cmp.regionCount === 0`). The chunk metrics are informational — they let the review surface and ticket-filing flow reason about which scroll position a regression appears at, not whether the test passes overall.
 
 ## Composite-against-composite diffing (out of scope)
 

@@ -53,6 +53,7 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `DEVICE_CHROMES` | const | The readonly list of supported device-chrome names (`["phone", "browser", "window"]`). |
 | `isChromeTheme` | function | Type-guard: is a string one of the supported `--chrome-theme` values (`dark` / `light`)? |
 | `CHROME_THEMES` | const | The readonly list of browser/window chrome themes (`["dark", "light"]`). |
+| `DeviceChrome` / `ChromeTheme` / `DeviceChromeOptions` / `FramedSvg` | type | Companion types for `wrapInDeviceChrome`: the device name (`phone` / `browser` / `window`), the `dark` / `light` theme, the options object (`{ device, theme?, label? }`), and the `{ svg, width, height }` result. |
 | `registerWebfont` | function | Pre-register a webfont (family name + binary) so the renderer can shape glyphs against it. Use when capturing pages with custom fonts. |
 | `clearWebfonts` | function | Clear the global webfont registry. Useful between independent captures in the same process. |
 | `getGlyphDefs` | function | Read the accumulated `<defs>` (glyph paths) the renderer collected across calls. Used by frame-by-frame composers to share a single `<defs>` block. |
@@ -75,6 +76,9 @@ and typing / tap / SVG overlays.
 | `CompositeLayer` / `CompositeLayerAnimation` / `ComposeLayersOptions` / `CompositeResult` | type | The `composeAnimatedLayers` parameter + result shapes. |
 | `namespaceEmbeddedAnimatedSvg` | function | Prefix every document-global name (ids, `@keyframes`, classes, embedded-font families, `--scene-dur`) of a complete animated-SVG document with a token, so it can nest inside another animated SVG without collisions. The id-collision building block under compositing / `cast` + `template` frames. |
 | `offsetEmbeddedAnimatedSvgTimeline` | function | Re-anchor a nested animated SVG's internal timeline onto a container's master loop: `{ periodMs, startMs, masterMs, mode?, windowMs? }`. `hold` plays once at the natural rate then freezes; `stretch` scales to fill `windowMs`; `loop` repeats. The per-layer timeline building block (DM-1319 / DM-1323). |
+| `NamespaceEmbedOptions` | type | Options for `namespaceEmbeddedAnimatedSvg`. |
+| `OffsetTimelineOptions` | type | Options for `offsetEmbeddedAnimatedSvgTimeline` (`{ periodMs, startMs, masterMs, mode?, windowMs? }`). |
+| `EmbeddedTimelineMode` | type | `"hold"` \| `"stretch"` \| `"loop"` — the nested-timeline playback mode. |
 | `AnimationConfig` | type | Top-level config: `{ width, height, frames, sharedDefs?, fontFaceCss?, cursorOverlay?, resolveSelector?, background? }`. (`fontFaceCss` injects embedded-font `@font-face` once; `background` paints a full-viewport canvas rect.) |
 | `AnimationFrame` | type | Per-frame data: `{ svgContent, duration, transition?, magicMove?, overlays?, animations?, cullCss? }`. (`magicMove` is the per-frame bridge layer built by `buildMagicMove`.) |
 | `AnimationOverlay` | type | Discriminated union of `TypingOverlay` \| `TapOverlay` \| `SvgOverlay`. (Renamed from `Overlay` in DM-622.) |
@@ -89,6 +93,13 @@ and typing / tap / SVG overlays.
 | `SelectorResolver` | type | `(sel, frameIndex) => { x, y, w, h } | null` — for cursor events that target a DOM selector. |
 | `cursorOverlayMarkup` | function | Lower-level builder for the cursor SVG markup if you're not using `generateAnimatedSvg`. |
 | `resolveCursorScript` | function | Resolve a cursor event script against the captured frame coordinate space. |
+| `cursorAtPoint` | function | Resolve the effective CSS `cursor` keyword at a viewport point `(x, y)` against a captured tree — the topmost element (paint order) whose box contains the point (DM-1106). For placing a cursor overlay over whatever is actually under the pointer. |
+| `cursorGlyphSvg` | function | Build the SVG markup for a named cursor glyph at `(x, y)`: `cursorGlyphSvg(value, x, y, size?, color?)` — the standalone cursor-icon renderer. |
+| `CURSOR_GLYPHS` | const | Map of cursor keyword → `CursorGlyph` (the Lucide-authored cursor icon set). |
+| `CURSOR_CATEGORIES` | const | The cursor keywords grouped into titled categories (`{ title, values }[]`) — for pickers / docs. |
+| `CursorGlyph` | type | One authored cursor glyph: 24×24 Lucide-box `body` markup, `fill` (silhouette vs. line-art), and the hotspot point. |
+| `CursorTimelineEntry` | type | `{ t, cursor }` — one entry in a resolved cursor timeline. |
+| `CursorAtResolver` | type | `(x, y, frameIndex) => string` — resolve the cursor keyword at a point, per frame. |
 | `buildMagicMove` | function | Build the magic-move bridge layer from a `(prevTree, nextTree)` pair (matched elements slide, added/removed cross-fade). Set the result as `AnimationFrame.magicMove` when the frame's `transition.type` is `"magic-move"`. See doc 53. |
 | `resolveOverlays` | function | `resolveOverlays(page, overlays)` → lower each overlay's selector `anchor` (`{ selector, at, dx, dy }`) and a typing overlay's `maxWidth: "anchor"` into concrete `x` / `y` / `bgWidth` against a live page, returning overlays ready for `generateAnimatedSvg`. The same resolution the declarative CLI runs, for imperative callers. See doc 61. |
 | `OverlayAnchor`, `AnchoredOverlay` | type | The anchor descriptor (`{ selector, at?, dx?, dy? }`) and the `resolveOverlays` input (a resolved overlay plus optional `anchor` / typing `maxWidth`). |

@@ -202,7 +202,7 @@ discoverable on the npm registry (see *Discovery*).
 steps:
 
 1. Is it a **built-in**? (`lower-third` / `device-mockup` / `background-loop` /
-   `kinetic-text`.) If so, use it.
+   `kinetic-text` / `chart` / `chat` / `subscribe`.) If so, use it.
 2. Otherwise `import("domotion-template-" + name)` and validate the export with
    `isTemplate()`.
 

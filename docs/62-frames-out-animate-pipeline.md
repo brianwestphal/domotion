@@ -131,24 +131,18 @@ const svg = await composeAnimateConfig(browser, cfg, {
 
 ## Signature compatibility
 
-`composeAnimateConfig` currently takes positional `(browser, cfg, configDir?,
-log?)`. Adding `onFrame` positionally is ugly. Proposed: introduce an **options
-object** as an optional 3rd parameter while keeping the positional form working
-for one release.
+**Resolved — option (A) shipped.** `composeAnimateConfig` now accepts either
+the positional `(browser, cfg, configDir?, log?)` OR an options object as the 3rd
+parameter: `(browser, cfg, configDirOrOpts?: string | ComposeAnimateOptions,
+logArg?)`, where `opts = { configDir?, log?, onFrame? }` (normalized in
+`src/cli/animate.ts`). This keeps the published positional form back-compatible
+while adding the `onFrame` hook — `composeAnimateConfig` is part of the published
+`domotion-svg` API as of DM-1130, so external callers using the positional form
+keep working. Doc 60 documents the resolved behavior.
 
-Open question for the maintainer (captured as a follow-up decision, not blocking
-this doc):
-
-- **(A)** Overload: accept either `(browser, cfg, configDir?, log?)` OR
-  `(browser, cfg, opts?)` where `opts = { configDir?, log?, onFrame? }`.
-  Back-compatible, slightly more code.
-- **(B)** Migrate to `(browser, cfg, opts?)` only, and bump the positional
-  callers (just the CLI `runAnimate` + doc 60 examples). Cleaner, a breaking
-  change to a young surface (DM-1130 shipped recently).
-
-Recommendation: **(A)** for one minor release, then deprecate the positional
-tail — `composeAnimateConfig` is part of the published `domotion-svg` API as of
-DM-1130 and external callers may already use the positional form.
+(The original decision was between **(A)** the back-compatible overload and **(B)**
+migrating to `(browser, cfg, opts?)` only with a breaking bump of the in-repo
+callers; (A) was chosen.)
 
 ## Scope / not covered
 
@@ -169,13 +163,13 @@ DM-1130 and external callers may already use the positional form.
 
 ## Follow-up tickets
 
-- **Implement `composeAnimateFrames`** — extract the post-loop assembly into the
-  frames-out variant returning `AnimationConfig`; reduce `composeAnimateConfig`
-  to `generateAnimatedSvg(await composeAnimateFrames(...))`; re-export from the
-  package root; update doc 60 + `docs/api.md`.
-- **Implement the `onFrame` hook + options-object signature** — decision (A)
-  vs (B) above; unit-test the hook fires once per frame with the right
-  `index` / `tree` / mutability semantics.
+- ✅ **Implement `composeAnimateFrames`** — done (DM-1136): the frames-out variant
+  returns `AnimationConfig`, `composeAnimateConfig` reduces to
+  `generateAnimatedSvg(await composeAnimateFrames(...))`, re-exported from the
+  package root; doc 60 + `docs/api.md` updated.
+- ✅ **Implement the `onFrame` hook + options-object signature** — done (option (A)
+  shipped, see "Signature compatibility" above): the hook fires once per frame
+  with the `index` / `tree` / mutability semantics described.
 - **Companion: DM-1135** (doc 63) — expose the action vocabulary + cursor
   resolution as standalone primitives, closing the *other* half of the
   JSON ↔ programmatic gap (per-feature primitives vs the whole pipeline).

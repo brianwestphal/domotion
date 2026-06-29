@@ -11,7 +11,7 @@ Requirements and support matrix for Domotion — the engine that converts captur
 
 ## Support matrix
 
-Checked = round-trips faithfully (< ~3% pixel diff vs. Chromium capture). Partial = works for common cases; edge cases below threshold. Unsupported = captured but not emitted, or emitted approximately; warning is logged.
+Checked = round-trips faithfully (passes the region-based diff gate vs. the Chromium capture — `regionCount === 0`, see [doc 12](12-diff-scoring.md)). Partial = works for common cases; edge cases below threshold. Unsupported = captured but not emitted, or emitted approximately; warning is logged.
 
 ### Layout & box model
 
@@ -130,6 +130,6 @@ Warnings are deduped by `(feature, selector)` within one capture. They're stored
 
 ## Testing approach
 
-- `tests/features.ts` — 100 focused feature tests exercising one rendering property each. Target <3% pixel diff vs. captured HTML. Every change to fidelity must pass these.
+- `tests/features.ts` — ~100 focused feature tests exercising one rendering property each. Each must pass the region-based diff gate (`regionCount === 0`, see [doc 12](12-diff-scoring.md)) vs. the captured HTML. Every change to fidelity must pass these.
 - `tests/showcase.ts` — 3 full-page integration tests derived from real product frames.
 - `tests/html-test-suite.tsx` — large external suite covering broadly-supported HTML5 + stable CSS, sourced from `external/html-test/` (clone of `github.com/brianwestphal/html-test`, gitignored). Baseline tracked in `tests/output/html-test/results.json` and visualized via `tests/output/html-test/index.html`. Bootstrap with `git clone https://github.com/brianwestphal/html-test.git external/html-test` (set `HTML_TEST_DIR` env to override).

@@ -86,8 +86,9 @@ itself needs:
   oversight (it would run `tsc` + the capture-script bundler on every plain
   `npm install` in the repo). Tracked as a follow-up.
 - **Tarball weight affects first-run latency.** `npx` downloads the whole
-  tarball before the first run, so the published package ships only `dist/`
-  (plus `README` / `LICENSE` / `FEATURES.md`) — not `src/`, and not the compiled
+  tarball before the first run, so the published package's `files` allowlist is
+  kept tight: `dist`, `assets`, `schemas`, `llms.txt`, `README.md`, `LICENSE`,
+  `FEATURES.md` — not `src/`, and not the compiled
   test files: the published build uses `tsconfig.build.json`, which excludes
   `**/*.test.ts(x)` from `dist/` (DM-878). Tests are still type-checked by
   `npm run typecheck` (base `tsconfig.json`) and run from source by vitest. Net:
