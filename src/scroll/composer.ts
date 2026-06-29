@@ -388,17 +388,15 @@ function composeScrollSvgBody(
   // `null` (absent or `linear`) emits nothing, so patterns without an
   // `[easing]` suffix produce byte-identical CSS and animate `linear` (the
   // animation-level default below).
-  const stops: Array<{ pct: number; offset: number; tf: string | null }> = [];
-  stops.push({ pct: 0, offset: positions[0] - minPos, tf: cssTimingFunction(segments[0]?.easing) });
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    const endPct = (seg.segmentEndMs / totalMs) * 100;
-    stops.push({
-      pct: endPct,
-      offset: (axis === "y" ? seg.scrollY : seg.scrollX) - minPos,
-      tf: cssTimingFunction(segments[i + 1]?.easing),
-    });
-  }
+  // DM-1436: every stop's pct + offset is identical to `cycleStops` (built above
+  // for the visibility interpolation) — both walk the segments with the same
+  // `segmentEndMs/totalMs` pct and the same `scrollY/X - minPos` offset. The only
+  // extra here is the per-stop timing-function: `stops[k]` carries the easing of
+  // the interval that STARTS at it, i.e. `segments[k]` (the initial stop k=0 takes
+  // segments[0]; the trailing stop takes the absent segments[n] → null). So derive
+  // `stops` from `cycleStops` rather than rebuilding the same per-segment loop.
+  const stops: Array<{ pct: number; offset: number; tf: string | null }> =
+    cycleStops.map((s, k) => ({ ...s, tf: cssTimingFunction(segments[k]?.easing) }));
   // Dedupe trivially equal stops to keep CSS small (pct + offset only — a stop
   // with the same position/time as its predecessor is a zero-motion interval
   // whose timing-function is moot).
