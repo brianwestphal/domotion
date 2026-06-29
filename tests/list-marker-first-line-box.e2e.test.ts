@@ -60,34 +60,52 @@ describeBrowser("DM-1270: list marker aligns to the first text line, not the li 
     const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     try {
       await page.setContent(HTML, { waitUntil: "load" });
+
+      // DM-1422: derive the EXPECTED first-line-box offset from Chromium's actual
+      // layout on THIS platform, rather than hardcoding a macOS-specific `> 2`.
+      // For each li, measure the first text line's top relative to the li's
+      // border-box top via Range.getClientRects()[0] — exactly what the marker
+      // must align to. Whether the emoji `::after` raises the line (Apple Color
+      // Emoji on macOS does; Noto Color Emoji on the Playwright Linux image does
+      // not) then falls out of Chromium's own paint, so the test validates the
+      // DM-1270 capture against ground truth on every platform.
+      const measured = await page.evaluate(() => {
+        const out: { dy: number; height: number }[] = [];
+        for (const li of Array.from(document.querySelectorAll("li"))) {
+          const liTop = li.getBoundingClientRect().top;
+          const range = document.createRange();
+          range.selectNodeContents(li);
+          const rects = range.getClientRects();
+          const first = rects[0];
+          out.push(first
+            ? { dy: first.top - liTop, height: first.height }
+            : { dy: 0, height: 0 });
+        }
+        return out;
+      });
+
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const lis = listItems(tree);
       expect(lis.length, "captured two list items").toBe(2);
+      expect(measured.length, "measured two list items").toBe(2);
 
       const [emojiLi, plainLi] = lis;
-      // Both li's must carry the first line-box height (~18px at font-size 16).
+      const [emojiM, plainM] = measured;
+
+      // Both li's first line-box height matches Chromium's (~18px at font-size 16).
       expect(emojiLi.markerFirstLineHeight).toBeGreaterThan(14);
       expect(plainLi.markerFirstLineHeight).toBeGreaterThan(14);
-      // The emoji `::after` extends above the text and raises the li border box,
-      // so the FIRST TEXT LINE sits below the li top — dy must be clearly > 0.
-      // This is the signal the marker positioning needs to drop the disc to the
-      // text line instead of the raised li top.
-      //
-      // DM-1422: whether the emoji RAISES the line box is platform-dependent —
-      // Apple Color Emoji (macOS) has an ascent that lifts the line so dy > 2,
-      // but Noto Color Emoji on the Playwright Linux image does not raise it
-      // (Chromium itself lays the line flush, dy ≈ 0), so domotion faithfully
-      // captures dy ≈ 0 there. Assert the emoji-raise only where the platform's
-      // emoji font actually raises the line (darwin); cross-platform we still
-      // require dy ≥ 0 and the plain-li dy ≈ 0 below. Generalizing this to derive
-      // the expected dy from Chromium's actual paint is tracked in DM-1422.
-      if (process.platform === "darwin") {
-        expect(emojiLi.markerFirstLineDy ?? 0).toBeGreaterThan(2);
-      } else {
-        expect(emojiLi.markerFirstLineDy ?? 0).toBeGreaterThanOrEqual(0);
-      }
-      // The plain li's text starts at the li top — dy ≈ 0.
-      expect(Math.abs(plainLi.markerFirstLineDy ?? 0)).toBeLessThan(1.5);
+      expect(Math.abs((emojiLi.markerFirstLineHeight ?? 0) - emojiM.height)).toBeLessThan(2);
+      expect(Math.abs((plainLi.markerFirstLineHeight ?? 0) - plainM.height)).toBeLessThan(2);
+
+      // The captured first-line-box offset must match Chromium's actual layout
+      // (within sub-pixel tolerance) — cross-platform. On a platform whose emoji
+      // raises the line this is clearly > 0 (the DM-1270 signal that drops the
+      // marker to the text line); where it doesn't, both are ≈ 0 and still agree.
+      expect(Math.abs((emojiLi.markerFirstLineDy ?? 0) - emojiM.dy)).toBeLessThan(1.5);
+      expect(Math.abs((plainLi.markerFirstLineDy ?? 0) - plainM.dy)).toBeLessThan(1.5);
+      // The plain li's text starts at the li top — Chromium lays it flush.
+      expect(Math.abs(plainM.dy)).toBeLessThan(1.5);
     } finally {
       await page.close();
     }
