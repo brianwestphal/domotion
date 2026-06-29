@@ -1,6 +1,6 @@
 # 80 — Cross-platform live system-fallback resolver
 
-Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (fontconfig, DM-1403, calibrated + flipped on in DM-1416) · **Windows: design only** (DirectWrite, DM-1403 follow-up).
+Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (fontconfig, DM-1403, calibrated + flipped on in DM-1416) · **Windows shipped, opt-in** (DirectWrite `IDWriteFontFallback::MapCharacters`, DM-1403).
 
 Related: [42 — cross-platform fallback-chain calibration](42-cross-platform-fallback-calibration.md).
 
@@ -33,7 +33,7 @@ codepoint, then dispatches by platform:
 |---|---|---|
 | macOS | CoreText `CTFontCreateForString` (native helper) | shipped, always on |
 | Linux | fontconfig `fc-match :charset=<hex>` | shipped, **default-on** (DM-1416) |
-| Windows | DirectWrite `IDWriteFontFallback::MapCharacters` | design only |
+| Windows | DirectWrite `IDWriteFontFallback::MapCharacters` | shipped, **opt-in** (DM-1403) |
 
 Each backend resolves `cp` → an on-disk font, registers it as a `sysfb:<name>`
 key, and returns the key. The chain walker is unchanged: it tries the key and
@@ -80,14 +80,35 @@ calibration below proved the flip is fidelity-safe on the noble image.
 > include Linux (`|| (process.platform === "linux" && DOMOTION_SYSTEM_FALLBACK !==
 > "0")`) so the default-on actually takes effect.
 
-### Windows (design only) — DirectWrite
+### Windows (shipped, opt-in) — DirectWrite `MapCharacters`
 
 `IDWriteFontFallback::MapCharacters(analysisSource, …)` returns the substitute
-font DirectWrite would map a run to — the API the browser itself uses. This
-needs a native call from the existing `tools/win32-glyph-extractor` (DirectWrite
-already), exposed over the glyph-helper protocol like the macOS path, then wired
-into `resolveSystemFallbackKeyForCp` under `process.platform === "win32"`.
-Tracked as a DM-1403 follow-up; develop on the Parallels Windows 11 VM.
+font DirectWrite would map a run to — the same API Chrome-on-Windows uses
+(`FontFallback::MapCharacters` in `font_fallback_win.cc`). It's implemented as a
+new `fallback` query in `tools/win32-glyph-extractor` (`runFallbackQuery`):
+`factory->GetSystemFontFallback()` + a minimal `IDWriteTextAnalysisSource` over a
+single codepoint, mapped against the system font collection with a **null base
+family** (pure system fallback, since the codepoint reaching the resolver is one
+the primary couldn't render). It returns the same protocol shape as the macOS
+CoreText helper — `{cp, found, postscriptName, familyName, path}` — so the
+existing platform-agnostic `resolveSystemFallbackFonts` drives it unchanged.
+
+**Coverage guard**: the mapped font is accepted only if `mappedFont->HasCharacter
+(cp)` is true, so a non-covering result is reported `found:false` (the renderer
+keeps its own last-resort) — mirroring the macOS LastResort handling and the
+Linux fc-list guard.
+
+`resolveSystemFallbackKeyForCp` registers the substitute under a `sysfb:` key
+with the native (helper) extractor, like darwin. **Opt-in** behind
+`DOMOTION_SYSTEM_FALLBACK` (off by default) so it lands with zero CI-baseline
+churn until calibrated against Chromium-on-Windows paint (the same staged
+rollout Linux had before DM-1416).
+
+Verified on the Parallels desktop Windows 11 VM (`prlctl exec`): the helper
+compiles with MSVC (`cl /std:c++17 /O2 /EHsc /MT`, dwrite.lib) and resolves real
+covering faces in both one-shot and `--serve` modes — U+4E00→Yu Gothic UI,
+U+0905→Nirmala UI, U+0E01→Leelawadee UI, U+1000→Myanmar Text, U+1F600→Segoe UI
+Emoji (the *desktop* Windows 11 fonts, vs the narrower Server set CI exposes).
 
 ## Calibration (DM-1416) — why the Linux flip is fidelity-safe
 
@@ -140,9 +161,19 @@ what the CI visual suite diffs against); a Noto desktop-Linux profile is DM-1404
 
 ## Code
 
-- `src/render/font-resolution.ts` — `resolveSystemFallbackKeyForCp` (dispatch),
+- `src/render/font-resolution.ts` — `resolveSystemFallbackKeyForCp` (dispatch:
+  darwin CoreText / linux fc-match / **win32 helper**),
   `resolveLinuxSystemFallbackKeyForCp` (fontconfig, with the DM-1416 coverage
   guard), `fontFileCoversCodepoint` (the coverage check),
   `registerDynamicSystemFont` (takes the extractor), `fcMatch` (the `fc-match`
   primitive), and the `_systemFallbackResolutionEnabled` init (default-on for
-  Linux unless `DOMOTION_SYSTEM_FALLBACK=0`).
+  Linux unless `DOMOTION_SYSTEM_FALLBACK=0`; darwin always; **win32 opt-in via
+  `DOMOTION_SYSTEM_FALLBACK`**).
+- `src/render/glyph-helper.ts` — `resolveSystemFallbackFonts` (the
+  platform-agnostic `fallback`-query caller; drives the macOS Swift helper AND
+  the win32 DirectWrite helper).
+- `tools/win32-glyph-extractor/src/main.cpp` (DM-1403) — `runFallbackQuery`
+  (`IDWriteFontFallback::MapCharacters`), `SingleStringAnalysisSource`
+  (`IDWriteTextAnalysisSource`), `fontFacePath` / `fontFamilyDisplayName`
+  (substitute-face path + family). Build with `tools/win32-glyph-extractor/build.ps1`
+  (CMake + MSVC) or directly with `cl /std:c++17 /O2 /EHsc /MT main.cpp`.

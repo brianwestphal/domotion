@@ -445,6 +445,124 @@ static std::string facePostScriptName(IDWriteFontFace* face) {
   return result;
 }
 
+// DM-1403: the on-disk file path of an IDWriteFontFace's first file, resolved
+// through the local font-file loader (GetReferenceKey → GetFilePathFromKey).
+// Used by the system-fallback query so the renderer can open the substitute
+// face by path through the same machinery it uses elsewhere.
+static std::string fontFacePath(IDWriteFontFace* face) {
+  if (!face) return "";
+  UINT32 fileCount = 0;
+  if (FAILED(face->GetFiles(&fileCount, nullptr)) || fileCount == 0) return "";
+  std::vector<IDWriteFontFile*> files(fileCount, nullptr);
+  if (FAILED(face->GetFiles(&fileCount, files.data()))) return "";
+  std::string out;
+  if (files[0]) {
+    const void* key = nullptr;
+    UINT32 keySize = 0;
+    IDWriteFontFileLoader* loader = nullptr;
+    IDWriteLocalFontFileLoader* local = nullptr;
+    if (SUCCEEDED(files[0]->GetReferenceKey(&key, &keySize)) &&
+        SUCCEEDED(files[0]->GetLoader(&loader)) && loader &&
+        SUCCEEDED(loader->QueryInterface(__uuidof(IDWriteLocalFontFileLoader),
+                                         reinterpret_cast<void**>(&local))) && local) {
+      UINT32 len = 0;
+      if (SUCCEEDED(local->GetFilePathLengthFromKey(key, keySize, &len))) {
+        std::wstring buf(len + 1, L'\0');
+        if (SUCCEEDED(local->GetFilePathFromKey(key, keySize, &buf[0], len + 1))) {
+          buf.resize(len);
+          out = fromWide(buf);
+        }
+      }
+    }
+    safeRelease(local);
+    safeRelease(loader);
+  }
+  for (IDWriteFontFile* f : files) safeRelease(f);
+  return out;
+}
+
+// DM-1403: the (en-us) family name of an IDWriteFont.
+static std::string fontFamilyDisplayName(IDWriteFont* font) {
+  if (!font) return "";
+  IDWriteFontFamily* family = nullptr;
+  if (FAILED(font->GetFontFamily(&family)) || !family) return "";
+  IDWriteLocalizedStrings* names = nullptr;
+  std::string out;
+  if (SUCCEEDED(family->GetFamilyNames(&names)) && names) out = readInfoString(names);
+  safeRelease(names);
+  safeRelease(family);
+  return out;
+}
+
+// DM-1403: encode a Unicode scalar as UTF-16 (Windows wchar_t), with a surrogate
+// pair for the supplementary planes.
+static std::wstring cpToUtf16(uint32_t cp) {
+  std::wstring w;
+  if (cp <= 0xFFFF) {
+    w.push_back(static_cast<wchar_t>(cp));
+  } else {
+    cp -= 0x10000;
+    w.push_back(static_cast<wchar_t>(0xD800 + (cp >> 10)));
+    w.push_back(static_cast<wchar_t>(0xDC00 + (cp & 0x3FF)));
+  }
+  return w;
+}
+
+// DM-1403: minimal IDWriteTextAnalysisSource over a single in-memory UTF-16
+// string, the input IDWriteFontFallback::MapCharacters requires. Locale is
+// en-us, LTR, no number substitution — we feed it one codepoint at a time.
+class SingleStringAnalysisSource : public IDWriteTextAnalysisSource {
+ public:
+  explicit SingleStringAnalysisSource(std::wstring text) : text_(std::move(text)) {}
+  // IUnknown
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
+    if (!ppv) return E_POINTER;
+    if (riid == __uuidof(IUnknown) || riid == __uuidof(IDWriteTextAnalysisSource)) {
+      *ppv = static_cast<IDWriteTextAnalysisSource*>(this);
+      AddRef();
+      return S_OK;
+    }
+    *ppv = nullptr;
+    return E_NOINTERFACE;
+  }
+  ULONG STDMETHODCALLTYPE AddRef() override { return ++ref_; }
+  ULONG STDMETHODCALLTYPE Release() override {
+    ULONG r = --ref_;
+    if (r == 0) delete this;
+    return r;
+  }
+  // IDWriteTextAnalysisSource
+  HRESULT STDMETHODCALLTYPE GetTextAtPosition(UINT32 pos, WCHAR const** str, UINT32* len) override {
+    if (pos >= text_.size()) { *str = nullptr; *len = 0; return S_OK; }
+    *str = text_.c_str() + pos;
+    *len = static_cast<UINT32>(text_.size() - pos);
+    return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE GetTextBeforePosition(UINT32 pos, WCHAR const** str, UINT32* len) override {
+    if (pos == 0 || pos > text_.size()) { *str = nullptr; *len = 0; return S_OK; }
+    *str = text_.c_str();
+    *len = pos;
+    return S_OK;
+  }
+  DWRITE_READING_DIRECTION STDMETHODCALLTYPE GetParagraphReadingDirection() override {
+    return DWRITE_READING_DIRECTION_LEFT_TO_RIGHT;
+  }
+  HRESULT STDMETHODCALLTYPE GetLocaleName(UINT32 pos, UINT32* len, WCHAR const** name) override {
+    *name = L"en-us";
+    *len = static_cast<UINT32>(text_.size() - (pos < text_.size() ? pos : text_.size()));
+    return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE GetNumberSubstitution(UINT32 pos, UINT32* len, IDWriteNumberSubstitution** ns) override {
+    *ns = nullptr;
+    *len = static_cast<UINT32>(text_.size() - (pos < text_.size() ? pos : text_.size()));
+    return S_OK;
+  }
+
+ private:
+  std::wstring text_;
+  ULONG ref_ = 1;
+};
+
 // Open the font described by `spec`. Returns true on success (populating
 // `out`); on failure returns false and sets `err` — the caller decides whether
 // to `die()` (one-shot mode, preserving the original fatal contract) or skip
@@ -623,6 +741,84 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
   return out.str();
 }
 
+// DM-1403: per-codepoint live system-fallback resolution via DirectWrite's
+// IDWriteFontFallback::MapCharacters — the same API Chrome-on-Windows
+// (FontFallback::MapCharacters in font_fallback_win.cc) uses to pick the
+// substitute font for a character the primary lacks. Mirrors the macOS helper's
+// `runFallbackQuery` (CTFontCreateForString) byte-for-byte in protocol shape:
+//   in : { type:"fallback", cps:[...] }
+//   out: { type:"fallback", fonts:[ {cp,found:true,postscriptName,familyName,path} | {cp,found:false} ] }
+// We pass a null base family so MapCharacters performs pure system fallback (the
+// codepoint reaching here is one the primary couldn't render), and verify the
+// mapped font actually covers the cp (HasCharacter) so a non-covering result is
+// reported found:false — the renderer then keeps its own last-resort, matching
+// the macOS LastResort handling and the Linux coverage guard.
+static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* factory) {
+  std::ostringstream out;
+  out << "{\"type\":\"fallback\",\"fonts\":[";
+
+  IDWriteFactory2* factory2 = nullptr;
+  IDWriteFontFallback* fallback = nullptr;
+  IDWriteFontCollection* systemFonts = nullptr;
+  if (factory) {
+    factory->QueryInterface(__uuidof(IDWriteFactory2), reinterpret_cast<void**>(&factory2));
+    if (factory2) factory2->GetSystemFontFallback(&fallback);
+    factory->GetSystemFontCollection(&systemFonts, FALSE);
+  }
+
+  const JsonArray& cps = query.at("cps").asArray();
+  for (size_t i = 0; i < cps.size(); i++) {
+    if (i > 0) out << ",";
+    uint32_t cp = static_cast<uint32_t>(cps[i].asNumber());
+
+    bool found = false;
+    std::string psName, familyName, path;
+    if (fallback && systemFonts) {
+      std::wstring s = cpToUtf16(cp);
+      SingleStringAnalysisSource* source = new SingleStringAnalysisSource(s);
+      UINT32 mappedLength = 0;
+      IDWriteFont* mappedFont = nullptr;
+      FLOAT scale = 1.0f;
+      HRESULT hr = fallback->MapCharacters(
+          source, 0, static_cast<UINT32>(s.size()), systemFonts,
+          nullptr,  // null base family → pure system fallback
+          DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+          &mappedLength, &mappedFont, &scale);
+      if (SUCCEEDED(hr) && mappedFont && mappedLength > 0) {
+        BOOL covers = FALSE;
+        // Coverage guard: only report a face that actually has the glyph.
+        if (SUCCEEDED(mappedFont->HasCharacter(cp, &covers)) && covers) {
+          IDWriteFontFace* face = nullptr;
+          if (SUCCEEDED(mappedFont->CreateFontFace(&face)) && face) {
+            psName = facePostScriptName(face);
+            path = fontFacePath(face);
+            familyName = fontFamilyDisplayName(mappedFont);
+            if (!psName.empty() && !path.empty()) found = true;
+            safeRelease(face);
+          }
+        }
+      }
+      safeRelease(mappedFont);
+      source->Release();
+    }
+
+    if (found) {
+      out << "{\"cp\":" << static_cast<int>(cp) << ",\"found\":true"
+          << ",\"postscriptName\":\"" << jsonEscape(psName) << "\""
+          << ",\"familyName\":\"" << jsonEscape(familyName) << "\""
+          << ",\"path\":\"" << jsonEscape(path) << "\"}";
+    } else {
+      out << "{\"cp\":" << static_cast<int>(cp) << ",\"found\":false}";
+    }
+  }
+
+  safeRelease(systemFonts);
+  safeRelease(fallback);
+  safeRelease(factory2);
+  out << "]}";
+  return out.str();
+}
+
 // ──────────────────────────────── main ─────────────────────────────────────
 
 static std::string readAll(std::istream& in) {
@@ -700,6 +896,8 @@ static std::string handleEnvelope(IDWriteFactory* factory, const JsonValue& enve
       response << runGlyphsQuery(queries[i], fonts);
     } else if (type == "meta") {
       response << runMetaQuery(queries[i], fonts);
+    } else if (type == "fallback") {
+      response << runFallbackQuery(queries[i], factory);  // DM-1403: DirectWrite MapCharacters
     } else {
       response << "{\"type\":\"" << jsonEscape(type) << "\",\"error\":\"unknown query type\"}";
     }

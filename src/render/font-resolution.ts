@@ -1159,11 +1159,16 @@ const systemFallbackKeyCache = new Map<number, string | null>();
 // "glyph where Chromium tofus" cases are orphaned variation selectors already
 // stripped upstream by `stripOrphanedDefaultIgnorables` (DM-1158). Set
 // `DOMOTION_SYSTEM_FALLBACK=0` to force it off (e.g. to reproduce the pre-flip
-// bare-table baseline). Other platforms (Windows) stay off until their
-// resolver backend ships (DM-1403 follow-up).
+// bare-table baseline).
+//
+// Windows: DirectWrite `IDWriteFontFallback::MapCharacters` via the win32 glyph
+// helper (DM-1403). Opt-IN (off by default) behind `DOMOTION_SYSTEM_FALLBACK` —
+// it ships off so it lands with zero CI-baseline churn until calibrated against
+// Chromium-on-Windows paint (the same staged rollout Linux had before DM-1416).
 let _systemFallbackResolutionEnabled =
   process.platform === "darwin"
-  || (process.platform === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0");
+  || (process.platform === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0")
+  || (process.platform === "win32" && !!process.env.DOMOTION_SYSTEM_FALLBACK);
 /**
  * Test/perf hook to toggle the CoreText per-codepoint fallback resolver. This is
  * a PROCESS-GLOBAL: a caller that flips it without restoring silently changes
@@ -1218,9 +1223,19 @@ function resolveSystemFallbackKeyForCp(cp: number): string | null {
       // DM-1403/DM-1416: fontconfig live fallback for Linux, default-on (gated
       // by `_systemFallbackResolutionEnabled`, which honors DOMOTION_SYSTEM_FALLBACK=0).
       // Calibrated against Chromium-on-noble paint — see the flag comment above
-      // and docs/80. Windows (DirectWrite IDWriteFontFallback::MapCharacters) is
-      // a follow-up.
+      // and docs/80.
       key = resolveLinuxSystemFallbackKeyForCp(cp);
+    } else if (process.platform === "win32") {
+      // DM-1403: DirectWrite IDWriteFontFallback::MapCharacters via the win32
+      // glyph helper. The helper speaks the same platform-agnostic "fallback"
+      // protocol as the macOS CoreText helper, so `resolveSystemFallbackFonts`
+      // drives it directly; register the substitute face as a `sysfb:` key with
+      // the native (helper) extractor, like darwin. Gated opt-in by the flag.
+      const resolved = resolveSystemFallbackFonts([cp]).get(cp);
+      if (resolved != null && resolved.path !== "") {
+        key = `sysfb:${resolved.postscriptName}`;
+        registerDynamicSystemFont(key, resolved.path, resolved.postscriptName);
+      }
     }
   } catch { key = null; }
   systemFallbackKeyCache.set(cp, key);

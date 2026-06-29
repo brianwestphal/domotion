@@ -61,6 +61,22 @@ Quick smoke test (on Windows):
   | .\domotion-glyph-paths.exe
 ```
 
+### `fallback` query — live system fallback (DM-1403)
+
+`{"queries":[{"type":"fallback","cps":[19968,2309]}]}` resolves each codepoint to
+the substitute font DirectWrite would pick (`IDWriteFontFallback::MapCharacters`),
+returning `{"type":"fallback","fonts":[{"cp",found,postscriptName,familyName,path}]}`
+— the same shape the macOS CoreText helper's `fallback` query returns, so the
+renderer's `resolveSystemFallbackFonts` consumes both. A null base family is used
+(pure system fallback) and the result is accepted only when `HasCharacter(cp)` is
+true (non-covering → `found:false`). This backs the win32 arm of
+`resolveSystemFallbackKeyForCp` (opt-in behind `DOMOTION_SYSTEM_FALLBACK`).
+
+```powershell
+'{"queries":[{"type":"fallback","cps":[19968,128512,4096]}]}' | .\domotion-glyph-paths.exe
+# → Yu Gothic UI (U+4E00), Segoe UI Emoji (U+1F600), Myanmar Text (U+1000)
+```
+
 ### Persistent `--serve` mode (DM-1035)
 
 `--serve` switches to a persistent loop: one request envelope **per line** on
