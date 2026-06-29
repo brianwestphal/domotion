@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readSync, writeSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
@@ -177,7 +177,7 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
 describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
   const describeArial = ARIAL ? describe : describe.skip;
   describeArial("reuses faces across requests and matches one-shot byte-for-byte", () => {
-    it("serve responses equal one-shot responses", () => {
+    it("serve responses equal one-shot responses", async () => {
       const FONT = { ref: "f", fontPath: ARIAL!, size: 2048 };
       const envA = { fonts: [FONT], queries: [
         { type: "meta", fontRef: "f" },
@@ -196,38 +196,38 @@ describeHelper("persistent --serve protocol on Windows (DM-1035)", () => {
       const refA = oneShot(envA);
       const refB = oneShot(envB);
 
+      // DM-1421: drive the serve channel over ASYNC streams, not synchronous
+      // writeSync/readSync on the pipe fd. On Windows a spawned pipe's fd is
+      // `-1` (no real OS fd), so `writeSync(-1)` threw "fd out of range". Async
+      // stream I/O works on every platform and verifies the SAME property — the
+      // helper's `--serve` loop emits output byte-identical to one-shot, with
+      // faces reused across requests. (Production drives serve via sync fds on
+      // macOS/Linux and falls back to one-shot on Windows where the fd is
+      // unusable — see glyph-helper.ts startPersistent, DM-1421.)
       const child = spawn(HELPER, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
-      const inFd = (child.stdin as { fd?: number; _handle?: { fd?: number } }).fd
-        ?? (child.stdin as { _handle?: { fd?: number } })._handle?.fd;
-      const outFd = (child.stdout as { fd?: number; _handle?: { fd?: number } }).fd
-        ?? (child.stdout as { _handle?: { fd?: number } })._handle?.fd;
-      expect(inFd).toBeTypeOf("number");
-      expect(outFd).toBeTypeOf("number");
+      child.stdout!.setEncoding("utf-8");
       let leftover = "";
-      const syncCall = (req: unknown): string => {
-        const line = Buffer.from(JSON.stringify(req) + "\n", "utf-8");
-        let off = 0;
-        while (off < line.length) {
-          try { off += writeSync(inFd!, line, off, line.length - off); }
-          catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
+      const waiters: Array<(line: string) => void> = [];
+      child.stdout!.on("data", (chunk: string) => {
+        leftover += chunk;
+        let nl: number;
+        while ((nl = leftover.indexOf("\n")) >= 0) {
+          const line = leftover.slice(0, nl);
+          leftover = leftover.slice(nl + 1);
+          waiters.shift()?.(line);
         }
-        const tmp = Buffer.allocUnsafe(1 << 20);
-        while (!leftover.includes("\n")) {
-          try { const n = readSync(outFd!, tmp, 0, tmp.length, null); if (n > 0) leftover += tmp.toString("utf-8", 0, n); }
-          catch (e) { if ((e as NodeJS.ErrnoException).code === "EAGAIN") continue; throw e; }
-        }
-        const nl = leftover.indexOf("\n");
-        const resp = leftover.slice(0, nl);
-        leftover = leftover.slice(nl + 1);
-        return resp;
-      };
+      });
+      const call = (req: unknown): Promise<string> => new Promise((resolve, reject) => {
+        waiters.push(resolve);
+        child.stdin!.write(JSON.stringify(req) + "\n", (e) => { if (e) reject(e); });
+      });
       try {
-        expect(syncCall(envA)).toBe(refA); // first request opens the face
-        expect(syncCall(envB)).toBe(refB); // second reuses the cached face
+        expect(await call(envA)).toBe(refA); // first request opens the face
+        expect(await call(envB)).toBe(refB); // second reuses the cached face
       } finally {
         child.stdin!.end();
         child.kill();
       }
-    });
+    }, 30_000);
   });
 });

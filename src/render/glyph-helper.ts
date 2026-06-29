@@ -217,7 +217,17 @@ function startPersistent(bin: string): boolean {
     const proc = spawn(bin, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
     const inFd = fdOf(proc.stdin);
     const outFd = fdOf(proc.stdout);
-    if (inFd == null || outFd == null) { try { proc.kill(); } catch { /* ignore */ } return false; }
+    // DM-1421: a Windows spawned pipe exposes fd `-1` (no real OS fd), so the
+    // synchronous `writeSync`/`readSync` this channel relies on can't drive it
+    // there — `writeSync(-1)` throws. Treat a missing OR negative fd as
+    // unusable: kill the doomed child and disable serve for the session so we
+    // fall back to one-shot `spawnSync` (correct + avoids re-spawning a serve
+    // child every call). macOS/Linux expose real (>=0) fds and keep serve.
+    if (inFd == null || outFd == null || inFd < 0 || outFd < 0) {
+      try { proc.kill(); } catch { /* ignore */ }
+      persistentDisabled = true;
+      return false;
+    }
     // Don't let the long-lived child (or its pipe handles) keep the parent's
     // event loop alive — otherwise the process hangs at exit waiting on the
     // serve loop. unref() is libuv-handle-only; our synchronous readSync/
