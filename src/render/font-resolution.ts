@@ -99,6 +99,24 @@ export type RenderTextMode = "paths" | "embedded-font";
 export let currentRenderTextMode: RenderTextMode = "embedded-font";
 export function setRenderTextMode(mode: RenderTextMode): void { currentRenderTextMode = mode; }
 export function getRenderTextMode(): RenderTextMode { return currentRenderTextMode; }
+/**
+ * Run `fn` with the module-global render-text mode set to `mode`, restoring the
+ * prior value afterward — even if `fn` throws. `currentRenderTextMode` is a
+ * PROCESS-GLOBAL, so a caller that flips it with a bare `setRenderTextMode` and
+ * forgets to restore leaks the mode into every later render in the same process.
+ * Prefer this save/restore wrapper for a scoped change (mirrors
+ * `withSystemFallbackResolution`, DM-1350 / DM-1435). Synchronous: the mode only
+ * needs to hold for `fn`'s synchronous render.
+ */
+export function withRenderTextMode<T>(mode: RenderTextMode, fn: () => T): T {
+  const prev = currentRenderTextMode;
+  currentRenderTextMode = mode;
+  try {
+    return fn();
+  } finally {
+    currentRenderTextMode = prev;
+  }
+}
 
 /**
  * Per-render-pass tracker for fonts that text emission asked us to embed.
@@ -122,6 +140,21 @@ export function clearEmbeddedFonts(): void {
   embeddedFonts.clear();
   embeddedFontIdCounter = 0;
   clearEmbeddedFontBuilder();
+}
+
+/**
+ * Reset ALL generation-scoped render caches together — the embedded-font subset
+ * builder (`clearEmbeddedFonts`) AND the paths-mode glyph-defs registry
+ * (`clearGlyphDefs`). Every multi-pass producer (capture, scroll composer)
+ * starts a fresh generation by clearing both; calling them piecemeal is the
+ * footgun that caused the DM-1338 stale-glyph-defs bug, so this bundles them so
+ * a caller can't clear a partial set. Does NOT touch the webfont registry
+ * (`clearWebfonts`) — that's session-scoped (user-registered fonts persist
+ * across generations). DM-1435.
+ */
+export function resetGeneration(): void {
+  clearEmbeddedFonts();
+  clearGlyphDefs();
 }
 
 /**

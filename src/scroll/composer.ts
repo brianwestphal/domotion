@@ -24,11 +24,9 @@
 import type { ScrollSegmentCapture } from "./executor.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import {
-  clearEmbeddedFonts,
-  clearGlyphDefs,
+  resetGeneration,
   getEmbeddedFontFaceCss,
-  getRenderTextMode,
-  setRenderTextMode,
+  withRenderTextMode,
   type RenderTextMode,
 } from "../render/text-to-path.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
@@ -191,18 +189,13 @@ export function composeScrollSvg(
   // the same `@font-face` registry; we collect everything into one
   // top-level <style> block at the bottom of this function.
   const renderTextMode: RenderTextMode = opts.renderText ?? "embedded-font";
-  const prevRenderTextMode = getRenderTextMode();
-  clearEmbeddedFonts();
-  clearGlyphDefs(); // DM-1338: reset the paths-mode glyph registry per generation too
-  setRenderTextMode(renderTextMode);
-  // DM-1078: the whole body renders in the chosen mode (module-global);
-  // restore on ANY exit — incl. a mid-segment elementTreeToSvgInner throw —
-  // so the mode can't leak to the next caller.
-  try {
-    return composeScrollSvgBody(segments, opts, { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize });
-  } finally {
-    setRenderTextMode(prevRenderTextMode);
-  }
+  resetGeneration(); // DM-1338/DM-1435: reset the embedded-font + paths-mode glyph registries per generation
+  // DM-1078/DM-1435: the whole body renders in the chosen mode (module-global);
+  // `withRenderTextMode` restores it on ANY exit — incl. a mid-segment
+  // elementTreeToSvgInner throw — so the mode can't leak to the next caller.
+  return withRenderTextMode(renderTextMode, () =>
+    composeScrollSvgBody(segments, opts, { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize }),
+  );
 }
 
 /**

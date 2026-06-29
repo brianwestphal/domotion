@@ -58,7 +58,8 @@ no Playwright dependency — these are the "node-side" half of the pipeline.
 | `clearWebfonts` | function | Clear the global webfont registry. Useful between independent captures in the same process. |
 | `getGlyphDefs` | function | Read the accumulated `<defs>` (glyph paths) the renderer collected across calls. Used by frame-by-frame composers to share a single `<defs>` block. |
 | `clearGlyphDefs` | function | Reset the glyph-defs accumulator. Pair with `getGlyphDefs` when rendering an independent sequence. |
-| `setRenderTextMode` / `getRenderTextMode` | function | Set / read how text is emitted — `"path"` (glyph outlines, default), `"text"` (`<text>` elements), or `"embedded"` (subset `@font-face` + `<text>`). `RenderTextMode` is the value type. |
+| `setRenderTextMode` / `getRenderTextMode` | function | Set / read how text is emitted — `"embedded-font"` (subset `@font-face` + `<text>`, the default) or `"paths"` (glyph outlines, per-pixel-faithful). `RenderTextMode` is the value type. |
+| `withRenderTextMode` | function | `withRenderTextMode(mode, fn)` — run `fn` with the render-text mode set to `mode`, restoring the prior value afterward (even if `fn` throws). The mode is a process-global; prefer this save/restore wrapper over a bare `setRenderTextMode` for a scoped change so it can't leak into later renders. |
 | `clearEmbeddedFonts` | function | Reset the embedded-font subset builder (used by `"embedded"` mode) between independent captures. |
 | `getEmbeddedFontFaceCss` | function | Read the accumulated base64 `@font-face` CSS for the glyphs rendered in `"embedded"` mode — emit it once into the document's `<style>`. |
 | `acquireGlyphHelper` | function | Ensure the platform native glyph-extraction helper binary is present (downloads + caches it on first use). Returns its path, or `null` when unavailable. See docs 50 / 51. |

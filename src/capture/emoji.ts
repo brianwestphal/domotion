@@ -28,6 +28,19 @@ let _aceFontLoaded = false;
 // Available sbix strikes on macOS Apple Color Emoji.ttc.
 const SBIX_STRIKES = [20, 26, 32, 40, 48, 52, 64, 96, 160] as const;
 const _sbixCache = new Map<string, Buffer | null>();
+
+/**
+ * Reset the process-global emoji caches — the opened Apple Color Emoji font and
+ * the extracted sbix-bitmap cache. These are process-stable (the system font
+ * doesn't change between renders), so this isn't needed per-generation; it
+ * exists for convention parity with `clearEmbeddedImageCaches()` and for test
+ * isolation / forcing a re-open. DM-1435.
+ */
+export function clearEmojiCaches(): void {
+  _aceFont = null;
+  _aceFontLoaded = false;
+  _sbixCache.clear();
+}
 // Only take the sbix path when the glyph rect is roughly emoji-shaped (wide
 // enough relative to its height). Narrow rects are usually text-presentation
 // dingbats / partial clusters where the page-screenshot fallback is safer.

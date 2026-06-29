@@ -88,18 +88,21 @@ function embedAsDataUri(url: string): string {
 
 /**
  * DM-540 — active hiDPI multiplier used by `embedResizedDataUri` lookups
- * during a single `elementTreeToSvg` invocation. Set at entry to that
- * function (via `setActiveHiDPIFactor`) and reset on exit. Must match the
- * value passed to `resizeEmbeddedImages` for the same tree, otherwise the
- * lookup misses and the renderer falls back to the source-resolution data
- * URI.
+ * during a single `elementTreeToSvg` invocation. `elementTreeToSvgInner` sets it
+ * (via `setActiveHiDPIFactor`) as the FIRST thing it does on EVERY call, so each
+ * render reads its own value and a stale value can't leak across renders — it's
+ * only ever read (as the `embedResizedDataUri` default) inside the render that
+ * just set it. Must match the value passed to `resizeEmbeddedImages` for the
+ * same tree, otherwise the lookup misses and the renderer falls back to the
+ * source-resolution data URI.
  *
  * Module-scoped because the resize lookup is buried in a dozen helper
  * functions (border-image, repeat-pattern, list marker, pseudo-image,
  * background-layer); threading the factor through every signature would
  * touch every call site and grow the renderer surface area for no
  * functional benefit. Captures run sequentially per Node event loop so
- * there's no concurrency hazard.
+ * there's no concurrency hazard. (DM-1435: considered a save/restore scope
+ * guard like `withRenderTextMode`, but set-at-entry already prevents the leak.)
  */
 let _activeHiDPIFactor = 2;
 

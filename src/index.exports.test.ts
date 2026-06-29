@@ -94,6 +94,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "templateParamsJsonSchema",
   "validateAnimateConfig",
   "validateTemplateParams",
+  "withRenderTextMode",
   "wrapInDeviceChrome",
   "wrapSvg",
   "xterm256ToHex",

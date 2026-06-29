@@ -12,7 +12,7 @@ import { elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../rende
 import { embedRemoteImages } from "./embed.js";
 import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
-import { clearEmbeddedFonts, clearGlyphDefs, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
+import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
@@ -215,11 +215,11 @@ export class DemoRecorder {
     // tree contains no conic content; otherwise the renderer (DM-550) emits
     // <pattern><image href="data:..."/></pattern> instead of dropping the layer.
     await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
-    // DM-839: reset the embedded-font builder so this capture's `@font-face`
-    // block contains only its own fonts (the renderer repopulates it during
-    // elementTreeToSvg, which emits the CSS into this frame's <defs>).
-    clearEmbeddedFonts();
-    clearGlyphDefs(); // DM-1338: glyph registry (paths mode) shares the per-generation lifecycle
+    // DM-839/DM-1338/DM-1435: reset the generation-scoped caches (embedded-font
+    // builder + paths-mode glyph registry) so this capture's `@font-face` block /
+    // <defs> contain only its own fonts/glyphs (the renderer repopulates them
+    // during elementTreeToSvg, emitting into this frame's <defs>).
+    resetGeneration();
     return elementTreeToSvgInner(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
   }
 
@@ -243,8 +243,7 @@ export class DemoRecorder {
     }
     // DM-549: rasterize conic-gradient layers — see captureCurrent above.
     await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
-    clearEmbeddedFonts(); // DM-839: see captureCurrent
-    clearGlyphDefs(); // DM-1338: glyph registry shares the per-generation lifecycle
+    resetGeneration(); // DM-839/DM-1338/DM-1435: see captureCurrent
     const svgContent = elementTreeToSvgInner(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
     return { svgContent, pageHeight };
   }

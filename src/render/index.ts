@@ -17,6 +17,7 @@ export {
   // embedded-font lifecycle.
   setRenderTextMode,
   getRenderTextMode,
+  withRenderTextMode,
   clearEmbeddedFonts,
   getEmbeddedFontFaceCss,
   type RenderTextMode,
