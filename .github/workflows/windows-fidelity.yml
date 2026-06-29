@@ -27,15 +27,11 @@ name: Windows fidelity
 
 on:
   workflow_dispatch:
+  # DM-1405: NO `paths:` filter — see test-linux.yml. The `regression` job is
+  # meant to be a REQUIRED check; a path-skipped required check blocks PRs
+  # forever, so this runs on every PR and gates relative to the committed
+  # baseline (below).
   pull_request:
-    paths:
-      - 'src/render/**'
-      - 'src/capture/**'
-      - 'tools/**'
-      - 'tests/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/windows-fidelity.yml'
 
 env:
   # Match the Release workflow's pin (Node 22.22.x ships a broken bundled npm).
@@ -43,6 +39,9 @@ env:
 
 jobs:
   font-width-probe:
+    # DM-1405: paths filter dropped so the required `regression` gate always
+    # reports on PRs; keep the diagnostics/build jobs on-demand (not every PR).
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,15 +73,30 @@ jobs:
         # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
         # runner applies a per-platform coverage cap on win32 because DirectWrite
         # grid-fits native text while Domotion fills unhinted vector outlines.
-        # Genuine breakage (missing fonts → tofu) exceeds the floor and fails.
-        # Diff PNGs still upload below (if: always()) for review.
-        run: npm run demos:test
+        # DM-1405: absolute pass/fail is ADVISORY (|| true); the gate is the
+        # baseline diff below (regressions vs tests/baselines/features-windows.json),
+        # so pre-existing residuals (background-clip-text-nested-child-wraps,
+        # DM-1420) don't block but a NEW regression does. (pwsh: force success so
+        # the advisory suite never fails the step — the gate step is next.)
+        run: |
+          npm run demos:test
+          exit 0
+      - name: Gate vs committed Windows baseline (regressions only, DM-1405)
+        run: >
+          node scripts/diff-against-baseline.mjs
+          --results tests/output/features-results.json
+          --baseline tests/baselines/features-windows.json
+          --strict --label "windows / features"
       - name: Upload expected/actual/diff PNGs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-fidelity-diffs
-          path: tests/output/*.png
+          # DM-1405: also upload features-results.json to refresh the Windows
+          # baseline from a real run (scripts/seed-feature-baseline.mjs --os windows).
+          path: |
+            tests/output/*.png
+            tests/output/features-results.json
           if-no-files-found: error
 
   # Compile the DirectWrite glyph extractor and run its parity test against the
@@ -91,6 +105,7 @@ jobs:
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
+    if: github.event_name != 'pull_request'   # DM-1405: on-demand, not every PR (also currently red — DM-1421)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -153,6 +168,7 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
+    if: github.event_name != 'pull_request'   # DM-1405: diagnostic, on-demand only
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

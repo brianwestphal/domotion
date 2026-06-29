@@ -22,6 +22,36 @@ A CI run is then judged **relative to its own committed baseline** — "did this
 change regress anything vs the last known-good run on the same image?" — not
 against the local count. That comparison *does* transfer.
 
+## Feature suite — baseline-relative CI gate (DM-1405)
+
+The `features-<os>.json` baselines gate the **feature visual-regression suite**
+(`tests/features.ts`) on the Linux + Windows CI workflows. Those platforms can't
+hit per-pixel parity (the documented hinting floor) and carry a few pre-existing
+residuals (e.g. `background-clip-text-nested-child-wraps` — DM-1420 — on both,
+`mathml-mi-greek-italic` on Linux), so the absolute `npm run demos:test` pass/fail
+can't be a required check without permanently blocking PRs.
+
+Instead the CI `regression` job runs `demos:test` **advisory** (`|| true`), then
+gates with `scripts/diff-against-baseline.mjs --strict` against the committed
+`features-<os>.json` — failing only on a **regression** (a fixture that passed in
+the baseline now fails) or a new failing fixture, never on the recorded residuals.
+This makes the gate safe to mark as a required status check (the workflows also
+dropped their `paths:` filter so the required check always reports). Refresh a
+baseline from a known-good run:
+
+```sh
+# Linux: inside the Playwright container (writes tests/output/features-results.json)
+npm run demos:test || true
+node scripts/seed-feature-baseline.mjs --os linux --image playwright-noble
+# Windows: from a real Windows run (Parallels VM, or the windows-fidelity
+# artifact which now uploads features-results.json)
+node scripts/seed-feature-baseline.mjs --os windows --image windows-latest
+```
+
+Commit the refreshed `features-<os>.json` after reviewing the newly-passing /
+newly-failing diff the seed script prints. (macOS isn't gated this way — it stays
+the strict local `regionCount === 0` check.)
+
 ## Files
 
 `<suite>-<os>.json` — `{ meta, fixtures }`:

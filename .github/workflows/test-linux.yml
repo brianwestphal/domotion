@@ -31,15 +31,13 @@ name: Linux fidelity
 
 on:
   workflow_dispatch:
+  # DM-1405: NO `paths:` filter. This workflow's `regression` job is intended to
+  # be a REQUIRED status check, and a required check that gets skipped (because a
+  # PR didn't touch the filtered paths) shows as permanently "Expected — waiting"
+  # and blocks the PR forever. Running on every PR keeps the required check always
+  # reporting. The job is fast and the gate is baseline-relative (below), so the
+  # cost is small and it can never silently go un-run.
   pull_request:
-    paths:
-      - 'src/render/**'
-      - 'src/capture/**'
-      - 'tools/**'
-      - 'tests/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/test-linux.yml'
 
 # Keep this image tag in sync with the installed @playwright/test version
 # (scripts/test-linux-docker.sh derives the same tag dynamically). The image
@@ -50,6 +48,11 @@ env:
 
 jobs:
   font-width-probe:
+    # DM-1405: the `paths:` filter was dropped so the required `regression` gate
+    # always reports on PRs. Keep this diagnostic probe (and glyph-extractor-build
+    # below) OFF the every-PR path — run them on demand (workflow_dispatch) — so
+    # only the gate runs on a normal PR.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -77,9 +80,18 @@ jobs:
         # Passes within the Linux text-hinting floor (DM-259 / DM-262): the
         # runner applies a per-platform coverage cap on Linux because FreeType
         # grid-fits native text while Domotion fills unhinted vector outlines.
-        # Genuine breakage (missing fonts -> tofu) exceeds the floor and fails.
-        # Diff PNGs still upload below (if: always()) for review.
-        run: npm run demos:test
+        # DM-1405: the suite's absolute pass/fail is ADVISORY here (|| true) —
+        # the actual gate is the baseline diff in the next step, which fails only
+        # on regressions vs tests/baselines/features-linux.json. So pre-existing
+        # platform residuals (e.g. background-clip-text-nested-child-wraps DM-1420,
+        # mathml-mi-greek-italic) don't block, but any NEW regression does.
+        run: npm run demos:test || true
+      - name: Gate vs committed Linux baseline (regressions only, DM-1405)
+        run: >
+          node scripts/diff-against-baseline.mjs
+          --results tests/output/features-results.json
+          --baseline tests/baselines/features-linux.json
+          --strict --label "linux / features"
       - name: Run browser-driven e2e tests (capture/layout assertions)
         # The `*.e2e.test.ts` suite (DM-1075) launches Chromium and asserts
         # capture/render behavior directly (segment positions, external SVG
@@ -93,7 +105,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-fidelity-diffs
-          path: tests/output/*.png
+          # DM-1405: also upload features-results.json so the per-OS baseline can
+          # be refreshed from a known-good run (scripts/seed-feature-baseline.mjs).
+          path: |
+            tests/output/*.png
+            tests/output/features-results.json
           if-no-files-found: error
 
   # Compile the FreeType glyph extractor and run its fontkit-parity test against
@@ -102,6 +118,7 @@ jobs:
   # proves it compiles and matches fontkit) — run after editing the C++ to catch
   # build / coordinate issues without cutting a tag.
   glyph-extractor-build:
+    if: github.event_name != 'pull_request'   # DM-1405: on-demand, not on every PR (see font-width-probe)
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble

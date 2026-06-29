@@ -45,12 +45,21 @@ if (resultsPath == null || baselinePath == null) {
   process.exit(2);
 }
 
-// Normalize either shape (bare merged array, or {meta, fixtures} wrapper) into a
-// Map<name, {pass, skipped, diffPct, worstTilePct, regionCount}>.
+// Normalize any of three shapes into a Map<name, {pass, skipped, diffPct,
+// worstTilePct, regionCount}>: a bare merged array, the {meta, fixtures} baseline
+// wrapper, or the feature suite's {suite, generatedAt, results: SuiteResult[]}.
 function toFixtureMap(parsed) {
   const map = new Map();
   if (Array.isArray(parsed)) {
     for (const r of parsed) {
+      if (r && typeof r.name === "string") map.set(r.name, r);
+    }
+  } else if (parsed && Array.isArray(parsed.results)) {
+    // DM-1405: the feature suite (tests/runner.tsx) writes
+    // `{ suite, generatedAt, results: SuiteResult[] }`. Each SuiteResult carries
+    // `name`, `pass`, `diffPct`, `worstTilePct`, `regionCount` (+ more) — exactly
+    // the fields the baseline diff needs — so consume it directly.
+    for (const r of parsed.results) {
       if (r && typeof r.name === "string") map.set(r.name, r);
     }
   } else if (parsed && typeof parsed.fixtures === "object" && parsed.fixtures != null) {

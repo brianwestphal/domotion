@@ -1,0 +1,725 @@
+{
+  "meta": {
+    "suite": "features",
+    "os": "windows",
+    "image": "windows-latest",
+    "commit": "3df02b8ab17ffcd6e88d509995fe597cf23bcec1",
+    "capturedAt": null,
+    "counts": {
+      "total": 101,
+      "pass": 100,
+      "fail": 1,
+      "skipped": 0
+    },
+    "note": "Seeded from windows-fidelity run 28345130429 pass/fail state (100 pass / 1 fail). Per-fixture diffPct/worstTilePct are placeholders; the --strict gate keys on pass/fail. Refresh from a real Windows features-results.json (VM or CI artifact once the workflow uploads it)."
+  },
+  "fixtures": {
+    "background-clip-text-inherited-from-ancestor": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "background-clip-text-nested-child-wraps": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 3
+    },
+    "bg-conic-checkerboard": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-conic-from-at": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-conic-multilayer": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-conic-smooth": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-nested": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-repeating-linear-px-stops": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-solid": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-transparent": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "blend-mode-passthrough": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-image-gradient-source": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-image-gradient-source-sliced": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-image-round-fill": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-image-stretch": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-radius": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-radius-pill": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-solid": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-style-double": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-styles-variants": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "clip-path-shapes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "clip-path-userspaceonuse-fragment": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "color-modern-formats": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "color-opacity-children": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-button": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-card": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-card-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-code-block": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-input": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-input-button": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "comp-input-value": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "contain-paint-clips": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "counter-style-counter-function-with-pad": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "counter-style-cyclic-and-prefixed-numeric": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "filter-passthrough": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "fixed-escapes-overflow": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "fixed-in-transform-cb": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "form-controls": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "gradient-linear": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "gradient-radial": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-box-decoration-break": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-svg-css-var-attr": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-svg-self-contained": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-svg-use-group": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-svg-use-symbol": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-svg-use-symbol-animated": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "layout-flex-center": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "layout-flex-col": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "layout-flex-row": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "layout-padding": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mask-border-gradient-source": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mask-element-ref": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mask-fragment-url": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mathml-mi-greek-italic": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mathml-mi-italic-letters": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "multi-column-block-decoration-clone": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "multi-column-block-decoration-slice": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "overflow-clip-margin": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "overflow-hidden-clips": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "overflow-per-axis-clip": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "preserve-3d-translatez-paint-order": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-after-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-after-down-caret-vertical-align": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-after-emoji-overflows-line-box": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-before-checkmark-rotated": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-before-gradient-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-before-marker-child-first-content": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-before-rotated-gradient-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-canvas-fixed-overlay": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-canvas-overlay": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-canvas-shape": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-iframe-same-origin": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-video-poster": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "root-gradient-background": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "sprite-icon-text-indent": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "stacking-button-overlay-above-artwork": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "stacking-will-change-creates-sc": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-basic": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-bg-clip-gradient": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-bold": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-center": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-decorations": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-inline-mixed": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-mixed-script": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-mono": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-multiline": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-pre-multiline": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-right": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "text-small": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "transform-scale-flex-descendants": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "visually-hidden-text": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-cross-parent-non-context": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-negative-escapes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-negative-under-card-bg": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-order": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-stacking-context-boundary": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-transform-stacking-context": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-transform-style-preserve-3d-sc": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-zero-equals-auto": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "zoom-scaled-card-text": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    }
+  }
+}

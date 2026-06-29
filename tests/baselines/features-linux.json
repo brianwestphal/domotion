@@ -1,0 +1,724 @@
+{
+  "meta": {
+    "suite": "features",
+    "os": "linux",
+    "image": "playwright-noble",
+    "commit": "3df02b8ab17ffcd6e88d509995fe597cf23bcec1",
+    "capturedAt": "2026-06-29T02:57:25.250Z",
+    "counts": {
+      "total": 101,
+      "pass": 99,
+      "fail": 2,
+      "skipped": 0
+    }
+  },
+  "fixtures": {
+    "background-clip-text-inherited-from-ancestor": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.7076539628716124,
+      "worstTilePct": 2.6957668828452794,
+      "regionCount": 0
+    },
+    "background-clip-text-nested-child-wraps": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.6990713464953684,
+      "worstTilePct": 7.374219071716482,
+      "regionCount": 3
+    },
+    "bg-conic-checkerboard": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-conic-from-at": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-conic-multilayer": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-conic-smooth": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-nested": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.11678394998922326,
+      "worstTilePct": 2.025398816726513,
+      "regionCount": 0
+    },
+    "bg-repeating-linear-px-stops": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "bg-solid": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.22020200471048562,
+      "worstTilePct": 1.9578401461317168,
+      "regionCount": 0
+    },
+    "bg-transparent": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.011715065574344515,
+      "worstTilePct": 0.2042966542408859,
+      "regionCount": 0
+    },
+    "blend-mode-passthrough": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-image-gradient-source": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0377447840314764,
+      "worstTilePct": 0.20932260659271332,
+      "regionCount": 0
+    },
+    "border-image-gradient-source-sliced": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-image-round-fill": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-image-stretch": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-radius": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.08188181037267138,
+      "worstTilePct": 1.6023696283891993,
+      "regionCount": 0
+    },
+    "border-radius-pill": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.026913462951280605,
+      "worstTilePct": 0.27659492296654564,
+      "regionCount": 0
+    },
+    "border-solid": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.09510295560215465,
+      "worstTilePct": 1.9633113034672658,
+      "regionCount": 0
+    },
+    "border-style-double": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "border-styles-variants": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.31953021784613034,
+      "worstTilePct": 0.5971782260997139,
+      "regionCount": 2
+    },
+    "clip-path-shapes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "clip-path-userspaceonuse-fragment": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "color-modern-formats": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "color-opacity-children": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.009167584132240758,
+      "worstTilePct": 0.057050947622180576,
+      "regionCount": 0
+    },
+    "comp-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.013729654580844339,
+      "worstTilePct": 0.2172525838461433,
+      "regionCount": 0
+    },
+    "comp-button": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.11976965382854805,
+      "worstTilePct": 1.875074336026504,
+      "regionCount": 0
+    },
+    "comp-card": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.3471511034715613,
+      "worstTilePct": 1.1198357446369847,
+      "regionCount": 0
+    },
+    "comp-card-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.42121686460218927,
+      "worstTilePct": 0.6371902783905796,
+      "regionCount": 0
+    },
+    "comp-code-block": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.13975745924412383,
+      "worstTilePct": 1.2302938011286526,
+      "regionCount": 0
+    },
+    "comp-input": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.18579661210289158,
+      "worstTilePct": 2.083413366265154,
+      "regionCount": 0
+    },
+    "comp-input-button": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.553316461662534,
+      "worstTilePct": 1.391865476208003,
+      "regionCount": 0
+    },
+    "comp-input-value": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.4350176362690349,
+      "worstTilePct": 1.8983422409505952,
+      "regionCount": 0
+    },
+    "contain-paint-clips": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "counter-style-counter-function-with-pad": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.10403421462217019,
+      "worstTilePct": 0.6521198007171541,
+      "regionCount": 0
+    },
+    "counter-style-cyclic-and-prefixed-numeric": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.13186745852187062,
+      "worstTilePct": 0.7826861213235281,
+      "regionCount": 1
+    },
+    "filter-passthrough": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "fixed-escapes-overflow": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.050520960248272274,
+      "worstTilePct": 0.45090633155907944,
+      "regionCount": 0
+    },
+    "fixed-in-transform-cb": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "form-controls": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.08337685334900911,
+      "worstTilePct": 0.213487920577852,
+      "regionCount": 0
+    },
+    "gradient-linear": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "gradient-radial": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-box-decoration-break": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.9836557639025658,
+      "worstTilePct": 3.817345302181016,
+      "regionCount": 0
+    },
+    "inline-svg-css-var-attr": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-svg-self-contained": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0006511315846198002,
+      "worstTilePct": 0.0022891344771789847,
+      "regionCount": 0
+    },
+    "inline-svg-use-group": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "inline-svg-use-symbol": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.22384667598075095,
+      "worstTilePct": 0.7181195884262647,
+      "regionCount": 0
+    },
+    "inline-svg-use-symbol-animated": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "layout-flex-center": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.09779626729978118,
+      "worstTilePct": 1.4794525723585488,
+      "regionCount": 0
+    },
+    "layout-flex-col": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.10205851102293069,
+      "worstTilePct": 0.8396061939924732,
+      "regionCount": 0
+    },
+    "layout-flex-row": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.09136952373523186,
+      "worstTilePct": 1.3953996319241138,
+      "regionCount": 0
+    },
+    "layout-padding": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.29163295696590164,
+      "worstTilePct": 1.150666530910342,
+      "regionCount": 0
+    },
+    "mask-border-gradient-source": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mask-element-ref": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mask-fragment-url": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "mathml-mi-greek-italic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4283077498323201,
+      "worstTilePct": 2.201349975664225,
+      "regionCount": 1
+    },
+    "mathml-mi-italic-letters": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.20294277209905978,
+      "worstTilePct": 2.853882732643028,
+      "regionCount": 0
+    },
+    "multi-column-block-decoration-clone": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.5545877467231778,
+      "worstTilePct": 2.0949710707896188,
+      "regionCount": 0
+    },
+    "multi-column-block-decoration-slice": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.691849020249065,
+      "worstTilePct": 2.2460161645810603,
+      "regionCount": 0
+    },
+    "overflow-clip-margin": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.10704801006784412,
+      "worstTilePct": 0.6252754967231178,
+      "regionCount": 0
+    },
+    "overflow-hidden-clips": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.6506651012459485,
+      "worstTilePct": 1.0633153443109808,
+      "regionCount": 0
+    },
+    "overflow-per-axis-clip": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.059325908705641375,
+      "worstTilePct": 0.5468052337722544,
+      "regionCount": 0
+    },
+    "preserve-3d-translatez-paint-order": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.033144743807564526,
+      "worstTilePct": 0.3367408891305692,
+      "regionCount": 1
+    },
+    "pseudo-after-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "pseudo-after-down-caret-vertical-align": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.5337435909336737,
+      "worstTilePct": 1.666708581203005,
+      "regionCount": 0
+    },
+    "pseudo-after-emoji-overflows-line-box": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.025834788216316903,
+      "worstTilePct": 0.10854626684315855,
+      "regionCount": 0
+    },
+    "pseudo-before-checkmark-rotated": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.5601405865059632,
+      "worstTilePct": 1.7976901948968216,
+      "regionCount": 0
+    },
+    "pseudo-before-gradient-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1295702196387665,
+      "worstTilePct": 0.538980124961064,
+      "regionCount": 0
+    },
+    "pseudo-before-marker-child-first-content": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.30185693519148754,
+      "worstTilePct": 0.7237396776270275,
+      "regionCount": 0
+    },
+    "pseudo-before-rotated-gradient-badge": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1516988009197662,
+      "worstTilePct": 1.2032886679446637,
+      "regionCount": 0
+    },
+    "replaced-canvas-fixed-overlay": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-canvas-overlay": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-canvas-shape": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-iframe-same-origin": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "replaced-video-poster": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "root-gradient-background": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.13164467708990668,
+      "worstTilePct": 0.7539132354911384,
+      "regionCount": 0
+    },
+    "sprite-icon-text-indent": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "stacking-button-overlay-above-artwork": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.029408069857442293,
+      "worstTilePct": 0.4135509823702822,
+      "regionCount": 0
+    },
+    "stacking-will-change-creates-sc": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.029705554681257483,
+      "worstTilePct": 0.4135509823702822,
+      "regionCount": 0
+    },
+    "text-basic": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.08642875860949914,
+      "worstTilePct": 1.3004911891861526,
+      "regionCount": 0
+    },
+    "text-bg-clip-gradient": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1461150912896758,
+      "worstTilePct": 0.377102743876629,
+      "regionCount": 0
+    },
+    "text-bold": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.17553222083678702,
+      "worstTilePct": 1.8789400164045007,
+      "regionCount": 0
+    },
+    "text-center": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.17842279314650203,
+      "worstTilePct": 0.9808708604240974,
+      "regionCount": 0
+    },
+    "text-decorations": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.6062031344546217,
+      "worstTilePct": 2.954413811161386,
+      "regionCount": 0
+    },
+    "text-inline-mixed": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.28762300642204985,
+      "worstTilePct": 0.5946290286732152,
+      "regionCount": 0
+    },
+    "text-mixed-script": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.7665218694157934,
+      "worstTilePct": 1.9267108821027452,
+      "regionCount": 0
+    },
+    "text-mono": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1482611829979725,
+      "worstTilePct": 1.2063239208513181,
+      "regionCount": 0
+    },
+    "text-multiline": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.2807533643243146,
+      "worstTilePct": 3.707399970586612,
+      "regionCount": 0
+    },
+    "text-pre-multiline": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.43249889583801937,
+      "worstTilePct": 1.872618731234869,
+      "regionCount": 0
+    },
+    "text-right": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.17591555728778085,
+      "worstTilePct": 2.6524855250616137,
+      "regionCount": 0
+    },
+    "text-small": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.047651018887152084,
+      "worstTilePct": 0.47281803020654684,
+      "regionCount": 0
+    },
+    "transform-scale-flex-descendants": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "visually-hidden-text": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.2565716269031294,
+      "worstTilePct": 1.2026795011084193,
+      "regionCount": 0
+    },
+    "z-index-cross-parent-non-context": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-negative-escapes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-negative-under-card-bg": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-order": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-stacking-context-boundary": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-transform-stacking-context": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-transform-style-preserve-3d-sc": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "z-index-zero-equals-auto": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "zoom-scaled-card-text": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.038511885566567663,
+      "worstTilePct": 0.09217447266937331,
+      "regionCount": 0
+    }
+  }
+}
