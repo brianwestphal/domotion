@@ -456,15 +456,11 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         const probeM = probeCtx.measureText(styledText);
         const naturalWidthAt100 = probeM.width;
         const ascentRatio = probeM.fontBoundingBoxAscent / 100;
-        const padLForGlyph = parseFloat(flStyle.paddingLeft) || 0;
-        const padRForGlyph = parseFloat(flStyle.paddingRight) || 0;
         const pseudoComputedW = parseFloat(flStyle.width);
         if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
-          // `flStyle.width` is the pseudo's content-box width Chrome sized
-          // the float to. Subtract padding to get the glyph's painted
-          // extent (`paddingRight` for `:left`-float, `paddingLeft` for
-          // `:right`-float — both sides for safety).
-          void padLForGlyph; void padRForGlyph;
+          // `flStyle.width` is the pseudo's content-box width Chrome sized the
+          // float to — i.e. the glyph's painted extent already (padding is
+          // outside the content box), so it's used directly as the painted width.
           const paintedGlyphW = pseudoComputedW;
           effectiveFs = 100 * paintedGlyphW / naturalWidthAt100;
           // DM-1120: for a floated drop cap with an explicit content-box HEIGHT
@@ -864,11 +860,15 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
         if (ln.chars.length <= 1) { fragmentedLines.push(ln); continue; }
         let frag = { chars: [ln.chars[0]], top: ln.top, bottom: ln.bottom };
         const fragments = [frag];
+        // An xOffset discontinuity larger than this (px) between adjacent chars
+        // marks a BiDi fragment boundary (a visual reorder jump), not a normal
+        // advance.
+        const BIDI_FRAGMENT_GAP_PX = 80;
         for (let ci = 1; ci < ln.chars.length; ci++) {
           const prev = ln.chars[ci - 1];
           const cc = ln.chars[ci];
-          const leftJump = cc.left < prev.left - 80;
-          const rightJump = cc.left > prev.right + 80;
+          const leftJump = cc.left < prev.left - BIDI_FRAGMENT_GAP_PX;
+          const rightJump = cc.left > prev.right + BIDI_FRAGMENT_GAP_PX;
           if (leftJump || rightJump) {
             frag = { chars: [cc], top: ln.top, bottom: ln.bottom };
             fragments.push(frag);

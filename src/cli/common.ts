@@ -17,13 +17,11 @@ import { gzipSvg } from "../index.js";
 
 const execFileP = promisify(execFile);
 
+/** Parse a positive-integer flag, falling back to `def` when the flag is absent.
+ *  Thin default-applying wrapper over `parsePositiveInt` so the two share one
+ *  validation predicate (DM-1434). */
 export function parseIntFlag(value: string | undefined, name: string, def: number): number {
-  if (value == null) return def;
-  const n = Number(value);
-  if (!Number.isFinite(n) || Math.floor(n) !== n || n <= 0) {
-    throw new Error(`--${name} expects a positive integer, got "${value}"`);
-  }
-  return n;
+  return parsePositiveInt(value, name) ?? def;
 }
 
 /** Parse an OPTIONAL positive-integer flag — `undefined` when absent (no

@@ -15,6 +15,11 @@ import type { CapturedElement } from "../capture/types.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { r } from "./format.js";
 
+/** Chrome's UA-default inset for the colored value bar inside a `<progress>` /
+ *  `<meter>` groove: `floor(barHeight / 4)` on each edge (sampled from
+ *  Chrome-on-macOS paint). DM-1434 — named so the five call sites agree. */
+const uaBarInset = (barHeight: number): number => Math.floor(barHeight / 4);
+
 /**
  * Per-render context for emitting <defs> entries. Form-controls populate
  * this when they need to register an SVG <linearGradient> for a captured
@@ -143,7 +148,7 @@ function progressBarGeom(el: CapturedElement): {
   const isAuthorStyled = customTrackFill != null || customValueFill != null
     || (s.progressBarRadius != null && s.progressBarRadius !== "0px")
     || (s.progressValueRadius != null && s.progressValueRadius !== "0px");
-  const inset = Math.floor(el.height / 4);
+  const inset = uaBarInset(el.height);
   const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
   const barY = isAuthorStyled ? el.y : el.y + inset;
   const trackRect: FcRect = { x: el.x, y: barY, w: el.width, h: barH };
@@ -182,7 +187,7 @@ function meterBarGeom(el: CapturedElement): {
     : customPseudoFill(s.meterEvenLessGoodBg, s.meterEvenLessGoodBgImage);
   const isAuthorStyled = customTrackFill != null || customValueFill != null
     || (s.meterBarRadius != null && s.meterBarRadius !== "0px");
-  const inset = Math.floor(el.height / 4);
+  const inset = uaBarInset(el.height);
   const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
   const barY = isAuthorStyled ? el.y : el.y + inset;
   const trackRect: FcRect = { x: el.x, y: barY, w: el.width, h: barH };
@@ -191,7 +196,7 @@ function meterBarGeom(el: CapturedElement): {
     if (isAuthorStyled) {
       const top = Math.round(el.y);
       const fullH = Math.round(el.height);
-      const vInset = Math.floor(fullH / 4);
+      const vInset = uaBarInset(fullH);
       valueRect = { x: el.x, y: top + vInset, w: el.width * ratio, h: fullH - 2 * vInset };
     } else {
       const left = Math.floor(el.x);
@@ -1216,7 +1221,7 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // the host's border-radius to the pseudos in styled mode).
   const isAuthorStyled = customTrackFill != null || customValueFill != null
     || (el.styles.meterBarRadius != null && el.styles.meterBarRadius !== "0px");
-  const inset = Math.floor(el.height / 4);
+  const inset = uaBarInset(el.height);
   const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
   const barY = isAuthorStyled ? el.y : el.y + inset;
   // Native (non-author-styled) <meter> on macOS Chrome paints a grooved
@@ -1250,7 +1255,7 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const fullH = Math.round(el.height);
     parts.push(`${indent}<rect x="${r(el.x)}" y="${r(top)}" width="${r(el.width)}" height="${r(fullH)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" />`);
     if (ratio > 0) {
-      const vInset = Math.floor(fullH / 4);
+      const vInset = uaBarInset(fullH);
       const valueH = fullH - 2 * vInset;
       const valueTop = top + vInset;
       const valueRadius = Math.min(trackRadius, valueH / 2);

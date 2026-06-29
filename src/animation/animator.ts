@@ -462,19 +462,16 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     });
   }
 
-  // Pre-compute per-frame timing windows (used by both the merge pipeline for
-  // timeline keyframes and the atomic push/scroll fallbacks below).
-  const frameTiming: { startPct: number[]; holdEndPct: number[]; transEndPct: number[] } = {
-    startPct: [], holdEndPct: [], transEndPct: [],
-  };
+  // Pre-compute each frame's start-of-window percentage — the only field
+  // `buildIntraFrameAnimationCss` reads. (The per-frame loop below recomputes the
+  // hold / transition windows it needs locally via `pct()`, so they aren't
+  // collected here.)
+  const frameTiming: { startPct: number[] } = { startPct: [] };
   {
     let t = 0;
     for (const f of frames) {
-      const td = transitionDurationMs(f);
       frameTiming.startPct.push((t / totalDuration) * 100);
-      frameTiming.holdEndPct.push(((t + f.duration) / totalDuration) * 100);
-      frameTiming.transEndPct.push(((t + f.duration + td) / totalDuration) * 100);
-      t += f.duration + td;
+      t += f.duration + transitionDurationMs(f);
     }
   }
 
@@ -1053,8 +1050,8 @@ function slideKeyframes(
   let midT: string;
   let exitT: string;
   if (crossAxis) {
-    const ex = enter.axis === "X" ? (enter as { size: number }).size : 0;
-    const ey = enter.axis === "Y" ? (enter as { size: number }).size : 0;
+    const ex = enter.axis === "X" ? enter.size : 0;
+    const ey = enter.axis === "Y" ? enter.size : 0;
     const xx = exitAxis === "X" ? -exitSize : 0;
     const xy = exitAxis === "Y" ? -exitSize : 0;
     enterT = `translate(${ex}px, ${ey}px)`;

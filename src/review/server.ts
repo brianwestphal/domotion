@@ -27,6 +27,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFileSync, existsSync } from "node:fs";
 import { extname } from "node:path";
 import { REVIEW_CLIENT_JS } from "./client.bundle.generated.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 export interface ReviewServerInputs {
   /** Absolute path to the PNG of what Chromium painted. */
@@ -60,7 +61,7 @@ const MIME: Record<string, string> = {
 };
 
 function renderShell(label: string): string {
-  const safeLabel = label.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+  const safeLabel = escapeHtml(label);
   return `<!doctype html><html><head>
 <meta charset="utf-8">
 <title>svg-review · ${safeLabel}</title>

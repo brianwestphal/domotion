@@ -1534,17 +1534,29 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
 }
 
 /** Binary-search the generated `UNICODE_FONT_RANGES_LINUX` for a codepoint. */
-function lookupLinuxUnicodeFontRange(codepoint: number): string | null {
+/**
+ * Binary-search a sorted `[start, end, key]` range table for the key whose range
+ * contains `codepoint`, or null. Shared by the per-platform generated
+ * unicode-font-range lookups below (they differ only by the table). DM-1434.
+ */
+function binarySearchRange(
+  table: ReadonlyArray<readonly [number, number, string]>,
+  codepoint: number,
+): string | null {
   let lo = 0;
-  let hi = UNICODE_FONT_RANGES_LINUX.length - 1;
+  let hi = table.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >>> 1;
-    const r = UNICODE_FONT_RANGES_LINUX[mid]!;
+    const r = table[mid]!;
     if (codepoint < r[0]) hi = mid - 1;
     else if (codepoint > r[1]) lo = mid + 1;
     else return r[2];
   }
   return null;
+}
+
+function lookupLinuxUnicodeFontRange(codepoint: number): string | null {
+  return binarySearchRange(UNICODE_FONT_RANGES_LINUX, codepoint);
 }
 
 /**
@@ -1563,16 +1575,7 @@ function linuxNotoFallbackChain(codepoint: number): string[] {
 
 /** Binary-search the generated `UNICODE_FONT_RANGES_NOTO_LINUX` for a codepoint. */
 function lookupNotoLinuxUnicodeFontRange(codepoint: number): string | null {
-  let lo = 0;
-  let hi = UNICODE_FONT_RANGES_NOTO_LINUX.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const r = UNICODE_FONT_RANGES_NOTO_LINUX[mid]!;
-    if (codepoint < r[0]) hi = mid - 1;
-    else if (codepoint > r[1]) lo = mid + 1;
-    else return r[2];
-  }
-  return null;
+  return binarySearchRange(UNICODE_FONT_RANGES_NOTO_LINUX, codepoint);
 }
 
 /**
@@ -1600,7 +1603,7 @@ function lookupNotoLinuxUnicodeFontRange(codepoint: number): string | null {
  *   → Nirmala UI (advance width can't fingerprint these — every such sample
  *   measures one em — and they weren't isolated in the painted-font check yet).
  */
-export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
+export function win32FallbackChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
   const cp = codepoint;
   // Hebrew — Segoe UI covers it.
   if (isHebrewBlock(cp)) return ["sf-hebrew"];
@@ -1623,7 +1626,7 @@ export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang
   if (isCjkBmpBlock(cp)) {
     const serifPrimary = primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia";
     if (serifPrimary) return ["cjk-serif", "cjk"];
-    if (_lang != null && /^ja\b/i.test(_lang)) return ["hiragino-jp", "cjk"];
+    if (lang != null && /^ja\b/i.test(lang)) return ["hiragino-jp", "cjk"];
     return ["cjk"];
   }
   // Box Drawing / Block Elements — mono primary keeps its own cell-width glyphs
@@ -1662,16 +1665,7 @@ export function win32FallbackChain(codepoint: number, primaryKey?: string, _lang
 
 /** Binary-search the generated `UNICODE_FONT_RANGES_WIN32` for a codepoint. */
 function lookupWin32UnicodeFontRange(codepoint: number): string | null {
-  let lo = 0;
-  let hi = UNICODE_FONT_RANGES_WIN32.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const r = UNICODE_FONT_RANGES_WIN32[mid]!;
-    if (codepoint < r[0]) hi = mid - 1;
-    else if (codepoint > r[1]) lo = mid + 1;
-    else return r[2];
-  }
-  return null;
+  return binarySearchRange(UNICODE_FONT_RANGES_WIN32, codepoint);
 }
 
 export function fallbackFontChain(codepoint: number, primaryKey?: string, lang?: string): string[] {
@@ -2168,16 +2162,7 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
 
 /** Binary-search the generated `UNICODE_FONT_RANGES` for a codepoint. */
 function lookupUnicodeFontRange(codepoint: number): string | null {
-  let lo = 0;
-  let hi = UNICODE_FONT_RANGES.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const r = UNICODE_FONT_RANGES[mid]!;
-    if (codepoint < r[0]) hi = mid - 1;
-    else if (codepoint > r[1]) lo = mid + 1;
-    else return r[2];
-  }
-  return null;
+  return binarySearchRange(UNICODE_FONT_RANGES, codepoint);
 }
 
 /** @deprecated Single-key wrapper for back-compat — prefer `fallbackFontChain`. */
