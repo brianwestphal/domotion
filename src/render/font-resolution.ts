@@ -1162,13 +1162,20 @@ const systemFallbackKeyCache = new Map<number, string | null>();
 // bare-table baseline).
 //
 // Windows: DirectWrite `IDWriteFontFallback::MapCharacters` via the win32 glyph
-// helper (DM-1403). Opt-IN (off by default) behind `DOMOTION_SYSTEM_FALLBACK` —
-// it ships off so it lands with zero CI-baseline churn until calibrated against
-// Chromium-on-Windows paint (the same staged rollout Linux had before DM-1416).
+// helper (DM-1403), default-on as of DM-1424 (set `DOMOTION_SYSTEM_FALLBACK=0` to
+// force off). Calibrated against Chromium-on-Windows paint on the desktop Win11
+// VM (tools/probe-1424-win32-mapchars-vs-chromium.mjs + probe-1424-refine.mts):
+// of 4,899 sampled codepoints, every MapCharacters-vs-Chromium divergence is on a
+// codepoint the static win32 chain already owns (resolver never fires there), so
+// 0 sampled codepoints move under the flip. When the resolver DOES fire (a cp the
+// static table misses) it calls the exact DirectWrite system-fallback API Chromium
+// uses (`FontFallback::MapCharacters`, font_fallback_win.cc) with the helper's
+// HasCharacter coverage guard — so it can only paint Chromium's own covering face
+// or correctly tofu. See docs/80.
 let _systemFallbackResolutionEnabled =
   process.platform === "darwin"
   || (process.platform === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0")
-  || (process.platform === "win32" && !!process.env.DOMOTION_SYSTEM_FALLBACK);
+  || (process.platform === "win32" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0");
 /**
  * Test/perf hook to toggle the CoreText per-codepoint fallback resolver. This is
  * a PROCESS-GLOBAL: a caller that flips it without restoring silently changes
@@ -1205,8 +1212,9 @@ export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
  * `sysfb:<postscriptName>` key and returns it, so the chain walker can open it
  * through the normal `getFontInstance` path. Returns null when the platform
  * engine resolves to LastResort / a non-covering default (keep `last-resort`),
- * or the backend isn't available. Windows (DirectWrite
- * `IDWriteFontFallback::MapCharacters`) is not wired here yet (DM-1403 follow-up).
+ * or the backend isn't available. Windows uses DirectWrite
+ * `IDWriteFontFallback::MapCharacters` via the win32 helper (DM-1403, calibrated +
+ * default-on in DM-1424).
  */
 function resolveSystemFallbackKeyForCp(cp: number): string | null {
   if (systemFallbackKeyCache.has(cp)) return systemFallbackKeyCache.get(cp)!;
@@ -1230,7 +1238,10 @@ function resolveSystemFallbackKeyForCp(cp: number): string | null {
       // glyph helper. The helper speaks the same platform-agnostic "fallback"
       // protocol as the macOS CoreText helper, so `resolveSystemFallbackFonts`
       // drives it directly; register the substitute face as a `sysfb:` key with
-      // the native (helper) extractor, like darwin. Gated opt-in by the flag.
+      // the native (helper) extractor, like darwin. The helper's HasCharacter
+      // coverage guard reports found:false for a non-covering pick, so a face only
+      // registers when it actually covers `cp`. Default-on (DM-1424); the flag
+      // honors DOMOTION_SYSTEM_FALLBACK=0.
       const resolved = resolveSystemFallbackFonts([cp]).get(cp);
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;

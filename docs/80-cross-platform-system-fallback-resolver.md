@@ -1,6 +1,6 @@
 # 80 — Cross-platform live system-fallback resolver
 
-Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (fontconfig, DM-1403, calibrated + flipped on in DM-1416) · **Windows shipped, opt-in** (DirectWrite `IDWriteFontFallback::MapCharacters`, DM-1403).
+Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (fontconfig, DM-1403, calibrated + flipped on in DM-1416) · **Windows shipped, default-on** (DirectWrite `IDWriteFontFallback::MapCharacters`, DM-1403, calibrated + flipped on in DM-1424).
 
 Related: [42 — cross-platform fallback-chain calibration](42-cross-platform-fallback-calibration.md).
 
@@ -33,7 +33,7 @@ codepoint, then dispatches by platform:
 |---|---|---|
 | macOS | CoreText `CTFontCreateForString` (native helper) | shipped, always on |
 | Linux | fontconfig `fc-match :charset=<hex>` | shipped, **default-on** (DM-1416) |
-| Windows | DirectWrite `IDWriteFontFallback::MapCharacters` | shipped, **opt-in** (DM-1403) |
+| Windows | DirectWrite `IDWriteFontFallback::MapCharacters` | shipped, **default-on** (DM-1424) |
 
 Each backend resolves `cp` → an on-disk font, registers it as a `sysfb:<name>`
 key, and returns the key. The chain walker is unchanged: it tries the key and
@@ -80,7 +80,7 @@ calibration below proved the flip is fidelity-safe on the noble image.
 > include Linux (`|| (process.platform === "linux" && DOMOTION_SYSTEM_FALLBACK !==
 > "0")`) so the default-on actually takes effect.
 
-### Windows (shipped, opt-in) — DirectWrite `MapCharacters`
+### Windows (shipped, default-on) — DirectWrite `MapCharacters`
 
 `IDWriteFontFallback::MapCharacters(analysisSource, …)` returns the substitute
 font DirectWrite would map a run to — the same API Chrome-on-Windows uses
@@ -99,10 +99,12 @@ keeps its own last-resort) — mirroring the macOS LastResort handling and the
 Linux fc-list guard.
 
 `resolveSystemFallbackKeyForCp` registers the substitute under a `sysfb:` key
-with the native (helper) extractor, like darwin. **Opt-in** behind
-`DOMOTION_SYSTEM_FALLBACK` (off by default) so it lands with zero CI-baseline
-churn until calibrated against Chromium-on-Windows paint (the same staged
-rollout Linux had before DM-1416).
+with the native (helper) extractor, like darwin. **Default-on as of DM-1424** (set
+`DOMOTION_SYSTEM_FALLBACK=0` to force off — e.g. to reproduce the pre-flip
+bare-table baseline). It originally shipped opt-in (off) so DM-1403 could land
+with zero CI-baseline churn until calibrated against Chromium-on-Windows paint
+(the same staged rollout Linux had before DM-1416); the calibration below proved
+the flip fidelity-safe.
 
 Verified on the Parallels desktop Windows 11 VM (`prlctl exec`): the helper
 compiles with MSVC (`cl /std:c++17 /O2 /EHsc /MT`, dwrite.lib) and resolves real
@@ -142,6 +144,50 @@ intended improvement — with no case where the resolver paints a glyph Chromium
 renders differently. This is calibrated to the **bare noble image** (matching
 what the CI visual suite diffs against); a Noto desktop-Linux profile is DM-1404.
 
+## Calibration (DM-1424) — why the Windows flip is fidelity-safe
+
+The win32 resolver is the *strongest* of the three by construction:
+`IDWriteFontFallback::MapCharacters` is the **exact** API Chromium-on-Windows uses
+(`FontFallback::MapCharacters` in `font_fallback_win.cc`), so on the same host the
+resolver asks the identical question Chromium's own fallback asks. The calibration
+confirms this and quantifies it.
+
+**Method.** `tools/probe-1424-win32-mapchars-vs-chromium.mjs` runs on the desktop
+Win11 VM (`prlctl exec`, as SYSTEM): for a sample of drawable codepoints across
+every per-block unicode fixture it records Chromium's painted family (CDP
+`CSS.getPlatformFontsForNode`) and the family the built `tools/win32-glyph-extractor`'s
+`fallback` query (MapCharacters) picks, then `tools/probe-1424-refine.mts` (host,
+tsx) evaluates `win32FallbackChain(cp)` — pure routing logic, no font reads — for
+every divergence to learn whether the **static** win32 chain already owns the cp
+(resolver never fires) or misses it (resolver fires; the cp that matters).
+
+**Result** (4,899 codepoints sampled): MapCharacters' null-base-family pick differs
+from Chromium's painted family on 2,200 cps, plus 549 where MapCharacters tofus
+(coverage guard) but Chromium painted Arial — **but every single one is a cp the
+static win32 chain already owns**:
+
+| Bucket | Count | Why it's safe |
+| --- | --- | --- |
+| Divergence on a **static-owned** cp | 2,200 | The static chain (block routes + the DM-987 generated per-block table) wins first, so the resolver **never fires** there — e.g. CJK Ext-B `SimSun-ExtB` (static) vs `MingLiU-ExtB` (null-base MapCharacters); CJK BMP `Microsoft YaHei` (static) vs `Yu Gothic UI`. The difference is purely null-base-family-vs-CSS-base-family and is moot. |
+| MapCharacters-tofu on a **static-owned** cp | 549 | All Latin/symbol cps Chromium paints with Arial; the static chain routes them to `helvetica` (Arial) and paints exactly what Chromium does. (Pure system fallback with a null base family doesn't resolve a basic-Latin cp to Arial — a base family, not a fallback target — but the static chain already handles these, so the resolver never runs.) |
+| Divergence/tofu on a cp the static chain **misses** (resolver fires) | **0** | None in the sample. |
+
+So **0 of 4,899 sampled codepoints move under the flip** — even cleaner than Linux,
+because the win32 static table (derived from a full Chromium CDP sweep in DM-987) is
+comprehensive enough to own every drawable codepoint in the fixtures. When the
+resolver *does* fire — a cp the static table genuinely misses, outside the sampled
+coverage — it calls Chromium's own DirectWrite fallback API with the helper's
+`HasCharacter` coverage guard, so it can only register the covering face Chromium
+itself would paint, or report `found:false` and correctly tofu (matching Chromium).
+Orphaned variation selectors are stripped upstream by `stripOrphanedDefaultIgnorables`
+(DM-1158) before the resolver runs, exactly as on Linux, so the flip paints no
+last-resort boxes.
+
+The `features-windows.json` baseline gate (covered text) is unaffected: every
+codepoint it exercises is static-owned, so the resolver never fires for it. There
+is no committed win32 unicode/html baseline yet (the analog of the Linux
+DM-1419 baseline work), so nothing else needs re-seeding for the flip.
+
 ## Testing
 
 - `__resolveSystemFallbackKeyForCpForTest(cp)` (test-only export) drives the
@@ -156,8 +202,15 @@ what the CI visual suite diffs against); a Noto desktop-Linux profile is DM-1404
   and `npm run demos:test` feature visual suite pass on Linux with the resolver
   default-on (the resolver only fires on otherwise-tofu codepoints, so covered
   text is byte-identical to the pre-flip output).
-- Re-running the calibration: `tools/probe-1416-*.mjs` (probe + refine)
-  inside the `*-noble` image; see the Calibration section above.
+- Windows (DM-1424): the helper's `fallback` query resolves real covering faces
+  on the desktop Win11 VM (U+4E00→Yu Gothic UI, U+0905→Nirmala UI, U+1F600→Segoe
+  UI Emoji) and correctly returns `found:false` (HasCharacter guard) for
+  Tangut U+17000. The 4,899-codepoint MapCharacters-vs-Chromium sweep proved 0
+  sampled codepoints move under the flip (every divergence is static-owned) — the
+  measured analog of "covered text is byte-identical".
+- Re-running the calibration: `tools/probe-1416-*.mjs` (Linux, in the `*-noble`
+  image) / `tools/probe-1424-*` (Windows, on the desktop Win11 VM + host refine);
+  see the two Calibration sections above.
 
 ## Code
 
@@ -167,8 +220,7 @@ what the CI visual suite diffs against); a Noto desktop-Linux profile is DM-1404
   guard), `fontFileCoversCodepoint` (the coverage check),
   `registerDynamicSystemFont` (takes the extractor), `fcMatch` (the `fc-match`
   primitive), and the `_systemFallbackResolutionEnabled` init (default-on for
-  Linux unless `DOMOTION_SYSTEM_FALLBACK=0`; darwin always; **win32 opt-in via
-  `DOMOTION_SYSTEM_FALLBACK`**).
+  Linux **and win32** unless `DOMOTION_SYSTEM_FALLBACK=0`; darwin always).
 - `src/render/glyph-helper.ts` — `resolveSystemFallbackFonts` (the
   platform-agnostic `fallback`-query caller; drives the macOS Swift helper AND
   the win32 DirectWrite helper).
