@@ -739,6 +739,7 @@ function paintText(
   indent: string,
   textBgClipFills: string[],
   captureViewport: { w: number; h: number },
+  textBgClipFragmentFills: (string[] | null)[] = [],
 ): void {
   if (el.text !== "") {
     // DM-462: `background-clip: text` + `-webkit-text-fill-color: transparent`
@@ -948,9 +949,24 @@ function paintText(
       for (let li = textBgClipFills.length - 1; li >= 0; li--) {
         const f = textBgClipFills[li];
         if (f == null) continue;
-        ctx.svgParts.push(
-          `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${f}" mask="url(#${mid})" />`,
-        );
+        // DM-1420: wrapped inline — paint one masked rect PER line fragment, each
+        // with its own per-fragment gradient (built over that fragment's box), so
+        // each line's glyphs sample their own fragment's gradient (matching how
+        // Chromium restarts an inline's bg-clip:text gradient per fragment).
+        // Block elements have no per-fragment fills and keep the single rect.
+        const fragFills = textBgClipFragmentFills[li];
+        if (fragFills != null && el.inlineFragments != null) {
+          for (let fi = 0; fi < el.inlineFragments.length; fi++) {
+            const fr = el.inlineFragments[fi];
+            ctx.svgParts.push(
+              `${indent}<rect x="${r(fr.x)}" y="${r(fr.y)}" width="${r(fr.width)}" height="${r(fr.height)}" fill="${fragFills[fi] ?? f}" mask="url(#${mid})" />`,
+            );
+          }
+        } else {
+          ctx.svgParts.push(
+            `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${f}" mask="url(#${mid})" />`,
+          );
+        }
       }
     } else {
       ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
@@ -1643,8 +1659,11 @@ function paintBackgroundImageLayers(
   corners: ReturnType<typeof parseCornerRadii>,
   useInlineFragments: boolean,
   captureViewport: { w: number; h: number },
-): string[] {
+): { fills: string[]; fragmentFills: (string[] | null)[] } {
   const textBgClipFills: string[] = [];
+  // DM-1420: per-line-fragment fills for a wrapped inline's bg-clip:text layers
+  // (parallel to `textBgClipFills`; null for layers/elements painted single-box).
+  const textBgClipFragmentFills: (string[] | null)[] = [];
 
   const bgImage = el.styles.backgroundImage;
   if (!useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
@@ -1794,9 +1813,47 @@ function paintBackgroundImageLayers(
       if (out.def === "") continue;
       ctx.defsParts.push(out.def);
       textBgClipFills[li] = `url(#${defId})`;
+      // DM-1420: a wrapped inline's `background-clip:text` background is painted
+      // PER LINE FRAGMENT, not once over the union bbox. Over the union box a
+      // `to right bottom` gradient puts the first-line text (top-right) mid-axis
+      // (e.g. orange instead of yellow) and the second-line text (bottom-left)
+      // too early — verified against Chromium-on-Linux paint (the gradient
+      // restarts each fragment). Build one def per fragment over that fragment's
+      // own box; the caller paints a masked rect per fragment so each line's
+      // glyphs sample their own fragment's gradient. (Block elements have no
+      // `inlineFragments`, so they keep the single union-box def above.)
+      const frags = el.inlineFragments;
+      if (frags != null && frags.length > 1) {
+        // DM-1420: `box-decoration-break: slice` (the default) treats the wrapped
+        // inline as ONE imaginary un-broken box: the bg image is positioned over
+        // that continuous box and each line fragment shows its slice. So the
+        // gradient must CONTINUE across fragments along inline flow, not restart
+        // per line — confirmed against Chromium-on-Linux paint (line-2 "morning"
+        // begins ~25-30% along the gradient where line-1 "this" left off, not at
+        // 0%). Model each fragment's def over a VIRTUAL box of the concatenated
+        // total inline width, shifted left by the cumulative width of prior
+        // fragments, so fragment fi samples the gradient over [Σw<fi, Σw≤fi].
+        // `clone` instead paints a complete box per fragment → gradient restarts,
+        // so use each fragment's own box there.
+        const clone = (el.styles.boxDecorationBreak ?? "slice") === "clone";
+        const totalW = frags.reduce((s, fr) => s + fr.width, 0);
+        const perFrag: string[] = [];
+        let cumW = 0;
+        for (const fr of frags) {
+          const fid = ctx.nextClipId("bg");
+          const gx = clone ? fr.x : fr.x - cumW;
+          const gw = clone ? fr.width : totalW;
+          const fout = buildBackgroundLayerDef(fid, layer, gx, fr.y, gw, fr.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+          cumW += fr.width;
+          if (fout.def === "") { perFrag.push(textBgClipFills[li]!); continue; } // fall back to union fill
+          ctx.defsParts.push(fout.def);
+          perFrag.push(`url(#${fid})`);
+        }
+        textBgClipFragmentFills[li] = perFrag;
+      }
     }
   }
-  return textBgClipFills;
+  return { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills };
 }
 
 // Inline-SVG content paint, extracted from renderElement (DM-1306, DM-1312).
@@ -3332,7 +3389,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
   // on top.
   // Background-image layers + the background-clip:text fills consumed by paintText.
-  const textBgClipFills = paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport);
+  const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport);
 
   // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
   // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
@@ -3707,7 +3764,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
 
   // Text rendering — delegated to text-renderer.ts based on configured mode
   {
-    paintText(paintCtx, el, textColor, indent, textBgClipFills, captureViewport);
+    paintText(paintCtx, el, textColor, indent, textBgClipFills, captureViewport, textBgClipFragmentFills);
   }
 
   // text-overflow truncation marker (DM-373). When an element has
