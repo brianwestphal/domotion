@@ -3258,6 +3258,56 @@ function computeGroupWrapperAttrs(
 }
 
 
+function renderChildren(
+  state: RenderState,
+  el: CapturedElement,
+  depth: number,
+  parentDisplayForEl: string | undefined,
+  baseChildren: CapturedElement[],
+): void {
+  const { hoistedFromAncestor, overflowClipForHoisted } = state;
+  let childrenForSort: CapturedElement[];
+  // DM-525: pass `el.styles.display` to flex/grid-aware checks so direct
+  // children that are flex/grid items honor z-index ≠ auto as a stacking
+  // context creator and z-sort accordingly.
+  const childParentDisplay = el.styles.display;
+  const hoistedAsInlineForEl = new Set<CapturedElement>();
+  const hoistedAsZSortedForEl = new Set<CapturedElement>();
+  if (establishesStackingContext(el, parentDisplayForEl)) {
+    childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, hoistedAsInlineForEl, overflowClipForHoisted, hoistedAsZSortedForEl);
+  } else {
+    childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
+  }
+  // DM-1052: pass the SC root's actual direct children so a flex/grid
+  // `order` / `*-reverse` reorder of a flattened paint list keeps each
+  // hoisted descendant grouped with (and painting after) its direct-item
+  // ancestor instead of being reversed ahead of it.
+  let sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl, new Set(baseChildren));
+  // DM-751: when this element establishes a 3D rendering context
+  // (`transform-style: preserve-3d`), CSS Transforms 2 §6 sorts children
+  // by their Z position in 3D space — translateZ — not by z-index. Re-
+  // sort the already-positioned children by extracted translateZ
+  // ascending, with DOM order tie-breaks, so a child with a small
+  // z-index but a positive translateZ paints above siblings with bigger
+  // z-index but translateZ=0. Approximation: ignore perspective effects
+  // (which would also shrink / shift the painted box) and just use the
+  // captured `matrix3d` `m43` translation. Without this the
+  // `transform-style: preserve-3d` panel in `13-deep-cross-sc-z-index`
+  // paints orange (`translateZ(20px)`, z=1) BEHIND purple (z=5) and sky
+  // (z=10), instead of in front of both as Chrome paints.
+  if (el.styles.transformStyle === "preserve-3d") {
+    const zOf = (c: CapturedElement) => c.styles.translateZ ?? 0;
+    sortedChildren = sortedChildren
+      .map((c, idx) => ({ c, idx, z: zOf(c) }))
+      .sort((a, b) => a.z - b.z || a.idx - b.idx)
+      .map((x) => x.c);
+  }
+  for (const child of sortedChildren) {
+    renderElementWithOverflowClip(state, child, depth + 1, childParentDisplay);
+  }
+}
+
+
 function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
   const {
     svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
@@ -3954,45 +4004,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // SC's flat list (they render at the ancestor's depth via that SC's
   // sort, and re-rendering here would double-emit).
   const baseChildren = hasOwnText ? nonFloatChildren : el.children;
-  let childrenForSort: CapturedElement[];
-  // DM-525: pass `el.styles.display` to flex/grid-aware checks so direct
-  // children that are flex/grid items honor z-index ≠ auto as a stacking
-  // context creator and z-sort accordingly.
-  const childParentDisplay = el.styles.display;
-  const hoistedAsInlineForEl = new Set<CapturedElement>();
-  const hoistedAsZSortedForEl = new Set<CapturedElement>();
-  if (establishesStackingContext(el, parentDisplayForEl)) {
-    childrenForSort = gatherStackingContextChildren(baseChildren, hoistedFromAncestor, childParentDisplay, hoistedAsInlineForEl, overflowClipForHoisted, hoistedAsZSortedForEl);
-  } else {
-    childrenForSort = baseChildren.filter((c) => !hoistedFromAncestor.has(c));
-  }
-  // DM-1052: pass the SC root's actual direct children so a flex/grid
-  // `order` / `*-reverse` reorder of a flattened paint list keeps each
-  // hoisted descendant grouped with (and painting after) its direct-item
-  // ancestor instead of being reversed ahead of it.
-  let sortedChildren = sortChildrenByPaintOrder(childrenForSort, childParentDisplay, el.styles.flexDirection, hoistedAsInlineForEl, hoistedAsZSortedForEl, new Set(baseChildren));
-  // DM-751: when this element establishes a 3D rendering context
-  // (`transform-style: preserve-3d`), CSS Transforms 2 §6 sorts children
-  // by their Z position in 3D space — translateZ — not by z-index. Re-
-  // sort the already-positioned children by extracted translateZ
-  // ascending, with DOM order tie-breaks, so a child with a small
-  // z-index but a positive translateZ paints above siblings with bigger
-  // z-index but translateZ=0. Approximation: ignore perspective effects
-  // (which would also shrink / shift the painted box) and just use the
-  // captured `matrix3d` `m43` translation. Without this the
-  // `transform-style: preserve-3d` panel in `13-deep-cross-sc-z-index`
-  // paints orange (`translateZ(20px)`, z=1) BEHIND purple (z=5) and sky
-  // (z=10), instead of in front of both as Chrome paints.
-  if (el.styles.transformStyle === "preserve-3d") {
-    const zOf = (c: CapturedElement) => c.styles.translateZ ?? 0;
-    sortedChildren = sortedChildren
-      .map((c, idx) => ({ c, idx, z: zOf(c) }))
-      .sort((a, b) => a.z - b.z || a.idx - b.idx)
-      .map((x) => x.c);
-  }
-  for (const child of sortedChildren) {
-    renderElementWithOverflowClip(state, child, depth + 1, childParentDisplay);
-  }
+  renderChildren(state, el, depth, parentDisplayForEl, baseChildren);
 
   // DM-1001: emit deferred fade-overlay `::after` pseudoBoxes AFTER all
   // child recursion. The `::before` loop above skipped these so they paint
