@@ -112,7 +112,7 @@ jobs:
       - name: Record runner image
         if: always()
         shell: bash
-        run: echo "${ImageOS:-unknown}-${RUNNER_ARCH:-unknown}" | tr 'A-Z' 'a-z' > tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+        run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Prune passing artifacts
         if: always()
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
@@ -147,7 +147,7 @@ jobs:
       - name: Record runner image
         if: always()
         shell: bash
-        run: echo "${ImageOS:-unknown}-${RUNNER_ARCH:-unknown}" | tr 'A-Z' 'a-z' > tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+        run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Prune passing artifacts
         if: always()
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
@@ -183,7 +183,7 @@ jobs:
       - name: Record runner image
         if: always()
         shell: bash
-        run: echo "${ImageOS:-unknown}-${RUNNER_ARCH:-unknown}" | tr 'A-Z' 'a-z' > tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+        run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
       - name: Prune passing artifacts
         if: always()
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}

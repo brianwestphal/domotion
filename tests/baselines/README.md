@@ -56,8 +56,13 @@ the strict local `regionCount === 0` check.)
 
 `<suite>-<os>.json` — `{ meta, fixtures }`:
 
-- `meta`: `suite`, `os`, `image` (e.g. `macos15-arm64`), `commit`, `capturedAt`,
-  and roll-up `counts`.
+- `meta`: `suite`, `os`, `image`, `commit`, `capturedAt`, and roll-up `counts`.
+  `image` identifies the runner image so an image rotation shows up as a mismatch
+  (recorded by `scripts/record-runner-image.mjs`, DM-1426). On the host runners
+  it's the GitHub `ImageOS` + arch (`macos15-arm64`, `win22-x64`); the Linux job
+  runs inside the pinned `mcr.microsoft.com/playwright:v<ver>-noble` container
+  where `ImageOS` is unset, so it's the Playwright version + Ubuntu codename + arch
+  (`playwright-v1.59.1-noble-x64`) — which rotates when the container tag bumps.
 - `fixtures`: `{ "<fixture-name>": { pass, skipped, diffPct, worstTilePct, regionCount } }`.
 
 Only the fields the comparator needs are stored, keyed by fixture name, so the

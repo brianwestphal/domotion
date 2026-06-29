@@ -2,7 +2,7 @@
   "meta": {
     "suite": "html",
     "os": "linux",
-    "image": "unknown-x64",
+    "image": "playwright-v1.59.1-noble-x64",
     "commit": "172c7208f341d3bb2d88bf2c02af6fc546844c9f",
     "capturedAt": null,
     "counts": {
