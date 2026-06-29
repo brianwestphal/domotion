@@ -178,17 +178,19 @@ async function main(): Promise<void> {
     process.stdout.write(`svg-review: ${server.url}\n`);
     if (flags.open) await openInBrowser(server.url);
 
-    // Stay alive until Ctrl-C.
-    process.on("SIGINT", async () => {
+    // Stay alive until Ctrl-C. Guard against re-entry (overlapping SIGINT +
+    // SIGTERM, or a repeated Ctrl-C) so we don't double-close the server /
+    // browser — mirrors scrubber.ts's `closing` flag (DM-1433).
+    let closing = false;
+    const shutdown = async (): Promise<void> => {
+      if (closing) return;
+      closing = true;
       await server.close();
       await browser.close();
       process.exit(0);
-    });
-    process.on("SIGTERM", async () => {
-      await server.close();
-      await browser.close();
-      process.exit(0);
-    });
+    };
+    process.on("SIGINT", () => { void shutdown(); });
+    process.on("SIGTERM", () => { void shutdown(); });
     // Keep the event loop busy — the server holds the loop open anyway,
     // but be explicit so the user can read the printed URL.
     await new Promise(() => { /* never resolves; SIGINT exits the process */ });

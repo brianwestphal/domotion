@@ -122,40 +122,52 @@ function renderShell(label: string): string {
 export async function startReviewServer(inputs: ReviewServerInputs): Promise<ReviewServer> {
   const label = inputs.label ?? inputs.actualSvg.split("/").pop() ?? "svg-review";
   const clientJs = REVIEW_CLIENT_JS;
-  // Read the static images once at startup; they're snapshot files, not
-  // mutating during the review session.
-  for (const p of [inputs.expectedPng, inputs.actualPng, inputs.actualSvg, inputs.diffPng]) {
-    if (!existsSync(p)) throw new Error(`svg-review: file not found: ${p}`);
-  }
-  const fileByRoute: Record<string, string> = {
+  // Read the static images once at startup, into memory. They're snapshot
+  // files that don't mutate during the review session, so serving the cached
+  // buffers (rather than `readFileSync` per request) means a file deleted or
+  // made unreadable mid-session can't throw inside the request handler and
+  // crash the server (DM-1433).
+  const assetByRoute: Record<string, { buf: Buffer; contentType: string }> = {};
+  for (const [route, p] of Object.entries({
     "/expected.png": inputs.expectedPng,
     "/actual.png":   inputs.actualPng,
     "/actual.svg":   inputs.actualSvg,
     "/diff.png":     inputs.diffPng,
-  };
+  })) {
+    if (!existsSync(p)) throw new Error(`svg-review: file not found: ${p}`);
+    const ext = extname(p).toLowerCase();
+    assetByRoute[route] = { buf: readFileSync(p), contentType: MIME[ext] ?? "application/octet-stream" };
+  }
 
   const handler = (req: IncomingMessage, res: ServerResponse) => {
-    const url = (req.url ?? "/").split("?")[0];
-    if (url === "/" || url === "/index.html") {
-      const html = renderShell(label);
-      res.writeHead(200, { "content-type": MIME[".html"]! });
-      res.end(html);
-      return;
+    try {
+      const url = (req.url ?? "/").split("?")[0];
+      if (url === "/" || url === "/index.html") {
+        const html = renderShell(label);
+        res.writeHead(200, { "content-type": MIME[".html"]! });
+        res.end(html);
+        return;
+      }
+      if (url === "/client.js") {
+        res.writeHead(200, { "content-type": MIME[".js"]! });
+        res.end(clientJs);
+        return;
+      }
+      const asset = assetByRoute[url];
+      if (asset != null) {
+        res.writeHead(200, { "content-type": asset.contentType, "content-length": asset.buf.length });
+        res.end(asset.buf);
+        return;
+      }
+      res.writeHead(404, { "content-type": "text/plain" });
+      res.end(`not found: ${url}`);
+    } catch (err) {
+      // Never let a handler throw take down the process (mirrors scrubber/server.ts).
+      try {
+        res.writeHead(500, { "content-type": "text/plain" });
+        res.end(`svg-review error: ${(err as Error).message}`);
+      } catch { /* response already partially written */ }
     }
-    if (url === "/client.js") {
-      res.writeHead(200, { "content-type": MIME[".js"]! });
-      res.end(clientJs);
-      return;
-    }
-    const filePath = fileByRoute[url];
-    if (filePath != null) {
-      const ext = extname(filePath).toLowerCase();
-      res.writeHead(200, { "content-type": MIME[ext] ?? "application/octet-stream" });
-      res.end(readFileSync(filePath));
-      return;
-    }
-    res.writeHead(404, { "content-type": "text/plain" });
-    res.end(`not found: ${url}`);
   };
 
   const server = createServer(handler);

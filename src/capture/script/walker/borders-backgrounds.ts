@@ -40,6 +40,8 @@
 //   - **borderImageIntrinsicWidth / Height**: same pattern for border-
 //     image-source url().
 
+import { extractCssUrl } from "../utils.js";
+
 export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
     tag === 'input' && el.type === 'color'
@@ -99,17 +101,12 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       let searchLayer = layer;
       const imgSet = /^\s*(?:-webkit-)?image-set\(\s*([\s\S]+)\s*\)\s*$/i.exec(layer);
       if (imgSet != null) searchLayer = imgSet[1];
-      // Match all three url() forms: "...", '...', and bare. Data: URLs
-      // with embedded HTML attribute quotes (escaped as \") were silently
-      // truncated by a prior single-regex implementation. DM-308.
-      // For image-set candidates the url() may appear anywhere in the
-      // inner string, so anchor at the start of the SEARCH LAYER but
-      // allow leading whitespace.
-      const u = /\burl\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(searchLayer);
-      if (u == null) return null;
-      const raw = u[1] || u[2] || u[3] || '';
-      if (raw === '') return null;
-      const url = raw.replace(/\\(.)/g, '$1');
+      // Match all three url() forms ("...", '...', bare), unescaping escaped
+      // quotes so a data: URL with embedded HTML attribute quotes isn't
+      // truncated (DM-308). For image-set candidates the url() may appear
+      // anywhere in the inner string, so search the whole SEARCH LAYER.
+      const url = extractCssUrl(searchLayer);
+      if (url == null) return null;
       const img = new Image();
       img.src = url;
       const w = img.naturalWidth || 0;
@@ -119,10 +116,10 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
   };
 
   const computeBorderImageIntrinsic = (cs, dim) => {
-    const m = /^url\((?:"|')?([^"')]+)/.exec(cs.borderImageSource || '');
-    if (m == null) return undefined;
+    const url = extractCssUrl(cs.borderImageSource || '');
+    if (url == null) return undefined;
     const img = new Image();
-    img.src = m[1];
+    img.src = url;
     return img[dim] || undefined;
   };
 

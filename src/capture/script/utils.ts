@@ -17,6 +17,24 @@ export const isUnsetCssValue = (v) =>
 // inverse of `isUnsetCssValue` — that tests the cascade keywords; this tests none/empty.
 export const hasCssValue = (v) => v != null && v !== '' && v !== 'none';
 
+// Extract the url() target from a CSS image value (border-image-source,
+// mask-box-image-source, background-image, image-set candidate, …). Handles all
+// three url() forms — "...", '...', bare — anywhere in the value, and unescapes
+// backslash escapes. Returns null when no url() is present or the target is empty.
+//
+// DM-308/DM-1433: the old per-site `/^url\((?:"|')?([^"')]+)/` stopped at the
+// first embedded quote, so a `data:image/svg+xml,...` URL with escaped HTML
+// attribute quotes (`\"`) was silently truncated → `new Image().naturalWidth`
+// read 0. This is the escaped-quote-aware extractor, shared so all the
+// intrinsic-dimension probes stay consistent. Pure (no DOM).
+export const extractCssUrl = (value) => {
+  const u = /\burl\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(value || '');
+  if (u == null) return null;
+  const raw = u[1] || u[2] || u[3] || '';
+  if (raw === '') return null;
+  return raw.replace(/\\(.)/g, '$1');
+};
+
 // Read a computed-style box's four physical-side longhands into
 // `{ top, right, bottom, left }` numbers, defaulting each to 0 — collapses the
 // `parseFloat(cs.borderTopWidth) || 0` × 4 idiom. `prop` is the property base

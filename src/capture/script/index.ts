@@ -37,7 +37,7 @@ import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
-import { resolveElementCursor } from "./utils.js";
+import { resolveElementCursor, extractCssUrl } from "./utils.js";
 
 export const captureScript =
 (args) => {
@@ -515,17 +515,17 @@ export const captureScript =
         // SVG sources. Captured at capture time so the renderer can compute
         // 9-slice source rects without re-fetching the asset.
         maskBorderIntrinsicWidth: (function() {
-          var _m = /^url\((?:"|')?([^"')]+)/.exec(cs.webkitMaskBoxImageSource || '');
-          if (_m == null) return undefined;
+          var _url = extractCssUrl(cs.webkitMaskBoxImageSource || '');
+          if (_url == null) return undefined;
           var _img = new Image();
-          _img.src = _m[1];
+          _img.src = _url;
           return _img.naturalWidth || undefined;
         })(),
         maskBorderIntrinsicHeight: (function() {
-          var _m = /^url\((?:"|')?([^"')]+)/.exec(cs.webkitMaskBoxImageSource || '');
-          if (_m == null) return undefined;
+          var _url = extractCssUrl(cs.webkitMaskBoxImageSource || '');
+          if (_url == null) return undefined;
           var _img = new Image();
-          _img.src = _m[1];
+          _img.src = _url;
           return _img.naturalHeight || undefined;
         })(),
         listStyleType: cs.listStyleType,

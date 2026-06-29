@@ -1143,7 +1143,7 @@ function renderSvgOverlay(
     const e = overlay.enter;
     const easing = e.easing ?? "ease-out";
     const enterDelay = e.delay ?? 0;
-    const fromStr = offsetForDirection(e.from, overlay.width, overlay.height, true);
+    const fromStr = offsetForDirection(e.from, overlay.width, overlay.height);
     const enterStart = frameStart + enterDelay;
     const enterEnd = enterStart + e.duration;
     const enterId = `${id}-enter`;
@@ -1157,7 +1157,7 @@ function renderSvgOverlay(
     const e = overlay.exit;
     const easing = e.easing ?? "ease-in";
     const exitDelay = e.delay ?? 0;
-    const toStr = offsetForDirection(e.from, overlay.width, overlay.height, false);
+    const toStr = offsetForDirection(e.from, overlay.width, overlay.height);
     const exitStart = overlayEnd - e.duration - exitDelay;
     const exitId = `${id}-exit`;
     cssRules.push(`
@@ -1179,12 +1179,13 @@ function renderSvgOverlay(
 }
 
 /**
- * Offset string for a slide direction. When `outFrom` is true the offset is
- * the off-screen starting position (i.e. the overlay sits there before
- * animating to `(0,0)`). When false, it's the off-screen end position
- * (overlay animates from `(0,0)` to here on exit).
+ * Off-screen offset string for a slide direction — the point the overlay sits
+ * at when fully off-screen on the given side. Enter animates from this offset to
+ * `translate(0,0)`; exit animates from `translate(0,0)` back to it. The offset
+ * is the same for both (the enter-vs-exit direction is carried by the keyframe
+ * construction, not by this function), so it takes only the direction + size.
  */
-function offsetForDirection(dir: "top" | "bottom" | "left" | "right", w: number, h: number, _outFrom: boolean): string {
+function offsetForDirection(dir: "top" | "bottom" | "left" | "right", w: number, h: number): string {
   if (dir === "top")    return `translate(0, -${h}px)`;
   if (dir === "bottom") return `translate(0, ${h}px)`;
   if (dir === "left")   return `translate(-${w}px, 0)`;
