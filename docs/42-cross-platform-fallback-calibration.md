@@ -318,6 +318,37 @@ supplemental faces). The committed table is the **desktop Windows 11**
 calibration — the representative consumer environment — so regenerate it on
 desktop Windows, not from the CI artifact.
 
+### Desktop-Win11 regen runbook (DM-1423)
+
+`tools/calibrate-win32-unicode-fonts.sh` documents + drives the desktop regen
+on the Parallels "Windows 11" VM; the host-side regen is `--regen`. Two
+hard-won requirements (DM-1423):
+
+- **Pin the Chromium to the repo's `@playwright/test`.** The table records which
+  face *Chromium* picks per block, so it must be swept with the chromium
+  revision the renderer + visual suite use (the repo's pinned Playwright →
+  e.g. 1.59.1 → chromium-1217), NOT just any Chromium. A 1.60.0 / chromium-1223
+  sweep drifted two recent Latin blocks — `latin-extended-f` (U+10780) and
+  `latin-extended-g` (U+1DF00) — from Calibri / Sans Serif Collection to Arial.
+  That is a **Chromium-version nuance, not a desktop-vs-Server font-set
+  difference**, and the wrong answer for the pinned Chromium — so it must not be
+  committed. Install `@playwright/test@<pinned>` in the VM and `npx playwright
+  install chromium chromium-headless-shell` before sweeping.
+- **Install the headless shell.** `chromium.launch()` uses
+  `chrome-headless-shell`, a separate download from the full `chromium` browser;
+  if only `chromium-<rev>` is installed the sweep dies with *"Executable doesn't
+  exist at …chromium_headless_shell-<rev>…"*. Under `prlctl exec` (which runs as
+  `nt authority\system`) the browsers install to the SYSTEM profile's
+  `%LOCALAPPDATA%\ms-playwright`; if the shell is reported missing at launch,
+  `npx playwright install --force chromium-headless-shell` and confirm the .exe
+  actually lands.
+
+DM-1423 re-swept the committed table on a real desktop Win11 host and confirmed
+it is the genuine **desktop** calibration (it routes to Yu Gothic / Yu Gothic UI,
+SimSun-ExtB/G, Microsoft Yi Baiti, Javanese Text, Myanmar Text — all absent on
+Windows Server) and is current for the pinned Chromium (the only diffs were the
+two chromium-version-nuance Latin blocks above, correctly left uncommitted).
+
 ## The probe script
 
 A `tools/probe-fallbacks-cross-platform.mjs` modelled on the existing
