@@ -1,0 +1,5743 @@
+{
+  "meta": {
+    "suite": "unicode",
+    "os": "linux",
+    "image": "unknown-x64",
+    "commit": "172c7208f341d3bb2d88bf2c02af6fc546844c9f",
+    "capturedAt": null,
+    "counts": {
+      "passed": 3,
+      "failed": 815,
+      "skipped": 0,
+      "total": 818
+    }
+  },
+  "fixtures": {
+    "0000-007F-basic-latin": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6433417174643126,
+      "worstTilePct": 3.049452438376409,
+      "regionCount": 2
+    },
+    "0080-00FF-latin-1-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7346411467078058,
+      "worstTilePct": 3.390133434278164,
+      "regionCount": 2
+    },
+    "0100-017F-latin-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7905743657211355,
+      "worstTilePct": 3.4039929136094513,
+      "regionCount": 1
+    },
+    "0180-024F-latin-extended-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7892098536679024,
+      "worstTilePct": 3.5205143287932916,
+      "regionCount": 3
+    },
+    "0250-02AF-ipa-extensions": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6837313681760271,
+      "worstTilePct": 3.9824802822564864,
+      "regionCount": 1
+    },
+    "02B0-02FF-spacing-modifier-letters": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5586428125528847,
+      "worstTilePct": 3.782941778915147,
+      "regionCount": 1
+    },
+    "0300-036F-combining-diacritical-marks": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.8363208202164052,
+      "worstTilePct": 3.967672521002277,
+      "regionCount": 44
+    },
+    "0370-03FF-greek-and-coptic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7709829844262786,
+      "worstTilePct": 3.423927974378708,
+      "regionCount": 1
+    },
+    "0400-04FF-cyrillic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.830940855115538,
+      "worstTilePct": 3.377637659886976,
+      "regionCount": 4
+    },
+    "0500-052F-cyrillic-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3929635913934251,
+      "worstTilePct": 3.5068581724622137,
+      "regionCount": 1
+    },
+    "0530-058F-armenian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5469229438872373,
+      "worstTilePct": 3.5950495911351474,
+      "regionCount": 2
+    },
+    "0590-05FF-hebrew": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6494864398962594,
+      "worstTilePct": 3.121957250804621,
+      "regionCount": 23
+    },
+    "0600-06FF-arabic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6356562361850702,
+      "worstTilePct": 3.429748585612285,
+      "regionCount": 37
+    },
+    "0700-074F-syriac": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4951760741539771,
+      "worstTilePct": 3.0268669658427423,
+      "regionCount": 17
+    },
+    "0750-077F-arabic-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.340694892223915,
+      "worstTilePct": 3.650663156213252,
+      "regionCount": 1
+    },
+    "0780-07BF-thaana": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3569022791040096,
+      "worstTilePct": 2.695621659398311,
+      "regionCount": 12
+    },
+    "07C0-07FF-nko": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.41382777201806503,
+      "worstTilePct": 2.91908503156594,
+      "regionCount": 10
+    },
+    "0800-083F-samaritan": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.43730075803092144,
+      "worstTilePct": 2.9450226053404727,
+      "regionCount": 22
+    },
+    "0840-085F-mandaic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2305164586468672,
+      "worstTilePct": 3.014214971673683,
+      "regionCount": 3
+    },
+    "0860-086F-syriac-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.15407515990633042,
+      "worstTilePct": 3.7539037856657687,
+      "regionCount": 1
+    },
+    "0870-089F-arabic-extended-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4279388620419575,
+      "worstTilePct": 12.892848504072774,
+      "regionCount": 12
+    },
+    "08A0-08FF-arabic-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.8294357921923351,
+      "worstTilePct": 3.391725854921939,
+      "regionCount": 43
+    },
+    "0900-097F-devanagari": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6403708789917364,
+      "worstTilePct": 3.6748886143341766,
+      "regionCount": 7
+    },
+    "0980-09FF-bengali": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5961546857231808,
+      "worstTilePct": 3.364244955816926,
+      "regionCount": 5
+    },
+    "0A00-0A7F-gurmukhi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.47526251873837466,
+      "worstTilePct": 2.72636274168961,
+      "regionCount": 2
+    },
+    "0A80-0AFF-gujarati": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5069802335428119,
+      "worstTilePct": 3.1515308555730774,
+      "regionCount": 2
+    },
+    "0B00-0B7F-oriya": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5462562265073208,
+      "worstTilePct": 3.126952380825221,
+      "regionCount": 3
+    },
+    "0B80-0BFF-tamil": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4895838128073058,
+      "worstTilePct": 2.9404911618465155,
+      "regionCount": 3
+    },
+    "0C00-0C7F-telugu": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.671544074188311,
+      "worstTilePct": 3.509233344569633,
+      "regionCount": 27
+    },
+    "0C80-0CFF-kannada": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5191849943324262,
+      "worstTilePct": 2.8611001599543364,
+      "regionCount": 1
+    },
+    "0D00-0D7F-malayalam": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5885633378028574,
+      "worstTilePct": 3.362512162844515,
+      "regionCount": 3
+    },
+    "0D80-0DFF-sinhala": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5373970747548661,
+      "worstTilePct": 3.14265486266153,
+      "regionCount": 2
+    },
+    "0E00-0E7F-thai": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6300963878276081,
+      "worstTilePct": 2.0643223717415884,
+      "regionCount": 16
+    },
+    "0E80-0EFF-lao": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5658390610720011,
+      "worstTilePct": 2.1383214015547938,
+      "regionCount": 18
+    },
+    "0F00-0FFF-tibetan": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.9228524596631578,
+      "worstTilePct": 3.266542384774572,
+      "regionCount": 85
+    },
+    "1000-109F-myanmar": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7431277977624723,
+      "worstTilePct": 3.1394667043905353,
+      "regionCount": 59
+    },
+    "10000-1007F-linear-b-syllabary": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4714514032261832,
+      "worstTilePct": 4.066666069724446,
+      "regionCount": 2
+    },
+    "10080-100FF-linear-b-ideograms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5382502099594116,
+      "worstTilePct": 4.279666934744773,
+      "regionCount": 2
+    },
+    "10100-1013F-aegean-numbers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.34554720507306314,
+      "worstTilePct": 3.5025954122892164,
+      "regionCount": 1
+    },
+    "10140-1018F-ancient-greek-numbers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.46902754702905564,
+      "worstTilePct": 3.8482498441381083,
+      "regionCount": 2
+    },
+    "10190-101CF-ancient-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.165541135759183,
+      "worstTilePct": 3.9068630931351658,
+      "regionCount": 1
+    },
+    "101D0-101FF-phaistos-disc": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.30577349402670734,
+      "worstTilePct": 3.272588504626,
+      "regionCount": 2
+    },
+    "10280-1029F-lycian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.19291664046834536,
+      "worstTilePct": 2.9999740887408413,
+      "regionCount": 1
+    },
+    "102A0-102DF-carian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2742124620844555,
+      "worstTilePct": 3.1656168644837557,
+      "regionCount": 1
+    },
+    "102E0-102FF-coptic-epact-numbers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23352896079175725,
+      "worstTilePct": 4.034249789052233,
+      "regionCount": 2
+    },
+    "10300-1032F-old-italic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.25330677703834487,
+      "worstTilePct": 3.057879983178041,
+      "regionCount": 2
+    },
+    "10330-1034F-gothic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.19780607971537972,
+      "worstTilePct": 2.903740514380252,
+      "regionCount": 1
+    },
+    "10350-1037F-old-permic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.29383333077970164,
+      "worstTilePct": 2.8818300459413755,
+      "regionCount": 7
+    },
+    "10380-1039F-ugaritic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22279853297567112,
+      "worstTilePct": 3.8513440813898083,
+      "regionCount": 2
+    },
+    "103A0-103DF-old-persian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.30275541088681457,
+      "worstTilePct": 3.1503015771468537,
+      "regionCount": 2
+    },
+    "10400-1044F-deseret": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4227124438891683,
+      "worstTilePct": 2.778304072662397,
+      "regionCount": 1
+    },
+    "10450-1047F-shavian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2841404196438172,
+      "worstTilePct": 3.108616293090771,
+      "regionCount": 1
+    },
+    "10480-104AF-osmanya": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.25568165675446114,
+      "worstTilePct": 3.389740507198918,
+      "regionCount": 2
+    },
+    "104B0-104FF-osage": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.41181207236732104,
+      "worstTilePct": 3.51825130862012,
+      "regionCount": 2
+    },
+    "10500-1052F-elbasan": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.258493976542042,
+      "worstTilePct": 2.8382682064314952,
+      "regionCount": 1
+    },
+    "10530-1056F-caucasian-albanian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.360090295366343,
+      "worstTilePct": 4.318671119718533,
+      "regionCount": 1
+    },
+    "10570-105BF-vithkuqi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4023312992302681,
+      "worstTilePct": 3.327398525175232,
+      "regionCount": 1
+    },
+    "105C0-105FF-todhri": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.33511439351547223,
+      "worstTilePct": 3.1895220449420307,
+      "regionCount": 2
+    },
+    "10600-1077F-linear-a.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5553149061451716,
+      "worstTilePct": 4.584930982413309,
+      "regionCount": 2
+    },
+    "10600-1077F-linear-a.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4592105756831917,
+      "worstTilePct": 4.584930982413309,
+      "regionCount": 2
+    },
+    "10780-107BF-latin-extended-f": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3274665997739315,
+      "worstTilePct": 3.671619702886824,
+      "regionCount": 1
+    },
+    "10800-1083F-cypriot-syllabary": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.33127230660933343,
+      "worstTilePct": 4.283198955780857,
+      "regionCount": 1
+    },
+    "10840-1085F-imperial-aramaic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23518858424134595,
+      "worstTilePct": 4.173142116013769,
+      "regionCount": 1
+    },
+    "10860-1087F-palmyrene": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.21808308964569018,
+      "worstTilePct": 3.1984730035517037,
+      "regionCount": 1
+    },
+    "10880-108AF-nabataean": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2489392684196619,
+      "worstTilePct": 3.2418015774368367,
+      "regionCount": 1
+    },
+    "108E0-108FF-hatran": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2064692939149189,
+      "worstTilePct": 2.9893871827555727,
+      "regionCount": 2
+    },
+    "10900-1091F-phoenician": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2065130225931224,
+      "worstTilePct": 3.3638242882062386,
+      "regionCount": 1
+    },
+    "10920-1093F-lydian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1983599156551178,
+      "worstTilePct": 3.2010502628022275,
+      "regionCount": 2
+    },
+    "10980-1099F-meroitic-hieroglyphs": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.24557295546755653,
+      "worstTilePct": 4.6870289082743435,
+      "regionCount": 2
+    },
+    "109A0-109FF-meroitic-cursive": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.504773901316095,
+      "worstTilePct": 3.249398908146226,
+      "regionCount": 1
+    },
+    "10A0-10FF-georgian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5633635592835866,
+      "worstTilePct": 3.003338806311767,
+      "regionCount": 1
+    },
+    "10A00-10A5F-kharoshthi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4127165400525965,
+      "worstTilePct": 3.3255641249894192,
+      "regionCount": 15
+    },
+    "10A60-10A7F-old-south-arabian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2282138127162997,
+      "worstTilePct": 3.6534706866710196,
+      "regionCount": 1
+    },
+    "10A80-10A9F-old-north-arabian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23303230335038377,
+      "worstTilePct": 3.6389938691177437,
+      "regionCount": 3
+    },
+    "10AC0-10AFF-manichaean": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3043606873334407,
+      "worstTilePct": 3.270359151460964,
+      "regionCount": 3
+    },
+    "10B00-10B3F-avestan": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3563807564562324,
+      "worstTilePct": 3.174564414327339,
+      "regionCount": 1
+    },
+    "10B40-10B5F-inscriptional-parthian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.250647277995332,
+      "worstTilePct": 3.7710814231332357,
+      "regionCount": 1
+    },
+    "10B60-10B7F-inscriptional-pahlavi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23120761231927564,
+      "worstTilePct": 3.7284755848571334,
+      "regionCount": 2
+    },
+    "10B80-10BAF-psalter-pahlavi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.227236065535576,
+      "worstTilePct": 3.9330299853916966,
+      "regionCount": 3
+    },
+    "10C00-10C4F-old-turkic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.39404826567818513,
+      "worstTilePct": 3.017379002412508,
+      "regionCount": 2
+    },
+    "10C80-10CFF-old-hungarian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5238517883248522,
+      "worstTilePct": 4.684753249014549,
+      "regionCount": 3
+    },
+    "10D00-10D3F-hanifi-rohingya": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.33853504269690476,
+      "worstTilePct": 4.331315628145574,
+      "regionCount": 7
+    },
+    "10D40-10D8F-garay": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7503623521741389,
+      "worstTilePct": 11.511906719977699,
+      "regionCount": 7
+    },
+    "10E60-10E7F-rumi-numeral-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2562761602558727,
+      "worstTilePct": 3.8395483321986577,
+      "regionCount": 2
+    },
+    "10E80-10EBF-yezidi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3268309189347751,
+      "worstTilePct": 3.1024858027724895,
+      "regionCount": 3
+    },
+    "10EC0-10EFF-arabic-extended-c": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.231228281037369,
+      "worstTilePct": 13.595929107264562,
+      "regionCount": 7
+    },
+    "10F00-10F2F-old-sogdian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2775143319974571,
+      "worstTilePct": 4.055000157881759,
+      "regionCount": 1
+    },
+    "10F30-10F6F-sogdian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3196986586234368,
+      "worstTilePct": 3.5456218603377465,
+      "regionCount": 12
+    },
+    "10F70-10FAF-old-uyghur": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22301935877418652,
+      "worstTilePct": 4.01042339632455,
+      "regionCount": 7
+    },
+    "10FB0-10FDF-chorasmian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2223743571241458,
+      "worstTilePct": 3.491223396836486,
+      "regionCount": 1
+    },
+    "10FE0-10FFF-elymaic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2025791182187973,
+      "worstTilePct": 2.834224180178978,
+      "regionCount": 1
+    },
+    "1100-11FF-hangul-jamo": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5822335221783115,
+      "worstTilePct": 3.715671686673868,
+      "regionCount": 2
+    },
+    "11000-1107F-brahmi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.586003037502403,
+      "worstTilePct": 3.1119580237636604,
+      "regionCount": 24
+    },
+    "11080-110CF-kaithi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.42419976282038996,
+      "worstTilePct": 3.22351424188786,
+      "regionCount": 16
+    },
+    "110D0-110FF-sora-sompeng": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.25413393636413734,
+      "worstTilePct": 3.8727429310269783,
+      "regionCount": 1
+    },
+    "11100-1114F-chakma": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.46149352997697246,
+      "worstTilePct": 3.1276679413474278,
+      "regionCount": 22
+    },
+    "11150-1117F-mahajani": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.24745143021105312,
+      "worstTilePct": 2.8808524445407655,
+      "regionCount": 2
+    },
+    "11180-111DF-sharada": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6246044285966171,
+      "worstTilePct": 3.0148290685600156,
+      "regionCount": 24
+    },
+    "111E0-111FF-sinhala-archaic-numbers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.20518096981750744,
+      "worstTilePct": 3.872309177966015,
+      "regionCount": 1
+    },
+    "11200-1124F-khojki": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.41654651737915255,
+      "worstTilePct": 3.370825584379754,
+      "regionCount": 16
+    },
+    "11280-112AF-multani": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22594972375008382,
+      "worstTilePct": 2.9962246069616025,
+      "regionCount": 1
+    },
+    "112B0-112FF-khudawadi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.43772403092681494,
+      "worstTilePct": 3.5553110884633368,
+      "regionCount": 13
+    },
+    "11300-1137F-grantha": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7833226525788082,
+      "worstTilePct": 5.64507453785166,
+      "regionCount": 36
+    },
+    "11380-113FF-tulu-tigalari": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.2013084365106612,
+      "worstTilePct": 14.122577885783185,
+      "regionCount": 13
+    },
+    "11400-1147F-newa": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6459982562015077,
+      "worstTilePct": 3.39665375356841,
+      "regionCount": 21
+    },
+    "11480-114DF-tirhuta": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.582770065683738,
+      "worstTilePct": 2.6518271874019903,
+      "regionCount": 22
+    },
+    "11580-115FF-siddham": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5926667524616284,
+      "worstTilePct": 3.214378215507906,
+      "regionCount": 20
+    },
+    "11600-1165F-modi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5169542393169554,
+      "worstTilePct": 2.7167146681294594,
+      "regionCount": 19
+    },
+    "11660-1167F-mongolian-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.15502743030407498,
+      "worstTilePct": 3.3493933261060573,
+      "regionCount": 1
+    },
+    "11680-116CF-takri": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.41872076842077455,
+      "worstTilePct": 2.6207971405437025,
+      "regionCount": 12
+    },
+    "116D0-116FF-myanmar-extended-c": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.18294635489462097,
+      "worstTilePct": 3.7138186910054696,
+      "regionCount": 1
+    },
+    "11700-1174F-ahom": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4276402609849245,
+      "worstTilePct": 3.3818045413307534,
+      "regionCount": 16
+    },
+    "11800-1184F-dogra": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.38418999799640574,
+      "worstTilePct": 3.644598150297309,
+      "regionCount": 17
+    },
+    "118A0-118FF-warang-citi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.45383861691433586,
+      "worstTilePct": 3.70442223963341,
+      "regionCount": 2
+    },
+    "11900-1195F-dives-akuru": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4772330847618903,
+      "worstTilePct": 3.3233270933405548,
+      "regionCount": 18
+    },
+    "119A0-119FF-nandinagari": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.42843749119091656,
+      "worstTilePct": 3.7013324737058326,
+      "regionCount": 16
+    },
+    "11A00-11A4F-zanabazar-square": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.44718539211049707,
+      "worstTilePct": 3.1481694823182425,
+      "regionCount": 24
+    },
+    "11A50-11AAF-soyombo": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5382307101868524,
+      "worstTilePct": 3.4089237771784497,
+      "regionCount": 33
+    },
+    "11AB0-11ABF-unified-canadian-aboriginal-syllabics-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23174253253369234,
+      "worstTilePct": 4.7410796844113126,
+      "regionCount": 4
+    },
+    "11AC0-11AFF-pau-cin-hau": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3382569288445792,
+      "worstTilePct": 3.7496746138130144,
+      "regionCount": 3
+    },
+    "11B00-11B5F-devanagari-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1493513656172442,
+      "worstTilePct": 3.4715720785650253,
+      "regionCount": 2
+    },
+    "11BC0-11BFF-sunuwar": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.28184161887232234,
+      "worstTilePct": 2.6457785353944563,
+      "regionCount": 1
+    },
+    "11C00-11C6F-bhaiksuki": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5946303437856914,
+      "worstTilePct": 2.8716625940440363,
+      "regionCount": 18
+    },
+    "11C70-11CBF-marchen": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6859370590771047,
+      "worstTilePct": 3.0260077313045546,
+      "regionCount": 37
+    },
+    "11D00-11D5F-masaram-gondi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.47890093279525464,
+      "worstTilePct": 3.7526448965784254,
+      "regionCount": 19
+    },
+    "11D60-11DAF-gunjala-gondi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4661554224054217,
+      "worstTilePct": 3.781168588668683,
+      "regionCount": 13
+    },
+    "11EE0-11EFF-makasar": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22865054725924802,
+      "worstTilePct": 3.051176136575368,
+      "regionCount": 5
+    },
+    "11F00-11F5F-kawi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6669597784733763,
+      "worstTilePct": 3.059305349420733,
+      "regionCount": 18
+    },
+    "11FB0-11FBF-lisu-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.09014064842331448,
+      "worstTilePct": 3.5509818064011474,
+      "regionCount": 1
+    },
+    "11FC0-11FFF-tamil-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.35432199538607995,
+      "worstTilePct": 3.56140763128723,
+      "regionCount": 1
+    },
+    "1200-137F-ethiopic.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5996767238376755,
+      "worstTilePct": 3.631959688391019,
+      "regionCount": 2
+    },
+    "1200-137F-ethiopic.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6093459793733668,
+      "worstTilePct": 3.631959688391019,
+      "regionCount": 4
+    },
+    "12000-123FF-cuneiform.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5522912906448634,
+      "worstTilePct": 4.114289286330541,
+      "regionCount": 1
+    },
+    "12000-123FF-cuneiform.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5635233987385441,
+      "worstTilePct": 4.114289286330541,
+      "regionCount": 1
+    },
+    "12000-123FF-cuneiform.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5395485705668638,
+      "worstTilePct": 4.114289286330541,
+      "regionCount": 1
+    },
+    "12000-123FF-cuneiform.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5839058437071696,
+      "worstTilePct": 4.114289286330541,
+      "regionCount": 1
+    },
+    "12400-1247F-cuneiform-numbers-and-punctuation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5800926669353096,
+      "worstTilePct": 3.779706952900139,
+      "regionCount": 2
+    },
+    "12480-1254F-early-dynastic-cuneiform": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5518835099623953,
+      "worstTilePct": 4.293426318158328,
+      "regionCount": 1
+    },
+    "12F90-12FFF-cypro-minoan": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5841456469910788,
+      "worstTilePct": 3.80491013569242,
+      "regionCount": 1
+    },
+    "13000-1342F-egyptian-hieroglyphs.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6321032939393233,
+      "worstTilePct": 4.6494386754695185,
+      "regionCount": 2
+    },
+    "13000-1342F-egyptian-hieroglyphs.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6448619428044872,
+      "worstTilePct": 4.6494386754695185,
+      "regionCount": 1
+    },
+    "13000-1342F-egyptian-hieroglyphs.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6212906140285956,
+      "worstTilePct": 4.6494386754695185,
+      "regionCount": 1
+    },
+    "13000-1342F-egyptian-hieroglyphs.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6631953374868544,
+      "worstTilePct": 4.6494386754695185,
+      "regionCount": 1
+    },
+    "13000-1342F-egyptian-hieroglyphs.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.33515593199505544,
+      "worstTilePct": 4.6494386754695185,
+      "regionCount": 1
+    },
+    "13430-1345F-egyptian-hieroglyph-format-controls": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.37493214584108,
+      "worstTilePct": 14.415193503803032,
+      "regionCount": 18
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.683924956474712,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6841121036663933,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7449856605554032,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6696074599563573,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 3
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.62844795291887,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6156905934829637,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6308315715177081,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6554944876056834,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6544921689675768,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6527066725134408,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6587882234572964,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6397934121838753,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6457269236953136,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6734677900860859,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6693996143120757,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "13460-143FF-egyptian-hieroglyphs-extended-a.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7268897836986512,
+      "worstTilePct": 4.561868185224423,
+      "regionCount": 2
+    },
+    "1380-139F-ethiopic-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22503427309758448,
+      "worstTilePct": 4.048264055997007,
+      "regionCount": 1
+    },
+    "13A0-13FF-cherokee": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5800324248030331,
+      "worstTilePct": 2.798753168880826,
+      "regionCount": 1
+    },
+    "1400-167F-unified-canadian-aboriginal-syllabics.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6598545040502363,
+      "worstTilePct": 4.876078395591076,
+      "regionCount": 4
+    },
+    "1400-167F-unified-canadian-aboriginal-syllabics.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6575049955880131,
+      "worstTilePct": 4.834689583270235,
+      "regionCount": 3
+    },
+    "1400-167F-unified-canadian-aboriginal-syllabics.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6224189860394781,
+      "worstTilePct": 4.666612690499111,
+      "regionCount": 5
+    },
+    "14400-1467F-anatolian-hieroglyphs.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6146324759040548,
+      "worstTilePct": 4.661995101047767,
+      "regionCount": 2
+    },
+    "14400-1467F-anatolian-hieroglyphs.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.636570766252658,
+      "worstTilePct": 4.661995101047767,
+      "regionCount": 1
+    },
+    "14400-1467F-anatolian-hieroglyphs.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4259859718388924,
+      "worstTilePct": 4.661995101047767,
+      "regionCount": 1
+    },
+    "16100-1613F-gurung-khema": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.3835791059199307,
+      "worstTilePct": 11.456181716212157,
+      "regionCount": 16
+    },
+    "1680-169F-ogham": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22010145057402794,
+      "worstTilePct": 3.5413959433512394,
+      "regionCount": 1
+    },
+    "16800-16A3F-bamum-supplement.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5648658637137299,
+      "worstTilePct": 3.644670327801067,
+      "regionCount": 2
+    },
+    "16800-16A3F-bamum-supplement.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5772440943198854,
+      "worstTilePct": 3.644670327801067,
+      "regionCount": 2
+    },
+    "16800-16A3F-bamum-supplement.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.32268578108993606,
+      "worstTilePct": 3.644670327801067,
+      "regionCount": 2
+    },
+    "16A0-16FF-runic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5069772788629218,
+      "worstTilePct": 3.0671186593976882,
+      "regionCount": 2
+    },
+    "16A40-16A6F-mro": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2393823973432146,
+      "worstTilePct": 2.4444275973906695,
+      "regionCount": 1
+    },
+    "16A70-16ACF-tangsa": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.40972733967004565,
+      "worstTilePct": 3.518615484048352,
+      "regionCount": 2
+    },
+    "16AD0-16AFF-bassa-vah": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2459673899777083,
+      "worstTilePct": 3.2619731770872096,
+      "regionCount": 5
+    },
+    "16B00-16B8F-pahawh-hmong": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5758880068362443,
+      "worstTilePct": 4.233951173441696,
+      "regionCount": 8
+    },
+    "16D40-16D7F-kirat-rai": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.34709322606353327,
+      "worstTilePct": 2.7944235044963794,
+      "regionCount": 3
+    },
+    "16E40-16E9F-medefaidrin": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5452927453151554,
+      "worstTilePct": 3.33645066315405,
+      "regionCount": 1
+    },
+    "16F00-16F9F-miao": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7693556434547435,
+      "worstTilePct": 2.7705677800935047,
+      "regionCount": 61
+    },
+    "16FE0-16FFF-ideographic-symbols-and-punctuation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22607493500224674,
+      "worstTilePct": 4.6337271823534385,
+      "regionCount": 6
+    },
+    "1700-171F-tagalog": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.20395564621413742,
+      "worstTilePct": 3.3340198323504904,
+      "regionCount": 6
+    },
+    "17000-187FF-tangut.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5802385745128843,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5859528041502706,
+      "worstTilePct": 3.8079307924778587,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5421603254689822,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6030559672823294,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 3
+    },
+    "17000-187FF-tangut.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.582512547221515,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6204445873691566,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6766528593718066,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6304608411519401,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5767830419877541,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5768498901108446,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5701652012108224,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 3
+    },
+    "17000-187FF-tangut.19": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5983787068421995,
+      "worstTilePct": 3.8079307924778587,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5615223809792154,
+      "worstTilePct": 3.810667811508356,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.20": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6010893946430388,
+      "worstTilePct": 3.8079307924778587,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.21": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6040531847870169,
+      "worstTilePct": 3.8079307924778587,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.22": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5719418287971139,
+      "worstTilePct": 3.8079307924778587,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.23": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5804214402269215,
+      "worstTilePct": 3.8079307924778587,
+      "regionCount": 1
+    },
+    "17000-187FF-tangut.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6025546577157622,
+      "worstTilePct": 3.8196933808487357,
+      "regionCount": 1
+    },
+    "17000-187FF-tangut.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5941743403274815,
+      "worstTilePct": 3.8034275712097547,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6165846435953788,
+      "worstTilePct": 3.815324192707782,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5728479335895665,
+      "worstTilePct": 3.8044893588704096,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5717253999237383,
+      "worstTilePct": 3.8128115456618414,
+      "regionCount": 1
+    },
+    "17000-187FF-tangut.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5738668218228997,
+      "worstTilePct": 3.81426918868253,
+      "regionCount": 2
+    },
+    "17000-187FF-tangut.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5768146641447792,
+      "worstTilePct": 3.7976520537726164,
+      "regionCount": 2
+    },
+    "1720-173F-hanunoo": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.19980507215162546,
+      "worstTilePct": 3.076172965569203,
+      "regionCount": 3
+    },
+    "1740-175F-buhid": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.17840835568318605,
+      "worstTilePct": 2.6946029126068733,
+      "regionCount": 3
+    },
+    "1760-177F-tagbanwa": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1723380819790855,
+      "worstTilePct": 3.5477729935567783,
+      "regionCount": 3
+    },
+    "1780-17FF-khmer": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6642030232712799,
+      "worstTilePct": 2.7406097054980867,
+      "regionCount": 21
+    },
+    "1800-18AF-mongolian": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6071954073780067,
+      "worstTilePct": 3.40905454356768,
+      "regionCount": 5
+    },
+    "18800-18AFF-tangut-components.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5828576177144228,
+      "worstTilePct": 3.922325436722543,
+      "regionCount": 1
+    },
+    "18800-18AFF-tangut-components.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5945815379125621,
+      "worstTilePct": 3.922325436722543,
+      "regionCount": 1
+    },
+    "18800-18AFF-tangut-components.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5168739826384945,
+      "worstTilePct": 3.922325436722543,
+      "regionCount": 1
+    },
+    "18B0-18FF-unified-canadian-aboriginal-syllabics-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5146875384113615,
+      "worstTilePct": 4.444807688234566,
+      "regionCount": 3
+    },
+    "18B00-18CFF-khitan-small-script.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.612458788611481,
+      "worstTilePct": 3.4231146072281686,
+      "regionCount": 2
+    },
+    "18B00-18CFF-khitan-small-script.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5518921483409645,
+      "worstTilePct": 3.4321895420184454,
+      "regionCount": 2
+    },
+    "18D00-18D7F-tangut-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14831959109199605,
+      "worstTilePct": 4.12866433719925,
+      "regionCount": 1
+    },
+    "1900-194F-limbu": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5347357076593441,
+      "worstTilePct": 2.654395337429826,
+      "regionCount": 25
+    },
+    "1950-197F-tai-le": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.24330439321384972,
+      "worstTilePct": 2.4146786982685335,
+      "regionCount": 2
+    },
+    "1980-19DF-new-tai-lue": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4835837956229573,
+      "worstTilePct": 3.0379830351405275,
+      "regionCount": 2
+    },
+    "19E0-19FF-khmer-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2708398416598413,
+      "worstTilePct": 3.7638457315864025,
+      "regionCount": 2
+    },
+    "1A00-1A1F-buginese": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2210402010812642,
+      "worstTilePct": 3.5379239102741025,
+      "regionCount": 1
+    },
+    "1A20-1AAF-tai-tham": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6824719152735967,
+      "worstTilePct": 2.9903980146136564,
+      "regionCount": 42
+    },
+    "1AB0-1AFF-combining-diacritical-marks-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.39646590846422114,
+      "worstTilePct": 3.7195673176859607,
+      "regionCount": 24
+    },
+    "1AFF0-1AFFF-kana-extended-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16184901868259446,
+      "worstTilePct": 3.4543201257191867,
+      "regionCount": 1
+    },
+    "1B00-1B7F-balinese": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7780757525659799,
+      "worstTilePct": 3.160504782117558,
+      "regionCount": 36
+    },
+    "1B000-1B0FF-kana-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6039545601261828,
+      "worstTilePct": 3.682848630505541,
+      "regionCount": 1
+    },
+    "1B100-1B12F-kana-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2661380545082483,
+      "worstTilePct": 3.5855445562815302,
+      "regionCount": 1
+    },
+    "1B130-1B16F-small-kana-extension": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14339807202957994,
+      "worstTilePct": 3.2621847396828043,
+      "regionCount": 1
+    },
+    "1B170-1B2FF-nushu.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6125700607543726,
+      "worstTilePct": 2.9872714769784015,
+      "regionCount": 1
+    },
+    "1B170-1B2FF-nushu.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5747926630935554,
+      "worstTilePct": 3.0708749581255073,
+      "regionCount": 1
+    },
+    "1B80-1BBF-sundanese": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4552825529192961,
+      "worstTilePct": 2.7272452695820824,
+      "regionCount": 17
+    },
+    "1BC0-1BFF-batak": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.40620398516553313,
+      "worstTilePct": 3.10529589365716,
+      "regionCount": 15
+    },
+    "1BC00-1BC9F-duployan": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6257239426101012,
+      "worstTilePct": 8.040449059483649,
+      "regionCount": 3
+    },
+    "1C00-1C4F-lepcha": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4627120334109327,
+      "worstTilePct": 2.7021183914639244,
+      "regionCount": 20
+    },
+    "1C50-1C7F-ol-chiki": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.29450955960768616,
+      "worstTilePct": 2.792604371681052,
+      "regionCount": 2
+    },
+    "1C80-1C8F-cyrillic-extended-c": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14756357762050112,
+      "worstTilePct": 3.323486955075669,
+      "regionCount": 1
+    },
+    "1C90-1CBF-georgian-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3025578840222893,
+      "worstTilePct": 3.4920798256696792,
+      "regionCount": 1
+    },
+    "1CC0-1CCF-sundanese-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14664209688356863,
+      "worstTilePct": 4.5147520216066805,
+      "regionCount": 1
+    },
+    "1CC00-1CEBF-symbols-for-legacy-computing-supplement.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5831744760879491,
+      "worstTilePct": 4.18518324151791,
+      "regionCount": 2
+    },
+    "1CC00-1CEBF-symbols-for-legacy-computing-supplement.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6231905329031168,
+      "worstTilePct": 4.114879262302269,
+      "regionCount": 2
+    },
+    "1CC00-1CEBF-symbols-for-legacy-computing-supplement.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6986027619795135,
+      "worstTilePct": 3.943856912646529,
+      "regionCount": 2
+    },
+    "1CD0-1CFF-vedic-extensions": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.37912206638634627,
+      "worstTilePct": 3.274502866549728,
+      "regionCount": 11
+    },
+    "1CF00-1CFCF-znamenny-musical-notation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7799025271300604,
+      "worstTilePct": 4.039158769488059,
+      "regionCount": 69
+    },
+    "1D00-1D7F-phonetic-extensions": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6796828752785611,
+      "worstTilePct": 3.473507080472329,
+      "regionCount": 1
+    },
+    "1D000-1D0FF-byzantine-musical-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5862722058861909,
+      "worstTilePct": 3.8641737465959745,
+      "regionCount": 1
+    },
+    "1D100-1D1FF-musical-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5936543991716838,
+      "worstTilePct": 3.407427466096402,
+      "regionCount": 13
+    },
+    "1D200-1D24F-ancient-greek-musical-notation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.43819614758963,
+      "worstTilePct": 3.90009815951217,
+      "regionCount": 5
+    },
+    "1D2C0-1D2DF-kaktovik-numerals": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.19177005738789857,
+      "worstTilePct": 3.8127704536050806,
+      "regionCount": 1
+    },
+    "1D2E0-1D2FF-mayan-numerals": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.20008841398436575,
+      "worstTilePct": 3.1262406330299335,
+      "regionCount": 1
+    },
+    "1D300-1D35F-tai-xuan-jing-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5162555370712928,
+      "worstTilePct": 3.929357476664596,
+      "regionCount": 2
+    },
+    "1D360-1D37F-counting-rod-numerals": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2541684464487424,
+      "worstTilePct": 4.394314734798464,
+      "regionCount": 2
+    },
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6653998041400212,
+      "worstTilePct": 3.6744041375321586,
+      "regionCount": 22
+    },
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6670971643156139,
+      "worstTilePct": 3.42716497377809,
+      "regionCount": 14
+    },
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6441486638813528,
+      "worstTilePct": 3.6728142220292694,
+      "regionCount": 13
+    },
+    "1D400-1D7FF-mathematical-alphanumeric-symbols.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6446142277361336,
+      "worstTilePct": 3.76420704640156,
+      "regionCount": 16
+    },
+    "1D80-1DBF-phonetic-extensions-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5247020787533693,
+      "worstTilePct": 3.5017121973649186,
+      "regionCount": 1
+    },
+    "1D800-1DAAF-sutton-signwriting.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6008626896057156,
+      "worstTilePct": 4.870847315882266,
+      "regionCount": 1
+    },
+    "1D800-1DAAF-sutton-signwriting.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6286853150284412,
+      "worstTilePct": 4.870847315882266,
+      "regionCount": 9
+    },
+    "1D800-1DAAF-sutton-signwriting.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.1475206872889159,
+      "worstTilePct": 4.870847315882266,
+      "regionCount": 122
+    },
+    "1DC0-1DFF-combining-diacritical-marks-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6763860835814423,
+      "worstTilePct": 3.9535764386279717,
+      "regionCount": 59
+    },
+    "1DF00-1DFFF-latin-extended-g": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.28562880032120935,
+      "worstTilePct": 3.408131075211931,
+      "regionCount": 1
+    },
+    "1E00-1EFF-latin-extended-additional": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.9077424072095939,
+      "worstTilePct": 3.9062109286410127,
+      "regionCount": 5
+    },
+    "1E000-1E02F-glagolitic-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6244997015446005,
+      "worstTilePct": 3.7304058714270485,
+      "regionCount": 39
+    },
+    "1E030-1E08F-cyrillic-extended-d": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4398057631133329,
+      "worstTilePct": 3.2510285190647186,
+      "regionCount": 2
+    },
+    "1E100-1E14F-nyiakeng-puachue-hmong": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5043808263760583,
+      "worstTilePct": 4.3520615828639055,
+      "regionCount": 9
+    },
+    "1E290-1E2BF-toto": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22563030916741053,
+      "worstTilePct": 1.9044264793261667,
+      "regionCount": 2
+    },
+    "1E2C0-1E2FF-wancho": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.39957307028876227,
+      "worstTilePct": 3.7131744401077547,
+      "regionCount": 6
+    },
+    "1E4D0-1E4FF-nag-mundari": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3363881851281563,
+      "worstTilePct": 3.308837011884124,
+      "regionCount": 4
+    },
+    "1E5D0-1E5FF-ol-onal": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.47623785634540267,
+      "worstTilePct": 12.476796149772595,
+      "regionCount": 4
+    },
+    "1E7E0-1E7FF-ethiopic-extended-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.25475637523764766,
+      "worstTilePct": 3.4061222857482254,
+      "regionCount": 1
+    },
+    "1E800-1E8DF-mende-kikakui": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6419092428737194,
+      "worstTilePct": 3.7402702580148035,
+      "regionCount": 9
+    },
+    "1E900-1E95F-adlam": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5629086001118063,
+      "worstTilePct": 3.3439188255483594,
+      "regionCount": 8
+    },
+    "1EC70-1ECBF-indic-siyaq-numbers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4459615184964234,
+      "worstTilePct": 3.9720472296183633,
+      "regionCount": 1
+    },
+    "1ED00-1ED4F-ottoman-siyaq-numbers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.44690010202721825,
+      "worstTilePct": 4.164531640816055,
+      "regionCount": 1
+    },
+    "1EE00-1EEFF-arabic-mathematical-alphabetic-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7854319014997257,
+      "worstTilePct": 3.724018818519613,
+      "regionCount": 2
+    },
+    "1F00-1FFF-greek-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6854419719394559,
+      "worstTilePct": 3.0897030832134385,
+      "regionCount": 7
+    },
+    "1F000-1F02F-mahjong-tiles": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.34066153054207543,
+      "worstTilePct": 3.8093608004822026,
+      "regionCount": 1
+    },
+    "1F030-1F09F-domino-tiles": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5944294557585911,
+      "worstTilePct": 3.514726620057019,
+      "regionCount": 1
+    },
+    "1F0A0-1F0FF-playing-cards": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5294623237209768,
+      "worstTilePct": 3.9744625320427946,
+      "regionCount": 2
+    },
+    "1F100-1F1FF-enclosed-alphanumeric-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7873410663303924,
+      "worstTilePct": 3.7812208379292738,
+      "regionCount": 16
+    },
+    "1F200-1F2FF-enclosed-ideographic-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.47979757157797553,
+      "worstTilePct": 4.9086873026965625,
+      "regionCount": 1
+    },
+    "1F300-1F5FF-miscellaneous-symbols-and-pictographs.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7157763960856516,
+      "worstTilePct": 4.080658275939155,
+      "regionCount": 1
+    },
+    "1F300-1F5FF-miscellaneous-symbols-and-pictographs.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7051671734485258,
+      "worstTilePct": 4.080658275939155,
+      "regionCount": 1
+    },
+    "1F300-1F5FF-miscellaneous-symbols-and-pictographs.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6989726592513567,
+      "worstTilePct": 3.7422521138258937,
+      "regionCount": 1
+    },
+    "1F600-1F64F-emoticons": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.493891257079559,
+      "worstTilePct": 2.6840805800894807,
+      "regionCount": 1
+    },
+    "1F650-1F67F-ornamental-dingbats": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.35150876815945253,
+      "worstTilePct": 4.73453447275188,
+      "regionCount": 3
+    },
+    "1F680-1F6FF-transport-and-map-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.608953583195904,
+      "worstTilePct": 4.043330787051127,
+      "regionCount": 1
+    },
+    "1F700-1F77F-alchemical-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.612419899771805,
+      "worstTilePct": 4.178846946758983,
+      "regionCount": 1
+    },
+    "1F780-1F7FF-geometric-shapes-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6479418858726906,
+      "worstTilePct": 3.4175698204368303,
+      "regionCount": 1
+    },
+    "1F800-1F8FF-supplemental-arrows-c": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.6128869730034178,
+      "worstTilePct": 4.172878206445567,
+      "regionCount": 2
+    },
+    "1F900-1F9FF-supplemental-symbols-and-pictographs": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6593657014236457,
+      "worstTilePct": 4.00039575364922,
+      "regionCount": 1
+    },
+    "1FA00-1FA6F-chess-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5553271966625074,
+      "worstTilePct": 4.310158049546075,
+      "regionCount": 2
+    },
+    "1FA70-1FAFF-symbols-and-pictographs-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.611936010615621,
+      "worstTilePct": 3.53896826515959,
+      "regionCount": 1
+    },
+    "1FB00-1FBFF-symbols-for-legacy-computing": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6689530920443977,
+      "worstTilePct": 4.142532728500965,
+      "regionCount": 1
+    },
+    "2000-206F-general-punctuation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4424001021993635,
+      "worstTilePct": 3.581716216622267,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6269693493907009,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 6
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6110368081744988,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5613012196602924,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.100": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.611491890776093,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.101": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5881605564999844,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.102": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5772316490452364,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.103": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6062807750723738,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.104": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5595619265479744,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.105": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5956512232036272,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.106": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6162465092820446,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 6
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.107": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6017289269752282,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.108": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6713336775742785,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.109": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6688005217062075,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6196490597212841,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 5
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.110": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6223331831364789,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.111": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6187148789646424,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.112": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5807818017559182,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.113": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6081811200400203,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.114": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6319986986190506,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 5
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.115": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6316275773499491,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.116": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6123974138326209,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.117": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6011324874733058,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.118": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.58785738831846,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.119": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6224635864352921,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5845041004340878,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.120": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5634556463819395,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.121": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6316007410663248,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.122": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6152168621315931,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.123": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6442589397627289,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.124": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7066176601057194,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.125": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6744900131696162,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.126": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6031581849765854,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.127": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5992409575732547,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.128": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5826459015447024,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.129": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6277491481552718,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6401644035088184,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.130": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6247540162617611,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.131": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6446778003160982,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.132": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6011582988223807,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.133": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5888205217334133,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.134": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.58997933991721,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.135": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6087132633974378,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.136": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.568579551888391,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.137": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6312091267062648,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.138": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.620690747803181,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.139": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6618520400810313,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6833570343761435,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.140": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7159863752068591,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.141": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6521711620876218,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.142": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.60356263788456,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.143": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6092200855696619,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.144": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.603591409162101,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.145": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6237451223046945,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.146": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6355788104244987,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.147": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6397266041359932,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.148": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6131207306691103,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.149": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6011716299583216,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6332039219291944,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.150": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6072453766645187,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.151": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5884224640833144,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.152": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5894487215906485,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.153": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6178543660267308,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.154": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6290259375279941,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.155": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.673046523927919,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.156": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7028354142227211,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.157": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6304401678043845,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.158": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5618443012424637,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.159": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5502673406646664,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5714097041336225,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.160": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5724864453501992,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.161": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5732629937760891,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.162": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5798870680113035,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.163": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5803827090558317,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.164": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5291915995230739,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5847096519686239,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.584224588493842,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.19": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6084712852863389,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5636686174714108,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 2
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.20": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6066686850765745,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.21": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6155741391600171,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.22": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5804330647375668,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.23": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.565995845910009,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.24": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5783079477946558,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.25": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5764679335801925,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.26": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5526956444741824,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.27": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.594557893424105,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.28": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5918874069534964,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.29": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6469750143444715,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6114252969972354,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 2
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.30": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6726100832093881,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.31": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6095937983580314,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.32": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5788459466713453,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.33": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5670922125885259,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.34": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5791940444714911,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.35": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5924152961996664,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.36": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6008668713863841,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.37": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6033927090930523,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.38": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5693218833173747,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.39": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5693055354364855,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.601566682296183,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 2
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.40": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5820468720974283,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.41": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5354585025385354,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.42": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5826199157158358,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.43": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5874115305711166,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.44": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5810504554400491,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.45": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6695796634403326,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.46": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6481760676794951,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.47": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6496805639964229,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.48": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6485510065065028,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.49": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6297526075259094,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6602143043645721,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 5
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.50": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.654754758336954,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.51": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6888733425477128,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 5
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.52": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.688146009467514,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.53": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6548568217286527,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.54": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6401807751813916,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.55": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6534290081137081,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 5
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.56": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6342245788310689,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.57": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5956365429623429,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.58": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6514031249217732,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.59": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6575749032107844,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5943047810732573,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.60": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6624745319139653,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.61": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7444325828413842,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.62": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7056780087216926,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.63": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6155091480630002,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.64": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6163640612836603,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.65": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5980653488997305,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.66": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6424646543528906,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.67": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6109867895013905,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.68": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6308080242412998,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.69": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.594549260735024,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5910690565643971,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.70": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5914426708321985,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.71": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5952338408427981,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.72": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5999401850649453,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.73": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5644987043889912,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.74": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6238342822302165,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.75": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5990780692315383,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.76": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.65462217450334,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.77": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7025155577218242,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.78": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6695521990868015,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.79": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6331867643868039,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5933040769043605,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.80": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6338111153874831,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.81": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6256213241489579,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.82": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6537122894894176,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.83": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6592566882899092,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.84": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6621091039861549,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.85": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6362122716267624,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.86": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6277548211065633,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.87": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6435844919486922,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.88": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.63670089716521,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 5
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.89": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6105118998451736,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5987480384997902,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 4
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.90": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6517804877185828,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.91": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6282032839764738,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.92": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7027130207544976,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.93": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7243867955887145,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.94": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6516885227131541,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.95": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5886950927394452,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.96": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6103814472566259,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 5
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.97": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5887118827700438,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.98": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6025612157276826,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "20000-2A6DF-cjk-unified-ideographs-extension-b.99": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6153015224429369,
+      "worstTilePct": 4.722887139854586,
+      "regionCount": 3
+    },
+    "2070-209F-superscripts-and-subscripts": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.34089215489771896,
+      "worstTilePct": 4.0211132296157155,
+      "regionCount": 3
+    },
+    "20A0-20CF-currency-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3493070435617698,
+      "worstTilePct": 4.315667690991089,
+      "regionCount": 4
+    },
+    "20D0-20FF-combining-diacritical-marks-for-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6513700221404843,
+      "worstTilePct": 12.401646358001358,
+      "regionCount": 30
+    },
+    "2100-214F-letterlike-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5221731374564792,
+      "worstTilePct": 3.364019499966707,
+      "regionCount": 4
+    },
+    "2150-218F-number-forms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.9210719297133277,
+      "worstTilePct": 6.790580865314613,
+      "regionCount": 36
+    },
+    "2190-21FF-arrows": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6128018853752822,
+      "worstTilePct": 3.7109111432307906,
+      "regionCount": 11
+    },
+    "2200-22FF-mathematical-operators": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6185293827603879,
+      "worstTilePct": 4.27564692946627,
+      "regionCount": 16
+    },
+    "2300-23FF-miscellaneous-technical": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6367872324183722,
+      "worstTilePct": 4.022521872231527,
+      "regionCount": 5
+    },
+    "2400-243F-control-pictures": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3028728018067065,
+      "worstTilePct": 3.341942275525178,
+      "regionCount": 2
+    },
+    "2440-245F-optical-character-recognition": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.17732462282861505,
+      "worstTilePct": 4.3271799499534245,
+      "regionCount": 2
+    },
+    "2460-24FF-enclosed-alphanumerics": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.592720109678366,
+      "worstTilePct": 3.7840995556102146,
+      "regionCount": 2
+    },
+    "2500-257F-box-drawing": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6214078284630359,
+      "worstTilePct": 4.648254500440794,
+      "regionCount": 2
+    },
+    "2580-259F-block-elements": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2734741664461214,
+      "worstTilePct": 2.526514918775858,
+      "regionCount": 1
+    },
+    "25A0-25FF-geometric-shapes": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6107842631157254,
+      "worstTilePct": 3.186195149878891,
+      "regionCount": 3
+    },
+    "2600-26FF-miscellaneous-symbols": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.6297450593948108,
+      "worstTilePct": 4.457802120264834,
+      "regionCount": 11
+    },
+    "2700-27BF-dingbats": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.798568839078069,
+      "worstTilePct": 3.8202663778714063,
+      "regionCount": 13
+    },
+    "27C0-27EF-miscellaneous-mathematical-symbols-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3862997113612572,
+      "worstTilePct": 3.851366483547198,
+      "regionCount": 1
+    },
+    "27F0-27FF-supplemental-arrows-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1993890218231304,
+      "worstTilePct": 4.283291844519574,
+      "regionCount": 2
+    },
+    "2800-28FF-braille-patterns": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5602398003881013,
+      "worstTilePct": 3.113878602427802,
+      "regionCount": 2
+    },
+    "2900-297F-supplemental-arrows-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6090768221927926,
+      "worstTilePct": 4.524065068050739,
+      "regionCount": 5
+    },
+    "2980-29FF-miscellaneous-mathematical-symbols-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6406867866351179,
+      "worstTilePct": 3.8889838423830514,
+      "regionCount": 1
+    },
+    "2A00-2AFF-supplemental-mathematical-operators": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5610892008721793,
+      "worstTilePct": 3.897470119217055,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5350818106110957,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.53512525574465,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6350436187219741,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6216580673584594,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6561576178205993,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6542834180479299,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6650263210284852,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.61392729193274,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.563318491883784,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4924526067617723,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5599265521957199,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5337245071933218,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5688878709775137,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6352392626224221,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6101979881134956,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 2
+    },
+    "2A700-2B73F-cjk-unified-ideographs-extension-c.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6332048013157501,
+      "worstTilePct": 4.518772850082513,
+      "regionCount": 3
+    },
+    "2B00-2BFF-miscellaneous-symbols-and-arrows": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.758336821191244,
+      "worstTilePct": 11.372256560576464,
+      "regionCount": 15
+    },
+    "2B740-2B81F-cjk-unified-ideographs-extension-d": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 3.9326572861277573,
+      "worstTilePct": 4.535629354465074,
+      "regionCount": 216
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6233475485249005,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6244332615572037,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5485098064557399,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5770554019963232,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5784311628507361,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5817561939644134,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.550216620952508,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5540812951268687,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5521696290307003,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5389739374185225,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5371727079375234,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.19": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5713776782550523,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5939378106126839,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.20": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5622743249264581,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.21": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6154837492199303,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.22": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.41102212199861904,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6542782931542267,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6290892232085278,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6739381905619564,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7225397485778644,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6642228554566937,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5602270567835801,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 2
+    },
+    "2B820-2CEAF-cjk-unified-ideographs-extension-e.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5559017765893989,
+      "worstTilePct": 4.595686421606951,
+      "regionCount": 3
+    },
+    "2C00-2C5F-glagolitic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5065489434023418,
+      "worstTilePct": 3.5466337509524744,
+      "regionCount": 2
+    },
+    "2C60-2C7F-latin-extended-c": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.24342680735809324,
+      "worstTilePct": 3.3493311930039806,
+      "regionCount": 2
+    },
+    "2C80-2CFF-coptic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5139750823286136,
+      "worstTilePct": 3.0420066241297894,
+      "regionCount": 4
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6288003970630833,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6067703777810927,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.607862875526826,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5601161341026109,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6228323445542518,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.603287474137464,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6275814861785772,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7010108606260345,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6709989066025409,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.672740626917583,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6829659472623208,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.19": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 4.3573057163975895,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 263
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6083141975249131,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.20": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6987745931632713,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.21": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6890036461092864,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.22": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 4.4148703150931565,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 263
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.23": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 4.370563237735359,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 263
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.24": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6670653960616534,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.25": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6683075452611971,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.26": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6733542412282869,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.27": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6335697114570845,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.28": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7010743927753039,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5891900930865646,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6141005984897367,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6174199013556227,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 4.322569008359176,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 262
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6081292653723908,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5955580769336881,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5965565047987611,
+      "worstTilePct": 4.476655289814676,
+      "regionCount": 3
+    },
+    "2D00-2D2F-georgian-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2672502928160715,
+      "worstTilePct": 4.06700909591544,
+      "regionCount": 1
+    },
+    "2D30-2D7F-tifinagh": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3533639548587503,
+      "worstTilePct": 3.3305297003880137,
+      "regionCount": 2
+    },
+    "2D80-2DDF-ethiopic-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4239836691153804,
+      "worstTilePct": 3.080195640336703,
+      "regionCount": 1
+    },
+    "2DE0-2DFF-cyrillic-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3818598333485495,
+      "worstTilePct": 3.72143417254139,
+      "regionCount": 33
+    },
+    "2E00-2E7F-supplemental-punctuation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6256625261204708,
+      "worstTilePct": 3.597705675675316,
+      "regionCount": 2
+    },
+    "2E80-2EFF-cjk-radicals-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6480803587098221,
+      "worstTilePct": 3.688489251041204,
+      "regionCount": 2
+    },
+    "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6693099759092942,
+      "worstTilePct": 4.516660822990579,
+      "regionCount": 3
+    },
+    "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6904462867351148,
+      "worstTilePct": 4.516660822990579,
+      "regionCount": 3
+    },
+    "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7858472917737813,
+      "worstTilePct": 4.516660822990579,
+      "regionCount": 3
+    },
+    "2F00-2FDF-kangxi-radicals": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6033264935025664,
+      "worstTilePct": 3.9186550387244883,
+      "regionCount": 3
+    },
+    "2F800-2FA1F-cjk-compatibility-ideographs-supplement.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.5431873066291377,
+      "worstTilePct": 4.384923178735365,
+      "regionCount": 129
+    },
+    "2F800-2FA1F-cjk-compatibility-ideographs-supplement.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.3593230743662348,
+      "worstTilePct": 4.384923178735365,
+      "regionCount": 95
+    },
+    "2F800-2FA1F-cjk-compatibility-ideographs-supplement.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3023673263721399,
+      "worstTilePct": 4.384923178735365,
+      "regionCount": 3
+    },
+    "2FF0-2FFF-ideographic-description-characters": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23286565386467917,
+      "worstTilePct": 4.013407001400764,
+      "regionCount": 1
+    },
+    "3000-303F-cjk-symbols-and-punctuation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5225187585220069,
+      "worstTilePct": 4.931362071707703,
+      "regionCount": 6
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6116003314219689,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6203103378766985,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5761979242680986,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 3
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6377872636600544,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 3
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6175180644421334,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 3
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6548953804115702,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7148180933050261,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 3
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6643417834586951,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6103317919796525,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 3
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.610324559477224,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6023848381033758,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5965816142423661,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6384758883471124,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6288730548599052,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6511084053360908,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6084024187989863,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.611644607865996,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6088840202369403,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 2
+    },
+    "30000-3134F-cjk-unified-ideographs-extension-g.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6136817381014598,
+      "worstTilePct": 4.577241058060124,
+      "regionCount": 3
+    },
+    "3040-309F-hiragana": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.8146059026713548,
+      "worstTilePct": 3.910313384222361,
+      "regionCount": 92
+    },
+    "30A0-30FF-katakana": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.2351719619069572,
+      "worstTilePct": 3.331148318954675,
+      "regionCount": 95
+    },
+    "3100-312F-bopomofo": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3013405161399142,
+      "worstTilePct": 2.9914200109250833,
+      "regionCount": 1
+    },
+    "3130-318F-hangul-compatibility-jamo": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5699683858892173,
+      "worstTilePct": 5.060358962843482,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6302259108253239,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6329394286085008,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6705641624502213,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6962149020284308,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6394633501176399,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6088270568349261,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5979660001238074,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6109569214374181,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.32979957895632456,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 4
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6351332005624637,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6042081240892858,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6017201926008244,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6070433463430712,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5901970185640417,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5922809458627608,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6230498164768321,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 2
+    },
+    "31350-323AF-cjk-unified-ideographs-extension-h.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6186299472214587,
+      "worstTilePct": 4.593264876291305,
+      "regionCount": 3
+    },
+    "3190-319F-kanbun": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16753811880136207,
+      "worstTilePct": 3.1539787578935448,
+      "regionCount": 1
+    },
+    "31A0-31BF-bopomofo-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2673664588891799,
+      "worstTilePct": 4.078950098836643,
+      "regionCount": 1
+    },
+    "31C0-31EF-cjk-strokes": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3047148053452578,
+      "worstTilePct": 3.4308427966639647,
+      "regionCount": 2
+    },
+    "31F0-31FF-katakana-phonetic-extensions": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.21599568871349686,
+      "worstTilePct": 3.7544326136493402,
+      "regionCount": 1
+    },
+    "3200-32FF-enclosed-cjk-letters-and-months": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.9927853906463878,
+      "worstTilePct": 3.383725403210559,
+      "regionCount": 38
+    },
+    "3300-33FF-cjk-compatibility": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.9246956778581474,
+      "worstTilePct": 3.9456406856902557,
+      "regionCount": 59
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6842410228254977,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6834888673088914,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7492557361820734,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7253454447817232,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6690435421010834,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6435328251458491,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6628573169460451,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6958007212366163,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6859774097141641,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6646278440852655,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.657757835912351,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.19": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6769258153797304,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6655802739529868,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.20": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6793881491298501,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.21": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.664759756881965,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.22": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6595376164246014,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.23": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6802953988141904,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.24": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.654150183213686,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.25": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6329978216493009,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6877545617220702,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6817414363971492,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6885978005795527,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6560093406425258,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.700985005375363,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6489970893267873,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 2
+    },
+    "3400-4DBF-cjk-unified-ideographs-extension-a.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6846325842998484,
+      "worstTilePct": 4.41706515855108,
+      "regionCount": 3
+    },
+    "4DC0-4DFF-yijing-hexagram-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4796404070639326,
+      "worstTilePct": 3.8432526212457367,
+      "regionCount": 1
+    },
+    "4E00-9FFF-cjk-unified-ideographs.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7209816351082109,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7088910311110383,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.686978469217753,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6869206287698895,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6666451420274621,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6996508301763784,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6558546642137505,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6964151825231176,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7522963126075519,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7179775920569776,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6410692817935926,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.19": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6258615792979568,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6770102872838089,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.20": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6367491297675568,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.21": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6599136768369502,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.22": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6474265327714516,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.23": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6337624746799891,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.24": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6294118937256392,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.25": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6399192149483509,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.26": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6408641287602375,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.27": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6311105611709202,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.28": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6323785480491069,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.29": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.638064459320209,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6587954180184211,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.30": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6127155607945275,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.31": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6691062446213453,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.32": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7021382708590113,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.33": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6548918214073338,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.34": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6146748212713657,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.35": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6089369989919677,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.36": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6382828086824595,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.37": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.647807558421807,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.38": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6379770400333842,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.39": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6207768490685209,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6713121910328061,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.40": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6255818935261938,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.41": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.628535534592951,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.42": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6336484682464624,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.43": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6111307766319072,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.44": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6373422581798054,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.45": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6144757296272555,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.46": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6111039674546547,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.47": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6839770846028245,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.48": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6896301820161544,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.49": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6362600121770098,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7099822555196378,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.50": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6100224371347388,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.51": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6130852362158842,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.52": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6520733623969558,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.53": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6441592461824921,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.54": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6357594443701604,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.55": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6178802128293802,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.56": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6354191386115886,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.57": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6318191788672824,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.58": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6409466059628675,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.59": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6062102247945483,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6930715820287147,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.60": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6543342222883182,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.61": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6007171544903622,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.62": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.620047653621018,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.63": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7006868007589641,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.64": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6881095604734054,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.65": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6507526862378213,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.66": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6333241935006444,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.67": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.647437995084787,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.68": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6854855040286392,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.69": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6674497175497197,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6845275570266258,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.70": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.657783652988012,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.71": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6439151464278985,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.72": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6617982333524053,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.73": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6573645302604335,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.74": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6677739511379892,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.75": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6411898838851959,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.76": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.672387454371055,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.77": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6281104129637608,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.78": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6700221535197712,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.79": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7269757461563359,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "4E00-9FFF-cjk-unified-ideographs.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6691876023482692,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.80": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7130449924713962,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 2
+    },
+    "4E00-9FFF-cjk-unified-ideographs.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.69032626703095,
+      "worstTilePct": 4.417814934584569,
+      "regionCount": 3
+    },
+    "A000-A48F-yi-syllables.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5340853384708726,
+      "worstTilePct": 4.116280501633074,
+      "regionCount": 2
+    },
+    "A000-A48F-yi-syllables.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5136211528660832,
+      "worstTilePct": 4.116280501633074,
+      "regionCount": 2
+    },
+    "A000-A48F-yi-syllables.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5264189710788736,
+      "worstTilePct": 4.116280501633074,
+      "regionCount": 2
+    },
+    "A000-A48F-yi-syllables.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5667198407397849,
+      "worstTilePct": 4.116280501633074,
+      "regionCount": 2
+    },
+    "A000-A48F-yi-syllables.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5271904356429798,
+      "worstTilePct": 4.116280501633074,
+      "regionCount": 2
+    },
+    "A490-A4CF-yi-radicals": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.30735354619924365,
+      "worstTilePct": 2.954104184291031,
+      "regionCount": 2
+    },
+    "A4D0-A4FF-lisu": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3015198241636691,
+      "worstTilePct": 1.9260767411161426,
+      "regionCount": 1
+    },
+    "A500-A63F-vai.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5288406031452924,
+      "worstTilePct": 3.207967609344238,
+      "regionCount": 2
+    },
+    "A500-A63F-vai.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2583595839220043,
+      "worstTilePct": 3.386073349706701,
+      "regionCount": 2
+    },
+    "A640-A69F-cyrillic-extended-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5764633600175466,
+      "worstTilePct": 3.462725688994855,
+      "regionCount": 23
+    },
+    "A6A0-A6FF-bamum": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.44677687374925457,
+      "worstTilePct": 2.06308675679264,
+      "regionCount": 3
+    },
+    "A700-A71F-modifier-tone-letters": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2492025197461487,
+      "worstTilePct": 3.2149766881644872,
+      "regionCount": 5
+    },
+    "A720-A7FF-latin-extended-d": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5317534996201583,
+      "worstTilePct": 3.3624977814444676,
+      "regionCount": 6
+    },
+    "A800-A82F-syloti-nagri": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3219506121562728,
+      "worstTilePct": 3.514817983320504,
+      "regionCount": 11
+    },
+    "A830-A83F-common-indic-number-forms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16005416763256738,
+      "worstTilePct": 4.320009563840246,
+      "regionCount": 1
+    },
+    "A840-A87F-phags-pa": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3176139340012927,
+      "worstTilePct": 3.460063117869556,
+      "regionCount": 1
+    },
+    "A880-A8DF-saurashtra": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5847606641857784,
+      "worstTilePct": 3.152263130906563,
+      "regionCount": 21
+    },
+    "A8E0-A8FF-devanagari-extended": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.27312419009156547,
+      "worstTilePct": 3.67481850630463,
+      "regionCount": 3
+    },
+    "A900-A92F-kayah-li": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2970561508934323,
+      "worstTilePct": 3.576214654401159,
+      "regionCount": 7
+    },
+    "A930-A95F-rejang": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.26864809682311896,
+      "worstTilePct": 3.3140342566525893,
+      "regionCount": 13
+    },
+    "A960-A97F-hangul-jamo-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22407868458873942,
+      "worstTilePct": 3.5168837720469637,
+      "regionCount": 3
+    },
+    "A980-A9DF-javanese": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.654530306214115,
+      "worstTilePct": 3.3236563094305143,
+      "regionCount": 19
+    },
+    "A9E0-A9FF-myanmar-extended-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.25395364190183023,
+      "worstTilePct": 3.7035061883195253,
+      "regionCount": 2
+    },
+    "AA00-AA5F-cham": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4874025635963176,
+      "worstTilePct": 3.014548801821407,
+      "regionCount": 17
+    },
+    "AA60-AA7F-myanmar-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22438556830946108,
+      "worstTilePct": 3.8196570193607107,
+      "regionCount": 4
+    },
+    "AA80-AADF-tai-viet": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.40251308317449447,
+      "worstTilePct": 3.2623030336534207,
+      "regionCount": 11
+    },
+    "AAE0-AAFF-meetei-mayek-extensions": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2535865389444739,
+      "worstTilePct": 3.5321793658895135,
+      "regionCount": 8
+    },
+    "AB00-AB2F-ethiopic-extended-a": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22778684936477345,
+      "worstTilePct": 4.004799208338327,
+      "regionCount": 1
+    },
+    "AB30-AB6F-latin-extended-e": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.356412100301997,
+      "worstTilePct": 3.3839503100215094,
+      "regionCount": 1
+    },
+    "AB70-ABBF-cherokee-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4351800866066055,
+      "worstTilePct": 4.033010448910661,
+      "regionCount": 1
+    },
+    "ABC0-ABFF-meetei-mayek": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.40948506663529016,
+      "worstTilePct": 3.5206358915840092,
+      "regionCount": 11
+    },
+    "AC00-D7AF-hangul-syllables.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5098215627212749,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5396625392117254,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.10": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6805736161134661,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.11": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6975786689285817,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.12": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6954629614445497,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.13": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6944868959174438,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.14": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6765435165719847,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.15": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7077132373236283,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.16": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.663692282952402,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.17": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7079259933660297,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.18": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7619949309806083,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.19": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7023728081702831,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6181116043953011,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.20": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5864455042205439,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.21": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5759220731376042,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.22": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6001156315166599,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.23": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6199691013105665,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.24": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6060544618461494,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.25": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5924101528575312,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.26": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5910526242930256,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.27": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6006709115382048,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.28": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6011923482514415,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.29": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5890436897053529,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.3": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6099132029946879,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.30": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5931888856681283,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.31": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.596530581739002,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.32": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5733090683494089,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.33": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6319903206760086,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.34": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.661743496916748,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.35": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6685541265745718,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.36": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6746525087620682,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.37": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6706509047630167,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.38": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7031224751611745,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.39": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7083336336057202,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.4": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6845128257566161,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.40": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6952447341309373,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.41": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6785669411200173,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.42": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6710518618284392,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "AC00-D7AF-hangul-syllables.5": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6678216807841052,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.6": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6831807148347482,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.7": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.719166471528863,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.8": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7022878656716653,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 1
+    },
+    "AC00-D7AF-hangul-syllables.9": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6941425100777353,
+      "worstTilePct": 3.982154289569468,
+      "regionCount": 2
+    },
+    "D7B0-D7FF-hangul-jamo-extended-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5398788435049553,
+      "worstTilePct": 3.5089609968766795,
+      "regionCount": 3
+    },
+    "E0100-E01EF-variation-selectors-supplement": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6495895523357076,
+      "worstTilePct": 3.7274976277017404,
+      "regionCount": 1
+    },
+    "F900-FAFF-cjk-compatibility-ideographs.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.8856429533438552,
+      "worstTilePct": 4.418829206916309,
+      "regionCount": 22
+    },
+    "F900-FAFF-cjk-compatibility-ideographs.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.9899743532650196,
+      "worstTilePct": 4.26080972143182,
+      "regionCount": 153
+    },
+    "FB00-FB4F-alphabetic-presentation-forms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5281791234009212,
+      "worstTilePct": 3.4028728723311605,
+      "regionCount": 2
+    },
+    "FB50-FDFF-arabic-presentation-forms-a.0": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7501618001864059,
+      "worstTilePct": 4.119667451265261,
+      "regionCount": 3
+    },
+    "FB50-FDFF-arabic-presentation-forms-a.1": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7078532300768782,
+      "worstTilePct": 4.0505122088930285,
+      "regionCount": 3
+    },
+    "FB50-FDFF-arabic-presentation-forms-a.2": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6943117974046361,
+      "worstTilePct": 3.5766780825216458,
+      "regionCount": 2
+    },
+    "FE00-FE0F-variation-selectors": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23103849655646738,
+      "worstTilePct": 3.1639255064336824,
+      "regionCount": 1
+    },
+    "FE10-FE1F-vertical-forms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16593046087650054,
+      "worstTilePct": 3.085129503657469,
+      "regionCount": 1
+    },
+    "FE20-FE2F-combining-half-marks": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23967283148315083,
+      "worstTilePct": 3.4401624359209584,
+      "regionCount": 8
+    },
+    "FE30-FE4F-cjk-compatibility-forms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3547477704528862,
+      "worstTilePct": 4.577699328518933,
+      "regionCount": 4
+    },
+    "FE50-FE6F-small-form-variants": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2673221521521721,
+      "worstTilePct": 4.363607555262985,
+      "regionCount": 1
+    },
+    "FE70-FEFF-arabic-presentation-forms-b": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7751824629876763,
+      "worstTilePct": 3.6399167574064735,
+      "regionCount": 1
+    },
+    "FF00-FFEF-halfwidth-and-fullwidth-forms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7556652173164569,
+      "worstTilePct": 4.247384153104449,
+      "regionCount": 5
+    },
+    "FFF0-FFFF-specials": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.09903381716700815,
+      "worstTilePct": 2.687884480578797,
+      "regionCount": 1
+    }
+  }
+}
