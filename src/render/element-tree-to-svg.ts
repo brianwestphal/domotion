@@ -3052,99 +3052,9 @@ function renderInlineFragments(
   }
 }
 
-function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
-  const {
-    svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
-    hoistedFromAncestor, overflowClipForHoisted, overflowClipPathIds, offGridCollapsedCells,
-  } = state;
-  const indent = "  ".repeat(depth);
-  const bgColor = parseColor(el.styles.backgroundColor);
-  const textColor = parseColor(el.styles.color);
-  const borderColor = parseColor(el.styles.borderColor);
-  const borderWidth = parseFloat(el.styles.borderWidth) || 0;
-  // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
-  // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
-  // "50px 20px" for elliptical corners). Each corner can independently be
-  // round or elliptical and have a different radius from its neighbours
-  // (CSS `border-radius: 10px 30px 50px 70px` maps to TL=10, TR=30, BR=50,
-  // BL=70). When all four corners are equal-and-circular, the renderer
-  // emits `<rect rx>`; otherwise it emits an SVG `<path>` with explicit
-  // per-corner arc commands via roundedRectSvg. `borderRadius` below is the
-  // single-value fallback used by the few call sites that still emit a bare
-  // `<rect rx>` directly — they degrade to sharp corners on non-uniform
-  // captures, which is acceptable for now. DM-246 (the half-extent clamp
-  // for the uniform fast path) is preserved by `roundedRectSvg`.
-  const corners = parseCornerRadii(el.styles, el.width, el.height);
-  const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
-  const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
-  const opacity = parseFloat(el.styles.opacity);
-
-  if (opacity === 0) return;
-  // empty-cells: hide — suppress bg + border on empty <td>/<th>.
-  const suppressEmptyCell = el.styles.emptyCellsHidden === true;
-  // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3
-  // §3.7 box-decoration-break): capture stashes per-fragment rects in
-  // `el.inlineFragments`. When set, paint the background + border per
-  // fragment instead of once across the bbox. `slice` (default) cuts the
-  // box at fragment boundaries — the first fragment owns the left side and
-  // the last owns the right; middle fragments paint only top + bottom.
-  // `clone` paints a complete box on every fragment.
-  const useInlineFragments = el.inlineFragments != null && el.inlineFragments.length > 1;
-
-  // Element opacity applies to the background, border, text, and all descendants.
-  // Emit a group wrapper when opacity < 1 so the whole subtree tints uniformly.
-  // Also open a group to host CSS filter / mix-blend-mode — both are honored by
-  // the browser's SVG renderer when passed through as inline styles, so we
-  // don't need to translate filter functions into <filter> elements.
-  // backdrop-filter has no equivalent in img-rendered SVG; it's captured but
-  // not emitted (documented limitation).
-  const filterCss = el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
-  const blendCss = el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
-  // clip-path: translate common CSS shape functions into an SVG <clipPath>
-  // anchored at the element's absolute (x, y). A verbatim style-passthrough
-  // does NOT work because CSS clip-path uses the element's local coord space
-  // while our SVG group is drawn in absolute viewport coords, so a
-  // 'circle(50% at center)' would clip around the viewport origin instead.
-  const clipPathCss = el.styles.clipPath && el.styles.clipPath !== "none" ? el.styles.clipPath : "";
+function resolveOverflowClipId(state: RenderState, el: CapturedElement): string | null {
+  const { paintCtx, defsParts } = state;
   let clipPathUrlId: string | null = null;
-  if (clipPathCss !== "") {
-    // DM-818: CSS clip-path accepts an optional `<geometry-box>` keyword
-    // (`content-box` / `padding-box` / `border-box` / `margin-box` /
-    // `fill-box` / `stroke-box` / `view-box`) that specifies which box
-    // the shape is positioned relative to. Strip it before passing the
-    // value to the shape translator and inset (x, y, w, h) accordingly.
-    // `border-box` is the default and matches the captured element rect
-    // — no inset. We don't model margin-box / fill-box / stroke-box /
-    // view-box explicitly; the first falls back to border-box (close
-    // enough for the html-test fixtures), the SVG-specific ones don't
-    // apply to HTML elements.
-    const shape = clipPathShapeForElement(el, clipPathCss);
-    if (shape !== "") {
-      clipPathUrlId = paintCtx.nextClipId("cp");
-      defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
-    } else {
-      // DM-826: shape translator returned "" — try the inline-`<clipPath>`
-      // fragment-ref path next. `clip-path: url(#id)` resolves against the
-      // top-level `clipPathDefs` collected at capture time; the def is
-      // emitted into `<defs>` once and the masked element's wrapper `<g>`
-      // gets `clip-path="url(#${outId})"`. See docs/39.
-      const fragId = resolveFragmentClipPathRef(state, clipPathCss, el.x, el.y);
-      if (fragId != null) clipPathUrlId = fragId;
-    }
-  }
-  // DM-587: overflow != visible on either axis clips painted descendants
-  // at the element's box. Chrome's captured tree faithfully records every
-  // descendant rect even when it extends past an ancestor's box (e.g. the
-  // Stripe `payments-graphic__checkout-payment-methods-item-label--card`
-  // is a 22×6 box that flex-stacks multiple language-variant siblings
-  // horizontally under `transform: scale(0.69)`; only the active-language
-  // variant is meant to be visible). Without this clip the SVG painted
-  // every variant on top of one another. clip-path takes priority when
-  // both are present (CSS clip-path replaces overflow clipping per CSS
-  // Masking 1 §5.1); border-radius rounding of the overflow rect is a
-  // deliberate omission — rare in practice on elements small enough for
-  // the bug to matter.
-  if (clipPathUrlId == null) {
     const oxV = el.styles.overflowX;
     const oyV = el.styles.overflowY;
     const oxClips = oxV != null && oxV !== "visible";
@@ -3273,7 +3183,103 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
         `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,
       );
     }
+  return clipPathUrlId;
+}
+
+
+function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
+  const {
+    svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
+    hoistedFromAncestor, overflowClipForHoisted, overflowClipPathIds, offGridCollapsedCells,
+  } = state;
+  const indent = "  ".repeat(depth);
+  const bgColor = parseColor(el.styles.backgroundColor);
+  const textColor = parseColor(el.styles.color);
+  const borderColor = parseColor(el.styles.borderColor);
+  const borderWidth = parseFloat(el.styles.borderWidth) || 0;
+  // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
+  // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
+  // "50px 20px" for elliptical corners). Each corner can independently be
+  // round or elliptical and have a different radius from its neighbours
+  // (CSS `border-radius: 10px 30px 50px 70px` maps to TL=10, TR=30, BR=50,
+  // BL=70). When all four corners are equal-and-circular, the renderer
+  // emits `<rect rx>`; otherwise it emits an SVG `<path>` with explicit
+  // per-corner arc commands via roundedRectSvg. `borderRadius` below is the
+  // single-value fallback used by the few call sites that still emit a bare
+  // `<rect rx>` directly — they degrade to sharp corners on non-uniform
+  // captures, which is acceptable for now. DM-246 (the half-extent clamp
+  // for the uniform fast path) is preserved by `roundedRectSvg`.
+  const corners = parseCornerRadii(el.styles, el.width, el.height);
+  const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
+  const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
+  const opacity = parseFloat(el.styles.opacity);
+
+  if (opacity === 0) return;
+  // empty-cells: hide — suppress bg + border on empty <td>/<th>.
+  const suppressEmptyCell = el.styles.emptyCellsHidden === true;
+  // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3
+  // §3.7 box-decoration-break): capture stashes per-fragment rects in
+  // `el.inlineFragments`. When set, paint the background + border per
+  // fragment instead of once across the bbox. `slice` (default) cuts the
+  // box at fragment boundaries — the first fragment owns the left side and
+  // the last owns the right; middle fragments paint only top + bottom.
+  // `clone` paints a complete box on every fragment.
+  const useInlineFragments = el.inlineFragments != null && el.inlineFragments.length > 1;
+
+  // Element opacity applies to the background, border, text, and all descendants.
+  // Emit a group wrapper when opacity < 1 so the whole subtree tints uniformly.
+  // Also open a group to host CSS filter / mix-blend-mode — both are honored by
+  // the browser's SVG renderer when passed through as inline styles, so we
+  // don't need to translate filter functions into <filter> elements.
+  // backdrop-filter has no equivalent in img-rendered SVG; it's captured but
+  // not emitted (documented limitation).
+  const filterCss = el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
+  const blendCss = el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
+  // clip-path: translate common CSS shape functions into an SVG <clipPath>
+  // anchored at the element's absolute (x, y). A verbatim style-passthrough
+  // does NOT work because CSS clip-path uses the element's local coord space
+  // while our SVG group is drawn in absolute viewport coords, so a
+  // 'circle(50% at center)' would clip around the viewport origin instead.
+  const clipPathCss = el.styles.clipPath && el.styles.clipPath !== "none" ? el.styles.clipPath : "";
+  let clipPathUrlId: string | null = null;
+  if (clipPathCss !== "") {
+    // DM-818: CSS clip-path accepts an optional `<geometry-box>` keyword
+    // (`content-box` / `padding-box` / `border-box` / `margin-box` /
+    // `fill-box` / `stroke-box` / `view-box`) that specifies which box
+    // the shape is positioned relative to. Strip it before passing the
+    // value to the shape translator and inset (x, y, w, h) accordingly.
+    // `border-box` is the default and matches the captured element rect
+    // — no inset. We don't model margin-box / fill-box / stroke-box /
+    // view-box explicitly; the first falls back to border-box (close
+    // enough for the html-test fixtures), the SVG-specific ones don't
+    // apply to HTML elements.
+    const shape = clipPathShapeForElement(el, clipPathCss);
+    if (shape !== "") {
+      clipPathUrlId = paintCtx.nextClipId("cp");
+      defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
+    } else {
+      // DM-826: shape translator returned "" — try the inline-`<clipPath>`
+      // fragment-ref path next. `clip-path: url(#id)` resolves against the
+      // top-level `clipPathDefs` collected at capture time; the def is
+      // emitted into `<defs>` once and the masked element's wrapper `<g>`
+      // gets `clip-path="url(#${outId})"`. See docs/39.
+      const fragId = resolveFragmentClipPathRef(state, clipPathCss, el.x, el.y);
+      if (fragId != null) clipPathUrlId = fragId;
+    }
   }
+  // DM-587: overflow != visible on either axis clips painted descendants
+  // at the element's box. Chrome's captured tree faithfully records every
+  // descendant rect even when it extends past an ancestor's box (e.g. the
+  // Stripe `payments-graphic__checkout-payment-methods-item-label--card`
+  // is a 22×6 box that flex-stacks multiple language-variant siblings
+  // horizontally under `transform: scale(0.69)`; only the active-language
+  // variant is meant to be visible). Without this clip the SVG painted
+  // every variant on top of one another. clip-path takes priority when
+  // both are present (CSS clip-path replaces overflow clipping per CSS
+  // Masking 1 §5.1); border-radius rounding of the overflow rect is a
+  // deliberate omission — rare in practice on elements small enough for
+  // the bug to matter.
+  if (clipPathUrlId == null) clipPathUrlId = resolveOverflowClipId(state, el);
   const maskUrlId = renderMaskPhase(state, el);
   // CSS 2D transform (SK-1134): wrap the elements rendered group in
   // <g transform=...> composed around the resolved transform-origin in
