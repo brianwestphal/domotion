@@ -197,12 +197,14 @@ export class DemoRecorder {
     return this.captureCurrent(idPrefix);
   }
 
-  /** Capture the current page state as SVG content. */
-  async captureCurrent(idPrefix = ""): Promise<string> {
-    if (this.page == null) throw new Error("Call init() first");
-    const tree = await captureElementTree(this.page, "body", {
-      x: 0, y: 0, width: this.width, height: this.height,
-    });
+  /**
+   * Shared post-capture pipeline (DM-1434): self-contained remote-image
+   * embedding + optional resize + conic-gradient rasterization, then reset the
+   * generation-scoped caches and render the tree to SVG body markup at `height`.
+   * `captureCurrent` (viewport) and `captureFullPage` (scrollable) differ only in
+   * the height, so they both funnel through here.
+   */
+  private async renderCapturedTree(tree: CapturedElement[], height: number, idPrefix: string): Promise<string> {
     if (this.selfContained) await embedRemoteImages(tree, {
       timeoutMs: this.embedRemoteImagesTimeoutMs,
       retries: this.embedRemoteImagesRetries,
@@ -220,7 +222,16 @@ export class DemoRecorder {
     // <defs> contain only its own fonts/glyphs (the renderer repopulates them
     // during elementTreeToSvg, emitting into this frame's <defs>).
     resetGeneration();
-    return elementTreeToSvgInner(tree, this.width, this.height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
+    return elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
+  }
+
+  /** Capture the current page state as SVG content. */
+  async captureCurrent(idPrefix = ""): Promise<string> {
+    if (this.page == null) throw new Error("Call init() first");
+    const tree = await captureElementTree(this.page, "body", {
+      x: 0, y: 0, width: this.width, height: this.height,
+    });
+    return this.renderCapturedTree(tree, this.height, idPrefix);
   }
 
   /**
@@ -233,18 +244,7 @@ export class DemoRecorder {
     const tree = await captureElementTree(this.page, "body", {
       x: 0, y: 0, width: this.width, height: pageHeight,
     });
-    if (this.selfContained) await embedRemoteImages(tree, {
-      timeoutMs: this.embedRemoteImagesTimeoutMs,
-      retries: this.embedRemoteImagesRetries,
-      retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
-    });
-    if (this.selfContained && this.embedRemoteImagesResize) {
-      await resizeEmbeddedImages(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
-    }
-    // DM-549: rasterize conic-gradient layers — see captureCurrent above.
-    await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
-    resetGeneration(); // DM-839/DM-1338/DM-1435: see captureCurrent
-    const svgContent = elementTreeToSvgInner(tree, this.width, pageHeight, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2);
+    const svgContent = await this.renderCapturedTree(tree, pageHeight, idPrefix);
     return { svgContent, pageHeight };
   }
 
@@ -717,9 +717,9 @@ async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
  * that never serialised back to text) aren't covered. Adequate for the
  * mainstream marketing-site case that motivated the change.
  */
-export function parseFontFaceRulesFromCssText(cssText: string, baseUrl: string): Array<{ kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> }> {
+export function parseFontFaceRulesFromCssText(cssText: string, baseUrl: string): FaceRule[] {
   const stripped = cssText.replace(/\/\*[\s\S]*?\*\//g, "");
-  const out: Array<{ kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> }> = [];
+  const out: FaceRule[] = [];
   const re = /@font-face\s*\{/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stripped)) !== null) {
@@ -740,7 +740,7 @@ export function parseFontFaceRulesFromCssText(cssText: string, baseUrl: string):
   return out;
 }
 
-function parseFontFaceBody(body: string, baseUrl: string): { kind: "font-face"; family: string; weight: string; style: string; url: string; urls?: string[]; unicodeRange?: Array<[number, number]> } | null {
+function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
   const familyMatch = /font-family\s*:\s*([^;}]+)/i.exec(body);
   if (familyMatch == null) return null;
   const family = familyMatch[1].trim().replace(/^["']|["']$/g, "").trim();
