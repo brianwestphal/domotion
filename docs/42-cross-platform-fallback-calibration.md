@@ -357,14 +357,42 @@ Hei / IPAGothic for CJK. Two options:
   makes the chain portable, at the cost of a CI install step and divergence from
   a bare Playwright image.
 
-Recommendation was **(B)**, but DM-259 was calibrated against **(A) the bare
-Playwright `*-noble` image** — because that is exactly what `npm run
-demos:test` (and the future CI visual job) diffs against, so the calibration and
-the baselines must agree on the same font set. The image's CJK is WenQuanYi Zen
-Hei, not Noto. **If the project later wants the mainstream Noto baseline (B),
-it's an `apt install fonts-noto-core fonts-noto-cjk` step in the container/CI
-plus a re-probe of the CJK/symbol blocks** (the Latin primaries stay Liberation).
-Left as a decision for DM-262 (CI wiring), where the font-install policy lives.
+DM-259 was calibrated against **(A) the bare Playwright `*-noble` image** —
+because that is exactly what `npm run demos:test` (and the CI visual job) diffs
+against, so the calibration and the baselines must agree on the same font set.
+
+### Both profiles now ship — runtime-selected (DM-1404)
+
+Option **(B)** is now implemented **alongside** (A), not instead of it: domotion
+carries a second, Noto-calibrated routing profile and **selects between them at
+runtime** by the host's actual fontconfig CJK pick (`linuxFontProfile()` in
+`src/render/font-resolution.ts`):
+
+- **`bare`** (Playwright image / any host without Noto CJK) — the original
+  Liberation / WenQuanYi / FreeFont routing. Unchanged; CI baselines still agree.
+- **`noto`** (mainstream desktop-Linux: Noto present, prioritized over any
+  WenQuanYi) — primaries resolve to **Noto Sans / Noto Serif / Noto Mono**, CJK
+  to **NotoSansCJK**, and every other block to the Noto face Chromium-on-a-Noto-
+  desktop actually paints, via the generated table
+  `src/render/unicode-font-routing.noto-linux.generated.ts`
+  (`UNICODE_FONT_PATHS_NOTO_LINUX` / `UNICODE_FONT_RANGES_NOTO_LINUX`,
+  `un-...` keys). `DOMOTION_LINUX_FONT_PROFILE=noto|bare` forces the choice.
+
+Detection follows fontconfig's pick for Han U+4E00, which is exactly what
+Chromium-on-the-same-host paints (both go through fontconfig), so the chosen
+profile matches Chromium by construction. **Calibration is reproducible** via
+`tools/calibrate-linux-noto-profile.sh`: inside the noble container it strips the
+noble-only fallback fonts (WenQuanYi / FreeFont / IPAGothic / Loma / Unifont) —
+which otherwise out-prioritize Noto and contaminate the probe — installs the
+mainstream Noto set, re-runs the CDP sweep + an fc-match family→file resolution,
+then `tools/probe-983-genroutes-noto-linux.mjs` (host) regenerates the table.
+
+This composes with the DM-1416 live `fc-match :charset` system-fallback resolver
+(doc 80): the static Noto table gives deterministic block-level routing, and the
+resolver is the per-codepoint net for anything the block route misses. Note the
+naive "just `apt install noto` on the noble image" is NOT a faithful desktop
+calibration — the image keeps WenQuanYi at higher fontconfig priority, so it
+still paints CJK with WenQuanYi; the strip step above is what makes it faithful.
 
 ## Per-platform visual-gate hinting floor (DM-262 / DM-884)
 

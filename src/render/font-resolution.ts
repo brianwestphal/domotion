@@ -26,6 +26,7 @@ import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
+import { UNICODE_FONT_PATHS_NOTO_LINUX, UNICODE_FONT_RANGES_NOTO_LINUX } from "./unicode-font-routing.noto-linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { mathAlphaToBase, isLegitimatelyInklessCodepoint, usesDedicatedShaper, isTrimmableCjkPunct, complexShaperBaseMarkDecomposition, isStrippableOrphanIgnorable, usesComplexShaperDottedCircle, isLeftReorderingMatra, isRtlScriptCodepoint } from "./unicode-classification.js";
@@ -728,6 +729,10 @@ interface LinuxFontPath { fcMatch?: string; path?: string; postscriptName?: stri
 const LIB = "/usr/share/fonts/truetype/liberation";
 const FREEFONT = "/usr/share/fonts/truetype/freefont";
 const WQY = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc";
+// DM-1404: mainstream desktop-Linux Noto install locations (fonts-noto-core /
+// fonts-noto-cjk). Used by the Noto profile overlay below.
+const NOTO = "/usr/share/fonts/truetype/noto";
+const NOTO_CJK = "/usr/share/fonts/opentype/noto";
 
 // Linux font map — calibrated to what Chromium-on-Linux actually PAINTS in the
 // Playwright `*-noble` CI image (DM-259), measured via CDP
@@ -851,7 +856,77 @@ const LINUX_FONT_PATHS: Record<string, LinuxFontPath> = {
   // Unifont Upper — Chrome's "last resort" pixel-art glyphs for codepoints
   // no covering font has — because the bare image ships a minimal font set.
   ...UNICODE_FONT_PATHS_LINUX,
+  // DM-1404: per-block routes for the desktop-Linux Noto profile, keys
+  // namespaced `un-...` (vs the bare `u-...`) so the two never collide. Their
+  // absolute paths only exist on a Noto host, so they no-op on the bare image
+  // (resolveLinuxSpec checks existence). Emitted by `linuxNotoFallbackChain`
+  // when `linuxFontProfile() === "noto"`.
+  ...UNICODE_FONT_PATHS_NOTO_LINUX,
 };
+
+// DM-1404: desktop-Linux **Noto profile** primary-key overlay. The bare
+// LINUX_FONT_PATHS above is calibrated to the Playwright `*-noble` image
+// (Liberation sans/serif + WenQuanYi mono/CJK). A mainstream desktop-Linux host
+// with the Noto family installed resolves the generic primaries to Noto instead
+// — verified in the calibration env (tools/calibrate-linux-noto-profile.sh):
+// `fc-match sans-serif/serif/monospace` → Noto Sans / Noto Serif / Noto Mono,
+// and untagged CJK → NotoSansCJK (jp member). `resolveLinuxSpec` consults this
+// overlay FIRST when `linuxFontProfile() === "noto"`; only keys that DIFFER from
+// the bare table need entries. Per-block fallback for everything else flows
+// through `UNICODE_FONT_PATHS_NOTO_LINUX` (the generated `un-...` table).
+const LINUX_FONT_PATHS_NOTO: Record<string, LinuxFontPath> = (() => {
+  const sans = (s: string): LinuxFontPath => ({ path: `${NOTO}/NotoSans-${s}.ttf` });
+  const serif = (s: string): LinuxFontPath => ({ path: `${NOTO}/NotoSerif-${s}.ttf` });
+  const mono: LinuxFontPath = { path: `${NOTO}/NotoMono-Regular.ttf` }; // fontconfig `monospace` pick; single weight
+  const cjk: LinuxFontPath = { path: `${NOTO_CJK}/NotoSansCJK-Regular.ttc`, postscriptName: "NotoSansCJKjp-Regular" };
+  const cjkBold: LinuxFontPath = { path: `${NOTO_CJK}/NotoSansCJK-Bold.ttc`, postscriptName: "NotoSansCJKjp-Bold" };
+  const cjkSerif: LinuxFontPath = { path: `${NOTO_CJK}/NotoSerifCJK-Regular.ttc`, postscriptName: "NotoSerifCJKjp-Regular" };
+  const t: Record<string, LinuxFontPath> = {};
+  // sans-serif primaries → Noto Sans (Regular/Bold/Italic/BoldItalic).
+  for (const k of ["sf-pro", "helvetica", "arial", "lucida-grande"]) {
+    t[k] = sans("Regular"); t[`${k}-bold`] = sans("Bold");
+    t[`${k}-italic`] = sans("Italic"); t[`${k}-bold-italic`] = sans("BoldItalic");
+  }
+  t["sf-pro-italic"] = sans("Italic");
+  // serif primaries → Noto Serif.
+  for (const k of ["times", "times-new-roman", "georgia"]) {
+    t[k] = serif("Regular"); t[`${k}-bold`] = serif("Bold");
+    t[`${k}-italic`] = serif("Italic"); t[`${k}-bold-italic`] = serif("BoldItalic");
+  }
+  // monospace primaries → Noto Mono (single weight — no italic/bold faces, like
+  // the bare profile's WenQuanYi Mono collapse).
+  for (const k of ["courier", "menlo", "monaco", "sf-mono"]) {
+    t[k] = mono; t[`${k}-bold`] = mono; t[`${k}-italic`] = mono; t[`${k}-bold-italic`] = mono;
+  }
+  // CJK logical keys (used when CSS names a CJK family directly, e.g. PingFang
+  // SC → `cjk`, Hiragino → `hiragino-jp`, Apple SD Gothic → `korean`).
+  for (const k of ["cjk", "korean", "hiragino-jp", "hiragino-gb", "hiragino-sans"]) t[k] = cjk;
+  t["cjk-bold"] = cjkBold;
+  t["cjk-serif"] = cjkSerif;
+  // FreeFont logical keys (bare profile's symbol/letterlike/math routes) → Noto Sans/Serif.
+  t["free-sans"] = sans("Regular"); t["free-serif"] = serif("Regular");
+  return t;
+})();
+
+// DM-1404: which Linux font profile is active — the bare Playwright-image set
+// or a mainstream desktop Noto install. Detection follows fontconfig's ACTUAL
+// pick for a Han codepoint (U+4E00): that is exactly what Chromium-on-this-host
+// paints (both go through fontconfig), so the static routing matches Chromium by
+// construction. Noto desktop → NotoSansCJK; bare image → WenQuanYi → "bare".
+// `DOMOTION_LINUX_FONT_PROFILE=noto|bare` forces it (CI baseline agreement / tests).
+// Memoized; `__resetLinuxFontProfileForTest()` clears it.
+let _linuxFontProfile: "noto" | "bare" | null = null;
+function linuxFontProfile(): "noto" | "bare" {
+  if (_linuxFontProfile != null) return _linuxFontProfile;
+  const forced = process.env.DOMOTION_LINUX_FONT_PROFILE;
+  if (forced === "noto" || forced === "bare") return (_linuxFontProfile = forced);
+  const m = fcMatch("sans-serif:charset=4e00");
+  return (_linuxFontProfile = (m != null && /noto/i.test(m.path)) ? "noto" : "bare");
+}
+/** Test-only: clear the memoized Linux font profile (DM-1404). */
+export function __resetLinuxFontProfileForTest(): void { _linuxFontProfile = null; }
+/** Test-only: read the detected Linux font profile (DM-1404). */
+export function __linuxFontProfileForTest(): "noto" | "bare" { return linuxFontProfile(); }
 
 // Windows system fonts live in %WINDIR%\Fonts (almost always C:\Windows\Fonts).
 // Paths are stable across Windows 10/11, so unlike Linux we hardcode filenames
@@ -988,6 +1063,16 @@ function fcMatch(pattern: string): { path: string; postscriptName?: string } | n
 }
 
 function resolveLinuxSpec(key: string): FontPath | null {
+  // DM-1404: on a desktop Noto host, the primary-key overlay wins for the keys
+  // that differ from the bare image (sans/serif/mono primaries + CJK). Only when
+  // the overlay's on-disk file actually exists; otherwise fall through so a host
+  // with a partial Noto install still resolves via the bare table / fc-match.
+  if (linuxFontProfile() === "noto") {
+    const noto = LINUX_FONT_PATHS_NOTO[key];
+    if (noto != null && noto.path != null && existsSync(noto.path)) {
+      return { path: noto.path, postscriptName: noto.postscriptName, extractor: noto.extractor };
+    }
+  }
   const entry = LINUX_FONT_PATHS[key];
   if (entry == null) return null;
   // Canonical path first when it exists, then fontconfig discovery (entries
@@ -1323,6 +1408,9 @@ const isPictographResidueBlock = (cp: number): boolean =>
  * probe showed Chromium using for that block.
  */
 export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
+  // DM-1404: on a mainstream desktop Noto host, route through the Noto-calibrated
+  // per-block table instead of the bare image's WenQuanYi/FreeFont routes.
+  if (linuxFontProfile() === "noto") return linuxNotoFallbackChain(codepoint);
   const cp = codepoint;
   // Hebrew — Liberation Sans covers it, so route to the sans key (probe: hebrew
   // → Liberation Sans, i.e. the primary itself when sans-serif).
@@ -1393,6 +1481,34 @@ function lookupLinuxUnicodeFontRange(codepoint: number): string | null {
   while (lo <= hi) {
     const mid = (lo + hi) >>> 1;
     const r = UNICODE_FONT_RANGES_LINUX[mid]!;
+    if (codepoint < r[0]) hi = mid - 1;
+    else if (codepoint > r[1]) lo = mid + 1;
+    else return r[2];
+  }
+  return null;
+}
+
+/**
+ * DM-1404: Linux fallback chain for the desktop **Noto profile**. The generated
+ * `UNICODE_FONT_RANGES_NOTO_LINUX` table is the full per-block calibration of
+ * what Chromium-on-a-Noto-desktop paints (one face per block), so — unlike the
+ * bare chain's hand-tuned WenQuanYi/FreeFont routes — the Noto chain just
+ * consults that table. The caller has already tried the primary; the DM-1416
+ * live `fc-match :charset` resolver is the net after this for any per-codepoint
+ * miss the block-level route lacks. Keys are the generated `un-...` ones.
+ */
+function linuxNotoFallbackChain(codepoint: number): string[] {
+  const key = lookupNotoLinuxUnicodeFontRange(codepoint);
+  return key != null ? [key] : [];
+}
+
+/** Binary-search the generated `UNICODE_FONT_RANGES_NOTO_LINUX` for a codepoint. */
+function lookupNotoLinuxUnicodeFontRange(codepoint: number): string | null {
+  let lo = 0;
+  let hi = UNICODE_FONT_RANGES_NOTO_LINUX.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const r = UNICODE_FONT_RANGES_NOTO_LINUX[mid]!;
     if (codepoint < r[0]) hi = mid - 1;
     else if (codepoint > r[1]) lo = mid + 1;
     else return r[2];

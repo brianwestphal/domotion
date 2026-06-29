@@ -37,7 +37,11 @@ shortest possible map:
   `font-resolution.ts` owns font-key resolution + the per-Unicode-block
   fallback chains + `FONT_PATHS`/`LINUX_FONT_PATHS`/`WIN32_FONT_PATHS`
   (extracted out of `text-to-path.ts`, DM-1305/DM-1307; still re-exported from
-  it); `unicode-classification.ts` owns the Unicode predicates;
+  it) + the per-platform generated routing tables
+  (`unicode-font-routing.{darwin,linux,noto-linux,win32}.generated.ts`) + the
+  Linux bare-vs-Noto runtime profile selector (`linuxFontProfile()`, DM-1404) +
+  the live `fc-match`/CoreText system-fallback resolver (DM-1416/DM-1018);
+  `unicode-classification.ts` owns the Unicode predicates;
   `mask.ts` owns mask-def emission; `borders.ts` owns border math.
 - **`src/animation/`** — multi-frame composition (animator, magic-move) +
   **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
