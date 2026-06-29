@@ -27,6 +27,7 @@ import { createWarnings } from "./warnings.js";
 import { createCounterStyleResolver } from "./walker/counter-style-resolver.js";
 import { createCounterStylePrewalk } from "./walker/counter-prewalk.js";
 import { captureInlineSvg } from "./walker/inline-svg.js";
+import { computeFieldsetLegendBox } from "./walker/fieldset-legend.js";
 import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
@@ -416,39 +417,14 @@ export const captureScript =
     // magic-move matcher force-pairs them ahead of its fingerprint heuristic.
     const _magicKey = el.dataset != null ? el.dataset.magicKey : undefined;
 
-    // <fieldset> with a top-aligned <legend>: Chrome's UA fieldset paints its
-    // top border at the legend's vertical center, with a notch cut in the
-    // border across the legend's x range. fieldset.getBoundingClientRect()
-    // returns the OUTER box that includes the legend's full height — so the
-    // visible box top sits legend.height/2 below rect.top. Inset the captured
-    // y/height to match Chrome's painted box, and capture the legend's x
-    // range for the renderer to notch the top border behind it. DM-342/DM-343.
-    let fieldsetLegendNotch;
-    let fsX = rect.left - vp.x;
-    let fsY = rect.top - vp.y;
-    let fsW = rect.width;
-    let fsH = rect.height;
-    if (tag === 'fieldset') {
-      for (let i = 0; i < el.children.length; i++) {
-        const ch = el.children[i];
-        if (ch.tagName.toLowerCase() !== 'legend') continue;
-        const lr = ch.getBoundingClientRect();
-        // Top-aligned legend (legend.top === fieldset.top, with sub-px slack).
-        if (lr.height > 0 && lr.width > 0 && Math.abs(lr.top - rect.top) < 2) {
-          const inset = lr.height / 2;
-          fsY = (rect.top - vp.y) + inset;
-          fsH = rect.height - inset;
-          fieldsetLegendNotch = { x: lr.left - vp.x, y: lr.top - vp.y, w: lr.width, h: lr.height };
-        }
-        break;
-      }
-    }
+    // <fieldset>+<legend> box adjustment (DM-1436: extracted to walker/fieldset-legend.ts).
+    const _fsBox = computeFieldsetLegendBox(el, tag, rect, vp);
 
     const _captured = {
       tag, text,
-      x: fsX, y: fsY,
-      width: fsW, height: fsH,
-      fieldsetLegendNotch,
+      x: _fsBox.x, y: _fsBox.y,
+      width: _fsBox.width, height: _fsBox.height,
+      fieldsetLegendNotch: _fsBox.fieldsetLegendNotch,
       animId: _animId,
       magicKey: _magicKey,
       // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
