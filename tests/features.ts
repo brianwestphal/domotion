@@ -1152,12 +1152,17 @@ export const tests: FeatureTest[] = [
     height: 80,
   },
   {
-    // DM-494: mask-image: element(#id) — paint-reference. The referenced
-    // element's actual painted output is rasterized at capture time and
-    // emitted as <image> inside <mask>. mask-mode: match-source → luminance
-    // for element() refs (the RGB drives mask alpha). Source div has a
-    // diagonal split (white on top-left half, black bottom-right) so the
-    // luminance mask cuts the consumer rectangle along that diagonal.
+    // DM-494 / DM-1450: mask-image: element(#id) paint-reference. NOTE: CSS
+    // `element()` is UNSUPPORTED in Chromium (Firefox-only `-moz-element`) — it
+    // parse-rejects, so Chrome computes `mask-image: none` and paints both
+    // consumers UNMASKED (no diagonal luminance cut). This fixture is therefore
+    // a VACUOUS pass: it only verifies Domotion gracefully no-ops on the
+    // unsupported syntax (renders the consumers unmasked, matching Chrome's
+    // unmasked paint) — NOT that the element()-mask path produces a cut. The
+    // capture/render path (rasterizeMaskSources etc.) is dormant; it's
+    // synthetic-input-tested in tests/iframe-inner-element-mask.e2e.test.ts.
+    // See docs/22. If a future engine resolves element(), restore a real
+    // masked-output assertion here.
     name: "mask-element-ref",
     html: `<div style="padding:20px;background:#0d1117;font-family:-apple-system,sans-serif;color:#e6edf3;"><div id="src" style="position:absolute;left:-9999px;top:-9999px;width:200px;height:120px;background:linear-gradient(135deg,#fff 0%,#fff 50%,#000 50%,#000 100%);"></div><div style="display:flex;gap:16px;"><div style="width:200px;height:120px;background:#22d3ee;mask-image:element(#src);-webkit-mask-image:element(#src);mask-mode:match-source;-webkit-mask-mode:match-source;"></div><div style="width:200px;height:120px;background:#a855f7;mask-image:element(#src);-webkit-mask-image:element(#src);mask-mode:match-source;-webkit-mask-mode:match-source;"></div></div></div>`,
     width: 480,

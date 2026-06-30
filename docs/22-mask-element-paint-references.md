@@ -1,5 +1,24 @@
 # 22 — `mask-image: element(#id)` paint references
 
+> ⚠️ **Chromium does not support CSS `element()` (DM-1450).** This feature is
+> **dormant** in Domotion's toolchain. Verified on Chromium 147 (and it has never
+> shipped in Chrome): `CSS.supports("mask-image", "element(#x)")` is `false`, the
+> property parse-rejects to empty, and `getComputedStyle().maskImage` is `none` —
+> so Chrome paints the consumer **unmasked**. CSS `element()` is a Firefox-only
+> feature (`-moz-element()`); Chrome's only generated-image sources are
+> `-webkit-canvas()` (JS canvas API) and the Houdini `paint()` worklet. There is
+> **no launch flag** that enables `element()`.
+>
+> Consequence: `discoverMasks` never records a `maskRaster` for an `element()`
+> ref (its `cs.maskImage` gate is `none`), so the capture/render path below
+> **never runs through real Chromium capture**, and the `mask-element-ref` feature
+> fixture is a **vacuous pass** (both Chrome and Domotion render the consumer
+> unmasked, so they match). The code is kept because it is spec-correct, is
+> exercised by a synthetic-input test (`tests/iframe-inner-element-mask.e2e.test.ts`,
+> via `rasterizeMaskSources`), and would work if a future engine resolves
+> `element()` — but it is **not** a live code path today. See also
+> `docs/reference/raster-image-fallback-cases.md` §C2.
+
 ## Context
 
 CSS `mask-image: element(#some-id)` references the *painted output* of another DOM element as the mask source. Unlike `url("#fragment")` (doc 21), the target need not be a `<mask>` — it can be any visible DOM node (`<div>`, `<canvas>`, `<img>`, an `<svg>` icon, etc.). Chromium rasterizes the target's paint and uses that bitmap as the mask.
