@@ -381,6 +381,201 @@ interface TextDecorationOptions {
   features?: string[];
 }
 
+interface DecorationLineCtx {
+  /** CSS text-decoration-style. */
+  style: string | undefined;
+  explicitThickness: boolean;
+  fontSize: number;
+  baselineY: number;
+  decorationColor: string;
+  computeGapsAt: (yRel: number, thick: number) => Array<[number, number]>;
+  subSegments: (gaps: Array<[number, number]>) => Array<{ x0: number; x1: number }>;
+  dash: (thick: number) => string;
+}
+
+/**
+ * Emit one decoration line at (y, thickness) honoring text-decoration-style
+ * (extracted from `renderTextDecoration`, DM-1458). For wavy: a cubic-Bezier
+ * sin-wave path matching Chromium's `WavyPath`. For double: two parallel lines.
+ * For solid / dashed / dotted: a single <line> with optional dasharray. Skip-ink
+ * gaps (solid + double + wavy underlines) come via the `ctx` closures, which
+ * stay bound to the run's geometry. Body unchanged, so output is byte-identical.
+ */
+function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: DecorationLineCtx): string {
+  const { style, explicitThickness, fontSize, baselineY, decorationColor, computeGapsAt, subSegments, dash } = ctx;
+  if (style === "wavy") {
+    // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
+    //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
+    //   cp_distance = 0.5 + round(3 * thickness + 0.5)
+    // Each wavelength is one cubic Bezier with both control points at
+    // `wavelength/2` x — `cp1.y = +cp_distance`, `cp2.y = -cp_distance` —
+    // producing an S-curve from `(0, 0)` through a peak / trough back to
+    // `(wavelength, 0)`. Total visual amplitude ≈ `cp_distance * 0.289`.
+    //
+    // Earlier we rendered as quadratic Q curves with the control point at
+    // `±cp_distance` directly; that paints visual amplitude `cp_distance/2`
+    // — about 70% taller than Chrome — making 18 px wavy underlines look
+    // exaggerated. Switch to cubic to reproduce Chrome's geometry. (DM-446.)
+    //
+    // Thickness uses Chromium's auto-rule `max(1, fontSize/10)` rather than
+    // `getDecorationMetrics`'s `fontSize/20` empirical formula. The
+    // empirical rule compensates for an SVG-vs-HTML pixel-grid mismatch on
+    // axis-aligned solid strokes; curves don't hit that artifact, and the
+    // smaller value paints a visibly thinner stroke than Chrome.
+    const tc = explicitThickness ? Math.max(1, t) : Math.max(1, fontSize / 10);
+    const wavelength = 1 + 2 * Math.round(2 * tc + 0.5);
+    const cpDist = 0.5 + Math.round(3 * tc + 0.5);
+    // DM-830: re-probed against native Chromium (`tools/probe-wavy-geom5.mjs`)
+    // at fs={12, 16, 24, 36} × thickness={1, 2, 3, 4, 6}, measuring wave
+    // centre-y and peak amplitude against the descender-less 'm' baseline.
+    // Two findings differed from the earlier DM-446 calibration:
+    //
+    //  (1) Chrome paints amplitude `~0.278 × cpDist` (was 0.289). Across the
+    //      sample matrix: t=1→1.25, t=2→2.00, t=3→3.00, t=4→3.75, t=6→5.50
+    //      — Chrome's `cpDist`-to-amplitude ratio is consistently 0.27-0.28,
+    //      NOT the cubic-Bezier-geometric 0.289 = √3/(2π/n) factor we'd
+    //      derived analytically. Either Chrome uses a different
+    //      bezier-flatness setting or its wavy is actually a different
+    //      curve family at the painted scale.
+    //
+    //  (2) Wave centre-y is INDEPENDENT of fontSize (the previous formula
+    //      `y + 2 * amplitude` produced wave-y identical across font sizes
+    //      because `y = baseline + 1.5×t` itself was thickness-only; the
+    //      empirical pattern just confirms this). Centre-y DOES depend on
+    //      thickness: yCenter - baseline ≈ 2 + t/2 + amplitude. This is
+    //      consistent with "the wave's TOP edge sits exactly at the solid-
+    //      underline BOTTOM edge, leaving descender region clear" — where
+    //      Chrome's auto solid underline at thickness `t` paints at
+    //      baseline + 2 - t/2 to baseline + 2 + t/2.
+    //
+    // `y` passed into `emitLine` already equals `baseline + 1.5×t + extra`
+    // (the extra is the author's text-underline-offset). The new formula
+    // `yWave = y + amp + 2 - t` algebraically reduces to
+    // `baseline + 2 + 0.5×t + amp + extra`, matching the probed wave centre.
+    // For uniform text-underline-offset = 0, errors stay ≤ 0.4 px across
+    // the probed thickness range.
+    const waveAmplitude = 0.278 * cpDist;
+    const yWave = y + waveAmplitude + 2 - tc;
+    // DM-814: skip-ink for wavy. Compute gaps using the wave's full
+    // vertical extent (2*amplitude + stroke thickness) so a descender that
+    // pokes into the wave's PEAK or TROUGH zones breaks the wave, not just
+    // descenders that cross the centerline. Then emit one wave path per
+    // non-gap sub-segment. Each sub-segment's wave starts at phase 0 at
+    // its own x0 — adjacent segments aren't strictly phase-coherent with a
+    // hypothetical continuous wave, but the descender gap is usually wider
+    // than the discontinuity which makes the visual indistinguishable from
+    // Chrome's per-glyph break style.
+    const bandThickness = 2 * waveAmplitude + tc;
+    const wavyGaps = isUnderline ? computeGapsAt(yWave - baselineY, bandThickness) : [];
+    const subs = subSegments(wavyGaps);
+    const parts: string[] = [];
+    for (const { x0: sx0, x1: sx1 } of subs) {
+      if (sx1 - sx0 < 0.5) continue;
+      // DM-916: when the sub-segment ends mid-wavelength, Chrome's
+      // `WavyPath` truncates the cubic Bezier at the segment endpoint
+      // using de Casteljau's algorithm (the painter clips the cubic at
+      // parameter `t = (sx1 - x) / wavelength`). The previous emit kept
+      // both control points at `x + wavelength/2` while clamping the
+      // endpoint to `sx1` — when `sx1 < cpX` the result was a backward
+      // Bezier that painted as a visible extra stub, exaggerating wave
+      // count on lines with many descenders + skip-ink gaps. Split the
+      // final cubic instead so the truncated curve matches Chrome.
+      let d = `M ${r(sx0)} ${r(yWave)}`;
+      let x = sx0;
+      while (x < sx1 - 0.01) {
+        if (x + wavelength <= sx1 + 0.01) {
+          const nx = x + wavelength;
+          const cpX = x + wavelength / 2;
+          d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
+          x = nx;
+        } else {
+          // Partial wavelength remaining. Full cubic control points
+          // (P1, P2, P3) relative to P0 = (x, yWave):
+          //   P1 = (wavelength/2, +cpDist)
+          //   P2 = (wavelength/2, -cpDist)
+          //   P3 = (wavelength,    0)
+          // De Casteljau at parameter t splits this cubic at the point
+          // where the curve has advanced t·wavelength along the x axis
+          // (because the cubic is naturally parameterised so x(t) is
+          // monotonic with t). The "first half" cubic from 0 to t has:
+          //   Q0 = P0
+          //   Q1 = lerp(P0, P1, t)
+          //   Q2 = lerp(Q1, lerp(P1, P2, t), t)
+          //   Q3 = the de-Casteljau midpoint at t
+          const len = sx1 - x;
+          const t = len / wavelength;
+          // Y coordinates (relative to yWave) of the original cubic's
+          // points: 0, +cpDist, -cpDist, 0.
+          const p1y = cpDist, p2y = -cpDist;
+          // De Casteljau split for the FIRST half (start to t):
+          const ab = t * p1y;                                // lerp(0, p1, t).y
+          const bc = (1 - t) * p1y + t * p2y;                // lerp(p1, p2, t).y
+          const cd = (1 - t) * p2y;                          // lerp(p2, 0, t).y
+          const abc = (1 - t) * ab + t * bc;
+          const bcd = (1 - t) * bc + t * cd;
+          const abcd = (1 - t) * abc + t * bcd;
+          // X for the split: cubic x parametric is
+          //   x(t) = 3t(1-t)²·(wavelength/2) + 3t²(1-t)·(wavelength/2) + t³·wavelength
+          // which by symmetry of the cps simplifies to wavelength · t·(3 - 2t·(?))…
+          // Easier: each control point's x = lerped along its segment.
+          const p1x = wavelength / 2, p2x = wavelength / 2, p3x = wavelength;
+          const abx = t * p1x;
+          const bcx = (1 - t) * p1x + t * p2x;
+          const cdx = (1 - t) * p2x + t * p3x;
+          const abcx = (1 - t) * abx + t * bcx;
+          const bcdx = (1 - t) * bcx + t * cdx;
+          const abcdx = (1 - t) * abcx + t * bcdx;
+          // Split-curve cps + endpoint, in absolute coords:
+          const cp1x = x + abx,  cp1y = yWave + ab;
+          const cp2x = x + abcx, cp2y = yWave + abc;
+          const endx = x + abcdx, endy = yWave + abcd;
+          d += ` C ${r(cp1x)} ${r(cp1y)} ${r(cp2x)} ${r(cp2y)} ${r(endx)} ${r(endy)}`;
+          x = sx1;
+        }
+      }
+      parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`);
+    }
+    return parts.join("");
+  }
+  if (style === "double") {
+    // Double: two parallel lines. Per Chromium's `decoration_line_painter
+    // .cc::DrawLineAsRect`, kDouble extends the single-underline rect to
+    // 3×thickness tall and emits a stroke at each end — i.e., the TOP
+    // stroke sits at the single-underline position and the BOTTOM stroke
+    // sits 2×thickness below it. Total height = 3×thickness.
+    //
+    // Earlier we centered the double on the single-underline position,
+    // which placed the top of the top stroke AT the baseline. The skip-ink
+    // intercept band then began at y_rel=0 and false-triggered on every
+    // baseline-resting glyph (d / o / u / b / l / e ...) producing the
+    // shredded-line artifact reported in DM-446.
+    const stroke = Math.max(1, t);
+    const top = y;
+    const bot = y + 2 * stroke;
+    // Skip-ink band spans both strokes plus their stroke widths:
+    // [top - stroke/2, bot + stroke/2] = 3×stroke tall, centered at
+    // (top + bot) / 2.
+    const bandCenter = (top + bot) / 2;
+    const bandThickness = (bot - top) + stroke;
+    const dblGaps = isUnderline
+      ? computeGapsAt(bandCenter - baselineY, bandThickness)
+      : [];
+    const subs = subSegments(dblGaps);
+    return subs.map(({ x0, x1 }) =>
+      `<line x1="${r(x0)}" y1="${r(top)}" x2="${r(x1)}" y2="${r(top)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
+      + `<line x1="${r(x0)}" y1="${r(bot)}" x2="${r(x1)}" y2="${r(bot)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
+    ).join("");
+  }
+  // Solid (or dashed / dotted): single line span with optional dasharray.
+  // Skip-ink applies only to solid (Chromium short-circuits dashed / dotted).
+  const wantSkip = isUnderline && (style == null || style === "solid" || style === "");
+  const solidGaps = wantSkip ? computeGapsAt(y - baselineY, t) : [];
+  const subs = subSegments(solidGaps);
+  return subs.map(({ x0, x1 }) =>
+    `<line x1="${r(x0)}" y1="${r(y)}" x2="${r(x1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`
+  ).join("");
+}
+
 function renderTextDecoration(opts: TextDecorationOptions): string {
   const {
     textDecorationLine, decorationColor, style, segX, baselineY, segWidth,
@@ -432,187 +627,17 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   // <line> with optional stroke-dasharray.
   const explicitThickness = thicknessOverride != null && thicknessOverride !== ""
     && thicknessOverride !== "auto" && thicknessOverride !== "from-font";
-  function emitLine(y: number, t: number, isUnderline: boolean = false): string {
-    if (style === "wavy") {
-      // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
-      //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
-      //   cp_distance = 0.5 + round(3 * thickness + 0.5)
-      // Each wavelength is one cubic Bezier with both control points at
-      // `wavelength/2` x — `cp1.y = +cp_distance`, `cp2.y = -cp_distance` —
-      // producing an S-curve from `(0, 0)` through a peak / trough back to
-      // `(wavelength, 0)`. Total visual amplitude ≈ `cp_distance * 0.289`.
-      //
-      // Earlier we rendered as quadratic Q curves with the control point at
-      // `±cp_distance` directly; that paints visual amplitude `cp_distance/2`
-      // — about 70% taller than Chrome — making 18 px wavy underlines look
-      // exaggerated. Switch to cubic to reproduce Chrome's geometry. (DM-446.)
-      //
-      // Thickness uses Chromium's auto-rule `max(1, fontSize/10)` rather than
-      // `getDecorationMetrics`'s `fontSize/20` empirical formula. The
-      // empirical rule compensates for an SVG-vs-HTML pixel-grid mismatch on
-      // axis-aligned solid strokes; curves don't hit that artifact, and the
-      // smaller value paints a visibly thinner stroke than Chrome.
-      const tc = explicitThickness ? Math.max(1, t) : Math.max(1, fontSize / 10);
-      const wavelength = 1 + 2 * Math.round(2 * tc + 0.5);
-      const cpDist = 0.5 + Math.round(3 * tc + 0.5);
-      // DM-830: re-probed against native Chromium (`tools/probe-wavy-geom5.mjs`)
-      // at fs={12, 16, 24, 36} × thickness={1, 2, 3, 4, 6}, measuring wave
-      // centre-y and peak amplitude against the descender-less 'm' baseline.
-      // Two findings differed from the earlier DM-446 calibration:
-      //
-      //  (1) Chrome paints amplitude `~0.278 × cpDist` (was 0.289). Across the
-      //      sample matrix: t=1→1.25, t=2→2.00, t=3→3.00, t=4→3.75, t=6→5.50
-      //      — Chrome's `cpDist`-to-amplitude ratio is consistently 0.27-0.28,
-      //      NOT the cubic-Bezier-geometric 0.289 = √3/(2π/n) factor we'd
-      //      derived analytically. Either Chrome uses a different
-      //      bezier-flatness setting or its wavy is actually a different
-      //      curve family at the painted scale.
-      //
-      //  (2) Wave centre-y is INDEPENDENT of fontSize (the previous formula
-      //      `y + 2 * amplitude` produced wave-y identical across font sizes
-      //      because `y = baseline + 1.5×t` itself was thickness-only; the
-      //      empirical pattern just confirms this). Centre-y DOES depend on
-      //      thickness: yCenter - baseline ≈ 2 + t/2 + amplitude. This is
-      //      consistent with "the wave's TOP edge sits exactly at the solid-
-      //      underline BOTTOM edge, leaving descender region clear" — where
-      //      Chrome's auto solid underline at thickness `t` paints at
-      //      baseline + 2 - t/2 to baseline + 2 + t/2.
-      //
-      // `y` passed into `emitLine` already equals `baseline + 1.5×t + extra`
-      // (the extra is the author's text-underline-offset). The new formula
-      // `yWave = y + amp + 2 - t` algebraically reduces to
-      // `baseline + 2 + 0.5×t + amp + extra`, matching the probed wave centre.
-      // For uniform text-underline-offset = 0, errors stay ≤ 0.4 px across
-      // the probed thickness range.
-      const waveAmplitude = 0.278 * cpDist;
-      const yWave = y + waveAmplitude + 2 - tc;
-      // DM-814: skip-ink for wavy. Compute gaps using the wave's full
-      // vertical extent (2*amplitude + stroke thickness) so a descender that
-      // pokes into the wave's PEAK or TROUGH zones breaks the wave, not just
-      // descenders that cross the centerline. Then emit one wave path per
-      // non-gap sub-segment. Each sub-segment's wave starts at phase 0 at
-      // its own x0 — adjacent segments aren't strictly phase-coherent with a
-      // hypothetical continuous wave, but the descender gap is usually wider
-      // than the discontinuity which makes the visual indistinguishable from
-      // Chrome's per-glyph break style.
-      const bandThickness = 2 * waveAmplitude + tc;
-      const wavyGaps = isUnderline ? computeGapsAt(yWave - baselineY, bandThickness) : [];
-      const subs = subSegments(wavyGaps);
-      const parts: string[] = [];
-      for (const { x0: sx0, x1: sx1 } of subs) {
-        if (sx1 - sx0 < 0.5) continue;
-        // DM-916: when the sub-segment ends mid-wavelength, Chrome's
-        // `WavyPath` truncates the cubic Bezier at the segment endpoint
-        // using de Casteljau's algorithm (the painter clips the cubic at
-        // parameter `t = (sx1 - x) / wavelength`). The previous emit kept
-        // both control points at `x + wavelength/2` while clamping the
-        // endpoint to `sx1` — when `sx1 < cpX` the result was a backward
-        // Bezier that painted as a visible extra stub, exaggerating wave
-        // count on lines with many descenders + skip-ink gaps. Split the
-        // final cubic instead so the truncated curve matches Chrome.
-        let d = `M ${r(sx0)} ${r(yWave)}`;
-        let x = sx0;
-        while (x < sx1 - 0.01) {
-          if (x + wavelength <= sx1 + 0.01) {
-            const nx = x + wavelength;
-            const cpX = x + wavelength / 2;
-            d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
-            x = nx;
-          } else {
-            // Partial wavelength remaining. Full cubic control points
-            // (P1, P2, P3) relative to P0 = (x, yWave):
-            //   P1 = (wavelength/2, +cpDist)
-            //   P2 = (wavelength/2, -cpDist)
-            //   P3 = (wavelength,    0)
-            // De Casteljau at parameter t splits this cubic at the point
-            // where the curve has advanced t·wavelength along the x axis
-            // (because the cubic is naturally parameterised so x(t) is
-            // monotonic with t). The "first half" cubic from 0 to t has:
-            //   Q0 = P0
-            //   Q1 = lerp(P0, P1, t)
-            //   Q2 = lerp(Q1, lerp(P1, P2, t), t)
-            //   Q3 = the de-Casteljau midpoint at t
-            const len = sx1 - x;
-            const t = len / wavelength;
-            // Y coordinates (relative to yWave) of the original cubic's
-            // points: 0, +cpDist, -cpDist, 0.
-            const p1y = cpDist, p2y = -cpDist;
-            // De Casteljau split for the FIRST half (start to t):
-            const ab = t * p1y;                                // lerp(0, p1, t).y
-            const bc = (1 - t) * p1y + t * p2y;                // lerp(p1, p2, t).y
-            const cd = (1 - t) * p2y;                          // lerp(p2, 0, t).y
-            const abc = (1 - t) * ab + t * bc;
-            const bcd = (1 - t) * bc + t * cd;
-            const abcd = (1 - t) * abc + t * bcd;
-            // X for the split: cubic x parametric is
-            //   x(t) = 3t(1-t)²·(wavelength/2) + 3t²(1-t)·(wavelength/2) + t³·wavelength
-            // which by symmetry of the cps simplifies to wavelength · t·(3 - 2t·(?))…
-            // Easier: each control point's x = lerped along its segment.
-            const p1x = wavelength / 2, p2x = wavelength / 2, p3x = wavelength;
-            const abx = t * p1x;
-            const bcx = (1 - t) * p1x + t * p2x;
-            const cdx = (1 - t) * p2x + t * p3x;
-            const abcx = (1 - t) * abx + t * bcx;
-            const bcdx = (1 - t) * bcx + t * cdx;
-            const abcdx = (1 - t) * abcx + t * bcdx;
-            // Split-curve cps + endpoint, in absolute coords:
-            const cp1x = x + abx,  cp1y = yWave + ab;
-            const cp2x = x + abcx, cp2y = yWave + abc;
-            const endx = x + abcdx, endy = yWave + abcd;
-            d += ` C ${r(cp1x)} ${r(cp1y)} ${r(cp2x)} ${r(cp2y)} ${r(endx)} ${r(endy)}`;
-            x = sx1;
-          }
-        }
-        parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`);
-      }
-      return parts.join("");
-    }
-    if (style === "double") {
-      // Double: two parallel lines. Per Chromium's `decoration_line_painter
-      // .cc::DrawLineAsRect`, kDouble extends the single-underline rect to
-      // 3×thickness tall and emits a stroke at each end — i.e., the TOP
-      // stroke sits at the single-underline position and the BOTTOM stroke
-      // sits 2×thickness below it. Total height = 3×thickness.
-      //
-      // Earlier we centered the double on the single-underline position,
-      // which placed the top of the top stroke AT the baseline. The skip-ink
-      // intercept band then began at y_rel=0 and false-triggered on every
-      // baseline-resting glyph (d / o / u / b / l / e ...) producing the
-      // shredded-line artifact reported in DM-446.
-      const stroke = Math.max(1, t);
-      const top = y;
-      const bot = y + 2 * stroke;
-      // Skip-ink band spans both strokes plus their stroke widths:
-      // [top - stroke/2, bot + stroke/2] = 3×stroke tall, centered at
-      // (top + bot) / 2.
-      const bandCenter = (top + bot) / 2;
-      const bandThickness = (bot - top) + stroke;
-      const dblGaps = isUnderline
-        ? computeGapsAt(bandCenter - baselineY, bandThickness)
-        : [];
-      const subs = subSegments(dblGaps);
-      return subs.map(({ x0, x1 }) =>
-        `<line x1="${r(x0)}" y1="${r(top)}" x2="${r(x1)}" y2="${r(top)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
-        + `<line x1="${r(x0)}" y1="${r(bot)}" x2="${r(x1)}" y2="${r(bot)}" stroke="${decorationColor}" stroke-width="${r(stroke)}"/>`
-      ).join("");
-    }
-    // Solid (or dashed / dotted): single line span with optional dasharray.
-    // Skip-ink applies only to solid (Chromium short-circuits dashed / dotted).
-    const wantSkip = isUnderline && (style == null || style === "solid" || style === "");
-    const solidGaps = wantSkip ? computeGapsAt(y - baselineY, t) : [];
-    const subs = subSegments(solidGaps);
-    return subs.map(({ x0, x1 }) =>
-      `<line x1="${r(x0)}" y1="${r(y)}" x2="${r(x1)}" y2="${r(y)}" stroke="${decorationColor}" stroke-width="${r(t)}"${dash(t)}/>`
-    ).join("");
-  }
+  const decorationLineCtx: DecorationLineCtx = {
+    style, explicitThickness, fontSize, baselineY, decorationColor, computeGapsAt, subSegments, dash,
+  };
   if (has("underline")) {
-    lines.push(emitLine(baselineY + m.underlineOffsetY, m.underlineThickness, true));
+    lines.push(emitDecorationLine(baselineY + m.underlineOffsetY, m.underlineThickness, true, decorationLineCtx));
   }
   if (has("line-through")) {
-    lines.push(emitLine(baselineY - m.strikeoutOffsetY, m.strikeoutThickness));
+    lines.push(emitDecorationLine(baselineY - m.strikeoutOffsetY, m.strikeoutThickness, false, decorationLineCtx));
   }
   if (has("overline")) {
-    lines.push(emitLine(baselineY - m.overlineOffsetY, m.overlineThickness));
+    lines.push(emitDecorationLine(baselineY - m.overlineOffsetY, m.overlineThickness, false, decorationLineCtx));
   }
   return lines.join("");
 }
