@@ -724,6 +724,69 @@ function renderOneText(
   }
 }
 
+// Resolve the fill for an element's text, handling the `background-clip: text`
+// gradient-headline pattern. Returns the SVG fill string plus whether the text
+// itself is transparent (the caller needs the latter to choose between the
+// glyph-mask compositing path and a plain fill).
+//
+// DM-462: `background-clip: text` + `-webkit-text-fill-color: transparent` (or
+// `color: transparent`) makes the bg-image paint inside the glyph shapes — the
+// gradient-headline pattern. When detected, swap the text fill from the regular
+// color to the gradient's def URL captured from the text-clipped bg layer above.
+// We honor this when the rendered text is actually transparent (text-fill-color
+// or color is alpha-zero); if the author left text-fill-color opaque we just
+// paint the color, which is what Chrome would paint on top of the (clipped)
+// gradient anyway.
+//
+// This is the leading sub-phase of paintText (extracted in DM-1436 item 1 as a
+// pure code move). It may allocate a "bg" gradient def via ctx.nextClipId and
+// push to ctx.defsParts; paintText calls it at the same point as before — ahead
+// of the "ct" text-clip id — so the id allocation order is unchanged.
+function resolveTextFill(
+  ctx: PaintCtx,
+  el: CapturedElement,
+  textColor: ReturnType<typeof parseColor>,
+  textBgClipFills: string[],
+  captureViewport: { w: number; h: number },
+): { fillColor: string; textIsTransparent: boolean } {
+  const tfcRaw = el.styles.webkitTextFillColor;
+  const tfc = tfcRaw != null ? parseColor(tfcRaw) : null;
+  const textIsTransparent = (tfc != null ? tfc.a < 0.01 : (textColor != null && textColor.a < 0.01));
+  // Topmost text-clipped layer is the visible color over the glyphs when
+  // we fall into the non-mask path; in the mask path below ALL layers
+  // composite (DM-696). Find the topmost (lowest li) non-empty entry.
+  // DM-749: when this element has no text-bg-clip layers of its own but
+  // an ancestor has `background-clip: text` + a gradient (the Stripe
+  // hds-heading pattern — span with gradient + bg-clip:text wraps a
+  // child div with the actual text), build a gradient def from the
+  // captured `inheritedTextFillGradient` and use it as the fill.
+  let topmostTextBgClipFill = textBgClipFills.find((s) => s != null) ?? null;
+  if (topmostTextBgClipFill == null && textIsTransparent && el.styles.inheritedTextFillGradient != null && el.styles.inheritedTextFillGradient !== "" && el.styles.inheritedTextFillGradient !== "none") {
+    const layer = el.styles.inheritedTextFillGradient;
+    const defId = ctx.nextClipId("bg");
+    // DM-908: resolve the gradient against the ANCESTOR's bbox (the
+    // element that set `background-clip: text`), not this child's
+    // bbox. Falling back to (el.x, el.y, el.width, el.height) for
+    // legacy captures missing the new field would produce the
+    // pre-fix behaviour where each child re-runs the gradient over
+    // its own (smaller) area.
+    const gradRect = el.styles.inheritedTextFillGradientRect;
+    const gx = gradRect != null ? gradRect.x : el.x;
+    const gy = gradRect != null ? gradRect.y : el.y;
+    const gw = gradRect != null ? gradRect.width : el.width;
+    const gh = gradRect != null ? gradRect.height : el.height;
+    const out = buildBackgroundLayerDef(defId, layer, gx, gy, gw, gh, "auto", "0% 0%", "no-repeat", null, "scroll", captureViewport);
+    if (out.def !== "") {
+      ctx.defsParts.push(out.def);
+      topmostTextBgClipFill = `url(#${defId})`;
+    }
+  }
+  const fillColor = (topmostTextBgClipFill != null && textIsTransparent)
+    ? topmostTextBgClipFill
+    : (textColor != null ? colorStr(textColor) : "#e6edf3");
+  return { fillColor, textIsTransparent };
+}
+
 // Text + text-shadow rendering dispatch, extracted from renderElement (DM-1306,
 // DM-1315). Chooses single-line / multi-segment / multi-line / input rendering
 // (delegating the glyph work to text-renderer.ts), paints the element-level and
@@ -742,49 +805,7 @@ function paintText(
   textBgClipFragmentFills: (string[] | null)[] = [],
 ): void {
   if (el.text !== "") {
-    // DM-462: `background-clip: text` + `-webkit-text-fill-color: transparent`
-    // (or `color: transparent`) makes the bg-image paint inside the glyph
-    // shapes — the gradient-headline pattern. When detected, swap the text
-    // fill from the regular color to the gradient's def URL captured from
-    // the text-clipped bg layer above. We honor this when the rendered text
-    // is actually transparent (text-fill-color or color is alpha-zero); if
-    // the author left text-fill-color opaque we just paint the color, which
-    // is what Chrome would paint on top of the (clipped) gradient anyway.
-    const tfcRaw = el.styles.webkitTextFillColor;
-    const tfc = tfcRaw != null ? parseColor(tfcRaw) : null;
-    const textIsTransparent = (tfc != null ? tfc.a < 0.01 : (textColor != null && textColor.a < 0.01));
-    // Topmost text-clipped layer is the visible color over the glyphs when
-    // we fall into the non-mask path; in the mask path below ALL layers
-    // composite (DM-696). Find the topmost (lowest li) non-empty entry.
-    // DM-749: when this element has no text-bg-clip layers of its own but
-    // an ancestor has `background-clip: text` + a gradient (the Stripe
-    // hds-heading pattern — span with gradient + bg-clip:text wraps a
-    // child div with the actual text), build a gradient def from the
-    // captured `inheritedTextFillGradient` and use it as the fill.
-    let topmostTextBgClipFill = textBgClipFills.find((s) => s != null) ?? null;
-    if (topmostTextBgClipFill == null && textIsTransparent && el.styles.inheritedTextFillGradient != null && el.styles.inheritedTextFillGradient !== "" && el.styles.inheritedTextFillGradient !== "none") {
-      const layer = el.styles.inheritedTextFillGradient;
-      const defId = ctx.nextClipId("bg");
-      // DM-908: resolve the gradient against the ANCESTOR's bbox (the
-      // element that set `background-clip: text`), not this child's
-      // bbox. Falling back to (el.x, el.y, el.width, el.height) for
-      // legacy captures missing the new field would produce the
-      // pre-fix behaviour where each child re-runs the gradient over
-      // its own (smaller) area.
-      const gradRect = el.styles.inheritedTextFillGradientRect;
-      const gx = gradRect != null ? gradRect.x : el.x;
-      const gy = gradRect != null ? gradRect.y : el.y;
-      const gw = gradRect != null ? gradRect.width : el.width;
-      const gh = gradRect != null ? gradRect.height : el.height;
-      const out = buildBackgroundLayerDef(defId, layer, gx, gy, gw, gh, "auto", "0% 0%", "no-repeat", null, "scroll", captureViewport);
-      if (out.def !== "") {
-        ctx.defsParts.push(out.def);
-        topmostTextBgClipFill = `url(#${defId})`;
-      }
-    }
-    const fillColor = (topmostTextBgClipFill != null && textIsTransparent)
-      ? topmostTextBgClipFill
-      : (textColor != null ? colorStr(textColor) : "#e6edf3");
+    const { fillColor, textIsTransparent } = resolveTextFill(ctx, el, textColor, textBgClipFills, captureViewport);
     const cid = ctx.nextClipId("ct");
     // DM-1266: a form field's value text clips to the element's CONTENT box
     // (inside border + padding), not the border box. Chrome paints an
