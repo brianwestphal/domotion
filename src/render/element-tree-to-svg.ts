@@ -2856,75 +2856,79 @@ function renderElementWithOverflowClip(state: RenderState, el: CapturedElement, 
  * pattern: a per-fragment slice of the inline's logical box, with the
  * non-edge sides suppressed in slice mode.
  */
-function renderInlineFragments(
-  state: RenderState,
-  el: CapturedElement,
-  indent: string,
-  bgColor: { r: number; g: number; b: number; a: number } | null,
+/**
+ * Per-fragment corner radii for a wrapped inline / multi-column block fragment
+ * (extracted from `renderInlineFragments`, DM-1458). In slice mode the radii
+ * belong only to the entry/exit edges — which edges depends on the fragmentation
+ * axis: inline-axis keeps TL/BL on the first fragment + TR/BR on the last;
+ * block-axis keeps TL/TR on the first + BL/BR on the last. Middle fragments
+ * collapse to sharp 90° corners. Clone treats every fragment as a complete box,
+ * keeping all four corners.
+ */
+function deriveFragmentCorners(
   corners: CornerRadii,
+  isFirst: boolean,
+  isLast: boolean,
+  clone: boolean,
+  fragsAxisIsBlock: boolean,
+): CornerRadii {
+  if (clone) return corners;
+  return fragsAxisIsBlock ? {
+    tl: isFirst ? corners.tl : { h: 0, v: 0 },
+    tr: isFirst ? corners.tr : { h: 0, v: 0 },
+    bl: isLast ? corners.bl : { h: 0, v: 0 },
+    br: isLast ? corners.br : { h: 0, v: 0 },
+    uniform: corners.uniform && isFirst && isLast,
+  } : {
+    tl: isFirst ? corners.tl : { h: 0, v: 0 },
+    bl: isFirst ? corners.bl : { h: 0, v: 0 },
+    tr: isLast ? corners.tr : { h: 0, v: 0 },
+    br: isLast ? corners.br : { h: 0, v: 0 },
+    uniform: corners.uniform && isFirst && isLast,
+  };
+}
+
+/** Per-element invariants a wrapped-inline / multi-column block needs to paint
+ *  each of its fragments (extracted from `renderInlineFragments`, DM-1458). */
+interface InlineFragmentCtx {
+  clone: boolean;
+  fragsAxisIsBlock: boolean;
+  hasBgImage: boolean;
+  shadows: ReturnType<typeof parseBoxShadow>;
+  bgColor: { r: number; g: number; b: number; a: number } | null;
+  sbt: ReturnType<typeof parseSide>;
+  sbr: ReturnType<typeof parseSide>;
+  sbb: ReturnType<typeof parseSide>;
+  sbl: ReturnType<typeof parseSide>;
+  bgImageLayers: string[];
+  bgSizeLayers: string[];
+  bgPosLayers: string[];
+  bgRepeatLayers: string[];
+  bgClipLayers: string[];
+  bgIntrinsicLayers: Array<{ w: number; h: number } | null>;
+  bgAttachmentLayers: string[];
+}
+
+/** Paint one inline/block fragment: outset shadow (clone), background color +
+ *  image layers (clone), and the per-side borders with axis-aware edge
+ *  suppression. Extracted from `renderInlineFragments`'s per-fragment loop
+ *  (DM-1458); the body is unchanged, reading its inputs off `state` + `ctx`. */
+function paintInlineFragment(
+  state: RenderState,
+  indent: string,
+  f: { x: number; y: number; width: number; height: number },
+  fragCorners: CornerRadii,
+  isFirst: boolean,
+  isLast: boolean,
+  ctx: InlineFragmentCtx,
 ): void {
   const { paintCtx, defsParts, svgParts, captureViewport } = state;
-  const frags = el.inlineFragments!;
-  const clone = (el.styles.boxDecorationBreak ?? "slice") === "clone";
-  const bgImage = el.styles.backgroundImage;
-  const hasBgImage = bgImage != null && bgImage !== "none" && bgImage !== "";
-  const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
-
-  // DM-754: fragment axis comes from capture-side `display` inspection —
-  // both inline-wrap and multi-column block-level fragmentation produce
-  // vertically-stacked frag rects, so we can't reliably tell them apart
-  // by geometry. `inline`: first owns LEFT + TL/BL, last owns RIGHT +
-  // TR/BR, middle paints top + bottom only. `block`: first owns TOP +
-  // TL/TR, last owns BOTTOM + BL/BR, middle paints left + right only.
-  const fragsAxisIsBlock = el.fragmentAxis === "block";
-
-  // Per-side captured borders. Uniformity tested for the simple stroke
-  // path; mixed-per-side borders on wrapped inlines are rare and fall
-  // back to the same per-side emit.
-  const sbt = parseSide(el.styles.borderTopWidth, el.styles.borderTopStyle, el.styles.borderTopColor);
-  const sbr = parseSide(el.styles.borderRightWidth, el.styles.borderRightStyle, el.styles.borderRightColor);
-  const sbb = parseSide(el.styles.borderBottomWidth, el.styles.borderBottomStyle, el.styles.borderBottomColor);
-  const sbl = parseSide(el.styles.borderLeftWidth, el.styles.borderLeftStyle, el.styles.borderLeftColor);
-
-  // Per-side border-image-source styling on wrapped inlines is rare enough
-  // that we skip it; the bbox path remains the only border-image-aware
-  // emitter and is gated off when `useInlineFragments` is set.
-
-  // Background-image layer setup — mirrors the bbox path but parameterised
-  // on per-fragment box. background-clip: text isn't supported on inline
-  // fragments here (uncommon and would require per-fragment glyph masks).
-  const bgImageLayers = hasBgImage ? splitTopLevelCommas(bgImage!) : [];
-  const bgSizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
-  const bgPosLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
-  const bgRepeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
-  const bgClipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
-  const bgOriginLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
-  const bgAttachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
-  const bgIntrinsicLayers = el.styles.backgroundIntrinsic ?? [];
-
-  for (let fi = 0; fi < frags.length; fi++) {
-    const f = frags[fi];
-    const isFirst = fi === 0;
-    const isLast = fi === frags.length - 1;
-    // In slice mode the corner radii belong only to the entry/exit edges
-    // — which edges, exactly, depends on the fragmentation axis:
-    //   • inline-axis (wrapped inline): TL/BL on first, TR/BR on last
-    //   • block-axis (multi-column block): TL/TR on first, BL/BR on last
-    // Middle fragments collapse to sharp 90° on all four corners. Clone
-    // treats every fragment as a complete box → keep all four corners.
-    const fragCorners: CornerRadii = clone ? corners : (fragsAxisIsBlock ? {
-      tl: isFirst ? corners.tl : { h: 0, v: 0 },
-      tr: isFirst ? corners.tr : { h: 0, v: 0 },
-      bl: isLast ? corners.bl : { h: 0, v: 0 },
-      br: isLast ? corners.br : { h: 0, v: 0 },
-      uniform: corners.uniform && isFirst && isLast,
-    } : {
-      tl: isFirst ? corners.tl : { h: 0, v: 0 },
-      bl: isFirst ? corners.bl : { h: 0, v: 0 },
-      tr: isLast ? corners.tr : { h: 0, v: 0 },
-      br: isLast ? corners.br : { h: 0, v: 0 },
-      uniform: corners.uniform && isFirst && isLast,
-    });
+  const {
+    clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
+    sbt, sbr, sbb, sbl,
+    bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
+    bgIntrinsicLayers, bgAttachmentLayers,
+  } = ctx;
 
     // Outset box-shadow. Clone applies shadow to each fragment; slice
     // applies it to the joined shape which would need per-fragment
@@ -3092,6 +3096,66 @@ function renderInlineFragments(
       if (wantLeft) drawSide(sbl, xL + lw / 2, yT, xL + lw / 2, yB);
       if (wantRight) drawSide(sbr, xR - rw / 2, yT, xR - rw / 2, yB);
     }
+}
+
+function renderInlineFragments(
+  state: RenderState,
+  el: CapturedElement,
+  indent: string,
+  bgColor: { r: number; g: number; b: number; a: number } | null,
+  corners: CornerRadii,
+): void {
+  const { paintCtx, defsParts, svgParts, captureViewport } = state;
+  const frags = el.inlineFragments!;
+  const clone = (el.styles.boxDecorationBreak ?? "slice") === "clone";
+  const bgImage = el.styles.backgroundImage;
+  const hasBgImage = bgImage != null && bgImage !== "none" && bgImage !== "";
+  const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
+
+  // DM-754: fragment axis comes from capture-side `display` inspection —
+  // both inline-wrap and multi-column block-level fragmentation produce
+  // vertically-stacked frag rects, so we can't reliably tell them apart
+  // by geometry. `inline`: first owns LEFT + TL/BL, last owns RIGHT +
+  // TR/BR, middle paints top + bottom only. `block`: first owns TOP +
+  // TL/TR, last owns BOTTOM + BL/BR, middle paints left + right only.
+  const fragsAxisIsBlock = el.fragmentAxis === "block";
+
+  // Per-side captured borders. Uniformity tested for the simple stroke
+  // path; mixed-per-side borders on wrapped inlines are rare and fall
+  // back to the same per-side emit.
+  const sbt = parseSide(el.styles.borderTopWidth, el.styles.borderTopStyle, el.styles.borderTopColor);
+  const sbr = parseSide(el.styles.borderRightWidth, el.styles.borderRightStyle, el.styles.borderRightColor);
+  const sbb = parseSide(el.styles.borderBottomWidth, el.styles.borderBottomStyle, el.styles.borderBottomColor);
+  const sbl = parseSide(el.styles.borderLeftWidth, el.styles.borderLeftStyle, el.styles.borderLeftColor);
+
+  // Per-side border-image-source styling on wrapped inlines is rare enough
+  // that we skip it; the bbox path remains the only border-image-aware
+  // emitter and is gated off when `useInlineFragments` is set.
+
+  // Background-image layer setup — mirrors the bbox path but parameterised
+  // on per-fragment box. background-clip: text isn't supported on inline
+  // fragments here (uncommon and would require per-fragment glyph masks).
+  const bgImageLayers = hasBgImage ? splitTopLevelCommas(bgImage!) : [];
+  const bgSizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
+  const bgPosLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
+  const bgRepeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
+  const bgClipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+  const bgOriginLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
+  const bgAttachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+  const bgIntrinsicLayers = el.styles.backgroundIntrinsic ?? [];
+
+  const fragmentCtx: InlineFragmentCtx = {
+    clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
+    sbt, sbr, sbb, sbl,
+    bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
+    bgIntrinsicLayers, bgAttachmentLayers,
+  };
+  for (let fi = 0; fi < frags.length; fi++) {
+    const f = frags[fi];
+    const isFirst = fi === 0;
+    const isLast = fi === frags.length - 1;
+    const fragCorners = deriveFragmentCorners(corners, isFirst, isLast, clone, fragsAxisIsBlock);
+    paintInlineFragment(state, indent, f, fragCorners, isFirst, isLast, fragmentCtx);
   }
 }
 
