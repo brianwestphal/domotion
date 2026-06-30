@@ -133,9 +133,12 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
     }
   }
   // Run the sweep over every stylesheet (CORS-protected sheets throw on
-  // `.cssRules` access — skip them silently).
-  return () => {
-    for (const sheet of Array.from(document.styleSheets)) {
+  // `.cssRules` access — skip them silently). DM-1443: accepts an optional
+  // `doc` so the same pre-walk can collect `@counter-style` rules from a
+  // recursed same-origin iframe's own stylesheets, not just the top document.
+  return (doc) => {
+    const _doc = doc || document;
+    for (const sheet of Array.from(_doc.styleSheets)) {
       try {
         _walkRulesForCounterStyles(sheet.cssRules);
       } catch (e) {

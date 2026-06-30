@@ -67,6 +67,9 @@ export const captureScript =
   // the lists-counters and pseudo-content handlers close over the same
   // object reference via the shared counter-style resolver.
   const _counterStyles = {};
+  // DM-1443: the `@counter-style` collector, captured so it can be re-run
+  // against a recursed iframe's own document (`_runCounterStylePrewalk(doc)`).
+  const _runCounterStylePrewalk = createCounterStylePrewalk({ counterStyles: _counterStyles });
   const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
   const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
@@ -1055,6 +1058,13 @@ export const captureScript =
     vp.y = savedY - dy;
     var node;
     try {
+      // DM-1443: run the pre-passes (cull exemptions, cumulative scale, CSS
+      // counters, @counter-style) against the inner document FIRST — with `vp`
+      // already shifted — so the inner walk resolves counters, pre-scales text
+      // metrics under inner transforms/zoom, and keeps in-viewport fixed/sticky/
+      // transformed inner content. Without this the inner walk reused the outer
+      // document's pre-pass state, which has no inner-element entries.
+      _runInnerDocumentPrePasses(doc);
       node = capture(doc.documentElement);
     } catch (e) {
       node = undefined;
@@ -1063,6 +1073,62 @@ export const captureScript =
       vp.y = savedY;
     }
     return node == null ? undefined : node;
+  }
+
+  // DM-1443: populate the shared pre-pass state for a recursed iframe's inner
+  // document, mirroring the outer-document pre-passes in the orchestration tail.
+  // Deliberately a SEPARATE implementation from the outer inline loops rather
+  // than a shared refactor: the outer path is the hot path every fixture
+  // exercises, so we leave it byte-identical and isolate the inner-iframe code
+  // here. Adds inner elements to `_fixedAncestors` / `_transformInfluenced` /
+  // `_cumulativeScale` (keyed by element, so no collision with outer entries),
+  // snapshots inner counters into `_counterSnapshot`, and folds the iframe's own
+  // `@counter-style` rules into `_counterStyles`. Runs with `vp` already shifted
+  // to the iframe's space so the cull tests use the real painted region.
+  function _runInnerDocumentPrePasses(doc) {
+    var rootEl = doc.documentElement;
+    var allEls = rootEl.getElementsByTagName('*');
+    // position:fixed / sticky in-viewport ancestors (DM-513).
+    for (var i = 0; i < allEls.length; i++) {
+      var el = allEls[i];
+      var pos = getComputedStyle(el).position;
+      if (pos !== 'fixed' && pos !== 'sticky') continue;
+      var r = el.getBoundingClientRect();
+      if (r.right < vp.x || r.bottom < vp.y || r.left > vp.x + vp.width || r.top > vp.y + vp.height) continue;
+      var cur = el.parentElement;
+      while (cur != null && cur !== rootEl.parentElement) {
+        if (_fixedAncestors.has(cur)) break;
+        _fixedAncestors.add(cur);
+        cur = cur.parentElement;
+      }
+    }
+    // transform-influenced subtree exemptions (DM-587 / DM-637).
+    for (var t = 0; t < allEls.length; t++) {
+      var tel = allEls[t];
+      var tt = getComputedStyle(tel).transform;
+      if (tt === 'none' || tt === '') continue;
+      _transformInfluenced.add(tel);
+      var tdescs = tel.getElementsByTagName('*');
+      for (var td = 0; td < tdescs.length; td++) _transformInfluenced.add(tdescs[td]);
+    }
+    // cumulative ancestor scale (transform: scale / zoom) — DM-587 / DM-680 /
+    // DM-755. Document order = parents before children, so each element sees
+    // its (inner) parent's already-folded scale.
+    for (var s = 0; s < allEls.length; s++) {
+      var sel2 = allEls[s];
+      var cumX = 1, cumY = 1;
+      var pe = sel2.parentElement;
+      if (pe != null && _cumulativeScale.has(pe)) { var p = _cumulativeScale.get(pe); cumX = p[0]; cumY = p[1]; }
+      var ownCs = getComputedStyle(sel2);
+      var ownT = ownCs.transform;
+      if (ownT != null && ownT !== 'none' && ownT !== '') { var own = _computeOwnScale(ownT); cumX *= own[0]; cumY *= own[1]; }
+      var ownZ = parseFloat(ownCs.zoom);
+      if (Number.isFinite(ownZ) && ownZ > 0 && ownZ !== 1) { cumX *= ownZ; cumY *= ownZ; }
+      if (cumX !== 1 || cumY !== 1) _cumulativeScale.set(sel2, [cumX, cumY]);
+    }
+    // CSS counters + @counter-style for the inner document.
+    _counterPreWalk(rootEl);
+    _runCounterStylePrewalk(doc);
   }
 
   const root = document.querySelector(sel);
@@ -1291,7 +1357,7 @@ export const captureScript =
   // `getComputedStyle(li, '::marker').content`, so the resolver re-implements
   // the CSS algorithm against this map. (Parser + walker extracted to
   // walker/counter-prewalk.ts — DM-1086.)
-  createCounterStylePrewalk({ counterStyles: _counterStyles })();
+  _runCounterStylePrewalk();
 
   const result = [];
   // Capture the root element itself when it has visible border or background

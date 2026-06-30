@@ -119,26 +119,38 @@ children), matching how a bordered iframe looks in Chrome.
 - Renderer: **no changes** — a node with `children` and no `replacedSnapshot`
   renders its children normally, and the overflow clip already exists.
 
-### Known Phase-1 limitations
+### Inner-document pre-passes (DM-1443 — Fixed)
 
-These are acceptable for v1 (common embeds are unaffected) and tracked as a
-follow-up. They stem from the inner walk reusing the **outer** document's
-pre-pass state (which is keyed on outer-document elements) rather than running
-fresh pre-passes against the inner document:
+Originally the inner walk reused the **outer** document's pre-pass state (keyed on
+outer-document elements), so several inner-content features degraded.
+`_runInnerDocumentPrePasses(doc)` now runs the pre-passes against the iframe's own
+document (with `vp` already shifted) before the inner walk, fixing:
 
-- **CSS counters** (`counter()` / `counters()`) inside iframe content don't
-  resolve — the counter pre-walk runs on the outer root only.
-- **`@counter-style`** rules defined *inside* the iframe's own stylesheets aren't
-  collected.
-- **`position: fixed` / `sticky`** descendants and **`transform`-influenced**
-  off-screen descendants inside the iframe don't get the outer walk's
-  viewport-cull exemptions, so an off-screen-but-should-paint inner element can
-  be dropped.
-- **`transform: scale()` / `zoom`** ancestors *inside* the iframe don't fold into
-  the cumulative-scale map, so inner text metrics under an inner scale aren't
-  pre-scaled.
-- **Inner mask / clip-path / filter `<defs>`** referenced from iframe content
-  aren't hoisted to the output `<svg>`.
+- **CSS counters** (`counter()` / `counters()`) inside iframe content — the
+  counter pre-walk now runs on the inner root, so `counter(sec)` resolves to
+  `1.`, `2.`, … instead of `0.`.
+- **`@counter-style`** rules defined *inside* the iframe's own stylesheets are
+  collected (the `@counter-style` prewalk takes an optional `doc`).
+- **`position: fixed` / `sticky`** and **`transform`-influenced** off-screen
+  inner descendants now get the viewport-cull exemptions, tested against the real
+  painted region (the shifted `vp`).
+- **`transform: scale()` / `zoom`** ancestors *inside* the iframe fold into the
+  cumulative-scale map, so inner text metrics under an inner scale are pre-scaled
+  (a `scale(2)` 10px element captures `20px`).
+
+The helper is a deliberately **separate** implementation from the outer inline
+pre-passes — the outer path is the hot path every fixture exercises, so it stays
+byte-identical and the inner-iframe code is isolated. Regression guard:
+`tests/iframe-inner-prepasses.e2e.test.ts`.
+
+### Still a known gap
+
+- **Inner mask / clip-path / filter `<defs>`** referenced from iframe content via
+  a same-document fragment (`url(#id)` resolving against the *inner* document).
+  Plain element-level mask/clip discovery populates the shared def maps during the
+  inner walk, but fragment-id lookups + paint-ref rasterization may resolve
+  against the outer document. Tracked as a follow-up (verify-or-fix) — distinct
+  from the pre-passes above.
 
 ## Phase 2 — cross-origin recursion (Shipped)
 

@@ -54,9 +54,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   per-field offset; the iframe node is set `overflow:hidden` so the existing renderer
   clip bounds the inner content to the content box (no renderer change). Cross-origin
   frames stay raster until **Phase 2** (planned `--cross-origin-frames` host allowlist +
-  `--disable-web-security`, default-off + a security warning). Known v1 limits (inner
-  counters/`@counter-style`, inner fixed/sticky/transform cull exemptions, inner
-  scale/zoom font metrics, inner mask/clip/filter defs) are a tracked follow-up.
+  `--disable-web-security`, default-off + a security warning). **DM-1443** then ran the
+  inner-document pre-passes (`_runInnerDocumentPrePasses`) so inner CSS counters,
+  `@counter-style`, fixed/sticky/transform cull exemptions, and scale/zoom font metrics
+  all resolve against the iframe's own document; inner mask/clip/filter `<defs>`
+  fragment refs remain a tracked gap.
 - **Doc 78 (`docs/78-svg-to-image.md`, DM-1353 + DM-1354)** — **Shipped.** A fifth
   published bin, `svg-to-image`: convert one SVG to a single image file — PNG /
   JPEG / PDF / WebP / AVIF / TIFF, format inferred from the `-o` extension (or
