@@ -44,6 +44,22 @@ raster `<image>` snapshots:
 A `<iframe>` warning is still emitted **only** for frames that fall back to a
 raster; recursed frames are silent.
 
+## Demo
+
+`examples/iframe-recursion.ts` (run: `npx tsx examples/iframe-recursion.ts`)
+generates two self-contained SVGs in `examples/output/`:
+
+- `iframe-recursion-same-origin.svg` — a `srcdoc` notification card (Phase 1,
+  recurses by default; exercises the inner clip-path + canvas-bg fill).
+- `iframe-recursion-cross-origin.svg` — `apple.com` embedded and recursed via the
+  opt-in `--cross-origin-frames` path (Phase 2; needs network — the script
+  strips `X-Frame-Options`/CSP so the frame embeds, launches with web security
+  off, and recurses `apple.com`). Skips gracefully offline.
+
+Open either in a browser and zoom in — the iframe content stays sharp and its
+text is selectable (it's native SVG, not a raster). Not part of
+`npm run demos:examples` (the cross-origin half is network-dependent).
+
 ## Phase 1 — same-origin recursion
 
 ### Accessibility gate
