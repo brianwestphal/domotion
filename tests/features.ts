@@ -674,6 +674,18 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-1441: same-origin iframe recursion through a non-zero border + padding
+    // on the iframe itself. The inner document's (0,0) origin must land at the
+    // iframe's CONTENT box (border-left + padding-left in, border-top +
+    // padding-top down), and the inner subtree must clip to that content box.
+    // Inner content mixes text + a positioned colored box to exercise the
+    // coordinate offset across multiple node kinds.
+    name: "iframe-recursion-bordered",
+    html: `<div style="padding:24px;"><iframe srcdoc="<html><body style='margin:0;background:#0b1b34;color:#e6edf3;font-family:sans-serif;'><div style='padding:12px;font-size:16px;'>Native&nbsp;SVG</div><div style='margin:0 12px;width:120px;height:24px;background:#22d3ee;'></div></body></html>" width="220" height="120" style="display:block;border:6px solid #f97316;padding:8px;background:#0b1b34;"></iframe></div>`,
+    width: 300,
+    height: 180,
+  },
+  {
     // DM-498: positioned button overlay must paint ABOVE preceding-sibling
     // artwork in the same stacking context. Mirrors apple.com's hero where a
     // <picture> (transform; position:absolute) appears before the button

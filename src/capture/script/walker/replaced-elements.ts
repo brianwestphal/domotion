@@ -45,7 +45,13 @@ export const createReplacedElementsHandler = ({ vp }) => {
     const hasOpenShadow = isCustomEl && el.shadowRoot != null;
     const customElNeedsSnapshot = isCustomEl && hasOpenShadow;
 
-    if (tag === 'iframe' || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed' || customElNeedsSnapshot) {
+    // DM-1441: a same-origin <iframe> whose document was recursed into native
+    // SVG (captured.children spliced in upstream) must NOT also be rastered —
+    // skip the snapshot path for it. Cross-origin / inaccessible frames have no
+    // `_iframeRecursed` marker and still fall through to the raster snapshot.
+    const iframeRecursed = tag === 'iframe' && captured._iframeRecursed === true;
+
+    if ((tag === 'iframe' && !iframeRecursed) || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed' || customElNeedsSnapshot) {
       const { left: bl, right: br, top: bt, bottom: bb } = sideWidths(cs, 'border', 'Width');
       const pl = parseFloat(cs.paddingLeft) || 0;
       const pr = parseFloat(cs.paddingRight) || 0;

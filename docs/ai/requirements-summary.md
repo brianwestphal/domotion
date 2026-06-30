@@ -35,6 +35,20 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 81 (`docs/81-iframe-recursion.md`, DM-1441)** — **Phase 1 Shipped (default-on);
+  Phase 2 Planned.** A same-origin `<iframe>` no longer rasters to a flat `<image>`
+  (raster-fallback §E4) — its `contentDocument` is recursed with the **same** capture
+  logic and spliced in as the iframe node's child, yielding crisp/scalable/selectable
+  native SVG. Placement uses a **temporary `vp`-origin shift** during the inner walk
+  (every capture helper reads `vp.x/vp.y` live, so the inner subtree comes out already
+  positioned at the iframe content box, the viewport cull tests inner content against
+  the real region, and the shift composes for nested frames) rather than a fragile
+  per-field offset; the iframe node is set `overflow:hidden` so the existing renderer
+  clip bounds the inner content to the content box (no renderer change). Cross-origin
+  frames stay raster until **Phase 2** (planned `--cross-origin-frames` host allowlist +
+  `--disable-web-security`, default-off + a security warning). Known v1 limits (inner
+  counters/`@counter-style`, inner fixed/sticky/transform cull exemptions, inner
+  scale/zoom font metrics, inner mask/clip/filter defs) are a tracked follow-up.
 - **Doc 78 (`docs/78-svg-to-image.md`, DM-1353 + DM-1354)** — **Shipped.** A fifth
   published bin, `svg-to-image`: convert one SVG to a single image file — PNG /
   JPEG / PDF / WebP / AVIF / TIFF, format inferred from the `-o` extension (or

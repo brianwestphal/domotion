@@ -39,7 +39,7 @@ import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
-import { resolveElementCursor, extractCssUrl } from "./utils.js";
+import { resolveElementCursor, extractCssUrl, sideWidths } from "./utils.js";
 
 export const captureScript =
 (args) => {
@@ -225,8 +225,16 @@ export const captureScript =
     if (cs.borderImageSource && cs.borderImageSource !== 'none') {
       warn(sel, 'border-image', '9-slice composition pending (SK-466); border-image-source ignored');
     }
-    if (tag === 'iframe' || tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed') {
+    if (tag === 'canvas' || tag === 'video' || tag === 'object' || tag === 'embed') {
       warn(sel, '<' + tag + '>', 'element type is not rendered by domotion');
+    } else if (tag === 'iframe') {
+      // DM-1441: same-origin <iframe> documents recurse to native SVG (crisp,
+      // scalable, selectable text). Only warn when the frame's document is
+      // inaccessible (cross-origin under the Same-Origin Policy, or a
+      // media/pixel frame) and it therefore stays a raster snapshot.
+      if (_iframeIsRecursable(el) == null) {
+        warn(sel, '<iframe>', 'cross-origin / inaccessible frame rendered as a static raster snapshot; same-origin frames recurse to native SVG');
+      }
     }
     // Scrollbars appear when content overflows a non-visible overflow container.
     if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll' || cs.overflowY === 'auto' || cs.overflowY === 'scroll')
@@ -696,12 +704,35 @@ export const captureScript =
       _captured.pseudoImages = undefined;
       _captured.elementRaster = undefined;
     }
+    // DM-1441: same-origin <iframe> recursion. When the frame's document is
+    // accessible (same-origin — cross-origin contentDocument is null under the
+    // SOP), walk it with the same capture logic and splice the resulting
+    // subtree in as the iframe node's child, transformed into the parent's
+    // coordinate space. The iframe node then becomes an overflow-clipped
+    // container (its own bg/border still paint; children clip to its content
+    // box) and the raster-snapshot routing below is skipped for it. See
+    // docs/81-iframe-recursion.md.
+    if (tag === 'iframe' && !bordersOnlyCell) {
+      var _iframeNode = _captureIframeRecursion(el, cs, rect);
+      if (_iframeNode != null) {
+        _captured.children = [_iframeNode];
+        _captured._iframeRecursed = true;
+        // Clip the spliced inner document to the iframe content box. The
+        // renderer overflow-clips children when overflow != visible.
+        _captured.styles.overflowX = 'hidden';
+        _captured.styles.overflowY = 'hidden';
+      }
+    }
     // Replaced-element snapshot routing — <iframe>/<canvas>/<video>/<object>/
     // <embed>, custom elements with open shadow DOM, and the CSS sprite-icon
     // image-replacement idiom. Handler mutates _captured (.replacedSnapshot,
     // .imageReplacement, and on the sprite-icon path .styles.backgroundImage /
-    // .text / .textSegments). See walker/replaced-elements.ts.
+    // .text / .textSegments). A recursed iframe (_iframeRecursed) skips the
+    // snapshot path. See walker/replaced-elements.ts.
     handleReplacedElement(el, cs, tag, rect, _captured, bordersOnlyCell);
+    // The recursion marker is only needed to gate handleReplacedElement; drop
+    // it so it doesn't leak into the serialized tree.
+    delete _captured._iframeRecursed;
     // DM-1177: CSS `scroll-marker-group` (Chrome 135+). Capture the synthesized
     // dot/pill marker-group box as a replica subtree (see _captureScrollMarkerGroup).
     // Stash it (plus its before/after placement) on the node so the PARENT's
@@ -943,6 +974,73 @@ export const captureScript =
       if (node) nodes.push(node);
     }
     return nodes.length ? nodes : undefined;
+  }
+
+  // DM-1441: is this frame cross-origin relative to the top document? Under the
+  // Same-Origin Policy a cross-origin `contentDocument` is null, so in the
+  // default (no browser flags) configuration this only ever returns false for
+  // genuinely accessible frames. It exists so that if a frame's document is
+  // readable ONLY because web security was disabled (the planned
+  // `--cross-origin-frames` path), Phase-1 same-origin recursion refuses to
+  // recurse it until the allowlist gate is wired. srcdoc / about:blank report
+  // origin "null" (or inherit the embedder) — treated as same-origin.
+  function _frameIsCrossOrigin(el) {
+    try {
+      var w = el.contentWindow;
+      if (w == null) return true;
+      var o = w.location && w.location.origin;
+      if (o == null || o === '' || o === 'null') return false;
+      return o !== location.origin;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // DM-1441: the accessible same-origin document of an <iframe>, or null when
+  // the frame can't be recursed (cross-origin, not yet loaded, a media/pixel
+  // frame with no DOM, or access throws). Used both to gate the recursion and
+  // to decide whether to emit the "rendered as a raster" warning.
+  function _iframeIsRecursable(el) {
+    if (el.tagName == null || el.tagName.toLowerCase() !== 'iframe') return null;
+    var doc;
+    try { doc = el.contentDocument; } catch (e) { return null; }
+    if (doc == null || doc.body == null || doc.documentElement == null) return null;
+    if (_frameIsCrossOrigin(el)) return null;
+    return doc;
+  }
+
+  // DM-1441: walk a same-origin iframe's document into a native-SVG subtree in
+  // the parent's coordinate space. Rather than offsetting every captured
+  // coordinate field after the fact, we shift the SHARED `vp` origin for the
+  // duration of the inner walk: every capture helper reads `vp.x`/`vp.y` live,
+  // so the inner subtree comes out already positioned at the iframe's content
+  // box AND the viewport cull tests inner content against the real painted
+  // region. The shift composes correctly for nested iframes (each inner rect is
+  // relative to its own frame's viewport, so successive shifts accumulate the
+  // content-box origins down the chain). Returns the inner <html> node, or
+  // undefined when the frame isn't recursable.
+  function _captureIframeRecursion(el, cs, rect) {
+    var doc = _iframeIsRecursable(el);
+    if (doc == null) return undefined;
+    // Content-box top-left of the iframe in top-document client coords. The
+    // inner document's own viewport origin (0,0) sits here, so adding it to the
+    // inner rects places them in the parent's space.
+    var bsw = sideWidths(cs, 'border', 'Width');
+    var dx = rect.left + bsw.left + (parseFloat(cs.paddingLeft) || 0);
+    var dy = rect.top + bsw.top + (parseFloat(cs.paddingTop) || 0);
+    var savedX = vp.x, savedY = vp.y;
+    vp.x = savedX - dx;
+    vp.y = savedY - dy;
+    var node;
+    try {
+      node = capture(doc.documentElement);
+    } catch (e) {
+      node = undefined;
+    } finally {
+      vp.x = savedX;
+      vp.y = savedY;
+    }
+    return node == null ? undefined : node;
   }
 
   const root = document.querySelector(sel);

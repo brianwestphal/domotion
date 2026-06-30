@@ -57,7 +57,8 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **replaced-video-poster**: `<video poster=…>` paused — poster image captured
 - [x] **replaced-canvas-overlay**: `<canvas>` under a positioned `<div z-index:10>` overlay — overlay does NOT bleed into the canvas snapshot
 - [x] **replaced-canvas-fixed-overlay**: `<canvas>` under a sibling-positioned `<div>` painting on top — sibling does NOT bleed into the canvas snapshot
-- [x] **replaced-iframe-same-origin**: same-origin `<iframe>` (srcdoc) — iframe content paints into the snapshot
+- [x] **replaced-iframe-same-origin** (DM-1441): same-origin `<iframe>` (srcdoc) — content **recurses into native SVG** (crisp/scalable/selectable), not rastered; pixel-identical to the prior snapshot. See [docs/81](docs/81-iframe-recursion.md).
+- [x] **iframe-recursion-bordered** (DM-1441): same-origin iframe recursion through a non-zero border + padding on the iframe — inner document's origin lands at the iframe **content box** and the inner subtree clips to it. (Cross-origin iframes stay rasterized until the planned `--cross-origin-frames` Phase 2.)
 - [x] **snapshot-isolation-pseudo-overlay** (DM-458, `tests/snapshot-isolation.tsx`): canvas covered by a sibling's `::after` pseudo overlay. Inspection-style — decodes the captured snapshot's PNG data URI and asserts no overlay-color pixels leaked through. Catches regressions in the hide-everything-else stylesheet that a comparison-style fixture wouldn't.
 
 ### Showcase Integration Tests
