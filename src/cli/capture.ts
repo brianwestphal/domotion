@@ -61,6 +61,80 @@ interface CaptureFlags {
   crossOriginFrames?: string;
 }
 
+/** The subset of parsed `capture` flags the cross-flag validation inspects.
+ *  Structurally a subset of the `parseArgs` result, so the full `values` object
+ *  is assignable. */
+interface CaptureFlagValues {
+  optimize?: boolean;
+  "no-optimize"?: boolean;
+  chrome?: string;
+  "chrome-theme"?: string;
+  "cross-origin-frames"?: string;
+  url?: string;
+  "har-fallback"?: boolean;
+}
+
+/**
+ * Cross-flag validation for `capture` (extracted from `runCapture`, DM-1458).
+ * Rejects mutually-exclusive / out-of-enum / context-misapplied flag
+ * combinations at the CLI boundary so a bad invocation fails here with a clear
+ * message instead of deeper in the pipeline. `har` is whether the input is a
+ * `.har` replay (only `--url` / `--har-fallback` apply there).
+ */
+function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
+  if (values.optimize === true && values["no-optimize"] === true) {
+    throw new Error("capture: --optimize and --no-optimize are mutually exclusive");
+  }
+  if (values.chrome != null && !isDeviceChrome(values.chrome)) {
+    throw new Error(`capture: --chrome expects one of ${DEVICE_CHROMES.join(", ")}, got "${values.chrome}"`);
+  }
+  if (values["chrome-theme"] != null && !isChromeTheme(values["chrome-theme"])) {
+    throw new Error(`capture: --chrome-theme expects one of ${CHROME_THEMES.join(", ")}, got "${values["chrome-theme"]}"`);
+  }
+  // DM-1442: --cross-origin-frames must be `*` or a non-empty comma-separated
+  // host[:port] allowlist. Reject an empty value rather than silently no-op'ing.
+  if (values["cross-origin-frames"] != null && parseCrossOriginAllowlist(values["cross-origin-frames"]) == null) {
+    throw new Error(`capture: --cross-origin-frames expects "*" or a comma-separated host[:port] list, got "${values["cross-origin-frames"]}"`);
+  }
+  // DM-889: `--url` / `--har-fallback` only apply to a `.har` input, so reject
+  // them on a non-HAR input rather than silently ignoring.
+  if (!har && (values.url != null || values["har-fallback"] === true)) {
+    throw new Error("capture: --url / --har-fallback only apply to a .har input");
+  }
+}
+
+/**
+ * Resolve + create the `--debug` reproduction-bundle directory (extracted from
+ * `runCapture`, DM-1458). DM-945: `--debug` records a HAR + a 1× page screenshot
+ * + the captured-tree JSON to `<output>.debug/` (overridable with `--debug-dir
+ * <path>`), giving consumers a turnkey reproduction bundle — including the
+ * `expected.png` / `actual.svg` pair `svg-review` (DM-946) consumes directly.
+ * Returns whether debug is on and the resolved directory (created on disk).
+ */
+async function setupDebugBundle(
+  debugFlag: boolean | undefined,
+  debugDirFlag: string | undefined,
+  output: string | undefined,
+  log: (msg: string) => void,
+): Promise<{ debug: boolean; debugDir: string | undefined }> {
+  const debug = debugFlag === true || debugDirFlag != null;
+  if (!debug) return { debug, debugDir: undefined };
+  const { mkdirSync } = await import("node:fs");
+  const { resolve, dirname, basename } = await import("node:path");
+  let debugDir: string;
+  if (debugDirFlag != null) {
+    debugDir = resolve(debugDirFlag);
+  } else if (output != null) {
+    const outPath = resolve(output);
+    debugDir = resolve(dirname(outPath), `${basename(outPath, ".svg").replace(/\.svgz$/, "")}.debug`);
+  } else {
+    throw new Error("capture: --debug requires either --output (so we can derive <output>.debug/) or --debug-dir <path>");
+  }
+  mkdirSync(debugDir, { recursive: true });
+  log(`Debug bundle → ${debugDir}/`);
+  return { debug, debugDir };
+}
+
 export async function runCapture(args: string[], help: string): Promise<void> {
   const { values, positionals } = parseArgs({
     args,
@@ -100,29 +174,12 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   if (values.help === true) { process.stdout.write(help); process.exit(0); }
   if (positionals.length === 0) throw new Error("capture: missing <input> (URL, path, or '-')");
   if (positionals.length > 1) throw new Error(`capture: unexpected extra argument "${positionals[1]}"`);
-  if (values.optimize === true && values["no-optimize"] === true) {
-    throw new Error("capture: --optimize and --no-optimize are mutually exclusive");
-  }
-  if (values.chrome != null && !isDeviceChrome(values.chrome)) {
-    throw new Error(`capture: --chrome expects one of ${DEVICE_CHROMES.join(", ")}, got "${values.chrome}"`);
-  }
-  if (values["chrome-theme"] != null && !isChromeTheme(values["chrome-theme"])) {
-    throw new Error(`capture: --chrome-theme expects one of ${CHROME_THEMES.join(", ")}, got "${values["chrome-theme"]}"`);
-  }
-  // DM-1442: --cross-origin-frames must be `*` or a non-empty comma-separated
-  // host[:port] allowlist. Reject an empty value rather than silently no-op'ing.
-  if (values["cross-origin-frames"] != null && parseCrossOriginAllowlist(values["cross-origin-frames"]) == null) {
-    throw new Error(`capture: --cross-origin-frames expects "*" or a comma-separated host[:port] list, got "${values["cross-origin-frames"]}"`);
-  }
 
   const input = positionals[0];
   // DM-889: a `.har` input is replayed offline via routeFromHAR (auto-detected
-  // by extension, like `.svgz` output). `--url` / `--har-fallback` only apply
-  // there, so reject them on a non-HAR input rather than silently ignoring.
+  // by extension, like `.svgz` output).
   const har = isHarPath(input);
-  if (!har && (values.url != null || values["har-fallback"] === true)) {
-    throw new Error("capture: --url / --har-fallback only apply to a .har input");
-  }
+  validateCaptureFlags(values, har);
   // svgz is auto-detected from the output filename extension; it implies
   // --optimize unless the caller passed --no-optimize.
   const svgz = isSvgzPath(values.output);
@@ -144,27 +201,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   };
 
   const log = makeLogger(values.quiet === true);
-  // DM-945: `--debug` records a HAR + a 1× page screenshot + the
-  // captured-tree JSON to `<output>.debug/` (overridable with
-  // `--debug-dir <path>`), giving consumers a turnkey reproduction
-  // bundle to attach to bug reports — including the `expected.png`
-  // and `actual.svg` pair `svg-review` (DM-946) consumes directly.
-  const debug = values.debug === true || values["debug-dir"] != null;
-  let debugDir: string | undefined;
-  if (debug) {
-    const { mkdirSync } = await import("node:fs");
-    const { resolve, dirname, basename } = await import("node:path");
-    if (values["debug-dir"] != null) {
-      debugDir = resolve(values["debug-dir"]);
-    } else if (flags.output != null) {
-      const outPath = resolve(flags.output);
-      debugDir = resolve(dirname(outPath), `${basename(outPath, ".svg").replace(/\.svgz$/, "")}.debug`);
-    } else {
-      throw new Error("capture: --debug requires either --output (so we can derive <output>.debug/) or --debug-dir <path>");
-    }
-    mkdirSync(debugDir, { recursive: true });
-    log(`Debug bundle → ${debugDir}/`);
-  }
+  const { debug, debugDir } = await setupDebugBundle(values.debug, values["debug-dir"], flags.output, log);
   // DM-1442: opt-in cross-origin iframe recursion launches Chromium with web
   // security disabled (so cross-origin contentDocuments are readable). That
   // ALSO disables CORS for the whole capture session, so a malicious/untrusted

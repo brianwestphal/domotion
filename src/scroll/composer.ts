@@ -200,6 +200,52 @@ export function composeScrollSvg(
 }
 
 /**
+ * Per-segment visibility-window math (DM-642), extracted from
+ * `composeScrollSvgBody` (DM-1458). Builds the cycle's `(time-percent,
+ * position-offset)` stops and returns a resolver that linearly interpolates them
+ * to find the cycle-percent at which the composite's scroll position crosses a
+ * target offset — `"first"` for the entering crossing, `"last"` for the leaving
+ * crossing, both clamped to `[0, 100]`. `cycleStops` is returned too because the
+ * keyframe `stops` derive from the same data (DM-1436).
+ */
+function buildScrollVisibility(
+  segments: ScrollSegmentCapture[],
+  segOffsets: number[],
+  totalMs: number,
+): {
+  cycleStops: Array<{ pct: number; offset: number }>;
+  pctAtScrollY: (targetY: number, mode: "first" | "last") => number;
+} {
+  const cycleStops: Array<{ pct: number; offset: number }> = [];
+  cycleStops.push({ pct: 0, offset: segOffsets[0] });
+  for (let i = 0; i < segments.length; i++) {
+    const endPct = (segments[i].segmentEndMs / totalMs) * 100;
+    cycleStops.push({ pct: endPct, offset: segOffsets[i] });
+  }
+  function pctAtScrollY(targetY: number, mode: "first" | "last"): number {
+    // Linear interpolation across cycleStops to find when scroll-y crosses
+    // targetY. With monotonic ascending scroll-y, "first" returns the first
+    // crossing (entering); "last" returns the last crossing (leaving).
+    // Out-of-range clamps to 0 / 100.
+    let hit = mode === "first" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+    for (let s = 0; s + 1 < cycleStops.length; s++) {
+      const a = cycleStops[s], b = cycleStops[s + 1];
+      const lo = Math.min(a.offset, b.offset);
+      const hi = Math.max(a.offset, b.offset);
+      if (targetY < lo - 0.001 || targetY > hi + 0.001) continue;
+      const span = b.offset - a.offset;
+      const t = span === 0 ? 0 : (targetY - a.offset) / span;
+      const pct = a.pct + (b.pct - a.pct) * t;
+      if (mode === "first" && pct < hit) hit = pct;
+      if (mode === "last" && pct > hit) hit = pct;
+    }
+    if (!isFinite(hit)) return mode === "first" ? 0 : 100;
+    return Math.max(0, Math.min(100, hit));
+  }
+  return { cycleStops, pctAtScrollY };
+}
+
+/**
  * Build the scroll composite SVG. Split out of composeScrollSvg (DM-1374) so the
  * body indents normally; composeScrollSvg only arms + restores the module-global
  * text-render mode around this call. `ctx` carries the resolved options the body
@@ -277,32 +323,7 @@ function composeScrollSvgBody(
   const segOffsets: number[] = segments.map((s) =>
     (axis === "y" ? s.scrollY : s.scrollX) - minPos,
   );
-  const cycleStops: Array<{ pct: number; offset: number }> = [];
-  cycleStops.push({ pct: 0, offset: segOffsets[0] });
-  for (let i = 0; i < segments.length; i++) {
-    const endPct = (segments[i].segmentEndMs / totalMs) * 100;
-    cycleStops.push({ pct: endPct, offset: segOffsets[i] });
-  }
-  function pctAtScrollY(targetY: number, mode: "first" | "last"): number {
-    // Linear interpolation across cycleStops to find when scroll-y crosses
-    // targetY. With monotonic ascending scroll-y, "first" returns the first
-    // crossing (entering); "last" returns the last crossing (leaving).
-    // Out-of-range clamps to 0 / 100.
-    let hit = mode === "first" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-    for (let s = 0; s + 1 < cycleStops.length; s++) {
-      const a = cycleStops[s], b = cycleStops[s + 1];
-      const lo = Math.min(a.offset, b.offset);
-      const hi = Math.max(a.offset, b.offset);
-      if (targetY < lo - 0.001 || targetY > hi + 0.001) continue;
-      const span = b.offset - a.offset;
-      const t = span === 0 ? 0 : (targetY - a.offset) / span;
-      const pct = a.pct + (b.pct - a.pct) * t;
-      if (mode === "first" && pct < hit) hit = pct;
-      if (mode === "last" && pct > hit) hit = pct;
-    }
-    if (!isFinite(hit)) return mode === "first" ? 0 : 100;
-    return Math.max(0, Math.min(100, hit));
-  }
+  const { cycleStops, pctAtScrollY } = buildScrollVisibility(segments, segOffsets, totalMs);
 
   // ── Render each capture's content at its position offset ──
   const captureGroups: string[] = [];

@@ -493,6 +493,239 @@ export function maskContainAlign(posTokens: string[]): string {
   return x + y;
 }
 
+/** Inputs for one mask-image layer — the per-layer slice of `buildMaskDef`'s
+ *  args plus the already-resolved size/position/repeat for that layer index. */
+interface MaskLayerInput {
+  id: string;
+  li: number;
+  elX: number;
+  elY: number;
+  w: number;
+  h: number;
+  /** The trimmed layer value (a gradient / `element(#id)` / `url(...)`). */
+  layer: string;
+  layerSize: string;
+  layerPos: string;
+  layerRepeat: string;
+  elementRasters?: ReadonlyMap<string, MaskRasterRef>;
+}
+
+/**
+ * Build the SVG content (gradient/pattern defs + the painting rect/image) for a
+ * SINGLE mask-image layer. Extracted from `buildMaskDef`'s per-layer loop
+ * (DM-1458) — the loop body was ~200 lines of gradient / `element()` / `url()`
+ * branch logic. Returns the layer's content strings (empty for unsupported or
+ * no-op layers) plus `forceHide`, set when the layer is a remote SVG `url()`
+ * source that Chrome renders as a full hide (SK-859/SK-860) — the caller forces
+ * emission of an empty `<mask>` in that case.
+ */
+function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide: boolean } {
+  const { id, li, elX, elY, w, h, layer, layerSize, layerPos, layerRepeat, elementRasters } = input;
+  const contents: string[] = [];
+  const gradient = /^(?:repeating-)?(linear|radial)-gradient\(/i.test(layer);
+  if (gradient) {
+    // Resolve mask-size (defaults to 'auto' = full element box) and
+    // mask-position (defaults to 0% 0%) so gradient masks honor the same
+    // positioning model as url() masks. mask-size:80px+mask-position:25% 25%
+    // means the gradient is painted in an 80x80 patch positioned 25%/25% of
+    // the available space — not stretched to fill the whole element.
+    let gradW = w, gradH = h;
+    const sizeTok = layerSize.trim().split(/\s+/);
+    const resolveSize = (tok: string, basis: number, fallback: number): number => {
+      if (tok == null || tok === "auto" || tok === "") return fallback;
+      if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+      return parseFloat(tok) || fallback;
+    };
+    if (layerSize === "contain" || layerSize === "cover" || layerSize === "auto" || layerSize === "") {
+      gradW = w; gradH = h;
+    } else {
+      gradW = resolveSize(sizeTok[0], w, w);
+      // DM-679: single-length mask-size per CSS Backgrounds 3 §3.7
+      // means `width=N, height=auto`. For gradient layers (no intrinsic
+      // size) `auto` resolves to the container's corresponding axis, not
+      // to the width again. Previously we squared the box (gradH = gradW)
+      // which made `radial-gradient(circle, …) mask-size: 80px` paint a
+      // smaller hard circle than Chrome (radius derived from 80×80 farthest-
+      // corner ≈ 56.6 vs Chrome's 80×containerH farthest-corner ≈ 72).
+      gradH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : h;
+    }
+    const posTok = layerPos.trim().split(/\s+/);
+    const resolveH = (t: string): number => {
+      if (t === "left") return 0;
+      if (t === "right") return w - gradW;
+      if (t === "center") return (w - gradW) / 2;
+      if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - gradW);
+      return parseFloat(t) || 0;
+    };
+    const resolveV = (t: string): number => {
+      if (t === "top") return 0;
+      if (t === "bottom") return h - gradH;
+      if (t === "center") return (h - gradH) / 2;
+      if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - gradH);
+      return parseFloat(t) || 0;
+    };
+    const gx = elX + resolveH(posTok[0] ?? "0%");
+    const gy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
+    const gradId = `${id}g${li}`;
+    const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
+    const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
+    let def = "";
+    if (linear != null) def = buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, gx, gy);
+    else if (radial != null) def = buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), gx, gy, gradW, gradH);
+    if (def === "") return { contents, forceHide: false };
+    contents.push(def);
+    contents.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
+    return { contents, forceHide: false };
+  }
+  // DM-494: `element(#id)` paint reference — emit the post-capture
+  // rasterized <image> directly into the <mask>. Position + size honor
+  // mask-position / mask-size on the consuming element; mask-size:auto
+  // uses the referenced element's painted box dimensions (the spec's
+  // "natural size" for element()).
+  const elementMatch = /^element\(\s*#([^)\s]+)\s*\)$/i.exec(layer);
+  if (elementMatch != null) {
+    if (elementRasters == null) return { contents, forceHide: false };
+    const refId = elementMatch[1];
+    const raster = elementRasters.get(refId);
+    if (raster == null || raster.dataUri == null) return { contents, forceHide: false };
+    const intrinsic = { w: raster.width, h: raster.height };
+    let imgW = intrinsic.w, imgH = intrinsic.h;
+    const sizeTok = layerSize.trim().split(/\s+/);
+    const resolveSize = (tok: string, basis: number, intrinsicDim: number): number => {
+      if (tok == null || tok === "auto" || tok === "") return intrinsicDim;
+      if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+      return parseFloat(tok) || intrinsicDim;
+    };
+    let par: "meet" | "slice" = "meet";
+    if (layerSize === "contain") {
+      const scale = Math.min(w / intrinsic.w, h / intrinsic.h);
+      imgW = intrinsic.w * scale;
+      imgH = intrinsic.h * scale;
+      par = "meet";
+    } else if (layerSize === "cover") {
+      const scale = Math.max(w / intrinsic.w, h / intrinsic.h);
+      imgW = intrinsic.w * scale;
+      imgH = intrinsic.h * scale;
+      par = "slice";
+    } else {
+      imgW = resolveSize(sizeTok[0], w, intrinsic.w);
+      imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, intrinsic.h) : imgW * (intrinsic.h / intrinsic.w);
+    }
+    const posTok = layerPos.trim().split(/\s+/);
+    const resolveH = (t: string): number => {
+      if (t === "left") return 0;
+      if (t === "right") return w - imgW;
+      if (t === "center") return (w - imgW) / 2;
+      if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - imgW);
+      return parseFloat(t) || 0;
+    };
+    const resolveV = (t: string): number => {
+      if (t === "top") return 0;
+      if (t === "bottom") return h - imgH;
+      if (t === "center") return (h - imgH) / 2;
+      if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
+      return parseFloat(t) || 0;
+    };
+    const ix = elX + resolveH(posTok[0] ?? "0%");
+    const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
+    contents.push(`<image href="${raster.dataUri}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${par}" />`);
+    return { contents, forceHide: false };
+  }
+  // Use parseCssUrl (which handles quoted/unquoted and data: URIs with
+  // embedded quotes) rather than a primitive `[^"')]+` regex that breaks on
+  // data: URIs whose contents contain `"` or `)` — common in mask-image
+  // values like `url("data:image/svg+xml,<svg display=\"block\" ...>...</svg>")`
+  // (DM-638 framer chevrons).
+  const urlHref = parseCssUrl(layer);
+  if (urlHref != null) {
+    // Chrome hides the element entirely for `mask-image: url(*.svg)` (the
+    // remote SVG case — DM SK-859/SK-860). The likely cause is mask-mode:
+    // match-source resolving to luminance for SVG sources and the common
+    // icon SVG (transparent background + colored shape) computing near-zero
+    // luminance, so the mask alpha is effectively zero. Reproducing that
+    // ourselves would need embedding an <image> inside the mask with
+    // mask-type sampling logic that matches Chrome's exact source-type
+    // resolution, complex and variable across renderer versions. User
+    // guidance on SK-859/SK-860: match Chrome by rendering nothing.
+    // Contribute no mask content for this layer — the element gets hidden
+    // wherever an SVG url() mask layer claims it, matching Chrome.
+    //
+    // EXCEPTION: data:image/svg+xml URIs containing a single icon path. The
+    // framer marketing site renders chevrons / icons by setting
+    // `background: white` + `mask-image: url("data:image/svg+xml,<svg><path
+    // stroke=...></svg>")` on a small <div>. mask-mode: alpha is explicit,
+    // so the path's painted stroke IS the mask. Falling through to the
+    // generic image-mask branch produces the correct alpha. The remote-SVG
+    // hide rule above doesn't fit the data:URI case — the data SVG is
+    // small, self-contained, and authored as a mask.
+    if (/\.svg(\?|#|$)/i.test(urlHref) && !/^data:image\/svg/i.test(urlHref)) { return { contents, forceHide: true }; }
+    // For no-repeat mask images, emit the image DIRECTLY inside the mask —
+    // not wrapped in a pattern + filled rect. The pattern+rect path paints
+    // the rect opaque where the pattern is transparent, defeating alpha
+    // masking. Direct <image> makes the sources alpha channel propagate
+    // cleanly: opaque pixels = mask visible, transparent pixels = hidden.
+    const isNoRepeat = /\bno-repeat\b/i.test(layerRepeat);
+    if (isNoRepeat) {
+      // Resolve mask-size + mask-position to a concrete image rect.
+      let imgW = w, imgH = h;
+      const sizeTok = layerSize.trim().split(/\s+/);
+      const resolveSize = (tok: string, basis: number, intrinsicDim: number): number => {
+        if (tok == null || tok === "auto" || tok === "") return intrinsicDim;
+        if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
+        return parseFloat(tok) || intrinsicDim;
+      };
+      if (layerSize === "contain" || layerSize === "cover") {
+        // DM-1251: contain/cover scale the mask image (preserving its aspect)
+        // to fit-inside / cover the element box. SVG's
+        // `preserveAspectRatio="<align> meet|slice"` on an <image> sized to the
+        // box does exactly that using the image's OWN intrinsic aspect — so no
+        // captured intrinsic dims are needed (verified vs Chrome). mask-position
+        // maps to the align keyword (left/top→Min, center→Mid, right/bottom→Max;
+        // 0/50/100% positional) — computed below; intermediate %/px approximate
+        // to the nearest Min/Mid/Max (preserveAspectRatio offers no finer grain).
+        imgW = w; imgH = h;
+      } else {
+        imgW = resolveSize(sizeTok[0], w, w);
+        imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : imgW;
+      }
+      const posTok = layerPos.trim().split(/\s+/);
+      const resolveH = (t: string): number => {
+        if (t === "left") return 0;
+        if (t === "right") return w - imgW;
+        if (t === "center") return (w - imgW) / 2;
+        if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - imgW);
+        return parseFloat(t) || 0;
+      };
+      const resolveV = (t: string): number => {
+        if (t === "top") return 0;
+        if (t === "bottom") return h - imgH;
+        if (t === "center") return (h - imgH) / 2;
+        if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
+        return parseFloat(t) || 0;
+      };
+      const ix = elX + resolveH(posTok[0] ?? "0%");
+      const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
+      // For contain/cover, position is expressed via the preserveAspectRatio
+      // align (the <image> fills the box and the fitted image aligns within it);
+      // for an explicit size the image box is the resolved size at ix/iy.
+      const par = (layerSize === "contain" || layerSize === "cover")
+        ? `${maskContainAlign(posTok)} ${layerSize === "contain" ? "meet" : "slice"}`
+        : "xMidYMid meet";
+      contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="${par}" />`);
+    } else {
+      // Repeating mask: fall back to pattern. Since mask-type=alpha, the
+      // pattern itself needs to be backed by an <image> that's clipped to
+      // the tile size so outside-tile pixels are transparent.
+      const patId = `${id}p${li}`;
+      const patDef = buildImagePatternDef(patId, urlHref, elX, elY, w, h, layerSize, layerPos, layerRepeat, null);
+      if (patDef === "") return { contents, forceHide: false };
+      contents.push(patDef);
+      contents.push(`<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="url(#${patId})" />`);
+    }
+  }
+  return { contents, forceHide: false };
+}
+
 export function buildMaskDef(
   id: string, maskImage: string,
   elX: number, elY: number, w: number, h: number,
@@ -542,212 +775,16 @@ export function buildMaskDef(
   // what we want), so force emission of an empty mask when it's set.
   let forceHide = false;
   for (let li = layers.length - 1; li >= 0; li--) {
-    const layer = layers[li].trim();
-    const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
-    const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
-    const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
-    const contents = layerContents[li];
-    const gradient = /^(?:repeating-)?(linear|radial)-gradient\(/i.test(layer);
-    if (gradient) {
-      // Resolve mask-size (defaults to 'auto' = full element box) and
-      // mask-position (defaults to 0% 0%) so gradient masks honor the same
-      // positioning model as url() masks. mask-size:80px+mask-position:25% 25%
-      // means the gradient is painted in an 80x80 patch positioned 25%/25% of
-      // the available space — not stretched to fill the whole element.
-      let gradW = w, gradH = h;
-      const sizeTok = layerSize.trim().split(/\s+/);
-      const resolveSize = (tok: string, basis: number, fallback: number): number => {
-        if (tok == null || tok === "auto" || tok === "") return fallback;
-        if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-        return parseFloat(tok) || fallback;
-      };
-      if (layerSize === "contain" || layerSize === "cover" || layerSize === "auto" || layerSize === "") {
-        gradW = w; gradH = h;
-      } else {
-        gradW = resolveSize(sizeTok[0], w, w);
-        // DM-679: single-length mask-size per CSS Backgrounds 3 §3.7
-        // means `width=N, height=auto`. For gradient layers (no intrinsic
-        // size) `auto` resolves to the container's corresponding axis, not
-        // to the width again. Previously we squared the box (gradH = gradW)
-        // which made `radial-gradient(circle, …) mask-size: 80px` paint a
-        // smaller hard circle than Chrome (radius derived from 80×80 farthest-
-        // corner ≈ 56.6 vs Chrome's 80×containerH farthest-corner ≈ 72).
-        gradH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : h;
-      }
-      const posTok = layerPos.trim().split(/\s+/);
-      const resolveH = (t: string): number => {
-        if (t === "left") return 0;
-        if (t === "right") return w - gradW;
-        if (t === "center") return (w - gradW) / 2;
-        if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - gradW);
-        return parseFloat(t) || 0;
-      };
-      const resolveV = (t: string): number => {
-        if (t === "top") return 0;
-        if (t === "bottom") return h - gradH;
-        if (t === "center") return (h - gradH) / 2;
-        if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - gradH);
-        return parseFloat(t) || 0;
-      };
-      const gx = elX + resolveH(posTok[0] ?? "0%");
-      const gy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-      const gradId = `${id}g${li}`;
-      const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
-      const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
-      let def = "";
-      if (linear != null) def = buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, gx, gy);
-      else if (radial != null) def = buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), gx, gy, gradW, gradH);
-      if (def === "") continue;
-      contents.push(def);
-      contents.push(`<rect x="${r(gx)}" y="${r(gy)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`);
-      continue;
-    }
-    // DM-494: `element(#id)` paint reference — emit the post-capture
-    // rasterized <image> directly into the <mask>. Position + size honor
-    // mask-position / mask-size on the consuming element; mask-size:auto
-    // uses the referenced element's painted box dimensions (the spec's
-    // "natural size" for element()).
-    const elementMatch = /^element\(\s*#([^)\s]+)\s*\)$/i.exec(layer);
-    if (elementMatch != null) {
-      if (elementRasters == null) continue;
-      const refId = elementMatch[1];
-      const raster = elementRasters.get(refId);
-      if (raster == null || raster.dataUri == null) continue;
-      const intrinsic = { w: raster.width, h: raster.height };
-      let imgW = intrinsic.w, imgH = intrinsic.h;
-      const sizeTok = layerSize.trim().split(/\s+/);
-      const resolveSize = (tok: string, basis: number, intrinsicDim: number): number => {
-        if (tok == null || tok === "auto" || tok === "") return intrinsicDim;
-        if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-        return parseFloat(tok) || intrinsicDim;
-      };
-      let par: "meet" | "slice" = "meet";
-      if (layerSize === "contain") {
-        const scale = Math.min(w / intrinsic.w, h / intrinsic.h);
-        imgW = intrinsic.w * scale;
-        imgH = intrinsic.h * scale;
-        par = "meet";
-      } else if (layerSize === "cover") {
-        const scale = Math.max(w / intrinsic.w, h / intrinsic.h);
-        imgW = intrinsic.w * scale;
-        imgH = intrinsic.h * scale;
-        par = "slice";
-      } else {
-        imgW = resolveSize(sizeTok[0], w, intrinsic.w);
-        imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, intrinsic.h) : imgW * (intrinsic.h / intrinsic.w);
-      }
-      const posTok = layerPos.trim().split(/\s+/);
-      const resolveH = (t: string): number => {
-        if (t === "left") return 0;
-        if (t === "right") return w - imgW;
-        if (t === "center") return (w - imgW) / 2;
-        if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - imgW);
-        return parseFloat(t) || 0;
-      };
-      const resolveV = (t: string): number => {
-        if (t === "top") return 0;
-        if (t === "bottom") return h - imgH;
-        if (t === "center") return (h - imgH) / 2;
-        if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
-        return parseFloat(t) || 0;
-      };
-      const ix = elX + resolveH(posTok[0] ?? "0%");
-      const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-      contents.push(`<image href="${raster.dataUri}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${par}" />`);
-      continue;
-    }
-    // Use parseCssUrl (which handles quoted/unquoted and data: URIs with
-    // embedded quotes) rather than a primitive `[^"')]+` regex that breaks on
-    // data: URIs whose contents contain `"` or `)` — common in mask-image
-    // values like `url("data:image/svg+xml,<svg display=\"block\" ...>...</svg>")`
-    // (DM-638 framer chevrons).
-    const urlHref = parseCssUrl(layer);
-    if (urlHref != null) {
-      // Chrome hides the element entirely for `mask-image: url(*.svg)` (the
-      // remote SVG case — DM SK-859/SK-860). The likely cause is mask-mode:
-      // match-source resolving to luminance for SVG sources and the common
-      // icon SVG (transparent background + colored shape) computing near-zero
-      // luminance, so the mask alpha is effectively zero. Reproducing that
-      // ourselves would need embedding an <image> inside the mask with
-      // mask-type sampling logic that matches Chrome's exact source-type
-      // resolution, complex and variable across renderer versions. User
-      // guidance on SK-859/SK-860: match Chrome by rendering nothing.
-      // Contribute no mask content for this layer — the element gets hidden
-      // wherever an SVG url() mask layer claims it, matching Chrome.
-      //
-      // EXCEPTION: data:image/svg+xml URIs containing a single icon path. The
-      // framer marketing site renders chevrons / icons by setting
-      // `background: white` + `mask-image: url("data:image/svg+xml,<svg><path
-      // stroke=...></svg>")` on a small <div>. mask-mode: alpha is explicit,
-      // so the path's painted stroke IS the mask. Falling through to the
-      // generic image-mask branch produces the correct alpha. The remote-SVG
-      // hide rule above doesn't fit the data:URI case — the data SVG is
-      // small, self-contained, and authored as a mask.
-      if (/\.svg(\?|#|$)/i.test(urlHref) && !/^data:image\/svg/i.test(urlHref)) { forceHide = true; continue; }
-      // For no-repeat mask images, emit the image DIRECTLY inside the mask —
-      // not wrapped in a pattern + filled rect. The pattern+rect path paints
-      // the rect opaque where the pattern is transparent, defeating alpha
-      // masking. Direct <image> makes the sources alpha channel propagate
-      // cleanly: opaque pixels = mask visible, transparent pixels = hidden.
-      const isNoRepeat = /\bno-repeat\b/i.test(layerRepeat);
-      if (isNoRepeat) {
-        // Resolve mask-size + mask-position to a concrete image rect.
-        let imgW = w, imgH = h;
-        const sizeTok = layerSize.trim().split(/\s+/);
-        const resolveSize = (tok: string, basis: number, intrinsicDim: number): number => {
-          if (tok == null || tok === "auto" || tok === "") return intrinsicDim;
-          if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-          return parseFloat(tok) || intrinsicDim;
-        };
-        if (layerSize === "contain" || layerSize === "cover") {
-          // DM-1251: contain/cover scale the mask image (preserving its aspect)
-          // to fit-inside / cover the element box. SVG's
-          // `preserveAspectRatio="<align> meet|slice"` on an <image> sized to the
-          // box does exactly that using the image's OWN intrinsic aspect — so no
-          // captured intrinsic dims are needed (verified vs Chrome). mask-position
-          // maps to the align keyword (left/top→Min, center→Mid, right/bottom→Max;
-          // 0/50/100% positional) — computed below; intermediate %/px approximate
-          // to the nearest Min/Mid/Max (preserveAspectRatio offers no finer grain).
-          imgW = w; imgH = h;
-        } else {
-          imgW = resolveSize(sizeTok[0], w, w);
-          imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : imgW;
-        }
-        const posTok = layerPos.trim().split(/\s+/);
-        const resolveH = (t: string): number => {
-          if (t === "left") return 0;
-          if (t === "right") return w - imgW;
-          if (t === "center") return (w - imgW) / 2;
-          if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - imgW);
-          return parseFloat(t) || 0;
-        };
-        const resolveV = (t: string): number => {
-          if (t === "top") return 0;
-          if (t === "bottom") return h - imgH;
-          if (t === "center") return (h - imgH) / 2;
-          if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
-          return parseFloat(t) || 0;
-        };
-        const ix = elX + resolveH(posTok[0] ?? "0%");
-        const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-        // For contain/cover, position is expressed via the preserveAspectRatio
-        // align (the <image> fills the box and the fitted image aligns within it);
-        // for an explicit size the image box is the resolved size at ix/iy.
-        const par = (layerSize === "contain" || layerSize === "cover")
-          ? `${maskContainAlign(posTok)} ${layerSize === "contain" ? "meet" : "slice"}`
-          : "xMidYMid meet";
-        contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="${par}" />`);
-      } else {
-        // Repeating mask: fall back to pattern. Since mask-type=alpha, the
-        // pattern itself needs to be backed by an <image> that's clipped to
-        // the tile size so outside-tile pixels are transparent.
-        const patId = `${id}p${li}`;
-        const patDef = buildImagePatternDef(patId, urlHref, elX, elY, w, h, layerSize, layerPos, layerRepeat, null);
-        if (patDef === "") continue;
-        contents.push(patDef);
-        contents.push(`<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="url(#${patId})" />`);
-      }
-    }
+    const result = buildMaskLayer({
+      id, li, elX, elY, w, h,
+      layer: layers[li].trim(),
+      layerSize: (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim(),
+      layerPos: (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim(),
+      layerRepeat: (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim(),
+      elementRasters,
+    });
+    layerContents[li] = result.contents;
+    if (result.forceHide) forceHide = true;
   }
   // Drop empty layers (e.g. unsupported layer values) to simplify downstream.
   const nonEmpty = layerContents.filter((c) => c.length > 0);
