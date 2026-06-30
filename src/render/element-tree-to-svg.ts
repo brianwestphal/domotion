@@ -3744,6 +3744,56 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
   }
 }
 
+/**
+ * Emit the DEFERRED fade-overlay `::after` pseudo-boxes (DM-1001) AFTER child
+ * recursion, so a right-edge gradient mask wins z over the child text it fades.
+ * Extracted from `renderElement` (DM-1458). Only `::after` boxes with a
+ * background-image, no own color/border, and a non-negative z-index defer here;
+ * everything else already painted inline via `paintPseudoBoxes`. Body unchanged.
+ */
+function paintDeferredFadeOverlays(state: RenderState, el: CapturedElement, indent: string): void {
+  const { paintCtx, defsParts, svgParts, captureViewport } = state;
+  if (el.pseudoBoxes != null) {
+    for (const pb of el.pseudoBoxes) {
+      if (pb.pseudo !== "::after") continue;
+      const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
+      const hasBgColor = pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
+      const hasBorder = (pb.borderTopWidth ?? 0) > 0
+        || (pb.borderRightWidth ?? 0) > 0
+        || (pb.borderBottomWidth ?? 0) > 0
+        || (pb.borderLeftWidth ?? 0) > 0;
+      if (!(hasBgImage && !hasBgColor && !hasBorder)) continue;
+      // DM-1051: a negative z-index glow was already painted behind in the
+      // early loop — don't re-emit it on top here.
+      if (pb.zIndex != null && pb.zIndex < 0) continue;
+      // DM-1121: wrap the deferred fade-overlay's rects in a `<g opacity>`
+      // when the pseudo dims itself. Stripe's keynote glow is a 45%-opacity
+      // pink radial; emitting it opaque painted a hard magenta blob.
+      const pbOpacityStart = svgParts.length;
+      const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
+      for (let li = pbLayers.length - 1; li >= 0; li--) {
+        const layer = pbLayers[li].trim();
+        const defId = paintCtx.nextClipId("pbg");
+        const out = buildBackgroundLayerDef(
+          defId, layer, pb.x, pb.y, pb.width, pb.height,
+          pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
+        );
+        if (out.def === "") continue;
+        defsParts.push(out.def);
+        const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
+        svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
+      }
+      if (pb.opacity != null && pb.opacity < 1) {
+        const added = svgParts.splice(pbOpacityStart);
+        if (added.length > 0) {
+          const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+          svgParts.push(`${indent}<g opacity="${Number(pb.opacity.toFixed(2))}">${inner}</g>`);
+        }
+      }
+    }
+  }
+}
+
 function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
   const {
     svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
@@ -4170,45 +4220,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // mask-image-style fade pattern. Same filter as the skip condition above
   // so we don't double-emit decorative `::after` boxes (carets / dividers)
   // that the earlier loop already handled in CSS-correct inline position.
-  if (el.pseudoBoxes != null) {
-    for (const pb of el.pseudoBoxes) {
-      if (pb.pseudo !== "::after") continue;
-      const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
-      const hasBgColor = pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
-      const hasBorder = (pb.borderTopWidth ?? 0) > 0
-        || (pb.borderRightWidth ?? 0) > 0
-        || (pb.borderBottomWidth ?? 0) > 0
-        || (pb.borderLeftWidth ?? 0) > 0;
-      if (!(hasBgImage && !hasBgColor && !hasBorder)) continue;
-      // DM-1051: a negative z-index glow was already painted behind in the
-      // early loop — don't re-emit it on top here.
-      if (pb.zIndex != null && pb.zIndex < 0) continue;
-      // DM-1121: wrap the deferred fade-overlay's rects in a `<g opacity>`
-      // when the pseudo dims itself. Stripe's keynote glow is a 45%-opacity
-      // pink radial; emitting it opaque painted a hard magenta blob.
-      const pbOpacityStart = svgParts.length;
-      const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
-      for (let li = pbLayers.length - 1; li >= 0; li--) {
-        const layer = pbLayers[li].trim();
-        const defId = paintCtx.nextClipId("pbg");
-        const out = buildBackgroundLayerDef(
-          defId, layer, pb.x, pb.y, pb.width, pb.height,
-          pb.backgroundSize ?? "auto", pb.backgroundPosition ?? "0% 0%", "repeat", null, "scroll", captureViewport,
-        );
-        if (out.def === "") continue;
-        defsParts.push(out.def);
-        const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
-        svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
-      }
-      if (pb.opacity != null && pb.opacity < 1) {
-        const added = svgParts.splice(pbOpacityStart);
-        if (added.length > 0) {
-          const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
-          svgParts.push(`${indent}<g opacity="${Number(pb.opacity.toFixed(2))}">${inner}</g>`);
-        }
-      }
-    }
-  }
+  paintDeferredFadeOverlays(state, el, indent);
 
   // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
   // numerator (first child) and denominator (second child). Chrome's
