@@ -100,17 +100,11 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     if (elementMatch != null) {
       const refId = elementMatch[1];
       if (maskRasters.has(refId)) return;
-      // DM-1446: mask-image: element(#id) is rasterized node-side by
-      // screenshotting the target's painted rect (hide-everything-else CSS +
-      // a clipped page.screenshot). That isolation path only reaches the TOP
-      // document, so a target INSIDE a recursed iframe can't be screenshotted
-      // cleanly yet — recording it would yield a leaky raster. Leave it as the
-      // unmasked baseline (no maskRaster) until the node-side pass is made
-      // iframe-aware. Tracked as a follow-up.
-      if (doc !== document) {
-        warn(sel, 'mask', 'mask-image: element(#' + refId + ') inside a recursed iframe is not yet rasterized — element renders unmasked');
-        return;
-      }
+      // DM-1446/DM-1447: resolve the element() target against the consumer's own
+      // document (inner-iframe targets too). The node-side rasterize pass
+      // (rasterizeMaskSources) is frame-aware — it locates the rid'd target
+      // across page.frames() and isolates it through the enclosing <iframe>
+      // chain — so a target inside a recursed iframe is screenshotted correctly.
       const refTarget = doc.getElementById(refId);
       if (refTarget == null) {
         warn(sel, 'mask', 'mask-image: element(#' + refId + ') target not found in document');

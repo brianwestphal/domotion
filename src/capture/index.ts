@@ -1322,7 +1322,7 @@ async function rasterizeReplacedElements(
  * are display:none / 0-area are filtered at capture time and never reach
  * here. See `docs/22-mask-element-paint-references.md`.
  */
-async function rasterizeMaskSources(
+export async function rasterizeMaskSources(
   page: Page,
   tree: CapturedElement[],
   viewport: { x: number; y: number; width: number; height: number },
@@ -1330,16 +1330,54 @@ async function rasterizeMaskSources(
   if (tree.length === 0 || tree[0].maskRasters == null || tree[0].maskRasters.length === 0) return;
   const rasters = tree[0].maskRasters;
 
-  let styleHandle: ElementHandle | null = null;
+  // DM-1447: a mask-image: element(#id) target can live inside a recursed
+  // same-origin <iframe>. Isolating it for the clipped screenshot means hiding
+  // everything in BOTH the top document AND the owning frame, while keeping the
+  // enclosing <iframe> element(s) visible so the target shows through. So inject
+  // the hide-everything CSS into every accessible frame, then per target mark
+  // it (in its own frame) + each enclosing <iframe> element up the chain. The
+  // screenshot clip is already in top-document px (the capture recorded the
+  // rect against the iframe-shifted viewport — DM-1441). For a top-document
+  // target the chain is just the target itself, identical to the prior path.
+  const main = page.mainFrame();
+  const frames = page.frames();
+  const styleHandles: ElementHandle[] = [];
+  const clearMarkers = async (): Promise<void> => {
+    for (const f of frames) {
+      try {
+        await f.evaluate(() => document.querySelectorAll("[data-domotion-snapshot-target]").forEach((el) => el.removeAttribute("data-domotion-snapshot-target")));
+      } catch { /* cross-origin / detached frame */ }
+    }
+  };
   try {
-    styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
+    for (const f of frames) {
+      try { styleHandles.push(await f.addStyleTag({ content: SNAPSHOT_HIDE_CSS })); } catch { /* cross-origin / detached */ }
+    }
     for (const mr of rasters) {
-      await page.evaluate((rid) => {
-        const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
-        prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
-        const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
-        if (next != null) next.setAttribute("data-domotion-snapshot-target", "");
-      }, mr.rid);
+      await clearMarkers();
+      // Locate the frame whose document holds the rid'd target.
+      let owner: typeof main | null = null;
+      for (const f of frames) {
+        try {
+          if (await f.evaluate((rid) => document.querySelector(`[data-domotion-rid="${rid}"]`) != null, mr.rid)) { owner = f; break; }
+        } catch { /* cross-origin / detached */ }
+      }
+      if (owner == null) continue;
+      try {
+        await owner.evaluate((rid) => {
+          const t = document.querySelector(`[data-domotion-rid="${rid}"]`);
+          if (t != null) t.setAttribute("data-domotion-snapshot-target", "");
+        }, mr.rid);
+        // Mark each enclosing <iframe> element up to the main frame so the
+        // target shows through (a visible child shows even inside a hidden
+        // ancestor; the inner frame's own hide-CSS isolates the target there).
+        let f: typeof main | null = owner;
+        while (f != null && f !== main) {
+          const iframeEl = await f.frameElement();
+          await iframeEl.evaluate((el: Element) => el.setAttribute("data-domotion-snapshot-target", ""));
+          f = f.parentFrame();
+        }
+      } catch { continue; }
       const clip = clipRectForScreenshot(mr.rect, viewport);
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
@@ -1349,16 +1387,8 @@ async function rasterizeMaskSources(
       }
     }
   } finally {
-    try {
-      await page.evaluate(() => {
-        document.querySelectorAll("[data-domotion-snapshot-target]").forEach(
-          (el) => el.removeAttribute("data-domotion-snapshot-target"),
-        );
-      });
-    } catch {}
-    if (styleHandle != null) {
-      try { await styleHandle.evaluate((node: Element) => { node.remove(); }); } catch {}
-    }
+    await clearMarkers();
+    for (const h of styleHandles) { try { await h.evaluate((node: Element) => { node.remove(); }); } catch {} }
   }
 }
 

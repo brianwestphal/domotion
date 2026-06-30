@@ -166,15 +166,24 @@ correctly while the `<body>` still paints its own box on top (matching Chrome's
 html-vs-body split). When the canvas is transparent, nothing is added (the iframe
 remains see-through). Validated by the visual fixture `iframe-canvas-bg-fill` (0.00%).
 
-### Still a known gap
+### `mask-image: element(#id)` paint refs (DM-1447 — frame-aware)
 
-- **`mask-image: element(#id)` paint refs inside a recursed iframe** are NOT yet
-  rasterized: the node-side `rasterizeMaskSources` isolates the target via a
-  top-document hide-everything stylesheet + clipped `page.screenshot`, which
-  can't cleanly isolate an element *inside* an iframe. Recording it would yield a
-  leaky raster, so `discoverMasks` deliberately skips inner-frame `element()`
-  refs (the consumer renders unmasked — the prior baseline) and warns. Tracked as
-  a follow-up (DM-1447).
+`rasterizeMaskSources` is now **frame-aware**: it injects the hide-everything CSS
+into every accessible frame, locates the rid'd target across `page.frames()`,
+and marks the target + each enclosing `<iframe>` element up the chain
+(`frameElement()`), so an inner-frame target shows through and is isolated for
+the clipped screenshot. `discoverMasks` resolves the `element(#id)` target
+against `el.ownerDocument` (inner targets too). Validated directly in
+`tests/iframe-inner-element-mask.e2e.test.ts` (a synthetic mask-raster pointed at
+an inner-iframe element; both a top-document overlay and an in-frame sibling are
+correctly isolated out).
+
+**Toolchain caveat:** `mask-image: element()` is currently **dormant in the
+Playwright Chromium** Domotion captures with — Chrome computes it to `none` and
+paints unmasked, so the path can't be exercised end-to-end through real capture
+(the top-level `mask-element-ref` feature fixture passes *vacuously* for the same
+reason). The frame-aware code is correct for if/when `element()` resolves;
+tracked separately (see the `element()`-dormancy investigation).
 
 ## Phase 2 — cross-origin recursion (Shipped)
 
