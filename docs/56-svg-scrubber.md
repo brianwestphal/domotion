@@ -147,3 +147,13 @@ follow-up and reuse the same `svg-to-video` / per-frame machinery.
 - `src/scrubber/trim.ts` — the pure window-slice + re-base transform.
 - Tests: `src/scrubber/trim.test.ts` (transform), `src/scrubber/server.e2e.test.ts`
   (endpoints end-to-end through Chromium).
+
+## Review mode (`--review`)
+
+`svg-scrubber --review` adds an issue-reporting panel (title + note + a
+drag-to-draw region, capturing the current frame time + selected range) that
+writes importable `.ticket` JSON files to the launch directory — the
+animated-SVG analogue of `svg-review`. See
+[82-svg-scrubber-review-mode.md](82-svg-scrubber-review-mode.md). Endpoint:
+`POST /ticket` (review-mode only); the `.ticket` schema + the pure,
+unit-tested `buildTicketFile` builder live in `src/scrubber/server.ts`.

@@ -22,7 +22,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { startLocalServer } from "../utils/local-server.js";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -68,6 +68,23 @@ const TRIM_BODY = z.object({
 });
 const FRAME_BODY = z.object({ svg: svgField, timeMs, width: dim, height: dim, crop: CROP });
 const RANGE_VIDEO_BODY = z.object({ svg: svgField, startMs: timeMs, endMs: timeMs, width: dim, height: dim, crop: CROP });
+// DM-1445: a review-mode issue report. The region (if any) is in the SVG's
+// user-space units (same as the crop rect). All timing in ms.
+const REGION = z
+  .object({ x: finite, y: finite, w: finite.refine((n) => n > 0, "must be > 0"), h: finite.refine((n) => n > 0, "must be > 0") })
+  .nullable()
+  .optional();
+const TICKET_BODY = z.object({
+  title: z.string().min(1, "a title is required").max(200),
+  note: z.string().max(20_000).default(""),
+  category: z.enum(["bug", "issue", "feature", "task", "investigation", "requirement_change"]).default("bug"),
+  svgPath: z.string().nullable().optional(),
+  svgName: z.string().max(200).default("animation"),
+  frameTimeMs: timeMs,
+  rangeStartMs: timeMs,
+  rangeEndMs: timeMs,
+  region: REGION,
+});
 
 /** A request-level error carrying the HTTP status to return (e.g. a 400). */
 class HttpError extends Error {
@@ -155,8 +172,82 @@ export interface ScrubberServerInputs {
   /** optional SVG markup to preload into the UI on first paint */
   initialSvg?: string;
   initialName?: string;
+  /** DM-1445: absolute path of the preloaded SVG (review mode records it on
+   *  generated tickets so importers know which file the issue is about). */
+  initialPath?: string;
+  /** DM-1445: enable review mode — the UI shows issue-reporting controls and
+   *  `POST /ticket` writes `.ticket` files to `ticketDir`. */
+  review?: boolean;
+  /** DM-1445: directory the generated `.ticket` files are written to (the cwd
+   *  svg-scrubber was launched from). Required when `review` is true. */
+  ticketDir?: string;
   launchBrowser: () => Promise<Browser>;
   log?: (msg: string) => void;
+}
+
+/** DM-1445: the structured `.ticket` payload an importer (e.g. Hot Sheet) reads.
+ *  `title` / `category` / `details` map straight onto `hotsheet_create_ticket`;
+ *  the structured fields below let a tool reconstruct the exact frame/region. */
+export interface ScrubberTicket {
+  tool: "svg-scrubber";
+  version: 1;
+  createdAt: string;
+  title: string;
+  category: string;
+  svg: string | null;
+  svgName: string;
+  frameTimeMs: number;
+  range: { startMs: number; endMs: number };
+  region: { x: number; y: number; w: number; h: number } | null;
+  note: string;
+  /** Markdown body, ready to drop into a ticket tracker. */
+  details: string;
+}
+
+/** Sanitize an SVG name into a filesystem-safe slug for the `.ticket` filename. */
+function ticketSlug(name: string): string {
+  const s = name.replace(/\.svg$/i, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return s || "issue";
+}
+
+const fmtMs = (ms: number): string => `${(ms / 1000).toFixed(2)}s (${Math.round(ms)}ms)`;
+
+/** Build the `.ticket` filename + JSON content from a validated request. Pure
+ *  (timestamp injected) so it's unit-testable. */
+export function buildTicketFile(
+  input: z.infer<typeof TICKET_BODY>,
+  opts: { createdAt: string; stamp: number | string },
+): { filename: string; content: string; ticket: ScrubberTicket } {
+  const range = { startMs: input.rangeStartMs, endMs: input.rangeEndMs };
+  const region = input.region ?? null;
+  const lines: string[] = [];
+  lines.push(input.note.trim() ? input.note.trim() : "_(no description)_");
+  lines.push("");
+  lines.push("### Context (svg-scrubber review)");
+  if (input.svgPath) lines.push(`- **SVG file:** \`${input.svgPath}\``);
+  else lines.push(`- **SVG:** ${input.svgName} _(loaded in-browser; no file path)_`);
+  lines.push(`- **Frame time:** ${fmtMs(input.frameTimeMs)}`);
+  lines.push(`- **Selected range:** ${fmtMs(range.startMs)} → ${fmtMs(range.endMs)}`);
+  if (region) lines.push(`- **Region (SVG user-units):** x=${Math.round(region.x)} y=${Math.round(region.y)} w=${Math.round(region.w)} h=${Math.round(region.h)}`);
+  else lines.push(`- **Region:** _(none — whole frame)_`);
+  const details = lines.join("\n");
+
+  const ticket: ScrubberTicket = {
+    tool: "svg-scrubber",
+    version: 1,
+    createdAt: opts.createdAt,
+    title: input.title.trim(),
+    category: input.category,
+    svg: input.svgPath ?? null,
+    svgName: input.svgName,
+    frameTimeMs: input.frameTimeMs,
+    range,
+    region,
+    note: input.note,
+    details,
+  };
+  const filename = `${ticketSlug(input.svgName)}-${opts.stamp}.ticket`;
+  return { filename, content: JSON.stringify(ticket, null, 2) + "\n", ticket };
 }
 
 export interface ScrubberServerHandle {
@@ -250,8 +341,15 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
     return run;
   };
 
-  const bootstrap = JSON.stringify({ svg: inputs.initialSvg ?? null, name: inputs.initialName ?? null });
+  const bootstrap = JSON.stringify({
+    svg: inputs.initialSvg ?? null,
+    name: inputs.initialName ?? null,
+    path: inputs.initialPath ?? null,
+    review: inputs.review === true,
+  });
   const shellHtml = SHELL(bootstrap);
+  // DM-1445: review mode writes `.ticket` files here (the launch cwd).
+  const ticketDir = inputs.ticketDir ?? process.cwd();
 
   const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const url = (req.url ?? "/").split("?")[0];
@@ -315,6 +413,21 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         const mp4 = await withChromium((page) => renderRangeVideo(page, svg, t0, t1, width, height, crop));
         res.writeHead(200, { "content-type": "video/mp4", "content-length": mp4.length });
         res.end(mp4);
+        return;
+      }
+      if (req.method === "POST" && url === "/ticket") {
+        // DM-1445: review mode only — write an issue `.ticket` file to the
+        // launch cwd and return its absolute path (also logged).
+        if (inputs.review !== true) throw new HttpError(404, "review mode is not enabled (run svg-scrubber --review)");
+        const body = await parseBody(req, TICKET_BODY);
+        const { filename, content, ticket } = buildTicketFile(body, {
+          createdAt: new Date().toISOString(),
+          stamp: Date.now(),
+        });
+        const outPath = join(ticketDir, filename);
+        writeFileSync(outPath, content, "utf-8");
+        log(`📝 wrote ticket: ${outPath}`);
+        sendJson(res, 200, { path: outPath, filename, title: ticket.title });
         return;
       }
       res.writeHead(404, { "content-type": "text/plain" });

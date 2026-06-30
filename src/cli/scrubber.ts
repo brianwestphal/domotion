@@ -33,6 +33,10 @@ Arguments:
 Options:
       --port <n>         Port to bind the local UI server on (default: an
                          OS-assigned free port).
+      --review           Review mode: adds issue-reporting controls (title,
+                         note, a draggable region, captured frame time + range)
+                         that write importable .ticket files to the current
+                         directory (their paths are logged as they're created).
       --no-open          Print the URL but don't auto-open the browser.
       --help, -h         Show this help.
 
@@ -40,6 +44,11 @@ In the browser you can play / pause (space), step frames (←/→, shift = 1ms),
 set the playback speed, scrub the timeline, mark an in/out range and loop it,
 export the current frame as a PNG (rendered server-side via Chromium so it
 matches the SVG's paint exactly), and trim the range to a new animated SVG.
+
+With --review, a panel lets you file issues about the SVG: type a title + note,
+optionally drag a rectangle over the problem area, and Save — each issue is
+written as a .ticket JSON file (frame time, range, and region included) in the
+current directory, ready to import into a tracker like Hot Sheet.
 `;
 
 async function main(): Promise<void> {
@@ -49,6 +58,7 @@ async function main(): Promise<void> {
     strict: true,
     options: {
       port: { type: "string" },
+      review: { type: "boolean", default: false },
       "no-open": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -57,21 +67,28 @@ async function main(): Promise<void> {
 
   let initialSvg: string | undefined;
   let initialName: string | undefined;
+  let initialPath: string | undefined;
   const file = positionals[0];
   if (file != null) {
     const p = resolve(file);
     if (!existsSync(p)) cliFail("svg-scrubber", `file not found: ${p}`, "usage");
     initialSvg = readFileSync(p, "utf-8");
     initialName = basename(p);
+    initialPath = p;
   }
 
+  const review = values.review === true;
   const server = await startScrubberServer({
     port: parsePort(values.port),
     initialSvg,
     initialName,
+    initialPath,
+    review,
+    ticketDir: process.cwd(),
     launchBrowser: () => launchChromium(),
     log: (m) => process.stderr.write(`${m}\n`),
   });
+  if (review) process.stderr.write(`Review mode: .ticket files will be written to ${process.cwd()}\n`);
 
   process.stdout.write(`\n  svg-scrubber running at ${server.url}\n  Press Ctrl-C to stop.\n\n`);
   if (!values["no-open"]) await openInBrowser(server.url);

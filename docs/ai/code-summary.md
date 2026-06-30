@@ -72,7 +72,9 @@ shortest possible map:
   consumer-facing `svg-review` CLI.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
-  play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56).
+  play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56), plus
+  `--review` mode (DM-1445, doc 82) — an issue-reporting panel + region overlay
+  that writes importable `.ticket` JSON via `POST /ticket` (`buildTicketFile`).
 - **`src/templates/`** — the template system (DM-1276 / doc 70): the `Template`
   contract (`types.ts`), registry + `domotion-template-*` loader (`registry.ts`),
   param validation + render driver + the `captureToSvg` static-capture primitive

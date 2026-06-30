@@ -35,6 +35,15 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 82 (`docs/82-svg-scrubber-review-mode.md`, DM-1445)** — **Shipped.**
+  `svg-scrubber --review` adds an issue-reporting panel (title + category + note +
+  a drag-to-draw region) that writes importable `.ticket` JSON files to the launch
+  cwd, capturing the current frame time, the in/out range, and the region (SVG
+  user-units). `title`/`category`/`details` map straight onto `hotsheet_create_ticket`
+  (the "tell Claude to import the .ticket files" flow). `POST /ticket` (review-only,
+  404 otherwise) + the pure unit-tested `buildTicketFile` in `src/scrubber/server.ts`;
+  the region overlay reuses the crop overlay's zoom/pan-aware SVG-unit math in
+  `client.tsx`. Animated-SVG analogue of `svg-review`.
 - **Doc 81 (`docs/81-iframe-recursion.md`, DM-1441 + DM-1442)** — **Both phases Shipped.**
   **Phase 2 (DM-1442):** `--cross-origin-frames "*"|host[:port],…` (config-object
   `captureCrossOriginFrames`) recurses **allowlisted** cross-origin frames by launching
