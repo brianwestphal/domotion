@@ -127,12 +127,11 @@ function renderVerticalDecoration(
   if (decoLine == null || decoLine === "none" || decoLine === "") return "";
   const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
     ? el.styles.textDecorationColor : fillColor;
-  const styles = el.styles as unknown as Record<string, string | undefined>;
-  const thicknessRaw = styles.textDecorationThickness;
+  const thicknessRaw = el.styles.textDecorationThickness;
   const thickness = thicknessRaw && thicknessRaw !== "auto" && thicknessRaw !== ""
     ? parseFloat(thicknessRaw) || 1
     : Math.max(1, parseFloat(el.styles.fontSize) / 18); // ~1 px at body sizes
-  const underlinePos = (styles.textUnderlinePosition ?? "auto").trim();
+  const underlinePos = (el.styles.textUnderlinePosition ?? "auto").trim();
   const wm = seg.verticalWritingMode ?? "vertical-rl";
   // Default underline side for `auto`. Verified against Chrome's painted output
   // (DM-1159): the `under`-baseline underline lands on the LEFT of the column

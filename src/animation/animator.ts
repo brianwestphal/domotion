@@ -263,20 +263,30 @@ function emitMagicMoveFrame(
  * visible window driven by `fadeInStartPct` (precomputed by the caller, which
  * knows the overlap state). Extracted from `generateAnimatedSvg` (DM-1089).
  */
+/** The keyframe-window percentages a crossfade/cut frame places its opacity CSS
+ *  at. Grouped into one object (DM-1458) so these four same-typed string args
+ *  can't be silently transposed at the call site. */
+interface CrossfadeWindow {
+  startPct: string;
+  holdEndPct: string;
+  transEndPct: string;
+  /** Crossfade fade-in window opens here — overlaps the previous frame's
+   *  fade-out, so the caller derives it from the loop's overlap state. */
+  fadeInStartPct: string;
+}
+
 function emitCrossfadeOrCutFrame(
   i: number,
   frame: AnimationFrame,
   transType: string,
   transDur: number,
-  startPct: string,
-  holdEndPct: string,
-  transEndPct: string,
-  fadeInStartPct: string,
+  win: CrossfadeWindow,
   totalSec: number,
   /** DM-1148: the last frame, when the loop must NOT cross-dissolve, holds
    *  opacity 1 to 100% instead of fading out over its transition window. */
   holdToEnd: boolean,
 ): { groups: string[]; keyframes: string[] } {
+  const { startPct, holdEndPct, transEndPct, fadeInStartPct } = win;
   const groups: string[] = [];
   const keyframes: string[] = [];
   groups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
@@ -383,14 +393,26 @@ type SlideEnter =
  * after a different-axis slide slides in on the predecessor's axis, etc.
  * Extracted from generateAnimatedSvg (DM-1375), mirroring emit*Frame.
  */
+/** The keyframe-window percentages a slide (push-left / scroll) frame places its
+ *  slide CSS at. Grouped into one object (DM-1458) alongside `dims` so the
+ *  same-typed args can't be transposed — and so the frame-rect size (`dims`) is
+ *  no longer confusable with the slide extent (`exitSize`), which previously read
+ *  as `width` passed twice at the push-left call site. */
+interface SlideWindow {
+  enterStartPct: string;
+  startPct: string;
+  holdEndPct: string;
+  transEndPct: string;
+}
+
 function emitSlideFrame(
   i: number, svgContent: string, exitAxis: "X" | "Y", exitSize: number, enter: SlideEnter,
-  width: number, height: number,
-  enterStartPct: string, startPct: string, holdEndPct: string, transEndPct: string,
+  dims: { width: number; height: number },
+  win: SlideWindow,
   totalSec: number, holdLastFrame: boolean,
 ): { group: string; keyframe: string } {
-  const group = `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${svgContent}\n  </g></g>`;
-  const keyframe = slideKeyframes(i, exitAxis, exitSize, enter, enterStartPct, startPct, holdEndPct, transEndPct, enterStartPct, transEndPct, totalSec, holdLastFrame);
+  const group = `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${dims.width}" height="${dims.height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${svgContent}\n  </g></g>`;
+  const keyframe = slideKeyframes(i, exitAxis, exitSize, enter, win.enterStartPct, win.startPct, win.holdEndPct, win.transEndPct, win.enterStartPct, win.transEndPct, totalSec, holdLastFrame);
   return { group, keyframe };
 }
 
@@ -541,7 +563,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // The parallel `fd-${i}` display snap (inside slideKeyframes) lets the
       // browser skip painting this frame's content while it's fully off-screen
       // between cycles (DM-599).
-      const r = emitSlideFrame(i, frame.svgContent, "X", width, slideEnter, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
+      const r = emitSlideFrame(i, frame.svgContent, "X", width, slideEnter, { width, height }, { enterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
@@ -549,7 +571,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // DM-609: `scroll` is a real geometric scroll — the vertical equivalent of
       // push-left (translateY over height instead of translateX over width),
       // otherwise identical machinery. Exit slides up; enter per `slideEnter`.
-      const r = emitSlideFrame(i, frame.svgContent, "Y", height, slideEnter, width, height, enterStartPct, startPct, holdEndPct, transEndPct, totalSec, holdLastFrame);
+      const r = emitSlideFrame(i, frame.svgContent, "Y", height, slideEnter, { width, height }, { enterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
@@ -579,7 +601,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // holds-then-cuts — so this is a no-op for cut frames.
       const isCutFrame = transType === "cut" || transDur === 0;
       const holdToEnd = i === frames.length - 1 && config.loopFade !== true && !isCutFrame;
-      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, startPct, holdEndPct, transEndPct, fadeInStartPct, totalSec, holdToEnd);
+      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, { startPct, holdEndPct, transEndPct, fadeInStartPct }, totalSec, holdToEnd);
       frameGroups.push(...r.groups);
       keyframes.push(...r.keyframes);
     }
