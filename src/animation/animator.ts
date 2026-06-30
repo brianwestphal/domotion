@@ -181,7 +181,7 @@ function emitMagicMoveFrame(
       ${afterH}% { opacity: 0; visibility: hidden; }
       100% { opacity: 0; visibility: hidden; }
     }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
 
   // Bridge composite: visible during the transition window only.
   groups.push(`  <g class="f mm-${i}">\n${mm.compositeSvg}\n  </g>`);
@@ -194,7 +194,7 @@ function emitMagicMoveFrame(
       ${afterT}% { opacity: 0; visibility: hidden; }
       100% { opacity: 0; visibility: hidden; }
     }
-    .mm-${i} { animation: mmv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+    .mm-${i} { animation: mmv-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
 
   // Per-element slide / fade keyframes within the window (linear interp).
   // The composite is only visible [holdEnd..transEnd], so the held values
@@ -295,7 +295,7 @@ function emitCrossfadeOrCutFrame(
       ${afterEnd}% { opacity: 0; visibility: hidden; }
       100% { opacity: 0; visibility: hidden; }
     }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite; animation-timing-function: step-end; }`);
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
   } else {
     const prevEnd = i > 0
       ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
@@ -1146,7 +1146,7 @@ function renderSvgOverlay(
     const enterId = `${id}-enter`;
     cssRules.push(`
     @keyframes ${enterId} { 0% { transform: ${fromStr}; } ${pct(enterStart, totalDuration)} { transform: ${fromStr}; } ${pct(enterEnd, totalDuration)} { transform: translate(0, 0); } 100% { transform: translate(0, 0); } }
-    .${id}-enter { animation: ${enterId} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing}; }`);
+    .${id}-enter { animation: ${enterId} ${totalSec.toFixed(2)}s ${easing} infinite; }`);
   }
 
   // Slide-out exit. Mirror of enter — translate from (0,0) to off-screen.
@@ -1159,7 +1159,7 @@ function renderSvgOverlay(
     const exitId = `${id}-exit`;
     cssRules.push(`
     @keyframes ${exitId} { 0%, ${pct(exitStart, totalDuration)} { transform: translate(0, 0); } ${pct(exitStart + e.duration, totalDuration)} { transform: ${toStr}; } 100% { transform: ${toStr}; } }
-    .${id}-exit { animation: ${exitId} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing}; }`);
+    .${id}-exit { animation: ${exitId} ${totalSec.toFixed(2)}s ${easing} infinite; }`);
   }
 
   // Markup: outer wrapper translates to (x, y) and clips, inner wrapper
@@ -1266,7 +1266,7 @@ function buildIntraFrameAnimationCss(
       ${endPct.toFixed(3)}% { ${propValue(a.to)} }
       100% { ${propValue(a.to)} }
     }
-    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s infinite; animation-timing-function: ${easing};${originDecl} }`);
+    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s ${easing} infinite;${originDecl} }`);
       }
     }
   }

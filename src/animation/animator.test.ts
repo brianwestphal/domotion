@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import { generateAnimatedSvg, dedupeFrameIds } from "./animator.js";
+import { optimizeSvg } from "../post-processing/optimize.js";
 
 // DM-1145: cross-frame id de-duplication. A caller that reuses identical
 // svgContent for several frames (a cached/held frame) emits duplicate ids; on a
@@ -843,5 +844,45 @@ describe("animator", () => {
       expect(maskTop).toBeLessThanOrEqual(baseline - fontSize + 4); // covers the ascent
       expect(maskBottom).toBeGreaterThan(baseline);
     });
+  });
+});
+
+// DM-1454: the optimizer (SVGO/csso `minifyStyles`) must NOT change the rendered
+// animation. Hard cuts emit `step-end` timing so each frame's opacity flips
+// instantly; when that was a SEPARATE `animation-timing-function: step-end`
+// declaration, csso `restructure` factored it out / reordered it after the
+// `animation:` shorthand, which resets timing to `ease` — so the last frame
+// faded to black over its whole duration. The fix folds the timing function
+// INTO the `animation:` shorthand (one declaration, nothing to reorder).
+describe("optimizer preserves hard-cut step-end timing (DM-1454)", () => {
+  const cutCfg = {
+    width: 100, height: 100,
+    frames: [
+      { svgContent: `<rect width="100" height="100" fill="red"/>`, duration: 1000, transition: { type: "cut" as const } },
+      { svgContent: `<rect width="100" height="100" fill="green"/>`, duration: 1000, transition: { type: "cut" as const } },
+      { svgContent: `<rect width="100" height="100" fill="blue"/>`, duration: 1000, transition: { type: "cut" as const } },
+    ],
+  };
+
+  const frameRules = (svg: string): string[] =>
+    [...svg.matchAll(/\.f-\d+\s*\{[^}]*\}/g)].map((m) => m[0]);
+
+  it("emits step-end inside the animation shorthand (no separate declaration)", () => {
+    const rules = frameRules(generateAnimatedSvg(cutCfg));
+    expect(rules.length).toBe(3);
+    for (const r of rules) {
+      expect(r).toMatch(/animation:[^;}]*step-end/); // timing function is in the shorthand
+      expect(r).not.toContain("animation-timing-function"); // not a reorder-vulnerable separate decl
+    }
+  });
+
+  it("every cut-frame rule keeps step-end after optimizeSvg", () => {
+    const optimized = optimizeSvg(generateAnimatedSvg(cutCfg));
+    const rules = frameRules(optimized);
+    expect(rules.length).toBe(3);
+    for (const r of rules) {
+      // An `.f-N` rule that binds an animation must still carry step-end.
+      if (/animation:/.test(r)) expect(r, `step-end lost after optimize in: ${r}`).toContain("step-end");
+    }
   });
 });

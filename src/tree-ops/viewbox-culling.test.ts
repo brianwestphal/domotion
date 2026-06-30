@@ -283,7 +283,11 @@ describe("cullElementsOutsideViewBox — keyframes structure", () => {
       x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "a",
     });
     const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 0, 1000);
-    expect(css).toContain("animation-timing-function: step-end");
+    // DM-1454: step-end lives INSIDE the `animation:` shorthand (not a separate
+    // `animation-timing-function` declaration, which SVGO/csso could reorder
+    // after the shorthand and reset to `ease`).
+    expect(css).toMatch(/animation:[^;}]*step-end/);
+    expect(css).not.toContain("animation-timing-function: step-end");
     expect(css).toContain("var(--scene-dur)");
     // 0% / 100% bookends with visibility:hidden (DM-641 — was display:none).
     expect(css).toMatch(/0% \{ visibility: hidden/);

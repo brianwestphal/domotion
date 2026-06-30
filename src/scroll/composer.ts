@@ -103,7 +103,7 @@ export interface ScrollComposerOptions {
  */
 function buildVisibilityKeyframes(cls: string, startPct: number, endPct: number, totalSec: number): string {
   return `      @keyframes ${cls} { 0% { visibility: hidden } ${Math.max(0, startPct - 0.001).toFixed(3)}% { visibility: hidden } ${startPct.toFixed(3)}% { visibility: visible } ${endPct.toFixed(3)}% { visibility: visible } ${Math.min(100, endPct + 0.001).toFixed(3)}% { visibility: hidden } 100% { visibility: hidden } }
-      .${cls} { animation: ${cls} ${totalSec.toFixed(3)}s infinite; animation-timing-function: step-end; }`;
+      .${cls} { animation: ${cls} ${totalSec.toFixed(3)}s step-end infinite; }`;
 }
 
 /**

@@ -25,6 +25,13 @@ export function optimizeSvg(svg: string): string {
       makeArcs: false,
     } } as PluginConfig,
     "convertTransform",
+    // DM-1454: `minifyStyles` (csso) restructures/reorders CSS declarations and
+    // can factor a common longhand out across rules. So animation CSS we emit
+    // MUST be order-independent: the timing function belongs INSIDE the
+    // `animation:` shorthand (`animation: name 2s step-end infinite`), never as a
+    // separate `animation-timing-function: step-end` after the shorthand — csso
+    // would move the shorthand after it and reset the timing to `ease`, turning
+    // a hard cut into a full-duration fade. Keep new emitters self-contained.
     "minifyStyles",
     "removeComments",
     "removeEmptyAttrs",

@@ -324,5 +324,5 @@ function buildCullKeyframes(name: string, visStartPct: number, visEndPct: number
       ${endPlus}% { visibility: hidden; }
       100% { visibility: hidden; }
     }
-    .${name} { animation: ${name} var(--scene-dur) infinite; animation-timing-function: step-end; }`;
+    .${name} { animation: ${name} var(--scene-dur) step-end infinite; }`;
 }
