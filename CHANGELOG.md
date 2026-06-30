@@ -2,6 +2,27 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.17.0] - 2026-06-30
+
+
+**🚀 Features**
+
+- Per-codepoint live system-fallback font resolution now runs on Linux (fontconfig) and Windows (DirectWrite), calibrated against Chromium and on by default — codepoints missing from the static tables now resolve to the same face the browser paints instead of dropping to tofu. Previously macOS-only, so Linux/Windows captures of less-common scripts and symbols are markedly more faithful.
+- Added a desktop-Linux Noto font profile, selected automatically at runtime, so output matches the Noto fonts most Ubuntu/Fedora users actually have rather than only the bare CI image's fallback faces.
+
+**🐛 Fixes**
+
+- `border-collapse: collapse` tables now paint each shared grid edge exactly once with the winning border, instead of double-painting adjacent cells' borders and drawing table/row/section box borders as concentric rings.
+- Mixed per-side 3D border styles (e.g. `ridge` top/bottom with `groove` left/right) now render with proper light/dark beveling instead of flat, bevel-less sides.
+- A `background-clip: text` gradient on an inline that wraps across lines is now painted per line fragment, fixing wrong colors on each line.
+- `counter()` / `counters()` now honor built-in counter styles (`upper-roman`, `lower-alpha`, etc.) in `content`, instead of falling back to plain decimal.
+- `<input>` fixes: the value is now vertically centered within a tall explicit `line-height`, and it's clipped to the content box so overflowing text no longer bleeds into the padding up to the border.
+- `<fieldset>` with `overflow` set no longer clips the top half of its `<legend>`.
+- List markers now align to the li's first text line (not its border-box top) and outside text markers use Blink's actual margin model, fixing markers that painted too high or shifted right.
+- Color emoji in `::before`/`::after` content is no longer clipped — the raster rect now matches the emoji's square advance.
+- Apple-style superscript footnotes now render small and raised (via `numr`→`sups` GSUB), and carousel `::scroll-marker-group` dots and dot scaling are positioned flush at the scroller edge.
+- A flex `::after` under `justify-content: space-between` (and flex-/end) now anchors to the content-right edge instead of overshooting past it.
+
 ## [0.16.0] - 2026-06-26
 
 
