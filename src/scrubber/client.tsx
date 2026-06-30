@@ -145,14 +145,19 @@ const cropTick = signal(0);
 // "free" whenever crop mode turns off or a new SVG loads.
 const cropAspect = signal<string>("free");
 
-// DM-1445: review mode. `reviewMode` is fixed at load (the server sets it in the
-// bootstrap when launched with --review). `regionRect` is the optional issue
-// region in SVG user-space units (same space as the crop rect); `regionMode`
-// arms the drag-to-draw overlay; `ticketStatus` shows the last save result.
+// DM-1445/DM-1449: review mode. `reviewMode` is fixed at load (the server sets
+// it in the bootstrap when launched with --review). `regions` is the list of
+// issue regions in SVG user-space units (same space as the crop rect);
+// `regionMode` arms the drag-to-draw overlay; `drawingRect` is the in-progress
+// drag; `attachFrame` toggles writing a sibling frame PNG; `ticketStatus` shows
+// the last save result.
+type Rect = { x: number; y: number; w: number; h: number };
 const reviewMode = window.__SCRUBBER_BOOTSTRAP__?.review === true;
 const regionMode = signal(false);
-const regionRect = signal<{ x: number; y: number; w: number; h: number } | null>(null);
+const regions = signal<Rect[]>([]);
+const drawingRect = signal<Rect | null>(null);
 const regionTick = signal(0);
+const attachFrame = signal(true);
 const ticketStatus = signal<{ kind: "" | "ok" | "err"; msg: string }>({ kind: "", msg: "" });
 const savingTicket = signal(false);
 
@@ -268,10 +273,11 @@ function render() {
               <select data-action="rv-category" title="ticket category" disabled={!svgLoaded.value}>
                 {["bug", "issue", "feature", "task", "investigation"].map((c) => <option value={c}>{c}</option>)}
               </select>
-              <button class={regionMode.value ? "iconbtn active" : "iconbtn"} data-action="rv-region" title="drag a rectangle over the problem area" disabled={!svgLoaded.value}>
-                {regionMode.value ? "Drawing…" : regionRect.value != null ? "Region ✓" : "Mark region"}
+              <button class={regionMode.value ? "iconbtn active" : "iconbtn"} data-action="rv-region" title="drag rectangles over the problem area(s); stays armed so you can add several" disabled={!svgLoaded.value}>
+                {regionMode.value ? "Drawing…" : regions.value.length > 0 ? `Regions ✓ (${regions.value.length})` : "Mark region"}
               </button>
-              <button data-action="rv-clear-region" disabled={!svgLoaded.value || regionRect.value == null}>Clear</button>
+              <button data-action="rv-clear-region" disabled={!svgLoaded.value || regions.value.length === 0}>Clear</button>
+              <label class="muted"><input type="checkbox" data-action="rv-attach" checked={attachFrame.value} disabled={!svgLoaded.value} />attach frame</label>
               <span class="muted">frame @ {fmt(playhead.value)} · range {fmt(rangeStart.value)}–{fmt(hi)}</span>
               <button class="primary" data-action="rv-save" disabled={!svgLoaded.value || savingTicket.value}>{savingTicket.value ? "Saving…" : "Save issue"}</button>
             </div>
@@ -414,14 +420,15 @@ const endCropDrag = (): void => { cropDrag = null; };
 cropBox.addEventListener("pointerup", endCropDrag);
 cropBox.addEventListener("pointercancel", endCropDrag);
 
-// ── review region overlay (DM-1445) ──────────────────────────────────────────
-// Drag-to-draw a single rectangle over the problem area (in SVG user-units, the
-// same space as the crop rect). Built imperatively like the crop overlay; the
-// layer captures pointer events only while `regionMode` is armed.
+// ── review region overlay (DM-1445 / DM-1449) ────────────────────────────────
+// Drag-to-draw one or more rectangles over the problem area(s), in SVG
+// user-units (same space as the crop rect). Built imperatively like the crop
+// overlay; the layer captures pointer events only while `regionMode` is armed,
+// and stays armed across drags so several regions can be added. Each committed
+// region + the in-progress drag is rendered as a `.region-box` div, rebuilt
+// from `regions` / `drawingRect` each effect run.
 const REGION_MIN = 3; // discard sub-3px drags (treated as a click → no region)
 const regionLayer = app.querySelector<HTMLElement>("[data-region-layer]")!;
-const regionBox = document.createElement("div"); regionBox.className = "region-box"; regionBox.style.display = "none";
-regionLayer.appendChild(regionBox);
 
 // SVG-host content origin (top-left of the natural-size SVG) in stage-local px.
 function svgOriginLocal(): { ox: number; oy: number; z: number } {
@@ -435,20 +442,28 @@ function clientToSvgUnits(clientX: number, clientY: number): { x: number; y: num
   return { x: (clientX - r.left - ox) / z, y: (clientY - r.top - oy) / z };
 }
 
-// Position the region box from regionRect (SVG units) → stage-local px.
+// Rebuild the region boxes from `regions` + the live `drawingRect`.
 effect(() => {
-  const rr = regionRect.value;
-  const on = regionMode.value || rr != null;
+  const rs = regions.value;
+  const draw = drawingRect.value;
+  const on = regionMode.value || rs.length > 0;
   regionTick.value; // re-run on zoom / pan / resize
   regionLayer.style.display = on && svgLoaded.value ? "block" : "none";
   regionLayer.style.pointerEvents = regionMode.value && svgLoaded.value ? "auto" : "none";
-  if (rr == null) { regionBox.style.display = "none"; return; }
   const { ox, oy, z } = svgOriginLocal();
-  regionBox.style.display = "block";
-  regionBox.style.left = `${ox + rr.x * z}px`;
-  regionBox.style.top = `${oy + rr.y * z}px`;
-  regionBox.style.width = `${rr.w * z}px`;
-  regionBox.style.height = `${rr.h * z}px`;
+  const all = draw != null ? [...rs, draw] : rs;
+  // Sync the pool of box divs to the number of rects.
+  while (regionLayer.children.length < all.length) {
+    const b = document.createElement("div"); b.className = "region-box"; regionLayer.appendChild(b);
+  }
+  while (regionLayer.children.length > all.length) regionLayer.lastChild!.remove();
+  all.forEach((rr, i) => {
+    const b = regionLayer.children[i] as HTMLElement;
+    b.style.left = `${ox + rr.x * z}px`;
+    b.style.top = `${oy + rr.y * z}px`;
+    b.style.width = `${rr.w * z}px`;
+    b.style.height = `${rr.h * z}px`;
+  });
 });
 
 let regionDraw: { ox: number; oy: number } | null = null;
@@ -456,14 +471,14 @@ regionLayer.addEventListener("pointerdown", (ev) => {
   if (!regionMode.value || !svgLoaded.value) return;
   const p = clientToSvgUnits(ev.clientX, ev.clientY);
   regionDraw = { ox: p.x, oy: p.y };
-  regionRect.value = { x: p.x, y: p.y, w: 0, h: 0 };
+  drawingRect.value = { x: p.x, y: p.y, w: 0, h: 0 };
   regionLayer.setPointerCapture(ev.pointerId);
   ev.preventDefault();
 });
 regionLayer.addEventListener("pointermove", (ev) => {
   if (regionDraw == null) return;
   const p = clientToSvgUnits(ev.clientX, ev.clientY);
-  regionRect.value = {
+  drawingRect.value = {
     x: Math.min(regionDraw.ox, p.x),
     y: Math.min(regionDraw.oy, p.y),
     w: Math.abs(p.x - regionDraw.ox),
@@ -473,9 +488,11 @@ regionLayer.addEventListener("pointermove", (ev) => {
 const endRegionDraw = (): void => {
   if (regionDraw == null) return;
   regionDraw = null;
-  const rr = regionRect.value;
-  if (rr != null && (rr.w < REGION_MIN || rr.h < REGION_MIN)) regionRect.value = null;
-  else regionMode.value = false; // a real rect was drawn — disarm so the stage is interactive again
+  const rr = drawingRect.value;
+  drawingRect.value = null;
+  // Commit a real rect to the list; ignore sub-min "click" drags. Stay armed so
+  // the user can add more regions.
+  if (rr != null && rr.w >= REGION_MIN && rr.h >= REGION_MIN) regions.value = [...regions.value, rr];
   regionTick.value++;
 };
 regionLayer.addEventListener("pointerup", endRegionDraw);
@@ -568,7 +585,7 @@ async function loadSvg(text: string, name: string): Promise<void> {
   seekAll(0);
   zoomMode = "fit"; panX.value = 0; panY.value = 0; fitZoomKeep();
   cropMode.value = false; cropRect.value = null; cropAspect.value = "free"; cropTick.value++; // DM-1104 / DM-1107: reset crop + ratio lock for the new SVG
-  regionMode.value = false; regionRect.value = null; regionTick.value++; ticketStatus.value = { kind: "", msg: "" }; // DM-1445: reset review region/status
+  regionMode.value = false; regions.value = []; drawingRect.value = null; regionTick.value++; ticketStatus.value = { kind: "", msg: "" }; // DM-1445/DM-1449: reset review regions/status
   measureTrack();
 }
 
@@ -652,7 +669,10 @@ async function saveTicket(): Promise<void> {
         frameTimeMs: playhead.value,
         rangeStartMs: s,
         rangeEndMs: e,
-        region: regionRect.value,
+        regions: regions.value,
+        // DM-1449: attach the current frame as a sibling PNG (server renders it).
+        attachFrame: attachFrame.value,
+        svg: attachFrame.value ? svgText : undefined,
       }),
     });
     if (!r.ok) {
@@ -660,12 +680,12 @@ async function saveTicket(): Promise<void> {
       try { msg = (await r.json() as { error?: string }).error ?? msg; } catch { /* non-JSON */ }
       throw new Error(msg);
     }
-    const { path } = await r.json() as { path: string };
-    ticketStatus.value = { kind: "ok", msg: `✓ wrote ${path}` };
+    const { path, framePng } = await r.json() as { path: string; framePng?: string | null };
+    ticketStatus.value = { kind: "ok", msg: `✓ wrote ${path}${framePng ? ` (+ frame PNG)` : ""}` };
     // Reset for the next issue (keep the SVG / range / playhead as-is).
     if (titleEl) titleEl.value = "";
     if (noteEl) noteEl.value = "";
-    regionRect.value = null; regionMode.value = false; regionTick.value++;
+    regions.value = []; drawingRect.value = null; regionMode.value = false; regionTick.value++;
   } catch (err) {
     ticketStatus.value = { kind: "err", msg: `⚠ ${err instanceof Error ? err.message : "save failed"}` };
   } finally {
@@ -712,9 +732,9 @@ const CLICK: Record<string, () => void> = {
   "export-frame": () => { exportMenuOpen.value = false; void exportFrame(); },
   "export-trim": () => { exportMenuOpen.value = false; void exportTrim(); },
   "export-video": () => { exportMenuOpen.value = false; void exportVideo(); },
-  // DM-1445: review-mode controls.
+  // DM-1445/DM-1449: review-mode controls.
   "rv-region": () => { regionMode.value = !regionMode.value; regionTick.value++; },
-  "rv-clear-region": () => { regionRect.value = null; regionMode.value = false; regionTick.value++; },
+  "rv-clear-region": () => { regions.value = []; drawingRect.value = null; regionMode.value = false; regionTick.value++; },
   "rv-save": () => { void saveTicket(); },
 };
 
@@ -735,6 +755,7 @@ void delegate(app, "change", "[data-action=speed]", (e, target) => { speed.value
 void delegate(app, "change", "[data-action=inn]", (e, target) => { rangeStart.value = Math.max(0, Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value)); });
 void delegate(app, "change", "[data-action=outn]", (e, target) => { rangeEnd.value = Math.max(rangeStart.value, Math.min((parseFloat((target as HTMLInputElement).value) || 0) * 1000, durationMs.value)); });
 void delegate(app, "change", "[data-action=loop]", (e, target) => { loop.value = (target as HTMLInputElement).checked; });
+void delegate(app, "change", "[data-action=rv-attach]", (e, target) => { attachFrame.value = (target as HTMLInputElement).checked; }); // DM-1449
 // DM-1107: pick a crop aspect-ratio lock. Snap the existing crop box to the new
 // ratio immediately so the constraint is visible before the next drag.
 void delegate(app, "change", "[data-action=cropaspect]", (e, target) => {

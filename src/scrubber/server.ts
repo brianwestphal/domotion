@@ -68,12 +68,14 @@ const TRIM_BODY = z.object({
 });
 const FRAME_BODY = z.object({ svg: svgField, timeMs, width: dim, height: dim, crop: CROP });
 const RANGE_VIDEO_BODY = z.object({ svg: svgField, startMs: timeMs, endMs: timeMs, width: dim, height: dim, crop: CROP });
-// DM-1445: a review-mode issue report. The region (if any) is in the SVG's
+// DM-1445/DM-1449: a review-mode issue report. Each region is in the SVG's
 // user-space units (same as the crop rect). All timing in ms.
-const REGION = z
-  .object({ x: finite, y: finite, w: finite.refine((n) => n > 0, "must be > 0"), h: finite.refine((n) => n > 0, "must be > 0") })
-  .nullable()
-  .optional();
+const REGION = z.object({
+  x: finite,
+  y: finite,
+  w: finite.refine((n) => n > 0, "must be > 0"),
+  h: finite.refine((n) => n > 0, "must be > 0"),
+});
 const TICKET_BODY = z.object({
   title: z.string().min(1, "a title is required").max(200),
   note: z.string().max(20_000).default(""),
@@ -83,7 +85,14 @@ const TICKET_BODY = z.object({
   frameTimeMs: timeMs,
   rangeStartMs: timeMs,
   rangeEndMs: timeMs,
-  region: REGION,
+  // DM-1449: zero or more regions (was a single nullable region). A legacy
+  // single `region` is still accepted and folded in for back-compat.
+  regions: z.array(REGION).default([]),
+  region: REGION.nullable().optional(),
+  // DM-1449: when true (+ `svg` provided), render the current frame to a
+  // sibling PNG next to the .ticket and reference it from the JSON.
+  attachFrame: z.boolean().default(false),
+  svg: z.string().optional(),
 });
 
 /** A request-level error carrying the HTTP status to return (e.g. a 400). */
@@ -188,6 +197,7 @@ export interface ScrubberServerInputs {
 /** DM-1445: the structured `.ticket` payload an importer (e.g. Hot Sheet) reads.
  *  `title` / `category` / `details` map straight onto `hotsheet_create_ticket`;
  *  the structured fields below let a tool reconstruct the exact frame/region. */
+export interface ScrubberRegion { x: number; y: number; w: number; h: number }
 export interface ScrubberTicket {
   tool: "svg-scrubber";
   version: 1;
@@ -198,28 +208,41 @@ export interface ScrubberTicket {
   svgName: string;
   frameTimeMs: number;
   range: { startMs: number; endMs: number };
-  region: { x: number; y: number; w: number; h: number } | null;
+  /** DM-1449: zero or more issue regions (SVG user-units). */
+  regions: ScrubberRegion[];
+  /** DM-1449 back-compat: the first region (or null) — kept so pre-multi-region
+   *  importers keep working. Prefer `regions`. */
+  region: ScrubberRegion | null;
+  /** DM-1449: absolute path of the captured current-frame PNG sibling, or null
+   *  when no frame was attached. */
+  framePng: string | null;
   note: string;
   /** Markdown body, ready to drop into a ticket tracker. */
   details: string;
 }
 
 /** Sanitize an SVG name into a filesystem-safe slug for the `.ticket` filename. */
-function ticketSlug(name: string): string {
+export function ticketSlug(name: string): string {
   const s = name.replace(/\.svg$/i, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
   return s || "issue";
 }
 
 const fmtMs = (ms: number): string => `${(ms / 1000).toFixed(2)}s (${Math.round(ms)}ms)`;
+const fmtRegion = (r: ScrubberRegion): string => `x=${Math.round(r.x)} y=${Math.round(r.y)} w=${Math.round(r.w)} h=${Math.round(r.h)}`;
 
 /** Build the `.ticket` filename + JSON content from a validated request. Pure
- *  (timestamp injected) so it's unit-testable. */
+ *  (timestamp + slug + optional framePng path injected) so it's unit-testable. */
 export function buildTicketFile(
   input: z.infer<typeof TICKET_BODY>,
-  opts: { createdAt: string; stamp: number | string },
+  opts: { createdAt: string; stamp: number | string; slug?: string; framePng?: string | null },
 ): { filename: string; content: string; ticket: ScrubberTicket } {
   const range = { startMs: input.rangeStartMs, endMs: input.rangeEndMs };
-  const region = input.region ?? null;
+  // DM-1449: prefer the `regions` array; fold a legacy single `region` in.
+  // Tolerate a missing `regions` (hand-built inputs that skip zod's default).
+  const regions: ScrubberRegion[] = (input.regions ?? []).length > 0
+    ? input.regions
+    : (input.region != null ? [input.region] : []);
+  const framePng = opts.framePng ?? null;
   const lines: string[] = [];
   lines.push(input.note.trim() ? input.note.trim() : "_(no description)_");
   lines.push("");
@@ -228,10 +251,16 @@ export function buildTicketFile(
   else lines.push(`- **SVG:** ${input.svgName} _(loaded in-browser; no file path)_`);
   lines.push(`- **Frame time:** ${fmtMs(input.frameTimeMs)}`);
   lines.push(`- **Selected range:** ${fmtMs(range.startMs)} → ${fmtMs(range.endMs)}`);
-  if (region) lines.push(`- **Region (SVG user-units):** x=${Math.round(region.x)} y=${Math.round(region.y)} w=${Math.round(region.w)} h=${Math.round(region.h)}`);
-  else lines.push(`- **Region:** _(none — whole frame)_`);
+  if (regions.length === 0) lines.push(`- **Region:** _(none — whole frame)_`);
+  else if (regions.length === 1) lines.push(`- **Region (SVG user-units):** ${fmtRegion(regions[0])}`);
+  else {
+    lines.push(`- **Regions (SVG user-units):**`);
+    for (const r of regions) lines.push(`  - ${fmtRegion(r)}`);
+  }
+  if (framePng) lines.push(`- **Frame snapshot:** \`${framePng}\``);
   const details = lines.join("\n");
 
+  const slug = opts.slug ?? ticketSlug(input.svgName);
   const ticket: ScrubberTicket = {
     tool: "svg-scrubber",
     version: 1,
@@ -242,11 +271,13 @@ export function buildTicketFile(
     svgName: input.svgName,
     frameTimeMs: input.frameTimeMs,
     range,
-    region,
+    regions,
+    region: regions[0] ?? null,
+    framePng,
     note: input.note,
     details,
   };
-  const filename = `${ticketSlug(input.svgName)}-${opts.stamp}.ticket`;
+  const filename = `${slug}-${opts.stamp}.ticket`;
   return { filename, content: JSON.stringify(ticket, null, 2) + "\n", ticket };
 }
 
@@ -420,14 +451,42 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         // launch cwd and return its absolute path (also logged).
         if (inputs.review !== true) throw new HttpError(404, "review mode is not enabled (run svg-scrubber --review)");
         const body = await parseBody(req, TICKET_BODY);
+        const stamp = Date.now();
+        const slug = ticketSlug(body.svgName);
+        // DM-1449: optionally render the current frame to a sibling PNG (the
+        // whole frame at `frameTimeMs`, so it carries context for any number of
+        // regions). Reuses the same seek+screenshot path as /export-frame.
+        let framePng: string | null = null;
+        if (body.attachFrame && body.svg != null && body.svg.trim() !== "") {
+          const svg = body.svg;
+          try {
+            const pngBuf = await withChromium(async (page) => {
+              const size = parseSvgIntrinsicSize(svg) ?? { w: 800, h: 600 };
+              const vw = Math.max(1, Math.min(Math.round(size.w), MAX_DIM));
+              const vh = Math.max(1, Math.min(Math.round(size.h), MAX_DIM));
+              await page.setViewportSize({ width: vw, height: vh });
+              await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
+              await seekTo(page, body.frameTimeMs);
+              return screenshot(page);
+            });
+            const pngPath = join(ticketDir, `${slug}-${stamp}.png`);
+            writeFileSync(pngPath, pngBuf);
+            framePng = pngPath;
+            log(`🖼  wrote frame snapshot: ${pngPath}`);
+          } catch (e) {
+            log(`frame snapshot failed (ticket still written): ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
         const { filename, content, ticket } = buildTicketFile(body, {
           createdAt: new Date().toISOString(),
-          stamp: Date.now(),
+          stamp,
+          slug,
+          framePng,
         });
         const outPath = join(ticketDir, filename);
         writeFileSync(outPath, content, "utf-8");
         log(`📝 wrote ticket: ${outPath}`);
-        sendJson(res, 200, { path: outPath, filename, title: ticket.title });
+        sendJson(res, 200, { path: outPath, filename, title: ticket.title, framePng });
         return;
       }
       res.writeHead(404, { "content-type": "text/plain" });

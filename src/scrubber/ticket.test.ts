@@ -62,6 +62,35 @@ describe("buildTicketFile (DM-1445)", () => {
     const { filename } = buildTicketFile({ ...base, svgName: "my demo/v2!.svg" }, { createdAt: "x", stamp: 9 });
     expect(filename).toBe("my-demo-v2-9.ticket");
   });
+
+  it("DM-1449: records multiple regions and lists them in details", () => {
+    const { ticket } = buildTicketFile(
+      { ...base, region: null, regions: [{ x: 1, y: 2, w: 3, h: 4 }, { x: 5, y: 6, w: 7, h: 8 }] },
+      { createdAt: "x", stamp: 3 },
+    );
+    expect(ticket.regions).toHaveLength(2);
+    expect(ticket.region).toEqual({ x: 1, y: 2, w: 3, h: 4 }); // back-compat = first
+    expect(ticket.details).toContain("Regions (SVG user-units):");
+    expect(ticket.details).toContain("x=1 y=2 w=3 h=4");
+    expect(ticket.details).toContain("x=5 y=6 w=7 h=8");
+  });
+
+  it("DM-1449: the `regions` array takes precedence over a legacy single `region`", () => {
+    const { ticket } = buildTicketFile(
+      { ...base, region: { x: 99, y: 99, w: 9, h: 9 }, regions: [{ x: 1, y: 2, w: 3, h: 4 }] },
+      { createdAt: "x", stamp: 4 },
+    );
+    expect(ticket.regions).toEqual([{ x: 1, y: 2, w: 3, h: 4 }]);
+  });
+
+  it("DM-1449: records the frame PNG path + uses the injected slug", () => {
+    const { filename, ticket } = buildTicketFile(base, {
+      createdAt: "x", stamp: 5, slug: "demo", framePng: "/tmp/demo-5.png",
+    });
+    expect(filename).toBe("demo-5.ticket");
+    expect(ticket.framePng).toBe("/tmp/demo-5.png");
+    expect(ticket.details).toContain("Frame snapshot:** `/tmp/demo-5.png`");
+  });
 });
 
 describe("POST /ticket endpoint (DM-1445)", () => {
@@ -110,6 +139,32 @@ describe("POST /ticket endpoint (DM-1445)", () => {
   it("rejects a missing title with 400", async () => {
     const res = await post(srv!, { title: "", frameTimeMs: 0, rangeStartMs: 0, rangeEndMs: 0 });
     expect(res.status).toBe(400);
+  });
+
+  it("DM-1449: records multiple regions", async () => {
+    const res = await post(srv!, {
+      title: "Two spots", svgName: "anim", frameTimeMs: 0, rangeStartMs: 0, rangeEndMs: 100,
+      regions: [{ x: 1, y: 1, w: 10, h: 10 }, { x: 50, y: 50, w: 20, h: 20 }],
+    });
+    expect(res.status).toBe(200);
+    const { path } = await res.json() as { path: string };
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    expect(parsed.regions).toHaveLength(2);
+    expect(parsed.framePng).toBeNull();
+  });
+
+  it("DM-1449: attachFrame without a usable browser still writes the ticket (framePng null)", async () => {
+    // The stub browser throws, so the frame render fails gracefully — the
+    // ticket is still written, just without a frame PNG.
+    const res = await post(srv!, {
+      title: "No frame", svgName: "anim", frameTimeMs: 0, rangeStartMs: 0, rangeEndMs: 100,
+      attachFrame: true, svg: "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'></svg>",
+    });
+    expect(res.status).toBe(200);
+    const { path, framePng } = await res.json() as { path: string; framePng: string | null };
+    expect(framePng).toBeNull();
+    expect(readdirSync(dir).some((f) => f.endsWith(".png"))).toBe(false);
+    expect(readFileSync(path, "utf-8")).toContain("\"framePng\": null");
   });
 
   it("404s when review mode is not enabled", async () => {
