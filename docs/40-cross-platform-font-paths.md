@@ -60,38 +60,49 @@ resolver gets a real, existing path instead of null. We pass through
 ### Per-platform logical-key mapping
 
 The logical keys are macOS-centric (they're named after the macOS face Chromium
-paints). Each platform maps them to its nearest equivalent. Calibration
-(DM-259 / DM-260) may revise which key handles which block, but the *path* each
-key resolves to is:
+paints). Each platform maps them to its nearest equivalent.
 
-| Logical key(s) | macOS | Linux (fontconfig family) | Windows (file) |
+The Linux column below is the **shipped, calibrated** default mapping
+(`LINUX_FONT_PATHS` in `src/render/font-resolution.ts`), reverse-engineered from
+a Chrome CDP sweep of the Playwright `*-noble` Docker image CI runs against — so
+it's Liberation (sans/serif) + WenQuanYi Zen Hei (mono/CJK) + FreeFont +
+Loma/IPAGothic for the lang-fallback scripts, **not** the DejaVu/Noto set the
+generic `fc-match` substitution would suggest (which is why the originally-drafted
+DejaVu/Noto column was wrong). A mainstream desktop-Linux host with the Noto
+family installed instead resolves the generic primaries to Noto via the opt-in
+**Noto profile overlay** (`LINUX_FONT_PATHS_NOTO`, active when
+`linuxFontProfile() === "noto"`); see `docs/42-cross-platform-fallback-calibration.md`.
+
+| Logical key(s) | macOS | Linux — noble image (`LINUX_FONT_PATHS`) | Windows (file) |
 | --- | --- | --- | --- |
-| `helvetica` (= CSS `sans-serif`) | Helvetica | DejaVu Sans | `arial.ttf` |
+| `helvetica` (= CSS `sans-serif`) | Helvetica | Liberation Sans | `arial.ttf` |
 | `arial` | Arial | Liberation Sans | `arial.ttf` |
-| `times` (= CSS `serif`) | Times | DejaVu Serif | `times.ttf` (Times New Roman) |
+| `times` (= CSS `serif`) | Times | Liberation Serif | `times.ttf` (Times New Roman) |
 | `times-new-roman` | Times New Roman | Liberation Serif | `times.ttf` |
-| `georgia` | Georgia | DejaVu Serif | `georgia.ttf` |
-| `courier` (= CSS `monospace`) | Courier | DejaVu Sans Mono | `cour.ttf` (Courier New) |
-| `menlo` / `monaco` / `sf-mono` | Menlo / Monaco / SF Mono | DejaVu Sans Mono | `consola.ttf` (Consolas) |
-| `sf-pro` (= `system-ui`) | SF Pro | DejaVu Sans | `segoeui.ttf` (Segoe UI) |
-| `cjk` / `pingfang-*` | Hiragino Sans GB / PingFang | Noto Sans CJK {SC,TC,HK} | `msyh.ttc` (YaHei) / `msjh.ttc` (JhengHei) |
-| `cjk-serif` | Songti SC | Noto Serif CJK SC | `simsun.ttc` (SimSun) |
-| `hiragino-jp` | Hiragino Kaku | Noto Sans CJK JP | `YuGothR.ttc` (Yu Gothic) |
-| `korean` | Apple SD Gothic Neo | Noto Sans CJK KR | `malgun.ttf` (Malgun Gothic) |
-| `thai` | Thonburi | Noto Sans Thai | `leeluisl.ttf` (Leelawadee UI Semilight, PS `LeelawadeeUI-Semilight`) |
-| `devanagari` | Kohinoor | Noto Sans Devanagari | `Nirmala.ttc` (Nirmala UI, PS `NirmalaUI`) |
-| `sf-arabic` | Geeza Pro | Noto Sans Arabic | `segoeui.ttf` (Segoe UI) |
-| `sf-hebrew` | SF Hebrew | Noto Sans Hebrew | `segoeui.ttf` (Segoe UI) |
-| `symbols` / `zapf-dingbats` | Apple Symbols / Zapf Dingbats | Noto Sans Symbols 2 | `seguisym.ttf` (Segoe UI Symbol) |
-| `stix-math` | STIX Two Math | STIX Two Math | `cambria.ttc` (Cambria Math) |
-| `lucida-grande` | Lucida Grande | DejaVu Sans | `arial.ttf` |
-| `snell` / `apple-chancery` (= `cursive`) | Snell / Apple Chancery | URW Chancery L | `comic.ttf` (Comic Sans MS) |
+| `georgia` | Georgia | Liberation Serif | `georgia.ttf` |
+| `courier` (= CSS `monospace`) | Courier | WenQuanYi Zen Hei Mono | `cour.ttf` (Courier New) |
+| `menlo` / `monaco` / `sf-mono` | Menlo / Monaco / SF Mono | WenQuanYi Zen Hei Mono | `consola.ttf` (Consolas) |
+| `sf-pro` (= `system-ui`) | SF Pro | Liberation Sans | `segoeui.ttf` (Segoe UI) |
+| `cjk` / `pingfang-*` / `korean` | Hiragino Sans GB / PingFang / Apple SD Gothic | WenQuanYi Zen Hei | `msyh.ttc` (YaHei) / `msjh.ttc` (JhengHei) / `malgun.ttf` |
+| `cjk-serif` | Songti SC | WenQuanYi Zen Hei (no separate serif CJK face) | `simsun.ttc` (SimSun) |
+| `hiragino-jp` | Hiragino Kaku | IPAGothic (`fonts-japanese-gothic.ttf`) | `YuGothR.ttc` (Yu Gothic) |
+| `thai` | Thonburi | Loma (`tlwg/Loma.otf`) | `leeluisl.ttf` (Leelawadee UI Semilight, PS `LeelawadeeUI-Semilight`) |
+| `devanagari` | Kohinoor | FreeSans | `Nirmala.ttc` (Nirmala UI, PS `NirmalaUI`) |
+| `sf-arabic` | Geeza Pro | FreeSerif | `segoeui.ttf` (Segoe UI) |
+| `sf-hebrew` | SF Hebrew | Liberation Sans | `segoeui.ttf` (Segoe UI) |
+| `symbols` / `zapf-dingbats` | Apple Symbols / Zapf Dingbats | FreeSans | `seguisym.ttf` (Segoe UI Symbol) |
+| `stix-math` | STIX Two Math | FreeSerif | `cambria.ttc` (Cambria Math) |
+| `lucida-grande` | Lucida Grande | Liberation Sans | `arial.ttf` |
+| `snell` / `apple-chancery` (= `cursive`) | Snell / Apple Chancery | (fontconfig `cursive`) | `comic.ttf` (Comic Sans MS) |
 | `papyrus` (= `fantasy`) | Papyrus | (fontconfig `fantasy`) | `impact.ttf` (Impact) |
 | `source-serif-pro` | `/Library/Fonts/...` (if installed) | — (unmapped → chain falls through) | — (unmapped → chain falls through) |
 
-Keys with no per-platform entry resolve to `null`, which makes the family chain
-walk to the next candidate — identical to the macOS "font not installed"
-behavior. The macOS-only `extractor: "native"` flag (which routes to the
+Beyond these primaries, the Linux table also carries a generated per-Unicode-block
+route table (`UNICODE_FONT_PATHS_LINUX`, the `u-…` keys — 9 fonts covering
+326/330 blocks on the bare image, dominated by Unifont) plus the Noto-profile
+block routes (`UNICODE_FONT_PATHS_NOTO_LINUX`, the `un-…` keys). Keys with no
+per-platform entry resolve to `null`, which makes the family chain walk to the
+next candidate — identical to the macOS "font not installed" behavior. The macOS-only `extractor: "native"` flag (which routes to the
 CoreText helper) is never set on the Linux / Windows tables; those faces open
 through fontkit like any other file.
 
@@ -121,7 +132,17 @@ through fontkit like any other file.
 
 ## Follow-ups
 
-- DM-259 — calibrate the Linux fallback chain against Chromium-on-Linux painted widths.
-- DM-260 — calibrate the Windows fallback chain against Chromium-on-Windows painted widths.
-- DM-261 — bundle a small OFL fallback set for headless CI environments missing system fonts.
-- DM-262 — wire Linux + Windows visual baselines into CI.
+This doc captures the DM-258 *path-discovery* foundation. The fallback-chain
+calibration that built on it has since shipped — see
+`docs/42-cross-platform-fallback-calibration.md` for the current per-platform
+state:
+
+- Linux fallback chain — **calibrated** against Chromium-on-Linux (the noble-image
+  mapping in the table above; matches Chromium's glyph selection within the
+  documented ≤1% native-hinting floor).
+- Windows fallback chain — **calibrated** against Chromium-on-Windows (≤4% floor).
+- Live per-codepoint system-fallback resolvers — **calibrated and default-on** on
+  all three platforms (macOS CoreText, Linux fontconfig, Windows DirectWrite; see
+  `docs/80-cross-platform-system-fallback-resolver.md`).
+- Remaining roadmap (tracked locally): a Noto desktop-Linux profile refinement and
+  promoting the Linux/Windows visual gates to required CI checks.

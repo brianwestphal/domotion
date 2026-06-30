@@ -73,9 +73,16 @@ easing-suffix       = "[" , easing-name , "]" ;
 easing-name         = "linear" | "ease" | "ease-in" | "ease-out"
                     | "ease-in-out" | "step-start" | "step-end"
                     | cubic-bezier | steps ;
-cubic-bezier        = "cubic-bezier(" , number , "," , number ,
-                      "," , number , "," , number , ")" ;
+cubic-bezier        = "cubic-bezier(" , signed-number , "," , signed-number ,
+                      "," , signed-number , "," , signed-number , ")" ;
+                      (* the y control-point values may be negative — an
+                         overshoot/anticipation curve like
+                         cubic-bezier(0.5, -0.5, 0.5, 1.5) is valid, matching
+                         CSS. The parser accepts a leading sign on every
+                         argument. *)
 steps               = "steps(" , integer , [ "," , step-position ] , ")" ;
+                      (* `integer` is unsigned: the count must be a positive
+                         integer (a leading "-" is consumed but then rejected). *)
 step-position       = "jump-start" | "jump-end" | "jump-none"
                     | "jump-both" | "start" | "end" ;
 
@@ -99,6 +106,9 @@ speed               = number , "pxps" ;
                          argument (after the `@` marker). *)
 
 number              = digit , { digit } , [ "." , digit , { digit } ] ;
+signed-number       = [ "+" | "-" ] , number ;
+                      (* only the `cubic-bezier(...)` arguments are signed;
+                         lengths carry their sign via `signed-length`. *)
 digit               = "0" | "1" | "2" | "3" | "4" | "5" | "6"
                     | "7" | "8" | "9" ;
 
@@ -119,7 +129,7 @@ There is no global axis parameter. Each action resolves its own axis at execute 
 3. Otherwise (bare delta with no prefix and no anchor):
    - Defaults to `down:` (vertical, positive = down).
 
-`down:-100px` ≡ `up:100px`. Magnitude is taken as `abs`; the direction prefix wins.
+`down:-100px` ≡ `up:100px`. A signed delta magnitude **composes with the direction prefix by sign-multiplication** — it does *not* take the magnitude as `abs` with the prefix unconditionally winning. The resolved delta is `prefixSign × signedMagnitude`, where the prefix sign is `+1` for `down` / `right`, `-1` for `up` / `left`, and `+1` (default `down`) when no prefix is present (`resolveScrollAction` in `src/scroll/executor.ts`). So a negative magnitude **reverses** the prefix's direction: `down:-100px` resolves to a delta of `+1 × (−100) = −100` and `up:100px` to `−1 × 100 = −100` — both scroll up 100, which is why they're equivalent.
 
 Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horizontal anchor) are validator errors at parse-after-resolve time, not grammar errors.
 
