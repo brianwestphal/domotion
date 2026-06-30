@@ -1424,6 +1424,80 @@ function paintBorder(
 // has rounded corners); double/dashed/dotted sides become clipped <line>s. Mints
 // many per-side clip ids via ctx. Extracted verbatim from paintBorder (DM-1342) —
 // byte-identical (only `'\''` comment-escape artifacts cleaned to `'`).
+/**
+ * Emit ONE per-side border (extracted from `paintPerSideBorder`'s main emit
+ * loop, DM-1458; called once per side index). Solid sides without a rounded
+ * corner paint as a mitered trapezoid <polygon>; `double` sides paint two
+ * parallel inset/outset <line> strokes; dashed / dotted / solid-collapsed sides
+ * paint a single <line> with the right dash + linecap. Sides with a rounded
+ * outer corner are skipped here — they were already emitted as annular wedges
+ * by the caller. Body unchanged (the loop's `continue` becomes an early
+ * `return`), so output is byte-identical.
+ */
+function emitBorderSide(
+  ctx: PaintCtx,
+  indent: string,
+  i: number,
+  sides: Array<[ReturnType<typeof parseSide>, number, number, number, number, number]>,
+  trapezoids: Array<[ReturnType<typeof parseSide>, string]>,
+  doubleSides: Array<[number, number, number, number]>,
+  useTrapezoid: (side: ReturnType<typeof parseSide>) => boolean,
+  hasOuterRadius: boolean,
+  sideClipForStyle: (i: number, side: ReturnType<typeof parseSide>) => string,
+): void {
+  const [side, x1, y1, x2, y2, len] = sides[i];
+  if (side == null || side.w <= 0 || side.color.a < 0.01) return;
+  if (side.style === "none" || side.style === "hidden") return;
+  if (useTrapezoid(side)) {
+    // DM-773: solid sides with rounded corners already emitted as
+    // annular wedges above (geometry-correct for any radius). Skip
+    // the legacy trapezoid emit so we don't double-paint.
+    if (hasOuterRadius) return;
+    // Emit as a polygon trapezoid that tapers correctly at corners.
+    ctx.svgParts.push(
+      `${indent}<polygon points="${trapezoids[i][1]}" fill="${colorStr(side.color)}" />`,
+    );
+    return;
+  }
+  if (side.style === "double" && side.w >= 3) {
+    // Two parallel strokes, each w/3 wide, separated by a w/3 gap.
+    // Outer stroke center sits at (sideCenter + outerNormal * w/3),
+    // inner at (sideCenter + innerNormal * w/3). Each stroke = w/3 thick.
+    // DM-689: works in both collapse and non-collapse modes — the
+    // `(x1, y1) → (x2, y2)` side endpoints are already collapse-aware
+    // upstream (inset=0 puts the side centerline ON the cell's grid
+    // edge in collapse mode), so adding the ±w/3 perpendicular
+    // offsets lands the outer stroke 1/3 of the way past the edge
+    // and the inner stroke 1/3 of the way inside — matching Blink's
+    // `CollapsedBorderPainter::PaintCollapsedDoubleBorder`.
+    const strokeW = side.w / 3;
+    const offset_ = side.w / 3;
+    const [oxN, oyN, ixN, iyN] = doubleSides[i];
+    const ox = oxN * offset_, oy = oyN * offset_;
+    const ix = ixN * offset_, iy = iyN * offset_;
+    const clipAttr = sideClipForStyle(i, side);
+    ctx.svgParts.push(
+      `${indent}<line x1="${r(x1 + ox)}" y1="${r(y1 + oy)}" x2="${r(x2 + ox)}" y2="${r(y2 + oy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
+    );
+    ctx.svgParts.push(
+      `${indent}<line x1="${r(x1 + ix)}" y1="${r(y1 + iy)}" x2="${r(x2 + ix)}" y2="${r(y2 + iy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
+    );
+    return;
+  }
+  const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
+  // Dotted uses `0.01 period` dasharray that needs round linecaps to
+  // render as circles (DM-399). Chromium'\\'s BoxBorderPainter draws
+  // dotted as "0 length dash strokes and round endcaps, producing
+  // circles" (verified via Chromium source). Dashed keeps default
+  // butt caps so the dash:gap ratio paints flat-ended rectangles.
+  const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+  const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
+  const clipAttr = sideClipForStyle(i, side);
+  ctx.svgParts.push(
+    `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
+  );
+}
+
 function paintPerSideBorder(
   ctx: PaintCtx,
   el: CapturedElement,
@@ -1631,57 +1705,7 @@ function paintPerSideBorder(
       roundedSideGroupOpen = true;
     }
     for (let i = 0; i < sides.length; i++) {
-      const [side, x1, y1, x2, y2, len] = sides[i];
-      if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
-      if (side.style === "none" || side.style === "hidden") continue;
-      if (useTrapezoid(side)) {
-        // DM-773: solid sides with rounded corners already emitted as
-        // annular wedges above (geometry-correct for any radius). Skip
-        // the legacy trapezoid emit so we don't double-paint.
-        if (hasOuterRadius) continue;
-        // Emit as a polygon trapezoid that tapers correctly at corners.
-        ctx.svgParts.push(
-          `${indent}<polygon points="${trapezoids[i][1]}" fill="${colorStr(side.color)}" />`,
-        );
-        continue;
-      }
-      if (side.style === "double" && side.w >= 3) {
-        // Two parallel strokes, each w/3 wide, separated by a w/3 gap.
-        // Outer stroke center sits at (sideCenter + outerNormal * w/3),
-        // inner at (sideCenter + innerNormal * w/3). Each stroke = w/3 thick.
-        // DM-689: works in both collapse and non-collapse modes — the
-        // `(x1, y1) → (x2, y2)` side endpoints are already collapse-aware
-        // upstream (inset=0 puts the side centerline ON the cell's grid
-        // edge in collapse mode), so adding the ±w/3 perpendicular
-        // offsets lands the outer stroke 1/3 of the way past the edge
-        // and the inner stroke 1/3 of the way inside — matching Blink's
-        // `CollapsedBorderPainter::PaintCollapsedDoubleBorder`.
-        const strokeW = side.w / 3;
-        const offset_ = side.w / 3;
-        const [oxN, oyN, ixN, iyN] = doubleSides[i];
-        const ox = oxN * offset_, oy = oyN * offset_;
-        const ix = ixN * offset_, iy = iyN * offset_;
-        const clipAttr = sideClipForStyle(i, side);
-        ctx.svgParts.push(
-          `${indent}<line x1="${r(x1 + ox)}" y1="${r(y1 + oy)}" x2="${r(x2 + ox)}" y2="${r(y2 + oy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
-        );
-        ctx.svgParts.push(
-          `${indent}<line x1="${r(x1 + ix)}" y1="${r(y1 + iy)}" x2="${r(x2 + ix)}" y2="${r(y2 + iy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
-        );
-        continue;
-      }
-      const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
-      // Dotted uses `0.01 period` dasharray that needs round linecaps to
-      // render as circles (DM-399). Chromium'\\'s BoxBorderPainter draws
-      // dotted as "0 length dash strokes and round endcaps, producing
-      // circles" (verified via Chromium source). Dashed keeps default
-      // butt caps so the dash:gap ratio paints flat-ended rectangles.
-      const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
-      const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
-      const clipAttr = sideClipForStyle(i, side);
-      ctx.svgParts.push(
-        `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
-      );
+      emitBorderSide(ctx, indent, i, sides, trapezoids, doubleSides, useTrapezoid, hasOuterRadius, sideClipForStyle);
     }
     if (roundedSideGroupOpen) ctx.svgParts.push(`${indent}</g>`);
 }
