@@ -3461,293 +3461,52 @@ function renderChildren(
 }
 
 
-function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
-  const {
-    svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
-    hoistedFromAncestor, overflowClipForHoisted, overflowClipPathIds, offGridCollapsedCells,
-  } = state;
-  const indent = "  ".repeat(depth);
-  const bgColor = parseColor(el.styles.backgroundColor);
-  const textColor = parseColor(el.styles.color);
-  const borderColor = parseColor(el.styles.borderColor);
-  const borderWidth = parseFloat(el.styles.borderWidth) || 0;
-  // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
-  // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
-  // "50px 20px" for elliptical corners). Each corner can independently be
-  // round or elliptical and have a different radius from its neighbours
-  // (CSS `border-radius: 10px 30px 50px 70px` maps to TL=10, TR=30, BR=50,
-  // BL=70). When all four corners are equal-and-circular, the renderer
-  // emits `<rect rx>`; otherwise it emits an SVG `<path>` with explicit
-  // per-corner arc commands via roundedRectSvg. `borderRadius` below is the
-  // single-value fallback used by the few call sites that still emit a bare
-  // `<rect rx>` directly — they degrade to sharp corners on non-uniform
-  // captures, which is acceptable for now. DM-246 (the half-extent clamp
-  // for the uniform fast path) is preserved by `roundedRectSvg`.
-  const corners = parseCornerRadii(el.styles, el.width, el.height);
-  const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
-  const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
-  const opacity = parseFloat(el.styles.opacity);
-
-  if (opacity === 0) return;
-  // empty-cells: hide — suppress bg + border on empty <td>/<th>.
-  const suppressEmptyCell = el.styles.emptyCellsHidden === true;
-  // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3
-  // §3.7 box-decoration-break): capture stashes per-fragment rects in
-  // `el.inlineFragments`. When set, paint the background + border per
-  // fragment instead of once across the bbox. `slice` (default) cuts the
-  // box at fragment boundaries — the first fragment owns the left side and
-  // the last owns the right; middle fragments paint only top + bottom.
-  // `clone` paints a complete box on every fragment.
-  const useInlineFragments = el.inlineFragments != null && el.inlineFragments.length > 1;
-
-  // Element opacity applies to the background, border, text, and all descendants.
-  // Emit a group wrapper when opacity < 1 so the whole subtree tints uniformly.
-  // Also open a group to host CSS filter / mix-blend-mode — both are honored by
-  // the browser's SVG renderer when passed through as inline styles, so we
-  // don't need to translate filter functions into <filter> elements.
-  // backdrop-filter has no equivalent in img-rendered SVG; it's captured but
-  // not emitted (documented limitation).
-  const filterCss = el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
-  const blendCss = el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
-  // clip-path: translate common CSS shape functions into an SVG <clipPath>
-  // anchored at the element's absolute (x, y). A verbatim style-passthrough
-  // does NOT work because CSS clip-path uses the element's local coord space
-  // while our SVG group is drawn in absolute viewport coords, so a
-  // 'circle(50% at center)' would clip around the viewport origin instead.
+/**
+ * Resolve the element's effective clip-path id (extracted from `renderElement`,
+ * DM-1458). Priority: a translated CSS `clip-path` shape → an inline `<clipPath>`
+ * fragment ref (`clip-path: url(#id)`) → otherwise the overflow clip. Per CSS
+ * Masking §5.1 a CSS clip-path replaces overflow clipping, so the overflow clip
+ * is only consulted when no clip-path applies. Returns the id to reference (the
+ * def is pushed into `<defs>` as a side effect) or null.
+ *
+ * CSS clip-path can't be passed through verbatim: it's authored in the element's
+ * local coord space while our `<g>` paints in absolute viewport coords, so the
+ * shape is translated + anchored at the element's (x, y). The optional
+ * `<geometry-box>` keyword (DM-818) is handled inside `clipPathShapeForElement`.
+ */
+function resolveClipPath(state: RenderState, el: CapturedElement): string | null {
+  const { paintCtx, defsParts } = state;
   const clipPathCss = el.styles.clipPath && el.styles.clipPath !== "none" ? el.styles.clipPath : "";
   let clipPathUrlId: string | null = null;
   if (clipPathCss !== "") {
-    // DM-818: CSS clip-path accepts an optional `<geometry-box>` keyword
-    // (`content-box` / `padding-box` / `border-box` / `margin-box` /
-    // `fill-box` / `stroke-box` / `view-box`) that specifies which box
-    // the shape is positioned relative to. Strip it before passing the
-    // value to the shape translator and inset (x, y, w, h) accordingly.
-    // `border-box` is the default and matches the captured element rect
-    // — no inset. We don't model margin-box / fill-box / stroke-box /
-    // view-box explicitly; the first falls back to border-box (close
-    // enough for the html-test fixtures), the SVG-specific ones don't
-    // apply to HTML elements.
     const shape = clipPathShapeForElement(el, clipPathCss);
     if (shape !== "") {
       clipPathUrlId = paintCtx.nextClipId("cp");
       defsParts.push(`<clipPath id="${clipPathUrlId}">${shape}</clipPath>`);
     } else {
       // DM-826: shape translator returned "" — try the inline-`<clipPath>`
-      // fragment-ref path next. `clip-path: url(#id)` resolves against the
-      // top-level `clipPathDefs` collected at capture time; the def is
-      // emitted into `<defs>` once and the masked element's wrapper `<g>`
-      // gets `clip-path="url(#${outId})"`. See docs/39.
+      // fragment-ref path (`clip-path: url(#id)` against the captured
+      // `clipPathDefs`). See docs/39.
       const fragId = resolveFragmentClipPathRef(state, clipPathCss, el.x, el.y);
       if (fragId != null) clipPathUrlId = fragId;
     }
   }
-  // DM-587: overflow != visible on either axis clips painted descendants
-  // at the element's box. Chrome's captured tree faithfully records every
-  // descendant rect even when it extends past an ancestor's box (e.g. the
-  // Stripe `payments-graphic__checkout-payment-methods-item-label--card`
-  // is a 22×6 box that flex-stacks multiple language-variant siblings
-  // horizontally under `transform: scale(0.69)`; only the active-language
-  // variant is meant to be visible). Without this clip the SVG painted
-  // every variant on top of one another. clip-path takes priority when
-  // both are present (CSS clip-path replaces overflow clipping per CSS
-  // Masking 1 §5.1); border-radius rounding of the overflow rect is a
-  // deliberate omission — rare in practice on elements small enough for
-  // the bug to matter.
+  // DM-587: overflow != visible clips painted descendants at the element's box;
+  // clip-path takes priority when both are present (CSS Masking §5.1).
   if (clipPathUrlId == null) clipPathUrlId = resolveOverflowClipId(state, el);
-  const maskUrlId = renderMaskPhase(state, el);
-  // CSS 2D transform (SK-1134): wrap the elements rendered group in
-  // <g transform=...> composed around the resolved transform-origin in
-  // viewport coords. transform-origin is reported by Chrome in pixels
-  // relative to the elements border box (e.g. "0px 0px" for top-left,
-  // "Npx Mpx" for the 50%-50% default). Add el.x/el.y to convert to the
-  // viewport coordinate system the SVG draws in. Chrome resolves every
-  // CSS transform function to a matrix in computed style, so we only
-  // need to translate matrix() / matrix3d() into SVG syntax.
-  const { needsGroup, groupAttrs, animClass, needsFilterOuter } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
-  const opened = needsGroup;
-  if (needsFilterOuter) svgParts.push(`${indent}<g style="${esc(`filter:${filterCss}`)}">`);
-  if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
-  // Inner anim-class wrapper sits INSIDE any visibility/transform group so
-  // the merger's class (added on the outer group) and our anim class can
-  // each carry their own `animation` shorthand without clobbering.
-  if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
+  return clipPathUrlId;
+}
 
-  // Inline-fragment paint: when the element wraps across multiple line
-  // boxes and the bbox-based paint would smear background + border across
-  // the whole logical inline (typically the full container width), paint
-  // each line fragment individually. The remaining bbox-based emissions
-  // (outset shadow, bg color, bg image, inset shadow, border-image,
-  // border) are gated below on `!useInlineFragments` so they don't double
-  // up. Outline still paints around the bbox — it's outside the box and
-  // CSS doesn't fragment it per inline line box.
-  if (useInlineFragments) {
-    renderInlineFragments(state, el, indent, bgColor, corners);
-  }
-
-  // Outset box-shadow (SK-1101 + SK-1113): paints BENEATH the element box.
-  // CSS spec says the first shadow in the list is closest to the element;
-  // later shadows sit further behind. SVG paints later in document order,
-  // so to get the same stacking we iterate the list in REVERSE (deepest
-  // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
-  // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
-  if (!useInlineFragments) {
-    paintBoxShadow(paintCtx, el, corners, indent);
-  }
-
-  // Background rect(s). CSS lets backgrounds stack via background-image with
-  // a comma-separated list of linear/radial gradients and url() images. The
-  // first layer paints on top — we emit in reverse so the rect order matches
-  // CSS layering. The background-color paints *under* all layers.
-  svgParts.push(...paintBackgroundColor(el, corners, indent, bgColor, useInlineFragments, suppressEmptyCell));
-  // DM-462: when the element uses `background-clip: text`, the first
-  // text-clipped layer's gradient/image is captured here and used as the
-  // fill on the text glyph group (instead of painting it as a normal
-  // <rect fill=url(#bg)> over the headline area). Initialized to null and
-  // assigned in the bg-layer loop below.
-  // DM-696: multiple `background-clip: text` layers must all composite into
-  // the glyph shapes (top layer on top of lower layers, same as CSS bg
-  // layering on a normal box). Collect them in CSS-source order (layer 0
-  // = topmost) and emit each as its own masked rect at render time, in
-  // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
-  // on top.
-  // Background-image layers + the background-clip:text fills consumed by paintText.
-  const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport);
-
-  // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
-  // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
-  // box shifted by (x, y) and inset by `spread` on each side. The shadow
-  // paints inside the padding box BUT OUTSIDE the shadow shape — like a
-  // donut whose hole is the shadow shape. With offset, the donut becomes
-  // asymmetric (e.g. `inset 0 -16px 32px` darkens the bottom strip and
-  // fades upward); with pure spread, it becomes a uniform ring; with pure
-  // blur centered, it becomes a soft inner glow.
-  //
-  // Implementation: emit two subpaths with `fill-rule="evenodd"` — outer =
-  // padding box expanded outward by enough margin to contain the blur
-  // halo, inner = padding box shifted by (sh.x, sh.y) and inset by
-  // sh.spread on each side. Apply Gaussian blur (stdDev = blur/2). Clip
-  // the whole thing to the padding box so the outer-margin overflow and
-  // the parts of the halo outside the box don't leak.
-  if (!useInlineFragments) {
-    paintInsetBoxShadow(paintCtx, el, corners, indent);
-  }
-
-  {
-    paintBorder(paintCtx, el, indent, corners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
-  }
-
-  // Outline (SK-1111): drawn outside the border-box and shifted further out
-  // by outline-offset (which can be negative). Doesn't take layout space —
-  // the captured rect is the border-box, so we inflate from that. Outline
-  // styles (solid / dashed / dotted) reuse dashArrayForStyle.
-  svgParts.push(...paintOutline(el, borderRadius, indent));
-
-  // Inline SVG content (see paintInlineSvg). A replaced element's SVG content
-  // is its entire paint, so when present we push the content, close the
-  // wrapper groups opened above (animClass + opacity/transform/clip/mask
-  // group, plus the DM-704 filter-outer wrapper) and return — otherwise an
-  // inline-SVG element with e.g. `opacity < 1` would emit an unbalanced <g>
-  // and break the document (observable on resend/stripe nav chevrons).
-  {
-    const _isvg = paintInlineSvg(el, indent);
-    if (_isvg.handled) {
-      svgParts.push(..._isvg.svg);
-      if (animClass !== "") svgParts.push(`${indent}</g>`);
-      if (opened) svgParts.push(`${indent}</g>`);
-      if (needsFilterOuter) svgParts.push(`${indent}</g>`);
-      return;
-    }
-  }
-
-  // Form control chrome (checkbox, radio, range, color, progress, meter,
-  // select chevron, details disclosure). Paints on top of the element's
-  // bg/border so the UA-default visuals are synthesized where the bare
-  // capture missed them. Styled controls (author-set background/border)
-  // still look like bare rects — the common case where authors match
-  // Chromium defaults is handled here.
-  const fc = renderFormControl(el, indent, defCtx);
-  if (fc !== "") svgParts.push(fc);
-
-  // Broken-image fallback (DM-372): a placeholder icon + alt text when an
-  // <img> failed to load. See paintBrokenImage.
-  if (el.tag === "img" && el.imageBroken === true) {
-    svgParts.push(...paintBrokenImage(el, textColor, indent));
-  } else
-  // Image (<img> or <input type="image">)
-  if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
-    paintImage(paintCtx, el, borderRadius, corners, indent);
-  }
-
-  // Rasterized snapshot for <canvas> / <video> / <iframe> / <object> /
-  // <embed> (DM-457; DM-598 guards against double-paint when an <img> also
-  // carries a snapshot). See paintRasterSnapshot for the full rationale.
-  svgParts.push(...paintRasterSnapshot(el, indent));
-
-  // List marker — render list-style-image at the marker position for <li>
-  // elements. Per CSS spec, the marker image paints at its INTRINSIC size
-  // (not scaled to fontSize). The li's own height is stretched by Chromium
-  // to accommodate the marker, which means el.height for a large-image
-  // marker is big — we position the marker vertically centered in the first
-  // line box (top of li) and let it overflow left for outside markers.
-  // <summary> has UA `display: list-item` with list-style-type
-  // `disclosure-closed`/`disclosure-open` — those are painted by the
-  // renderDetailsMarker pipeline on the <details> parent (DM-448), so
-  // skip the generic list-item marker here to avoid double-painting.
-  //
-  // DM-597: marker paints when the element's `display` is `list-item` —
-  // NOT just because the tag is `<li>`. Slashdot's social-icon strip uses
-  // `<li>` with `display: inline-block` (no marker per CSS spec). The
-  // previous `tag === "li" || ...` check painted spurious bullets in
-  // front of every social icon.
-  svgParts.push(...paintListMarker(el, textColor, indent));
-
-  // CSS paint order: floats paint AFTER block descendants but BEFORE the
-  // parent's inline content. The "inline content" here is `el.text` — when
-  // a paragraph has a `float: left` span followed by text and the span's
-  // `shape-outside` lets text wrap into the float's bounding box, the text
-  // should paint ON TOP of the float (not be covered by it).
-  //
-  // Only hoist floats when this element actually has its own text. If we
-  // hoisted floats unconditionally, a parent like `<main>` whose children
-  // are all blocks (search/article/figure) plus a float (aside) would
-  // paint the aside FIRST and then the block siblings would cover it.
-  // Letting the float fall through to the normal child sort puts it last
-  // (= on top of preceding block siblings) — matching Chrome for that case.
-  const hasOwnText = el.text !== "";
-  const floatChildren: CapturedElement[] = [];
-  const nonFloatChildren: CapturedElement[] = [];
-  if (hasOwnText) {
-    for (const c of el.children) {
-      const flt = c.styles.float ?? "none";
-      const pos = c.styles.position;
-      const positioned = pos != null && pos !== "static";
-      if (!positioned && flt !== "none") floatChildren.push(c);
-      else nonFloatChildren.push(c);
-    }
-    for (const child of floatChildren) {
-      renderElement(state, child, depth + 1, el.styles.display);
-    }
-  }
-
-  // Pseudo-element image content (::before / ::after with content: url(...)).
-  // CSS atomic-inline-box paint order: the ::before's replaced-element box
-  // paints BEFORE the parent's main-text inline content in the same line,
-  // so subsequent text appears on top of any image overflow. Painting after
-  // text put our SVG circles ON TOP of the paragraph in the 24-generated-content
-  // fixture (DM-440 user feedback: 'z-index of svg is wrong'). Move the
-  // emit ahead of the text block so text reliably wins z.
-  if (el.pseudoImages != null) {
-    for (const pi of el.pseudoImages) {
-      svgParts.push(`${indent}<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
-    }
-  }
-  // Box-only pseudo-elements (DM-579): empty-content `::before` / `::after`
-  // with non-zero borders or background act as decorative separators /
-  // overlays. Capture pass records their effective rect + per-side
-  // borders; we emit one `<rect>` for the background fill (if any) plus
-  // up to four `<line>`s for the visible border sides. Per-side colors /
-  // widths can differ so we can't collapse them into a single
-  // stroke="..." attribute the way the regular-element border path does.
+/**
+ * Paint an element's box-only pseudo-elements (`::before` / `::after` with no
+ * text content but borders / background / a CSS-triangle / a transform — DM-579),
+ * in inline paint position. Extracted from `renderElement` (DM-1458). A
+ * fade-overlay `::after` (gradient bg, no own color/border, non-negative z) is
+ * deferred by the caller to after child recursion so it wins z over child text;
+ * everything else paints here. Body unchanged, so output is byte-identical.
+ */
+function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: string): void {
+  const { paintCtx, defsParts, svgParts, captureViewport } = state;
   if (el.pseudoBoxes != null) {
     for (const pb of el.pseudoBoxes) {
       // DM-1001: defer the FADE-OVERLAY `::after` pattern to AFTER all
@@ -3983,6 +3742,252 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
       flushPbTransformWrap();
     }
   }
+}
+
+function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string): void {
+  const {
+    svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
+    hoistedFromAncestor, overflowClipForHoisted, overflowClipPathIds, offGridCollapsedCells,
+  } = state;
+  const indent = "  ".repeat(depth);
+  const bgColor = parseColor(el.styles.backgroundColor);
+  const textColor = parseColor(el.styles.color);
+  const borderColor = parseColor(el.styles.borderColor);
+  const borderWidth = parseFloat(el.styles.borderWidth) || 0;
+  // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
+  // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
+  // "50px 20px" for elliptical corners). Each corner can independently be
+  // round or elliptical and have a different radius from its neighbours
+  // (CSS `border-radius: 10px 30px 50px 70px` maps to TL=10, TR=30, BR=50,
+  // BL=70). When all four corners are equal-and-circular, the renderer
+  // emits `<rect rx>`; otherwise it emits an SVG `<path>` with explicit
+  // per-corner arc commands via roundedRectSvg. `borderRadius` below is the
+  // single-value fallback used by the few call sites that still emit a bare
+  // `<rect rx>` directly — they degrade to sharp corners on non-uniform
+  // captures, which is acceptable for now. DM-246 (the half-extent clamp
+  // for the uniform fast path) is preserved by `roundedRectSvg`.
+  const corners = parseCornerRadii(el.styles, el.width, el.height);
+  const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
+  const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
+  const opacity = parseFloat(el.styles.opacity);
+
+  if (opacity === 0) return;
+  // empty-cells: hide — suppress bg + border on empty <td>/<th>.
+  const suppressEmptyCell = el.styles.emptyCellsHidden === true;
+  // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3
+  // §3.7 box-decoration-break): capture stashes per-fragment rects in
+  // `el.inlineFragments`. When set, paint the background + border per
+  // fragment instead of once across the bbox. `slice` (default) cuts the
+  // box at fragment boundaries — the first fragment owns the left side and
+  // the last owns the right; middle fragments paint only top + bottom.
+  // `clone` paints a complete box on every fragment.
+  const useInlineFragments = el.inlineFragments != null && el.inlineFragments.length > 1;
+
+  // Element opacity applies to the background, border, text, and all descendants.
+  // Emit a group wrapper when opacity < 1 so the whole subtree tints uniformly.
+  // Also open a group to host CSS filter / mix-blend-mode — both are honored by
+  // the browser's SVG renderer when passed through as inline styles, so we
+  // don't need to translate filter functions into <filter> elements.
+  // backdrop-filter has no equivalent in img-rendered SVG; it's captured but
+  // not emitted (documented limitation).
+  const filterCss = el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
+  const blendCss = el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
+  const clipPathUrlId = resolveClipPath(state, el);
+  const maskUrlId = renderMaskPhase(state, el);
+  // CSS 2D transform (SK-1134): wrap the elements rendered group in
+  // <g transform=...> composed around the resolved transform-origin in
+  // viewport coords. transform-origin is reported by Chrome in pixels
+  // relative to the elements border box (e.g. "0px 0px" for top-left,
+  // "Npx Mpx" for the 50%-50% default). Add el.x/el.y to convert to the
+  // viewport coordinate system the SVG draws in. Chrome resolves every
+  // CSS transform function to a matrix in computed style, so we only
+  // need to translate matrix() / matrix3d() into SVG syntax.
+  const { needsGroup, groupAttrs, animClass, needsFilterOuter } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  const opened = needsGroup;
+  if (needsFilterOuter) svgParts.push(`${indent}<g style="${esc(`filter:${filterCss}`)}">`);
+  if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
+  // Inner anim-class wrapper sits INSIDE any visibility/transform group so
+  // the merger's class (added on the outer group) and our anim class can
+  // each carry their own `animation` shorthand without clobbering.
+  if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
+
+  // Inline-fragment paint: when the element wraps across multiple line
+  // boxes and the bbox-based paint would smear background + border across
+  // the whole logical inline (typically the full container width), paint
+  // each line fragment individually. The remaining bbox-based emissions
+  // (outset shadow, bg color, bg image, inset shadow, border-image,
+  // border) are gated below on `!useInlineFragments` so they don't double
+  // up. Outline still paints around the bbox — it's outside the box and
+  // CSS doesn't fragment it per inline line box.
+  if (useInlineFragments) {
+    renderInlineFragments(state, el, indent, bgColor, corners);
+  }
+
+  // Outset box-shadow (SK-1101 + SK-1113): paints BENEATH the element box.
+  // CSS spec says the first shadow in the list is closest to the element;
+  // later shadows sit further behind. SVG paints later in document order,
+  // so to get the same stacking we iterate the list in REVERSE (deepest
+  // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
+  // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
+  if (!useInlineFragments) {
+    paintBoxShadow(paintCtx, el, corners, indent);
+  }
+
+  // Background rect(s). CSS lets backgrounds stack via background-image with
+  // a comma-separated list of linear/radial gradients and url() images. The
+  // first layer paints on top — we emit in reverse so the rect order matches
+  // CSS layering. The background-color paints *under* all layers.
+  svgParts.push(...paintBackgroundColor(el, corners, indent, bgColor, useInlineFragments, suppressEmptyCell));
+  // DM-462: when the element uses `background-clip: text`, the first
+  // text-clipped layer's gradient/image is captured here and used as the
+  // fill on the text glyph group (instead of painting it as a normal
+  // <rect fill=url(#bg)> over the headline area). Initialized to null and
+  // assigned in the bg-layer loop below.
+  // DM-696: multiple `background-clip: text` layers must all composite into
+  // the glyph shapes (top layer on top of lower layers, same as CSS bg
+  // layering on a normal box). Collect them in CSS-source order (layer 0
+  // = topmost) and emit each as its own masked rect at render time, in
+  // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
+  // on top.
+  // Background-image layers + the background-clip:text fills consumed by paintText.
+  const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport);
+
+  // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
+  // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
+  // box shifted by (x, y) and inset by `spread` on each side. The shadow
+  // paints inside the padding box BUT OUTSIDE the shadow shape — like a
+  // donut whose hole is the shadow shape. With offset, the donut becomes
+  // asymmetric (e.g. `inset 0 -16px 32px` darkens the bottom strip and
+  // fades upward); with pure spread, it becomes a uniform ring; with pure
+  // blur centered, it becomes a soft inner glow.
+  //
+  // Implementation: emit two subpaths with `fill-rule="evenodd"` — outer =
+  // padding box expanded outward by enough margin to contain the blur
+  // halo, inner = padding box shifted by (sh.x, sh.y) and inset by
+  // sh.spread on each side. Apply Gaussian blur (stdDev = blur/2). Clip
+  // the whole thing to the padding box so the outer-margin overflow and
+  // the parts of the halo outside the box don't leak.
+  if (!useInlineFragments) {
+    paintInsetBoxShadow(paintCtx, el, corners, indent);
+  }
+
+  {
+    paintBorder(paintCtx, el, indent, corners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
+  }
+
+  // Outline (SK-1111): drawn outside the border-box and shifted further out
+  // by outline-offset (which can be negative). Doesn't take layout space —
+  // the captured rect is the border-box, so we inflate from that. Outline
+  // styles (solid / dashed / dotted) reuse dashArrayForStyle.
+  svgParts.push(...paintOutline(el, borderRadius, indent));
+
+  // Inline SVG content (see paintInlineSvg). A replaced element's SVG content
+  // is its entire paint, so when present we push the content, close the
+  // wrapper groups opened above (animClass + opacity/transform/clip/mask
+  // group, plus the DM-704 filter-outer wrapper) and return — otherwise an
+  // inline-SVG element with e.g. `opacity < 1` would emit an unbalanced <g>
+  // and break the document (observable on resend/stripe nav chevrons).
+  {
+    const _isvg = paintInlineSvg(el, indent);
+    if (_isvg.handled) {
+      svgParts.push(..._isvg.svg);
+      if (animClass !== "") svgParts.push(`${indent}</g>`);
+      if (opened) svgParts.push(`${indent}</g>`);
+      if (needsFilterOuter) svgParts.push(`${indent}</g>`);
+      return;
+    }
+  }
+
+  // Form control chrome (checkbox, radio, range, color, progress, meter,
+  // select chevron, details disclosure). Paints on top of the element's
+  // bg/border so the UA-default visuals are synthesized where the bare
+  // capture missed them. Styled controls (author-set background/border)
+  // still look like bare rects — the common case where authors match
+  // Chromium defaults is handled here.
+  const fc = renderFormControl(el, indent, defCtx);
+  if (fc !== "") svgParts.push(fc);
+
+  // Broken-image fallback (DM-372): a placeholder icon + alt text when an
+  // <img> failed to load. See paintBrokenImage.
+  if (el.tag === "img" && el.imageBroken === true) {
+    svgParts.push(...paintBrokenImage(el, textColor, indent));
+  } else
+  // Image (<img> or <input type="image">)
+  if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
+    paintImage(paintCtx, el, borderRadius, corners, indent);
+  }
+
+  // Rasterized snapshot for <canvas> / <video> / <iframe> / <object> /
+  // <embed> (DM-457; DM-598 guards against double-paint when an <img> also
+  // carries a snapshot). See paintRasterSnapshot for the full rationale.
+  svgParts.push(...paintRasterSnapshot(el, indent));
+
+  // List marker — render list-style-image at the marker position for <li>
+  // elements. Per CSS spec, the marker image paints at its INTRINSIC size
+  // (not scaled to fontSize). The li's own height is stretched by Chromium
+  // to accommodate the marker, which means el.height for a large-image
+  // marker is big — we position the marker vertically centered in the first
+  // line box (top of li) and let it overflow left for outside markers.
+  // <summary> has UA `display: list-item` with list-style-type
+  // `disclosure-closed`/`disclosure-open` — those are painted by the
+  // renderDetailsMarker pipeline on the <details> parent (DM-448), so
+  // skip the generic list-item marker here to avoid double-painting.
+  //
+  // DM-597: marker paints when the element's `display` is `list-item` —
+  // NOT just because the tag is `<li>`. Slashdot's social-icon strip uses
+  // `<li>` with `display: inline-block` (no marker per CSS spec). The
+  // previous `tag === "li" || ...` check painted spurious bullets in
+  // front of every social icon.
+  svgParts.push(...paintListMarker(el, textColor, indent));
+
+  // CSS paint order: floats paint AFTER block descendants but BEFORE the
+  // parent's inline content. The "inline content" here is `el.text` — when
+  // a paragraph has a `float: left` span followed by text and the span's
+  // `shape-outside` lets text wrap into the float's bounding box, the text
+  // should paint ON TOP of the float (not be covered by it).
+  //
+  // Only hoist floats when this element actually has its own text. If we
+  // hoisted floats unconditionally, a parent like `<main>` whose children
+  // are all blocks (search/article/figure) plus a float (aside) would
+  // paint the aside FIRST and then the block siblings would cover it.
+  // Letting the float fall through to the normal child sort puts it last
+  // (= on top of preceding block siblings) — matching Chrome for that case.
+  const hasOwnText = el.text !== "";
+  const floatChildren: CapturedElement[] = [];
+  const nonFloatChildren: CapturedElement[] = [];
+  if (hasOwnText) {
+    for (const c of el.children) {
+      const flt = c.styles.float ?? "none";
+      const pos = c.styles.position;
+      const positioned = pos != null && pos !== "static";
+      if (!positioned && flt !== "none") floatChildren.push(c);
+      else nonFloatChildren.push(c);
+    }
+    for (const child of floatChildren) {
+      renderElement(state, child, depth + 1, el.styles.display);
+    }
+  }
+
+  // Pseudo-element image content (::before / ::after with content: url(...)).
+  // CSS atomic-inline-box paint order: the ::before's replaced-element box
+  // paints BEFORE the parent's main-text inline content in the same line,
+  // so subsequent text appears on top of any image overflow. Painting after
+  // text put our SVG circles ON TOP of the paragraph in the 24-generated-content
+  // fixture (DM-440 user feedback: 'z-index of svg is wrong'). Move the
+  // emit ahead of the text block so text reliably wins z.
+  if (el.pseudoImages != null) {
+    for (const pi of el.pseudoImages) {
+      svgParts.push(`${indent}<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
+    }
+  }
+  // Box-only pseudo-elements (DM-579): empty-content `::before` / `::after`
+  // with non-zero borders or background act as decorative separators /
+  // overlays. Capture pass records their effective rect + per-side
+  // borders; we emit one `<rect>` for the background fill (if any) plus
+  // up to four `<line>`s for the visible border sides. Per-side colors /
+  // widths can differ so we can't collapse them into a single
+  // stroke="..." attribute the way the regular-element border path does.
+  paintPseudoBoxes(state, el, indent);
 
   // Text rendering — delegated to text-renderer.ts based on configured mode
   {
