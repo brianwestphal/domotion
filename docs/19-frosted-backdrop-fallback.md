@@ -54,10 +54,13 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 - **Per-element backdrop blur** — the synthesized fill is solid. Chromium's actual paint blends and saturates the underlying pixels. For dark-on-light or light-on-dark contrasts the color mismatch is small; for navs over a saturated hero image the synthesized fill reads as a flat block where Chromium showed a tinted blur.
 - **Multi-themed pages** — pages that swap body bg color mid-document (one section dark, the next light) get a single body-derived fallback. The previous best alternative (canvas readback under each frosted element) is parked behind option 3 above; revisit if real-world fidelity demands it.
 
-## Test fixture
+## Test coverage
 
-Added to `tests/features.ts`:
+There is no dedicated `frosted-nav-fallback` fixture in `tests/features.ts` — the
+backdrop-filter fallback is exercised through the broad `html-test-suite` sweep and
+the real-world HAR captures (several of which carry `backdrop-filter` frosted navs),
+where the body-derived opaque-`<rect>` fallback is diffed against Chromium's paint.
 
-- `frosted-nav-fallback` — a fixed nav with `background-color: rgba(255,255,255,0); backdrop-filter: blur(20px)` over a body with a colored gradient. Asserts the SVG emits an opaque `<rect>` with `fill="rgb(...)"` matching the body bg, instead of the literal transparent fill.
+A focused `features.ts` fixture — a fixed nav with `background-color: rgba(255,255,255,0); backdrop-filter: blur(20px)` over a colored-gradient body, asserting the SVG emits an opaque `<rect fill="rgb(...)">` matching the body bg rather than the literal transparent fill — would be a worthwhile addition but has not been landed.
 
 The fixture only verifies the *fallback color is opaque* — not that the result is pixel-perfect to Chromium's blur, since that's the documented limit.

@@ -34,7 +34,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] border (per-side with different width/style/color)
 - [x] box-decoration-break (`slice` default + `clone`) on (a) wrapped inline elements and (b) block-level elements that fragment at a multi-column container boundary — per-fragment paint of background / border / shadow / image. Slice direction depends on the fragmentation axis: inline-axis (wrapped inline) means first fragment owns LEFT + TL/BL, last owns RIGHT + TR/BR, intermediate fragments paint top + bottom only; block-axis (multi-column block) means first owns TOP + TL/TR, last owns BOTTOM + BL/BR, intermediate paint left + right only. Clone mode paints a complete box on every fragment regardless of axis. Slice-mode background-image continuation across fragments is not yet supported (clone-mode bg-image is).
 - [x] border-style: solid, dashed, dotted
-- [x] border-style: double, groove, ridge, inset, outset — implemented in dom-to-svg.ts uniform-border path
+- [x] border-style: double, groove, ridge, inset, outset — implemented in the `src/render/element-tree-to-svg.ts` uniform-border path
 - [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093
 - [x] per-corner border-radius (asymmetric `10px 30px 50px 70px`) and elliptical corners (`50px / 20px`) — DM-300, see docs/14
 - [ ] border-image — tracked SK-466

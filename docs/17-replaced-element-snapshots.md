@@ -51,9 +51,9 @@ The hide stylesheet is injected once before the rasterize pass and removed in `f
    - For each target: sets `data-domotion-snapshot-target` on the matching element handle (located by a stable `data-domotion-rid` attribute set on the element during the same pass), screenshots its content-box clip with `omitBackground: true`, attaches the data URI back to the captured tree node, and clears the attribute.
    - Removes the hide stylesheet and all `data-domotion-rid` attributes in `finally`.
 
-3. **Renderer**: in `renderElement`, when `el.replacedSnapshot?.dataUri` is set, emit an `<image>` at the content-box rect (mirroring the `<img>` content-box positioning at `dom-to-svg.ts:3787`). The element's normal background / border / outline / shadow paint stays — the image sits on top of the background but inside the borders, exactly like an `<img>`.
+3. **Renderer**: in `renderElement`, when `el.replacedSnapshot?.dataUri` is set, emit an `<image>` at the content-box rect (mirroring the `<img>` content-box positioning in `src/render/element-tree-to-svg.ts`). The element's normal background / border / outline / shadow paint stays — the image sits on top of the background but inside the borders, exactly like an `<img>`.
 
-4. **Re-rasterization across animation frames**: `frame-merge.ts` dedupes shared static elements by identity. A canvas/video that is identical between frames (same drawn content) will reuse the snapshot from the first frame after the merge pass. Where Chrome painted different pixels in different frames (animated canvas, autoplaying video), each frame's tree carries its own snapshot.
+4. **Re-rasterization across animation frames**: each frame composites independently — there is no shared-element merge pass (the old `mergeFrames` fast path was removed; see `docs/08`). Every frame's tree carries its own snapshot, so where Chrome painted different pixels in different frames (animated canvas, autoplaying video) each frame shows its own content, and a canvas/video identical between frames simply re-embeds the same data URI per frame.
 
 ## What still doesn't work
 

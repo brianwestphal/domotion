@@ -19,7 +19,7 @@ Doc 20 covers the gradient + raster `url()` cases that already round-trip cleanl
 
 DM-493 implemented same-document fragment refs (`url("#id")`); DM-496 added external-file refs (`url("./shapes.svg#id")`) by inlining the fetched `<mask>` as a same-document def before the walk (see §2). A capture-time warning now only fires when that resolution fails (fetch error / non-http / missing fragment).
 
-For same-document refs, CAPTURE_SCRIPT resolves `document.getElementById(id)` to the inline `<mask>` element and serialises its `outerHTML` into a top-level `maskDefs` payload on the captured tree. The renderer copies the mask def into the output `<defs>` with id rewriting and per-element coordinate translation so the mask aligns with the element being masked. See `rewriteFragmentMaskDef` and `positionFragmentMaskDef` in `src/capture/script/`.
+For same-document refs, CAPTURE_SCRIPT resolves `document.getElementById(id)` to the inline `<mask>` element and serialises its `outerHTML` into a top-level `maskDefs` payload on the captured tree. The renderer copies the mask def into the output `<defs>` with id rewriting and per-element coordinate translation so the mask aligns with the element being masked. See `rewriteFragmentMaskDef` and `positionFragmentMaskDef` (render-side, `src/render/mask.ts`).
 
 Prior behavior: `buildMaskDef()` treated every `url(...)` as a raster image and emitted `<image href="…">` inside the SVG `<mask>` — wrong for fragment refs because there is no raster at that URL. Per DM-470's narrow-warning policy, fragment refs were warned. DM-493's path now bypasses `buildMaskDef()` entirely for `url("#id")` cases and emits the resolved inline mask instead.
 
@@ -43,7 +43,7 @@ At capture time, when CAPTURE_SCRIPT sees `mask-image: url("#mask-id")`:
 3. Inline a copy of the `<mask>` into a hidden in-document `<svg>` under a fresh local id, and rewrite the element's `mask-image` to `url(#localId)` (overriding only the image longhand, so mask-mode/size/position/repeat survive).
 4. The walk then sees a normal same-document fragment → case 1 (above) renders it unchanged.
 
-A file is fetched once and shared across consumers (icon-set pattern). Only works over **http(s)** — Chrome doesn't resolve external mask refs over `file://`, and a sibling-file `fetch` is blocked there (so it's validated by a loopback-HTTP test, `tests/external-svg-refs.test.ts`, not the `file://` feature runner). Any failure (fetch error / non-2xx / non-http origin / missing or non-`<mask>` fragment) leaves the ref intact, so capture warns and the element paints unmasked — the pre-DM-496 baseline.
+A file is fetched once and shared across consumers (icon-set pattern). Only works over **http(s)** — Chrome doesn't resolve external mask refs over `file://`, and a sibling-file `fetch` is blocked there (so it's validated by a loopback-HTTP test, `tests/external-svg-refs.e2e.test.ts`, not the `file://` feature runner). Any failure (fetch error / non-2xx / non-http origin / missing or non-`<mask>` fragment) leaves the ref intact, so capture warns and the element paints unmasked — the pre-DM-496 baseline.
 
 ## Implementation notes (DM-493)
 
@@ -64,7 +64,7 @@ A file is fetched once and shared across consumers (icon-set pattern). Only work
 - An inline `<svg><defs><mask id="diag-mask" maskUnits="userSpaceOnUse" …></mask></defs></svg>` defined inside the captured DOM.
 - Two elements using `mask-image: url(#diag-mask)` at different positions to exercise per-element repositioning + dedupe.
 
-External-file fixture (`url("./maskdef.svg#m")`): `tests/external-svg-refs.test.ts` (loopback-HTTP, DM-496).
+External-file fixture (`url("./maskdef.svg#m")`): `tests/external-svg-refs.e2e.test.ts` (loopback-HTTP, DM-496).
 
 `src/mask.test.ts` covers `rewriteFragmentMaskDef()` (outer-id rewriting, descendant-id rewriting, `href`/`url(#…)` substitution, refs-outside-subtree pass-through, dedupe stability) and `positionFragmentMaskDef()` (content translation, `maskUnits=userSpaceOnUse` forcing).
 

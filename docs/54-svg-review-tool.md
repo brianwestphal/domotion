@@ -52,7 +52,7 @@ A single review card, similar in layout to one card in `tests/review-server
   - `Esc` closes the lightbox.
 - **Draw issue boxes**: in either the grid or the lightbox, mousedown-drag
   draws a coloured rectangle pinned to a region of the image. Pointer
-  interactions reuse `tests/review-region-overlay.ts`'s `enableRegionOverlays
+  interactions reuse `src/review/region-overlay.ts`'s `enableRegionOverlays
   ()` API: drag empty to draw, drag a handle to resize, click the interior
   to delete. Rects sync across the three figures because they share the
   same source-PNG dimensions.
@@ -108,7 +108,7 @@ two source files when filing:
   the three captured images. Distilled from `tests/review-server.tsx` but
   stripped of the Hot Sheet integration (consumers don't have access).
 - `src/review/client.tsx` — the page-side script. Reuses
-  `tests/review-region-overlay.ts` for drawing/resizing rects and adds the
+  `src/review/region-overlay.ts` for drawing/resizing rects and adds the
   Markdown-builder + clipboard-copy panel.
 - `bin` entry in `package.json` → `svg-review: dist/cli/review.js`.
 

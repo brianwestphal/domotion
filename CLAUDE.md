@@ -194,6 +194,8 @@ Before reverse-engineering a render-fidelity bug by reading source, reach for th
 
 - **`svg-scrubber` (doc 56, DM-1040)** is the 4th published bin (`bin.svg-scrubber` → `src/cli/scrubber.ts`): a local video-style bench for an *animated* SVG — play / pause / speed / manual scrub / mark an in-out range + loop / export the current frame as PNG / export the range as MP4 / trim the range to a new self-contained animated SVG. Reach for it when debugging an animated SVG's timeline (the static-frame analogue is `svg-review`). Server + kerfjs UI live under `src/scrubber/`.
 
+- **`svg-to-image` (doc 78, DM-1353)** is the 5th published bin (`bin.svg-to-image` → `src/cli/svg-to-image.js`): the headless still-image counterpart to `svg-review`'s interactive UI — it rasterizes an SVG (file/stdin) to PNG / JPEG / PDF / WebP / AVIF / TIFF at a chosen scale via the same Playwright path. Reach for it from a probe or the agent review loop when you just need a 1× PNG of the SVG to diff (no browser UI), rather than standing up `svg-review`. (Its animated-SVG sibling is `svg-to-video`.)
+
 ## Git
 
 - **Committing is fine; pushing is not.** You may `git add` / `git commit` as needed to land completed, validated work — no need to ask first. **Never `git push` without explicit permission**, and never run other remote-mutating git operations (force-push, branch deletes on the remote, tag pushes, etc.) without the user directly asking. Leave commits local for the user to review and push.

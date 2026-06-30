@@ -67,8 +67,9 @@ idea promoted to a **frame-to-frame transition type** in the animator:
 
 The transition therefore emits, per matched element, one CSS `@keyframes` block
 keyed to the transition window `[frameStart, frameStart+transitionDuration]`,
-and the unchanged elements collapse to a single emission (as `frame-merge.ts`
-already does for shared static content).
+and the unchanged elements collapse to a single emission (the animator no longer
+runs a shared-static merge pass — the old `mergeFrames` fast path was removed,
+see `docs/08` — so this collapse is handled inline by the magic-move matcher).
 
 ## Architecture / what must be built
 

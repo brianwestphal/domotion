@@ -152,7 +152,7 @@ template gallery on the site (`site/src/content/docs/usage/templates.md`).
   `subscribe`), registered in `registry.ts`. Their pure HTML/plan builders
   (e.g. `buildLowerThirdHtml`) are unit-tested without a browser.
 - **`src/cli/template.ts`** — the `domotion template` verb.
-- Public API: the contract, registry, render, and both built-ins are re-exported
+- Public API: the contract, registry, render, and all seven built-ins are re-exported
   from the package root (`src/index.ts`).
 
 ## Examples

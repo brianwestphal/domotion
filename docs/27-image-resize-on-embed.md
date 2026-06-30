@@ -119,7 +119,7 @@ DM-526 lands when the following are true:
 2. Capture nytimes.com / apple.com / stripe.com with `embedRemoteImagesResize: true` and verify visual diffs against the same captures with the flag off (`tests/real-world.tsx`). Diff threshold target: ≤ 0.5 % per tile (tolerable given lossless PNG output).
 3. SVG size ratio: NYT homepage **≥ 50 % smaller**, ideally 60–80 %.
 
-A new test fixture `src/resize-embedded-images.test.ts` covers:
+A new test fixture `src/tree-ops/resize-embedded-images.test.ts` covers:
 
 - Resize threshold respected (`sourceW > targetW × hiDPI` triggers resize; same-size source passes through).
 - Per-consumer rect inference for `<img>`, `pseudoImages[]`, and CSS `url(...)` token paths.
