@@ -858,9 +858,9 @@ describe("optimizer preserves hard-cut step-end timing (DM-1454)", () => {
   const cutCfg = {
     width: 100, height: 100,
     frames: [
-      { svgContent: `<rect width="100" height="100" fill="red"/>`, duration: 1000, transition: { type: "cut" as const } },
-      { svgContent: `<rect width="100" height="100" fill="green"/>`, duration: 1000, transition: { type: "cut" as const } },
-      { svgContent: `<rect width="100" height="100" fill="blue"/>`, duration: 1000, transition: { type: "cut" as const } },
+      { svgContent: `<rect width="100" height="100" fill="red"/>`, duration: 1000, transition: { type: "cut" as const, duration: 0 } },
+      { svgContent: `<rect width="100" height="100" fill="green"/>`, duration: 1000, transition: { type: "cut" as const, duration: 0 } },
+      { svgContent: `<rect width="100" height="100" fill="blue"/>`, duration: 1000, transition: { type: "cut" as const, duration: 0 } },
     ],
   };
 

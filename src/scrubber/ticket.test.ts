@@ -21,6 +21,11 @@ describe("buildTicketFile (DM-1445)", () => {
     rangeStartMs: 1000,
     rangeEndMs: 2000,
     region: { x: 10.2, y: 20.8, w: 100, h: 50 },
+    // `regions` + `attachFrame` carry zod defaults; include them so the
+    // hand-built object satisfies buildTicketFile's parsed-body param type
+    // (the runtime helper also defends against them being absent).
+    regions: [] as { x: number; y: number; w: number; h: number }[],
+    attachFrame: false,
   };
 
   it("produces a slugged filename and parseable JSON with mapped fields", () => {
