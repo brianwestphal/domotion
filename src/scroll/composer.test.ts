@@ -485,11 +485,23 @@ describe("composeScrollSvg: background colour", () => {
     expect(svg).toContain('fill="rgb(255, 255, 255)"');
   });
 
-  it("a transparent captured root paints no background rect (DM-894)", () => {
-    for (const transparent of ["rgba(0, 0, 0, 0)", "transparent"]) {
+  it("a transparent captured root paints no background rect (DM-894 / DM-1457)", () => {
+    // DM-1457: every transparent CSS form, not just the two the inline check
+    // recognized. "none" / zero-alpha hex / unspaced rgba used to paint a rect.
+    for (const transparent of [
+      "rgba(0, 0, 0, 0)", "transparent",
+      "none", "#0000", "#00000000", "rgba(0,0,0,0)", "hsla(0, 0%, 0%, 0)",
+    ]) {
       const svg = composeScrollSvg([segWithRootBg(transparent)], { viewportW: 800, viewportH: 600 });
-      expect(svg).not.toMatch(/<rect width="800" height="600" fill=/);
+      expect(svg, transparent).not.toMatch(/<rect width="800" height="600" fill=/);
       expect(svg).not.toContain('fill="#0d1117"');
+    }
+  });
+
+  it("an explicit transparent bgColor in any form paints no background rect (DM-1457)", () => {
+    for (const transparent of ["none", "#0000", "#00000000", "rgba(0,0,0,0)"]) {
+      const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], { viewportW: 800, viewportH: 600, bgColor: transparent });
+      expect(svg, transparent).not.toMatch(/<rect width="800" height="600" fill=/);
     }
   });
 

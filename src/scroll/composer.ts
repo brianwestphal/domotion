@@ -23,6 +23,7 @@
 
 import type { ScrollSegmentCapture } from "./executor.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
+import { isTransparentBackground } from "../utils/transparent-background.js";
 import {
   resetGeneration,
   getEmbeddedFontFaceCss,
@@ -172,7 +173,7 @@ export function composeScrollSvg(
   // When the resolved background is transparent / absent we emit NO rect, so a
   // transparent capture stays transparent and composites over a host page.
   const bg = opts.bgColor ?? segments[0]?.tree?.[0]?.styles?.rootBgComputed;
-  const paintBg = bg != null && bg !== "" && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)";
+  const paintBg = bg != null && !isTransparentBackground(bg);
   const hiDPIFactor = opts.hiDPIFactor ?? 2;
   const chunkSize = opts.chunkSize ?? 2;
   if (chunkSize < 1 || !Number.isInteger(chunkSize)) {

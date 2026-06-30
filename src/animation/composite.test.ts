@@ -141,4 +141,17 @@ describe("composeAnimatedLayers (DM-1323)", () => {
     const opaque = composeAnimatedLayers([{ svg: staticDoc }], { width: 10, height: 10, background: "#000" });
     expect(opaque.svg).toContain('<rect width="10" height="10" fill="#000"/>');
   });
+
+  // DM-1457: the inline check normalized whitespace but still missed "none" and
+  // zero-alpha hex/rgba — those painted an opaque backdrop rect. The canonical
+  // predicate suppresses every transparent CSS form.
+  it("paints no background rect for any transparent CSS form (DM-1457)", () => {
+    for (const transparent of [
+      "transparent", "rgba(0, 0, 0, 0)", "rgba(0,0,0,0)", "",
+      "none", "#0000", "#00000000", "hsla(0, 0%, 0%, 0)",
+    ]) {
+      const out = composeAnimatedLayers([{ svg: staticDoc }], { width: 10, height: 10, background: transparent });
+      expect(out.svg, transparent).not.toMatch(/<rect width="10" height="10" fill=/);
+    }
+  });
 });

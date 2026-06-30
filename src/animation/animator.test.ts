@@ -139,7 +139,13 @@ describe("animator: canvas background", () => {
     expect(svg).not.toMatch(/<rect width="200" height="100" fill=/); // no opaque viewport backdrop
   });
 
-  for (const transparent of ["transparent", "rgba(0, 0, 0, 0)", ""]) {
+  // DM-1457: every transparent CSS form must suppress the backdrop rect — not
+  // just "transparent" / "rgba(0, 0, 0, 0)" / "". The inline check used to treat
+  // "none", zero-alpha hex, and unspaced rgba as opaque and paint a rect.
+  for (const transparent of [
+    "transparent", "rgba(0, 0, 0, 0)", "",
+    "none", "#0000", "#00000000", "rgba(0,0,0,0)", "  TRANSPARENT  ", "hsla(0, 0%, 0%, 0)",
+  ]) {
     it(`paints no background rect when background is ${JSON.stringify(transparent)}`, () => {
       const svg = generateAnimatedSvg({ width: 200, height: 100, frames: FR, background: transparent });
       expect(svg).not.toMatch(/<rect width="200" height="100" fill=/);

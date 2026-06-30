@@ -13,6 +13,7 @@ import type { MagicMove } from "./magic-move.js";
 // schemas. Re-exported below so the public `domotion-svg` surface is unchanged.
 import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, IntraFrameAnimation } from "./overlay-schema.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
+import { isTransparentBackground } from "../utils/transparent-background.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
@@ -622,7 +623,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   // Default (none / transparent) emits nothing so the SVG composites over the
   // host page, matching the single-frame `transparentRootBgRect` path (DM-554).
   const bg = config.background;
-  const canvasBgRect = (bg != null && bg !== "" && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)")
+  const canvasBgRect = (bg != null && !isTransparentBackground(bg))
     ? `  <rect width="${width}" height="${height}" fill="${bg}" />\n`
     : "";
   const out = `<?xml version="1.0" encoding="UTF-8"?>

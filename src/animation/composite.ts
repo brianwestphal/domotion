@@ -30,6 +30,7 @@
  * own wrapper group, separate from the nested content's animations.
  */
 
+import { isTransparentBackground } from "../utils/transparent-background.js";
 import { namespaceEmbeddedAnimatedSvg } from "./embed-namespace.js";
 import { offsetEmbeddedAnimatedSvgTimeline, type EmbeddedTimelineMode } from "./embed-timeline.js";
 import { parseSvgIntrinsicSize, fmt, clampPct } from "./svg-meta.js";
@@ -266,10 +267,9 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
     groups.push(`<g class="${token}layer"${clipAttr}${groupStyle}>${nested}</g>`);
   }
 
-  // Transparent when empty / `transparent` / a fully-transparent rgba (matched
-  // whitespace-insensitively, so `rgba(0,0,0,0)` and `rgba(0, 0, 0, 0)` both count).
-  const bgNorm = (opts.background ?? "").replace(/\s+/g, "").toLowerCase();
-  const bg = bgNorm === "" || bgNorm === "transparent" || bgNorm === "rgba(0,0,0,0)"
+  // Transparent (no backdrop rect) for every transparent CSS form — keywords,
+  // zero-alpha hex, zero-alpha rgba()/hsla() — via the canonical predicate.
+  const bg = isTransparentBackground(opts.background ?? "")
     ? ""
     : `<rect width="${width}" height="${height}" fill="${opts.background}"/>`;
 
