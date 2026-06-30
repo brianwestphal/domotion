@@ -12,7 +12,19 @@ npm install
 npm run dev        # prebuild copies demo SVGs → public/demos, then astro dev
 npm run build      # static build → dist/
 npm run preview
+npm test           # hero layout guard: spawns astro dev, asserts the homepage
+                   # hero is centered (desktop) and the actions stack with
+                   # consistent-width filled buttons (mobile)
 ```
+
+`npm test` runs `scripts/check-hero-layout.mjs`, a Playwright layout-regression
+guard for the homepage hero. It renders the page in Chromium and measures DOM
+rects to assert the wordmark, tagline, and action buttons stay centered at
+desktop widths and that the actions stack vertically (filled buttons sharing one
+width) on phones — the two regressions fixed in the `.hero` block of
+`src/styles/site.css`. Playwright resolves from the root project's
+`node_modules` (the site is developed alongside it). Pass `BASE_URL=<origin>` to
+check an already-running server instead of spawning one.
 
 `prebuild` runs `scripts/build-demos.mjs` (copies the committed demo SVGs from
 `../examples/output` + `../site/assets/img/demos` into `public/demos/`, gitignored)

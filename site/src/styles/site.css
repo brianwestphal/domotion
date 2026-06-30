@@ -40,11 +40,17 @@ figure:has(> img) figcaption {
 }
 
 /* With the static title hidden, drop the two-column hero and stack the wordmark
-   on top of the tagline + actions — so the animated wordmark sits where the
-   title used to be (top, left-aligned) instead of floating off to the side. */
+   on top of the tagline + actions, all horizontally centered. Starlight's splash
+   hero only centers its copy/actions on narrow viewports — at >=50rem it left-
+   aligns everything because the default layout floats the image into a right-hand
+   column. We removed that column (the wordmark is now a full-width centered
+   title), so the left-alignment is a leftover that made the page look unbalanced:
+   centered wordmark + tagline but left-packed buttons and a left-pinned stack. */
 .hero {
   grid-template-columns: 100%;
-  justify-items: start;
+  /* Center BOTH grid items (the wordmark and the .stack that holds the tagline +
+     actions). The previous `start` left-pinned the stack off-center. */
+  justify-items: center;
 }
 .hero > .hero-html {
   order: -1;
@@ -61,13 +67,33 @@ figure:has(> img) figcaption {
   max-width: 920px;
   height: auto;
 }
-/* Center the hero copy (tagline + actions) under the centered wordmark, and let
-   the tagline use the available width — the old left-alignment was a leftover
-   from when the wordmark sat in a right-hand image column (DM-1406). */
+/* Center the hero copy + actions under the centered wordmark, overriding the
+   left-alignment Starlight applies at >=50rem. Each rule below cancels a
+   matching desktop rule from Starlight's hero @layer. */
+.hero > .stack {
+  text-align: center;
+}
 .hero .copy {
   align-items: center;
   text-align: center;
 }
 .hero .copy .tagline {
   max-width: 52rem;
+}
+.hero .actions {
+  justify-content: center;
+}
+
+/* DM-1439: on phones the four actions wrapped into a ragged flow — one filled
+   pill alone on a row, then a filled + a text link sharing a row, the filled
+   pills ending up different widths. Stack them vertically instead so each action
+   gets its own row and the filled buttons share one consistent (full) width. */
+@media (max-width: 30rem) {
+  .hero .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero .actions .sl-link-button {
+    justify-content: center;
+  }
 }
