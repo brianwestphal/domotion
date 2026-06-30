@@ -143,14 +143,31 @@ pre-passes — the outer path is the hot path every fixture exercises, so it sta
 byte-identical and the inner-iframe code is isolated. Regression guard:
 `tests/iframe-inner-prepasses.e2e.test.ts`.
 
-### Still a known gap
+### Inner mask / clip-path / filter `<defs>` (DM-1446 — Fixed for `url(#id)`)
 
-- **Inner mask / clip-path / filter `<defs>`** referenced from iframe content via
-  a same-document fragment (`url(#id)` resolving against the *inner* document).
-  Plain element-level mask/clip discovery populates the shared def maps during the
-  inner walk, but fragment-id lookups + paint-ref rasterization may resolve
-  against the outer document. Tracked as a follow-up (verify-or-fix) — distinct
-  from the pre-passes above.
+A `mask-image: url(#id)` / `clip-path: url(#id)` / `filter: url(#id)` reference
+from inside a recursed iframe now resolves the fragment against the element's own
+document (`el.ownerDocument`, in `masks-clips.ts`) instead of the outer
+`document`, so the inner `<mask>` / `<clipPath>` / `<filter>` def is collected and
+hoisted into the output SVG. For top-document elements `el.ownerDocument ===
+document`, so the outer path is unchanged. Validated by the visual fixture
+`iframe-inner-clip-mask` (0.00%) and `tests/iframe-inner-defs.e2e.test.ts`.
+
+### Still known gaps
+
+- **`mask-image: element(#id)` paint refs inside a recursed iframe** are NOT yet
+  rasterized: the node-side `rasterizeMaskSources` isolates the target via a
+  top-document hide-everything stylesheet + clipped `page.screenshot`, which
+  can't cleanly isolate an element *inside* an iframe. Recording it would yield a
+  leaky raster, so `discoverMasks` deliberately skips inner-frame `element()`
+  refs (the consumer renders unmasked — the prior baseline) and warns. Tracked as
+  a follow-up.
+- **Recursed-iframe canvas background fill**: when the iframe is taller than its
+  inner content, Chrome fills the iframe's canvas with the inner document's
+  background to the full content box, but the recursion only paints the inner
+  `<body>` to its (shorter) content height — the strip below the content shows
+  the iframe node's own (often transparent) background instead. Tracked as a
+  follow-up.
 
 ## Phase 2 — cross-origin recursion (Shipped)
 

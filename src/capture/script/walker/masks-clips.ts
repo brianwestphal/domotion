@@ -48,6 +48,11 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
 
   const discoverMasks = (el, cs, sel) => {
     if (!cs.mask || cs.mask === 'none' || cs.mask === '') return;
+    // DM-1446: resolve same-document fragment refs against the element's OWN
+    // document so a mask/clip/filter def living inside a recursed same-origin
+    // <iframe> is found. For top-document elements this is `document` (no
+    // behavior change).
+    const doc = el.ownerDocument || document;
 
     // DM-470: only warn for mask sources we can't emit. Gradient and url()
     // mask-images round-trip cleanly through buildMaskDef() with size /
@@ -63,7 +68,7 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     if (fragMatch != null) {
       const fragId = fragMatch[1];
       if (!maskDefs.has(fragId)) {
-        const target = document.getElementById(fragId);
+        const target = doc.getElementById(fragId);
         if (target != null && target.tagName.toLowerCase() === 'mask') {
           maskDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
         } else {
@@ -95,7 +100,18 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     if (elementMatch != null) {
       const refId = elementMatch[1];
       if (maskRasters.has(refId)) return;
-      const refTarget = document.getElementById(refId);
+      // DM-1446: mask-image: element(#id) is rasterized node-side by
+      // screenshotting the target's painted rect (hide-everything-else CSS +
+      // a clipped page.screenshot). That isolation path only reaches the TOP
+      // document, so a target INSIDE a recursed iframe can't be screenshotted
+      // cleanly yet — recording it would yield a leaky raster. Leave it as the
+      // unmasked baseline (no maskRaster) until the node-side pass is made
+      // iframe-aware. Tracked as a follow-up.
+      if (doc !== document) {
+        warn(sel, 'mask', 'mask-image: element(#' + refId + ') inside a recursed iframe is not yet rasterized — element renders unmasked');
+        return;
+      }
+      const refTarget = doc.getElementById(refId);
       if (refTarget == null) {
         warn(sel, 'mask', 'mask-image: element(#' + refId + ') target not found in document');
         return;
@@ -165,6 +181,8 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
   const discoverClipPaths = (el, cs, sel) => {
     const cp = cs.clipPath;
     if (!cp || cp === 'none' || cp === '') return;
+    const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
+
     // Strip an optional <geometry-box> keyword (`padding-box` / `border-box` /
     // …) before the url(...) check — `clip-path: url(#id) padding-box` is
     // valid per CSS Masking 1 §3.1. The renderer's geo-box handling is
@@ -174,7 +192,7 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     if (fragMatch != null) {
       const fragId = fragMatch[1];
       if (!clipPathDefs.has(fragId)) {
-        const target = document.getElementById(fragId);
+        const target = doc.getElementById(fragId);
         if (target != null && target.tagName.toLowerCase() === 'clippath') {
           // SVG default for clipPathUnits is userSpaceOnUse (DM-828): the
           // renderer translates those per-consumer; objectBoundingBox is shared.
@@ -213,12 +231,14 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
   const discoverFilters = (el, cs, sel) => {
     const f = cs.filter;
     if (!f || f === 'none' || f === '') return;
+    const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
+
     const re = /url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)/gi;
     let m;
     while ((m = re.exec(f)) != null) {
       const fragId = m[1];
       if (filterDefs.has(fragId)) continue;
-      const target = document.getElementById(fragId);
+      const target = doc.getElementById(fragId);
       if (target != null && target.tagName.toLowerCase() === 'filter') {
         filterDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
       } else {
