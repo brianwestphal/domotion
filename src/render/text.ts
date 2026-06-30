@@ -1030,28 +1030,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // (background-color / border-radius / border), emit a <rect> behind the
   // glyphs. Same as the multi-segment path; without this the badge / pill
   // bg never paints when the pseudo is the only text on the host.
-  const singleSegBoxMarkup = (singleSeg?.pseudoBox != null) ? (() => {
-    const pb = singleSeg.pseudoBox!;
-    const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
-    // Clamp the pseudo's border-radius to half the SHORTER side so a pill
-    // (e.g. `border-radius: 100px` on a 90×40 button) renders as a capsule
-    // — flat top/bottom + fully-rounded ends — instead of an ellipse with
-    // rx and ry capped independently. Mirrors the inset() clip-path fix
-    // (CSS Backgrounds 3 §5.5 uniform-scale rule) for the pseudo-box path.
-    const clampedBR = pb.borderRadius != null && pb.borderRadius > 0
-      ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
-    const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
-    const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
-      ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
-    // DM-782: gradient/url() background-image layers paint BETWEEN the flat
-    // bg-color (bottom) and the text glyphs (top). Caller threads defsParts
-    // + clipIdx through `emitPseudoBoxBgLayers`; when that closure is absent
-    // (standalone callers / unit tests) we just skip the gradient layers.
-    const bgImageMarkup = (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "" && opts.emitPseudoBoxBgLayers != null)
-      ? opts.emitPseudoBoxBgLayers({ x: pb.x, y: pb.y, width: pb.width, height: pb.height, backgroundImage: pb.backgroundImage, borderRadius: clampedBR > 0 ? clampedBR : undefined })
-      : "";
-    return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`;
-  })() : "";
+  const singleSegBoxMarkup = (singleSeg?.pseudoBox != null)
+    ? renderSingleSegPseudoBox(singleSeg.pseudoBox, opts.emitPseudoBoxBgLayers)
+    : "";
   // DM-832: MathML token elements (`<mi>` / `<mo>` / `<mn>` / `<mtext>`, the
   // non-stretchy cases — stretchy fences returned above) are positioned by
   // Chromium's math layout so the element border box is tight to the glyph
@@ -1132,7 +1113,53 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // A missing icon should read as 'nothing'.
   if (isAllPrivateUseArea(el.text)) return "";
 
-  // Fallback to CSS <text> if path rendering fails
+  return renderSingleLineTextElementFallback(el, fillColor, clipId, segFontSize, segFontWeight, segFontFamily, _ts);
+}
+
+// Build the <rect> (+ optional background-image layers + per-side borders)
+// painted behind a single pseudo-element segment's glyphs (DM-507). Extracted
+// verbatim from renderSingleLineText's inline IIFE — the multi-segment path
+// keeps its own copy. The caller only invokes this when the pseudo has a box.
+function renderSingleSegPseudoBox(
+  pb: NonNullable<TextSegment["pseudoBox"]>,
+  emitPseudoBoxBgLayers: RenderTextOpts["emitPseudoBoxBgLayers"],
+): string {
+  const fillAttr = pb.backgroundColor != null ? ` fill="${esc(pb.backgroundColor)}"` : ` fill="none"`;
+  // Clamp the pseudo's border-radius to half the SHORTER side so a pill
+  // (e.g. `border-radius: 100px` on a 90×40 button) renders as a capsule
+  // — flat top/bottom + fully-rounded ends — instead of an ellipse with
+  // rx and ry capped independently. Mirrors the inset() clip-path fix
+  // (CSS Backgrounds 3 §5.5 uniform-scale rule) for the pseudo-box path.
+  const clampedBR = pb.borderRadius != null && pb.borderRadius > 0
+    ? Math.min(pb.borderRadius, pb.width / 2, pb.height / 2) : 0;
+  const rxAttr = clampedBR > 0 ? ` rx="${r(clampedBR)}" ry="${r(clampedBR)}"` : "";
+  const strokeAttr = pb.borderWidth != null && pb.borderWidth > 0 && pb.borderColor != null
+    ? ` stroke="${esc(pb.borderColor)}" stroke-width="${r(pb.borderWidth)}"` : "";
+  // DM-782: gradient/url() background-image layers paint BETWEEN the flat
+  // bg-color (bottom) and the text glyphs (top). Caller threads defsParts
+  // + clipIdx through `emitPseudoBoxBgLayers`; when that closure is absent
+  // (standalone callers / unit tests) we just skip the gradient layers.
+  const bgImageMarkup = (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "" && emitPseudoBoxBgLayers != null)
+    ? emitPseudoBoxBgLayers({ x: pb.x, y: pb.y, width: pb.width, height: pb.height, backgroundImage: pb.backgroundImage, borderRadius: clampedBR > 0 ? clampedBR : undefined })
+    : "";
+  return `<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr}${fillAttr}${strokeAttr}/>${bgImageMarkup}${renderPseudoBoxPerSideBorders(pb)}`;
+}
+
+// Fallback to a CSS <text> element when path-mode rendering returns null
+// (fontkit couldn't outline the run). Detects centered text (badges / buttons
+// with symmetric padding) and anchors accordingly. Extracted verbatim from the
+// tail of renderSingleLineText; `tl` (the text-left anchor) is recomputed here
+// from the same `el.textLeft ?? el.x + 4` expression the caller uses.
+function renderSingleLineTextElementFallback(
+  el: CapturedElement,
+  fillColor: string,
+  clipId: string,
+  segFontSize: number,
+  segFontWeight: string,
+  segFontFamily: string,
+  ts: ReturnType<typeof textStrokeParams>,
+): string {
+  const tl = el.textLeft ?? el.x + 4;
   const ff = segFontFamily.replace(/"/g, "'");
   const lsCss = el.styles.letterSpacing !== "normal" && el.styles.letterSpacing !== "0px"
     ? `letter-spacing:${el.styles.letterSpacing};` : "";
@@ -1149,7 +1176,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const isCentered = tw > 0 && leftGap > 2 && rightGap > 2
     && Math.abs(leftGap - rightGap) < Math.max(2, minGap * 0.3);
 
-  const strokeAttr = textStrokeAttrString(_ts);
+  const strokeAttr = textStrokeAttrString(ts);
   if (isCentered) {
     const cx = el.x + el.width / 2;
     return `<text x="${r(cx)}" y="${r(textY)}" text-anchor="middle" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
