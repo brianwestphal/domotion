@@ -92,6 +92,12 @@ capture options:
       --chrome-label <s>   Text for the chrome bar (browser URL / window title).
       --chrome-theme <s>   browser/window bezel theme: "dark" (default) | "light".
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
+      --cross-origin-frames <v>  Recurse cross-origin <iframe> docs into native SVG
+                           (else they stay raster). "*" = all; or a comma-separated
+                           host[:port] allowlist (e.g. "youtube.com,localhost:3000").
+                           Launches Chromium with web security (CORS) DISABLED —
+                           only use on trusted pages. Same-origin frames recurse
+                           by default with or without this flag.
       --debug              Write a reproduction bundle next to the output
                            (.debug/ folder with capture.har, expected.png
                            Chromium screenshot, actual.svg copy, and the

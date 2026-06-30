@@ -35,8 +35,16 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 81 (`docs/81-iframe-recursion.md`, DM-1441)** — **Phase 1 Shipped (default-on);
-  Phase 2 Planned.** A same-origin `<iframe>` no longer rasters to a flat `<image>`
+- **Doc 81 (`docs/81-iframe-recursion.md`, DM-1441 + DM-1442)** — **Both phases Shipped.**
+  **Phase 2 (DM-1442):** `--cross-origin-frames "*"|host[:port],…` (config-object
+  `captureCrossOriginFrames`) recurses **allowlisted** cross-origin frames by launching
+  Chromium with web security disabled (`crossOriginFramesLaunchArgs`); non-allowlisted
+  frames stay raster even when readable (blast-radius limit). Matching is two pure
+  functions in `src/capture/script/cross-origin.ts` (bundled into the capture script +
+  unit-tested), exact-host with optional port (default ports normalized). Default off +
+  a stderr security warning (web-security-off disables CORS). Unit + e2e tested
+  (`tests/cross-origin-iframe-recursion.e2e.test.ts`). Scroll-path threading is a minor
+  follow-up. **Phase 1 (DM-1441):** a same-origin `<iframe>` no longer rasters to a flat `<image>`
   (raster-fallback §E4) — its `contentDocument` is recursed with the **same** capture
   logic and spliced in as the iframe node's child, yielding crisp/scalable/selectable
   native SVG. Placement uses a **temporary `vp`-origin shift** during the inner walk

@@ -14,6 +14,7 @@ import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
+import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { refineInitialLetterPositions } from "./initial-letter-probe.js";
@@ -81,6 +82,16 @@ export interface CaptureOptions {
    * Values < 1 are clamped to 1.
    */
   embedRemoteImagesHiDPIFactor?: number;
+  /**
+   * DM-1442: opt-in cross-origin `<iframe>` recursion. `"*"` recurses every
+   * cross-origin frame; a comma-separated `host[:port]` list recurses only
+   * frames whose origin matches an entry (exact host; `:port` requires an exact
+   * port, otherwise any port). Undefined / omitted leaves cross-origin frames
+   * as raster snapshots (same-origin frames recurse regardless). Enabling this
+   * launches Chromium with web security disabled — which also disables CORS, so
+   * only use it on trusted pages. See docs/81-iframe-recursion.md.
+   */
+  captureCrossOriginFrames?: string;
 }
 
 /**
@@ -119,6 +130,24 @@ function isMissingBrowserError(err: unknown): boolean {
   return /Executable doesn't exist|playwright install|browserType\.launch.*Failed to launch/i.test(msg);
 }
 
+/**
+ * DM-1442: Chromium launch args needed to make cross-origin `<iframe>`
+ * documents readable from the in-page capture script. `--disable-web-security`
+ * lifts the Same-Origin Policy on cross-document access; the
+ * `--disable-features` flag co-locates frames in one renderer process so the
+ * cross-origin `contentDocument` is reachable (some builds need it, harmless on
+ * those that don't). Returns `[]` when `value` requests no cross-origin
+ * recursion, so callers can spread it unconditionally:
+ * `launchChromium({ args: crossOriginFramesLaunchArgs(value) })`.
+ *
+ * NOTE: disabling web security also disables CORS — only launch this way when
+ * capturing your own / trusted pages. Callers should print a visible warning.
+ */
+export function crossOriginFramesLaunchArgs(value: string | undefined | null): string[] {
+  if (parseCrossOriginAllowlist(value) == null) return [];
+  return ["--disable-web-security", "--disable-features=IsolateOrigins,site-per-process"];
+}
+
 export class DemoRecorder {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -132,6 +161,7 @@ export class DemoRecorder {
   private embedRemoteImagesRetryBackoffMs: number | undefined;
   private embedRemoteImagesResize: boolean;
   private embedRemoteImagesHiDPIFactor: number | undefined;
+  private captureCrossOriginFrames: string | undefined;
 
   constructor(baseUrl: string, opts: CaptureOptions) {
     this.baseUrl = baseUrl;
@@ -143,10 +173,13 @@ export class DemoRecorder {
     this.embedRemoteImagesRetryBackoffMs = opts.embedRemoteImagesRetryBackoffMs;
     this.embedRemoteImagesResize = opts.embedRemoteImagesResize ?? false;
     this.embedRemoteImagesHiDPIFactor = opts.embedRemoteImagesHiDPIFactor;
+    this.captureCrossOriginFrames = opts.captureCrossOriginFrames;
   }
 
   async init(opts: CaptureOptions): Promise<void> {
-    this.browser = await launchChromium();
+    // DM-1442: when cross-origin iframe recursion is requested, launch with web
+    // security disabled so cross-origin contentDocuments are readable.
+    this.browser = await launchChromium({ args: crossOriginFramesLaunchArgs(opts.captureCrossOriginFrames) });
     this.context = await this.browser.newContext({
       viewport: { width: opts.width, height: opts.height },
       isMobile: opts.mobile ?? false,
@@ -231,7 +264,7 @@ export class DemoRecorder {
     if (this.page == null) throw new Error("Call init() first");
     const tree = await captureElementTree(this.page, "body", {
       x: 0, y: 0, width: this.width, height: this.height,
-    });
+    }, { crossOriginFrames: this.captureCrossOriginFrames });
     return this.renderCapturedTree(tree, this.height, idPrefix);
   }
 
@@ -244,7 +277,7 @@ export class DemoRecorder {
     const pageHeight = await this.page.evaluate(() => document.body.scrollHeight);
     const tree = await captureElementTree(this.page, "body", {
       x: 0, y: 0, width: this.width, height: pageHeight,
-    });
+    }, { crossOriginFrames: this.captureCrossOriginFrames });
     const svgContent = await this.renderCapturedTree(tree, pageHeight, idPrefix);
     return { svgContent, pageHeight };
   }
@@ -855,8 +888,9 @@ export async function captureElementTree(
   page: Page,
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
+  opts?: { crossOriginFrames?: string },
 ): Promise<CapturedElement[]> {
-  const { tree } = await captureElementTreeWithWarnings(page, selector, viewport);
+  const { tree } = await captureElementTreeWithWarnings(page, selector, viewport, opts);
   return tree;
 }
 
@@ -877,6 +911,13 @@ export async function captureElementTreeWithWarnings(
      *  rotating cross-origin-iframe content. Caller is responsible for
      *  ensuring the source covers the same coordinate space as `viewport`. */
     rasterizeFromImagePath?: string;
+    /** DM-1442: the raw `--cross-origin-frames` allowlist value (`"*"` or a
+     *  comma-separated `host[:port]` list). Passed into the capture script so
+     *  cross-origin iframes whose origin is on the list recurse into native SVG
+     *  instead of staying a raster snapshot. Requires the browser to have been
+     *  launched with web security disabled (see `crossOriginFramesLaunchArgs`).
+     *  Same-origin recursion (Phase 1) happens regardless. */
+    crossOriginFrames?: string;
   },
 ): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }> {
   // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
@@ -890,7 +931,7 @@ export async function captureElementTreeWithWarnings(
   // warns as before.
   await inlineExternalSvgRefs(page);
 
-  const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}})`);
+  const result = await page.evaluate(`(${CAPTURE_SCRIPT})({sel: ${JSON.stringify(selector)}, vp: ${JSON.stringify(viewport)}, cof: ${JSON.stringify(opts?.crossOriginFrames ?? "")}})`);
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   _resetLastCaptureWarnings(warnings);

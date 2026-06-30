@@ -40,11 +40,16 @@ import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
 import { resolveElementCursor, extractCssUrl, sideWidths } from "./utils.js";
+import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
 
 export const captureScript =
 (args) => {
   const sel = args.sel;
   const vp = args.vp;
+  // DM-1442: cross-origin <iframe> recursion allowlist (the parsed
+  // `--cross-origin-frames` value, passed in as `args.cof`). null in the
+  // default (Phase 1) configuration — only same-origin frames recurse then.
+  const _crossOriginAllow = parseCrossOriginAllowlist(args.cof);
 
   // Wire up per-concern helpers. Each factory closes over its own state and
   // returns the handles captureInner / the orchestration tail call. Renamed
@@ -996,16 +1001,33 @@ export const captureScript =
     }
   }
 
-  // DM-1441: the accessible same-origin document of an <iframe>, or null when
-  // the frame can't be recursed (cross-origin, not yet loaded, a media/pixel
-  // frame with no DOM, or access throws). Used both to gate the recursion and
-  // to decide whether to emit the "rendered as a raster" warning.
+  // DM-1442: is a cross-origin frame permitted by the `--cross-origin-frames`
+  // allowlist? Matched against the frame's CURRENT origin (readable here only
+  // because web security was disabled to make the document accessible),
+  // falling back to the `src` attribute. null allowlist ⇒ never (Phase 1).
+  function _crossOriginFrameAllowed(el) {
+    if (_crossOriginAllow == null) return false;
+    var url;
+    try { url = el.contentWindow && el.contentWindow.location ? el.contentWindow.location.href : el.src; }
+    catch (e) { url = el.src; }
+    return frameHostAllowed(url || '', _crossOriginAllow);
+  }
+
+  // DM-1441 / DM-1442: the accessible document of an <iframe> we may recurse, or
+  // null when the frame can't be recursed (cross-origin and not allowlisted,
+  // not yet loaded, a media/pixel frame with no DOM, or access throws). Used
+  // both to gate the recursion and to decide whether to emit the "rendered as a
+  // raster" warning.
   function _iframeIsRecursable(el) {
     if (el.tagName == null || el.tagName.toLowerCase() !== 'iframe') return null;
     var doc;
     try { doc = el.contentDocument; } catch (e) { return null; }
     if (doc == null || doc.body == null || doc.documentElement == null) return null;
-    if (_frameIsCrossOrigin(el)) return null;
+    // Same-origin frames always recurse (Phase 1). A cross-origin frame is only
+    // reachable here when web security was disabled (the --cross-origin-frames
+    // path); recurse it only when its origin is on the allowlist, else leave it
+    // as the raster snapshot. (DM-1442)
+    if (_frameIsCrossOrigin(el) && !_crossOriginFrameAllowed(el)) return null;
     return doc;
   }
 

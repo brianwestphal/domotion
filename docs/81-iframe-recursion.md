@@ -20,12 +20,13 @@ Two phases:
   When the iframe's `contentDocument` is accessible (same-origin), recurse it.
   This covers `srcdoc`, `about:blank`/JS-populated frames, and any same-site
   embed (email previews, sandboxed same-origin widgets, design-tool canvases).
-- **Phase 2 — opt-in cross-origin recursion (Planned).** Cross-origin
-  `contentDocument` is `null` under the Same-Origin Policy. A planned
-  `--cross-origin-frames` flag will launch Chromium with web security disabled
-  so cross-origin frames become readable, gated by a host allowlist. See
-  [Phase 2 — cross-origin (planned)](#phase-2--cross-origin-recursion-planned)
-  below. Until it ships, cross-origin frames stay the raster `<image>` fallback.
+- **Phase 2 — opt-in cross-origin recursion (Shipped).** Cross-origin
+  `contentDocument` is `null` under the Same-Origin Policy. The
+  `--cross-origin-frames` flag launches Chromium with web security disabled so
+  cross-origin frames become readable, gated by a host allowlist. See
+  [Phase 2 — cross-origin](#phase-2--cross-origin-recursion-shipped) below.
+  Without the flag (default), cross-origin frames stay the raster `<image>`
+  fallback.
 
 ## What still rasters
 
@@ -139,67 +140,93 @@ fresh pre-passes against the inner document:
 - **Inner mask / clip-path / filter `<defs>`** referenced from iframe content
   aren't hoisted to the output `<svg>`.
 
-## Phase 2 — cross-origin recursion (Planned)
+## Phase 2 — cross-origin recursion (Shipped)
 
 Cross-origin `contentDocument` is `null` from page context. Launching Chromium
-with `--disable-web-security` (and, on some builds,
-`--disable-features=IsolateOrigins,site-per-process` to co-locate frames in one
-renderer process) makes it readable from the in-page capture script. The
-Same-Origin Policy gates only cross-document **script access** — not layout,
-computed styles, glyph metrics, or paint — so **fidelity is unaffected**: once
-the document is readable, the Phase 1 recursion + `vp`-shift geometry place it
-correctly with no further work.
+with `--disable-web-security` (and `--disable-features=IsolateOrigins,site-per-process`
+to co-locate frames in one renderer process — needed on some builds, harmless on
+the rest) makes it readable from the in-page capture script. The Same-Origin
+Policy gates only cross-document **script access** — not layout, computed styles,
+glyph metrics, or paint — so **fidelity is unaffected**: once the document is
+readable, the Phase 1 recursion + `vp`-shift geometry place it correctly with no
+further work.
 
-### Planned flag: `--cross-origin-frames <value>`
+### Flag: `--cross-origin-frames <value>`
 
 - `*` → recurse into **all** cross-origin frames.
 - A comma-separated **host allowlist**, port optional per entry, e.g.
   `--cross-origin-frames "youtube.com,maps.google.com:443,localhost:3000"`. Only
   frames whose origin matches an entry are recursed; the rest stay raster.
 - **Omitted (default)** → no cross-origin recursion (Phase 1 same-origin
-  recursion still happens).
+  recursion still happens). An empty value is rejected by the CLI.
 
-A config-object form mirrors the CLI for the scripting API:
-`captureCrossOriginFrames: "*" | string[]`.
+A config-object form mirrors the CLI for the scripting API: the `CaptureOptions`
+field `captureCrossOriginFrames?: string` (consumed by `DemoRecorder`), and the
+`captureElementTree(page, sel, vp, { crossOriginFrames })` opt for the low-level
+capture entry point.
 
-### Planned matching semantics
+### Matching semantics
 
-- Compare each cross-origin frame URL's **host** against each allowlist entry. If
-  an entry includes `:port`, require an exact **host + port** match; otherwise
-  match the host on **any port**.
+Implemented as two pure functions in `src/capture/script/cross-origin.ts`
+(`parseCrossOriginAllowlist` + `frameHostAllowed`) — bundled into the page-context
+capture script **and** unit-tested node-side
+(`src/capture/script/cross-origin.test.ts`):
+
+- Each cross-origin frame's **current origin** (read from
+  `contentWindow.location`, falling back to the `src` attribute) is matched
+  against the allowlist.
+- An entry with `:port` requires an exact **host + port** match; default ports are
+  normalized (`http`→80, `https`→443) so `maps.google.com:443` matches
+  `https://maps.google.com/`. Without a port, the host matches on **any port**.
 - `*` matches everything.
 - **Subdomain handling: exact host.** `example.com` does **not** match
   `www.example.com`. (A future `*.example.com` wildcard entry may be added; until
   then, list each host explicitly.)
 
-### Planned plumbing
+### Plumbing
 
 `--disable-web-security` is a **browser-launch** flag (all-or-nothing, not
-per-frame). When the allowlist is non-empty (or `*`), launch Chromium with it.
-The allowlist then governs which frames are actually recursed, so even with web
-security off only allowlisted hosts get processed — limiting blast radius. Wiring
-points: `src/cli/capture.ts` (parse flag → allowlist), the launch args in
-`src/capture/index.ts` (`launchChromium({ args: [...] })`), and the per-frame gate
-in `_captureIframeRecursion` (apply the allowlist to `el.src`'s host before
-recursing a cross-origin frame).
+per-frame). When the allowlist is non-empty (or `*`), Chromium is launched with
+it via `crossOriginFramesLaunchArgs(value)` (returns the args array, or `[]` when
+no cross-origin recursion is requested). The allowlist then governs which frames
+are actually recursed, so even with web security off only allowlisted hosts get
+processed — **limiting blast radius** (verified: a non-allowlisted frame stays a
+raster even when its document is readable). Wiring:
 
-### Security caveat (must warn when enabled)
+- `src/cli/capture.ts` — parses `--cross-origin-frames`, validates it, prints the
+  security warning, launches with the args, threads the value to `captureElementTree`.
+- `src/capture/index.ts` — `crossOriginFramesLaunchArgs`, the `CaptureOptions`
+  field + `DemoRecorder` wiring, and `cof` serialized into the capture-script args.
+- `src/capture/script/index.ts` — `_crossOriginFrameAllowed` + the gate in
+  `_iframeIsRecursable`.
+
+### Scope note
+
+The allowlist is threaded through the **static** single-capture path (`domotion
+capture <url>`) and `DemoRecorder`. The `--scroll` path's per-segment capture
+does not yet pass the allowlist, so cross-origin frames inside a scroll capture
+stay raster (same-origin recursion still applies). Threading it through the scroll
+executor is a minor follow-up.
+
+### Security caveat (warned when enabled)
 
 Disabling web security also **disables CORS** — a malicious or untrusted captured
 page could then read cross-origin data and reach internal endpoints from inside
 the capture browser. This is safe when capturing **your own / trusted** pages
 (the common Domotion case) and a real risk for arbitrary third-party URLs.
-Therefore the flag is **default-off, opt-in only**, and enabling it must **print
-a visible warning**.
+Therefore the flag is **default-off, opt-in only**, and enabling it **prints a
+visible warning** to stderr (regardless of `--quiet`).
 
 ## Tests
 
-- `tests/features.ts`:
+- `tests/features.ts` (visual, same-origin):
   - `replaced-iframe-same-origin` — `srcdoc` frame recurses to native SVG
     (pixel-identical to the prior raster, 0.00% diff).
   - `iframe-recursion-bordered` — recursion through a non-zero border + padding
     on the iframe, validating the content-box offset and the overflow clip.
-- Planned (Phase 2): cross-origin allowlist match-recurses / non-match-rasters /
-  `*`-recurses-all; host vs host:port matching; nested same-origin frames;
-  `sandbox` frames (script blocked, `contentDocument` still readable);
-  `about:blank` / JS-populated frames read after load.
+- `src/capture/script/cross-origin.test.ts` (unit) — allowlist parsing + host /
+  host:port / wildcard / subdomain / default-port matching.
+- `tests/cross-origin-iframe-recursion.e2e.test.ts` (e2e, two localhost origins) —
+  allowlist **match** recurses, **non-match** stays raster (blast-radius limit),
+  `*` recurses all, no-allowlist stays raster, and **without** the launch flag the
+  cross-origin document is unreadable so it stays raster.

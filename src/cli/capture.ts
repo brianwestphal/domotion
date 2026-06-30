@@ -27,7 +27,8 @@ import {
   wrapInDeviceChrome,
   wrapSvg,
 } from "../index.js";
-import { attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+import { attachWebfontTracker, crossOriginFramesLaunchArgs, discoverAndRegisterWebfonts } from "../capture/index.js";
+import { parseCrossOriginAllowlist } from "../capture/script/cross-origin.js";
 import {
   applyReadyWaits,
   inferHarPageUrl,
@@ -57,6 +58,7 @@ interface CaptureFlags {
   warnings: boolean;
   mobile: boolean;
   colorScheme?: "light" | "dark" | "no-preference";
+  crossOriginFrames?: string;
 }
 
 export async function runCapture(args: string[], help: string): Promise<void> {
@@ -82,6 +84,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "chrome-label":     { type: "string" },
       "chrome-theme":     { type: "string" },
       "color-scheme":     { type: "string" },
+      "cross-origin-frames": { type: "string" },
       scroll:             { type: "string" },
       "scroll-speed":     { type: "string" },
       "scroll-selector":  { type: "string" },
@@ -105,6 +108,11 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   }
   if (values["chrome-theme"] != null && !isChromeTheme(values["chrome-theme"])) {
     throw new Error(`capture: --chrome-theme expects one of ${CHROME_THEMES.join(", ")}, got "${values["chrome-theme"]}"`);
+  }
+  // DM-1442: --cross-origin-frames must be `*` or a non-empty comma-separated
+  // host[:port] allowlist. Reject an empty value rather than silently no-op'ing.
+  if (values["cross-origin-frames"] != null && parseCrossOriginAllowlist(values["cross-origin-frames"]) == null) {
+    throw new Error(`capture: --cross-origin-frames expects "*" or a comma-separated host[:port] list, got "${values["cross-origin-frames"]}"`);
   }
 
   const input = positionals[0];
@@ -132,6 +140,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     warnings:    values.warnings === true,
     mobile:      values.mobile === true,
     colorScheme: parseColorScheme(values["color-scheme"]),
+    crossOriginFrames: values["cross-origin-frames"],
   };
 
   const log = makeLogger(values.quiet === true);
@@ -156,8 +165,21 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     mkdirSync(debugDir, { recursive: true });
     log(`Debug bundle → ${debugDir}/`);
   }
+  // DM-1442: opt-in cross-origin iframe recursion launches Chromium with web
+  // security disabled (so cross-origin contentDocuments are readable). That
+  // ALSO disables CORS for the whole capture session, so a malicious/untrusted
+  // page could read cross-origin data and reach internal endpoints from inside
+  // the capture browser. Print a visible warning (to stderr, regardless of
+  // --quiet) so the operator knows the safety trade-off they opted into.
+  if (flags.crossOriginFrames != null) {
+    process.stderr.write(
+      `⚠️  --cross-origin-frames is enabled: Chromium is launched with web security DISABLED ` +
+      `(CORS off) so cross-origin iframe documents can be recursed into native SVG. ` +
+      `Only use this on pages you trust. Allowlist: ${flags.crossOriginFrames}\n`,
+    );
+  }
   log(`Launching Chromium…`);
-  const browser = await launchChromium();
+  const browser = await launchChromium({ args: crossOriginFramesLaunchArgs(flags.crossOriginFrames) });
   try {
     const ctx = await browser.newContext({
       viewport: { width: flags.width, height: flags.height },
@@ -253,7 +275,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       }
       const tree = await timed(log, "  captured", () => captureElementTree(page, flags.selector, {
         x: clip[0], y: clip[1], width: clip[2], height: clip[3],
-      }));
+      }, { crossOriginFrames: flags.crossOriginFrames }));
       if (debug && debugDir != null) {
         const { writeFileSync } = await import("node:fs");
         writeFileSync(`${debugDir}/captured-tree.json`, JSON.stringify(tree, null, 2));
