@@ -153,7 +153,20 @@ hoisted into the output SVG. For top-document elements `el.ownerDocument ===
 document`, so the outer path is unchanged. Validated by the visual fixture
 `iframe-inner-clip-mask` (0.00%) and `tests/iframe-inner-defs.e2e.test.ts`.
 
-### Still known gaps
+### Canvas background fill (DM-1448 — Fixed)
+
+When the iframe is taller than its inner content, Chrome fills the iframe's
+**canvas** with the inner document's background across the whole inner viewport,
+per CSS background propagation: the canvas color is the `<html>` background when
+opaque, else the propagated `<body>` background, else transparent (the iframe
+stays see-through). The recursion resolves that canvas color
+(`_resolveIframeCanvasColor`) and applies it to the inner `<html>` node, stretching
+that node to the inner viewport box — so the strip below the content fills
+correctly while the `<body>` still paints its own box on top (matching Chrome's
+html-vs-body split). When the canvas is transparent, nothing is added (the iframe
+remains see-through). Validated by the visual fixture `iframe-canvas-bg-fill` (0.00%).
+
+### Still a known gap
 
 - **`mask-image: element(#id)` paint refs inside a recursed iframe** are NOT yet
   rasterized: the node-side `rasterizeMaskSources` isolates the target via a
@@ -161,13 +174,7 @@ document`, so the outer path is unchanged. Validated by the visual fixture
   can't cleanly isolate an element *inside* an iframe. Recording it would yield a
   leaky raster, so `discoverMasks` deliberately skips inner-frame `element()`
   refs (the consumer renders unmasked — the prior baseline) and warns. Tracked as
-  a follow-up.
-- **Recursed-iframe canvas background fill**: when the iframe is taller than its
-  inner content, Chrome fills the iframe's canvas with the inner document's
-  background to the full content box, but the recursion only paints the inner
-  `<body>` to its (shorter) content height — the strip below the content shows
-  the iframe node's own (often transparent) background instead. Tracked as a
-  follow-up.
+  a follow-up (DM-1447).
 
 ## Phase 2 — cross-origin recursion (Shipped)
 

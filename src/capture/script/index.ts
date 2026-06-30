@@ -1072,7 +1072,40 @@ export const captureScript =
       vp.x = savedX;
       vp.y = savedY;
     }
-    return node == null ? undefined : node;
+    if (node == null) return undefined;
+    // DM-1448: fill the iframe canvas. When the iframe is taller than its inner
+    // content, Chrome paints the inner document's CANVAS background across the
+    // whole inner viewport — by CSS background propagation, the canvas color is
+    // the <html> background if opaque, else the propagated <body> background,
+    // else transparent (the iframe is see-through). The recursed inner <html>
+    // node only spans the content height, leaving the strip below it unpainted.
+    // Set the inner <html> node's background to the resolved canvas color and
+    // stretch it to the inner viewport box so the strip fills correctly (the
+    // body paints its own box on top — matching Chrome's html-vs-body split).
+    var canvasColor = _resolveIframeCanvasColor(doc);
+    if (canvasColor != null) {
+      node.styles.backgroundColor = canvasColor;
+      var vpW = doc.documentElement.clientWidth || node.width;
+      var vpH = doc.documentElement.clientHeight || node.height;
+      if (node.width < vpW) node.width = vpW;
+      if (node.height < vpH) node.height = vpH;
+    }
+    return node;
+  }
+
+  // DM-1448: the inner document's resolved canvas background color (CSS
+  // background propagation), or null when the canvas is transparent (no fill —
+  // the iframe stays see-through, as Chrome paints it). `<html>` wins when
+  // opaque; otherwise `<body>` propagates to the canvas.
+  function _isOpaqueColor(c) {
+    return c != null && c !== '' && c !== 'transparent' && !/,\s*0\s*\)\s*$/.test(c);
+  }
+  function _resolveIframeCanvasColor(doc) {
+    var htmlBg = getComputedStyle(doc.documentElement).backgroundColor;
+    if (_isOpaqueColor(htmlBg)) return normColor(htmlBg);
+    var bodyBg = doc.body != null ? getComputedStyle(doc.body).backgroundColor : null;
+    if (_isOpaqueColor(bodyBg)) return normColor(bodyBg);
+    return null;
   }
 
   // DM-1443: populate the shared pre-pass state for a recursed iframe's inner

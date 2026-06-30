@@ -686,6 +686,17 @@ export const tests: FeatureTest[] = [
     relaxedDiffPct: 0.5,
   },
   {
+    // DM-1448: recursed iframe TALLER than its inner content. Chrome fills the
+    // iframe canvas with the inner body's background (propagated) across the
+    // whole inner viewport; the recursion must paint the strip below the
+    // content with that canvas color (not leave it transparent → outer bg).
+    // Inner body bg is a distinct teal; content is only ~90px in a 200px frame.
+    name: "iframe-canvas-bg-fill",
+    html: `<div style="padding:16px;background:#0d1117;"><iframe srcdoc="<html><body style='margin:0;background:#0d9488;color:#fff;font-family:sans-serif'><div style='padding:16px;font-size:16px'>Short content</div></body></html>" width="200" height="200" style="display:block;border:0;"></iframe></div>`,
+    width: 240,
+    height: 240,
+  },
+  {
     // DM-1441: same-origin iframe recursion through a non-zero border + padding
     // on the iframe itself. The inner document's (0,0) origin must land at the
     // iframe's CONTENT box (border-left + padding-left in, border-top +
