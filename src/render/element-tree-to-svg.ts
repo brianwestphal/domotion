@@ -2287,36 +2287,22 @@ function paintOutline(el: CapturedElement, borderRadius: number, indent: string)
   return out;
 }
 
-export function elementTreeToSvgInner(
+/**
+ * Assemble the per-render `RenderState` + paint contexts (extracted from
+ * `elementTreeToSvgInner`, DM-1458). Builds the SVG/defs accumulators, the
+ * clip/gradient id allocators, the hoisting + overflow-clip bookkeeping, the
+ * captured fragment mask/clip-path/filter def tables, and the off-grid
+ * collapsed-cell set, returning the `state` struct the lifted render functions
+ * read. `fragmentFilterDefs` is returned alongside because the caller emits
+ * those verbatim into the top-level <defs> right after building state.
+ */
+function buildRenderState(
   elements: CapturedElement[],
   width: number,
   height: number,
-  /** Prefix for clipPath IDs — required when combining multiple frames in one SVG to avoid ID collisions */
-  idPrefix: string = "",
-  /**
-   * When true (default), include the shared glyph definitions in this frame's
-   * <defs>. Multi-frame animated SVGs should pass false so glyph defs can be
-   * hoisted to the top-level SVG <defs> and shared across frames.
-   */
-  includeGlyphDefs: boolean = true,
-  /**
-   * DM-540: hiDPI multiplier the renderer uses when looking up resized
-   * variants in `_resizedDataUriCache`. Must match the value passed to
-   * `resizeEmbeddedImages` for the same tree, or the lookup misses and
-   * the renderer falls back to the source-resolution data URI. Default 2.
-   */
-  hiDPIFactor: number = 2,
-  /**
-   * DM-839: when true, emit the embedded-font `@font-face` rules
-   * (`getEmbeddedFontFaceCss()`) as a `<style>` inside this frame's `<defs>`.
-   * Defaults to `includeGlyphDefs` — single-frame standalone producers
-   * (capture, CLI, the test harness) own their top-level defs and so should
-   * carry their font CSS here. Multi-frame producers (animator, scroll
-   * composer) pass `false` and collect the CSS once at the top level instead,
-   * so the (potentially large) base64 font bytes aren't duplicated per frame.
-   */
-  includeEmbeddedFontCss: boolean = includeGlyphDefs,
-): string {
+  idPrefix: string,
+  hiDPIFactor: number,
+): { state: RenderState; fragmentFilterDefs: Map<string, { id: string; outerHTML: string }> } {
   setActiveHiDPIFactor(hiDPIFactor);
   const svgParts: string[] = [];
   const defsParts: string[] = [];
@@ -2509,6 +2495,42 @@ export function elementTreeToSvgInner(
     fragmentClipPathOutputId,
     fragmentClipPathCounter: 0,
   };
+
+  return { state, fragmentFilterDefs };
+}
+
+export function elementTreeToSvgInner(
+  elements: CapturedElement[],
+  width: number,
+  height: number,
+  /** Prefix for clipPath IDs — required when combining multiple frames in one SVG to avoid ID collisions */
+  idPrefix: string = "",
+  /**
+   * When true (default), include the shared glyph definitions in this frame's
+   * <defs>. Multi-frame animated SVGs should pass false so glyph defs can be
+   * hoisted to the top-level SVG <defs> and shared across frames.
+   */
+  includeGlyphDefs: boolean = true,
+  /**
+   * DM-540: hiDPI multiplier the renderer uses when looking up resized
+   * variants in `_resizedDataUriCache`. Must match the value passed to
+   * `resizeEmbeddedImages` for the same tree, or the lookup misses and
+   * the renderer falls back to the source-resolution data URI. Default 2.
+   */
+  hiDPIFactor: number = 2,
+  /**
+   * DM-839: when true, emit the embedded-font `@font-face` rules
+   * (`getEmbeddedFontFaceCss()`) as a `<style>` inside this frame's `<defs>`.
+   * Defaults to `includeGlyphDefs` — single-frame standalone producers
+   * (capture, CLI, the test harness) own their top-level defs and so should
+   * carry their font CSS here. Multi-frame producers (animator, scroll
+   * composer) pass `false` and collect the CSS once at the top level instead,
+   * so the (potentially large) base64 font bytes aren't duplicated per frame.
+   */
+  includeEmbeddedFontCss: boolean = includeGlyphDefs,
+): string {
+  const { state, fragmentFilterDefs } = buildRenderState(elements, width, height, idPrefix, hiDPIFactor);
+  const { svgParts, defsParts, hoistedFromAncestor, overflowClipForHoisted } = state;
 
   // DM-934: emit captured inline <filter> defs eagerly into the output
   // SVG's top-level <defs>. The original id is preserved so the
