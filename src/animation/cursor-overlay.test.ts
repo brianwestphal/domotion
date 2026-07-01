@@ -97,6 +97,35 @@ describe("cursorOverlayMarkup: SVG emission", () => {
     expect(svg).toMatch(/animation:co-pos-[a-z0-9]+ [\d.]+s linear infinite/);
   });
 
+  it("re-fires click pulses on every loop iteration (DM-1510)", () => {
+    // Regression: the pulse was emitted as a one-shot `... <delay>s 1 forwards`
+    // animation, so it played only on the first loop and never reappeared when
+    // the SVG looped — while the cursor position track (infinite) kept moving.
+    const overlay: CursorOverlay = {
+      events: [
+        { type: "show", t: 0, x: 50, y: 50 },
+        { type: "click", t: 1000, button: "primary" },
+        { type: "click", t: 2000, button: "secondary" },
+      ],
+    };
+    const r = resolveCursorScript(overlay, TOTAL, FRAME_STARTS, null);
+    const svg = cursorOverlayMarkup(r.positions, r.clicks, r.style, TOTAL);
+    // Every pulse animation must loop with the SVG: `infinite`, full-loop
+    // duration, and NO one-shot iteration count / `forwards` fill.
+    const pulseAnims = svg.match(/animation:co-pulse-[a-z0-9]+-\d+[a-z] [\d.]+s [^"]*/g) ?? [];
+    expect(pulseAnims.length).toBeGreaterThanOrEqual(3); // 2 rings x2 + 1 secondary half
+    for (const a of pulseAnims) {
+      expect(a).toContain("infinite");
+      expect(a).not.toContain("forwards");
+      expect(a).not.toMatch(/ 1 forwards| 1$/);
+      // Full-loop duration, matching the position track (TOTAL/1000 = 4s).
+      expect(a).toContain(`${TOTAL / 1000}s`);
+    }
+    // The pulse's keyframe window must land inside the loop (peak keyframe present
+    // for the t=1000 click: 1000/4000 = 25%, peak at (1000+75)/4000 ≈ 26.875%).
+    expect(svg).toMatch(/@keyframes co-pulse-[a-z0-9]+-0o\{0%\{[^}]*\}25%\{/);
+  });
+
   it("emits empty string when there are no events", () => {
     const r = resolveCursorScript({ events: [] }, TOTAL, FRAME_STARTS, null);
     const svg = cursorOverlayMarkup(r.positions, r.clicks, r.style, TOTAL);

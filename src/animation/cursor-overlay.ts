@@ -369,7 +369,7 @@ export function cursorOverlayMarkup(
   const posAnim = `${posName} ${totalSec}s linear infinite`;
 
   // Pulse fragments — one per click; each pushes its own keyframes into `kf`.
-  const pulseMarkup = clicks.map((c, i) => buildPulseFragment(c, i, uid, kf)).join("\n");
+  const pulseMarkup = clicks.map((c, i) => buildPulseFragment(c, i, uid, kf, totalDurationMs)).join("\n");
 
   let pointerGroup: string;
   if (cursorTimeline != null && cursorTimeline.length > 0) {
@@ -407,29 +407,51 @@ ${pulseMarkup}
 
 /** Build the SVG fragment for a single click pulse, pushing its keyframes into
  *  `kf`. The expanding ring is `transform:scale` with `non-scaling-stroke` (so
- *  it matches the old SMIL `r` growth but on the CSS timeline), played once at
- *  its click time and frozen afterward (`forwards`), like the prior single-fire
- *  SMIL pulse. */
-function buildPulseFragment(c: ResolvedClick, idx: number, uid: string, kf: string[]): string {
-  const beginSec = (c.t / 1000).toFixed(3);
-  const durSec = (c.style.pulseDurationMs / 1000).toFixed(3);
+ *  it matches the old SMIL `r` growth but on the CSS timeline).
+ *
+ *  DM-1510: the pulse animation spans the WHOLE loop (`totalDurationMs`) and runs
+ *  `infinite`, exactly like the cursor position track — NOT a `durSec`-long
+ *  one-shot with a start delay. The pulse curve occupies its click window
+ *  `[c.t, c.t + pulseDurationMs]` as a fraction of the loop and holds invisible
+ *  (opacity 0, scale reset) the rest of the loop. A one-shot `forwards`
+ *  animation only played on the first loop iteration, so the click rings
+ *  vanished after the SVG looped even though the cursor kept moving. */
+function buildPulseFragment(c: ResolvedClick, idx: number, uid: string, kf: string[], totalDurationMs: number): string {
+  const totalSec = totalDurationMs / 1000;
+  const durMs = c.style.pulseDurationMs;
   const r0 = 4;
   const r1 = c.style.pulseRadius;
   const innerR = r1 * 0.55;
   const outerName = `co-pulse-${uid}-${idx}o`;
   const innerName = `co-pulse-${uid}-${idx}i`;
-  kf.push(`@keyframes ${outerName}{0%{transform:scale(1);opacity:0}15%{opacity:0.9}100%{transform:scale(${num(r1 / r0)});opacity:0}}`);
-  kf.push(`@keyframes ${innerName}{0%{transform:scale(1);opacity:0}15%{opacity:0.95}100%{transform:scale(${num((r1 - 1) / r0)});opacity:0}}`);
+
+  // Fractions of the full loop where this pulse's window lands. The window's
+  // start/peak/end map to the old one-shot's 0% / 15% / 100% keyframes.
+  const fStart = c.t / totalDurationMs;
+  const fPeak = Math.min(1, (c.t + 0.15 * durMs) / totalDurationMs);
+  const fEnd = Math.min(1, (c.t + durMs) / totalDurationMs);
+  // Hold scale(1)+opacity 0 before the click (only needed when the click is not
+  // at t=0) and after the window (reset for the next loop, unless the window
+  // already reaches the loop end).
+  const lead = fStart > 0 ? `${pct(fStart)}{transform:scale(1);opacity:0}` : "";
+  const tail = fEnd < 1 ? `100%{transform:scale(1);opacity:0}` : "";
+  const peak = (op: number): string => (fPeak < fEnd ? `${pct(fPeak)}{opacity:${op}}` : "");
+  kf.push(`@keyframes ${outerName}{0%{transform:scale(1);opacity:0}${lead}${peak(0.9)}${pct(fEnd)}{transform:scale(${num(r1 / r0)});opacity:0}${tail}}`);
+  kf.push(`@keyframes ${innerName}{0%{transform:scale(1);opacity:0}${lead}${peak(0.95)}${pct(fEnd)}{transform:scale(${num((r1 - 1) / r0)});opacity:0}${tail}}`);
   const ringStyle = (name: string): string =>
-    `transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:${name} ${durSec}s linear ${beginSec}s 1 forwards`;
+    `transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:${name} ${totalSec}s linear infinite`;
   // Right-half-disc fill for secondary clicks.
   let secondaryHalf = "";
   if (c.button === "secondary") {
     const halfPath = `M ${num(c.x)} ${num(c.y - innerR)} A ${num(innerR)} ${num(innerR)} 0 0 1 ${num(c.x)} ${num(c.y + innerR)} Z`;
     const halfName = `co-pulse-${uid}-${idx}h`;
-    kf.push(`@keyframes ${halfName}{0%{opacity:0}20%{opacity:1}100%{opacity:0}}`);
+    const fHalfPeak = Math.min(1, (c.t + 0.20 * durMs) / totalDurationMs);
+    const leadH = fStart > 0 ? `${pct(fStart)}{opacity:0}` : "";
+    const tailH = fEnd < 1 ? `100%{opacity:0}` : "";
+    const peakH = fHalfPeak < fEnd ? `${pct(fHalfPeak)}{opacity:1}` : "";
+    kf.push(`@keyframes ${halfName}{0%{opacity:0}${leadH}${peakH}${pct(fEnd)}{opacity:0}${tailH}}`);
     secondaryHalf = `
-    <path d="${halfPath}" fill="rgba(0,0,0,0.2)" opacity="0" style="animation:${halfName} ${durSec}s linear ${beginSec}s 1 forwards" />`;
+    <path d="${halfPath}" fill="rgba(0,0,0,0.2)" opacity="0" style="animation:${halfName} ${totalSec}s linear infinite" />`;
   }
   return `    <g class="cursor-click cursor-click-${idx}">
       <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStrokeOuter}" stroke-width="2" opacity="0" style="${ringStyle(outerName)}" />
