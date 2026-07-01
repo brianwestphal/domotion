@@ -62,6 +62,7 @@ export default defineConfig({
             { label: "Terminal sessions", slug: "usage/terminal" },
             { label: "Compositing", slug: "usage/composite" },
             { label: "Export to video / image", slug: "usage/export" },
+            { label: "Embedding & reach", slug: "usage/embedding" },
             { label: "Accessibility", slug: "usage/accessibility" },
             { label: "Security & privacy", slug: "usage/security" },
           ],

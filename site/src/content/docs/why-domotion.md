@@ -36,8 +36,9 @@ real browser: your docs site, a landing page, GitLab, self-hosted HTML. A few
 surfaces sanitize SVG and show a **static first frame** instead — GitHub READMEs
 and npm package pages proxy and strip the animation, and many email clients drop
 SVG entirely. For those, export a crisp static frame, a GIF, or an MP4 (see
-[Export to video / image](/domotion/usage/export/)). Either way it stays one
-self-contained file with no external dependencies.
+[Embedding & reach](/domotion/usage/embedding/) for where it plays and how to
+export for the rest). Either way it stays one self-contained file with no
+external dependencies.
 
 ## Tiny next to video
 
