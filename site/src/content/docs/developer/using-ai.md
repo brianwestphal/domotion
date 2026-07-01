@@ -15,6 +15,14 @@ as a tool**: the CLIs, the config schema, the template library, the API, the
 gotchas, and a full **design playbook**. It's distinct from contributor docs.
 Point Claude / Cursor / your agent at it.
 
+## You don't have to hand-write the markup
+
+Because Domotion renders whatever markup it's given and an agent can *look at the
+result and iterate*, you can describe the demo you want — "a pricing page with
+three tiers, the middle one highlighted, that assembles top-down" — and let the
+agent write the HTML/CSS, render it, check the pixels, and refine. Designers and
+non-coders get a polished, on-brand demo without touching the markup themselves.
+
 ## Work the loop: build → render → *look* → critique → iterate
 
 The output is an ordinary, standards-compliant SVG, so an agent can look at it

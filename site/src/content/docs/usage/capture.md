@@ -17,6 +17,22 @@ domotion capture ./card.html -o card.svg --width 1200 --height 630 --selector ".
 cat page.html | domotion capture - -o page.svg
 ```
 
+## Bring your design mock
+
+You don't need a running app to make a demo. If you have a static mock — a
+component-library page, a hand-built HTML/CSS screen, or an HTML export from your
+design tool — point `capture` straight at the file:
+
+```bash
+domotion capture ./mockup.html -o mockup.svg --width 1440 --height 900
+```
+
+The capture is pixel-faithful to how Chromium paints your markup, so the SVG
+looks exactly like your mock. From there, wrap it in a
+[device mockup](/domotion/usage/templates/) or turn a few states into an
+[animated flow](/domotion/usage/animate/) to bring it to life — no re-drawing, no
+re-export.
+
 ## The review loop
 
 Capture, then look at the pixels with the bundled `svg-to-image`:
