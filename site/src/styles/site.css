@@ -62,7 +62,13 @@ figure:has(> img) figcaption {
   width: min(100%, 920px);
 }
 .hero > .hero-html img {
-  margin-inline: 0;
+  /* DM-1504: the wordmark <img> is narrower (its inline max-width) than the
+     .hero-html container, so it must center WITHIN that container. `margin: 0`
+     left-pinned it, which only showed at desktop widths (at mobile the img fills
+     the narrow container, so left-pin == centered). Block + auto side margins
+     centers it at every width. */
+  display: block;
+  margin-inline: auto;
   width: 100%;
   max-width: 920px;
   height: auto;

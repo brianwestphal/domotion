@@ -105,6 +105,10 @@ function measureHero() {
   return {
     hero: box(".hero"),
     heroHtml: box(".hero > .hero-html"),
+    // DM-1504: the wordmark <img> is narrower than its .hero-html container, so
+    // .hero-html being centered did NOT mean the visible wordmark was — it was
+    // left-pinned inside the container. Measure the img itself.
+    wordmark: box(".hero > .hero-html img"),
     tagline: box(".hero .copy .tagline"),
     actions: box(".hero .actions"),
     primaryWidths: [...document.querySelectorAll(".hero .actions .sl-link-button.primary")].map(
@@ -136,7 +140,7 @@ try {
     const m = await page.evaluate(measureHero);
     await ctx.close();
 
-    for (const part of ["heroHtml", "tagline", "actions"]) {
+    for (const part of ["heroHtml", "wordmark", "tagline", "actions"]) {
       const b = m[part];
       check(b != null, `desktop: .${part} not found in hero`);
       if (b) {
@@ -162,6 +166,17 @@ try {
     const m = await page.evaluate(measureHero);
     await ctx.close();
 
+    // DM-1504: the wordmark must be horizontally centered on mobile too (this bug
+    // was invisible at mobile widths only because the img happened to fill the
+    // narrow container — a smaller wordmark would have exposed the left-pin here).
+    check(m.wordmark != null, "mobile: wordmark img not found in hero");
+    if (m.wordmark) {
+      check(
+        Math.abs(m.wordmark.center - m.hero.center) <= CENTER_TOLERANCE_PX,
+        `mobile: wordmark is not centered in the hero ` +
+          `(center ${m.wordmark.center.toFixed(1)} vs hero ${m.hero.center.toFixed(1)})`,
+      );
+    }
     check(
       m.actions?.flexDirection === "column",
       `mobile: .actions flex-direction is "${m.actions?.flexDirection}", expected "column" (stacked)`,
@@ -186,4 +201,4 @@ if (failures.length) {
   for (const f of failures) console.error("  - " + f);
   process.exit(1);
 }
-console.log("✓ hero layout check passed (desktop centered, mobile actions stacked + consistent)");
+console.log("✓ hero layout check passed (wordmark centered desktop + mobile, actions centered/stacked + consistent)");
