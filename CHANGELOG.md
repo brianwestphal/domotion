@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.19.1] - 2026-07-01
+
+
+** Fixes**
+
+- Cursor overlay click pulses now replay on every loop of an animated SVG instead of firing once and freezing after the first pass — the click rings reappear each time the pointer repeats its motion.
+
 ## [0.19.0] - 2026-07-01
 
 
