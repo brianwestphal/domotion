@@ -130,6 +130,53 @@ The SVG is the deliverable for the web, but when you need an MP4 for a platform
 that won't take SVG, or a still PNG for a thumbnail, see
 [Exporting](/domotion/usage/export/).
 
+## Step 5 — regenerate on every release
+
+Because the demo is defined by a config checked into your repo, regenerating it
+after a UI change is **one command, not a re-record** — and the output is
+deterministic (on the same platform), so you can commit the `.svg` and review its
+changes like code.
+
+Wire it into your release so demos never drift from the app. A `package.json`
+`postversion` hook regenerates every demo when you cut a version:
+
+```json
+{
+  "scripts": {
+    "demos": "domotion animate demos/onboarding.json && domotion animate demos/checkout.json",
+    "postversion": "npm run demos && git add demos/*.svg && git commit -m \"chore: regenerate demos\""
+  }
+}
+```
+
+Or gate it in CI — regenerate on every PR and fail if the committed SVGs are
+stale, so a UI change that would drift the demo can't merge without updating it:
+
+```yaml
+# .github/workflows/demos.yml
+name: demos
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run demos
+      - name: Fail if demos are out of date
+        run: git diff --exit-code -- demos/
+```
+
+Keep it stable: pre-install Chromium (as above) so the job is fast, commit the
+generated `.svg` files, and regenerate baselines on the **same OS** you commit
+from — rendering is pixel-exact on macOS and matches within a small
+native-hinting margin on Linux/Windows, so a mixed-OS matrix can show spurious
+within-margin diffs. See [Continuous integration](/domotion/usage/ci/) for the
+general pipeline setup, headless operation, and exit-code behavior.
+
 ## Real examples
 
 These are genuine Domotion captures of live web apps — each is one
