@@ -39,13 +39,15 @@
       "name": "Commit Changes",
       "prompt": "make a commit message for the recently completed tickets, without wrapping long lines.  Don't include any co-authored by Anthropic type lines in the commit message.  add all unstaged changes to the git commit.  git commit with the message you generated but don't push",
       "icon": "send",
-      "color": "#3b82f6"
+      "color": "#3b82f6",
+      "id": "773ae3a1-83e3-446e-8efa-76f9ff0a55cc"
     },
     {
       "name": "Update Requirements",
       "prompt": "Update the requirements docs as appropriate",
       "icon": "file-text",
-      "color": "#6b7280"
+      "color": "#6b7280",
+      "id": "f633c7b0-abf4-4aef-a63b-6c76c46260d2"
     },
     {
       "type": "group",
@@ -55,33 +57,39 @@
           "name": "Reqs ↔︎ Code",
           "prompt": "/check-requirements-against-code",
           "icon": "arrow-left-right",
-          "color": "#ec4899"
+          "color": "#ec4899",
+          "id": "58ae08cb-2597-47aa-bff4-99346284132b"
         },
         {
           "name": "Analyze Code Quality",
           "prompt": "/analyze-code-quality",
           "icon": "circle-check-big",
-          "color": "#8b5cf6"
+          "color": "#8b5cf6",
+          "id": "7c117580-4fbb-4ae9-87c3-57110adf39d6"
         },
         {
           "name": "Kerf Usage Audit",
           "prompt": "Audit this codebase for kerf usage.  See ~/.claude/skills/kerf-app/SKILL.md or node_modules/kerfjs/ai/skill.md.  For each finding, make Hot Sheet tickets with: file:line, which rule or pattern, the fix shape. Don't speculate - only flag patterns you can point to in the code. Top \"must fix\" list, then \"consider\" list.",
           "icon": "slice",
-          "color": "#f97316"
+          "color": "#f97316",
+          "id": "6d351b5d-9941-4a17-9fd6-17bd7be0ded9"
         },
         {
           "name": "Check Code Hygene",
           "prompt": "/check-code-hygiene",
           "icon": "soap-dispenser-droplet",
-          "color": "#f97316"
+          "color": "#f97316",
+          "id": "1e24fb1e-e915-4e66-9124-9defebdd153d"
         },
         {
           "name": "Everything",
           "prompt": "do these sequentially, creating follow up tickets for all concerns encountered:\n/check-requirements-against-code\n/check-code-hygiene\n/analyze-code-quality\n",
           "icon": "balloon",
-          "color": "#e5e7eb"
+          "color": "#e5e7eb",
+          "id": "a32c4739-a77c-4bc0-82d0-0c89739f83d1"
         }
-      ]
+      ],
+      "id": "3d4fa7cc-9250-4594-9922-27a6bd6b1d6e"
     },
     {
       "type": "group",
@@ -93,21 +101,25 @@
           "icon": "git-compare",
           "color": "#e5e7eb",
           "target": "shell",
-          "autoShowLog": true
+          "autoShowLog": true,
+          "id": "320057f5-97bf-426c-8d0c-1893b0ef73a7"
         },
         {
           "name": "git push",
           "prompt": "git push",
           "icon": "git-compare-arrows",
-          "target": "shell"
+          "target": "shell",
+          "id": "f51419ca-a0d7-4e14-8387-8856e89373f6"
         }
-      ]
+      ],
+      "id": "8a3c66de-b9db-4589-9af7-e1cd6e2fca5d"
     },
     {
       "name": "Prep Major Release",
       "prompt": "/prep-major-release",
       "icon": "wand",
-      "color": "#14b8a6"
+      "color": "#14b8a6",
+      "id": "060cdce3-da9b-4b1f-8e70-1c71cc0046f1"
     },
     {
       "type": "group",
@@ -118,29 +130,34 @@
           "prompt": "npm run demos:test:all",
           "target": "shell",
           "autoShowLog": true,
-          "icon": "square-play"
+          "icon": "square-play",
+          "id": "ecd135aa-2d97-425e-a748-b43ed3a53bc3"
         },
         {
           "name": "Test Demos + Unicode",
           "prompt": "npm run demos:test:all && npm run demos:test:unicode",
           "target": "shell",
           "icon": "square-play",
-          "autoShowLog": true
+          "autoShowLog": true,
+          "id": "db4e35b0-35f3-4786-af78-4cb580fcb73d"
         },
         {
           "name": "Test \"Real World\" Demos",
           "prompt": "npm run demos:test:real-world",
           "target": "shell",
           "icon": "globe",
-          "autoShowLog": true
+          "autoShowLog": true,
+          "id": "263d7cb8-11d8-4485-865b-4a7fe439402f"
         },
         {
           "name": "Review Demos",
           "prompt": "npm run demos:review",
           "target": "shell",
-          "icon": "square-check"
+          "icon": "square-check",
+          "id": "ea151e62-4ec5-43be-83d1-a186f02cb046"
         }
-      ]
+      ],
+      "id": "a7fb1646-fd1c-4f1a-af23-9bc72dbffa9f"
     }
   ]
 }
