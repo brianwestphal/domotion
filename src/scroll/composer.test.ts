@@ -92,6 +92,32 @@ describe("composeScrollSvg: basic", () => {
   });
 });
 
+// ── Reduced motion ──────────────────────────────────────────────────────────
+
+describe("composeScrollSvg: reduced motion (DM-1487)", () => {
+  it("emits a prefers-reduced-motion block that pauses the scroll at the first frame", () => {
+    const segs: ScrollSegmentCapture[] = [
+      makeSeg(0,    0,    1000),
+      makeSeg(600,  1000, 3000),
+      makeSeg(1200, 3000, 5000),
+    ];
+    const svg = composeScrollSvg(segs, { viewportW: 800, viewportH: 600 });
+    // Unlike the animator (which can use `animation: none`), the scroll pipeline
+    // uses per-segment visibility culling, so reduced motion must PAUSE the
+    // animations at frame 0 (a correct top-of-page still) — `animation: none`
+    // would drop the culling and reveal every segment at once.
+    expect(svg).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+    expect(svg).toContain("animation-play-state: paused !important");
+  });
+
+  it("does not emit the reduced-motion block's paused rule outside the media query in the default path", () => {
+    const svg = composeScrollSvg([makeSeg(0, 0, 1000), makeSeg(600, 1000, 3000)], { viewportW: 800, viewportH: 600 });
+    // The only occurrence of `paused` is inside the reduced-motion media block.
+    const idx = svg.indexOf("animation-play-state: paused");
+    expect(idx).toBeGreaterThan(svg.indexOf("@media (prefers-reduced-motion: reduce)"));
+  });
+});
+
 // ── Composite dimensions ───────────────────────────────────────────────────
 
 describe("composeScrollSvg: composite dimensions", () => {

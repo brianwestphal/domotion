@@ -467,6 +467,9 @@ ${keyframes}
       }
 ${segmentCullCss.join("\n")}
 ${stickyCullCss.join("\n")}
+      @media (prefers-reduced-motion: reduce) {
+        .${animClass}, .${animClass} * { animation-play-state: paused !important; }
+      }
     </style>
   </defs>
 ${paintBg ? `  <rect width="${W}" height="${VH}" fill="${bg}"/>\n` : ""}  <g clip-path="url(#${animClass}-clip)">
