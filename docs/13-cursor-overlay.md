@@ -102,8 +102,9 @@ A new module `src/animation/cursor-overlay.ts`:
    - `[ {t, x, y} ]` — cursor position over time, with linear interpolation between adjacent entries when both have the same segment.
    - `[ {t, x, y, button, style} ]` — click pulses.
 2. Emits a `<g class="cursor-overlay" pointer-events="none">` appended to the top of the animated SVG (after the frame layers), containing:
-   - The cursor arrow `<path>` with an `<animateTransform attributeName="transform" type="translate" values="..." keyTimes="..." dur="totalMs" fill="freeze">` that walks the position keyframes.
-   - One `<circle>` per click, stamped at the click's `(x, y)` with `<animate attributeName="r" .../>` and `<animate attributeName="opacity" .../>` driving the pulse-out animation. The circle has `begin="<click t>ms"` so it activates at the right time.
+   - A `<style>` with the overlay's `@keyframes`, and the elements below animated via inline `animation:` referencing them. **The overlay is pure CSS, not SMIL (DM-1507)** — SMIL (`<animateTransform>`/`<animate>`) runs on the SVG's *own* timeline while the frames run on the CSS/document timeline; Safari pauses/throttles those two clocks independently when the SVG is offscreen (tab-switch, scrolled away), so a SMIL cursor drifted out of sync with the CSS frames on return. CSS keeps everything on **one timeline** — they pause and resume together, so they can't desync. (The `@keyframes` are namespaced with a short content hash so composited SVGs with several overlays don't collide.)
+   - The cursor arrow `<path>` (or, in auto-cursor mode, one glyph per keyword) walked along the position keyframes by a `co-pos-…` `@keyframes` (linear `transform: translate(…)`), with a discrete `step-end` opacity track for visibility / glyph switching.
+   - One `<circle>` per click at the click's `(x, y)`, its ring expanded by a `co-pulse-…` `@keyframes` using `transform: scale(…)` with `vector-effect: non-scaling-stroke` (so the stroke stays constant while the radius grows, matching the old `r` animation) plus an opacity fade. It runs once at the click time (`animation-delay: <t>s; animation-fill-mode: forwards`).
    - For secondary clicks, an additional `<path>` (right half-disc) inside the ring.
 
 The cursor arrow itself is a small SVG path approximating macOS's pointer:

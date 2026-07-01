@@ -88,6 +88,13 @@ describe("cursorOverlayMarkup: SVG emission", () => {
     expect(svg).toContain('class="cursor-click cursor-click-1"');
     // Secondary click adds the right-half-disc fill.
     expect(svg).toContain('rgba(0,0,0,0.2)');
+    // DM-1507: the overlay must be pure CSS — NO SMIL. SMIL runs on the SVG's own
+    // timeline while the frames run on the CSS timeline; Safari pauses those two
+    // clocks independently offscreen, desyncing the cursor. One timeline = no drift.
+    expect(svg).not.toContain("<animate");
+    expect(svg).not.toContain("repeatCount");
+    expect(svg).toMatch(/@keyframes co-pos-[a-z0-9]+\{/);
+    expect(svg).toMatch(/animation:co-pos-[a-z0-9]+ [\d.]+s linear infinite/);
   });
 
   it("emits empty string when there are no events", () => {
@@ -178,7 +185,9 @@ describe("cursorOverlayMarkup: multi-glyph (DM-1106)", () => {
     const svg = cursorOverlayMarkup(r.positions, r.clicks, r.style, 1000, r.cursorTimeline);
     expect(svg).toContain('class="cursor-pointer"');
     expect(svg).not.toContain('class="cursor-arrow"'); // not the legacy path
-    // Two glyph layers, each with a discrete opacity track.
-    expect((svg.match(/calcMode="discrete"/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    // DM-1507: cursor is CSS, not SMIL — no SMIL timeline that desyncs offscreen.
+    expect(svg).not.toContain("<animate");
+    // Two glyph layers, each toggled by a discrete (step-end) CSS opacity track.
+    expect((svg.match(/co-glyph-[a-z0-9]+-\d+ [\d.]+s step-end infinite/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 });

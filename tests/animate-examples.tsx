@@ -192,7 +192,10 @@ const EXAMPLES: Example[] = [
       // to each click/hover/fill target and pulses on click. Exercises the
       // `autoCursorTargets.push` recording path in the captured-frame body.
       if (!/class="cursor-overlay"/.test(svg)) f.push("missing cursor-overlay group");
-      if (!/<animateTransform[^>]*type="translate"/.test(svg)) f.push("missing cursor glide (animateTransform translate)");
+      // DM-1507: the cursor glide is CSS `@keyframes` (translate), NOT SMIL — SMIL
+      // runs on a separate timeline that desyncs from the CSS frames offscreen.
+      if (!/@keyframes co-pos-[a-z0-9]+\{/.test(svg)) f.push("missing cursor glide (CSS co-pos keyframes)");
+      if (/<animateTransform|<animate /.test(svg)) f.push("cursor must be CSS, not SMIL (found <animate*>)");
       if (!/class="cursor-click cursor-click-\d+"/.test(svg)) f.push("missing auto click-pulse (cursor-click-N)");
       if (!/class="cursor-pointer"/.test(svg)) f.push("missing cursor glyph");
       return f;
@@ -209,7 +212,11 @@ const EXAMPLES: Example[] = [
       // the `explicitCursorBoxes.set` recording path in the captured-frame body —
       // the glide must pass through the literal 60,60 waypoint.
       if (!/class="cursor-overlay"/.test(svg)) f.push("missing cursor-overlay group");
-      if (!/<animateTransform[^>]*type="translate"[^>]*values="[^"]*\b60,60\b/.test(svg)) f.push("missing explicit 60,60 waypoint in cursor glide");
+      // DM-1507: CSS `@keyframes` glide (was SMIL). The 60,60 waypoint is a
+      // `translate(60px,60px)` keyframe; must be CSS, not SMIL.
+      if (!/@keyframes co-pos-[a-z0-9]+\{/.test(svg)) f.push("missing cursor glide (CSS co-pos keyframes)");
+      if (/<animateTransform|<animate /.test(svg)) f.push("cursor must be CSS, not SMIL (found <animate*>)");
+      if (!/translate\(60px,60px\)/.test(svg)) f.push("missing explicit 60,60 waypoint in cursor glide");
       if (!/class="cursor-click cursor-click-\d+"/.test(svg)) f.push("missing moveClick click-pulse (cursor-click-N)");
       return f;
     },

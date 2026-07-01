@@ -324,6 +324,32 @@ function resolveMoveTarget(
  * in as the all-glyphs-off `null` state). Without a timeline, the single white
  * arrow paints (back-compat).
  */
+/** Small deterministic hash → 6-char base36, used to namespace this overlay's
+ *  `@keyframes` so a composited SVG with several overlays can't collide. */
+function overlayUid(seed: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36).padStart(6, "0").slice(0, 6);
+}
+
+/** Format a 0..1 keyframe fraction as a CSS keyframe percentage. */
+function pct(frac: number): string {
+  return `${Number((frac * 100).toFixed(4))}%`;
+}
+
+/**
+ * DM-1507: the cursor overlay is emitted as CSS `@keyframes`, NOT SMIL. SMIL
+ * (`<animateTransform>`/`<animate>`) runs on the SVG's *own* timeline while the
+ * frame animations run on the CSS/document timeline — two clocks that Safari
+ * pauses/throttles independently when the SVG is offscreen (tab-switch, scrolled
+ * away), so the pointer drifted out of sync with the animation on return. Driving
+ * the cursor with CSS puts everything on ONE timeline; they pause and resume
+ * together, so they can't desync. The `@keyframes` are collected into a `<style>`
+ * inside the overlay group and applied via inline `animation:` on each element.
+ */
 export function cursorOverlayMarkup(
   positions: KeyframePoint[],
   clicks: ResolvedClick[],
@@ -333,82 +359,81 @@ export function cursorOverlayMarkup(
 ): string {
   if (positions.length === 0 || totalDurationMs <= 0) return "";
   const totalSec = totalDurationMs / 1000;
-  // animateTransform with values + keyTimes drives the cursor's translate.
-  const valueStrs: string[] = [];
-  const keyTimes: string[] = [];
-  for (const p of positions) {
-    valueStrs.push(`${num(p.x)},${num(p.y)}`);
-    keyTimes.push((p.t / totalDurationMs).toFixed(4));
-  }
-  // SMIL animateTransform requires keyTimes to start at 0 and end at 1; the
-  // resolveCursorScript anchor at t=0 and t=totalDurationMs guarantees this.
-  const posAnim = `<animateTransform attributeName="transform" type="translate" values="${valueStrs.join("; ")}" keyTimes="${keyTimes.join("; ")}" dur="${totalSec}s" repeatCount="indefinite" fill="freeze" />`;
+  const uid = overlayUid(`${totalDurationMs}|${positions.map((p) => `${p.x},${p.y},${p.t}`).join(";")}`);
+  const kf: string[] = []; // @keyframes collected here, injected into <style>
 
-  // Pulse SVG fragments — one per click, with timing keyed off `t`.
-  const pulseMarkup = clicks.map((c, i) => buildPulseFragment(c, i, totalDurationMs)).join("\n");
+  // Position track — linear translate along the keyframes (holds are duplicate
+  // consecutive values, exactly as under SMIL). keyTimes start at 0 and end at 1.
+  const posName = `co-pos-${uid}`;
+  kf.push(`@keyframes ${posName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{transform:translate(${num(p.x)}px,${num(p.y)}px)}`).join("")}}`);
+  const posAnim = `${posName} ${totalSec}s linear infinite`;
+
+  // Pulse fragments — one per click; each pushes its own keyframes into `kf`.
+  const pulseMarkup = clicks.map((c, i) => buildPulseFragment(c, i, uid, kf)).join("\n");
 
   let pointerGroup: string;
   if (cursorTimeline != null && cursorTimeline.length > 0) {
-    // DM-1106: one glyph per distinct keyword, each toggled by a discrete
-    // opacity track derived from the keyword timeline. The shared parent group
-    // carries the position animation; glyphs are hotspot-at-origin so each lands
-    // correctly regardless of its own hotspot.
+    // DM-1106: one glyph per distinct keyword, each toggled by a DISCRETE opacity
+    // track (SMIL `calcMode="discrete"` → CSS `step-end`, which holds each value
+    // until the next keyframe). The parent carries the position animation.
     const size = 22 * (style.cursorScale || 1);
-    const tKeyTimes = cursorTimeline.map((e) => (e.t / totalDurationMs).toFixed(4));
     const kinds = Array.from(new Set(cursorTimeline.map((e) => e.cursor).filter((c): c is string => c != null)));
-    const glyphLayers = kinds.map((kind) => {
+    const glyphLayers = kinds.map((kind, gi) => {
       const glyph = cursorGlyphSvg(kind, 0, 0, size, style.cursorStroke);
-      const opVals = cursorTimeline.map((e) => (e.cursor === kind ? "1" : "0"));
-      return `      <g opacity="0">
-        <animate attributeName="opacity" values="${opVals.join(";")}" keyTimes="${tKeyTimes.join(";")}" dur="${totalSec}s" repeatCount="indefinite" calcMode="discrete" fill="freeze" />
+      const gName = `co-glyph-${uid}-${gi}`;
+      kf.push(`@keyframes ${gName}{${cursorTimeline.map((e) => `${pct(e.t / totalDurationMs)}{opacity:${e.cursor === kind ? "1" : "0"}}`).join("")}}`);
+      return `      <g opacity="0" style="animation:${gName} ${totalSec}s step-end infinite">
         ${glyph}
       </g>`;
     }).join("\n");
-    pointerGroup = `    <g class="cursor-pointer">
-      ${posAnim}
+    pointerGroup = `    <g class="cursor-pointer" style="animation:${posAnim}">
 ${glyphLayers}
     </g>`;
   } else {
     // Legacy single-arrow path (no auto cursor-type resolver supplied).
-    const visValues = positions.map((p) => (p.visible ? "1" : "0"));
-    pointerGroup = `    <g class="cursor-arrow" opacity="0">
-      ${posAnim}
-      <animate attributeName="opacity" values="${visValues.join(";")}" keyTimes="${keyTimes.join(";")}" dur="${totalSec}s" repeatCount="indefinite" calcMode="discrete" fill="freeze" />
+    const visName = `co-vis-${uid}`;
+    kf.push(`@keyframes ${visName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{opacity:${p.visible ? "1" : "0"}}`).join("")}}`);
+    pointerGroup = `    <g class="cursor-arrow" opacity="0" style="animation:${posAnim},${visName} ${totalSec}s step-end infinite">
       ${macosCursorPath(style.cursorScale)}
     </g>`;
   }
 
   return `  <g class="cursor-overlay" pointer-events="none">
+    <style>${kf.join("")}</style>
 ${pointerGroup}
 ${pulseMarkup}
   </g>`;
 }
 
-/** Build the SVG fragment for a single click pulse. */
-function buildPulseFragment(c: ResolvedClick, idx: number, totalDurationMs: number): string {
+/** Build the SVG fragment for a single click pulse, pushing its keyframes into
+ *  `kf`. The expanding ring is `transform:scale` with `non-scaling-stroke` (so
+ *  it matches the old SMIL `r` growth but on the CSS timeline), played once at
+ *  its click time and frozen afterward (`forwards`), like the prior single-fire
+ *  SMIL pulse. */
+function buildPulseFragment(c: ResolvedClick, idx: number, uid: string, kf: string[]): string {
   const beginSec = (c.t / 1000).toFixed(3);
   const durSec = (c.style.pulseDurationMs / 1000).toFixed(3);
   const r0 = 4;
   const r1 = c.style.pulseRadius;
   const innerR = r1 * 0.55;
+  const outerName = `co-pulse-${uid}-${idx}o`;
+  const innerName = `co-pulse-${uid}-${idx}i`;
+  kf.push(`@keyframes ${outerName}{0%{transform:scale(1);opacity:0}15%{opacity:0.9}100%{transform:scale(${num(r1 / r0)});opacity:0}}`);
+  kf.push(`@keyframes ${innerName}{0%{transform:scale(1);opacity:0}15%{opacity:0.95}100%{transform:scale(${num((r1 - 1) / r0)});opacity:0}}`);
+  const ringStyle = (name: string): string =>
+    `transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:${name} ${durSec}s linear ${beginSec}s 1 forwards`;
   // Right-half-disc fill for secondary clicks.
   let secondaryHalf = "";
   if (c.button === "secondary") {
     const halfPath = `M ${num(c.x)} ${num(c.y - innerR)} A ${num(innerR)} ${num(innerR)} 0 0 1 ${num(c.x)} ${num(c.y + innerR)} Z`;
+    const halfName = `co-pulse-${uid}-${idx}h`;
+    kf.push(`@keyframes ${halfName}{0%{opacity:0}20%{opacity:1}100%{opacity:0}}`);
     secondaryHalf = `
-    <path d="${halfPath}" fill="rgba(0,0,0,0.2)" opacity="0">
-      <animate attributeName="opacity" values="0; 1; 0" keyTimes="0; 0.2; 1" dur="${durSec}s" begin="${beginSec}s" fill="freeze" />
-    </path>`;
+    <path d="${halfPath}" fill="rgba(0,0,0,0.2)" opacity="0" style="animation:${halfName} ${durSec}s linear ${beginSec}s 1 forwards" />`;
   }
   return `    <g class="cursor-click cursor-click-${idx}">
-      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStrokeOuter}" stroke-width="2" opacity="0">
-        <animate attributeName="r" values="${r0}; ${r1}" keyTimes="0; 1" dur="${durSec}s" begin="${beginSec}s" fill="freeze" />
-        <animate attributeName="opacity" values="0; 0.9; 0" keyTimes="0; 0.15; 1" dur="${durSec}s" begin="${beginSec}s" fill="freeze" />
-      </circle>
-      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStroke}" stroke-width="1" opacity="0">
-        <animate attributeName="r" values="${r0}; ${r1 - 1}" keyTimes="0; 1" dur="${durSec}s" begin="${beginSec}s" fill="freeze" />
-        <animate attributeName="opacity" values="0; 0.95; 0" keyTimes="0; 0.15; 1" dur="${durSec}s" begin="${beginSec}s" fill="freeze" />
-      </circle>${secondaryHalf}
+      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStrokeOuter}" stroke-width="2" opacity="0" style="${ringStyle(outerName)}" />
+      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStroke}" stroke-width="1" opacity="0" style="${ringStyle(innerName)}" />${secondaryHalf}
     </g>`;
 }
 
