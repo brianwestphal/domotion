@@ -2,6 +2,19 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.19.0] - 2026-07-01
+
+
+** Features**
+
+- Add an opt-in accessible name and long description to the root `<svg>`: pass a title/description (or the new `--title` / `--desc` CLI flags) to emit `role="img"` with `<title>`/`<desc>`, giving inline-embedded demos an accessible name for screen readers. Works across single-frame, animated, and scroll output.
+
+** Fixes**
+
+- `domotion capture <url>` now embeds remote `<img>` and background images by default, so its output is fully self-contained with no external asset references — matching the animate and template pipelines.
+- Cursor overlays are now emitted as CSS animations instead of SMIL, fixing pointer drift in Safari when the animation goes offscreen (tab-switch or scrolled away) and returns.
+- Scroll-composed SVGs now honor `prefers-reduced-motion: reduce`, pinning the demo to the top frame instead of animating regardless of the viewer's motion preference.
+
 ## [0.18.0] - 2026-07-01
 
 
