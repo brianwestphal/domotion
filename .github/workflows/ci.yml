@@ -40,6 +40,11 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
       - run: npm test
+      # DM-1459: behavior/feature coverage — flags a documented behavior with no
+      # asserting test, or a new export/verb not yet in tests/feature-coverage.ts,
+      # even at 100% line coverage. (Also enforced inside `npm test` via
+      # tests/conventions.test.ts; this step surfaces the standalone report.)
+      - run: npm run check:features
 
   build:
     runs-on: ubuntu-latest

@@ -93,7 +93,11 @@ shortest possible map:
 - **`src/test-support/`** — shared test helpers (`close-browser-safely.ts`).
 - **`tests/`** — visual-regression suites (`features.ts`, `showcase.ts`,
   `html-test-suite.tsx`, `real-world.tsx`) + the in-repo review server
-  (`review-server.tsx`).
+  (`review-server.tsx`). Also the **feature-coverage** axis (DM-1459):
+  `tests/feature-coverage.ts` (behavior → export/verb → asserting-test index),
+  `tests/conventions.test.ts` (dep allow-list + no-shell-exec + manifest
+  integrity/drift, in the `npm test` gate), and `tools/check-feature-coverage.ts`
+  (`npm run check:features` — the standalone report). See `docs/83-feature-coverage.md`.
 
 ## Debugging a render-fidelity bug
 

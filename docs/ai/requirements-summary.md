@@ -20,6 +20,13 @@ documented per-feature in the numbered `docs/` set.
    Keep in sync when fixtures land.
 3. **Doc 01 (`docs/01-fidelity.md`)** — the overarching fidelity
    contract. What's in scope, what isn't, what tolerance applies.
+4. **`tests/feature-coverage.ts`** — the machine-checkable feature index
+   (behavior → export/verb → asserting test), the orthogonal-to-line-coverage
+   axis. `npm run check:features` (+ the `tests/conventions.test.ts` mirror in
+   `npm test`) flags any behavior with no asserting test, and any new
+   export/verb not yet in the index. See **Doc 83** (`docs/83-feature-coverage.md`)
+   — and the `CLAUDE.md` "Testing Philosophy" note that line coverage ≠ behavior
+   coverage, and stateful modules must test *transitions*.
 
 ## Always-in-sync docs
 
