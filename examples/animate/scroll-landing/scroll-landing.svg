@@ -42,6 +42,9 @@
       }
 
 
+      @media (prefers-reduced-motion: reduce) {
+        .scrl-c3mkje, .scrl-c3mkje * { animation-play-state: paused !important; }
+      }
     </style>
   </defs>
   <g clip-path="url(#scrl-c3mkje-clip)">

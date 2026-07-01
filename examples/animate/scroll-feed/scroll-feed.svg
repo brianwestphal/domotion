@@ -40,6 +40,9 @@
       }
 
 
+      @media (prefers-reduced-motion: reduce) {
+        .scrl-72orvw, .scrl-72orvw * { animation-play-state: paused !important; }
+      }
     </style>
   </defs>
   <g clip-path="url(#scrl-72orvw-clip)">
