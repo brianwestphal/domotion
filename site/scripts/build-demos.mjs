@@ -58,4 +58,20 @@ total += copySvgs(resolve(ROOT, "examples/output/templates"), resolve(OUT, "temp
 // Provenance is documented in demo-assets/apps/README.md.
 total += copySvgs(resolve(HERE, "..", "demo-assets", "apps"), resolve(OUT, "apps"));
 
-console.log(`[build-demos] copied ${total} demo SVGs → ${OUT}`);
+// Fidelity proof — a composed Chromium-vs-Domotion comparison image (PNG, not
+// an SVG, so it needs its own copy step). Provenance: demo-assets/fidelity.
+{
+  const src = resolve(HERE, "..", "demo-assets", "fidelity");
+  if (existsSync(src)) {
+    const dst = resolve(OUT, "fidelity");
+    mkdirSync(dst, { recursive: true });
+    for (const f of readdirSync(src)) {
+      if (f.endsWith(".png") || f.endsWith(".svg")) {
+        cpSync(resolve(src, f), resolve(dst, f));
+        total++;
+      }
+    }
+  }
+}
+
+console.log(`[build-demos] copied ${total} demo assets → ${OUT}`);

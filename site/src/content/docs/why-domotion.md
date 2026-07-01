@@ -64,6 +64,11 @@ painted. Because the glyphs are vector paths, the text isn't selectable or
 searchable when embedded via `<img>`; give the image an `alt` for accessibility,
 or inline the `<svg>` if you need the underlying text in the DOM.
 
+<figure>
+  <img src="/domotion/demos/fidelity/wikipedia-fidelity.png" alt="Side by side: a Chromium screenshot of the Ada Lovelace Wikipedia article next to the same page captured by Domotion as one self-contained SVG. They are pixel-identical; a 4x zoom of the title shows the screenshot pixelating while the SVG's text stays razor-sharp." style="width:100%;height:auto" loading="lazy" />
+  <figcaption>Don't take our word for it. A real page — the <a href="https://en.wikipedia.org/wiki/Ada_Lovelace">Ada Lovelace</a> Wikipedia article — captured both ways. The Domotion SVG is one self-contained file, fonts and images and all, pixel-identical to the browser; zoom in and its vector text stays razor-sharp where a screenshot or GIF turns to mush.</figcaption>
+</figure>
+
 ## Repeatable — for demos *and* review
 
 A demo is defined by a small JSON config (or a script), so regenerating it after
