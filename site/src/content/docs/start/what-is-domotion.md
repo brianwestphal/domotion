@@ -18,10 +18,11 @@ The output is:
 - **Scalable** — vector + CSS keyframes, so it stays crisp at any size, on any
   device, and loads lazily.
 
-It's purpose-built for **marketing and documentation demos** that need to load
-fast, embed anywhere (including where video can't go), and look identical
-everywhere. See [Why Domotion](/domotion/why-domotion/) for the full case, or
-the [showcase](/domotion/showcase/) for what it produces.
+It's built for **product, documentation, marketing, and teaching demos** that
+need to load fast, embed anywhere (including where video can't go — a README, a
+slide deck, or an LMS lesson, offline), and look identical everywhere. See
+[Why Domotion](/domotion/why-domotion/) for the full case, or the
+[showcase](/domotion/showcase/) for what it produces.
 
 ## What you can make
 
@@ -38,7 +39,9 @@ the [showcase](/domotion/showcase/) for what it produces.
 - **Templated graphics** — charts, kinetic text, lower-thirds, and device
   mockups from a few flags. [→ Templates](/domotion/usage/templates/)
 - **Terminal sessions** — an asciinema recording rendered as an animated
-  terminal. [→ Terminal](/domotion/usage/terminal/)
+  terminal (great for teaching CLI workflows in a tutorial or course — the
+  commands stay crisp and the file works offline in an LMS).
+  [→ Terminal](/domotion/usage/terminal/)
 - **Composites & exports** — nest animated layers inside one another, and export
   any animated SVG to video or a still image.
   [→ Compositing](/domotion/usage/composite/) ·

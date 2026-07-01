@@ -64,9 +64,11 @@ domotion animate ./demo.json
 }
 ```
 
-## Or skip the HTML entirely
+## No HTML? Start from a template
 
-Generate a polished animated SVG from a template:
+Don't want to write any HTML? Generate a polished animated SVG straight from a
+template — charts, kinetic-text headlines, lower-thirds, device mockups, and
+looping backgrounds, from a few flags. This is the lowest-effort way in:
 
 ```bash
 domotion template chart --type column --data "42,68,55,90,34,76" \
