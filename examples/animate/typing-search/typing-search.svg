@@ -17,7 +17,7 @@
       100.000% { opacity: 0; visibility: hidden; }
       100% { opacity: 0; visibility: hidden; }
     }
-    .f-0 { animation: fv-0 3.20s infinite; animation-timing-function: step-end; }
+    .f-0 { animation: fv-0 3.20s step-end infinite; }
 
     @keyframes t0-rev0 { 0%, 9.38% { width: 0.01px; } 48.75% { width: 144px; } 95.31% { width: 144px; } 98.44%, 100% { width: 0.01px; } }
     .t0-rev0 { animation: t0-rev0 3.20s linear infinite; }

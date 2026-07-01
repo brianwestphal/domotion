@@ -25,7 +25,7 @@
     @keyframes ov-0-s0-vis { 0%, 0.00% { opacity: 0; } 0.00% { opacity: 1; } 89.66% { opacity: 1; } 89.69%, 100% { opacity: 0; } }
     .ov-0-s0 { animation: ov-0-s0-vis 2.90s infinite; }
     @keyframes ov-0-s0-enter { 0% { transform: translate(0, 140px); } 17.24% { transform: translate(0, 140px); } 37.93% { transform: translate(0, 0); } 100% { transform: translate(0, 0); } }
-    .ov-0-s0-enter { animation: ov-0-s0-enter 2.90s infinite; animation-timing-function: ease-out; }
+    .ov-0-s0-enter { animation: ov-0-s0-enter 2.90s ease-out infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">

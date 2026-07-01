@@ -17,7 +17,7 @@
       23.331% { opacity: 0; visibility: hidden; }
       100% { opacity: 0; visibility: hidden; }
     }
-    .f-0 { animation: fv-0 6.00s infinite; animation-timing-function: step-end; }
+    .f-0 { animation: fv-0 6.00s step-end infinite; }
 
     @keyframes t0-rev0 { 0%, 5.00% { width: 0.01px; } 20.83% { width: 210.00000000000003px; } 20.83% { width: 210.00000000000003px; } 22.50%, 100% { width: 0.01px; } }
     .t0-rev0 { animation: t0-rev0 6.00s linear infinite; }
@@ -35,7 +35,7 @@
       60.001% { opacity: 0; visibility: hidden; }
       100% { opacity: 0; visibility: hidden; }
     }
-    .f-1 { animation: fv-1 6.00s infinite; animation-timing-function: step-end; }
+    .f-1 { animation: fv-1 6.00s step-end infinite; }
 
     @keyframes fv-2 {
       0% { opacity: 0; visibility: hidden; }
@@ -45,14 +45,14 @@
       100.000% { opacity: 0; visibility: hidden; }
       100% { opacity: 0; visibility: hidden; }
     }
-    .f-2 { animation: fv-2 6.00s infinite; animation-timing-function: step-end; }
+    .f-2 { animation: fv-2 6.00s step-end infinite; }
     @keyframes f1-f1a0-0 {
       0% { clip-path: inset(0 100% 0 0); }
       26.667% { clip-path: inset(0 100% 0 0); }
       56.667% { clip-path: inset(0 0 0 0); }
       100% { clip-path: inset(0 0 0 0); }
     }
-    .anim-f1a0 { animation: f1-f1a0-0 6.00s infinite; animation-timing-function: ease-out; }
+    .anim-f1a0 { animation: f1-f1a0-0 6.00s ease-out infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">
