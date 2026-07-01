@@ -95,6 +95,9 @@ capture options:
       --title <text>       Accessible name → role="img" + <title> on the root <svg>
                            (for screen readers when the SVG is inlined, not <img>).
       --desc <text>        Accessible long description → <desc> on the root <svg>.
+      --no-embed-images    Leave <img>/background images as external URL refs
+                           instead of embedding them (default: embed so the SVG
+                           is self-contained).
       --cross-origin-frames <v>  Recurse cross-origin <iframe> docs into native SVG
                            (else they stay raster). "*" = all; or a comma-separated
                            host[:port] allowlist (e.g. "youtube.com,localhost:3000").

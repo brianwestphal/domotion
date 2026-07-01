@@ -15,6 +15,7 @@ import {
   composeScrollSvg,
   cullElementsOutsideViewBox,
   elementTreeToSvgInner,
+  embedRemoteImages,
   executeScrollPattern,
   isDeviceChrome,
   DEVICE_CHROMES,
@@ -160,6 +161,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "color-scheme":     { type: "string" },
       title:              { type: "string" },
       desc:               { type: "string" },
+      "no-embed-images":  { type: "boolean" },
       "cross-origin-frames": { type: "string" },
       scroll:             { type: "string" },
       "scroll-speed":     { type: "string" },
@@ -296,6 +298,13 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         }
         return Promise.resolve();
       });
+      // DM-1506: embed remote images per segment so the composed scroll SVG is
+      // self-contained too. `--no-embed-images` opts out.
+      if (values["no-embed-images"] !== true) {
+        await timed(log, `  embedded images`, async () => {
+          for (const seg of segments) await embedRemoteImages(seg.tree);
+        });
+      }
       svg = await timed(log, `  composed scroll SVG`, () =>
         Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3], title: values.title, desc: values.desc })),
       );
@@ -326,6 +335,12 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // so this is a defense-in-depth pass for the position:fixed-descendant
       // escape cases where an off-viewport ancestor still gets captured.
       cullElementsOutsideViewBox(tree, clip[2], clip[3], undefined, 0, 1);
+      // DM-1506: embed remote images (Node-side fetch → data URIs) so the output
+      // is genuinely self-contained, matching the animate/template pipelines and
+      // the "no external assets" promise. `--no-embed-images` opts out.
+      if (values["no-embed-images"] !== true) {
+        await timed(log, "  embedded images", () => embedRemoteImages(tree));
+      }
       clearEmbeddedFonts(); // DM-839: reset embedded-font builder before this single-frame render
       clearGlyphDefs(); // DM-1338: glyph registry (paths mode) shares the per-generation lifecycle
       const inner = elementTreeToSvgInner(tree, clip[2], clip[3]);

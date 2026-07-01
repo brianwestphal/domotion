@@ -17,6 +17,14 @@ domotion capture ./card.html -o card.svg --width 1200 --height 630 --selector ".
 cat page.html | domotion capture - -o page.svg
 ```
 
+## Self-contained by default
+
+The captured SVG embeds everything it needs — fonts as glyph `<path>`s and images
+(including remote and cross-origin ones) as inline data URIs — so it has no
+external requests and works offline, in email, or under a strict CSP. Pass
+`--no-embed-images` to leave `<img>` and background images as external URL
+references instead (a smaller file, but no longer self-contained).
+
 ## Bring your design mock
 
 You don't need a running app to make a demo. If you have a static mock — a
