@@ -158,6 +158,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       "chrome-label":     { type: "string" },
       "chrome-theme":     { type: "string" },
       "color-scheme":     { type: "string" },
+      title:              { type: "string" },
+      desc:               { type: "string" },
       "cross-origin-frames": { type: "string" },
       scroll:             { type: "string" },
       "scroll-speed":     { type: "string" },
@@ -295,7 +297,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         return Promise.resolve();
       });
       svg = await timed(log, `  composed scroll SVG`, () =>
-        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3] })),
+        Promise.resolve(composeScrollSvg(segments, { viewportW: clip[2], viewportH: clip[3], title: values.title, desc: values.desc })),
       );
     } else {
       log(`Capturing element tree…`);
@@ -327,7 +329,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       clearEmbeddedFonts(); // DM-839: reset embedded-font builder before this single-frame render
       clearGlyphDefs(); // DM-1338: glyph registry (paths mode) shares the per-generation lifecycle
       const inner = elementTreeToSvgInner(tree, clip[2], clip[3]);
-      svg = wrapSvg(inner, clip[2], clip[3]);
+      svg = wrapSvg(inner, clip[2], clip[3], { title: values.title, desc: values.desc });
     }
     // DM-1206: wrap the finished capture in a device bezel. Nests the produced
     // SVG (no re-render), so glyph paths match the bare capture exactly.

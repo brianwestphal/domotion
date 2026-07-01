@@ -14,6 +14,7 @@ import type { MagicMove } from "./magic-move.js";
 import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, IntraFrameAnimation } from "./overlay-schema.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
+import { rootSvgA11y } from "../render/format.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
@@ -92,6 +93,11 @@ export interface AnimationConfig {
   width: number;
   height: number;
   frames: AnimationFrame[];
+  /** DM-1488: accessible name → `role="img"` + `<title>` on the root `<svg>`
+   *  (for inline-`<svg>` embedding). Omit to leave the output unchanged. */
+  title?: string;
+  /** DM-1488: accessible long description → `<desc>` on the root `<svg>`. */
+  desc?: string;
   /**
    * Markup (e.g. `<path id="g0" d="..."/>...`) hoisted into the top-level
    * `<defs>`. Frames can reference these IDs via `<use href="#...">`. Use for
@@ -648,8 +654,9 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   const canvasBgRect = (bg != null && !isTransparentBackground(bg))
     ? `  <rect width="${width}" height="${height}" fill="${bg}" />\n`
     : "";
+  const a11y = rootSvgA11y(config.title, config.desc);
   const out = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${a11y.roleAttr}>${a11y.markup}
   <defs>
     <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}
   </defs>

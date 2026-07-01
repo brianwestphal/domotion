@@ -23,6 +23,7 @@
 
 import type { ScrollSegmentCapture } from "./executor.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
+import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import {
   resetGeneration,
@@ -54,6 +55,11 @@ export interface ScrollComposerOptions {
   viewportH: number;
   /** Which axis the scroll moves along. Default `"y"`. */
   axis?: "x" | "y";
+  /** DM-1488: accessible name → `role="img"` + `<title>` on the root `<svg>`
+   *  (for inline-`<svg>` embedding). Omit to leave the output unchanged. */
+  title?: string;
+  /** DM-1488: accessible long description → `<desc>` on the root `<svg>`. */
+  desc?: string;
   /**
    * Background color painted behind the captures (a full-viewport rect, visible
    * at seams). When omitted it defaults to the captured page's root background
@@ -456,8 +462,9 @@ function composeScrollSvgBody(
   const fontFaceCss = getEmbeddedFontFaceCss();
 
   // ── Compose final SVG ──
+  const a11y = rootSvgA11y(opts.title, opts.desc);
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}"${a11y.roleAttr}>${a11y.markup}
   <defs>
     <clipPath id="${animClass}-clip"><rect width="${W}" height="${VH}"/></clipPath>
     <style>

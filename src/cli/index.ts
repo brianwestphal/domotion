@@ -92,6 +92,9 @@ capture options:
       --chrome-label <s>   Text for the chrome bar (browser URL / window title).
       --chrome-theme <s>   browser/window bezel theme: "dark" (default) | "light".
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
+      --title <text>       Accessible name → role="img" + <title> on the root <svg>
+                           (for screen readers when the SVG is inlined, not <img>).
+      --desc <text>        Accessible long description → <desc> on the root <svg>.
       --cross-origin-frames <v>  Recurse cross-origin <iframe> docs into native SVG
                            (else they stay raster). "*" = all; or a comma-separated
                            host[:port] allowlist (e.g. "youtube.com,localhost:3000").

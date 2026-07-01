@@ -14,7 +14,7 @@ import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
-import { r, esc, stopFmt } from "./format.js";
+import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { translateClipPath } from "./clip-path.js";
 import { buildImagePatternDef } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx, type GradientStop } from "./gradient-defs.js";
@@ -80,7 +80,7 @@ export const _conicTileCache = new Map<string, Map<string, string>>();
  * This is the boilerplate every standalone-capture user would otherwise write
  * themselves — call this when you want a self-contained SVG file.
  */
-export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[] }): string {
+export function wrapSvg(inner: string, width: number, height: number, opts?: { tree?: CapturedElement[]; title?: string; desc?: string }): string {
   const schemeAttr = opts?.tree != null ? rootSvgColorSchemeAttr(opts.tree) : "";
   // DM-554: when given the captured tree, emit a transparent-root body-bg
   // rect using the tree's resolved-by-Chromium `rootBgComputed`. Skipped
@@ -92,7 +92,8 @@ export function wrapSvg(inner: string, width: number, height: number, opts?: { t
   // XML parsing fails with "Namespace prefix xlink for href is not defined"
   // and Chrome refuses to render past the first occurrence.
   const xlinkAttr = inner.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}>${rootBgRect}${inner}</svg>`;
+  const a11y = rootSvgA11y(opts?.title, opts?.desc);
+  return `<svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${schemeAttr}${a11y.roleAttr}>${a11y.markup}${rootBgRect}${inner}</svg>`;
 }
 
 /**
@@ -4342,6 +4343,11 @@ export function elementTreeToSvg(
     hiDPIFactor?: number;
     /** Forwarded to `elementTreeToSvgInner`. */
     includeEmbeddedFontCss?: boolean;
+    /** DM-1488: accessible name → `role="img"` + `<title>` on the root `<svg>`
+     *  (for inline-`<svg>` embedding). Omit to leave the output unchanged. */
+    title?: string;
+    /** DM-1488: accessible long description → `<desc>` on the root `<svg>`. */
+    desc?: string;
   },
 ): string {
   const inner = elementTreeToSvgInner(
@@ -4351,7 +4357,7 @@ export function elementTreeToSvg(
     opts?.hiDPIFactor ?? 2,
     opts?.includeEmbeddedFontCss ?? (opts?.includeGlyphDefs ?? true),
   );
-  return wrapSvg(inner, width, height, { tree: elements });
+  return wrapSvg(inner, width, height, { tree: elements, title: opts?.title, desc: opts?.desc });
 }
 
 

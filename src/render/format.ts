@@ -22,3 +22,20 @@ export function esc(s: string): string {
 export function stopFmt(n: number): string {
   return Number(n.toFixed(4)).toString();
 }
+
+/**
+ * Build the root-`<svg>` accessibility bits (DM-1488): a `role="img"` attribute
+ * plus `<title>`/`<desc>` child markup to inject as the FIRST children of the
+ * root `<svg>`, so an inline-embedded demo has an accessible name for screen
+ * readers. Emitted ONLY when an accessible name (`title`) is provided — an
+ * `<svg role="img">` with no name is an a11y anti-pattern (announced as an
+ * unlabeled image), so without a title we emit nothing and the output stays
+ * byte-for-byte unchanged. (When embedded via `<img src alt>` the host `alt`
+ * already names it; this covers the inline-`<svg>` case.)
+ */
+export function rootSvgA11y(title?: string, desc?: string): { roleAttr: string; markup: string } {
+  if (title == null || title === "") return { roleAttr: "", markup: "" };
+  const titleEl = `<title>${esc(title)}</title>`;
+  const descEl = desc != null && desc !== "" ? `<desc>${esc(desc)}</desc>` : "";
+  return { roleAttr: ` role="img"`, markup: titleEl + descEl };
+}

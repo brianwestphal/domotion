@@ -118,6 +118,21 @@ describe("composeScrollSvg: reduced motion (DM-1487)", () => {
   });
 });
 
+describe("composeScrollSvg: accessible name (DM-1488)", () => {
+  it("adds role=img + <title>/<desc> to the root svg when an accessible name is given", () => {
+    const svg = composeScrollSvg([makeSeg(0, 0, 1000), makeSeg(600, 1000, 3000)], {
+      viewportW: 800, viewportH: 600, title: "Scrolling feed", desc: "A social feed scrolling",
+    });
+    expect(svg).toMatch(/<svg [^>]*\brole="img"/);
+    expect(svg).toContain("<title>Scrolling feed</title><desc>A social feed scrolling</desc>");
+  });
+
+  it("default scroll output has no root role/title", () => {
+    const svg = composeScrollSvg([makeSeg(0, 0, 1000), makeSeg(600, 1000, 3000)], { viewportW: 800, viewportH: 600 });
+    expect(svg).toMatch(/viewBox="0 0 800 600" width="800" height="600">/);
+  });
+});
+
 // ── Composite dimensions ───────────────────────────────────────────────────
 
 describe("composeScrollSvg: composite dimensions", () => {

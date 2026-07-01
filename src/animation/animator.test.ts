@@ -892,3 +892,26 @@ describe("optimizer preserves hard-cut step-end timing (DM-1454)", () => {
     }
   });
 });
+
+describe("root svg accessible name (DM-1488)", () => {
+  it("emits role=img + <title>/<desc> on the root svg when an accessible name is given", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      title: "Product flow", desc: "A dashboard assembling itself",
+      frames: [
+        { svgContent: `<rect/>`, duration: 1000 },
+        { svgContent: `<rect/>`, duration: 1000 },
+      ],
+    });
+    expect(svg).toMatch(/<svg [^>]*\brole="img"/);
+    expect(svg).toContain("<title>Product flow</title><desc>A dashboard assembling itself</desc>");
+  });
+
+  it("default animated output has no root role/title", () => {
+    const svg = generateAnimatedSvg({
+      width: 100, height: 100,
+      frames: [{ svgContent: `<rect/>`, duration: 1000 }, { svgContent: `<rect/>`, duration: 1000 }],
+    });
+    expect(svg).toMatch(/viewBox="0 0 100 100" width="100" height="100">/);
+  });
+});
