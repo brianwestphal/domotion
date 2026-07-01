@@ -26,8 +26,8 @@ That reframing is what makes templates powerful:
   synthesize per-word keyframes, lay out a chart, capture a live page — because
   that work runs **once at author time**. The emitted SVG then replays for free.
 - Because templates are authored in HTML/CSS, they reflow, re-theme, and use
-  real web fonts, and the text stays as real, selectable glyph paths — things
-  baked keyframes can't do.
+  real web fonts, and the text is laid out by the browser and captured as crisp
+  glyph paths — things baked keyframes can't do.
 - Templates add **no new rendering code**. They are thin front-ends onto the
   same animate/capture pipeline everything else uses, so every fidelity fix in
   the core is inherited automatically.

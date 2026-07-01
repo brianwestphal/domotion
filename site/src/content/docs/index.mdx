@@ -4,10 +4,11 @@ description: Turn HTML/CSS into a self-contained, animated SVG — accurate, sca
 template: splash
 hero:
   tagline: |
-    Turn real HTML/CSS into one self-contained, animated SVG — accurate,
-    scalable, and embeddable anywhere, with animation and simulated interaction
-    built in. Drop it in with a plain image tag; it stays crisp at any size and
-    looks identical across browsers.
+    For teams shipping product and docs demos: capture real HTML/CSS as one
+    self-contained, animated SVG — not a heavy, fixed-resolution screen recording
+    you re-shoot on every UI change. Accurate, scalable, and embeddable anywhere,
+    with animation and simulated interaction built in, crisp at any size and
+    identical across browsers.
   image:
     html: |
       <img src="/domotion/demos/domotion-word-demo.svg" alt="The word 'domotion' cycling through twenty neon-retro typographic styles" style="width:100%;max-width:560px;height:auto" />
@@ -34,9 +35,11 @@ import { Card, CardGrid } from "@astrojs/starlight/components";
 ## One file. It moves. It scales. It embeds anywhere.
 
 A Domotion output is a single `<svg>` — no external fonts, images, or scripts.
-Drop it into a README, an npm page, an email, a slide, or a docs site and it
-plays its CSS animation, lazy-loads, stays crisp at any zoom, and carries real
-selectable text. No video file, no iframe, no re-encode per device.
+Drop it into a docs site, a landing page, a slide, or a README and it lazy-loads,
+stays crisp at any zoom, and needs no video file, iframe, or per-device re-encode.
+In any real browser it plays its CSS animation; on surfaces that sanitize SVG
+(GitHub READMEs, npm pages, email) it shows a crisp static frame instead — or you
+[export a GIF/MP4](/domotion/usage/export/).
 
 <figure>
   <img src="/domotion/demos/hero-product-demo.svg" alt="An analytics dashboard assembling itself in a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked" style="width:100%;height:auto" />

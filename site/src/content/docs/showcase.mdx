@@ -76,13 +76,27 @@ supply: these demos use a macOS-style window, but a Windows- or Linux-style one
 
 ### Templates
 
-A few flags become a polished animated SVG. Charts emphasize the standout, not a
-rainbow; device mockups wrap a real page in a bezel.
+A few flags become a polished animated SVG — no HTML to write. Charts emphasize
+the standout, not a rainbow; device mockups wrap a real page in a bezel.
 
 <CardGrid>
   <img src="/domotion/demos/templates/chart-column.svg" alt="A column chart with the peak month emphasized in the accent color" style="width:100%;height:auto" />
   <img src="/domotion/demos/templates/device-mockup-browser.svg" alt="A SaaS dashboard wrapped in a browser window bezel" style="width:100%;height:auto" />
 </CardGrid>
+
+Marketing-ready out of the box: kinetic text for headlines, lower-thirds for
+captions, subscribe/follow cards for social, and looping backgrounds for hero
+sections — each a lightweight, lazy-loading SVG instead of a bulky video.
+
+<CardGrid>
+  <img src="/domotion/demos/templates/kinetic-text-rise.svg" alt="A headline animating in word by word with a rising motion" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/templates/lower-third-light.svg" alt="A lower-third name-and-title caption animating in from the corner" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/templates/subscribe-youtube.svg" alt="A subscribe/follow call-to-action card animating in" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/templates/background-loop-aurora.svg" alt="A softly looping aurora gradient background suitable for a hero section" style="width:100%;height:auto" loading="lazy" />
+</CardGrid>
+
+See the [Templates guide](/domotion/usage/templates/) for the full library and
+every flag.
 
 ### Compositing
 
@@ -93,7 +107,7 @@ own timeline.
 
 ### Iframe recursion
 
-A same-origin `<iframe>` is captured as native, selectable SVG — walked with the
+A same-origin `<iframe>` is captured as native, vector SVG — walked with the
 same logic as the parent page, not flattened to a raster screenshot. Zoom in and
 the embedded content stays crisp. (Cross-origin frames opt in with
 `--cross-origin-frames`.)
@@ -124,8 +138,8 @@ running app, composited into window chrome with a lower-third caption.
 A genuinely complex single-page app — multi-column board, inline category and
 priority chips, a live detail panel, an AI worklist, a dashboard of charts —
 captured pixel-faithfully. The point isn't motion; it's that an entire working
-application round-trips to one self-contained, infinitely-scalable SVG with real
-selectable text.
+application round-trips to one self-contained, infinitely-scalable SVG with
+pixel-faithful text.
 
 <CardGrid>
   <img src="/domotion/demos/apps/hotsheet-board.svg" alt="Hot Sheet's main board: tickets across status columns with a ticket detail panel open" style="width:100%;height:auto" loading="lazy" />

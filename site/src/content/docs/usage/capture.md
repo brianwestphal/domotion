@@ -57,7 +57,7 @@ scroller; `--no-prescroll` skips the lazy-load warm-up pass.
 ## Iframes
 
 A same-origin `<iframe>` is recursed into the capture — its document is walked
-with the same logic and spliced in as native, selectable, crisply-scaling SVG
+with the same logic and spliced in as native, crisply-scaling SVG
 (clipped to the iframe's content box), not flattened to a raster snapshot.
 
 A cross-origin frame stays a raster `<image>` by default (its document isn't
