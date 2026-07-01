@@ -53,3 +53,12 @@ platforms are calibrated for that. macOS is held to pixel-exact parity; Linux
 and Windows match the browser's glyph selection and metrics within a small
 native-hinting margin. Contributions and platform feedback are welcome on
 [GitHub](https://github.com/brianwestphal/domotion).
+
+## Maturity & license
+
+Domotion is **MIT-licensed** and free for commercial use. It's actively
+developed and exercised by an extensive cross-platform visual-regression suite
+gated in CI on macOS, Linux, and Windows — so what it renders is continuously
+pinned against Chromium's actual paint on every change. The output itself is
+inert and self-contained (no scripts, no external requests), which keeps it easy
+to host and to clear through a security or CSP review.

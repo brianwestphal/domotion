@@ -30,6 +30,10 @@ export default defineConfig({
         { icon: "github", label: "GitHub", href: "https://github.com/brianwestphal/domotion" },
       ],
       customCss: ["./src/styles/site.css"],
+      // Extend the default page footer with a license / version / source line.
+      components: {
+        Footer: "./src/components/Footer.astro",
+      },
       // Soft-wrap long lines in code blocks instead of clipping them at the
       // right edge — the visual review found long commands/JSON read as
       // truncated (worst on mobile) because the horizontal-scroll affordance

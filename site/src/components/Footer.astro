@@ -1,0 +1,43 @@
+---
+// Extends Starlight's default page footer with a persistent license / version /
+// source line, so a skimming visitor (or a security/legal reviewer) can see the
+// license and maturity signal without leaving for GitHub. The version is read
+// from the root package.json at build time so it stays in sync with releases.
+import Default from "@astrojs/starlight/components/Footer.astro";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+// `astro dev` / `astro build` run with the cwd set to `site/`, so the package's
+// own version lives one directory up. (import.meta.url is unreliable here — it
+// points at the compiled module location.)
+const { version } = JSON.parse(
+  readFileSync(path.join(process.cwd(), "..", "package.json"), "utf-8"),
+);
+---
+
+<Default {...Astro.props}><slot /></Default>
+
+<div class="domotion-footer-meta">
+  <p>
+    Domotion is <strong>free &amp; open source</strong> —
+    <a href="https://github.com/brianwestphal/domotion/blob/main/LICENSE">MIT licensed</a>,
+    free for commercial use. · v{version} ·
+    <a href="https://github.com/brianwestphal/domotion">GitHub</a>
+  </p>
+</div>
+
+<style>
+  .domotion-footer-meta {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sl-color-hairline);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .domotion-footer-meta p {
+    margin: 0;
+  }
+  .domotion-footer-meta a {
+    color: var(--sl-color-text-accent);
+  }
+</style>
