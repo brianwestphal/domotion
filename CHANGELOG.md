@@ -2,6 +2,20 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.18.0] - 2026-07-01
+
+
+** Features**
+
+- Same-origin `<iframe>` content now recurses into native SVG — crisp, scalable, and selectable — instead of being flattened to a raster `<image>`. Inner content is clipped to the iframe's content box, with counters, transforms/zoom, and inner `mask`/`clip-path`/`filter` references all resolved correctly.
+- Opt-in cross-origin `<iframe>` recursion via the new `--cross-origin-frames` flag, gated by a host allowlist (non-allowlisted frames stay raster snapshots).
+- `svg-scrubber --review`: report issues straight from the animated-SVG scrubber. Type a title/category/note, drag one or more regions over the problem area, optionally attach the current frame as a PNG, and save a self-contained, importable `.ticket` capturing the frame time and in/out range — the animated-SVG counterpart to `svg-review`.
+
+** Fixes**
+
+- Hard-cut animation transitions no longer fade across the entire frame when `optimize: true` — SVGO was factoring out and resetting the cut's `step-end` timing-function, so cuts now stay crisp through optimization.
+- Transparent canvas/root backgrounds stay transparent in animated, scrolled, and composited output. Previously backgrounds given as `none`, a zero-alpha hex (`#0000`), or `rgba(0,0,0,0)` were painted as an opaque backdrop.
+
 ## [0.17.0] - 2026-06-30
 
 
