@@ -23,7 +23,7 @@ First run auto-installs Playwright's Chromium (`npx playwright install chromium`
 | `svg-to-video` | Render an animated SVG to MP4/WebM/MOV. |
 | `svg-to-image` | Rasterize a still (or one frame of an animated) SVG to PNG/JPEG/PDF/WebP/AVIF/TIFF — your "look at the pixels" tool. |
 | `svg-review` | Diff a capture against the Chromium screenshot (for filing fidelity bugs). |
-| `svg-scrubber` | Play / scrub / trim / export-frame an animated SVG locally. |
+| `svg-scrubber` | Play / scrub / trim / export-frame an animated SVG locally (add `--review` to file `.ticket` issues against a timeline moment). |
 
 ## `domotion capture <input>` — one frame → SVG
 
@@ -35,7 +35,7 @@ domotion capture ./card.html -o card.svg --width 1200 --height 630 --selector ".
 cat page.html | domotion capture - -o page.svg
 ```
 
-Useful flags: `--width N` / `--height N` (viewport, default 800×600) · `--selector <css>` (capture one element, default `body`) · `--clip x,y,w,h` · `--wait-for <css>` (wait for a selector) · `--wait <ms>` · `--color-scheme light|dark` · `--mobile` · `--optimize` (SVGO) · `--chrome phone|browser|window` (wrap in a device bezel, with `--chrome-label`) · `--debug` (write a reproduction bundle for `svg-review`).
+Useful flags: `--width N` / `--height N` (viewport, default 800×600) · `--selector <css>` (capture one element, default `body`) · `--clip x,y,w,h` · `--wait-for <css>` (wait for a selector) · `--wait <ms>` · `--color-scheme light|dark` · `--mobile` · `--optimize` (SVGO) · `--chrome phone|browser|window` (wrap in a device bezel, with `--chrome-label`) · `--cross-origin-frames "<hosts>"` (recurse cross-origin `<iframe>`s from trusted hosts, or `"*"`; disables web security, so only for pages you trust — same-origin frames recurse automatically) · `--debug` (write a reproduction bundle for `svg-review`).
 
 **Animated scroll demo** of a long page, in one capture: `--scroll "<pattern>"` captures at successive scroll offsets and composes one scrolling SVG. Patterns: `down:bottom/8s`, `720px,2s until bottom`, `(720px,2s until bottom), (200px,3s)`. Tune with `--scroll-speed <px/s>` and `--scroll-selector <css>` (an inner scroller). See the scroll-pattern docs for the grammar.
 
@@ -234,7 +234,7 @@ Before returning a result, verify:
 
 - One **self-contained** `<svg>` document — no external fonts/images/scripts. Embed with `<img src="out.svg">` (CSS animations play, it's lazy-loadable and accessible with `alt`), or inline it if you need CSS to reach in.
 - **Scales** crisply at any size; **text is real glyph paths**, so it renders identically across browsers.
-- Some content is embedded as a raster `<image>` rather than native SVG (color emoji, vertical text, `<canvas>`/`<iframe>`/`<video>`, conic gradients, `<textarea>` content) — still self-contained.
+- Some content is embedded as a raster `<image>` rather than native SVG (color emoji, vertical text, `<canvas>`/`<video>`, conic gradients, `<textarea>` content, and a **cross-origin** `<iframe>` unless allowlisted via `--cross-origin-frames`) — still self-contained. A **same-origin `<iframe>` is recursed into native SVG** (walked like the parent page), not rastered.
 - **Transparent background round-trips.** A transparent page/root background (or a transparent terminal theme `bg`) yields a **transparent SVG** — no opaque backdrop rect is painted — so the output composites over whatever host background it lands on. Give the root an opaque background if you want one baked in.
 
 ## Gotchas / constraints

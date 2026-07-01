@@ -79,6 +79,8 @@ cat demo.html | domotion capture - -o demo.svg
 domotion capture https://example.com --scroll "down:bottom/8s" -o scroll.svg
 ```
 
+Same-origin `<iframe>` content is recursed into the capture as native, selectable SVG rather than flattened to a screenshot; opt into cross-origin frames you trust with `--cross-origin-frames "<hosts>"`.
+
 For a multi-frame animated SVG, write a small JSON config and run `domotion animate`:
 
 ```bash
@@ -150,7 +152,7 @@ svg-review --expected example.debug/expected.png --actual example.debug/actual.s
 
 The browser opens a single review card showing the expected / actual / diff PNGs. Arrow keys cycle through the three at full size; drag on any image to mark a problem region and caption it. The side panel builds a GitHub-issue-ready Markdown block as you go — copy it, then file the issue at <https://github.com/brianwestphal/domotion/issues/new> and attach `expected.png` + `actual.svg` so a maintainer can reproduce.
 
-For an *animated* SVG, the package also ships `svg-scrubber` — a local video-style bench to play / pause / scrub / mark an in-out range, export the current frame as PNG, export the range as MP4, or trim it to a new self-contained animated SVG.
+For an *animated* SVG, the package also ships `svg-scrubber` — a local video-style bench to play / pause / scrub / mark an in-out range, export the current frame as PNG, export the range as MP4, or trim it to a new self-contained animated SVG. Add `--review` to file a focused issue against a moment in the timeline: it writes an importable `.ticket` (frame time, range, and drawn regions) the same way `svg-review` builds a report for a still.
 
 ### Scripting API
 

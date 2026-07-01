@@ -51,3 +51,9 @@ target size; `--background <css>` sets the page behind the SVG. Run
 For debugging an animated SVG's timeline, `svg-scrubber demo.svg` opens a local
 video-style bench — play / pause / scrub / mark a range / export a frame or the
 range.
+
+Add `--review` to turn it into an issue-reporter for an animated SVG (the
+timeline counterpart to `svg-review`): type a title + note, drag to draw one or
+more regions on the current frame, optionally attach a rendered frame PNG, and it
+writes an importable `.ticket` JSON (the frame time, the in/out range, and the
+regions included) to the launch directory.

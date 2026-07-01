@@ -18,6 +18,17 @@ inline styles, with text as glyph paths.
 
 <img src="/domotion/demos/showcase-rendering.svg" alt="A dark UI showing text styles, badges, status indicators, and a code block, captured faithfully" style="width:100%;height:auto" />
 
+### Scroll capture
+
+A long page in one self-contained SVG — captured at successive scroll offsets and
+replayed as a smooth pan to the bottom (`--scroll "down:bottom/…"`). No video, no
+live page.
+
+<CardGrid>
+  <img src="/domotion/demos/scroll-landing.svg" alt="A marketing landing page panning down through hero, features, metrics, and pricing as one self-contained scrolling SVG" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/scroll-feed.svg" alt="A social-style feed scrolling from top to bottom through successive posts as one self-contained animated SVG" style="width:100%;height:auto" loading="lazy" />
+</CardGrid>
+
 ### Transitions
 
 Stitch multiple captured frames into one animation. Domotion ships four
@@ -79,6 +90,15 @@ Animated layers inside animated layers — a terminal window on a desktop, on it
 own timeline.
 
 <img src="/domotion/demos/composite-config-demo.svg" alt="A macOS desktop with a terminal window running a git clone" style="width:100%;height:auto" />
+
+### Iframe recursion
+
+A same-origin `<iframe>` is captured as native, selectable SVG — walked with the
+same logic as the parent page, not flattened to a raster screenshot. Zoom in and
+the embedded content stays crisp. (Cross-origin frames opt in with
+`--cross-origin-frames`.)
+
+<img src="/domotion/demos/iframe-recursion-same-origin.svg" alt="A page with an embedded iframe card reading 'This iframe is real, selectable SVG' — the iframe's content captured as crisp native SVG rather than a raster snapshot" style="width:100%;height:auto" />
 
 ## Full-application demos
 
