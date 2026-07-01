@@ -104,7 +104,7 @@ export const VARIANTS: Variant[] = [
   // 5) doMOTION — tiny "do" + huge "MOTION", chromatic aberration
   {
     duration: FAST,
-    inner: word("do", { font: "'Courier New',Courier,monospace", size: 32, weight: 700, color: "#fff", glow: "0 0 6px #fff", mr: 6 })
+    inner: word("do", { font: "'Courier New',Courier,monospace", size: 32, weight: 700, color: "#10c8ff", glow: "0 0 6px #10c8ff", mr: 6 })
       + word("MOTION", { font: "Impact,'Helvetica Neue',sans-serif", size: 130, ls: -4, color: "#ff10f0", glow: "-5px 0 0 #00ffff,5px 0 0 #fff700" }),
   },
 
@@ -123,7 +123,7 @@ export const VARIANTS: Variant[] = [
   // 8) Domotion — elegant thin Didot, soft pink glow
   {
     duration: FAST,
-    inner: word("Domotion", { font: "Didot,'Bodoni 72','Times New Roman',serif", size: 104, weight: 400, ls: 1, color: "#fde7ff", glow: "0 0 10px #ff7bd5,0 0 22px #d000ff" }),
+    inner: word("Domotion", { font: "Didot,'Bodoni 72','Times New Roman',serif", size: 104, weight: 400, ls: 1, color: "#ff5ad6", glow: "0 0 10px #ff7bd5,0 0 22px #d000ff" }),
   },
 
   // 9) DOMOTION — gold letterpress Copperplate
@@ -141,7 +141,7 @@ export const VARIANTS: Variant[] = [
   // 11) domotion — electric-blue, wide tracking, layered glow
   {
     duration: FAST,
-    inner: word("domotion", { font: "'Gill Sans','Helvetica Neue',sans-serif", size: 92, weight: 600, ls: 10, color: "#7df9ff", glow: "0 0 4px #fff,0 0 12px #00b3ff,0 0 28px #0066ff" }),
+    inner: word("domotion", { font: "'Gill Sans','Helvetica Neue',sans-serif", size: 92, weight: 600, ls: 10, color: "#2b8fff", glow: "0 0 4px #7df9ff,0 0 12px #00b3ff,0 0 28px #0066ff" }),
   },
 
   // 12) DOMotation — wild oversized script
@@ -162,14 +162,14 @@ export const VARIANTS: Variant[] = [
   // 14) doMOTION — sunset gradient on MOTION, small do
   {
     duration: FAST,
-    inner: word("do", { font: "Futura,'Avenir Next',sans-serif", size: 40, color: "#ffd6f6", glow: "0 0 8px #ff7bd5", mr: 8 })
-      + grad("MOTION", { font: "Futura,'Avenir Next',sans-serif", size: 118, ls: -3, gradient: "linear-gradient(180deg,#fff700 0%,#ff5e9c 50%,#7b2ff7 100%)" }),
+    inner: word("do", { font: "Futura,'Avenir Next',sans-serif", size: 40, color: "#ff7ae0", glow: "0 0 8px #ff7bd5", mr: 8 })
+      + grad("MOTION", { font: "Futura,'Avenir Next',sans-serif", size: 118, ls: -3, gradient: "linear-gradient(180deg,#ffd000 0%,#ff5e9c 50%,#7b2ff7 100%)" }),
   },
 
   // 15) domotion — ultralight, super-wide tracking, minimal synth
   {
     duration: FAST,
-    inner: word("domotion", { font: "'Helvetica Neue',Arial,sans-serif", size: 80, weight: 200, ls: 18, color: "#aef6ff", glow: "0 0 6px #00ffff,0 0 16px #00cfff" }),
+    inner: word("domotion", { font: "'Helvetica Neue',Arial,sans-serif", size: 80, weight: 200, ls: 18, color: "#19c0e0", glow: "0 0 6px #00ffff,0 0 16px #00cfff" }),
   },
 
   // 16) DoMotion — marker-felt sticker, stacked hard shadows
