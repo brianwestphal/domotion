@@ -145,8 +145,26 @@ they describe (see `CLAUDE.md` "Documentation"):
   **consumed by the themeable built-ins** (DM-1537): flex templates via
   `safeAreaPadding`, `chart` via an inner-dimension safe-rect wrapper — content
   stays within `canvas − safeInset` at 9:16 (default output byte-identical when no
-  format). **Still open (follow-ups):** deeper responsive font-scaling per ratio,
-  and `--format` on `capture` / `animate`.
+  format). **Follow-ups shipped:** `--format` on `capture`/`animate` (doc 90,
+  DM-1538) and per-ratio adaptive type scaling (doc 91, DM-1541).
+
+- **Doc 90 (`docs/90-format-on-capture.md`, DM-1538)** — **Shipped.** `--format
+  <name|WxH>` on `domotion capture` / `animate` (same `resolveFormat` machinery,
+  no fork) sizes the **capture viewport**; precedence explicit `--width`/`--height`
+  > format > default. `--format` sizes captured *content*, `--chrome` adds the
+  bezel around it. `safeInset` on a raw capture is informational — a `--safe-guide`
+  overlay (`safeAreaGuideSvg`) draws the safe-area rect; captured content isn't
+  reflowed (an `animate` `template` frame does receive the inset). **Still open:**
+  device-mockup format-awareness (format sizing the inner screen).
+
+- **Doc 91 (`docs/91-adaptive-format-scaling.md`, DM-1541)** — **Shipped for the
+  creative-pack text/number cards.** `formatScaleFactor(w,h,safeInset)` (√ of the
+  usable-area ratio vs a 1280×720 reference, clamped) enlarges authored type so a
+  landscape-authored card reads well at 9:16 rather than merely fitting. Applied via
+  `cardScaleFactor` in `caption`/`cta`/`quote`/`title-card`/`counter`/`stat`/`compare`
+  (odometer gets a width-fit clamp). Opt-in like `safeAreaPadding` — **scale 1 with
+  no format, so default output is byte-identical**. **Still open:** fold in `chart`;
+  explore a CSS `clamp()`/viewport-unit alternative.
 
 - **Doc 84 (`docs/84-viewer-browser-support.md`, DM-1515)** — **Shipped contract.**
   The support matrix for the browsers that *view* the output (distinct from the

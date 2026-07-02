@@ -65,7 +65,8 @@ shortest possible map:
   SVGs into one — `composite.ts`, DM-1323 / doc 77), and `storyboard` (sequence
   distinct scenes — template/capture/cast/svg — into one timeline with inter-scene
   transitions; `src/cli/storyboard.ts`, DM-1527 / doc 89). `capture`/`animate` also
-  take `--brand` (brand-for-capture, doc 92) and `--format` is on `template`.
+  take `--brand` (brand-for-capture, doc 92); `--format` is on `template`,
+  `capture`, and `animate` (viewport sizing, doc 90).
 - **`src/terminal/`** — `domotion term` backend (DM-1225): asciinema `.cast`
   parser (`cast.ts`), `@xterm/headless` VT-emulator snapshot wrapper
   (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), the incremental
