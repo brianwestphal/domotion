@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 460,
+  "height": 320,
+  "frames": [
+    {
+      "input": "./card.html",
+      "duration": 1400,
+      "hoverReveal": { "selector": ".cta" }
+    }
+  ]
+}

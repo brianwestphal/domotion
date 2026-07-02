@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>hoverDetect demo</title>
+    <style>
+      * { margin: 0; box-sizing: border-box; }
+      body {
+        background: #0d1117;
+        font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 240px;
+      }
+      .cta {
+        padding: 15px 34px;
+        border: none;
+        border-radius: 10px;
+        background: #6e40c9;
+        color: #ffffff;
+        font-size: 17px;
+        font-weight: 600;
+        cursor: pointer;
+        /* The page changes ONLY the transform on hover — a pure lift/scale. No
+           color, border, or shadow delta, so hoverDetect classifies this as a
+           MOTION change and animates it in place with an intra-frame keyframe
+           (rather than a rest→hover crossfade). */
+        transform: none;
+      }
+      .cta:hover { transform: scale(1.08); }
+    </style>
+  </head>
+  <body>
+    <button class="cta">Add to project</button>
+  </body>
+</html>

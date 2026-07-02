@@ -310,13 +310,19 @@ A frame may force real CSS pseudo-state on selectors **before capture**, so it p
 
 - `selector` — forced on **every** matched element (throws if it matches nothing, like an action selector).
 - `states` — a non-empty list from `hover` / `active` / `focus` / `focus-within` / `focus-visible` / `visited` / `target` / `enabled` / `disabled` / `checked` / `indeterminate` / `read-only` / `read-write` / `link`.
+- `reset: true` (in place of `states`) — DM-1566: **clear** any state a previous frame forced on `selector`, capturing it back at rest. Mutually exclusive with `states`. A later `continue` frame carrying `{ "selector": ".cta", "reset": true }` releases a hover an earlier frame set (the un-hover verb).
 
 **Semantics.**
 - Runs **after `actions`** (so it reflects the post-action DOM) and **before capture** (the forced paint is what gets serialized). The whole cascade fires, not just the hovered node — e.g. `.card:has(.cta:hover)` restyles the card, and descendant/`:hover`-derived rules all apply.
 - Pair it with a **`cursor`** move (auto or explicit) so the pointer visibly sits on the element it's hovering. A common shape is a `continue` frame that forces `:hover` and cross-fades from the rest frame (see `examples/animate/hover-state/`).
-- The forced state persists on the live page until navigation, carrying into a later `continue` frame like any other pre-capture mutation. There is no clear-state verb in v1 — reload the frame (drop `continue`) to reset.
+- The forced state persists on the live page until navigation, carrying into a later `continue` frame like any other pre-capture mutation. Use `reset: true` (DM-1566) to drop it mid-session, or reload the frame (drop `continue`).
 
-**Implementation.** The CLI applies each entry via the imperative primitive `applyForcedPseudoStates(page, forceState)` (exported from the package root), which uses CDP `CSS.forcePseudoState`. The CDP session is left attached on purpose: a forced override is cleared the instant its session detaches, so it must outlive the capture. Full design + the auto-detection roadmap is **`docs/94-interaction-state-capture.md`**.
+**Sugar.** Two one-field shorthands expand into `forceState` frames (see `docs/94-interaction-state-capture.md`):
+
+- **`hoverReveal: { selector }`** (DM-1562) — auto-expands the frame into a rest → forced-`:hover` crossfade pair + a cursor move onto the element. Options: `states` (default `["hover"]`), `crossfadeMs`, `hoverMs`, `cursor`. Example: `examples/animate/hover-reveal/`.
+- **`hoverDetect: { selector }`** (DM-1563; needs an `input`) — a pre-pass drives a real `:hover`, diffs `getComputedStyle` on the target + descendants, and synthesizes the transition: a **crossfade** for a paint change (color/background/border/box-shadow) or a single-frame intra-frame **tween** for a motion-only (transform/opacity) change. Options: `states`, `transitionMs`, `hoverMs`, `cursor`. Example: `examples/animate/hover-detect/`.
+
+**Implementation.** The CLI applies each entry via the imperative primitive `applyForcedPseudoStates(page, forceState)` (exported from the package root), which uses CDP `CSS.forcePseudoState`. The CDP session is cached per page and left attached on purpose: a forced override is cleared the instant its session detaches, so it must outlive the capture — and `reset` re-issues an empty class list on that same cached session (under one cached document root) so it targets the exact node id the force was set on. Full design + the auto-detection roadmap is **`docs/94-interaction-state-capture.md`**.
 
 ---
 
