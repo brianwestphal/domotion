@@ -1160,6 +1160,9 @@
                     "fontSize": {
                       "type": "number"
                     },
+                    "fontFamily": {
+                      "type": "string"
+                    },
                     "color": {
                       "type": "string"
                     },
@@ -1227,6 +1230,37 @@
                           }
                         }
                       ]
+                    },
+                    "mistakes": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "at": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "wrong": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "at"
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    "mistakeThinkMs": {
+                      "type": "number"
                     },
                     "anchor": {
                       "type": "object",

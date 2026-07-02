@@ -7,6 +7,24 @@ import { describe, it, expect } from "vitest";
 import { generateAnimatedSvg, dedupeFrameIds } from "./animator.js";
 import { optimizeSvg } from "../post-processing/optimize.js";
 
+// DM-1557: a typing overlay's wrapped lines paint as GLYPH PATHS
+// (`<g class="tN-text"><g transform="translate(x,baseline)" aria-label="…">`)
+// when the font resolves, or a native `<text>` fallback otherwise. These
+// helpers read either form so the wrap/baseline assertions are markup-agnostic.
+function decodeXml(s: string): string {
+  return s.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+function typedLineTexts(svg: string, id = "t0"): string[] {
+  const glyph = [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`, "g"))].map((m) => decodeXml(m[1]));
+  if (glyph.length > 0) return glyph;
+  return [...svg.matchAll(new RegExp(`<text class="${id}-text"[^>]*>([^<]*)</text>`, "g"))].map((m) => decodeXml(m[1]));
+}
+function typedLineBaselines(svg: string, id = "t0"): number[] {
+  const glyph = [...svg.matchAll(new RegExp(`<g class="${id}-text"[^>]*>\\s*<g transform="translate\\([\\d.]+,([\\d.]+)\\)`, "g"))].map((m) => Number(m[1]));
+  if (glyph.length > 0) return glyph;
+  return [...svg.matchAll(new RegExp(`<text class="${id}-text" x="\\d+" y="([\\d.]+)"`, "g"))].map((m) => Number(m[1]));
+}
+
 // DM-1145: cross-frame id de-duplication. A caller that reuses identical
 // svgContent for several frames (a cached/held frame) emits duplicate ids; on a
 // SEEKED render (svg-to-video) a `clip-path="url(#id)"` resolves to the first
@@ -570,6 +588,144 @@ describe("animator", () => {
     expect(svg).not.toContain("-caret");
   });
 
+  // DM-1555: mistake → backspace → correct. An explicit or rate-driven typo
+  // paints a wrong glyph, the caret advances past it, then RETREATS (backspace)
+  // to the prefix edge and re-advances on retype.
+  describe("typing mistakes (DM-1555)", () => {
+    const mk = (overlay: Record<string, unknown>): string =>
+      generateAnimatedSvg({
+        width: 400, height: 120,
+        frames: [{ svgContent: `<rect width="400" height="120" fill="#0d1117"/>`, duration: 4000,
+          overlays: [{ kind: "typing", text: "hello world", x: 20, y: 50, fontSize: 24, caret: true, ...overlay } as never] }],
+      });
+    const caretEdges = (svg: string): number[] => {
+      const pos = svg.match(/@keyframes t0-caret-pos\s*{([\s\S]*?)}\s*@keyframes/)?.[1] ?? "";
+      return [...pos.matchAll(/translate\(([\d.]+)px,\s*[\d.]+px\)/g)].map((m) => parseFloat(m[1]));
+    };
+    const hasRetreat = (edges: number[]): boolean => {
+      for (let i = 1; i < edges.length; i++) if (edges[i] < edges[i - 1] - 0.01) return true;
+      return false;
+    };
+    // The wrong glyph paints as a glyph-path group (`<g class="t0-mis0"><g
+    // aria-label="x">`) or a `<text>` fallback — read either.
+    const mistakeChar = (svg: string, n = 0): string | undefined =>
+      svg.match(new RegExp(`<g class="t0-mis${n}"[^>]*>\\s*<g [^>]*aria-label="([^"]*)"`))?.[1]
+      ?? svg.match(new RegExp(`<text class="t0-mis${n}"[^>]*>([^<]*)</text>`))?.[1];
+
+    it("an explicit mistake paints the wrong glyph and retreats the caret", () => {
+      const svg = mk({ mistakes: [{ at: 2, wrong: "x" }] });
+      // The mistyped glyph is painted with its own show/hide opacity track.
+      expect(mistakeChar(svg)).toBe("x");
+      expect(svg).toMatch(/@keyframes t0-mis0\s*{[^]*?opacity:\s*1[^]*?opacity:\s*0/);
+      // The caret advances past the typo then steps BACK (backspace) before re-advancing.
+      expect(hasRetreat(caretEdges(svg))).toBe(true);
+    });
+
+    it("no mistakes → no wrong glyph and a monotonic caret (regression guard)", () => {
+      const svg = mk({});
+      expect(svg).not.toContain("t0-mis0");
+      expect(hasRetreat(caretEdges(svg))).toBe(false);
+    });
+
+    it("wrong glyph defaults to a deterministic QWERTY neighbor when unspecified", () => {
+      // 'l' (index 2) → neighbor 'k'.
+      const svg = mk({ mistakes: [{ at: 2 }] });
+      expect(mistakeChar(svg)).toBe("k");
+    });
+
+    it("rate-driven mistakes are deterministic (byte-stable) and honor the rate", () => {
+      const a = mk({ mistakes: 0.5 });
+      const b = mk({ mistakes: 0.5 });
+      expect(a).toBe(b);                       // same seed → identical SVG
+      expect(a).toContain("t0-mis0");          // at 0.5 over 11 chars, at least one fires
+      expect(mk({ mistakes: 0 })).not.toContain("t0-mis0"); // rate 0 → none
+    });
+
+    it("paste mode never mistypes (no keystrokes to slip on)", () => {
+      const svg = mk({ mode: "paste", mistakes: [{ at: 2, wrong: "x" }] });
+      expect(svg).not.toContain("t0-mis0");
+    });
+
+    it("the correct final text is still fully revealed after a typo", () => {
+      const svg = mk({ mistakes: [{ at: 2, wrong: "x" }] });
+      // Every wrapped line still carries the CORRECT content (aria-label / text).
+      expect(typedLineTexts(svg).join("")).toBe("hello world");
+    });
+  });
+
+  // DM-1557: typed text renders as GLYPH PATHS (viewer-independent advances),
+  // its glyph defs hoisted into the top-level <defs>, and the whole thing is
+  // byte-stable across repeat generations.
+  describe("typing glyph-path rendering (DM-1557)", () => {
+    const mk = (): string => generateAnimatedSvg({
+      width: 300, height: 90,
+      frames: [{ svgContent: `<rect width="300" height="90" fill="#0d1117"/>`, duration: 3000,
+        overlays: [{ kind: "typing", text: "hello", x: 20, y: 50, fontSize: 28, caret: true }] }],
+    });
+
+    it("paints the line as glyph <use> refs, not a <text> element", () => {
+      const svg = mk();
+      expect(svg).toMatch(/<g class="t0-text"[^>]*>\s*<g [^>]*aria-label="hello"/);
+      expect(svg).toContain('<use href="#g');
+      expect(svg).not.toMatch(/<text class="t0-text"/);
+    });
+
+    it("hoists the glyph <path> defs into the top-level <defs>", () => {
+      const svg = mk();
+      const defs = svg.match(/<defs>([\s\S]*?)<\/defs>/)?.[1] ?? "";
+      expect(defs).toMatch(/<path id="g\d+"/);
+      // Every glyph a <use> references must have a matching def in the document.
+      const refs = new Set([...svg.matchAll(/<use href="#(g\d+)"/g)].map((m) => m[1]));
+      for (const id of refs) expect(svg).toContain(`<path id="${id}"`);
+    });
+
+    it("is byte-stable across repeat generations (glyph ids restored)", () => {
+      expect(mk()).toBe(mk());
+    });
+
+    it("the parked caret sits at the measured trailing edge of the glyph run", () => {
+      const svg = mk();
+      const parked = parseFloat(svg.match(/t0-caret-pos\s*{[\s\S]*?100%\s*{\s*transform:\s*translate\(([\d.]+)px/)?.[1] ?? "NaN");
+      // 5 monospace glyphs at 28px (~0.618em ≈ 17.3px each) → ~86px.
+      expect(parked).toBeGreaterThan(60);
+      expect(parked).toBeLessThan(110);
+    });
+  });
+
+  // DM-1558: `fontFamily` override — the reveal measures + paints with an
+  // author-chosen family (e.g. the captured field's own font), wrapping
+  // proportionally via the glyph-path path (DM-1557).
+  describe("typing fontFamily override (DM-1558)", () => {
+    const text = "Wire Wave William milliliter";
+    const mk = (fontFamily?: string): string => generateAnimatedSvg({
+      width: 360, height: 140,
+      frames: [{ svgContent: `<rect width="360" height="140" fill="#fff"/>`, duration: 4000,
+        overlays: [{ kind: "typing", text, x: 20, y: 40, fontSize: 26, color: "#111", caret: true, wrapWidth: 220, ...(fontFamily != null ? { fontFamily } : {}) }] }],
+    });
+
+    it("a proportional family wraps by measured pixel width, not char count", () => {
+      // Georgia's narrow i/l/t let more fit per line than the monospace default.
+      const prop = typedLineTexts(mk("Georgia, serif"));
+      const mono = typedLineTexts(mk());
+      expect(prop).not.toEqual(mono);
+      expect(prop.join(" ")).toContain("William milliliter"); // fits one line proportionally
+      expect(mono).toContain("milliliter");                    // mono breaks it apart
+      // Every line stays within the field either way.
+      expect(prop.join("").replace(/ /g, "")).toBe(mono.join("").replace(/ /g, ""));
+    });
+
+    it("paints with the overridden family as glyph paths", () => {
+      const svg = mk("Georgia, serif");
+      expect(svg).toMatch(/<g class="t0-text"[^>]*>\s*<g [^>]*aria-label="Wire Wave"/);
+      expect(svg).toContain('<use href="#g');
+    });
+
+    it("omitting fontFamily keeps the monospace default (backward compatible)", () => {
+      // Same output whether the default is implicit or spelled out explicitly.
+      expect(mk()).toBe(mk("'SF Mono', Menlo, Monaco, monospace"));
+    });
+  });
+
   it("DM-871: blink overlay emits a step-end toggling rect", () => {
     const svg = generateAnimatedSvg({
       width: 100,
@@ -887,17 +1043,15 @@ describe("animator", () => {
       });
     }
 
-    // Pull the text content out of every `<text class="t0-text" …>…</text>`.
-    function typedLines(svg: string): string[] {
-      return [...svg.matchAll(/<text class="t0-text"[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
-    }
+    const typedLines = (svg: string): string[] => typedLineTexts(svg);
 
     it("wraps the typed text into multiple lines bounded by bgWidth", () => {
       const svg = typedSvg({ bgWidth: 120 });
       const lines = typedLines(svg);
       expect(lines.length).toBeGreaterThan(1);
-      // bgWidth 120, charWidth = 14*0.6 = 8.4 → usable (120-4)/8.4 ≈ 13 chars/line.
-      const maxChars = Math.floor((120 - 4) / (14 * 0.6));
+      // DM-1557: pixel-accurate wrap — each line's monospace width stays within
+      // the usable field (120-4=116px), so at ~8.65px/char no line exceeds ~13.
+      const maxChars = Math.ceil((120 - 4) / (14 * 0.6));
       for (const line of lines) expect(line.length).toBeLessThanOrEqual(maxChars);
       // No glyph escapes the field: each line's right edge stays within the bg.
       expect(lines.join("")).not.toContain("  "); // wrap consumed the break spaces
@@ -905,7 +1059,7 @@ describe("animator", () => {
 
     it("advances y by a line-height per wrapped line", () => {
       const svg = typedSvg({ bgWidth: 120 });
-      const ys = [...svg.matchAll(/<text class="t0-text" x="20" y="([\d.]+)"/g)].map((m) => Number(m[1]));
+      const ys = typedLineBaselines(svg);
       expect(ys.length).toBeGreaterThan(1);
       // Strictly increasing baselines, ~lineHeight (round(14*1.35)=19) apart.
       for (let i = 1; i < ys.length; i++) {
@@ -935,8 +1089,7 @@ describe("animator", () => {
   // / `bgColor` keep working as deprecated aliases.
   describe("typing overlay wrap vs mask reconciliation (DM-1134)", () => {
     const longText = "The quick brown fox jumps over the lazy dog repeatedly";
-    const typedLines = (svg: string): string[] =>
-      [...svg.matchAll(/<text class="t0-text"[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+    const typedLines = (svg: string): string[] => typedLineTexts(svg);
     const bgRect = (svg: string): { width: number; height: number; fill: string } | null => {
       const m = /<rect class="t0-bg"[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"[^>]*fill="([^"]+)"/.exec(svg);
       return m == null ? null : { width: Number(m[1]), height: Number(m[2]), fill: m[3] };
@@ -995,8 +1148,8 @@ describe("animator", () => {
       expect(bg).not.toBeNull();
       const maskTop = Number(bg![1]);
       const maskBottom = maskTop + Number(bg![2]);
-      // First line's <text> baseline equals overlay.y.
-      const firstTextY = Number(/<text class="t0-text"[^>]*\by="([\d.]+)"/.exec(svg)![1]);
+      // First line's text baseline equals overlay.y.
+      const firstTextY = typedLineBaselines(svg)[0];
       expect(firstTextY).toBe(baseline);
       // The glyph ink runs from (baseline - ascent) up to ~(baseline + descent).
       // The mask must cover the ascent (top above baseline) and reach past the
