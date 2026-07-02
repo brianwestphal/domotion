@@ -195,9 +195,53 @@ animation:
   "fuse": [{ "property": "opacity", "from": "0", "to": "1" }] }
 ```
 
+## Unified entrance/exit composition across families (DM-1548)
+
+Every frame boundary has two independent halves: how the **previous** frame
+LEAVES (an EXIT effect, from its own transition type) and how the **current**
+frame ENTERS (an ENTRANCE effect, from the previous frame's transition type). The
+original dispatch routed a frame down ONE family branch by its own type and let
+that branch handle both halves, so an entrance effect from a **different family**
+than the exit was silently dropped — e.g. a `zoom-out` predecessor handing off
+into a `wipe`-exit frame lost the dolly; a `wipe` predecessor into a `crossfade`-
+exit frame was forced to hold-then-cut instead of crossfading out.
+
+DM-1548 adds a **unified compositor** (`emitComposedFrame`) that composes the two
+halves as independent, nestable CSS tracks on one frame group:
+
+- **`fv` / `fd`** — a single opacity + visibility track whose LEADING edge comes
+  from the entrance (a fade/dolly RAMPS opacity in; a slide/reveal SNAPS it to 1
+  and lets the transform / clip do the hiding) and whose TRAILING edge comes from
+  the exit (crossfade/zoom/shine RAMP out; slide/reveal-hold/cut hold solid then
+  hard-cut).
+- **`fp`** — a slide transform used for a slide ENTRANCE and/or a slide EXIT
+  (`translate(x,y)` from the off-screen enter offset → identity → the exit
+  offset), clipped to the viewport.
+- **`fz`** — the dolly scale wrapper for a `zoom-in` / `zoom-out` entrance
+  (`0.9`/`1.1` → `scale(1)`, pivoting about the viewport center).
+- **`fr`** — the reveal `clip-path` wrapper (linear `inset`, expanding `circle`,
+  or the `polygon()` clock sweep) for a `wipe` / `iris` / `wipe-radial` /
+  `wipe-clock` entrance.
+
+Composed frames still **rest at identity** (scale 1, clip fully open, transform 0)
+and use only `transform` / `clip-path` / `opacity` / gradients — never an animated
+filter. A `shine` exit still emits its swept-highlight overlay on top.
+
+**Byte-identical guarantee.** The compositor is routed to ONLY for genuinely
+mixed-family boundaries — a positive whitelist (`composedBoundaryNeeded`): a
+reveal entrance with a fade/cut/slide exit; a fade/dolly/slide entrance with a
+reveal (hold) exit; and a dolly entrance with a slide exit. Every same-type chain
+and every slide/fade mix the pre-existing branches already compose (`transition-
+tour`, DM-1414) stays on those branches, so their emitted CSS is unchanged. The
+`transition-mixed` demo (`examples/output/transition-mixed.svg`) chains
+crossfade → zoom-in → wipe → push-left → crossfade to exercise the reveal/dolly
+cross-family boundaries end to end.
+
 ## Where to look
 
 - `src/animation/animator.ts` — transition routing (`PUSH_DIRS`, `REVEAL_KINDS`,
+  `classifyEntrance` / `classifyExit` / `composedBoundaryNeeded` /
+  `emitComposedFrame` for the DM-1548 unified compositor,
   `emitSlideFrame`, `emitRevealFrame`, the zoom `entranceScale` + `shine` sweep in
   the crossfade branch) and the `shine` overlay (`renderShineOverlay`). The clock
   wipe's polygon math is `revealShapeOf` (folds `wipe-radial`→`iris`,

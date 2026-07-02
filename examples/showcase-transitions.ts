@@ -2,13 +2,12 @@
  * Showcase: Transition Types — separate, self-contained mini-demos, one per
  * transition, each a clean two-scene loop, plus a spring + shine effects scene.
  *
- * Why one demo per transition instead of one chained tour: the animator drives a
- * frame's ENTRANCE from the PREVIOUS frame's transition type but routes the frame
- * by its OWN type, so chaining *different* transition types (crossfade → push →
- * scroll) leaves each incoming frame in the wrong branch and it never slides/fades
- * IN — the crossfade dips to black and slides reveal empty canvas. Keeping each
- * demo to a single, consistent transition type sidesteps that (the mixed-type
- * composition limitation is tracked separately). `loopFade: true` makes the last
+ * Why one demo per transition instead of one chained tour: each mini-demo isolates
+ * a single transition so its motion reads cleanly on its own. Chaining DIFFERENT
+ * transition types across families DOES compose now — each boundary independently
+ * composes an entrance (from the previous transition) and an exit (from its own):
+ * `transition-tour` chains the slide/fade families (DM-1414) and `transition-mixed`
+ * chains the reveal/dolly families too (DM-1548). `loopFade: true` makes the last
  * frame transition back to the first for a seamless loop.
  *
  * Produces under examples/output/: transition-crossfade.svg, transition-pushleft.svg,

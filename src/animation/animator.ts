@@ -720,6 +720,268 @@ ${midStops}
   return { group, keyframe };
 }
 
+// ─── DM-1548: unified entrance/exit compositor ──────────────────────────────
+//
+// Every frame boundary has TWO independent halves: how the PREVIOUS frame LEAVES
+// (its own transition type → an EXIT effect) and how the CURRENT frame ENTERS
+// (the previous frame's transition type → an ENTRANCE effect). The original
+// dispatch routed a frame down ONE family branch by its own type and let that
+// branch handle both halves, so an entrance effect from a DIFFERENT family than
+// the exit was silently dropped (e.g. a `zoom-out` predecessor handing off into
+// a `wipe`-exit frame lost the dolly; a `wipe` predecessor into a `crossfade`-
+// exit frame was forced to hold-then-cut instead of crossfading out).
+//
+// `emitComposedFrame` composes the two halves as independent, nestable CSS
+// tracks on one frame group: a unified opacity/visibility track (`fv`/`fd`), an
+// optional slide transform (`fp`, entrance and/or exit), an optional dolly scale
+// (`fz`, entrance), and an optional reveal clip-path (`fr`, entrance). It is
+// routed to ONLY for the genuinely mixed-family boundaries the single-branch
+// paths get wrong (`composedBoundaryNeeded`); every same-type chain and every
+// slide/fade mix the original branches already handle stays on those branches,
+// so their output is byte-identical.
+
+/** How the current frame ENTERS, derived from the PREVIOUS frame's transition. */
+type EntranceKind = "fade" | "dolly" | "slide" | "reveal" | "cut";
+/** How the current frame EXITS, derived from its OWN transition. `magic` is the
+ *  special-cased magic-move exit — never composed here. */
+type ExitKind = "fade" | "slide" | "hold" | "cut" | "magic";
+
+interface ComposedEntrance {
+  kind: EntranceKind;
+  /** slide: the PREVIOUS push/scroll axis + sign (incoming enters from the
+   *  opposite side, so its offset is `-sign · size`). */
+  axis?: "X" | "Y";
+  sign?: 1 | -1;
+  /** dolly: the scale the incoming grows/settles FROM (zoom-in 0.9, zoom-out 1.1). */
+  fromScale?: number;
+  /** reveal: the clip-path shape the incoming unveils with. */
+  reveal?: RevealShape;
+  /** dolly / reveal: resolved CSS easing for the entrance segment (DM-1550). */
+  easing?: string;
+}
+interface ComposedExit {
+  kind: ExitKind;
+  /** slide: the OWN push/scroll axis + sign (outgoing slides by `sign · size`). */
+  axis?: "X" | "Y";
+  sign?: 1 | -1;
+}
+
+/** Classify a frame's ENTRANCE from the previous frame's transition type. A push/
+ *  scroll predecessor slides the incoming in; a crossfade/shine fades it in; a
+ *  zoom dollies it in (a fade + scale); a wipe/iris/… reveals it on top; a cut /
+ *  magic-move / first-frame appears at its own start. */
+function classifyEntrance(prevType: string | undefined, prevMagicBridged: boolean, prevEasing: string | undefined): ComposedEntrance {
+  if (prevType == null) return { kind: "cut" };
+  const dir = PUSH_DIRS[prevType];
+  if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
+  if (REVEAL_KINDS.has(prevType)) return { kind: "reveal", reveal: revealShapeOf(prevType), easing: resolveEasingPreset(prevEasing) };
+  if (prevType === "zoom-in" || prevType === "zoom-out") return { kind: "dolly", fromScale: prevType === "zoom-in" ? 0.9 : 1.1, easing: resolveEasingPreset(prevEasing) };
+  if (prevType === "crossfade" || prevType === "shine") return { kind: "fade" };
+  // magic-move WITH a built bridge: appears at its own start (the bridge covered
+  // the window). WITHOUT a bridge it degraded to crossfade → fade.
+  if (prevType === "magic-move") return { kind: prevMagicBridged ? "cut" : "fade" };
+  return { kind: "cut" };
+}
+
+/** Classify a frame's EXIT from its OWN transition type. push/scroll slides out;
+ *  crossfade/zoom/shine fade out (the dolly rides on the NEXT frame's entrance);
+ *  wipe/iris/… hold beneath and hard-cut (the next frame reveals on top); cut
+ *  hard-cuts; magic-move is special-cased elsewhere. */
+function classifyExit(ownType: string): ComposedExit {
+  const dir = PUSH_DIRS[ownType];
+  if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
+  if (REVEAL_KINDS.has(ownType)) return { kind: "hold" };
+  if (ownType === "magic-move") return { kind: "magic" };
+  if (ownType === "cut") return { kind: "cut" };
+  return { kind: "fade" }; // crossfade / zoom-in / zoom-out / shine / default
+}
+
+/**
+ * Whether a boundary needs the unified compositor — i.e. the entrance and exit
+ * are in DIFFERENT effect families and the single-branch paths would drop one of
+ * them. Deliberately a POSITIVE whitelist: everything NOT listed here keeps its
+ * original branch (and its byte-identical output). The listed combinations never
+ * occur in a same-type chain nor in the slide/fade mixes the DM-1414 slide/
+ * crossfade branches already compose correctly, so no committed golden hits this.
+ */
+function composedBoundaryNeeded(entrance: EntranceKind, exit: ExitKind): boolean {
+  // A reveal ENTRANCE composed with a non-reveal EXIT (fade / cut / slide):
+  // e.g. wipe → crossfade, wipe → push. The old reveal branch forced hold-cut.
+  if (entrance === "reveal" && (exit === "fade" || exit === "cut" || exit === "slide")) return true;
+  // A non-reveal ENTRANCE composed with a reveal EXIT (hold-then-cut): e.g.
+  // crossfade → wipe, push → iris, zoom → wipe. The old reveal branch dropped
+  // the fade/slide/dolly entrance and cut the frame in.
+  if ((entrance === "fade" || entrance === "dolly" || entrance === "slide") && exit === "hold") return true;
+  // A dolly ENTRANCE composed with a slide EXIT: zoom → push/scroll. The old
+  // slide branch faded (dropping the scale dolly).
+  if (entrance === "dolly" && exit === "slide") return true;
+  return false;
+}
+
+/** The keyframe-window percentages the composed frame places its CSS at. */
+interface ComposedWindow {
+  enterStartPct: string;
+  startPct: string;
+  holdEndPct: string;
+  transEndPct: string;
+}
+
+/**
+ * DM-1548: emit one MIXED-family boundary frame — an independently-composed
+ * entrance (from the previous transition) and exit (from its own). Produces one
+ * `<g class="f f-i">` group with a unified `fv`/`fd` opacity+visibility track and
+ * whichever of the entrance/exit tracks are needed: `fp` (slide transform, either
+ * direction), `fz` (dolly scale), `fr` (reveal clip-path). All motion is
+ * transform / clip-path / opacity — never an animated filter (docs/84).
+ */
+function emitComposedFrame(
+  i: number,
+  svgContent: string,
+  entrance: ComposedEntrance,
+  exit: ComposedExit,
+  dims: { width: number; height: number },
+  win: ComposedWindow,
+  totalSec: number,
+  holdToEnd: boolean,
+): { group: string; keyframe: string } {
+  const { width, height } = dims;
+  const cx = width / 2;
+  const cy = height / 2;
+  const enterNum = parseFloat(win.enterStartPct);
+  const startNum = parseFloat(win.startPct);
+  const holdNum = parseFloat(win.holdEndPct);
+  const transNum = parseFloat(win.transEndPct);
+  const dur = `${totalSec.toFixed(2)}s`;
+
+  const needSlide = entrance.kind === "slide" || exit.kind === "slide";
+  const needScale = entrance.kind === "dolly";
+  const needReveal = entrance.kind === "reveal";
+  // A fade/dolly entrance RAMPS opacity in over [enter, start]; a slide/reveal
+  // entrance SNAPS opacity to 1 at `enter` (the transform / clip does the hiding).
+  const leadRamp = entrance.kind === "fade" || entrance.kind === "dolly";
+
+  // ── Opacity track (fv) ───────────────────────────────────────────────────
+  const preEnter = padBefore(enterNum, KEYFRAME_EPSILON.cull, 3);
+  const opacityStops: string[] = [
+    `0% { opacity: 0; }`,
+    `${preEnter}% { opacity: 0; }`,
+  ];
+  if (leadRamp) {
+    opacityStops.push(`${enterNum.toFixed(3)}% { opacity: 0; }`);
+    opacityStops.push(`${startNum.toFixed(3)}% { opacity: 1; }`);
+  } else {
+    opacityStops.push(`${enterNum.toFixed(3)}% { opacity: 1; }`);
+  }
+  if (holdToEnd) {
+    opacityStops.push(`100% { opacity: 1; }`);
+  } else if (exit.kind === "fade") {
+    // Crossfade/zoom/shine exit: hold, then dissolve out over the trans window.
+    opacityStops.push(`${holdNum.toFixed(3)}% { opacity: 1; }`);
+    opacityStops.push(`${transNum.toFixed(3)}% { opacity: 0; }`);
+    opacityStops.push(`100% { opacity: 0; }`);
+  } else {
+    // Slide / reveal-hold / cut exit: hold solid to the trans end, then hard-cut.
+    opacityStops.push(`${transNum.toFixed(3)}% { opacity: 1; }`);
+    opacityStops.push(`${padAfter(transNum, KEYFRAME_EPSILON.cull, 3)}% { opacity: 0; }`);
+    opacityStops.push(`100% { opacity: 0; }`);
+  }
+  const onEnd = holdToEnd ? "100" : win.transEndPct;
+  let keyframe = `
+    @keyframes fv-${i} {
+      ${opacityStops.join("\n      ")}
+    }${buildDisplayKeyframes(`fd-${i}`, win.enterStartPct, onEnd, totalSec)}
+    .f-${i} { animation: fv-${i} ${dur} infinite, fd-${i} ${dur} infinite step-end; }`;
+
+  // ── Reveal clip track (fr) — innermost ────────────────────────────────────
+  let inner = svgContent;
+  if (needReveal) {
+    const shape = entrance.reveal ?? "iris";
+    const rBefore = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
+    const tf = entrance.easing != null ? ` animation-timing-function: ${entrance.easing};` : "";
+    if (shape === "clock") {
+      const hidden = clockWipeClip(0, width, height);
+      const shown = clockWipeClip(1, width, height);
+      const mid = clockWipeStops(width, height, enterNum, startNum);
+      keyframe += `
+    @keyframes fr-${i} {
+      0%, ${rBefore}% { clip-path: ${hidden}; }
+      ${win.enterStartPct} { clip-path: ${hidden};${tf} }
+${mid}
+      ${win.startPct} { clip-path: ${shown}; }
+      100% { clip-path: ${shown}; }
+    }
+    .fr-${i} { animation: fr-${i} ${dur} linear infinite; }`;
+    } else {
+      const r = Math.ceil(Math.hypot(cx, cy));
+      const [hidden, shown] = shape === "wipe"
+        ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
+        : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
+      keyframe += `
+    @keyframes fr-${i} {
+      0%, ${rBefore}% { clip-path: ${hidden}; }
+      ${win.enterStartPct} { clip-path: ${hidden};${tf} }
+      ${win.startPct} { clip-path: ${shown}; }
+      100% { clip-path: ${shown}; }
+    }
+    .fr-${i} { animation: fr-${i} ${dur} linear infinite; }`;
+    }
+    inner = `<g class="fr-${i}">\n${inner}\n  </g>`;
+  }
+
+  // ── Dolly scale track (fz) ─────────────────────────────────────────────────
+  if (needScale) {
+    const from = entrance.fromScale ?? 1;
+    const esBefore = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
+    const tf = entrance.easing != null ? ` animation-timing-function: ${entrance.easing};` : "";
+    keyframe += `
+    @keyframes fz-${i} {
+      0%, ${esBefore}% { transform: scale(${from}); }
+      ${win.enterStartPct} { transform: scale(${from});${tf} }
+      ${win.startPct} { transform: scale(1); }
+      100% { transform: scale(1); }
+    }
+    .fz-${i} { animation: fz-${i} ${dur} linear infinite; transform-origin: ${cx}px ${cy}px; }`;
+    inner = `<g class="fz-${i}">\n${inner}\n  </g>`;
+  }
+
+  // ── Slide transform track (fp) — entrance and/or exit; clipped ─────────────
+  let clipDef = "";
+  if (needSlide) {
+    const off = (axis: "X" | "Y", d: number): string => `translate(${axis === "X" ? d : 0}px, ${axis === "Y" ? d : 0}px)`;
+    const enterT = entrance.kind === "slide" && entrance.axis != null && entrance.sign != null
+      ? off(entrance.axis, -entrance.sign * (entrance.axis === "X" ? width : height))
+      : "translate(0px, 0px)";
+    const exitT = exit.kind === "slide" && exit.axis != null && exit.sign != null
+      ? off(exit.axis, exit.sign * (exit.axis === "X" ? width : height))
+      : "translate(0px, 0px)";
+    const enterBound = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
+    if (holdToEnd) {
+      keyframe += `
+    @keyframes fp-${i} {
+      0%, ${enterBound}% { transform: ${enterT}; }
+      ${win.startPct} { transform: translate(0px, 0px); }
+      100% { transform: translate(0px, 0px); }
+    }
+    .fp-${i} { animation: fp-${i} ${dur} infinite; }`;
+    } else {
+      keyframe += `
+    @keyframes fp-${i} {
+      0%, ${enterBound}% { transform: ${enterT}; }
+      ${win.startPct} { transform: translate(0px, 0px); }
+      ${win.holdEndPct} { transform: translate(0px, 0px); }
+      ${win.transEndPct} { transform: ${exitT}; }
+      ${padAfter(transNum, KEYFRAME_EPSILON.slide, 2)}%, 100% { transform: ${exitT}; }
+    }
+    .fp-${i} { animation: fp-${i} ${dur} infinite; }`;
+    }
+    clipDef = `<clipPath id="fc-${i}"><rect width="${width}" height="${height}" /></clipPath>`;
+    inner = `<g clip-path="url(#fc-${i})" class="fp-${i}">\n${inner}\n  </g>`;
+  }
+
+  const group = `  <g class="f f-${i}">${clipDef}\n${inner}\n  </g>`;
+  return { group, keyframe };
+}
+
 /**
  * Render a frame's overlays (typing / tap / svg / blink), in declaration order,
  * to parallel group-markup + keyframe-css arrays. The cursor overlay is global
@@ -889,7 +1151,36 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     const ownReveal = REVEAL_KINDS.has(transType);
     const prevReveal = prevType != null && REVEAL_KINDS.has(prevType);
 
-    if (ownDir != null) {
+    // DM-1548: unified entrance/exit composition. Classify the two halves of this
+    // boundary independently — the entrance from the previous transition, the exit
+    // from this frame's own — and route MIXED-family boundaries (the ones a single
+    // branch would drop half of) through `emitComposedFrame`. Same-type chains and
+    // the slide/fade mixes the DM-1414 branches already compose stay on those
+    // branches, so their output is byte-identical (see `composedBoundaryNeeded`).
+    const composedEntrance = classifyEntrance(prevType, entersViaMagicMove, prevFrame?.transition?.easing);
+    const composedExit = classifyExit(transType);
+    const useComposed = composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
+
+    if (useComposed) {
+      // Mixed-family boundary: compose the entrance (from prevType) and the exit
+      // (from ownType) as independent tracks. The entrance overlaps the
+      // predecessor's transition window, opening at `timeOffset - prevTransDur`.
+      const composedEnterStartPct = pct(Math.max(0, timeOffset - prevTransDur), totalDuration);
+      const r = emitComposedFrame(
+        i, frame.svgContent, composedEntrance, composedExit, { width, height },
+        { enterStartPct: composedEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame,
+      );
+      frameGroups.push(r.group);
+      keyframes.push(r.keyframe);
+      // A `shine` EXIT still sweeps its gradient highlight over the handoff window
+      // on top of the composed dissolve (same helper as the crossfade branch).
+      if (transType === "shine") {
+        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec });
+        shineTransitionGroups.push(sweep.markup);
+        keyframes.push(sweep.css);
+      }
+
+    } else if (ownDir != null) {
       // DM-609 / DM-1524: directional push/scroll — exit slides out by the signed
       // `exitDelta` on `ownDir.axis` (push-left/right over width, scroll/push-up/
       // push-down over height); enter per `slideEnter`. The parallel `fd-${i}`
