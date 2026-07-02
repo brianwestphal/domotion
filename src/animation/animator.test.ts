@@ -680,6 +680,25 @@ describe("animator", () => {
     expect(visStops[1]).toBeGreaterThan(opStops[1]);
   });
 
+  it("DM-1511/1512/1513: a single looping frame keeps opacity + visibility decoupled", () => {
+    // The single-frame looping demos (kinetic-text, lower-third) rendered "as two
+    // separate steps" / flashed at the loop edge in Firefox because the lone
+    // frame's opacity and visibility flipped together in one step-end keyframe —
+    // the same visibility-off-the-opacity-clock race as the multi-frame cut flash.
+    // A single frame must still keep visibility in its OWN fd-0 track.
+    const svg = generateAnimatedSvg({
+      width: 200, height: 200,
+      frames: [{ svgContent: `<rect width="200" height="200" fill="#123"/>`, duration: 2650 }],
+    });
+    const fv0 = svg.match(/@keyframes fv-0\s*{[\s\S]*?\n\s*}/)![0];
+    // fv-0 drives opacity only — NO visibility folded in.
+    expect(fv0).not.toMatch(/visibility/);
+    expect(fv0).toMatch(/opacity/);
+    // Visibility lives in a separate fd-0 track, and .f-0 runs both.
+    expect(svg).toMatch(/@keyframes fd-0\s*{[\s\S]*?visibility/);
+    expect(svg).toMatch(/\.f-0\s*{\s*animation:\s*fv-0[^,}]*,\s*fd-0/);
+  });
+
   it("DM-641: never emits `display: none` keyframes (would park Chromium's animation engine)", () => {
     // Regression. The repro from the ticket: a multi-frame animation with
     // `cut` transitions produced `@keyframes fv-0 { 0% { opacity:0; display:none } … }`
