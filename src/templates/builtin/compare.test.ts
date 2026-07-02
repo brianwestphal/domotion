@@ -54,16 +54,21 @@ describe("compare — overlay markup (DM-1533)", () => {
     expect(down).toContain("translateY(600px)");
   });
 
-  it("places each label over the region it describes (after = reveal-origin side)", () => {
-    // direction right → after is revealed on the LEFT, before stays on the RIGHT.
-    const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", direction: "right", beforeLabel: "Old", afterLabel: "New", width: 1000 }));
-    // Grab each label's pill x. "New" (after) should sit at the left (small x),
-    // "Old" (before) at the right (large x).
-    const xOf = (label: string): number => {
-      const re = new RegExp(`<rect x="([0-9.]+)"[^>]*/><text[^>]*>${label}<`);
-      return Number(re.exec(m)![1]);
-    };
-    expect(xOf("New")).toBeLessThan(xOf("Old"));
+  it("a single label crossfades before→after over the reveal (not two fixed labels)", () => {
+    const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", beforeLabel: "Old", afterLabel: "New", durationMs: 1000, holdMs: 4000 }));
+    // Both texts share one pill (one <rect>), each on its own crossfade class.
+    expect((m.match(/rx="22"/g) ?? []).length).toBe(1);
+    expect(m).toContain('class="cmp-lbl-b"'); // before: 1→0
+    expect(m).toContain('class="cmp-lbl-a"'); // after: 0→1
+    // reveal ends at 25% of the loop; the swap is a short flip around its midpoint.
+    expect(m).toContain("@keyframes cmp-lbl-b{0%,10.50%{opacity:1;transform:translateY(0)}14.50%,100%{opacity:0;transform:translateY(-9px)}}");
+    expect(m).toContain("@keyframes cmp-lbl-a{0%,10.50%{opacity:0;transform:translateY(9px)}14.50%,100%{opacity:1;transform:translateY(0)}}");
+  });
+
+  it("with only one label, shows it statically (no crossfade)", () => {
+    const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", beforeLabel: "Old" }));
+    expect(m).toContain(">Old<");
+    expect(m).not.toContain("@keyframes cmp-lbl");
   });
 
   it("centers the label text in its pill (text-anchor middle)", () => {

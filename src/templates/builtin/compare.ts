@@ -87,44 +87,59 @@ export function revealAnimation(direction: CompareParams["direction"], durationM
   };
 }
 
-/** Where a label pill sits: an edge along each axis. */
-interface LabelPos { h: "left" | "right" | "center"; v: "top" | "bottom"; }
-
 /**
- * SVG markup for the before/after label badges + (slide) the moving divider,
- * injected before the composite's closing `</svg>`. Each label is placed over the
- * region it describes: the reveal-origin side always shows the AFTER (it's
- * unveiled first and stays), the far side shows the BEFORE — so the "After" label
- * sits where the after appears, not on a fixed corner. Text is centered in the
- * pill. Exposed for testing.
+ * SVG markup for the single before/after label badge + (slide) the moving
+ * divider, injected before the composite's closing `</svg>`. There is ONE label
+ * pill (bottom-left) whose text tracks the reveal: it reads `beforeLabel` while
+ * the before is shown and crossfades to `afterLabel` as the after is unveiled —
+ * "Before" then "After" — rather than two fixed corner labels that never change.
+ * With only one of the two labels set, that label is shown statically. Text is
+ * centered in the pill. Exposed for testing.
  */
 export function compareOverlayMarkup(p: CompareParams): string {
-  const { width: W, height: H } = p;
+  const { height: H } = p;
   const pad = 28;
   const bh = 44;
   const fontSize = 22;
-  const badge = (text: string, pos: LabelPos): string => {
-    // Loose width estimate for a semibold system font; the text is CENTERED, so a
-    // slightly-off estimate just changes the symmetric padding, never clips.
-    const bw = Math.round(text.length * fontSize * 0.62 + 40);
-    const bx = pos.h === "left" ? pad : pos.h === "right" ? W - pad - bw : (W - bw) / 2;
-    const by = pos.v === "top" ? pad : H - pad - bh;
+  const before = p.beforeLabel != null && p.beforeLabel !== "" ? p.beforeLabel : null;
+  const after = p.afterLabel != null && p.afterLabel !== "" ? p.afterLabel : null;
+
+  let out = "";
+  if (before != null || after != null) {
+    // One pill, sized to the wider label so the crossfade doesn't reflow it.
+    const widest = Math.max((before ?? "").length, (after ?? "").length);
+    const bw = Math.round(widest * fontSize * 0.62 + 40);
+    const bx = pad;
+    const by = H - pad - bh;
     const cx = bx + bw / 2;
     const baseline = by + bh / 2 + fontSize * 0.34; // vertical-center the cap height
-    return `<g><rect x="${bx.toFixed(1)}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>`
-      + `<text x="${cx.toFixed(1)}" y="${baseline.toFixed(1)}" fill="#fff" font-family="${escapeHtml(p.fontFamily)}" font-size="${fontSize}" font-weight="600" text-anchor="middle">${escapeHtml(text)}</text></g>`;
-  };
-  // The reveal-origin side (where clipScale grows from) is the AFTER region.
-  const horizontal = p.direction === "right" || p.direction === "left";
-  const afterPos: LabelPos = horizontal
-    ? { h: p.direction === "right" ? "left" : "right", v: "bottom" }
-    : { h: "center", v: p.direction === "down" ? "top" : "bottom" };
-  const beforePos: LabelPos = horizontal
-    ? { h: afterPos.h === "left" ? "right" : "left", v: "bottom" }
-    : { h: "center", v: afterPos.v === "top" ? "bottom" : "top" };
-  let out = "";
-  if (p.beforeLabel != null && p.beforeLabel !== "") out += badge(p.beforeLabel, beforePos);
-  if (p.afterLabel != null && p.afterLabel !== "") out += badge(p.afterLabel, afterPos);
+    const txt = (t: string, cls: string): string =>
+      `<text class="${cls}" x="${cx.toFixed(1)}" y="${baseline.toFixed(1)}" fill="#fff" font-family="${escapeHtml(p.fontFamily)}" font-size="${fontSize}" font-weight="600" text-anchor="middle">${escapeHtml(t)}</text>`;
+
+    if (before != null && after != null) {
+      // Swap the text with a SHORT crossfade centered on the reveal's midpoint, so
+      // "Before" reads solid until the wipe is ~half done and "After" solid after —
+      // with only a brief overlap, not a long double-exposure. Percentages are of
+      // the whole loop; the reveal spans [0, endPct].
+      const endPct = Math.min(100, (p.durationMs / p.holdMs) * 100);
+      const s0 = (endPct * 0.42).toFixed(2); // before starts fading
+      const s1 = (endPct * 0.58).toFixed(2); // after fully in
+      const dur = (p.holdMs / 1000).toFixed(2);
+      // A vertical flip: "Before" slides up + out while "After" rises up + in, so
+      // at the crossover they sit at different heights instead of ghosting over
+      // each other. (translateY is a pure shift — no transform-box/origin needed.)
+      out += `<style>`
+        + `@keyframes cmp-lbl-b{0%,${s0}%{opacity:1;transform:translateY(0)}${s1}%,100%{opacity:0;transform:translateY(-9px)}}`
+        + `@keyframes cmp-lbl-a{0%,${s0}%{opacity:0;transform:translateY(9px)}${s1}%,100%{opacity:1;transform:translateY(0)}}`
+        + `.cmp-lbl-b{animation:cmp-lbl-b ${dur}s ease infinite}`
+        + `.cmp-lbl-a{animation:cmp-lbl-a ${dur}s ease infinite}</style>`;
+      out += `<g><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>`
+        + txt(before, "cmp-lbl-b") + txt(after, "cmp-lbl-a") + `</g>`;
+    } else {
+      out += `<g><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>`
+        + txt((before ?? after)!, "cmp-lbl-s") + `</g>`;
+    }
+  }
   if (p.mode === "slide") out += dividerMarkup(p);
   return out;
 }
