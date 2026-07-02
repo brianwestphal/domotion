@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 720,
+  "height": 405,
+  "brand": "./brand.json",
+  "frames": [
+    {
+      "template": "lower-third",
+      "params": { "title": "Acme Cloud", "subtitle": "One brand, every frame", "holdMs": 2400 },
+      "transition": { "type": "crossfade", "duration": 500 }
+    },
+    {
+      "input": "./page.html",
+      "duration": 2400,
+      "transition": { "type": "crossfade", "duration": 500 }
+    }
+  ]
+}

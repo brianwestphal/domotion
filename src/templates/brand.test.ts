@@ -134,6 +134,18 @@ describe("per-template brandDefaults mapping (DM-1530)", () => {
     });
   });
 
+  it("lower-third maps the brand logo to its brand-mark slot (DM-1545)", () => {
+    const withLogo: Brand = { ...ACME, logo: "/opt/logos/acme.svg" };
+    expect(lowerThirdTemplate.brandDefaults!(withLogo)).toEqual({
+      accent: "#22d3ee",
+      background: "linear-gradient(135deg,#1e293b,#0f172a)",
+      fontFamily: "Inter, sans-serif",
+      logo: "/opt/logos/acme.svg",
+    });
+    // No logo → the slot isn't defaulted at all (never shadows with undefined).
+    expect("logo" in lowerThirdTemplate.brandDefaults!(ACME)).toBe(false);
+  });
+
   it("chart maps text→color, background, font, palette→series colors", () => {
     expect(chartTemplate.brandDefaults!(ACME)).toEqual({
       color: "#e6edf3",

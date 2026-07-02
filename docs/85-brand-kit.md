@@ -1,7 +1,9 @@
 # 85 — Brand kit (design tokens applied across templates)
 
 **Status: shipped v1 (DM-1522 design → DM-1530 impl); logo slot + capture/animate
-brand shipped (DM-1539 / DM-1540).** The `brandSchema` + `loadBrand` +
+brand shipped (DM-1539 / DM-1540); `lower-third` logo + animate template-frame
+theming + config `brand` key shipped (DM-1543 / DM-1544 / DM-1545).** The
+`brandSchema` + `loadBrand` +
 per-template `brandDefaults` + `--brand` flag are built and tested
 (`src/templates/brand.ts`). The `logo` token now feeds the `cta` end-card's logo
 slot (DM-1539), and `--brand` extends to `capture` / `animate` by injecting brand
@@ -84,7 +86,7 @@ Initial mapping for the current built-ins:
 
 | Template | Brand token → param |
 |---|---|
-| **lower-third** | `accent`→`accent`, `background`→`background`, `font.family`→`fontFamily` |
+| **lower-third** | `accent`→`accent`, `background`→`background`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1545 — a small brand mark on the banner, inside the safe area) |
 | **chart** | `text`→`color`, `background`→`background`, `font.family`→`fontFamily`, `palette`→series `colors` |
 | **chat** | `primary`→`accent`, `background`→`background`, `font.family`→`fontFamily` |
 | **subscribe** | `primary`→`accent`, `primary`→`avatarColor`, `background`→`background`, `font.family`→`fontFamily` |
@@ -109,11 +111,12 @@ blobs) from `[primary, accent, …]` when the caller doesn't pass explicit color
 
 ## Shipped after v1
 
-- **Logo placement (DM-1539).** The `logo` token feeds the `cta` end-card's logo
-  slot (`brand.logo` → the cta's `logo` param, via `brandParams`), so
-  `--brand acme.json` (with a `logo`) auto-fills it. The first built-in to
-  consume `brand.logo`; a `lower-third` logo variant / other slots can map it the
-  same way.
+- **Logo placement (DM-1539, DM-1545).** The `logo` token feeds the `cta`
+  end-card's logo slot (`brand.logo` → the cta's `logo` param, via `brandParams`),
+  so `--brand acme.json` (with a `logo`) auto-fills it. DM-1545 maps it the same
+  way onto **lower-third**: a small brand mark rides on the banner (inside
+  `.lt-panel`, so it slides + fades in with the panel and stays within the safe
+  area, since the panel is positioned by the safe-inset-aware body padding).
 - **Brand for `capture` / `animate` (DM-1540).** `--brand` on `capture` /
   `animate` injects the brand as CSS custom properties onto the captured page's
   `:root` before it paints — a distinct mechanism from template defaults. See
@@ -136,6 +139,14 @@ blobs) from `[primary, accent, …]` when the caller doesn't pass explicit color
 - **Brand for `capture`/`animate`** — ✅ done (DM-1540, docs/92): `--brand`
   injects brand CSS custom properties onto the captured page's `:root`. Demo:
   `examples/brand-capture-demo.ts` → `examples/output/brand-capture.svg`.
+- **Logo on more built-ins** — ✅ done for `lower-third` (DM-1545): `brand.logo` →
+  the banner's `logo` param (`brandParams({ logo: brand.logo })`), a small mark on
+  the panel respecting `safeInset`. The `brand-acme-lower-third` demo auto-fills it.
+- **Animate template frames + config `brand` key** — ✅ done (DM-1543 / DM-1544,
+  docs/92): one brand themes an `animate` config's captured *and* `template` frames,
+  and the config can carry its own `brand` (path or inline) so no CLI flag is
+  needed. Demo: `examples/animate/brand-mixed/` (a template banner + a captured
+  page, both driven by one config `brand`).
 
 ## Relationships
 

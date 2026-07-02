@@ -157,6 +157,18 @@ describe("lower-third HTML generation (pure, no browser)", () => {
     expect(html).not.toContain("<b>");
   });
 
+  it("embeds a brand logo when given, and omits the mark otherwise (DM-1545)", () => {
+    const withLogo = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Acme", logo: "/opt/logos/acme.svg" }));
+    expect(withLogo).toMatch(/<img class="lt-logo" src="\/opt\/logos\/acme\.svg"/);
+    const withoutLogo = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Acme" }));
+    expect(withoutLogo).not.toContain("<img");
+  });
+
+  it("escapes a logo URL's HTML-special characters (DM-1545)", () => {
+    const html = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "x", logo: 'a"b.svg' }));
+    expect(html).toContain('src="a&quot;b.svg"');
+  });
+
   it("anchors to the chosen corner via flex alignment", () => {
     const bottomRight = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "x", position: "bottom-right" }));
     expect(bottomRight).toMatch(/justify-content: flex-end/);

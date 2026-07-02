@@ -1,0 +1,12 @@
+{
+  "palette": {
+    "primary": "#7c3aed",
+    "accent": "#f97316",
+    "background": "#0b1020",
+    "text": "#f3ecff",
+    "muted": "#a99bd6"
+  },
+  "font": { "family": "Georgia, 'Times New Roman', serif" },
+  "radius": 14,
+  "logo": "../../../assets/logo.svg"
+}

@@ -5,8 +5,11 @@
  * schema rules and `${}` substitution are deterministic and testable here.
  */
 
-import { describe, it, expect } from "vitest";
-import { validateAnimateConfig, interpolateConfigVars, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, type AnimateConfig } from "./animate.js";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -519,5 +522,59 @@ describe("resolveEmbeddedFrameOverlays — overlays on cast/template frames (DM-
 
   it("returns undefined when there are no overlays", () => {
     expect(resolveEmbeddedFrameOverlays(undefined, process.cwd(), 0, "cast", () => {})).toBeUndefined();
+  });
+});
+
+describe("config `brand` key (DM-1544)", () => {
+  let dir: string;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "domotion-animate-brand-"));
+  });
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const frame = { input: "a.html", duration: 100 };
+
+  it("accepts a string brand path", () => {
+    const cfg = validateAnimateConfig({ ...base, brand: "acme.json", frames: [frame] });
+    expect(cfg.brand).toBe("acme.json");
+  });
+
+  it("accepts an inline brand object validated by brandSchema (coercing radius)", () => {
+    const cfg = validateAnimateConfig({
+      ...base,
+      brand: { palette: { primary: "#f00" }, font: { family: "Inter" }, radius: "8", logo: "logo.svg" },
+      frames: [frame],
+    });
+    expect(cfg.brand).toMatchObject({ palette: { primary: "#f00" }, radius: 8, logo: "logo.svg" });
+  });
+
+  it("rejects an inline brand with a wrong-typed token", () => {
+    expect(() => validateAnimateConfig({ ...base, brand: { palette: { primary: 123 } }, frames: [frame] }))
+      .toThrow(/brand/);
+  });
+
+  it("resolveConfigBrand loads a string path relative to configDir", () => {
+    const p = join(dir, "acme.json");
+    writeFileSync(p, JSON.stringify({ palette: { primary: "#0af" }, logo: "acme-logo.svg" }));
+    const brand = resolveConfigBrand("acme.json", dir);
+    expect(brand?.palette?.primary).toBe("#0af");
+    // loadBrand resolves the file's own relative logo against the file's dir.
+    expect(brand?.logo).toBe(resolve(dir, "acme-logo.svg"));
+  });
+
+  it("resolveConfigBrand resolves an inline object's relative logo against configDir", () => {
+    const brand = resolveConfigBrand({ palette: { primary: "#0af" }, logo: "brand/logo.svg" }, dir);
+    expect(brand?.logo).toBe(resolve(dir, "brand/logo.svg"));
+  });
+
+  it("resolveConfigBrand leaves an absolute path / URL logo untouched", () => {
+    expect(resolveConfigBrand({ logo: "/opt/l.svg" }, dir)?.logo).toBe("/opt/l.svg");
+    expect(resolveConfigBrand({ logo: "https://cdn.example.com/l.svg" }, dir)?.logo).toBe("https://cdn.example.com/l.svg");
+  });
+
+  it("resolveConfigBrand returns undefined for an absent brand", () => {
+    expect(resolveConfigBrand(undefined, dir)).toBeUndefined();
   });
 });

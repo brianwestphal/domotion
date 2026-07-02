@@ -34,6 +34,7 @@ export const lowerThirdParamsSchema = z.object({
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3000).describe("Total on-screen time in ms."),
   background: z.string().default("transparent").describe('Frame background (CSS color or "transparent").'),
+  logo: z.string().optional().describe("Optional brand mark (URL or absolute path) shown on the banner."),
   fontFamily: z
     .string()
     .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
@@ -70,6 +71,13 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
   const subtitle = p.subtitle != null && p.subtitle !== ""
     ? `<div class="lt-sub">${escapeHtml(p.subtitle)}</div>`
     : "";
+  // DM-1545: an optional brand mark rides on the banner (the brand kit's `logo`
+  // token maps here). It sits inside `.lt-panel`, so it slides + fades in with
+  // the panel and rests at identity; the panel itself already honors `safeInset`
+  // via the body padding, so the mark stays inside the safe area.
+  const logo = p.logo != null && p.logo !== ""
+    ? `<img class="lt-logo" src="${escapeHtml(p.logo)}" alt="">`
+    : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
@@ -93,6 +101,7 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
   }
   .lt-accent { width: 6px; background: ${p.accent}; flex: none; }
   .lt-text { padding: 14px 22px 16px; }
+  .lt-logo { align-self: center; flex: none; height: 44px; max-width: 140px; object-fit: contain; margin: 0 18px 0 6px; }
   .lt-title {
     font-size: 30px; font-weight: 700; line-height: 1.15; color: ${titleColor};
     letter-spacing: -0.01em; white-space: nowrap;
@@ -107,6 +116,7 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
         <div class="lt-title">${escapeHtml(p.title)}</div>
         ${subtitle}
       </div>
+      ${logo}
     </div>
   </div>
 </body></html>`;
@@ -121,6 +131,10 @@ export const lowerThirdTemplate: Template<LowerThirdParams> = {
       accent: brand.palette?.accent,
       background: brandBackground(brand),
       fontFamily: brand.font?.family,
+      // DM-1545: the brand's logo asset fills the banner's brand-mark slot
+      // (resolved to an absolute path / URL by `loadBrand`), same mapping the
+      // `cta` end-card uses.
+      logo: brand.logo,
     });
   },
   async render(params: LowerThirdParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
