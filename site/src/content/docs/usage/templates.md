@@ -22,6 +22,10 @@ Pass scalar params as `--flags`. Arrays (chart `--data`, palette `--colors`,
 Every example below is a real invocation — the command shown is exactly what
 produced the SVG above it.
 
+New here and want end-to-end creative recipes (a 9:16 teaser, a testimonial card,
+a kinetic title over a captured screen, a storyboard) rather than the per-template
+reference? See the [Recipe gallery](/domotion/creators/recipes/).
+
 ## Charts
 
 Turn a list of numbers into an animated `column` / `bar` / `line` / `pie` /

@@ -41,7 +41,7 @@ export default defineConfig({
       expressiveCode: {
         defaultProps: { wrap: true, preserveIndent: true },
       },
-      // Marketing-forward order: Showcase → Why → Usage → Developer (last).
+      // Marketing-forward order: Showcase → Why → For creators → Usage → Developer (last).
       sidebar: [
         {
           label: "Start here",
@@ -50,6 +50,13 @@ export default defineConfig({
             { label: "Showcase", slug: "showcase" },
             { label: "Why Domotion", slug: "why-domotion" },
             { label: "Install & quick start", slug: "start/quickstart" },
+          ],
+        },
+        {
+          label: "For creators",
+          items: [
+            { label: "Domotion for creators", slug: "creators/overview" },
+            { label: "Recipe gallery", slug: "creators/recipes" },
           ],
         },
         {
