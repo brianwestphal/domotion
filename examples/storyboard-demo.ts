@@ -1,13 +1,19 @@
 /**
- * Showcase: the `domotion storyboard` runner (DM-1527).
+ * Showcase: the `domotion storyboard` runner (DM-1527 + DM-1552/1553/1554).
  *
  * Sequences FOUR distinct scenes end-to-end into ONE self-contained animated SVG,
- * with a different inter-scene transition between each:
+ * with a different inter-scene transition between each — including the DM-1524
+ * reveal set now plumbed through to storyboards (DM-1552):
  *
  *   1. title-card template   ──crossfade──▶
- *   2. live HTML/CSS capture ──push-left──▶
- *   3. kinetic-text template ──scroll──────▶
+ *   2. live HTML/CSS capture ──wipe────────▶   (+ a per-scene typing + tap overlay)
+ *   3. kinetic-text template ──zoom-in──────▶
  *   4. pre-rendered SVG (a cta card)  ──cut (loops back to scene 1)
+ *
+ * DM-1554: the capture scene carries per-scene overlays (a typed caption + a tap
+ * ripple), and a storyboard-level cursor track glides a macOS pointer onto the
+ * card and clicks — one pointer spanning scenes. DM-1553: scenes that share a font
+ * embed it once (byte-identical `@font-face` payloads are collapsed).
  *
  * Each scene runs its OWN animation while it's on screen and holds otherwise —
  * the same template-frame / cast-frame embedding the `animate` pipeline uses,
@@ -65,7 +71,17 @@ async function main(): Promise<void> {
       height: H,
       background: "#0b1020",
       title: "Domotion storyboard demo",
-      desc: "Four scenes — title card, live capture, kinetic text, and a prebaked SVG — sequenced into one animated SVG.",
+      desc: "Four scenes — title card, live capture, kinetic text, and a prebaked SVG — sequenced into one animated SVG, with reveal transitions, per-scene overlays, and a scene-spanning cursor.",
+      // DM-1554: one macOS pointer spanning the whole loop. It glides onto the
+      // captured card during scene 2 (index 1) and clicks — canvas coordinates.
+      cursor: {
+        style: { scale: 1.1 },
+        events: [
+          { frame: 1, at: 300, type: "moveClick", to: { x: W / 2, y: H / 2 } },
+          // Hide the pointer before the wipe so it doesn't linger into later scenes.
+          { frame: 1, at: 2000, type: "hide" },
+        ],
+      },
       scenes: [
         {
           template: "title-card",
@@ -75,14 +91,22 @@ async function main(): Promise<void> {
         },
         {
           capture: { file: "capture.html" },
-          duration: 2000,
-          transition: { type: "push-left", duration: 450 },
+          duration: 2400,
+          // DM-1552: a clip-path `wipe` reveal between scenes (was `push-left`).
+          transition: { type: "wipe", duration: 500 },
+          // DM-1554: per-scene overlays layered on top of the live capture — a
+          // typed caption (with a blinking caret) and a tap ripple on the card.
+          overlays: [
+            { kind: "typing", text: "Overlays on a live capture", x: 300, y: 430, fontSize: 20, color: "#e6edf3", delay: 500, speed: 55, caret: true },
+            { kind: "tap", x: W / 2, y: H / 2, delay: 1400 },
+          ],
         },
         {
           template: "kinetic-text",
           params: { text: "Native. Crisp. Self-contained." },
           duration: 2600,
-          transition: { type: "scroll", duration: 450 },
+          // DM-1552: a `zoom-in` scale dolly hands off into the next scene.
+          transition: { type: "zoom-in", duration: 500 },
         },
         {
           // `cta` plays for ~4000ms (reveal + pulse loop) — size the scene to it.

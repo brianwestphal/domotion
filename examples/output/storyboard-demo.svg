@@ -1,92 +1,107 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" role="img"><title>Domotion storyboard demo</title><desc>Four scenes — title card, live capture, kinetic text, and a prebaked SVG — sequenced into one animated SVG.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" role="img"><title>Domotion storyboard demo</title><desc>Four scenes — title card, live capture, kinetic text, and a prebaked SVG — sequenced into one animated SVG, with reveal transitions, per-scene overlays, and a scene-spanning cursor.</desc>
   <defs>
     <clipPath id="viewport-clip"><rect width="960" height="540" /></clipPath>
   </defs>
   <style>
-    :root { --scene-dur: 12.50s; }
+    :root { --scene-dur: 13.00s; }
     .f { opacity: 0; visibility: hidden; }
     
     @keyframes fv-0 {
-      0%,  24.00%, 100% { opacity: 0; }
-      0.00%, 20.80% { opacity: 1; }
+      0%,  23.08%, 100% { opacity: 0; }
+      0.00%, 20.00% { opacity: 1; }
     }
     @keyframes fd-0 {
       0% { visibility: hidden; }
       0.000% { visibility: hidden; }
       0.000% { visibility: visible; }
-      25.200% { visibility: visible; }
-      25.201% { visibility: hidden; }
+      24.234% { visibility: visible; }
+      24.235% { visibility: hidden; }
       100% { visibility: hidden; }
     }
-    .f-0 { animation: fv-0 12.50s infinite, fd-0 12.50s infinite step-end; }
+    .f-0 { animation: fv-0 13.00s infinite, fd-0 13.00s infinite step-end; }
 
-    @keyframes fp-1 {
-      0%, 20.70% { transform: translateX(0px); }
-      24.00% { transform: translateX(0); }
-      40.00% { transform: translateX(0); }
-      43.60% { transform: translateX(-960px); }
-      43.70%, 100% { transform: translateX(-960px); }
-    }
     @keyframes fv-1 {
-      0%, 20.70% { opacity: 0; }
-      20.80% { opacity: 0; }
-      24.00% { opacity: 1; }
-      43.60% { opacity: 1; }
-      43.70%, 100% { opacity: 0; }
+      0% { opacity: 0; }
+      23.079% { opacity: 0; }
+      23.080% { opacity: 1; }
+      45.380% { opacity: 1; }
+      45.381% { opacity: 0; }
+      100% { opacity: 0; }
     }
     @keyframes fd-1 {
       0% { visibility: hidden; }
-      19.599% { visibility: hidden; }
-      19.600% { visibility: visible; }
-      44.800% { visibility: visible; }
-      44.801% { visibility: hidden; }
+      21.925% { visibility: hidden; }
+      21.926% { visibility: visible; }
+      46.534% { visibility: visible; }
+      46.535% { visibility: hidden; }
       100% { visibility: hidden; }
     }
-    .f-1 { animation: fv-1 12.50s infinite, fd-1 12.50s infinite step-end; }
-    .fp-1 { animation: fp-1 12.50s infinite; }
+    .f-1 { animation: fv-1 13.00s step-end infinite, fd-1 13.00s step-end infinite; }
 
-    @keyframes fp-2 {
-      0%, 39.90% { transform: translate(960px, 0px); }
-      43.60% { transform: translate(0px, 0px); }
-      64.40% { transform: translate(0px, 0px); }
-      68.00% { transform: translate(0px, -540px); }
-      68.10%, 100% { transform: translate(0px, -540px); }
-    }
+    @keyframes t1-rev0 { 0.00% { width: 0.01px; } 27.34% { width: 0.01px; } 27.35% { width: 13.36px; } 27.77% { width: 25.73px; } 28.19% { width: 38.09px; } 28.62% { width: 50.45px; } 29.04% { width: 62.82px; } 29.46% { width: 75.18px; } 29.88% { width: 87.54px; } 30.31% { width: 99.91px; } 30.73% { width: 112.27px; } 31.15% { width: 124.63px; } 31.58% { width: 137.00px; } 32.00% { width: 149.36px; } 32.42% { width: 161.72px; } 32.85% { width: 174.09px; } 33.27% { width: 186.45px; } 33.69% { width: 198.81px; } 34.12% { width: 211.18px; } 34.54% { width: 223.54px; } 34.96% { width: 235.90px; } 35.38% { width: 248.27px; } 35.81% { width: 260.63px; } 36.23% { width: 272.99px; } 36.65% { width: 285.36px; } 37.08% { width: 297.72px; } 37.50% { width: 310.08px; } 37.92% { width: 322.45px; } 40.38% { width: 322.4453125px; } 41.15%, 100% { width: 0.01px; } }
+    .t1-rev0 { animation: t1-rev0 13.00s step-end infinite; }
+    @keyframes t1-vis { 0%, 26.92% { opacity: 0; } 27.15% { opacity: 1; } 40.38% { opacity: 1; } 41.15%, 100% { opacity: 0; } }
+    .t1-text { animation: t1-vis 13.00s infinite; }
+    @keyframes t1-caret-pos { 0.00% { transform: translate(0px, 0px); } 26.92% { transform: translate(0px, 0px); } 27.35% { transform: translate(12.36px, 0.00px); } 27.77% { transform: translate(24.73px, 0.00px); } 28.19% { transform: translate(37.09px, 0.00px); } 28.62% { transform: translate(49.45px, 0.00px); } 29.04% { transform: translate(61.82px, 0.00px); } 29.46% { transform: translate(74.18px, 0.00px); } 29.88% { transform: translate(86.54px, 0.00px); } 30.31% { transform: translate(98.91px, 0.00px); } 30.73% { transform: translate(111.27px, 0.00px); } 31.15% { transform: translate(123.63px, 0.00px); } 31.58% { transform: translate(136.00px, 0.00px); } 32.00% { transform: translate(148.36px, 0.00px); } 32.42% { transform: translate(160.72px, 0.00px); } 32.85% { transform: translate(173.09px, 0.00px); } 33.27% { transform: translate(185.45px, 0.00px); } 33.69% { transform: translate(197.81px, 0.00px); } 34.12% { transform: translate(210.18px, 0.00px); } 34.54% { transform: translate(222.54px, 0.00px); } 34.96% { transform: translate(234.90px, 0.00px); } 35.38% { transform: translate(247.27px, 0.00px); } 35.81% { transform: translate(259.63px, 0.00px); } 36.23% { transform: translate(271.99px, 0.00px); } 36.65% { transform: translate(284.36px, 0.00px); } 37.08% { transform: translate(296.72px, 0.00px); } 37.50% { transform: translate(309.08px, 0.00px); } 37.92% { transform: translate(321.45px, 0.00px); } 40.38%, 100% { transform: translate(321.45px, 0.00px); } }
+    @keyframes t1-caret-blink { 0%, 26.92% { opacity: 0; } 27.15% { opacity: 1; } 37.92% { opacity: 1; } 39.96% { opacity: 0; } 41.15%, 100% { opacity: 0; } }
+    .t1-caret { animation: t1-caret-pos 13.00s step-end infinite, t1-caret-blink 13.00s step-end infinite; }
+
+    @keyframes tap1 { 0%, 33.85% { r: 0; opacity: 0.4; } 35.00% { r: 28; opacity: 0.2; } 37.69%, 100% { r: 35; opacity: 0; } }
+    .tap1 { animation: tap1 13.00s infinite; }
+    @keyframes tap1-dot { 0%, 33.85% { opacity: 0; } 34.00% { opacity: 0.6; } 35.00% { opacity: 0.2; } 37.69%, 100% { opacity: 0; } }
+    .tap1-dot { animation: tap1-dot 13.00s infinite; }
+
     @keyframes fv-2 {
-      0%, 39.90% { opacity: 0; }
-      40.00% { opacity: 1; }
-      68.00% { opacity: 1; }
-      68.10%, 100% { opacity: 0; }
+      0% { opacity: 0; }
+      41.539% { opacity: 0; }
+      41.540% { opacity: 1; }
+      69.230% { opacity: 1; }
+      69.231% { opacity: 0; }
+      100% { opacity: 0; }
     }
     @keyframes fd-2 {
       0% { visibility: hidden; }
-      38.799% { visibility: hidden; }
-      38.800% { visibility: visible; }
-      69.200% { visibility: visible; }
-      69.201% { visibility: hidden; }
+      40.385% { visibility: hidden; }
+      40.386% { visibility: visible; }
+      70.384% { visibility: visible; }
+      70.385% { visibility: hidden; }
       100% { visibility: hidden; }
     }
-    .f-2 { animation: fv-2 12.50s infinite, fd-2 12.50s infinite step-end; }
-    .fp-2 { animation: fp-2 12.50s infinite; }
+    .f-2 { animation: fv-2 13.00s step-end infinite, fd-2 13.00s step-end infinite; }
+    @keyframes fr-2 {
+      0%, 41.44% { clip-path: inset(0 100% 0 0); }
+      41.54% { clip-path: inset(0 100% 0 0); }
+      45.38% { clip-path: inset(0 0 0 0); }
+      100% { clip-path: inset(0 0 0 0); }
+    }
+    .fr-2 { animation: fr-2 13.00s linear infinite; }
+
+    @keyframes fz-3 {
+      0%, 65.28% { transform: scale(0.9); }
+      65.38% { transform: scale(0.9); }
+      69.23% { transform: scale(1); }
+      100% { transform: scale(1); }
+    }
+    .fz-3 { animation: fz-3 13.00s linear infinite; transform-origin: 480px 270px; }
 
     @keyframes fv-3 {
       0% { opacity: 0; }
-      67.999% { opacity: 0; }
-      68.000% { opacity: 1; }
+      69.229% { opacity: 0; }
+      69.230% { opacity: 1; }
       100.000% { opacity: 1; }
       100.000% { opacity: 0; }
       100% { opacity: 0; }
     }
     @keyframes fd-3 {
       0% { visibility: hidden; }
-      66.799% { visibility: hidden; }
-      66.800% { visibility: visible; }
+      68.075% { visibility: hidden; }
+      68.076% { visibility: visible; }
       100.000% { visibility: visible; }
       100.000% { visibility: hidden; }
       100% { visibility: hidden; }
     }
-    .f-3 { animation: fv-3 12.50s step-end infinite, fd-3 12.50s step-end infinite; }
+    .f-3 { animation: fv-3 13.00s step-end infinite, fd-3 13.00s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <rect width="960" height="540" fill="#0b1020" />
@@ -102,15 +117,15 @@
     :root { --scene-dur-sb0_: 3.50s; }
     .sb0_f { opacity: 0; visibility: hidden; }
     
-    @keyframes sb0_fv-0 { 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 1; } 28% { opacity: 1; } 28% { opacity: 0; } 28% { opacity: 0; } 100% { opacity: 1; } }
-    @keyframes sb0_fd-0 { 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: visible; } 28% { visibility: visible; } 28% { visibility: hidden; } 28% { visibility: hidden; } 100% { visibility: visible; } }
-    .sb0_f-0 { animation:sb0_fv-0 12.5s step-end infinite,sb0_fd-0 12.5s step-end infinite; }
-    @keyframes sb0_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 4.8% { opacity: 1; transform: translateY(0px); } 28% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
-    .sb0_anim-f0a0 { animation:sb0_f0-f0a0-0 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
-    @keyframes sb0_f0-f0a1-1 { 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 0.9601% { opacity: 0; transform: translateY(24px); } 5.7599% { opacity: 1; transform: translateY(0px); } 28% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
-    .sb0_anim-f0a1 { animation:sb0_f0-f0a1-1 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
-    @keyframes sb0_f0-f0a2-2 { 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 1.92% { opacity: 0; transform: translateY(24px); } 6.72% { opacity: 1; transform: translateY(0px); } 28% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
-    .sb0_anim-f0a2 { animation:sb0_f0-f0a2-2 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb0_fv-0 { 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 1; } 26.9231% { opacity: 1; } 26.9231% { opacity: 0; } 26.9231% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes sb0_fd-0 { 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: visible; } 26.9231% { visibility: visible; } 26.9231% { visibility: hidden; } 26.9231% { visibility: hidden; } 100% { visibility: visible; } }
+    .sb0_f-0 { animation:sb0_fv-0 13s step-end infinite,sb0_fd-0 13s step-end infinite; }
+    @keyframes sb0_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 4.6154% { opacity: 1; transform: translateY(0px); } 26.9231% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
+    .sb0_anim-f0a0 { animation:sb0_f0-f0a0-0 13s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb0_f0-f0a1-1 { 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 0.9232% { opacity: 0; transform: translateY(24px); } 5.5383% { opacity: 1; transform: translateY(0px); } 26.9231% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
+    .sb0_anim-f0a1 { animation:sb0_f0-f0a1-1 13s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb0_f0-f0a2-2 { 0% { opacity: 0; transform: translateY(24px); } 0% { opacity: 0; transform: translateY(24px); } 1.8461% { opacity: 0; transform: translateY(24px); } 6.4615% { opacity: 1; transform: translateY(0px); } 26.9231% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
+    .sb0_anim-f0a2 { animation:sb0_f0-f0a2-2 13s cubic-bezier(0.22,1,0.36,1) infinite; }
   </style>
   <g clip-path="url(#sb0_viewport-clip)">
   <g class="sb0_f sb0_f-0">
@@ -129,7 +144,7 @@
   </g>
 </svg>
   </g>
-  <g class="f f-1"><clipPath id="fc-1"><rect width="960" height="540" /></clipPath><g clip-path="url(#fc-1)" class="fp fp-1">
+  <g class="f f-1">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540">  <defs><linearGradient id="sb1_bg0" gradientUnits="userSpaceOnUse" x1="105" y1="-105" x2="855" y2="645"><stop offset="0" stop-color="rgb(11,16,32)" /><stop offset="1" stop-color="rgb(27,42,74)" /></linearGradient><clipPath id="sb1_ct1"><rect x="291.2" y="228.5" width="377.6" height="52" /></clipPath><clipPath id="sb1_ct2"><rect x="291.2" y="288.5" width="377.6" height="23" /></clipPath><style>@font-face { font-family: "sb1_dmf0"; font-style: normal; font-weight: 700; src: url("data:font/ttf;base64,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"); }
 @font-face { font-family: "sb1_dmf1"; font-style: normal; font-weight: 400; src: url("data:font/ttf;base64,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"); }</style></defs>
   <rect x="0" y="0" width="960" height="540" rx="0" fill="url(#sb1_bg0)" />
@@ -137,8 +152,14 @@
   <rect x="234.5" y="188.5" width="491" height="164" rx="17.5" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1" />
     <g role="img" aria-label="Live Capture Scene"><title>Live Capture Scene</title><text x="291.22 314.59 324.66 346.59 370.5 378.69 409.41 432.98 458.58 473.7 498.53 513.27 537.19 545.38 572.64 596.09 620.02 644.84" y="271.5" font-family="sb1_dmf0" font-size="44" font-weight="700" fill="rgb(230,237,243)"></text></g>
     <g role="img" aria-label="Captured HTML/CSS as native SVG"><title>Captured HTML/CSS as native SVG</title><text x="325.25 338.97 349.33 360.8 367.31 378.27 384.75 395.45 407 411.81 426 437.98 454.81 465.52 471.03 484.77 496.86 508.95 513.77 524.11 533.86 538.67 549.63 559.98 566.5 570.8 580.52 591.22 596.03 607.97 620.42" y="307.5" font-family="sb1_dmf1" font-size="20" fill="rgb(159,179,209)"></text></g></svg>
-  </g></g>
-  <g class="f f-2"><clipPath id="fc-2"><rect width="960" height="540" /></clipPath><g clip-path="url(#fc-2)" class="fp fp-2">
+  </g>
+  <defs><clipPath id="t1-clip0"><rect class="t1-rev0" x="300" y="410" width="0.01px" height="24" /></clipPath></defs>
+  <text class="t1-text" x="300" y="430" fill="#e6edf3" font-size="20" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#t1-clip0)">Overlays on a live capture</text>
+  <rect class="t1-caret" x="300" y="412" width="2" height="20" fill="#e6edf3" />
+  <circle class="tap1" cx="480" cy="270" r="0" fill="rgba(255,255,255,0.35)" />
+  <circle class="tap1-dot" cx="480" cy="270" r="7" fill="rgba(255,255,255,0.5)" />
+  <g class="f f-2">
+<g class="fr-2">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540">
   <defs>
     <clipPath id="sb2_viewport-clip"><rect width="960" height="540" /></clipPath>
@@ -148,15 +169,15 @@
     :root { --scene-dur-sb2_: 2.38s; }
     .sb2_f { opacity: 0; visibility: hidden; }
     
-    @keyframes sb2_fv-0 { 0% { opacity: 0; } 43.6% { opacity: 0; } 43.6% { opacity: 0; } 43.6% { opacity: 1; } 62.64% { opacity: 1; } 62.64% { opacity: 0; } 62.64% { opacity: 0; } 100% { opacity: 1; } }
-    @keyframes sb2_fd-0 { 0% { visibility: hidden; } 43.6% { visibility: hidden; } 43.6% { visibility: hidden; } 43.6% { visibility: visible; } 62.64% { visibility: visible; } 62.64% { visibility: hidden; } 62.64% { visibility: hidden; } 100% { visibility: visible; } }
-    .sb2_f-0 { animation:sb2_fv-0 12.5s step-end infinite,sb2_fd-0 12.5s step-end infinite; }
-    @keyframes sb2_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(0.55em); } 43.6% { opacity: 0; transform: translateY(0.55em); } 43.6% { opacity: 0; transform: translateY(0.55em); } 48.4% { opacity: 1; transform: translateY(0em); } 62.64% { opacity: 1; transform: translateY(0em); } 100% { opacity: 1; transform: translateY(0em); } }
-    .sb2_anim-f0a0 { animation:sb2_f0-f0a0-0 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
-    @keyframes sb2_f0-f0a1-1 { 0% { opacity: 0; transform: translateY(0.55em); } 43.6% { opacity: 0; transform: translateY(0.55em); } 44.3201% { opacity: 0; transform: translateY(0.55em); } 49.1201% { opacity: 1; transform: translateY(0em); } 62.64% { opacity: 1; transform: translateY(0em); } 100% { opacity: 1; transform: translateY(0em); } }
-    .sb2_anim-f0a1 { animation:sb2_f0-f0a1-1 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
-    @keyframes sb2_f0-f0a2-2 { 0% { opacity: 0; transform: translateY(0.55em); } 43.6% { opacity: 0; transform: translateY(0.55em); } 45.04% { opacity: 0; transform: translateY(0.55em); } 49.84% { opacity: 1; transform: translateY(0em); } 62.64% { opacity: 1; transform: translateY(0em); } 100% { opacity: 1; transform: translateY(0em); } }
-    .sb2_anim-f0a2 { animation:sb2_f0-f0a2-2 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb2_fv-0 { 0% { opacity: 0; } 45.3846% { opacity: 0; } 45.3846% { opacity: 0; } 45.3846% { opacity: 1; } 63.6923% { opacity: 1; } 63.6923% { opacity: 0; } 63.6923% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes sb2_fd-0 { 0% { visibility: hidden; } 45.3846% { visibility: hidden; } 45.3846% { visibility: hidden; } 45.3846% { visibility: visible; } 63.6923% { visibility: visible; } 63.6923% { visibility: hidden; } 63.6923% { visibility: hidden; } 100% { visibility: visible; } }
+    .sb2_f-0 { animation:sb2_fv-0 13s step-end infinite,sb2_fd-0 13s step-end infinite; }
+    @keyframes sb2_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(0.55em); } 45.3846% { opacity: 0; transform: translateY(0.55em); } 45.3846% { opacity: 0; transform: translateY(0.55em); } 50% { opacity: 1; transform: translateY(0em); } 63.6923% { opacity: 1; transform: translateY(0em); } 100% { opacity: 1; transform: translateY(0em); } }
+    .sb2_anim-f0a0 { animation:sb2_f0-f0a0-0 13s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb2_f0-f0a1-1 { 0% { opacity: 0; transform: translateY(0.55em); } 45.3846% { opacity: 0; transform: translateY(0.55em); } 46.077% { opacity: 0; transform: translateY(0.55em); } 50.6924% { opacity: 1; transform: translateY(0em); } 63.6923% { opacity: 1; transform: translateY(0em); } 100% { opacity: 1; transform: translateY(0em); } }
+    .sb2_anim-f0a1 { animation:sb2_f0-f0a1-1 13s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb2_f0-f0a2-2 { 0% { opacity: 0; transform: translateY(0.55em); } 45.3846% { opacity: 0; transform: translateY(0.55em); } 46.7692% { opacity: 0; transform: translateY(0.55em); } 51.3846% { opacity: 1; transform: translateY(0em); } 63.6923% { opacity: 1; transform: translateY(0em); } 100% { opacity: 1; transform: translateY(0em); } }
+    .sb2_anim-f0a2 { animation:sb2_f0-f0a2-2 13s cubic-bezier(0.22,1,0.36,1) infinite; }
   </style>
   <g clip-path="url(#sb2_viewport-clip)">
   <g class="sb2_f sb2_f-0">
@@ -174,8 +195,10 @@
   </g>
   </g>
 </svg>
-  </g></g>
+  </g>
+  </g>
   <g class="f f-3">
+<g class="fz-3">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540">
   <defs>
     <clipPath id="sb3_viewport-clip"><rect width="960" height="540" /></clipPath>
@@ -186,13 +209,13 @@
     :root { --scene-dur-sb3_: 4.00s; }
     .sb3_f { opacity: 0; visibility: hidden; }
     
-    @keyframes sb3_fv-0 { 0% { opacity: 0; } 68% { opacity: 0; } 68% { opacity: 0; } 68% { opacity: 1; } 100% { opacity: 1; } 100% { opacity: 0; } 100% { opacity: 0; } 100% { opacity: 1; } }
-    @keyframes sb3_fd-0 { 0% { visibility: hidden; } 68% { visibility: hidden; } 68% { visibility: hidden; } 68% { visibility: visible; } 100% { visibility: visible; } 100% { visibility: hidden; } 100% { visibility: hidden; } 100% { visibility: visible; } }
-    .sb3_f-0 { animation:sb3_fv-0 12.5s step-end infinite,sb3_fd-0 12.5s step-end infinite; }
-    @keyframes sb3_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(24px); } 68% { opacity: 0; transform: translateY(24px); } 68% { opacity: 0; transform: translateY(24px); } 72.8% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
-    .sb3_anim-f0a0 { animation:sb3_f0-f0a0-0 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
-    @keyframes sb3_f0-f0a1-1 { 0% { opacity: 0; transform: translateY(24px); } 68% { opacity: 0; transform: translateY(24px); } 68.96% { opacity: 0; transform: translateY(24px); } 73.76% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
-    .sb3_anim-f0a1 { animation:sb3_f0-f0a1-1 12.5s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb3_fv-0 { 0% { opacity: 0; } 69.2308% { opacity: 0; } 69.2308% { opacity: 0; } 69.2308% { opacity: 1; } 100% { opacity: 1; } 100% { opacity: 0; } 100% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes sb3_fd-0 { 0% { visibility: hidden; } 69.2308% { visibility: hidden; } 69.2308% { visibility: hidden; } 69.2308% { visibility: visible; } 100% { visibility: visible; } 100% { visibility: hidden; } 100% { visibility: hidden; } 100% { visibility: visible; } }
+    .sb3_f-0 { animation:sb3_fv-0 13s step-end infinite,sb3_fd-0 13s step-end infinite; }
+    @keyframes sb3_f0-f0a0-0 { 0% { opacity: 0; transform: translateY(24px); } 69.2308% { opacity: 0; transform: translateY(24px); } 69.2308% { opacity: 0; transform: translateY(24px); } 73.8462% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
+    .sb3_anim-f0a0 { animation:sb3_f0-f0a0-0 13s cubic-bezier(0.22,1,0.36,1) infinite; }
+    @keyframes sb3_f0-f0a1-1 { 0% { opacity: 0; transform: translateY(24px); } 69.2308% { opacity: 0; transform: translateY(24px); } 70.1538% { opacity: 0; transform: translateY(24px); } 74.7692% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } 100% { opacity: 1; transform: translateY(0px); } }
+    .sb3_anim-f0a1 { animation:sb3_f0-f0a1-1 13s cubic-bezier(0.22,1,0.36,1) infinite; }
     @keyframes sb3_f0-f0a2-2 {
       0% { transform: scale(1); }
       100% { transform: scale(1.06); }
@@ -215,6 +238,17 @@
   </g>
   </g>
 </svg>
+  </g>
+  </g>
+  <g class="cursor-overlay" pointer-events="none">
+    <style>@keyframes co-pos-wu3e9z{0%{transform:translate(0px,0px)}25.3846%{transform:translate(0px,0px)}28.4615%{transform:translate(480px,270px)}38.4615%{transform:translate(480px,270px)}100%{transform:translate(480px,270px)}}@keyframes co-pulse-wu3e9z-0o{0%{transform:scale(1);opacity:0}28.4615%{transform:scale(1);opacity:0}29.0385%{opacity:0.9}32.3077%{transform:scale(8);opacity:0}100%{transform:scale(1);opacity:0}}@keyframes co-pulse-wu3e9z-0i{0%{transform:scale(1);opacity:0}28.4615%{transform:scale(1);opacity:0}29.0385%{opacity:0.95}32.3077%{transform:scale(7.75);opacity:0}100%{transform:scale(1);opacity:0}}@keyframes co-vis-wu3e9z{0%{opacity:0}25.3846%{opacity:1}28.4615%{opacity:1}38.4615%{opacity:0}100%{opacity:0}}</style>
+    <g class="cursor-arrow" opacity="0" style="animation:co-pos-wu3e9z 13s linear infinite,co-vis-wu3e9z 13s step-end infinite">
+      <path d="M 0 0 L 0 16 L 4 12 L 7 18 L 9 17 L 6 11 L 12 11 Z" fill="rgb(255,255,255)" stroke="rgb(0,0,0)" stroke-width="1" stroke-linejoin="round" transform="scale(1.1)" />
+    </g>
+    <g class="cursor-click cursor-click-0">
+      <circle cx="480" cy="270" r="4" fill="none" stroke="rgba(0, 0, 0, 0.4)" stroke-width="2" opacity="0" style="transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:co-pulse-wu3e9z-0o 13s linear infinite" />
+      <circle cx="480" cy="270" r="4" fill="none" stroke="rgba(255, 255, 255, 0.95)" stroke-width="1" opacity="0" style="transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:co-pulse-wu3e9z-0i 13s linear infinite" />
+    </g>
   </g>
   </g>
 </svg>

@@ -45,8 +45,24 @@ config's `output`, `-o`, or stdout).
       "transition": { "type": "scroll", "duration": 400 } },
     { "svg": "./closing-card.svg", "duration": 2500,
       "transition": { "type": "cut", "duration": 0 } }   // last scene loops → scene 1
-  ]
+  ],
+  "cursor": {                     // optional — a scene-spanning cursor track (DM-1554)
+    "events": [
+      { "frame": 1, "at": 300, "type": "moveClick", "to": { "x": 640, "y": 360 } }
+    ]
+  }
 }
+```
+
+A scene may also carry `overlays` (per-scene typing / tap / svg / blink / shine):
+
+```jsonc
+{ "capture": { "file": "./demo.html" }, "duration": 2400,
+  "transition": { "type": "wipe", "duration": 500 },
+  "overlays": [
+    { "kind": "typing", "text": "Typed on top", "x": 300, "y": 430, "caret": true },
+    { "kind": "tap", "x": 640, "y": 360, "delay": 1400 }
+  ] }
 ```
 
 ### Scene sources (exactly one per scene)
@@ -88,20 +104,90 @@ cropped).
 transition (if any) dissolves back to scene 1 on loop; omit it to hold-then-cut.
 
 The runner reuses the animator's frame-transition enum (`generateAnimatedSvg`) —
-it does **not** reinvent transitions. The opaque-scene-safe subset is exposed:
+it does **not** reinvent transitions. The full **cross-engine-safe (opaque-scene-
+safe)** vocabulary is exposed — the originals plus the DM-1524 expansion (docs/88),
+plumbed straight through (DM-1552; no storyboard-side machinery, just a wider enum):
 
 | `type` | Effect |
 | --- | --- |
 | `crossfade` | Fade the outgoing scene out while the incoming fades in (a dissolve). |
 | `cut` | Instant switch — no fade, no slide (`duration` ignored). |
-| `push-left` | The outgoing scene slides off left while the incoming slides in from the right (horizontal directional). |
-| `scroll` | The vertical equivalent of `push-left` (slide up / in from below). |
+| `push-left` / `push-right` | The outgoing scene slides off one side; the incoming slides in from the other (horizontal directional). |
+| `scroll` (== `push-up`) / `push-down` | The vertical directional pushes (slide up-and-in-from-below, or down-and-in-from-above). |
+| `wipe` | A linear left→right `clip-path` reveal — the incoming scene unveils on top while the outgoing holds beneath. |
+| `iris` | An expanding-circle `clip-path` reveal from the center. |
+| `zoom-in` / `zoom-out` | A scale dolly under a crossfade — the incoming scene grows `0.9→1` (in) or settles `1.1→1` (out), resting at `scale(1)`. |
+| `shine` | A crossfade with a swept gradient highlight over the handoff window. |
+
+Every one is pure `transform` / `clip-path` / `opacity` / gradient (no animated CSS
+`filter`), so it plays identically on Blink and WebKit — see docs/88 for the full
+effect reference.
 
 > `magic-move` (doc 53) is intentionally **not** offered: it needs a per-frame
 > element-tree bridge built from two captured DOMs, which distinct opaque scenes
-> don't share. **Reveal transitions** (wipe / iris / zoom / shine) are a planned
-> follow-up — they land here once the transition-effect expansion adds them to
-> the shared animator's frame path (see "Roadmap").
+> don't share.
+
+## Per-scene overlays (DM-1554)
+
+Each scene may carry an `overlays` array — the SAME authoring vocabulary and
+render path `animate` uses (typing / tap / svg / blink / shine — docs 43 / 88),
+reused verbatim. A `capture` scene can thus show a typed-caption / tap demo layered
+on top of the live capture:
+
+```jsonc
+"overlays": [
+  { "kind": "typing", "text": "Overlays on a live capture", "x": 300, "y": 430, "caret": true },
+  { "kind": "tap", "x": 640, "y": 360, "delay": 1400 }
+]
+```
+
+Overlay coordinates are in the **canvas** coordinate space (overlays paint at the
+top level, on top of the placed scene — the same convention `animate`'s embedded
+`cast`/`template` frames follow). A scene retains **no live DOM** by the time the
+storyboard is assembled, so a selector `anchor` (or typing `maxWidth: "anchor"`)
+can't resolve — it warns and falls back to the overlay's explicit `x`/`y`. Position
+overlays with explicit coordinates (a fixed `wrapWidth` for a typing field).
+
+## Scene-spanning cursor (DM-1554)
+
+A storyboard-level `cursor` track paints ONE macOS-style pointer that glides and
+clicks across the **whole loop** (across scene boundaries), so a capture scene's
+typing / tap demo can be driven by a visible cursor. It reuses `animate`'s cursor
+event / style authoring (doc 13 / §6), restricted to the **explicit** form:
+
+- Events carry **absolute `to` coordinates** — `frame` is the SCENE index, `at` is
+  ms into that scene. There is no `"auto"` mode (a storyboard has no interaction
+  actions to derive a cursor from) and no `selector` events (a scene retains no
+  live DOM to resolve against — using one is a validation error).
+- Event `type`s: `move`, `click`, `moveClick`, `hide` (hide the pointer, e.g. so it
+  doesn't linger into later scenes after its click).
+
+```jsonc
+"cursor": {
+  "style": { "scale": 1.1 },
+  "events": [
+    { "frame": 1, "at": 300, "type": "moveClick", "to": { "x": 640, "y": 360 } },
+    { "frame": 1, "at": 2000, "type": "hide" }
+  ]
+}
+```
+
+## Cross-scene font dedup (DM-1553)
+
+Two mechanisms — both ported from `composite` (doc 77) — shrink a storyboard whose
+scenes share a font:
+
+1. **Shared-builder cast merge** (DM-1331): every `cast` scene renders through ONE
+   embedded-font builder (`manageFonts:false`), so several terminals in the same
+   monospace embed its **union** glyph subset **once**, not one subset per scene.
+   The single finished `@font-face` block is collected with `getEmbeddedFontFaceCss()`
+   and emitted once by `generateAnimatedSvg` (`config.fontFaceCss`); those scenes
+   keep their `dmfN` families **un-prefixed** during namespacing so they resolve
+   against it.
+2. **Byte-identical-payload collapse** (`dedupeCompositeFonts`, DM-1329): the
+   assembled SVG is post-processed to fold any two scenes that embed the exact same
+   base64 payload (a reused face across `template`/`svg` scenes, or the same scene
+   twice) down to a single copy, repointing the removed families at the survivor.
 
 ## How it works (reuse, not rebuild)
 
@@ -159,7 +245,11 @@ they have no JSON Schema equivalent.
 `examples/storyboard-demo.ts` (committed golden:
 `examples/output/storyboard-demo.svg`) sequences all four scene kinds with a
 different transition between each: title-card `──crossfade──▶` live HTML capture
-`──push-left──▶` kinetic-text `──scroll──▶` a pre-rendered CTA `──cut──▶` (loops).
+`──wipe──▶` kinetic-text `──zoom-in──▶` a pre-rendered CTA `──cut──▶` (loops). The
+capture scene also carries per-scene overlays (a typed caption + a tap ripple), and
+a storyboard-level cursor track glides a pointer onto the card, clicks, then hides
+— exercising DM-1552 (reveal transitions), DM-1554 (overlays + cursor), and DM-1553
+(shared-font dedup) together.
 
 ```sh
 npx tsx examples/storyboard-demo.ts   # → examples/output/storyboard-demo.svg
@@ -167,16 +257,11 @@ npx tsx examples/storyboard-demo.ts   # → examples/output/storyboard-demo.svg
 
 ## Roadmap / follow-ups
 
-- **Reveal transitions** (wipe / iris / zoom / shine): expose them here once the
-  transition-effect expansion adds them to the shared animator frame path. The
-  storyboard transition enum then just widens to include them — no new
-  storyboard-side machinery.
-- **Cross-scene font dedup:** each scene currently embeds its own `@font-face`
-  payload (self-contained, namespaced). `composite` already dedupes byte-identical
-  payloads across layers (DM-1329) and shares one builder across cast layers
-  (DM-1331); the same treatment can shrink a storyboard whose scenes share a font.
-- **Per-scene overlays / cursor:** `animate` frames support typing / tap / svg /
-  blink overlays and a scene-spanning cursor; a storyboard scene does not yet.
+- **Anchored overlays on a `capture` scene:** overlays currently take explicit
+  `x`/`y` (a selector `anchor` warns and falls back), because the storyboard
+  assembly no longer holds the captured scene's live DOM. A future pass could
+  resolve anchors for `capture` scenes against their page during capture (the
+  `animate` per-frame model, which keeps the page live, already does this).
 
 ## Pointers
 
@@ -188,7 +273,12 @@ npx tsx examples/storyboard-demo.ts   # → examples/output/storyboard-demo.svg
   transition emitter.
 - `src/animation/embed-namespace.ts` / `embed-timeline.ts` — per-scene name
   namespacing + timeline re-anchoring.
-- `src/cli/animate.ts` (`placeEmbeddedFrame`) — canvas placement per `fit`.
+- `src/cli/animate.ts` — reused verbatim for placement (`placeEmbeddedFrame`),
+  overlays (`resolveEmbeddedFrameOverlays` + the `overlaySchema` authoring union),
+  and the cursor track (`buildCursorOverlay` + `cursorEventSchema` /
+  `cursorStyleSchema`).
+- `src/animation/composite.ts` (`dedupeCompositeFonts`) — the byte-identical
+  `@font-face` collapse ported for cross-scene font dedup (DM-1553).
 - Related: doc 43 (animate config), doc 77 (composite), doc 78 (svg-to-image /
-  svg-to-video), doc 73 (template frames), doc 67 (terminal capture).
-```
+  svg-to-video), doc 73 (template frames), doc 67 (terminal capture), doc 88
+  (transition/effect expansion), doc 13 (cursor overlay).

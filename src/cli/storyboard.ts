@@ -24,14 +24,21 @@
  * like any other Domotion animation — see docs/89-storyboard-sequencing.md.
  *
  * Config shape (validated by `storyboardConfigSchema`):
- *   { width, height, output?, background?, title?, desc?, scenes: [ {
+ *   { width, height, output?, background?, title?, desc?,
+ *     cursor?,                     // DM-1554: a scene-spanning cursor track (explicit `to` events)
+ *     scenes: [ {
  *       <source>,                  // exactly one of: template | capture | cast | svg
  *       params?, term?,            // for `template` / `cast` sources
  *       fit?,                      // center | contain | cover (placement in the canvas)
  *       period?,                   // play length of an animated `svg` source (ms), when undetectable
  *       duration?,                 // ms on screen (optional for an animated source — inherits its play time)
- *       transition?: { type, duration }   // inter-scene transition TO the next scene
+ *       overlays?,                 // DM-1554: per-scene typing / tap / svg / blink / shine overlays
+ *       transition?: { type, duration }   // inter-scene transition TO the next scene (docs/88 set)
  *     } ] }
+ *
+ * DM-1553: scenes that share a font are deduped — cast scenes through one shared
+ * embedded-font builder (union subset embedded once), plus a byte-identical
+ * `@font-face` collapse across all scenes (`dedupeCompositeFonts`).
  */
 
 import { parseArgs } from "node:util";
@@ -51,11 +58,26 @@ import {
   clearEmbeddedFonts,
   clearGlyphDefs,
   clearWebfonts,
+  getEmbeddedFontFaceCss,
 } from "../render/index.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
-import { generateAnimatedSvg, type AnimationConfig, type AnimationFrame } from "../animation/index.js";
+import {
+  generateAnimatedSvg,
+  type AnimationConfig,
+  type AnimationFrame,
+  type CursorOverlay,
+} from "../animation/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
-import { placeEmbeddedFrame } from "./animate.js";
+import { dedupeCompositeFonts } from "../animation/composite.js";
+import { frameAdvanceMs } from "../animation/frame-timeline.js";
+import {
+  placeEmbeddedFrame,
+  resolveEmbeddedFrameOverlays,
+  buildCursorOverlay,
+  overlaySchema as authoringOverlaySchema,
+  cursorEventSchema,
+  cursorStyleSchema,
+} from "./animate.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { cliFail, loadInputIntoPage, applyReadyWaits } from "./common.js";
 
@@ -69,13 +91,22 @@ const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
 // `capture` source (a live url/file capture, which `composite` lacks).
 
 // Inter-scene transitions reuse the animator's frame-transition enum — the SAME
-// set `animate` / `generateAnimatedSvg` already emit as CSS `@keyframes`. Only the
-// opaque-scene-safe subset is exposed: `crossfade` (dissolve), `cut` (instant),
-// `push-left` (horizontal directional), `scroll` (vertical directional).
-// `magic-move` is intentionally omitted — it needs a per-frame element-tree bridge
-// built from two captured DOMs, which distinct opaque scenes don't share.
+// set `animate` / `generateAnimatedSvg` already emit as CSS `@keyframes` (docs/88).
+// The full cross-engine-safe (opaque-scene-safe) vocabulary is exposed: the
+// originals `crossfade` (dissolve) / `cut` (instant) / `push-left` / `scroll`
+// (== `push-up`), plus the DM-1524 expansion — the remaining directional pushes
+// (`push-right` / `push-up` / `push-down`), the clip-path reveals (`wipe` / `iris`),
+// the scale dollies (`zoom-in` / `zoom-out`), and the `shine` sweep. Each is pure
+// `transform` / `clip-path` / `opacity` / gradient (no animated CSS `filter`), so it
+// needs NO new storyboard-side machinery — the enum just widens to pass it through.
+// `magic-move` stays out — it needs a per-frame element-tree bridge built from two
+// captured DOMs, which distinct opaque scenes don't share.
 const transitionSchema = z.object({
-  type: z.enum(["crossfade", "push-left", "scroll", "cut"]),
+  type: z.enum([
+    "crossfade", "cut", "push-left", "scroll",
+    "push-right", "push-up", "push-down",
+    "wipe", "iris", "zoom-in", "zoom-out", "shine",
+  ]),
   duration: z.number().nonnegative(),
 });
 
@@ -116,6 +147,12 @@ const sceneSchema = z
     // Transition FROM this scene TO the next (the last scene's transition, if any,
     // dissolves back to scene 0 on loop).
     transition: transitionSchema.optional(),
+    // DM-1554: per-scene overlays (typing / tap / svg / blink / shine), reusing the
+    // `animate` authoring schema + render path verbatim — so a `capture` scene can
+    // show a typing / tap demo layered on top. Coordinates are in the CANVAS space
+    // (top-level, like `animate`'s embedded-frame overlays); a selector `anchor`
+    // can't resolve here (a scene retains no live DOM) and falls back to `x`/`y`.
+    overlays: z.array(authoringOverlaySchema).optional(),
   })
   .superRefine((s, ctx) => {
     const sources = [s.template, s.capture, s.cast, s.svg].filter((x) => x != null);
@@ -133,6 +170,30 @@ const sceneSchema = z
     }
   });
 
+// DM-1554: a storyboard-level cursor track — one macOS-style pointer that spans
+// the WHOLE loop (across scene boundaries), so a capture scene's typing / tap demo
+// can be driven by a visible cursor. It reuses `animate`'s cursor event / style
+// authoring shapes verbatim, restricted to the EXPLICIT form: events carry
+// absolute `to` coordinates (`frame` = scene index, `at` = ms into that scene). A
+// `selector` can't resolve (a scene retains no live DOM), so it's rejected here;
+// there is no `"auto"` mode (a storyboard has no interaction actions to derive from).
+const storyboardCursorSchema = z
+  .object({
+    style: cursorStyleSchema.optional(),
+    events: z.array(cursorEventSchema).min(1, "must be a non-empty array"),
+  })
+  .superRefine((c, ctx) => {
+    c.events.forEach((e, i) => {
+      if (e.selector != null) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["events", i, "selector"],
+          message: "a storyboard cursor event uses absolute `to` coordinates — a `selector` can't resolve (a scene retains no live DOM)",
+        });
+      }
+    });
+  });
+
 export const storyboardConfigSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
@@ -142,6 +203,8 @@ export const storyboardConfigSchema = z.object({
   title: z.string().optional(),
   /** DM-1488: accessible long description → <desc> on the root <svg>. */
   desc: z.string().optional(),
+  /** DM-1554: an optional scene-spanning cursor track (explicit `to` events). */
+  cursor: storyboardCursorSchema.optional(),
   scenes: z.array(sceneSchema).min(1),
 });
 
@@ -164,6 +227,14 @@ interface RenderedScene {
   w: number;
   h: number;
   periodMs?: number;
+  /**
+   * DM-1553: this scene was rendered through the storyboard's SHARED embedded-font
+   * builder (a `cast` scene, `manageFonts:false`), so its `@font-face` is deferred
+   * to the single top-level block emitted once by `generateAnimatedSvg`. Its `dmfN`
+   * font families are kept UN-prefixed during namespacing so they resolve against
+   * that shared block (mirrors `composite`'s `deferFonts`, DM-1331).
+   */
+  deferFonts?: boolean;
 }
 
 /** Capture a live url/file to a full, self-contained (static) SVG document. */
@@ -262,6 +333,14 @@ function sceneLabel(scene: SceneCfg): string {
   return `svg ${scene.svg}`;
 }
 
+/** The scene's source kind — used to word an overlay's no-DOM anchor warning. */
+function sceneKind(scene: SceneCfg): string {
+  if (scene.template != null) return "template";
+  if (scene.cast != null) return "cast";
+  if (scene.capture != null) return "capture";
+  return "svg";
+}
+
 /**
  * Render every scene to a self-contained SVG, wrap each as an embedded animation
  * "frame" (namespaced, placed, timeline-re-anchored), and sequence them into one
@@ -275,12 +354,54 @@ export async function composeStoryboardConfig(
   log: (m: string) => void = () => {},
 ): Promise<string> {
   const n = cfg.scenes.length;
-  const frames: AnimationFrame[] = [];
+  const rendered: (RenderedScene | undefined)[] = new Array(n);
 
+  // DM-1553: cross-scene font dedup, ported from `composite` (docs/77). Two
+  // mechanisms shrink a storyboard whose scenes share a font:
+  //
+  //  1. The SHARED-BUILDER cast merge (DM-1331): render every `cast` scene through
+  //     ONE embedded-font builder (`manageFonts:false`) so several terminals that
+  //     use the same monospace embed its UNION glyph subset ONCE — not one subset
+  //     per scene. The single finished `@font-face` block is collected with
+  //     `getEmbeddedFontFaceCss()` and emitted once by `generateAnimatedSvg`
+  //     (`config.fontFaceCss`); those scenes keep their `dmfN` families un-prefixed
+  //     (`deferFonts`) so they resolve against it. Must run BEFORE template/capture
+  //     scenes render — those clear the same module-global builder.
+  //  2. The byte-identical-payload collapse (`dedupeCompositeFonts`, DM-1329),
+  //     applied to the assembled SVG below — folds any two scenes that embed the
+  //     exact same base64 payload (a reused face across template/svg scenes, or the
+  //     same scene twice) down to one copy.
+  const castIdxs = cfg.scenes.flatMap((s, i) => (s.cast != null ? [i] : []));
+  let sharedFontCss = "";
+  if (castIdxs.length > 0) {
+    clearEmbeddedFonts();
+    clearGlyphDefs(); // DM-1338: the glyph registry shares the shared-builder lifecycle
+    for (const i of castIdxs) {
+      const scene = cfg.scenes[i];
+      log(`Scene ${i + 1}/${n}: ${sceneLabel(scene)} (shared font)…`);
+      const castText = readFileSync(resolve(configDir, scene.cast!), "utf8");
+      const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
+        ...(scene.term ?? {}),
+        manageFonts: false,
+        log: (m) => log(`  ${m}`),
+      });
+      rendered[i] = { svg, w: width, h: height, periodMs: totalDurationMs, deferFonts: true };
+    }
+    sharedFontCss = getEmbeddedFontFaceCss();
+  }
+
+  // Render the remaining (template / capture / svg) scenes — each self-contained.
   for (let i = 0; i < n; i++) {
+    if (rendered[i] != null) continue;
     const scene = cfg.scenes[i];
     log(`Scene ${i + 1}/${n}: ${sceneLabel(scene)}…`);
-    const r = await renderScene(scene, browser, configDir, cfg.width, cfg.height, log);
+    rendered[i] = await renderScene(scene, browser, configDir, cfg.width, cfg.height, log);
+  }
+
+  const frames: AnimationFrame[] = [];
+  for (let i = 0; i < n; i++) {
+    const scene = cfg.scenes[i];
+    const r = rendered[i]!;
 
     // Resolve the on-screen duration. An animated scene may inherit its own play
     // time; a static scene MUST carry an explicit `duration`.
@@ -300,20 +421,59 @@ export async function composeStoryboardConfig(
     // collide with sibling scenes once concatenated into one document, strip the
     // XML prolog so the `<svg>` nests cleanly in the frame group, then place it in
     // the canvas per `fit` (centered when smaller; oversized → clipped).
-    let content = namespaceEmbeddedAnimatedSvg(r.svg, `sb${i}_`);
+    // DM-1553: a `deferFonts` (cast, shared-builder) scene keeps its `dmfN` font
+    // families un-prefixed so they resolve against the single top-level block.
+    let content = namespaceEmbeddedAnimatedSvg(r.svg, `sb${i}_`, { namespaceFonts: r.deferFonts !== true });
     content = content.replace(/^<\?xml[^>]*\?>\s*/, "");
     content = placeEmbeddedFrame(content, r.w, r.h, cfg.width, cfg.height, scene.fit ?? "center");
+
+    // DM-1554: per-scene overlays render on top of the scene (canvas coords). A
+    // scene retains no live DOM, so a selector `anchor` can't resolve here — it
+    // warns and falls back to `x`/`y`, exactly like `animate`'s cast/template
+    // frames (`resolveEmbeddedFrameOverlays`).
+    const overlays = resolveEmbeddedFrameOverlays(
+      scene.overlays,
+      configDir,
+      i,
+      `storyboard ${sceneKind(scene)}`,
+      log,
+    );
 
     frames.push({
       svgContent: content,
       duration,
       transition: scene.transition,
+      ...(overlays != null ? { overlays } : {}),
       // An animated scene is a self-contained animated SVG with its own internal
       // period — tell the animator so it re-anchors the scene's timeline to start
       // when THIS scene is shown (and hold before/after), rather than running on
       // the shared document origin. Static scenes carry no internal animation.
       ...(r.periodMs != null ? { embeddedAnimationPeriodMs: r.periodMs } : {}),
     });
+  }
+
+  // DM-1554: assemble the scene-spanning cursor track (explicit `to` events, one
+  // pointer across the whole loop) from `cfg.cursor`, reusing `animate`'s cursor
+  // builder. `frame` on each event is the SCENE index; `at` is ms into that scene.
+  let cursorOverlay: CursorOverlay | undefined;
+  if (cfg.cursor != null) {
+    for (const ev of cfg.cursor.events) {
+      if (ev.frame >= n) {
+        throw new Error(`storyboard: cursor.events references scene ${ev.frame}, but there are only ${n} scenes`);
+      }
+    }
+    const frameStartsMs: number[] = [];
+    {
+      let acc = 0;
+      for (const f of frames) {
+        frameStartsMs.push(acc);
+        acc += frameAdvanceMs(f);
+      }
+    }
+    // Explicit form only (no `"auto"` — a storyboard has no interaction actions),
+    // and `to`-coordinate events only (no live DOM), so the `frames` /
+    // `explicitBoxes` args the auto/selector paths would read stay empty.
+    cursorOverlay = buildCursorOverlay(false, cfg.cursor.events, cfg.cursor.style, [], new Map(), frameStartsMs, []);
   }
 
   const config: AnimationConfig = {
@@ -323,9 +483,12 @@ export async function composeStoryboardConfig(
     background: cfg.background,
     title: cfg.title,
     desc: cfg.desc,
+    ...(sharedFontCss !== "" ? { fontFaceCss: sharedFontCss } : {}),
+    ...(cursorOverlay != null ? { cursorOverlay } : {}),
   };
-  const svg = generateAnimatedSvg(config);
-  const totalMs = frames.reduce((sum, f) => sum + f.duration + (f.transition?.duration ?? 0), 0);
+  // DM-1553: collapse any byte-identical embedded-font payloads across scenes.
+  const svg = dedupeCompositeFonts(generateAnimatedSvg(config));
+  const totalMs = frames.reduce((sum, f) => sum + frameAdvanceMs(f), 0);
   log(`Storyboard: ${n} scenes → ${cfg.width}×${cfg.height}px, ${(totalMs / 1000).toFixed(1)}s loop`);
   return svg;
 }
@@ -337,10 +500,12 @@ Usage:
 
 Each scene is a template, a live capture (url/file), a terminal cast, or a
 pre-rendered SVG (any may be animated), played one after another with an
-inter-scene transition (crossfade | cut | push-left | scroll). Each scene runs
-its own animation while on screen and holds otherwise. The output is a normal
-animated SVG — export it to MP4 with svg-to-video. See
-docs/89-storyboard-sequencing.md.
+inter-scene transition (crossfade | cut | push-left | push-right | push-up |
+push-down | scroll | wipe | iris | zoom-in | zoom-out | shine). Each scene runs
+its own animation while on screen and holds otherwise, and may carry per-scene
+overlays (typing / tap / svg / blink / shine); a storyboard-level cursor track
+can span scenes. The output is a normal animated SVG — export it to MP4 with
+svg-to-video. See docs/89-storyboard-sequencing.md.
 
 Options:
   -o, --output <path>  Output SVG path (default: the config's "output", else stdout).
