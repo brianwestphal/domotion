@@ -975,6 +975,40 @@
               ]
             }
           },
+          "typeResample": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              },
+              "speed": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "delay": {
+                "type": "number",
+                "minimum": 0
+              },
+              "tailMs": {
+                "type": "number",
+                "minimum": 0
+              },
+              "clear": {
+                "type": "boolean"
+              },
+              "caret": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "selector",
+              "text"
+            ]
+          },
           "overlays": {
             "type": "array",
             "items": {

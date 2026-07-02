@@ -145,6 +145,30 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    // DM-1556 (docs/93 §2): per-keystroke real-site re-sampling. One frame types
+    // "4155550142" into a phone field one key at a time, re-capturing the page
+    // after each keystroke — so the field's OWN input mask ("(415) 555-0142") and
+    // its `.valid` green border are what get serialized, NOT the raw keystrokes a
+    // synthetic typing overlay would paint. The N captures compose into a nested
+    // per-keystroke animated SVG (the cast/template nesting pattern).
+    name: "type-resample",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 500 280"`)) f.push("missing viewBox 500x280");
+      if (count(svg, /class="f f-\d+"/g) !== 1) f.push("expected 1 outer frame group");
+      // The per-keystroke captures nest as their own animated <svg> (cast/template
+      // pattern), namespaced with the `tr0_` per-frame token.
+      if (count(svg, /<svg/g) < 2) f.push("missing nested per-keystroke animated <svg>");
+      // 11 states (0..10 chars typed): the final `tr0_f-10` must be present.
+      if (!/tr0_f-10\b/.test(svg)) f.push("missing the final (10-keystroke) re-sampled state tr0_f-10");
+      // Each state carries the field's real blinking caret (measured from selectionEnd).
+      if (!/@keyframes tr0_blink\d+/.test(svg)) f.push("missing the re-sampled caret (blink overlay per state)");
+      // The re-sampled states are glyph-path <text> of the MASKED value (macOS).
+      if (!/<(text|path)/.test(svg)) f.push("missing rendered field content");
+      return f;
+    },
+  },
+  {
     name: "scroll-landing",
     check: (svg) => {
       const f: string[] = [];

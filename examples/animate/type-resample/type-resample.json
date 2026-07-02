@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 500,
+  "height": 280,
+  "frames": [
+    {
+      "input": "./masked-field.html",
+      "actions": [{ "type": "focus", "selector": "#phone" }],
+      "duration": 2500,
+      "typeResample": {
+        "selector": "#phone",
+        "text": "4155550142",
+        "speed": 130,
+        "delay": 300,
+        "tailMs": 900
+      }
+    }
+  ]
+}
