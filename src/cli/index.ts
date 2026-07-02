@@ -22,6 +22,7 @@ import { runAnimate } from "./animate.js";
 import { runTerm } from "./term.js";
 import { runTemplate } from "./template.js";
 import { runComposite } from "./composite.js";
+import { runStoryboard } from "./storyboard.js";
 
 // Read the version from package.json at runtime rather than hardcoding it, so
 // `domotion --version` always matches the installed package (the literal had
@@ -39,6 +40,7 @@ Usage:
   domotion term --cast <file.cast> [options]
   domotion template <name> [--param …] -o out.svg
   domotion composite <config.json> [-o out.svg]
+  domotion storyboard <config.json> [-o out.svg]
   domotion --help | --version
 
 Commands:
@@ -54,6 +56,9 @@ Commands:
   composite Stack layers (cast / template / svg, any animated) into one animated
             SVG — each placed, on its own timeline, with animation preserved
             (e.g. a terminal window on a desktop). Run 'domotion composite --help'.
+  storyboard Sequence distinct SCENES (template / capture / cast / svg) end-to-end
+            into one animated SVG with an inter-scene transition between each
+            (title card → demo → CTA). Run 'domotion storyboard --help'.
 
 capture options:
   -o, --output <path>      Output SVG path (default: stdout, or <input>.svg
@@ -250,6 +255,8 @@ async function main(): Promise<void> {
       await runTemplate(rest, HELP);
     } else if (cmd === "composite") {
       await runComposite(rest);
+    } else if (cmd === "storyboard") {
+      await runStoryboard(rest);
     } else {
       process.stderr.write(`domotion: unknown command "${cmd}"\n\n`);
       process.stderr.write(HELP);

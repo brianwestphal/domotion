@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/storyboard-config.schema.json",
+  "title": "Domotion storyboard config",
+  "description": "Config for the `domotion storyboard` CLI: an ordered list of scenes (each a template / capture / cast / svg source), each with a duration and an inter-scene transition, sequenced into one animated SVG. See docs/89-storyboard-sequencing.md. Authoritative validation is the zod schema in src/cli/storyboard.ts; the exactly-one-source-per-scene rule is enforced at runtime and not expressed here.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this JSON Schema for editor support; ignored by the CLI."
+    },
+    "width": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "height": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "output": {
+      "type": "string"
+    },
+    "background": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "desc": {
+      "type": "string"
+    },
+    "scenes": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "description": "A template name to render as this scene.",
+            "type": "string"
+          },
+          "params": {
+            "description": "Params for a `template` scene.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "capture": {
+            "description": "Capture a live url/file as this scene.",
+            "type": "object",
+            "properties": {
+              "url": {
+                "description": "A URL to capture (http/https).",
+                "type": "string"
+              },
+              "file": {
+                "description": "A local HTML file path to capture (relative to the config).",
+                "type": "string"
+              },
+              "selector": {
+                "description": "Element selector to capture (default: body).",
+                "type": "string"
+              },
+              "wait": {
+                "description": "Settle time (ms) after load (default 200).",
+                "type": "number",
+                "minimum": 0
+              },
+              "waitFor": {
+                "description": "Wait for this selector to be visible before capture.",
+                "type": "string"
+              },
+              "mobile": {
+                "description": "Emulate a mobile device (iOS UA).",
+                "type": "boolean"
+              },
+              "colorScheme": {
+                "type": "string",
+                "enum": [
+                  "light",
+                  "dark",
+                  "no-preference"
+                ]
+              }
+            }
+          },
+          "cast": {
+            "description": "Path to an asciinema v2 .cast (rendered as an animated terminal scene).",
+            "type": "string"
+          },
+          "term": {
+            "description": "Terminal options for a `cast` scene.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "svg": {
+            "description": "Path to a pre-rendered SVG (static or animated) as this scene.",
+            "type": "string"
+          },
+          "period": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "fit": {
+            "type": "string",
+            "enum": [
+              "center",
+              "contain",
+              "cover"
+            ]
+          },
+          "duration": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "transition": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "crossfade",
+                  "push-left",
+                  "scroll",
+                  "cut"
+                ]
+              },
+              "duration": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "type",
+              "duration"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "scenes"
+  ]
+}
