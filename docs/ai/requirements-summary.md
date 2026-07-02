@@ -49,9 +49,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   `src/templates/builtin/text-card-common.ts`. Batch B: `counter` (count
   up/down/timer) + `stat` (KPI + trend chip) on the **odometer digit-reel** module
   `src/templates/builtin/odometer.ts` (per-digit `translateY` roll — cross-engine-
-  safe, em-scaled, rests at the final digit for reduced-motion). All have
-  `brandDefaults` (DM-1522) + honor format `safeInset` (DM-1537). **Pending:**
-  Batch C (`compare` wipe/slider — coordinate with DM-1524).
+  safe; **rests at identity** and rolls in from an offset, so Domotion's capture
+  doesn't double-transform; real spin on low-order digits). This needed a
+  **capture fix**: the script (`src/capture/script/index.ts`) now exempts
+  `[data-domotion-anim]` subtrees from the off-viewport drop so a reel's off-canvas
+  cells (which scroll into view) survive capture — the animation-aware viewBox cull
+  trims the rest. All have `brandDefaults` (DM-1522) + honor format `safeInset`
+  (DM-1537). **Pending:** Batch C (`compare` wipe/slider — coordinate with DM-1524).
 
 - **Doc 85 (`docs/85-brand-kit.md`, DM-1522 design → DM-1530 impl)** —
   **Shipped v1.** A reusable brand file (palette / font / radius / logo /

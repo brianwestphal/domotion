@@ -96,13 +96,25 @@ shared code):
   runs on two nested wrappers; `cta`'s button pulse rides a separate inner element
   from its enter reveal. Logo brand-wiring for `cta` is DM-1539.
 - **Batch B — number animation:** `counter` + `stat`. ✅ shipped (DM-1532). Built
-  on `src/templates/builtin/odometer.ts` — each digit column is a 1em clipped
-  window over a `0..9`-repeated strip, `translateY`-rolled to the target digit
-  (pure transform; cells sized in `em` so it scales; rests at the final digit so
-  reduced-motion shows the right number). `counter` does count up/down + a `timer`
-  clock with grouping/decimals/prefix/suffix/stagger; `stat` adds a label + a
-  trend chip (▲/▼) that fades in after the roll. Both have `brandDefaults` + honor
-  format `safeInset`.
+  on `src/templates/builtin/odometer.ts` — each digit column is a clipped, one-cell
+  window over a strip of digits `translateY`-rolled (in **px**) to the target.
+  Two things make it work through Domotion's capture:
+  - **Rest at identity.** The strip's natural layout shows the FINAL digit at the
+    window; the animation rolls in FROM `-steps·cell` UP TO `translateY(0)`.
+    Domotion bakes an element's resting transform into captured glyph positions
+    and re-applies the keyframe, so a non-identity rest double-transforms — every
+    working Domotion animation rests at identity.
+  - **Capture keeps the off-canvas reel cells.** A real roll needs a strip taller
+    than the canvas; those cells sit off-screen at capture. The capture script
+    (`src/capture/script/index.ts`) now exempts `[data-domotion-anim]` subtrees
+    from its off-viewport drop, and the animation-aware viewBox cull trims any
+    that never enter view. See DM-1532.
+
+  Real odometer spin: a place that ticks many times over the count (the low-order
+  digits) rolls several full turns (capped), high-order digits barely nudge.
+  `counter` does count up/down + a `timer` clock with grouping/decimals/prefix/
+  suffix/stagger; `stat` adds a label + a trend chip (▲/▼) that fades in after the
+  roll. Both have `brandDefaults` + honor format `safeInset`.
 - **Batch C — comparison:** `compare` (clip-path wipe/slider); coordinate with
   DM-1524 so the wipe is the same effect implementation.
 

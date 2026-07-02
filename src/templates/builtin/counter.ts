@@ -56,7 +56,7 @@ export function planCounter(p: CounterParams): OdometerPlan {
 export function buildCounterHtml(p: CounterParams, safeInset?: SafeInset): { html: string; animations: ReturnType<typeof buildOdometerMarkup>["animations"] } {
   const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
   const plan = planCounter(p);
-  const od = buildOdometerMarkup(plan, { prefix: "od", durationMs: p.durationMs, easing: p.easing, staggerMs: p.staggerMs });
+  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx: p.fontSize, durationMs: p.durationMs, easing: p.easing, staggerMs: p.staggerMs });
   const prefix = blank(p.prefix) != null ? `<span class="ct-affix">${escapeHtml(p.prefix!)}</span>` : "";
   const suffix = blank(p.suffix) != null ? `<span class="ct-affix">${escapeHtml(p.suffix!)}</span>` : "";
   const html = `<!doctype html>

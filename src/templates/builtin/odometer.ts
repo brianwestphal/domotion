@@ -3,17 +3,26 @@
  *
  * The shared technique behind `counter` and `stat`: animate a number `from → to`
  * as rolling digit reels instead of per-frame text. Each digit column is a
- * clipped 1em-tall window over a vertical strip of digits (`0..9` repeated); the
- * strip is `translateY`-animated so the target digit lands in the window. That's
- * a pure transform animation — cross-engine-safe (docs/84), resolution-
- * independent (cells are sized in `em`), and reduced-motion friendly (the strip's
- * resting transform is the FINAL digit, so a stripped animation shows the right
- * number).
+ * clipped window (one digit tall) over a vertical strip of digits; the strip is
+ * `translateY`-animated so the digits roll past the window and settle on the
+ * target. Pure transform → cross-engine-safe (docs/84).
  *
- * Positions are indices into a strip of `0..9` repeated `CYCLES` times; the digit
- * shown at index `i` is `i % 10`. A CUSHION of whole cycles on either side lets a
- * column roll forward (count-up, strip moves up/negative) OR backward (count-
- * down) from the same strip without running off either end.
+ * **Rests at identity (critical for Domotion).** The strip's natural, untransformed
+ * layout shows the FINAL number at the top of the window; the animation rolls
+ * FROM a negative offset (showing the start) UP TO `translateY(0)`. Domotion bakes
+ * an element's resting transform into the captured glyph positions and then
+ * re-applies the keyframe transform, so a NON-identity rest (e.g.
+ * `translateY(-final)`) double-transforms and the overflow clip lands wrong —
+ * exactly how every working Domotion animation (lower-third, kinetic-text) rests
+ * at `to: 0`/`scale(1)`. Offsets are in **px** (a fixed cell height), not `em`
+ * (which is ambiguous once the group is captured into SVG).
+ *
+ * **Real odometer spin.** A digit that changes value many times over the count
+ * (the low-order digits) rolls through several full turns; high-order digits roll
+ * less. Each column's travel = `min(⌊trueIncrements/10⌋, MAX_SPINS)` full turns +
+ * the modular distance to the final digit. So counting 0 → 128,500 spins the
+ * units/tens fast and barely nudges the hundred-thousands — reading as counting,
+ * not a single-step twitch.
  */
 
 import type { Anims } from "../../cli/animate.js";
@@ -34,26 +43,29 @@ export interface OdometerFormat {
 /** One rendered column: a rolling digit reel or a fixed character (sep/decimal/sign). */
 export type OdometerColumn =
   | { type: "static"; char: string }
-  | { type: "digit"; startIndex: number; endIndex: number; endDigit: number };
+  | {
+      type: "digit";
+      /** Digit shown at animation start. */
+      startDigit: number;
+      /** Digit shown at rest / animation end (the final value). */
+      endDigit: number;
+      /** Roll direction (true = count-up / forward). */
+      up: boolean;
+      /** Cells to travel: `spins*10 + modular distance`. 0 = unchanged (no roll). */
+      steps: number;
+    };
 
 export interface OdometerPlan {
   /** The final displayed text (what a static/reduced-motion render shows). */
   toText: string;
   /** The starting displayed text (aligned to the same columns as `toText`). */
   fromText: string;
-  /** Left-to-right columns. Digit columns carry the strip indices to roll between. */
+  /** Left-to-right columns. */
   columns: OdometerColumn[];
-  /** The strip is `0..9` repeated this many times (uniform across digit columns). */
-  cycles: number;
 }
 
-// One whole 0..9 cycle of head-room on each side is provably enough: a column
-// starts at index `digit + CUSHION*10` (∈[10,19]) and rolls at most ±9 (a single-
-// digit wrap), so every reachable index stays within [0, ODOMETER_CYCLES*10).
-// Keeping it tight matters — each cell is a rendered glyph, so fewer cycles =
-// smaller SVG (DM-1532).
-const CUSHION = 1;
-export const ODOMETER_CYCLES = CUSHION * 2 + 2; // total cycles rendered per strip (=4)
+/** Max full 0..9 turns any single digit column rolls (caps the strip length). */
+export const MAX_SPINS = 4;
 
 /** Digit count of the integer part of |n| at the given decimal precision. */
 function intDigitCount(n: number, decimals: number): number {
@@ -91,10 +103,19 @@ function groupInt(intStr: string, sep: string): string {
   return out;
 }
 
+/** Travel (cells) for a digit rolling `startDigit → endDigit` with `trueInc` total
+ *  value-changes over the count: capped full turns + the modular final distance. */
+function stepsFor(startDigit: number, endDigit: number, up: boolean, trueInc: number): number {
+  const modular = up ? (endDigit - startDigit + 10) % 10 : (startDigit - endDigit + 10) % 10;
+  const spins = Math.min(Math.floor(trueInc / 10), MAX_SPINS);
+  return spins * 10 + modular;
+}
+
 /**
- * Plan the odometer for `from → to`: align both to the same column template and,
- * for each digit column, compute the strip indices to roll between (forward for a
- * count-up, backward for a count-down; unchanged digits don't move). Non-digit
+ * Plan the odometer for `from → to`: align both to the same column template, and
+ * for each digit column compute the roll (direction + travel). Travel includes
+ * real odometer spin: a column's `trueIncrements` = how many times that decimal
+ * place ticks over the count (computed from the scaled integers). Non-digit
  * characters (separators, decimal point, sign) become static columns.
  */
 export function planOdometer(from: number, to: number, opts: OdometerFormat = {}): OdometerPlan {
@@ -103,24 +124,39 @@ export function planOdometer(from: number, to: number, opts: OdometerFormat = {}
   const fromText = formatNumber(from, opts, width);
   const toText = formatNumber(to, opts, width);
   const up = to >= from;
+  // Scaled integers to count how often each decimal place ticks (spin amount).
+  const scale = 10 ** decimals;
+  const scaledFrom = Math.round(Math.abs(from) * scale);
+  const scaledTo = Math.round(Math.abs(to) * scale);
+  // Assign a place index (from the right, over DIGIT columns only) to each column.
+  const digitPlaces = placeIndices(toText);
   const columns: OdometerColumn[] = [];
-  // fromText and toText share structure (same width/format) → aligned char-for-char.
-  const len = Math.max(fromText.length, toText.length);
-  for (let i = 0; i < len; i++) {
+  for (let i = 0; i < toText.length; i++) {
     const fc = fromText[i] ?? toText[i];
-    const tc = toText[i] ?? fc;
+    const tc = toText[i];
     if (tc >= "0" && tc <= "9" && fc >= "0" && fc <= "9") {
       const startDigit = fc.charCodeAt(0) - 48;
       const endDigit = tc.charCodeAt(0) - 48;
-      const startIndex = startDigit + CUSHION * 10;
-      const dist = up ? (endDigit - startDigit + 10) % 10 : (startDigit - endDigit + 10) % 10;
-      const endIndex = up ? startIndex + dist : startIndex - dist;
-      columns.push({ type: "digit", startIndex, endIndex, endDigit });
+      const place = digitPlaces[i];
+      const trueInc = Math.abs(Math.floor(scaledTo / 10 ** place) - Math.floor(scaledFrom / 10 ** place));
+      columns.push({ type: "digit", startDigit, endDigit, up, steps: stepsFor(startDigit, endDigit, up, trueInc) });
     } else {
       columns.push({ type: "static", char: tc });
     }
   }
-  return { toText, fromText, columns, cycles: ODOMETER_CYCLES };
+  return { toText, fromText, columns };
+}
+
+/** For each character index, the digit place from the right over digit chars only
+ *  (non-digits get -1). E.g. "1,250" → [4,-1,2,1,0]. */
+function placeIndices(text: string): number[] {
+  const out: number[] = new Array(text.length).fill(-1);
+  let place = 0;
+  for (let i = text.length - 1; i >= 0; i--) {
+    const c = text[i];
+    if (c >= "0" && c <= "9") { out[i] = place; place++; }
+  }
+  return out;
 }
 
 /** Seconds → clock text: `M:SS`, or `H:MM:SS` when an hour or more. */
@@ -133,10 +169,14 @@ export function formatTimer(totalSeconds: number): string {
   return hrs > 0 ? `${hrs}:${two(mins)}:${two(secs)}` : `${mins}:${two(secs)}`;
 }
 
+/** The tick period (in seconds) of each timer digit column, from the right,
+ *  skipping the `:` separators: secUnits=1, secTens=10, minUnits=60, minTens=600, … */
+const TIMER_PERIODS = [1, 10, 60, 600, 3600, 36000];
+
 /**
- * Plan an odometer between two clock strings (timer mode). The two are aligned on
- * their right edge and left-padded with the FROM/TO's own leading char so the
- * colons line up; every digit rolls, the `:` separators stay static.
+ * Plan an odometer between two clock strings (timer mode). Aligned right, colons
+ * static; each digit rolls with spin scaled to how fast that place ticks over the
+ * elapsed time (seconds-units fastest).
  */
 export function planTimer(fromSeconds: number, toSeconds: number): OdometerPlan {
   const rawFrom = formatTimer(fromSeconds);
@@ -145,28 +185,32 @@ export function planTimer(fromSeconds: number, toSeconds: number): OdometerPlan 
   const fromText = rawFrom.padStart(len, "0");
   const toText = rawTo.padStart(len, "0");
   const up = toSeconds >= fromSeconds;
+  const totalDelta = Math.abs(Math.floor(toSeconds) - Math.floor(fromSeconds));
   const columns: OdometerColumn[] = [];
-  for (let i = 0; i < len; i++) {
+  let place = 0;
+  for (let i = len - 1; i >= 0; i--) {
     const fc = fromText[i];
     const tc = toText[i];
     if (tc >= "0" && tc <= "9" && fc >= "0" && fc <= "9") {
       const startDigit = fc.charCodeAt(0) - 48;
       const endDigit = tc.charCodeAt(0) - 48;
-      const startIndex = startDigit + CUSHION * 10;
-      const dist = up ? (endDigit - startDigit + 10) % 10 : (startDigit - endDigit + 10) % 10;
-      const endIndex = up ? startIndex + dist : startIndex - dist;
-      columns.push({ type: "digit", startIndex, endIndex, endDigit });
+      const period = TIMER_PERIODS[Math.min(place, TIMER_PERIODS.length - 1)];
+      const trueInc = Math.floor(totalDelta / period);
+      columns[i] = { type: "digit", startDigit, endDigit, up, steps: stepsFor(startDigit, endDigit, up, trueInc) };
+      place++;
     } else {
-      columns.push({ type: "static", char: tc });
+      columns[i] = { type: "static", char: tc };
     }
   }
-  return { toText, fromText, columns, cycles: ODOMETER_CYCLES };
+  return { toText, fromText, columns };
 }
 
 /** Options for {@link buildOdometerMarkup}. */
 export interface OdometerMarkupOptions {
-  /** Unique-per-document class prefix for the strips (default "od"). */
+  /** Unique-per-document class prefix (default "od"). */
   prefix?: string;
+  /** Digit cell height in px (= the number's font size at line-height 1). */
+  cellPx: number;
   /** Roll duration (ms). */
   durationMs: number;
   /** CSS easing for the roll. Default a decelerating ease-out. */
@@ -175,29 +219,25 @@ export interface OdometerMarkupOptions {
   staggerMs?: number;
 }
 
-/** The markup + animations for an odometer plan. */
+/** The markup + animations + css for an odometer plan. */
 export interface OdometerMarkup {
-  /** The `<span class="od-row">…</span>` markup (digit reels + static chars). */
   html: string;
-  /** The `translateY` animations, one per digit column. */
   animations: Anims;
-  /** The `<style>` rules the odometer needs (scoped to `prefix`). */
   css: string;
 }
 
 /**
- * Turn a plan into HTML + intra-frame animations. Each digit column is a 1em-tall
- * clipped window over a strip of `0..9` repeated `cycles` times; the strip rests
- * at its FINAL index (so a static / reduced-motion render shows the right number)
- * and the animation rolls it from the start index. Cells are sized in `em`, so
- * the whole odometer scales with `font-size`.
+ * Turn a plan into HTML + intra-frame animations. Each digit reel is built so its
+ * NATURAL (untransformed) layout shows the final digit at the top of the window;
+ * the animation rolls it in from `-steps*cellPx` up to `0` (rest = identity, the
+ * Domotion-safe shape). Reduced-motion / static render therefore shows the final
+ * number. Unchanged digits render as a single static glyph (no animation).
  */
 export function buildOdometerMarkup(plan: OdometerPlan, opts: OdometerMarkupOptions): OdometerMarkup {
   const prefix = opts.prefix ?? "od";
   const easing = opts.easing ?? "cubic-bezier(0.22,1,0.36,1)";
   const stagger = opts.staggerMs ?? 0;
-  const stripDigits = Array.from({ length: plan.cycles * 10 }, (_, i) => i % 10);
-  const stripInner = stripDigits.map((d) => `<span class="${prefix}-d">${d}</span>`).join("");
+  const cell = opts.cellPx;
 
   const animations: Anims = [];
   let digitOrder = 0;
@@ -205,25 +245,34 @@ export function buildOdometerMarkup(plan: OdometerPlan, opts: OdometerMarkupOpti
     if (col.type === "static") {
       return `<span class="${prefix}-static">${escapeHtml(col.char)}</span>`;
     }
-    const cls = `${prefix}-s${i}`;
-    // Rest at the final position; the animation rolls in from the start index.
-    const rest = `transform:translateY(-${col.endIndex}em)`;
-    if (col.startIndex !== col.endIndex) {
-      animations.push({
-        selector: `.${cls}`, property: "translateY",
-        from: `-${col.startIndex}em`, to: `-${col.endIndex}em`,
-        duration: opts.durationMs, delay: digitOrder * stagger, easing,
-      });
+    if (col.steps === 0) {
+      // Unchanged digit — no reel needed.
+      return `<span class="${prefix}-cell"><span class="${prefix}-d">${col.endDigit}</span></span>`;
     }
+    // Build the digit sequence the reel passes through, laid out so index 0 (the
+    // resting position, translateY 0) is the FINAL digit and index `steps` is the
+    // start. Rolling from -steps*cell up to 0 sweeps start → … → end.
+    const seq: number[] = [];
+    for (let j = 0; j <= col.steps; j++) {
+      seq.push(col.up ? (col.startDigit + j) % 10 : ((col.startDigit - j) % 10 + 10) % 10);
+    }
+    seq.reverse(); // index 0 = end (rest), index steps = start
+    const cls = `${prefix}-s${i}`;
+    const stripInner = seq.map((d) => `<span class="${prefix}-d">${d}</span>`).join("");
+    animations.push({
+      selector: `.${cls}`, property: "translateY",
+      from: `-${col.steps * cell}px`, to: "0px",
+      duration: opts.durationMs, delay: digitOrder * stagger, easing,
+    });
     digitOrder++;
-    return `<span class="${prefix}-cell"><span class="${prefix}-strip ${cls}" style="${rest}">${stripInner}</span></span>`;
+    return `<span class="${prefix}-cell"><span class="${prefix}-strip ${cls}">${stripInner}</span></span>`;
   }).join("");
 
-  const css = `.${prefix}-row { display: inline-flex; align-items: baseline; line-height: 1; font-variant-numeric: tabular-nums; }
-  .${prefix}-cell { display: inline-block; height: 1em; overflow: hidden; }
-  .${prefix}-strip { display: flex; flex-direction: column; }
-  .${prefix}-d { height: 1em; line-height: 1; text-align: center; }
-  .${prefix}-static { display: inline-block; }`;
+  const css = `.${prefix}-row { display: inline-flex; align-items: flex-start; line-height: 1; font-variant-numeric: tabular-nums; }
+  .${prefix}-cell { display: inline-block; height: ${cell}px; overflow: hidden; }
+  .${prefix}-strip { display: block; }
+  .${prefix}-d { display: block; height: ${cell}px; line-height: ${cell}px; text-align: center; }
+  .${prefix}-static { display: inline-block; height: ${cell}px; line-height: ${cell}px; }`;
 
   return { html: `<span class="${prefix}-row">${cols}</span>`, animations, css };
 }

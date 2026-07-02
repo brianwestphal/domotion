@@ -116,7 +116,7 @@ export const captureScript =
     // children) so the in-viewport descendants are reached. _fixedAncestors
     // is precomputed in the pre-pass below.
     const outsideViewport = rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;
-    if (outsideViewport && !_fixedAncestors.has(el) && !_transformInfluenced.has(el)) return null;
+    if (outsideViewport && !_fixedAncestors.has(el) && !_transformInfluenced.has(el) && !_animInfluenced.has(el)) return null;
 
     // visibility: collapse on table-row/column/group collapses that section
     // (Chrome zero-sizes the row/col, so the zeroSized check below handles it).
@@ -1225,6 +1225,24 @@ export const captureScript =
     for (let _tj = 0; _tj < _tdescs.length; _tj++) {
       _transformInfluenced.add(_tdescs[_tj]);
     }
+  }
+
+  // DM-1532: an element carrying `data-domotion-anim` gets a post-capture
+  // intra-frame animation that CAN be a transform (e.g. an odometer digit reel
+  // whose strip `translateY`-rolls, scrolling otherwise-offscreen digit cells
+  // through a clipped window). Capture runs on the static, untransformed DOM and
+  // can't know the animation's range, so it would drop those offscreen cells
+  // before the animation ever brings them in. Exempt the whole animated subtree
+  // from the `outsideViewport` early-return; the post-capture, animation-aware
+  // viewBox cull (`cullElementsOutsideViewBox`) then trims any that never
+  // actually enter the viewport during the scene. Mirrors `_transformInfluenced`.
+  const _animInfluenced = new Set();
+  for (let _ai = 0; _ai < _allEls.length; _ai++) {
+    const _ael = _allEls[_ai];
+    if (_ael.dataset == null || _ael.dataset.domotionAnim == null || _ael.dataset.domotionAnim === '') continue;
+    _animInfluenced.add(_ael);
+    const _adescs = _ael.getElementsByTagName('*');
+    for (let _aj = 0; _aj < _adescs.length; _aj++) _animInfluenced.add(_adescs[_aj]);
   }
 
   // DM-587: every element's cumulative ancestor scale. The live-rect capture

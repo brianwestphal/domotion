@@ -63,7 +63,7 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
   const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
   const start = p.animateValue ? 0 : p.value;
   const plan = planOdometer(start, p.value, { decimals: p.decimals, grouping: p.grouping });
-  const od = buildOdometerMarkup(plan, { prefix: "od", durationMs: p.durationMs, easing: "cubic-bezier(0.22,1,0.36,1)", staggerMs: 60 });
+  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx: p.fontSize, durationMs: p.durationMs, easing: "cubic-bezier(0.22,1,0.36,1)", staggerMs: 60 });
   const prefix = blank(p.prefix) != null ? `<span class="st-affix">${escapeHtml(p.prefix!)}</span>` : "";
   const suffix = blank(p.suffix) != null ? `<span class="st-affix">${escapeHtml(p.suffix!)}</span>` : "";
   const label = blank(p.label) != null ? `<div class="st-label">${escapeHtml(p.label!)}</div>` : "";

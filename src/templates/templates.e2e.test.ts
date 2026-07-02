@@ -13,6 +13,7 @@ import { kineticTextTemplate } from "./builtin/kinetic-text.js";
 import { chartTemplate, buildChartHtml, planChart } from "./builtin/chart.js";
 import { chatTemplate } from "./builtin/chat.js";
 import { subscribeTemplate } from "./builtin/subscribe.js";
+import { counterTemplate } from "./builtin/counter.js";
 
 /**
  * DM-1276: end-to-end render of both built-in templates through the real
@@ -278,6 +279,26 @@ describe("format safe-area reflow (DM-1537)", () => {
     const b = await boundsOf(buildLowerThirdHtml(p, undefined), ".lt-panel");
     // Bottom-left banner with the default 48px padding sits below the safe bottom.
     expect(b.maxY).toBeGreaterThan(safe.b);
+  }, 60_000);
+
+  it("counter reel survives capture — off-canvas digit cells are kept (DM-1532 capture fix)", async () => {
+    // The odometer strip is taller than the canvas; its off-canvas digit cells
+    // roll into view during the animation. Capture must NOT drop them (they live
+    // in a data-domotion-anim subtree). Pre-fix only ~1 digit/column survived and
+    // the reels rendered blank mid-roll.
+    const out = await renderTemplateToSvg(
+      counterTemplate,
+      { to: 128500, grouping: true, fontSize: 200 },
+      { browser: await getBrowser() },
+    );
+    expect(out.svg).toMatch(/@keyframes/);
+    // Every reel animation rests at identity (translateY(0)) — the Domotion-safe
+    // shape that avoids the double-transform. (No `translateY(-…)` resting.)
+    expect(out.svg).toMatch(/translateY\(0/);
+    // Many digit cells present (6 reels, several rolling multiple turns) — far more
+    // than the ~1-per-column that survived before the capture exemption.
+    const digitCells = (out.svg.match(/>[0-9]</g) ?? []).length;
+    expect(digitCells).toBeGreaterThan(40);
   }, 60_000);
 
   it("chart plots inside the safe rect at reel (9:16)", async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  formatNumber, planOdometer, formatTimer, planTimer, buildOdometerMarkup, ODOMETER_CYCLES,
+  formatNumber, planOdometer, formatTimer, planTimer, buildOdometerMarkup, MAX_SPINS,
   type OdometerColumn,
 } from "./odometer.js";
 import { counterTemplate, buildCounterHtml, planCounter, counterParamsSchema } from "./counter.js";
@@ -35,29 +35,32 @@ describe("odometer.planOdometer (DM-1532)", () => {
     expect(p.fromText.length).toBe(p.toText.length);
   });
 
-  it("every digit column rests on its target digit (index % 10 === endDigit)", () => {
-    for (const [from, to] of [[7, 1250], [90, 30], [0, 1234], [999, 1000]] as const) {
-      const p = planOdometer(from, to);
-      for (const d of digits(p.columns)) {
-        expect(d.endIndex % 10).toBe(d.endDigit);
-      }
-    }
+  it("each digit column records its start/end digit + direction", () => {
+    const ds = digits(planOdometer(7, 1250).columns);
+    expect(ds.every((d) => d.up)).toBe(true);
+    expect(ds[ds.length - 1].endDigit).toBe(0); // units of 1250
+    const down = digits(planOdometer(50, 30).columns);
+    expect(down.every((d) => !d.up)).toBe(true);
   });
 
-  it("count-up rolls forward (endIndex ≥ startIndex), count-down backward", () => {
-    const up = digits(planOdometer(0, 5).columns)[0];
-    expect(up.endIndex).toBeGreaterThan(up.startIndex);
-    const down = digits(planOdometer(5, 0).columns)[0];
-    expect(down.endIndex).toBeLessThan(down.startIndex);
+  it("a place that never ticks doesn't move; lower places that tick do", () => {
+    // 105 → 125: the hundreds place never changes (floor/100 is 1 throughout) →
+    // steps 0. The tens place changes, and the units place — though it starts AND
+    // ends on 5 — ticks 20 times over the count (105→…→125), so it spins. That's
+    // real odometer behavior, not a bug.
+    const ds = digits(planOdometer(105, 125).columns);
+    expect(ds[0].steps).toBe(0);           // hundreds — never ticks
+    expect(ds[1].steps).toBeGreaterThan(0); // tens — changes
+    expect(ds[2].steps).toBe(20);           // units — ticks 20× (2 full turns), lands on 5
   });
 
-  it("an unchanged digit does not move", () => {
-    // 105 → 125: hundreds (1) and units (5) unchanged, tens 0→2 moves.
-    const p = planOdometer(105, 125);
-    const ds = digits(p.columns);
-    expect(ds[0].startIndex).toBe(ds[0].endIndex); // hundreds
-    expect(ds[2].startIndex).toBe(ds[2].endIndex); // units
-    expect(ds[1].startIndex).not.toBe(ds[1].endIndex); // tens
+  it("low-order digits of a big count spin through multiple turns", () => {
+    // counting 0 → 128,500: the units place ticks 128,500 times → capped spin.
+    const ds = digits(planOdometer(0, 128500, { grouping: true }).columns);
+    const units = ds[ds.length - 1];
+    expect(units.steps).toBe(MAX_SPINS * 10); // full capped spins, lands back on 0
+    // the top digit (hundred-thousands 0→1) only nudges.
+    expect(ds[0].steps).toBe(1);
   });
 
   it("separators and the decimal point become static columns", () => {
@@ -80,33 +83,50 @@ describe("odometer timer (DM-1532)", () => {
     expect(p.toText).toBe("0:05");
     expect(p.fromText).toBe("1:30");
     expect(p.columns.some((c) => c.type === "static" && c.char === ":")).toBe(true);
-    for (const d of digits(p.columns)) expect(d.endIndex % 10).toBe(d.endDigit);
+    expect(digits(p.columns)[digits(p.columns).length - 1].endDigit).toBe(5);
   });
 });
 
-describe("odometer.buildOdometerMarkup (DM-1532)", () => {
-  it("emits one animation per CHANGED digit column and a strip of cycles*10 cells", () => {
-    const plan = planOdometer(105, 125); // only the tens digit changes
-    const m = buildOdometerMarkup(plan, { durationMs: 1000, staggerMs: 50 });
-    expect(m.animations).toHaveLength(1);
-    expect(m.animations[0]).toMatchObject({ property: "translateY" });
-    // strip rendered once, reused per column: cycles*10 digit cells in the markup per reel.
-    const cellCount = (m.html.match(/od-d/g) ?? []).length / digits(plan.columns).length;
-    expect(cellCount).toBe(ODOMETER_CYCLES * 10);
+describe("odometer.buildOdometerMarkup — Domotion-safe shape (DM-1532)", () => {
+  it("every reel animation rests at IDENTITY (to: 0px) so capture can't double-transform", () => {
+    // The bug that broke the first cut: a non-identity resting transform gets baked
+    // into captured glyph positions AND re-applied as the keyframe → garbled output.
+    const plan = planOdometer(0, 1234, { grouping: true });
+    const m = buildOdometerMarkup(plan, { cellPx: 100, durationMs: 1000 });
+    expect(m.animations.length).toBeGreaterThan(0);
+    expect(m.animations.every((a) => a.to === "0px")).toBe(true);
+    expect(m.animations.every((a) => a.property === "translateY")).toBe(true);
   });
 
-  it("rests each strip at its FINAL index (reduced-motion shows the target)", () => {
+  it("each reel's resting (top) cell is the FINAL digit (reduced-motion shows the target)", () => {
     const plan = planOdometer(0, 7);
-    const m = buildOdometerMarkup(plan, { durationMs: 800 });
-    const endIndex = digits(plan.columns)[0].endIndex;
-    expect(m.html).toContain(`translateY(-${endIndex}em)`);
+    const m = buildOdometerMarkup(plan, { cellPx: 100, durationMs: 800 });
+    // First digit glyph inside the reel strip = seq[0] = endDigit (7).
+    const firstReelDigit = /od-strip[^>]*><span class="od-d">(\d)/.exec(m.html)?.[1];
+    expect(firstReelDigit).toBe("7");
   });
 
-  it("staggers digit columns left→right", () => {
-    const plan = planOdometer(0, 123);
-    const m = buildOdometerMarkup(plan, { durationMs: 800, staggerMs: 100 });
-    const delays = m.animations.map((a) => a.delay);
-    expect(delays).toEqual([0, 100, 200]);
+  it("from offset = -steps*cellPx (rolls in from the start digit)", () => {
+    const plan = planOdometer(0, 5); // steps=5
+    const m = buildOdometerMarkup(plan, { cellPx: 120, durationMs: 800 });
+    expect(m.animations[0].from).toBe(`-${5 * 120}px`);
+  });
+
+  it("emits one animation per CHANGED digit column, and staggers left→right", () => {
+    const plan = planOdometer(0, 123); // 3 changing digits
+    const m = buildOdometerMarkup(plan, { cellPx: 100, durationMs: 800, staggerMs: 100 });
+    expect(m.animations).toHaveLength(3);
+    expect(m.animations.map((a) => a.delay)).toEqual([0, 100, 200]);
+  });
+
+  it("a non-ticking digit renders as a single static glyph (no reel/animation)", () => {
+    // 3 → 5: one digit place; it's the only reel. (No higher/other place ticks.)
+    const plan = planOdometer(3, 5);
+    const m = buildOdometerMarkup(plan, { cellPx: 100, durationMs: 800 });
+    expect(m.animations).toHaveLength(1);
+    // 205 → 205: nothing ticks → no animations at all.
+    const same = buildOdometerMarkup(planOdometer(205, 205), { cellPx: 100, durationMs: 800 });
+    expect(same.animations).toHaveLength(0);
   });
 });
 
@@ -122,6 +142,7 @@ describe("counter template (DM-1532)", () => {
     expect(html).toContain('class="ct-affix">+');
     expect(html).toContain(".od-cell");
     expect(animations.length).toBeGreaterThan(0);
+    expect(animations.every((a) => a.to === "0px")).toBe(true); // identity rest
   });
 
   it("brandDefaults maps text→color, background, font", () => {
@@ -141,7 +162,7 @@ describe("stat template (DM-1532)", () => {
 
   it("animateValue rolls from 0; off shows it static (no roll animations)", () => {
     const rolled = buildStatHtml(statParamsSchema.parse({ value: 950, animateValue: true }));
-    expect(rolled.animations.length).toBeGreaterThan(0);
+    expect(rolled.animations.some((a) => a.property === "translateY")).toBe(true);
     const staticStat = buildStatHtml(statParamsSchema.parse({ value: 950, animateValue: false }));
     expect(staticStat.animations.filter((a) => a.property === "translateY")).toHaveLength(0);
   });
