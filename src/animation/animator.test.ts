@@ -570,6 +570,67 @@ describe("animator", () => {
     expect(svg).not.toContain("-caret");
   });
 
+  // DM-1555: mistake → backspace → correct. An explicit or rate-driven typo
+  // paints a wrong glyph, the caret advances past it, then RETREATS (backspace)
+  // to the prefix edge and re-advances on retype.
+  describe("typing mistakes (DM-1555)", () => {
+    const mk = (overlay: Record<string, unknown>): string =>
+      generateAnimatedSvg({
+        width: 400, height: 120,
+        frames: [{ svgContent: `<rect width="400" height="120" fill="#0d1117"/>`, duration: 4000,
+          overlays: [{ kind: "typing", text: "hello world", x: 20, y: 50, fontSize: 24, caret: true, ...overlay } as never] }],
+      });
+    const caretEdges = (svg: string): number[] => {
+      const pos = svg.match(/@keyframes t0-caret-pos\s*{([\s\S]*?)}\s*@keyframes/)?.[1] ?? "";
+      return [...pos.matchAll(/translate\(([\d.]+)px,\s*[\d.]+px\)/g)].map((m) => parseFloat(m[1]));
+    };
+    const hasRetreat = (edges: number[]): boolean => {
+      for (let i = 1; i < edges.length; i++) if (edges[i] < edges[i - 1] - 0.01) return true;
+      return false;
+    };
+
+    it("an explicit mistake paints the wrong glyph and retreats the caret", () => {
+      const svg = mk({ mistakes: [{ at: 2, wrong: "x" }] });
+      // The mistyped glyph is painted with its own show/hide opacity track.
+      expect(svg).toMatch(/<text class="t0-mis0"[^>]*>x<\/text>/);
+      expect(svg).toMatch(/@keyframes t0-mis0\s*{[^]*?opacity:\s*1[^]*?opacity:\s*0/);
+      // The caret advances past the typo then steps BACK (backspace) before re-advancing.
+      expect(hasRetreat(caretEdges(svg))).toBe(true);
+    });
+
+    it("no mistakes → no wrong glyph and a monotonic caret (regression guard)", () => {
+      const svg = mk({});
+      expect(svg).not.toContain("t0-mis0");
+      expect(hasRetreat(caretEdges(svg))).toBe(false);
+    });
+
+    it("wrong glyph defaults to a deterministic QWERTY neighbor when unspecified", () => {
+      // 'l' (index 2) → neighbor 'k'.
+      const svg = mk({ mistakes: [{ at: 2 }] });
+      expect(svg).toMatch(/<text class="t0-mis0"[^>]*>k<\/text>/);
+    });
+
+    it("rate-driven mistakes are deterministic (byte-stable) and honor the rate", () => {
+      const a = mk({ mistakes: 0.5 });
+      const b = mk({ mistakes: 0.5 });
+      expect(a).toBe(b);                       // same seed → identical SVG
+      expect(a).toContain("t0-mis0");          // at 0.5 over 11 chars, at least one fires
+      expect(mk({ mistakes: 0 })).not.toContain("t0-mis0"); // rate 0 → none
+    });
+
+    it("paste mode never mistypes (no keystrokes to slip on)", () => {
+      const svg = mk({ mode: "paste", mistakes: [{ at: 2, wrong: "x" }] });
+      expect(svg).not.toContain("t0-mis0");
+    });
+
+    it("the correct final text is still fully revealed after a typo", () => {
+      const svg = mk({ mistakes: [{ at: 2, wrong: "x" }] });
+      // Every wrapped line's <text> still carries the CORRECT content.
+      const lines = [...svg.matchAll(/<text class="t0-text"[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+      expect(lines.join("")).toBe("hello world");
+    });
+  });
+
   it("DM-871: blink overlay emits a step-end toggling rect", () => {
     const svg = generateAnimatedSvg({
       width: 100,

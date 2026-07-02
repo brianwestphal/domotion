@@ -909,6 +909,9 @@ const OVERLAY_TYPING_FONT = "'SF Mono', Menlo, Monaco, monospace";
  * emails, queries), so this ceiling is rarely reached.
  */
 const MAX_DISCRETE_TYPING_CHARS = 300;
+/** DM-1555: default "think" pause (ms) between typing a wrong glyph and
+ *  backspacing it — the beat a real typist takes to notice the slip. */
+const DEFAULT_MISTAKE_THINK_MS = 400;
 const DEFAULT_TAP_DELAY_MS = 50;
 const DEFAULT_BLINK_PERIOD_MS = 1000;
 
@@ -931,31 +934,26 @@ function hashString(s: string): number {
 }
 
 /**
- * DM-1518: measure per-glyph advances (px) for each wrapped line via fontkit
- * against the resolved overlay monospace font, returning cumulative x-offsets
- * (`cum[li][k]` = the caret x after `k` glyphs of line `li`). Falls back to the
- * uniform 0.6em estimate when the font can't be resolved. `chars` is the
- * per-line code-point array (so surrogate pairs count as one glyph, matching
- * the reveal + caret stepping).
+ * DM-1518 / DM-1557: resolve the overlay font once and return a per-character
+ * advance function (px) measured via fontkit, plus whether the font actually
+ * resolved. Proportional fonts fall out for free — `glyphForCodePoint().
+ * advanceWidth` differs per glyph, so a variable-width family measures
+ * correctly, not just the monospace default. Falls back to the uniform 0.6em
+ * estimate when the font can't be resolved (a platform without the face), so
+ * the caret/reveal stay self-consistent even without a measurable font. DM-1558
+ * routes an author `fontFamily` here.
  */
-function measureTypingLines(
-  chars: string[][], fontSize: number,
-): { cum: number[][]; charWidth: number; measured: boolean } {
+function overlayAdvances(
+  fontFamily: string, fontSize: number,
+): { advOf: (ch: string) => number; measured: boolean } {
   const estimate = fontSize * MONO_CHAR_WIDTH_RATIO;
   let font: ReturnType<typeof getFontInstance> = null;
   try {
-    font = getFontInstance(resolveFontKey(OVERLAY_TYPING_FONT), 400, fontSize, 0);
+    font = getFontInstance(resolveFontKey(fontFamily), 400, fontSize, 0);
   } catch {
     font = null;
   }
-  if (font == null) {
-    const cum = chars.map((line) => {
-      const c = [0];
-      for (let i = 0; i < line.length; i++) c.push(c[i] + estimate);
-      return c;
-    });
-    return { cum, charWidth: estimate, measured: false };
-  }
+  if (font == null) return { advOf: () => estimate, measured: false };
   const scale = fontSize / font.unitsPerEm;
   const advOf = (ch: string): number => {
     const cp = ch.codePointAt(0);
@@ -964,54 +962,161 @@ function measureTypingLines(
     const adv = (g?.advanceWidth ?? 0) * scale;
     return adv > 0 ? adv : estimate;
   };
-  const cum = chars.map((line) => {
+  return { advOf, measured: true };
+}
+
+/**
+ * Cumulative per-line x-offsets from the measured advances: `cum[li][k]` = the
+ * caret x after `k` glyphs of line `li`. `chars` is the per-line code-point
+ * array (astral pairs count as one glyph, matching the reveal + caret stepping).
+ */
+function cumFromChars(chars: string[][], advOf: (ch: string) => number): number[][] {
+  return chars.map((line) => {
     const c = [0];
     for (let i = 0; i < line.length; i++) c.push(c[i] + advOf(line[i]));
     return c;
   });
-  return { cum, charWidth: estimate, measured: true };
 }
 
 /** One revealed glyph's placement + reveal time, precomputed once (DM-1518). */
 interface TypedGlyph { li: number; edge: number; appearMs: number }
 
+/** A caret waypoint — the caret steps to `edge` (on line `li`) at `appearMs`.
+ *  Distinct from `TypedGlyph` because a mistake makes the caret RETREAT
+ *  (backspace) and re-advance, so its path has more waypoints than the text has
+ *  glyphs (DM-1555). */
+interface CaretStep { li: number; edge: number; appearMs: number }
+
+/** A temporarily-painted wrong glyph (DM-1555): shown at `[showMs, hideMs)` at
+ *  `leftEdge` on line `li`, then backspaced away. `ch` is the mistyped char. */
+interface MistakeGlyph { li: number; leftEdge: number; ch: string; showMs: number; hideMs: number }
+
+/** QWERTY neighbor of each lowercase letter — the plausible "fat-finger" slip a
+ *  typist makes. Used for the default wrong character when `mistakes` doesn't
+ *  spell one out (DM-1555). */
+const QWERTY_NEIGHBORS: Record<string, string> = {
+  a: "s", b: "v", c: "x", d: "f", e: "r", f: "g", g: "h", h: "j", i: "o",
+  j: "k", k: "l", l: "k", m: "n", n: "m", o: "i", p: "o", q: "w", r: "e",
+  s: "d", t: "y", u: "i", v: "b", w: "e", x: "z", y: "u", z: "x",
+};
+
+/** Deterministically choose a wrong glyph to mistype for `correct`: a QWERTY
+ *  neighbor (case-preserved) for letters, the next digit for digits, else a
+ *  PRNG-picked common letter. Never returns `correct` itself. DM-1555. */
+function pickWrongChar(correct: string, rng: () => number): string {
+  const lower = correct.toLowerCase();
+  const neighbor = QWERTY_NEIGHBORS[lower];
+  if (neighbor != null) return correct === lower ? neighbor : neighbor.toUpperCase();
+  if (/[0-9]/.test(correct)) return String((parseInt(correct, 10) + 1) % 10);
+  const letters = "etaoinshrdlu";
+  let pick = letters[Math.floor(rng() * letters.length)];
+  if (pick === correct) pick = letters[(letters.indexOf(pick) + 1) % letters.length];
+  return pick;
+}
+
 /**
- * DM-1518: the shared reveal plan the line clips AND the caret ride, so they
- * can never desync. One `TypedGlyph` per typed character, carrying the line it
- * lands on, the caret x AFTER it (its right edge, from the measured advances),
- * and the absolute time it appears. `mode: "paste"` reveals every glyph at
- * `typeStartMs`; `mode: "type"` spaces them by the (optionally jittered) speed,
- * scaled to fill `[typeStartMs, typeStartMs + effTypeDur]`.
+ * DM-1555: decide WHERE typos fire. Returns a map from flattened character index
+ * (0-based over the whole typed string, across wrapped lines) to the wrong glyph
+ * to type there. Both the rate spelling and the explicit-list spelling are
+ * deterministic (seeded off the text), so the emitted SVG is byte-stable. Only
+ * alphanumeric characters get rate-driven typos, never two adjacent, never the
+ * final character. Returns an empty map for paste mode or no `mistakes`.
+ */
+function planMistakes(chars: string[][], overlay: TypingOverlay): Map<number, string> {
+  const map = new Map<number, string>();
+  if (overlay.mode === "paste" || overlay.mistakes == null) return map;
+  const flat: string[] = [];
+  for (const line of chars) for (const ch of line) flat.push(ch);
+  const rng = mulberry32(hashString(overlay.text) ^ 0x5bd1e995);
+  const m = overlay.mistakes;
+  if (typeof m === "number") {
+    const rate = Math.max(0, Math.min(1, m));
+    for (let i = 0; i < flat.length - 1; i++) {
+      const ch = flat[i];
+      if (!/[A-Za-z0-9]/.test(ch)) continue;
+      if (map.has(i - 1)) continue; // never two typos back-to-back
+      if (rng() < rate) map.set(i, pickWrongChar(ch, rng));
+    }
+  } else {
+    for (const spec of m) {
+      if (spec.at < 0 || spec.at >= flat.length) continue;
+      map.set(spec.at, spec.wrong != null && spec.wrong.length > 0 ? spec.wrong : pickWrongChar(flat[spec.at], rng));
+    }
+  }
+  return map;
+}
+
+/** How many extra keystroke-equivalents a typo costs, for sizing the natural
+ *  type window: a wrong glyph + a backspace + the "think" pause between them
+ *  (DM-1555). One per mistake. Used to grow `naturalEndMs` so mistakes don't
+ *  over-compress the rest of the typing. */
+function mistakeOverheadMs(mistakes: Map<number, string>, speed: number, thinkMs: number): number {
+  return mistakes.size * (2 * speed + thinkMs);
+}
+
+/**
+ * DM-1518 / DM-1555: the shared reveal plan the line clips, the mistake glyphs,
+ * AND the caret ride, so they can never desync. Walks the typed characters in
+ * order building a stream of timed events, normalized into
+ * `[typeStartMs, typeStartMs + effTypeDur]`, then splits them into:
+ *   - `glyphs` — one `TypedGlyph` per FINAL character (drives the line clips);
+ *     a mistyped position's correct glyph appears only AFTER its detour.
+ *   - `mistakes` — the temporarily-painted wrong glyphs (`[showMs, hideMs)`).
+ *   - `caretSteps` — the caret's full path, including the RETREAT to the prefix
+ *     edge on backspace and the re-advance on retype (DM-1555).
+ * `mode: "paste"` reveals every glyph at `typeStartMs` (no mistakes); `type`
+ * spaces them by the (optionally jittered) speed. Determinism: same PRNG seed
+ * off the text as `planMistakes`, so the whole thing stays byte-stable.
  */
 function buildTypingPlan(
   chars: string[][], cum: number[][], overlay: TypingOverlay,
   speed: number, typeStartMs: number, effTypeDur: number,
-): TypedGlyph[] {
+  advOf: (ch: string) => number, mistakes: Map<number, string>, thinkMs: number,
+): { glyphs: TypedGlyph[]; mistakeGlyphs: MistakeGlyph[]; caretSteps: CaretStep[] } {
   const glyphs: TypedGlyph[] = [];
+  const mistakeGlyphs: MistakeGlyph[] = [];
+  const caretSteps: CaretStep[] = [];
   const paste = overlay.mode === "paste";
   const jitter = paste ? 0 : Math.max(0, Math.min(1, overlay.jitter ?? 0));
   const rng = mulberry32(hashString(overlay.text) ^ 0x9e3779b9);
-  // First pass: raw (jittered) per-glyph delays and their running sum.
-  const delays: number[] = [];
-  let rawTotal = 0;
+  const nextDelay = (): number => (paste ? 0 : Math.max(speed * 0.25, speed * (1 + (rng() * 2 - 1) * jitter)));
+
+  // First pass: build the timed event stream with RAW (jittered) delays. Each
+  // event carries a callback that stamps the finalized `appearMs` in pass two.
+  interface Ev { rawDelay: number; apply: (t: number) => void }
+  const evs: Ev[] = [];
+  let gi = 0;
   chars.forEach((line, li) => {
     for (let k = 0; k < line.length; k++) {
-      const d = paste ? 0 : Math.max(speed * 0.25, speed * (1 + (rng() * 2 - 1) * jitter));
-      rawTotal += d;
-      delays.push(d);
-      glyphs.push({ li, edge: cum[li][k + 1], appearMs: 0 });
+      const wrong = mistakes.get(gi);
+      if (wrong != null && !paste) {
+        const leftEdge = cum[li][k];
+        const wrongEdge = leftEdge + advOf(wrong);
+        const mis: MistakeGlyph = { li, leftEdge, ch: wrong, showMs: 0, hideMs: 0 };
+        mistakeGlyphs.push(mis);
+        // Type the wrong glyph — caret jumps past it.
+        evs.push({ rawDelay: nextDelay(), apply: (t) => { mis.showMs = t; caretSteps.push({ li, edge: wrongEdge, appearMs: t }); } });
+        // Notice it (think pause), then backspace — caret RETREATS to the prefix.
+        evs.push({ rawDelay: thinkMs + nextDelay(), apply: (t) => { mis.hideMs = t; caretSteps.push({ li, edge: leftEdge, appearMs: t }); } });
+      }
+      // Type the correct glyph — caret advances to its measured right edge.
+      const edge = cum[li][k + 1];
+      evs.push({ rawDelay: nextDelay(), apply: (t) => { glyphs.push({ li, edge, appearMs: t }); caretSteps.push({ li, edge, appearMs: t }); } });
+      gi++;
     }
   });
-  // Second pass: normalize delays into the effective type window so the last
-  // glyph lands exactly at typeStartMs + effTypeDur (the measured text edge is
-  // therefore reached precisely when typing "finishes").
+
+  // Second pass: normalize the raw delays into the effective type window so the
+  // last CORRECT glyph lands exactly at typeStartMs + effTypeDur.
+  let rawTotal = 0;
+  for (const e of evs) rawTotal += e.rawDelay;
   const scale = rawTotal > 0 ? effTypeDur / rawTotal : 0;
   let acc = 0;
-  for (let i = 0; i < glyphs.length; i++) {
-    acc += delays[i];
-    glyphs[i].appearMs = paste ? typeStartMs : typeStartMs + acc * scale;
+  for (const e of evs) {
+    acc += e.rawDelay;
+    e.apply(paste ? typeStartMs : typeStartMs + acc * scale);
   }
-  return glyphs;
+  return { glyphs, mistakeGlyphs, caretSteps };
 }
 
 /** Monotone keyframe-stop builder: nudges each stop past the previous so equal
@@ -1041,7 +1146,7 @@ function monotoneStops(): { push: (pn: number, decl: string) => void; stops: str
 function buildTypingLines(
   chars: string[][], overlay: TypingOverlay, id: string,
   cum: number[][], glyphs: TypedGlyph[], discrete: boolean,
-  lineHeight: number, fontSize: number, textHeight: number, hiddenW: string, color: string,
+  lineHeight: number, fontSize: number, textHeight: number, hiddenW: string, color: string, fontFamily: string,
   totalDuration: number, holdEndPct: string, disappearPct: string, totalSec: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
@@ -1057,7 +1162,7 @@ function buildTypingLines(
 
     parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
     parts.push(
-      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${OVERLAY_TYPING_FONT}" clip-path="url(#${clipId})">${escapeHtml(lineText)}</text>`,
+      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}" clip-path="url(#${clipId})">${escapeHtml(lineText)}</text>`,
     );
 
     if (lineGlyphs.length === 0) {
@@ -1096,37 +1201,39 @@ function buildTypingLines(
 }
 
 /**
- * DM-870 / DM-1518: blinking insertion caret. It rides the SAME reveal plan as
- * the text (`glyphs`), stepping to each glyph's measured right edge the instant
- * that glyph appears (`step-end`), so it is always glued to the true trailing
- * edge of the visible text — never lagging behind it. Parks at the text end and
+ * DM-870 / DM-1518 / DM-1555: blinking insertion caret. It rides the SAME reveal
+ * plan as the text (`caretSteps`), stepping to each waypoint the instant it is
+ * reached (`step-end`), so it is always glued to the true trailing edge of the
+ * visible text — never lagging behind it. With a mistake (DM-1555) the waypoints
+ * include a RETREAT (backspace) to the prefix edge and a re-advance on retype,
+ * so the caret visibly steps back then forward. Parks at the final text end and
  * blinks until the overlay disappears. Returns empty arrays when no caret is
  * requested.
  */
 function buildTypingCaret(
   overlay: TypingOverlay, id: string, color: string,
-  glyphs: TypedGlyph[], lineHeight: number, fontSize: number,
+  caretSteps: CaretStep[], lineHeight: number, fontSize: number,
   typeStartPct: string, typeStartMs: number, textEndMs: number, holdEndMs: number, holdEndPct: string, disappearPct: string,
   totalDuration: number, totalSec: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
   const cssRules: string[] = [];
-  if (overlay.caret != null && overlay.caret !== false && glyphs.length > 0) {
+  if (overlay.caret != null && overlay.caret !== false && caretSteps.length > 0) {
     const caretOpts = typeof overlay.caret === "object" ? overlay.caret : {};
     const caretColor = caretOpts.color ?? color;
     const caretW = caretOpts.width ?? 2;
     const blinkMs = caretOpts.blinkMs ?? 530;
-    const lastG = glyphs[glyphs.length - 1];
+    const lastG = caretSteps[caretSteps.length - 1];
     const endX = lastG.edge;
     const endY = lastG.li * lineHeight;
 
     // Position track: hold at the first line's left margin until typing begins,
-    // then jump to each glyph's measured edge as it appears (step-end), then
-    // park at the text end through the blink + disappear.
+    // then jump to each waypoint's measured edge as it is reached (step-end),
+    // then park at the text end through the blink + disappear.
     const b = monotoneStops();
     b.push(0, `transform: translate(0px, 0px);`);
     b.push(Math.max(0.01, pctNum(typeStartMs, totalDuration)), `transform: translate(0px, 0px);`);
-    for (const g of glyphs) b.push(pctNum(g.appearMs, totalDuration), `transform: translate(${g.edge.toFixed(2)}px, ${(g.li * lineHeight).toFixed(2)}px);`);
+    for (const g of caretSteps) b.push(pctNum(g.appearMs, totalDuration), `transform: translate(${g.edge.toFixed(2)}px, ${(g.li * lineHeight).toFixed(2)}px);`);
     const posStops = [
       ...b.stops,
       `${holdEndPct}, 100% { transform: translate(${endX.toFixed(2)}px, ${endY.toFixed(2)}px); }`,
@@ -1161,6 +1268,37 @@ function buildTypingCaret(
   return { parts, cssRules };
 }
 
+/**
+ * DM-1555: paint the mistyped glyphs. Each wrong glyph is a standalone element
+ * anchored at the prefix edge on its line, shown across `[showMs, hideMs)` and
+ * hidden otherwise (a `step-end` opacity toggle). It sits OUTSIDE the line clip
+ * (which reveals only the correct text), so it can appear over the held prefix
+ * during the typo and vanish on backspace without disturbing the reveal. Returns
+ * empty arrays when there are no mistakes.
+ */
+function buildTypingMistakes(
+  overlay: TypingOverlay, id: string, color: string, fontFamily: string,
+  fontSize: number, lineHeight: number, mistakeGlyphs: MistakeGlyph[],
+  totalDuration: number, totalSec: number,
+): { parts: string[]; cssRules: string[] } {
+  const parts: string[] = [];
+  const cssRules: string[] = [];
+  mistakeGlyphs.forEach((m, n) => {
+    const cls = `${id}-mis${n}`;
+    const lineY = overlay.y + m.li * lineHeight;
+    parts.push(
+      `  <text class="${cls}" x="${(overlay.x + m.leftEdge).toFixed(2)}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}">${escapeHtml(m.ch)}</text>`,
+    );
+    // step-end opacity: 0 until showMs, 1 through the typo, 0 on backspace.
+    const showPct = pct(m.showMs, totalDuration);
+    const hidePct = pct(Math.max(m.hideMs, m.showMs + 1), totalDuration);
+    cssRules.push(`
+    @keyframes ${cls} { 0% { opacity: 0; } ${showPct} { opacity: 1; } ${hidePct} { opacity: 0; } 100% { opacity: 0; } }
+    .${cls} { animation: ${cls} ${totalSec.toFixed(2)}s step-end infinite; }`);
+  });
+  return { parts, cssRules };
+}
+
 function renderTypingOverlay(
   overlay: TypingOverlay,
   frameIdx: number,
@@ -1172,6 +1310,10 @@ function renderTypingOverlay(
   const delay = overlay.delay ?? DEFAULT_TYPING_DELAY_MS;
   const speed = overlay.speed ?? DEFAULT_TYPING_SPEED_CPS;
   const fontSize = overlay.fontSize ?? DEFAULT_OVERLAY_FONT_SIZE;
+  // The family the reveal measures + paints (the monospace field stack).
+  // DM-1558 will let an author override this per overlay.
+  const fontFamily = OVERLAY_TYPING_FONT;
+  const thinkMs = overlay.mistakeThinkMs ?? DEFAULT_MISTAKE_THINK_MS;
   const charWidth = fontSize * MONO_CHAR_WIDTH_RATIO;
   // DM-1205: the typewriter reveal hides not-yet-typed text with a width-0 clip
   // rect. Chrome renders a zero-area clip path as "clip everything" (text
@@ -1201,9 +1343,14 @@ function renderTypingOverlay(
   const chars = lines.map((l) => [...l]);
   // DM-1518: fontkit-measured cumulative advances per line — the caret + reveal
   // ride these exact edges instead of the old uniform 0.6em estimate.
-  const { cum } = measureTypingLines(chars, fontSize);
+  const { advOf } = overlayAdvances(fontFamily, fontSize);
+  const cum = cumFromChars(chars, advOf);
   const visibleChars = Math.max(1, chars.reduce((n, l) => n + l.length, 0));
   const longestLineWidth = cum.reduce((m, c) => Math.max(m, c[c.length - 1]), 0);
+  const discrete = overlay.mode !== "paste" && visibleChars <= MAX_DISCRETE_TYPING_CHARS;
+  // DM-1555: mistakes are per-keystroke detours — only meaningful in the
+  // discrete (per-glyph) reveal, never in paste or the coarse linear sweep.
+  const mistakes = discrete ? planMistakes(chars, overlay) : new Map<number, string>();
 
   const parts: string[] = [];
   const cssRules: string[] = [];
@@ -1214,7 +1361,9 @@ function renderTypingOverlay(
   // to fit. The fully-typed text then HOLDS until just before the frame ends
   // (the old hard 3 s cap cut long text off mid-type), then fades out.
   const disappearGap = 150;
-  const naturalEndMs = typeStartMs + visibleChars * speed;
+  // DM-1555: grow the natural window by each typo's cost (wrong glyph +
+  // backspace + think pause) so mistakes don't over-compress the rest.
+  const naturalEndMs = typeStartMs + visibleChars * speed + mistakeOverheadMs(mistakes, speed, thinkMs);
   const textEndMs = Math.min(naturalEndMs, Math.max(typeStartMs + 1, frameEnd - disappearGap));
   const effTypeDur = Math.max(1, textEndMs - typeStartMs);
   const holdEndMs = Math.max(textEndMs, frameEnd - disappearGap);
@@ -1242,17 +1391,24 @@ function renderTypingOverlay(
     .${id}-bg { animation: ${id}-bg ${totalSec.toFixed(2)}s infinite; }`);
   }
 
-  // DM-1518: the shared reveal plan — one entry per typed glyph, carrying the
-  // line, the caret x AFTER it (its measured right edge), and its reveal time.
-  // Both the line clips and the caret ride this plan, so they can't desync.
-  const glyphs = buildTypingPlan(chars, cum, overlay, speed, typeStartMs, effTypeDur);
-  const discrete = overlay.mode !== "paste" && visibleChars <= MAX_DISCRETE_TYPING_CHARS;
+  // DM-1518 / DM-1555: the shared reveal plan — the final glyphs (drive the line
+  // clips), the temporary mistake glyphs, and the caret waypoints (including
+  // backspace retreats). All three ride one plan, so they can't desync.
+  const { glyphs, mistakeGlyphs, caretSteps } = buildTypingPlan(
+    chars, cum, overlay, speed, typeStartMs, effTypeDur, advOf, mistakes, thinkMs,
+  );
 
   // Typewriter reveal — one <text> per wrapped line, each unveiled by a width-
   // growing clip stepping to each glyph's measured edge as it is typed.
-  const ln = buildTypingLines(chars, overlay, id, cum, glyphs, discrete, lineHeight, fontSize, textHeight, hiddenW, color, totalDuration, holdEndPct, disappearPct, totalSec);
+  const ln = buildTypingLines(chars, overlay, id, cum, glyphs, discrete, lineHeight, fontSize, textHeight, hiddenW, color, fontFamily, totalDuration, holdEndPct, disappearPct, totalSec);
   parts.push(...ln.parts);
   cssRules.push(...ln.cssRules);
+
+  // DM-1555: the mistyped glyphs — painted just long enough to be seen, then
+  // backspaced away (opacity 1 over [showMs, hideMs), 0 otherwise).
+  const mis = buildTypingMistakes(overlay, id, color, fontFamily, fontSize, lineHeight, mistakeGlyphs, totalDuration, totalSec);
+  parts.push(...mis.parts);
+  cssRules.push(...mis.cssRules);
 
   // Whole-overlay visibility — shared by every line's <text>.
   const typeStartPct = pct(typeStartMs, totalDuration);
@@ -1262,8 +1418,8 @@ function renderTypingOverlay(
 
   // Optional blinking insertion caret glued to the growing text edge. In paste
   // mode only the final edge matters, so the caret rides a single end stop.
-  const caretGlyphs = overlay.mode === "paste" ? glyphs.slice(-1) : glyphs;
-  const cr = buildTypingCaret(overlay, id, color, caretGlyphs, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec);
+  const caretRide = overlay.mode === "paste" ? caretSteps.slice(-1) : caretSteps;
+  const cr = buildTypingCaret(overlay, id, color, caretRide, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec);
   parts.push(...cr.parts);
   cssRules.push(...cr.cssRules);
 

@@ -120,6 +120,32 @@ export const typingOverlaySchema = z.object({
   caret: z
     .union([z.boolean(), z.object({ color: z.string().optional(), width: z.number().optional(), blinkMs: z.number().optional() })])
     .optional(),
+  /**
+   * DM-1555: humanize the typing with occasional MISTAKES — type a wrong
+   * glyph, pause to "notice" it, backspace, then retype the correct one. Two
+   * spellings:
+   *   - a **number** in `[0, 1]` — the per-character probability that a typo
+   *     fires (only on alphanumeric characters, never two in a row, never on
+   *     the final character). Seeded off the text via a DETERMINISTIC PRNG, so
+   *     the emitted SVG stays byte-stable across runs (the committed-golden
+   *     invariant) while the typo positions look organic.
+   *   - an **explicit list** `[{ at, wrong? }]` — force a typo at flattened
+   *     character index `at` (0-based over the whole typed string, across
+   *     wrapped lines), optionally typing `wrong` first. When `wrong` is
+   *     omitted a deterministic QWERTY-neighbor of the correct glyph is used.
+   * Ignored in `mode: "paste"` (a paste has no keystrokes to mistype) and when
+   * the typed text exceeds the discrete-stepping ceiling (the reveal is a
+   * coarse linear sweep there, with no room for per-keystroke detours).
+   */
+  mistakes: z
+    .union([z.number().min(0).max(1), z.array(z.object({ at: z.number().int().min(0), wrong: z.string().optional() }))])
+    .optional(),
+  /**
+   * DM-1555: the "think" pause (ms) between typing a wrong glyph and
+   * backspacing it — the beat where a real typist notices the error. Default
+   * `400`. Only meaningful when `mistakes` is set.
+   */
+  mistakeThinkMs: z.number().optional(),
 });
 export type TypingOverlay = z.infer<typeof typingOverlaySchema>;
 

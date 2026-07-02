@@ -74,7 +74,38 @@ All optional; existing configs are unchanged.
 | `mode` | `"type"` \| `"paste"` | `"type"` | `type` steps glyph-by-glyph; `paste` drops the whole string at once (caret jumps to the end). `speed`/`jitter` are ignored in `paste`. |
 | `jitter` | number `0–1` | `0` | Humanize the cadence: each delay becomes `speed × (1 ± jitter)` (min `0.25×speed`) drawn from a **deterministic** PRNG seeded off the text — so the SVG stays byte-stable across runs while the typing loses its robotic fixed interval. |
 | `caret` | boolean \| `{ color, width, blinkMs }` | off | The blinking insertion bar; now `step-end` on both its position (per-keystroke jumps) and blink tracks. |
+| `mistakes` | number `0–1` \| `[{ at, wrong? }]` | off | Humanizing typos (DM-1555). See below. |
+| `mistakeThinkMs` | number (ms) | `400` | Pause between typing a wrong glyph and backspacing it. |
 | `delay` | number (ms) | `300` | Delay from frame start before typing begins. |
+
+### Mistake → backspace → correct (DM-1555)
+
+`mistakes` makes the typist occasionally slip: type a wrong glyph, pause to
+"notice" it (`mistakeThinkMs`), backspace, then retype the correct one. Two
+spellings:
+
+- a **number** in `[0, 1]` — the per-character probability a typo fires. Only
+  alphanumeric characters are eligible, never two adjacent, never the final
+  character. Positions and the wrong glyphs are chosen by a **deterministic**
+  PRNG seeded off the text, so the SVG stays byte-stable (the committed-golden
+  invariant) while the slips look organic.
+- an **explicit list** `[{ at, wrong? }]` — force a typo at flattened character
+  index `at` (0-based across wrapped lines), optionally typing `wrong` first.
+  When `wrong` is omitted a QWERTY-neighbor of the correct glyph is used
+  (case-preserved; next digit for digits).
+
+Mechanism: it rides the SAME shared reveal plan as the normal typing, so nothing
+can desync. The wrong glyph is painted as a standalone element OUTSIDE the line
+clip (which only ever reveals the correct text), shown over the held prefix
+across `[showMs, hideMs)` and hidden on backspace. The caret's waypoint list
+gains the extra steps — advance past the typo, **retreat** to the prefix edge on
+backspace, re-advance on retype — so it visibly steps back then forward. The
+natural type window grows by each typo's cost (wrong glyph + backspace + think
+pause) so mistakes don't over-compress the rest of the typing.
+
+Ignored in `mode: "paste"` (a paste has no keystrokes to mistype) and above the
+discrete-stepping ceiling (`MAX_DISCRETE_TYPING_CHARS`), where the coarse linear
+sweep has no room for per-keystroke detours.
 
 Determinism note: jitter is seeded via an FNV-1a hash of the overlay text into a
 mulberry32 PRNG, so a given config always emits the identical SVG (the project's
@@ -100,15 +131,7 @@ rendered SVG is the source of truth:
 These were considered for v1 and deliberately scoped out; each is a clean
 addition on top of the shared reveal plan.
 
-1. **Mistake → backspace → correct.** A `mistakes` knob (probability or explicit
-   `[{ at, wrong }]`) that types a wrong glyph, pauses, backspaces it, and
-   retypes the right one. The reveal plan already sequences per-glyph events; a
-   mistake is a plan entry with a negative (delete) step and a re-type. Needs:
-   the reveal clip to shrink (not only grow), and the caret to step backward —
-   both are just extra `TypedGlyph` events with earlier edges. Tunables: mistake
-   rate, backspace speed, "think" pause before correcting.
-
-2. **Per-keystroke real-site re-sampling.** Instead of synthesizing the field
+1. **Per-keystroke real-site re-sampling.** Instead of synthesizing the field
    text as an overlay, actually drive the live page one `page.keyboard.type`
    keystroke at a time and **capture the field's painted state after each
    keystroke**, compositing the real per-character frames. This is the
@@ -118,29 +141,17 @@ addition on top of the shared reveal plan.
    a `resample: true` on the typing action) that emits N sub-frames. The caret
    would come from the field's real caret rect rather than the synthetic bar.
 
-3. **Proportional / glyph-path rendering.** v1 keeps the monospace `<text>` +
-   viewer-font dependency (exact on the capture platform, within the project's
-   normal cross-viewer font tolerance elsewhere). Rendering the typed text as
-   **glyph paths** via `renderTextAsPath` would make the painted advances equal
-   the measured ones on **every** viewer by construction (no viewer-font
-   dependency) and unlock **proportional** fonts (matching the field's actual
-   font for realism) with **pixel-based wrapping** instead of the current
-   char-count wrap. This is the natural convergence with the main text pipeline.
-
-4. **`fontFamily` override on the overlay.** Let an author point the reveal at a
-   specific family (e.g. the captured field's font) for both measurement and
-   paint. Blocked on (3) for correct wrapping when the family is proportional.
-
-5. **Paste-with-selection / replace.** A paste that first selects existing field
+2. **Paste-with-selection / replace.** A paste that first selects existing field
    text (highlight) then replaces it, for "edit an existing value" demos.
 
 ## Related
 
 - `docs/43-declarative-animate-config.md` §5 — the `typing` overlay authoring
-  surface (anchor, `wrapWidth`, `mask`, and now `mode` / `jitter`).
+  surface (anchor, `wrapWidth`, `mask`, and now `mode` / `jitter` / `mistakes`).
 - `docs/13-cursor-overlay.md` — the cursor/caret model; typing overlays target
   the **content** box (where text starts inside a padded field).
 - `docs/08-animation-model.md` — `AnimationOverlay` / `generateAnimatedSvg`, the
   renderer input the typing overlay is part of.
-- `src/animation/animator.ts` — `renderTypingOverlay`, `measureTypingLines`,
-  `buildTypingPlan`, `buildTypingLines`, `buildTypingCaret`.
+- `src/animation/animator.ts` — `renderTypingOverlay`, `overlayAdvances`,
+  `buildTypingPlan`, `planMistakes`, `buildTypingLines`, `buildTypingMistakes`,
+  `buildTypingCaret`.
