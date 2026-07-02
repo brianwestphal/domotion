@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { composeAnimatedLayers, dedupeCompositeFonts } from "./composite.js";
 
 /** A minimal animated-SVG document with its own period and global names. */
@@ -8,7 +8,41 @@ function animatedDoc(periodS: number, idTag = "a"): string {
 }
 const staticDoc = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="#222"/></svg>`;
 
+/** A layer SVG that carries the DM-1529 Firefox trap: fill-box inside a clipPath. */
+const trapLayer =
+  `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100">` +
+  `<clipPath id="t"><rect style="transform-box: fill-box; transform-origin: left top" width="200" height="100"/></clipPath>` +
+  `<rect clip-path="url(#t)" width="200" height="100" fill="#333"/></svg>`;
+
 describe("composeAnimatedLayers (DM-1323)", () => {
+  it("warns (non-fatally) when an input layer carries the Firefox fill-box-in-clip trap (DM-1529)", () => {
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const r = composeAnimatedLayers(
+        [{ svg: staticDoc, x: 0, y: 0, width: 400, height: 300 }, { svg: trapLayer, x: 10, y: 10, width: 200, height: 100 }],
+        { width: 400, height: 300 },
+      );
+      // Non-fatal: the composite still assembled.
+      expect(r.svg.startsWith("<svg")).toBe(true);
+      // …and the trap is surfaced, attributed to the offending layer index.
+      expect(r.warnings).toBeDefined();
+      expect(r.warnings).toHaveLength(1);
+      expect(r.warnings![0]).toContain("layer 1");
+      expect(r.warnings![0]).toContain("Firefox");
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("emits no warnings for clean layers (Domotion's own output never trips the trap)", () => {
+    const r = composeAnimatedLayers(
+      [{ svg: staticDoc, x: 0, y: 0, width: 400, height: 300 }, { svg: animatedDoc(4), periodMs: 4000 }],
+      { width: 400, height: 300 },
+    );
+    expect(r.warnings).toBeUndefined();
+  });
+
   it("stacks layers z-ordered into one outer svg sized to the canvas", () => {
     const r = composeAnimatedLayers(
       [{ svg: staticDoc, x: 0, y: 0, width: 400, height: 300 }, { svg: animatedDoc(4), periodMs: 4000, x: 50, y: 40 }],

@@ -104,6 +104,16 @@ fading before it finishes sliding in the lower-third template.
   (numeric px from the rect's x/y/w/h) with no `fill-box`, which is identical
   across engines. See `src/animation/composite.ts` (`resolveClipOriginPx`).
 
+  Domotion's own generators never emit this trap, but a **caller-supplied layer
+  SVG** fed to `composeAnimatedLayers` can carry it in. So the invariant is also
+  guarded at the composite boundary: each input layer is scanned with
+  `findFillBoxInClipOrMask` (`src/post-processing/clip-transform-safety.ts`) and
+  any hit is surfaced non-fatally on `CompositeResult.warnings` (and via
+  `console.warn`) — the composite still assembles and is correct in
+  Chromium/WebKit; only the offending clip/mask misbehaves in Firefox.
+  `assertNoFillBoxInClipOrMask` is the throwing variant for callers that want a
+  violation to fail their build.
+
 Not to be confused with the **transparent-flash-at-cut-points** bug (DM-1511),
 which was a different, harder Firefox failure — the frame show/hide flipped
 `opacity` and `visibility` together in one `step-end` keyframe and Firefox

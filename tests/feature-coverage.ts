@@ -100,6 +100,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/post-processing/optimize.test.ts"],
   },
   {
+    id: "postprocess.clip-transform-safety",
+    behavior: "Detect the Firefox-only trap of `transform-box: fill-box` inside a `<clipPath>`/`<mask>` (ignored by Firefox → clip/mask pivots about the SVG origin). Surfaced non-fatally by composite over caller-supplied layers; assert variant fails fast.",
+    doc: "docs/84-viewer-browser-support.md",
+    exports: ["findFillBoxInClipOrMask", "assertNoFillBoxInClipOrMask"],
+    tests: ["src/post-processing/clip-transform-safety.test.ts", "src/animation/composite.test.ts"],
+  },
+  {
     id: "render.embed-images",
     behavior: "Embed remote images as data URIs and resize oversized embeds to the target raster size.",
     doc: "docs/26-self-contained-svgs.md",

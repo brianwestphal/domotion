@@ -31,6 +31,7 @@
  */
 
 import { isTransparentBackground } from "../utils/transparent-background.js";
+import { findFillBoxInClipOrMask } from "../post-processing/clip-transform-safety.js";
 import { namespaceEmbeddedAnimatedSvg } from "./embed-namespace.js";
 import { offsetEmbeddedAnimatedSvgTimeline, type EmbeddedTimelineMode } from "./embed-timeline.js";
 import { parseSvgIntrinsicSize, fmt, clampPct } from "./svg-meta.js";
@@ -124,6 +125,16 @@ export interface CompositeResult {
   height: number;
   /** The master loop length actually used (ms). */
   durationMs: number;
+  /**
+   * Non-fatal cross-browser warnings about the *input* layers, one string each
+   * (empty/omitted when clean). Currently: a layer SVG that carries
+   * `transform-box: fill-box` on a `<clipPath>`/`<mask>` child — a silent
+   * Firefox-only trap (DM-1529) that Domotion's own generators never emit, but a
+   * user-supplied layer can bring in. Also logged via `console.warn`. Composition
+   * still proceeds; the composite is correct in Chromium/WebKit and only the
+   * offending clip/mask misbehaves in Firefox.
+   */
+  warnings?: string[];
 }
 
 
@@ -175,6 +186,22 @@ function renderAnimValue(property: "scale" | "translateX" | "translateY" | "opac
  */
 export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLayersOptions): CompositeResult {
   const { width, height } = opts;
+
+  // DM-1529 (generalized): the composite's own clip-scale never emits the trap
+  // (it pivots about an explicit userspace point — see `resolveClipOriginPx`),
+  // but a caller-supplied layer SVG can bring `transform-box: fill-box` inside a
+  // `<clipPath>`/`<mask>` with it. That's ignored by Firefox — the clip/mask
+  // shape lands about the SVG viewport origin instead of its own box and silently
+  // clips content wrong, only in Firefox. Surface it (non-fatally) so the caller
+  // isn't blindsided by a browser-specific break in the composited output.
+  const warnings: string[] = [];
+  layers.forEach((layer, i) => {
+    for (const v of findFillBoxInClipOrMask(layer.svg)) {
+      const w = `composeAnimatedLayers: layer ${i} — ${v}. This is ignored by Firefox (DM-1529); position the clip/mask transform with an explicit userspace transform-origin instead.`;
+      warnings.push(w);
+      console.warn(w);
+    }
+  });
 
   // Resolve each layer's geometry + intrinsic size first so we can size the master.
   const resolved = layers.map((layer, i) => {
@@ -325,7 +352,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
   // family references at the surviving copy.
   svg = dedupeCompositeFonts(svg);
 
-  return { svg, width, height, durationMs: master };
+  return { svg, width, height, durationMs: master, ...(warnings.length > 0 ? { warnings } : {}) };
 }
 
 /**

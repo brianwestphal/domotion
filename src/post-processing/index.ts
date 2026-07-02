@@ -3,3 +3,4 @@
 
 export { optimizeSvg } from "./optimize.js";
 export { gzipSvg } from "./gzip.js";
+export { findFillBoxInClipOrMask, assertNoFillBoxInClipOrMask } from "./clip-transform-safety.js";
