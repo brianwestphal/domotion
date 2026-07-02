@@ -24,6 +24,20 @@ describe("easing presets (DM-1526)", () => {
   it("every listed easing preset resolves", () => {
     for (const n of easingPresetNames()) expect(EASING_PRESETS[n]).toBeTruthy();
   });
+
+  it("DM-1542: the spring presets resolve to sampled linear() strings, not beziers", () => {
+    for (const n of ["spring-bouncy", "spring-soft"]) {
+      const css = resolveEasingPreset(n)!;
+      expect(css.startsWith("linear(")).toBe(true);
+      expect(css).not.toContain("cubic-bezier");
+    }
+    // spring-bouncy carries a real overshoot (a baked value > 1); the plain
+    // `spring` bezier stays a single-overshoot cubic-bezier.
+    const bouncy = resolveEasingPreset("spring-bouncy")!;
+    const nums = bouncy.slice("linear(".length, -1).split(",").map((s) => parseFloat(s));
+    expect(Math.max(...nums)).toBeGreaterThan(1.2);
+    expect(resolveEasingPreset("spring")).toBe("cubic-bezier(0.34,1.56,0.64,1)");
+  });
 });
 
 describe("motion presets (DM-1526)", () => {

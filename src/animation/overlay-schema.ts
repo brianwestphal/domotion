@@ -176,12 +176,48 @@ export const blinkOverlaySchema = z.object({
 });
 export type BlinkOverlay = z.infer<typeof blinkOverlaySchema>;
 
+/**
+ * DM-1542: a "shine / shimmer" sweep over a box — the classic moving-highlight
+ * glint (the `shine` motion preset). A diagonal linear-gradient band travels
+ * across the box, clipped to it, driven ONLY by `transform: translateX` on a
+ * gradient-filled rect (no animated CSS `filter`, so it composites consistently
+ * on Blink + WebKit — docs/84). Backed by the shared `buildShineSweep` helper,
+ * which also powers the `shine` frame transition (DM-1524). Outside its sweep the
+ * band parks off-box (invisible), so the underlying content rests untouched.
+ */
+export const shineOverlaySchema = z.object({
+  kind: z.literal("shine"),
+  /** Top-left of the box the glint is clipped to, in the frame's coordinate space. */
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+  /** Ms after the frame becomes visible before the first sweep. Default 200. */
+  delay: z.number().optional(),
+  /** Length of ONE sweep in ms (one-shot; ignored when `repeat` is set). Default 900. */
+  duration: z.number().optional(),
+  /** Highlight color. Default a soft white. */
+  color: z.string().optional(),
+  /** Peak opacity of the glint band (0–1). Default 0.55. */
+  opacity: z.number().optional(),
+  /** Band thickness in px. Default ~28% of `width`. */
+  bandWidth: z.number().optional(),
+  /** Skew of the band from vertical, in degrees. Default 14. */
+  skewDeg: z.number().optional(),
+  /** Repeat the sweep for an ambient shimmer: a count or `"infinite"`. */
+  repeat: z.union([z.number(), z.literal("infinite")]).optional(),
+  /** Period of ONE ambient sweep in ms (only with `repeat`). Default 1400. */
+  repeatPeriodMs: z.number().optional(),
+});
+export type ShineOverlay = z.infer<typeof shineOverlaySchema>;
+
 /** The resolved overlay union `generateAnimatedSvg` consumes per frame. */
 export const animationOverlaySchema = z.discriminatedUnion("kind", [
   typingOverlaySchema,
   tapOverlaySchema,
   svgOverlaySchema,
   blinkOverlaySchema,
+  shineOverlaySchema,
 ]);
 export type AnimationOverlay = z.infer<typeof animationOverlaySchema>;
 

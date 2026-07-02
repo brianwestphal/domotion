@@ -48,6 +48,12 @@ The CSS spec interpolates discrete properties by snapping at 50% of a segment by
 | `scroll` | Vertical scroll between frames; both stay visible during the transition. | Composited + transform. |
 | `cut` | **New (DM-208).** Instant — no fade, no slide. `duration` ignored. | Composited (step-end `fv-N`). |
 | `magic-move` | **New (DM-898).** Elements shared between the two frames slide from their old position to their new one; added/removed elements cross-fade. Keynote "Magic Move". | Composited prev/next blobs (hard-cut at the window edges) + a bridge composite over the window. See `docs/53-magic-move-transition.md`. |
+| `push-right` / `push-up` / `push-down` | **New (DM-1524).** Directional siblings of `push-left`/`scroll` — both frames slide together on the named axis/direction (`push-up` == `scroll`). | Composited + transform (same slide engine). See `docs/88`. |
+| `wipe` / `iris` | **New (DM-1524).** The incoming frame unveils on top of the (held) outgoing frame via an animated `clip-path` — `wipe` a linear `inset()` reveal, `iris` an expanding `circle()`. Rests fully revealed. | Composited; outgoing hard-cuts, incoming clip-reveals. See `docs/88`. |
+| `zoom-in` / `zoom-out` | **New (DM-1524).** A scale dolly under a crossfade — the incoming frame grows (`0.9→1`) or settles (`1.1→1`) into place, resting at `scale(1)`, pivoting about the viewport center. | Composited crossfade + a scale wrapper. See `docs/88`. |
+| `shine` | **New (DM-1524).** A crossfade accented by a swept gradient highlight over the handoff window (the shared `buildShineSweep` helper). | Composited crossfade + a transform-driven gradient sweep on top. See `docs/88`. |
+
+All the DM-1524 additions express motion in `transform` / `clip-path` / `opacity` / gradients only — never an animated CSS `filter` (Chromium-only inside `<img>`; docs/84). Full reference: **`docs/88-transition-effect-expansion.md`**.
 
 `cut` is the right pick for any case where adjacent frames represent "the page was just updated" rather than "we're transitioning between two screens" — e.g. progress-bar resizing, a new line appearing in a terminal, a panel toggling. It's also cleaner than the 0-duration-crossfade hack we currently use in the install-demo.
 
@@ -205,16 +211,25 @@ runtime.
 **Motion presets** (each fuses `opacity` into its transform track):
 `fade`, `fade-up`, `fade-down`, `pop` (center-origin scale overshoot),
 `slide-in-left` / `slide-in-right` / `slide-in-up` / `slide-in-down`, and
-`wipe-in` (a left→right `clip-path` reveal). `exit: true` reverses a preset.
-(`shine`, a gradient sweep, needs a mask/gradient overlay and is tracked
-separately.)
+`wipe-in` (a left→right `clip-path` reveal). `exit: true` reverses a preset. The
+**`shine`** shimmer (DM-1542) can't be a from/to on the element itself (it's a
+moving masked gradient), so it ships as a `kind: "shine"` overlay backed by the
+shared `buildShineSweep` helper — see `docs/88-transition-effect-expansion.md`.
 
 **Easing presets** resolve to plain `cubic-bezier(...)` (cross-engine, no runtime):
 the standard eases plus `ease-out-quad/cubic/quart/expo`, `ease-in-cubic`,
-`ease-in-out-cubic`, `smooth`, and the overshoot set `back-in` / `back-out` /
-`back-in-out` / `spring`. A raw CSS easing string passes through unchanged. (A
-true multi-oscillation spring, baked to keyframe samples via the DM-1517 sampler,
-is a follow-up — the current `spring` is a single-overshoot bezier.)
+`ease-in-out-cubic`, `smooth`, and the single-overshoot set `back-in` / `back-out`
+/ `back-in-out` / `spring`. A raw CSS easing string passes through unchanged.
+
+**Sampled springs (DM-1542).** For a TRUE multi-oscillation spring — one that
+rings past its target several times before settling, which a single cubic-bezier
+can't express — two presets bake the damped-spring step-response to CSS
+`linear(...)` keyframe samples (the cross-engine carrier for an arbitrary sampled
+curve; Chrome 113+, Safari 17.2+, Firefox 112+ — docs/84): **`spring-bouncy`**
+(~3 overshoots) and **`spring-soft`** (a single gentle overshoot). `resolveEasingPreset`
+returns the `linear(...)` string for these; `springLinearEasing` / `springEasingFn`
+live in `src/animation/easing.ts`. Both pin their endpoints to `0`/`1` so the
+motion rests at identity. Full reference: `docs/88`.
 
 The built-in templates' staggered reveals build on this same vocabulary (`fade-up`
 / `pop`), so template and hand-authored motion stay consistent.

@@ -1,18 +1,22 @@
 /**
- * Showcase: Transition Types — FOUR separate, self-contained mini-demos, one per
- * transition, each a clean two-scene loop.
+ * Showcase: Transition Types — separate, self-contained mini-demos, one per
+ * transition, each a clean two-scene loop, plus a spring + shine effects scene.
  *
- * Why four demos instead of one chained tour: the animator drives a frame's
- * ENTRANCE from the PREVIOUS frame's transition type but routes the frame by its
- * OWN type, so chaining *different* transition types (crossfade → push → scroll)
- * leaves each incoming frame in the wrong branch and it never slides/fades IN —
- * the crossfade dips to black and slides reveal empty canvas. Keeping each demo
- * to a single, consistent transition type sidesteps that (the mixed-type
+ * Why one demo per transition instead of one chained tour: the animator drives a
+ * frame's ENTRANCE from the PREVIOUS frame's transition type but routes the frame
+ * by its OWN type, so chaining *different* transition types (crossfade → push →
+ * scroll) leaves each incoming frame in the wrong branch and it never slides/fades
+ * IN — the crossfade dips to black and slides reveal empty canvas. Keeping each
+ * demo to a single, consistent transition type sidesteps that (the mixed-type
  * composition limitation is tracked separately). `loopFade: true` makes the last
  * frame transition back to the first for a seamless loop.
  *
- * Produces: transition-crossfade.svg, transition-pushleft.svg,
- * transition-scroll.svg, transition-magicmove.svg under examples/output/.
+ * Produces under examples/output/: transition-crossfade.svg, transition-pushleft.svg,
+ * transition-scroll.svg, transition-magicmove.svg, and (DM-1524/DM-1542) the
+ * cross-engine-safe expansion — transition-wipe.svg, transition-iris.svg,
+ * transition-zoom.svg, transition-shine.svg, and transition-effects.svg (a spring
+ * intra-frame animation + a shine overlay). All motion is transform / clip-path /
+ * opacity / gradient only — never an animated CSS filter (docs/84, docs/88).
  */
 
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -20,6 +24,7 @@ import { resolve } from "node:path";
 import { chromium, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../src/animation/animator.js";
+import { EASING_PRESETS } from "../src/animation/motion-presets.js";
 import { buildMagicMove } from "../src/animation/magic-move.js";
 import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "../src/render/index.js";
 import { optimizeSvg } from "./shared.js";
@@ -121,14 +126,51 @@ const MM_B = scene({ bg: TEAL, chip: "Magic move", accent: "#5eead4", body:
      ${mm("b", "animate", "frames → motion", 300, 160, "#4ade80")}
    </div>` });
 
+// DM-1524 additions — each a clean two-scene loop of a new cross-engine-safe
+// transition (transform / clip-path / opacity / gradients only; no filter).
+
+// Wipe — a linear left→right clip reveal of the incoming page.
+const WP_A = scene({ bg: INDIGO, chip: "Wipe", accent: "#7c9cff", body:
+  `<div class="h">Before</div><div class="sub">Draft copy</div>
+   <div class="card" style="margin-top:18px">The old hero section — plain, functional, forgettable.</div>` });
+const WP_B = scene({ bg: PURPLE, chip: "Wipe", accent: "#c4a3ff", body:
+  `<div class="h">After</div><div class="sub">Shipped copy</div>
+   <div class="card" style="margin-top:18px">The redesigned hero — bold, specific, on-brand. Wiped in over the old.</div>` });
+
+// Iris — an expanding circle unveils the incoming page from the center.
+const IR_A = scene({ bg: TEAL, chip: "Iris", accent: "#5eead4", body:
+  `<div class="h">Focus</div><div class="big">1</div><div class="sub">One thing at a time.</div>` });
+const IR_B = scene({ bg: GREEN, chip: "Iris", accent: "#4ade80", body:
+  `<div class="h">Reveal</div><div class="big">2</div><div class="sub">Then the next.</div>` });
+
+// Zoom — a scale dolly under a crossfade (the incoming grows into place).
+const ZM_A = scene({ bg: AMBER, chip: "Zoom in", accent: "#fbbf24", body:
+  `<div class="h">Overview</div><div class="sub">The whole board</div>
+   <div class="card" style="margin-top:18px">Zoomed out — every project at a glance.</div>` });
+const ZM_B = scene({ bg: INDIGO, chip: "Zoom in", accent: "#7c9cff", body:
+  `<div class="h">Detail</div><div class="sub">One project</div>
+   <div class="card" style="margin-top:18px">Dollied in — the payoff card, front and center.</div>` });
+
+// Shine — a crossfade accented by a swept gradient highlight over the handoff.
+const SH_A = scene({ bg: PURPLE, chip: "Shine", accent: "#c4a3ff", body:
+  `<div class="h">Unlock</div><div class="sub">Pro plan</div>
+   <div class="card" style="margin-top:18px">Everything in Starter, plus…</div>` });
+const SH_B = scene({ bg: TEAL, chip: "Shine", accent: "#5eead4", body:
+  `<div class="h">Unlocked</div><div class="sub">Pro plan</div>
+   <div class="card" style="margin-top:18px">…unlimited seats, SSO, and priority support. ✨</div>` });
+
 // ─── Build ─────────────────────────────────────────────────────────────────────
+
+type TransitionType =
+  | "crossfade" | "push-left" | "scroll" | "magic-move"
+  | "wipe" | "iris" | "zoom-in" | "shine";
 
 async function buildDemo(
   pg: Page,
   name: string,
   a: { html: string; p: string },
   b: { html: string; p: string },
-  type: "crossfade" | "push-left" | "scroll" | "magic-move",
+  type: TransitionType,
   durMs: number,
 ): Promise<void> {
   clearEmbeddedFonts();
@@ -161,9 +203,57 @@ async function main(): Promise<void> {
     await buildDemo(pg, "pushleft", { html: PL_A, p: "pla-" }, { html: PL_B, p: "plb-" }, "push-left", 600);
     await buildDemo(pg, "scroll", { html: SC_A, p: "sca-" }, { html: SC_B, p: "scb-" }, "scroll", 800);
     await buildDemo(pg, "magicmove", { html: MM_A, p: "mma-" }, { html: MM_B, p: "mmb-" }, "magic-move", 800);
+    // DM-1524 transition/effect expansion.
+    await buildDemo(pg, "wipe", { html: WP_A, p: "wpa-" }, { html: WP_B, p: "wpb-" }, "wipe", 700);
+    await buildDemo(pg, "iris", { html: IR_A, p: "ira-" }, { html: IR_B, p: "irb-" }, "iris", 800);
+    await buildDemo(pg, "zoom", { html: ZM_A, p: "zma-" }, { html: ZM_B, p: "zmb-" }, "zoom-in", 700);
+    await buildDemo(pg, "shine", { html: SH_A, p: "sha-" }, { html: SH_B, p: "shb-" }, "shine", 800);
+    // DM-1542 motion effects: a spring intra-frame animation + a shine overlay.
+    await buildEffects(pg);
   } finally {
     await browser.close();
   }
+}
+
+/**
+ * DM-1542 effects showcase (single scene, one loop): a stat card springs in from
+ * the left with the `spring-bouncy` sampled easing (multiple overshoots settling
+ * to rest), while a `shine` overlay sweeps a shimmer across a "PRO" badge.
+ * Produces `transition-effects.svg`.
+ */
+async function buildEffects(pg: Page): Promise<void> {
+  clearEmbeddedFonts();
+  // A fixed-position badge so the (manually built) shine overlay can sit over it
+  // at known coordinates — the CLI's selector-`anchor` resolution isn't in play
+  // for hand-built frames.
+  const badge = { x: 30, y: H - 30 - 34, w: 132, h: 34 };
+  const html = scene({ bg: INDIGO, chip: "Effects", accent: "#7c9cff", body:
+    `<div class="h">Spring + Shine</div><div class="sub">DM-1542</div>
+     <div class="card" data-domotion-anim="springcard" style="margin-top:18px">
+       <b>Damped spring</b><div class="sub">Overshoots, then settles to rest.</div>
+     </div>
+     <div style="position:absolute;left:${badge.x}px;top:${badge.y}px;width:${badge.w}px;height:${badge.h}px;display:flex;align-items:center;justify-content:center;color:#0a0f1e;background:#fbbf24;border-radius:8px;font-weight:800;letter-spacing:0.08em">PRO · SHINE</div>` });
+  const cap = await capture(pg, html, "fx-");
+  const frame: AnimationFrame = {
+    svgContent: cap.svg,
+    duration: 2600,
+    animations: [{
+      animId: "springcard", property: "translateX", from: "-260px", to: "0px",
+      duration: 1400, delay: 200,
+      // The sampled multi-oscillation spring, baked to a CSS linear(...) curve.
+      easing: EASING_PRESETS["spring-bouncy"],
+      fuse: [{ property: "opacity", from: "0", to: "1" }],
+    }],
+    overlays: [
+      // The shine shimmer sweeps the badge box repeatedly.
+      { kind: "shine", x: badge.x, y: badge.y, width: badge.w, height: badge.h, delay: 900, duration: 850, repeat: "infinite", repeatPeriodMs: 2000 },
+    ],
+  };
+  let svg = generateAnimatedSvg({ width: W, height: H, frames: [frame], fontFaceCss: getEmbeddedFontFaceCss(), background: "#0a0f1e" });
+  svg = optimizeSvg(svg);
+  const out = resolve(OUT_DIR, "transition-effects.svg");
+  writeFileSync(out, svg);
+  console.log(`Generated: ${out} (${(svg.length / 1024).toFixed(1)} KB)`);
 }
 
 void main();

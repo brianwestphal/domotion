@@ -286,7 +286,15 @@
                   "push-left",
                   "scroll",
                   "cut",
-                  "magic-move"
+                  "magic-move",
+                  "push-right",
+                  "push-up",
+                  "push-down",
+                  "wipe",
+                  "iris",
+                  "zoom-in",
+                  "zoom-out",
+                  "shine"
                 ]
               },
               "duration": {
@@ -1260,6 +1268,97 @@
                       "type": "number"
                     },
                     "delay": {
+                      "type": "number"
+                    },
+                    "anchor": {
+                      "type": "object",
+                      "properties": {
+                        "selector": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string",
+                          "enum": [
+                            "top-left",
+                            "top",
+                            "top-right",
+                            "left",
+                            "center",
+                            "right",
+                            "bottom-left",
+                            "bottom",
+                            "bottom-right"
+                          ]
+                        },
+                        "dx": {
+                          "type": "number"
+                        },
+                        "dy": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "selector"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "width",
+                    "height"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "shine"
+                    },
+                    "x": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "y": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "width": {
+                      "type": "number"
+                    },
+                    "height": {
+                      "type": "number"
+                    },
+                    "delay": {
+                      "type": "number"
+                    },
+                    "duration": {
+                      "type": "number"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "opacity": {
+                      "type": "number"
+                    },
+                    "bandWidth": {
+                      "type": "number"
+                    },
+                    "skewDeg": {
+                      "type": "number"
+                    },
+                    "repeat": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "const": "infinite"
+                        }
+                      ]
+                    },
+                    "repeatPeriodMs": {
                       "type": "number"
                     },
                     "anchor": {

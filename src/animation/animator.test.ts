@@ -1028,3 +1028,92 @@ describe("root svg accessible name (DM-1488)", () => {
     expect(svg).toMatch(/viewBox="0 0 100 100" width="100" height="100">/);
   });
 });
+
+// DM-1524 / DM-1542: transition + effect expansion. All new transitions must
+// express motion via transform / clip-path / opacity / gradients only — never an
+// animated CSS `filter` (Chromium-only inside <img>, docs/84).
+describe("transition expansion (DM-1524)", () => {
+  const twoFrame = (type: string) => generateAnimatedSvg({
+    width: 400, height: 200,
+    frames: [
+      { svgContent: `<rect id="a" width="400" height="200" fill="red"/>`, duration: 500, transition: { type, duration: 400 } as never },
+      { svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`, duration: 500, transition: { type, duration: 400 } as never },
+    ],
+  });
+
+  it("never animates a CSS filter in ANY new transition (cross-engine-safe)", () => {
+    for (const type of ["push-right", "push-up", "push-down", "wipe", "iris", "zoom-in", "zoom-out", "shine"]) {
+      const svg = twoFrame(type);
+      expect(svg, type).not.toContain("filter:");
+      expect(svg, type).not.toMatch(/blur\(/);
+    }
+  });
+
+  it("push-right exits toward +X and push-down toward +Y (opposite of push-left/up)", () => {
+    // Frame 0's fp-0 EXIT transform carries the signed direction: push-right
+    // exits +X (push-left exits -X on the same block), push-down exits +Y.
+    const fp0 = (svg: string) => svg.match(/@keyframes fp-0 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
+    expect(fp0(twoFrame("push-right"))).toContain("translateX(400px)");
+    expect(fp0(twoFrame("push-left"))).toContain("translateX(-400px)");
+    expect(fp0(twoFrame("push-down"))).toContain("translateY(200px)");
+    expect(fp0(twoFrame("push-up"))).toContain("translateY(-200px)");
+  });
+
+  it("push-up is the byte-identical alias of scroll", () => {
+    // scroll and push-up map to the same {axis:Y, sign:-1} direction.
+    expect(twoFrame("push-up")).toBe(twoFrame("scroll"));
+  });
+
+  it("wipe reveals the incoming frame via an inset clip-path (no box motion)", () => {
+    const svg = twoFrame("wipe");
+    // Frame 1 (entered from frame 0's wipe) gets an fr-1 clip reveal 100% -> 0%.
+    expect(svg).toContain(`class="fr-1"`);
+    expect(svg).toContain("@keyframes fr-1");
+    expect(svg).toContain("clip-path: inset(0 100% 0 0)"); // hidden
+    expect(svg).toContain("clip-path: inset(0 0 0 0)"); // fully revealed (rest)
+  });
+
+  it("iris reveals the incoming frame via an expanding circle clip-path", () => {
+    const svg = twoFrame("iris");
+    expect(svg).toContain("clip-path: circle(0px at 200px 100px)"); // pinhole
+    expect(svg).toContain("clip-path: circle(224px at 200px 100px)"); // ceil(hypot(200,100))
+  });
+
+  it("zoom-in scales the incoming frame 0.9 -> 1 (dolly) resting at scale(1)", () => {
+    const svg = twoFrame("zoom-in");
+    expect(svg).toContain(`class="fz-1"`);
+    expect(svg).toContain("@keyframes fz-1");
+    expect(svg).toContain("transform: scale(0.9)");
+    expect(svg).toContain("transform: scale(1)"); // rests at identity
+    // Center-origin about the viewport (400x200 -> 200,100).
+    expect(svg).toContain("transform-origin: 200px 100px");
+  });
+
+  it("zoom-out settles the incoming frame 1.1 -> 1", () => {
+    expect(twoFrame("zoom-out")).toContain("transform: scale(1.1)");
+  });
+
+  it("shine transition adds a gradient sweep over the handoff (transform-driven)", () => {
+    const svg = twoFrame("shine");
+    expect(svg).toContain("shine-grad-tr0"); // frame-0 handoff sweep
+    expect(svg).toContain("@keyframes shine-tr0");
+    expect(svg).toContain(".shine-tr0 { animation:");
+    expect(svg).toContain("transform: translateX"); // transform-driven, not filter
+    // Still cross-dissolves underneath (opacity keyframes present).
+    expect(svg).toContain("@keyframes fv-0");
+  });
+
+  it("a shine OVERLAY renders a clipped repeating shimmer over a box", () => {
+    const svg = generateAnimatedSvg({
+      width: 400, height: 200,
+      frames: [{
+        svgContent: `<rect width="400" height="200" fill="#333"/>`,
+        duration: 1500,
+        overlays: [{ kind: "shine", x: 20, y: 30, width: 200, height: 60, repeat: "infinite" }],
+      }],
+    });
+    expect(svg).toContain(`<clipPath id="shine-clip-sh0">`);
+    expect(svg).toContain("shine-grad-sh0");
+    expect(svg).not.toContain("filter:");
+  });
+});
