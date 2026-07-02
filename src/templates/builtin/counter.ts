@@ -14,7 +14,7 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, resolveCardTheme } from "./text-card-common.js";
+import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fsNum, fitOdometerCell, resolveCardTheme } from "./text-card-common.js";
 import { planOdometer, planTimer, buildOdometerMarkup, type OdometerPlan } from "./odometer.js";
 import type { SafeInset } from "../formats.js";
 
@@ -56,14 +56,25 @@ export function planCounter(p: CounterParams): OdometerPlan {
 export function buildCounterHtml(p: CounterParams, safeInset?: SafeInset): { html: string; animations: ReturnType<typeof buildOdometerMarkup>["animations"] } {
   const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
   const plan = planCounter(p);
-  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx: p.fontSize, durationMs: p.durationMs, easing: p.easing, staggerMs: p.staggerMs });
+  // DM-1541: scale the odometer cell size (which drives the roll geometry) by the
+  // adaptive per-ratio factor so the number reads at 9:16, then cap it so the
+  // fixed-width (unwrappable) number still fits the safe content width — a big
+  // number on a narrow reel would otherwise overflow. sf === 1 + no clamp with no
+  // format → cellPx === p.fontSize → byte-identical default output.
+  const sf = cardScaleFactor(p.width, p.height, safeInset);
+  const cols = plan.columns.length + (blank(p.prefix)?.length ?? 0) + (blank(p.suffix)?.length ?? 0);
+  const availableW = safeInset != null
+    ? p.width - Math.max(PADDING, safeInset.left) - Math.max(PADDING, safeInset.right)
+    : 0; // 0 disables the clamp (no format → byte-identical)
+  const cellPx = fitOdometerCell(fsNum(p.fontSize, sf), cols, availableW);
+  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx, durationMs: p.durationMs, easing: p.easing, staggerMs: p.staggerMs });
   const prefix = blank(p.prefix) != null ? `<span class="ct-affix">${escapeHtml(p.prefix!)}</span>` : "";
   const suffix = blank(p.suffix) != null ? `<span class="ct-affix">${escapeHtml(p.suffix!)}</span>` : "";
   const html = `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   ${cardHeadCss(p, PADDING, safeInset)}
   body { background: ${t.background}; color: ${t.text}; display: flex; align-items: center; justify-content: center; }
-  .ct-num { display: inline-flex; align-items: baseline; font-size: ${p.fontSize}px; font-weight: 800; letter-spacing: -0.02em; }
+  .ct-num { display: inline-flex; align-items: baseline; font-size: ${cellPx}px; font-weight: 800; letter-spacing: -0.02em; }
   .ct-affix { font-weight: 700; }
   ${od.css}
 </style></head>

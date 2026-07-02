@@ -65,6 +65,15 @@ capture options:
                            when input is a file).
       --width <n>          Viewport width in CSS pixels (default 800).
       --height <n>         Viewport height in CSS pixels (default 600).
+      --format <name|WxH>  Size the capture viewport from a social format preset
+                           (reel, story, square, portrait, landscape) or a raw
+                           WIDTHxHEIGHT (e.g. 1600x900). Explicit --width/--height
+                           still win; with --chrome the format sizes the inner
+                           captured content and the bezel is added around it.
+                           See docs/90-format-on-capture.md.
+      --safe-guide         Overlay the chosen format's safe-area rectangle
+                           (dashed; informational — it reflows nothing). Requires
+                           --format.
       --selector <css>     Element selector to capture (default "body").
       --clip <x,y,w,h>     Capture only this region (default: full viewport).
       --scroll-to <x,y>    Scroll the page to this offset before capturing
@@ -172,6 +181,17 @@ animate config (JSON):
       }
     ]
   }
+
+  animate options:
+    -o, --output <path>    Output SVG path (default: config "output", else stdout).
+        --format <name|WxH> Re-target the config's canvas (the animate viewport) to
+                           a format preset (reel/story/square/portrait/landscape) or
+                           a raw WIDTHxHEIGHT. Explicit --width/--height > format >
+                           the config's own width/height. The format's safe-area
+                           inset rides through to any "template" frame (page frames
+                           only get resized). See docs/90-format-on-capture.md.
+        --width/--height <n> Override the config canvas on one/both axes.
+        --optimize | --no-optimize | --quiet
 
   Transitions: "crossfade" | "push-left" | "scroll" | "cut" ("cut" = instant).
   Continuous session: frame 0 must load an "input"; a later frame that omits

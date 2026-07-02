@@ -10,8 +10,55 @@
  */
 
 import type { Anims } from "../../cli/animate.js";
-import { safeAreaPadding, type SafeInset } from "../formats.js";
+import { safeAreaPadding, formatScaleFactor, type SafeInset } from "../formats.js";
 import { resolveMotionPreset } from "../../animation/motion-presets.js";
+
+/**
+ * The adaptive per-ratio scale factor (docs/91, DM-1541) a text card applies to
+ * its authored font sizes / spacing. A thin re-export of {@link formatScaleFactor}
+ * so the cards import their two format helpers (`cardHeadCss` + this) from one
+ * module. Returns exactly `1` when no format is chosen (`safeInset == null`), so
+ * default output is byte-identical.
+ */
+export function cardScaleFactor(width: number, height: number, safeInset?: SafeInset): number {
+  return formatScaleFactor(width, height, safeInset);
+}
+
+/**
+ * Scale an authored px length by a card's adaptive scale factor and return a `px`
+ * string (docs/91, DM-1541). Rounded to 0.01 px so the emitted CSS is stable;
+ * with `sf === 1` it returns the integer unchanged (e.g. `fs(84, 1)` → `"84px"`),
+ * keeping the no-format default byte-identical.
+ */
+export function fs(px: number, sf: number): string {
+  return `${Math.round(px * sf * 100) / 100}px`;
+}
+
+/** Scale an authored px length by `sf`, returned as a rounded number (for markup
+ *  that needs a bare number, e.g. an SVG `font-size` attribute). */
+export function fsNum(px: number, sf: number): number {
+  return Math.round(px * sf * 100) / 100;
+}
+
+/** Tabular-digit advance as a fraction of the cell (em). The number templates lay
+ *  their value out with `font-variant-numeric: tabular-nums`; a digit's advance is
+ *  ~0.6 em in the default sans. A hair over that (0.64) buys a small safety margin
+ *  for the width-fit clamp below. */
+const DIGIT_ADVANCE = 0.64;
+
+/**
+ * Cap an odometer's scaled cell size so the WHOLE number fits `availableW` px
+ * (docs/91, DM-1541). A fixed-width number can't wrap, so the adaptive scale-up
+ * would otherwise overflow a narrow 9:16 canvas and clip the value. `cols` is the
+ * total column count (digits + separators + any prefix/suffix chars). Returns
+ * `scaledCell` unchanged when the number already fits, and — since callers only
+ * apply it under a chosen format — the no-format path stays byte-identical.
+ */
+export function fitOdometerCell(scaledCell: number, cols: number, availableW: number): number {
+  if (cols <= 0 || availableW <= 0) return scaledCell;
+  const maxCell = availableW / (cols * DIGIT_ADVANCE);
+  return Math.round(Math.min(scaledCell, maxCell) * 100) / 100;
+}
 
 /** Resolved card colors for a theme, after any explicit overrides. */
 export interface CardTheme {

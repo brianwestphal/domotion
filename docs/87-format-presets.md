@@ -1,12 +1,16 @@
 # 87 — Format presets (social aspect ratios)
 
-**Status: shipped v1 (DM-1521 design → DM-1534 impl).** The `FORMATS` table +
+**Status: shipped (DM-1521 design → DM-1534 impl → DM-1537 safe-area reflow →
+DM-1538 capture/animate → DM-1541 adaptive scaling).** The `FORMATS` table +
 `resolveFormat` + `--format` on `domotion template` + `safeInset` plumbing are
-built and tested (`src/templates/formats.ts`). Still open (follow-ups below):
-per-template *responsive reflow* that consumes `safeInset` at each ratio, and
-`--format` on `capture` / `animate`. A DM-1519 follow-up: creators think in
-**formats** (reel, square, story), not `width × height`. A single `--format`
-flag produces a platform-ready canvas.
+built and tested (`src/templates/formats.ts`). A DM-1519 follow-up: creators
+think in **formats** (reel, square, story), not `width × height`. A single
+`--format` flag produces a platform-ready canvas.
+
+Related docs: [90 — `--format` on capture/animate](./90-format-on-capture.md)
+(viewport sizing + device-frame interaction + the informational `--safe-guide`),
+and [91 — adaptive format scaling](./91-adaptive-format-scaling.md) (per-ratio
+type scaling so a landscape-tuned headline reads well at 9:16).
 
 ## Goal
 
@@ -84,7 +88,16 @@ around. (Tunable; not a platform-exact spec.)
 - **Per-template responsive reflow** — ✅ v1 done (DM-1537): the themeable
   built-ins now confine content to `canvas − safeInset` (via `safeAreaPadding` for
   the flex templates + an inner-dimension safe-rect wrapper for `chart`), with an
-  e2e assertion that content lands within the safe rect at 9:16. Remaining: deeper
-  font-scaling / stacking per ratio, and the DM-1523 creative-pack templates
-  (they honor `safeInset` the same way as they're built).
-- **`--format` on `capture` / `animate`** (viewport sizing + device-frame-aware).
+  e2e assertion that content lands within the safe rect at 9:16.
+- **`--format` on `capture` / `animate`** — ✅ done (DM-1538): sizes the capture
+  viewport via the same `resolveFormat` + precedence; device-frame-aware (format
+  sizes the inner screen, bezel wraps it); `safeInset` on a raw capture is the
+  informational `--safe-guide` overlay, not a reflow; threaded into `animate`'s
+  template frames. See [docs/90](./90-format-on-capture.md).
+- **Adaptive per-ratio font/line scaling** — ✅ done for the creative-pack text +
+  number cards (DM-1541): a `formatScaleFactor` derived from the safe-area
+  dimensions enlarges landscape-tuned type so it reads at 9:16 (number cards are
+  width-capped so a fixed-width value never overflows). See
+  [docs/91](./91-adaptive-format-scaling.md). Remaining: the other themeable
+  built-ins (`kinetic-text` / `lower-third` / `chat` / `subscribe` / `chart`
+  labels) and per-ratio layout _restructuring_ (not just scaling).

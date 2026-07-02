@@ -14,7 +14,7 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
+import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
 const ALIGN = ["center", "left"] as const;
@@ -49,6 +49,11 @@ export function buildTitleCardHtml(p: TitleCardParams, safeInset?: SafeInset): s
   if (p.subtitle != null && p.subtitle !== "") items.push(`<div class="tc-sub">${escapeHtml(p.subtitle)}</div>`);
   const alignItems = p.align === "center" ? "center" : "flex-start";
   const textAlign = p.align;
+  // DM-1541: scale the authored (landscape-tuned) type + gap by the adaptive
+  // per-ratio factor so the headline reads well at 9:16 (bigger relative type,
+  // and — with the percentage max-widths kept — tighter wrapping). sf === 1 with
+  // no format, so the default output is byte-identical.
+  const sf = cardScaleFactor(p.width, p.height, safeInset);
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   ${cardHeadCss(p, PADDING, safeInset)}
@@ -56,11 +61,11 @@ export function buildTitleCardHtml(p: TitleCardParams, safeInset?: SafeInset): s
     background: ${t.background};
     color: ${t.text};
     display: flex; flex-direction: column; justify-content: center; align-items: ${alignItems};
-    text-align: ${textAlign}; gap: 20px;
+    text-align: ${textAlign}; gap: ${fs(20, sf)};
   }
-  .tc-eyebrow { font-size: 26px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: ${p.accent}; }
-  .tc-title { font-size: 84px; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; max-width: 90%; }
-  .tc-sub { font-size: 34px; font-weight: 500; line-height: 1.3; color: ${t.muted}; max-width: 80%; }
+  .tc-eyebrow { font-size: ${fs(26, sf)}; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: ${p.accent}; }
+  .tc-title { font-size: ${fs(84, sf)}; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; max-width: 90%; }
+  .tc-sub { font-size: ${fs(34, sf)}; font-weight: 500; line-height: 1.3; color: ${t.muted}; max-width: 80%; }
 </style></head>
 <body>
   ${items.join("\n  ")}

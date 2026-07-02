@@ -25,6 +25,10 @@ import {
   logCaptureWarnings,
   optimizeSvg,
   parseScrollPattern,
+  resolveFormat,
+  safeAreaGuideSvg,
+  formatNames,
+  type ResolvedFormat,
   wrapInDeviceChrome,
   wrapSvg,
 } from "../index.js";
@@ -147,6 +151,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       output:        { type: "string", short: "o" },
       width:         { type: "string" },
       height:        { type: "string" },
+      format:        { type: "string" },
+      "safe-guide":  { type: "boolean" },
       selector:      { type: "string" },
       clip:          { type: "string" },
       "scroll-to":   { type: "string" },
@@ -187,13 +193,25 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   // by extension, like `.svgz` output).
   const har = isHarPath(input);
   validateCaptureFlags(values, har);
+  // DM-1538: `--format <name|WxH>` sizes the capture VIEWPORT via the shared
+  // format machinery (docs/87, docs/90). Precedence stays explicit `--width` /
+  // `--height` > format > default 800×600 — so `parseIntFlag`'s default becomes
+  // the format's size (still overridden by an explicit flag), and an explicit flag
+  // can pin one axis while the format supplies the other. `--safe-guide` overlays
+  // the resolved safe-area rectangle (informational; it reflows nothing — a raw
+  // capture has no template layout to reflow), so it requires `--format`.
+  let fmt: ResolvedFormat | undefined;
+  if (values.format != null) fmt = resolveFormat(values.format);
+  if (values["safe-guide"] === true && fmt == null) {
+    throw new Error(`capture: --safe-guide requires --format (a preset (${formatNames().join(", ")}) or WIDTHxHEIGHT) so there is a safe area to draw`);
+  }
   // svgz is auto-detected from the output filename extension; it implies
   // --optimize unless the caller passed --no-optimize.
   const svgz = isSvgzPath(values.output);
   const flags: CaptureFlags = {
     output:      values.output,
-    width:       parseIntFlag(values.width, "width", 800),
-    height:      parseIntFlag(values.height, "height", 600),
+    width:       parseIntFlag(values.width, "width", fmt?.width ?? 800),
+    height:      parseIntFlag(values.height, "height", fmt?.height ?? 600),
     selector:    values.selector ?? "body",
     clip:        values.clip != null ? parseTuple(values.clip, 4, "clip") as [number, number, number, number] : undefined,
     scroll:      values["scroll-to"] != null ? parseTuple(values["scroll-to"], 2, "scroll-to") as [number, number] : undefined,
@@ -357,8 +375,20 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       const inner = elementTreeToSvgInner(tree, clip[2], clip[3]);
       svg = wrapSvg(inner, clip[2], clip[3], { title: values.title, desc: values.desc });
     }
+    // DM-1538: overlay the resolved safe-area guide in the capture's own
+    // coordinate space (before any bezel wrap, so it sits over the content, not
+    // the frame). Non-destructive — a dashed rect + corner ticks marking where a
+    // format's platform-UI margins land.
+    if (values["safe-guide"] === true && fmt != null) {
+      const guide = safeAreaGuideSvg(clip[2], clip[3], fmt.safeInset);
+      svg = svg.replace(/<\/svg>\s*$/, `${guide}</svg>`);
+      log(`Safe-area guide overlaid (inset t${fmt.safeInset.top} r${fmt.safeInset.right} b${fmt.safeInset.bottom} l${fmt.safeInset.left})`);
+    }
     // DM-1206: wrap the finished capture in a device bezel. Nests the produced
-    // SVG (no re-render), so glyph paths match the bare capture exactly.
+    // SVG (no re-render), so glyph paths match the bare capture exactly. DM-1538:
+    // when `--format` sized the viewport, the format sizes the captured CONTENT
+    // (the inner screen); the bezel adds AROUND it, so the final output is the
+    // format size plus the rim (the log line reports the framed total).
     if (values.chrome != null && isDeviceChrome(values.chrome)) {
       const theme = isChromeTheme(values["chrome-theme"] ?? "") ? (values["chrome-theme"] as "light" | "dark") : undefined;
       const framed = wrapInDeviceChrome(svg, values.chrome, clip[2], clip[3], { label: values["chrome-label"], theme });
@@ -379,6 +409,17 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // and attach to an issue.
       const { copyFileSync } = await import("node:fs");
       copyFileSync(outPath, `${debugDir}/actual.svg`);
+    }
+    // DM-1538: when a `--format` was chosen, surface its resolved safe-area inset
+    // in the debug bundle (informational — a raw capture doesn't reflow to it, but
+    // the numbers document where the platform-UI margins sit for this format).
+    if (debug && debugDir != null && fmt != null) {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(
+        `${debugDir}/safe-area.json`,
+        JSON.stringify({ format: values.format, width: flags.width, height: flags.height, safeInset: fmt.safeInset }, null, 2),
+      );
+      log(`  debug: safe-area.json (format ${values.format})`);
     }
     // Playwright flushes `recordHar` only on `context.close()` — `browser
     // .close()` cascades but the cascade doesn't always wait for the HAR

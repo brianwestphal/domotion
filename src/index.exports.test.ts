@@ -16,6 +16,7 @@ import * as pkg from "./index.js";
 
 // Keep sorted. Every entry must have a row in docs/api.md.
 const EXPECTED_VALUE_EXPORTS = [
+  "ADAPTIVE_REFERENCE",
   "CHROME_THEMES",
   "CURSOR_CATEGORIES",
   "CURSOR_GLYPHS",
@@ -74,6 +75,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "executeScrollPattern",
   "findFillBoxInClipOrMask",
   "formatNames",
+  "formatScaleFactor",
   "generateAnimatedSvg",
   "getBuiltinTemplate",
   "getEmbeddedFontFaceCss",
@@ -113,6 +115,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "resolveOverlays",
   "resolveThemeSpec",
   "runActions",
+  "safeAreaGuideSvg",
   "safeAreaPadding",
   "setRenderTextMode",
   "statTemplate",

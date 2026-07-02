@@ -187,3 +187,78 @@ export function safeAreaPadding(defaults: EdgeInset, safeInset?: SafeInset): str
   const left = safeInset != null ? Math.max(defaults.left, safeInset.left) : defaults.left;
   return `${top}px ${right}px ${bottom}px ${left}px`;
 }
+
+/**
+ * The reference authoring canvas the built-in text cards' font sizes are tuned
+ * against (docs/91, DM-1541). The creative-pack cards default to a 1280×720
+ * landscape canvas with a ~96 px margin, so their type sizes (84 px headline,
+ * 200 px stat, …) read well *there*. The adaptive scale factor measures a chosen
+ * format's usable (safe) area against THIS box's usable area. Tunable — not a
+ * platform-exact spec.
+ */
+export const ADAPTIVE_REFERENCE = { width: 1280, height: 720, inset: 96 } as const;
+
+/**
+ * Per-template **adaptive scale factor** (docs/91, DM-1541): how much to scale a
+ * text card's authored font sizes / spacing so a headline tuned for landscape
+ * READS WELL at another ratio (notably 9:16), rather than merely fitting.
+ *
+ * It is the linear scale implied by the square-root of the usable-area ratio —
+ * `sqrt((contentW·contentH) / (refW·refH))` — where the content box is
+ * `canvas − safeInset` and the reference is {@link ADAPTIVE_REFERENCE}'s usable
+ * box. More usable area → larger type. Because a 9:16 reel has a large safe area
+ * over a NARROW width, the factor is >1 there: type grows and (with the cards'
+ * percentage `max-width`s unchanged) lines wrap sooner — bigger relative type,
+ * tighter columns, exactly the reel-legibility goal.
+ *
+ * Gated on `safeInset`: with NO format chosen (`safeInset == null`) it returns
+ * exactly `1`, so a template's default (no-format) output stays byte-identical —
+ * the same opt-in contract as {@link safeAreaPadding} (DM-1537). Clamped to a
+ * sane `[min, max]` so a pathological custom `WxH` can't produce absurd type.
+ */
+export function formatScaleFactor(
+  width: number,
+  height: number,
+  safeInset?: SafeInset,
+  opts: { min?: number; max?: number } = {},
+): number {
+  if (safeInset == null) return 1; // no format → byte-identical default output
+  const contentW = Math.max(1, width - safeInset.left - safeInset.right);
+  const contentH = Math.max(1, height - safeInset.top - safeInset.bottom);
+  const refW = ADAPTIVE_REFERENCE.width - 2 * ADAPTIVE_REFERENCE.inset;
+  const refH = ADAPTIVE_REFERENCE.height - 2 * ADAPTIVE_REFERENCE.inset;
+  const raw = Math.sqrt((contentW * contentH) / (refW * refH));
+  const min = opts.min ?? 0.75;
+  const max = opts.max ?? 1.85;
+  return Math.min(max, Math.max(min, raw));
+}
+
+/**
+ * A non-destructive **safe-area guide** overlay (docs/90, DM-1538) — a dashed
+ * rectangle at the resolved `safeInset`, plus small corner ticks, drawn in the
+ * capture's own coordinate space. It reflows nothing (a raw capture has no
+ * template layout to reflow); it just *visualizes* where a format's platform-UI
+ * margins land, so a `domotion capture --format reel --safe-guide` shows whether
+ * the captured content clears the caption bar / action rail. Pure SVG primitives
+ * (no font dependency), so it renders identically cross-viewer.
+ */
+export function safeAreaGuideSvg(width: number, height: number, safeInset: SafeInset): string {
+  const x = safeInset.left;
+  const y = safeInset.top;
+  const w = Math.max(0, width - safeInset.left - safeInset.right);
+  const h = Math.max(0, height - safeInset.top - safeInset.bottom);
+  const tick = Math.max(8, Math.min(28, Math.round(Math.min(w, h) * 0.04)));
+  const stroke = "#ff2d55";
+  const corner = (cx: number, cy: number, sx: number, sy: number): string =>
+    `<path d="M${cx + sx * tick} ${cy} H${cx} V${cy + sy * tick}" fill="none" stroke="${stroke}" stroke-width="2"/>`;
+  return (
+    `<g data-domotion-safe-guide="1" pointer-events="none">` +
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="${stroke}" ` +
+    `stroke-width="2" stroke-dasharray="10 8" opacity="0.9"/>` +
+    corner(x, y, 1, 1) +
+    corner(x + w, y, -1, 1) +
+    corner(x, y + h, 1, -1) +
+    corner(x + w, y + h, -1, -1) +
+    `</g>`
+  );
+}

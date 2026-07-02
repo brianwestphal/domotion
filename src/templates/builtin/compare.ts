@@ -18,6 +18,7 @@ import { z } from "zod";
 import { composeAnimatedLayers, type CompositeLayerAnimation } from "../../animation/index.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
+import { formatScaleFactor, type SafeInset } from "../formats.js";
 
 const MODES = ["wipe", "slide"] as const;
 const DIRECTIONS = ["right", "left", "down", "up"] as const;
@@ -96,11 +97,16 @@ export function revealAnimation(direction: CompareParams["direction"], durationM
  * With only one of the two labels set, that label is shown statically. Text is
  * centered in the pill. Exposed for testing.
  */
-export function compareOverlayMarkup(p: CompareParams): string {
+export function compareOverlayMarkup(p: CompareParams, safeInset?: SafeInset): string {
   const { height: H } = p;
-  const pad = 28;
-  const bh = 44;
-  const fontSize = 22;
+  // DM-1541: scale the label pill by the adaptive per-ratio factor, and — since a
+  // compare has no reflowable layout — honor a format's safe-area inset by nudging
+  // the bottom-left badge inside it (DM-1537 skipped compare; this closes it). Both
+  // no-op with no format (sf === 1, insets 0) → byte-identical default output.
+  const sf = formatScaleFactor(p.width, p.height, safeInset);
+  const pad = Math.round(28 * sf);
+  const bh = Math.round(44 * sf);
+  const fontSize = Math.round(22 * sf);
   const before = p.beforeLabel != null && p.beforeLabel !== "" ? p.beforeLabel : null;
   const after = p.afterLabel != null && p.afterLabel !== "" ? p.afterLabel : null;
 
@@ -109,8 +115,8 @@ export function compareOverlayMarkup(p: CompareParams): string {
     // One pill, sized to the wider label so the crossfade doesn't reflow it.
     const widest = Math.max((before ?? "").length, (after ?? "").length);
     const bw = Math.round(widest * fontSize * 0.62 + 40);
-    const bx = pad;
-    const by = H - pad - bh;
+    const bx = Math.max(pad, safeInset?.left ?? 0);
+    const by = H - Math.max(pad, safeInset?.bottom ?? 0) - bh;
     const cx = bx + bw / 2;
     const baseline = by + bh / 2 + fontSize * 0.34; // vertical-center the cap height
     const txt = (t: string, cls: string): string =>
@@ -189,7 +195,7 @@ export const compareTemplate: Template<CompareParams> = {
       { width, height, durationMs: holdMs },
     );
     // Inject the label badges + (slide) divider just before the closing tag.
-    const overlay = compareOverlayMarkup({ ...params, holdMs });
+    const overlay = compareOverlayMarkup({ ...params, holdMs }, ctx.safeInset);
     const svg = overlay === "" ? composed.svg : composed.svg.replace(/<\/svg>\s*$/, `${overlay}</svg>`);
     return { svg, width, height, durationMs: holdMs };
   },

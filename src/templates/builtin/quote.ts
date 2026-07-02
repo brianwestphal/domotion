@@ -13,7 +13,7 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
+import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
 const THEMES = ["dark", "light"] as const;
@@ -56,21 +56,24 @@ export function buildQuoteHtml(p: QuoteParams, safeInset?: SafeInset): string {
         </div>
       </div>`
     : "";
+  // DM-1541: scale authored (landscape-tuned) type + spacing by the adaptive
+  // per-ratio factor (sf === 1 with no format → byte-identical default output).
+  const sf = cardScaleFactor(p.width, p.height, safeInset);
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   ${cardHeadCss(p, PADDING, safeInset)}
   body {
     background: ${t.background};
     color: ${t.text};
-    display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 28px;
+    display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: ${fs(28, sf)};
   }
-  .q-mark { font-size: 140px; line-height: 0.7; font-weight: 800; color: ${p.accent}; font-family: Georgia, 'Times New Roman', serif; height: 84px; }
-  .q-text { font-size: 52px; font-weight: 600; line-height: 1.28; letter-spacing: -0.01em; max-width: 94%; }
-  .q-rule { width: 96px; height: 5px; border-radius: 3px; background: ${p.accent}; }
-  .q-attr { display: flex; align-items: center; gap: 18px; }
-  .q-avatar { width: 64px; height: 64px; border-radius: 50%; background: ${avatarColor}; color: #fff; font-size: 28px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-  .q-name { font-size: 28px; font-weight: 700; }
-  .q-role { font-size: 22px; font-weight: 500; color: ${t.muted}; margin-top: 2px; }
+  .q-mark { font-size: ${fs(140, sf)}; line-height: 0.7; font-weight: 800; color: ${p.accent}; font-family: Georgia, 'Times New Roman', serif; height: ${fs(84, sf)}; }
+  .q-text { font-size: ${fs(52, sf)}; font-weight: 600; line-height: 1.28; letter-spacing: -0.01em; max-width: 94%; }
+  .q-rule { width: ${fs(96, sf)}; height: 5px; border-radius: 3px; background: ${p.accent}; }
+  .q-attr { display: flex; align-items: center; gap: ${fs(18, sf)}; }
+  .q-avatar { width: ${fs(64, sf)}; height: ${fs(64, sf)}; border-radius: 50%; background: ${avatarColor}; color: #fff; font-size: ${fs(28, sf)}; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .q-name { font-size: ${fs(28, sf)}; font-weight: 700; }
+  .q-role { font-size: ${fs(22, sf)}; font-weight: 500; color: ${t.muted}; margin-top: 2px; }
 </style></head>
 <body>
   <div class="q-mark">&ldquo;</div>
