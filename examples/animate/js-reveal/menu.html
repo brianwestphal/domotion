@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JS dropdown</title>
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    padding: 32px;
+    height: 300px;
+  }
+  .bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 14px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    width: fit-content;
+  }
+  .trigger {
+    position: relative;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e6edf3;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .trigger[aria-expanded="true"] { border-color: #2f81f7; color: #2f81f7; }
+  .menu {
+    position: absolute;
+    top: 44px;
+    left: 0;
+    width: 200px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    padding: 6px;
+    z-index: 10;
+  }
+  .menu .item {
+    padding: 9px 12px;
+    font-size: 13px;
+    color: #c9d1d9;
+    border-radius: 6px;
+  }
+  .menu .item:hover { background: #21262d; }
+  .menu .sep { height: 1px; background: #30363d; margin: 6px 4px; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <button class="trigger" id="account" aria-haspopup="menu" aria-expanded="false">Account ▾</button>
+  </div>
+  <script>
+    // A JS-driven dropdown: on mouseover the button INJECTS a menu into the DOM
+    // and flips aria-expanded. None of this is a CSS pseudo-state — it's a real
+    // DOM mutation only a MutationObserver harness can detect and reveal.
+    const trigger = document.getElementById('account');
+    let open = false;
+    trigger.addEventListener('mouseover', () => {
+      if (open) return;
+      open = true;
+      trigger.setAttribute('aria-expanded', 'true');
+      const menu = document.createElement('div');
+      menu.className = 'menu';
+      menu.setAttribute('role', 'menu');
+      menu.innerHTML =
+        '<div class="item">Your profile</div>' +
+        '<div class="item">Billing</div>' +
+        '<div class="sep"></div>' +
+        '<div class="item">Settings</div>' +
+        '<div class="item">Sign out</div>';
+      trigger.appendChild(menu);
+    });
+  </script>
+</body>
+</html>

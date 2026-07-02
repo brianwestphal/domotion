@@ -211,6 +211,92 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
   });
 
+  // DM-1556 (docs/93 §2): per-keystroke real-site re-sampling.
+  describe("typeResample frames (DM-1556)", () => {
+    it("accepts a typeResample frame with just selector/text (defaults applied at run time)", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "form.html", duration: 2000, typeResample: { selector: "#phone", text: "4155550142" } }],
+      });
+      expect(cfg.frames[0].typeResample).toEqual({ selector: "#phone", text: "4155550142" });
+    });
+
+    it("accepts a typeResample frame on a continue frame (it drives the live page)", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [
+          { input: "form.html", duration: 1 },
+          { continue: true, duration: 2000, typeResample: { selector: "#phone", text: "42", speed: 40, delay: 100, tailMs: 300, clear: false, caret: false } },
+        ],
+      });
+      expect(cfg.frames[1].typeResample?.clear).toBe(false);
+    });
+
+    it("rejects an empty typeResample text", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "form.html", duration: 1, typeResample: { selector: "#p", text: "" } }] }),
+      ).toThrow(/must be a non-empty string/);
+    });
+
+    it("rejects typeResample combined with scroll", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, typeResample: { selector: "#p", text: "x" }, scroll: { pattern: "down" } }] }),
+      ).toThrow(/cannot set both `typeResample` and `scroll`/);
+    });
+
+    it("rejects typeResample combined with cast", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", duration: 1, typeResample: { selector: "#p", text: "x" } }] }),
+      ).toThrow(/cannot set both `typeResample` and `cast`/);
+    });
+
+    it("rejects typeResample combined with template", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, typeResample: { selector: "#p", text: "x" } }] }),
+      ).toThrow(/cannot set both `typeResample` and `template`/);
+    });
+  });
+
+  // DM-1564 (docs/94 option 3): MutationObserver JS-change harness.
+  describe("jsReveal frames (DM-1564)", () => {
+    it("accepts a jsReveal frame with just a selector (defaults applied at run time)", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "menu.html", duration: 2000, jsReveal: { selector: "#account" } }],
+      });
+      expect(cfg.frames[0].jsReveal).toEqual({ selector: "#account" });
+    });
+
+    it("accepts an explicit event + timing", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "menu.html", duration: 2000, jsReveal: { selector: "#a", event: "mousedown", settleMs: 400, debounceMs: 80, holdMs: 600, crossfadeMs: 0 } }],
+      });
+      expect(cfg.frames[0].jsReveal?.event).toBe("mousedown");
+    });
+
+    it("rejects an unsupported jsReveal event", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "menu.html", duration: 1, jsReveal: { selector: "#a", event: "keydown" } }] }),
+      ).toThrow();
+    });
+
+    it("rejects jsReveal combined with scroll / cast / template / typeResample", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, jsReveal: { selector: "#a" }, scroll: { pattern: "down" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `scroll`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", duration: 1, jsReveal: { selector: "#a" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `cast`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, jsReveal: { selector: "#a" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `template`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, jsReveal: { selector: "#a" }, typeResample: { selector: "#p", text: "x" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `typeResample`/);
+    });
+  });
+
   it("accepts a top-level vars map", () => {
     const cfg = validateAnimateConfig({ ...base, vars: { base: "http://x" }, frames: [{ input: "${base}", duration: 1 }] });
     expect(cfg.vars).toEqual({ base: "http://x" });

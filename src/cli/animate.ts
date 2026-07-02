@@ -61,6 +61,8 @@ import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
+import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resample.js";
+import { buildJsRevealAnimation, resolveJsRevealSpec, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -353,6 +355,54 @@ const forceStateSchema = z
  *  previous frame forced on them (the un-hover verb). Consumed by
  *  `applyForcedPseudoStates` and the animate config's per-frame `forceState`
  *  array. */
+
+// DM-1556 (docs/93 §2): per-keystroke real-site re-sampling. Unlike the `typing`
+// OVERLAY (which synthesizes text as a `<text>` reveal on top of one capture),
+// this drives the live field one keystroke at a time and re-captures the page
+// after each keystroke, so the field's OWN input masking / auto-formatting /
+// validation styling / font is what gets serialized. The N captures compose into
+// one nested animated SVG (the `cast`/`template` nesting pattern) — heavier than
+// the overlay, so it's an explicit opt-in per frame. Mutually exclusive with the
+// other content-producing frame kinds (`scroll` / `cast` / `template`).
+const typeResampleSchema = z.object({
+  /** The input / textarea to type into. Must match a focusable element. */
+  selector: z.string(),
+  /** The keystrokes to send — one re-captured state per character. */
+  text: z.string().min(1, "must be a non-empty string"),
+  /** Per-keystroke hold in ms (the flipbook step). Default 60. */
+  speed: z.number().positive().optional(),
+  /** Hold before the first keystroke (ms). Default 0. */
+  delay: z.number().nonnegative().optional(),
+  /** Hold on the fully-typed final state (ms) before the internal loop restarts. Default 700. */
+  tailMs: z.number().nonnegative().optional(),
+  /** Clear the field before typing so the re-sample starts empty. Default true. */
+  clear: z.boolean().optional(),
+  /** Draw the field's REAL caret (from `selectionEnd`) as a blinking bar. Default true. */
+  caret: z.boolean().optional(),
+});
+
+// DM-1564 (docs/94 option 3): MutationObserver JS-change harness. `forceState`
+// captures a page's CSS `:hover`/`:focus` styling, but not feedback a page drives
+// with JAVASCRIPT — a class flip, an injected tooltip/menu, an aria change. This
+// dispatches a real pointer event, runs a MutationObserver with an async
+// settle/debounce, and synthesizes the JS-driven reveal (added/removed nodes) as
+// a rest→after crossfade nested into this frame's content (the same nesting as
+// `typeResample`/`cast`, so no animator change). Opt-in (heavier: two captures +
+// a live settle). Mutually exclusive with the other content-producing kinds.
+const jsRevealSchema = z.object({
+  /** The element to dispatch the pointer event at. */
+  selector: z.string(),
+  /** The pointer event to dispatch. Default `mouseover`. */
+  event: z.enum(MUTATION_DETECT_EVENTS).optional(),
+  /** Max ms to wait for the page's JS mutations to settle. Default 600. */
+  settleMs: z.number().positive().optional(),
+  /** Quiet window (ms) with no mutations that counts as "settled". Default 120. */
+  debounceMs: z.number().positive().optional(),
+  /** Rest hold + after hold, each in ms. Default 700. */
+  holdMs: z.number().positive().optional(),
+  /** The rest→after crossfade duration (ms). Default 300. */
+  crossfadeMs: z.number().nonnegative().optional(),
+});
 export type ForceState = z.infer<typeof forceStateSchema>;
 
 // DM-1562 (docs/94 Option 1): `hoverReveal` sugar. A one-field per-frame reveal
@@ -489,6 +539,24 @@ const frameSchema = z.object({
    * hold.
    */
   hoverDetect: hoverDetectSchema.optional(),
+  /**
+   * DM-1556 (docs/93 §2): re-capture the live field after each keystroke instead
+   * of synthesizing a `typing` overlay — the high-fidelity path that renders the
+   * page's OWN input masking / auto-formatting / validation / font. Composes into
+   * this frame's content (a nested per-keystroke animated SVG). Applied after
+   * `actions` / `forceState` (types into the post-action DOM). Mutually exclusive
+   * with `scroll` / `cast` / `template` (all produce the frame's content).
+   */
+  typeResample: typeResampleSchema.optional(),
+  /**
+   * DM-1564 (docs/94 option 3): detect JS-driven feedback. Dispatch a pointer
+   * event on `selector`, observe the page's own DOM mutations (a class flip, an
+   * injected tooltip / dropdown, an aria change) until they settle, and
+   * synthesize the reveal (added/removed nodes) as a rest→after crossfade that
+   * becomes this frame's content. Applied after `actions` / `forceState`.
+   * Mutually exclusive with `scroll` / `cast` / `template` / `typeResample`.
+   */
+  jsReveal: jsRevealSchema.optional(),
   overlays: z.array(overlaySchema).optional(),
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
   animations: z.array(frameAnimationSchema).optional(),
@@ -594,6 +662,35 @@ export const animateConfigSchema = z
       // DM-1293: `fit` only governs how a template frame's output is placed.
       if (f.fit != null && f.template == null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "fit"], message: "`fit` requires a `template`" });
+      }
+      // DM-1556: `typeResample` produces the frame's content (a nested
+      // per-keystroke animated SVG), so it can't coexist with the other
+      // content-producing frame kinds. It DOES drive the live page, so it's fine
+      // on a `continue` frame or a fresh `input` load (unlike cast/template).
+      if (f.typeResample != null && f.scroll != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `scroll`" });
+      }
+      if (f.typeResample != null && f.cast != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `cast`" });
+      }
+      if (f.typeResample != null && f.template != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `template`" });
+      }
+      // DM-1564: `jsReveal` also produces the frame's content (a nested
+      // rest→after crossfade), so it can't coexist with the other
+      // content-producing kinds. It drives the live page, so it's fine on a
+      // `continue` frame or a fresh `input` load.
+      if (f.jsReveal != null && f.scroll != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `scroll`" });
+      }
+      if (f.jsReveal != null && f.cast != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `cast`" });
+      }
+      if (f.jsReveal != null && f.template != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `template`" });
+      }
+      if (f.jsReveal != null && f.typeResample != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `typeResample`" });
       }
       // DM-1294: `duration` is required (and positive) except on a `template`
       // frame, which derives it from the template's play time when omitted (the
@@ -1209,7 +1306,43 @@ async function buildCapturedFrame(
   // can diff it against the next frame's. `null` for scroll-block frames
   // (no single tree) — magic-move then falls back to crossfade.
   let frameTree: CapturedElement[] | null = null;
-  if (fc.scroll != null) {
+  // DM-1556: a `typeResample` frame nests a per-keystroke animated SVG with its
+  // own internal timeline; set so the animator re-anchors it to this frame's
+  // master-loop offset (same as a `cast` / animated-`template` frame).
+  let embeddedAnimationPeriodMs: number | undefined;
+  if (fc.typeResample != null) {
+    // DM-1556 (docs/93 §2): drive the field one keystroke at a time, re-capturing
+    // after each keystroke, and compose the captures into one nested animated SVG
+    // that becomes this frame's content. No single captured tree (like a scroll /
+    // cast block), so magic-move to/from it falls back to crossfade.
+    const spec = resolveTypeResampleSpec(fc.typeResample);
+    const res = await buildTypeResampleAnimation(page, spec, {
+      width: cfg.width, height: cfg.height, framePrefix: `tr${i}_`, log,
+    });
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+    if (fc.duration < res.periodMs) {
+      log(`  note: frame duration ${fc.duration}ms < type-resample play time ${res.periodMs}ms — the typing will be cut off; size duration to ≈ ${res.periodMs}ms`);
+    }
+  } else if (fc.jsReveal != null) {
+    // DM-1564 (docs/94 option 3): dispatch a pointer event, observe the page's
+    // own JS-driven DOM mutations until they settle, and synthesize the reveal as
+    // a rest→after crossfade nested into this frame's content. No single captured
+    // tree (like a scroll / cast block), so magic-move to/from it crossfades.
+    const spec = resolveJsRevealSpec(fc.jsReveal);
+    const res = await buildJsRevealAnimation(page, spec, {
+      width: cfg.width, height: cfg.height, framePrefix: `jr${i}_`, log,
+    });
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+    if (fc.duration < res.periodMs) {
+      log(`  note: frame duration ${fc.duration}ms < jsReveal play time ${res.periodMs}ms — the reveal will be cut off; size duration to ≈ ${res.periodMs}ms`);
+    }
+  } else if (fc.scroll != null) {
     // DM-612: scroll-demo block. Run the executor against the loaded
     // page, cull each segment's tree (DM-603), compose into one
     // animated SVG, and use as this frame's svgContent. The composed
@@ -1275,6 +1408,7 @@ async function buildCapturedFrame(
     transition: fc.transition,
     overlays,
     animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
+    ...(embeddedAnimationPeriodMs != null ? { embeddedAnimationPeriodMs } : {}),
   };
   return { frame, frameTree, rootBg };
 }

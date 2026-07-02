@@ -2,8 +2,10 @@
 
 Status: **v1 shipped** (DM-1518). Character-by-character reveal with the caret
 glued to the true text edge, plus a paste-vs-type mode and humanized jitter.
-Deeper behaviors (mistake/correct, per-keystroke real-site re-sampling,
-proportional/glyph-path rendering) are designed here and tracked as follow-ups.
+**Per-keystroke real-site re-sampling** (roadmap §2) is now also shipped
+(DM-1556) — see "v2 — per-keystroke real-site re-sampling" below. The remaining
+deeper behaviors (mistake/correct, proportional/glyph-path rendering) are
+designed here and tracked as follow-ups.
 
 The surface is the **`typing` overlay** (`docs/43-declarative-animate-config.md`
 §5, `docs/13-cursor-overlay.md`, `src/animation/overlay-schema.ts`), rendered by
@@ -178,22 +180,108 @@ Verified in the rasterized SVG: `fontFamily: "Georgia, serif"` on a `wrapWidth:
 line than the monospace default's three), paints a proportional serif, and
 mid-type the caret sits flush against the wide `W`.
 
+## v2 — per-keystroke real-site re-sampling (shipped, DM-1556)
+
+The `typing` overlay above SYNTHESIZES the field's text: it paints a monospace
+`<text>` reveal on top of ONE captured frame. That's cheap and gives an exact
+caret, but it renders *our* font and *our* characters — it cannot show what the
+**page itself** does to the input. If the field applies an input mask
+(`4155550142` → `(415) 555-0142`), auto-formats, validates (a green border once
+complete), composes via an IME, or paints in its own font, the synthetic overlay
+knows none of it; the author would have to hand-type the already-masked string
+and still wouldn't get the field's real styling.
+
+`typeResample` is the high-fidelity counterpart. It drives the **live** field one
+keystroke at a time and **re-captures the whole page after each keystroke**, so
+every intermediate state is the browser's own paint — masking, validation
+styling, and font included. It's an explicit per-frame opt-in (docs/43 §, on the
+same frame that would otherwise carry `input` / `continue` + `actions`):
+
+```jsonc
+{
+  "input": "./checkout.html",
+  "actions": [{ "type": "focus", "selector": "#phone" }],
+  "duration": 2500,
+  "typeResample": {
+    "selector": "#phone",          // the input / textarea to type into
+    "text": "4155550142",          // raw keystrokes — one re-captured state each
+    "speed": 130,                  // per-keystroke hold (ms); default 60
+    "delay": 300,                  // hold before the first key (ms); default 0
+    "tailMs": 900,                 // hold on the fully-typed state (ms); default 700
+    "clear": true,                 // clear the field first; default true
+    "caret": true                  // draw the field's REAL caret; default true
+  }
+}
+```
+
+### Mechanism — nest, don't extend the animator
+
+The re-sampler follows the **`cast` / `template` nesting pattern** (docs/67,
+docs/73) rather than adding anything to `generateAnimatedSvg`:
+
+1. `clear` + focus the field, then, for each of the N characters, send **one**
+   real `page.keyboard.type(char)` (so the page's `keydown` / `input` / `keyup`
+   handlers run — the mask fires) and `captureElementTree` the whole page.
+2. The N + 1 captures (0…N chars typed) become an in-memory `AnimationConfig`
+   whose frames `cut` from one to the next on the keystroke clock — a flipbook.
+   `generateAnimatedSvg` composes that into one self-contained animated SVG.
+3. That SVG is namespaced (`tr<i>_`) and dropped in as the **single** outer
+   frame's `svgContent`, with `embeddedAnimationPeriodMs` = the flipbook's total
+   so the animator re-anchors the typing to restart when the frame is shown.
+
+Because it produces exactly **one** outer animation frame per config frame, the
+outer loop's 1-config-frame ↔ 1-animation-frame invariant (which the cursor
+overlay, magic-move bridge, and frame-tree indexing all depend on) is preserved,
+and **no animator code changes**. The per-keystroke captures render with
+`includeEmbeddedFontCss=false`, so their glyphs accumulate into the whole run's
+shared embedded-font block (collected once), exactly like a `cast` frame's
+`manageFonts: false` — the field's own font is embedded once, not per state.
+
+The caret comes from the field's **real** caret rect: after each keystroke the
+renderer measures `selectionEnd` against the field's computed font (so it tracks
+the edge of the *masked* value, not the raw keys) and draws a blinking bar there
+(a `blink` overlay per state, using the field's `caret-color`). Set `caret:false`
+to omit it.
+
+### Cost & timeline
+
+It's O(N) full-page captures — much heavier than the overlay's single capture,
+which is why it's opt-in. Size the frame's `duration` to ≈ the play time
+(`delay + N·speed + tailMs`); the CLI logs a note if `duration` is shorter (the
+typing would be cut off), the same rule as a `cast` frame. Mutually exclusive
+with the other content-producing frame kinds (`scroll` / `cast` / `template`);
+it DOES drive the live page, so it's valid on a fresh `input` load or a
+`continue` frame.
+
+### Verification (rendered SVG, not live HTML)
+
+Proven in the rasterized frames of the committed
+`examples/animate/type-resample/` golden (a phone field that masks digits into
+`(NNN) NNN-NNNN` and turns green when valid):
+
+- At an early step the field reads `(415) 5` — the `(` and space were injected by
+  the page's mask, **not typed** — proving the re-sample captured the page's own
+  formatting rather than the raw keystrokes.
+- The final held state reads the full `(415) 555-0142` **with the green
+  `.valid` border**, i.e. the page's validation styling round-tripped too.
+- Guards: `src/cli/type-resample.test.ts` (pure timeline / defaulting),
+  `src/cli/type-resample.e2e.test.ts` (real-Chromium: the live field's masked
+  `input.value` diverges from the raw keys; the config path nests the N-state
+  animation in one frame), and the `type-resample` entry in
+  `tests/animate-examples.tsx` (structural: 1 outer frame, nested animated
+  `<svg>`, the final `tr0_f-10` state, a caret per state).
+
 ## Roadmap (designed, not yet built)
 
 These were considered for v1 and deliberately scoped out; each is a clean
 addition on top of the shared reveal plan.
 
-1. **Per-keystroke real-site re-sampling.** Instead of synthesizing the field
-   text as an overlay, actually drive the live page one `page.keyboard.type`
-   keystroke at a time and **capture the field's painted state after each
-   keystroke**, compositing the real per-character frames. This is the
-   highest-fidelity mode (it renders the site's own font, IME, autocomplete,
-   validation styling) at a capture cost the ticket accepts. Needs a capture-side
-   loop in `src/cli/animate.ts` (a new `fill`-with-`type: "keystrokes"` action or
-   a `resample: true` on the typing action) that emits N sub-frames. The caret
-   would come from the field's real caret rect rather than the synthetic bar.
+Both **mistake → backspace → correct** (DM-1555) and **per-keystroke real-site
+re-sampling** (DM-1556, the `typeResample` field — see the v2 section above) have
+since shipped, as have **glyph-path rendering** (DM-1557) and the **`fontFamily`
+override** (DM-1558). What remains:
 
-2. **Paste-with-selection / replace.** A paste that first selects existing field
+1. **Paste-with-selection / replace.** A paste that first selects existing field
    text (highlight) then replaces it, for "edit an existing value" demos.
 
 ## Related
@@ -206,4 +294,8 @@ addition on top of the shared reveal plan.
   renderer input the typing overlay is part of.
 - `src/animation/animator.ts` — `renderTypingOverlay`, `overlayAdvances`,
   `buildTypingPlan`, `planMistakes`, `buildTypingLines`, `buildTypingMistakes`,
-  `buildTypingCaret`.
+  `buildTypingCaret` (the v1 overlay).
+- `src/cli/type-resample.ts` — `buildTypeResampleAnimation` (v2 per-keystroke
+  re-sampling), wired into `composeAnimateFrames` via the per-frame `typeResample`
+  field in `src/cli/animate.ts`.
+- `examples/animate/type-resample/` — the runnable v2 demo + committed golden.

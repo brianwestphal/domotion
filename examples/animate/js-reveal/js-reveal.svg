@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300" width="420" height="300">
+  <defs>
+    <clipPath id="viewport-clip"><rect width="420" height="300" /></clipPath>
+  </defs>
+  <style>
+@font-face { font-family: "dmf0"; font-style: normal; font-weight: 600; src: url("data:font/ttf;base64,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"); }
+@font-face { font-family: "dmf1"; font-style: normal; font-weight: 600; src: url("data:font/ttf;base64,T1RUTwAKAIAAAwAgQ0ZGIJ1cTEIAAAS8AAAAqU9TLzJNW1YCAAABEAAAAGBjbWFwAAzgMwAABHAAAAAsaGVhZAAAAAAAAACsAAAANmhoZWEFVwIiAAAA5AAAACRobXR4CB8AAAAABWgAAAAIbHRhZ2V+AAQAAAVwAAAAEm1heHAAAlAAAAABCAAAAAZuYW1lkeZ6NAAAAXAAAAL9cG9zdAADAAAAAAScAAAAIAABAAAAAQAAAAAAAF8PPPUAAwgAAAAAAAAAAAAAAAAAAAAAAAD8AXoDIANWAAAAAwACAAAAAAAAAAEAAAVV/gAAAAQfAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAACAABQAAACAAAAAwQfAfQABQAAAooCuwAAAIwCigK7AAAB3wAxAQIAAAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAAWFhYWABA4ADgAAVV/gAAAANWAXoAAAABAAAAAAKrA1YAAAAAAAAAAAAzAmoAAAAEAAAAAAACAB4AAAAEAAAAAQAIAAAAAAAEAAAAAgAOAAgAAAAEAAAAAwAeAEQAAAAEAAAABAAYABYAAAAEAAAABQAWAC4AAAAEAAAABgAWAAAAAAAEAAAABwACAB4AAAAEAAAACAACAB4AAAAEAAAACQACAB4AAAAEAAAACgACAB4AAAAEAAAACwACAB4AAAAEAAAADAACAB4AAAAEAAAADQACAB4AAAAEAAAADgACAB4AAAAEAAAAEAAIAAAAAAAEAAAAEQAOAAgAAQAAAAAAAAABAB8AAQAAAAAAAQAEAGIAAQAAAAAAAgAHAGYAAQAAAAAAAwAPAIQAAQAAAAAABAAMAG0AAQAAAAAABQALAHkAAQAAAAAABgALAGIAAQAAAAAABwABAB8AAQAAAAAACAABAB8AAQAAAAAACQABAB8AAQAAAAAACgABAB8AAQAAAAAACwABAB8AAQAAAAAADAABAB8AAQAAAAAADQABAB8AAQAAAAAADgABAB8AAQAAAAAAEAAEAGIAAQAAAAAAEQAHAGYAAwABBAkAAAACAB4AAwABBAkAAQAIAAAAAwABBAkAAgAOAAgAAwABBAkAAwAeAEQAAwABBAkABAAYABYAAwABBAkABQAWAC4AAwABBAkABgAWAAAAAwABBAkABwACAB4AAwABBAkACAACAB4AAwABBAkACQACAB4AAwABBAkACgACAB4AAwABBAkACwACAB4AAwABBAkADAACAB4AAwABBAkADQACAB4AAwABBAkADgACAB4AAwABBAkAEAAIAAAAAwABBAkAEQAOAAgAZABtAGYAMQBSAGUAZwB1AGwAYQByAGQAbQBmADEAIABSAGUAZwB1AGwAYQByAFYAZQByAHMAaQBvAG4AIAAwAC4AMQAgADoAIABkAG0AZgAxACAAUgBlAGcAdQBsAGEAcmRtZjFSZWd1bGFyZG1mMSBSZWd1bGFyVmVyc2lvbiAwLjEgOiBkbWYxIFJlZ3VsYXIAAAAAAAABAAMAAQAAAAwABAAgAAAABAAEAAEAAOAA//8AAOAA//8gAQABAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAEAQABAQEMZG1mMVJlZ3VsYXIAAQEBQ/gbAPgcAvgdA/geBIv4DhwFVfqzBR0AAACMDx0AAACPEYsdAAAAqRIeCgAEiCgSXx4PHg8eCgAEiCgSXx4PHg8MBwAFAQEMGBwjJ1ZlcnNpb24gMC4xZG1mMSBSZWd1bGFyZG1mMVJlZ3VsYXJnMjA1AAAAAYsAAgEBBBX6lA76s/eQ+eoV+LiIBfun/G0FDgAAAAQAAAAEHwAAAAAAAQAAAAAAAAABABAAAmVuAAA="); }
+    :root { --scene-dur: 2.30s; }
+    .f { opacity: 0; visibility: hidden; }
+    
+    @keyframes fv-0 {
+      0.00%, 100% { opacity: 1; }
+    }
+    @keyframes fd-0 {
+      0% { visibility: hidden; }
+      0.000% { visibility: hidden; }
+      0.000% { visibility: visible; }
+      100.000% { visibility: visible; }
+      100.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 2.30s infinite, fd-0 2.30s infinite step-end; }
+  </style>
+  <g clip-path="url(#viewport-clip)">
+  <g class="f f-0">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300" width="420" height="300">
+  <defs>
+    <clipPath id="jr0_viewport-clip"><rect width="420" height="300" /></clipPath>
+  </defs>
+  <style>
+    :root { --scene-dur-jr0_: 2.00s; }
+    .jr0_f { opacity: 0; visibility: hidden; }
+    
+    @keyframes jr0_fv-0 { 0% { opacity: 0; } 0%, 43.4783%, 86.9565% { opacity: 0; } 0%, 30.4348% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes jr0_fd-0 { 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: visible; } 50% { visibility: visible; } 50.0009% { visibility: hidden; } 86.9565% { visibility: hidden; } 100% { visibility: hidden; } }
+    .jr0_f-0 { animation:jr0_fv-0 2.3s infinite,jr0_fd-0 2.3s infinite step-end; }
+
+    @keyframes jr0_fv-1 { 0% { opacity: 0; } 0%, 30.4261% { opacity: 0; } 43.4783%, 86.9565% { opacity: 1; } 100% { opacity: 1; } }
+    @keyframes jr0_fd-1 { 0% { visibility: hidden; } 0% { visibility: hidden; } 23.9122% { visibility: hidden; } 23.913% { visibility: visible; } 86.9565% { visibility: visible; } 86.9565% { visibility: hidden; } 86.9565% { visibility: hidden; } 100% { visibility: visible; } }
+    .jr0_f-1 { animation:jr0_fv-1 2.3s infinite,jr0_fd-1 2.3s infinite step-end; }
+  </style>
+  <g clip-path="url(#jr0_viewport-clip)">
+  <g class="jr0_f jr0_f-0">
+  <defs><clipPath id="jr0_jr0_s0-ct0"><rect x="47" y="43" width="98.8" height="35" /></clipPath></defs>
+  <rect x="0" y="0" width="420" height="300" rx="0" fill="rgb(13,17,23)" />
+    <rect x="32" y="32" width="128.8" height="57" rx="10" fill="rgb(22,27,34)" />
+    <rect x="32.5" y="32.5" width="128" height="56" rx="9.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+  <rect x="47" y="43" width="98.8" height="35" rx="8" fill="rgb(33,38,45)" />
+  <rect x="47.5" y="43.5" width="98" height="34" rx="7.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+  <g role="img" aria-label="Account ▾"><title>Account ▾</title><text x="62 72.11 79.89 87.67 96.23 104.78 113.33 118" y="66" font-family="dmf0" font-size="14" font-weight="600" fill="rgb(230,237,243)"></text><text x="121.88" y="66" font-family="dmf1" font-size="14" font-weight="600" fill="rgb(230,237,243)"></text></g>
+  </g>
+  <g class="jr0_f jr0_f-1">
+  <defs><clipPath id="jr0_jr0_s1-ct0"><rect x="47" y="43" width="98.8" height="35" /></clipPath><filter id="jr0_jr0_s1-sh1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter><clipPath id="jr0_jr0_s1-ct2"><rect x="55" y="95" width="186" height="33" /></clipPath><clipPath id="jr0_jr0_s1-ct3"><rect x="55" y="128" width="186" height="33" /></clipPath><clipPath id="jr0_jr0_s1-ct4"><rect x="55" y="174" width="186" height="33" /></clipPath><clipPath id="jr0_jr0_s1-ct5"><rect x="55" y="207" width="186" height="33" /></clipPath></defs>
+  <rect x="0" y="0" width="420" height="300" rx="0" fill="rgb(13,17,23)" />
+    <rect x="32" y="32" width="128.8" height="57" rx="10" fill="rgb(22,27,34)" />
+    <rect x="32.5" y="32.5" width="128" height="56" rx="9.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+  <rect x="47" y="43" width="98.8" height="35" rx="8" fill="rgb(33,38,45)" />
+  <rect x="47.5" y="43.5" width="98" height="34" rx="7.5" fill="none" stroke="rgb(47,129,247)" stroke-width="1" />
+  <g role="img" aria-label="Account ▾"><title>Account ▾</title><text x="62 72.11 79.89 87.67 96.23 104.78 113.33 118" y="66" font-family="dmf0" font-size="14" font-weight="600" fill="rgb(47,129,247)"></text><text x="121.88" y="66" font-family="dmf1" font-size="14" font-weight="600" fill="rgb(47,129,247)"></text></g>
+  <g style="isolation:isolate">
+  <rect x="48" y="96" width="200" height="159" rx="10" fill="rgba(0,0,0,0.5)" filter="url(#jr0_jr0_s1-sh1)" />
+  <rect x="48" y="88" width="200" height="159" rx="10" fill="rgb(22,27,34)" />
+  <rect x="48.5" y="88.5" width="199" height="158" rx="9.5" fill="none" stroke="rgb(48,54,61)" stroke-width="1" />
+    <g role="img" aria-label="Your profile"><title>Your profile</title><text x="112 119.7 127.64 135.58 140.64 144.25 152.19 157.25 165.19 169.52 173.14 176.75" y="116" font-family="dmf0" font-size="13" font-weight="600" fill="rgb(201,209,217)"></text></g>
+    <g role="img" aria-label="Billing"><title>Billing</title><text x="128.14 137.52 141.14 144.75 148.36 151.97 159.91" y="149" font-family="dmf0" font-size="13" font-weight="600" fill="rgb(201,209,217)"></text></g>
+    <rect x="59" y="167" width="178" height="1" rx="0" fill="rgb(48,54,61)" />
+    <g role="img" aria-label="Settings"><title>Settings</title><text x="122.34 131 138.23 142.56 146.89 150.5 158.45 166.39" y="195" font-family="dmf0" font-size="13" font-weight="600" fill="rgb(201,209,217)"></text></g>
+    <g role="img" aria-label="Sign out"><title>Sign out</title><text x="122 130.66 134.28 142.22 150.16 153.77 161.7 169.66" y="228" font-family="dmf0" font-size="13" font-weight="600" fill="rgb(201,209,217)"></text></g>
+  </g>
+  </g>
+  </g>
+</svg>
+  </g>
+  <g class="cursor-overlay" pointer-events="none">
+    <style>@keyframes co-pos-a220xs{0%{transform:translate(0px,0px)}8.6957%{transform:translate(0px,0px)}26.087%{transform:translate(96.42px,60.5px)}100%{transform:translate(96.42px,60.5px)}}@keyframes co-glyph-a220xs-0{0%{opacity:0}8.6957%{opacity:1}100%{opacity:1}}</style>
+    <g class="cursor-pointer" style="animation:co-pos-a220xs 2.3s linear infinite">
+      <g opacity="0" style="animation:co-glyph-a220xs-0 2.3s step-end infinite">
+        <g transform="translate(-4.13 -4.13) scale(0.9167)"><g transform="translate(0 0)"><g fill="#fff" stroke="rgb(0, 0, 0)" stroke-width="1.4" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></g></g></g>
+      </g>
+    </g>
+
+  </g>
+  </g>
+</svg>

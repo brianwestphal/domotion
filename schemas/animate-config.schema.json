@@ -1135,6 +1135,80 @@
               "selector"
             ]
           },
+          "typeResample": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              },
+              "speed": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "delay": {
+                "type": "number",
+                "minimum": 0
+              },
+              "tailMs": {
+                "type": "number",
+                "minimum": 0
+              },
+              "clear": {
+                "type": "boolean"
+              },
+              "caret": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "selector",
+              "text"
+            ]
+          },
+          "jsReveal": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "mouseover",
+                  "mouseenter",
+                  "mousedown",
+                  "mouseup",
+                  "click",
+                  "pointerover",
+                  "pointerenter",
+                  "pointerdown"
+                ]
+              },
+              "settleMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "debounceMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "holdMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "crossfadeMs": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "selector"
+            ]
+          },
           "overlays": {
             "type": "array",
             "items": {

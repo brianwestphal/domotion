@@ -1,11 +1,13 @@
 # 94 — Interaction-state capture (`:hover` / `:active` / `:focus`)
 
 Status: **shipped** — explicit forced-pseudo-state capture (DM-1516), a
-forced-state **reset** verb (DM-1566), and the first two auto-detection options:
-the **`hoverReveal`** sugar (Option 1, DM-1562) and **`hoverDetect`**
-computed-style-diff detection (Option 2, DM-1563). Options 3 (MutationObserver /
-JS-change harness) and 4 (no-DOM overlay fake) remain **design options** below,
-enumerated for a maintainer to pick from, not built.
+forced-state **reset** verb (DM-1566), and the auto-detection options: the
+**`hoverReveal`** sugar (Option 1, DM-1562), **`hoverDetect`** computed-style-diff
+detection (Option 2, DM-1563), and Option 3's **MutationObserver harness**
+partially shipped (DM-1564 — the `jsReveal` field synthesizes JS-driven
+added/removed-node reveals as a crossfade; the attribute/style property-tween is a
+follow-up). Option 4 (no-DOM overlay fake) remains a **design option** below, not
+yet built.
 
 ## The problem
 
@@ -241,6 +243,12 @@ tween).
 
 ### Option 3 — MutationObserver + style-diff harness around dispatched pointer events
 
+**Status: partially shipped (DM-1564)** — the MutationObserver harness + the
+added/removed-node crossfade path are built (see "v2 — the `jsReveal`
+MutationObserver harness" below); the attribute/style **property tween** for
+surviving nodes is the remaining follow-up (it reuses Option 2's computed-style-
+diff engine).
+
 For **JS-driven** feedback (a framework toggling a class / injecting a tooltip /
 swapping text on `mouseover`/`mousedown`), install a `MutationObserver` (+ a
 style-diff sweep) around a *dispatched* pointer event sequence, capture the
@@ -259,6 +267,62 @@ mutations.
   JS in the output.
 - **Recommendation:** a later, opt-in mode; pair with Option 2 (CSS diff) so one
   pass covers both CSS- and JS-driven feedback.
+
+#### v2 — the `jsReveal` MutationObserver harness (shipped, DM-1564)
+
+The per-frame `jsReveal` field opts a frame into JS-feedback detection. It
+dispatches a real pointer event at a target, watches the page's own DOM mutations
+with a `MutationObserver`, waits for them to **settle** (a quiet debounce window,
+capped by an overall timeout), and synthesizes the reveal:
+
+```jsonc
+{
+  "input": "./menu.html",
+  "duration": 2000,
+  "cursor": { "events": [ { "frame": 0, "at": 200, "type": "move", "selector": "#account" } ] },
+  "jsReveal": {
+    "selector": "#account",   // dispatch the event here
+    "event": "mouseover",     // mouse*/pointer*/click; default mouseover
+    "settleMs": 600,          // max wait for the JS to settle
+    "debounceMs": 120,        // quiet window that counts as "settled"
+    "holdMs": 700,            // rest hold + after hold
+    "crossfadeMs": 300        // the rest→after crossfade
+  }
+}
+```
+
+**What it captures.** In `examples/animate/js-reveal/`, hovering an "Account"
+button runs a JS handler that **injects a dropdown menu** (+1 DOM node) and sets
+`aria-expanded="true"` (which the page's own CSS then styles). The harness
+observes `+1 node, 1 attr`, waits for the settle, re-captures, and cross-fades
+rest→after. None of that is reachable via `forceState`: there is no CSS
+pseudo-state to force — the feedback is a script mutating the DOM.
+
+**Mechanism — nest, don't extend the animator.** Exactly like `typeResample`
+(docs/93 §2) and `cast` frames: the rest + after captures become a 2-frame
+in-memory `AnimationConfig` (rest → crossfade → after) that `generateAnimatedSvg`
+composes into one self-contained SVG, namespaced (`jr<i>_`) and dropped in as the
+single outer frame's `svgContent` with `embeddedAnimationPeriodMs`. One outer
+animation frame per config frame — the 1:1 invariant holds — and **no animator
+change**. When the observer sees no mutation, the frame emits just the rest state
+(a still frame): there was no feedback, so it doesn't invent one.
+
+**What's deferred (follow-up).** Attribute-/style-only deltas (a class flip that
+only recolors a surviving node, an aria change with no visual paint) currently
+ride the same rest→after crossfade — they *dissolve* rather than *tween*. Routing
+those through a **property-accurate computed-style-diff tween** is Option 2's
+engine; when that lands, `jsReveal` should classify surviving-node attribute
+deltas onto the tween and keep the crossfade only for added/removed nodes. The
+`MutationSummary` already distinguishes `structural` (added/removed) from
+attribute/character-data changes, so the split point exists.
+
+- `src/cli/mutation-detect.ts` — `detectJsMutations` (the observer + dispatch +
+  settle) and `buildJsRevealAnimation` (the crossfade compositor), wired into
+  `composeAnimateFrames` via the per-frame `jsReveal` field in `src/cli/animate.ts`.
+- Tests: `src/cli/mutation-detect.test.ts` (pure defaulting),
+  `src/cli/mutation-detect.e2e.test.ts` (real-Chromium: injected node + aria
+  detected, no-op times out, no-match throws, config path nests the crossfade),
+  and the `js-reveal` entry in `tests/animate-examples.tsx` (committed golden).
 
 ### Option 4 — Overlay-only fake for no-DOM / PDF inputs
 
@@ -294,8 +358,12 @@ the output beyond the existing cross-engine `@keyframes` vocabulary.
 - `docs/13-cursor-overlay.md` — the pointer overlay placed on the hovered element.
 - `docs/84-viewer-browser-support.md` — the cross-engine `@keyframes`-only output
   constraint every auto-detection option must satisfy.
-- `examples/animate/hover-state/` — the runnable v1 demo + committed golden.
+- `examples/animate/hover-state/` — the runnable v1 (forceState) demo + golden.
 - `examples/animate/hover-reveal/` — the Option 1 `hoverReveal` sugar demo.
 - `examples/animate/hover-detect/` — the Option 2 `hoverDetect` detection demo.
+- `examples/animate/js-reveal/` — the runnable Option-3 (`jsReveal`) demo: a JS
+  dropdown injected on `mouseover`, detected + cross-faded in. + committed golden.
 - `src/cli/hover-detect.ts` — the pure diff (`diffHoverSnapshots`) + classify
   (`classifyHoverTransition`) helpers behind `hoverDetect`.
+- `src/cli/mutation-detect.ts` — the `jsReveal` MutationObserver harness
+  (`detectJsMutations` / `buildJsRevealAnimation`).
