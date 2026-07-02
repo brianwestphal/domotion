@@ -42,6 +42,19 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 84 (`docs/84-viewer-browser-support.md`, DM-1515)** — **Shipped contract.**
+  The support matrix for the browsers that *view* the output (distinct from the
+  capture-platform matrix). **Blink** (Chrome/**Edge**/Brave/Opera/Electron) +
+  **WebKit** (Safari + all iOS browsers) are **first-class**; **Gecko** (Firefox)
+  is **best-effort**: under heavy load Firefox demotes some OMTA animations to the
+  main thread and a unit's paired opacity/transform can desync (graceful, not a
+  break). Animation is authored as **CSS `@keyframes`** (not SMIL, never mixed —
+  DM-1507) so it plays inside `<img>` with no runtime (JS/WAAPI don't run there).
+  Generator mitigation: fuse a unit's co-timed tracks into one CSS animation
+  (DM-1512/1513). Stress-test harness: `examples/output/stress-gallery.html`
+  (DM-1514, regenerate via `examples/build-stress-gallery.ts`). Not to be confused
+  with the fixed DM-1511 transparent-flash-at-cut-points bug (see doc 08).
+
 - **Doc 82 (`docs/82-svg-scrubber-review-mode.md`, DM-1445 + DM-1449)** — **Shipped.**
   `svg-scrubber --review` adds an issue-reporting panel (title + category + note +
   drag-to-draw regions) that writes importable `.ticket` JSON files to the launch
