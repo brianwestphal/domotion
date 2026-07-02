@@ -167,3 +167,23 @@ export function applyFormatSize(raw: Record<string, unknown>, fmt: ResolvedForma
   raw.width ??= fmt.width;
   raw.height ??= fmt.height;
 }
+
+/** A per-side px inset — a template's own default breathing room, in the shape of
+ *  a `SafeInset`, for combining with a format's safe-area inset. */
+export type EdgeInset = SafeInset;
+
+/**
+ * A CSS `padding` shorthand (px, top/right/bottom/left) that keeps a template's
+ * content within the safe area (docs/87, DM-1537): each side is the MAX of the
+ * template's own default padding and the format's safe-area inset. With no
+ * `safeInset` (no format chosen) it returns the defaults unchanged, so default
+ * output is byte-identical. The per-side max means a small canvas keeps its
+ * normal padding while a tall 9:16 format still reserves the platform-UI margin.
+ */
+export function safeAreaPadding(defaults: EdgeInset, safeInset?: SafeInset): string {
+  const top = safeInset != null ? Math.max(defaults.top, safeInset.top) : defaults.top;
+  const right = safeInset != null ? Math.max(defaults.right, safeInset.right) : defaults.right;
+  const bottom = safeInset != null ? Math.max(defaults.bottom, safeInset.bottom) : defaults.bottom;
+  const left = safeInset != null ? Math.max(defaults.left, safeInset.left) : defaults.left;
+  return `${top}px ${right}px ${bottom}px ${left}px`;
+}

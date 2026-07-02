@@ -25,6 +25,7 @@ import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
+import { safeAreaPadding, type SafeInset } from "../formats.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const VARIANTS = ["rise", "slide", "fade", "clip", "pop"] as const;
@@ -224,7 +225,12 @@ function unitInner(u: KineticUnit): string {
 }
 
 /** Standalone HTML for the headline (pure — unit-testable without a browser). */
-export function buildKineticHtml(p: KineticTextParams, plan: { lines: KineticUnit[][][] }): string {
+export function buildKineticHtml(p: KineticTextParams, plan: { lines: KineticUnit[][][] }, safeInset?: SafeInset): string {
+  // Default breathing room matches the prior `8% 7%` (CSS padding % is relative to
+  // the containing block's WIDTH on every side), resolved to px so it can be
+  // combined per-side with a format's safe-area inset (DM-1537).
+  const padDefault = { top: p.width * 0.08, right: p.width * 0.07, bottom: p.width * 0.08, left: p.width * 0.07 };
+  const padding = safeAreaPadding(padDefault, safeInset);
   const unitSpan = (u: KineticUnit): string =>
     `<span class="kt-w kt-w-${u.index}"><span class="kt-wi kt-wi-${u.index}">${unitInner(u)}</span></span>`;
   // Each line is a block; words within a line are separated by spaces. Char mode:
@@ -252,7 +258,7 @@ export function buildKineticHtml(p: KineticTextParams, plan: { lines: KineticUni
     background: ${p.background};
     font-family: ${p.fontFamily};
     display: flex; align-items: center; justify-content: ${justify};
-    padding: 8% 7%;
+    padding: ${padding};
   }
   .kt-headline {
     font-size: ${p.fontSize}px; font-weight: ${p.fontWeight}; line-height: 1.1;
@@ -347,7 +353,7 @@ export const kineticTextTemplate: Template<KineticTextParams> = {
     // the underlying frame's `duration`).
     return runSingleFrameGenerator(ctx, {
       name: "kinetic-text",
-      html: buildKineticHtml(params, plan),
+      html: buildKineticHtml(params, plan, ctx.safeInset),
       width: params.width,
       height: params.height,
       durationMs: kineticDurationMs(params, plan.count),

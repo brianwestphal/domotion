@@ -100,6 +100,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "resolveOverlays",
   "resolveThemeSpec",
   "runActions",
+  "safeAreaPadding",
   "setRenderTextMode",
   "subscribeTemplate",
   "templatePackageName",

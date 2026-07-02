@@ -15,7 +15,11 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
+import { safeAreaPadding, type SafeInset } from "../formats.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
+
+/** The banner's own default breathing room (px), used when no format inset applies. */
+const LOWER_THIRD_PADDING = 48;
 
 const POSITIONS = ["bottom-left", "bottom-center", "bottom-right", "top-left", "top-center", "top-right"] as const;
 const THEMES = ["dark", "light"] as const;
@@ -54,8 +58,10 @@ function alignmentFor(position: LowerThirdParams["position"]): { justify: string
  * the two can't desync under Firefox's off-main-thread compositing. `.lt` is a
  * bare flex wrapper around the single `.lt-panel`.
  */
-export function buildLowerThirdHtml(p: LowerThirdParams): string {
+export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset): string {
   const { justify, align } = alignmentFor(p.position);
+  const d = LOWER_THIRD_PADDING;
+  const padding = safeAreaPadding({ top: d, right: d, bottom: d, left: d }, safeInset);
   const isDark = p.theme === "dark";
   const panelBg = isDark ? "rgba(17,19,24,0.92)" : "rgba(255,255,255,0.94)";
   const titleColor = isDark ? "#f5f7fa" : "#0d1117";
@@ -74,7 +80,7 @@ export function buildLowerThirdHtml(p: LowerThirdParams): string {
     display: flex;
     justify-content: ${justify};
     align-items: ${align};
-    padding: 48px;
+    padding: ${padding};
   }
   .lt { display: flex; }
   .lt-panel {
@@ -124,7 +130,7 @@ export const lowerThirdTemplate: Template<LowerThirdParams> = {
     // The banner fades + slides in once and holds; `holdMs` is its play time.
     return runSingleFrameGenerator(ctx, {
       name: "lower-third",
-      html: buildLowerThirdHtml(params),
+      html: buildLowerThirdHtml(params, ctx.safeInset),
       width: params.width,
       height: params.height,
       durationMs: params.holdMs,

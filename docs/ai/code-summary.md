@@ -82,10 +82,12 @@ shortest possible map:
   built-ins: `builtin/lower-third.ts`, `builtin/device-mockup.ts`,
   `builtin/background-loop.ts` (doc 71), `builtin/kinetic-text.ts` (doc 72),
   `builtin/chart.ts` (doc 75), `builtin/chat.ts` + `builtin/subscribe.ts` (doc 76).
-  **Format presets** (doc 87 / DM-1534) live in `formats.ts` — the `FORMATS`
-  table + `resolveFormat` (preset/alias/raw `WxH` → canvas size + `safeInset`) +
-  `applyFormatSize`, surfaced as `--format` on the CLI (`src/cli/template.ts`)
-  and a `safeInset` field on `TemplateRenderContext`. **Brand kit** (doc 85 /
+  **Format presets** (doc 87 / DM-1534, DM-1537) live in `formats.ts` — the
+  `FORMATS` table + `resolveFormat` (preset/alias/raw `WxH` → canvas size +
+  `safeInset`) + `applyFormatSize` + `safeAreaPadding`, surfaced as `--format` on
+  the CLI (`src/cli/template.ts`) and a `safeInset` field on
+  `TemplateRenderContext` that the themeable built-ins consume to keep content
+  within `canvas − safeInset`. **Brand kit** (doc 85 /
   DM-1530) lives in `brand.ts` — the zod `brandSchema` + `loadBrand` + the
   `brandParams`/`brandSeriesColors`/`brandBackground` helpers; each themeable
   built-in has a `brandDefaults(brand)` method, merged beneath explicit params by

@@ -276,10 +276,10 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "templates.formats",
-    behavior: "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template` with explicit>format>default size precedence.",
+    behavior: "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template` with explicit>format>default size precedence. safeAreaPadding + per-template safe-area reflow keep content within canvas − safeInset at each ratio.",
     doc: "docs/87-format-presets.md",
-    exports: ["FORMATS", "resolveFormat", "applyFormatSize", "formatNames"],
-    tests: ["src/templates/formats.test.ts"],
+    exports: ["FORMATS", "resolveFormat", "applyFormatSize", "safeAreaPadding", "formatNames"],
+    tests: ["src/templates/formats.test.ts", "src/templates/templates.e2e.test.ts"],
   },
   {
     id: "templates.brand",

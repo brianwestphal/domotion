@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launchChromium } from "../capture/index.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
-import { renderTemplateToSvg } from "./render.js";
-import { lowerThirdTemplate } from "./builtin/lower-third.js";
+import { renderTemplateToSvg, validateTemplateParams } from "./render.js";
+import { resolveFormat } from "./formats.js";
+import { lowerThirdTemplate, buildLowerThirdHtml } from "./builtin/lower-third.js";
 import { deviceMockupTemplate } from "./builtin/device-mockup.js";
 import { backgroundLoopTemplate } from "./builtin/background-loop.js";
 import { kineticTextTemplate } from "./builtin/kinetic-text.js";
-import { chartTemplate } from "./builtin/chart.js";
+import { chartTemplate, buildChartHtml, planChart } from "./builtin/chart.js";
 import { chatTemplate } from "./builtin/chat.js";
 import { subscribeTemplate } from "./builtin/subscribe.js";
 
@@ -225,5 +226,69 @@ describe("template render end-to-end (DM-1276)", () => {
     );
     expect(out.width).toBe(390 + 28); // 14px rim each side
     expect(out.height).toBe(700 + 28);
+  }, 60_000);
+});
+
+/**
+ * DM-1537: with a format's safe-area inset, a template's content must lay out
+ * within `canvas − safeInset` (vertical formats reserve top/bottom room for
+ * platform UI). Measured on the real captured page — the flex-padding path
+ * (lower-third) and the chart wrapper path both land inside the safe rect;
+ * without an inset the layout is unchanged (banner sits against its own margin,
+ * outside the would-be safe rect).
+ */
+describe("format safe-area reflow (DM-1537)", () => {
+  const reel = resolveFormat("reel");
+  const { width, height, safeInset: s } = reel;
+  const safe = { l: s.left, t: s.top, r: width - s.right, b: height - s.bottom };
+
+  /** Union bounding box (viewport px) of the elements matching `sel`. */
+  async function boundsOf(html: string, sel: string): Promise<{ minX: number; minY: number; maxX: number; maxY: number }> {
+    const ctx = await (await getBrowser()).newContext({ viewport: { width, height } });
+    try {
+      const page = await ctx.newPage();
+      await page.setContent(html);
+      await page.waitForTimeout(50);
+      return await page.evaluate((sel) => {
+        const els = [...document.querySelectorAll(sel)];
+        let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+        for (const el of els) {
+          const r = el.getBoundingClientRect();
+          minX = Math.min(minX, r.left); minY = Math.min(minY, r.top);
+          maxX = Math.max(maxX, r.right); maxY = Math.max(maxY, r.bottom);
+        }
+        return { minX, minY, maxX, maxY };
+      }, sel);
+    } finally {
+      await ctx.close();
+    }
+  }
+
+  it("lower-third banner lays out within the safe rect at reel (9:16)", async () => {
+    const p = validateTemplateParams(lowerThirdTemplate, { title: "Launch day", subtitle: "On brand", width, height });
+    const b = await boundsOf(buildLowerThirdHtml(p, s), ".lt-panel");
+    expect(b.minX).toBeGreaterThanOrEqual(safe.l - 1);
+    expect(b.minY).toBeGreaterThanOrEqual(safe.t - 1);
+    expect(b.maxX).toBeLessThanOrEqual(safe.r + 1);
+    expect(b.maxY).toBeLessThanOrEqual(safe.b + 1);
+  }, 60_000);
+
+  it("without an inset the banner keeps its own margin (reflow is opt-in via format)", async () => {
+    const p = validateTemplateParams(lowerThirdTemplate, { title: "Launch day", width, height });
+    const b = await boundsOf(buildLowerThirdHtml(p, undefined), ".lt-panel");
+    // Bottom-left banner with the default 48px padding sits below the safe bottom.
+    expect(b.maxY).toBeGreaterThan(safe.b);
+  }, 60_000);
+
+  it("chart plots inside the safe rect at reel (9:16)", async () => {
+    const p = validateTemplateParams(chartTemplate, {
+      type: "column", data: "42,68,55", labels: "A,B,C", title: "Growth", width, height,
+    });
+    const inner = { ...p, width: width - s.left - s.right, height: height - s.top - s.bottom };
+    const b = await boundsOf(buildChartHtml(inner, planChart(inner), s), ".ch-safe");
+    expect(b.minX).toBeGreaterThanOrEqual(safe.l - 1);
+    expect(b.minY).toBeGreaterThanOrEqual(safe.t - 1);
+    expect(b.maxX).toBeLessThanOrEqual(safe.r + 1);
+    expect(b.maxY).toBeLessThanOrEqual(safe.b + 1);
   }, 60_000);
 });

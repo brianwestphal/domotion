@@ -12,6 +12,7 @@
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
+import { safeAreaPadding, type SafeInset } from "../formats.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
@@ -89,7 +90,8 @@ export function chatTimeline(p: ChatParams): ChatTimeline {
 }
 
 /** Standalone HTML for the chat thread. Pure — unit-testable without a browser. */
-export function buildChatHtml(p: ChatParams): string {
+export function buildChatHtml(p: ChatParams, safeInset?: SafeInset): string {
+  const padding = safeAreaPadding({ top: 0, right: 0, bottom: 0, left: 0 }, safeInset);
   const header = p.title != null && p.title !== ""
     ? `<div class="ct-head">
          <div class="ct-avatar">${escapeHtml(p.title.trim().charAt(0).toUpperCase() || "•")}</div>
@@ -125,7 +127,7 @@ export function buildChatHtml(p: ChatParams): string {
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
   html, body { width: ${p.width}px; height: ${p.height}px; }
-  body { background: ${p.background}; font-family: ${p.fontFamily}; display: flex; flex-direction: column; }
+  body { background: ${p.background}; font-family: ${p.fontFamily}; display: flex; flex-direction: column; padding: ${padding}; }
   .ct-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.08); }
   .ct-avatar { width: 40px; height: 40px; border-radius: 50%; background: ${p.accent}; color: #fff; font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; }
   .ct-name { font-size: 19px; font-weight: 600; color: #111; }
@@ -214,7 +216,7 @@ export const chatTemplate: Template<ChatParams> = {
     ctx.log(`template chat: ${params.messages.length} messages, ${params.width}×${params.height}`);
     return runSingleFrameGenerator(ctx, {
       name: "chat",
-      html: buildChatHtml(params),
+      html: buildChatHtml(params, ctx.safeInset),
       width: params.width,
       height: params.height,
       durationMs: chatDurationMs(params),

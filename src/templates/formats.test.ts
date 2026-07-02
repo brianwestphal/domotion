@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { FORMATS, resolveFormat, applyFormatSize, formatNames } from "./formats.js";
+import { FORMATS, resolveFormat, applyFormatSize, safeAreaPadding, formatNames } from "./formats.js";
 
 describe("resolveFormat — preset lookup (DM-1534)", () => {
   it("resolves each built-in preset to its documented canvas size", () => {
@@ -110,5 +110,28 @@ describe("applyFormatSize — precedence (DM-1534)", () => {
     const raw: Record<string, unknown> = { title: "Hi" };
     applyFormatSize(raw, reel);
     expect(raw.title).toBe("Hi");
+  });
+});
+
+describe("safeAreaPadding — content within safe area (DM-1537)", () => {
+  const defaults = { top: 48, right: 48, bottom: 48, left: 48 };
+
+  it("returns the defaults unchanged when no inset (byte-identical default output)", () => {
+    expect(safeAreaPadding(defaults)).toBe("48px 48px 48px 48px");
+  });
+
+  it("takes the per-side MAX of default and safe inset", () => {
+    // reel inset {230,65,346,65}: top/bottom exceed 48 → inset wins; sides 65 > 48 → inset wins.
+    expect(safeAreaPadding(defaults, resolveFormat("reel").safeInset)).toBe("230px 65px 346px 65px");
+  });
+
+  it("keeps the larger default where the inset is smaller", () => {
+    // A tiny inset per side stays below the 48px default → default wins on every side.
+    expect(safeAreaPadding(defaults, { top: 10, right: 10, bottom: 10, left: 10 })).toBe("48px 48px 48px 48px");
+  });
+
+  it("mixes per side (default on one axis, inset on another)", () => {
+    expect(safeAreaPadding({ top: 0, right: 0, bottom: 0, left: 0 }, { top: 100, right: 0, bottom: 200, left: 0 }))
+      .toBe("100px 0px 200px 0px");
   });
 });

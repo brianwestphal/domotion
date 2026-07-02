@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";
+import type { SafeInset } from "../formats.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const CHART_TYPES = ["column", "bar", "line", "pie", "donut"] as const;
@@ -322,7 +323,13 @@ export function planChart(p: ChartParams): ChartPlan {
 }
 
 /** Standalone HTML for the chart. Pure — unit-testable without a browser. */
-export function buildChartHtml(p: ChartParams, plan: ChartPlan): string {
+export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInset): string {
+  // `p.width`/`p.height` are the PLOT (inner) dimensions everything is laid out
+  // against. With a safe-area inset the visible canvas is larger — the plot is
+  // positioned within it by a wrapper (DM-1537). Without an inset the canvas IS
+  // the plot, so the wrapper is absent and output is unchanged.
+  const canvasW = inset != null ? p.width + inset.left + inset.right : p.width;
+  const canvasH = inset != null ? p.height + inset.top + inset.bottom : p.height;
   const titleMarkup = p.title != null && p.title !== "" ? `<div class="ch-title">${escapeHtml(p.title)}</div>` : "";
   const subColor = "rgba(255,255,255,0.6)";
   const gridColor = "rgba(255,255,255,0.10)";
@@ -397,8 +404,9 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan): string {
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
-  html, body { width: ${p.width}px; height: ${p.height}px; }
+  html, body { width: ${canvasW}px; height: ${canvasH}px; }
   body { background: ${p.background}; font-family: ${p.fontFamily}; color: ${p.color}; position: relative; }
+  .ch-safe { position: absolute; left: ${inset != null ? inset.left : 0}px; top: ${inset != null ? inset.top : 0}px; width: ${p.width}px; height: ${p.height}px; }
   .ch-title { position: absolute; left: 40px; top: 22px; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
   .ch-legend { position: absolute; right: 40px; display: flex; gap: 20px; font-size: 17px; color: ${subColor}; }
   .ch-leg { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -415,12 +423,14 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan): string {
   .ch-pie-group { transform-box: fill-box; transform-origin: center; }
 </style></head>
 <body>
+  ${inset != null ? '<div class="ch-safe">' : ""}
   ${titleMarkup}
   ${legend}
   ${grid}
   ${body}
   ${valueMarkup}
   ${catMarkup}
+  ${inset != null ? "</div>" : ""}
 </body></html>`;
 }
 
@@ -503,15 +513,24 @@ export const chartTemplate: Template<ChartParams> = {
     });
   },
   async render(params: ChartParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
-    const plan = planChart(params);
+    // DM-1537: when a format supplies a safe-area inset, lay the chart out inside
+    // `canvas − inset` — plan against the inner dimensions and position the whole
+    // plot within the safe rect (see buildChartHtml). The output stays the full
+    // canvas; only the drawn chart is inset. Without an inset the plan uses the
+    // full canvas exactly as before (byte-identical).
+    const inset = ctx.safeInset;
+    const plotParams = inset != null
+      ? { ...params, width: params.width - inset.left - inset.right, height: params.height - inset.top - inset.bottom }
+      : params;
+    const plan = planChart(plotParams);
     ctx.log(`template chart: ${params.type}, ${params.data.length} series × ${params.data[0].length}, ${params.width}×${params.height}`);
     return runSingleFrameGenerator(ctx, {
       name: "chart",
-      html: buildChartHtml(params, plan),
+      html: buildChartHtml(plotParams, plan, inset),
       width: params.width,
       height: params.height,
       durationMs: chartDurationMs(params, plan),
-      animations: buildChartAnimations(params, plan),
+      animations: buildChartAnimations(plotParams, plan),
     });
   },
 };

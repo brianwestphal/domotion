@@ -58,10 +58,14 @@ around. (Tunable; not a platform-exact spec.)
   the width/height a template receives (merged **before** the template's own
   defaults, same precedence machinery as the brand kit DM-1522) and passes
   `safeInset` into the render context.
-- Templates read `safeInset` for content placement. **v1 lands the canvas + inset
-  plumbing + has each template at least not overflow at 9:16**; per-template
-  *responsive reflow* (font scaling, stacking, line-count) is a follow-up so the
-  first cut isn't blocked on tuning every template for every ratio.
+- Templates read `safeInset` for content placement. The canvas + inset plumbing
+  landed in DM-1534; **DM-1537 wired each themeable built-in to lay its content
+  out within `canvas − safeInset`** — the flex templates (lower-third,
+  kinetic-text, subscribe, chat) via `safeAreaPadding` (per-side max of the
+  template's own padding and the inset), and `chart` by planning against the inner
+  dimensions inside a positioned safe-rect wrapper. Without a format the layout is
+  byte-identical (the inset path is opt-in). Deeper *responsive font scaling /
+  stacking / line-count* per ratio is still a further refinement.
 
 ## Composition
 
@@ -77,8 +81,10 @@ around. (Tunable; not a platform-exact spec.)
   `resolveFormat` + `applyFormatSize` + `--format` on `template` + `safeInset` on
   the render context + unit tests + demos (`examples/templates-demo.ts`:
   `format-reel-kinetic`, `format-square-chart`).
-- **Per-template responsive reflow** (each template scales/stacks within
-  `safeInset` at each ratio — lower-third, kinetic-text, chart, the DM-1523 pack).
-  *v1 plumbs `ctx.safeInset` through but templates don't yet consume it; that's
-  this follow-up.*
+- **Per-template responsive reflow** — ✅ v1 done (DM-1537): the themeable
+  built-ins now confine content to `canvas − safeInset` (via `safeAreaPadding` for
+  the flex templates + an inner-dimension safe-rect wrapper for `chart`), with an
+  e2e assertion that content lands within the safe rect at 9:16. Remaining: deeper
+  font-scaling / stacking per ratio, and the DM-1523 creative-pack templates
+  (they honor `safeInset` the same way as they're built).
 - **`--format` on `capture` / `animate`** (viewport sizing + device-frame-aware).

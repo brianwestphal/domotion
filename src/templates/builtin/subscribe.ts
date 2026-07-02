@@ -11,6 +11,7 @@
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
+import { safeAreaPadding, type SafeInset } from "../formats.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
@@ -38,8 +39,9 @@ export type SubscribeParams = z.infer<typeof subscribeParamsSchema>;
 
 
 /** Standalone HTML for the subscribe pop-up. Pure — unit-testable without a browser. */
-export function buildSubscribeHtml(p: SubscribeParams): string {
+export function buildSubscribeHtml(p: SubscribeParams, safeInset?: SafeInset): string {
   const dark = p.theme === "dark";
+  const padding = safeAreaPadding({ top: 0, right: 0, bottom: 0, left: 0 }, safeInset);
   const cardBg = dark ? "#1f2430" : "#ffffff";
   const nameColor = dark ? "#f3f4f6" : "#0f172a";
   const subColor = dark ? "#9aa4b2" : "#64748b";
@@ -69,7 +71,7 @@ export function buildSubscribeHtml(p: SubscribeParams): string {
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
   html, body { width: ${p.width}px; height: ${p.height}px; }
-  body { background: ${p.background}; font-family: ${p.fontFamily}; display: flex; align-items: center; justify-content: center; }
+  body { background: ${p.background}; font-family: ${p.fontFamily}; display: flex; align-items: center; justify-content: center; padding: ${padding}; }
   .sub-pop { transform-origin: center; }
   .sub-card {
     display: flex; align-items: center; gap: 20px;
@@ -183,7 +185,7 @@ export const subscribeTemplate: Template<SubscribeParams> = {
     ctx.log(`template subscribe: "${params.name}", ${params.width}×${params.height}`);
     return runSingleFrameGenerator(ctx, {
       name: "subscribe",
-      html: buildSubscribeHtml(params),
+      html: buildSubscribeHtml(params, ctx.safeInset),
       width: params.width,
       height: params.height,
       durationMs: subscribeDurationMs(params),
