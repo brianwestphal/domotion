@@ -51,6 +51,12 @@ export interface ShineSweepOptions {
   /** Skew of the band from vertical, in degrees, for a diagonal glint. Default 14. */
   skewDeg?: number;
   /**
+   * Corner radius (px) of the clipped box, so the glint follows a rounded
+   * element (a pill/button) instead of showing square corners. Clamped to half
+   * the shorter side. Omit / 0 for a square clip (unchanged default).
+   */
+  radius?: number;
+  /**
    * When set, the sweep REPEATS on its own clock for an ambient shimmer (used by
    * the `shine` overlay preset). A number is the iteration count; `"infinite"`
    * loops for the frame's whole hold. Omit for a one-shot sweep (transitions).
@@ -95,6 +101,12 @@ export function buildShineSweep(opts: ShineSweepOptions): ShineSweepResult {
   const endX = width + band;
   const bandH = height * 3;
 
+  // Rounded clip so the glint follows a pill/button's corners rather than
+  // showing square edges over them. Clamp to half the shorter side; 0 → square
+  // rect (byte-identical to the pre-radius default).
+  const r = Math.max(0, Math.min(opts.radius ?? 0, Math.min(width, height) / 2));
+  const clipRxAttr = r > 0 ? ` rx="${r}" ry="${r}"` : "";
+
   // A one-shot sweep parks off the right edge before/after the window (invisible,
   // clipped away) so it rests at identity. An ambient `repeat` sweep instead loops
   // on its own clock across the frame's whole hold.
@@ -124,7 +136,7 @@ export function buildShineSweep(opts: ShineSweepOptions): ShineSweepResult {
   }
 
   const markup = `  <defs>
-    <clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${width}" height="${height}" /></clipPath>
+    <clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${width}" height="${height}"${clipRxAttr} /></clipPath>
     <linearGradient id="${gradId}" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="${color}" stop-opacity="0" />
       <stop offset="0.5" stop-color="${color}" stop-opacity="${peak}" />

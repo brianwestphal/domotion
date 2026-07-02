@@ -49,6 +49,21 @@ describe("buildShineSweep (DM-1542 / DM-1524)", () => {
     expect(markup).toContain(`skewX(-30)`);
   });
 
+  it("rounds the clip when radius is set so the glint follows a pill/button's corners", () => {
+    const { markup } = buildShineSweep({ ...base, startPct: 0, endPct: 100, radius: 8 });
+    expect(markup).toContain(`<rect x="10" y="20" width="200" height="80" rx="8" ry="8" />`);
+  });
+
+  it("clamps radius to half the shorter side and omits rounding when 0/unset (square default)", () => {
+    // height 80 → max radius 40; an over-large radius clamps.
+    const clamped = buildShineSweep({ ...base, startPct: 0, endPct: 100, radius: 999 });
+    expect(clamped.markup).toContain(`rx="40" ry="40"`);
+    // Unset/0 stays byte-identical to the pre-radius default (no rx/ry attrs).
+    const square = buildShineSweep({ ...base, startPct: 0, endPct: 100 });
+    expect(square.markup).toContain(`width="200" height="80" />`);
+    expect(square.markup).not.toContain("rx=");
+  });
+
   it("accepts percent-string windows (from the animator) as well as numbers", () => {
     const { css } = buildShineSweep({ ...base, startPct: "25.00%", endPct: "50.00%" });
     expect(css).toContain("50.000% { transform: translateX(");
