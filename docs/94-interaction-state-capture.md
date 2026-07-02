@@ -1,8 +1,9 @@
 # 94 — Interaction-state capture (`:hover` / `:active` / `:focus`)
 
-Status: **v1 shipped** (DM-1516) — explicit forced-pseudo-state capture. The
-auto-detection directions in the second half are **design options**, enumerated
-for a maintainer to pick from, not built.
+Status: **v1 shipped** (DM-1516) — explicit forced-pseudo-state capture — plus
+**Option 4 shipped** (DM-1565): the no-DOM/PDF overlay-fake `interact` overlay.
+The remaining auto-detection directions (Options 1–3) are **design options**,
+enumerated for a maintainer to pick from, not built.
 
 ## The problem
 
@@ -205,29 +206,64 @@ mutations.
 - **Recommendation:** a later, opt-in mode; pair with Option 2 (CSS diff) so one
   pass covers both CSS- and JS-driven feedback.
 
-### Option 4 — Overlay-only fake for no-DOM / PDF inputs
+### Option 4 — Overlay-only fake for no-DOM / PDF inputs (BUILT — DM-1565)
 
 When there is **no DOM** (a PDF or image input — the future direction the ticket
 flags), auto-detection is impossible; the author *declares* the feedback as a
 synthetic overlay (a translucent hover fill / focus ring / press-darken rect over
 a named region). This is the manual-simulation path generalized to inputs that
-can't be forced.
+can't be forced. Built as the **`interact` overlay** (`kind: "interact"`) — it has
+no PDF consumer yet, but it works standalone on ANY region today, so it also does
+duty as a plain synthetic hover/focus/press treatment on a captured demo.
 
+```jsonc
+{
+  "kind": "interact",
+  "treatment": "hover",   // "hover" | "focus" | "press"
+  "x": 60, "y": 50, "width": 140, "height": 40,  // the region the treatment covers
+  "radius": 8,            // corner radius of the fill + ring
+  "delay": 200,           // ms from frame start to the appear (default 200)
+  "duration": 260,        // fade / pop-in time in ms (default 240)
+  // optional overrides — all defaulted per treatment:
+  "fill": "#ffffff", "fillOpacity": 0.18,  // "none" omits the fill
+  "ring": "#4c9ffe", "ringWidth": 2,       // a focus ring; default on for "focus"
+  "scale": 1.03,          // scale-pop target about the box center (1 = no pop)
+  "holdMs": 900, "releaseMs": 180
+  // "anchor": { "selector": ".cta" }  // CLI: auto-sizes x/y/width/height/radius from the box
+}
+```
+
+Each treatment fades a fill and/or focus ring IN over `duration` (with a scale
+"pop" about the box center), HOLDS, then RELEASES back to nothing before the frame
+ends. The three presets: **`hover`** = translucent highlight fill + a small
+scale-up; **`focus`** = a focus ring (stroke) + a faint fill; **`press`** = a
+darken fill + a scale-DOWN press-in that auto-releases. Opacity + `transform:
+scale` animate as **one fused keyframe animation** (a single timeline that can't
+desync across engines — docs/84).
+
+**Anchor auto-sizing.** Like `shine`, an `interact` overlay carrying an
+`anchor: { selector }` (CLI, or the imperative `resolveOverlays`) auto-fills
+`x`/`y` (top-left), `width`/`height`, AND `radius` (from the element's computed
+`border-radius`) from the anchored element's box; an explicit positive
+`width`/`height` or explicit `radius` still wins.
+
+- **Rests at identity.** Outside its window the overlay is opacity 0 / scale(1), so
+  a Domotion re-capture of a rested frame sees nothing and can't double-transform
+  it — the same invariant `shine` / `tap` hold.
 - **Pros:** the only option that works with no DOM; fully deterministic; reuses
   the overlay system.
 - **Cons:** purely synthetic — it does not reflect any real styling (there is
   none to reflect). Author must position/style the fake by hand.
 - **Composes with `@keyframes`:** yes — it's an overlay with an opacity/transform
-  keyframe, same as `tap`/`blink`/`shine`.
-- **Recommendation:** build alongside the no-DOM (PDF) input work, not before —
-  it has no consumer until then.
+  keyframe, same as `tap`/`blink`/`shine`. Cross-engine-safe: no animated filter.
 
 ### How they relate
 
 v1 (forced pseudo-state) is the foundation Options 1–2 build on (both need a way
 to *enter* the state to capture it). Option 2 is the natural next step for CSS
-feedback; Option 3 extends detection to JS feedback; Option 4 is the no-DOM
-degenerate case for a different input pipeline entirely. None require anything in
+feedback; Option 3 extends detection to JS feedback; Option 4 (shipped, the
+`interact` overlay) is the no-DOM degenerate case for a different input pipeline
+entirely — it fakes the feedback instead of capturing it. None require anything in
 the output beyond the existing cross-engine `@keyframes` vocabulary.
 
 ## Related

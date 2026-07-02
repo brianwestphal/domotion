@@ -11,7 +11,7 @@ import type { MagicMove } from "./magic-move.js";
 // schemas in `overlay-schema.ts`; the renderer-facing TS types are derived from
 // them via `z.infer`, and the declarative-config layer extends the same base
 // schemas. Re-exported below so the public `domotion-svg` surface is unchanged.
-import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, IntraFrameAnimation } from "./overlay-schema.js";
+import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, IntraFrameAnimation } from "./overlay-schema.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
@@ -68,13 +68,23 @@ export interface AnimationFrame {
      * (expanding-circle `clip-path` reveal) reveals, `zoom-in` / `zoom-out`
      * (scale dolly under a crossfade), and `shine` (a crossfade with a swept
      * gradient highlight over the handoff — the shared `buildShineSweep` helper).
+     *
+     * DM-1547 adds the radial / clock wipes (docs/88): `wipe-radial` (an
+     * expanding-circle reveal — the same geometry family as `iris`, kept as a
+     * named alias so the "radial wipe" vocabulary is complete, mirroring how
+     * `push-up` aliases `scroll`) and `wipe-clock` (an angular "clock hand" sweep
+     * that reveals the incoming frame around the center via an animated
+     * `clip-path: polygon()` with a fixed vertex count — NO animated conic mask,
+     * NO animated filter, so it composites identically on Blink / WebKit / Gecko).
+     *
      * All express motion in `transform` / `clip-path` / `opacity` / gradients
      * only — never an animated CSS `filter` (Chromium-only in `<img>`, docs/84).
      */
     type:
       | "crossfade" | "push-left" | "scroll" | "cut" | "magic-move"
       | "push-right" | "push-up" | "push-down"
-      | "wipe" | "iris" | "zoom-in" | "zoom-out" | "shine";
+      | "wipe" | "iris" | "zoom-in" | "zoom-out" | "shine"
+      | "wipe-radial" | "wipe-clock";
     duration: number;
   };
   /**
@@ -103,7 +113,7 @@ export interface AnimationFrame {
 // the single zod source of truth in `./overlay-schema.ts` and re-exported here
 // so the public `domotion-svg` type surface is unchanged. The renderer-facing
 // (resolved) shape lives there; the declarative config extends the same base.
-export type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, AnimationOverlay, IntraFrameAnimation };
+export type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, AnimationOverlay, IntraFrameAnimation };
 
 export interface AnimationConfig {
   width: number;
@@ -448,10 +458,107 @@ const PUSH_DIRS: Record<string, { axis: "X" | "Y"; sign: 1 | -1 }> = {
   scroll: { axis: "Y", sign: -1 },
 };
 
-/** DM-1524: reveal-on-top transitions — the outgoing frame HOLDS beneath and
- *  hard-cuts at the window end while the incoming frame unveils on top via an
- *  animated `clip-path` (`wipe` = linear inset, `iris` = expanding circle). */
-const REVEAL_KINDS = new Set(["wipe", "iris"]);
+/** DM-1524 / DM-1547: reveal-on-top transitions — the outgoing frame HOLDS
+ *  beneath and hard-cuts at the window end while the incoming frame unveils on
+ *  top via an animated `clip-path` (`wipe` = linear inset, `iris` /
+ *  `wipe-radial` = expanding circle, `wipe-clock` = angular polygon sweep). */
+const REVEAL_KINDS = new Set(["wipe", "iris", "wipe-radial", "wipe-clock"]);
+
+/** The clip-path reveal SHAPE a reveal transition unveils with. DM-1547 folds
+ *  the two new radial/clock names in: `wipe-radial` is an alias of the `iris`
+ *  expanding circle (same geometry, complete-vocabulary name — cf. `push-up`
+ *  aliasing `scroll`), and `wipe-clock` is the distinct angular `polygon()`
+ *  sweep. `wipe` stays the linear inset. */
+type RevealShape = "wipe" | "iris" | "clock";
+function revealShapeOf(transType: string): RevealShape {
+  switch (transType) {
+    case "wipe": return "wipe";
+    case "wipe-clock": return "clock";
+    // `iris` and its `wipe-radial` alias both reveal with the expanding circle.
+    default: return "iris";
+  }
+}
+
+/**
+ * DM-1547: one `clip-path: polygon()` frame of the `wipe-clock` sweep at progress
+ * `f` ∈ [0, 1] (0 → fully hidden, 1 → fully revealed). A "clock hand" sweeps
+ * clockwise from 12 o'clock through 360°, and the revealed region is the swept
+ * angular sector — clipped to the RECTANGLE (so the whole frame ends fully shown),
+ * not a circle.
+ *
+ * The polygon has a FIXED 7 vertices at every `f` so CSS interpolates it smoothly
+ * between keyframe stops (differing vertex counts would fall back to a discrete
+ * jump). The vertices are: the center, the fixed 12-o'clock point, four "corner"
+ * slots, and the current leading edge point. Each corner slot RIDES the leading
+ * edge point until the sweep angle reaches that corner, then snaps to it — and
+ * because `edgePoint(cornerAngle)` IS the corner, that snap is continuous. So a
+ * handful of stops (the four corner angles + even subdivisions) reproduce a clean
+ * clock wipe with plain linear interpolation. Cross-engine-safe: polygon clip-path
+ * animates on Blink / WebKit / Gecko; no conic mask, no filter (docs/84).
+ */
+function clockWipeClip(f: number, w: number, h: number): string {
+  const cx = w / 2;
+  const cy = h / 2;
+  const theta = 2 * Math.PI * f;
+  const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
+  // Corner angles, measured clockwise from straight up (monotone TR<BR<BL<TL).
+  const aTR = norm(Math.atan2(w / 2, h / 2));
+  const aBR = norm(Math.atan2(w / 2, -h / 2));
+  const aBL = norm(Math.atan2(-w / 2, -h / 2));
+  const aTL = norm(Math.atan2(-w / 2, h / 2));
+  // Where the ray from center at clockwise-from-up angle `t` hits the rect edge.
+  const edgePoint = (t: number): [number, number] => {
+    const dx = Math.sin(t);
+    const dy = -Math.cos(t);
+    let best = Infinity;
+    if (dx > 1e-9) best = Math.min(best, (w - cx) / dx);
+    else if (dx < -1e-9) best = Math.min(best, (0 - cx) / dx);
+    if (dy > 1e-9) best = Math.min(best, (h - cy) / dy);
+    else if (dy < -1e-9) best = Math.min(best, (0 - cy) / dy);
+    if (!isFinite(best)) best = 0;
+    return [cx + dx * best, cy + dy * best];
+  };
+  const lead = edgePoint(theta);
+  const slot = (passed: boolean, corner: [number, number]): [number, number] => (passed ? corner : lead);
+  const verts: [number, number][] = [
+    [cx, cy],          // center
+    [cx, 0],           // fixed 12 o'clock start
+    slot(theta >= aTR, [w, 0]),
+    slot(theta >= aBR, [w, h]),
+    slot(theta >= aBL, [0, h]),
+    slot(theta >= aTL, [0, 0]),
+    lead,              // current leading edge
+  ];
+  return "polygon(" + verts.map(([x, y]) => `${x.toFixed(2)}px ${y.toFixed(2)}px`).join(", ") + ")";
+}
+
+/**
+ * DM-1547: the intermediate `clip-path` keyframe stops for a `wipe-clock` reveal,
+ * spanning the entrance window `[enterNum, startNum]` (scene-clock percents). The
+ * hidden (`f=0`) start and shown (`f=1`) end are emitted by the caller; this fills
+ * the sweep between them. Stops land at even subdivisions PLUS the four exact
+ * corner angles (so the polygon threads each corner precisely). Returns a CSS
+ * fragment (one `pct% { clip-path: … }` per line).
+ */
+function clockWipeStops(w: number, h: number, enterNum: number, startNum: number): string {
+  const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
+  const cornerFracs = [
+    norm(Math.atan2(w / 2, h / 2)),
+    norm(Math.atan2(w / 2, -h / 2)),
+    norm(Math.atan2(-w / 2, -h / 2)),
+    norm(Math.atan2(-w / 2, h / 2)),
+  ].map((a) => a / (2 * Math.PI));
+  const fracs = new Set<number>(cornerFracs);
+  const SUBDIVISIONS = 16;
+  for (let k = 1; k < SUBDIVISIONS; k++) fracs.add(k / SUBDIVISIONS);
+  const sorted = [...fracs].filter((f) => f > 1e-4 && f < 1 - 1e-4).sort((a, b) => a - b);
+  return sorted
+    .map((f) => {
+      const p = enterNum + (startNum - enterNum) * f;
+      return `      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h)}; }`;
+    })
+    .join("\n");
+}
 
 /**
  * Push-left (horizontal) / scroll (vertical) slide frame. Both emit the SAME
@@ -498,7 +605,7 @@ function emitSlideFrame(
 function emitRevealFrame(
   i: number,
   svgContent: string,
-  entranceReveal: "wipe" | "iris" | null,
+  entranceReveal: RevealShape | null,
   dims: { width: number; height: number },
   win: { revealEnterStartPct: string; startPct: string; holdEndPct: string; transEndPct: string },
   totalSec: number,
@@ -544,11 +651,32 @@ function emitRevealFrame(
     const cx = dims.width / 2;
     const cy = dims.height / 2;
     const r = Math.ceil(Math.hypot(dims.width / 2, dims.height / 2));
-    const [hidden, shown] = entranceReveal === "wipe"
-      ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
-      : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
     const beforeEnter = padBefore(parseFloat(revealEnterStartPct), KEYFRAME_EPSILON.slide, 2);
-    revealKf = `
+    if (entranceReveal === "clock") {
+      // DM-1547: the angular "clock hand" sweep — fixed-vertex `polygon()` frames
+      // (see `clockWipeClip`) interpolated between the hidden f=0 start and the
+      // fully-revealed f=1 end, threading each corner. Rests at the full-rectangle
+      // polygon (fully revealed — the reveal's identity). `clip-path` + opacity
+      // only; no conic mask, no filter.
+      const enterNum = parseFloat(revealEnterStartPct);
+      const startNum = parseFloat(startPct);
+      const hidden = clockWipeClip(0, dims.width, dims.height);
+      const shown = clockWipeClip(1, dims.width, dims.height);
+      const midStops = clockWipeStops(dims.width, dims.height, enterNum, startNum);
+      revealKf = `
+    @keyframes fr-${i} {
+      0%, ${beforeEnter}% { clip-path: ${hidden}; }
+      ${revealEnterStartPct} { clip-path: ${hidden}; }
+${midStops}
+      ${startPct} { clip-path: ${shown}; }
+      100% { clip-path: ${shown}; }
+    }
+    .fr-${i} { animation: fr-${i} ${totalSec.toFixed(2)}s linear infinite; }`;
+    } else {
+      const [hidden, shown] = entranceReveal === "wipe"
+        ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
+        : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
+      revealKf = `
     @keyframes fr-${i} {
       0%, ${beforeEnter}% { clip-path: ${hidden}; }
       ${revealEnterStartPct} { clip-path: ${hidden}; }
@@ -556,6 +684,7 @@ function emitRevealFrame(
       100% { clip-path: ${shown}; }
     }
     .fr-${i} { animation: fr-${i} ${totalSec.toFixed(2)}s linear infinite; }`;
+    }
     inner = `<g class="fr-${i}">\n${svgContent}\n  </g>`;
   }
 
@@ -596,6 +725,10 @@ function emitFrameOverlays(
         keyframes.push(css);
       } else if (overlay.kind === "shine") {
         const { svgMarkup, css } = renderShineOverlay(overlay, i, timeOffset, frame.duration, totalDuration, totalSec);
+        groups.push(svgMarkup);
+        keyframes.push(css);
+      } else if (overlay.kind === "interact") {
+        const { svgMarkup, css } = renderInteractOverlay(overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       }
@@ -738,12 +871,14 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       keyframes.push(r.keyframe);
 
     } else if (ownReveal || prevReveal) {
-      // DM-1524: wipe / iris reveal-on-top. This frame HOLDS beneath (opacity 1
-      // through its window) and hard-cuts out; a `wipe`/`iris` predecessor's
-      // handoff instead UNVEILS this frame on top via an animated `clip-path`
-      // over the entrance window. The reveal kind is the PREVIOUS type; the
-      // hold-then-cut exit serves whatever reveals on top NEXT.
-      const entranceReveal = prevReveal ? (prevType as "wipe" | "iris") : null;
+      // DM-1524 / DM-1547: wipe / iris / wipe-radial / wipe-clock reveal-on-top.
+      // This frame HOLDS beneath (opacity 1 through its window) and hard-cuts out;
+      // a reveal predecessor's handoff instead UNVEILS this frame on top via an
+      // animated `clip-path` over the entrance window. The reveal SHAPE is derived
+      // from the PREVIOUS type (`revealShapeOf` folds `wipe-radial` into the iris
+      // circle and `wipe-clock` into the polygon sweep); the hold-then-cut exit
+      // serves whatever reveals on top NEXT.
+      const entranceReveal = prevReveal && prevType != null ? revealShapeOf(prevType) : null;
       const revealEnterStartPct = entranceReveal != null ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration) : startPct;
       const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
       frameGroups.push(r.group);
@@ -1363,6 +1498,88 @@ function renderBlinkOverlay(
   const css = `
     @keyframes ${id} { ${stops.join(" ")} }
     .${id} { animation: ${id} ${totalSec.toFixed(2)}s step-end infinite; }`;
+  return { svgMarkup, css };
+}
+
+/** DM-1565: per-treatment defaults for the synthetic interaction overlay. */
+const INTERACT_DEFAULTS: Record<"hover" | "focus" | "press", { fill: string; fillOpacity: number; ring: string | null; scale: number }> = {
+  hover: { fill: "#ffffff", fillOpacity: 0.18, ring: null, scale: 1.03 },
+  focus: { fill: "#4c9ffe", fillOpacity: 0.10, ring: "#4c9ffe", scale: 1.0 },
+  press: { fill: "#000000", fillOpacity: 0.18, ring: null, scale: 0.96 },
+};
+
+/**
+ * DM-1565 (docs/94 Option 4): render a SYNTHETIC interaction-feedback overlay —
+ * a fake `:hover` / `:focus` / `:active` treatment over a region that has no real
+ * CSS state to force. A translucent fill and/or a focus ring live inside one
+ * `<g>` whose OPACITY and `transform: scale` (about the box center) animate as
+ * ONE fused keyframe animation (a single timeline that can't desync across
+ * engines — docs/84): fade + pop IN over [appear, peak], HOLD at peak, then
+ * RELEASE back to opacity 0 / scale(1) before the frame ends. So it appears, then
+ * RESTS at identity (a re-capture of a rested frame sees nothing). `opacity` +
+ * `transform` only — no animated filter.
+ */
+function renderInteractOverlay(
+  overlay: InteractOverlay,
+  frameIdx: number,
+  frameStart: number,
+  frameEnd: number,
+  totalDuration: number,
+  totalSec: number,
+): { svgMarkup: string; css: string } {
+  const id = `ix${frameIdx}`;
+  const treatment = overlay.treatment ?? "hover";
+  const d = INTERACT_DEFAULTS[treatment];
+  const fill = overlay.fill ?? d.fill;
+  const fillOpacity = overlay.fillOpacity ?? d.fillOpacity;
+  // `ring` defaults to the treatment ring (a focus ring for `focus`); an explicit
+  // color adds one to any treatment, `"none"` forces it off.
+  const ring = overlay.ring ?? d.ring;
+  const ringWidth = overlay.ringWidth ?? 2;
+  const radius = overlay.radius ?? 6;
+  const scaleTo = overlay.scale ?? d.scale;
+  const delay = overlay.delay ?? 200;
+  const duration = overlay.duration ?? 240;
+  const releaseMs = overlay.releaseMs ?? 180;
+
+  // Timeline (all clamped to the frame so the treatment can't leak past the cut).
+  const appearMs = Math.min(frameStart + delay, frameEnd);
+  const peakMs = Math.min(appearMs + duration, frameEnd);
+  // `press` is a quick tap by default; hover/focus hold until just before the
+  // frame ends. An explicit `holdMs` overrides either.
+  const defaultHold = treatment === "press" ? 120 : Math.max(0, frameEnd - releaseMs - peakMs);
+  const holdMs = overlay.holdMs ?? defaultHold;
+  const holdEndMs = Math.min(Math.max(peakMs, peakMs + holdMs), Math.max(peakMs, frameEnd - releaseMs));
+  const releaseEndMs = Math.min(holdEndMs + releaseMs, frameEnd);
+
+  const cx = overlay.x + overlay.width / 2;
+  const cy = overlay.y + overlay.height / 2;
+  const rAttr = radius > 0 ? ` rx="${radius}" ry="${radius}"` : "";
+
+  const layers: string[] = [];
+  if (fill !== "none") {
+    layers.push(`    <rect x="${overlay.x}" y="${overlay.y}" width="${overlay.width}" height="${overlay.height}"${rAttr} fill="${fill}" fill-opacity="${fillOpacity}" />`);
+  }
+  if (ring != null && ring !== "none") {
+    // Inset by half the stroke so the ring stays inside the region's bounds.
+    const hw = ringWidth / 2;
+    layers.push(`    <rect x="${overlay.x + hw}" y="${overlay.y + hw}" width="${Math.max(0, overlay.width - ringWidth)}" height="${Math.max(0, overlay.height - ringWidth)}"${rAttr} fill="none" stroke="${ring}" stroke-width="${ringWidth}" />`);
+  }
+  const svgMarkup = `  <g class="${id}">\n${layers.join("\n")}\n  </g>`;
+
+  // One fused animation: opacity + transform at each stop (single timeline). The
+  // in-segment eases out (decelerates into peak); the release eases in.
+  const s = (ms: number): string => pct(ms, totalDuration);
+  const css = `
+    @keyframes ${id} {
+      0% { opacity: 0; transform: scale(1); }
+      ${s(appearMs)} { opacity: 0; transform: scale(1); animation-timing-function: ease-out; }
+      ${s(peakMs)} { opacity: 1; transform: scale(${scaleTo}); }
+      ${s(holdEndMs)} { opacity: 1; transform: scale(${scaleTo}); animation-timing-function: ease-in; }
+      ${s(releaseEndMs)} { opacity: 0; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1); }
+    }
+    .${id} { animation: ${id} ${totalSec.toFixed(2)}s linear infinite; transform-origin: ${cx}px ${cy}px; }`;
   return { svgMarkup, css };
 }
 

@@ -1159,3 +1159,126 @@ describe("transition expansion (DM-1524)", () => {
     expect(svg).not.toContain("filter:");
   });
 });
+
+// DM-1547: radial / clock wipe transitions (docs/88). `wipe-radial` is the
+// expanding-circle reveal (an alias of `iris`); `wipe-clock` is an angular
+// "clock hand" polygon sweep. Both express motion via clip-path only — never an
+// animated conic mask, never an animated filter (cross-engine-safe, docs/84).
+describe("radial / clock wipe transitions (DM-1547)", () => {
+  const twoFrame = (type: string) => generateAnimatedSvg({
+    width: 400, height: 200,
+    frames: [
+      { svgContent: `<rect id="a" width="400" height="200" fill="red"/>`, duration: 500, transition: { type, duration: 400 } as never },
+      { svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`, duration: 500, transition: { type, duration: 400 } as never },
+    ],
+  });
+
+  it("wipe-radial reveals via an expanding circle (same geometry as iris)", () => {
+    const svg = twoFrame("wipe-radial");
+    expect(svg).toContain(`class="fr-1"`);
+    expect(svg).toContain("clip-path: circle(0px at 200px 100px)"); // pinhole
+    expect(svg).toContain("clip-path: circle(224px at 200px 100px)"); // ceil(hypot(200,100))
+  });
+
+  it("wipe-radial is the byte-identical alias of iris", () => {
+    // Both fold to the same expanding-circle reveal shape (cf. push-up == scroll).
+    // Frame-group ids/classes don't depend on the transition NAME, so the SVGs match.
+    expect(twoFrame("wipe-radial")).toBe(twoFrame("iris"));
+  });
+
+  it("wipe-clock reveals the incoming frame via an animated clip-path polygon()", () => {
+    const svg = twoFrame("wipe-clock");
+    expect(svg).toContain(`class="fr-1"`);
+    expect(svg).toContain("@keyframes fr-1");
+    // Angular sweep expressed as a polygon() clip, NOT a circle/inset/conic mask.
+    expect(svg).toMatch(/clip-path: polygon\(/);
+    expect(svg).not.toContain("conic-gradient");
+  });
+
+  it("wipe-clock uses a FIXED 7-vertex polygon at every stop (smooth interpolation)", () => {
+    const svg = twoFrame("wipe-clock");
+    const block = svg.match(/@keyframes fr-1 \{[\s\S]*?\n {4}\}/)?.[0] ?? "";
+    const polys = [...block.matchAll(/polygon\(([^)]*)\)/g)];
+    expect(polys.length).toBeGreaterThan(6); // hidden + several sweep stops + shown
+    for (const p of polys) {
+      // 7 comma-separated "x y" vertices at every keyframe so CSS interpolates
+      // smoothly rather than falling back to a discrete jump.
+      expect(p[1].split(",")).toHaveLength(7);
+    }
+  });
+
+  it("wipe-clock starts hidden (degenerate) and rests at the full-rectangle polygon", () => {
+    const svg = twoFrame("wipe-clock");
+    // Hidden: the sweep collapses to the 12-o'clock point (all vertices at 200,0).
+    expect(svg).toContain("polygon(200.00px 100.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px, 200.00px 0.00px)");
+    // Fully revealed (rest): the polygon threads all four corners.
+    expect(svg).toContain("400.00px 0.00px, 400.00px 200.00px, 0.00px 200.00px, 0.00px 0.00px");
+  });
+
+  it("neither radial nor clock wipe animates a CSS filter", () => {
+    for (const type of ["wipe-radial", "wipe-clock"]) {
+      const svg = twoFrame(type);
+      expect(svg, type).not.toContain("filter:");
+      expect(svg, type).not.toMatch(/blur\(/);
+      expect(svg, type).not.toContain("conic-gradient");
+    }
+  });
+});
+
+// DM-1565: synthetic interaction-feedback overlay (docs/94 Option 4) — a fake
+// hover / focus / press treatment over a region with no real CSS state. It fades
+// in a fill / ring / scale-pop, then RESTS at identity. transform + opacity only.
+describe("interaction-feedback overlay (DM-1565)", () => {
+  const withOverlay = (overlay: Record<string, unknown>) => generateAnimatedSvg({
+    width: 300, height: 160,
+    frames: [{
+      svgContent: `<rect width="300" height="160" fill="#111"/>`,
+      duration: 2000,
+      overlays: [{ kind: "interact", x: 40, y: 50, width: 160, height: 44, ...overlay } as never],
+    }],
+  });
+
+  it("hover paints a translucent fill + scale pop, fused into one animation", () => {
+    const svg = withOverlay({ treatment: "hover" });
+    expect(svg).toContain(`class="ix0"`);
+    expect(svg).toContain("@keyframes ix0");
+    expect(svg).toContain("fill-opacity"); // highlight fill
+    // opacity AND transform animate on the SAME keyframes (one timeline).
+    expect(svg).toMatch(/@keyframes ix0 \{[\s\S]*opacity: 1; transform: scale\(1\.03\)/);
+    // scale pivots about the box center (40+80, 50+22).
+    expect(svg).toContain("transform-origin: 120px 72px");
+  });
+
+  it("rests at identity — opacity 0 / scale(1) at the loop boundaries", () => {
+    const svg = withOverlay({ treatment: "hover" });
+    const block = svg.match(/@keyframes ix0 \{[\s\S]*?\n {4}\}/)?.[0] ?? "";
+    expect(block).toMatch(/0% \{ opacity: 0; transform: scale\(1\);/);
+    expect(block).toMatch(/100% \{ opacity: 0; transform: scale\(1\); \}/);
+  });
+
+  it("focus draws a stroked ring (fill=none stroke)", () => {
+    const svg = withOverlay({ treatment: "focus" });
+    expect(svg).toMatch(/stroke="#4c9ffe"/);
+    expect(svg).toContain(`fill="none"`);
+  });
+
+  it("press scales DOWN (press-in) with a darken fill", () => {
+    const svg = withOverlay({ treatment: "press" });
+    expect(svg).toContain("transform: scale(0.96)");
+    expect(svg).toMatch(/fill="#000000"/);
+  });
+
+  it("fill:\"none\" omits the fill rect; ring can be added to any treatment", () => {
+    const svg = withOverlay({ treatment: "hover", fill: "none", ring: "#ff0000" });
+    expect(svg).not.toContain("fill-opacity");
+    expect(svg).toMatch(/stroke="#ff0000"/);
+  });
+
+  it("never animates a CSS filter (cross-engine-safe)", () => {
+    for (const treatment of ["hover", "focus", "press"]) {
+      const svg = withOverlay({ treatment });
+      expect(svg, treatment).not.toContain("filter:");
+      expect(svg, treatment).not.toMatch(/blur\(/);
+    }
+  });
+});

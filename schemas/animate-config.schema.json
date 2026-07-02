@@ -294,7 +294,9 @@
                   "iris",
                   "zoom-in",
                   "zoom-out",
-                  "shine"
+                  "shine",
+                  "wipe-radial",
+                  "wipe-clock"
                 ]
               },
               "duration": {
@@ -1447,6 +1449,103 @@
                     "kind",
                     "width",
                     "height"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "interact"
+                    },
+                    "x": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "y": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "width": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "height": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "treatment": {
+                      "type": "string",
+                      "enum": [
+                        "hover",
+                        "focus",
+                        "press"
+                      ]
+                    },
+                    "fill": {
+                      "type": "string"
+                    },
+                    "fillOpacity": {
+                      "type": "number"
+                    },
+                    "ring": {
+                      "type": "string"
+                    },
+                    "ringWidth": {
+                      "type": "number"
+                    },
+                    "radius": {
+                      "type": "number"
+                    },
+                    "scale": {
+                      "type": "number"
+                    },
+                    "delay": {
+                      "type": "number"
+                    },
+                    "duration": {
+                      "type": "number"
+                    },
+                    "holdMs": {
+                      "type": "number"
+                    },
+                    "releaseMs": {
+                      "type": "number"
+                    },
+                    "anchor": {
+                      "type": "object",
+                      "properties": {
+                        "selector": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string",
+                          "enum": [
+                            "top-left",
+                            "top",
+                            "top-right",
+                            "left",
+                            "center",
+                            "right",
+                            "bottom-left",
+                            "bottom",
+                            "bottom-right"
+                          ]
+                        },
+                        "dx": {
+                          "type": "number"
+                        },
+                        "dy": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "selector"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind"
                   ]
                 }
               ]

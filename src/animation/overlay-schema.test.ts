@@ -46,6 +46,18 @@ describe("overlay schema SSOT (DM-1131)", () => {
     expect(animationOverlaySchema.safeParse({ kind: "nope", x: 0, y: 0 }).success).toBe(false);
   });
 
+  it("parses a resolved interact overlay through the union (DM-1565)", () => {
+    const ov: AnimationOverlay = animationOverlaySchema.parse({
+      kind: "interact", treatment: "focus", x: 5, y: 6, width: 80, height: 30,
+      ring: "#4c9ffe", radius: 8, scale: 1.0, delay: 150, duration: 200,
+    });
+    expect(ov.kind).toBe("interact");
+    // treatment must be one of the three known values.
+    expect(animationOverlaySchema.safeParse({ kind: "interact", treatment: "wobble", x: 0, y: 0, width: 4, height: 4 }).success).toBe(false);
+    // width/height are required on the RESOLVED shape (the authoring schema defaults them).
+    expect(animationOverlaySchema.safeParse({ kind: "interact", x: 0, y: 0 }).success).toBe(false);
+  });
+
   it("parses an intra-frame animation (the runtime shape carries animId, not selector)", () => {
     const a = intraFrameAnimationSchema.parse({ animId: "f0a0", property: "opacity", from: "0", to: "1", duration: 300 });
     expect(a.animId).toBe("f0a0");
