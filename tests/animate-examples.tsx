@@ -283,6 +283,48 @@ const EXAMPLES: Example[] = [
       return f;
     },
   },
+  {
+    // DM-1562 (docs/94 Option 1): `hoverReveal` sugar. A single frame + one field
+    // (`hoverReveal: { selector: ".cta" }`) auto-expands into rest + forced-:hover
+    // frames with a crossfade and a cursor move onto the button — the same output
+    // as the hand-wired hover-state demo, from one line. The card's background
+    // changed on hover, so it's a paint reveal → a rest→hover crossfade.
+    name: "hover-reveal",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 460 320"`)) f.push("missing viewBox 460x320");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 composited frame groups (rest + forced-hover)");
+      const frames = svg.split(/(?=class="f f-\d+")/);
+      const rest = frames.find((c) => /class="f f-0"/.test(c)) ?? "";
+      const hover = frames.find((c) => /class="f f-1"/.test(c)) ?? "";
+      if (!rest.includes("rgb(35,134,54)")) f.push("frame 0 (rest) missing the base button color rgb(35,134,54)");
+      if (rest.includes("rgb(46,160,67)")) f.push("frame 0 (rest) unexpectedly shows the :hover color — hoverReveal leaked into the rest frame");
+      if (!hover.includes("rgb(46,160,67)")) f.push("frame 1 (reveal) missing the captured :hover color rgb(46,160,67)");
+      // Crossfade compositing between the two frames (opacity groups, not a merge).
+      if (!/@keyframes fv-0/.test(svg)) f.push("missing fv-0 crossfade keyframes between rest and reveal");
+      return f;
+    },
+  },
+  {
+    // DM-1563 (docs/94 Option 2): `hoverDetect` auto-detection. The pre-pass drives
+    // a real :hover, diffs computed style, and finds ONLY a transform change (a
+    // pure scale) — a MOTION reveal — so it keeps ONE frame and adds an intra-frame
+    // keyframe tween (scale 1 → 1.08) instead of a crossfade. Proof the detection
+    // + synthesis reached the rendered SVG.
+    name: "hover-detect",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 420 240"`)) f.push("missing viewBox 420x240");
+      // Motion mode → a single composited frame (no rest/hover pair).
+      if (count(svg, /class="f f-\d+"/g) !== 1) f.push("expected 1 frame group (motion-only hover → intra-frame tween, not a crossfade pair)");
+      // The button's own color survives (the paint wasn't touched).
+      if (!svg.includes("rgb(110,64,201)")) f.push("missing the button color rgb(110,64,201)");
+      // Intra-frame animation keyframes on frame 0, tweening the detected scale.
+      if (!/@keyframes f0-/.test(svg)) f.push("missing intra-frame animation keyframes on frame 0 (the synthesized scale tween)");
+      if (!/matrix\(1\.08/.test(svg)) f.push("missing the detected hover transform matrix(1.08, …) in the tween keyframes");
+      return f;
+    },
+  },
 ];
 
 /**

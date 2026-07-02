@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>hoverReveal demo</title>
+    <style>
+      * { margin: 0; box-sizing: border-box; }
+      body {
+        background: #0d1117;
+        font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 320px;
+      }
+      .card {
+        width: 300px;
+        padding: 28px 26px;
+        background: #161b22;
+        border: 2px solid #30363d;
+        border-radius: 14px;
+        color: #e6edf3;
+        transition: none;
+      }
+      /* The card glows when the button inside it is hovered. */
+      .card:has(.cta:hover) { border-color: #2f81f7; background: #1b2330; }
+      .plan { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #8b949e; }
+      .price { font-size: 40px; font-weight: 700; margin: 6px 0 18px; }
+      .price span { font-size: 15px; font-weight: 400; color: #8b949e; }
+      .cta {
+        display: block;
+        width: 100%;
+        padding: 13px 0;
+        border: none;
+        border-radius: 9px;
+        background: #238636;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      /* The page's OWN hover styling — this is what hoverReveal captures. */
+      .cta:hover { background: #2ea043; box-shadow: 0 0 0 4px rgba(46, 160, 67, 0.35); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="plan">Team plan</div>
+      <div class="price">$79<span> / mo</span></div>
+      <button class="cta">Start free trial</button>
+    </div>
+  </body>
+</html>

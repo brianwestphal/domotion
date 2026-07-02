@@ -95,6 +95,34 @@ describeBrowser("applyForcedPseudoStates → capture round-trip (DM-1516)", () =
     }
   }, 60_000);
 
+  it("reset clears a forced :hover set on an earlier frame — same page, same session (DM-1566)", async () => {
+    const ctx = await browser!.newContext({ viewport: { width: 460, height: 320 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`file://${htmlPath}`, { waitUntil: "networkidle" });
+
+      // Force :hover, capture (hover color present).
+      await applyForcedPseudoStates(page, [{ selector: ".cta", states: ["hover"] }]);
+      const hoverTree = await captureElementTree(page, "body", { x: 0, y: 0, width: 460, height: 320 });
+      const hoverSvg = elementTreeToSvgInner(hoverTree, 460, 320, "h-", true, 2, false);
+      expect(hoverSvg).toContain(HOVER);
+
+      // Now RESET (a later continue frame would do this) and capture again — the
+      // element must be back at rest. This only works because the reset runs on
+      // the SAME cached CDP session that set the override (a fresh one couldn't
+      // clear it).
+      await applyForcedPseudoStates(page, [{ selector: ".cta", reset: true }]);
+      const restTree = await captureElementTree(page, "body", { x: 0, y: 0, width: 460, height: 320 });
+      const restSvg = elementTreeToSvgInner(restTree, 460, 320, "r-", true, 2, false);
+      expect(restSvg).toContain(REST);
+      expect(restSvg).not.toContain(HOVER);
+      // The cascade sibling border returns to its rest color too.
+      expect(restSvg).not.toContain(CARD_HOVER_BORDER);
+    } finally {
+      await ctx.close();
+    }
+  }, 60_000);
+
   it("the animate config path captures a forced-:hover continue frame", async () => {
     const cfg = validateAnimateConfig({
       width: 460,
@@ -113,5 +141,25 @@ describeBrowser("applyForcedPseudoStates → capture round-trip (DM-1516)", () =
     expect(rest).not.toContain(HOVER);
     expect(hover).toContain(HOVER);
     expect(hover).not.toContain(REST);
+  }, 120_000);
+
+  it("the animate config path captures a force → reset return-to-rest sequence (DM-1566)", async () => {
+    const cfg = validateAnimateConfig({
+      width: 460,
+      height: 320,
+      frames: [
+        { input: htmlPath, duration: 600, transition: { type: "crossfade", duration: 150 } },
+        { continue: true, duration: 600, forceState: [{ selector: ".cta", states: ["hover"] }], transition: { type: "crossfade", duration: 150 } },
+        { continue: true, duration: 600, forceState: [{ selector: ".cta", reset: true }] },
+      ],
+    });
+    const svg = await composeAnimateConfig(browser!, cfg, dir);
+    const groups = svg.split(/(?=class="f f-\d+")/);
+    const g = (n: number): string => groups.find((c) => new RegExp(`class="f f-${n}"`).test(c)) ?? "";
+    // f0 rest, f1 forced hover, f2 reset back to rest.
+    expect(g(0)).toContain(REST);
+    expect(g(1)).toContain(HOVER);
+    expect(g(2)).toContain(REST);
+    expect(g(2)).not.toContain(HOVER);
   }, 120_000);
 });

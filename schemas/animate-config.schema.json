@@ -1015,7 +1015,6 @@
                   "type": "string"
                 },
                 "states": {
-                  "minItems": 1,
                   "type": "array",
                   "items": {
                     "type": "string",
@@ -1036,13 +1035,105 @@
                       "link"
                     ]
                   }
+                },
+                "reset": {
+                  "type": "boolean"
                 }
               },
               "required": [
-                "selector",
-                "states"
+                "selector"
               ]
             }
+          },
+          "hoverReveal": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string"
+              },
+              "states": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "hover",
+                    "active",
+                    "focus",
+                    "focus-within",
+                    "focus-visible",
+                    "visited",
+                    "target",
+                    "enabled",
+                    "disabled",
+                    "checked",
+                    "indeterminate",
+                    "read-only",
+                    "read-write",
+                    "link"
+                  ]
+                }
+              },
+              "crossfadeMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "hoverMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "cursor": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "selector"
+            ]
+          },
+          "hoverDetect": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string"
+              },
+              "states": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "hover",
+                    "active",
+                    "focus",
+                    "focus-within",
+                    "focus-visible",
+                    "visited",
+                    "target",
+                    "enabled",
+                    "disabled",
+                    "checked",
+                    "indeterminate",
+                    "read-only",
+                    "read-write",
+                    "link"
+                  ]
+                }
+              },
+              "transitionMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "hoverMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "cursor": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "selector"
+            ]
           },
           "overlays": {
             "type": "array",

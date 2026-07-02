@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 420,
+  "height": 240,
+  "frames": [
+    {
+      "input": "./button.html",
+      "duration": 1600,
+      "hoverDetect": { "selector": ".cta" }
+    }
+  ]
+}

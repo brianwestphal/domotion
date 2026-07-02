@@ -1,8 +1,11 @@
 # 94 — Interaction-state capture (`:hover` / `:active` / `:focus`)
 
-Status: **v1 shipped** (DM-1516) — explicit forced-pseudo-state capture. The
-auto-detection directions in the second half are **design options**, enumerated
-for a maintainer to pick from, not built.
+Status: **shipped** — explicit forced-pseudo-state capture (DM-1516), a
+forced-state **reset** verb (DM-1566), and the first two auto-detection options:
+the **`hoverReveal`** sugar (Option 1, DM-1562) and **`hoverDetect`**
+computed-style-diff detection (Option 2, DM-1563). Options 3 (MutationObserver /
+JS-change harness) and 4 (no-DOM overlay fake) remain **design options** below,
+enumerated for a maintainer to pick from, not built.
 
 ## The problem
 
@@ -52,6 +55,30 @@ A per-frame `forceState` array on the `animate` config
   `focus-within` / `focus-visible` / `visited` / `target` / `enabled` /
   `disabled` / `checked` / `indeterminate` / `read-only` / `read-write` / `link`
   (the well-supported subset of CDP's `forcedPseudoClasses`).
+- `reset: true` (instead of `states`) — DM-1566: **DROP** any forced state a
+  previous frame set on `selector`, capturing the element back at rest. The
+  un-hover verb for a continuous-session (`continue`) flow: force `:hover` on one
+  frame, then release it on a later frame so the demo returns to its resting
+  paint. `states` and `reset` are mutually exclusive.
+
+### Clearing a forced state (`reset`) — the same-session, one-root invariant (DM-1566)
+
+A `CSS.forcePseudoState` override is cleared by re-issuing the call with an
+**empty** class list — but ONLY when it targets the SAME CDP node id the force was
+set on. Two things make that hold across a `continue`-frame flow, both verified
+against Chromium:
+
+1. **One session.** The override is per-session, so the reset must run on the same
+   session that set it. `applyForcedPseudoStates` caches its CDP session per page
+   (never detaching it) and reuses it for every frame.
+2. **One document root.** Node ids are only stable within a single
+   `DOM.getDocument` id space — calling `getDocument` again re-issues ids in a
+   fresh space, and clearing a *fresh-space* id does **not** clear an override set
+   on the *old-space* id, even for the same element. So the cached session fetches
+   the document root **once** and reuses it for all `querySelectorAll` calls; a
+   later re-query then returns the id the force was set on, and the clear lands.
+   The root is invalidated on main-frame navigation (a reload frame gets a new
+   document, which clears forced overrides anyway).
 
 The runnable example is `examples/animate/hover-state/`. Frame 1 is a `continue`
 frame that forces `.cta:hover` and cross-fades from the rest frame; the cursor
@@ -137,52 +164,80 @@ the hover frame. Guarded by:
 - `tests/animate-examples.tsx` (`hover-state`) — the committed golden's frame 1
   contains the hover color and frame 0 does not.
 
-## (a) Auto-detection options — DESIGNED, not built
+## (a) Auto-detection options
 
 The v1 above is *explicit*: the author names the element and the state. The
 richer ask is to **auto-detect** what a page changes around a pointer event and
-synthesize the transition. Four directions, with tradeoffs. The binding
+synthesize the transition. Four directions, with tradeoffs — Options 1 and 2 are
+now **BUILT**; Options 3 and 4 remain designed. The binding
 constraint throughout: **output animation is cross-engine `@keyframes` only**
 (plays inside `<img>`, no JS/SMIL, never animated CSS `filter`, rests at
 identity — `docs/84`). So "auto-detect a change" always reduces to "produce two
 (or more) captured states and a keyframe transition between them."
 
-### Option 1 — Two-frame rest→forced-hover cross-fade (cheapest; a thin sugar over v1)
+### Option 1 — `hoverReveal` sugar (BUILT — DM-1562)
 
-Capture the element at rest and again with `forceState` hover, then cross-fade.
-This is essentially what the `hover-state` example does by hand; the sugar would
-be a single `hoverReveal: { selector }` that expands to the two frames + cursor
-move.
+A single per-frame field, `hoverReveal: { selector }`, that auto-expands (a pure
+config → config pre-pass, `expandHoverReveal` in `src/cli/animate.ts`) into two
+frames — the frame at REST, then a `continue` frame that forces `:hover` on the
+same selector — with a crossfade between them and a cursor move onto the element.
+It's the `hover-state` example, from one line instead of two hand-wired frames.
+
+```jsonc
+{ "width": 460, "height": 320, "frames": [
+  { "input": "./card.html", "duration": 1400, "hoverReveal": { "selector": ".cta" } }
+] }
+```
+
+Options: `states` (default `["hover"]` — e.g. `["focus","focus-visible"]` for a
+focus reveal), `crossfadeMs` (default 400), `hoverMs` (default the frame's own
+`duration`), and `cursor: false` to skip the injected pointer move. The frame's
+own `transition` (if any) carries OUT of the reveal pair. Runnable example:
+`examples/animate/hover-reveal/`.
 
 - **Pros:** trivial; entirely built on shipped primitives; cross-engine by
   construction (crossfade is opacity-only).
-- **Cons:** no *detection* — the author still names the element. Doesn't discover
-  JS-driven changes. A dissolve, not a physical transition (no travel/scale of
-  the thing that actually moved).
-- **Composes with `@keyframes`:** yes, natively.
-- **Recommendation:** ship as ergonomic sugar; it's the 80% case.
+- **Cons:** no *detection* — the author still names the element. A dissolve, not a
+  physical transition. → that's what Option 2 adds.
 
-### Option 2 — Drive a real pointer, diff computed styles, synthesize the transition
+### Option 2 — `hoverDetect` computed-style-diff detection (BUILT — DM-1563)
 
-`page.hover()` / `mouse.move()` onto the element, then diff `getComputedStyle`
-(and geometry) **before vs after** across the subtree. From the diff, emit an
-intra-frame animation for the properties that actually changed (background,
-transform, box-shadow-as-ring, border-color…), so the change *animates* rather
-than dissolves.
+`hoverDetect: { selector }` on a frame that loads an `input`. A browser pre-pass
+(`expandHoverDetect` in `src/cli/animate.ts`, backed by the pure
+`src/cli/hover-detect.ts` diff/classify helpers) drives a real `:hover`, snapshots
+`getComputedStyle` (+ geometry) on the target **and its descendants** before →
+after, and picks a synthesis from an allow-list of properties (color / background
+/ border / box-shadow / transform / opacity):
 
-- **Pros:** real *detection* — catches CSS-transition-driven changes the page
-  defines, and produces a property-accurate transition (the button's real
-  color/scale track). Reuses the existing intra-frame `animations` emitter.
-- **Cons:** meaningfully more complex. Must map arbitrary computed-style deltas to
-  the animatable-property vocabulary and decide easing/duration (read the page's
-  own `transition-*`?). `box-shadow`/`filter` deltas don't map cleanly to the
-  cross-engine keyframe set (no animated `filter`) — those degrade to a
-  crossfade of that layer. Geometry diffs can be noisy (sub-px reflow).
-- **Composes with `@keyframes`:** partially — transform/opacity/color/clip
-  deltas map to keyframes; shadow/filter deltas fall back to opacity crossfade of
-  the affected element.
-- **Recommendation:** the highest-value *detection* option; scope it to a
-  property allow-list that maps cleanly to keyframes, crossfade the rest.
+- **`paint` change** (any color / background / border / box-shadow delta, or a
+  descendant change) → a rest→hover **crossfade**, which blends the deltas
+  faithfully (box-shadow included). Same shape as `hoverReveal`, but auto-chosen.
+- **`motion`-only change** (ONLY `transform` / `opacity` on the target, from a
+  clean rest baseline — identity transform / opacity 1) → ONE frame with an
+  intra-frame keyframe **tween** so the element animates *in place* (a real
+  scale/lift, not a dissolve). Reuses the shipped intra-frame `animations` emitter.
+- **no change detected** → the frame is kept rest-only, with a log line so the
+  author can fix the selector or confirm the page has a `:hover` rule.
+
+```jsonc
+{ "width": 420, "height": 240, "frames": [
+  { "input": "./button.html", "duration": 1600, "hoverDetect": { "selector": ".cta" } }
+] }
+```
+
+Runnable example: `examples/animate/hover-detect/` (a pure-scale hover → motion
+tween).
+
+- **Pros:** real *detection* — no manual `forceState`; a property-accurate motion
+  tween when the change is pure transform/opacity, a faithful crossfade otherwise.
+- **Cons / scope:** color / background / border can't cross-engine-keyframe (the
+  intra-frame emitter animates only transform/opacity/clip/geometry, and animated
+  CSS `filter` is banned — docs/84), so those degrade to the crossfade rather than
+  an in-place color tween. Motion mode is deliberately restricted to the target
+  element with a clean identity baseline (a non-`none` rest transform would
+  double-apply against the already-baked captured paint) — everything else falls
+  back to the always-faithful crossfade. Added/removed nodes (a JS tooltip) are
+  out of scope here — that's Option 3.
 
 ### Option 3 — MutationObserver + style-diff harness around dispatched pointer events
 
@@ -225,8 +280,9 @@ can't be forced.
 ### How they relate
 
 v1 (forced pseudo-state) is the foundation Options 1–2 build on (both need a way
-to *enter* the state to capture it). Option 2 is the natural next step for CSS
-feedback; Option 3 extends detection to JS feedback; Option 4 is the no-DOM
+to *enter* the state to capture it) — and both reuse `applyForcedPseudoStates`.
+Option 2 (`hoverDetect`, shipped) is the CSS-feedback detector; Option 3 would
+extend detection to JS feedback (MutationObserver); Option 4 is the no-DOM
 degenerate case for a different input pipeline entirely. None require anything in
 the output beyond the existing cross-engine `@keyframes` vocabulary.
 
@@ -239,3 +295,7 @@ the output beyond the existing cross-engine `@keyframes` vocabulary.
 - `docs/84-viewer-browser-support.md` — the cross-engine `@keyframes`-only output
   constraint every auto-detection option must satisfy.
 - `examples/animate/hover-state/` — the runnable v1 demo + committed golden.
+- `examples/animate/hover-reveal/` — the Option 1 `hoverReveal` sugar demo.
+- `examples/animate/hover-detect/` — the Option 2 `hoverDetect` detection demo.
+- `src/cli/hover-detect.ts` — the pure diff (`diffHoverSnapshots`) + classify
+  (`classifyHoverTransition`) helpers behind `hoverDetect`.

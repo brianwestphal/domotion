@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 240" width="420" height="240">
+  <defs>
+    <clipPath id="viewport-clip"><rect width="420" height="240" /></clipPath>
+  </defs>
+  <style>
+@font-face { font-family: "dmf0"; font-style: normal; font-weight: 600; src: url("data:font/ttf;base64,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"); }
+    :root { --scene-dur: 1.90s; }
+    .f { opacity: 0; visibility: hidden; }
+    
+    @keyframes fv-0 {
+      0.00%, 100% { opacity: 1; }
+    }
+    @keyframes fd-0 {
+      0% { visibility: hidden; }
+      0.000% { visibility: hidden; }
+      0.000% { visibility: visible; }
+      100.000% { visibility: visible; }
+      100.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 1.90s infinite, fd-0 1.90s infinite step-end; }
+    @keyframes f0-f0a0-0 {
+      0% { transform: none; }
+      0.000% { transform: none; }
+      21.053% { transform: matrix(1.08, 0, 0, 1.08, 0, 0); }
+      100% { transform: matrix(1.08, 0, 0, 1.08, 0, 0); }
+    }
+    .anim-f0a0 { animation: f0-f0a0-0 1.90s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  </style>
+  <g clip-path="url(#viewport-clip)">
+  <g class="f f-0">
+  <defs><clipPath id="f0-ct0"><rect x="118.4" y="95" width="183.2" height="50" /></clipPath></defs>
+  <rect x="0" y="0" width="420" height="240" rx="0" fill="rgb(13,17,23)" />
+  <g class="anim-f0a0">
+  <rect x="118.4" y="95" width="183.2" height="50" rx="10" fill="rgb(110,64,201)" />
+  <g role="img" aria-label="Add to project"><title>Add to project</title><text x="152.39 164.66 175.05 185.42 190.16 195.81 206.2 210.92 221.3 227.92 238.3 243.03 252.48 261.94" y="125" font-family="dmf0" font-size="17" font-weight="600" fill="rgb(255,255,255)"></text></g>
+  </g>
+  </g>
+  <g class="cursor-overlay" pointer-events="none">
+    <style>@keyframes co-pos-i80ad3{0%{transform:translate(0px,0px)}21.0526%{transform:translate(210px,120px)}100%{transform:translate(210px,120px)}}@keyframes co-glyph-i80ad3-0{0%{opacity:1}16.6667%{opacity:0}100%{opacity:0}}@keyframes co-glyph-i80ad3-1{0%{opacity:0}16.6667%{opacity:1}100%{opacity:1}}</style>
+    <g class="cursor-pointer" style="animation:co-pos-i80ad3 1.9s linear infinite">
+      <g opacity="0" style="animation:co-glyph-i80ad3-0 1.9s step-end infinite">
+        <g transform="translate(-4.13 -4.13) scale(0.9167)"><g transform="translate(0 0)"><g fill="#fff" stroke="rgb(0, 0, 0)" stroke-width="1.4" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></g></g></g>
+      </g>
+      <g opacity="0" style="animation:co-glyph-i80ad3-1 1.9s step-end infinite">
+        <g transform="translate(-7.33 -1.83) scale(0.9167)"><g transform="translate(0 0)"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="3.4"><path d="M22 14a8 8 0 0 1-8 8"/><path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1"/><path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></g><g stroke="rgb(0, 0, 0)" stroke-width="1.7"><path d="M22 14a8 8 0 0 1-8 8"/><path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1"/><path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></g></g></g></g>
+      </g>
+    </g>
+
+  </g>
+  </g>
+</svg>

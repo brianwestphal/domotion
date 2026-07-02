@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
-import type { Browser, Page } from "@playwright/test";
+import type { Browser, Page, CDPSession } from "@playwright/test";
 // DM-1131: the authoring overlay / intra-frame-animation schemas below EXTEND
 // these single-source-of-truth base schemas (which also derive the renderer's
 // runtime types), so a field rename moves both views together instead of
@@ -24,6 +24,13 @@ import {
   intraFrameAnimationSchema,
 } from "../animation/overlay-schema.js";
 import { resolveAnchoredOverlays } from "../animation/resolve-overlays.js";
+import {
+  captureStyleSnapshot,
+  classifyHoverTransition,
+  diffHoverSnapshots,
+  HOVER_DIFF_PROPERTIES,
+  type HoverDiff,
+} from "./hover-detect.js";
 // DM-1130: import from the feature sub-barrels rather than the package root
 // (`../index.js`). This module IS re-exported from the root (so library callers
 // can run the declarative pipeline in-process), so importing the root here would
@@ -317,15 +324,83 @@ const forcePseudoClassSchema = z.enum([
   "visited", "target", "enabled", "disabled", "checked",
   "indeterminate", "read-only", "read-write", "link",
 ]);
-const forceStateSchema = z.object({
-  selector: z.string(),
-  states: z.array(forcePseudoClassSchema).min(1, "must list at least one pseudo-state"),
-});
-/** DM-1516 (docs/94): one `{ selector, states }` forced-pseudo-state entry — the
- *  element(s) matching `selector` are forced into `states` (`:hover` / `:active`
- *  / `:focus` / …) via CDP before capture. Consumed by `applyForcedPseudoStates`
- *  and the animate config's per-frame `forceState` array. */
+const forceStateSchema = z
+  .object({
+    selector: z.string(),
+    /** Pseudo-states to force (`:hover` / `:active` / `:focus` / …). Required
+     *  unless `reset` is set. */
+    states: z.array(forcePseudoClassSchema).optional(),
+    /**
+     * DM-1566 (docs/94): DROP any forced pseudo-state on the matched element(s)
+     * instead of setting one — the un-hover / return-to-rest verb. In a
+     * continuous-session (`continue`) flow this lets a later frame release a hover
+     * a previous frame forced and capture the element back at rest. Mutually
+     * exclusive with `states`. Under the hood it re-issues `CSS.forcePseudoState`
+     * with an EMPTY class list on the SAME CDP session that set the override
+     * (a different session can't clear another's override), so it truly reverts.
+     */
+    reset: z.boolean().optional(),
+  })
+  .refine((v) => v.reset === true || (v.states != null && v.states.length >= 1), {
+    message: "must list at least one pseudo-state, or set reset:true to clear",
+  })
+  .refine((v) => !(v.reset === true && v.states != null && v.states.length > 0), {
+    message: "cannot set both `states` and `reset` (force a state, or clear it — not both)",
+  });
+/** DM-1516 / DM-1566 (docs/94): one forced-pseudo-state entry. Either forces the
+ *  element(s) matching `selector` into `states` (`:hover` / `:active` / `:focus`
+ *  / …) via CDP before capture, or — with `reset: true` — clears any state a
+ *  previous frame forced on them (the un-hover verb). Consumed by
+ *  `applyForcedPseudoStates` and the animate config's per-frame `forceState`
+ *  array. */
 export type ForceState = z.infer<typeof forceStateSchema>;
+
+// DM-1562 (docs/94 Option 1): `hoverReveal` sugar. A one-field per-frame reveal
+// that auto-expands (BEFORE the capture loop, in `expandHoverReveal`) into two
+// frames — the frame at REST, then a `continue` frame that forces `:hover`
+// (`forceState`) on the same selector — cross-fading between them, plus a cursor
+// move onto the element so the pointer sits where the hover happens. Pure sugar
+// over the shipped `forceState` + cursor + crossfade primitives; the 80% hover
+// demo without hand-wiring two frames.
+const hoverRevealSchema = z.object({
+  /** Element to reveal the interaction state on (forced + cursor target). */
+  selector: z.string(),
+  /** Pseudo-states to force on the reveal frame. Default `["hover"]` — set e.g.
+   *  `["focus", "focus-visible"]` for a focus reveal. */
+  states: z.array(forcePseudoClassSchema).min(1).optional(),
+  /** Crossfade duration into the reveal frame (ms). Default 400. */
+  crossfadeMs: z.number().positive().optional(),
+  /** How long the revealed (hover) frame holds (ms). Default: the frame's own
+   *  `duration` (the rest hold). */
+  hoverMs: z.number().positive().optional(),
+  /** Inject a cursor move onto `selector` on the reveal frame. Default `true`
+   *  (skipped when the config's cursor is `"auto"`, which can't mix with explicit
+   *  events). */
+  cursor: z.boolean().optional(),
+});
+
+// DM-1563 (docs/94 Option 2): `hoverDetect` — auto-DETECT what the page changes
+// on hover and synthesize the transition. A pre-pass (`expandHoverDetect`) drives
+// a real pointer via `forceState`, diffs `getComputedStyle` (+ geometry) on the
+// target and its descendants before → after, and picks a synthesis:
+//   - a PAINT change (color / background / border / box-shadow) → a rest→hover
+//     crossfade (blends the deltas faithfully, box-shadow included);
+//   - a MOTION-only change (transform / opacity on the target alone) → a single
+//     frame with an intra-frame keyframe TWEEN so the element animates in place.
+// Cross-engine `@keyframes` only. Only supported on a frame that loads an `input`
+// (a `continue`/`cast`/`template` frame has no standalone page to probe).
+const hoverDetectSchema = z.object({
+  /** Element whose hover response is detected (probed + cursor target). */
+  selector: z.string(),
+  /** Pseudo-states to enter while probing. Default `["hover"]`. */
+  states: z.array(forcePseudoClassSchema).min(1).optional(),
+  /** Transition duration into / of the synthesized reveal (ms). Default 400. */
+  transitionMs: z.number().positive().optional(),
+  /** How long the revealed state holds (ms). Default: the frame's `duration`. */
+  hoverMs: z.number().positive().optional(),
+  /** Inject a cursor move onto `selector`. Default `true`. */
+  cursor: z.boolean().optional(),
+});
 
 const frameSchema = z.object({
   // DM-846 §1 — `input` is optional. Frame 0 must load an input; a later frame
@@ -399,6 +474,21 @@ const frameSchema = z.object({
    * to place the pointer on the hovered element.
    */
   forceState: z.array(forceStateSchema).optional(),
+  /**
+   * DM-1562 (docs/94): `hoverReveal` sugar. Expands this frame into a rest frame
+   * + a forced-`:hover` `continue` frame with a crossfade and a cursor move onto
+   * the element — the one-field version of the hand-wired two-frame hover demo.
+   * The frame must load an `input` or `continue` a live page (not a cast/template
+   * frame). Its `duration` becomes the rest hold.
+   */
+  hoverReveal: hoverRevealSchema.optional(),
+  /**
+   * DM-1563 (docs/94): `hoverDetect` — auto-detect the page's hover response and
+   * synthesize the transition (paint change → crossfade, motion-only → intra-frame
+   * tween). Only on a frame that loads an `input`. Its `duration` becomes the rest
+   * hold.
+   */
+  hoverDetect: hoverDetectSchema.optional(),
   overlays: z.array(overlaySchema).optional(),
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
   animations: z.array(frameAnimationSchema).optional(),
@@ -510,6 +600,29 @@ export const animateConfigSchema = z
       // `0` default is the "unset" sentinel).
       if (f.duration <= 0 && f.template == null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "duration"], message: "`duration` is required and must be > 0 (only a `template` frame may omit it — it inherits the template's play time)" });
+      }
+      // DM-1562: `hoverReveal` expands into captured frames — it needs a page
+      // (an `input` or a `continue`), not a self-contained cast/template frame.
+      if (f.hoverReveal != null) {
+        if (f.cast != null || f.template != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "`hoverReveal` needs a captured page — it can't be used on a `cast` or `template` frame" });
+        }
+        if (f.forceState != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "`hoverReveal` already forces the hover state — don't combine it with `forceState` on the same frame" });
+        }
+        if (f.hoverDetect != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "set either `hoverReveal` or `hoverDetect` on a frame, not both" });
+        }
+      }
+      // DM-1563: `hoverDetect` probes a standalone page — it needs an `input`
+      // (a `continue`/`cast`/`template` frame has no page to load-and-probe).
+      if (f.hoverDetect != null) {
+        if (f.input == null || f.continue === true) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverDetect"], message: "`hoverDetect` requires an `input` (it loads-and-probes a standalone page; it can't run on a `continue`/`cast`/`template` frame)" });
+        }
+        if (f.forceState != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverDetect"], message: "`hoverDetect` synthesizes the state itself — don't combine it with `forceState` on the same frame" });
+        }
       }
     });
   });
@@ -1175,6 +1288,12 @@ export async function composeAnimateFrames(
   const { configDir, log, onFrame, brand, safeInset } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
+  // DM-1562: expand `hoverReveal` sugar (pure) into rest + forced-hover frames.
+  cfg = expandHoverReveal(cfg, log);
+  // DM-1563: `hoverDetect` — probe each such frame's page for its hover response
+  // and synthesize the transition. A browser pre-pass (its own throwaway context)
+  // that rewrites the frame(s) before the main capture loop runs.
+  cfg = await expandHoverDetect(cfg, browser, configDir, log);
   // DM-1544: an explicit `--brand` (passed in `opts.brand`) wins over the config's
   // own `brand` key; when the flag is absent, fall back to the config-inline brand
   // (a path relative to `configDir`, or a validated inline object). One brand then
@@ -1429,15 +1548,21 @@ export async function runActions(page: Page, actions: AnimateAction[], log: (msg
  * selector matches nothing. `log` defaults to a no-op. A no-op on an empty /
  * absent list, so callers can pass through unconditionally.
  *
- * IMPORTANT — the CDP session is intentionally left ATTACHED. A
- * `CSS.forcePseudoState` override lives for the lifetime of the session that set
- * it: detaching (or disabling the CSS domain) immediately clears the override,
- * so the forced paint would vanish before the capture that's supposed to record
- * it. Leaving the session open lets the forced state survive into the very next
- * `captureElementTree`; it's reclaimed when the page / context closes. The
- * forced state therefore persists on the live page until navigation, carrying
- * into a `continue` frame like any other pre-capture mutation. (There is no
- * clear-forced-state verb in v1 — reload the frame to reset.)
+ * IMPORTANT — the CDP session is intentionally left ATTACHED and REUSED per page
+ * (`getForcedStateSession`). A `CSS.forcePseudoState` override lives for the
+ * lifetime of the session that set it: detaching (or disabling the CSS domain)
+ * immediately clears the override, so the forced paint would vanish before the
+ * capture that's supposed to record it. Leaving the session open lets the forced
+ * state survive into the very next `captureElementTree`; it's reclaimed when the
+ * page / context closes. The forced state therefore persists on the live page
+ * until navigation, carrying into a `continue` frame like any other pre-capture
+ * mutation.
+ *
+ * DM-1566: pass `{ selector, reset: true }` to DROP a state a previous frame
+ * forced (the un-hover verb) — it re-issues an empty forced-class list on the
+ * SAME cached session, so a continue-frame flow can force `:hover`, capture, then
+ * release it and capture the return-to-rest. (A fresh session couldn't clear
+ * another session's override, which is why the session is cached per page.)
  *
  * Re-exported from the package root so imperative capture callers can force the
  * same states before their own `captureElementTree`, not just the declarative
@@ -1449,24 +1574,75 @@ export async function applyForcedPseudoStates(
   log: (msg: string) => void = () => {},
 ): Promise<void> {
   if (forceState == null || forceState.length === 0) return;
-  // NOTE: do NOT detach this session — see the doc comment. Detaching clears the
-  // forced-pseudo-state override, so it must outlive the capture below.
-  const session = await page.context().newCDPSession(page);
-  await session.send("DOM.enable");
-  await session.send("CSS.enable");
-  // `depth: -1` returns the full node tree so `querySelectorAll` can resolve
-  // selectors anywhere in the document (not just the shallow default depth).
-  const { root } = await session.send("DOM.getDocument", { depth: -1 });
+  const entry = await getForcedStateSession(page);
+  // DM-1566: resolve the document root ONCE per document and reuse it for every
+  // `querySelectorAll`. This is load-bearing for `reset`: calling `DOM.getDocument`
+  // again re-issues node ids in a FRESH id space, and a `CSS.forcePseudoState([])`
+  // on a new-space id does NOT clear an override set on the old-space id (even for
+  // the same element — verified against Chromium). Querying under one cached root
+  // keeps all ids in one space, so a later re-query returns the same id the force
+  // was set on, and the clear lands. The root is invalidated on navigation (a
+  // reload frame gets a new document, which clears forced overrides anyway).
+  if (entry.rootNodeId == null) {
+    // `depth: -1` returns the full node tree so `querySelectorAll` can resolve
+    // selectors anywhere in the document (not just the shallow default depth).
+    const { root } = await entry.session.send("DOM.getDocument", { depth: -1 });
+    entry.rootNodeId = root.nodeId;
+  }
   for (const fs of forceState) {
-    const { nodeIds } = await session.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: fs.selector });
+    const { nodeIds } = await entry.session.send("DOM.querySelectorAll", { nodeId: entry.rootNodeId, selector: fs.selector });
     if (nodeIds.length === 0) {
       throw new Error(`animate: forceState selector "${fs.selector}" matched no element`);
     }
+    // `reset: true` clears the override by re-issuing an EMPTY forced-class list.
+    const forcedPseudoClasses = fs.reset === true ? [] : fs.states ?? [];
     for (const nodeId of nodeIds) {
-      await session.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: fs.states });
+      await entry.session.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses });
     }
-    log(`  forced ${fs.states.map((s) => `:${s}`).join("")} on "${fs.selector}" (${nodeIds.length} element${nodeIds.length === 1 ? "" : "s"})`);
+    const label = fs.reset === true
+      ? `cleared forced state on`
+      : `forced ${forcedPseudoClasses.map((s) => `:${s}`).join("")} on`;
+    log(`  ${label} "${fs.selector}" (${nodeIds.length} element${nodeIds.length === 1 ? "" : "s"})`);
   }
+}
+
+/**
+ * DM-1516 / DM-1566: the per-page CDP session that carries forced-pseudo-state
+ * overrides. It's cached (and never detached) for two reasons:
+ *   1. A `CSS.forcePseudoState` override lives for the lifetime of the session
+ *      that set it — detaching (or disabling the CSS domain) clears it instantly,
+ *      so it must outlive the capture that records the forced paint (DM-1516).
+ *   2. Clearing a forced state (`reset`) only works from the SAME session that set
+ *      it, so a continue-frame flow that forces `:hover` on one frame then resets
+ *      it on a later frame must reuse one session across both calls (DM-1566).
+ * The session is reclaimed when the page / context closes. Keyed weakly by page so
+ * it can't leak across runs.
+ */
+interface ForcedStateSession {
+  session: CDPSession;
+  /** Cached `DOM.getDocument` root id, kept stable so `reset` clears the id it set
+   *  (see `applyForcedPseudoStates`). Nulled on main-frame navigation. */
+  rootNodeId: number | null;
+}
+const forcedStateSessions = new WeakMap<Page, ForcedStateSession>();
+async function getForcedStateSession(page: Page): Promise<ForcedStateSession> {
+  let entry = forcedStateSessions.get(page);
+  if (entry == null) {
+    const session = await page.context().newCDPSession(page);
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    const created: ForcedStateSession = { session, rootNodeId: null };
+    forcedStateSessions.set(page, created);
+    // A reload frame navigates the SAME page object; its new document invalidates
+    // the cached root id (and clears any forced overrides). Re-fetch on next use.
+    if (typeof (page as { on?: unknown }).on === "function") {
+      page.on("framenavigated", (frame) => {
+        if (frame === page.mainFrame()) created.rootNodeId = null;
+      });
+    }
+    entry = created;
+  }
+  return entry;
 }
 
 /**
@@ -1551,6 +1727,219 @@ export function interpolateConfigVars(cfg: AnimateConfig): AnimateConfig {
     return v;
   };
   return walk(cfg) as AnimateConfig;
+}
+
+/**
+ * DM-1562 (docs/94 Option 1): expand each frame's `hoverReveal` sugar into two
+ * concrete frames — the frame at REST, then a `continue` frame that forces the
+ * hover state — with a crossfade between them and a cursor move onto the element.
+ * A pure config → config transform (no browser); runs before the capture loop so
+ * the rest of the pipeline sees ordinary `forceState` + cursor frames. The
+ * original frame's own `transition` (if any) carries out of the reveal pair;
+ * existing explicit `cursor.events` frame indices are remapped to the post-
+ * expansion numbering. A config with no `hoverReveal` is returned untouched.
+ */
+export function expandHoverReveal(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
+  if (!cfg.frames.some((f) => f.hoverReveal != null)) return cfg;
+  const newFrames: AnimateFrameCfg[] = [];
+  // Old frame index → the new index of its (rest) frame, for remapping cursor events.
+  const restIndexForOld: number[] = [];
+  const injectedCursorEvents: CursorEventInput[] = [];
+  cfg.frames.forEach((f, oldIdx) => {
+    restIndexForOld[oldIdx] = newFrames.length;
+    const hr = f.hoverReveal;
+    if (hr == null) { newFrames.push(f); return; }
+    const origTransition = f.transition;
+    const crossfadeMs = hr.crossfadeMs ?? 400;
+    // Rest frame: the original frame minus the sugar, cross-fading INTO the reveal.
+    const restFrame: AnimateFrameCfg = { ...f, transition: { type: "crossfade", duration: crossfadeMs } };
+    delete (restFrame as { hoverReveal?: unknown }).hoverReveal;
+    const hoverIdx = newFrames.length + 1;
+    // Reveal frame: continue the live page, force the state, and carry the
+    // ORIGINAL frame's transition (the transition OUT of the pair) if any.
+    const hoverFrame: AnimateFrameCfg = {
+      continue: true,
+      duration: hr.hoverMs ?? f.duration,
+      forceState: [{ selector: hr.selector, states: hr.states ?? ["hover"] }],
+      ...(origTransition != null ? { transition: origTransition } : {}),
+    };
+    newFrames.push(restFrame, hoverFrame);
+    if (hr.cursor !== false) {
+      injectedCursorEvents.push({ frame: hoverIdx, at: 0, type: "move", selector: hr.selector });
+    }
+  });
+  const cursor = mergeInjectedCursorEvents(cfg.cursor, restIndexForOld, injectedCursorEvents, log, "hoverReveal");
+  return { ...cfg, frames: newFrames, ...(cursor !== undefined ? { cursor } : {}) };
+}
+
+/**
+ * Merge sugar-injected cursor moves (from `hoverReveal` / `hoverDetect`) into the
+ * config's cursor, remapping any existing explicit `cursor.events` frame indices
+ * through `restIndexForOld` (the frame numbering shifted when sugar frames
+ * expanded). `"auto"` can't carry explicit events, so injected moves are dropped
+ * with a warning (a hover cursor still can't derive from a forced state, which has
+ * no action for `"auto"` to key off). Returns the (possibly rebuilt) cursor.
+ */
+function mergeInjectedCursorEvents(
+  cursor: AnimateConfig["cursor"],
+  restIndexForOld: number[],
+  injected: CursorEventInput[],
+  log: (msg: string) => void,
+  sugar: string,
+): AnimateConfig["cursor"] {
+  const remap = (c: { style?: CursorStyleInput; events: CursorEventInput[] }): { style?: CursorStyleInput; events: CursorEventInput[] } => ({
+    ...c,
+    events: c.events.map((e) => ({ ...e, frame: restIndexForOld[e.frame] ?? e.frame })),
+  });
+  if (injected.length === 0) {
+    return cursor != null && cursor !== "auto" ? remap(cursor) : cursor;
+  }
+  if (cursor === "auto") {
+    log(`  note: ${sugar} can't inject a cursor move under cursor:"auto" (auto derives the pointer from actions, and a forced state has none) — set an explicit cursor or "cursor": false on the ${sugar} to silence this`);
+    return cursor;
+  }
+  if (cursor == null) return { events: injected };
+  const remapped = remap(cursor);
+  return { ...remapped, events: [...remapped.events, ...injected] };
+}
+
+/**
+ * DM-1563 (docs/94 Option 2): the browser pre-pass behind `hoverDetect`. For each
+ * frame carrying the sugar it opens a THROWAWAY context, loads the frame's
+ * `input`, snapshots the target subtree's computed style at rest, forces the
+ * hover state, snapshots again, and diffs. From the diff it rewrites the frame:
+ *   - `none`   — no detectable change: keep the frame as-is (rest only), log why;
+ *   - `motion` — a clean transform/opacity change on the target: keep ONE frame
+ *                and add an intra-frame keyframe TWEEN so it animates in place;
+ *   - `paint`  — anything else: expand to a rest + forced-hover crossfade pair
+ *                (like `hoverReveal`), which blends the color/shadow/border deltas.
+ * A cursor move onto the element is injected (unless `cursor:false`). Returns the
+ * rewritten config; a config with no `hoverDetect` is returned untouched without
+ * launching anything.
+ */
+async function expandHoverDetect(
+  cfg: AnimateConfig,
+  browser: Browser,
+  configDir: string,
+  log: (msg: string) => void,
+): Promise<AnimateConfig> {
+  if (!cfg.frames.some((f) => f.hoverDetect != null)) return cfg;
+  const newFrames: AnimateFrameCfg[] = [];
+  const restIndexForOld: number[] = [];
+  const injectedCursorEvents: CursorEventInput[] = [];
+  for (let oldIdx = 0; oldIdx < cfg.frames.length; oldIdx++) {
+    const f = cfg.frames[oldIdx];
+    restIndexForOld[oldIdx] = newFrames.length;
+    const hd = f.hoverDetect;
+    if (hd == null) { newFrames.push(f); continue; }
+    const states = hd.states ?? ["hover"];
+    const transitionMs = hd.transitionMs ?? 400;
+
+    // Probe the page in a throwaway context: load → snapshot rest → force → snapshot.
+    const ctx = await browser.newContext({
+      viewport: { width: cfg.width, height: cfg.height },
+      isMobile: cfg.mobile === true,
+      ...(cfg.mobile === true ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+      ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
+    });
+    let diff: HoverDiff;
+    try {
+      const page = await ctx.newPage();
+      const input = resolveFrameInput(f.input!, configDir);
+      log(`Frame ${oldIdx + 1}/${cfg.frames.length}: hoverDetect probing "${hd.selector}" (${input})…`);
+      await loadInputIntoPage(page, input);
+      await applyReadyWaits(page, {
+        wait: f.wait ?? 200, waitFor: f.waitFor, fontsReady: true, frameIndex: oldIdx,
+        waitForText: f.waitForText, waitForGone: f.waitForGone, waitForCount: f.waitForCount,
+      });
+      const rest = await captureStyleSnapshot(page, hd.selector, HOVER_DIFF_PROPERTIES);
+      await applyForcedPseudoStates(page, [{ selector: hd.selector, states }], () => {});
+      const hover = await captureStyleSnapshot(page, hd.selector, HOVER_DIFF_PROPERTIES);
+      diff = diffHoverSnapshots(rest, hover);
+    } finally {
+      await ctx.close();
+    }
+    const mode = classifyHoverTransition(diff);
+
+    if (mode === "none") {
+      log(`  hoverDetect: no hover-state change detected on "${hd.selector}" — keeping the frame as rest-only (check the selector, or that the page defines a :${states.join("/:")} rule)`);
+      const plain: AnimateFrameCfg = { ...f };
+      delete (plain as { hoverDetect?: unknown }).hoverDetect;
+      newFrames.push(plain);
+      continue;
+    }
+
+    const frameIdx = newFrames.length;
+    if (hd.cursor !== false) {
+      // Motion mode has one frame (cursor on it); paint mode's reveal frame is next.
+      const cursorFrame = mode === "motion" ? frameIdx : frameIdx + 1;
+      injectedCursorEvents.push({ frame: cursorFrame, at: 0, type: "move", selector: hd.selector });
+    }
+
+    if (mode === "motion") {
+      const anims = synthesizeMotionAnimations(diff, hd.selector, transitionMs);
+      const frame: AnimateFrameCfg = { ...f, animations: [...(f.animations ?? []), ...anims] };
+      delete (frame as { hoverDetect?: unknown }).hoverDetect;
+      newFrames.push(frame);
+      log(`  hoverDetect: motion-only hover on "${hd.selector}" → intra-frame ${anims.map((a) => a.property).join("+")} tween`);
+    } else {
+      // paint: rest + forced-hover crossfade pair (like hoverReveal).
+      const origTransition = f.transition;
+      const restFrame: AnimateFrameCfg = { ...f, transition: { type: "crossfade", duration: transitionMs } };
+      delete (restFrame as { hoverDetect?: unknown }).hoverDetect;
+      const hoverFrame: AnimateFrameCfg = {
+        continue: true,
+        duration: hd.hoverMs ?? f.duration,
+        forceState: [{ selector: hd.selector, states }],
+        ...(origTransition != null ? { transition: origTransition } : {}),
+      };
+      newFrames.push(restFrame, hoverFrame);
+      const props = [...new Set(diff.paint.map((d) => d.property))].join(", ");
+      log(`  hoverDetect: paint hover on "${hd.selector}" (${props}) → rest→hover crossfade`);
+    }
+  }
+  const cursor = mergeInjectedCursorEvents(cfg.cursor, restIndexForOld, injectedCursorEvents, log, "hoverDetect");
+  return { ...cfg, frames: newFrames, ...(cursor !== undefined ? { cursor } : {}) };
+}
+
+/**
+ * DM-1563: build the intra-frame animation(s) for a MOTION-mode hover — a single
+ * fused tween of the target's transform (and/or opacity) from its rest baseline
+ * to the hover value, so the element animates in place. `transform` is the
+ * primary track (center transform-origin — the common hover-scale case) with
+ * `opacity` fused in; an opacity-only change becomes a plain opacity tween. The
+ * caller has already guaranteed clean baselines via `classifyHoverTransition`.
+ */
+function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationMs: number): Anims {
+  const target = diff.motion.filter((d) => d.key === "");
+  const transform = target.find((d) => d.property === "transform");
+  const opacity = target.find((d) => d.property === "opacity");
+  if (transform != null) {
+    const primary: Anims[number] = {
+      selector,
+      property: "transform",
+      from: transform.from,
+      to: transform.to,
+      duration: durationMs,
+      easing: "ease-out",
+      transformOrigin: "center",
+    };
+    if (opacity != null) {
+      primary.fuse = [{ property: "opacity", from: opacity.from, to: opacity.to }];
+    }
+    return [primary];
+  }
+  if (opacity != null) {
+    return [{
+      selector,
+      property: "opacity",
+      from: opacity.from,
+      to: opacity.to,
+      duration: durationMs,
+      easing: "ease-out",
+    }];
+  }
+  return [];
 }
 
 /**
