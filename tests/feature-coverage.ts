@@ -302,6 +302,13 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["titleCardTemplate", "quoteTemplate", "captionTemplate", "ctaTemplate"],
     tests: ["src/templates/builtin/text-cards.test.ts"],
   },
+  {
+    id: "templates.number-animation",
+    behavior: "Creative-pack Batch B number animation: the counter (count up/down/timer) and stat (KPI + trend chip) templates, built on an internal odometer digit-reel module (translateY per digit column, cross-engine-safe).",
+    doc: "docs/86-creative-template-pack.md",
+    exports: ["counterTemplate", "statTemplate"],
+    tests: ["src/templates/builtin/number-templates.test.ts"],
+  },
 
   // ── Terminal ───────────────────────────────────────────────────────────
   {

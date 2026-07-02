@@ -82,8 +82,10 @@ shortest possible map:
   built-ins: `builtin/lower-third.ts`, `builtin/device-mockup.ts`,
   `builtin/background-loop.ts` (doc 71), `builtin/kinetic-text.ts` (doc 72),
   `builtin/chart.ts` (doc 75), `builtin/chat.ts` + `builtin/subscribe.ts` (doc 76),
-  and the **creative-pack text cards** `builtin/{title-card,quote,caption,cta}.ts`
-  (doc 86 / DM-1531, sharing `builtin/text-card-common.ts`).
+  the **creative-pack text cards** `builtin/{title-card,quote,caption,cta}.ts`
+  (doc 86 / DM-1531, sharing `builtin/text-card-common.ts`), and the
+  **number-animation** cards `builtin/{counter,stat}.ts` (doc 86 / DM-1532, sharing
+  the odometer digit-reel module `builtin/odometer.ts`).
   **Format presets** (doc 87 / DM-1534, DM-1537) live in `formats.ts` — the
   `FORMATS` table + `resolveFormat` (preset/alias/raw `WxH` → canvas size +
   `safeInset`) + `applyFormatSize` + `safeAreaPadding`, surfaced as `--format` on

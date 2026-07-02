@@ -13,6 +13,8 @@
  *   quote           → pull-quote / testimonial (creative pack)
  *   caption         → subtitle strip for compositing (creative pack)
  *   cta             → closing end-card with a pulsing button (creative pack)
+ *   counter         → odometer number-ticker / countdown / timer (creative pack)
+ *   stat            → KPI callout with a trend chip (creative pack)
  *
  * Outputs land in examples/output/templates/. Uses ONLY the public template API
  * (`renderTemplateToSvg` + `loadTemplate`) the way a consumer would.
@@ -40,6 +42,8 @@ import {
   quoteTemplate,
   captionTemplate,
   ctaTemplate,
+  counterTemplate,
+  statTemplate,
   type Template,
 } from "../src/index.js";
 import { optimizeSvg } from "./shared.js";
@@ -242,6 +246,23 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     file: "cta",
     template: ctaTemplate,
     params: { headline: "Ship your first demo today", cta: "Get started", handles: ["@domotion", "github.com/brianwestphal"], ctaColor: "#3b82f6", background: "linear-gradient(135deg,#111827,#0b1020)" },
+  },
+
+  // creative pack — Batch B number animation (DM-1532).
+  {
+    file: "counter",
+    template: counterTemplate,
+    params: { to: 128500, grouping: true, prefix: "$", suffix: "+", fontSize: 200 },
+  },
+  {
+    file: "counter-timer",
+    template: counterTemplate,
+    params: { from: 90, to: 0, mode: "timer", fontSize: 220, color: "#22d3ee" },
+  },
+  {
+    file: "stat",
+    template: statTemplate,
+    params: { value: 1240000, grouping: true, suffix: "", label: "Monthly active users", delta: "12.4%", deltaDir: "up" },
   },
 
   // format presets (DM-1534) — the same templates dropped onto platform canvases

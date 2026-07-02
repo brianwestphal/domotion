@@ -77,3 +77,6 @@ export { titleCardTemplate, type TitleCardParams } from "./builtin/title-card.js
 export { quoteTemplate, type QuoteParams } from "./builtin/quote.js";
 export { captionTemplate, type CaptionParams } from "./builtin/caption.js";
 export { ctaTemplate, type CtaParams } from "./builtin/cta.js";
+// Creative pack — Batch B number animation (DM-1532).
+export { counterTemplate, type CounterParams } from "./builtin/counter.js";
+export { statTemplate, type StatParams } from "./builtin/stat.js";

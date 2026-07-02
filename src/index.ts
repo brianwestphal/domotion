@@ -196,4 +196,8 @@ export {
   type CaptionParams,
   ctaTemplate,
   type CtaParams,
+  counterTemplate,
+  type CounterParams,
+  statTemplate,
+  type StatParams,
 } from "./templates/index.js";

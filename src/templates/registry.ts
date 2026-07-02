@@ -20,6 +20,8 @@ import { titleCardTemplate } from "./builtin/title-card.js";
 import { quoteTemplate } from "./builtin/quote.js";
 import { captionTemplate } from "./builtin/caption.js";
 import { ctaTemplate } from "./builtin/cta.js";
+import { counterTemplate } from "./builtin/counter.js";
+import { statTemplate } from "./builtin/stat.js";
 import { isTemplate, type Template } from "./types.js";
 
 /** First-party templates, keyed by name. */
@@ -29,6 +31,8 @@ const BUILTINS: ReadonlyMap<string, Template> = new Map<string, Template>(
     chartTemplate, chatTemplate, subscribeTemplate,
     // Creative pack — Batch A text cards (DM-1531).
     titleCardTemplate, quoteTemplate, captionTemplate, ctaTemplate,
+    // Creative pack — Batch B number animation (DM-1532).
+    counterTemplate, statTemplate,
   ].map((t) => [t.name, t as Template]),
 );
 

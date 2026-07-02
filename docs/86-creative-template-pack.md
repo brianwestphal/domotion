@@ -1,10 +1,10 @@
 # 86 — Creative template pack
 
-**Status: Batch A shipped (DM-1523 design → DM-1531 impl); Batches B/C pending.**
-`title-card`, `quote`, `caption`, and `cta` are built + registered + tested
-(`src/templates/builtin/{title-card,quote,caption,cta}.ts`, shared scaffolding in
-`text-card-common.ts`). Batch B (`counter`/`stat` odometer) and Batch C
-(`compare`) remain. A DM-1519 follow-up: the current templates lean
+**Status: Batches A + B shipped (DM-1523 design → DM-1531/DM-1532 impl); Batch C
+pending.** Batch A `title-card`, `quote`, `caption`, `cta` (shared scaffolding in
+`text-card-common.ts`) and Batch B `counter`, `stat` (shared odometer digit-reel
+module `odometer.ts`) are built + registered + tested. Batch C (`compare`) remains
+(coordinate with DM-1524). A DM-1519 follow-up: the current templates lean
 product/marketing-UI
 (chart, chat, subscribe, lower-third, device-mockup, kinetic-text,
 background-loop). Storytellers and marketers want **narrative building blocks**.
@@ -95,8 +95,14 @@ shared code):
   Each has a `brandDefaults` + honors format `safeInset`. `caption`'s in-hold-out
   runs on two nested wrappers; `cta`'s button pulse rides a separate inner element
   from its enter reveal. Logo brand-wiring for `cta` is DM-1539.
-- **Batch B — number animation:** `counter` + `stat`, built on a shared
-  odometer digit-reel module (the one genuinely new technique in the pack).
+- **Batch B — number animation:** `counter` + `stat`. ✅ shipped (DM-1532). Built
+  on `src/templates/builtin/odometer.ts` — each digit column is a 1em clipped
+  window over a `0..9`-repeated strip, `translateY`-rolled to the target digit
+  (pure transform; cells sized in `em` so it scales; rests at the final digit so
+  reduced-motion shows the right number). `counter` does count up/down + a `timer`
+  clock with grouping/decimals/prefix/suffix/stagger; `stat` adds a label + a
+  trend chip (▲/▼) that fades in after the roll. Both have `brandDefaults` + honor
+  format `safeInset`.
 - **Batch C — comparison:** `compare` (clip-path wipe/slider); coordinate with
   DM-1524 so the wipe is the same effect implementation.
 

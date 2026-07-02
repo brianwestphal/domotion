@@ -71,8 +71,8 @@ describe("template registry (DM-1276)", () => {
   it("lists the built-in templates", () => {
     const names = listBuiltinTemplates().map((t) => t.name).sort();
     expect(names).toEqual([
-      "background-loop", "caption", "chart", "chat", "cta", "device-mockup",
-      "kinetic-text", "lower-third", "quote", "subscribe", "title-card",
+      "background-loop", "caption", "chart", "chat", "counter", "cta", "device-mockup",
+      "kinetic-text", "lower-third", "quote", "stat", "subscribe", "title-card",
     ]);
   });
 
