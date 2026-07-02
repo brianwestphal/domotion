@@ -10,6 +10,7 @@
 
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
+import { brandParams, brandBackground, type Brand } from "../brand.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
@@ -170,6 +171,14 @@ export const subscribeTemplate: Template<SubscribeParams> = {
   name: "subscribe",
   description: "A subscribe / follow pop-up card that pops in with a pulsing call-to-action button.",
   paramsSchema: subscribeParamsSchema,
+  brandDefaults(brand: Brand): Partial<SubscribeParams> {
+    return brandParams<SubscribeParams>({
+      accent: brand.palette?.primary,
+      avatarColor: brand.palette?.primary,
+      background: brandBackground(brand),
+      fontFamily: brand.font?.family,
+    });
+  },
   async render(params: SubscribeParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     ctx.log(`template subscribe: "${params.name}", ${params.width}×${params.height}`);
     return runSingleFrameGenerator(ctx, {

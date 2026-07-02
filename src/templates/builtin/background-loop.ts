@@ -24,6 +24,7 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { AnimateConfig, Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";
 
 const VARIANTS = ["aurora", "orbs", "stars", "gradient-pan", "grid", "wave"] as const;
 export type BackgroundVariant = (typeof VARIANTS)[number];
@@ -564,6 +565,12 @@ export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
   name: "background-loop",
   description: "Procedural seamlessly-looping animated background (drifting, breathing color blobs).",
   paramsSchema: backgroundLoopParamsSchema,
+  brandDefaults(brand: Brand): Partial<BackgroundLoopParams> {
+    return brandParams<BackgroundLoopParams>({
+      background: brandBackground(brand),
+      colors: brandSeriesColors(brand),
+    });
+  },
   async render(params: BackgroundLoopParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const built = VARIANT_BUILDERS[variantFamily(params.variant)](params);
     ctx.log(built.log);

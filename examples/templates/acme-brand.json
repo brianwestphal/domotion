@@ -1,0 +1,15 @@
+{
+  "palette": {
+    "primary": "#2f6df6",
+    "accent": "#22d3ee",
+    "background": "#0b1020",
+    "text": "#e6edf3",
+    "muted": "#8b93a7"
+  },
+  "font": {
+    "family": "Inter, -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif",
+    "weights": [400, 700, 800]
+  },
+  "radius": 12,
+  "background": "linear-gradient(135deg, #1e293b, #0f172a)"
+}

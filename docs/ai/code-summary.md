@@ -85,8 +85,13 @@ shortest possible map:
   **Format presets** (doc 87 / DM-1534) live in `formats.ts` — the `FORMATS`
   table + `resolveFormat` (preset/alias/raw `WxH` → canvas size + `safeInset`) +
   `applyFormatSize`, surfaced as `--format` on the CLI (`src/cli/template.ts`)
-  and a `safeInset` field on `TemplateRenderContext`. Templates are front-ends
-  onto the animate/capture pipeline; the verb lives in `src/cli/template.ts`.
+  and a `safeInset` field on `TemplateRenderContext`. **Brand kit** (doc 85 /
+  DM-1530) lives in `brand.ts` — the zod `brandSchema` + `loadBrand` + the
+  `brandParams`/`brandSeriesColors`/`brandBackground` helpers; each themeable
+  built-in has a `brandDefaults(brand)` method, merged beneath explicit params by
+  `applyBrandDefaults` (in `render.ts`) and surfaced as `--brand`. Templates are
+  front-ends onto the animate/capture pipeline; the verb lives in
+  `src/cli/template.ts`.
 - **`src/tree-ops/`** — element-tree transforms (`tree-diff.ts`,
   `viewbox-culling.ts`, `resize-embedded-images.ts`, `prune-tree.ts`,
   `for-each-element.ts`). (The old `frame-merge.ts` fast path was removed — see

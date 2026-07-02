@@ -282,6 +282,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/templates/formats.test.ts"],
   },
   {
+    id: "templates.brand",
+    behavior: "Brand kit (design tokens across templates): brandSchema + loadBrand (parse/validate a brand file, resolve logo) + per-template brandDefaults mapping + the --brand flag, merged beneath explicit params (explicit>brand>default).",
+    doc: "docs/85-brand-kit.md",
+    exports: ["brandSchema", "loadBrand", "brandParams", "brandSeriesColors", "brandBackground", "applyBrandDefaults"],
+    tests: ["src/templates/brand.test.ts"],
+  },
+  {
     id: "templates.builtins",
     behavior: "The seven built-in template generators.",
     doc: "docs/70-template-system.md",

@@ -42,6 +42,17 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 85 (`docs/85-brand-kit.md`, DM-1522 design → DM-1530 impl)** —
+  **Shipped v1.** A reusable brand file (palette / font / radius / logo /
+  background) supplies every built-in template's *defaults*: `--brand acme.json`
+  on `domotion template`. `loadBrand` (in `src/templates/brand.ts`) parses +
+  validates (zod `brandSchema`) + resolves a relative `logo`; each themeable
+  built-in exposes `brandDefaults(brand)`, merged BENEATH explicit params by
+  `applyBrandDefaults` before zod defaults (precedence: explicit > brand >
+  default). Composes with format presets (`--brand acme.json --format reel`).
+  **Still open (follow-ups):** the logo slot (no template consumes it yet) and
+  brand for `capture` / `animate`.
+
 - **Doc 87 (`docs/87-format-presets.md`, DM-1521 design → DM-1534 impl)** —
   **Shipped v1.** Social-format presets on `domotion template`: `--format <name|WxH>`
   where names are `reel`/`story` (1080×1920), `square` (1080×1080), `portrait`

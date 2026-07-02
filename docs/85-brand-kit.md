@@ -1,8 +1,11 @@
 # 85 — Brand kit (design tokens applied across templates)
 
-**Status: design (DM-1522).** Implementation tracked in follow-up tickets (see
-end). A DM-1519 follow-up: the audience of marketing creatives needs **on-brand
-output at scale** without re-specifying colors/fonts on every call.
+**Status: shipped v1 (DM-1522 design → DM-1530 impl).** The `brandSchema` +
+`loadBrand` + per-template `brandDefaults` + `--brand` flag are built and tested
+(`src/templates/brand.ts`). Still open (follow-ups below): the logo slot (no
+template has one yet) and brand for `capture`/`animate`. A DM-1519 follow-up: the
+audience of marketing creatives needs **on-brand output at scale** without
+re-specifying colors/fonts on every call.
 
 ## Goal
 
@@ -113,10 +116,13 @@ blobs) from `[primary, accent, …]` when the caller doesn't pass explicit color
 
 ## Follow-up tickets
 
-- **Implement the brand kit** (schema + `loadBrand` + `brandDefaults` on each
-  built-in + `--brand` wiring + tests + a branded demo set).
+- **Implement the brand kit** — ✅ done (DM-1530): `brandSchema` + `loadBrand` +
+  `brandDefaults` on the six themeable built-ins + `--brand` wiring + unit tests +
+  a branded demo set (`examples/templates-demo.ts`: `brand-acme-*` across
+  lower-third / chart / subscribe / kinetic from one `acme-brand.json`).
 - **Logo slot wiring** (once a template with a logo slot exists — coordinate with
-  DM-1523's end-card / a lower-third logo variant).
+  DM-1523's end-card / a lower-third logo variant). *The `logo` token is in the
+  schema + resolved by `loadBrand`, but no v1 template consumes it yet.*
 - **Brand for `capture`/`animate`** (inject brand CSS custom properties).
 
 ## Relationships

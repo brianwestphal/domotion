@@ -23,6 +23,8 @@ import {
   renderTemplateToSvg,
   resolveFormat,
   applyFormatSize,
+  loadBrand,
+  type Brand,
   lowerThirdTemplate,
   deviceMockupTemplate,
   backgroundLoopTemplate,
@@ -36,11 +38,12 @@ import { optimizeSvg } from "./shared.js";
 
 const OUT_DIR = resolve("examples/output/templates");
 const SAMPLE_APP = resolve("examples/templates/sample-app.html");
+const ACME_BRAND: Brand = loadBrand(resolve("examples/templates/acme-brand.json"));
 
 // One entry per unique concept we want a committed example SVG for. An optional
 // `format` mirrors the CLI's `--format` (DM-1534): it sizes the canvas (unless
 // params already pin width/height) and passes a safe-area inset to the render.
-const EXAMPLES: Array<{ file: string; template: Template; params: Record<string, unknown>; format?: string }> = [
+const EXAMPLES: Array<{ file: string; template: Template; params: Record<string, unknown>; format?: string; brand?: Brand }> = [
   // lower-third — the banner concept, shown in both themes / corners.
   {
     file: "lower-third-dark",
@@ -226,6 +229,33 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     params: { type: "column", data: [42, 68, 55, 90], labels: ["Q1", "Q2", "Q3", "Q4"], title: "Growth" },
     format: "square", // 1080×1080 feed square
   },
+
+  // brand kit (DM-1530) — ONE brand file (acme-brand.json) drives the palette +
+  // font across four different templates; none of these pass color/font flags.
+  {
+    file: "brand-acme-lower-third",
+    template: lowerThirdTemplate,
+    params: { title: "Acme Cloud", subtitle: "Now with brand kits" },
+    brand: ACME_BRAND,
+  },
+  {
+    file: "brand-acme-chart",
+    template: chartTemplate,
+    params: { type: "column", data: [42, 68, 55, 90, 34, 76], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], title: "Signups" },
+    brand: ACME_BRAND,
+  },
+  {
+    file: "brand-acme-subscribe",
+    template: subscribeTemplate,
+    params: { name: "Acme", subtitle: "1.2M subscribers", action: "Subscribe" },
+    brand: ACME_BRAND,
+  },
+  {
+    file: "brand-acme-kinetic",
+    template: kineticTextTemplate,
+    params: { text: "On brand, at scale", variant: "rise" },
+    brand: ACME_BRAND,
+  },
 ];
 
 async function main(): Promise<void> {
@@ -241,6 +271,7 @@ async function main(): Promise<void> {
       const { svg, width, height } = await renderTemplateToSvg(ex.template, params, {
         browser,
         ...(fmt != null ? { safeInset: fmt.safeInset } : {}),
+        ...(ex.brand != null ? { brand: ex.brand } : {}),
       });
       const optimized = optimizeSvg(svg);
       const out = resolve(OUT_DIR, `${ex.file}.svg`);

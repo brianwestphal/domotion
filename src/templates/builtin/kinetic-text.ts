@@ -24,6 +24,7 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const VARIANTS = ["rise", "slide", "fade", "clip", "pop"] as const;
@@ -332,6 +333,13 @@ export const kineticTextTemplate: Template<KineticTextParams> = {
   name: "kinetic-text",
   description: "Kinetic typography — reveal a headline (rise / slide / fade / clip / pop) word- or char-by-char, with multi-line (\\n), inline emphasis tags, and a loop / boomerang mode.",
   paramsSchema: kineticTextParamsSchema,
+  brandDefaults(brand: Brand): Partial<KineticTextParams> {
+    return brandParams<KineticTextParams>({
+      color: brand.palette?.text,
+      background: brandBackground(brand),
+      fontFamily: brand.font?.family,
+    });
+  },
   async render(params: KineticTextParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const plan = planUnits(params);
     ctx.log(`template kinetic-text: ${params.variant}/${params.by}, ${plan.count} units, "${params.text}"`);

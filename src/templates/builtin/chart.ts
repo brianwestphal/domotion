@@ -12,6 +12,7 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const CHART_TYPES = ["column", "bar", "line", "pie", "donut"] as const;
@@ -493,6 +494,14 @@ export const chartTemplate: Template<ChartParams> = {
   name: "chart",
   description: "Animated column / bar / line chart from one or more series (bars grow, lines draw in).",
   paramsSchema: chartParamsSchema,
+  brandDefaults(brand: Brand): Partial<ChartParams> {
+    return brandParams<ChartParams>({
+      color: brand.palette?.text,
+      background: brandBackground(brand),
+      fontFamily: brand.font?.family,
+      colors: brandSeriesColors(brand),
+    });
+  },
   async render(params: ChartParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const plan = planChart(params);
     ctx.log(`template chart: ${params.type}, ${params.data.length} series × ${params.data[0].length}, ${params.width}×${params.height}`);

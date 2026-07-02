@@ -26,8 +26,10 @@ import {
   resolveFormat,
   applyFormatSize,
   formatNames,
+  loadBrand,
   type ParamInfo,
   type ResolvedFormat,
+  type Brand,
   type Template,
 } from "../templates/index.js";
 
@@ -38,6 +40,7 @@ const FIXED_OPTIONS: ArgOptions = {
   params: { type: "string" },
   "params-file": { type: "string" },
   format: { type: "string" },
+  brand: { type: "string" },
   optimize: { type: "boolean" },
   "no-optimize": { type: "boolean" },
   quiet: { type: "boolean" },
@@ -107,11 +110,19 @@ export async function runTemplate(args: string[], _help: string): Promise<void> 
     applyFormatSize(raw, fmt);
   }
 
+  // --brand supplies template-param defaults from a brand file (docs/85). Its
+  // tokens sit beneath the explicit flags in `raw` (the merge happens inside
+  // renderTemplateToSvg, before zod defaults) — explicit > brand > default.
+  let brand: Brand | undefined;
+  const brandArg = values.brand as string | undefined;
+  if (brandArg != null) brand = loadBrand(resolve(brandArg));
+
   const log = makeLogger(values.quiet === true);
   log("Launching Chromium…");
   const result = await renderTemplateToSvg(template, raw, {
     log,
     ...(fmt != null ? { safeInset: fmt.safeInset } : {}),
+    ...(brand != null ? { brand } : {}),
   });
   let svg = result.svg;
 
@@ -183,6 +194,8 @@ function templateHelp(template: Template, params: ParamInfo[]): string {
     "      --params-file <f> Params from a JSON file.",
     `      --format <fmt>    Canvas preset (${formatNames().join(", ")}) or WIDTHxHEIGHT.`,
     "                        Sets width/height + a safe-area inset. --width/--height win.",
+    "      --brand <file>    Brand-kit JSON (palette/font/…) supplying param defaults.",
+    "                        Explicit flags win over the brand.",
     "      --optimize        Run the output through SVGO.",
     "      --quiet           Suppress progress messages on stderr.",
     "",

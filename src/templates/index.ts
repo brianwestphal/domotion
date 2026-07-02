@@ -33,6 +33,15 @@ export {
   type ResolvedFormat,
   type SafeInset,
 } from "./formats.js";
+export {
+  brandSchema,
+  loadBrand,
+  brandParams,
+  brandSeriesColors,
+  brandBackground,
+  type Brand,
+} from "./brand.js";
+export { applyBrandDefaults } from "./render.js";
 
 // Built-in templates (also reachable via the registry by name).
 export { lowerThirdTemplate, type LowerThirdParams } from "./builtin/lower-third.js";

@@ -21,6 +21,7 @@ import type { Browser } from "@playwright/test";
 import type { ZodType } from "zod";
 import type { AnimateConfig } from "../cli/animate.js";
 import type { SafeInset } from "./formats.js";
+import type { Brand } from "./brand.js";
 
 /**
  * The building blocks Domotion hands a template's `render()`. A template MUST
@@ -118,6 +119,14 @@ export interface Template<P = unknown> {
   description: string;
   /** Zod schema for the template's parameters. */
   paramsSchema: ZodType<P>;
+  /**
+   * Map a brand kit's tokens (docs/85) to this template's params, supplying
+   * *defaults* only. Returns a partial params object merged BENEATH the caller's
+   * explicit params before zod applies its own defaults (so precedence is
+   * explicit > brand > built-in default). Omit for a template with no brand slot;
+   * return only the tokens the brand actually set (see `brandParams`).
+   */
+  brandDefaults?(brand: Brand): Partial<P>;
   /** Produce the SVG from validated params using the supplied context. */
   render(params: P, ctx: TemplateRenderContext): Promise<TemplateOutput>;
 }

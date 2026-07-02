@@ -11,6 +11,7 @@
 
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
+import { brandParams, brandBackground, type Brand } from "../brand.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
@@ -202,6 +203,13 @@ export const chatTemplate: Template<ChatParams> = {
   name: "chat",
   description: "A message thread whose bubbles pop in one at a time (iMessage / WhatsApp style).",
   paramsSchema: chatParamsSchema,
+  brandDefaults(brand: Brand): Partial<ChatParams> {
+    return brandParams<ChatParams>({
+      accent: brand.palette?.primary,
+      background: brandBackground(brand),
+      fontFamily: brand.font?.family,
+    });
+  },
   async render(params: ChatParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     ctx.log(`template chat: ${params.messages.length} messages, ${params.width}×${params.height}`);
     return runSingleFrameGenerator(ctx, {

@@ -14,6 +14,7 @@
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const POSITIONS = ["bottom-left", "bottom-center", "bottom-right", "top-left", "top-center", "top-right"] as const;
@@ -109,6 +110,13 @@ export const lowerThirdTemplate: Template<LowerThirdParams> = {
   name: "lower-third",
   description: "Broadcast-style lower-third banner (title + subtitle + accent) that slides and fades in.",
   paramsSchema: lowerThirdParamsSchema,
+  brandDefaults(brand: Brand): Partial<LowerThirdParams> {
+    return brandParams<LowerThirdParams>({
+      accent: brand.palette?.accent,
+      background: brandBackground(brand),
+      fontFamily: brand.font?.family,
+    });
+  },
   async render(params: LowerThirdParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     ctx.log(`template lower-third: ${params.width}×${params.height}, "${params.title}"`);
     // A slide-down distance that reads as "rising into place" from below.

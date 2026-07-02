@@ -21,6 +21,7 @@ import { applyReadyWaits, loadInputIntoPage } from "../cli/common.js";
 import { composeAnimateConfig, type AnimateConfig } from "../cli/animate.js";
 import type { CaptureToSvgParams, Template, TemplateOutput, TemplateRenderContext } from "./types.js";
 import type { SafeInset } from "./formats.js";
+import type { Brand } from "./brand.js";
 
 const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
 
@@ -82,6 +83,21 @@ export interface RenderTemplateOptions {
   /** Safe-area inset (px per side) to expose on the render context, from a chosen
    *  format preset (docs/87). Omitted → the template sees no inset. */
   safeInset?: SafeInset;
+  /** Brand kit (docs/85). Its tokens supply template-param *defaults* beneath the
+   *  caller's explicit params (`brand` < explicit params). Omitted → no brand. */
+  brand?: Brand;
+}
+
+/**
+ * Merge a brand's defaults beneath the raw user params (docs/85): the caller's
+ * explicit params win, brand fills what's unset, and zod fills the rest with the
+ * template's built-in defaults during validation. A non-object `rawParams` (bad
+ * input) is passed through untouched so `validateTemplateParams` reports it.
+ */
+export function applyBrandDefaults<P>(template: Template<P>, rawParams: unknown, brand: Brand | undefined): unknown {
+  if (brand == null || template.brandDefaults == null) return rawParams;
+  if (rawParams == null || typeof rawParams !== "object" || Array.isArray(rawParams)) return rawParams;
+  return { ...template.brandDefaults(brand), ...(rawParams as Record<string, unknown>) };
 }
 
 /**
@@ -94,7 +110,7 @@ export async function renderTemplateToSvg<P>(
   rawParams: unknown,
   opts: RenderTemplateOptions = {},
 ): Promise<TemplateOutput> {
-  const params = validateTemplateParams(template, rawParams);
+  const params = validateTemplateParams(template, applyBrandDefaults(template, rawParams, opts.brand));
   const log = opts.log ?? ((): void => {});
   const ownsBrowser = opts.browser == null;
   const browser = opts.browser ?? (await launchChromium());
