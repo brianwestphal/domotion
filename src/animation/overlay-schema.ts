@@ -70,6 +70,17 @@ export const typingOverlaySchema = z.object({
   x: z.number(),
   y: z.number(),
   fontSize: z.number().optional(),
+  /**
+   * DM-1558: CSS font-family the reveal MEASURES and PAINTS with. Defaults to
+   * the monospace field stack (`'SF Mono', Menlo, Monaco, monospace`). Point it
+   * at the captured field's own family (e.g. `"Inter, sans-serif"`) so the
+   * simulated typing matches the surrounding UI — including PROPORTIONAL
+   * families, which lay out and wrap correctly because the text is rendered as
+   * glyph paths (DM-1557) driven by the family's measured per-glyph advances.
+   * A first-choice family that can't be resolved falls back through the stack;
+   * if nothing resolves the reveal degrades to a native `<text>` element.
+   */
+  fontFamily: z.string().optional(),
   color: z.string().optional(),
   /** Delay from frame start before typing begins (ms). */
   delay: z.number().optional(),

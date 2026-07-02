@@ -1000,6 +1000,9 @@
                     "fontSize": {
                       "type": "number"
                     },
+                    "fontFamily": {
+                      "type": "string"
+                    },
                     "color": {
                       "type": "string"
                     },

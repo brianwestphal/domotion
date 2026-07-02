@@ -1376,9 +1376,11 @@ function renderTypingOverlay(
   const delay = overlay.delay ?? DEFAULT_TYPING_DELAY_MS;
   const speed = overlay.speed ?? DEFAULT_TYPING_SPEED_CPS;
   const fontSize = overlay.fontSize ?? DEFAULT_OVERLAY_FONT_SIZE;
-  // The family the reveal measures + paints (the monospace field stack).
-  // DM-1558 will let an author override this per overlay.
-  const fontFamily = OVERLAY_TYPING_FONT;
+  // DM-1558: the family the reveal measures + paints. Defaults to the monospace
+  // field stack; an author `fontFamily` (e.g. the captured field's own family)
+  // overrides it and — via the glyph-path renderer (DM-1557) — measures, wraps,
+  // and paints proportionally.
+  const fontFamily = overlay.fontFamily ?? OVERLAY_TYPING_FONT;
   const thinkMs = overlay.mistakeThinkMs ?? DEFAULT_MISTAKE_THINK_MS;
   // DM-1205: the typewriter reveal hides not-yet-typed text with a width-0 clip
   // rect. Chrome renders a zero-area clip path as "clip everything" (text

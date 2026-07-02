@@ -160,6 +160,24 @@ with the blinking caret glued to the trailing edge of the glyph run, the parked
 `caret-pos` stop matching the measured run width; the emitted markup is
 `<use href="#gK">` refs with matching `<path id="gK">` defs and no `<text>`.
 
+## `fontFamily` override (DM-1558)
+
+The overlay takes an optional **`fontFamily`** — the CSS font-family the reveal
+both MEASURES and PAINTS with. It defaults to the monospace field stack (`'SF
+Mono', Menlo, Monaco, monospace`); point it at the captured field's own family
+(e.g. `"Inter, sans-serif"`, `"Georgia, serif"`) so the simulated typing matches
+the surrounding UI. Because the text is rendered as glyph paths (DM-1557), a
+PROPORTIONAL family measures, wraps, and paints correctly — the caret still sits
+at the true glyph edge, and `wrapWidth` breaks lines by the family's real pixel
+widths. A first-choice family that can't be resolved falls back through the
+stack; if nothing resolves, the reveal degrades to a native `<text>` element.
+
+Verified in the rasterized SVG: `fontFamily: "Georgia, serif"` on a `wrapWidth:
+220` overlay wraps "Wire Wave William milliliter" into `Wire Wave` /
+`William milliliter` (two lines — the narrow proportional glyphs fit more per
+line than the monospace default's three), paints a proportional serif, and
+mid-type the caret sits flush against the wide `W`.
+
 ## Roadmap (designed, not yet built)
 
 These were considered for v1 and deliberately scoped out; each is a clean

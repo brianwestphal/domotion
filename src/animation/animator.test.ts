@@ -692,6 +692,40 @@ describe("animator", () => {
     });
   });
 
+  // DM-1558: `fontFamily` override — the reveal measures + paints with an
+  // author-chosen family (e.g. the captured field's own font), wrapping
+  // proportionally via the glyph-path path (DM-1557).
+  describe("typing fontFamily override (DM-1558)", () => {
+    const text = "Wire Wave William milliliter";
+    const mk = (fontFamily?: string): string => generateAnimatedSvg({
+      width: 360, height: 140,
+      frames: [{ svgContent: `<rect width="360" height="140" fill="#fff"/>`, duration: 4000,
+        overlays: [{ kind: "typing", text, x: 20, y: 40, fontSize: 26, color: "#111", caret: true, wrapWidth: 220, ...(fontFamily != null ? { fontFamily } : {}) }] }],
+    });
+
+    it("a proportional family wraps by measured pixel width, not char count", () => {
+      // Georgia's narrow i/l/t let more fit per line than the monospace default.
+      const prop = typedLineTexts(mk("Georgia, serif"));
+      const mono = typedLineTexts(mk());
+      expect(prop).not.toEqual(mono);
+      expect(prop.join(" ")).toContain("William milliliter"); // fits one line proportionally
+      expect(mono).toContain("milliliter");                    // mono breaks it apart
+      // Every line stays within the field either way.
+      expect(prop.join("").replace(/ /g, "")).toBe(mono.join("").replace(/ /g, ""));
+    });
+
+    it("paints with the overridden family as glyph paths", () => {
+      const svg = mk("Georgia, serif");
+      expect(svg).toMatch(/<g class="t0-text"[^>]*>\s*<g [^>]*aria-label="Wire Wave"/);
+      expect(svg).toContain('<use href="#g');
+    });
+
+    it("omitting fontFamily keeps the monospace default (backward compatible)", () => {
+      // Same output whether the default is implicit or spelled out explicitly.
+      expect(mk()).toBe(mk("'SF Mono', Menlo, Monaco, monospace"));
+    });
+  });
+
   it("DM-871: blink overlay emits a step-end toggling rect", () => {
     const svg = generateAnimatedSvg({
       width: 100,
