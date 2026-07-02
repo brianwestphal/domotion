@@ -54,8 +54,8 @@ they describe (see `CLAUDE.md` "Documentation"):
   multi-oscillation `spring` baked to keyframe samples (currently a single-
   overshoot bezier); `shine` sweep (needs a gradient/mask overlay).
 
-- **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532 impl)** —
-  **Batches A + B shipped.** Batch A: four narrative text-card templates
+- **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532/1533 impl)** —
+  **All three batches shipped.** Batch A: four narrative text-card templates
   (`title-card`, `quote`, `caption` [transparent overlay subtitle, distinct from
   lower-third], `cta` [end-card with a pulsing button + logo slot]) sharing
   `src/templates/builtin/text-card-common.ts`. Batch B: `counter` (count
@@ -66,8 +66,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   **capture fix**: the script (`src/capture/script/index.ts`) now exempts
   `[data-domotion-anim]` subtrees from the off-viewport drop so a reel's off-canvas
   cells (which scroll into view) survive capture — the animation-aware viewBox cull
-  trims the rest. All have `brandDefaults` (DM-1522) + honor format `safeInset`
-  (DM-1537). **Pending:** Batch C (`compare` wipe/slider — coordinate with DM-1524).
+  trims the rest. Batch C: `compare` (`builtin/compare.ts`, DM-1533) reveals the
+  after over the before with a clip wipe (+ optional divider) + labels, via
+  `composeAnimatedLayers`' Firefox-safe `clipScale`; page/image/SVG inputs resolved
+  through `captureToSvg`. All have `brandDefaults` (DM-1522) + honor format
+  `safeInset` (DM-1537) where applicable.
 
 - **Doc 85 (`docs/85-brand-kit.md`, DM-1522 design → DM-1530 impl)** —
   **Shipped v1.** A reusable brand file (palette / font / radius / logo /

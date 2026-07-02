@@ -200,4 +200,6 @@ export {
   type CounterParams,
   statTemplate,
   type StatParams,
+  compareTemplate,
+  type CompareParams,
 } from "./templates/index.js";

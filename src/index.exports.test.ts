@@ -50,6 +50,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "clearEmbeddedFonts",
   "clearGlyphDefs",
   "clearWebfonts",
+  "compareTemplate",
   "composeAnimateConfig",
   "composeAnimateFrames",
   "composeAnimatedLayers",

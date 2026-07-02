@@ -316,6 +316,13 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["counterTemplate", "statTemplate"],
     tests: ["src/templates/builtin/number-templates.test.ts"],
   },
+  {
+    id: "templates.compare",
+    behavior: "Creative-pack Batch C before/after compare: reveal the 'after' over the 'before' with a clip wipe (optional divider) + labels, via composeAnimatedLayers' Firefox-safe clipScale reveal (page/image/SVG inputs).",
+    doc: "docs/86-creative-template-pack.md",
+    exports: ["compareTemplate"],
+    tests: ["src/templates/builtin/compare.test.ts"],
+  },
 
   // ── Terminal ───────────────────────────────────────────────────────────
   {

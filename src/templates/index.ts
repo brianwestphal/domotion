@@ -80,3 +80,5 @@ export { ctaTemplate, type CtaParams } from "./builtin/cta.js";
 // Creative pack — Batch B number animation (DM-1532).
 export { counterTemplate, type CounterParams } from "./builtin/counter.js";
 export { statTemplate, type StatParams } from "./builtin/stat.js";
+// Creative pack — Batch C before/after compare (DM-1533).
+export { compareTemplate, type CompareParams } from "./builtin/compare.js";

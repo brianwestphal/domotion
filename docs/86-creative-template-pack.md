@@ -1,11 +1,10 @@
 # 86 — Creative template pack
 
-**Status: Batches A + B shipped (DM-1523 design → DM-1531/DM-1532 impl); Batch C
-pending.** Batch A `title-card`, `quote`, `caption`, `cta` (shared scaffolding in
-`text-card-common.ts`) and Batch B `counter`, `stat` (shared odometer digit-reel
-module `odometer.ts`) are built + registered + tested. Batch C (`compare`) remains
-(coordinate with DM-1524). A DM-1519 follow-up: the current templates lean
-product/marketing-UI
+**Status: all three batches shipped (DM-1523 design → DM-1531/DM-1532/DM-1533
+impl).** Batch A `title-card`, `quote`, `caption`, `cta` (shared scaffolding in
+`text-card-common.ts`); Batch B `counter`, `stat` (shared odometer digit-reel
+module `odometer.ts`); Batch C `compare` (`builtin/compare.ts`). A DM-1519
+follow-up: the current templates lean product/marketing-UI
 (chart, chat, subscribe, lower-third, device-mockup, kinetic-text,
 background-loop). Storytellers and marketers want **narrative building blocks**.
 
@@ -115,8 +114,16 @@ shared code):
   `counter` does count up/down + a `timer` clock with grouping/decimals/prefix/
   suffix/stagger; `stat` adds a label + a trend chip (▲/▼) that fades in after the
   roll. Both have `brandDefaults` + honor format `safeInset`.
-- **Batch C — comparison:** `compare` (clip-path wipe/slider); coordinate with
-  DM-1524 so the wipe is the same effect implementation.
+- **Batch C — comparison:** `compare`. ✅ shipped (DM-1533). Reveals the "after"
+  over the "before" with a clip wipe (mode `slide` adds a divider line locked to
+  the reveal edge) in any of four directions, plus before/after label badges. Each
+  visual (page URL/HTML, or an image/SVG file wrapped in a full-bleed page) is
+  resolved to a self-contained SVG via `captureToSvg`, then composited with
+  `composeAnimatedLayers` — whose `clipScale` reveal is the SAME Firefox-safe
+  clip-path animation as the window-resize composite (DM-1529), so the wipe is one
+  implementation shared with the transition family. **Follow-up:** none blocking —
+  a between-frame `wipe`/directional-slide *transition* (vs this intra-scene
+  reveal) is the remaining DM-1524 animator work.
 
 Each batch: the template(s) + params schema + `brandDefaults` + unit tests
 (pure param/layout logic) + a demo added to `examples/templates-demo.ts` + a

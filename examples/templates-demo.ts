@@ -15,6 +15,7 @@
  *   cta             → closing end-card with a pulsing button (creative pack)
  *   counter         → odometer number-ticker / countdown / timer (creative pack)
  *   stat            → KPI callout with a trend chip (creative pack)
+ *   compare         → before/after clip-wipe with a divider + labels (creative pack)
  *
  * Outputs land in examples/output/templates/. Uses ONLY the public template API
  * (`renderTemplateToSvg` + `loadTemplate`) the way a consumer would.
@@ -44,6 +45,7 @@ import {
   ctaTemplate,
   counterTemplate,
   statTemplate,
+  compareTemplate,
   type Template,
 } from "../src/index.js";
 import { optimizeSvg } from "./shared.js";
@@ -263,6 +265,17 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     file: "stat",
     template: statTemplate,
     params: { value: 1240000, grouping: true, suffix: "", label: "Monthly active users", delta: "12.4%", deltaDir: "up" },
+  },
+
+  // creative pack — Batch C before/after compare (DM-1533).
+  {
+    file: "compare",
+    template: compareTemplate,
+    params: {
+      before: resolve("examples/templates/compare-before.html"),
+      after: resolve("examples/templates/compare-after.html"),
+      mode: "slide", direction: "right", beforeLabel: "Before", afterLabel: "After",
+    },
   },
 
   // format presets (DM-1534) — the same templates dropped onto platform canvases

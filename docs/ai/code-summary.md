@@ -89,7 +89,9 @@ shortest possible map:
   the **creative-pack text cards** `builtin/{title-card,quote,caption,cta}.ts`
   (doc 86 / DM-1531, sharing `builtin/text-card-common.ts`), and the
   **number-animation** cards `builtin/{counter,stat}.ts` (doc 86 / DM-1532, sharing
-  the odometer digit-reel module `builtin/odometer.ts`).
+  the odometer digit-reel module `builtin/odometer.ts`), and the **before/after
+  compare** `builtin/compare.ts` (doc 86 / DM-1533 — a clip-wipe reveal on
+  `composeAnimatedLayers`' Firefox-safe `clipScale`).
   **Format presets** (doc 87 / DM-1534, DM-1537) live in `formats.ts` — the
   `FORMATS` table + `resolveFormat` (preset/alias/raw `WxH` → canvas size +
   `safeInset`) + `applyFormatSize` + `safeAreaPadding`, surfaced as `--format` on

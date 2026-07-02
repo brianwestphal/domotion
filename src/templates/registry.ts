@@ -22,6 +22,7 @@ import { captionTemplate } from "./builtin/caption.js";
 import { ctaTemplate } from "./builtin/cta.js";
 import { counterTemplate } from "./builtin/counter.js";
 import { statTemplate } from "./builtin/stat.js";
+import { compareTemplate } from "./builtin/compare.js";
 import { isTemplate, type Template } from "./types.js";
 
 /** First-party templates, keyed by name. */
@@ -33,6 +34,8 @@ const BUILTINS: ReadonlyMap<string, Template> = new Map<string, Template>(
     titleCardTemplate, quoteTemplate, captionTemplate, ctaTemplate,
     // Creative pack — Batch B number animation (DM-1532).
     counterTemplate, statTemplate,
+    // Creative pack — Batch C before/after compare (DM-1533).
+    compareTemplate,
   ].map((t) => [t.name, t as Template]),
 );
 
