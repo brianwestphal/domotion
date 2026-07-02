@@ -98,6 +98,7 @@ around. (Tunable; not a platform-exact spec.)
   number cards (DM-1541): a `formatScaleFactor` derived from the safe-area
   dimensions enlarges landscape-tuned type so it reads at 9:16 (number cards are
   width-capped so a fixed-width value never overflows). See
-  [docs/91](./91-adaptive-format-scaling.md). Remaining: the other themeable
-  built-ins (`kinetic-text` / `lower-third` / `chat` / `subscribe` / `chart`
-  labels) and per-ratio layout _restructuring_ (not just scaling).
+  [docs/91](./91-adaptive-format-scaling.md). Extended to `chart` (title / axis /
+  value-label type + bar-thickness cap) in DM-1560. Remaining: the other themeable
+  built-ins (`kinetic-text` / `lower-third` / `chat` / `subscribe`) and per-ratio
+  layout _restructuring_ (not just scaling).

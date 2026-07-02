@@ -13,7 +13,7 @@ import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";
-import type { SafeInset } from "../formats.js";
+import { formatScaleFactor, type SafeInset } from "../formats.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
 
 const CHART_TYPES = ["column", "bar", "line", "pie", "donut"] as const;
@@ -138,6 +138,10 @@ interface PlanCtx {
   mLeft: number;
   mRight: number;
   showVals: boolean;
+  /** Adaptive per-ratio scale factor (DM-1560). `1` for no format → byte-identical
+   *  default geometry; >1 on a tall/narrow format (e.g. reel) so the absolute
+   *  bar-thickness caps grow with the type. */
+  sf: number;
 }
 
 /** Pie / donut: one ring of arc slices with a label·percentage legend. No axes /
@@ -211,7 +215,7 @@ function planLine(ctx: PlanCtx): { lines: SeriesLine[]; catLabels: Box[]; valueL
  *  is identical. `vertical` columns grow UP from the plot's bottom edge; `bar`s
  *  grow RIGHT from the plot's left edge. */
 function planBars(ctx: PlanCtx, orientation: "column" | "bar"): { bars: BarRect[]; stacks: StackBox[]; catLabels: Box[]; valueLabels: Box[] } {
-  const { nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals } = ctx;
+  const { nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals, sf } = ctx;
   const bars: BarRect[] = [];
   const stacks: StackBox[] = [];
   const catLabels: Box[] = [];
@@ -222,7 +226,11 @@ function planBars(ctx: PlanCtx, orientation: "column" | "bar"): { bars: BarRect[
   const catOrigin = vertical ? plot.x : plot.y;
   const baseY = plot.y + plot.h;                    // columns grow up from here
   const slot = catExtent / nCats;
-  const groupSize = Math.min(slot * 0.7, multi ? slot * 0.7 : (vertical ? 130 : 90));
+  // DM-1560: the absolute single-series bar-thickness cap scales with the format
+  // (sf === 1 → the tuned 130/90, byte-identical), so a reel's few wide-slotted
+  // bars grow with the enlarged type instead of reading as thin ribbons.
+  const barCap = Math.round((vertical ? 130 : 90) * sf);
+  const groupSize = Math.min(slot * 0.7, multi ? slot * 0.7 : barCap);
   for (let c = 0; c < nCats; c++) {
     const g = catOrigin + c * slot + (slot - groupSize) / 2; // group start on the category axis
     if (stacked) {
@@ -259,7 +267,7 @@ function planBars(ctx: PlanCtx, orientation: "column" | "bar"): { bars: BarRect[
 /** Lay out the chart geometry from the params. Pure — no browser. Dispatches to
  *  the per-type planner (`planPie` / `planLine` / `planBars`) after the shared
  *  axis + gridline setup. */
-export function planChart(p: ChartParams): ChartPlan {
+export function planChart(p: ChartParams, sf = 1): ChartPlan {
   const series = p.data;
   const nSeries = series.length;
   const nCats = Math.max(...series.map((s) => s.length));
@@ -314,7 +322,7 @@ export function planChart(p: ChartParams): ChartPlan {
     }
   }
 
-  const ctx: PlanCtx = { p, nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals };
+  const ctx: PlanCtx = { p, nSeries, nCats, multi, stacked, val, colorOf, catLabel, maxVal, plot, mLeft, mRight, showVals, sf };
   const { bars, stacks, lines, catLabels, valueLabels } = p.type === "line"
     ? { bars: [], stacks: [], ...planLine(ctx) }
     : { lines: [], ...planBars(ctx, p.type) };
@@ -322,8 +330,17 @@ export function planChart(p: ChartParams): ChartPlan {
   return { type: p.type, stacked, maxVal, plot, bars, stacks, lines, slices: [], pie: null, gridlines, catLabels, valueLabels, legend };
 }
 
-/** Standalone HTML for the chart. Pure — unit-testable without a browser. */
-export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInset): string {
+/** Standalone HTML for the chart. Pure — unit-testable without a browser.
+ *
+ *  `sf` (DM-1560) is the adaptive per-ratio type scale (docs/91): it multiplies
+ *  the title / axis-tick / value-label / category-label / legend font sizes so a
+ *  landscape-tuned chart READS WELL at 9:16, not just fits. `sf === 1` (the
+ *  no-format default) leaves every size at its authored px → byte-identical. */
+export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInset, sf = 1): string {
+  // Scale a font-size px literal by the adaptive factor. At sf === 1 every
+  // authored size is returned unchanged (round(n·1) === n), so the default (and
+  // every existing unit-test) output is byte-for-byte identical.
+  const fs = (px: number): number => Math.round(px * sf);
   // `p.width`/`p.height` are the PLOT (inner) dimensions everything is laid out
   // against. With a safe-area inset the visible canvas is larger — the plot is
   // positioned within it by a wrapper (DM-1537). Without an inset the canvas IS
@@ -407,19 +424,19 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
   html, body { width: ${canvasW}px; height: ${canvasH}px; }
   body { background: ${p.background}; font-family: ${p.fontFamily}; color: ${p.color}; position: relative; }
   .ch-safe { position: absolute; left: ${inset != null ? inset.left : 0}px; top: ${inset != null ? inset.top : 0}px; width: ${p.width}px; height: ${p.height}px; }
-  .ch-title { position: absolute; left: 40px; top: 22px; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
-  .ch-legend { position: absolute; right: 40px; display: flex; gap: 20px; font-size: 17px; color: ${subColor}; }
+  .ch-title { position: absolute; left: 40px; top: 22px; font-size: ${fs(30)}px; font-weight: 700; letter-spacing: -0.01em; }
+  .ch-legend { position: absolute; right: 40px; display: flex; gap: 20px; font-size: ${fs(17)}px; color: ${subColor}; }
   .ch-leg { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
   .ch-swatch { width: 15px; height: 15px; border-radius: 4px; display: inline-block; }
   .ch-grid { position: absolute; background: ${gridColor}; }
-  .ch-tick { position: absolute; font-size: 15px; color: ${subColor}; }
+  .ch-tick { position: absolute; font-size: ${fs(15)}px; color: ${subColor}; }
   .ch-bar { position: absolute; border-radius: ${plan.type === "bar" ? "0 5px 5px 0" : "5px 5px 0 0"}; }
   .ch-stack { position: absolute; overflow: hidden; border-radius: ${plan.type === "bar" ? "0 5px 5px 0" : "5px 5px 0 0"}; }
   .ch-seg { position: absolute; }
-  .ch-val { position: absolute; font-size: 19px; font-weight: 600; }
-  .ch-cat { position: absolute; font-size: 17px; font-weight: 500; color: ${subColor}; white-space: nowrap; overflow: hidden; }
+  .ch-val { position: absolute; font-size: ${fs(19)}px; font-weight: 600; }
+  .ch-cat { position: absolute; font-size: ${fs(17)}px; font-weight: 500; color: ${subColor}; white-space: nowrap; overflow: hidden; }
   .ch-line-wrap, .ch-pie-wrap { position: absolute; left: 0; top: 0; width: ${p.width}px; height: ${p.height}px; }
-  .ch-legend-v { position: absolute; right: 44px; top: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 16px; font-size: 19px; color: ${p.color}; }
+  .ch-legend-v { position: absolute; right: 44px; top: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 16px; font-size: ${fs(19)}px; color: ${p.color}; }
   .ch-pie-group { transform-box: fill-box; transform-origin: center; }
 </style></head>
 <body>
@@ -522,11 +539,19 @@ export const chartTemplate: Template<ChartParams> = {
     const plotParams = inset != null
       ? { ...params, width: params.width - inset.left - inset.right, height: params.height - inset.top - inset.bottom }
       : params;
-    const plan = planChart(plotParams);
+    // DM-1560: adaptive per-ratio type scaling (docs/91), the same `formatScaleFactor`
+    // the creative-pack cards fold in (DM-1541). It enlarges the chart's title /
+    // axis / value-label type — and the bar-thickness cap — so a landscape-tuned
+    // chart READS WELL at 9:16, not just fits within the safe rect (DM-1537).
+    // Measured against the FULL canvas + safe inset (not the reduced plot), so it
+    // matches the cards' factor; with no format (`inset == null`) it is exactly 1
+    // → byte-identical default output.
+    const sf = formatScaleFactor(params.width, params.height, inset);
+    const plan = planChart(plotParams, sf);
     ctx.log(`template chart: ${params.type}, ${params.data.length} series × ${params.data[0].length}, ${params.width}×${params.height}`);
     return runSingleFrameGenerator(ctx, {
       name: "chart",
-      html: buildChartHtml(plotParams, plan, inset),
+      html: buildChartHtml(plotParams, plan, inset, sf),
       width: params.width,
       height: params.height,
       durationMs: chartDurationMs(params, plan),

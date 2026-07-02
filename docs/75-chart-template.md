@@ -88,6 +88,17 @@ grows *away* from the axis rather than from the SVG origin. This relies on the
 `chart-line.svg`, the multi-series `chart-grouped.svg` / `chart-stacked.svg`, and
 `chart-donut.svg` (`examples/output/templates/`).
 
+## Format awareness
+
+With a `--format` preset (docs/87) the chart lays its plot out within the safe
+rect (`canvas − safeInset`, DM-1537) **and** scales its type per ratio: the
+adaptive `formatScaleFactor` (docs/91, DM-1560) enlarges the title / axis-tick /
+value-label / category-label / legend font sizes and the single-series
+bar-thickness cap so a landscape-tuned chart reads well at 9:16, not just fits.
+With no format the scale factor is exactly `1`, so the default output is
+byte-identical. See `examples/output/templates/format-square-chart.svg` (1:1) and
+the reel/landscape rendered-SVG checks in docs/91.
+
 ## Follow-ups
 
 The chart type set is complete: `column` / `bar` / `line` / `pie` / `donut`,
