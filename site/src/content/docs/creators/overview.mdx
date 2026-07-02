@@ -1,0 +1,96 @@
+---
+title: Domotion for creators
+description: On-brand, embeddable, pixel-faithful motion from your real UI — one <img> that looks identical everywhere, and an MP4 when you need it.
+---
+
+import { Card, CardGrid, Aside, LinkButton } from "@astrojs/starlight/components";
+
+You have a real product and a story to tell about it — a launch, a feature drop, a
+testimonial, a before/after. Domotion turns that into **motion you can ship
+anywhere**: one self-contained animated SVG built from your actual UI, on brand,
+that looks identical in every browser and exports to MP4 the moment you need it.
+
+It isn't a motion-graphics suite, and it isn't trying to be. The wedge is narrow
+and honest: **polished, on-brand product motion, generated — not hand-animated.**
+
+## The wedge, in one line
+
+<CardGrid>
+  <Card title="From your real UI" icon="laptop">
+    The picture is a genuine capture of your page — pixel-faithful to Chromium,
+    text as crisp vector outlines. Not a re-drawn mock that drifts from the
+    product every release.
+  </Card>
+  <Card title="On brand, by default" icon="seti:default">
+    A single brand file — palette, font, radius, logo — themes every template and
+    can be injected into a captured page. Reuse it across a whole campaign.
+  </Card>
+  <Card title="One file, identical everywhere" icon="document">
+    A plain `<img src="demo.svg">`. No video encoder, no Lottie runtime, no font
+    loading, no external requests. Razor-sharp on a phone, a 5K display, and in
+    print — the same file.
+  </Card>
+  <Card title="MP4 when you need it" icon="seti:video">
+    Pages you control animate the SVG directly. For social, email, or a GitHub
+    README, export a crisp still or an MP4/GIF from the same file — no re-shoot.
+  </Card>
+</CardGrid>
+
+## Who it's for
+
+- **Marketing & growth creatives** who need launch teasers, feature spotlights,
+  testimonial cards, and social cuts that stay on brand and don't balloon your
+  page weight.
+- **Developer-adjacent storytellers** — DevRel, docs, founders — showing a real
+  interface in motion: a dashboard assembling itself, a flow typing itself out, a
+  terminal session, a before/after refactor.
+- **Anyone tired of the demo-GIF tax** — bulky files, soft-on-retina video, and a
+  re-record every time the UI changes.
+
+## The honest niche
+
+Domotion is **not** an After Effects replacement. It won't composite live video,
+key out a green screen, or hand-tune bezier keyframe curves for a hero brand film.
+If that's the job, reach for a real motion suite.
+
+What it *does* own is the boring-but-constant work those tools make expensive:
+
+<CardGrid>
+  <Card title="What it's great at" icon="approve-check">
+    - Product UI in motion, captured from the real page
+    - On-brand templates: charts, kinetic text, lower-thirds, stat/counter cards,
+      before/after, CTAs, looping backgrounds
+    - Repeatable output you can regenerate on every release and diff in git
+    - Tiny, dependency-free files that embed in docs, decks, and PDFs
+  </Card>
+  <Card title="What it's not" icon="error">
+    - Frame-by-frame character animation or VFX
+    - Live-action video editing / color grading
+    - A timeline UI for keyframing by hand
+    - A design canvas — you bring HTML/CSS or a few template flags, not a mouse
+  </Card>
+</CardGrid>
+
+<Aside type="tip" title="Truthful by construction">
+Because the visual is a real capture and the output is deterministic, what you
+demo is what your product actually looks like — and re-running the command after a
+UI change regenerates the asset. No stale mock, no "the video says v1 but we
+shipped v3."
+</Aside>
+
+## How a creator uses it
+
+1. **Pick a starting point** — a template (no HTML at all) or a capture of your
+   real page/app.
+2. **Put it on brand** — pass `--brand yourbrand.json` (and `--format reel` /
+   `square` / `story` for social canvases).
+3. **Ship the SVG** where you control the page; **export an MP4/GIF/PNG** for
+   everywhere else.
+
+<LinkButton href="/domotion/creators/recipes/">Open the recipe gallery →</LinkButton>
+
+Every recipe there is copy-paste-able and shows the exact command next to the SVG
+it produced. New to the tool? Start with the
+[quick start](/domotion/start/quickstart/), then skim
+[Why Domotion](/domotion/why-domotion/) for the trade-offs versus video, GIF, and
+Lottie.

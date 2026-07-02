@@ -1,0 +1,247 @@
+---
+title: Recipe gallery
+description: Copy-paste creative recipes — the exact command next to the self-contained animated SVG it produced.
+---
+
+import { CardGrid, Aside, Steps } from "@astrojs/starlight/components";
+
+Each recipe below is a real, self-contained animated SVG paired with the exact
+command that produced it. Copy the command, swap in your own text/brand/page, and
+you have the same asset. Everything here is a plain `<img src="…svg">` — no video,
+no runtime, no external assets.
+
+<Aside type="note" title="Truthful by construction">
+Every SVG on this page is a committed example artifact in the repo
+(`examples/output/…`). Where a recipe was authored through the library API rather
+than a single CLI flag, the command shown is a faithful CLI equivalent and the
+note says so.
+</Aside>
+
+## 1. A 9:16 product teaser
+
+Capture your real page straight onto a vertical **Reels / TikTok / Shorts** canvas.
+`--format reel` sizes the capture viewport to 1080×1920; `--safe-guide` overlays a
+dashed rectangle marking where each platform's UI chrome lands (it's informational
+— it reflows nothing).
+
+<figure style="max-width:320px;margin-inline:auto">
+  <img src="/domotion/demos/format-capture-reel.svg" alt="A product dashboard captured onto a 9:16 vertical canvas with a dashed safe-area guide overlaid" style="width:100%;height:auto" loading="lazy" />
+</figure>
+
+```bash
+domotion capture ./app.html --format reel --safe-guide -o teaser.svg
+```
+
+Drop `--safe-guide` for the clean asset, or wrap the capture in a phone with
+`--chrome phone`. Formats: `reel` / `story` (1080×1920), `square` (1080×1080),
+`portrait` (1080×1350), `landscape` (1920×1080), or a raw `--format 1080x1350`.
+Then export a social MP4 with `svg-to-video teaser.svg -o teaser.mp4`.
+
+## 2. Animate a testimonial / quote card
+
+A pull-quote that reveals itself — no page to build. Give it the quote, an
+attribution, and an accent color.
+
+<img src="/domotion/demos/templates/quote.svg" alt="An animated pull-quote testimonial card attributed to Ada Lovelace, Staff Engineer" style="width:100%;height:auto" loading="lazy" />
+
+```bash
+domotion template quote \
+  --quote "It dropped our demo payload to a fraction and it looks identical across browsers." \
+  --author "Ada Lovelace" --role "Staff Engineer" \
+  --accent "#8b5cf6" -o quote.svg
+```
+
+Want it vertical for a Reel? Add `--format reel` — the type scales up so it reads
+well on a 9:16 canvas rather than merely fitting:
+
+<figure style="max-width:320px;margin-inline:auto">
+  <img src="/domotion/demos/templates/format-reel-quote.svg" alt="The same quote card sized for a 9:16 vertical reel canvas" style="width:100%;height:auto" loading="lazy" />
+</figure>
+
+```bash
+domotion template quote \
+  --quote "This changed how our whole team ships." \
+  --author "Ada Lovelace" --role "Head of Engineering" \
+  --format reel -o quote-reel.svg
+```
+
+## 3. A kinetic title over a captured screen
+
+The move that motivates compositing: a real UI in the background, an animated
+headline on top, all in **one** self-contained SVG. The background is a genuine
+capture; the headline is the `kinetic-text` template rendered on a transparent
+background so the screen shows through.
+
+<img src="/domotion/demos/kinetic-over-capture.svg" alt="A captured product dashboard dimmed by a scrim, with the animated headline 'Your product, in motion' rising into place over it" style="width:100%;height:auto" loading="lazy" />
+
+<Steps>
+
+1. **Capture the screen** to a static SVG:
+
+   ```bash
+   domotion capture ./app.html --width 1280 --height 720 -o screen.svg
+   ```
+
+2. **Layer the headline over it** with a `composite` config — a `template` layer
+   sits on top of the captured `svg` layer:
+
+   ```json
+   // title-over-screen.json
+   {
+     "width": 1280, "height": 720, "background": "#05060f",
+     "layers": [
+       { "svg": "screen.svg", "x": 0, "y": 0, "width": 1280, "height": 720 },
+       {
+         "template": "kinetic-text",
+         "params": {
+           "text": "Your product,\nin motion",
+           "background": "transparent", "color": "#f8fafc", "fontSize": 104
+         },
+         "x": 0, "y": 0, "width": 1280, "height": 720
+       }
+     ]
+   }
+   ```
+
+   ```bash
+   domotion composite title-over-screen.json -o title-over-screen.svg
+   ```
+
+</Steps>
+
+<Aside type="tip">
+The committed example (`examples/kinetic-over-capture.ts`) adds a dark gradient
+**scrim** as a middle layer for extra contrast over a busy screen — drop a scrim
+SVG in as a second layer whenever your headline needs to read over bright content.
+</Aside>
+
+## 4. An on-brand chart
+
+Turn numbers into an animated chart that already matches your brand. A single
+`--brand` file supplies the palette, font, and colors — no per-chart color flags.
+
+<img src="/domotion/demos/templates/brand-acme-chart.svg" alt="An animated column chart of monthly signups themed by a brand file's palette and font" style="width:100%;height:auto" loading="lazy" />
+
+```bash
+domotion template chart --brand acme-brand.json \
+  --type column --data "42,68,55,90,34,76" \
+  --labels "Jan,Feb,Mar,Apr,May,Jun" --title "Signups" -o chart.svg
+```
+
+For a vertical feed, combine the two: `--brand acme-brand.json --format reel`
+gives you the same on-brand chart sized for a Reel. The brand file is small —
+palette, font, radius, and an optional logo, reused across every template:
+
+```json
+// acme-brand.json
+{
+  "palette": {
+    "primary": "#2f6df6", "accent": "#22d3ee",
+    "background": "#0b1020", "text": "#e6edf3", "muted": "#8b93a7"
+  },
+  "font": { "family": "Inter, system-ui, sans-serif" },
+  "radius": 12
+}
+```
+
+## 5. A before / after compare
+
+Reveal an "after" over a "before" with a clip-wipe and a moving label — perfect
+for a redesign, a refactor, or a "with vs. without" story. `--before` / `--after`
+each take a page, image, or SVG.
+
+<img src="/domotion/demos/templates/compare.svg" alt="A before/after compare card wiping from the old layout to the new one with a labeled divider" style="width:100%;height:auto" loading="lazy" />
+
+```bash
+domotion template compare \
+  --before ./before.html --after ./after.html \
+  --mode slide --direction right \
+  --beforeLabel "Before" --afterLabel "After" -o compare.svg
+```
+
+## 6. A storyboard: title → demo → CTA
+
+Sequence distinct scenes into one film: an intro card, a live capture of your
+product, a kinetic line, and a closing call-to-action — each with its own
+inter-scene transition. The whole thing is still one animated SVG (and exports to
+MP4 unchanged).
+
+<img src="/domotion/demos/storyboard-demo.svg" alt="A four-scene storyboard: a title card crossfades to a live capture, which pushes left to a kinetic-text line, which scrolls to a closing call-to-action card" style="width:100%;height:auto" loading="lazy" />
+
+```json
+// storyboard.json
+{
+  "width": 960, "height": 540, "background": "#0b1020",
+  "scenes": [
+    { "template": "title-card",
+      "params": { "eyebrow": "DOMOTION", "title": "Storyboard", "subtitle": "distinct scenes into one animated SVG" },
+      "duration": 2600, "transition": { "type": "crossfade", "duration": 400 } },
+    { "capture": { "file": "app.html" },
+      "duration": 2000, "transition": { "type": "push-left", "duration": 450 } },
+    { "template": "kinetic-text",
+      "params": { "text": "Native. Crisp. Self-contained." },
+      "duration": 2600, "transition": { "type": "scroll", "duration": 450 } },
+    { "template": "cta",
+      "params": { "headline": "Ship it as one file", "cta": "Get started" },
+      "duration": 4000 }
+  ]
+}
+```
+
+```bash
+domotion storyboard storyboard.json -o storyboard.svg
+```
+
+*(The committed example uses a live `capture.html` for scene 2 and a pre-rendered
+`cta` SVG for the final scene; the shape above is the same runner.)*
+
+## 7. An animated stat callout
+
+A single KPI that counts up on an odometer reel, with a trend chip — great for a
+metric spotlight or a milestone post.
+
+<img src="/domotion/demos/templates/stat.svg" alt="An animated KPI callout: monthly active users counting up to 1,240,000 with an up-trend chip reading 12.4%" style="width:100%;height:auto" loading="lazy" />
+
+```bash
+domotion template stat --value 1240000 --grouping \
+  --label "Monthly active users" --delta "12.4%" --deltaDir up -o stat.svg
+```
+
+Need a pure number-ticker or a countdown instead? `domotion template counter`
+covers count-up, count-down, and timer modes.
+
+## 8. A closing CTA end-card
+
+End the piece with a pulsing call-to-action button and your handles — an end-card
+you can tack onto any clip.
+
+<img src="/domotion/demos/templates/cta.svg" alt="A closing call-to-action end-card with a pulsing 'Get started' button and social handles" style="width:100%;height:auto" loading="lazy" />
+
+```bash
+domotion template cta --headline "Ship your first demo today" \
+  --cta "Get started" --handles "@domotion,github.com/brianwestphal" \
+  --ctaColor "#3b82f6" --background "linear-gradient(135deg,#111827,#0b1020)" -o cta.svg
+```
+
+---
+
+## Where to go next
+
+<CardGrid>
+  <div>
+    **More templates** — every built-in and every flag, each with a live example.
+    See the [Templates guide](/domotion/usage/templates/).
+  </div>
+  <div>
+    **Ship it** — where the animation plays vs. shows a static frame, and how to
+    export an MP4/GIF/PNG per surface: [Embedding & reach](/domotion/usage/embedding/).
+  </div>
+  <div>
+    **On brand everywhere** — one brand file across templates and captures. See
+    [Domotion for creators](/domotion/creators/overview/).
+  </div>
+  <div>
+    **From your real app** — capture a live, stateful UI in motion:
+    [Web app demos](/domotion/usage/web-app-demos/).
+  </div>
+</CardGrid>
