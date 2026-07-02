@@ -16,9 +16,13 @@
  * These expand to the EXISTING intra-frame animation shape (docs/08, DM-1512/1517)
  * — opacity is fused into the transform track so the two can't desync — so nothing
  * new is needed in the keyframe emitter; presets are pure config sugar. `shine`
- * (a gradient sweep) needs a mask/gradient overlay mechanism and is tracked
- * separately.
+ * (a gradient sweep) can't be a from/to on the element itself — it needs a masked
+ * moving-gradient overlay — so it lives as a `kind: "shine"` overlay backed by the
+ * shared `buildShineSweep` helper (`src/animation/shine.ts`), which also backs the
+ * `shine` frame transition (DM-1524). See docs/88 + docs/08.
  */
+
+import { springLinearEasing } from "./easing.js";
 
 /** A fused secondary track (mirrors the intra-frame `fuse[]` entry shape). */
 export interface PresetFuseTrack {
@@ -41,13 +45,22 @@ export interface ResolvedMotion {
 }
 
 /**
- * Named easing curves → CSS `cubic-bezier(...)` (or a bare CSS keyword). The
- * `back-*` / `spring` curves overshoot for a lively, springy feel while staying a
- * single monotonic-time cubic-bezier (cross-engine-safe). A true multi-oscillation
- * spring (sampled to keyframes via the DM-1517 sampler) is a follow-up.
+ * Named easing curves → CSS `cubic-bezier(...)` (or a bare CSS keyword), plus the
+ * two sampled `linear(...)` springs. The `back-*` / `spring` curves overshoot once
+ * for a lively feel while staying a single monotonic-time cubic-bezier; the
+ * `spring-bouncy` / `spring-soft` presets carry a TRUE multi-oscillation ring-down
+ * baked to `linear(...)` samples (DM-1542). All are cross-engine-safe (no runtime).
  */
 export const EASING_PRESETS: Record<string, string> = {
   linear: "linear",
+  // DM-1542: TRUE multi-oscillation springs, baked to CSS `linear(...)` samples
+  // (the `spring` bezier below is a single-overshoot approximation). `linear()`
+  // is the cross-engine carrier for an arbitrary sampled curve (Chrome 113+,
+  // Safari 17.2+, Firefox 112+ — docs/84), so the ring-down survives verbatim
+  // with no runtime. `spring-bouncy` overshoots ~3× (damping 0.25); `spring-soft`
+  // settles with a single gentle overshoot (damping 0.6). See easing.ts.
+  "spring-bouncy": springLinearEasing(0.25, 2 * Math.PI * 2.5),
+  "spring-soft": springLinearEasing(0.6, 2 * Math.PI * 1.1),
   ease: "ease",
   "ease-in": "ease-in",
   "ease-out": "ease-out",

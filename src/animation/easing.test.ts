@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cubicBezier, interpolateCssValue, resolveEasing } from "./easing.js";
+import { cubicBezier, interpolateCssValue, resolveEasing, springEasingFn, springLinearEasing } from "./easing.js";
 
 describe("cubicBezier / resolveEasing (DM-1517)", () => {
   it("linear cubic-bezier is the identity", () => {
@@ -61,5 +61,59 @@ describe("interpolateCssValue (DM-1517)", () => {
   it("steps at the midpoint when the skeletons don't match (different units)", () => {
     expect(interpolateCssValue("1px", "1em", 0.4)).toBe("1px");
     expect(interpolateCssValue("1px", "1em", 0.6)).toBe("1em");
+  });
+});
+
+describe("spring easing sampler (DM-1542)", () => {
+  it("springEasingFn starts at 0, ends at 1, and OVERSHOOTS past 1 (bounce)", () => {
+    const f = springEasingFn(0.25, 2 * Math.PI * 2.5);
+    expect(f(0)).toBe(0);
+    expect(f(1)).toBe(1);
+    // Sample densely; a bouncy spring rings ABOVE 1 (a monotonic bezier can't).
+    let max = 0;
+    let overshoots = 0;
+    let prev = 0;
+    for (let i = 1; i < 200; i++) {
+      const v = f(i / 200);
+      max = Math.max(max, v);
+      // count local maxima above 1
+      const next = f((i + 1) / 200);
+      if (v > prev && v >= next && v > 1.001) overshoots++;
+      prev = v;
+    }
+    expect(max).toBeGreaterThan(1.2); // a real overshoot, not just easing tail
+    expect(overshoots).toBeGreaterThanOrEqual(2); // MULTIPLE oscillations
+  });
+
+  it("a softer damping rings fewer times than a bouncy one", () => {
+    const count = (z: number, w: number): number => {
+      const f = springEasingFn(z, w);
+      let n = 0;
+      for (let i = 1; i < 200; i++) {
+        const v = f(i / 200);
+        if (v > f((i - 1) / 200) && v >= f((i + 1) / 200) && v > 1.001) n++;
+      }
+      return n;
+    };
+    expect(count(0.6, 2 * Math.PI * 1.1)).toBeLessThan(count(0.25, 2 * Math.PI * 2.5));
+  });
+
+  it("springLinearEasing bakes to a CSS linear() string pinned 0 → 1 at the ends", () => {
+    const css = springLinearEasing(0.25, 2 * Math.PI * 2.5, 40);
+    expect(css.startsWith("linear(")).toBe(true);
+    expect(css.endsWith(")")).toBe(true);
+    const nums = css.slice("linear(".length, -1).split(",").map((s) => parseFloat(s));
+    expect(nums).toHaveLength(41); // samples + 1
+    expect(nums[0]).toBe(0);
+    expect(nums[nums.length - 1]).toBe(1);
+    // Carries the overshoot: at least one baked sample exceeds 1.
+    expect(Math.max(...nums)).toBeGreaterThan(1.2);
+  });
+
+  it("clamps a pathological damping into the valid open interval (no NaN)", () => {
+    // damping >= 1 would make omega_d = 0 (division by zero); it's clamped.
+    const css = springLinearEasing(2, 2 * Math.PI, 10);
+    expect(css.includes("NaN")).toBe(false);
+    expect(css.startsWith("linear(")).toBe(true);
   });
 });

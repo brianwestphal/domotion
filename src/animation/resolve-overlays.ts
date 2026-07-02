@@ -21,7 +21,7 @@
 
 import type { Page } from "@playwright/test";
 import { boxAnchorPoint, type BoxAnchor } from "../capture/content-box.js";
-import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay } from "./overlay-schema.js";
+import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay } from "./overlay-schema.js";
 
 /** Anchor an overlay to an element's box — same vocabulary as the declarative config's `anchor`. */
 export interface OverlayAnchor {
@@ -46,7 +46,8 @@ export type AnchoredOverlay =
   | (TypingOverlay & { anchor?: OverlayAnchor; maxWidth?: "anchor" | number })
   | (TapOverlay & { anchor?: OverlayAnchor })
   | (SvgOverlay & { anchor?: OverlayAnchor })
-  | (BlinkOverlay & { anchor?: OverlayAnchor });
+  | (BlinkOverlay & { anchor?: OverlayAnchor })
+  | (ShineOverlay & { anchor?: OverlayAnchor });
 
 /** The border box + content width of an anchored element, measured in page context. */
 interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number }

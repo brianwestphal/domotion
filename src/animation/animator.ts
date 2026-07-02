@@ -11,7 +11,7 @@ import type { MagicMove } from "./magic-move.js";
 // schemas in `overlay-schema.ts`; the renderer-facing TS types are derived from
 // them via `z.infer`, and the declarative-config layer extends the same base
 // schemas. Re-exported below so the public `domotion-svg` surface is unchanged.
-import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, IntraFrameAnimation } from "./overlay-schema.js";
+import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, IntraFrameAnimation } from "./overlay-schema.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
@@ -19,6 +19,7 @@ import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./f
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/keyframe-pad.js";
 import { interpolateCssValue, resolveEasing } from "./easing.js";
+import { buildShineSweep } from "./shine.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -58,8 +59,21 @@ export interface AnimationFrame {
      * cross-fade (DM-898; see `docs/53-magic-move-transition.md`). It requires
      * the per-frame `magicMove` bridge layer (built caller-side from the
      * element trees); when that's absent it degrades to `crossfade`.
+     *
+     * DM-1524 adds the cross-engine-safe transition/effect expansion (docs/88):
+     * directional pushes `push-right` / `push-up` / `push-down` (the vertical/
+     * horizontal siblings of `push-left`; `push-up` is the alias of `scroll`'s
+     * motion), the `wipe` (linear left→right `clip-path` reveal) and `iris`
+     * (expanding-circle `clip-path` reveal) reveals, `zoom-in` / `zoom-out`
+     * (scale dolly under a crossfade), and `shine` (a crossfade with a swept
+     * gradient highlight over the handoff — the shared `buildShineSweep` helper).
+     * All express motion in `transform` / `clip-path` / `opacity` / gradients
+     * only — never an animated CSS `filter` (Chromium-only in `<img>`, docs/84).
      */
-    type: "crossfade" | "push-left" | "scroll" | "cut" | "magic-move";
+    type:
+      | "crossfade" | "push-left" | "scroll" | "cut" | "magic-move"
+      | "push-right" | "push-up" | "push-down"
+      | "wipe" | "iris" | "zoom-in" | "zoom-out" | "shine";
     duration: number;
   };
   /**
@@ -88,7 +102,7 @@ export interface AnimationFrame {
 // the single zod source of truth in `./overlay-schema.ts` and re-exported here
 // so the public `domotion-svg` type surface is unchanged. The renderer-facing
 // (resolved) shape lives there; the declarative config extends the same base.
-export type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, AnimationOverlay, IntraFrameAnimation };
+export type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, AnimationOverlay, IntraFrameAnimation };
 
 export interface AnimationConfig {
   width: number;
@@ -295,11 +309,30 @@ function emitCrossfadeOrCutFrame(
   /** DM-1148: the last frame, when the loop must NOT cross-dissolve, holds
    *  opacity 1 to 100% instead of fading out over its transition window. */
   holdToEnd: boolean,
+  /** DM-1524: a `zoom-*` predecessor gives THIS incoming frame a scale dolly over
+   *  its entrance window, resting at scale(1). Null → plain crossfade/cut. */
+  entranceScale: { fromScale: number; enterStartPct: string; startPct: string; width: number; height: number } | null = null,
 ): { groups: string[]; keyframes: string[] } {
   const { startPct, holdEndPct, transEndPct, fadeInStartPct } = win;
   const groups: string[] = [];
   const keyframes: string[] = [];
-  groups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
+  // DM-1524: wrap in a scale-dolly group only when a zoom entrance is requested;
+  // otherwise the group markup is byte-identical to the pre-DM-1524 output.
+  const inner = entranceScale != null ? `<g class="fz-${i}">\n${frame.svgContent}\n  </g>` : frame.svgContent;
+  groups.push(`  <g class="f f-${i}">\n${inner}\n  </g>`);
+  if (entranceScale != null) {
+    const cx = entranceScale.width / 2;
+    const cy = entranceScale.height / 2;
+    const esBefore = padBefore(parseFloat(entranceScale.enterStartPct), KEYFRAME_EPSILON.slide, 2);
+    keyframes.push(`
+    @keyframes fz-${i} {
+      0%, ${esBefore}% { transform: scale(${entranceScale.fromScale}); }
+      ${entranceScale.enterStartPct} { transform: scale(${entranceScale.fromScale}); }
+      ${entranceScale.startPct} { transform: scale(1); }
+      100% { transform: scale(1); }
+    }
+    .fz-${i} { animation: fz-${i} ${totalSec.toFixed(2)}s linear infinite; transform-origin: ${cx}px ${cy}px; }`);
+  }
 
   const isCut = transType === "cut" || transDur === 0;
   if (isCut) {
@@ -393,9 +426,31 @@ export function dedupeFrameIds(frames: AnimationFrame[]): AnimationFrame[] {
  * was a crossfade); `cut` appears at its own start (cut / magic-move / loop top).
  */
 type SlideEnter =
-  | { mode: "slide"; axis: "X" | "Y"; size: number }
+  | { mode: "slide"; axis: "X" | "Y"; enterOffset: number }
   | { mode: "fade" }
   | { mode: "cut" };
+
+/**
+ * DM-1524: the directional-push family, mapping each transition type to its exit
+ * AXIS and SIGN (the direction the outgoing frame slides). `sign` = -1 slides
+ * toward the negative axis (left / up), +1 toward positive (right / down); the
+ * incoming frame enters from the OPPOSITE side. `push-left` / `scroll` are the
+ * pre-existing pair (`scroll` == `push-up`); `push-right` / `push-up` /
+ * `push-down` are the DM-1524 additions. All route through the same slide
+ * machinery (`emitSlideFrame`), which moves BOTH frames as one push.
+ */
+const PUSH_DIRS: Record<string, { axis: "X" | "Y"; sign: 1 | -1 }> = {
+  "push-left": { axis: "X", sign: -1 },
+  "push-right": { axis: "X", sign: 1 },
+  "push-up": { axis: "Y", sign: -1 },
+  "push-down": { axis: "Y", sign: 1 },
+  scroll: { axis: "Y", sign: -1 },
+};
+
+/** DM-1524: reveal-on-top transitions — the outgoing frame HOLDS beneath and
+ *  hard-cuts at the window end while the incoming frame unveils on top via an
+ *  animated `clip-path` (`wipe` = linear inset, `iris` = expanding circle). */
+const REVEAL_KINDS = new Set(["wipe", "iris"]);
 
 /**
  * Push-left (horizontal) / scroll (vertical) slide frame. Both emit the SAME
@@ -419,13 +474,93 @@ interface SlideWindow {
 }
 
 function emitSlideFrame(
-  i: number, svgContent: string, exitAxis: "X" | "Y", exitSize: number, enter: SlideEnter,
+  i: number, svgContent: string, exitAxis: "X" | "Y", exitDelta: number, enter: SlideEnter,
   dims: { width: number; height: number },
   win: SlideWindow,
   totalSec: number, holdLastFrame: boolean,
 ): { group: string; keyframe: string } {
   const group = `  <g class="f f-${i}"><clipPath id="fc-${i}"><rect width="${dims.width}" height="${dims.height}" /></clipPath><g clip-path="url(#fc-${i})" class="fp fp-${i}">\n${svgContent}\n  </g></g>`;
-  const keyframe = slideKeyframes(i, exitAxis, exitSize, enter, win.enterStartPct, win.startPct, win.holdEndPct, win.transEndPct, win.enterStartPct, win.transEndPct, totalSec, holdLastFrame);
+  const keyframe = slideKeyframes(i, exitAxis, exitDelta, enter, win.enterStartPct, win.startPct, win.holdEndPct, win.transEndPct, win.enterStartPct, win.transEndPct, totalSec, holdLastFrame);
+  return { group, keyframe };
+}
+
+/**
+ * DM-1524: emit a `wipe` / `iris` reveal frame. The frame is painted at full
+ * opacity through its whole window and hard-cut out at the end (`step-end`), so
+ * it HOLDS solid beneath whatever reveals on top NEXT. When it was itself entered
+ * from a `wipe`/`iris` predecessor (`entranceReveal != null`), an inner
+ * `<g class="fr-i">` wrapper unveils this frame on top of the (still-painted)
+ * predecessor via an animated `clip-path` over the entrance window [enter..start]
+ * — a linear `inset(...)` for `wipe`, an expanding `circle(...)` for `iris` — and
+ * RESTS fully revealed (identity clip). `clip-path` + opacity only; no filter.
+ */
+function emitRevealFrame(
+  i: number,
+  svgContent: string,
+  entranceReveal: "wipe" | "iris" | null,
+  dims: { width: number; height: number },
+  win: { revealEnterStartPct: string; startPct: string; holdEndPct: string; transEndPct: string },
+  totalSec: number,
+  holdLastFrame: boolean,
+): { group: string; keyframe: string } {
+  const { revealEnterStartPct, startPct, transEndPct } = win;
+  // Opacity ON-window: visible from the entrance (or its own start) through the
+  // transition end (or 100% for a held last frame), then hard-cut off.
+  const onStart = entranceReveal != null ? revealEnterStartPct : startPct;
+  const onStartNum = parseFloat(onStart);
+  const beforeOn = padBefore(onStartNum, KEYFRAME_EPSILON.cull, 3);
+
+  let opacityKf: string;
+  let onEnd: string;
+  if (holdLastFrame) {
+    onEnd = "100";
+    opacityKf = `
+    @keyframes fv-${i} {
+      0% { opacity: 0; }
+      ${beforeOn}% { opacity: 0; }
+      ${onStartNum.toFixed(3)}% { opacity: 1; }
+      100% { opacity: 1; }
+    }`;
+  } else {
+    onEnd = transEndPct;
+    const onEndNum = parseFloat(transEndPct);
+    const afterOn = padAfter(onEndNum, KEYFRAME_EPSILON.cull, 3);
+    opacityKf = `
+    @keyframes fv-${i} {
+      0% { opacity: 0; }
+      ${beforeOn}% { opacity: 0; }
+      ${onStartNum.toFixed(3)}% { opacity: 1; }
+      ${onEndNum.toFixed(3)}% { opacity: 1; }
+      ${afterOn}% { opacity: 0; }
+      100% { opacity: 0; }
+    }`;
+  }
+
+  // Reveal clip on the inner wrapper (only when entered via a reveal).
+  let revealKf = "";
+  let inner = svgContent;
+  if (entranceReveal != null) {
+    const cx = dims.width / 2;
+    const cy = dims.height / 2;
+    const r = Math.ceil(Math.hypot(dims.width / 2, dims.height / 2));
+    const [hidden, shown] = entranceReveal === "wipe"
+      ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
+      : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
+    const beforeEnter = padBefore(parseFloat(revealEnterStartPct), KEYFRAME_EPSILON.slide, 2);
+    revealKf = `
+    @keyframes fr-${i} {
+      0%, ${beforeEnter}% { clip-path: ${hidden}; }
+      ${revealEnterStartPct} { clip-path: ${hidden}; }
+      ${startPct} { clip-path: ${shown}; }
+      100% { clip-path: ${shown}; }
+    }
+    .fr-${i} { animation: fr-${i} ${totalSec.toFixed(2)}s linear infinite; }`;
+    inner = `<g class="fr-${i}">\n${svgContent}\n  </g>`;
+  }
+
+  const group = `  <g class="f f-${i}">\n${inner}\n  </g>`;
+  const keyframe = `${opacityKf}${buildDisplayKeyframes(`fd-${i}`, onStart, onEnd, totalSec)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite, fd-${i} ${totalSec.toFixed(2)}s step-end infinite; }${revealKf}`;
   return { group, keyframe };
 }
 
@@ -456,6 +591,10 @@ function emitFrameOverlays(
         keyframes.push(css);
       } else if (overlay.kind === "blink") {
         const { svgMarkup, css } = renderBlinkOverlay(overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        groups.push(svgMarkup);
+        keyframes.push(css);
+      } else if (overlay.kind === "shine") {
+        const { svgMarkup, css } = renderShineOverlay(overlay, i, timeOffset, frame.duration, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       }
@@ -526,6 +665,9 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   // later as `<defs>`/symbol-level glyph sharing across intact frame groups,
   // which preserves each frame's layout (tracked with DM-854/DM-865).
   const frameGroups: string[] = [];
+  // DM-1524: shine-transition sweep overlays, painted ABOVE every frame group so
+  // the glint reads on top of the cross-dissolve regardless of frame z-order.
+  const shineTransitionGroups: string[] = [];
   const keyframes: string[] = [];
   let timeOffset = 0;
 
@@ -546,11 +688,18 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     // crossfade fades in; entered from a different-axis slide it slides in on the
     // predecessor's axis; entered from the same slide it slides in (unchanged).
     // Same-type chains stay byte-identical — only genuinely-mixed chains differ.
+    // DM-1524: a directional-push predecessor hands off with the incoming frame
+    // entering from the OPPOSITE side (enter offset = -sign·size). `crossfade`,
+    // `shine`, and `zoom-*` all overlap-fade the incoming in. `wipe`/`iris`
+    // predecessors reveal the incoming on top (handled in emitRevealFrame, not
+    // here), so they appear at their own start → `cut`.
+    const prevDir = prevType != null ? PUSH_DIRS[prevType] : undefined;
     const slideEnter: SlideEnter =
-      prevType === "push-left" ? { mode: "slide", axis: "X", size: width }
-      : prevType === "scroll" ? { mode: "slide", axis: "Y", size: height }
-      : prevType === "crossfade" ? { mode: "fade" }
-      : { mode: "cut" }; // cut / magic-move / first frame — appears at its own start
+      prevDir != null
+        ? { mode: "slide", axis: prevDir.axis, enterOffset: -prevDir.sign * (prevDir.axis === "X" ? width : height) }
+      : prevType === "crossfade" || prevType === "shine" || prevType === "zoom-in" || prevType === "zoom-out"
+        ? { mode: "fade" }
+      : { mode: "cut" }; // cut / magic-move / wipe / iris / first frame — appears at its own start
     // DM-898: a frame entered from a magic-move transition appears at its own
     // start (= the predecessor's transition end), NOT overlap-faded — the
     // magic-move bridge layer already covered the window, so a crossfade
@@ -571,20 +720,31 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     // scroll) this means: slide in, then hold (no slide-out / fade-out).
     const holdLastFrame = i === frames.length - 1 && config.loopFade !== true;
 
-    if (transType === "push-left") {
-      // Push: exit by sliding out to the left; enter per `slideEnter` (DM-1414).
-      // The parallel `fd-${i}` display snap (inside slideKeyframes) lets the
-      // browser skip painting this frame's content while it's fully off-screen
-      // between cycles (DM-599).
-      const r = emitSlideFrame(i, frame.svgContent, "X", width, slideEnter, { width, height }, { enterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
+    const ownDir = PUSH_DIRS[transType];
+    const ownReveal = REVEAL_KINDS.has(transType);
+    const prevReveal = prevType != null && REVEAL_KINDS.has(prevType);
+
+    if (ownDir != null) {
+      // DM-609 / DM-1524: directional push/scroll — exit slides out by the signed
+      // `exitDelta` on `ownDir.axis` (push-left/right over width, scroll/push-up/
+      // push-down over height); enter per `slideEnter`. The parallel `fd-${i}`
+      // display snap (inside slideKeyframes) lets the browser skip painting this
+      // frame while it's fully off-screen between cycles (DM-599).
+      const size = ownDir.axis === "X" ? width : height;
+      const exitDelta = ownDir.sign * size;
+      const r = emitSlideFrame(i, frame.svgContent, ownDir.axis, exitDelta, slideEnter, { width, height }, { enterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
-    } else if (transType === "scroll") {
-      // DM-609: `scroll` is a real geometric scroll — the vertical equivalent of
-      // push-left (translateY over height instead of translateX over width),
-      // otherwise identical machinery. Exit slides up; enter per `slideEnter`.
-      const r = emitSlideFrame(i, frame.svgContent, "Y", height, slideEnter, { width, height }, { enterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
+    } else if (ownReveal || prevReveal) {
+      // DM-1524: wipe / iris reveal-on-top. This frame HOLDS beneath (opacity 1
+      // through its window) and hard-cuts out; a `wipe`/`iris` predecessor's
+      // handoff instead UNVEILS this frame on top via an animated `clip-path`
+      // over the entrance window. The reveal kind is the PREVIOUS type; the
+      // hold-then-cut exit serves whatever reveals on top NEXT.
+      const entranceReveal = prevReveal ? (prevType as "wipe" | "iris") : null;
+      const revealEnterStartPct = entranceReveal != null ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration) : startPct;
+      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
@@ -614,9 +774,27 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // holds-then-cuts — so this is a no-op for cut frames.
       const isCutFrame = transType === "cut" || transDur === 0;
       const holdToEnd = i === frames.length - 1 && config.loopFade !== true && !isCutFrame;
-      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, { startPct, holdEndPct, transEndPct, fadeInStartPct }, totalSec, holdToEnd);
+      // DM-1524: `shine` and `zoom-*` ride the crossfade opacity machinery (the
+      // frame fades in/out normally); the extra motion is layered on top. A
+      // `zoom-*` PREDECESSOR gives THIS incoming frame a scale dolly over its
+      // entrance window (`zoom-in` grows 0.9→1, `zoom-out` settles 1.1→1); the
+      // element rests at scale(1). Passing the crossfade type through keeps
+      // `isCut` false so the frame cross-dissolves.
+      const entranceScale = (prevType === "zoom-in" || prevType === "zoom-out")
+        ? { fromScale: prevType === "zoom-in" ? 0.9 : 1.1, enterStartPct, startPct, width, height }
+        : null;
+      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, { startPct, holdEndPct, transEndPct, fadeInStartPct }, totalSec, holdToEnd, entranceScale);
       frameGroups.push(...r.groups);
       keyframes.push(...r.keyframes);
+
+      // DM-1524: a `shine` transition sweeps a gradient highlight across the whole
+      // viewport over the handoff window [holdEnd..transEnd] on TOP of the
+      // cross-dissolve (the shared helper, also behind the `shine` overlay preset).
+      if (transType === "shine") {
+        const sweep = buildShineSweep({ id: `tr${i}`, x: 0, y: 0, width, height, startPct: holdEndPct, endPct: transEndPct, totalSec });
+        shineTransitionGroups.push(sweep.markup);
+        keyframes.push(sweep.css);
+      }
     }
 
     // Overlays (typing / tap / svg / blink), in declaration order.
@@ -673,7 +851,7 @@ ${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss +
     ${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">
-${canvasBgRect}${frameGroups.join("\n")}${overlayMarkup}
+${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n" + shineTransitionGroups.join("\n") : ""}${overlayMarkup}
   </g>
 </svg>`;
   return out;
@@ -976,6 +1154,39 @@ function renderTapOverlay(
   return { svgMarkup, css };
 }
 
+/**
+ * DM-1542: shine / shimmer overlay — a swept gradient highlight over the box,
+ * via the shared `buildShineSweep` helper. A one-shot sweep runs over [delay,
+ * delay + duration] from frame start; `repeat` turns it into an ambient shimmer.
+ * The helper carries the cross-engine + rest-at-identity guarantees.
+ */
+function renderShineOverlay(
+  overlay: ShineOverlay,
+  frameIdx: number,
+  frameStart: number,
+  frameHoldMs: number,
+  totalDuration: number,
+  totalSec: number,
+): { svgMarkup: string; css: string } {
+  const delay = overlay.delay ?? 200;
+  const duration = overlay.duration ?? 900;
+  const sweepStartMs = frameStart + delay;
+  const sweep = buildShineSweep({
+    id: `sh${frameIdx}`,
+    x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height,
+    startPct: pct(sweepStartMs, totalDuration),
+    endPct: pct(Math.min(frameStart + frameHoldMs, sweepStartMs + duration), totalDuration),
+    totalSec,
+    color: overlay.color,
+    opacity: overlay.opacity,
+    bandWidth: overlay.bandWidth,
+    skewDeg: overlay.skewDeg,
+    repeat: overlay.repeat,
+    repeatPeriodMs: overlay.repeatPeriodMs,
+  });
+  return { svgMarkup: sweep.markup, css: sweep.css };
+}
+
 function renderBlinkOverlay(
   overlay: BlinkOverlay,
   frameIdx: number,
@@ -1070,7 +1281,7 @@ function buildDisplayKeyframes(name: string, visibleStartPct: string | number, v
 function slideKeyframes(
   i: number,
   exitAxis: "X" | "Y",
-  exitSize: number,
+  exitDelta: number,
   enter: SlideEnter,
   enterStartPct: string,
   startPct: string,
@@ -1097,18 +1308,20 @@ function slideKeyframes(
   let midT: string;
   let exitT: string;
   if (crossAxis) {
-    const ex = enter.axis === "X" ? enter.size : 0;
-    const ey = enter.axis === "Y" ? enter.size : 0;
-    const xx = exitAxis === "X" ? -exitSize : 0;
-    const xy = exitAxis === "Y" ? -exitSize : 0;
+    const ex = enter.axis === "X" ? enter.enterOffset : 0;
+    const ey = enter.axis === "Y" ? enter.enterOffset : 0;
+    const xx = exitAxis === "X" ? exitDelta : 0;
+    const xy = exitAxis === "Y" ? exitDelta : 0;
     enterT = `translate(${ex}px, ${ey}px)`;
     midT = `translate(0px, 0px)`;
     exitT = `translate(${xx}px, ${xy}px)`;
   } else {
-    const enterOffsetPx = enter.mode === "slide" ? exitSize : 0; // same-axis slide vs fade/cut
+    // Same-axis slide: incoming starts at its signed `enterOffset`; a fade/cut
+    // entrance starts in place (0). The outgoing exits by the signed `exitDelta`.
+    const enterOffsetPx = enter.mode === "slide" ? enter.enterOffset : 0;
     enterT = `translate${exitAxis}(${enterOffsetPx}px)`;
     midT = `translate${exitAxis}(0)`;
-    exitT = `translate${exitAxis}(-${exitSize}px)`;
+    exitT = `translate${exitAxis}(${exitDelta}px)`;
   }
 
   // Opacity entrance: a `fade` entrance ramps 0→1 across the entrance window

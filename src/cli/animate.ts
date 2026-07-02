@@ -19,6 +19,7 @@ import {
   typingOverlaySchema,
   tapOverlaySchema,
   blinkOverlaySchema,
+  shineOverlaySchema,
   overlaySlideSchema,
   intraFrameAnimationSchema,
 } from "../animation/overlay-schema.js";
@@ -69,7 +70,14 @@ import {
 // inferred from it (`z.infer`), so type and runtime check can't drift apart.
 
 const transitionSchema = z.object({
-  type: z.enum(["crossfade", "push-left", "scroll", "cut", "magic-move"]),
+  // DM-1524: the cross-engine-safe transition/effect vocabulary (docs/88). The
+  // originals plus directional pushes, clip-path reveals, scale dollies, and the
+  // shine sweep — all transform / clip-path / opacity / gradient only.
+  type: z.enum([
+    "crossfade", "push-left", "scroll", "cut", "magic-move",
+    "push-right", "push-up", "push-down",
+    "wipe", "iris", "zoom-in", "zoom-out", "shine",
+  ]),
   duration: z.number(),
 });
 
@@ -245,6 +253,11 @@ const overlaySchema = z.discriminatedUnion("kind", [
     anchor: anchorSchema.optional(),
   }),
   blinkOverlaySchema.extend({
+    x: z.number().default(0),
+    y: z.number().default(0),
+    anchor: anchorSchema.optional(),
+  }),
+  shineOverlaySchema.extend({
     x: z.number().default(0),
     y: z.number().default(0),
     anchor: anchorSchema.optional(),
