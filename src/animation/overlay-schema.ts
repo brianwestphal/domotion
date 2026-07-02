@@ -274,6 +274,62 @@ export const shineOverlaySchema = z.object({
 });
 export type ShineOverlay = z.infer<typeof shineOverlaySchema>;
 
+/**
+ * DM-1565 (docs/94 Option 4): a SYNTHETIC interaction-feedback overlay — a fake
+ * `:hover` / `:focus` / `:active` treatment drawn over a region that has NO real
+ * CSS state to force (the future no-DOM / PDF input path, where the "state" is
+ * authored rather than captured). It works standalone on ANY region today.
+ *
+ * Over the `x`/`y`/`width`/`height` box (anchor-resolvable like `shine`) it fades
+ * in a treatment and rests back at identity:
+ *   - `hover`  — a translucent highlight fill + a small scale "pop".
+ *   - `focus`  — a focus RING (stroke) + a faint fill.
+ *   - `press`  — a darken fill + a scale-DOWN press-in (auto-releases).
+ * The peak fill / ring / scale defaults come from the treatment but every knob is
+ * overridable. The treatment fades in over `duration` after `delay`, HOLDS, then
+ * releases back to nothing before the frame ends — so a Domotion re-capture of a
+ * rested frame sees nothing and can't double-transform it.
+ *
+ * **Cross-engine-safe (docs/84).** Only `opacity` + `transform: scale` (fused into
+ * ONE animation so they can't desync — docs/84) drive it, over a `<rect>` fill and
+ * an optional stroked ring `<rect>`. No animated CSS `filter`, no JS, no SMIL.
+ */
+export const interactOverlaySchema = z.object({
+  kind: z.literal("interact"),
+  /** Top-left of the region the treatment covers, in the frame's coordinate space. */
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+  /** Which interaction to fake. Default `"hover"`. */
+  treatment: z.enum(["hover", "focus", "press"]).optional(),
+  /** Highlight / darken fill color. Defaults per treatment (a soft light fill for
+   *  hover/focus, a translucent black for press). Set `"none"` to omit the fill. */
+  fill: z.string().optional(),
+  /** Peak fill opacity (0–1). Default per treatment. */
+  fillOpacity: z.number().optional(),
+  /** Focus-ring stroke color. Defaults to a blue ring for `focus`, off otherwise.
+   *  Set to a color to add a ring to any treatment; `"none"` to force it off. */
+  ring: z.string().optional(),
+  /** Ring stroke width in px. Default 2. */
+  ringWidth: z.number().optional(),
+  /** Corner radius (px) of the fill + ring, to follow a rounded element. Default 6. */
+  radius: z.number().optional(),
+  /** Scale-pop target the box eases to at peak (about its own center). Defaults per
+   *  treatment (hover ~1.03, focus 1, press ~0.96). `1` disables the pop. */
+  scale: z.number().optional(),
+  /** Ms after the frame becomes visible before the treatment appears. Default 200. */
+  delay: z.number().optional(),
+  /** Fade / pop-in time in ms. Default 240. */
+  duration: z.number().optional(),
+  /** Ms the treatment HOLDS at peak before releasing. Default: hover/focus hold to
+   *  ~the frame end; `press` releases quickly (default 120). */
+  holdMs: z.number().optional(),
+  /** Release (fade-out) time in ms back to rest. Default 180. */
+  releaseMs: z.number().optional(),
+});
+export type InteractOverlay = z.infer<typeof interactOverlaySchema>;
+
 /** The resolved overlay union `generateAnimatedSvg` consumes per frame. */
 export const animationOverlaySchema = z.discriminatedUnion("kind", [
   typingOverlaySchema,
@@ -281,6 +337,7 @@ export const animationOverlaySchema = z.discriminatedUnion("kind", [
   svgOverlaySchema,
   blinkOverlaySchema,
   shineOverlaySchema,
+  interactOverlaySchema,
 ]);
 export type AnimationOverlay = z.infer<typeof animationOverlaySchema>;
 

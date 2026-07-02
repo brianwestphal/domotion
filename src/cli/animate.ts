@@ -20,6 +20,7 @@ import {
   tapOverlaySchema,
   blinkOverlaySchema,
   shineOverlaySchema,
+  interactOverlaySchema,
   overlaySlideSchema,
   intraFrameAnimationSchema,
 } from "../animation/overlay-schema.js";
@@ -81,13 +82,16 @@ import {
 // inferred from it (`z.infer`), so type and runtime check can't drift apart.
 
 const transitionSchema = z.object({
-  // DM-1524: the cross-engine-safe transition/effect vocabulary (docs/88). The
-  // originals plus directional pushes, clip-path reveals, scale dollies, and the
-  // shine sweep — all transform / clip-path / opacity / gradient only.
+  // DM-1524 / DM-1547: the cross-engine-safe transition/effect vocabulary
+  // (docs/88). The originals plus directional pushes, clip-path reveals (`wipe` /
+  // `iris` / the DM-1547 radial `wipe-radial` + angular `wipe-clock`), scale
+  // dollies, and the shine sweep — all transform / clip-path / opacity / gradient
+  // only (never an animated filter, so they composite on Blink / WebKit / Gecko).
   type: z.enum([
     "crossfade", "push-left", "scroll", "cut", "magic-move",
     "push-right", "push-up", "push-down",
     "wipe", "iris", "zoom-in", "zoom-out", "shine",
+    "wipe-radial", "wipe-clock",
   ]),
   duration: z.number(),
   // DM-1550: optional named easing (or a raw CSS easing string) for the
@@ -284,6 +288,17 @@ export const overlaySchema = z.discriminatedUnion("kind", [
     // height default to 0 (like x / y). Unanchored, they must be given; anchored,
     // the resolver fills them from the element's box (radius from its
     // border-radius) unless an explicit positive value is supplied.
+    width: z.number().default(0),
+    height: z.number().default(0),
+    anchor: anchorSchema.optional(),
+  }),
+  // DM-1565: the synthetic interaction-feedback overlay. Like `shine`, an
+  // `anchor` can auto-size + auto-position the treatment, so width / height
+  // default to 0 (the resolver fills them from the anchored element's box, and
+  // the radius from its border-radius) unless explicit positive values are given.
+  interactOverlaySchema.extend({
+    x: z.number().default(0),
+    y: z.number().default(0),
     width: z.number().default(0),
     height: z.number().default(0),
     anchor: anchorSchema.optional(),

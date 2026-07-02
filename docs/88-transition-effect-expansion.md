@@ -47,9 +47,40 @@ The reveal wrapper is an inner `<g class="fr-N">` carrying the `clip-path`
 animation; the frame's own `opacity` stays 1 through its window (the clip does the
 hiding) and step-cuts at the end.
 
-Radial and clock wipes (a sweeping conic mask) are **not** shipped — a conic
-gradient / `conic` mask has cross-engine caveats worth a dedicated pass; tracked
-as a follow-up.
+## Radial & clock wipes: `wipe-radial`, `wipe-clock` (DM-1547)
+
+Two more **reveal-on-top** transitions in the same `clip-path` family — no conic
+gradient / `conic` mask (which has cross-engine caveats), no animated filter.
+
+- **`wipe-radial`** — an expanding circle from the center. This is the SAME
+  geometry as `iris`, exposed under the "radial wipe" name so the wipe vocabulary
+  reads completely; it is a **byte-identical alias of `iris`** (the way `push-up`
+  aliases `scroll`). Use whichever name is clearer in your config.
+- **`wipe-clock`** — an angular **"clock hand" sweep**. A hand rotates clockwise
+  from 12 o'clock through 360° and the revealed region is the swept angular sector,
+  clipped to the RECTANGLE (so the frame ends fully shown). It is expressed as an
+  animated `clip-path: polygon()` with a **fixed 7-vertex** count at every keyframe
+  — center, the fixed 12-o'clock point, four "corner" slots, and the current
+  leading edge — so CSS interpolates the polygon SMOOTHLY between stops rather than
+  falling back to a discrete jump. Each corner slot rides the leading edge point
+  until the sweep angle reaches that corner, then snaps to it; because the leading
+  edge point AT the corner angle IS the corner, that snap is continuous, so a
+  handful of stops (the four corner angles plus even subdivisions of the circle)
+  reproduce a clean clock wipe with plain linear interpolation. It rests at the
+  full-rectangle polygon (fully revealed).
+
+### Why a `polygon()` sweep, not a conic mask
+
+A clock wipe wants an ANGULAR reveal, which reads naturally as an animated
+`mask-image: conic-gradient(...)` — but an animated conic mask is not
+cross-engine-safe (and animating a `mask` at all is uneven across Blink/WebKit/
+Gecko), and the project bans animated CSS `filter` outright (Chromium-only inside
+`<img>` — docs/84). An animated `clip-path: polygon()` is the cross-engine-safe
+formulation: `clip-path` basic-shape interpolation with a fixed vertex count is
+first-class on all three engines, so the swept sector animates smoothly as a plain
+`@keyframes` inside a static `<img>`. The vertices are emitted in the SVG userspace
+(matching how `iris` emits its `circle()` in px), and the sweep threads each corner
+exactly so no corner is clipped off.
 
 ### Optional named easing on reveals + dollies (DM-1550)
 
@@ -168,7 +199,9 @@ animation:
 
 - `src/animation/animator.ts` — transition routing (`PUSH_DIRS`, `REVEAL_KINDS`,
   `emitSlideFrame`, `emitRevealFrame`, the zoom `entranceScale` + `shine` sweep in
-  the crossfade branch) and the `shine` overlay (`renderShineOverlay`).
+  the crossfade branch) and the `shine` overlay (`renderShineOverlay`). The clock
+  wipe's polygon math is `revealShapeOf` (folds `wipe-radial`→`iris`,
+  `wipe-clock`→`clock`) + `clockWipeClip` / `clockWipeStops` (DM-1547).
 - `src/animation/shine.ts` — the shared `buildShineSweep` helper.
 - `src/animation/easing.ts` — `springEasingFn` / `springLinearEasing`.
 - `src/animation/motion-presets.ts` — the `spring-bouncy` / `spring-soft` presets.

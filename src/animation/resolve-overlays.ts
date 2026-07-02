@@ -21,7 +21,7 @@
 
 import type { Page } from "@playwright/test";
 import { boxAnchorPoint, type BoxAnchor } from "../capture/content-box.js";
-import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay } from "./overlay-schema.js";
+import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay } from "./overlay-schema.js";
 
 /** Anchor an overlay to an element's box — same vocabulary as the declarative config's `anchor`. */
 export interface OverlayAnchor {
@@ -47,13 +47,14 @@ export type AnchoredOverlay =
   | (TapOverlay & { anchor?: OverlayAnchor })
   | (SvgOverlay & { anchor?: OverlayAnchor })
   | (BlinkOverlay & { anchor?: OverlayAnchor })
-  | (ShineOverlay & { anchor?: OverlayAnchor });
+  | (ShineOverlay & { anchor?: OverlayAnchor })
+  | (InteractOverlay & { anchor?: OverlayAnchor });
 
 /**
  * The border box + content width of an anchored element, measured in page
  * context. `borderRadius` is the element's computed top-left `border-radius` in
- * px (DM-1549), used to auto-round a `shine` overlay's clip to the anchored
- * element's corners (DM-1551).
+ * px, used to auto-round a `shine` overlay's clip (DM-1549/DM-1551) or an
+ * `interact` overlay's fill/ring (DM-1565) to the anchored element's corners.
  */
 interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number }
 
@@ -68,10 +69,10 @@ interface AnchorableOverlay {
   x?: number;
   y?: number;
   wrapWidth?: number;
-  /** DM-1549: a `shine` overlay's clip box, auto-sized from the anchor when omitted. */
+  /** A `shine`/`interact` overlay's box, auto-sized from the anchor when omitted (DM-1549/DM-1565). */
   width?: number;
   height?: number;
-  /** DM-1551: a `shine` overlay's clip-corner radius, auto-derived from the anchor. */
+  /** A `shine`/`interact` overlay's corner radius, auto-derived from the anchor (DM-1551/DM-1565). */
   radius?: number;
   anchor?: OverlayAnchor;
   maxWidth?: "anchor" | number;
@@ -114,8 +115,8 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
         return {
           x: r.x, y: r.y, width: r.width, height: r.height,
           contentWidth: Math.max(0, el.clientWidth - padL - padR),
-          // DM-1549: the computed top-left border-radius (px), to auto-round a
-          // shine overlay's clip to the anchored element's corners (DM-1551).
+          // The computed top-left border-radius (px), to auto-round a `shine`
+          // overlay's clip (DM-1549/DM-1551) or `interact` fill/ring (DM-1565).
           borderRadius: parseFloat(cs.borderTopLeftRadius) || 0,
         };
       }, anchor.selector);
@@ -132,12 +133,12 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       const [ax, ay] = boxAnchorPoint(box, anchor.at ?? "top-left", anchor.dx ?? 0, anchor.dy ?? 0);
       resolved.x = ax;
       resolved.y = ay;
-      // DM-1549: a `shine` overlay auto-SIZES to the box it's anchored to (an
-      // explicit positive width/height still wins), and DM-1551 auto-rounds its
-      // clip to the element's computed border-radius (an explicit `radius` wins).
-      // With the default `at: "top-left"` anchor, (x, y) is the box's top-left —
-      // exactly the shine clip's origin — so the glint covers the element.
-      if (ov.kind === "shine") {
+      // A `shine` (DM-1549/1551) or `interact` (DM-1565) overlay auto-SIZES to the
+      // box it's anchored to (an explicit positive width/height still wins) and
+      // auto-rounds its clip / fill-ring to the element's computed border-radius
+      // (an explicit `radius` wins). With the default `at: "top-left"` anchor,
+      // (x, y) is the box's top-left, so the treatment covers the element.
+      if (ov.kind === "shine" || ov.kind === "interact") {
         if (!(ov.width != null && ov.width > 0)) resolved.width = box.width;
         if (!(ov.height != null && ov.height > 0)) resolved.height = box.height;
         if (ov.radius == null) resolved.radius = box.borderRadius;

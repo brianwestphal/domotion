@@ -80,4 +80,24 @@ describe("resolveOverlays (DM-1132)", () => {
     const [ov] = await resolveOverlays(stubPage(BOX), [input] as never);
     expect(ov).toEqual(input);
   });
+
+  // DM-1565: an `interact` overlay auto-SIZES + auto-ROUNDS from the anchored
+  // element's box (like `shine`), with explicit positive values still winning.
+  const RBOX = { ...BOX, borderRadius: 8 };
+
+  it("auto-sizes + auto-rounds an anchored interact overlay from the element box", async () => {
+    const [ov] = await resolveOverlays(stubPage(RBOX), [
+      { kind: "interact", treatment: "hover", x: 0, y: 0, width: 0, height: 0, anchor: { selector: "#btn" } } as never,
+    ]);
+    // top-left anchor → box origin; width/height/radius from the box.
+    expect(ov).toMatchObject({ kind: "interact", x: 50, y: 60, width: 200, height: 100, radius: 8 });
+    expect("anchor" in ov).toBe(false);
+  });
+
+  it("keeps an explicit interact width / height / radius over the anchor box", async () => {
+    const [ov] = await resolveOverlays(stubPage(RBOX), [
+      { kind: "interact", x: 0, y: 0, width: 40, height: 20, radius: 2, anchor: { selector: "#btn" } } as never,
+    ]);
+    expect(ov).toMatchObject({ x: 50, y: 60, width: 40, height: 20, radius: 2 });
+  });
 });
