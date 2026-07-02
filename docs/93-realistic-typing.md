@@ -126,6 +126,40 @@ rendered SVG is the source of truth:
   regenerated (`npm run demos:test:animate -- --update`); only those three
   changed, deterministically.
 
+## Glyph-path rendering, proportional fonts & pixel-accurate wrap (DM-1557)
+
+The reveal now paints the typed text as **glyph paths** (`renderTextAsPath`,
+forced into `paths` mode) instead of a native `<text>` element. Each wrapped
+line becomes `<g class="tN-text" clip-path="…"><g transform="translate(x,
+baseline)" aria-label="…"><use href="#gK"/>…</g></g>`, and the glyph `<path>`
+defs are hoisted into the SVG's top-level `<defs>`. Why:
+
+- **Viewer-independent advances.** A `<text>` element's width depends on the
+  viewer having the font; a glyph path is baked geometry, so the painted advance
+  equals the fontkit-MEASURED advance on **every** viewer by construction. The
+  caret/clip (which already ride the measured `cum` array) can no longer disagree
+  with the paint on a machine that lacks the field font.
+- **Proportional fonts.** `overlayAdvances` measures each glyph's real
+  `advanceWidth`, so a variable-width family lays out correctly — not just the
+  monospace default. Each glyph is pinned at its measured left edge via the
+  `xOffsets` passed to `renderTextAsPath`, so the system stays locked regardless
+  of the font's own kerning.
+- **Pixel-accurate wrap.** `wrapTypingTextPx` breaks lines by MEASURED pixel
+  width (via the same advance fn), replacing the old `fontSize × 0.6` char-count
+  estimate — so a proportional field wraps where it actually overflows.
+
+Self-containment / determinism: `generateAnimatedSvg` snapshots the glyph-defs
+registry before rendering, emits only the defs its overlays added
+(`getGlyphDefsSince`), then rolls the registry back (`truncateGlyphDefs`), so a
+repeat call in the same process re-assigns the same `gK` ids — byte-stable
+output. When the font can't be resolved (a platform without the face), each line
+falls back to a native `<text>` element, exactly as before.
+
+Verified in the rasterized SVG: a 28px overlay paints "illus|" → "illustriou|"
+with the blinking caret glued to the trailing edge of the glyph run, the parked
+`caret-pos` stop matching the measured run width; the emitted markup is
+`<use href="#gK">` refs with matching `<path id="gK">` defs and no `<text>`.
+
 ## Roadmap (designed, not yet built)
 
 These were considered for v1 and deliberately scoped out; each is a clean

@@ -2904,6 +2904,30 @@ export function getGlyphDefs(): string {
 }
 
 /**
+ * Count of glyph defs registered so far. Paired with `getGlyphDefsSince` to emit
+ * ONLY the glyphs a bounded region of a render produced. The animator's typing
+ * overlay (DM-1557) renders glyph paths late — after the frames it's layered
+ * onto were already rendered — and must splice just its own glyph defs into the
+ * top-level `<defs>` without re-emitting (and thus duplicating the ids of) the
+ * frames' glyphs. Snapshot the count before rendering the overlay, then emit
+ * `getGlyphDefsSince(snapshot)`.
+ */
+export function glyphDefCount(): number {
+  return glyphDefs.size;
+}
+
+/**
+ * SVG `<path>` defs registered AFTER the `startCount`-th (i.e. those with
+ * insertion index ≥ `startCount`). The registry is append-only between
+ * `clearGlyphDefs()` calls and ids are assigned sequentially, so slicing the
+ * insertion-ordered values by count returns exactly the newly-added defs. See
+ * `glyphDefCount`.
+ */
+export function getGlyphDefsSince(startCount: number): string {
+  return [...glyphDefs.values()].slice(startCount).join("");
+}
+
+/**
  * Clear the `paths`-mode glyph registry. Producers call this once per top-level
  * generation, alongside `clearEmbeddedFonts()` (DM-1338), so the module-global
  * `<path id="gN">` defs don't accumulate across back-to-back renders. No-op in
@@ -2913,6 +2937,25 @@ export function clearGlyphDefs(): void {
   glyphDefs.clear();
   glyphKeyToId.clear();
   glyphIdCounter = 0;
+}
+
+/**
+ * Roll the registry back to a `glyphDefCount()` snapshot — dropping every def
+ * registered after it and resetting the id counter. A producer that emits a
+ * BOUNDED region's glyph defs and wants to leave the registry exactly as it
+ * found it uses this (DM-1557: the animator emits its typing-overlay glyphs into
+ * the top-level `<defs>`, then restores, so a second `generateAnimatedSvg` call
+ * in the same process re-assigns the SAME ids — byte-stable output — instead of
+ * drifting the global counter). No-op when `count` is at or past the current
+ * count.
+ */
+export function truncateGlyphDefs(count: number): void {
+  if (glyphIdCounter <= count) return;
+  for (let i = count; i < glyphIdCounter; i++) glyphDefs.delete(`g${i}`);
+  for (const [k, v] of glyphKeyToId) {
+    if (parseInt(v.slice(1), 10) >= count) glyphKeyToId.delete(k);
+  }
+  glyphIdCounter = count;
 }
 
 // ── Text Rendering ──

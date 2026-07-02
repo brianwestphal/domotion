@@ -15,7 +15,8 @@ import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOver
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
-import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
+import { getFontInstance, resolveFontKey, withRenderTextMode, glyphDefCount, getGlyphDefsSince, truncateGlyphDefs } from "../render/font-resolution.js";
+import { renderTextAsPath } from "../render/text-to-path.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/keyframe-pad.js";
@@ -606,6 +607,11 @@ function emitFrameOverlays(
 
 export function generateAnimatedSvg(config: AnimationConfig): string {
   const { width, height } = config;
+  // DM-1557: snapshot the glyph-defs registry so we can emit ONLY the glyphs the
+  // typing overlays (rendered below as glyph paths) add — without re-emitting
+  // (and duplicating the ids of) any glyphs the caller already registered for
+  // the frames it passed in. The registry is append-only until the next clear.
+  const glyphDefsStart = glyphDefCount();
   // DM-1145: guard against cross-frame id collisions (reused/cached svgContent).
   let frames = dedupeFrameIds(config.frames);
 
@@ -841,10 +847,16 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     ? `  <rect width="${width}" height="${height}" fill="${bg}" />\n`
     : "";
   const a11y = rootSvgA11y(config.title, config.desc);
+  // DM-1557: glyph-path defs the typing overlays registered while rendering
+  // above (only the ones added since our snapshot), for their `<use href="#gN">`.
+  // Then roll the registry back to the snapshot so this call is self-contained —
+  // a repeat call re-assigns the same ids and the output stays byte-stable.
+  const overlayGlyphDefs = getGlyphDefsSince(glyphDefsStart);
+  truncateGlyphDefs(glyphDefsStart);
   const out = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${a11y.roleAttr}>${a11y.markup}
   <defs>
-    <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}
+    <clipPath id="viewport-clip"><rect width="${width}" height="${height}" /></clipPath>${sharedDefsMarkup}${overlayGlyphDefs}
   </defs>
   <style>
 ${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss + "\n" : ""}    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
@@ -859,28 +871,44 @@ ${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n
 }
 
 /**
- * Wrap `text` into lines no wider than `maxChars` monospace cells, the way a
- * browser textarea does: break on spaces, char-break a word longer than the
- * field, and honor explicit newlines. `maxChars === Infinity` → no wrap (one
- * line per explicit-newline paragraph), preserving the pre-DM-840 behavior for
- * overlays with no `bgWidth`. DM-840.
+ * DM-1557: pixel-accurate wrap. Break `text` into lines no wider than
+ * `maxWidthPx`, measuring each character's real advance via `advOf` — so a
+ * PROPORTIONAL font wraps where it actually overflows, not at a coarse char
+ * count. Same textarea semantics as `wrapTypingText`: break on spaces, char-
+ * break a word wider than the whole line, honor explicit newlines.
+ * `maxWidthPx === Infinity` → no wrap (one line per explicit-newline paragraph).
  */
-function wrapTypingText(text: string, maxChars: number): string[] {
+function wrapTypingTextPx(text: string, maxWidthPx: number, advOf: (ch: string) => number): string[] {
+  const wordPx = (w: string): number => { let s = 0; for (const ch of w) s += advOf(ch); return s; };
+  const spacePx = advOf(" ");
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {
-    if (maxChars === Infinity) { lines.push(paragraph); continue; }
+    if (maxWidthPx === Infinity) { lines.push(paragraph); continue; }
     if (paragraph === "") { lines.push(""); continue; }
     let cur = "";
+    let curPx = 0;
     for (let word of paragraph.split(" ")) {
       // A single word wider than the line char-breaks across lines.
-      while (word.length > maxChars) {
-        if (cur !== "") { lines.push(cur); cur = ""; }
-        lines.push(word.slice(0, maxChars));
-        word = word.slice(maxChars);
+      while (wordPx(word) > maxWidthPx) {
+        if (cur !== "") { lines.push(cur); cur = ""; curPx = 0; }
+        const cps = [...word];
+        let take = "";
+        let takePx = 0;
+        let i = 0;
+        for (; i < cps.length; i++) {
+          const a = advOf(cps[i]);
+          if (take !== "" && takePx + a > maxWidthPx) break;
+          take += cps[i];
+          takePx += a;
+        }
+        lines.push(take);
+        word = cps.slice(i).join("");
       }
-      if (cur === "") cur = word;
-      else if ((cur + " " + word).length <= maxChars) cur += " " + word;
-      else { lines.push(cur); cur = word; }
+      if (word === "") continue;
+      const wpx = wordPx(word);
+      if (cur === "") { cur = word; curPx = wpx; }
+      else if (curPx + spacePx + wpx <= maxWidthPx) { cur += " " + word; curPx += spacePx + wpx; }
+      else { lines.push(cur); cur = word; curPx = wpx; }
     }
     lines.push(cur);
   }
@@ -1135,13 +1163,35 @@ function monotoneStops(): { push: (pn: number, decl: string) => void; stops: str
 }
 
 /**
- * DM-1518 typewriter reveal: one `<text>` per wrapped line, each unveiled by a
- * width-growing clip. The clip's right edge steps to the fontkit-MEASURED
+ * DM-1557: paint one run of typed text. Renders it as GLYPH PATHS via
+ * `renderTextAsPath` (forced into `paths` mode) so the painted advances equal
+ * the measured ones on EVERY viewer — no dependency on the viewer having the
+ * font, and proportional families lay out correctly. `xOffsets` (the measured
+ * per-glyph left edges) pin each glyph exactly where the caret/clip expect it,
+ * so the whole system stays locked regardless of the font's own kerning. The
+ * baseline is pinned by `ascentOverride: 0` (so `baselineY === y`). Returns
+ * `null` when the font can't be resolved (e.g. a platform without the face), so
+ * the caller falls back to a native `<text>` element. The returned `<g>` carries
+ * `aria-label` for accessibility.
+ */
+function typedGlyphMarkup(
+  text: string, x: number, baselineY: number, fontSize: number, fontFamily: string, color: string, xOffsets?: number[],
+): string | null {
+  if (text === "") return null;
+  return withRenderTextMode("paths", () =>
+    renderTextAsPath(text, x, baselineY, fontSize, fontFamily, "400", color, undefined, undefined, xOffsets, undefined, 0));
+}
+
+/**
+ * DM-1518 / DM-1557 typewriter reveal: one wrapped line per group, each unveiled
+ * by a width-growing clip. The clip's right edge steps to the fontkit-MEASURED
  * cumulative advance as each glyph is typed (character-by-character), so the
  * revealed text edge — and the caret riding the same plan — sit exactly where
- * the glyphs paint. Below `MAX_DISCRETE_TYPING_CHARS` the reveal steps per
- * keystroke (`step-end`); above it, it sweeps linearly between the line's
- * first/last glyph for bounded CSS.
+ * the glyphs paint. The text is painted as glyph paths (DM-1557) for viewer-
+ * independent advances, falling back to a native `<text>` when the font can't be
+ * resolved. Below `MAX_DISCRETE_TYPING_CHARS` the reveal steps per keystroke
+ * (`step-end`); above it, it sweeps linearly between the line's first/last glyph
+ * for bounded CSS.
  */
 function buildTypingLines(
   chars: string[][], overlay: TypingOverlay, id: string,
@@ -1161,9 +1211,18 @@ function buildTypingLines(
     const lineGlyphs = glyphs.filter((g) => g.li === li);
 
     parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
-    parts.push(
-      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}" clip-path="url(#${clipId})">${escapeHtml(lineText)}</text>`,
-    );
+    // DM-1557: paint the line as glyph paths (advances match on every viewer),
+    // pinning each glyph at its measured left edge so the reveal clip + caret
+    // stay locked. Fall back to a native <text> when the font can't resolve.
+    const xOffsets = cum[li].slice(0, line.length);
+    const glyphMarkup = typedGlyphMarkup(lineText, overlay.x, lineY, fontSize, fontFamily, color, xOffsets);
+    if (glyphMarkup != null) {
+      parts.push(`  <g class="${id}-text" clip-path="url(#${clipId})">${glyphMarkup}</g>`);
+    } else {
+      parts.push(
+        `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}" clip-path="url(#${clipId})">${escapeHtml(lineText)}</text>`,
+      );
+    }
 
     if (lineGlyphs.length === 0) {
       // Empty wrapped line (blank paragraph) — nothing to reveal.
@@ -1286,9 +1345,16 @@ function buildTypingMistakes(
   mistakeGlyphs.forEach((m, n) => {
     const cls = `${id}-mis${n}`;
     const lineY = overlay.y + m.li * lineHeight;
-    parts.push(
-      `  <text class="${cls}" x="${(overlay.x + m.leftEdge).toFixed(2)}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}">${escapeHtml(m.ch)}</text>`,
-    );
+    // DM-1557: paint the wrong glyph as a glyph path (viewer-independent), same
+    // as the line text; fall back to <text> when the font can't be resolved.
+    const glyphMarkup = typedGlyphMarkup(m.ch, overlay.x + m.leftEdge, lineY, fontSize, fontFamily, color);
+    if (glyphMarkup != null) {
+      parts.push(`  <g class="${cls}">${glyphMarkup}</g>`);
+    } else {
+      parts.push(
+        `  <text class="${cls}" x="${(overlay.x + m.leftEdge).toFixed(2)}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${escapeHtml(fontFamily)}">${escapeHtml(m.ch)}</text>`,
+      );
+    }
     // step-end opacity: 0 until showMs, 1 through the typo, 0 on backspace.
     const showPct = pct(m.showMs, totalDuration);
     const hidePct = pct(Math.max(m.hideMs, m.showMs + 1), totalDuration);
@@ -1314,7 +1380,6 @@ function renderTypingOverlay(
   // DM-1558 will let an author override this per overlay.
   const fontFamily = OVERLAY_TYPING_FONT;
   const thinkMs = overlay.mistakeThinkMs ?? DEFAULT_MISTAKE_THINK_MS;
-  const charWidth = fontSize * MONO_CHAR_WIDTH_RATIO;
   // DM-1205: the typewriter reveal hides not-yet-typed text with a width-0 clip
   // rect. Chrome renders a zero-area clip path as "clip everything" (text
   // hidden, correct), but WebKit/Safari treats an EMPTY clip as "no clip" and
@@ -1336,14 +1401,17 @@ function renderTypingOverlay(
   // `wrapWidth` supersedes the deprecated `bgWidth` (which fed both wrap + mask).
   const wrapWidth = overlay.wrapWidth ?? overlay.bgWidth;
   const maxLineWidth = wrapWidth != null ? wrapWidth - 4 : Infinity;
-  const maxChars = maxLineWidth === Infinity ? Infinity : Math.max(1, Math.floor(maxLineWidth / charWidth));
-  const lines = wrapTypingText(overlay.text, maxChars);
+  // DM-1518 / DM-1557: resolve the font's per-character advances up front —
+  // proportional-aware — and wrap by MEASURED PIXEL WIDTH (not a coarse char
+  // count), so a proportional field-matching family breaks where it actually
+  // overflows. Falls back to the uniform estimate when the font can't resolve.
+  const { advOf } = overlayAdvances(fontFamily, fontSize);
+  const lines = wrapTypingTextPx(overlay.text, maxLineWidth, advOf);
   // Per-line code-point arrays (astral pairs count as one glyph) drive both the
   // reveal stepping and the caret, so they can't desync.
   const chars = lines.map((l) => [...l]);
   // DM-1518: fontkit-measured cumulative advances per line — the caret + reveal
   // ride these exact edges instead of the old uniform 0.6em estimate.
-  const { advOf } = overlayAdvances(fontFamily, fontSize);
   const cum = cumFromChars(chars, advOf);
   const visibleChars = Math.max(1, chars.reduce((n, l) => n + l.length, 0));
   const longestLineWidth = cum.reduce((m, c) => Math.max(m, c[c.length - 1]), 0);
