@@ -81,6 +81,12 @@ const transitionSchema = z.object({
     "wipe", "iris", "zoom-in", "zoom-out", "shine",
   ]),
   duration: z.number(),
+  // DM-1550: optional named easing (or a raw CSS easing string) for the
+  // `wipe` / `iris` clip-path reveal and the `zoom-in` / `zoom-out` scale dolly
+  // this transition drives into the next frame. Resolved through the motion-
+  // preset vocabulary in the animator (incl. the sampled `spring-*` curves).
+  // Ignored by the other transition types. Default: linear.
+  easing: z.string().optional().describe("Named/raw easing for wipe/iris/zoom reveals (spring-* etc.)."),
 });
 
 const scrollSchema = z.object({
@@ -262,6 +268,12 @@ const overlaySchema = z.discriminatedUnion("kind", [
   shineOverlaySchema.extend({
     x: z.number().default(0),
     y: z.number().default(0),
+    // DM-1549: an `anchor` can auto-size + auto-position the glint, so width /
+    // height default to 0 (like x / y). Unanchored, they must be given; anchored,
+    // the resolver fills them from the element's box (radius from its
+    // border-radius) unless an explicit positive value is supplied.
+    width: z.number().default(0),
+    height: z.number().default(0),
     anchor: anchorSchema.optional(),
   }),
 ]);

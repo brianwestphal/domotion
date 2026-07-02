@@ -49,8 +49,13 @@ export type AnchoredOverlay =
   | (BlinkOverlay & { anchor?: OverlayAnchor })
   | (ShineOverlay & { anchor?: OverlayAnchor });
 
-/** The border box + content width of an anchored element, measured in page context. */
-interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number }
+/**
+ * The border box + content width of an anchored element, measured in page
+ * context. `borderRadius` is the element's computed top-left `border-radius` in
+ * px (DM-1549), used to auto-round a `shine` overlay's clip to the anchored
+ * element's corners (DM-1551).
+ */
+interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number }
 
 /**
  * Structural shape the shared engine resolves over. Both the public
@@ -63,6 +68,11 @@ interface AnchorableOverlay {
   x?: number;
   y?: number;
   wrapWidth?: number;
+  /** DM-1549: a `shine` overlay's clip box, auto-sized from the anchor when omitted. */
+  width?: number;
+  height?: number;
+  /** DM-1551: a `shine` overlay's clip-corner radius, auto-derived from the anchor. */
+  radius?: number;
   anchor?: OverlayAnchor;
   maxWidth?: "anchor" | number;
 }
@@ -101,7 +111,13 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
         const cs = getComputedStyle(el);
         const padL = parseFloat(cs.paddingLeft) || 0;
         const padR = parseFloat(cs.paddingRight) || 0;
-        return { x: r.x, y: r.y, width: r.width, height: r.height, contentWidth: Math.max(0, el.clientWidth - padL - padR) };
+        return {
+          x: r.x, y: r.y, width: r.width, height: r.height,
+          contentWidth: Math.max(0, el.clientWidth - padL - padR),
+          // DM-1549: the computed top-left border-radius (px), to auto-round a
+          // shine overlay's clip to the anchored element's corners (DM-1551).
+          borderRadius: parseFloat(cs.borderTopLeftRadius) || 0,
+        };
       }, anchor.selector);
       if (box == null) throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no element`);
     }
@@ -116,6 +132,16 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       const [ax, ay] = boxAnchorPoint(box, anchor.at ?? "top-left", anchor.dx ?? 0, anchor.dy ?? 0);
       resolved.x = ax;
       resolved.y = ay;
+      // DM-1549: a `shine` overlay auto-SIZES to the box it's anchored to (an
+      // explicit positive width/height still wins), and DM-1551 auto-rounds its
+      // clip to the element's computed border-radius (an explicit `radius` wins).
+      // With the default `at: "top-left"` anchor, (x, y) is the box's top-left —
+      // exactly the shine clip's origin — so the glint covers the element.
+      if (ov.kind === "shine") {
+        if (!(ov.width != null && ov.width > 0)) resolved.width = box.width;
+        if (!(ov.height != null && ov.height > 0)) resolved.height = box.height;
+        if (ov.radius == null) resolved.radius = box.borderRadius;
+      }
     }
     if (ov.kind === "typing" && maxWidth != null) {
       // DM-1134: maxWidth controls WRAPPING, so it resolves into `wrapWidth`

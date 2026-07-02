@@ -51,6 +51,30 @@ Radial and clock wipes (a sweeping conic mask) are **not** shipped — a conic
 gradient / `conic` mask has cross-engine caveats worth a dedicated pass; tracked
 as a follow-up.
 
+### Optional named easing on reveals + dollies (DM-1550)
+
+By default the `wipe` / `iris` reveal and the `zoom-in` / `zoom-out` dolly (below)
+run **linear**. Set `transition.easing` to a named easing from the motion-preset
+vocabulary (`docs/08`) — including the sampled multi-oscillation springs
+`spring-soft` / `spring-bouncy` — or a raw CSS easing string, and it is applied to
+the reveal / dolly SEGMENT only:
+
+```jsonc
+{ "type": "wipe",    "duration": 700, "easing": "spring-bouncy" }
+{ "type": "zoom-in", "duration": 600, "easing": "spring-soft" }
+```
+
+The easing is authored on the transition that DRIVES the next frame's entrance
+(the reveal / dolly plays on that successor). It's resolved through
+`resolveEasingPreset` and emitted as a per-keyframe `animation-timing-function`
+on the reveal-open / dolly-start stop, so the surrounding holds stay linear. A
+sampled spring `linear(...)` overshoots its target and rings down: on a wipe the
+reveal edge shoots past full-reveal, retreats a sliver, and settles; on a zoom the
+scale overshoots `scale(1)` and rings back — a lively pop. Both still **rest at
+identity** (the last keyframe pins the fully-revealed clip / `scale(1)`). The
+other transition types ignore `easing` (their motion is fixed). Purely
+`clip-path` / `transform` — no animated filter.
+
 ## Scale dollies: `zoom-in`, `zoom-out`
 
 Both ride the crossfade opacity machinery (the frames cross-dissolve) with a scale
@@ -85,14 +109,29 @@ backed by `buildShineSweep`:
 {
   "kind": "shine",
   "x": 30, "y": 280, "width": 132, "height": 34,  // box the glint is clipped to
+  "radius": 8,           // DM-1551: round the clip to follow a pill/button's corners
   "delay": 900,          // ms from frame start to the first sweep (default 200)
   "duration": 850,       // one-shot sweep length in ms (default 900)
   "repeat": "infinite",  // omit for a single sweep; a count / "infinite" shimmers
   "repeatPeriodMs": 2000,
   "color": "#ffffff", "opacity": 0.55, "bandWidth": 40, "skewDeg": 14  // all optional
-  // "anchor": { "selector": ".badge" }  // CLI only — resolves x/y from the box
+  // "anchor": { "selector": ".badge" }  // CLI: resolves x/y/width/height/radius from the box
 }
 ```
+
+**Rounded clip (DM-1551).** `radius` (px) rounds the clip rect so the glint
+follows a rounded element's corners instead of showing square edges over them —
+clamped to half the shorter side by `buildShineSweep`. Omit / `0` for a square
+clip (byte-identical to the pre-radius default).
+
+**Anchor auto-sizing (DM-1549 / DM-1551).** When the overlay carries an
+`anchor: { selector }` (CLI, or the imperative `resolveOverlays` primitive), the
+resolver measures the anchored element's border box and auto-fills `x` / `y`
+(top-left), `width` / `height`, AND `radius` (from the element's computed
+`border-radius`) — so a `shine` sizes and rounds itself to whatever it's anchored
+to. An explicit positive `width` / `height` or an explicit `radius` still wins;
+otherwise they come from the box (`width` / `height` default to `0` in the config,
+i.e. "take it from the anchor").
 
 Outside its sweep window the band parks fully off the clipped box (paints
 nothing), so the underlying content **rests at identity** — a Domotion re-capture
