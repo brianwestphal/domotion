@@ -92,6 +92,12 @@ capture options:
       --chrome-label <s>   Text for the chrome bar (browser URL / window title).
       --chrome-theme <s>   browser/window bezel theme: "dark" (default) | "light".
       --color-scheme <s>   Set prefers-color-scheme: "light" | "dark" | "no-preference".
+      --brand <file>       Brand-kit JSON (palette/font/radius). Injects CSS
+                           custom properties (--brand-primary, --brand-accent,
+                           --brand-background, --brand-text, --brand-muted,
+                           --brand-font-family, --brand-radius) onto the page's
+                           :root before capture, so a page authored against
+                           var(--brand-*) picks up the brand. See docs/92.
       --title <text>       Accessible name → role="img" + <title> on the root <svg>
                            (for screen readers when the SVG is inlined, not <img>).
       --desc <text>        Accessible long description → <desc> on the root <svg>.
@@ -204,6 +210,16 @@ animate config (JSON):
   All string fields resolve \${vars}. "input" / overlay "src" paths are relative
   to the config file's directory.
 
+animate options:
+  -o, --output <path>      Output SVG path (default: stdout, or <config>.svg).
+      --optimize           Run output through SVGO.
+      --no-optimize        Skip SVGO (only meaningful for a .svgz output).
+      --brand <file>       Brand-kit JSON. Injects the brand's CSS custom
+                           properties onto every CAPTURED frame's :root before
+                           capture (same var names as capture --brand; see
+                           docs/92). Template/cast frames theme themselves.
+      --quiet              Suppress per-phase progress messages on stderr.
+
 Examples:
   # Capture the front page of example.com at 1280×720.
   domotion capture https://example.com --width 1280 --height 720 -o demo.svg
@@ -220,6 +236,9 @@ Examples:
 
   # Build a 3-frame animated demo from a config.
   domotion animate ./demo.json
+
+  # Theme a captured page against a brand file (page uses var(--brand-*)).
+  domotion capture ./page.html --brand ./acme.json -o page.svg
 `;
 
 void main();

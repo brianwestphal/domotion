@@ -28,8 +28,10 @@ import {
   wrapInDeviceChrome,
   wrapSvg,
 } from "../index.js";
-import { attachWebfontTracker, crossOriginFramesLaunchArgs, discoverAndRegisterWebfonts } from "../capture/index.js";
+import { attachWebfontTracker, crossOriginFramesLaunchArgs, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
 import { parseCrossOriginAllowlist } from "../capture/script/cross-origin.js";
+import { loadBrand } from "../templates/brand.js";
+import { resolve } from "node:path";
 import {
   applyReadyWaits,
   inferHarPageUrl,
@@ -163,6 +165,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       desc:               { type: "string" },
       "no-embed-images":  { type: "boolean" },
       "cross-origin-frames": { type: "string" },
+      brand:              { type: "string" },
       scroll:             { type: "string" },
       "scroll-speed":     { type: "string" },
       "scroll-selector":  { type: "string" },
@@ -232,6 +235,14 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       // world/*.har` pattern the in-repo regression suites use).
       ...(debug && debugDir != null ? { recordHar: { path: `${debugDir}/capture.har`, mode: "minimal" as const } } : {}),
     });
+    // DM-1540 (docs/92): `--brand <file>` themes the captured real page by
+    // injecting the brand's CSS custom properties (`--brand-primary`, …) onto
+    // `:root` before it paints, so a page authored against `var(--brand-*)`
+    // picks up the brand. Must run on the context before the first newPage().
+    if (values.brand != null) {
+      await injectBrandVariables(ctx, loadBrand(resolve(values.brand)));
+      log(`Injecting brand CSS variables from ${values.brand}`);
+    }
     const page = await ctx.newPage();
     // DM-479: bump Playwright's 30 s defaults to 90 s. Long captures on
     // heavy pages routinely push past 30 s.

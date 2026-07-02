@@ -39,7 +39,8 @@ import {
   type CursorEvent,
   type CursorStyle,
 } from "../animation/index.js";
-import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
+import { loadBrand, type Brand } from "../templates/brand.js";
 import { borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
@@ -460,6 +461,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       output:        { type: "string", short: "o" },
       optimize:      { type: "boolean" },
       "no-optimize": { type: "boolean" },
+      brand:         { type: "string" },
       quiet:         { type: "boolean" },
       help:          { type: "boolean", short: "h" },
     },
@@ -479,11 +481,16 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   const configDir = dirname(configPath);
 
   const log = makeLogger(values.quiet === true);
+  // DM-1540 (docs/92): `--brand <file>` themes every CAPTURED frame by injecting
+  // the brand's CSS custom properties onto each page's `:root` before capture
+  // (template/cast frames carry their own theming). Loaded here so a bad file
+  // fails before Chromium launches.
+  const brand: Brand | undefined = values.brand != null ? loadBrand(resolve(values.brand)) : undefined;
   log(`Launching Chromium…`);
   const browser = await launchChromium();
   let svg: string;
   try {
-    svg = await composeAnimateConfig(browser, cfg, configDir, log);
+    svg = await composeAnimateConfig(browser, cfg, { configDir, log, ...(brand != null ? { brand } : {}) });
   } finally {
     await browser.close();
   }
@@ -534,6 +541,11 @@ export interface ComposeAnimateOptions {
   log?: (msg: string) => void;
   /** DM-1138: per-frame hook (see `OnFrameHook`). */
   onFrame?: OnFrameHook;
+  /** DM-1540 (docs/92): brand kit whose CSS custom properties are injected onto
+   *  every CAPTURED frame's `:root` before capture, so pages authored against
+   *  `var(--brand-*)` pick up the palette / font / radius. Omitted → no injection.
+   *  Template/cast frames theme themselves (their own params), not via this. */
+  brand?: Brand;
 }
 
 /** Normalize the `(configDir?, log?)` positional form OR the `(opts?)` object
@@ -541,12 +553,13 @@ export interface ComposeAnimateOptions {
 function normalizeComposeArgs(
   configDirOrOpts?: string | ComposeAnimateOptions,
   log?: (msg: string) => void,
-): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook } {
+): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook; brand?: Brand } {
   if (configDirOrOpts != null && typeof configDirOrOpts === "object") {
     return {
       configDir: configDirOrOpts.configDir ?? process.cwd(),
       log: configDirOrOpts.log ?? (() => {}),
       onFrame: configDirOrOpts.onFrame,
+      brand: configDirOrOpts.brand,
     };
   }
   return { configDir: configDirOrOpts ?? process.cwd(), log: log ?? (() => {}), onFrame: undefined };
@@ -1011,7 +1024,7 @@ export async function composeAnimateFrames(
   configDirOrOpts?: string | ComposeAnimateOptions,
   logArg?: (msg: string) => void,
 ): Promise<AnimationConfig> {
-  const { configDir, log, onFrame } = normalizeComposeArgs(configDirOrOpts, logArg);
+  const { configDir, log, onFrame, brand } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
   // DM-1287 (doc 73): render `template` frames UP FRONT, before the outer run's
@@ -1029,6 +1042,11 @@ export async function composeAnimateFrames(
     ...(cfg.mobile === true ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
     ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
   });
+  // DM-1540 (docs/92): inject the brand's CSS custom properties onto every
+  // captured frame's `:root` before it paints. On the context, so it applies to
+  // each frame's navigation. Template/cast frames render before this loop and
+  // carry their own theming, so they're unaffected.
+  if (brand != null) await injectBrandVariables(ctx, brand);
   try {
     const page = await ctx.newPage();
     // DM-479: 90 s instead of Playwright's 30 s default.

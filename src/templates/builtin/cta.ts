@@ -6,7 +6,8 @@
  * pulse rides a SEPARATE inner element (an infinite scale) from the button's
  * enter reveal, so the one-animation-per-property rule holds. Authored as
  * HTML/CSS + shared reveals; themes, honors safe margins, composes with the brand
- * kit. (The logo slot's brand wiring — `brand.logo` → `logo` — is DM-1539.)
+ * kit. The brand kit's `logo` token maps to the `logo` param (DM-1539), so
+ * `--brand acme.json` (with a `logo`) auto-fills the end-card's logo.
  */
 
 import { z } from "zod";
@@ -112,6 +113,10 @@ export const ctaTemplate: Template<CtaParams> = {
       background: brandBackground(brand),
       textColor: brand.palette?.text,
       fontFamily: brand.font?.family,
+      // DM-1539: the brand's logo asset fills the end-card's logo slot (resolved
+      // to an absolute path / URL by `loadBrand`). The first built-in to consume
+      // `brand.logo`.
+      logo: brand.logo,
     });
   },
   async render(params: CtaParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {

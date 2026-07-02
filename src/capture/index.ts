@@ -21,6 +21,11 @@ import { refineInitialLetterPositions } from "./initial-letter-probe.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
+// Brand kit (docs/85 + docs/92). `brand.js` has no browser/Playwright deps
+// (node:fs / node:path / zod only), so importing it here creates no cycle with
+// the capture pipeline (the template subsystem imports FROM this module, not the
+// other way around).
+import { brandCustomProperties, type Brand } from "../templates/brand.js";
 
 export interface CaptureOptions {
   width: number;
@@ -146,6 +151,50 @@ function isMissingBrowserError(err: unknown): boolean {
 export function crossOriginFramesLaunchArgs(value: string | undefined | null): string[] {
   if (parseCrossOriginAllowlist(value) == null) return [];
   return ["--disable-web-security", "--disable-features=IsolateOrigins,site-per-process"];
+}
+
+/**
+ * Brand for `capture` / `animate` (docs/92): inject the brand's CSS custom
+ * properties onto the page's `:root` BEFORE it paints, so a page authored
+ * against `var(--brand-primary)` etc. picks up the brand's palette / font /
+ * radius. Uses `context.addInitScript`, which runs on every page + navigation in
+ * the context BEFORE any page script — so the variables are present the first
+ * time `getComputedStyle` resolves during capture.
+ *
+ * The properties are set as INLINE styles on the document element (`:root`),
+ * which win over any author-stylesheet `:root { --brand-x: fallback }` the page
+ * declares — the intent is "the brand overrides the page's built-in defaults".
+ * Only the tokens the brand actually set are emitted (see
+ * `brandCustomProperties`); a no-op when the brand maps to nothing.
+ *
+ * Call once, right after `browser.newContext(...)` and before the first
+ * `newPage()` / navigation.
+ */
+export async function injectBrandVariables(context: BrowserContext, brand: Brand): Promise<void> {
+  const props = brandCustomProperties(brand);
+  if (props.length === 0) return;
+  await context.addInitScript((pairs: Array<[string, string]>) => {
+    // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
+    // stack traces; that helper isn't in the init-script's serialized scope, so
+    // without this polyfill a named inner function throws "__name is not defined"
+    // at construction and the whole init script silently no-ops (same footgun the
+    // capture-script's discovery loop documents). Polyfill it before we use one.
+    if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
+      (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
+    }
+    const apply = (): void => {
+      const root = document.documentElement;
+      if (root == null) return;
+      for (const [name, value] of pairs) root.style.setProperty(name, value);
+    };
+    // The init script runs at document-start, where `documentElement` is often
+    // still null (before the parser creates <html>) AND is replaced once the
+    // real document is parsed — so an apply here alone doesn't survive. Apply
+    // now (harmless if null) AND re-apply on DOMContentLoaded, which fires after
+    // <html> exists and well before the capture reads `getComputedStyle`.
+    apply();
+    document.addEventListener("DOMContentLoaded", apply, { once: true });
+  }, props);
 }
 
 export class DemoRecorder {

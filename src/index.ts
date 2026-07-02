@@ -23,6 +23,7 @@ export {
   captureElementTreeWithWarnings,
   DemoRecorder,
   launchChromium,
+  injectBrandVariables,
 } from "./capture/index.js";
 export type { CaptureOptions } from "./capture/index.js";
 export {
@@ -168,6 +169,8 @@ export {
   brandParams,
   brandSeriesColors,
   brandBackground,
+  brandCustomProperties,
+  brandRootCss,
   applyBrandDefaults,
   type Brand,
   lowerThirdTemplate,

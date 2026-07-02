@@ -1,11 +1,13 @@
 # 85 — Brand kit (design tokens applied across templates)
 
-**Status: shipped v1 (DM-1522 design → DM-1530 impl).** The `brandSchema` +
-`loadBrand` + per-template `brandDefaults` + `--brand` flag are built and tested
-(`src/templates/brand.ts`). Still open (follow-ups below): the logo slot (no
-template has one yet) and brand for `capture`/`animate`. A DM-1519 follow-up: the
-audience of marketing creatives needs **on-brand output at scale** without
-re-specifying colors/fonts on every call.
+**Status: shipped v1 (DM-1522 design → DM-1530 impl); logo slot + capture/animate
+brand shipped (DM-1539 / DM-1540).** The `brandSchema` + `loadBrand` +
+per-template `brandDefaults` + `--brand` flag are built and tested
+(`src/templates/brand.ts`). The `logo` token now feeds the `cta` end-card's logo
+slot (DM-1539), and `--brand` extends to `capture` / `animate` by injecting brand
+CSS variables into the captured page (DM-1540 — see **docs/92**). A DM-1519
+follow-up: the audience of marketing creatives needs **on-brand output at scale**
+without re-specifying colors/fonts on every call.
 
 ## Goal
 
@@ -88,6 +90,7 @@ Initial mapping for the current built-ins:
 | **subscribe** | `primary`→`accent`, `primary`→`avatarColor`, `background`→`background`, `font.family`→`fontFamily` |
 | **kinetic-text** | `text`→`color`, `background`→`background`, `font.family`→`fontFamily` |
 | **background-loop** | `background`→`background`, `palette`→blob `colors` |
+| **cta** (end-card) | `primary`→`ctaColor`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1539 — the first built-in to consume `brand.logo`) |
 | **device-mockup** | (no natural brand slot in v1; chrome theme stays as-is) |
 
 `palette`→`colors` fills a template's multi-color list (chart series, background
@@ -95,22 +98,29 @@ blobs) from `[primary, accent, …]` when the caller doesn't pass explicit color
 
 ## Surface
 
-- **CLI:** a global-ish `--brand <file.json>` on `domotion template`. (Extending
-  it to `animate`/`capture` is future — see below.)
+- **CLI:** `--brand <file.json>` on `domotion template` (template-param
+  defaults), and on `domotion capture` / `domotion animate` (CSS-variable
+  injection into the captured page — **docs/92**, DM-1540).
 - **Library:** `renderTemplateToSvg(template, params, { brand })` gains the
   optional `brand`; `loadBrand(path)` parses + validates a brand file (a zod
   `brandSchema`, exported for third parties + the UI).
 - **UI playground (DM-1520):** would surface a brand picker that sets the same
   tokens — the schema is shared.
 
+## Shipped after v1
+
+- **Logo placement (DM-1539).** The `logo` token feeds the `cta` end-card's logo
+  slot (`brand.logo` → the cta's `logo` param, via `brandParams`), so
+  `--brand acme.json` (with a `logo`) auto-fills it. The first built-in to
+  consume `brand.logo`; a `lower-third` logo variant / other slots can map it the
+  same way.
+- **Brand for `capture` / `animate` (DM-1540).** `--brand` on `capture` /
+  `animate` injects the brand as CSS custom properties onto the captured page's
+  `:root` before it paints — a distinct mechanism from template defaults. See
+  **docs/92** for the variable-naming contract.
+
 ## Out of scope for v1 (future / follow-ups)
 
-- **Logo placement.** The `logo` token is in the schema, but no current template
-  has a logo slot. Wiring it lands with templates that do (lower-third logo
-  variant, the CTA/end-card in DM-1523).
-- **Brand for `capture` / `animate`.** Theming a *captured* real page (vs a
-  generated template) means injecting brand CSS variables before capture — a
-  distinct mechanism; deferred.
 - **Multiple named brands / brand inheritance**, font *embedding* from the brand
   (vs. name reference), and per-token dark/light variants.
 
@@ -120,10 +130,12 @@ blobs) from `[primary, accent, …]` when the caller doesn't pass explicit color
   `brandDefaults` on the six themeable built-ins + `--brand` wiring + unit tests +
   a branded demo set (`examples/templates-demo.ts`: `brand-acme-*` across
   lower-third / chart / subscribe / kinetic from one `acme-brand.json`).
-- **Logo slot wiring** (once a template with a logo slot exists — coordinate with
-  DM-1523's end-card / a lower-third logo variant). *The `logo` token is in the
-  schema + resolved by `loadBrand`, but no v1 template consumes it yet.*
-- **Brand for `capture`/`animate`** (inject brand CSS custom properties).
+- **Logo slot wiring** — ✅ done (DM-1539): `brand.logo` → the `cta` end-card's
+  `logo` param. Demo: `examples/output/templates/brand-acme-cta.svg` (one brand
+  file fills the logo + button color + font, no per-call flags).
+- **Brand for `capture`/`animate`** — ✅ done (DM-1540, docs/92): `--brand`
+  injects brand CSS custom properties onto the captured page's `:root`. Demo:
+  `examples/brand-capture-demo.ts` → `examples/output/brand-capture.svg`.
 
 ## Relationships
 

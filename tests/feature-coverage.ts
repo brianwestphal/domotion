@@ -296,6 +296,14 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/templates/brand.test.ts"],
   },
   {
+    id: "capture.brand",
+    behavior: "Brand for capture/animate (docs/92): brandCustomProperties / brandRootCss map a brand to --brand-* CSS variables; injectBrandVariables injects them onto a captured page's :root before it paints (the --brand flag on `capture`/`animate`), so a page authored against var(--brand-*) picks up the brand.",
+    doc: "docs/92-brand-for-capture.md",
+    verbs: ["capture", "animate"],
+    exports: ["brandCustomProperties", "brandRootCss", "injectBrandVariables"],
+    tests: ["src/templates/brand.test.ts", "src/capture/brand-inject.e2e.test.ts"],
+  },
+  {
     id: "templates.builtins",
     behavior: "The seven core built-in template generators.",
     doc: "docs/70-template-system.md",

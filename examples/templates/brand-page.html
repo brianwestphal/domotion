@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Brand-aware page</title>
+  <style>
+    /* This page is authored against the brand CSS variables that `capture
+       --brand <file>` (docs/92) injects onto :root before capture. Each var has
+       a neutral fallback so the page still renders un-branded; with a brand file
+       the palette/font/radius below all come from the brand. */
+    :root {
+      --brand-primary: #64748b;
+      --brand-accent: #94a3b8;
+      --brand-background: #0f172a;
+      --brand-text: #e2e8f0;
+      --brand-muted: #94a3b8;
+      --brand-font-family: system-ui, sans-serif;
+      --brand-radius: 6px;
+    }
+    * { margin: 0; box-sizing: border-box; }
+    html, body { width: 720px; height: 360px; }
+    body {
+      background: var(--brand-background);
+      color: var(--brand-text);
+      font-family: var(--brand-font-family);
+      display: flex; flex-direction: column; justify-content: center;
+      gap: 20px; padding: 48px;
+    }
+    .eyebrow { color: var(--brand-accent); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 15px; }
+    h1 { font-size: 44px; font-weight: 800; letter-spacing: -0.02em; }
+    p { color: var(--brand-muted); font-size: 19px; max-width: 34ch; line-height: 1.45; }
+    .cta {
+      align-self: flex-start; margin-top: 6px;
+      background: var(--brand-primary); color: #fff;
+      font-weight: 700; font-size: 18px; padding: 14px 28px;
+      border-radius: var(--brand-radius);
+    }
+  </style>
+</head>
+<body>
+  <div class="eyebrow">Acme Cloud</div>
+  <h1>One brand file, every surface</h1>
+  <p>This page reads <code>var(--brand-*)</code>; capture injects the brand before it paints.</p>
+  <div class="cta">Start free</div>
+</body>
+</html>

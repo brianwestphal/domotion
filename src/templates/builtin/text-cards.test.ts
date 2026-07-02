@@ -166,6 +166,15 @@ describe("cta (DM-1531)", () => {
     expect(ctaTemplate.brandDefaults!(BRAND)).toMatchObject({ ctaColor: "#2f6df6", fontFamily: "Inter, sans-serif" });
   });
 
+  it("brandDefaults maps brand.logo→logo when set, and omits it otherwise (DM-1539)", () => {
+    // With a logo token, it fills the end-card's logo slot.
+    const withLogo = ctaTemplate.brandDefaults!({ ...BRAND, logo: "/opt/acme/logo.svg" });
+    expect(withLogo).toMatchObject({ logo: "/opt/acme/logo.svg", ctaColor: "#2f6df6" });
+    // BRAND has no logo → no `logo` key at all (must not shadow the param default with undefined).
+    const noLogo = ctaTemplate.brandDefaults!(BRAND);
+    expect("logo" in noLogo).toBe(false);
+  });
+
   it("parses comma-separated handles into an array", () => {
     expect(parse(ctaParamsSchema, { cta: "Go", handles: "@a, @b , @c" }).handles).toEqual(["@a", "@b", "@c"]);
   });

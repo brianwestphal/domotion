@@ -41,6 +41,8 @@ export {
   brandParams,
   brandSeriesColors,
   brandBackground,
+  brandCustomProperties,
+  brandRootCss,
   type Brand,
 } from "./brand.js";
 export { applyBrandDefaults } from "./render.js";

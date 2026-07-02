@@ -320,6 +320,15 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     params: { text: "On brand, at scale", variant: "rise" },
     brand: ACME_BRAND,
   },
+  {
+    // cta — the brand's `logo` token auto-fills the end-card's logo slot
+    // (DM-1539); no `logo`/`ctaColor`/`fontFamily` flags passed. The first
+    // built-in to consume `brand.logo`.
+    file: "brand-acme-cta",
+    template: ctaTemplate,
+    params: { headline: "Ship on brand", cta: "Get started", handles: ["@acme", "acme.dev"] },
+    brand: ACME_BRAND,
+  },
 ];
 
 async function main(): Promise<void> {

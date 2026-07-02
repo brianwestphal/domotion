@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadBrand, brandSeriesColors, brandBackground, type Brand } from "./brand.js";
+import { loadBrand, brandSeriesColors, brandBackground, brandCustomProperties, brandRootCss, type Brand } from "./brand.js";
 import { applyBrandDefaults, validateTemplateParams } from "./render.js";
 import { lowerThirdTemplate } from "./builtin/lower-third.js";
 import { chartTemplate } from "./builtin/chart.js";
@@ -83,6 +83,45 @@ describe("brand helpers (DM-1530)", () => {
     expect(brandBackground(ACME)).toBe("linear-gradient(135deg,#1e293b,#0f172a)");
     expect(brandBackground({ palette: { background: "#000" } })).toBe("#000");
     expect(brandBackground({})).toBeUndefined();
+  });
+});
+
+describe("brandCustomProperties / brandRootCss — capture/animate CSS vars (DM-1540, docs/92)", () => {
+  it("maps every set token to its --brand-* variable, radius as px", () => {
+    expect(brandCustomProperties(ACME)).toEqual([
+      ["--brand-primary", "#2f6df6"],
+      ["--brand-accent", "#22d3ee"],
+      ["--brand-background", "linear-gradient(135deg,#1e293b,#0f172a)"], // top-level background wins
+      ["--brand-text", "#e6edf3"],
+      ["--brand-muted", "#8b93a7"],
+      ["--brand-font-family", "Inter, sans-serif"],
+      ["--brand-radius", "10px"],
+    ]);
+  });
+
+  it("emits ONLY the tokens the brand actually set (no unset var leaks a fallback)", () => {
+    const partial: Brand = { palette: { primary: "#f00" }, radius: 4 };
+    expect(brandCustomProperties(partial)).toEqual([
+      ["--brand-primary", "#f00"],
+      ["--brand-radius", "4px"],
+    ]);
+    // An empty brand maps to nothing.
+    expect(brandCustomProperties({})).toEqual([]);
+    // An empty-string value counts as unset (never emitted).
+    expect(brandCustomProperties({ palette: { primary: "" } })).toEqual([]);
+  });
+
+  it("--brand-background falls back to the flat palette.background when no richer background", () => {
+    expect(brandCustomProperties({ palette: { background: "#101317" } })).toEqual([
+      ["--brand-background", "#101317"],
+    ]);
+  });
+
+  it("brandRootCss wraps the pairs in a :root{} block, and is '' when nothing is set", () => {
+    expect(brandRootCss({ palette: { primary: "#f00" }, radius: 8 })).toBe(
+      ":root{--brand-primary:#f00;--brand-radius:8px;}",
+    );
+    expect(brandRootCss({})).toBe("");
   });
 });
 

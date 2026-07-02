@@ -125,3 +125,49 @@ export function brandSeriesColors(brand: Brand): string[] | undefined {
 export function brandBackground(brand: Brand): string | undefined {
   return brand.background ?? brand.palette?.background;
 }
+
+/**
+ * The CSS-custom-property naming contract for `capture` / `animate` (docs/92).
+ * Unlike a *template*'s `brandDefaults` (which fills generated-template params),
+ * theming a *captured real page* injects the brand as CSS variables onto the
+ * page's `:root` BEFORE capture, so a page authored against `var(--brand-*)`
+ * picks up the brand's palette / font / radius.
+ *
+ * The mapping (only the tokens the brand actually set are emitted — an unset
+ * token must NOT appear so a page-authored `var(--brand-x, fallback)` keeps its
+ * fallback):
+ *
+ *   palette.primary        → --brand-primary
+ *   palette.accent         → --brand-accent
+ *   background / palette.background → --brand-background  (richer top-level wins)
+ *   palette.text           → --brand-text
+ *   palette.muted          → --brand-muted
+ *   font.family            → --brand-font-family
+ *   radius                 → --brand-radius              (as `<n>px`)
+ *
+ * Returned as ordered `[name, value]` pairs so both the CSS-text form
+ * (`brandRootCss`) and the page-injection path stay in lockstep.
+ */
+export function brandCustomProperties(brand: Brand): Array<[string, string]> {
+  const pairs: Array<[string, string | undefined]> = [
+    ["--brand-primary", brand.palette?.primary],
+    ["--brand-accent", brand.palette?.accent],
+    ["--brand-background", brandBackground(brand)],
+    ["--brand-text", brand.palette?.text],
+    ["--brand-muted", brand.palette?.muted],
+    ["--brand-font-family", brand.font?.family],
+    ["--brand-radius", brand.radius != null ? `${brand.radius}px` : undefined],
+  ];
+  return pairs.filter((p): p is [string, string] => p[1] != null && p[1] !== "");
+}
+
+/**
+ * The brand's CSS variables as a `:root { … }` block (docs/92) — the documented,
+ * testable form of `brandCustomProperties`. Returns `""` when the brand sets no
+ * mappable token (so callers can skip injection entirely).
+ */
+export function brandRootCss(brand: Brand): string {
+  const props = brandCustomProperties(brand);
+  if (props.length === 0) return "";
+  return `:root{${props.map(([name, value]) => `${name}:${value};`).join("")}}`;
+}
