@@ -50,9 +50,24 @@ they describe (see `CLAUDE.md` "Documentation"):
   (standard eases + `back`/`spring` overshoot → plain `cubic-bezier`, cross-engine).
   Surfaced as `preset`/`easing`/`exit`/`presetDistance`/`presetScaleFrom` on the
   animate config's intra-frame animations (expanded in `expandMotionPreset`), and
-  reused by the template reveals (`staggeredReveal`). **Follow-up:** a true
-  multi-oscillation `spring` baked to keyframe samples (currently a single-
-  overshoot bezier); `shine` sweep (needs a gradient/mask overlay).
+  reused by the template reveals (`staggeredReveal`). **Follow-ups shipped
+  (DM-1542):** a true multi-oscillation spring baked to CSS `linear(...)` samples
+  (`spring-bouncy` / `spring-soft`, `springEasingFn`/`springLinearEasing` in
+  `src/animation/easing.ts` — `resolveEasingPreset` returns the `linear()` for
+  these), and a `shine` motion overlay on the shared masked-gradient-sweep helper
+  `buildShineSweep` (`src/animation/shine.ts`).
+
+- **Doc 88 (`docs/88-transition-effect-expansion.md`, DM-1524)** — **Shipped.**
+  SVG-safe inter-frame transitions beyond crossfade/cut/push-left/scroll/magic-move,
+  in `src/animation/animator.ts`: directional pushes (`push-right`/`push-up`/
+  `push-down` — generalized the slide engine to signed displacement; `push-left`/
+  `scroll` byte-identical), a linear `wipe` + expanding-circle `iris` (clip-path
+  reveals via `emitRevealFrame`), `zoom-in`/`zoom-out` scale dollies under a
+  crossfade, and a `shine` sweep (reuses `buildShineSweep`). All transform + clip-path
+  + opacity + gradient (no animated `filter`); wired into the transition enum, the
+  generated `animate-config.schema.json`, and `--transition`. **Still open:** radial/
+  clock wipe (conic-mask cross-engine calibration), mixed transition-type chaining
+  (unified entrance/exit compositor).
 
 - **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532/1533 impl)** —
   **All three batches shipped.** Batch A: four narrative text-card templates
