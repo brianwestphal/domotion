@@ -51,11 +51,13 @@ import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-pr
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
+import { resolveFormat, type SafeInset } from "../templates/formats.js";
 import {
   applyReadyWaits,
   isSvgzPath,
   loadInputIntoPage,
   makeLogger,
+  parseIntFlag,
   resolveOutputPath,
   timed,
   writeOutput,
@@ -458,6 +460,9 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     strict: true,
     options: {
       output:        { type: "string", short: "o" },
+      format:        { type: "string" },
+      width:         { type: "string" },
+      height:        { type: "string" },
       optimize:      { type: "boolean" },
       "no-optimize": { type: "boolean" },
       quiet:         { type: "boolean" },
@@ -478,12 +483,27 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   const cfg = validateAnimateConfig(cfgRaw);
   const configDir = dirname(configPath);
 
+  // DM-1538: `--format <name|WxH>` re-targets the config's canvas (the animate
+  // viewport). Precedence: explicit `--width`/`--height` > format > the config's
+  // own `width`/`height` (which act as the default). The format's safe-area inset
+  // rides through to any `template` frame's render context (page/captured frames
+  // don't reflow — the format only sizes their viewport).
+  let safeInset: SafeInset | undefined;
+  if (values.format != null) {
+    const fmt = resolveFormat(values.format);
+    cfg.width = fmt.width;
+    cfg.height = fmt.height;
+    safeInset = fmt.safeInset;
+  }
+  if (values.width != null) cfg.width = parseIntFlag(values.width, "width", cfg.width);
+  if (values.height != null) cfg.height = parseIntFlag(values.height, "height", cfg.height);
+
   const log = makeLogger(values.quiet === true);
   log(`Launching Chromium…`);
   const browser = await launchChromium();
   let svg: string;
   try {
-    svg = await composeAnimateConfig(browser, cfg, configDir, log);
+    svg = await composeAnimateConfig(browser, cfg, { configDir, log, ...(safeInset != null ? { safeInset } : {}) });
   } finally {
     await browser.close();
   }
@@ -534,6 +554,14 @@ export interface ComposeAnimateOptions {
   log?: (msg: string) => void;
   /** DM-1138: per-frame hook (see `OnFrameHook`). */
   onFrame?: OnFrameHook;
+  /**
+   * DM-1538: resolved safe-area inset (px per side) from a `--format` preset. It
+   * rides through to any `template` frame's render context (so a themeable
+   * built-in honors the format's safe margins + adaptive scale, DM-1537/DM-1541).
+   * Captured/page frames don't reflow to it — the format only sizes their
+   * viewport. Omitted → no inset.
+   */
+  safeInset?: SafeInset;
 }
 
 /** Normalize the `(configDir?, log?)` positional form OR the `(opts?)` object
@@ -541,12 +569,13 @@ export interface ComposeAnimateOptions {
 function normalizeComposeArgs(
   configDirOrOpts?: string | ComposeAnimateOptions,
   log?: (msg: string) => void,
-): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook } {
+): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook; safeInset?: SafeInset } {
   if (configDirOrOpts != null && typeof configDirOrOpts === "object") {
     return {
       configDir: configDirOrOpts.configDir ?? process.cwd(),
       log: configDirOrOpts.log ?? (() => {}),
       onFrame: configDirOrOpts.onFrame,
+      safeInset: configDirOrOpts.safeInset,
     };
   }
   return { configDir: configDirOrOpts ?? process.cwd(), log: log ?? (() => {}), onFrame: undefined };
@@ -628,6 +657,7 @@ async function renderTemplateFrames(
   cfg: AnimateConfig,
   browser: Browser,
   log: (msg: string) => void,
+  safeInset?: SafeInset,
 ): Promise<Map<number, { content: string; durationMs: number | null }>> {
   const out = new Map<number, { content: string; durationMs: number | null }>();
   const idxs = cfg.frames.flatMap((f, i) => (f.template != null ? [i] : []));
@@ -660,7 +690,15 @@ async function renderTemplateFrames(
 
     let result;
     try {
-      result = await renderTemplateToSvg(template, rawParams, { browser, log: (m) => log(`  ${m}`) });
+      result = await renderTemplateToSvg(template, rawParams, {
+        browser,
+        log: (m) => log(`  ${m}`),
+        // DM-1538: a `--format` on `animate` passes its safe-area inset through to
+        // template frames, so a themeable built-in honors the format's safe margins
+        // + adaptive scale (DM-1537/DM-1541) — the same context a standalone
+        // `domotion template --format …` render gets.
+        ...(safeInset != null ? { safeInset } : {}),
+      });
     } catch (e) {
       // Param-validation errors already carry their own `template "x": …` path.
       throw new Error(`animate: frames[${i}]: ${(e as Error).message}`);
@@ -1011,7 +1049,7 @@ export async function composeAnimateFrames(
   configDirOrOpts?: string | ComposeAnimateOptions,
   logArg?: (msg: string) => void,
 ): Promise<AnimationConfig> {
-  const { configDir, log, onFrame } = normalizeComposeArgs(configDirOrOpts, logArg);
+  const { configDir, log, onFrame, safeInset } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
   // DM-1287 (doc 73): render `template` frames UP FRONT, before the outer run's
@@ -1022,7 +1060,7 @@ export async function composeAnimateFrames(
   // output fully self-contained (its own `@font-face`) and stops the nested run
   // from clobbering the outer frames' embedded fonts. Each rendered template SVG
   // is a finished string by the time the outer loop reaches its frame.
-  const templateRenders = await renderTemplateFrames(cfg, browser, log);
+  const templateRenders = await renderTemplateFrames(cfg, browser, log, safeInset);
   const ctx = await browser.newContext({
     viewport: { width: cfg.width, height: cfg.height },
     isMobile: cfg.mobile === true,

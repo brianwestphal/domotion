@@ -20,7 +20,7 @@ import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss } from "./text-card-common.js";
+import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs } from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
 const POSITIONS = ["bottom-center", "top-center", "center"] as const;
@@ -53,8 +53,11 @@ function anchorFor(position: CaptionParams["position"]): string {
 
 /** Build the standalone HTML. Pure — unit-testable without a browser. */
 export function buildCaptionHtml(p: CaptionParams, safeInset?: SafeInset): string {
+  // DM-1541: scale the authored (landscape-tuned) caption type + scrim padding by
+  // the adaptive per-ratio factor (sf === 1 with no format → byte-identical).
+  const sf = cardScaleFactor(p.width, p.height, safeInset);
   const scrim = p.bgOpacity > 0
-    ? `background: rgba(0,0,0,${p.bgOpacity}); padding: 14px 24px; border-radius: 12px;`
+    ? `background: rgba(0,0,0,${p.bgOpacity}); padding: ${fs(14, sf)} ${fs(24, sf)}; border-radius: 12px;`
     : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -64,7 +67,7 @@ export function buildCaptionHtml(p: CaptionParams, safeInset?: SafeInset): strin
   .cap-text {
     ${scrim}
     color: ${p.textColor};
-    font-size: 40px; font-weight: 600; line-height: 1.3; text-align: center;
+    font-size: ${fs(40, sf)}; font-weight: 600; line-height: 1.3; text-align: center;
     text-shadow: ${p.bgOpacity > 0 ? "none" : "0 2px 8px rgba(0,0,0,0.55)"};
   }
 </style></head>

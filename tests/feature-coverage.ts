@@ -283,10 +283,10 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "templates.formats",
-    behavior: "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template` with explicit>format>default size precedence. safeAreaPadding + per-template safe-area reflow keep content within canvas − safeInset at each ratio.",
+    behavior: "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template`/`capture`/`animate` with explicit>format>default size precedence. safeAreaPadding + per-template safe-area reflow keep content within canvas − safeInset at each ratio; formatScaleFactor (sqrt of the safe-area vs an ADAPTIVE_REFERENCE box) scales themeable-template type per ratio so it reads at 9:16 (DM-1541); safeAreaGuideSvg overlays the informational safe-area rectangle on a raw capture (--safe-guide, DM-1538).",
     doc: "docs/87-format-presets.md",
-    exports: ["FORMATS", "resolveFormat", "applyFormatSize", "safeAreaPadding", "formatNames"],
-    tests: ["src/templates/formats.test.ts", "src/templates/templates.e2e.test.ts"],
+    exports: ["FORMATS", "resolveFormat", "applyFormatSize", "safeAreaPadding", "formatNames", "formatScaleFactor", "safeAreaGuideSvg", "ADAPTIVE_REFERENCE"],
+    tests: ["src/templates/formats.test.ts", "src/templates/templates.e2e.test.ts", "tests/capture-format.e2e.test.ts", "tests/animate-format.e2e.test.ts"],
   },
   {
     id: "templates.brand",

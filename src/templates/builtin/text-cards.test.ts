@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveCardTheme, staggeredReveal, revealEndMs, cardHeadCss, CARD_FONT_STACK,
+  cardScaleFactor, fs, fsNum, fitOdometerCell,
 } from "./text-card-common.js";
 import { titleCardTemplate, buildTitleCardHtml, titleCardParamsSchema } from "./title-card.js";
 import { quoteTemplate, buildQuoteHtml, quoteParamsSchema } from "./quote.js";
 import { captionTemplate, buildCaptionHtml, buildCaptionAnimations, captionParamsSchema } from "./caption.js";
 import { ctaTemplate, buildCtaHtml, buildCtaAnimations, ctaParamsSchema } from "./cta.js";
+import { resolveFormat } from "../formats.js";
 import type { Brand } from "../brand.js";
 
 const BRAND: Brand = {
@@ -49,6 +51,29 @@ describe("text-card-common (DM-1531)", () => {
     expect(staggeredReveal([])).toEqual([]);
   });
 
+  it("fs/fsNum/cardScaleFactor: sf===1 (no format) leaves authored px untouched", () => {
+    expect(cardScaleFactor(1280, 720, undefined)).toBe(1);
+    expect(fs(84, 1)).toBe("84px");
+    expect(fsNum(200, 1)).toBe(200);
+  });
+
+  it("fs/fsNum: scale an authored px by a factor, rounded to 0.01", () => {
+    expect(fs(84, 1.5)).toBe("126px");
+    expect(fsNum(200, 1.25)).toBe(250);
+    expect(fs(33, 1.333)).toBe("43.99px"); // 33 * 1.333 = 43.989 → 43.99
+  });
+
+  it("fitOdometerCell (DM-1541): caps a scaled number-cell so it fits the content width", () => {
+    // 9 columns ("1,284,000") at 0.64 advance → a 298px cell would be 1716px wide,
+    // far over a ~820px reel content width → clamped down to fit.
+    const capped = fitOdometerCell(298, 9, 820);
+    expect(capped).toBeLessThan(298);
+    expect(capped * 9 * 0.64).toBeLessThanOrEqual(820 + 0.01);
+    // Already-fitting cell is returned unchanged; a 0 width disables the clamp.
+    expect(fitOdometerCell(100, 3, 5000)).toBe(100);
+    expect(fitOdometerCell(298, 9, 0)).toBe(298);
+  });
+
   it("revealEndMs: last item's start + duration", () => {
     expect(revealEndMs(3, { stagger: 100, duration: 500 })).toBe(700); // 200 + 500
     expect(revealEndMs(0)).toBe(0);
@@ -76,6 +101,25 @@ describe("title-card (DM-1531)", () => {
   it("escapes user text", () => {
     const html = buildTitleCardHtml(parse(titleCardParamsSchema, { title: "<b>x</b>" }));
     expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+  });
+
+  it("adaptive scale (DM-1541): default (no format) keeps the authored 84px headline byte-for-byte", () => {
+    const html = buildTitleCardHtml(parse(titleCardParamsSchema, { title: "T" }));
+    // sf === 1 with no safeInset → the literal authored size is unchanged.
+    expect(html).toContain(".tc-title { font-size: 84px;");
+  });
+
+  it("adaptive scale (DM-1541): a 9:16 reel enlarges the headline for legibility", () => {
+    const reel = resolveFormat("reel");
+    const html = buildTitleCardHtml(
+      parse(titleCardParamsSchema, { title: "T", width: reel.width, height: reel.height }),
+      reel.safeInset,
+    );
+    const sf = cardScaleFactor(reel.width, reel.height, reel.safeInset);
+    expect(sf).toBeGreaterThan(1.3);
+    // The headline is scaled up by the factor (bigger relative type at 9:16).
+    expect(html).toContain(`.tc-title { font-size: ${fs(84, sf)};`);
+    expect(html).not.toContain(".tc-title { font-size: 84px;");
   });
 
   it("brandDefaults maps background/text/accent/font", () => {

@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { FORMATS, resolveFormat, applyFormatSize, safeAreaPadding, formatNames } from "./formats.js";
+import {
+  FORMATS,
+  resolveFormat,
+  applyFormatSize,
+  safeAreaPadding,
+  formatNames,
+  formatScaleFactor,
+  safeAreaGuideSvg,
+  ADAPTIVE_REFERENCE,
+} from "./formats.js";
 
 describe("resolveFormat — preset lookup (DM-1534)", () => {
   it("resolves each built-in preset to its documented canvas size", () => {
@@ -133,5 +142,70 @@ describe("safeAreaPadding — content within safe area (DM-1537)", () => {
   it("mixes per side (default on one axis, inset on another)", () => {
     expect(safeAreaPadding({ top: 0, right: 0, bottom: 0, left: 0 }, { top: 100, right: 0, bottom: 200, left: 0 }))
       .toBe("100px 0px 200px 0px");
+  });
+});
+
+describe("formatScaleFactor — adaptive per-ratio type scaling (DM-1541)", () => {
+  it("returns exactly 1 with no safeInset (byte-identical default output)", () => {
+    expect(formatScaleFactor(1080, 1920, undefined)).toBe(1);
+    expect(formatScaleFactor(999, 12345, undefined)).toBe(1);
+  });
+
+  it("scales UP for a 9:16 reel — bigger relative type improves legibility", () => {
+    const reel = resolveFormat("reel");
+    const sf = formatScaleFactor(reel.width, reel.height, reel.safeInset);
+    // Larger usable area than the 1280×720 reference box → factor > 1.
+    expect(sf).toBeGreaterThan(1.3);
+    expect(sf).toBeLessThan(1.85);
+  });
+
+  it("is the sqrt of the usable-area ratio vs the reference box", () => {
+    const reel = resolveFormat("reel");
+    const contentW = reel.width - reel.safeInset.left - reel.safeInset.right;
+    const contentH = reel.height - reel.safeInset.top - reel.safeInset.bottom;
+    const refW = ADAPTIVE_REFERENCE.width - 2 * ADAPTIVE_REFERENCE.inset;
+    const refH = ADAPTIVE_REFERENCE.height - 2 * ADAPTIVE_REFERENCE.inset;
+    const expected = Math.sqrt((contentW * contentH) / (refW * refH));
+    expect(formatScaleFactor(reel.width, reel.height, reel.safeInset)).toBeCloseTo(expected, 6);
+  });
+
+  it("clamps a pathologically small canvas to the floor", () => {
+    // A 100×100 canvas with a tiny inset is far under the reference → clamp at min.
+    expect(formatScaleFactor(100, 100, { top: 6, right: 6, bottom: 6, left: 6 })).toBe(0.75);
+  });
+
+  it("clamps a pathologically large canvas to the ceiling", () => {
+    expect(formatScaleFactor(8000, 8000, { top: 0, right: 0, bottom: 0, left: 0 })).toBe(1.85);
+  });
+
+  it("honors caller-supplied min/max overrides", () => {
+    expect(formatScaleFactor(8000, 8000, { top: 0, right: 0, bottom: 0, left: 0 }, { max: 1.2 })).toBe(1.2);
+    expect(formatScaleFactor(100, 100, { top: 6, right: 6, bottom: 6, left: 6 }, { min: 0.9 })).toBe(0.9);
+  });
+});
+
+describe("safeAreaGuideSvg — informational overlay (DM-1538)", () => {
+  const inset = { top: 230, right: 65, bottom: 346, left: 65 };
+
+  it("draws the dashed rect at the resolved inset, sized to the safe area", () => {
+    const g = safeAreaGuideSvg(1080, 1920, inset);
+    // x=left, y=top, w=width-left-right, h=height-top-bottom.
+    expect(g).toContain('x="65"');
+    expect(g).toContain('y="230"');
+    expect(g).toContain('width="950"'); // 1080 - 65 - 65
+    expect(g).toContain('height="1344"'); // 1920 - 230 - 346
+    expect(g).toContain("stroke-dasharray");
+  });
+
+  it("is a single non-interactive, tagged group (nests cleanly, doesn't capture clicks)", () => {
+    const g = safeAreaGuideSvg(1080, 1920, inset);
+    expect(g.startsWith('<g data-domotion-safe-guide="1" pointer-events="none">')).toBe(true);
+    expect(g.endsWith("</g>")).toBe(true);
+  });
+
+  it("clamps a degenerate (over-inset) safe area to a non-negative box", () => {
+    const g = safeAreaGuideSvg(100, 100, { top: 80, right: 80, bottom: 80, left: 80 });
+    expect(g).toContain('width="0"');
+    expect(g).toContain('height="0"');
   });
 });

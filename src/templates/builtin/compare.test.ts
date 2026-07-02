@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { compareTemplate, revealAnimation, compareOverlayMarkup, compareParamsSchema } from "./compare.js";
+import { resolveFormat } from "../formats.js";
 
 const parse = (v: unknown): ReturnType<typeof compareParamsSchema.parse> => compareParamsSchema.parse(v);
 
@@ -80,6 +81,20 @@ describe("compare — overlay markup (DM-1533)", () => {
     // durationMs 1000 of holdMs 4000 → the divider reaches the far edge at 25%.
     const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", mode: "slide", durationMs: 1000, holdMs: 4000 }));
     expect(m).toContain("25.00%");
+  });
+
+  it("adaptive scale + safe area (DM-1541/DM-1538): a reel format enlarges the pill and nudges it inside the safe inset", () => {
+    const reel = resolveFormat("reel"); // 1080×1920, safe inset {230,65,346,65}
+    const base = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", beforeLabel: "Old", width: reel.width, height: reel.height }));
+    const framed = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", beforeLabel: "Old", width: reel.width, height: reel.height }),
+      reel.safeInset,
+    );
+    // Default badge sits 28px from the left; the reel badge is pushed to the 65px
+    // safe-inset left edge, and the pill height (rx) grows with the scale factor.
+    expect(base).toContain('rx="22"'); // bh/2 with sf===1
+    expect(framed).toContain('x="65"'); // max(scaled pad, safeInset.left=65)
+    expect(framed).not.toContain('rx="22"'); // scaled up → bigger pill
   });
 });
 

@@ -15,7 +15,7 @@ import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
+import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, resolveCardTheme, staggeredReveal, revealEndMs } from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
 const THEMES = ["dark", "light"] as const;
@@ -60,24 +60,27 @@ export function buildCtaHtml(p: CtaParams, safeInset?: SafeInset): string {
     ? `<div class="cta-handles">${handles.map((h) => `<span>${escapeHtml(h)}</span>`).join('<span class="cta-dot">·</span>')}</div>`
     : "";
   const urlMarkup = blank(p.url) != null ? `<div class="cta-url">${escapeHtml(p.url!)}</div>` : "";
+  // DM-1541: scale authored (landscape-tuned) type + spacing by the adaptive
+  // per-ratio factor (sf === 1 with no format → byte-identical default output).
+  const sf = cardScaleFactor(p.width, p.height, safeInset);
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   ${cardHeadCss(p, PADDING, safeInset)}
   body {
     background: ${t.background};
     color: ${t.text};
-    display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 30px;
+    display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: ${fs(30, sf)};
   }
-  .cta-logo { max-height: 96px; max-width: 60%; object-fit: contain; }
-  .cta-headline { font-size: 64px; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; max-width: 90%; }
+  .cta-logo { max-height: ${fs(96, sf)}; max-width: 60%; object-fit: contain; }
+  .cta-headline { font-size: ${fs(64, sf)}; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; max-width: 90%; }
   .cta-btn-wrap { }
   .cta-btn {
     display: inline-block; background: ${p.ctaColor}; color: #fff;
-    font-size: 34px; font-weight: 700; padding: 20px 44px; border-radius: 999px;
+    font-size: ${fs(34, sf)}; font-weight: 700; padding: ${fs(20, sf)} ${fs(44, sf)}; border-radius: 999px;
   }
-  .cta-handles { display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 500; color: ${t.muted}; }
+  .cta-handles { display: flex; align-items: center; gap: ${fs(14, sf)}; font-size: ${fs(26, sf)}; font-weight: 500; color: ${t.muted}; }
   .cta-dot { opacity: 0.6; }
-  .cta-url { font-size: 24px; font-weight: 500; color: ${t.muted}; }
+  .cta-url { font-size: ${fs(24, sf)}; font-weight: 500; color: ${t.muted}; }
 </style></head>
 <body>
   ${logoMarkup}

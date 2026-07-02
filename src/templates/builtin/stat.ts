@@ -14,7 +14,7 @@ import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
-import { CARD_FONT_STACK, cardHeadCss, resolveCardTheme } from "./text-card-common.js";
+import { CARD_FONT_STACK, cardHeadCss, cardScaleFactor, fs, fsNum, fitOdometerCell, resolveCardTheme } from "./text-card-common.js";
 import { planOdometer, buildOdometerMarkup } from "./odometer.js";
 import type { SafeInset } from "../formats.js";
 
@@ -61,9 +61,19 @@ export function resolveDeltaDir(p: StatParams): "up" | "down" {
 /** Build the standalone HTML + animations. Pure — unit-testable without a browser. */
 export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: string; animations: Anims } {
   const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
+  // DM-1541: scale the value cell + label/delta type by the adaptive per-ratio
+  // factor, then cap the value cell so the fixed-width (unwrappable) number fits
+  // the safe content width — a big number on a narrow reel would otherwise
+  // overflow. sf === 1 + no clamp with no format → byte-identical default output.
+  const sf = cardScaleFactor(p.width, p.height, safeInset);
   const start = p.animateValue ? 0 : p.value;
   const plan = planOdometer(start, p.value, { decimals: p.decimals, grouping: p.grouping });
-  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx: p.fontSize, durationMs: p.durationMs, easing: "cubic-bezier(0.22,1,0.36,1)", staggerMs: 60 });
+  const cols = plan.columns.length + (blank(p.prefix)?.length ?? 0) + (blank(p.suffix)?.length ?? 0);
+  const availableW = safeInset != null
+    ? p.width - Math.max(PADDING, safeInset.left) - Math.max(PADDING, safeInset.right)
+    : 0; // 0 disables the clamp (no format → byte-identical)
+  const cellPx = fitOdometerCell(fsNum(p.fontSize, sf), cols, availableW);
+  const od = buildOdometerMarkup(plan, { prefix: "od", cellPx, durationMs: p.durationMs, easing: "cubic-bezier(0.22,1,0.36,1)", staggerMs: 60 });
   const prefix = blank(p.prefix) != null ? `<span class="st-affix">${escapeHtml(p.prefix!)}</span>` : "";
   const suffix = blank(p.suffix) != null ? `<span class="st-affix">${escapeHtml(p.suffix!)}</span>` : "";
   const label = blank(p.label) != null ? `<div class="st-label">${escapeHtml(p.label!)}</div>` : "";
@@ -86,12 +96,12 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
   const html = `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   ${cardHeadCss(p, PADDING, safeInset)}
-  body { background: ${t.background}; color: ${t.text}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
-  .st-value { display: inline-flex; align-items: baseline; font-size: ${p.fontSize}px; font-weight: 800; letter-spacing: -0.02em; }
+  body { background: ${t.background}; color: ${t.text}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: ${fs(18, sf)}; text-align: center; }
+  .st-value { display: inline-flex; align-items: baseline; font-size: ${cellPx}px; font-weight: 800; letter-spacing: -0.02em; }
   .st-affix { font-weight: 700; }
-  .st-label { font-size: 34px; font-weight: 500; color: ${t.muted}; }
-  .st-delta { display: inline-flex; align-items: center; gap: 8px; font-size: 30px; font-weight: 700; color: ${blank(p.delta) != null && resolveDeltaDir(p) === "up" ? p.accent : "#ef4444"}; }
-  .st-arrow { font-size: 26px; }
+  .st-label { font-size: ${fs(34, sf)}; font-weight: 500; color: ${t.muted}; }
+  .st-delta { display: inline-flex; align-items: center; gap: ${fs(8, sf)}; font-size: ${fs(30, sf)}; font-weight: 700; color: ${blank(p.delta) != null && resolveDeltaDir(p) === "up" ? p.accent : "#ef4444"}; }
+  .st-arrow { font-size: ${fs(26, sf)}; }
   ${od.css}
 </style></head>
 <body>

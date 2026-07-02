@@ -294,6 +294,28 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     format: "square", // 1080×1080 feed square
   },
 
+  // adaptive per-ratio type scaling (DM-1541) — the creative-pack text cards on a
+  // 9:16 reel canvas. The safe-area inset drives a scale factor that enlarges the
+  // authored (landscape-tuned) type so it READS WELL vertically, not just fits.
+  {
+    file: "format-reel-title-card",
+    template: titleCardTemplate,
+    params: { title: "Launch day is here", subtitle: "Ship the new release", eyebrow: "Announcement" },
+    format: "reel",
+  },
+  {
+    file: "format-reel-quote",
+    template: quoteTemplate,
+    params: { quote: "This changed how our whole team ships.", author: "Ada Lovelace", role: "Head of Engineering" },
+    format: "reel",
+  },
+  {
+    file: "format-reel-stat",
+    template: statTemplate,
+    params: { value: 1284000, label: "Monthly active users", delta: "+18% MoM", prefix: "", grouping: true },
+    format: "reel",
+  },
+
   // brand kit (DM-1530) — ONE brand file (acme-brand.json) drives the palette +
   // font across four different templates; none of these pass color/font flags.
   {
