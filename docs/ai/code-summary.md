@@ -101,8 +101,12 @@ shortest possible map:
   DM-1530) lives in `brand.ts` — the zod `brandSchema` + `loadBrand` + the
   `brandParams`/`brandSeriesColors`/`brandBackground` helpers; each themeable
   built-in has a `brandDefaults(brand)` method, merged beneath explicit params by
-  `applyBrandDefaults` (in `render.ts`) and surfaced as `--brand`. Templates are
-  front-ends onto the animate/capture pipeline; the verb lives in
+  `applyBrandDefaults` (in `render.ts`) and surfaced as `--brand`. `brand.ts` also
+  owns `brandCustomProperties`/`brandRootCss` (brand → CSS custom properties) for
+  **brand-for-capture** (doc 92 / DM-1540): `--brand` on `capture`/`animate` injects
+  those vars into the page before capture via `injectBrandVariables` (`src/capture/
+  index.ts`), so a real page authored against `var(--brand-*)` themes at capture time.
+  Templates are front-ends onto the animate/capture pipeline; the verb lives in
   `src/cli/template.ts`.
 - **`src/tree-ops/`** — element-tree transforms (`tree-diff.ts`,
   `viewbox-culling.ts`, `resize-embedded-images.ts`, `prune-tree.ts`,

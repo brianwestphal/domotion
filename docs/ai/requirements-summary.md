@@ -80,8 +80,22 @@ they describe (see `CLAUDE.md` "Documentation"):
   built-in exposes `brandDefaults(brand)`, merged BENEATH explicit params by
   `applyBrandDefaults` before zod defaults (precedence: explicit > brand >
   default). Composes with format presets (`--brand acme.json --format reel`).
-  **Still open (follow-ups):** the logo slot (no template consumes it yet) and
-  brand for `capture` / `animate`.
+  **Logo slot wired (DM-1539):** `cta`'s `brandDefaults` maps `brand.logo` → its
+  `logo` param (first built-in to consume `brand.logo`).
+
+- **Doc 92 (`docs/92-brand-for-capture.md`, DM-1540)** — **Shipped.** `--brand
+  <file>` on `domotion capture` / `animate` injects the brand as CSS custom
+  properties into the page *before capture*, so a real page authored against
+  `var(--brand-*)` picks up the brand at capture time (distinct from the template
+  *defaults* mechanism above). `brandCustomProperties` / `brandRootCss` (pure, in
+  `src/templates/brand.ts`) emit only the tokens the brand set; `injectBrandVariables`
+  (`src/capture/index.ts`) applies them as inline `:root` styles at document-start
+  and re-applies on `DOMContentLoaded`. Contract: `palette.primary`→`--brand-primary`,
+  `accent`→`--brand-accent`, `background`→`--brand-background`, `text`→`--brand-text`,
+  `muted`→`--brand-muted`, `font.family`→`--brand-font-family`, `radius`→`--brand-radius`.
+  **Still open (follow-ups):** brand → `template` frames in `animate` (they render
+  before the capture loop), an inline `brand` key in the animate config, more logo-slot
+  built-ins.
 
 - **Doc 87 (`docs/87-format-presets.md`, DM-1521 design → DM-1534 impl)** —
   **Shipped v1.** Social-format presets on `domotion template`: `--format <name|WxH>`
