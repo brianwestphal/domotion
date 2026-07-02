@@ -1009,6 +1009,46 @@
               "text"
             ]
           },
+          "jsReveal": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "mouseover",
+                  "mouseenter",
+                  "mousedown",
+                  "mouseup",
+                  "click",
+                  "pointerover",
+                  "pointerenter",
+                  "pointerdown"
+                ]
+              },
+              "settleMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "debounceMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "holdMs": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "crossfadeMs": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "selector"
+            ]
+          },
           "overlays": {
             "type": "array",
             "items": {

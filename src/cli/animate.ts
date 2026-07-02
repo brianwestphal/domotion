@@ -55,6 +55,7 @@ import { castToAnimatedSvg } from "../terminal/index.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
 import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resample.js";
+import { buildJsRevealAnimation, resolveJsRevealSpec, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
 import {
   applyReadyWaits,
   isSvgzPath,
@@ -332,6 +333,29 @@ const typeResampleSchema = z.object({
   /** Draw the field's REAL caret (from `selectionEnd`) as a blinking bar. Default true. */
   caret: z.boolean().optional(),
 });
+
+// DM-1564 (docs/94 option 3): MutationObserver JS-change harness. `forceState`
+// captures a page's CSS `:hover`/`:focus` styling, but not feedback a page drives
+// with JAVASCRIPT — a class flip, an injected tooltip/menu, an aria change. This
+// dispatches a real pointer event, runs a MutationObserver with an async
+// settle/debounce, and synthesizes the JS-driven reveal (added/removed nodes) as
+// a rest→after crossfade nested into this frame's content (the same nesting as
+// `typeResample`/`cast`, so no animator change). Opt-in (heavier: two captures +
+// a live settle). Mutually exclusive with the other content-producing kinds.
+const jsRevealSchema = z.object({
+  /** The element to dispatch the pointer event at. */
+  selector: z.string(),
+  /** The pointer event to dispatch. Default `mouseover`. */
+  event: z.enum(MUTATION_DETECT_EVENTS).optional(),
+  /** Max ms to wait for the page's JS mutations to settle. Default 600. */
+  settleMs: z.number().positive().optional(),
+  /** Quiet window (ms) with no mutations that counts as "settled". Default 120. */
+  debounceMs: z.number().positive().optional(),
+  /** Rest hold + after hold, each in ms. Default 700. */
+  holdMs: z.number().positive().optional(),
+  /** The rest→after crossfade duration (ms). Default 300. */
+  crossfadeMs: z.number().nonnegative().optional(),
+});
 /** DM-1516 (docs/94): one `{ selector, states }` forced-pseudo-state entry — the
  *  element(s) matching `selector` are forced into `states` (`:hover` / `:active`
  *  / `:focus` / …) via CDP before capture. Consumed by `applyForcedPseudoStates`
@@ -419,6 +443,15 @@ const frameSchema = z.object({
    * with `scroll` / `cast` / `template` (all produce the frame's content).
    */
   typeResample: typeResampleSchema.optional(),
+  /**
+   * DM-1564 (docs/94 option 3): detect JS-driven feedback. Dispatch a pointer
+   * event on `selector`, observe the page's own DOM mutations (a class flip, an
+   * injected tooltip / dropdown, an aria change) until they settle, and
+   * synthesize the reveal (added/removed nodes) as a rest→after crossfade that
+   * becomes this frame's content. Applied after `actions` / `forceState`.
+   * Mutually exclusive with `scroll` / `cast` / `template` / `typeResample`.
+   */
+  jsReveal: jsRevealSchema.optional(),
   overlays: z.array(overlaySchema).optional(),
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
   animations: z.array(frameAnimationSchema).optional(),
@@ -523,6 +556,22 @@ export const animateConfigSchema = z
       }
       if (f.typeResample != null && f.template != null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `template`" });
+      }
+      // DM-1564: `jsReveal` also produces the frame's content (a nested
+      // rest→after crossfade), so it can't coexist with the other
+      // content-producing kinds. It drives the live page, so it's fine on a
+      // `continue` frame or a fresh `input` load.
+      if (f.jsReveal != null && f.scroll != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `scroll`" });
+      }
+      if (f.jsReveal != null && f.cast != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `cast`" });
+      }
+      if (f.jsReveal != null && f.template != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `template`" });
+      }
+      if (f.jsReveal != null && f.typeResample != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `typeResample`" });
       }
       // DM-1294: `duration` is required (and positive) except on a `template`
       // frame, which derives it from the template's play time when omitted (the
@@ -1107,6 +1156,22 @@ async function buildCapturedFrame(
     embeddedAnimationPeriodMs = res.periodMs;
     if (fc.duration < res.periodMs) {
       log(`  note: frame duration ${fc.duration}ms < type-resample play time ${res.periodMs}ms — the typing will be cut off; size duration to ≈ ${res.periodMs}ms`);
+    }
+  } else if (fc.jsReveal != null) {
+    // DM-1564 (docs/94 option 3): dispatch a pointer event, observe the page's
+    // own JS-driven DOM mutations until they settle, and synthesize the reveal as
+    // a rest→after crossfade nested into this frame's content. No single captured
+    // tree (like a scroll / cast block), so magic-move to/from it crossfades.
+    const spec = resolveJsRevealSpec(fc.jsReveal);
+    const res = await buildJsRevealAnimation(page, spec, {
+      width: cfg.width, height: cfg.height, framePrefix: `jr${i}_`, log,
+    });
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+    if (fc.duration < res.periodMs) {
+      log(`  note: frame duration ${fc.duration}ms < jsReveal play time ${res.periodMs}ms — the reveal will be cut off; size duration to ≈ ${res.periodMs}ms`);
     }
   } else if (fc.scroll != null) {
     // DM-612: scroll-demo block. Run the executor against the loaded

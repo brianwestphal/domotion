@@ -169,6 +169,27 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    // DM-1564 (docs/94 option 3): MutationObserver JS-change harness. One frame
+    // dispatches `mouseover` on an "Account" button whose JS INJECTS a dropdown
+    // menu (+1 node) and flips `aria-expanded="true"` (which the page's own CSS
+    // then styles blue). The harness observes those mutations until they settle
+    // and synthesizes a rest→after crossfade — feedback CSS pseudo-state forcing
+    // (forceState) fundamentally cannot capture.
+    name: "js-reveal",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 420 300"`)) f.push("missing viewBox 420x300");
+      if (count(svg, /class="f f-\d+"/g) !== 1) f.push("expected 1 outer frame group");
+      // The rest→after states nest as their own crossfaded animated <svg>,
+      // namespaced with the `jr0_` per-frame token.
+      if (count(svg, /<svg/g) < 2) f.push("missing nested rest→after animated <svg>");
+      // Crossfade composites BOTH states (per-frame fv- groups), never merges.
+      if (!/jr0_fv-1\b/.test(svg)) f.push("missing the after state (jr0_fv-1) — crossfade should composite rest→after");
+      if (!/@keyframes jr0_fv-1/.test(svg)) f.push("missing the rest→after crossfade keyframes (jr0_fv-)");
+      return f;
+    },
+  },
+  {
     name: "scroll-landing",
     check: (svg) => {
       const f: string[] = [];

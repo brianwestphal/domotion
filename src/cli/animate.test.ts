@@ -254,6 +254,46 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
   });
 
+  // DM-1564 (docs/94 option 3): MutationObserver JS-change harness.
+  describe("jsReveal frames (DM-1564)", () => {
+    it("accepts a jsReveal frame with just a selector (defaults applied at run time)", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "menu.html", duration: 2000, jsReveal: { selector: "#account" } }],
+      });
+      expect(cfg.frames[0].jsReveal).toEqual({ selector: "#account" });
+    });
+
+    it("accepts an explicit event + timing", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "menu.html", duration: 2000, jsReveal: { selector: "#a", event: "mousedown", settleMs: 400, debounceMs: 80, holdMs: 600, crossfadeMs: 0 } }],
+      });
+      expect(cfg.frames[0].jsReveal?.event).toBe("mousedown");
+    });
+
+    it("rejects an unsupported jsReveal event", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "menu.html", duration: 1, jsReveal: { selector: "#a", event: "keydown" } }] }),
+      ).toThrow();
+    });
+
+    it("rejects jsReveal combined with scroll / cast / template / typeResample", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, jsReveal: { selector: "#a" }, scroll: { pattern: "down" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `scroll`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", duration: 1, jsReveal: { selector: "#a" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `cast`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, jsReveal: { selector: "#a" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `template`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, jsReveal: { selector: "#a" }, typeResample: { selector: "#p", text: "x" } }] }),
+      ).toThrow(/cannot set both `jsReveal` and `typeResample`/);
+    });
+  });
+
   it("accepts a top-level vars map", () => {
     const cfg = validateAnimateConfig({ ...base, vars: { base: "http://x" }, frames: [{ input: "${base}", duration: 1 }] });
     expect(cfg.vars).toEqual({ base: "http://x" });

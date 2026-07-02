@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 420,
+  "height": 300,
+  "cursor": {
+    "events": [
+      { "frame": 0, "at": 200, "type": "move", "selector": "#account" }
+    ]
+  },
+  "frames": [
+    {
+      "input": "./menu.html",
+      "duration": 2000,
+      "jsReveal": {
+        "selector": "#account",
+        "event": "mouseover",
+        "holdMs": 700,
+        "crossfadeMs": 300
+      }
+    }
+  ]
+}

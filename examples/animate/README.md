@@ -25,6 +25,7 @@ Open any `<name>.svg` in a browser to watch it loop.
 | `cursor-auto/` | A config-level **`cursor: "auto"`** overlay: the pointer auto-glides to each `click`/`hover`/`fill` target and pulses on click. Here it glides to the "Deploy now" button on a continued page and clicks it. |
 | `cursor-events/` | A config-level **`cursor: { events: [...] }`** overlay: an explicit timeline of pointer moves. A `move` to fixed coords, then a `moveClick` whose `selector` resolves to the button's center — with a `style.scale` tweak. |
 | `hover-state/` | A per-frame **`forceState`** entry that forces `.cta` into `:hover` via CDP before capture, so frame 1 paints the page's OWN hover styling (brighter button + box-shadow ring) — and the `.card:has(.cta:hover)` sibling rule fires too, highlighting the card border. Paired with a `cursor` move so the pointer sits on the button. Cross-fades from the rest state. See `docs/94-interaction-state-capture.md`. |
+| `js-reveal/` | A per-frame **`jsReveal`** entry (docs/94 option 3): dispatches `mouseover` on an "Account" button whose JS **injects a dropdown menu** and flips `aria-expanded`, runs a MutationObserver until the DOM settles, and cross-fades rest→after. Catches JS-driven feedback `forceState` (CSS pseudo-state forcing) cannot. |
 
 The config format is documented in `docs/08-animation-model.md`,
 `docs/43-declarative-animate-config.md`, and the CLI `--help`. Paths inside a
