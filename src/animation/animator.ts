@@ -17,7 +17,7 @@ import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
-import { KEYFRAME_EPSILON, padAfter, padBefore } from "../utils/keyframe-pad.js";
+import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/keyframe-pad.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -178,30 +178,33 @@ function emitMagicMoveFrame(
   const afterT = padAfter(tNum, KEYFRAME_EPSILON.cull, 3);
 
   // Frame i blob: visible only during its hold, hard-cut out at hold end.
+  // DM-1511: opacity does the cut; a SEPARATE wide-overlap `fd-` `visibility`
+  // track handles paint-culling so Firefox can't flash a transparent gap at the
+  // hand-off (it composites `visibility` off the opacity clock).
   groups.push(`  <g class="f f-${i}">\n${frame.svgContent}\n  </g>`);
   keyframes.push(`
     @keyframes fv-${i} {
-      0% { opacity: 0; visibility: hidden; }
-      ${beforeS}% { opacity: 0; visibility: hidden; }
-      ${sNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${afterH}% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
-    }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
+      0% { opacity: 0; }
+      ${beforeS}% { opacity: 0; }
+      ${sNum.toFixed(3)}% { opacity: 1; }
+      ${hNum.toFixed(3)}% { opacity: 1; }
+      ${afterH}% { opacity: 0; }
+      100% { opacity: 0; }
+    }${buildDisplayKeyframes(`fd-${i}`, startPct, holdEndPct, totalSec)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite, fd-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
 
   // Bridge composite: visible during the transition window only.
   groups.push(`  <g class="f mm-${i}">\n${mm.compositeSvg}\n  </g>`);
   keyframes.push(`
     @keyframes mmv-${i} {
-      0% { opacity: 0; visibility: hidden; }
-      ${beforeH}% { opacity: 0; visibility: hidden; }
-      ${hNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${tNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${afterT}% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
-    }
-    .mm-${i} { animation: mmv-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
+      0% { opacity: 0; }
+      ${beforeH}% { opacity: 0; }
+      ${hNum.toFixed(3)}% { opacity: 1; }
+      ${tNum.toFixed(3)}% { opacity: 1; }
+      ${afterT}% { opacity: 0; }
+      100% { opacity: 0; }
+    }${buildDisplayKeyframes(`mmd-${i}`, holdEndPct, transEndPct, totalSec)}
+    .mm-${i} { animation: mmv-${i} ${totalSec.toFixed(2)}s step-end infinite, mmd-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
 
   // Per-element slide / fade keyframes within the window (linear interp).
   // The composite is only visible [holdEnd..transEnd], so the held values
@@ -303,16 +306,19 @@ function emitCrossfadeOrCutFrame(
     const endNum = parseFloat(transEndPct);
     const beforeStart = padBefore(startNum, KEYFRAME_EPSILON.cull, 3);
     const afterEnd = padAfter(endNum, KEYFRAME_EPSILON.cull, 3);
+    // DM-1511: opacity does the cut (tight overlap, Firefox-safe); `visibility`
+    // is a SEPARATE wide-overlap paint-cull track so Firefox can't flash a
+    // transparent gap at the hand-off. (Previously one combined keyframe.)
     keyframes.push(`
     @keyframes fv-${i} {
-      0% { opacity: 0; visibility: hidden; }
-      ${beforeStart}% { opacity: 0; visibility: hidden; }
-      ${startNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${endNum.toFixed(3)}% { opacity: 1; visibility: visible; }
-      ${afterEnd}% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
-    }
-    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
+      0% { opacity: 0; }
+      ${beforeStart}% { opacity: 0; }
+      ${startNum.toFixed(3)}% { opacity: 1; }
+      ${endNum.toFixed(3)}% { opacity: 1; }
+      ${afterEnd}% { opacity: 0; }
+      100% { opacity: 0; }
+    }${buildDisplayKeyframes(`fd-${i}`, startPct, transEndPct, totalSec)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s step-end infinite, fd-${i} ${totalSec.toFixed(2)}s step-end infinite; }`);
   } else {
     const prevEnd = i > 0
       ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
@@ -326,14 +332,14 @@ function emitCrossfadeOrCutFrame(
       keyframes.push(`
     @keyframes fv-${i} {
       ${offSeg}${startPct}, 100% { opacity: 1; }
-    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, "100")}
+    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, "100", totalSec)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
     } else {
       keyframes.push(`
     @keyframes fv-${i} {
       0%, ${prevEnd} ${transEndPct}, 100% { opacity: 0; }
       ${startPct}, ${holdEndPct} { opacity: 1; }
-    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, transEndPct)}
+    }${buildDisplayKeyframes(`fd-${i}`, fadeInStartPct, transEndPct, totalSec)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
     }
   }
@@ -1020,16 +1026,26 @@ function pctNum(ms: number, total: number): number {
  * `visibleStartPct` / `visibleEndPct` accept either a numeric-style string
  * (`"12.34"`) or one with a trailing `%` (`"12.34%"`) — `pct()` returns the
  * latter and the unmerged-path keyframes feed either form.
+ *
+ * DM-1511: the visible window is padded OUTWARD by a wide wall-clock margin
+ * (`cullOverlapPct`) so adjacent frames' paint windows OVERLAP. The visual cut
+ * is driven by the sibling `opacity` animation (`fv-*`), which Firefox
+ * composites in lock-step; `visibility` is only the paint-cull gate, and a
+ * sub-millisecond visibility hand-off flashed a transparent gap in Firefox at
+ * cut points. Over-wide visibility is harmless — the frame is `opacity:0`
+ * outside its true window — but removes any instant where both neighbors are
+ * `visibility:hidden`. `totalSec` is the scene length used to size the margin.
  */
-function buildDisplayKeyframes(name: string, visibleStartPct: string | number, visibleEndPct: string | number): string {
+function buildDisplayKeyframes(name: string, visibleStartPct: string | number, visibleEndPct: string | number, totalSec: number): string {
   // DM-641: kept the function name for callers but the toggle is now on
   // `visibility`, not `display`, for the same reason as `fv-${i}` above —
   // animating `display` away from an element starting `display: none` never
   // ticks in Chromium.
-  const start = parseFloat(String(visibleStartPct));
-  const end = parseFloat(String(visibleEndPct));
-  const startMinus = padBefore(start, KEYFRAME_EPSILON.display, 3);
-  const endPlus = padAfter(end, KEYFRAME_EPSILON.display, 3);
+  const margin = cullOverlapPct(totalSec * 1000);
+  const start = Math.max(0, parseFloat(String(visibleStartPct)) - margin);
+  const end = Math.min(100, parseFloat(String(visibleEndPct)) + margin);
+  const startMinus = padBefore(start, KEYFRAME_EPSILON.cull, 3);
+  const endPlus = padAfter(end, KEYFRAME_EPSILON.cull, 3);
   return `
     @keyframes ${name} {
       0% { visibility: hidden; }
@@ -1116,7 +1132,7 @@ function slideKeyframes(
     @keyframes fv-${i} {
       ${fvEnter}
       100% { opacity: 1; }
-    }${buildDisplayKeyframes(`fd-${i}`, visStart, "100")}
+    }${buildDisplayKeyframes(`fd-${i}`, visStart, "100", totalSec)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
     .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`;
   }
@@ -1132,7 +1148,7 @@ function slideKeyframes(
       ${fvEnter}
       ${transEndPct} { opacity: 1; }
       ${padAfter(parseFloat(transEndPct), KEYFRAME_EPSILON.slide, 2)}%, 100% { opacity: 0; }
-    }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd)}
+    }${buildDisplayKeyframes(`fd-${i}`, visStart, visEnd, totalSec)}
     .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }
     .fp-${i} { animation: fp-${i} ${totalSec.toFixed(2)}s infinite; }`;
 }

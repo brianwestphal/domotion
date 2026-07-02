@@ -629,11 +629,9 @@ describe("animator", () => {
     expect(svg).toMatch(/\.f\s*{[^}]*visibility:\s*hidden/);
   });
 
-  it("DM-599/DM-641: cut frames fold visibility into fv-N (same step-end timing)", () => {
-    // Three explicit `cut` frames — the all-mergeable check trips and these
-    // route through the MERGE pipeline. But a non-mergeable transition mixed
-    // in (e.g. push-left) would route this through the unmerged path. We
-    // verify the unmerged path's cut branch here by mixing.
+  it("DM-1511: cut frames decouple visibility into a separate wide fd-N (Firefox flash fix)", () => {
+    // Three explicit `cut` frames with a non-mergeable transition mixed in
+    // (push-left) so this routes through the unmerged path's cut branch.
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
@@ -642,31 +640,44 @@ describe("animator", () => {
         { svgContent: `<rect fill="green"/>`, duration: 1000 },
       ],
     });
-    // The "cut" frame's fv-N keyframes carry the visibility toggle inline
-    // (no separate fd-N block) since cut already uses step-end on fv-N.
+    // DM-1511: the cut frame's opacity `fv-1` drives the visual cut and carries
+    // NO visibility (Firefox composites `visibility` off the opacity clock and
+    // flashed a transparent gap at the hand-off). Visibility moves to a SEPARATE
+    // step-end `fd-1` paint-cull track.
     const fv1Match = svg.match(/@keyframes fv-1\s*{[\s\S]*?\n\s*}/);
     expect(fv1Match).not.toBeNull();
-    expect(fv1Match![0]).toMatch(/visibility:\s*hidden/);
-    expect(fv1Match![0]).toMatch(/visibility:\s*visible/);
-    // The "cut" frame uses ONLY fv-1 (no fd-1 — it's folded in).
-    expect(svg).not.toMatch(/@keyframes fd-1\s*{/);
+    expect(fv1Match![0]).not.toMatch(/visibility/);
+    expect(fv1Match![0]).toMatch(/opacity/);
+    expect(svg).toMatch(/@keyframes fd-1\s*{/);
+    // .f-1 runs both tracks.
+    expect(svg).toMatch(/\.f-1\s*{\s*animation:\s*fv-1[^,}]*,\s*fd-1/);
   });
 
-  it("DM-599/DM-641: cut fv-N keyframes emit visibility alongside opacity", () => {
-    // Cut composites (DM-865); its fv-N keyframes flip BOTH opacity and
-    // visibility at the frame boundary (step-end) so the browser can skip
-    // painting a frame that's off screen.
+  it("DM-1511: cut fv-N is opacity-only; fd-N visibility window is WIDER than the opacity cut", () => {
+    // The Firefox flash fix: opacity does the tight cut, visibility is a wide
+    // paint-cull gate so adjacent frames' paint windows overlap past any
+    // compositor slop — no instant where both neighbors are visibility:hidden.
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
       frames: [
         { svgContent: `<rect fill="red" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
         { svgContent: `<rect fill="blue" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        { svgContent: `<rect fill="green" width="50" height="50"/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
       ],
     });
-    const fv = svg.match(/@keyframes fv-\d+\s*{[\s\S]*?\n\s*}/);
-    expect(fv).not.toBeNull();
-    expect(fv![0]).toMatch(/opacity:\s*1;\s*visibility:\s*visible/);
-    expect(fv![0]).toMatch(/opacity:\s*0;\s*visibility:\s*hidden/);
+    const fv1 = svg.match(/@keyframes fv-1\s*{[\s\S]*?\n\s*}/)![0];
+    const fd1 = svg.match(/@keyframes fd-1\s*{[\s\S]*?\n\s*}/)![0];
+    // fv-1 is opacity-only (no visibility declarations).
+    expect(fv1).not.toMatch(/visibility/);
+    // Pull the visible windows: opacity:1 stops vs visibility:visible stops.
+    const opStops = [...fv1.matchAll(/([\d.]+)%\s*{\s*opacity:\s*1/g)].map((m) => parseFloat(m[1]));
+    const visStops = [...fd1.matchAll(/([\d.]+)%\s*{\s*visibility:\s*visible/g)].map((m) => parseFloat(m[1]));
+    expect(opStops.length).toBe(2);
+    expect(visStops.length).toBe(2);
+    // Visibility window strictly contains (is wider on both sides than) the
+    // opacity cut window.
+    expect(visStops[0]).toBeLessThan(opStops[0]);
+    expect(visStops[1]).toBeGreaterThan(opStops[1]);
   });
 
   it("DM-641: never emits `display: none` keyframes (would park Chromium's animation engine)", () => {

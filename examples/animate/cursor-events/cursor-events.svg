@@ -12,24 +12,40 @@
     .f { opacity: 0; visibility: hidden; }
     
     @keyframes fv-0 {
-      0% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 1; visibility: visible; }
-      43.750% { opacity: 1; visibility: visible; }
-      43.751% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      0.000% { opacity: 0; }
+      0.000% { opacity: 1; }
+      43.750% { opacity: 1; }
+      43.751% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-0 { animation: fv-0 3.20s step-end infinite; }
+    @keyframes fd-0 {
+      0% { visibility: hidden; }
+      0.000% { visibility: hidden; }
+      0.000% { visibility: visible; }
+      48.438% { visibility: visible; }
+      48.438% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 3.20s step-end infinite, fd-0 3.20s step-end infinite; }
 
     @keyframes fv-1 {
-      0% { opacity: 0; visibility: hidden; }
-      43.749% { opacity: 0; visibility: hidden; }
-      43.750% { opacity: 1; visibility: visible; }
-      100.000% { opacity: 1; visibility: visible; }
-      100.000% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      43.749% { opacity: 0; }
+      43.750% { opacity: 1; }
+      100.000% { opacity: 1; }
+      100.000% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-1 { animation: fv-1 3.20s step-end infinite; }
+    @keyframes fd-1 {
+      0% { visibility: hidden; }
+      39.062% { visibility: hidden; }
+      39.063% { visibility: visible; }
+      100.000% { visibility: visible; }
+      100.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-1 { animation: fv-1 3.20s step-end infinite, fd-1 3.20s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">
@@ -49,7 +65,7 @@
   <g role="img" aria-label="Star ★"><title>Star ★</title><text x="255.81 265.81 270.81 279.14 284.98" y="214.5" font-family="dmf2" font-size="15" font-weight="600" fill="rgb(255,255,255)"></text><text x="289.16" y="214.5" font-family="dmf3" font-size="15" font-weight="600" fill="rgb(255,255,255)"></text></g>
   </g>
   <g class="cursor-overlay" pointer-events="none">
-    <style>@keyframes co-pos-1bku56{0%{transform:translate(0px,0px)}12.5%{transform:translate(60px,60px)}50%{transform:translate(60px,60px)}62.5%{transform:translate(279.99px,209px)}100%{transform:translate(279.99px,209px)}}@keyframes co-pulse-1bku56-0o{0%{transform:scale(1);opacity:0}15%{opacity:0.9}100%{transform:scale(8);opacity:0}}@keyframes co-pulse-1bku56-0i{0%{transform:scale(1);opacity:0}15%{opacity:0.95}100%{transform:scale(7.75);opacity:0}}@keyframes co-glyph-1bku56-0{0%{opacity:1}56.5856%{opacity:0}58.0956%{opacity:1}60.4446%{opacity:0}100%{opacity:0}}@keyframes co-glyph-1bku56-1{0%{opacity:0}56.5856%{opacity:1}58.0956%{opacity:0}60.4446%{opacity:0}100%{opacity:0}}@keyframes co-glyph-1bku56-2{0%{opacity:0}56.5856%{opacity:0}58.0956%{opacity:0}60.4446%{opacity:1}100%{opacity:1}}</style>
+    <style>@keyframes co-pos-1bku56{0%{transform:translate(0px,0px)}12.5%{transform:translate(60px,60px)}50%{transform:translate(60px,60px)}62.5%{transform:translate(279.99px,209px)}100%{transform:translate(279.99px,209px)}}@keyframes co-pulse-1bku56-0o{0%{transform:scale(1);opacity:0}62.5%{transform:scale(1);opacity:0}64.8438%{opacity:0.9}78.125%{transform:scale(8);opacity:0}100%{transform:scale(1);opacity:0}}@keyframes co-pulse-1bku56-0i{0%{transform:scale(1);opacity:0}62.5%{transform:scale(1);opacity:0}64.8438%{opacity:0.95}78.125%{transform:scale(7.75);opacity:0}100%{transform:scale(1);opacity:0}}@keyframes co-glyph-1bku56-0{0%{opacity:1}56.5856%{opacity:0}58.0956%{opacity:1}60.4446%{opacity:0}100%{opacity:0}}@keyframes co-glyph-1bku56-1{0%{opacity:0}56.5856%{opacity:1}58.0956%{opacity:0}60.4446%{opacity:0}100%{opacity:0}}@keyframes co-glyph-1bku56-2{0%{opacity:0}56.5856%{opacity:0}58.0956%{opacity:0}60.4446%{opacity:1}100%{opacity:1}}</style>
     <g class="cursor-pointer" style="animation:co-pos-1bku56 3.2s linear infinite">
       <g opacity="0" style="animation:co-glyph-1bku56-0 3.2s step-end infinite">
         <g transform="translate(-4.54 -4.54) scale(1.0083)"><g transform="translate(0 0)"><g fill="#fff" stroke="rgb(0, 0, 0)" stroke-width="1.4" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></g></g></g>
@@ -62,8 +78,8 @@
       </g>
     </g>
     <g class="cursor-click cursor-click-0">
-      <circle cx="279.99" cy="209" r="4" fill="none" stroke="rgba(0, 0, 0, 0.4)" stroke-width="2" opacity="0" style="transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:co-pulse-1bku56-0o 0.500s linear 2.000s 1 forwards" />
-      <circle cx="279.99" cy="209" r="4" fill="none" stroke="rgba(255, 255, 255, 0.95)" stroke-width="1" opacity="0" style="transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:co-pulse-1bku56-0i 0.500s linear 2.000s 1 forwards" />
+      <circle cx="279.99" cy="209" r="4" fill="none" stroke="rgba(0, 0, 0, 0.4)" stroke-width="2" opacity="0" style="transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:co-pulse-1bku56-0o 3.2s linear infinite" />
+      <circle cx="279.99" cy="209" r="4" fill="none" stroke="rgba(255, 255, 255, 0.95)" stroke-width="1" opacity="0" style="transform-box:fill-box;transform-origin:center;vector-effect:non-scaling-stroke;animation:co-pulse-1bku56-0i 3.2s linear infinite" />
     </g>
   </g>
   </g>

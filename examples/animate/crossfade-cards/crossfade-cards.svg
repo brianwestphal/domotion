@@ -17,8 +17,8 @@
       0% { visibility: hidden; }
       0.000% { visibility: hidden; }
       0.000% { visibility: visible; }
-      50.000% { visibility: visible; }
-      50.010% { visibility: hidden; }
+      53.947% { visibility: visible; }
+      53.948% { visibility: hidden; }
       100% { visibility: hidden; }
     }
     .f-0 { animation: fv-0 3.80s infinite, fd-0 3.80s infinite step-end; }
@@ -29,8 +29,8 @@
     }
     @keyframes fd-1 {
       0% { visibility: hidden; }
-      36.830% { visibility: hidden; }
-      36.840% { visibility: visible; }
+      32.892% { visibility: hidden; }
+      32.893% { visibility: visible; }
       100.000% { visibility: visible; }
       100.000% { visibility: hidden; }
       100% { visibility: hidden; }

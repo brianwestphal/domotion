@@ -27,8 +27,8 @@
       0% { visibility: hidden; }
       0.000% { visibility: hidden; }
       0.000% { visibility: visible; }
-      33.330% { visibility: visible; }
-      33.340% { visibility: hidden; }
+      35.894% { visibility: visible; }
+      35.895% { visibility: hidden; }
       100% { visibility: hidden; }
     }
     .f-0 { animation: fv-0 5.85s infinite, fd-0 5.85s infinite step-end; }
@@ -49,10 +49,10 @@
     }
     @keyframes fd-1 {
       0% { visibility: hidden; }
-      25.630% { visibility: hidden; }
-      25.640% { visibility: visible; }
-      66.670% { visibility: visible; }
-      66.680% { visibility: hidden; }
+      23.075% { visibility: hidden; }
+      23.076% { visibility: visible; }
+      69.234% { visibility: visible; }
+      69.235% { visibility: hidden; }
       100% { visibility: hidden; }
     }
     .f-1 { animation: fv-1 5.85s infinite, fd-1 5.85s infinite step-end; }
@@ -70,8 +70,8 @@
     }
     @keyframes fd-2 {
       0% { visibility: hidden; }
-      58.960% { visibility: hidden; }
-      58.970% { visibility: visible; }
+      56.405% { visibility: hidden; }
+      56.406% { visibility: visible; }
       100.000% { visibility: visible; }
       100.000% { visibility: hidden; }
       100% { visibility: hidden; }

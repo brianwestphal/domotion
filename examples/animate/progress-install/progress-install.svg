@@ -10,14 +10,22 @@
     .f { opacity: 0; visibility: hidden; }
     
     @keyframes fv-0 {
-      0% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 1; visibility: visible; }
-      23.330% { opacity: 1; visibility: visible; }
-      23.331% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      0.000% { opacity: 0; }
+      0.000% { opacity: 1; }
+      23.330% { opacity: 1; }
+      23.331% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-0 { animation: fv-0 6.00s step-end infinite; }
+    @keyframes fd-0 {
+      0% { visibility: hidden; }
+      0.000% { visibility: hidden; }
+      0.000% { visibility: visible; }
+      25.830% { visibility: visible; }
+      25.831% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 6.00s step-end infinite, fd-0 6.00s step-end infinite; }
 
     @keyframes t0-rev0 { 0%, 5.00% { width: 0.01px; } 20.83% { width: 210.00000000000003px; } 20.83% { width: 210.00000000000003px; } 22.50%, 100% { width: 0.01px; } }
     .t0-rev0 { animation: t0-rev0 6.00s linear infinite; }
@@ -28,24 +36,40 @@
     .t0-caret { animation: t0-caret-pos 6.00s linear infinite, t0-caret-blink 6.00s step-end infinite; }
 
     @keyframes fv-1 {
-      0% { opacity: 0; visibility: hidden; }
-      23.329% { opacity: 0; visibility: hidden; }
-      23.330% { opacity: 1; visibility: visible; }
-      60.000% { opacity: 1; visibility: visible; }
-      60.001% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      23.329% { opacity: 0; }
+      23.330% { opacity: 1; }
+      60.000% { opacity: 1; }
+      60.001% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-1 { animation: fv-1 6.00s step-end infinite; }
+    @keyframes fd-1 {
+      0% { visibility: hidden; }
+      20.829% { visibility: hidden; }
+      20.830% { visibility: visible; }
+      62.500% { visibility: visible; }
+      62.501% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-1 { animation: fv-1 6.00s step-end infinite, fd-1 6.00s step-end infinite; }
 
     @keyframes fv-2 {
-      0% { opacity: 0; visibility: hidden; }
-      59.999% { opacity: 0; visibility: hidden; }
-      60.000% { opacity: 1; visibility: visible; }
-      100.000% { opacity: 1; visibility: visible; }
-      100.000% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      59.999% { opacity: 0; }
+      60.000% { opacity: 1; }
+      100.000% { opacity: 1; }
+      100.000% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-2 { animation: fv-2 6.00s step-end infinite; }
+    @keyframes fd-2 {
+      0% { visibility: hidden; }
+      57.499% { visibility: hidden; }
+      57.500% { visibility: visible; }
+      100.000% { visibility: visible; }
+      100.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-2 { animation: fv-2 6.00s step-end infinite, fd-2 6.00s step-end infinite; }
     @keyframes f1-f1a0-0 {
       0% { clip-path: inset(0 100% 0 0); }
       26.667% { clip-path: inset(0 100% 0 0); }

@@ -9,24 +9,40 @@
     .f { opacity: 0; visibility: hidden; }
     
     @keyframes fv-0 {
-      0% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 1; visibility: visible; }
-      31.580% { opacity: 1; visibility: visible; }
-      31.581% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      0.000% { opacity: 0; }
+      0.000% { opacity: 1; }
+      31.580% { opacity: 1; }
+      31.581% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-0 { animation: fv-0 3.80s step-end infinite; }
+    @keyframes fd-0 {
+      0% { visibility: hidden; }
+      0.000% { visibility: hidden; }
+      0.000% { visibility: visible; }
+      35.527% { visibility: visible; }
+      35.528% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 3.80s step-end infinite, fd-0 3.80s step-end infinite; }
 
     @keyframes mmv-0 {
-      0% { opacity: 0; visibility: hidden; }
-      31.579% { opacity: 0; visibility: hidden; }
-      31.580% { opacity: 1; visibility: visible; }
-      50.000% { opacity: 1; visibility: visible; }
-      50.001% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      31.579% { opacity: 0; }
+      31.580% { opacity: 1; }
+      50.000% { opacity: 1; }
+      50.001% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .mm-0 { animation: mmv-0 3.80s step-end infinite; }
+    @keyframes mmd-0 {
+      0% { visibility: hidden; }
+      27.632% { visibility: hidden; }
+      27.633% { visibility: visible; }
+      53.947% { visibility: visible; }
+      53.948% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .mm-0 { animation: mmv-0 3.80s step-end infinite, mmd-0 3.80s step-end infinite; }
 
     @keyframes mms-anim-mm0-mv0 {
       0%, 31.580% { transform: translate(40px, 40px) scale(0.75, 0.69231) translate(-320px, -190px); }
@@ -58,8 +74,8 @@
     }
     @keyframes fd-1 {
       0% { visibility: hidden; }
-      49.990% { visibility: hidden; }
-      50.000% { visibility: visible; }
+      46.052% { visibility: hidden; }
+      46.053% { visibility: visible; }
       100.000% { visibility: visible; }
       100.000% { visibility: hidden; }
       100% { visibility: hidden; }

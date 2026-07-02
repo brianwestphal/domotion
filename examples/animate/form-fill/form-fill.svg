@@ -12,14 +12,22 @@
     .f { opacity: 0; visibility: hidden; }
     
     @keyframes fv-0 {
-      0% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 0; visibility: hidden; }
-      0.000% { opacity: 1; visibility: visible; }
-      23.170% { opacity: 1; visibility: visible; }
-      23.171% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      0.000% { opacity: 0; }
+      0.000% { opacity: 1; }
+      23.170% { opacity: 1; }
+      23.171% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-0 { animation: fv-0 8.20s step-end infinite; }
+    @keyframes fd-0 {
+      0% { visibility: hidden; }
+      0.000% { visibility: hidden; }
+      0.000% { visibility: visible; }
+      24.999% { visibility: visible; }
+      25.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 8.20s step-end infinite, fd-0 8.20s step-end infinite; }
 
     @keyframes t0-rev0 { 0%, 3.66% { width: 0.01px; } 16.10% { width: 109.20000000000002px; } 21.34% { width: 109.20000000000002px; } 22.56%, 100% { width: 0.01px; } }
     .t0-rev0 { animation: t0-rev0 8.20s linear infinite; }
@@ -30,14 +38,22 @@
     .t0-caret { animation: t0-caret-pos 8.20s linear infinite, t0-caret-blink 8.20s step-end infinite; }
 
     @keyframes fv-1 {
-      0% { opacity: 0; visibility: hidden; }
-      23.169% { opacity: 0; visibility: hidden; }
-      23.170% { opacity: 1; visibility: visible; }
-      50.000% { opacity: 1; visibility: visible; }
-      50.001% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      23.169% { opacity: 0; }
+      23.170% { opacity: 1; }
+      50.000% { opacity: 1; }
+      50.001% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-1 { animation: fv-1 8.20s step-end infinite; }
+    @keyframes fd-1 {
+      0% { visibility: hidden; }
+      21.340% { visibility: hidden; }
+      21.341% { visibility: visible; }
+      51.829% { visibility: visible; }
+      51.830% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-1 { animation: fv-1 8.20s step-end infinite, fd-1 8.20s step-end infinite; }
 
     @keyframes t1-rev0 { 0%, 26.83% { width: 0.01px; } 43.29% { width: 159.60000000000002px; } 48.17% { width: 159.60000000000002px; } 49.39%, 100% { width: 0.01px; } }
     .t1-rev0 { animation: t1-rev0 8.20s linear infinite; }
@@ -48,14 +64,22 @@
     .t1-caret { animation: t1-caret-pos 8.20s linear infinite, t1-caret-blink 8.20s step-end infinite; }
 
     @keyframes fv-2 {
-      0% { opacity: 0; visibility: hidden; }
-      49.999% { opacity: 0; visibility: hidden; }
-      50.000% { opacity: 1; visibility: visible; }
-      70.730% { opacity: 1; visibility: visible; }
-      70.731% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      49.999% { opacity: 0; }
+      50.000% { opacity: 1; }
+      70.730% { opacity: 1; }
+      70.731% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-2 { animation: fv-2 8.20s step-end infinite; }
+    @keyframes fd-2 {
+      0% { visibility: hidden; }
+      48.170% { visibility: hidden; }
+      48.171% { visibility: visible; }
+      72.559% { visibility: visible; }
+      72.560% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-2 { animation: fv-2 8.20s step-end infinite, fd-2 8.20s step-end infinite; }
 
     @keyframes t2-rev0 { 0%, 53.66% { width: 0.01px; } 63.72% { width: 100.80000000000001px; } 68.90% { width: 100.80000000000001px; } 70.12%, 100% { width: 0.01px; } }
     .t2-rev0 { animation: t2-rev0 8.20s linear infinite; }
@@ -66,14 +90,22 @@
     .t2-caret { animation: t2-caret-pos 8.20s linear infinite, t2-caret-blink 8.20s step-end infinite; }
 
     @keyframes fv-3 {
-      0% { opacity: 0; visibility: hidden; }
-      70.729% { opacity: 0; visibility: hidden; }
-      70.730% { opacity: 1; visibility: visible; }
-      100.000% { opacity: 1; visibility: visible; }
-      100.000% { opacity: 0; visibility: hidden; }
-      100% { opacity: 0; visibility: hidden; }
+      0% { opacity: 0; }
+      70.729% { opacity: 0; }
+      70.730% { opacity: 1; }
+      100.000% { opacity: 1; }
+      100.000% { opacity: 0; }
+      100% { opacity: 0; }
     }
-    .f-3 { animation: fv-3 8.20s step-end infinite; }
+    @keyframes fd-3 {
+      0% { visibility: hidden; }
+      68.900% { visibility: hidden; }
+      68.901% { visibility: visible; }
+      100.000% { visibility: visible; }
+      100.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-3 { animation: fv-3 8.20s step-end infinite, fd-3 8.20s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">
