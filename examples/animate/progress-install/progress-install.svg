@@ -27,13 +27,13 @@
     }
     .f-0 { animation: fv-0 6.00s step-end infinite, fd-0 6.00s step-end infinite; }
 
-    @keyframes t0-rev0 { 0%, 5.00% { width: 0.01px; } 20.83% { width: 210.00000000000003px; } 20.83% { width: 210.00000000000003px; } 22.50%, 100% { width: 0.01px; } }
-    .t0-rev0 { animation: t0-rev0 6.00s linear infinite; }
+    @keyframes t0-rev0 { 0.00% { width: 0.01px; } 5.65% { width: 0.01px; } 5.66% { width: 9.65px; } 6.32% { width: 18.31px; } 6.98% { width: 26.96px; } 7.64% { width: 35.62px; } 8.30% { width: 44.27px; } 8.96% { width: 52.93px; } 9.62% { width: 61.58px; } 10.28% { width: 70.23px; } 10.94% { width: 78.89px; } 11.60% { width: 87.54px; } 12.26% { width: 96.20px; } 12.92% { width: 104.85px; } 13.58% { width: 113.51px; } 14.24% { width: 122.16px; } 14.90% { width: 130.81px; } 15.56% { width: 139.47px; } 16.22% { width: 148.12px; } 16.88% { width: 156.78px; } 17.53% { width: 165.43px; } 18.19% { width: 174.09px; } 18.85% { width: 182.74px; } 19.51% { width: 191.39px; } 20.17% { width: 200.05px; } 20.83% { width: 208.70px; } 20.83% { width: 208.703125px; } 22.50%, 100% { width: 0.01px; } }
+    .t0-rev0 { animation: t0-rev0 6.00s step-end infinite; }
     @keyframes t0-vis { 0%, 5.00% { opacity: 0; } 5.50% { opacity: 1; } 20.83% { opacity: 1; } 22.50%, 100% { opacity: 0; } }
     .t0-text { animation: t0-vis 6.00s infinite; }
-    @keyframes t0-caret-pos { 0%, 5.00% { transform: translate(0px, 0px); } 5.01% { transform: translate(0px, 0px); } 20.83% { transform: translate(201.60000000000002px, 0px); } 20.83%, 100% { transform: translate(201.60000000000002px, 0px); } }
+    @keyframes t0-caret-pos { 0.00% { transform: translate(0px, 0px); } 5.00% { transform: translate(0px, 0px); } 5.66% { transform: translate(8.65px, 0.00px); } 6.32% { transform: translate(17.31px, 0.00px); } 6.98% { transform: translate(25.96px, 0.00px); } 7.64% { transform: translate(34.62px, 0.00px); } 8.30% { transform: translate(43.27px, 0.00px); } 8.96% { transform: translate(51.93px, 0.00px); } 9.62% { transform: translate(60.58px, 0.00px); } 10.28% { transform: translate(69.23px, 0.00px); } 10.94% { transform: translate(77.89px, 0.00px); } 11.60% { transform: translate(86.54px, 0.00px); } 12.26% { transform: translate(95.20px, 0.00px); } 12.92% { transform: translate(103.85px, 0.00px); } 13.58% { transform: translate(112.51px, 0.00px); } 14.24% { transform: translate(121.16px, 0.00px); } 14.90% { transform: translate(129.81px, 0.00px); } 15.56% { transform: translate(138.47px, 0.00px); } 16.22% { transform: translate(147.12px, 0.00px); } 16.88% { transform: translate(155.78px, 0.00px); } 17.53% { transform: translate(164.43px, 0.00px); } 18.19% { transform: translate(173.09px, 0.00px); } 18.85% { transform: translate(181.74px, 0.00px); } 19.51% { transform: translate(190.39px, 0.00px); } 20.17% { transform: translate(199.05px, 0.00px); } 20.83% { transform: translate(207.70px, 0.00px); } 20.83%, 100% { transform: translate(207.70px, 0.00px); } }
     @keyframes t0-caret-blink { 0%, 5.00% { opacity: 0; } 5.50% { opacity: 1; } 20.83% { opacity: 1; } 22.50%, 100% { opacity: 0; } }
-    .t0-caret { animation: t0-caret-pos 6.00s linear infinite, t0-caret-blink 6.00s step-end infinite; }
+    .t0-caret { animation: t0-caret-pos 6.00s step-end infinite, t0-caret-blink 6.00s step-end infinite; }
 
     @keyframes fv-1 {
       0% { opacity: 0; }

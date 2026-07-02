@@ -83,7 +83,7 @@ and typing / tap / SVG overlays.
 | `AnimationConfig` | type | Top-level config: `{ width, height, frames, sharedDefs?, fontFaceCss?, cursorOverlay?, resolveSelector?, background? }`. (`fontFaceCss` injects embedded-font `@font-face` once; `background` paints a full-viewport canvas rect.) |
 | `AnimationFrame` | type | Per-frame data: `{ svgContent, duration, transition?, magicMove?, overlays?, animations?, cullCss? }`. (`magicMove` is the per-frame bridge layer built by `buildMagicMove`.) |
 | `AnimationOverlay` | type | Discriminated union of `TypingOverlay` \| `TapOverlay` \| `SvgOverlay`. (Renamed from `Overlay` in DM-622.) |
-| `TypingOverlay` | type | Frame-relative typed-text reveal. |
+| `TypingOverlay` | type | Frame-relative typed-text reveal. Character-by-character with the caret glued to the fontkit-measured text edge (DM-1518); `mode: "type" \| "paste"` and `jitter: 0–1` tune the feel. See `docs/93-realistic-typing.md`. |
 | `TapOverlay` | type | Frame-relative tap-ripple at `(x, y)`. |
 | `SvgOverlay` | type | Inline a separately-captured SVG over the frame (e.g. picture-in-picture). |
 | `IntraFrameAnimation` | type | CSS property animation that runs while the frame is held. |
