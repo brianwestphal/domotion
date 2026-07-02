@@ -299,6 +299,10 @@
               },
               "duration": {
                 "type": "number"
+              },
+              "easing": {
+                "description": "Named/raw easing for wipe/iris/zoom reveals (spring-* etc.).",
+                "type": "string"
               }
             },
             "required": [
@@ -1374,9 +1378,11 @@
                       "type": "number"
                     },
                     "width": {
+                      "default": 0,
                       "type": "number"
                     },
                     "height": {
+                      "default": 0,
                       "type": "number"
                     },
                     "delay": {
@@ -1395,6 +1401,9 @@
                       "type": "number"
                     },
                     "skewDeg": {
+                      "type": "number"
+                    },
+                    "radius": {
                       "type": "number"
                     },
                     "repeat": {
@@ -1444,9 +1453,7 @@
                     }
                   },
                   "required": [
-                    "kind",
-                    "width",
-                    "height"
+                    "kind"
                   ]
                 }
               ]

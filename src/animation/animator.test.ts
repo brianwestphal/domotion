@@ -1158,4 +1158,62 @@ describe("transition expansion (DM-1524)", () => {
     expect(svg).toContain("shine-grad-sh0");
     expect(svg).not.toContain("filter:");
   });
+
+  // DM-1551: a shine OVERLAY's `radius` rounds its clip so the glint follows a
+  // pill/button's corners instead of showing square edges.
+  it("a shine overlay's radius rounds the clip rect", () => {
+    const svg = generateAnimatedSvg({
+      width: 400, height: 200,
+      frames: [{
+        svgContent: `<rect width="400" height="200" fill="#333"/>`,
+        duration: 1500,
+        overlays: [{ kind: "shine", x: 20, y: 30, width: 200, height: 60, radius: 8, repeat: "infinite" }],
+      }],
+    });
+    expect(svg).toContain(`rx="8" ry="8"`);
+  });
+});
+
+// DM-1550: the wipe / iris clip-path reveal and the zoom-in / zoom-out scale
+// dolly can carry an optional named easing (from the motion-preset vocabulary —
+// including the sampled `spring-*` linear(...) curves) authored on the transition
+// that drives the NEXT frame's entrance. It's applied to the reveal/dolly SEGMENT
+// via a per-keyframe `animation-timing-function`, leaving the holds linear.
+describe("reveal/zoom easing (DM-1550)", () => {
+  const twoFrameEased = (type: string, easing?: string) => generateAnimatedSvg({
+    width: 400, height: 200,
+    frames: [
+      { svgContent: `<rect id="a" width="400" height="200" fill="red"/>`, duration: 500, transition: { type, duration: 400, easing } as never },
+      { svgContent: `<rect id="b" width="400" height="200" fill="blue"/>`, duration: 500, transition: { type, duration: 400 } as never },
+    ],
+  });
+  const frBlock = (svg: string) => svg.match(/@keyframes fr-1 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
+  const fzBlock = (svg: string) => svg.match(/@keyframes fz-1 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
+
+  it("bakes a sampled spring linear(...) onto the wipe reveal segment", () => {
+    const kf = frBlock(twoFrameEased("wipe", "spring-bouncy"));
+    // The spring resolves to a CSS linear(...) curve applied at the reveal-open
+    // stop (governs the enter -> start interval); overshoot rides in the samples.
+    expect(kf).toMatch(/animation-timing-function: linear\(/);
+  });
+
+  it("resolves a named bezier easing on an iris reveal", () => {
+    const kf = frBlock(twoFrameEased("iris", "ease-out-quart"));
+    expect(kf).toContain("animation-timing-function: cubic-bezier(0.165,0.84,0.44,1)");
+  });
+
+  it("passes a raw CSS easing string through unchanged on a zoom dolly", () => {
+    const kf = fzBlock(twoFrameEased("zoom-in", "cubic-bezier(0.2,0.9,0.3,1.4)"));
+    expect(kf).toContain("animation-timing-function: cubic-bezier(0.2,0.9,0.3,1.4)");
+  });
+
+  it("eases the zoom-out scale segment with a spring", () => {
+    const kf = fzBlock(twoFrameEased("zoom-out", "spring-soft"));
+    expect(kf).toMatch(/animation-timing-function: linear\(/);
+  });
+
+  it("omits the per-keyframe timing function when no easing is given (linear, byte-compatible)", () => {
+    expect(frBlock(twoFrameEased("wipe"))).not.toContain("animation-timing-function");
+    expect(fzBlock(twoFrameEased("zoom-in"))).not.toContain("animation-timing-function");
+  });
 });

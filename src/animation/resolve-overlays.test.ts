@@ -11,11 +11,12 @@ import { resolveOverlays } from "./resolve-overlays.js";
  */
 
 // A stub Page whose `evaluate` returns a fixed anchor box (border box 50,60
-// 200×100, content width 176), standing in for the page.evaluate measurement.
-const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number } | null): Page =>
+// 200×100, content width 176, border-radius 12), standing in for the
+// page.evaluate measurement.
+const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number } | null): Page =>
   ({ evaluate: async () => box }) as unknown as Page;
 
-const BOX = { x: 50, y: 60, width: 200, height: 100, contentWidth: 176 };
+const BOX = { x: 50, y: 60, width: 200, height: 100, contentWidth: 176, borderRadius: 12 };
 
 describe("resolveOverlays (DM-1132)", () => {
   it("resolves a typing overlay's anchor + maxWidth:'anchor' and strips the authoring keys", async () => {
@@ -52,5 +53,31 @@ describe("resolveOverlays (DM-1132)", () => {
     await expect(
       resolveOverlays(stubPage(null), [{ kind: "typing", text: "x", x: 0, y: 0, anchor: { selector: "#nope" } }]),
     ).rejects.toThrow(/anchor selector "#nope" matched no element/);
+  });
+
+  // DM-1549 / DM-1551: an anchored `shine` overlay auto-sizes to the anchored
+  // element's box and auto-rounds its clip to the element's border-radius.
+  it("auto-sizes a shine overlay's width/height + radius from the anchored box", async () => {
+    const [ov] = await resolveOverlays(stubPage(BOX), [
+      // width/height 0 (the CLI defaults) → resolver fills them from the box;
+      // default top-left anchor → (x, y) is the box top-left (the clip origin).
+      { kind: "shine", x: 0, y: 0, width: 0, height: 0, anchor: { selector: "#badge" } },
+    ] as never);
+    expect(ov).toMatchObject({ kind: "shine", x: 50, y: 60, width: 200, height: 100, radius: 12 });
+    expect("anchor" in ov).toBe(false);
+  });
+
+  it("respects an explicit positive width/height and an explicit radius over the anchor's box", async () => {
+    const [ov] = await resolveOverlays(stubPage(BOX), [
+      { kind: "shine", x: 0, y: 0, width: 90, height: 40, radius: 4, anchor: { selector: "#badge" } },
+    ] as never);
+    // x/y still come from the anchor; the explicit size + radius win.
+    expect(ov).toMatchObject({ kind: "shine", x: 50, y: 60, width: 90, height: 40, radius: 4 });
+  });
+
+  it("leaves an un-anchored shine overlay's size/radius untouched", async () => {
+    const input = { kind: "shine" as const, x: 5, y: 6, width: 100, height: 20, radius: 10 };
+    const [ov] = await resolveOverlays(stubPage(BOX), [input] as never);
+    expect(ov).toEqual(input);
   });
 });

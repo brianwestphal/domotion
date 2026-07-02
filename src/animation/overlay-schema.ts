@@ -221,6 +221,15 @@ export const shineOverlaySchema = z.object({
   bandWidth: z.number().optional(),
   /** Skew of the band from vertical, in degrees. Default 14. */
   skewDeg: z.number().optional(),
+  /**
+   * DM-1551: corner radius (px) of the clipped box, so the glint follows a
+   * rounded element (a pill / button) instead of showing square corners.
+   * Clamped to half the shorter side by `buildShineSweep`. Omit / 0 for a
+   * square clip. When the overlay is anchored to a captured element (CLI /
+   * `resolveOverlays`), this AUTO-derives from the element's computed
+   * `border-radius` unless an explicit value is given (DM-1549).
+   */
+  radius: z.number().optional(),
   /** Repeat the sweep for an ambient shimmer: a count or `"infinite"`. */
   repeat: z.union([z.number(), z.literal("infinite")]).optional(),
   /** Period of ONE ambient sweep in ms (only with `repeat`). Default 1400. */

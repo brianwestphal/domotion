@@ -20,6 +20,7 @@ import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./f
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/keyframe-pad.js";
 import { interpolateCssValue, resolveEasing } from "./easing.js";
+import { resolveEasingPreset } from "./motion-presets.js";
 import { buildShineSweep } from "./shine.js";
 
 export interface AnimationFrame {
@@ -76,6 +77,16 @@ export interface AnimationFrame {
       | "push-right" | "push-up" | "push-down"
       | "wipe" | "iris" | "zoom-in" | "zoom-out" | "shine";
     duration: number;
+    /**
+     * DM-1550: optional named easing (or a raw CSS easing string) for the
+     * `wipe` / `iris` clip-path reveal and the `zoom-in` / `zoom-out` scale
+     * dolly this transition drives into the NEXT frame. Resolved through the
+     * motion-preset vocabulary (`resolveEasingPreset`) so the sampled
+     * `spring-soft` / `spring-bouncy` `linear(...)` curves — and their visible
+     * overshoot — apply to the reveal / dolly. Ignored by the other transition
+     * types (their motion is fixed). Default: `linear`.
+     */
+    easing?: string;
   };
   /**
    * Magic-move bridge layer for this frame's transition to the next, built by
@@ -312,7 +323,7 @@ function emitCrossfadeOrCutFrame(
   holdToEnd: boolean,
   /** DM-1524: a `zoom-*` predecessor gives THIS incoming frame a scale dolly over
    *  its entrance window, resting at scale(1). Null → plain crossfade/cut. */
-  entranceScale: { fromScale: number; enterStartPct: string; startPct: string; width: number; height: number } | null = null,
+  entranceScale: { fromScale: number; enterStartPct: string; startPct: string; width: number; height: number; easing?: string } | null = null,
 ): { groups: string[]; keyframes: string[] } {
   const { startPct, holdEndPct, transEndPct, fadeInStartPct } = win;
   const groups: string[] = [];
@@ -325,10 +336,15 @@ function emitCrossfadeOrCutFrame(
     const cx = entranceScale.width / 2;
     const cy = entranceScale.height / 2;
     const esBefore = padBefore(parseFloat(entranceScale.enterStartPct), KEYFRAME_EPSILON.slide, 2);
+    // DM-1550: ease the scale dolly SEGMENT (enter → start) via a per-keyframe
+    // timing function on the `enterStartPct` stop; the surrounding holds stay
+    // linear. A sampled spring overshoots scale(1) (e.g. up to ~1.1) then rings
+    // down — a visible pop — and rests at scale(1) (identity).
+    const esTf = entranceScale.easing != null ? ` animation-timing-function: ${entranceScale.easing};` : "";
     keyframes.push(`
     @keyframes fz-${i} {
       0%, ${esBefore}% { transform: scale(${entranceScale.fromScale}); }
-      ${entranceScale.enterStartPct} { transform: scale(${entranceScale.fromScale}); }
+      ${entranceScale.enterStartPct} { transform: scale(${entranceScale.fromScale});${esTf} }
       ${entranceScale.startPct} { transform: scale(1); }
       100% { transform: scale(1); }
     }
@@ -503,6 +519,8 @@ function emitRevealFrame(
   win: { revealEnterStartPct: string; startPct: string; holdEndPct: string; transEndPct: string },
   totalSec: number,
   holdLastFrame: boolean,
+  /** DM-1550: named/raw CSS easing for the clip-path reveal segment. Default linear. */
+  revealEasing?: string,
 ): { group: string; keyframe: string } {
   const { revealEnterStartPct, startPct, transEndPct } = win;
   // Opacity ON-window: visible from the entrance (or its own start) through the
@@ -548,10 +566,17 @@ function emitRevealFrame(
       ? ["inset(0 100% 0 0)", "inset(0 0 0 0)"]
       : [`circle(0px at ${cx}px ${cy}px)`, `circle(${r}px at ${cx}px ${cy}px)`];
     const beforeEnter = padBefore(parseFloat(revealEnterStartPct), KEYFRAME_EPSILON.slide, 2);
+    // DM-1550: apply the easing to the reveal SEGMENT only (enter → start) via a
+    // per-keyframe `animation-timing-function` on the `revealEnterStartPct` stop
+    // — the timing function declared at a keyframe governs the interval starting
+    // there — leaving the surrounding holds linear. A sampled spring `linear(...)`
+    // rings past full-reveal and back, so its overshoot shows as the wipe/iris
+    // edge bouncing at the boundary before settling (rests at the identity clip).
+    const revealTf = revealEasing != null ? ` animation-timing-function: ${revealEasing};` : "";
     revealKf = `
     @keyframes fr-${i} {
       0%, ${beforeEnter}% { clip-path: ${hidden}; }
-      ${revealEnterStartPct} { clip-path: ${hidden}; }
+      ${revealEnterStartPct} { clip-path: ${hidden};${revealTf} }
       ${startPct} { clip-path: ${shown}; }
       100% { clip-path: ${shown}; }
     }
@@ -745,7 +770,11 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // hold-then-cut exit serves whatever reveals on top NEXT.
       const entranceReveal = prevReveal ? (prevType as "wipe" | "iris") : null;
       const revealEnterStartPct = entranceReveal != null ? pct(Math.max(0, timeOffset - prevTransDur), totalDuration) : startPct;
-      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame);
+      // DM-1550: the reveal's easing is authored on the PREVIOUS frame's
+      // transition (the one that unveils THIS frame). Resolve any named preset
+      // (incl. the sampled springs) to a CSS easing string.
+      const revealEasing = entranceReveal != null ? resolveEasingPreset(prevFrame?.transition?.easing) : undefined;
+      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
@@ -782,7 +811,10 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // element rests at scale(1). Passing the crossfade type through keeps
       // `isCut` false so the frame cross-dissolves.
       const entranceScale = (prevType === "zoom-in" || prevType === "zoom-out")
-        ? { fromScale: prevType === "zoom-in" ? 0.9 : 1.1, enterStartPct, startPct, width, height }
+        ? { fromScale: prevType === "zoom-in" ? 0.9 : 1.1, enterStartPct, startPct, width, height,
+            // DM-1550: the dolly easing is authored on the zoom transition that
+            // drives THIS frame's entrance (the previous frame's transition).
+            easing: resolveEasingPreset(prevFrame?.transition?.easing) }
         : null;
       const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, { startPct, holdEndPct, transEndPct, fadeInStartPct }, totalSec, holdToEnd, entranceScale);
       frameGroups.push(...r.groups);
@@ -1327,6 +1359,9 @@ function renderShineOverlay(
     opacity: overlay.opacity,
     bandWidth: overlay.bandWidth,
     skewDeg: overlay.skewDeg,
+    // DM-1551: the glint follows the box's rounded corners when a radius is set
+    // (auto-derived from the anchored element's border-radius by resolveOverlays).
+    radius: overlay.radius,
     repeat: overlay.repeat,
     repeatPeriodMs: overlay.repeatPeriodMs,
   });

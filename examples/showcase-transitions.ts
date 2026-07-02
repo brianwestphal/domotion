@@ -245,8 +245,10 @@ async function buildEffects(pg: Page): Promise<void> {
       fuse: [{ property: "opacity", from: "0", to: "1" }],
     }],
     overlays: [
-      // The shine shimmer sweeps the badge box repeatedly.
-      { kind: "shine", x: badge.x, y: badge.y, width: badge.w, height: badge.h, delay: 900, duration: 850, repeat: "infinite", repeatPeriodMs: 2000 },
+      // The shine shimmer sweeps the badge box repeatedly. DM-1551: `radius: 8`
+      // matches the badge's `border-radius:8px` so the glint follows its rounded
+      // corners instead of showing square edges.
+      { kind: "shine", x: badge.x, y: badge.y, width: badge.w, height: badge.h, radius: 8, delay: 900, duration: 850, repeat: "infinite", repeatPeriodMs: 2000 },
     ],
   };
   let svg = generateAnimatedSvg({ width: W, height: H, frames: [frame], fontFaceCss: getEmbeddedFontFaceCss(), background: "#0a0f1e" });
