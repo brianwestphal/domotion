@@ -136,6 +136,29 @@ function innerOf(svg: string): string {
     .replace(/<\/svg>\s*$/i, "");
 }
 
+/**
+ * DM-1529: resolve a clip-scale `transformOrigin` (keyword or length) to an
+ * ABSOLUTE userspace coordinate along one axis, given the clip-rect's start
+ * (`base`) and `size` on that axis. Used so the clip-scale pivots about an
+ * explicit SVG-userspace point instead of `transform-box:fill-box` + a keyword,
+ * which Firefox ignores on a `<clipPath>` `<rect>` (it pivots about the viewport
+ * origin instead). Keywords map to the rect's edges/center; `<n>%` is a fraction
+ * of the box; `<n>px` is an offset from the box start; anything else → the start
+ * edge.
+ */
+function resolveClipOriginPx(origin: string, base: number, size: number): number {
+  switch (origin) {
+    case "left": case "top": return base;
+    case "right": case "bottom": return base + size;
+    case "center": return base + size / 2;
+  }
+  const pct = /^([-\d.]+)%$/.exec(origin);
+  if (pct != null) return base + (size * parseFloat(pct[1])) / 100;
+  const px = /^([-\d.]+)px$/.exec(origin);
+  if (px != null) return base + parseFloat(px[1]);
+  return base;
+}
+
 /** Render a non-clip layer-animation endpoint to its CSS value (transform string / opacity). */
 function renderAnimValue(property: "scale" | "translateX" | "translateY" | "opacity" | "transform", v: string | number): string {
   switch (property) {
@@ -256,11 +279,20 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
       const fromT = `scale(${Number(sx?.from ?? 1)},${Number(sy?.from ?? 1)})`;
       const toT = `scale(${Number(sx?.to ?? 1)},${Number(sy?.to ?? 1)})`;
       // Origin: shrink from the left/top edge by default (a window's fixed corner).
-      const ox = sx?.transformOrigin ?? "left";
-      const oy = sy?.transformOrigin ?? "top";
+      // DM-1529: resolve the origin to an EXPLICIT userspace point (px in the SVG
+      // coordinate system) rather than `transform-box:fill-box` + a keyword.
+      // Firefox does NOT honor `transform-box:fill-box` on a `<clipPath>`'s child
+      // `<rect>` — it pivots the scale about the SVG viewport origin (0,0) instead
+      // of the rect's own box, so the clip shrank toward (0,0) and its right/bottom
+      // edge pulled inward (content clipped too narrow). Chromium/WebKit honored
+      // fill-box, so it only broke in Firefox. Computing the origin in userspace
+      // (relative to the rect's real x/y/w/h) needs no fill-box and is identical
+      // across engines.
+      const ox = resolveClipOriginPx(sx?.transformOrigin ?? "left", r.x, r.w);
+      const oy = resolveClipOriginPx(sy?.transformOrigin ?? "top", r.y, r.h);
       const rad = r.layer.clipRadius != null ? ` rx="${fmt(r.layer.clipRadius)}"` : "";
       defsParts.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect class="${token}clipper" x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad}/></clipPath>`);
-      styleParts.push(`@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-box:fill-box;transform-origin:${ox} ${oy};animation:${name} ${fmt(masterSec)}s ${anchor.easing ?? "ease"} infinite}`);
+      styleParts.push(`@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-origin:${fmt(ox)}px ${fmt(oy)}px;animation:${name} ${fmt(masterSec)}s ${anchor.easing ?? "ease"} infinite}`);
       clipAttr = ` clip-path="url(#${clipId})"`;
     }
 

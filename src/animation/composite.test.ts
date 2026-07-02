@@ -73,7 +73,26 @@ describe("composeAnimatedLayers (DM-1323)", () => {
     // The clip rect is transform-scaled (NOT the contents); origin at the left edge.
     expect(r.svg).toContain("transform:scale(1,1)");
     expect(r.svg).toContain("transform:scale(0.64,1)");
-    expect(r.svg).toContain("transform-origin:left top");
+    // DM-1529: the clip-scale origin is an EXPLICIT userspace point (the rect's
+    // top-left = x 20, y 30), NOT `transform-box:fill-box` + a keyword — Firefox
+    // ignores fill-box on a clipPath rect and would pivot about the SVG origin,
+    // clipping the content too narrow. `left`→x=20, `top`→y=30 (rect at 20,30).
+    expect(r.svg).toContain("transform-origin:20px 30px");
+    expect(r.svg).not.toContain("transform-box:fill-box");
+  });
+
+  it("DM-1529: clip-scale origin keywords resolve to userspace px from the rect box", () => {
+    const r = composeAnimatedLayers(
+      [{ svg: staticDoc, x: 100, y: 50, width: 400, height: 200,
+         animations: [
+           { property: "clipScaleX", from: 1, to: 0.5, start: 0, duration: 800, transformOrigin: "right" },
+           { property: "clipScaleY", from: 1, to: 0.5, start: 0, duration: 800, transformOrigin: "center" },
+         ] }],
+      { width: 600, height: 400, durationMs: 4000 },
+    );
+    // right → x = 100 + 400 = 500; center (y) → 50 + 200/2 = 150.
+    expect(r.svg).toContain("transform-origin:500px 150px");
+    expect(r.svg).not.toContain("transform-box:fill-box");
   });
 
   it("computes the master from the longest layer end when duration is omitted", () => {

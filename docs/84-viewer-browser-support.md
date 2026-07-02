@@ -93,6 +93,17 @@ fading before it finishes sliding in the lower-third template.
   separate elements* under extreme Firefox load, which is why Gecko stays
   best-effort rather than first-class.
 
+### Other handled Firefox quirks
+
+- **`transform-box: fill-box` is ignored on a `<clipPath>` child (DM-1529).**
+  Firefox pivots a `transform` on a clipPath's `<rect>` about the SVG viewport
+  origin (0,0) rather than the rect's own box, so the composite window-resize
+  clip (a `transform: scale()`-animated clip-rect) shrank toward (0,0) and
+  clipped content too narrow — Chromium/WebKit honored fill-box. Fixed by
+  resolving the clip-scale origin to an explicit **userspace** `transform-origin`
+  (numeric px from the rect's x/y/w/h) with no `fill-box`, which is identical
+  across engines. See `src/animation/composite.ts` (`resolveClipOriginPx`).
+
 Not to be confused with the **transparent-flash-at-cut-points** bug (DM-1511),
 which was a different, harder Firefox failure — the frame show/hide flipped
 `opacity` and `visibility` together in one `step-end` keyframe and Firefox
