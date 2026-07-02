@@ -290,6 +290,28 @@ const termOptionsSchema = z.object({
   tailMs: z.number().optional(),
 });
 
+// DM-1516 (docs/94): forced CSS pseudo-state capture. Before a frame is
+// captured, each `selector` is forced into the listed pseudo-classes via CDP
+// `CSS.forcePseudoState`, so the page's OWN `:hover` / `:active` / `:focus`
+// styling is what gets painted and serialized — no fake overlay, zero authoring
+// on top of the page's real rules. The enum is the well-supported subset of
+// CDP's `forcedPseudoClasses`; pair it with a cursor event/action so the pointer
+// sits on the element it's hovering.
+const forcePseudoClassSchema = z.enum([
+  "hover", "active", "focus", "focus-within", "focus-visible",
+  "visited", "target", "enabled", "disabled", "checked",
+  "indeterminate", "read-only", "read-write", "link",
+]);
+const forceStateSchema = z.object({
+  selector: z.string(),
+  states: z.array(forcePseudoClassSchema).min(1, "must list at least one pseudo-state"),
+});
+/** DM-1516 (docs/94): one `{ selector, states }` forced-pseudo-state entry — the
+ *  element(s) matching `selector` are forced into `states` (`:hover` / `:active`
+ *  / `:focus` / …) via CDP before capture. Consumed by `applyForcedPseudoStates`
+ *  and the animate config's per-frame `forceState` array. */
+export type ForceState = z.infer<typeof forceStateSchema>;
+
 const frameSchema = z.object({
   // DM-846 §1 — `input` is optional. Frame 0 must load an input; a later frame
   // that omits `input` (or sets `continue: true`) keeps the previous frame's
@@ -354,6 +376,14 @@ const frameSchema = z.object({
    */
   scroll: scrollSchema.optional(),
   actions: z.array(actionSchema).optional(),
+  /**
+   * DM-1516 (docs/94): force real CSS pseudo-state on selectors before capture,
+   * so this frame paints the page's OWN `:hover` / `:active` / `:focus` styling
+   * (via CDP `CSS.forcePseudoState`) instead of a fake overlay. Applied after
+   * `actions`, so it reflects the post-action DOM. Combine with a `cursor` event
+   * to place the pointer on the hovered element.
+   */
+  forceState: z.array(forceStateSchema).optional(),
   overlays: z.array(overlaySchema).optional(),
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
   animations: z.array(frameAnimationSchema).optional(),
@@ -954,6 +984,12 @@ async function buildCapturedFrame(
     }
   }
   if (fc.actions != null) await runActions(page, fc.actions, log);
+  // DM-1516 (docs/94): force real CSS pseudo-state (:hover / :active / :focus)
+  // on the listed selectors via CDP BEFORE capture, so this frame paints the
+  // page's OWN hover/focus styling. Runs after `actions` (reflects the
+  // post-action DOM) and before the capture below (the forced paint is what gets
+  // serialized). A no-op when the frame declares no `forceState`.
+  await applyForcedPseudoStates(page, fc.forceState, log);
   // Explicit cursor-event selectors resolve against the post-action DOM.
   for (const ev of explicitCursorEvents) {
     if (ev.frame === i && ev.selector != null) {
@@ -1315,6 +1351,58 @@ export async function runActions(page: Page, actions: AnimateAction[], log: (msg
       // in page context against all matched elements.
       default: await applyDomAction(page, a); break;
     }
+  }
+}
+
+/**
+ * DM-1516 (docs/94): force each `{ selector, states }` entry into its CSS
+ * pseudo-classes via the Chrome DevTools Protocol (`CSS.forcePseudoState`), so a
+ * subsequent capture paints the page's REAL `:hover` / `:active` / `:focus`
+ * styling. Unlike a synthetic overlay this triggers the page's own rules
+ * (including cascade siblings like `.card:has(.cta:hover)`) with no authoring —
+ * it's the state the browser itself enters on pointer/keyboard interaction.
+ * Applied to EVERY element the selector matches (CDP `DOM.querySelectorAll`),
+ * matching `runActions`' "apply across all matched" semantics; throws if a
+ * selector matches nothing. `log` defaults to a no-op. A no-op on an empty /
+ * absent list, so callers can pass through unconditionally.
+ *
+ * IMPORTANT — the CDP session is intentionally left ATTACHED. A
+ * `CSS.forcePseudoState` override lives for the lifetime of the session that set
+ * it: detaching (or disabling the CSS domain) immediately clears the override,
+ * so the forced paint would vanish before the capture that's supposed to record
+ * it. Leaving the session open lets the forced state survive into the very next
+ * `captureElementTree`; it's reclaimed when the page / context closes. The
+ * forced state therefore persists on the live page until navigation, carrying
+ * into a `continue` frame like any other pre-capture mutation. (There is no
+ * clear-forced-state verb in v1 — reload the frame to reset.)
+ *
+ * Re-exported from the package root so imperative capture callers can force the
+ * same states before their own `captureElementTree`, not just the declarative
+ * `animate` config (the doc-63 "expose the per-feature primitive" pattern).
+ */
+export async function applyForcedPseudoStates(
+  page: Page,
+  forceState: ForceState[] | undefined,
+  log: (msg: string) => void = () => {},
+): Promise<void> {
+  if (forceState == null || forceState.length === 0) return;
+  // NOTE: do NOT detach this session — see the doc comment. Detaching clears the
+  // forced-pseudo-state override, so it must outlive the capture below.
+  const session = await page.context().newCDPSession(page);
+  await session.send("DOM.enable");
+  await session.send("CSS.enable");
+  // `depth: -1` returns the full node tree so `querySelectorAll` can resolve
+  // selectors anywhere in the document (not just the shallow default depth).
+  const { root } = await session.send("DOM.getDocument", { depth: -1 });
+  for (const fs of forceState) {
+    const { nodeIds } = await session.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: fs.selector });
+    if (nodeIds.length === 0) {
+      throw new Error(`animate: forceState selector "${fs.selector}" matched no element`);
+    }
+    for (const nodeId of nodeIds) {
+      await session.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: fs.states });
+    }
+    log(`  forced ${fs.states.map((s) => `:${s}`).join("")} on "${fs.selector}" (${nodeIds.length} element${nodeIds.length === 1 ? "" : "s"})`);
   }
 }
 

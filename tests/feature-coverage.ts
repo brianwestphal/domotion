@@ -260,6 +260,13 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["cursorOverlayMarkup", "cursorAtPoint", "cursorGlyphSvg", "resolveCursorScript", "resolveCursorTarget", "CURSOR_CATEGORIES", "CURSOR_GLYPHS", "boxAnchorPoint"],
     tests: ["src/animation/cursor-overlay.test.ts"],
   },
+  {
+    id: "animate.interaction-state",
+    behavior: "Force real CSS pseudo-state (:hover / :active / :focus) on selectors via CDP CSS.forcePseudoState before capture, so a frame paints the page's OWN interaction styling — the animate config's per-frame `forceState` and the imperative `applyForcedPseudoStates` primitive.",
+    doc: "docs/94-interaction-state-capture.md",
+    exports: ["applyForcedPseudoStates"],
+    tests: ["src/cli/force-state.test.ts", "src/cli/force-state.e2e.test.ts"],
+  },
 
   // ── Composite (STATEFUL: nested animated timelines) ─────────────────────
   {

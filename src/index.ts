@@ -114,6 +114,11 @@ export {
   // imperative callers get the DOM-mutation vocabulary without a JSON config.
   runActions,
   type AnimateAction,
+  // DM-1516 (docs/94): force real CSS pseudo-state (:hover / :active / :focus) on
+  // selectors via CDP before capture, so the page's OWN interaction styling is
+  // painted — the imperative twin of the animate config's per-frame `forceState`.
+  applyForcedPseudoStates,
+  type ForceState,
 } from "./cli/animate.js";
 
 // ── Terminal capture (DM-1225, doc 67) ───────────────────────────────────────

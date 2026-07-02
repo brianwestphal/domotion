@@ -239,6 +239,28 @@ const EXAMPLES: Example[] = [
       return f;
     },
   },
+  {
+    // DM-1516 (docs/94): forced CSS pseudo-state capture. Frame 1 forces `.cta`
+    // into `:hover` via CDP before capture, so the frame paints the page's OWN
+    // hover rules — the brighter button (#2ea043 → rgb(46,160,67)), NOT the rest
+    // color (#238636 → rgb(35,134,54)). The `.card:has(.cta:hover)` sibling rule
+    // fires too, so the cascade — not just the hovered node — is captured.
+    name: "hover-state",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 460 320"`)) f.push("missing viewBox 460x320");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 composited frame groups (rest + forced-hover)");
+      const frames = svg.split(/(?=class="f f-\d+")/);
+      const rest = frames.find((c) => /class="f f-0"/.test(c)) ?? "";
+      const hover = frames.find((c) => /class="f f-1"/.test(c)) ?? "";
+      // Frame 0 = rest: the button is the base green, not the hover green.
+      if (!rest.includes("rgb(35,134,54)")) f.push("frame 0 (rest) missing the base button color rgb(35,134,54)");
+      if (rest.includes("rgb(46,160,67)")) f.push("frame 0 (rest) unexpectedly shows the :hover color — forceState leaked into the rest frame");
+      // Frame 1 = forced :hover: the page's OWN hover color is captured.
+      if (!hover.includes("rgb(46,160,67)")) f.push("frame 1 (forced :hover) missing the captured hover color rgb(46,160,67) — forceState did not reach the capture (session detached too early?)");
+      return f;
+    },
+  },
 ];
 
 /**

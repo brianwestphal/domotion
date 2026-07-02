@@ -30,6 +30,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "TerminalEmulator",
   "acquireGlyphHelper",
   "applyBrandDefaults",
+  "applyForcedPseudoStates",
   "applyFormatSize",
   "assertNoFillBoxInClipOrMask",
   "backgroundLoopTemplate",

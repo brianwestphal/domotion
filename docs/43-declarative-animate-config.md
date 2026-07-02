@@ -297,6 +297,29 @@ A frame may embed a named **template** (doc 70) instead of an `input` page or a 
 
 ---
 
+## 10. Forced CSS pseudo-state — `forceState` (DM-1516)
+
+A frame may force real CSS pseudo-state on selectors **before capture**, so it paints the page's OWN `:hover` / `:active` / `:focus` styling instead of a synthetic overlay. This is how you capture the natural feedback a real site gives on pointer/keyboard interaction.
+
+**Surface.**
+
+```jsonc
+{ "continue": true, "duration": 1800,
+  "forceState": [ { "selector": ".cta", "states": ["hover"] } ] }
+```
+
+- `selector` — forced on **every** matched element (throws if it matches nothing, like an action selector).
+- `states` — a non-empty list from `hover` / `active` / `focus` / `focus-within` / `focus-visible` / `visited` / `target` / `enabled` / `disabled` / `checked` / `indeterminate` / `read-only` / `read-write` / `link`.
+
+**Semantics.**
+- Runs **after `actions`** (so it reflects the post-action DOM) and **before capture** (the forced paint is what gets serialized). The whole cascade fires, not just the hovered node — e.g. `.card:has(.cta:hover)` restyles the card, and descendant/`:hover`-derived rules all apply.
+- Pair it with a **`cursor`** move (auto or explicit) so the pointer visibly sits on the element it's hovering. A common shape is a `continue` frame that forces `:hover` and cross-fades from the rest frame (see `examples/animate/hover-state/`).
+- The forced state persists on the live page until navigation, carrying into a later `continue` frame like any other pre-capture mutation. There is no clear-state verb in v1 — reload the frame (drop `continue`) to reset.
+
+**Implementation.** The CLI applies each entry via the imperative primitive `applyForcedPseudoStates(page, forceState)` (exported from the package root), which uses CDP `CSS.forcePseudoState`. The CDP session is left attached on purpose: a forced override is cleared the instant its session detaches, so it must outlive the capture. Full design + the auto-detection roadmap is **`docs/94-interaction-state-capture.md`**.
+
+---
+
 ## Nested animation: preserved vs snapshotted (DM-1322)
 
 Composition primitives differ in whether a **nested animation** survives. This is the single most surprising thing about composing animated pieces, so the contract is spelled out:

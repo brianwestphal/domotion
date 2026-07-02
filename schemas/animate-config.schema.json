@@ -937,6 +937,44 @@
               ]
             }
           },
+          "forceState": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "selector": {
+                  "type": "string"
+                },
+                "states": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "hover",
+                      "active",
+                      "focus",
+                      "focus-within",
+                      "focus-visible",
+                      "visited",
+                      "target",
+                      "enabled",
+                      "disabled",
+                      "checked",
+                      "indeterminate",
+                      "read-only",
+                      "read-write",
+                      "link"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "selector",
+                "states"
+              ]
+            }
+          },
           "overlays": {
             "type": "array",
             "items": {

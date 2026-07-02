@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 460,
+  "height": 320,
+  "cursor": {
+    "events": [
+      { "frame": 0, "at": 200, "type": "move", "to": { "x": 230, "y": 120 } },
+      { "frame": 1, "at": 0, "type": "move", "selector": ".cta" }
+    ]
+  },
+  "frames": [
+    {
+      "input": "./pricing-card.html",
+      "duration": 1400,
+      "transition": { "type": "crossfade", "duration": 400 }
+    },
+    {
+      "continue": true,
+      "duration": 1800,
+      "forceState": [{ "selector": ".cta", "states": ["hover"] }]
+    }
+  ]
+}
