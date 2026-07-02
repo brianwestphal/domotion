@@ -68,9 +68,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   generated `animate-config.schema.json`, and `--transition`. **Follow-ups shipped:**
   the `shine` overlay takes a `radius` (rounds its clip to a rounded element) and
   auto-sizes to its anchor (DM-1551/1549); the reveal transitions take an optional
-  named `easing` incl. the sampled spring `linear()` curves (DM-1550). **Still open:**
-  radial/clock wipe (conic-mask cross-engine calibration, DM-1547), mixed
-  transition-type chaining (unified entrance/exit compositor, DM-1548).
+  named `easing` incl. the sampled spring `linear()` curves (DM-1550); `wipe-radial`
+  (an `iris` alias) + `wipe-clock` (a fixed-vertex animated `clip-path: polygon()`
+  angular sweep — no conic mask/filter, DM-1547). An **`interact`** overlay kind
+  (synthetic hover/focus/press fill+ring+scale for no-DOM/PDF inputs, DM-1565, docs/94)
+  shares `shine`'s anchor auto-sizing. **Still open:** mixed transition-type chaining
+  (unified entrance/exit compositor, DM-1548).
 
 - **Doc 89 (`docs/89-storyboard-sequencing.md`, DM-1527)** — **Shipped.** A
   declarative **storyboard** runner + `domotion storyboard <config.json>` verb that
@@ -94,9 +97,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   per-glyph advance array from fontkit; one shared reveal plan drives both the line
   clips and the caret (can't desync); reveal/caret step per keystroke (`step-end`),
   falling back to the estimate when the mono face can't resolve. New params: `mode:
-  "type"|"paste"`, `jitter` (seeded, byte-stable). Verified vs Chromium (animate suite
-  13/13). **Still open:** mistake→backspace→correct, per-keystroke real-site
-  re-sampling, glyph-path/proportional rendering, `fontFamily` override.
+  "type"|"paste"`, `jitter` (seeded, byte-stable). Verified vs Chromium. **Follow-ups
+  shipped:** `mistakes` typo→backspace→correct (DM-1555), glyph-path rendering +
+  proportional fonts + pixel-accurate wrap (DM-1557), `fontFamily` override (DM-1558),
+  and a **v2 `typeResample`** per-keystroke real-site re-sampling mode (DM-1556 — types
+  one key at a time, re-captures after each, so the field's own input mask/validation/
+  font renders; nests N states as one frame's animated SVG). **Still open:** GPOS-kerned
+  shaping (DM-1578), CLI font-family auto-resolve (DM-1579).
 
 - **Doc 94 (`docs/94-interaction-state-capture.md`, DM-1516)** — **Shipped (v1).** An
   `animate` frame can capture a **real forced CSS pseudo-state** so a page's own
@@ -106,9 +113,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   capture — the page's own rules fire (incl. `:has()` cascade siblings). Composes with
   the cursor so the pointer sits on the hovered element. **Gotcha guarded:** the CDP
   session must stay attached through capture — detaching clears the override and the
-  SVG silently captures the rest state. The doc also enumerates the auto-detection
-  **options** the ticket asked for (hoverReveal sugar, computed-style-diff, MutationObserver
-  JS-change harness, no-DOM/PDF overlay) — filed as follow-ups, not yet built.
+  SVG silently captures the rest state. **All follow-ups shipped:** a forced-state
+  `reset` verb (DM-1566), and all four auto-detection options — `hoverReveal` sugar
+  (Option 1, DM-1562), `hoverDetect` computed-style-diff (Option 2, DM-1563), `jsReveal`
+  MutationObserver harness (Option 3, DM-1564 — added/removed-node crossfade; the
+  surviving-node attribute-tween is a follow-up, DM-1580), and the `interact` overlay
+  (Option 4, no-DOM/PDF fake, DM-1565).
 
 - **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532/1533 impl)** —
   **All three batches shipped.** Batch A: four narrative text-card templates
