@@ -69,6 +69,29 @@ they describe (see `CLAUDE.md` "Documentation"):
   clock wipe (conic-mask cross-engine calibration), mixed transition-type chaining
   (unified entrance/exit compositor).
 
+- **Doc 89 (`docs/89-storyboard-sequencing.md`, DM-1527)** — **Shipped.** A
+  declarative **storyboard** runner + `domotion storyboard <config.json>` verb that
+  sequences distinct SCENES end-to-end into one self-contained animated SVG with
+  inter-scene transitions. Each scene is one source — `template`+`params` / `capture`
+  / `cast` / existing `svg` — with a per-scene `duration` (optional for animated
+  sources → inherits play time) and a `transition` (`{type,duration}`). Reuses the
+  scene→SVG→`namespaceEmbeddedAnimatedSvg`→`placeEmbeddedFrame`→`AnimationFrame`
+  (`embeddedAnimationPeriodMs`)→`generateAnimatedSvg` path — no new render code — and
+  exports to MP4 via `svg-to-video` unchanged. `src/cli/storyboard.ts` +
+  `schemas/storyboard-config.schema.json`. **Still open:** expose the doc-88 reveal
+  transitions in the storyboard enum, cross-scene font dedup, per-scene overlays/cursor.
+
+- **Doc 93 (`docs/93-realistic-typing.md`, DM-1518)** — **Shipped.** The `typing`
+  overlay now animates character-by-character with the caret glued to the *measured*
+  glyph edge (was ~12.7px behind on a long line — it estimated a monospace advance of
+  `fontSize×0.6` vs the real ~0.618em). `measureTypingLines` builds a cumulative
+  per-glyph advance array from fontkit; one shared reveal plan drives both the line
+  clips and the caret (can't desync); reveal/caret step per keystroke (`step-end`),
+  falling back to the estimate when the mono face can't resolve. New params: `mode:
+  "type"|"paste"`, `jitter` (seeded, byte-stable). Verified vs Chromium (animate suite
+  13/13). **Still open:** mistake→backspace→correct, per-keystroke real-site
+  re-sampling, glyph-path/proportional rendering, `fontFamily` override.
+
 - **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532/1533 impl)** —
   **All three batches shipped.** Batch A: four narrative text-card templates
   (`title-card`, `quote`, `caption` [transparent overlay subtitle, distinct from

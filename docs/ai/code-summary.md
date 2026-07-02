@@ -59,10 +59,13 @@ shortest possible map:
   doc 78 — `svg-to-image.ts` + `svg-to-image-core.ts`, reusing the
   `svg-to-video-core` seek+screenshot machinery; WebP/AVIF/TIFF transcode via a
   lazy `sharp` import), `svg-review`, `svg-scrubber`. The
-  `domotion` bin has five subcommands: `capture`, `animate`, `term`
+  `domotion` bin has six subcommands: `capture`, `animate`, `term`
   (terminal-session → animated SVG, DM-1225 / doc 67), `template` (render a
-  parameterized template, DM-1276 / doc 70), and `composite` (layer animated
-  SVGs into one — `composite.ts`, DM-1323 / doc 77).
+  parameterized template, DM-1276 / doc 70), `composite` (layer animated
+  SVGs into one — `composite.ts`, DM-1323 / doc 77), and `storyboard` (sequence
+  distinct scenes — template/capture/cast/svg — into one timeline with inter-scene
+  transitions; `src/cli/storyboard.ts`, DM-1527 / doc 89). `capture`/`animate` also
+  take `--brand` (brand-for-capture, doc 92) and `--format` is on `template`.
 - **`src/terminal/`** — `domotion term` backend (DM-1225): asciinema `.cast`
   parser (`cast.ts`), `@xterm/headless` VT-emulator snapshot wrapper
   (`emulator.ts`), frame-selection + grid→HTML (`render.ts`), the incremental
