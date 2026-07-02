@@ -20,6 +20,7 @@ import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { applyReadyWaits, loadInputIntoPage } from "../cli/common.js";
 import { composeAnimateConfig, type AnimateConfig } from "../cli/animate.js";
 import type { CaptureToSvgParams, Template, TemplateOutput, TemplateRenderContext } from "./types.js";
+import type { SafeInset } from "./formats.js";
 
 const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
 
@@ -78,6 +79,9 @@ export interface RenderTemplateOptions {
   browser?: Browser;
   /** Progress logger. Default no-op. */
   log?: (msg: string) => void;
+  /** Safe-area inset (px per side) to expose on the render context, from a chosen
+   *  format preset (docs/87). Omitted → the template sees no inset. */
+  safeInset?: SafeInset;
 }
 
 /**
@@ -100,6 +104,7 @@ export async function renderTemplateToSvg<P>(
       browser,
       workDir,
       log,
+      ...(opts.safeInset != null ? { safeInset: opts.safeInset } : {}),
       runAnimateConfig: (cfg: AnimateConfig, configDir?: string): Promise<string> =>
         composeAnimateConfig(browser, cfg, configDir ?? workDir, log),
       captureToSvg: (p: CaptureToSvgParams): Promise<TemplateOutput> => captureToSvg(browser, p, log),

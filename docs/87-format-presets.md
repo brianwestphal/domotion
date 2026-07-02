@@ -1,8 +1,12 @@
 # 87 — Format presets (social aspect ratios)
 
-**Status: design (DM-1521).** Implementation tracked in follow-ups. A DM-1519
-follow-up: creators think in **formats** (reel, square, story), not `width ×
-height`. A single `--format` flag should produce a platform-ready canvas.
+**Status: shipped v1 (DM-1521 design → DM-1534 impl).** The `FORMATS` table +
+`resolveFormat` + `--format` on `domotion template` + `safeInset` plumbing are
+built and tested (`src/templates/formats.ts`). Still open (follow-ups below):
+per-template *responsive reflow* that consumes `safeInset` at each ratio, and
+`--format` on `capture` / `animate`. A DM-1519 follow-up: creators think in
+**formats** (reel, square, story), not `width × height`. A single `--format`
+flag produces a platform-ready canvas.
 
 ## Goal
 
@@ -69,9 +73,12 @@ around. (Tunable; not a platform-exact spec.)
 
 ## Follow-up tickets
 
-- **Implement format presets** (the `FORMATS` table + `resolveFormat` +
-  `--format` on `template` + `safeInset` in the render context + tests + demos in
-  a couple of formats).
+- **Implement format presets** — ✅ done (DM-1534): the `FORMATS` table +
+  `resolveFormat` + `applyFormatSize` + `--format` on `template` + `safeInset` on
+  the render context + unit tests + demos (`examples/templates-demo.ts`:
+  `format-reel-kinetic`, `format-square-chart`).
 - **Per-template responsive reflow** (each template scales/stacks within
   `safeInset` at each ratio — lower-third, kinetic-text, chart, the DM-1523 pack).
+  *v1 plumbs `ctx.safeInset` through but templates don't yet consume it; that's
+  this follow-up.*
 - **`--format` on `capture` / `animate`** (viewport sizing + device-frame-aware).

@@ -275,6 +275,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/templates/templates.test.ts"],
   },
   {
+    id: "templates.formats",
+    behavior: "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template` with explicit>format>default size precedence.",
+    doc: "docs/87-format-presets.md",
+    exports: ["FORMATS", "resolveFormat", "applyFormatSize", "formatNames"],
+    tests: ["src/templates/formats.test.ts"],
+  },
+  {
     id: "templates.builtins",
     behavior: "The seven built-in template generators.",
     doc: "docs/70-template-system.md",

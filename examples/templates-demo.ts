@@ -21,6 +21,8 @@ import { resolve } from "node:path";
 import {
   launchChromium,
   renderTemplateToSvg,
+  resolveFormat,
+  applyFormatSize,
   lowerThirdTemplate,
   deviceMockupTemplate,
   backgroundLoopTemplate,
@@ -35,8 +37,10 @@ import { optimizeSvg } from "./shared.js";
 const OUT_DIR = resolve("examples/output/templates");
 const SAMPLE_APP = resolve("examples/templates/sample-app.html");
 
-// One entry per unique concept we want a committed example SVG for.
-const EXAMPLES: Array<{ file: string; template: Template; params: Record<string, unknown> }> = [
+// One entry per unique concept we want a committed example SVG for. An optional
+// `format` mirrors the CLI's `--format` (DM-1534): it sizes the canvas (unless
+// params already pin width/height) and passes a safe-area inset to the render.
+const EXAMPLES: Array<{ file: string; template: Template; params: Record<string, unknown>; format?: string }> = [
   // lower-third — the banner concept, shown in both themes / corners.
   {
     file: "lower-third-dark",
@@ -206,6 +210,22 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     template: subscribeTemplate,
     params: { name: "Ada Lovelace", subtitle: "@ada · 89.4K followers", action: "Follow", accent: "#1d9bf0", theme: "dark", width: 760, height: 360 },
   },
+
+  // format presets (DM-1534) — the same templates dropped onto platform canvases
+  // via `--format`, which sets width/height + a safe-area inset. No explicit
+  // width/height here, so the format supplies the canvas.
+  {
+    file: "format-reel-kinetic",
+    template: kineticTextTemplate,
+    params: { text: "Launch day", variant: "rise", fontSize: 120 },
+    format: "reel", // 1080×1920 vertical (Reels/TikTok/Shorts)
+  },
+  {
+    file: "format-square-chart",
+    template: chartTemplate,
+    params: { type: "column", data: [42, 68, 55, 90], labels: ["Q1", "Q2", "Q3", "Q4"], title: "Growth" },
+    format: "square", // 1080×1080 feed square
+  },
 ];
 
 async function main(): Promise<void> {
@@ -213,7 +233,15 @@ async function main(): Promise<void> {
   const browser = await launchChromium();
   try {
     for (const ex of EXAMPLES) {
-      const { svg, width, height } = await renderTemplateToSvg(ex.template, ex.params, { browser });
+      // Mirror the CLI's --format handling: size the canvas from the preset (if
+      // params didn't pin width/height) and hand the render the safe-area inset.
+      const params = { ...ex.params };
+      const fmt = ex.format != null ? resolveFormat(ex.format) : undefined;
+      if (fmt != null) applyFormatSize(params, fmt);
+      const { svg, width, height } = await renderTemplateToSvg(ex.template, params, {
+        browser,
+        ...(fmt != null ? { safeInset: fmt.safeInset } : {}),
+      });
       const optimized = optimizeSvg(svg);
       const out = resolve(OUT_DIR, `${ex.file}.svg`);
       writeFileSync(out, optimized);

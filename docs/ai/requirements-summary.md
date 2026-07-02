@@ -42,6 +42,16 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 87 (`docs/87-format-presets.md`, DM-1521 design → DM-1534 impl)** —
+  **Shipped v1.** Social-format presets on `domotion template`: `--format <name|WxH>`
+  where names are `reel`/`story` (1080×1920), `square` (1080×1080), `portrait`
+  (1080×1350), `landscape` (1920×1080). `resolveFormat` (in `src/templates/formats.ts`)
+  returns `{width,height,safeInset}`; size precedence is explicit `--width`/`--height`
+  > format > template default. The safe-area inset (px per side; vertical formats
+  reserve top/bottom room) rides `TemplateRenderContext.safeInset`. **Still open
+  (follow-ups):** per-template *responsive reflow* that consumes `safeInset`, and
+  `--format` on `capture` / `animate`.
+
 - **Doc 84 (`docs/84-viewer-browser-support.md`, DM-1515)** — **Shipped contract.**
   The support matrix for the browsers that *view* the output (distinct from the
   capture-platform matrix). **Blink** (Chrome/**Edge**/Brave/Opera/Electron) +

@@ -23,7 +23,11 @@ import {
   listBuiltinTemplates,
   loadTemplate,
   renderTemplateToSvg,
+  resolveFormat,
+  applyFormatSize,
+  formatNames,
   type ParamInfo,
+  type ResolvedFormat,
   type Template,
 } from "../templates/index.js";
 
@@ -33,6 +37,7 @@ const FIXED_OPTIONS: ArgOptions = {
   output: { type: "string", short: "o" },
   params: { type: "string" },
   "params-file": { type: "string" },
+  format: { type: "string" },
   optimize: { type: "boolean" },
   "no-optimize": { type: "boolean" },
   quiet: { type: "boolean" },
@@ -89,9 +94,25 @@ export async function runTemplate(args: string[], _help: string): Promise<void> 
     if (v !== undefined) raw[p.name] = v;
   }
 
+  // --format supplies the canvas width/height + a safe-area inset. Precedence
+  // (docs/87): explicit --width/--height > format preset > template default. The
+  // explicit flags are already in `raw` above (width/height are template params),
+  // so `??=` lets a preset fill only the axes the author didn't set — and an
+  // unset axis still falls through to the template's own zod default when no
+  // format is given. `safeInset` rides the render context, not the params.
+  let fmt: ResolvedFormat | undefined;
+  const formatArg = values.format as string | undefined;
+  if (formatArg != null) {
+    fmt = resolveFormat(formatArg);
+    applyFormatSize(raw, fmt);
+  }
+
   const log = makeLogger(values.quiet === true);
   log("Launching Chromium…");
-  const result = await renderTemplateToSvg(template, raw, { log });
+  const result = await renderTemplateToSvg(template, raw, {
+    log,
+    ...(fmt != null ? { safeInset: fmt.safeInset } : {}),
+  });
   let svg = result.svg;
 
   const outputArg = values.output as string | undefined;
@@ -160,6 +181,8 @@ function templateHelp(template: Template, params: ParamInfo[]): string {
     "  -o, --output <path>   Output SVG path (default: stdout). .svgz → gzip + optimize.",
     "      --params <json>   Params as a JSON object (merged under individual flags).",
     "      --params-file <f> Params from a JSON file.",
+    `      --format <fmt>    Canvas preset (${formatNames().join(", ")}) or WIDTHxHEIGHT.`,
+    "                        Sets width/height + a safe-area inset. --width/--height win.",
     "      --optimize        Run the output through SVGO.",
     "      --quiet           Suppress progress messages on stderr.",
     "",

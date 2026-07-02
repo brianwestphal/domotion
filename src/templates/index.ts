@@ -24,6 +24,15 @@ export {
   describeTemplateParams,
   type ParamInfo,
 } from "./json-schema.js";
+export {
+  FORMATS,
+  resolveFormat,
+  applyFormatSize,
+  formatNames,
+  type FormatPreset,
+  type ResolvedFormat,
+  type SafeInset,
+} from "./formats.js";
 
 // Built-in templates (also reachable via the registry by name).
 export { lowerThirdTemplate, type LowerThirdParams } from "./builtin/lower-third.js";

@@ -20,6 +20,7 @@
 import type { Browser } from "@playwright/test";
 import type { ZodType } from "zod";
 import type { AnimateConfig } from "../cli/animate.js";
+import type { SafeInset } from "./formats.js";
 
 /**
  * The building blocks Domotion hands a template's `render()`. A template MUST
@@ -38,6 +39,15 @@ export interface TemplateRenderContext {
   workDir: string;
   /** Progress logger (stderr in the CLI; no-op by default). */
   log: (msg: string) => void;
+  /**
+   * Resolved safe-area inset (px per side) for the current canvas, supplied when
+   * the caller picked a format preset (docs/87, `--format`). Templates SHOULD lay
+   * content out within `canvas − safeInset` (vertical formats reserve top/bottom
+   * room for platform UI). Omitted when no format was chosen — treat as a zero
+   * inset (place against the raw canvas). Per-template responsive reflow that
+   * consumes this at every ratio is a follow-up; v1 just plumbs it through.
+   */
+  safeInset?: SafeInset;
   /**
    * Run an in-memory `AnimateConfig` through the existing animate pipeline and
    * return the rendered SVG. `configDir` resolves the config's relative `input`

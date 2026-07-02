@@ -82,8 +82,11 @@ shortest possible map:
   built-ins: `builtin/lower-third.ts`, `builtin/device-mockup.ts`,
   `builtin/background-loop.ts` (doc 71), `builtin/kinetic-text.ts` (doc 72),
   `builtin/chart.ts` (doc 75), `builtin/chat.ts` + `builtin/subscribe.ts` (doc 76).
-  Templates are front-ends onto the animate/capture pipeline; the verb lives in
-  `src/cli/template.ts`.
+  **Format presets** (doc 87 / DM-1534) live in `formats.ts` — the `FORMATS`
+  table + `resolveFormat` (preset/alias/raw `WxH` → canvas size + `safeInset`) +
+  `applyFormatSize`, surfaced as `--format` on the CLI (`src/cli/template.ts`)
+  and a `safeInset` field on `TemplateRenderContext`. Templates are front-ends
+  onto the animate/capture pipeline; the verb lives in `src/cli/template.ts`.
 - **`src/tree-ops/`** — element-tree transforms (`tree-diff.ts`,
   `viewbox-culling.ts`, `resize-embedded-images.ts`, `prune-tree.ts`,
   `for-each-element.ts`). (The old `frame-merge.ts` fast path was removed — see
