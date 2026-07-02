@@ -81,13 +81,17 @@ fading before it finishes sliding in the lower-third template.
   multiplier.
 - **It degrades gracefully.** The animation still plays and reads; it loses
   per-unit sync momentarily under load. It is not a blank/flash/break.
-- **Generator mitigation.** Domotion fuses a visual unit's co-timed tracks
-  (opacity + transform) into a **single** CSS animation wherever it emits them
-  (DM-1512/1513). A single animation is one timeline — its properties are always
-  sampled at the same instant regardless of thread — so a *unit's own* fade and
-  move cannot desync, on any engine. What remains beyond our control is
-  frame-perfect sync *between separate elements* under extreme Firefox load,
-  which is why Gecko stays best-effort rather than first-class.
+- **Generator mitigation.** Domotion fuses a visual unit's tracks (opacity +
+  transform + …) into a **single** CSS animation via the animation entry's
+  `fuse` list (DM-1512/1513). A single animation is one timeline — its properties
+  are always sampled at the same instant regardless of thread — so a *unit's own*
+  fade and move cannot desync, on any engine. Tracks may share the primary's
+  timing (emitted as from/to stops) or carry their own `duration`/`delay`/
+  `easing`, in which case the animator bakes each track's eased curve into
+  sampled `linear`-timed stops (DM-1517) so independent-timing tracks stay one
+  animation too. What remains beyond our control is frame-perfect sync *between
+  separate elements* under extreme Firefox load, which is why Gecko stays
+  best-effort rather than first-class.
 
 Not to be confused with the **transparent-flash-at-cut-points** bug (DM-1511),
 which was a different, harder Firefox failure — the frame show/hide flipped

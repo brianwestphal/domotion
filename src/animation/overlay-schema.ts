@@ -247,19 +247,27 @@ export const intraFrameAnimationSchema = z.object({
    * running ahead of its slide/scale). A single animation is always sampled at
    * one instant regardless of thread, so fusing removes that failure mode.
    *
-   * Each fused track rides the primary entry's window (`delay` + `duration`) and
-   * `easing` — that shared timing is what lets them emit into one keyframe block
-   * without per-track sampling. The primary `property` is track 0; these are the
-   * rest. Multiple transform-family tracks (`translateX`/`translateY`/`scale`/
-   * `transform`) are composed into a single `transform:` declaration; other
-   * properties (`opacity`, `clip-path`, …) emit alongside. Use for any
-   * reveal that moves + fades (+ clips …) as one motion.
-   * See docs/84-viewer-browser-support.md.
+   * By default each fused track rides the primary entry's window (`delay` +
+   * `duration`) and `easing`, emitted as from/to stops. A track MAY override
+   * `duration` / `delay` / `easing` for independent timing (e.g. a fast fade over
+   * a slower slide, or a different curve) — when any track does, the whole
+   * animation is emitted by SAMPLING each track's eased value over its own window
+   * at many stops with `linear` timing (DM-1517), so it stays one animation / one
+   * timeline. The primary `property` is track 0; these are the rest. Multiple
+   * transform-family tracks (`translateX`/`translateY`/`scale`/`transform`) are
+   * composed into a single `transform:` declaration; other properties (`opacity`,
+   * `clip-path`, …) emit alongside. See docs/84-viewer-browser-support.md.
    */
   fuse: z.array(z.object({
     property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "scale", "clipPath"]),
     from: z.string(),
     to: z.string(),
+    /** Override the primary's duration for this track (ms). Triggers sampling. */
+    duration: z.number().optional(),
+    /** Override the primary's delay for this track (ms). Triggers sampling. */
+    delay: z.number().optional(),
+    /** Override the primary's easing for this track. Triggers sampling. */
+    easing: z.string().optional(),
   })).optional(),
 });
 export type IntraFrameAnimation = z.infer<typeof intraFrameAnimationSchema>;

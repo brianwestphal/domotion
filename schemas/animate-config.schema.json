@@ -1378,6 +1378,15 @@
                       },
                       "to": {
                         "type": "string"
+                      },
+                      "duration": {
+                        "type": "number"
+                      },
+                      "delay": {
+                        "type": "number"
+                      },
+                      "easing": {
+                        "type": "string"
                       }
                     },
                     "required": [

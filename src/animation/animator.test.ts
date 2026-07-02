@@ -751,6 +751,37 @@ describe("animator", () => {
     expect(startStop).toMatch(/opacity:\s*0/);
   });
 
+  it("DM-1517: a fused track with its own duration/easing samples into one linear-timed animation", () => {
+    // Fast fade (200ms ease-out) fused with a slower slide (600ms cubic). They
+    // have different windows AND easings, so the animator samples both into ONE
+    // @keyframes with `linear` timing (easing baked) — still one timeline.
+    const svg = generateAnimatedSvg({
+      width: 200, height: 200,
+      frames: [{
+        svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
+        duration: 2000,
+        animations: [{
+          animId: "f0a0", property: "translateY", from: "24px", to: "0px", duration: 600, easing: "cubic-bezier(0.22,1,0.36,1)",
+          fuse: [{ property: "opacity", from: "0", to: "1", duration: 200, easing: "ease-out" }],
+        }],
+      }],
+    });
+    const rule = svg.match(/\.anim-f0a0\s*{[^}]*}/)![0];
+    // ONE animation, timing baked to linear.
+    expect(rule).toMatch(/animation:\s*f0-f0a0-0\b[^,;]*\blinear\b/);
+    const kf = svg.match(/@keyframes f0-f0a0-0\s*{[\s\S]*?\n\s*}/)![0];
+    // Many sampled stops (not just from/to), each carrying both properties.
+    const stops = [...kf.matchAll(/([\d.]+)%\s*{([^}]*)}/g)];
+    expect(stops.length).toBeGreaterThan(6);
+    // The fast fade finishes well before the slow slide: find the earliest stop
+    // where opacity has reached 1, and confirm the slide is still mid-flight there.
+    const firstOpaque = stops.find((m) => /opacity:\s*1\b/.test(m[2]) && /translateY\(/.test(m[2]))!;
+    expect(firstOpaque).toBeDefined();
+    const ty = parseFloat(firstOpaque[2].match(/translateY\(([-\d.]+)px\)/)![1]);
+    expect(ty).toBeGreaterThan(0.5); // slide not done yet while opacity is already 1
+    expect(parseFloat(firstOpaque[1])).toBeLessThan(15); // and it happened early (fade window ≈ 8.7%)
+  });
+
   it("DM-641: never emits `display: none` keyframes (would park Chromium's animation engine)", () => {
     // Regression. The repro from the ticket: a multi-frame animation with
     // `cut` transitions produced `@keyframes fv-0 { 0% { opacity:0; display:none } … }`

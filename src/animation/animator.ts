@@ -18,6 +18,7 @@ import { rootSvgA11y } from "../render/format.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/keyframe-pad.js";
+import { interpolateCssValue, resolveEasing } from "./easing.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -1242,6 +1243,28 @@ function offsetForDirection(dir: "top" | "bottom" | "left" | "right", w: number,
  * visible (+ `delay`), animates to `to` over `duration`, then holds at `to`
  * until the loop restarts.
  */
+/**
+ * DM-1512/1513: compose one keyframe stop's declaration from several property
+ * "parts" (a value per fused track). Transform-family tracks
+ * (`translateX`/`translateY`/`scale`/raw `transform`) collapse into a SINGLE
+ * `transform:` — two `transform:` declarations would clobber each other — while
+ * other properties (`opacity`, `clip-path`, …) emit alongside.
+ */
+function composeAnimStop(parts: Array<{ property: string; val: string }>): string {
+  const transforms: string[] = [];
+  const others: string[] = [];
+  for (const p of parts) {
+    if (p.property === "translateX") transforms.push(`translateX(${p.val})`);
+    else if (p.property === "translateY") transforms.push(`translateY(${p.val})`);
+    else if (p.property === "scale") transforms.push(`scale(${p.val})`);
+    else if (p.property === "transform") transforms.push(p.val);
+    else if (p.property === "clipPath") others.push(`clip-path: ${p.val};`);
+    else others.push(`${p.property}: ${p.val};`);
+  }
+  if (transforms.length > 0) others.push(`transform: ${transforms.join(" ")};`);
+  return others.join(" ");
+}
+
 function buildIntraFrameAnimationCss(
   frames: AnimationFrame[],
   frameTiming: { startPct: number[] },
@@ -1269,25 +1292,10 @@ function buildIntraFrameAnimationCss(
       // value for that phase, composing all transform-family tracks into a
       // single `transform:` (two `transform:` decls would clobber each other)
       // and emitting other properties alongside.
-      type Track = { property: string; from: string; to: string };
+      type Track = { property: string; from: string; to: string; duration?: number; delay?: number; easing?: string };
       const tracks: Track[] = [{ property: a.property, from: a.from, to: a.to }, ...(a.fuse ?? [])];
-      const stopDecl = (phase: "from" | "to"): string => {
-        const transforms: string[] = [];
-        const others: string[] = [];
-        for (const t of tracks) {
-          const val = phase === "from" ? t.from : t.to;
-          if (t.property === "translateX") transforms.push(`translateX(${val})`);
-          else if (t.property === "translateY") transforms.push(`translateY(${val})`);
-          else if (t.property === "scale") transforms.push(`scale(${val})`);
-          else if (t.property === "transform") transforms.push(val);
-          else if (t.property === "clipPath") others.push(`clip-path: ${val};`);
-          else others.push(`${t.property}: ${val};`);
-        }
-        if (transforms.length > 0) others.push(`transform: ${transforms.join(" ")};`);
-        return others.join(" ");
-      };
-      const declFrom = stopDecl("from");
-      const declTo = stopDecl("to");
+      const declFrom = composeAnimStop(tracks.map((t) => ({ property: t.property, val: t.from })));
+      const declTo = composeAnimStop(tracks.map((t) => ({ property: t.property, val: t.to })));
       // DM-1297: SVG transforms are origin-(0,0); a `transformOrigin` makes a
       // scale/rotate/translate resolve about the element's OWN box (e.g. a
       // center-origin scale-pop) instead of the SVG origin. `transform-box:
@@ -1296,6 +1304,53 @@ function buildIntraFrameAnimationCss(
         ? ` transform-box: fill-box; transform-origin: ${a.transformOrigin};`
         : "";
       const animName = `f${i}-${a.animId}-${ai}`;
+      // DM-1517: when a fused track carries its OWN duration/delay/easing, the
+      // tracks no longer share one `animation-timing-function`, so we can't emit
+      // a from/to pair. Instead SAMPLE each track's eased value over its own
+      // window at many stops and emit them with `linear` timing (easing baked
+      // in) — still ONE animation / one timeline. Only for one-shot reveals
+      // (`repeat` loops keep the shared-timing cycle form).
+      const sampledTracks = a.fuse ?? [];
+      const needsSampling = a.repeat == null
+        && sampledTracks.some((t) => t.duration != null || t.delay != null || t.easing != null);
+      if (needsSampling) {
+        const win = tracks.map((t) => {
+          const tStart = frameStartMs + (t.delay ?? delay);
+          const tEnd = tStart + (t.duration ?? a.duration);
+          return {
+            property: t.property, from: t.from, to: t.to,
+            startPct: (tStart / totalMs) * 100,
+            endPct: (tEnd / totalMs) * 100,
+            ease: resolveEasing(t.easing ?? a.easing),
+          };
+        });
+        const minStart = Math.min(...win.map((w) => w.startPct));
+        const maxEnd = Math.max(...win.map((w) => w.endPct));
+        // Stops: 0/100 + every track boundary + a fine grid across the active
+        // span so each track's eased curve is well approximated.
+        const stopSet = new Set<number>([0, 100]);
+        for (const w of win) { stopSet.add(w.startPct); stopSet.add(w.endPct); }
+        const STEP = 2;
+        for (let p = minStart; p < maxEnd; p += STEP) stopSet.add(p);
+        const stops = [...stopSet].filter((p) => p >= 0 && p <= 100).sort((x, y) => x - y);
+        const seen = new Set<string>();
+        const body = stops.map((p) => {
+          const pctStr = p.toFixed(3);
+          if (seen.has(pctStr)) return "";
+          seen.add(pctStr);
+          const parts = win.map((w) => {
+            const span = w.endPct - w.startPct;
+            const localT = span > 0 ? Math.min(1, Math.max(0, (p - w.startPct) / span)) : (p >= w.endPct ? 1 : 0);
+            return { property: w.property, val: interpolateCssValue(w.from, w.to, w.ease(localT)) };
+          });
+          return `      ${pctStr}% { ${composeAnimStop(parts)} }`;
+        }).filter((s) => s !== "").join("\n");
+        out.push(`    @keyframes ${animName} {
+${body}
+    }
+    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s linear infinite;${originDecl} }`);
+        continue;
+      }
       if (a.repeat != null) {
         // DM-869: repeating animation (blink / pulse / breathe). The keyframe is
         // a single from→to cycle on the animation's own `duration` clock, looped
