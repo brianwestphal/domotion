@@ -92,6 +92,18 @@ they describe (see `CLAUDE.md` "Documentation"):
   13/13). **Still open:** mistake→backspace→correct, per-keystroke real-site
   re-sampling, glyph-path/proportional rendering, `fontFamily` override.
 
+- **Doc 94 (`docs/94-interaction-state-capture.md`, DM-1516)** — **Shipped (v1).** An
+  `animate` frame can capture a **real forced CSS pseudo-state** so a page's own
+  `:hover`/`:active`/`:focus` styling is captured (not a fake overlay): a per-frame
+  `forceState: [{selector, states}]` field applied via a Playwright CDP session
+  (`CSS.forcePseudoState`, `applyForcedPseudoStates` in `src/cli/animate.ts`) before
+  capture — the page's own rules fire (incl. `:has()` cascade siblings). Composes with
+  the cursor so the pointer sits on the hovered element. **Gotcha guarded:** the CDP
+  session must stay attached through capture — detaching clears the override and the
+  SVG silently captures the rest state. The doc also enumerates the auto-detection
+  **options** the ticket asked for (hoverReveal sugar, computed-style-diff, MutationObserver
+  JS-change harness, no-DOM/PDF overlay) — filed as follow-ups, not yet built.
+
 - **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532/1533 impl)** —
   **All three batches shipped.** Batch A: four narrative text-card templates
   (`title-card`, `quote`, `caption` [transparent overlay subtitle, distinct from
