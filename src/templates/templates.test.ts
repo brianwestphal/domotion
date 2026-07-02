@@ -70,7 +70,10 @@ const allUnits = (plan: { lines: KineticUnit[][][] }): KineticUnit[] =>
 describe("template registry (DM-1276)", () => {
   it("lists the built-in templates", () => {
     const names = listBuiltinTemplates().map((t) => t.name).sort();
-    expect(names).toEqual(["background-loop", "chart", "chat", "device-mockup", "kinetic-text", "lower-third", "subscribe"]);
+    expect(names).toEqual([
+      "background-loop", "caption", "chart", "chat", "cta", "device-mockup",
+      "kinetic-text", "lower-third", "quote", "subscribe", "title-card",
+    ]);
   });
 
   it("resolves a built-in by name", async () => {

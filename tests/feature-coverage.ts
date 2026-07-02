@@ -290,10 +290,17 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "templates.builtins",
-    behavior: "The seven built-in template generators.",
+    behavior: "The seven core built-in template generators.",
     doc: "docs/70-template-system.md",
     exports: ["lowerThirdTemplate", "chartTemplate", "chatTemplate", "subscribeTemplate", "kineticTextTemplate", "backgroundLoopTemplate", "deviceMockupTemplate"],
     tests: ["src/templates/templates.test.ts"],
+  },
+  {
+    id: "templates.creative-pack",
+    behavior: "Creative-pack Batch A text cards: title-card, quote, caption, cta — HTML generators sharing a staggered fade-up/pop reveal, brandDefaults, and safe-area layout.",
+    doc: "docs/86-creative-template-pack.md",
+    exports: ["titleCardTemplate", "quoteTemplate", "captionTemplate", "ctaTemplate"],
+    tests: ["src/templates/builtin/text-cards.test.ts"],
   },
 
   // ── Terminal ───────────────────────────────────────────────────────────

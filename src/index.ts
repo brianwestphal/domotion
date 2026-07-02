@@ -188,4 +188,12 @@ export {
   type ChatMessage,
   subscribeTemplate,
   type SubscribeParams,
+  titleCardTemplate,
+  type TitleCardParams,
+  quoteTemplate,
+  type QuoteParams,
+  captionTemplate,
+  type CaptionParams,
+  ctaTemplate,
+  type CtaParams,
 } from "./templates/index.js";

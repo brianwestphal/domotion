@@ -9,6 +9,10 @@
  *   chart           → column + bar + line
  *   chat            → a message thread with staggered pop-in
  *   subscribe       → a follow/subscribe pop-up with a pulsing CTA
+ *   title-card      → full-bleed intro card (creative pack)
+ *   quote           → pull-quote / testimonial (creative pack)
+ *   caption         → subtitle strip for compositing (creative pack)
+ *   cta             → closing end-card with a pulsing button (creative pack)
  *
  * Outputs land in examples/output/templates/. Uses ONLY the public template API
  * (`renderTemplateToSvg` + `loadTemplate`) the way a consumer would.
@@ -32,6 +36,10 @@ import {
   chartTemplate,
   chatTemplate,
   subscribeTemplate,
+  titleCardTemplate,
+  quoteTemplate,
+  captionTemplate,
+  ctaTemplate,
   type Template,
 } from "../src/index.js";
 import { optimizeSvg } from "./shared.js";
@@ -212,6 +220,28 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     file: "subscribe-follow-dark",
     template: subscribeTemplate,
     params: { name: "Ada Lovelace", subtitle: "@ada · 89.4K followers", action: "Follow", accent: "#1d9bf0", theme: "dark", width: 760, height: 360 },
+  },
+
+  // creative pack — Batch A text cards (DM-1531).
+  {
+    file: "title-card",
+    template: titleCardTemplate,
+    params: { eyebrow: "Introducing", title: "Domotion", subtitle: "DOM → animated SVG, pixel-faithful to Chromium", accent: "#22d3ee", background: "linear-gradient(135deg,#0f172a,#1e293b)" },
+  },
+  {
+    file: "quote",
+    template: quoteTemplate,
+    params: { quote: "It dropped our demo payload to a fraction and it looks identical across browsers.", author: "Ada Lovelace", role: "Staff Engineer", accent: "#8b5cf6" },
+  },
+  {
+    file: "caption",
+    template: captionTemplate,
+    params: { text: "Captured, converted, and self-contained — no runtime.", motion: "slide", bgOpacity: 0.5 },
+  },
+  {
+    file: "cta",
+    template: ctaTemplate,
+    params: { headline: "Ship your first demo today", cta: "Get started", handles: ["@domotion", "github.com/brianwestphal"], ctaColor: "#3b82f6", background: "linear-gradient(135deg,#111827,#0b1020)" },
   },
 
   // format presets (DM-1534) — the same templates dropped onto platform canvases

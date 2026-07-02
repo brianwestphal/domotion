@@ -72,3 +72,8 @@ export {
   subscribeTemplate,
   type SubscribeParams,
 } from "./builtin/subscribe.js";
+// Creative pack — Batch A text cards (DM-1531).
+export { titleCardTemplate, type TitleCardParams } from "./builtin/title-card.js";
+export { quoteTemplate, type QuoteParams } from "./builtin/quote.js";
+export { captionTemplate, type CaptionParams } from "./builtin/caption.js";
+export { ctaTemplate, type CtaParams } from "./builtin/cta.js";

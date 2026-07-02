@@ -42,6 +42,15 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531 impl)** —
+  **Batch A shipped.** Four narrative text-card templates on the doc-70 template
+  system: `title-card`, `quote`, `caption` (transparent overlay subtitle, distinct
+  from lower-third), `cta` (end-card with a pulsing button + logo slot). They
+  share `src/templates/builtin/text-card-common.ts` (theme resolver +
+  `staggeredReveal` fade-up/pop + safe-area padding), each has a `brandDefaults`
+  (DM-1522) and honors format `safeInset` (DM-1537). **Pending:** Batch B
+  (`counter`/`stat` odometer digit reels) and Batch C (`compare` wipe/slider).
+
 - **Doc 85 (`docs/85-brand-kit.md`, DM-1522 design → DM-1530 impl)** —
   **Shipped v1.** A reusable brand file (palette / font / radius / logo /
   background) supplies every built-in template's *defaults*: `--brand acme.json`

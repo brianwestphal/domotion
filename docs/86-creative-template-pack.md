@@ -1,7 +1,11 @@
 # 86 — Creative template pack
 
-**Status: design (DM-1523).** Implementation split into follow-up tickets (see
-end). A DM-1519 follow-up: the current templates lean product/marketing-UI
+**Status: Batch A shipped (DM-1523 design → DM-1531 impl); Batches B/C pending.**
+`title-card`, `quote`, `caption`, and `cta` are built + registered + tested
+(`src/templates/builtin/{title-card,quote,caption,cta}.ts`, shared scaffolding in
+`text-card-common.ts`). Batch B (`counter`/`stat` odometer) and Batch C
+(`compare`) remain. A DM-1519 follow-up: the current templates lean
+product/marketing-UI
 (chart, chat, subscribe, lower-third, device-mockup, kinetic-text,
 background-loop). Storytellers and marketers want **narrative building blocks**.
 
@@ -85,8 +89,12 @@ Params: `headline`, `cta` (label), `ctaColor`, `logo`, `handles` (array), `url`,
 Grouped by shared technique rather than one-per-template (7 would fragment the
 shared code):
 
-- **Batch A — text cards:** `title-card`, `quote`, `caption`, `cta`. All are
-  HTML + a staggered reveal; share layout/reveal scaffolding.
+- **Batch A — text cards:** `title-card`, `quote`, `caption`, `cta`. ✅ shipped
+  (DM-1531). All are HTML + a staggered reveal; share the `text-card-common.ts`
+  scaffolding (theme resolver, `staggeredReveal` fade-up/pop, safe-area padding).
+  Each has a `brandDefaults` + honors format `safeInset`. `caption`'s in-hold-out
+  runs on two nested wrappers; `cta`'s button pulse rides a separate inner element
+  from its enter reveal. Logo brand-wiring for `cta` is DM-1539.
 - **Batch B — number animation:** `counter` + `stat`, built on a shared
   odometer digit-reel module (the one genuinely new technique in the pack).
 - **Batch C — comparison:** `compare` (clip-path wipe/slider); coordinate with
