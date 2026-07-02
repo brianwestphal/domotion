@@ -316,6 +316,17 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     format: "reel",
   },
 
+  // device-mockup on a format (DM-1559) — a `reel` sizes the inner SCREEN to
+  // 9:16 (1080×1920) and the phone bezel is computed AROUND it, scaling its rim /
+  // corner radius / notch with the screen so a reel-sized phone reads as a phone
+  // rather than a hairline-bordered rectangle. Output = screen + scaled bezel.
+  {
+    file: "format-reel-device-mockup",
+    template: deviceMockupTemplate,
+    params: { input: SAMPLE_APP, device: "phone", mobile: true },
+    format: "reel",
+  },
+
   // brand kit (DM-1530) — ONE brand file (acme-brand.json) drives the palette +
   // font across four different templates; none of these pass color/font flags.
   {

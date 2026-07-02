@@ -144,31 +144,59 @@ export function wrapInDeviceChrome(
 }
 
 /**
+ * The screen width the phone-bezel geometry (rim, corner radius, notch, home
+ * indicator) is calibrated for — a ~390 px iPhone-class screen (the size the
+ * committed phone demo + unit tests capture at). At this width the bezel is drawn
+ * at its authored dimensions; a larger screen scales the geometry up (DM-1559).
+ */
+const PHONE_REF_W = 390;
+
+/**
  * iPhone-class bezel: rounded titanium body, dynamic-island notch, home
  * indicator. The screen content fills `screenW × screenH`; the body adds an
- * even rim on every side, so the output grows by `2 × RIM` in each axis (e.g. a
+ * even rim on every side, so the output grows by `2 × rim` in each axis (e.g. a
  * 390 × 844 capture → 418 × 872 framed).
+ *
+ * **Format-aware bezel scaling (DM-1559).** A format (`--format reel`) sizes the
+ * inner SCREEN (e.g. 1080 × 1920 for 9:16) and the bezel is computed AROUND it.
+ * With a rim/radius/notch tuned for a 390-wide phone, a 1080-wide screen would
+ * read as a hairline-bordered rectangle, not a phone — so the geometry scales by
+ * `s = max(1, min(screenW, screenH) / PHONE_REF_W)`: the reel screen gets a
+ * proportionate ~39 px rim, ~155 px corner radius, and a full-size notch. The
+ * `max(1, …)` floor keeps a phone at or below the reference size on the
+ * calibrated bezel; `q()` returns its argument UNCHANGED at `s === 1`, so a
+ * ≤390-wide capture is byte-for-byte identical to the pre-scaling output.
  */
 function phoneBezel(inner: string, screenW: number, screenH: number): FramedSvg {
-  const RIM = 14;
-  const RADIUS = 56;
-  const outerW = screenW + RIM * 2;
-  const outerH = screenH + RIM * 2;
+  const s = Math.max(1, Math.min(screenW, screenH) / PHONE_REF_W);
+  // Byte-identical at the reference size (returns `n` verbatim, so `1.5` stays
+  // `1.5`); rounds to clean integers when scaled up.
+  const q = (n: number): number => (s === 1 ? n : Math.round(n * s));
+
+  const rim = q(14);
+  const radius = q(56);
+  const innerRadius = radius - rim;
+  const edge = q(3);           // inner rim-highlight inset
+  const edgeStroke = q(1.5);   // inner rim-highlight stroke width
+  const notchW = q(112), notchH = q(30), notchRx = q(15), notchTop = rim + q(9);
+  const homeW = q(130), homeH = q(5), homeRx = q(2.5), homeGap = q(12);
+  const outerW = screenW + rim * 2;
+  const outerH = screenH + rim * 2;
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${outerW}" height="${outerH}" viewBox="0 0 ${outerW} ${outerH}">` +
-    `<defs><clipPath id="phone-screen-clip"><rect x="${RIM}" y="${RIM}" width="${screenW}" height="${screenH}" rx="${RADIUS - RIM}"/></clipPath></defs>` +
+    `<defs><clipPath id="phone-screen-clip"><rect x="${rim}" y="${rim}" width="${screenW}" height="${screenH}" rx="${innerRadius}"/></clipPath></defs>` +
     // Outer body + inner rim highlight.
-    `<rect width="${outerW}" height="${outerH}" rx="${RADIUS}" fill="#1c1c1e"/>` +
-    `<rect x="3" y="3" width="${outerW - 6}" height="${outerH - 6}" rx="${RADIUS - 3}" fill="none" stroke="#3a3a3c" stroke-width="1.5"/>` +
+    `<rect width="${outerW}" height="${outerH}" rx="${radius}" fill="#1c1c1e"/>` +
+    `<rect x="${edge}" y="${edge}" width="${outerW - edge * 2}" height="${outerH - edge * 2}" rx="${radius - edge}" fill="none" stroke="#3a3a3c" stroke-width="${edgeStroke}"/>` +
     // Screen backdrop (so any letterboxing reads as black, not transparent).
-    `<rect x="${RIM}" y="${RIM}" width="${screenW}" height="${screenH}" rx="${RADIUS - RIM}" fill="#0d1117"/>` +
+    `<rect x="${rim}" y="${rim}" width="${screenW}" height="${screenH}" rx="${innerRadius}" fill="#0d1117"/>` +
     // Nested capture, clipped to the rounded screen.
-    `<g clip-path="url(#phone-screen-clip)"><svg x="${RIM}" y="${RIM}" width="${screenW}" height="${screenH}" viewBox="0 0 ${screenW} ${screenH}">${inner}</svg></g>` +
+    `<g clip-path="url(#phone-screen-clip)"><svg x="${rim}" y="${rim}" width="${screenW}" height="${screenH}" viewBox="0 0 ${screenW} ${screenH}">${inner}</svg></g>` +
     // Dynamic-island notch.
-    `<rect x="${outerW / 2 - 56}" y="${RIM + 9}" width="112" height="30" rx="15" fill="#000"/>` +
+    `<rect x="${outerW / 2 - notchW / 2}" y="${notchTop}" width="${notchW}" height="${notchH}" rx="${notchRx}" fill="#000"/>` +
     // Home indicator.
-    `<rect x="${outerW / 2 - 65}" y="${outerH - RIM - 12}" width="130" height="5" rx="2.5" fill="#e6edf3" opacity="0.85"/>` +
+    `<rect x="${outerW / 2 - homeW / 2}" y="${outerH - rim - homeGap}" width="${homeW}" height="${homeH}" rx="${homeRx}" fill="#e6edf3" opacity="0.85"/>` +
     `</svg>`;
 
   return { svg, width: outerW, height: outerH };

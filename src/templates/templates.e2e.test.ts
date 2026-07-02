@@ -73,6 +73,29 @@ describe("template render end-to-end (DM-1276)", () => {
     expect(out.svg).toMatch(/Hello Mockup|<path|<use/);
   }, 60_000);
 
+  it("device-mockup phone at a reel format sizes the inner screen 9:16 + wraps a SCALED bezel (DM-1559)", async () => {
+    const htmlPath = join(work, "reel-page.html");
+    writeFileSync(
+      htmlPath,
+      `<!doctype html><html><body style="margin:0;background:#0d1117;color:#fff;font-family:sans-serif"><h1>Reel Screen</h1></body></html>`,
+    );
+    const reel = resolveFormat("reel"); // 1080×1920 screen (applyFormatSize sets width/height)
+    const out = await renderTemplateToSvg(
+      deviceMockupTemplate,
+      { input: htmlPath, device: "phone", mobile: true, width: reel.width, height: reel.height },
+      { browser: await getBrowser(), safeInset: reel.safeInset },
+    );
+    // The format sized the inner SCREEN (1080×1920); the phone bezel is computed
+    // AROUND it and scales with the screen (rim ~39px, not the 14px tuned for a
+    // ~390-wide phone), so the output is 1158×1998 and reads as a phone.
+    expect(out.width).toBe(1158);
+    expect(out.height).toBe(1998);
+    expect(out.svg).toContain(`viewBox="0 0 1158 1998"`);
+    expect(out.svg).toContain('rx="155" fill="#1c1c1e"'); // scaled body corner radius
+    expect(out.svg).toMatch(/<svg x="39" y="39" width="1080" height="1920"/); // screen at scaled rim
+    expect(out.svg).toMatch(/Reel Screen|<path|<use/); // captured content survives nesting
+  }, 60_000);
+
   it("background-loop (generator) renders a looping animated background of blobs", async () => {
     const out = await renderTemplateToSvg(
       backgroundLoopTemplate,

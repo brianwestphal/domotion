@@ -52,6 +52,59 @@ describe("device-chrome (DM-1206)", () => {
   });
 });
 
+describe("device-chrome: format-aware phone bezel scaling (DM-1559)", () => {
+  // A format (`--format reel`) sizes the inner SCREEN and the bezel wraps AROUND
+  // it. The rim/radius/notch are tuned for a ~390-wide phone, so a large (reel)
+  // screen scales the geometry up: `s = max(1, min(w,h)/390)`.
+
+  it("keeps the calibrated bezel byte-identical at/below the reference size", () => {
+    // s === 1, so the output must equal the pre-scaling geometry exactly.
+    const { svg } = wrapInDeviceChrome(CAPTURE, "phone", 390, 844);
+    // 14px rim, 56 radius, 42 inner radius, 3/1.5 rim-highlight, 112×30 notch,
+    // 130×5 home indicator — the authored numbers.
+    expect(svg).toMatch(/<rect x="14" y="14" width="390" height="844" rx="42"/);
+    expect(svg).toContain('rx="56" fill="#1c1c1e"');
+    expect(svg).toContain('x="3" y="3"');
+    expect(svg).toContain('stroke-width="1.5"');
+    expect(svg).toContain('width="112" height="30" rx="15" fill="#000"');
+    expect(svg).toContain('width="130" height="5" rx="2.5"');
+  });
+
+  it("a smaller-than-reference screen also stays on the calibrated (floored) bezel", () => {
+    // min(300,650)/390 < 1 → floored to 1 → same 14px rim as before.
+    const { width, height } = wrapInDeviceChrome(CAPTURE, "phone", 300, 650);
+    expect(width).toBe(300 + 28);
+    expect(height).toBe(650 + 28);
+  });
+
+  it("scales the rim/radius/notch proportionally for a reel-sized screen (1080×1920)", () => {
+    const { width, height, svg } = wrapInDeviceChrome(CAPTURE, "phone", 1080, 1920);
+    // s = min(1080,1920)/390 = 1080/390 ≈ 2.769 → rim 39, radius 155.
+    expect(width).toBe(1080 + 39 * 2);   // 1158
+    expect(height).toBe(1920 + 39 * 2);  // 1998
+    expect(svg).toContain(`viewBox="0 0 1158 1998"`);
+    // Outer body corner radius scales (round(56·2.769) = 155), not the fixed 56.
+    expect(svg).toContain('rx="155" fill="#1c1c1e"');
+    // Screen nested at the scaled rim offset, inner radius round(56·s)−39 = 116.
+    expect(svg).toMatch(/<svg x="39" y="39" width="1080" height="1920"/);
+    expect(svg).toContain('rx="116"');
+    // The notch grows too (round(112·s)=310, round(30·s)=83).
+    expect(svg).toContain('width="310" height="83"');
+    // Still exactly two <svg> opens (bezel + nested capture) and no bezel text.
+    expect((svg.match(/<svg/g) ?? []).length).toBe(2);
+  });
+
+  it("bases the scale on the SHORTER screen dimension (so a portrait screen scales by width)", () => {
+    // Portrait reel: min is the width; a hypothetical landscape screen of the
+    // same area would scale by its (shorter) height instead — the bezel tracks
+    // the narrow dimension, matching how a phone's rim relates to its width.
+    const portrait = wrapInDeviceChrome(CAPTURE, "phone", 1080, 1920);
+    const landscape = wrapInDeviceChrome(CAPTURE, "phone", 1920, 1080);
+    // Both share min = 1080 → same rim (39) → same growth on each axis.
+    expect(portrait.width - 1080).toBe(landscape.height - 1080);
+  });
+});
+
 const DESKTOP = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600"><rect width="960" height="600" fill="#0d1117"/><text x="10" y="20">DESKTOP_CONTENT</text></svg>`;
 
 describe("device-chrome: browser / window (DM-1211)", () => {

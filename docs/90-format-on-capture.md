@@ -37,16 +37,30 @@ CLI boundary with the valid presets listed).
 When a device mockup is involved (`--chrome phone|browser|window`), **the format
 sizes the captured _content_ (the inner screen); the bezel is added _around_
 it.** So `--format reel --chrome phone` captures the page into a 1080×1920 screen
-and nests it in the phone body, yielding a 1108×1948 output (the phone adds a
-14 px rim per side). This is the natural reading of "a reel, on a phone": the reel
-_is_ the screen. The final output dimensions therefore exceed the format size by
-the bezel; the CLI's `Wrapped in … chrome (W×H)` log line reports the framed
-total.
+and nests it in the phone body. This is the natural reading of "a reel, on a
+phone": the reel _is_ the screen. The final output dimensions therefore exceed
+the format size by the bezel; the CLI's `Wrapped in … chrome (W×H)` log line
+reports the framed total.
 
 (The alternative — format sizes the whole output, so the screen is
 `format − bezel` — was rejected: bezel sizes vary per device, and a creator
 picking `reel` wants a reel-sized _screen_, not a reel-sized outer rectangle they
 must mentally subtract the frame from.)
+
+**Scaled phone bezel (DM-1559).** The phone bezel's rim / corner radius / notch /
+home indicator are tuned for a ~390-px-wide phone. Left fixed, a 1080-wide reel
+screen would get a 14 px rim — a hairline that reads as a bordered rectangle, not
+a phone. So the phone bezel geometry **scales with the screen** by
+`s = max(1, min(screenW, screenH) / 390)`: a reel screen gets a proportionate
+~39 px rim and ~155 px corner radius, so `--format reel --chrome phone` yields a
+**1158×1998** output that still reads as a phone. The `max(1, …)` floor keeps a
+phone at or below the reference size on the calibrated bezel — a ≤390-wide
+capture is byte-for-byte identical to the pre-scaling output. `browser` / `window`
+bezels (a fixed-height top bar only) are unchanged; scaling their bar / traffic
+lights per width is a possible follow-up. The same scaling applies through the
+`device-mockup` template — `domotion template device-mockup --device phone
+--format reel` sizes the screen to 1080×1920 and wraps it in the scaled phone
+body.
 
 ### Safe area on a raw capture (`--safe-guide`)
 
