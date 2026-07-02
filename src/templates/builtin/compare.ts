@@ -87,22 +87,44 @@ export function revealAnimation(direction: CompareParams["direction"], durationM
   };
 }
 
-/** SVG markup for the before/after label badges + (slide) the moving divider,
- *  injected before the composite's closing `</svg>`. Exposed for testing. */
+/** Where a label pill sits: an edge along each axis. */
+interface LabelPos { h: "left" | "right" | "center"; v: "top" | "bottom"; }
+
+/**
+ * SVG markup for the before/after label badges + (slide) the moving divider,
+ * injected before the composite's closing `</svg>`. Each label is placed over the
+ * region it describes: the reveal-origin side always shows the AFTER (it's
+ * unveiled first and stays), the far side shows the BEFORE — so the "After" label
+ * sits where the after appears, not on a fixed corner. Text is centered in the
+ * pill. Exposed for testing.
+ */
 export function compareOverlayMarkup(p: CompareParams): string {
   const { width: W, height: H } = p;
   const pad = 28;
-  const badge = (text: string, align: "start" | "end"): string => {
-    const anchor = align === "start" ? "start" : "end";
-    // A pill: estimate width from text length (rough; labels are short).
-    const bw = Math.max(64, text.length * 15 + 32);
-    const bx = align === "start" ? pad : W - pad - bw;
-    return `<g><rect x="${bx}" y="${H - pad - 44}" width="${bw}" height="44" rx="22" fill="rgba(0,0,0,0.6)"/>`
-      + `<text x="${align === "start" ? bx + 16 : bx + bw - 16}" y="${H - pad - 14}" fill="#fff" font-family="${escapeHtml(p.fontFamily)}" font-size="22" font-weight="600" text-anchor="${anchor}">${escapeHtml(text)}</text></g>`;
+  const bh = 44;
+  const fontSize = 22;
+  const badge = (text: string, pos: LabelPos): string => {
+    // Loose width estimate for a semibold system font; the text is CENTERED, so a
+    // slightly-off estimate just changes the symmetric padding, never clips.
+    const bw = Math.round(text.length * fontSize * 0.62 + 40);
+    const bx = pos.h === "left" ? pad : pos.h === "right" ? W - pad - bw : (W - bw) / 2;
+    const by = pos.v === "top" ? pad : H - pad - bh;
+    const cx = bx + bw / 2;
+    const baseline = by + bh / 2 + fontSize * 0.34; // vertical-center the cap height
+    return `<g><rect x="${bx.toFixed(1)}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="rgba(0,0,0,0.62)"/>`
+      + `<text x="${cx.toFixed(1)}" y="${baseline.toFixed(1)}" fill="#fff" font-family="${escapeHtml(p.fontFamily)}" font-size="${fontSize}" font-weight="600" text-anchor="middle">${escapeHtml(text)}</text></g>`;
   };
+  // The reveal-origin side (where clipScale grows from) is the AFTER region.
+  const horizontal = p.direction === "right" || p.direction === "left";
+  const afterPos: LabelPos = horizontal
+    ? { h: p.direction === "right" ? "left" : "right", v: "bottom" }
+    : { h: "center", v: p.direction === "down" ? "top" : "bottom" };
+  const beforePos: LabelPos = horizontal
+    ? { h: afterPos.h === "left" ? "right" : "left", v: "bottom" }
+    : { h: "center", v: afterPos.v === "top" ? "bottom" : "top" };
   let out = "";
-  if (p.beforeLabel != null && p.beforeLabel !== "") out += badge(p.beforeLabel, "start");
-  if (p.afterLabel != null && p.afterLabel !== "") out += badge(p.afterLabel, "end");
+  if (p.beforeLabel != null && p.beforeLabel !== "") out += badge(p.beforeLabel, beforePos);
+  if (p.afterLabel != null && p.afterLabel !== "") out += badge(p.afterLabel, afterPos);
   if (p.mode === "slide") out += dividerMarkup(p);
   return out;
 }

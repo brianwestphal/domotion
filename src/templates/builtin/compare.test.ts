@@ -54,6 +54,23 @@ describe("compare — overlay markup (DM-1533)", () => {
     expect(down).toContain("translateY(600px)");
   });
 
+  it("places each label over the region it describes (after = reveal-origin side)", () => {
+    // direction right → after is revealed on the LEFT, before stays on the RIGHT.
+    const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", direction: "right", beforeLabel: "Old", afterLabel: "New", width: 1000 }));
+    // Grab each label's pill x. "New" (after) should sit at the left (small x),
+    // "Old" (before) at the right (large x).
+    const xOf = (label: string): number => {
+      const re = new RegExp(`<rect x="([0-9.]+)"[^>]*/><text[^>]*>${label}<`);
+      return Number(re.exec(m)![1]);
+    };
+    expect(xOf("New")).toBeLessThan(xOf("Old"));
+  });
+
+  it("centers the label text in its pill (text-anchor middle)", () => {
+    const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", beforeLabel: "Old" }));
+    expect(m).toContain('text-anchor="middle"');
+  });
+
   it("the divider hold point is the reveal duration as a % of the total", () => {
     // durationMs 1000 of holdMs 4000 → the divider reaches the far edge at 25%.
     const m = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", mode: "slide", durationMs: 1000, holdMs: 4000 }));
