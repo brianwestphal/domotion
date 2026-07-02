@@ -76,6 +76,23 @@ export const typingOverlaySchema = z.object({
   /** Speed per character (ms). */
   speed: z.number().optional(),
   /**
+   * DM-1518: how the text enters the field.
+   *   - `"type"` (default) — character-by-character, one glyph revealed per
+   *     keystroke with the caret glued to the growing text edge.
+   *   - `"paste"` — the whole string appears at once after `delay` (a clipboard
+   *     paste), the caret jumping straight to the end. `speed` / `jitter` are
+   *     ignored in paste mode.
+   */
+  mode: z.enum(["type", "paste"]).optional(),
+  /**
+   * DM-1518: humanize the per-character cadence. A fraction in `[0, 1]`: each
+   * keystroke's delay is `speed × (1 ± jitter)` drawn from a DETERMINISTIC
+   * seeded PRNG (seeded off the text), so the output SVG is byte-stable across
+   * runs while the typing no longer marches at a robotic fixed interval. `0`
+   * (default) keeps the even cadence. Ignored in `mode: "paste"`.
+   */
+  jitter: z.number().min(0).max(1).optional(),
+  /**
    * DM-1134: wrap width in px. When set, the typed text WRAPS to this width like
    * a browser textarea — breaking on spaces (char-breaking over-long words),
    * advancing one line-height per wrapped line — instead of running off the

@@ -27,13 +27,13 @@
     }
     .f-0 { animation: fv-0 3.20s step-end infinite, fd-0 3.20s step-end infinite; }
 
-    @keyframes t0-rev0 { 0%, 9.38% { width: 0.01px; } 48.75% { width: 144px; } 95.31% { width: 144px; } 98.44%, 100% { width: 0.01px; } }
-    .t0-rev0 { animation: t0-rev0 3.20s linear infinite; }
+    @keyframes t0-rev0 { 0.00% { width: 0.01px; } 12.18% { width: 0.01px; } 12.19% { width: 10.89px; } 15.00% { width: 20.78px; } 17.81% { width: 30.67px; } 20.63% { width: 40.56px; } 23.44% { width: 50.45px; } 26.25% { width: 60.34px; } 29.06% { width: 70.23px; } 31.87% { width: 80.13px; } 34.69% { width: 90.02px; } 37.50% { width: 99.91px; } 40.31% { width: 109.80px; } 43.13% { width: 119.69px; } 45.94% { width: 129.58px; } 48.75% { width: 139.47px; } 95.31% { width: 139.46875px; } 98.44%, 100% { width: 0.01px; } }
+    .t0-rev0 { animation: t0-rev0 3.20s step-end infinite; }
     @keyframes t0-vis { 0%, 9.38% { opacity: 0; } 10.31% { opacity: 1; } 95.31% { opacity: 1; } 98.44%, 100% { opacity: 0; } }
     .t0-text { animation: t0-vis 3.20s infinite; }
-    @keyframes t0-caret-pos { 0%, 9.38% { transform: translate(0px, 0px); } 9.38% { transform: translate(0px, 0px); } 48.75% { transform: translate(134.4px, 0px); } 95.31%, 100% { transform: translate(134.4px, 0px); } }
+    @keyframes t0-caret-pos { 0.00% { transform: translate(0px, 0px); } 9.38% { transform: translate(0px, 0px); } 12.19% { transform: translate(9.89px, 0.00px); } 15.00% { transform: translate(19.78px, 0.00px); } 17.81% { transform: translate(29.67px, 0.00px); } 20.63% { transform: translate(39.56px, 0.00px); } 23.44% { transform: translate(49.45px, 0.00px); } 26.25% { transform: translate(59.34px, 0.00px); } 29.06% { transform: translate(69.23px, 0.00px); } 31.87% { transform: translate(79.13px, 0.00px); } 34.69% { transform: translate(89.02px, 0.00px); } 37.50% { transform: translate(98.91px, 0.00px); } 40.31% { transform: translate(108.80px, 0.00px); } 43.13% { transform: translate(118.69px, 0.00px); } 45.94% { transform: translate(128.58px, 0.00px); } 48.75% { transform: translate(138.47px, 0.00px); } 95.31%, 100% { transform: translate(138.47px, 0.00px); } }
     @keyframes t0-caret-blink { 0%, 9.38% { opacity: 0; } 10.31% { opacity: 1; } 48.75% { opacity: 1; } 57.03% { opacity: 0; } 65.31% { opacity: 1; } 73.59% { opacity: 0; } 81.88% { opacity: 1; } 90.16% { opacity: 0; } 98.44%, 100% { opacity: 0; } }
-    .t0-caret { animation: t0-caret-pos 3.20s linear infinite, t0-caret-blink 3.20s step-end infinite; }
+    .t0-caret { animation: t0-caret-pos 3.20s step-end infinite, t0-caret-blink 3.20s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">

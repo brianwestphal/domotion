@@ -971,6 +971,18 @@
                     "speed": {
                       "type": "number"
                     },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "type",
+                        "paste"
+                      ]
+                    },
+                    "jitter": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
                     "wrapWidth": {
                       "type": "number"
                     },

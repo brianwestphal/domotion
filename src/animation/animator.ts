@@ -15,6 +15,7 @@ import type { AnimationOverlay, TypingOverlay, TapOverlay, SvgOverlay, BlinkOver
 import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
+import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
 import { DEFAULT_TRANSITION_MS, frameAdvanceMs, transitionDurationMs } from "./frame-timeline.js";
 import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/keyframe-pad.js";
@@ -890,116 +891,246 @@ function wrapTypingText(text: string, maxChars: number): string[] {
 const DEFAULT_TYPING_DELAY_MS = 300;
 const DEFAULT_TYPING_SPEED_CPS = 60;
 const DEFAULT_OVERLAY_FONT_SIZE = 14;
-/** Monospace cell advance as a fraction of font size (the overlay font is monospace). */
+/**
+ * Monospace cell advance as a fraction of font size — the FALLBACK estimate,
+ * used only when the overlay font can't be resolved for measurement (e.g. a
+ * platform without the monospace face). When the font resolves, DM-1518 drives
+ * both the reveal and the caret off fontkit-measured per-glyph advances so the
+ * caret sits at the true text edge instead of ~0.5px/char behind it.
+ */
 const MONO_CHAR_WIDTH_RATIO = 0.6;
+/** The `<text>` font stack the reveal paints — measured via `resolveFontKey`. */
+const OVERLAY_TYPING_FONT = "'SF Mono', Menlo, Monaco, monospace";
+/**
+ * Above this typed-character count the per-keystroke discrete reveal falls back
+ * to a linear sweep (2 stops/line) to keep the emitted CSS bounded. The caret
+ * still lands exactly on the measured edge at each line boundary; only the
+ * intra-line stepping is coarsened. Typing overlays are field entries (names,
+ * emails, queries), so this ceiling is rarely reached.
+ */
+const MAX_DISCRETE_TYPING_CHARS = 300;
 const DEFAULT_TAP_DELAY_MS = 50;
 const DEFAULT_BLINK_PERIOD_MS = 1000;
 
-/** Per-line type-timing collected while building the reveal, consumed by the caret. */
-interface TypingLineTiming { li: number; startMs: number; endMs: number; len: number }
+/** Deterministic PRNG (mulberry32) so humanized jitter stays byte-stable per run. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
-/**
- * Typewriter reveal: one `<text>` per wrapped line, each unveiled by a
- * width-growing clip during the slice of the type timeline when that line's
- * characters are typed (line N starts after line N-1 finishes), so the caret
- * advances down the field exactly as it would in the browser. Returns the line
- * markup + reveal keyframes and the per-line timings the caret needs. Extracted
- * from renderTypingOverlay (DM-1375).
- */
-function buildTypingLines(
-  lines: string[], overlay: TypingOverlay, id: string,
-  charWidth: number, lineHeight: number, fontSize: number, textHeight: number, hiddenW: string, color: string,
-  typeStartMs: number, visibleChars: number, effTypeDur: number,
-  totalDuration: number, holdEndPct: string, disappearPct: string, totalSec: number,
-): { parts: string[]; cssRules: string[]; lineTimings: TypingLineTiming[] } {
-  const parts: string[] = [];
-  const cssRules: string[] = [];
-  // DM-870: per-line type timing, collected for the optional caret below.
-  const lineTimings: TypingLineTiming[] = [];
-
-  let cumChars = 0;
-  lines.forEach((line, li) => {
-    const lineY = overlay.y + li * lineHeight;
-    // +1 cell of slack so the last glyph never clips: the real monospace
-    // advance is slightly wider than the 0.6em estimate, and the trailing cell
-    // is where the caret would sit just after the typed character anyway.
-    const lineWidth = line.length * charWidth + charWidth;
-    const clipId = `${id}-clip${li}`;
-    const lineStartMs = typeStartMs + (cumChars / visibleChars) * effTypeDur;
-    const lineEndMs = typeStartMs + ((cumChars + line.length) / visibleChars) * effTypeDur;
-    const lineStartPct = pct(lineStartMs, totalDuration);
-    const lineEndPct = pct(lineEndMs, totalDuration);
-    lineTimings.push({ li, startMs: lineStartMs, endMs: lineEndMs, len: line.length });
-    cumChars += line.length;
-
-    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
-    parts.push(
-      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="'SF Mono', Menlo, Monaco, monospace" clip-path="url(#${clipId})">${escapeHtml(line)}</text>`,
-    );
-    // DM-1204: the reveal clip MUST sweep linearly so its right edge tracks the
-    // caret (whose position track is `linear`). Without an explicit timing
-    // function the width animation defaults to CSS `ease`, which races ~80%
-    // through the sweep at the time-midpoint while the linear caret is only at
-    // 50% — that desync read as the caret lagging ~10–20 chars behind the
-    // revealed text mid-type, even though the endpoints (parked state) matched.
-    // DM-1205: the hidden state uses `hiddenW` (a tiny non-zero width), not 0,
-    // so WebKit's empty-clip-path fallback doesn't paint the whole line.
-    cssRules.push(`
-    @keyframes ${id}-rev${li} { 0%, ${lineStartPct} { width: ${hiddenW}; } ${lineEndPct} { width: ${lineWidth}px; } ${holdEndPct} { width: ${lineWidth}px; } ${disappearPct}, 100% { width: ${hiddenW}; } }
-    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s linear infinite; }`);
-  });
-  return { parts, cssRules, lineTimings };
+/** Stable 32-bit hash of a string, used to seed the jitter PRNG off the text. */
+function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
 }
 
 /**
- * DM-870: blinking insertion caret. Sweeps the type position while typing (one
- * linear translate segment per wrapped line, jumping to the next line's start),
- * then parks at the end of the last line and blinks (step-end opacity toggle)
- * until the overlay disappears. Two animations on one rect: a linear position
- * track + a step-end opacity blink. Returns empty arrays when no caret is
- * requested. Extracted from renderTypingOverlay (DM-1375).
+ * DM-1518: measure per-glyph advances (px) for each wrapped line via fontkit
+ * against the resolved overlay monospace font, returning cumulative x-offsets
+ * (`cum[li][k]` = the caret x after `k` glyphs of line `li`). Falls back to the
+ * uniform 0.6em estimate when the font can't be resolved. `chars` is the
+ * per-line code-point array (so surrogate pairs count as one glyph, matching
+ * the reveal + caret stepping).
+ */
+function measureTypingLines(
+  chars: string[][], fontSize: number,
+): { cum: number[][]; charWidth: number; measured: boolean } {
+  const estimate = fontSize * MONO_CHAR_WIDTH_RATIO;
+  let font: ReturnType<typeof getFontInstance> = null;
+  try {
+    font = getFontInstance(resolveFontKey(OVERLAY_TYPING_FONT), 400, fontSize, 0);
+  } catch {
+    font = null;
+  }
+  if (font == null) {
+    const cum = chars.map((line) => {
+      const c = [0];
+      for (let i = 0; i < line.length; i++) c.push(c[i] + estimate);
+      return c;
+    });
+    return { cum, charWidth: estimate, measured: false };
+  }
+  const scale = fontSize / font.unitsPerEm;
+  const advOf = (ch: string): number => {
+    const cp = ch.codePointAt(0);
+    if (cp == null) return estimate;
+    const g = font.glyphForCodePoint(cp);
+    const adv = (g?.advanceWidth ?? 0) * scale;
+    return adv > 0 ? adv : estimate;
+  };
+  const cum = chars.map((line) => {
+    const c = [0];
+    for (let i = 0; i < line.length; i++) c.push(c[i] + advOf(line[i]));
+    return c;
+  });
+  return { cum, charWidth: estimate, measured: true };
+}
+
+/** One revealed glyph's placement + reveal time, precomputed once (DM-1518). */
+interface TypedGlyph { li: number; edge: number; appearMs: number }
+
+/**
+ * DM-1518: the shared reveal plan the line clips AND the caret ride, so they
+ * can never desync. One `TypedGlyph` per typed character, carrying the line it
+ * lands on, the caret x AFTER it (its right edge, from the measured advances),
+ * and the absolute time it appears. `mode: "paste"` reveals every glyph at
+ * `typeStartMs`; `mode: "type"` spaces them by the (optionally jittered) speed,
+ * scaled to fill `[typeStartMs, typeStartMs + effTypeDur]`.
+ */
+function buildTypingPlan(
+  chars: string[][], cum: number[][], overlay: TypingOverlay,
+  speed: number, typeStartMs: number, effTypeDur: number,
+): TypedGlyph[] {
+  const glyphs: TypedGlyph[] = [];
+  const paste = overlay.mode === "paste";
+  const jitter = paste ? 0 : Math.max(0, Math.min(1, overlay.jitter ?? 0));
+  const rng = mulberry32(hashString(overlay.text) ^ 0x9e3779b9);
+  // First pass: raw (jittered) per-glyph delays and their running sum.
+  const delays: number[] = [];
+  let rawTotal = 0;
+  chars.forEach((line, li) => {
+    for (let k = 0; k < line.length; k++) {
+      const d = paste ? 0 : Math.max(speed * 0.25, speed * (1 + (rng() * 2 - 1) * jitter));
+      rawTotal += d;
+      delays.push(d);
+      glyphs.push({ li, edge: cum[li][k + 1], appearMs: 0 });
+    }
+  });
+  // Second pass: normalize delays into the effective type window so the last
+  // glyph lands exactly at typeStartMs + effTypeDur (the measured text edge is
+  // therefore reached precisely when typing "finishes").
+  const scale = rawTotal > 0 ? effTypeDur / rawTotal : 0;
+  let acc = 0;
+  for (let i = 0; i < glyphs.length; i++) {
+    acc += delays[i];
+    glyphs[i].appearMs = paste ? typeStartMs : typeStartMs + acc * scale;
+  }
+  return glyphs;
+}
+
+/** Monotone keyframe-stop builder: nudges each stop past the previous so equal
+ *  rounded percents don't collapse (later CSS declaration would win). */
+function monotoneStops(): { push: (pn: number, decl: string) => void; stops: string[] } {
+  const stops: string[] = [];
+  let last = -Infinity;
+  return {
+    stops,
+    push(pn: number, decl: string): void {
+      const p = Math.max(pn, last + 0.01);
+      stops.push(`${p.toFixed(2)}% { ${decl} }`);
+      last = p;
+    },
+  };
+}
+
+/**
+ * DM-1518 typewriter reveal: one `<text>` per wrapped line, each unveiled by a
+ * width-growing clip. The clip's right edge steps to the fontkit-MEASURED
+ * cumulative advance as each glyph is typed (character-by-character), so the
+ * revealed text edge — and the caret riding the same plan — sit exactly where
+ * the glyphs paint. Below `MAX_DISCRETE_TYPING_CHARS` the reveal steps per
+ * keystroke (`step-end`); above it, it sweeps linearly between the line's
+ * first/last glyph for bounded CSS.
+ */
+function buildTypingLines(
+  chars: string[][], overlay: TypingOverlay, id: string,
+  cum: number[][], glyphs: TypedGlyph[], discrete: boolean,
+  lineHeight: number, fontSize: number, textHeight: number, hiddenW: string, color: string,
+  totalDuration: number, holdEndPct: string, disappearPct: string, totalSec: number,
+): { parts: string[]; cssRules: string[] } {
+  const parts: string[] = [];
+  const cssRules: string[] = [];
+
+  chars.forEach((line, li) => {
+    const lineText = line.join("");
+    const lineY = overlay.y + li * lineHeight;
+    const clipId = `${id}-clip${li}`;
+    // +1px of slack so the last glyph's antialiased right edge never clips.
+    const fullWidth = cum[li][line.length] + 1;
+    const lineGlyphs = glyphs.filter((g) => g.li === li);
+
+    parts.push(`  <defs><clipPath id="${clipId}"><rect class="${id}-rev${li}" x="${overlay.x}" y="${lineY - fontSize}" width="${hiddenW}" height="${textHeight}" /></clipPath></defs>`);
+    parts.push(
+      `  <text class="${id}-text" x="${overlay.x}" y="${lineY}" fill="${color}" font-size="${fontSize}" font-family="${OVERLAY_TYPING_FONT}" clip-path="url(#${clipId})">${escapeHtml(lineText)}</text>`,
+    );
+
+    if (lineGlyphs.length === 0) {
+      // Empty wrapped line (blank paragraph) — nothing to reveal.
+      cssRules.push(`
+    @keyframes ${id}-rev${li} { 0%, 100% { width: ${hiddenW}; } }
+    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s step-end infinite; }`);
+      return;
+    }
+
+    const startPn = pctNum(lineGlyphs[0].appearMs, totalDuration);
+    if (discrete) {
+      const b = monotoneStops();
+      // Hold hidden until this line's first glyph, then step the clip to each
+      // glyph's measured edge as it is typed.
+      b.push(0, `width: ${hiddenW};`);
+      b.push(Math.max(0.01, startPn - 0.01), `width: ${hiddenW};`);
+      for (const g of lineGlyphs) b.push(pctNum(g.appearMs, totalDuration), `width: ${(g.edge + 1).toFixed(2)}px;`);
+      // step-end holds each width until the next stop, so the reveal is a clean
+      // per-keystroke staircase locked to the caret (same plan, same edges).
+      cssRules.push(`
+    @keyframes ${id}-rev${li} { ${b.stops.join(" ")} ${holdEndPct} { width: ${fullWidth}px; } ${disappearPct}, 100% { width: ${hiddenW}; } }
+    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s step-end infinite; }`);
+    } else {
+      // Bounded-CSS fallback: linear sweep between the line's first and last
+      // glyph. Endpoints use the measured edges, so the parked caret is exact.
+      const endPn = pctNum(lineGlyphs[lineGlyphs.length - 1].appearMs, totalDuration);
+      const startPct = `${Math.max(0, startPn).toFixed(2)}%`;
+      const endPct = `${Math.max(startPn + 0.01, endPn).toFixed(2)}%`;
+      cssRules.push(`
+    @keyframes ${id}-rev${li} { 0%, ${startPct} { width: ${hiddenW}; } ${endPct} { width: ${fullWidth}px; } ${holdEndPct} { width: ${fullWidth}px; } ${disappearPct}, 100% { width: ${hiddenW}; } }
+    .${id}-rev${li} { animation: ${id}-rev${li} ${totalSec.toFixed(2)}s linear infinite; }`);
+    }
+  });
+  return { parts, cssRules };
+}
+
+/**
+ * DM-870 / DM-1518: blinking insertion caret. It rides the SAME reveal plan as
+ * the text (`glyphs`), stepping to each glyph's measured right edge the instant
+ * that glyph appears (`step-end`), so it is always glued to the true trailing
+ * edge of the visible text — never lagging behind it. Parks at the text end and
+ * blinks until the overlay disappears. Returns empty arrays when no caret is
+ * requested.
  */
 function buildTypingCaret(
   overlay: TypingOverlay, id: string, color: string,
-  charWidth: number, lineHeight: number, fontSize: number, lineTimings: TypingLineTiming[],
+  glyphs: TypedGlyph[], lineHeight: number, fontSize: number,
   typeStartPct: string, typeStartMs: number, textEndMs: number, holdEndMs: number, holdEndPct: string, disappearPct: string,
   totalDuration: number, totalSec: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
   const cssRules: string[] = [];
-  if (overlay.caret != null && overlay.caret !== false && lineTimings.length > 0) {
+  if (overlay.caret != null && overlay.caret !== false && glyphs.length > 0) {
     const caretOpts = typeof overlay.caret === "object" ? overlay.caret : {};
     const caretColor = caretOpts.color ?? color;
     const caretW = caretOpts.width ?? 2;
     const blinkMs = caretOpts.blinkMs ?? 530;
-    const last = lineTimings[lineTimings.length - 1];
-    const endX = last.len * charWidth;
-    const endY = last.li * lineHeight;
+    const lastG = glyphs[glyphs.length - 1];
+    const endX = lastG.edge;
+    const endY = lastG.li * lineHeight;
 
-    // Position track: hold at line 0 start until typing begins, then sweep each
-    // line, then hold at the text end through the blink + disappear.
-    //
-    // DM-1204 (multi-line): a line ends and the next begins at the same instant
-    // (type timing is contiguous — line N+1 starts the ms line N finishes). The
-    // end-of-line stop (x = line width, row N) and the next line's left-margin
-    // stop (x = 0, row N+1) would therefore round to the SAME keyframe percent;
-    // CSS keeps the later declaration, dropping the end-of-line x so the caret
-    // stays pinned at x=0 and merely slides down each row. We keep percentages
-    // strictly increasing (nudging the carriage-return stop a hair past the
-    // line-end stop) so both survive — the jump back to the margin then happens
-    // over ~0.01% of the timeline, i.e. visually instant.
-    const posStops: string[] = [`0%, ${typeStartPct} { transform: translate(0px, 0px); }`];
-    let lastPctNum = pctNum(typeStartMs, totalDuration);
-    const pushPosStop = (pn: number, x: number, y: number): void => {
-      const p = Math.max(pn, lastPctNum + 0.01);
-      posStops.push(`${p.toFixed(2)}% { transform: translate(${x}px, ${y}px); }`);
-      lastPctNum = p;
-    };
-    for (const lt of lineTimings) {
-      pushPosStop(pctNum(lt.startMs, totalDuration), 0, lt.li * lineHeight);
-      pushPosStop(pctNum(lt.endMs, totalDuration), lt.len * charWidth, lt.li * lineHeight);
-    }
-    posStops.push(`${holdEndPct}, 100% { transform: translate(${endX}px, ${endY}px); }`);
+    // Position track: hold at the first line's left margin until typing begins,
+    // then jump to each glyph's measured edge as it appears (step-end), then
+    // park at the text end through the blink + disappear.
+    const b = monotoneStops();
+    b.push(0, `transform: translate(0px, 0px);`);
+    b.push(Math.max(0.01, pctNum(typeStartMs, totalDuration)), `transform: translate(0px, 0px);`);
+    for (const g of glyphs) b.push(pctNum(g.appearMs, totalDuration), `transform: translate(${g.edge.toFixed(2)}px, ${(g.li * lineHeight).toFixed(2)}px);`);
+    const posStops = [
+      ...b.stops,
+      `${holdEndPct}, 100% { transform: translate(${endX.toFixed(2)}px, ${endY.toFixed(2)}px); }`,
+    ];
 
     // Blink: invisible until typing starts, solid through typing, then toggle
     // on/off every half-period until the overlay disappears.
@@ -1020,10 +1151,12 @@ function buildTypingCaret(
     parts.push(
       `  <rect class="${id}-caret" x="${overlay.x}" y="${overlay.y - fontSize + 2}" width="${caretW}" height="${fontSize}" fill="${caretColor}" />`,
     );
+    // The position track is step-end (per-keystroke jumps, matching real typing
+    // and the discrete reveal); the blink is step-end too.
     cssRules.push(`
     @keyframes ${id}-caret-pos { ${posStops.join(" ")} }
     @keyframes ${id}-caret-blink { ${blinkStops.join(" ")} }
-    .${id}-caret { animation: ${id}-caret-pos ${totalSec.toFixed(2)}s linear infinite, ${id}-caret-blink ${totalSec.toFixed(2)}s step-end infinite; }`);
+    .${id}-caret { animation: ${id}-caret-pos ${totalSec.toFixed(2)}s step-end infinite, ${id}-caret-blink ${totalSec.toFixed(2)}s step-end infinite; }`);
   }
   return { parts, cssRules };
 }
@@ -1063,8 +1196,14 @@ function renderTypingOverlay(
   const maxLineWidth = wrapWidth != null ? wrapWidth - 4 : Infinity;
   const maxChars = maxLineWidth === Infinity ? Infinity : Math.max(1, Math.floor(maxLineWidth / charWidth));
   const lines = wrapTypingText(overlay.text, maxChars);
-  const visibleChars = Math.max(1, lines.reduce((n, l) => n + l.length, 0));
-  const longestLineChars = lines.reduce((m, l) => Math.max(m, l.length), 0);
+  // Per-line code-point arrays (astral pairs count as one glyph) drive both the
+  // reveal stepping and the caret, so they can't desync.
+  const chars = lines.map((l) => [...l]);
+  // DM-1518: fontkit-measured cumulative advances per line — the caret + reveal
+  // ride these exact edges instead of the old uniform 0.6em estimate.
+  const { cum } = measureTypingLines(chars, fontSize);
+  const visibleChars = Math.max(1, chars.reduce((n, l) => n + l.length, 0));
+  const longestLineWidth = cum.reduce((m, c) => Math.max(m, c[c.length - 1]), 0);
 
   const parts: string[] = [];
   const cssRules: string[] = [];
@@ -1092,7 +1231,7 @@ function renderTypingOverlay(
   // defaults to the wrap width, then to the longest typed line.
   const maskColor = overlay.mask?.color ?? overlay.bgColor;
   if (maskColor != null) {
-    const bgW = overlay.mask?.width ?? wrapWidth ?? longestLineChars * charWidth + 8;
+    const bgW = overlay.mask?.width ?? wrapWidth ?? longestLineWidth + 8;
     const bgH = Math.max(overlay.mask?.height ?? overlay.bgHeight ?? fontSize + 6, lines.length * lineHeight + 6);
     const bgStartPct = pct(typeStartMs, totalDuration);
     parts.push(
@@ -1103,10 +1242,15 @@ function renderTypingOverlay(
     .${id}-bg { animation: ${id}-bg ${totalSec.toFixed(2)}s infinite; }`);
   }
 
+  // DM-1518: the shared reveal plan — one entry per typed glyph, carrying the
+  // line, the caret x AFTER it (its measured right edge), and its reveal time.
+  // Both the line clips and the caret ride this plan, so they can't desync.
+  const glyphs = buildTypingPlan(chars, cum, overlay, speed, typeStartMs, effTypeDur);
+  const discrete = overlay.mode !== "paste" && visibleChars <= MAX_DISCRETE_TYPING_CHARS;
+
   // Typewriter reveal — one <text> per wrapped line, each unveiled by a width-
-  // growing clip during its slice of the type timeline. Collects the per-line
-  // timings the caret sweeps over.
-  const ln = buildTypingLines(lines, overlay, id, charWidth, lineHeight, fontSize, textHeight, hiddenW, color, typeStartMs, visibleChars, effTypeDur, totalDuration, holdEndPct, disappearPct, totalSec);
+  // growing clip stepping to each glyph's measured edge as it is typed.
+  const ln = buildTypingLines(chars, overlay, id, cum, glyphs, discrete, lineHeight, fontSize, textHeight, hiddenW, color, totalDuration, holdEndPct, disappearPct, totalSec);
   parts.push(...ln.parts);
   cssRules.push(...ln.cssRules);
 
@@ -1116,8 +1260,10 @@ function renderTypingOverlay(
     @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }
     .${id}-text { animation: ${id}-vis ${totalSec.toFixed(2)}s infinite; }`);
 
-  // Optional blinking insertion caret that sweeps the type position then parks.
-  const cr = buildTypingCaret(overlay, id, color, charWidth, lineHeight, fontSize, ln.lineTimings, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec);
+  // Optional blinking insertion caret glued to the growing text edge. In paste
+  // mode only the final edge matters, so the caret rides a single end stop.
+  const caretGlyphs = overlay.mode === "paste" ? glyphs.slice(-1) : glyphs;
+  const cr = buildTypingCaret(overlay, id, color, caretGlyphs, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec);
   parts.push(...cr.parts);
   cssRules.push(...cr.cssRules);
 

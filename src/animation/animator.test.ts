@@ -447,7 +447,7 @@ describe("animator", () => {
     expect(svg).not.toContain("alternate");
   });
 
-  it("DM-870: typing-overlay caret emits a position-tracked, step-end blinking bar", () => {
+  it("DM-870 / DM-1518: typing-overlay caret emits a step-end position + blink bar", () => {
     const svg = generateAnimatedSvg({
       width: 200,
       height: 80,
@@ -456,20 +456,62 @@ describe("animator", () => {
     expect(svg).toContain(`class="t0-caret"`);
     expect(svg).toMatch(/@keyframes t0-caret-pos/);
     expect(svg).toMatch(/@keyframes t0-caret-blink/);
-    // Position track is linear; the blink toggles with step-end (hard on/off).
-    expect(svg).toMatch(/\.t0-caret\s*{[^}]*linear[^}]*step-end/);
+    // DM-1518: both tracks are step-end — the caret JUMPS to each glyph's edge
+    // as it is typed (real per-keystroke typing) and hard-toggles the blink.
+    expect(svg).toMatch(/\.t0-caret\s*{[^}]*step-end[^}]*step-end/);
   });
 
-  it("DM-1204: typing-overlay reveal clip sweeps linearly so it tracks the caret", () => {
+  it("DM-1518: reveal clip steps per keystroke and the caret parks exactly at the measured text edge", () => {
     const svg = generateAnimatedSvg({
       width: 200,
       height: 80,
       frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true }] }],
     });
-    // The reveal-clip width animation must be `linear`, matching the caret's
-    // linear position track. A default (ease) timing function makes the reveal
-    // edge race ahead of the linear caret mid-sweep (caret appears to lag).
-    expect(svg).toMatch(/\.t0-rev0\s*{[^}]*\blinear\b[^}]*}/);
+    // The reveal clip is a per-keystroke staircase (step-end), locked to the
+    // caret's own step-end track — one shared plan, so they can't desync.
+    expect(svg).toMatch(/\.t0-rev0\s*{[^}]*\bstep-end\b[^}]*}/);
+    // "hi there" is 8 chars, so the reveal emits a width stop per glyph.
+    const revBlock = svg.match(/@keyframes t0-rev0\s*{([\s\S]*?)}\s*\.t0-rev0/)?.[1] ?? "";
+    const widthStops = [...revBlock.matchAll(/width:\s*([\d.]+)px/g)].map((m) => parseFloat(m[1]));
+    expect(widthStops.length).toBeGreaterThanOrEqual(8);
+    // The parked caret x must equal the fully-revealed line width (minus the 1px
+    // antialiasing slack): both come from the SAME fontkit-measured cumulative
+    // advances, so the caret sits AT the trailing edge — not ~0.5px/char behind
+    // it as the old uniform 0.6em estimate left it (the reported lag). Platform-
+    // independent: it ties the two tracks together rather than pinning a metric.
+    const holdWidth = Math.max(...widthStops);
+    const parkedCaretX = parseFloat(svg.match(/t0-caret-pos\s*{[\s\S]*?100%\s*{\s*transform:\s*translate\(([\d.]+)px/)?.[1] ?? "NaN");
+    expect(Math.abs(parkedCaretX + 1 - holdWidth)).toBeLessThan(0.1);
+  });
+
+  it("DM-1518: paste mode reveals the whole field at once with the caret at the end", () => {
+    const svg = generateAnimatedSvg({
+      width: 300,
+      height: 80,
+      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hello world", x: 10, y: 40, delay: 200, mode: "paste", caret: true }] }],
+    });
+    // The reveal jumps hidden → full within a hair of the paste instant (no
+    // per-glyph staircase): the width block has a single grown stop.
+    const revBlock = svg.match(/@keyframes t0-rev0\s*{([\s\S]*?)}\s*\.t0-rev0/)?.[1] ?? "";
+    const grownStops = [...revBlock.matchAll(/width:\s*([\d.]+)px/g)].map((m) => parseFloat(m[1])).filter((w) => w > 1);
+    // Two entries: the reveal-to-full and the hold-at-full (same value).
+    expect(new Set(grownStops.map((w) => w.toFixed(2))).size).toBe(1);
+    // The caret jumps straight to the end (a single glyph stop, not 11).
+    const posBlock = svg.match(/@keyframes t0-caret-pos\s*{([\s\S]*?)}\s*@keyframes/)?.[1] ?? "";
+    const translateStops = [...posBlock.matchAll(/translate\(/g)].length;
+    expect(translateStops).toBeLessThanOrEqual(4);
+  });
+
+  it("DM-1518: jitter humanizes the cadence deterministically", () => {
+    const mk = (jitter?: number): string => generateAnimatedSvg({
+      width: 200,
+      height: 80,
+      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "the quick brown fox", x: 10, y: 40, jitter, caret: true }] }],
+    });
+    // Same input → byte-identical output (seeded PRNG): the SVG stays stable.
+    expect(mk(0.5)).toBe(mk(0.5));
+    // Jitter perturbs the reveal timing away from the even cadence.
+    expect(mk(0.5)).not.toBe(mk());
   });
 
   it("DM-1204: multi-line typing caret tracks each line instead of sticking at x=0", () => {
