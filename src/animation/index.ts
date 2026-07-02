@@ -57,3 +57,15 @@ export { CURSOR_GLYPHS, CURSOR_CATEGORIES, cursorGlyphSvg, type CursorGlyph } fr
 // against a live page — the resolution step the declarative CLI uses, now
 // reachable by imperative `captureElementTree` + `generateAnimatedSvg` callers.
 export { resolveOverlays, type OverlayAnchor, type AnchoredOverlay } from "./resolve-overlays.js";
+
+// DM-1526: named motion + easing preset vocabulary for intra-frame animations.
+export {
+  EASING_PRESETS,
+  easingPresetNames,
+  resolveEasingPreset,
+  motionPresetNames,
+  resolveMotionPreset,
+  type ResolvedMotion,
+  type MotionPresetOptions,
+  type PresetFuseTrack,
+} from "./motion-presets.js";

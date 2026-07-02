@@ -47,7 +47,11 @@ shortest possible map:
   **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
   (`composeAnimatedLayers` — stack animated SVGs as placed, independently-timed
   layers), `embed-namespace.ts` (per-layer name namespacing), `embed-timeline.ts`
-  (per-layer `hold`/`stretch`/`loop` timeline re-anchoring).
+  (per-layer `hold`/`stretch`/`loop` timeline re-anchoring). **Motion presets**
+  (doc 08 / DM-1526) live in `motion-presets.ts` — named motions
+  (`fade-up`/`pop`/`slide-in-<dir>`/`wipe-in`) + easing presets (spring/back/
+  standard) that expand to intra-frame animation fields (`preset`/`easing` on the
+  animate config; also reused by the template reveals).
 - **`src/scroll/`** — scroll-pattern grammar (DM-604) and the composer
   that stitches per-segment captures into one animated SVG.
 - **`src/cli/`** — the five published bins: `domotion`, `svg-to-video`,

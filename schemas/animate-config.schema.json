@@ -1398,12 +1398,25 @@
                 },
                 "selector": {
                   "type": "string"
+                },
+                "preset": {
+                  "description": "Named motion preset supplying property/from/to/fuse/easing.",
+                  "type": "string"
+                },
+                "presetDistance": {
+                  "description": "Travel px for slide/fade presets.",
+                  "type": "number"
+                },
+                "presetScaleFrom": {
+                  "description": "Start scale for the `pop` preset.",
+                  "type": "number"
+                },
+                "exit": {
+                  "description": "Reverse the preset (animate the element OUT).",
+                  "type": "boolean"
                 }
               },
               "required": [
-                "property",
-                "from",
-                "to",
                 "duration",
                 "selector"
               ]

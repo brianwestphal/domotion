@@ -11,6 +11,7 @@
 
 import type { Anims } from "../../cli/animate.js";
 import { safeAreaPadding, type SafeInset } from "../formats.js";
+import { resolveMotionPreset } from "../../animation/motion-presets.js";
 
 /** Resolved card colors for a theme, after any explicit overrides. */
 export interface CardTheme {
@@ -54,16 +55,14 @@ export interface RevealOpts {
   rise?: number;
 }
 
-const FADE_UP_EASING = "cubic-bezier(0.22,1,0.36,1)";
-const POP_EASING = "cubic-bezier(0.34,1.56,0.64,1)"; // slight overshoot
-
 /**
  * Build a staggered enter animation (one entry per selector), fading each element
- * in as it rises (`fade-up`) or pops (`pop`). Opacity is FUSED into the same
- * animation as the transform (DM-1512/1513) so the fade can't desync from the
- * move under Firefox's off-main-thread compositing. Elements are hidden at the
- * `from` state until their turn; reduced-motion degrades to the final state.
- * Returns `[]` for an empty selector list.
+ * in as it rises (`fade-up`) or pops (`pop`). The per-element motion comes from
+ * the shared **motion preset** vocabulary (DM-1526) — `fade-up`/`pop` — so opacity
+ * is FUSED into the transform track (DM-1512/1513, can't desync under Firefox
+ * OMTA) and the curves match the rest of the library. Elements sit at the `from`
+ * state until their turn; reduced-motion degrades to the final state. Returns `[]`
+ * for an empty selector list.
  */
 export function staggeredReveal(selectors: string[], opts: RevealOpts = {}): Anims {
   const style = opts.style ?? "fade-up";
@@ -71,21 +70,18 @@ export function staggeredReveal(selectors: string[], opts: RevealOpts = {}): Ani
   const duration = opts.duration ?? 600;
   const startDelay = opts.startDelay ?? 0;
   const rise = opts.rise ?? 24;
-  return selectors.map((selector, i) => {
-    const delay = startDelay + i * stagger;
-    if (style === "pop") {
-      return {
-        selector, property: "scale", from: "0.8", to: "1", duration, delay,
-        easing: POP_EASING, transformOrigin: "center",
-        fuse: [{ property: "opacity", from: "0", to: "1" }],
-      };
-    }
-    return {
-      selector, property: "translateY", from: `${rise}px`, to: "0px", duration, delay,
-      easing: FADE_UP_EASING,
-      fuse: [{ property: "opacity", from: "0", to: "1" }],
-    };
-  });
+  const m = resolveMotionPreset(style === "pop" ? "pop" : "fade-up", { distance: rise });
+  return selectors.map((selector, i) => ({
+    selector,
+    property: m.property,
+    from: m.from,
+    to: m.to,
+    duration,
+    delay: startDelay + i * stagger,
+    easing: m.easing,
+    ...(m.transformOrigin != null ? { transformOrigin: m.transformOrigin } : {}),
+    ...(m.fuse != null ? { fuse: m.fuse } : {}),
+  }));
 }
 
 /** The end time (ms) of a staggered reveal over `count` items — used to size the

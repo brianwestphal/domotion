@@ -42,6 +42,18 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 08 motion presets (`docs/08-animation-model.md`, DM-1526)** — **Shipped.**
+  A named motion + easing vocabulary on intra-frame animations so authors don't
+  hand-tune cubic-beziers. `src/animation/motion-presets.ts`: motion presets
+  (`fade`, `fade-up`, `fade-down`, `pop`, `slide-in-<dir>`, `wipe-in`; `exit:true`
+  reverses) that expand to `{property,from,to,fuse,easing}`, and easing presets
+  (standard eases + `back`/`spring` overshoot → plain `cubic-bezier`, cross-engine).
+  Surfaced as `preset`/`easing`/`exit`/`presetDistance`/`presetScaleFrom` on the
+  animate config's intra-frame animations (expanded in `expandMotionPreset`), and
+  reused by the template reveals (`staggeredReveal`). **Follow-up:** a true
+  multi-oscillation `spring` baked to keyframe samples (currently a single-
+  overshoot bezier); `shine` sweep (needs a gradient/mask overlay).
+
 - **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532 impl)** —
   **Batches A + B shipped.** Batch A: four narrative text-card templates
   (`title-card`, `quote`, `caption` [transparent overlay subtitle, distinct from

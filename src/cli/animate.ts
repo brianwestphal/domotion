@@ -47,6 +47,7 @@ import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../s
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
+import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-presets.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
@@ -102,7 +103,54 @@ const frameAnimationSchema = intraFrameAnimationSchema
     selector: z.string(),
     // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
     repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
+    // DM-1526: a named motion preset (fade-up / pop / slide-in-<dir> / wipe-in, …)
+    // can supply property/from/to/fuse/easing, so those become optional here — the
+    // preset fills them and any explicit field overrides. `easing` also accepts a
+    // named easing preset (spring / back-out / ease-out-quart / …). Expansion runs
+    // in `expandMotionPreset` before the animation is emitted.
+    property: intraFrameAnimationSchema.shape.property.optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    preset: z.string().optional().describe("Named motion preset supplying property/from/to/fuse/easing."),
+    presetDistance: z.coerce.number().optional().describe("Travel px for slide/fade presets."),
+    presetScaleFrom: z.coerce.number().optional().describe("Start scale for the `pop` preset."),
+    exit: z.boolean().optional().describe("Reverse the preset (animate the element OUT)."),
   });
+
+/**
+ * DM-1526: expand a motion preset (if any) into concrete intra-frame animation
+ * fields and resolve any named easing preset. Explicit `property`/`from`/`to`/
+ * `easing`/`fuse` on the animation override the preset. Throws if neither a preset
+ * nor explicit property/from/to is present.
+ */
+type ExpandedFrameAnimation = z.infer<typeof frameAnimationSchema> & {
+  property: NonNullable<z.infer<typeof frameAnimationSchema>["property"]>;
+  from: string;
+  to: string;
+};
+function expandMotionPreset(a: z.infer<typeof frameAnimationSchema>): ExpandedFrameAnimation {
+  let preset: ReturnType<typeof resolveMotionPreset> | null = null;
+  if (a.preset != null) {
+    preset = resolveMotionPreset(a.preset, { distance: a.presetDistance, scaleFrom: a.presetScaleFrom, exit: a.exit });
+  }
+  const property = a.property ?? preset?.property;
+  const from = a.from ?? preset?.from;
+  const to = a.to ?? preset?.to;
+  if (property == null || from == null || to == null) {
+    throw new Error(
+      `animation for "${a.selector}": needs either a "preset" or explicit property/from/to.`,
+    );
+  }
+  return {
+    ...a,
+    property,
+    from,
+    to,
+    easing: resolveEasingPreset(a.easing ?? preset?.easing),
+    transformOrigin: a.transformOrigin ?? preset?.transformOrigin,
+    fuse: a.fuse ?? preset?.fuse,
+  } as ExpandedFrameAnimation;
+}
 
 const insertPositionSchema = z.enum(["beforebegin", "afterbegin", "beforeend", "afterend"]);
 const scrollLogicalSchema = z.enum(["start", "center", "end", "nearest"]);
@@ -854,7 +902,7 @@ async function buildCapturedFrame(
   const resolvedAnimations: IntraFrameAnimation[] = [];
   if (fc.animations != null && fc.animations.length > 0) {
     for (let ai = 0; ai < fc.animations.length; ai++) {
-      const a = fc.animations[ai];
+      const a = expandMotionPreset(fc.animations[ai]); // DM-1526: preset → concrete fields
       const animId = `f${i}a${ai}`;
       await page.evaluate(
         (args: { selector: string; animId: string }) => {

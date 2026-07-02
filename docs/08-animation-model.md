@@ -180,3 +180,41 @@ Storyboard — combines all of the above:
    - `overlays: [{ kind: "svg", src: "./build/example.svg", x: 180, y: 0, width: 280, height: 580, enter: { from: "bottom", duration: 600, easing: "ease-out" } }]`
 
 The captured HTML for frames 2–6 is hand-authored to match what each terminal state would actually look like; the animations live in the JSON config, not the HTML.
+
+## Motion presets (DM-1526)
+
+Instead of hand-tuning cubic-beziers and re-deriving from/to transforms, an
+intra-frame animation can name a **motion preset** and/or a **named easing**.
+Both live in `src/animation/motion-presets.ts` (exported: `resolveMotionPreset`,
+`resolveEasingPreset`, `EASING_PRESETS`, `motionPresetNames`, `easingPresetNames`)
+and expand to the ordinary animation fields BEFORE emission — so they inherit the
+same fused-track, reduced-motion, and cross-engine guarantees; there's no new
+runtime.
+
+**On the animate config**, an animation may set `preset` (and optionally
+`presetDistance` / `presetScaleFrom` / `exit`) instead of `property`/`from`/`to`;
+`easing` accepts a preset name too. Explicit fields override the preset.
+
+```jsonc
+{ "selector": ".headline", "preset": "fade-up", "duration": 600 }
+{ "selector": ".badge",    "preset": "pop", "easing": "spring", "duration": 500 }
+{ "selector": ".cta",      "preset": "slide-in-right", "presetDistance": 64, "duration": 500 }
+{ "selector": ".panel",    "preset": "fade-up", "exit": true, "duration": 400 } // animate OUT
+```
+
+**Motion presets** (each fuses `opacity` into its transform track):
+`fade`, `fade-up`, `fade-down`, `pop` (center-origin scale overshoot),
+`slide-in-left` / `slide-in-right` / `slide-in-up` / `slide-in-down`, and
+`wipe-in` (a left→right `clip-path` reveal). `exit: true` reverses a preset.
+(`shine`, a gradient sweep, needs a mask/gradient overlay and is tracked
+separately.)
+
+**Easing presets** resolve to plain `cubic-bezier(...)` (cross-engine, no runtime):
+the standard eases plus `ease-out-quad/cubic/quart/expo`, `ease-in-cubic`,
+`ease-in-out-cubic`, `smooth`, and the overshoot set `back-in` / `back-out` /
+`back-in-out` / `spring`. A raw CSS easing string passes through unchanged. (A
+true multi-oscillation spring, baked to keyframe samples via the DM-1517 sampler,
+is a follow-up — the current `spring` is a single-overshoot bezier.)
+
+The built-in templates' staggered reveals build on this same vocabulary (`fade-up`
+/ `pop`), so template and hand-authored motion stay consistent.

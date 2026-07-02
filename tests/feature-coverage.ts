@@ -233,6 +233,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/cli/animate-config-json-schema.test.ts", "src/cli/animate.test.ts"],
   },
   {
+    id: "animate.motion-presets",
+    behavior: "Named motion + easing preset vocabulary (fade-up/pop/slide-in-<dir>/wipe-in; spring/back/standard eases) that expand to intra-frame animation fields — on the animate config's `preset`/`easing` and reused by the templates' reveals.",
+    doc: "docs/08-animation-model.md",
+    exports: ["EASING_PRESETS", "easingPresetNames", "resolveEasingPreset", "motionPresetNames", "resolveMotionPreset"],
+    tests: ["src/animation/motion-presets.test.ts"],
+  },
+  {
     id: "animate.overlays",
     behavior: "Resolve typing/tap/svg/blink overlays + DOM-mutation/interaction actions.",
     doc: "docs/61-overlay-resolution-primitive.md",
