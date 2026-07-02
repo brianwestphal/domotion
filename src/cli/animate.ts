@@ -229,7 +229,10 @@ const anchorSchema = z.object({
 // `resolveOverlayAnchors`). The `svg` kind is its own shape because authoring
 // takes a `src` file path that the CLI later reads / namespaces into the
 // runtime `innerSvg` + `animId` (see `resolveSvgOverlays`).
-const overlaySchema = z.discriminatedUnion("kind", [
+// Exported so the `storyboard` runner can offer the SAME per-scene overlay
+// authoring vocabulary (typing / tap / svg / blink / shine) without redefining
+// it — DM-1554 reuses this schema + `resolveEmbeddedFrameOverlays` verbatim.
+export const overlaySchema = z.discriminatedUnion("kind", [
   typingOverlaySchema.extend({
     x: z.number().default(0),
     y: z.number().default(0),
@@ -391,7 +394,9 @@ const frameSchema = z.object({
 
 // DM-851 §6 — config-level cursor overlay. Either "auto" (derive a move +
 // click-pulse per click/hover/fill action) or an explicit event list.
-const cursorStyleSchema = z.object({
+// Exported so the `storyboard` runner reuses the SAME cursor style / event
+// authoring shapes for its storyboard-level cursor track (DM-1554).
+export const cursorStyleSchema = z.object({
   scale: z.number().optional(),
   color: z.string().optional(),
   pulseColor: z.string().optional(),
@@ -399,7 +404,7 @@ const cursorStyleSchema = z.object({
   pulseDurationMs: z.number().optional(),
 });
 
-const cursorEventSchema = z
+export const cursorEventSchema = z
   .object({
     frame: z.number().int().nonnegative(),
     at: z.number().default(0),
@@ -1669,7 +1674,7 @@ export function resolveEmbeddedFrameOverlays(
   overlays: OverlayInput[] | undefined,
   configDir: string,
   frameIdx: number,
-  frameKind: "cast" | "template",
+  frameKind: string,
   log: (msg: string) => void,
 ): AnimationOverlay[] | undefined {
   if (overlays == null) return undefined;

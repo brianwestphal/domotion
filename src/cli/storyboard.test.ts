@@ -29,6 +29,22 @@ function staticSceneSvg(color: string): string {
 </svg>`;
 }
 
+/** A base64 payload marker unique enough to count occurrences of the embedded
+ *  font in the assembled output. base64 excludes `{`/`}`, so it's a valid
+ *  `@font-face` body for `dedupeCompositeFonts`. */
+const FONT_PAYLOAD = "AAEAAAALAIAAAwAwT1MvMg8SBfsAAAD8AAAAYGNtYXAaVcx1QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVph";
+
+/** An svg scene carrying a `dmf0` `@font-face` (same byte-identical payload every
+ *  call) plus a `<text>` that uses it — so two of these embed the SAME font. */
+function fontSceneSvg(id: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200" height="100">
+  <style>@font-face { font-family: "dmf0"; src: url("data:font/ttf;base64,${FONT_PAYLOAD}") format("truetype"); }
+  :root { --scene-dur: 1.00s; }</style>
+  <text id="${id}-t" x="10" y="50" font-family="dmf0" font-size="20">Hi</text>
+</svg>`;
+}
+
 /** The svg-source path never dereferences the browser, so an all-`svg` config
  *  composes with no real browser. */
 const NO_BROWSER = null as unknown as Browser;
@@ -83,21 +99,47 @@ describe("storyboard config validation", () => {
     ).toThrow(/exactly one of `url` or `file`/);
   });
 
-  it("only exposes the opaque-scene-safe transition set (no magic-move)", () => {
+  it("exposes the full cross-engine-safe transition set incl. the DM-1524 reveals (no magic-move)", () => {
     // magic-move needs an element-tree bridge; distinct opaque scenes can't share one.
     const parsed = storyboardConfigSchema.safeParse({
       width: 10, height: 10,
       scenes: [{ svg: "a.svg", duration: 1, transition: { type: "magic-move", duration: 0 } }],
     });
     expect(parsed.success).toBe(false);
-    // the four supported types validate.
-    for (const type of ["crossfade", "cut", "push-left", "scroll"]) {
+    // DM-1552: the originals PLUS the DM-1524 expansion (directional pushes,
+    // clip-path reveals, scale dollies, shine) all validate — plumbed straight
+    // through to the animator's frame-transition enum.
+    for (const type of [
+      "crossfade", "cut", "push-left", "scroll",
+      "push-right", "push-up", "push-down",
+      "wipe", "iris", "zoom-in", "zoom-out", "shine",
+    ]) {
       const ok = storyboardConfigSchema.safeParse({
         width: 10, height: 10,
         scenes: [{ svg: "a.svg", duration: 1, transition: { type, duration: 0 } }],
       });
       expect(ok.success, `transition ${type} should validate`).toBe(true);
     }
+  });
+
+  it("accepts per-scene overlays and a storyboard-level cursor track (DM-1554)", () => {
+    const cfg = validateStoryboardConfig({
+      width: 200, height: 100,
+      cursor: { events: [{ frame: 0, at: 100, type: "moveClick", to: { x: 40, y: 40 } }] },
+      scenes: [{ svg: "a.svg", duration: 1000, overlays: [{ kind: "typing", text: "hi", x: 10, y: 20 }] }],
+    });
+    expect(cfg.scenes[0].overlays).toHaveLength(1);
+    expect(cfg.cursor?.events).toHaveLength(1);
+  });
+
+  it("rejects a cursor event that uses a `selector` (a scene retains no live DOM) (DM-1554)", () => {
+    expect(() =>
+      validateStoryboardConfig({
+        width: 200, height: 100,
+        cursor: { events: [{ frame: 0, type: "move", selector: ".btn" }] },
+        scenes: [{ svg: "a.svg", duration: 1000 }],
+      }),
+    ).toThrow(/selector.*can't resolve|can't resolve.*selector|to.*coordinates/i);
   });
 });
 
@@ -179,5 +221,102 @@ describe("storyboard composition (svg scenes, no browser)", () => {
       (m) => { logged += m + "\n"; },
     );
     expect(logged).toMatch(/defaulted to the scene's play time: 1234ms/);
+  });
+
+  it("collapses a byte-identical embedded font shared across scenes to one copy (DM-1553)", async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, "a.svg"), fontSceneSvg("fa"));
+    writeFileSync(join(dir, "b.svg"), fontSceneSvg("fb"));
+    const svg = await composeStoryboardConfig(
+      NO_BROWSER,
+      validateStoryboardConfig({
+        width: 200, height: 100,
+        scenes: [
+          { svg: "a.svg", duration: 1000, transition: { type: "crossfade", duration: 200 } },
+          { svg: "b.svg", duration: 1000 },
+        ],
+      }),
+      dir,
+    );
+    // Both scenes rendered (namespaced text nodes present, per scene).
+    expect(svg).toContain("sb0_fa-t");
+    expect(svg).toContain("sb1_fb-t");
+    // Cross-scene font dedup: exactly ONE `@font-face` and ONE copy of the (heavy)
+    // base64 payload survive, though each scene embedded its own.
+    expect((svg.match(/@font-face/g) ?? []).length).toBe(1);
+    expect((svg.match(new RegExp(FONT_PAYLOAD, "g")) ?? []).length).toBe(1);
+    // The surviving copy is smaller than the two-payload total would be.
+    const bothPayloads = FONT_PAYLOAD.length * 2;
+    const onePayload = FONT_PAYLOAD.length;
+    expect(svg.length).toBeLessThan(
+      // a rough upper bound proving the second payload is gone
+      svg.length + bothPayloads - onePayload,
+    );
+    // Both text nodes reference the single surviving family (sb1's was repointed).
+    const famRefs = svg.match(/font-family="sb\d+_dmf0"/g) ?? [];
+    expect(new Set(famRefs).size).toBe(1);
+  });
+
+  it("renders a per-scene typing overlay on top of the scene (DM-1554)", async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, "a.svg"), animatedSceneSvg("#123", "ov"));
+    const svg = await composeStoryboardConfig(
+      NO_BROWSER,
+      validateStoryboardConfig({
+        width: 200, height: 100,
+        scenes: [{ svg: "a.svg", duration: 2000, overlays: [{ kind: "typing", text: "hello", x: 12, y: 40, caret: true }] }],
+      }),
+      dir,
+    );
+    // The typing overlay reveals its text over the scene (rendered as glyph paths
+    // or text) — the animator's typing-overlay group + caret land in the output.
+    expect(svg).toContain("sb0_ov-rect"); // the scene
+    expect(svg).toContain('class="t0-caret"'); // typing caret group (frame 0)
+    expect(svg).toMatch(/@keyframes t0-caret-pos/); // per-keystroke caret stepping
+  });
+
+  it("spans a cursor track across scenes (DM-1554)", async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, "a.svg"), animatedSceneSvg("#0a0", "sa"));
+    writeFileSync(join(dir, "b.svg"), animatedSceneSvg("#00a", "sb"));
+    const svg = await composeStoryboardConfig(
+      NO_BROWSER,
+      validateStoryboardConfig({
+        width: 200, height: 100,
+        cursor: {
+          style: { scale: 1.2 },
+          events: [
+            { frame: 0, at: 200, type: "moveClick", to: { x: 40, y: 40 } },
+            { frame: 1, at: 200, type: "moveClick", to: { x: 160, y: 60 } },
+          ],
+        },
+        scenes: [
+          { svg: "a.svg", duration: 1500, transition: { type: "crossfade", duration: 200 } },
+          { svg: "b.svg", duration: 1500 },
+        ],
+      }),
+      dir,
+    );
+    // The macOS-style cursor overlay is emitted once, spanning the whole loop.
+    expect((svg.match(/class="cursor-overlay"/g) ?? []).length).toBe(1);
+    // Two click pulses (one per scene) ride the single overlay.
+    expect(svg).toContain("cursor-click-0");
+    expect(svg).toContain("cursor-click-1");
+  });
+
+  it("rejects a cursor event referencing a scene index out of range (DM-1554)", async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, "a.svg"), animatedSceneSvg("#111", "oo"));
+    await expect(
+      composeStoryboardConfig(
+        NO_BROWSER,
+        validateStoryboardConfig({
+          width: 200, height: 100,
+          cursor: { events: [{ frame: 3, at: 0, type: "moveClick", to: { x: 10, y: 10 } }] },
+          scenes: [{ svg: "a.svg", duration: 1000 }],
+        }),
+        dir,
+      ),
+    ).rejects.toThrow(/references scene 3, but there are only 1 scenes/);
   });
 });

@@ -44,6 +44,82 @@ afterAll(async () => {
 
 const describeBrowser = env ? describe : describe.skip;
 
+// Two casts in the SAME monospace but DIFFERENT text → different glyph subsets.
+const E = "\x1b";
+const evLine = (t: number, d: string): string => JSON.stringify([t, "o", d]);
+const castOf = (lines: string[]): string =>
+  [JSON.stringify({ version: 2, width: 40, height: 6, title: "c" }), ...lines.map((l, i) => evLine(0.5 + i, `${l}\r\n`)), evLine(5, "")].join("\n");
+const CAST_A = castOf([`${E}[32malpha bravo${E}[0m`, `${E}[33mcharlie${E}[0m`]);
+const CAST_B = castOf([`${E}[36mdelta echo${E}[0m`, `${E}[1mfoxtrot golf${E}[0m`]);
+const countFontFaces = (svg: string): number => (svg.match(/@font-face/g) ?? []).length;
+
+describeBrowser("storyboard cross-scene font dedup (DM-1553)", () => {
+  it("two cast scenes with different text share one embedded-font set (shared builder)", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(join(tmpdir(), "dm-storyboard-fonts-"));
+    writeFileSync(join(dir, "a.cast"), CAST_A);
+    writeFileSync(join(dir, "b.cast"), CAST_B);
+
+    const svg = await composeStoryboardConfig(
+      browser,
+      {
+        width: 400, height: 300,
+        scenes: [
+          { cast: "a.cast", term: { mode: "incremental", theme: "dark" }, duration: 3000, transition: { type: "crossfade", duration: 200 } },
+          { cast: "b.cast", term: { mode: "incremental", theme: "dark" }, duration: 3000 },
+        ],
+      },
+      dir,
+    );
+
+    // Both cast scenes deferred their font to ONE shared block — the face count is
+    // per-variant, NOT per scene (without the shared builder it would scale with
+    // the scene count, then the union subsets would still not merge via the
+    // byte-identical collapse alone).
+    const faces = countFontFaces(svg);
+    expect(faces).toBeGreaterThan(0);
+    expect(faces).toBeLessThanOrEqual(8);
+    // The shared block's families are un-prefixed `dmfN` (no `sb0_`/`sb1_` font
+    // prefix), and every `font-family` reference resolves to one — no dangling ref.
+    const faceFamilies = new Set([...svg.matchAll(/@font-face[^}]*font-family:\s*"([^"]+)"/g)].map((m) => m[1]));
+    expect([...faceFamilies].every((f) => /^dmf\d+$/.test(f))).toBe(true);
+    const refFamilies = new Set([...svg.matchAll(/font-family[:=]\s*"(sb\d+_)?(dmf\d+)"/g)].map((m) => m[2]));
+    for (const ref of refFamilies) expect(faceFamilies, `dangling font ref ${ref}`).toContain(ref);
+  }, 60_000);
+});
+
+describeBrowser("storyboard overlays + cursor on a capture scene (DM-1554)", () => {
+  it("layers a typing overlay and a scene-spanning cursor onto a live capture", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(join(tmpdir(), "dm-storyboard-ovl-"));
+    writeFileSync(join(dir, "demo.html"), DEMO_HTML);
+
+    const svg = await composeStoryboardConfig(
+      browser,
+      {
+        width: 480, height: 270,
+        cursor: { events: [{ frame: 0, at: 200, type: "moveClick", to: { x: 240, y: 135 } }] },
+        scenes: [
+          {
+            capture: { file: "demo.html" },
+            duration: 2500,
+            overlays: [{ kind: "typing", text: "typed on top", x: 40, y: 220, caret: true }],
+          },
+        ],
+      },
+      dir,
+    );
+
+    // The typed caption + caret ride on top of the captured scene.
+    expect(svg).toContain('class="t0-caret"');
+    // The macOS cursor overlay spans the loop with a click pulse.
+    expect((svg.match(/class="cursor-overlay"/g) ?? []).length).toBe(1);
+    expect(svg).toContain("cursor-click-0");
+    // The capture still round-tripped underneath.
+    expect(svg).toContain("sb0_");
+  }, 60_000);
+});
+
 describeBrowser("storyboard end-to-end (DM-1527)", () => {
   it("sequences template + capture + svg scenes into one animated SVG", async () => {
     const { browser } = env!;
