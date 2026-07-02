@@ -74,7 +74,10 @@ describeBrowser("capture --format viewport sizing (DM-1538)", () => {
 
   it("--format sizes the captured CONTENT; --chrome adds the bezel around it", async () => {
     const svg = await capture(["--format", "reel", "--chrome", "phone"]);
-    // Phone bezel adds a 14px rim per side → 1080+28 × 1920+28.
-    expect(svg).toMatch(/width="1108" height="1948"/);
+    // DM-1559: the phone bezel scales with the screen (a 1080-wide reel screen
+    // gets a proportionate ~39px rim instead of the 14px tuned for a ~390-wide
+    // phone), so a reel screen reads as a phone rather than a hairline-bordered
+    // rectangle. min(1080,1920)/390 → s≈2.77 → rim 39 → 1080+78 × 1920+78.
+    expect(svg).toMatch(/width="1158" height="1998"/);
   }, 60_000);
 });

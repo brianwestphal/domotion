@@ -58,6 +58,7 @@ All are opt-in via `safeInset` (no format → byte-identical):
 | `stat` | value cell + label + delta (width-capped, see below) |
 | `counter` | value cell (width-capped) |
 | `compare` | label pill font/height/pad + honors the safe inset for placement |
+| `chart` | title / axis-tick / value-label / category-label / legend type + the single-series bar-thickness cap (DM-1560) |
 
 The flex text cards (`title-card` / `quote` / `caption` / `cta`) are the core
 case — their text wraps, so scaling up is unambiguously a legibility win.
@@ -90,11 +91,25 @@ _without_ a format (`sf === 1`, landscape-tuned type). The reel `stat` number
 `1,284,000` fills the safe width without clipping. Demos:
 `examples/output/templates/format-reel-{title-card,quote,stat}.svg`.
 
+## `chart` (DM-1560)
+
+`chart` folds in the same `formatScaleFactor` as the cards. The factor is measured
+against the **full canvas + safe inset** (not the reduced plot rect DM-1537 lays
+the chart within), so it matches the cards' factor exactly, and multiplies the
+title / axis-tick / value-label / category-label / legend font sizes **and** the
+single-series bar-thickness cap (the absolute `130`/`90` px cap that otherwise
+leaves a narrow reel's few wide-slotted bars looking like thin ribbons). At a reel
+(`sf ≈ 1.49`) the 30 px title becomes ~45 px, the 15 px axis ticks ~22 px, and the
+bars thicken with the type; a landscape stays near-proportional. `sf === 1` (no
+format) returns every authored size unchanged, so a default chart — and every
+existing chart unit test — is **byte-identical**. Verified by rasterizing the
+rendered SVG at its payoff frame (`svg-to-image --at`) at reel vs landscape.
+
 ## Follow-ups (not in DM-1541)
 
 - **Adaptive scaling for the other themeable built-ins** — `kinetic-text`,
-  `lower-third`, `chat`, `subscribe`, and the `chart` axis/label type don't yet
-  consume the scale factor.
+  `lower-third`, `chat`, and `subscribe` don't yet consume the scale factor.
+  (`chart` now does — DM-1560.)
 - **Per-ratio layout _changes_** (not just scale) — e.g. stacking a `quote`
   attribution differently, or switching a `cta` to a vertical button row, at 9:16
   vs 16:9. The current pass is uniform type/space scaling, not layout

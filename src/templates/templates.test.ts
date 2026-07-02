@@ -563,6 +563,39 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
     expect(html).toContain(">B<");
   });
 
+  // DM-1560: adaptive per-ratio type + bar-thickness scaling.
+  it("scales the title / tick / value / category type by the format scale factor (sf), no-op at sf=1", () => {
+    const p = parse({ type: "column", data: [5, 9], labels: ["A", "B"], title: "Sales", yTicks: 4 });
+    const plan = planChart(p);
+    // sf === 1 (the no-format default) leaves every authored size at its px.
+    const base = buildChartHtml(p, plan);
+    expect(base).toContain(".ch-title { position: absolute; left: 40px; top: 22px; font-size: 30px");
+    expect(base).toContain(".ch-tick { position: absolute; font-size: 15px");
+    expect(base).toContain(".ch-val { position: absolute; font-size: 19px");
+    expect(base).toContain(".ch-cat { position: absolute; font-size: 17px");
+    // Passing sf===1 explicitly is byte-identical to the default.
+    expect(buildChartHtml(p, plan, undefined, 1)).toBe(base);
+    // sf = 1.5 scales each font-size (round): 30→45, 15→23, 19→29, 17→26, 17(legend)→26.
+    const scaled = buildChartHtml(p, plan, undefined, 1.5);
+    expect(scaled).toContain("font-size: 45px");  // title 30 · 1.5
+    expect(scaled).toContain("font-size: 23px");  // tick 15 · 1.5 = 22.5 → 23
+    expect(scaled).toContain("font-size: 29px");  // value 19 · 1.5 = 28.5 → 29
+    expect(scaled).toContain("font-size: 26px");  // category 17 · 1.5 = 25.5 → 26
+    expect(scaled).not.toContain("font-size: 30px"); // the authored title size is gone
+  });
+
+  it("scales the single-series bar-thickness cap by sf (byte-identical at sf=1)", () => {
+    // A wide plot + few categories hits the absolute cap (130px column / 90 bar).
+    const p = parse({ type: "column", data: [10, 20], width: 1000, height: 600 });
+    const capped = planChart(p);               // sf defaults to 1
+    expect(capped.bars.every((b) => b.width === 130)).toBe(true);
+    // sf = 2 doubles the cap → 260px bars (still ≤ slot·0.7, so the cap governs).
+    const scaled = planChart(p, 2);
+    expect(scaled.bars.every((b) => b.width === 260)).toBe(true);
+    // planChart(p, 1) equals planChart(p) — the sf default is a true no-op.
+    expect(planChart(p, 1)).toEqual(capped);
+  });
+
   // DM-1301: multi-series.
   it("grouped multi-series lays one bar per (category, series), colored per series, with a legend", () => {
     const p = parse({ type: "column", data: [[10, 20], [30, 40]], labels: ["P", "Q"], seriesNames: ["A", "B"], layout: "grouped", colors: ["#aaa", "#bbb"] });
