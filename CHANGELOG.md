@@ -2,6 +2,19 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.20.0] - 2026-07-02
+
+
+** Features**
+
+- Paired-motion animations (a move + a fade on the same element, as used by the kinetic-text and lower-third templates) now emit as a **single** CSS animation instead of two, keeping the transform and opacity in perfect lockstep.
+- Fused tracks can now carry their own duration, delay, and easing — e.g. a fast fade layered over a slower slide, or different curves per property — while still rendering as one timeline.
+
+** Fixes**
+
+- Firefox no longer flashes the transparent page-through background for a moment at every frame cut in multi-frame SVGs (cut, magic-move, crossfade, push, and scroll transitions). Chromium and Safari were already unaffected.
+- Single-frame looping animations (kinetic-text, lower-third) no longer flash or appear to run "as two separate steps" at the loop edge in Firefox.
+
 ## [0.19.1] - 2026-07-01
 
 
