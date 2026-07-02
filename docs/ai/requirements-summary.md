@@ -65,9 +65,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   reveals via `emitRevealFrame`), `zoom-in`/`zoom-out` scale dollies under a
   crossfade, and a `shine` sweep (reuses `buildShineSweep`). All transform + clip-path
   + opacity + gradient (no animated `filter`); wired into the transition enum, the
-  generated `animate-config.schema.json`, and `--transition`. **Still open:** radial/
-  clock wipe (conic-mask cross-engine calibration), mixed transition-type chaining
-  (unified entrance/exit compositor).
+  generated `animate-config.schema.json`, and `--transition`. **Follow-ups shipped:**
+  the `shine` overlay takes a `radius` (rounds its clip to a rounded element) and
+  auto-sizes to its anchor (DM-1551/1549); the reveal transitions take an optional
+  named `easing` incl. the sampled spring `linear()` curves (DM-1550). **Still open:**
+  radial/clock wipe (conic-mask cross-engine calibration, DM-1547), mixed
+  transition-type chaining (unified entrance/exit compositor, DM-1548).
 
 - **Doc 89 (`docs/89-storyboard-sequencing.md`, DM-1527)** — **Shipped.** A
   declarative **storyboard** runner + `domotion storyboard <config.json>` verb that
@@ -78,8 +81,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   scene→SVG→`namespaceEmbeddedAnimatedSvg`→`placeEmbeddedFrame`→`AnimationFrame`
   (`embeddedAnimationPeriodMs`)→`generateAnimatedSvg` path — no new render code — and
   exports to MP4 via `svg-to-video` unchanged. `src/cli/storyboard.ts` +
-  `schemas/storyboard-config.schema.json`. **Still open:** expose the doc-88 reveal
-  transitions in the storyboard enum, cross-scene font dedup, per-scene overlays/cursor.
+  `schemas/storyboard-config.schema.json`. **Follow-ups shipped (DM-1552/1553/1554):**
+  the full doc-88 reveal transitions between scenes; cross-scene font dedup (shared
+  cast builder + `dedupeCompositeFonts`); optional per-scene `overlays[]` (typing/tap/
+  svg/blink/shine) + a scene-spanning `cursor` track. **Still open:** anchored overlays
+  on a `capture` scene (resolve selectors during capture).
 
 - **Doc 93 (`docs/93-realistic-typing.md`, DM-1518)** — **Shipped.** The `typing`
   overlay now animates character-by-character with the caret glued to the *measured*
@@ -143,9 +149,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   and re-applies on `DOMContentLoaded`. Contract: `palette.primary`→`--brand-primary`,
   `accent`→`--brand-accent`, `background`→`--brand-background`, `text`→`--brand-text`,
   `muted`→`--brand-muted`, `font.family`→`--brand-font-family`, `radius`→`--brand-radius`.
-  **Still open (follow-ups):** brand → `template` frames in `animate` (they render
-  before the capture loop), an inline `brand` key in the animate config, more logo-slot
-  built-ins.
+  **Follow-ups shipped:** brand → `template` frames in `animate` (`renderTemplateFrames`
+  now threads the run brand, DM-1543); an inline `brand` key (path or object) in the
+  animate config with CLI override (`resolveConfigBrand`, DM-1544); `lower-third` now
+  consumes `brand.logo` (DM-1545, second built-in after `cta`). **Still open:**
+  `brand.logo` on `title-card`/other end-cards (DM-1575), a `logoPosition` for
+  `lower-third` (DM-1576).
 
 - **Doc 87 (`docs/87-format-presets.md`, DM-1521 design → DM-1534 impl)** —
   **Shipped v1.** Social-format presets on `domotion template`: `--format <name|WxH>`
@@ -166,8 +175,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   > format > default. `--format` sizes captured *content*, `--chrome` adds the
   bezel around it. `safeInset` on a raw capture is informational — a `--safe-guide`
   overlay (`safeAreaGuideSvg`) draws the safe-area rect; captured content isn't
-  reflowed (an `animate` `template` frame does receive the inset). **Still open:**
-  device-mockup format-awareness (format sizing the inner screen).
+  reflowed (an `animate` `template` frame does receive the inset). **Follow-up
+  shipped:** device-mockup format-awareness (DM-1559) — a format sizes the inner
+  screen to its aspect and the phone bezel scales proportionately (`--format reel
+  --chrome phone` → 1158×1998; byte-identical ≤390). **Still open:** browser/window
+  bezel-bar scaling (DM-1577).
 
 - **Doc 91 (`docs/91-adaptive-format-scaling.md`, DM-1541)** — **Shipped for the
   creative-pack text/number cards.** `formatScaleFactor(w,h,safeInset)` (√ of the
@@ -175,8 +187,12 @@ they describe (see `CLAUDE.md` "Documentation"):
   landscape-authored card reads well at 9:16 rather than merely fitting. Applied via
   `cardScaleFactor` in `caption`/`cta`/`quote`/`title-card`/`counter`/`stat`/`compare`
   (odometer gets a width-fit clamp). Opt-in like `safeAreaPadding` — **scale 1 with
-  no format, so default output is byte-identical**. **Still open:** fold in `chart`;
-  explore a CSS `clamp()`/viewport-unit alternative.
+  no format, so default output is byte-identical**. **Follow-ups shipped:** `chart`
+  now folds into `formatScaleFactor` (DM-1560, no-op proven at sf=1); the CSS
+  `clamp()`/viewport-unit alternative was investigated (doc 95, DM-1561 — verdict:
+  keep the uniform factor, add per-element scale *exponents* rather than clamp/vw,
+  since naive `vw` shrinks reel type). **Still open:** per-element scale exponents
+  (DM-1568), a designer tuning pass (DM-1569).
 
 - **Doc 84 (`docs/84-viewer-browser-support.md`, DM-1515)** — **Shipped contract.**
   The support matrix for the browsers that *view* the output (distinct from the
