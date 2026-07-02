@@ -238,5 +238,28 @@ export const intraFrameAnimationSchema = z.object({
   repeat: z.union([z.number(), z.literal("infinite")]).optional(),
   /** DM-869: when true, the loop ping-pongs `from`→`to`→`from` (CSS `animation-direction: alternate`). */
   alternate: z.boolean().optional(),
+  /**
+   * DM-1512/1513: additional property tracks fused into THIS animation so they
+   * animate as ONE CSS animation on one element — a single timeline that can't
+   * desync. Firefox composites `opacity`/`transform` off the main thread and,
+   * under load, can demote one of two SEPARATE animations to the main thread
+   * while the other stays on the compositor, drifting them apart (e.g. a fade
+   * running ahead of its slide/scale). A single animation is always sampled at
+   * one instant regardless of thread, so fusing removes that failure mode.
+   *
+   * Each fused track rides the primary entry's window (`delay` + `duration`) and
+   * `easing` — that shared timing is what lets them emit into one keyframe block
+   * without per-track sampling. The primary `property` is track 0; these are the
+   * rest. Multiple transform-family tracks (`translateX`/`translateY`/`scale`/
+   * `transform`) are composed into a single `transform:` declaration; other
+   * properties (`opacity`, `clip-path`, …) emit alongside. Use for any
+   * reveal that moves + fades (+ clips …) as one motion.
+   * See docs/84-viewer-browser-support.md.
+   */
+  fuse: z.array(z.object({
+    property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "scale", "clipPath"]),
+    from: z.string(),
+    to: z.string(),
+  })).optional(),
 });
 export type IntraFrameAnimation = z.infer<typeof intraFrameAnimationSchema>;

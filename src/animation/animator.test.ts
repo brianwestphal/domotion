@@ -699,6 +699,58 @@ describe("animator", () => {
     expect(svg).toMatch(/\.f-0\s*{\s*animation:\s*fv-0[^,}]*,\s*fd-0/);
   });
 
+  it("DM-1512/1513: `fuse` emits all tracks in ONE @keyframes on one element", () => {
+    // A fused move + fade must become a single CSS animation (one timeline) so
+    // the two can't desync under Firefox's off-main-thread compositing. The
+    // animator should emit transform AND opacity in the SAME keyframe stops,
+    // driven by one `.anim-<id>` rule (one @keyframes name).
+    const svg = generateAnimatedSvg({
+      width: 200, height: 200,
+      frames: [{
+        svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
+        duration: 2000,
+        animations: [{
+          animId: "f0a0", property: "scale", from: "0.3", to: "1", duration: 500,
+          easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center",
+          fuse: [{ property: "opacity", from: "0", to: "1" }],
+        }],
+      }],
+    });
+    const kf = svg.match(/@keyframes f0-f0a0-0\s*{[\s\S]*?\n\s*}/)![0];
+    // Both properties present in the fused keyframes.
+    expect(kf).toMatch(/transform:\s*scale\(0\.3\)/);
+    expect(kf).toMatch(/transform:\s*scale\(1\)/);
+    expect(kf).toMatch(/opacity:\s*0/);
+    expect(kf).toMatch(/opacity:\s*1/);
+    // Exactly ONE animation drives the element (one @keyframes name, one rule).
+    const animRules = svg.match(/\.anim-f0a0\s*{[^}]*}/g) ?? [];
+    expect(animRules).toHaveLength(1);
+    expect(animRules[0]).toMatch(/animation:\s*f0-f0a0-0\b/);
+    // A fused stop composes into a single transform: (not two transform: decls).
+    const startStop = kf.match(/0%\s*{([^}]*)}/)![1];
+    expect((startStop.match(/transform:/g) ?? []).length).toBe(1);
+  });
+
+  it("DM-1512/1513: multiple transform tracks compose into one transform declaration", () => {
+    const svg = generateAnimatedSvg({
+      width: 200, height: 200,
+      frames: [{
+        svgContent: `<g data-domotion-anim="f0a0"><rect width="80" height="80"/></g>`,
+        duration: 2000,
+        animations: [{
+          animId: "f0a0", property: "scale", from: "0.3", to: "1", duration: 500,
+          fuse: [{ property: "translateY", from: "20px", to: "0px" }, { property: "opacity", from: "0", to: "1" }],
+        }],
+      }],
+    });
+    const kf = svg.match(/@keyframes f0-f0a0-0\s*{[\s\S]*?\n\s*}/)![0];
+    const startStop = kf.match(/0%\s*{([^}]*)}/)![1];
+    // scale + translateY collapse into ONE transform:, opacity alongside.
+    expect((startStop.match(/transform:/g) ?? []).length).toBe(1);
+    expect(startStop).toMatch(/transform:\s*scale\(0\.3\)\s+translateY\(20px\)/);
+    expect(startStop).toMatch(/opacity:\s*0/);
+  });
+
   it("DM-641: never emits `display: none` keyframes (would park Chromium's animation engine)", () => {
     // Regression. The repro from the ticket: a multi-frame animation with
     // `cut` transitions produced `@keyframes fv-0 { 0% { opacity:0; display:none } … }`

@@ -876,6 +876,7 @@ async function buildCapturedFrame(
         repeat: a.repeat,
         alternate: a.alternate,
         transformOrigin: a.transformOrigin,
+        fuse: a.fuse,
       });
     }
   }

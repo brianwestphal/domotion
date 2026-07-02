@@ -380,14 +380,16 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     expect(html).toMatch(/class="kt-word"/);
   });
 
-  it("rise adds a translateY on the wrapper + opacity on the inner (two selectors)", () => {
+  it("rise fuses the fade into ONE translateY animation on the wrapper (DM-1512/1513)", () => {
     const p = parse({ text: "Hi", variant: "rise" });
     const anims = buildKineticAnimations(p, planUnits(p));
-    const fade = anims.find((a) => a.selector === ".kt-wi-0")!;
+    // No separate opacity animation on the inner span — the fade is fused into
+    // the move so they're one CSS timeline (can't desync under Firefox OMTA).
+    expect(anims.some((a) => a.selector === ".kt-wi-0")).toBe(false);
     const move = anims.find((a) => a.selector === ".kt-w-0")!;
-    expect(fade.property).toBe("opacity");
     expect(move.property).toBe("translateY");
     expect(move.repeat).toBeUndefined(); // one-shot reveal, not a loop
+    expect(move.fuse).toEqual([{ property: "opacity", from: "0", to: "1" }]);
   });
 
   it("slide uses translateX; fade has no transform animation (opacity only)", () => {
@@ -407,8 +409,9 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     expect(wipe.from).toMatch(/100%/); // fully clipped from the right
     expect(wipe.to).toMatch(/0%/);     // fully revealed
     expect(wipe.repeat).toBeUndefined(); // one-shot
-    // The inner still fades.
-    expect(anims.some((a) => a.selector === ".kt-wi-0" && a.property === "opacity")).toBe(true);
+    // The fade is fused into the wipe (not a separate inner opacity animation).
+    expect(anims.some((a) => a.selector === ".kt-wi-0")).toBe(false);
+    expect(wipe.fuse).toEqual([{ property: "opacity", from: "0", to: "1" }]);
   });
 
   // DM-1297: pop variant — a center-origin scale-up (needs transformOrigin so the
@@ -427,7 +430,7 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     const p = parse({ text: "a b c", staggerMs: 100, revealMs: 500, holdMs: 1000 });
     const plan = planUnits(p);
     const anims = buildKineticAnimations(p, plan);
-    expect(anims.find((a) => a.selector === ".kt-wi-2")!.delay).toBe(200); // 3rd unit
+    expect(anims.find((a) => a.selector === ".kt-w-2")!.delay).toBe(200); // 3rd unit
     expect(kineticDurationMs(p, plan.count)).toBe(200 + 500 + 1000); // last start + reveal + hold
   });
 

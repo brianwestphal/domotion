@@ -48,9 +48,10 @@ function alignmentFor(position: LowerThirdParams["position"]): { justify: string
 
 /**
  * Build the standalone HTML for the banner. Pure function (no I/O) so it's unit-
- * testable without a browser. The `.lt` wrapper fades (opacity) and the inner
- * `.lt-panel` slides (translateY) — two distinct selectors so the intra-frame
- * animations target different elements and never collide on one animId.
+ * testable without a browser. The `.lt-panel` slides (translateY) with the fade
+ * (opacity) FUSED into the same animation (DM-1512/1513) — one CSS timeline so
+ * the two can't desync under Firefox's off-main-thread compositing. `.lt` is a
+ * bare flex wrapper around the single `.lt-panel`.
  */
 export function buildLowerThirdHtml(p: LowerThirdParams): string {
   const { justify, align } = alignmentFor(p.position);
@@ -119,9 +120,13 @@ export const lowerThirdTemplate: Template<LowerThirdParams> = {
       width: params.width,
       height: params.height,
       durationMs: params.holdMs,
+      // DM-1512/1513: slide + fade FUSED into one animation on `.lt-panel` (the
+      // sole child of `.lt`, so fading it is equivalent to fading `.lt`). One
+      // CSS animation = one timeline, so the fade and slide can't desync under
+      // Firefox's off-main-thread compositing under load. The fade rides the
+      // slide's 600ms/cubic window (was a separate 450ms/ease-out track).
       animations: [
-        { selector: ".lt", property: "opacity", from: "0", to: "1", duration: 450, easing: "ease-out" },
-        { selector: ".lt-panel", property: "translateY", from: rise, to: "0px", duration: 600, easing: "cubic-bezier(0.22,1,0.36,1)" },
+        { selector: ".lt-panel", property: "translateY", from: rise, to: "0px", duration: 600, easing: "cubic-bezier(0.22,1,0.36,1)", fuse: [{ property: "opacity", from: "0", to: "1" }] },
       ],
     });
   },

@@ -10,9 +10,14 @@
  * Same two animation constraints as `background-loop` (doc 71): only one
  * intra-frame animation applies per captured element, and SVG transforms are
  * origin-(0,0). So each animated unit is a `.kt-w-N` transform-wrapper (rise /
- * slide via origin-safe translateX/translateY) around a `.kt-wi-N` opacity-inner
- * (fade). The reveal is one-shot (no repeat): units hold `from` until their
- * staggered turn, animate in, then hold `to` so the headline stays assembled.
+ * slide via origin-safe translateX/translateY) around a `.kt-wi-N` inner span.
+ * DM-1512/1513: the move and the fade are FUSED into that one wrapper animation
+ * (via the animation entry's `fuse` list) rather than a separate opacity
+ * animation on the inner span — one CSS timeline can't desync under Firefox's
+ * off-main-thread compositing (see docs/84). The `.kt-wi-N` inner span is now
+ * inert (it just carries the glyph). The reveal is one-shot (no repeat): units
+ * hold `from` until their staggered turn, animate in, then hold `to` so the
+ * headline stays assembled.
  */
 
 import { runSingleFrameGenerator } from "../run-single-frame.js";
@@ -276,36 +281,37 @@ export function buildKineticAnimations(
   // `boomerang`: each unit assembles then disassembles forever, phase-offset by
   // its stagger. `loop`: one-shot; the infinitely-looping scene replays it.
   const loopFields = p.loop === "boomerang" ? { repeat: "infinite" as const, alternate: true } : {};
+  // DM-1512/1513: each unit's move + fade is emitted as ONE animation on the
+  // wrapper (`.kt-w-*`), with the fade FUSED into the move via `fuse` rather than
+  // a separate opacity animation on the inner span. One CSS animation is one
+  // timeline, so the fade and the move stay in perfect sync — immune to
+  // Firefox's off-main-thread compositing, which under load demotes one of two
+  // SEPARATE animations to the main thread and drifts them apart (a fade running
+  // ahead of its slide/scale). The fused fade rides the move's window + easing.
+  // See docs/84-viewer-browser-support.md.
+  const fade = [{ property: "opacity" as const, from: "0", to: "1" }];
   for (const line of plan.lines) {
     for (const units of line) {
       for (const u of units) {
         const delay = u.index * p.staggerMs;
-        // Fade in (all variants), on the inner span.
-        anims.push({
-          selector: `.kt-wi-${u.index}`,
-          property: "opacity",
-          from: "0",
-          to: "1",
-          duration: p.revealMs,
-          delay,
-          easing: "ease-out",
-          ...loopFields,
-        });
-        // Move/reveal in, on the wrapper. `fade` has no wrapper animation.
+        const sel = `.kt-w-${u.index}`;
         if (p.variant === "rise") {
-          anims.push({ selector: `.kt-w-${u.index}`, property: "translateY", from: "0.55em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", ...loopFields });
+          anims.push({ selector: sel, property: "translateY", from: "0.55em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", fuse: fade, ...loopFields });
         } else if (p.variant === "slide") {
-          anims.push({ selector: `.kt-w-${u.index}`, property: "translateX", from: "-0.6em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", ...loopFields });
+          anims.push({ selector: sel, property: "translateX", from: "-0.6em", to: "0em", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", fuse: fade, ...loopFields });
         } else if (p.variant === "clip") {
           // Left-to-right wipe via the `clipPath` intra-frame property (doc 08):
           // `inset(0 100% 0 0)` clips everything but the left edge; animating the
           // right inset to 0 reveals the unit left→right.
-          anims.push({ selector: `.kt-w-${u.index}`, property: "clipPath", from: "inset(-10% 100% -10% 0)", to: "inset(-10% 0% -10% 0)", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", ...loopFields });
+          anims.push({ selector: sel, property: "clipPath", from: "inset(-10% 100% -10% 0)", to: "inset(-10% 0% -10% 0)", duration: p.revealMs, delay, easing: "cubic-bezier(0.22,1,0.36,1)", fuse: fade, ...loopFields });
         } else if (p.variant === "pop") {
           // Scale-pop: grow from small to full about the unit's OWN CENTER
           // (`transformOrigin`, DM-1297), with a back-eased overshoot. Without the
           // center origin an SVG scale would shrink toward the canvas corner.
-          anims.push({ selector: `.kt-w-${u.index}`, property: "scale", from: "0.3", to: "1", duration: p.revealMs, delay, easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center", ...loopFields });
+          anims.push({ selector: sel, property: "scale", from: "0.3", to: "1", duration: p.revealMs, delay, easing: "cubic-bezier(0.34,1.56,0.64,1)", transformOrigin: "center", fuse: fade, ...loopFields });
+        } else {
+          // `fade` variant: no move — just the fade, on the wrapper.
+          anims.push({ selector: sel, property: "opacity", from: "0", to: "1", duration: p.revealMs, delay, easing: "ease-out", ...loopFields });
         }
       }
     }

@@ -1355,6 +1355,38 @@
                 "alternate": {
                   "type": "boolean"
                 },
+                "fuse": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "property": {
+                        "type": "string",
+                        "enum": [
+                          "width",
+                          "height",
+                          "opacity",
+                          "transform",
+                          "translateX",
+                          "translateY",
+                          "scale",
+                          "clipPath"
+                        ]
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "property",
+                      "from",
+                      "to"
+                    ]
+                  }
+                },
                 "selector": {
                   "type": "string"
                 }

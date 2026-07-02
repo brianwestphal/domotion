@@ -1261,13 +1261,33 @@ function buildIntraFrameAnimationCss(
       const endMs = startMs + a.duration;
       const startPct = (startMs / totalMs) * 100;
       const endPct = (endMs / totalMs) * 100;
-      const propValue = (val: string): string => {
-        if (a.property === "translateX") return `transform: translateX(${val});`;
-        if (a.property === "translateY") return `transform: translateY(${val});`;
-        if (a.property === "scale") return `transform: scale(${val});`;
-        if (a.property === "clipPath") return `clip-path: ${val};`;
-        return `${a.property}: ${val};`;
+      // DM-1512/1513: an animation can fuse several property tracks that share
+      // this entry's window + easing, so they emit into ONE @keyframes and stay
+      // in perfect sync (one timeline — immune to Firefox's off-main-thread
+      // desync; see docs/84). Track 0 is the primary property; `a.fuse` adds the
+      // rest. Build the declaration for one keyframe stop by taking each track's
+      // value for that phase, composing all transform-family tracks into a
+      // single `transform:` (two `transform:` decls would clobber each other)
+      // and emitting other properties alongside.
+      type Track = { property: string; from: string; to: string };
+      const tracks: Track[] = [{ property: a.property, from: a.from, to: a.to }, ...(a.fuse ?? [])];
+      const stopDecl = (phase: "from" | "to"): string => {
+        const transforms: string[] = [];
+        const others: string[] = [];
+        for (const t of tracks) {
+          const val = phase === "from" ? t.from : t.to;
+          if (t.property === "translateX") transforms.push(`translateX(${val})`);
+          else if (t.property === "translateY") transforms.push(`translateY(${val})`);
+          else if (t.property === "scale") transforms.push(`scale(${val})`);
+          else if (t.property === "transform") transforms.push(val);
+          else if (t.property === "clipPath") others.push(`clip-path: ${val};`);
+          else others.push(`${t.property}: ${val};`);
+        }
+        if (transforms.length > 0) others.push(`transform: ${transforms.join(" ")};`);
+        return others.join(" ");
       };
+      const declFrom = stopDecl("from");
+      const declTo = stopDecl("to");
       // DM-1297: SVG transforms are origin-(0,0); a `transformOrigin` makes a
       // scale/rotate/translate resolve about the element's OWN box (e.g. a
       // center-origin scale-pop) instead of the SVG origin. `transform-box:
@@ -1298,8 +1318,8 @@ function buildIntraFrameAnimationCss(
         const iterations = a.repeat === "infinite" ? "infinite" : String(a.repeat);
         const direction = a.alternate === true ? " alternate" : "";
         out.push(`    @keyframes ${animName} {
-      0% { ${propValue(a.from)} }
-      100% { ${propValue(a.to)} }
+      0% { ${declFrom} }
+      100% { ${declTo} }
     }
     .anim-${a.animId} { animation: ${animName} ${a.duration}ms ${easing} ${startMs.toFixed(0)}ms ${iterations}${direction} both;${originDecl} }`);
       } else {
@@ -1307,10 +1327,10 @@ function buildIntraFrameAnimationCss(
         // [startPct, endPct], hold `to` afterwards, mapped onto the global scene
         // clock so it replays in sync each scene loop.
         out.push(`    @keyframes ${animName} {
-      0% { ${propValue(a.from)} }
-      ${startPct.toFixed(3)}% { ${propValue(a.from)} }
-      ${endPct.toFixed(3)}% { ${propValue(a.to)} }
-      100% { ${propValue(a.to)} }
+      0% { ${declFrom} }
+      ${startPct.toFixed(3)}% { ${declFrom} }
+      ${endPct.toFixed(3)}% { ${declTo} }
+      100% { ${declTo} }
     }
     .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s ${easing} infinite;${originDecl} }`);
       }
