@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Brand-aware page</title>
+  <style>
+    /* Authored against the brand CSS variables the run injects onto :root before
+       capture (docs/92). Neutral fallbacks keep it renderable un-branded; here the
+       animate config's own `brand` key (DM-1544) supplies them — no CLI flag. */
+    :root {
+      --brand-primary: #64748b;
+      --brand-accent: #94a3b8;
+      --brand-background: #0f172a;
+      --brand-text: #e2e8f0;
+      --brand-muted: #94a3b8;
+      --brand-font-family: system-ui, sans-serif;
+      --brand-radius: 6px;
+    }
+    * { margin: 0; box-sizing: border-box; }
+    html, body { width: 720px; height: 405px; }
+    body {
+      background: var(--brand-background);
+      color: var(--brand-text);
+      font-family: var(--brand-font-family);
+      display: flex; flex-direction: column; justify-content: center;
+      gap: 18px; padding: 56px;
+    }
+    .eyebrow { color: var(--brand-accent); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 15px; }
+    h1 { font-size: 46px; font-weight: 800; letter-spacing: -0.02em; }
+    p { color: var(--brand-muted); font-size: 19px; max-width: 34ch; line-height: 1.45; }
+    .cta {
+      align-self: flex-start; margin-top: 6px;
+      background: var(--brand-primary); color: #fff;
+      font-weight: 700; font-size: 18px; padding: 14px 28px;
+      border-radius: var(--brand-radius);
+    }
+  </style>
+</head>
+<body>
+  <div class="eyebrow">Acme Cloud</div>
+  <h1>One brand, every frame</h1>
+  <p>The template banner and this captured page share a single brand — set once on the config.</p>
+  <div class="cta">Start free</div>
+</body>
+</html>

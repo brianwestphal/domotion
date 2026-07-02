@@ -82,10 +82,18 @@ anywhere in the page resolves.
 
 - **`capture`** — injects onto the single captured page.
 - **`animate`** — injects onto **every captured frame** (the brand rides the
-  browser context). `template` and `cast` frames render before the capture loop
-  and carry their own theming (a template frame uses the template's brand
-  defaults / explicit params, docs/85 + docs/73), so `--brand` on `animate` does
-  **not** re-theme them.
+  browser context). A `template` frame renders before the capture loop, so it's
+  not reached by the CSS-variable injection — instead the same brand feeds its
+  **param defaults** (docs/85), so `--brand` (or the config `brand` key, below)
+  themes captured *and* template frames from one source (DM-1543). A `cast` frame
+  carries its own theming and is unaffected.
+- **Config `brand` key (DM-1544).** The `animate` JSON config may set a top-level
+  `brand` — either a path (resolved relative to the config's directory) to a brand
+  JSON file, or an inline brand object validated by the same `brandSchema` — so a
+  config is self-contained without the CLI flag. An explicit `--brand` overrides
+  the config key. The resolved brand themes both captured frames (injection) and
+  template frames (param defaults). See `examples/animate/brand-mixed/` for a
+  mixed template-plus-captured config driven by one config `brand`.
 - **Library:** `injectBrandVariables(context, brand)` for imperative callers;
   `brandCustomProperties(brand)` (ordered `[name, value]` pairs) and
   `brandRootCss(brand)` (a `:root { … }` block, `""` when nothing maps) are the
@@ -97,13 +105,16 @@ anywhere in the page resolves.
   defaults (docs/85) and captured-page CSS variables (this doc) are two consumers
   of the same brand file.
 - **docs/70/73** (template system) — a `template` frame inside an `animate`
-  config themes itself via its params, not via this injection.
+  config themes itself via its params; the run's brand supplies those params'
+  defaults (DM-1543), the same merge a standalone `domotion template --brand` uses.
 
-## Follow-ups
+## Shipped follow-ups
 
-- **Theme an `animate` config's `template` frames from `--brand`.** Today a
-  template frame ignores `animate --brand`; wiring the same brand into
-  `renderTemplateFrames` would let one flag theme captured *and* template frames.
-- **Author-facing config `brand` key.** `animate`'s JSON config could carry an
-  inline `brand` object (or a `brand` path) so a config is self-contained without
-  the CLI flag.
+- **Theme an `animate` config's `template` frames from `--brand` (DM-1543).** The
+  run's brand (from `--brand` or the config `brand` key) is threaded through
+  `renderTemplateFrames` → `renderTemplateToSvg({ brand })`, so one brand themes
+  captured frames (injection) *and* template frames (their brand defaults).
+- **Author-facing config `brand` key (DM-1544).** `animate`'s JSON config carries
+  an optional top-level `brand` — a path (relative to the config's directory) or
+  an inline object validated by `brandSchema`. `resolveConfigBrand` loads/normalizes
+  it (resolving a relative `logo`); precedence is CLI `--brand` > config `brand`.

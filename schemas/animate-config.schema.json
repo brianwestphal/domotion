@@ -41,6 +41,71 @@
         "type": "string"
       }
     },
+    "brand": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "palette": {
+              "type": "object",
+              "properties": {
+                "primary": {
+                  "description": "Main brand color (buttons, accents, series 1).",
+                  "type": "string"
+                },
+                "accent": {
+                  "description": "Secondary accent (highlights, bars, series 2).",
+                  "type": "string"
+                },
+                "background": {
+                  "description": "Flat surface color behind content.",
+                  "type": "string"
+                },
+                "text": {
+                  "description": "Primary text / foreground color.",
+                  "type": "string"
+                },
+                "muted": {
+                  "description": "Secondary text color.",
+                  "type": "string"
+                }
+              }
+            },
+            "font": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "description": "CSS font-family stack.",
+                  "type": "string"
+                },
+                "weights": {
+                  "description": "Font weights a template may pick from.",
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "description": "Corner radius (px) for panels/cards.",
+              "type": "number"
+            },
+            "logo": {
+              "description": "Logo asset (path/URL) for templates with a logo slot.",
+              "type": "string"
+            },
+            "background": {
+              "description": "Optional richer scene fill (overrides palette.background full-bleed).",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
     "cursor": {
       "anyOf": [
         {

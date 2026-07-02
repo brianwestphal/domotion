@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
@@ -41,7 +41,7 @@ import {
   type CursorStyle,
 } from "../animation/index.js";
 import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
-import { loadBrand, type Brand } from "../templates/brand.js";
+import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
@@ -433,6 +433,18 @@ export const animateConfigSchema = z
     colorScheme: z.enum(["light", "dark", "no-preference"]).optional(),
     /** DM-852 §7 — string vars interpolated into `${name}` in any string field. */
     vars: z.record(z.string(), z.string()).optional(),
+    /**
+     * DM-1544 (docs/85 + docs/92): an inline brand for the whole run, so a config
+     * is self-contained without the `--brand` CLI flag. Either a path (resolved
+     * relative to the config's directory) to a brand JSON file, or an inline brand
+     * object validated by the same `brandSchema`. The brand themes captured frames
+     * (CSS-variable injection, docs/92) AND `template` frames (their brand
+     * defaults, docs/85). Precedence: an explicit `--brand` flag overrides this
+     * config key. A relative `logo` inside an inline object resolves against the
+     * config's directory (a string path defers to `loadBrand`'s file-relative
+     * resolution).
+     */
+    brand: z.union([z.string(), brandSchema]).optional(),
     /** DM-851 §6 — config-level cursor overlay. */
     cursor: cursorSchema.optional(),
     frames: z.array(frameSchema).min(1, "must be a non-empty array"),
@@ -611,8 +623,10 @@ export interface ComposeAnimateOptions {
   onFrame?: OnFrameHook;
   /** DM-1540 (docs/92): brand kit whose CSS custom properties are injected onto
    *  every CAPTURED frame's `:root` before capture, so pages authored against
-   *  `var(--brand-*)` pick up the palette / font / radius. Omitted → no injection.
-   *  Template/cast frames theme themselves (their own params), not via this. */
+   *  `var(--brand-*)` pick up the palette / font / radius. DM-1543: it ALSO feeds
+   *  every `template` frame's param defaults (docs/85), so one brand themes both.
+   *  Takes precedence over the config's inline `brand` key (DM-1544). Omitted (and
+   *  no config `brand`) → no brand. Cast frames theme themselves. */
   brand?: Brand;
   /**
    * DM-1538: resolved safe-area inset (px per side) from a `--format` preset. It
@@ -640,6 +654,25 @@ function normalizeComposeArgs(
     };
   }
   return { configDir: configDirOrOpts ?? process.cwd(), log: log ?? (() => {}), onFrame: undefined };
+}
+
+/**
+ * DM-1544: resolve a config's inline `brand` key into a `Brand`. A string is a
+ * path to a brand JSON file (resolved relative to `configDir`, then parsed +
+ * validated by `loadBrand`, which also resolves that file's own relative `logo`).
+ * An object is an inline brand already validated by `brandSchema` at config-parse
+ * time; here we only resolve a relative `logo` against `configDir` (mirroring
+ * `loadBrand`'s file-relative behavior) so a template's logo slot gets an
+ * absolute path. Returns `undefined` when the config sets no `brand`.
+ */
+export function resolveConfigBrand(brand: AnimateConfig["brand"], configDir: string): Brand | undefined {
+  if (brand == null) return undefined;
+  if (typeof brand === "string") return loadBrand(resolve(configDir, brand));
+  const resolved: Brand = { ...brand };
+  if (resolved.logo != null && resolved.logo !== "" && !isAbsolute(resolved.logo) && !/^https?:\/\//i.test(resolved.logo)) {
+    resolved.logo = resolve(configDir, resolved.logo);
+  }
+  return resolved;
 }
 
 /**
@@ -719,6 +752,7 @@ async function renderTemplateFrames(
   browser: Browser,
   log: (msg: string) => void,
   safeInset?: SafeInset,
+  brand?: Brand,
 ): Promise<Map<number, { content: string; durationMs: number | null }>> {
   const out = new Map<number, { content: string; durationMs: number | null }>();
   const idxs = cfg.frames.flatMap((f, i) => (f.template != null ? [i] : []));
@@ -759,6 +793,11 @@ async function renderTemplateFrames(
         // + adaptive scale (DM-1537/DM-1541) — the same context a standalone
         // `domotion template --format …` render gets.
         ...(safeInset != null ? { safeInset } : {}),
+        // DM-1543: the run's brand (from `--brand` or the config's `brand` key)
+        // supplies each template frame's param defaults — the SAME `applyBrandDefaults`
+        // merge `domotion template --brand` uses — so one flag/key themes both
+        // captured frames (CSS-var injection, docs/92) and template frames (docs/85).
+        ...(brand != null ? { brand } : {}),
       });
     } catch (e) {
       // Param-validation errors already carry their own `template "x": …` path.
@@ -1119,6 +1158,12 @@ export async function composeAnimateFrames(
   const { configDir, log, onFrame, brand, safeInset } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
+  // DM-1544: an explicit `--brand` (passed in `opts.brand`) wins over the config's
+  // own `brand` key; when the flag is absent, fall back to the config-inline brand
+  // (a path relative to `configDir`, or a validated inline object). One brand then
+  // themes captured frames (CSS-var injection below) AND template frames (their
+  // brand defaults, wired through `renderTemplateFrames`).
+  const runBrand = brand ?? resolveConfigBrand(cfg.brand, configDir);
   // DM-1287 (doc 73): render `template` frames UP FRONT, before the outer run's
   // font lifecycle (clearWebfonts / clearEmbeddedFonts) starts below. A template
   // is itself a front-end onto `composeAnimateConfig`, so rendering one runs a
@@ -1127,7 +1172,7 @@ export async function composeAnimateFrames(
   // output fully self-contained (its own `@font-face`) and stops the nested run
   // from clobbering the outer frames' embedded fonts. Each rendered template SVG
   // is a finished string by the time the outer loop reaches its frame.
-  const templateRenders = await renderTemplateFrames(cfg, browser, log, safeInset);
+  const templateRenders = await renderTemplateFrames(cfg, browser, log, safeInset, runBrand);
   const ctx = await browser.newContext({
     viewport: { width: cfg.width, height: cfg.height },
     isMobile: cfg.mobile === true,
@@ -1137,8 +1182,9 @@ export async function composeAnimateFrames(
   // DM-1540 (docs/92): inject the brand's CSS custom properties onto every
   // captured frame's `:root` before it paints. On the context, so it applies to
   // each frame's navigation. Template/cast frames render before this loop and
-  // carry their own theming, so they're unaffected.
-  if (brand != null) await injectBrandVariables(ctx, brand);
+  // carry their own theming (template frames via their brand defaults, DM-1543).
+  // `runBrand` is `--brand` or the config's `brand` key (DM-1544).
+  if (runBrand != null) await injectBrandVariables(ctx, runBrand);
   try {
     const page = await ctx.newPage();
     // DM-479: 90 s instead of Playwright's 30 s default.

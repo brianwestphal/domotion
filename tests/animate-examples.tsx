@@ -261,6 +261,28 @@ const EXAMPLES: Example[] = [
       return f;
     },
   },
+  {
+    // DM-1543 + DM-1544: one brand, set via the config's own `brand` key (no CLI
+    // flag), themes BOTH a `template` frame (its brand defaults — the accent bar
+    // + logo mark) AND a captured page (CSS-var injection — the orange accent
+    // eyebrow / purple CTA). Two composited frames, crossfaded.
+    name: "brand-mixed",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 720 405"`)) f.push("missing viewBox 720x405");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 composited frame groups (template + captured)");
+      // The brand's logo asset lands on the template frame's banner as an <image>.
+      if (!/<image\b/.test(svg)) f.push("missing the brand logo <image> — brand.logo did not reach the template frame's mark");
+      // The brand's orange accent (#f97316 → rgb(249,115,22)) appears — the
+      // lower-third accent bar (template brand default) and the page's injected
+      // --brand-accent eyebrow.
+      if (!/rgb\(249, ?115, ?22\)/.test(svg)) f.push("missing the brand accent rgb(249,115,22) — brand did not theme the frames");
+      // The purple primary (#7c3aed → rgb(124,58,237)) rides the captured page's
+      // CTA (an injected var), proving CSS-var injection reached the captured frame.
+      if (!/rgb\(124, ?58, ?237\)/.test(svg)) f.push("missing the brand primary rgb(124,58,237) — CSS-var injection did not reach the captured frame");
+      return f;
+    },
+  },
 ];
 
 /**
