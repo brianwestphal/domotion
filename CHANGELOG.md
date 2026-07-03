@@ -2,6 +2,33 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.21.0] - 2026-07-04
+
+
+** Features**
+
+- **New transition set:** directional pushes (right/up/down), `wipe`, `iris`, `zoom-in`/`zoom-out`, plus new radial and clock-hand wipes (`wipe-radial`, `wipe-clock` — with configurable start angle, direction, and cubic-bezier easing). All cross-engine-safe (transform/clip-path/opacity only).
+- **Motion preset library:** named enter/exit and easing presets — including a true multi-oscillation spring — so you no longer hand-tune cubic-beziers. Mixed-family transition chains now composite correctly (an entrance effect from a different family than the exit is no longer dropped).
+- **Shine overlay:** a swept-glint effect with optional corner radius, anchor auto-sizing, and named easing.
+- **Realistic typing overlays:** character-by-character reveal with the caret locked to the true text edge, glyph-path rendering (proportional fonts with pixel-accurate wrapping), optional GPOS kerning, selectable caret shapes (bar/block/underscore), humanized typos (type-wrong → backspace → correct, deterministic), and a `fontFamily` override that can auto-adopt the anchored field's font.
+- **`typeResample`:** high-fidelity per-keystroke re-capture of a live field — shows the page's own masking, auto-formatting, and font — with an opt-in `regionOnly` mode to shrink output size.
+- **Interaction capture:** force real CSS `:hover`/`:active`/`:focus` states via CDP (`forceState`), `hoverReveal` sugar with auto-detection, a `jsReveal` MutationObserver harness that captures JS-driven feedback (class flips, injected tooltips/menus) and tweens motion deltas in place, and a synthetic hover/focus/press interaction overlay.
+- **Creative template pack:** `title-card`, `quote`, `caption`, `cta`, `counter`/`stat` (odometer digit reels), and before/after `compare`.
+- **`--brand <file>` brand kit:** one file drives palette, font, radius, logo, and background across every template, and injects CSS variables into captured pages (`capture`/`animate`) so brand-authored pages theme automatically.
+- **`--format <preset>` social canvases:** reel/story/square/portrait/landscape (or raw `WxH`), with safe-area insets and per-ratio adaptive type scaling; device mockups scale their bezel and browser chrome with the screen for large/reel captures.
+- **`domotion storyboard`:** sequence distinct scenes (title → demo → CTA) into one self-contained animated SVG with inter-scene transitions.
+- **Native SVG inlining:** `<img src=*.svg>` now embeds as native vector SVG instead of a rasterized data-URI image — crisp at any zoom, ~33% smaller, and it also handles `object-fit: none`. Inlined SVGs get their ids and CSS class names namespaced so multiple embedded SVGs can't collide.
+
+** Fixes**
+
+- Single-line `<input>` value text is now vertically centered for all input types, matching Chrome.
+- Corrected typing and `typeResample` caret geometry — height from the font's real ascent+descent, centered on the line box, and accounting for letter/word-spacing.
+- Hover cursor now lands on the element exactly as the hover state appears, instead of arriving mid-glide.
+- Multiple overlays of the same kind in one frame now get unique ids — previously only one revealed.
+- Composite clip-scale resize no longer clips too narrow in Firefox.
+- Local-font alias family-key normalization now matches the lookup side, fixing some font resolutions.
+- Compare-template labels track their region and stay centered in the pill.
+
 ## [0.20.0] - 2026-07-02
 
 
