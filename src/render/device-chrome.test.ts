@@ -127,6 +127,18 @@ describe("device-chrome: browser / window (DM-1211)", () => {
     expect(height).toBe(636);
   });
 
+  it("DM-1577: scales the browser/window chrome for a large (tall) capture; ≤600-min is byte-identical", () => {
+    // Byte-identical at the 600-tall default (s === 1).
+    expect(wrapInDeviceChrome(DESKTOP, "browser", 960, 600).height).toBe(644); // 44px bar
+    expect(wrapInDeviceChrome(DESKTOP, "browser", 400, 300).height).toBe(344); // still 44px (min 300 < 600)
+    // A tall reel screen (min 1080) scales by 1080/600 = 1.8.
+    const reel = wrapInDeviceChrome(DESKTOP, "browser", 1080, 1920);
+    expect(reel.height - 1920).toBeCloseTo(44 * 1.8, 1); // bar ~79.2
+    expect(reel.svg).toMatch(/r="10\.8" fill="#ff5f56"/);  // traffic dot 6 → 10.8
+    // Window title bar scales too (36 → 64.8).
+    expect(wrapInDeviceChrome(DESKTOP, "window", 1080, 1920).height - 1920).toBeCloseTo(36 * 1.8, 1);
+  });
+
   it("draws three traffic-light buttons (the macOS colors) on both", () => {
     for (const device of ["browser", "window"] as const) {
       const { svg } = wrapInDeviceChrome(DESKTOP, device, 960, 600);

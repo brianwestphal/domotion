@@ -202,22 +202,34 @@ function phoneBezel(inner: string, screenW: number, screenH: number): FramedSvg 
   return { svg, width: outerW, height: outerH };
 }
 
-/** Three macOS traffic-light buttons, left-aligned, centered on the bar. */
-function trafficLights(barHeight: number): string {
+/**
+ * The screen min-dimension the browser/window chrome geometry (bar height,
+ * traffic lights, URL pill, corner radius) is calibrated for — the 600-tall
+ * desktop default (`device-mockup` default 960×600). At/below this the chrome is
+ * drawn at its authored size; a larger capture — especially a tall vertical /
+ * reel screen — scales it up so the bar doesn't read as a hairline strip
+ * (DM-1577, mirroring the phone bezel's DM-1559 scaling).
+ */
+const WINDOW_REF = 600;
+
+/** Three macOS traffic-light buttons, left-aligned, centered on the bar. `q`
+ *  scales the dot radius + spacing with the chrome (DM-1577). */
+function trafficLights(barHeight: number, q: (n: number) => number): string {
   const cy = barHeight / 2;
-  const r = 6;
+  const r = q(6);
   return (
-    `<circle cx="18" cy="${cy}" r="${r}" fill="#ff5f56"/>` +
-    `<circle cx="38" cy="${cy}" r="${r}" fill="#ffbd2e"/>` +
-    `<circle cx="58" cy="${cy}" r="${r}" fill="#27c93f"/>`
+    `<circle cx="${q(18)}" cy="${cy}" r="${r}" fill="#ff5f56"/>` +
+    `<circle cx="${q(38)}" cy="${cy}" r="${r}" fill="#ffbd2e"/>` +
+    `<circle cx="${q(58)}" cy="${cy}" r="${r}" fill="#27c93f"/>`
   );
 }
 
-/** A tiny padlock glyph (body rect + arc shackle), centered vertically on `cy`. */
-function lockGlyph(x: number, cy: number, color: string): string {
+/** A tiny padlock glyph (body rect + arc shackle), centered vertically on `cy`.
+ *  `q` scales it with the chrome (DM-1577). */
+function lockGlyph(x: number, cy: number, color: string, q: (n: number) => number): string {
   return (
-    `<rect x="${x}" y="${cy - 1}" width="9" height="7" rx="1.5" fill="${color}"/>` +
-    `<path d="M${x + 2} ${cy - 1} V${cy - 3.5} a2.5 2.5 0 0 1 5 0 V${cy - 1}" fill="none" stroke="${color}" stroke-width="1.2"/>`
+    `<rect x="${x}" y="${cy - q(1)}" width="${q(9)}" height="${q(7)}" rx="${q(1.5)}" fill="${color}"/>` +
+    `<path d="M${x + q(2)} ${cy - q(1)} V${cy - q(3.5)} a${q(2.5)} ${q(2.5)} 0 0 1 ${q(5)} 0 V${cy - q(1)}" fill="none" stroke="${color}" stroke-width="${q(1.2)}"/>`
   );
 }
 
@@ -238,8 +250,14 @@ function windowFrame(
   label: string | undefined,
   p: ChromePalette,
 ): FramedSvg {
-  const BAR = kind === "browser" ? 44 : 36;
-  const RADIUS = 11;
+  // DM-1577: scale the chrome furniture by the screen's min dimension (like the
+  // phone bezel, DM-1559) so a large / tall capture doesn't get a hairline bar.
+  // `q()` returns its arg UNCHANGED at s === 1, so a ≤600-min capture (the 960×600
+  // default the tests + demos use) is byte-for-byte identical to pre-scaling.
+  const s = Math.max(1, Math.min(screenW, screenH) / WINDOW_REF);
+  const q = (n: number): number => (s === 1 ? n : Math.round(n * s * 100) / 100);
+  const BAR = q(kind === "browser" ? 44 : 36);
+  const RADIUS = q(11);
   const outerW = screenW;
   const outerH = screenH + BAR;
   const clipId = `chrome-screen-clip`;
@@ -250,25 +268,25 @@ function windowFrame(
     `a${RADIUS} ${RADIUS} 0 0 1 -${RADIUS} ${RADIUS} H${RADIUS} ` +
     `a${RADIUS} ${RADIUS} 0 0 1 -${RADIUS} -${RADIUS} Z`;
 
-  let barContent = trafficLights(BAR);
+  let barContent = trafficLights(BAR, q);
   if (kind === "browser") {
     // URL pill spanning from after the lights to the right edge, with a lock +
     // optional address.
-    const pillX = 80;
-    const pillW = outerW - pillX - 16;
+    const pillX = q(80);
+    const pillW = outerW - pillX - q(16);
     const cy = BAR / 2;
     const pillStroke = p.pillBorder != null ? ` stroke="${p.pillBorder}" stroke-width="1"` : "";
     barContent +=
-      `<rect x="${pillX}" y="${cy - 11}" width="${pillW}" height="22" rx="11" fill="${p.pill}"${pillStroke}/>` +
-      lockGlyph(pillX + 12, cy, p.glyph);
+      `<rect x="${pillX}" y="${cy - q(11)}" width="${pillW}" height="${q(22)}" rx="${q(11)}" fill="${p.pill}"${pillStroke}/>` +
+      lockGlyph(pillX + q(12), cy, p.glyph, q);
     if (label != null && label !== "") {
       barContent +=
-        `<text x="${pillX + 28}" y="${cy + 4}" font-family="${MONO}" font-size="12" fill="${p.glyph}">${escapeXml(label)}</text>`;
+        `<text x="${pillX + q(28)}" y="${cy + q(4)}" font-family="${MONO}" font-size="${q(12)}" fill="${p.glyph}">${escapeXml(label)}</text>`;
     }
   } else if (label != null && label !== "") {
     // Centered window title.
     barContent +=
-      `<text x="${outerW / 2}" y="${BAR / 2 + 4}" text-anchor="middle" font-family="${SANS}" font-size="13" font-weight="600" fill="${p.glyph}">${escapeXml(label)}</text>`;
+      `<text x="${outerW / 2}" y="${BAR / 2 + q(4)}" text-anchor="middle" font-family="${SANS}" font-size="${q(13)}" font-weight="600" fill="${p.glyph}">${escapeXml(label)}</text>`;
   }
 
   const svg =
