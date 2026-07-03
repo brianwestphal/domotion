@@ -49,9 +49,14 @@ All `object-fit` values take the native path:
 
 `prefixSvgClasses` (DM-1593) does the same for **CSS class names** — but only when the SVG carries a `<style>` block (the only way a class affects rendering, so a presentation-attribute export like the `brand-mixed` logo stays byte-identical). It rewrites class selectors in the *selector portion* of each rule inside `<style>` (never a `.` in a declaration value) plus every `class="…"` attribute. Without this, two design-tool exports that both define `.cls-1` in a `<style>` block would cross-contaminate, since an inlined SVG `<style>` applies document-wide (verified: a red-`.cls-1` and a blue-`.cls-1` SVG now render independently). Nested at-rules (`@media`) inside an SVG `<style>` are not handled — essentially never present in an SVG asset.
 
+`prefixSvgClasses` is shared by all three SVG-inlining paths (DM-1595), each gated on `<style>` presence:
+
+- **`<img src="*.svg">`** (`inlineImgSvg`) — namespaces both ids and classes (self-contained file, no cross-SVG refs).
+- **Captured DOM inline `<svg>`** (`paintInlineSvg`) — namespaces **classes only**. Ids are deliberately left alone: this path relies on the consumer-side `<use>` resolver, which matches `<use href="#id">` by id *across* sibling SVGs (DM-499), so prefixing ids would break those cross-SVG references. A unique class prefix is allocated per inline-SVG only when a `<style>` block is present, so `<style>`-free icons (the common case) stay byte-identical and consume no id counter.
+- **Animator svg-overlay files** (`namespaceSvgIds` in `src/cli/animate.ts`) — namespaces ids (already) and now classes.
+
 ## Scope / known boundaries
 
-- The **inline-`<svg>` DOM path** (`paintInlineSvg`) and the **animator's svg-overlay inliner** (`namespaceSvgIds` in `src/cli/animate.ts`) have the same latent class-collision issue but are not yet class-namespaced — tracked as follow-up DM-1595. (`namespaceSvgIds` shares `prefixSvgIds` for ids already.)
 - **`<filter>` regions, `currentColor`, and CSS custom properties** inside the SVG resolve against the nested `<svg>` context, matching how the browser resolves them for the original `<img>` in the common cases (design-tool exports with self-contained gradients/filters). SVGs that rely on inheriting `color` / CSS variables from the host page are out of scope.
 
 ## Testing

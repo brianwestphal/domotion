@@ -194,3 +194,26 @@ describe("inlineImgSvg — class namespacing (DM-1593)", () => {
     expect(b).not.toContain("A-cls-1");
   });
 });
+
+describe("paintInlineSvg — DOM inline <svg> class namespacing (DM-1595)", () => {
+  const svgEl = (svgContent: string, x: number): CapturedElement => ({
+    tag: "svg", text: "", x, y: 0, width: 40, height: 40, children: [],
+    svgContent, styles: { ...BASE_STYLES } as CapturedElement["styles"],
+  } as unknown as CapturedElement);
+
+  it("scopes colliding .cls-1 across two DOM inline SVGs so they render independently", () => {
+    const content = (c: string) => `<svg viewBox="0 0 40 40"><style>.cls-1{fill:${c}}</style><rect class="cls-1" width="40" height="40"/></svg>`;
+    const out = elementTreeToSvgInner([svgEl(content("#e00000"), 0), svgEl(content("#0000e0"), 60)], 120, 60);
+    // Each inline SVG's rule + usage carries its own unique prefix.
+    expect(out).toMatch(/\.[\w-]*svgic0[\w-]*cls-1\{fill:#e00000\}/);
+    expect(out).toMatch(/\.[\w-]*svgic1[\w-]*cls-1\{fill:#0000e0\}/);
+  });
+
+  it("leaves a <style>-free inline SVG byte-identical (no prefix, no counter shift)", () => {
+    // A presentation-attribute icon — the common case — must be untouched.
+    const plain = `<svg viewBox="0 0 40 40"><rect class="icon" width="40" height="40" fill="#123456"/></svg>`;
+    const out = elementTreeToSvgInner([svgEl(plain, 0)], 60, 60);
+    expect(out).toContain(`class="icon"`);
+    expect(out).not.toMatch(/svgic/);
+  });
+});

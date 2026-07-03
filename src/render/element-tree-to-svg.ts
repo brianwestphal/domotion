@@ -55,7 +55,7 @@ import {
   setActiveHiDPIFactor,
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
-import { inlineImgSvg } from "./svg-inline.js";
+import { inlineImgSvg, prefixSvgClasses } from "./svg-inline.js";
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 
@@ -1975,7 +1975,7 @@ function paintBackgroundImageLayers(
 // closes the open wrapper groups and returns. The DM-499 0x0-host skip emits no
 // markup but still reports handled (the consumer-side <use> resolver already
 // inlined the defs SVG's contents). Reads only el + indent.
-function paintInlineSvg(el: CapturedElement, indent: string): { svg: string[]; handled: boolean } {
+function paintInlineSvg(el: CapturedElement, indent: string, allocClassPrefix?: () => string): { svg: string[]; handled: boolean } {
   const svg: string[] = [];
   if (el.svgContent == null) return { svg, handled: false };
   // The captured el.x/y/width/height are border-box coords. The SVG draws into
@@ -1993,7 +1993,18 @@ function paintInlineSvg(el: CapturedElement, indent: string): { svg: string[]; h
   // fall back to its 300x150 default viewport, and the defs contents would
   // paint visibly. Skip emission for 0x0 host elements.
   if (contentW <= 0 || contentH <= 0) return { svg, handled: true };
-  const sized = injectSvgSize(el.svgContent, contentW, contentH);
+  let sized = injectSvgSize(el.svgContent, contentW, contentH);
+  // DM-1595: namespace CSS class names when this inline SVG carries a `<style>`
+  // block, so two DOM inline SVGs that both define e.g. `.cls-1` can't cross-
+  // contaminate (an SVG `<style>` applies document-wide once emitted). Gated on
+  // `<style>` presence — the common presentation-attribute icon has none, so it
+  // stays byte-identical AND allocates no prefix id (no counter shift). IDs are
+  // intentionally NOT namespaced here: this path relies on the consumer-side
+  // `<use>` resolver, which matches `<use href="#id">` by id ACROSS sibling SVGs
+  // (DM-499), so prefixing ids would break those cross-SVG references.
+  if (allocClassPrefix != null && /<style[\s>]/i.test(sized)) {
+    sized = prefixSvgClasses(sized, allocClassPrefix());
+  }
   // Inline SVG icons commonly use fill/stroke="currentColor" so the icon picks
   // up the host's text color. Set the wrapping group's `color` to the captured
   // text color so currentColor resolves to what Chrome painted (DM-279).
@@ -3980,7 +3991,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // inline-SVG element with e.g. `opacity < 1` would emit an unbalanced <g>
   // and break the document (observable on resend/stripe nav chevrons).
   {
-    const _isvg = paintInlineSvg(el, indent);
+    const _isvg = paintInlineSvg(el, indent, () => state.paintCtx.nextClipId("svgic"));
     if (_isvg.handled) {
       svgParts.push(..._isvg.svg);
       if (animClass !== "") svgParts.push(`${indent}</g>`);

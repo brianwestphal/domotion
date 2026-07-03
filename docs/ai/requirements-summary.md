@@ -54,8 +54,9 @@ they describe (see `CLAUDE.md` "Documentation"):
   `object-fit` values take the native path (incl. `object-fit: none` at intrinsic
   size, DM-1592). Ids AND CSS class names are namespaced (`prefixSvgIds` +
   `prefixSvgClasses`, DM-1593 — class scoping runs only for `<style>`-bearing
-  SVGs). **Remaining:** the inline-`<svg>` DOM path + animator overlay inliner
-  aren't class-namespaced yet (DM-1595).
+  SVGs). All three SVG-inlining paths share `prefixSvgClasses` (DM-1595): the
+  `<img>` inliner (ids + classes), the DOM inline-`<svg>` path (classes only —
+  ids stay for the `<use>` resolver), and the animator overlay inliner.
 
 - **Doc 08 motion presets (`docs/08-animation-model.md`, DM-1526)** — **Shipped.**
   A named motion + easing vocabulary on intra-frame animations so authors don't

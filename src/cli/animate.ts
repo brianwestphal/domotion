@@ -59,7 +59,7 @@ import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-presets.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
-import { prefixSvgIds } from "../render/svg-inline.js";
+import { prefixSvgIds, prefixSvgClasses } from "../render/svg-inline.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
@@ -2351,7 +2351,13 @@ function namespaceSvgIds(svg: string, prefix: string): string {
   inner = inner.replace(/<\?xml[^>]*\?>/, "");
   inner = inner.replace(/<svg\b[^>]*>/, "");
   inner = inner.replace(/<\/svg>\s*$/, "");
-  return prefixSvgIds(inner, prefix);
+  inner = prefixSvgIds(inner, prefix);
+  // DM-1595: also namespace CSS class names when the overlay SVG carries a
+  // `<style>` block, so two svg overlays that both define e.g. `.cls-1` can't
+  // cross-contaminate. Gated on `<style>` presence → no-op (byte-identical) for
+  // the common presentation-attribute overlay.
+  if (/<style[\s>]/i.test(inner)) inner = prefixSvgClasses(inner, prefix);
+  return inner;
 }
 
 function resolveFrameInput(input: string, configDir: string): string {
