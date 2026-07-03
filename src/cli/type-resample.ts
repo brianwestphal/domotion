@@ -128,7 +128,23 @@ async function measureCaret(page: Page, selector: string): Promise<CaretRect | n
     if (ctx == null) return null;
     // `cs.font` is Chromium's resolved shorthand — the exact face the field paints.
     ctx.font = cs.font;
-    const textW = ctx.measureText(shown).width;
+    // `canvas.measureText` IGNORES letter-/word-spacing, but the field's real
+    // layout (which Domotion renders the value at, via the captured per-char
+    // offsets) INCLUDES them — so without this the caret lands ~letterSpacing×chars
+    // too far LEFT and overlaps the last glyph. Set them on the context (supported
+    // in Chromium); fall back to adding them manually on older engines.
+    const spaced = ctx as CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
+    let textW: number;
+    if ("letterSpacing" in spaced) {
+      spaced.letterSpacing = cs.letterSpacing;
+      spaced.wordSpacing = cs.wordSpacing;
+      textW = ctx.measureText(shown).width;
+    } else {
+      const ls = parseFloat(cs.letterSpacing) || 0;
+      const ws = parseFloat(cs.wordSpacing) || 0;
+      const spaceCount = (shown.match(/ /g) ?? []).length;
+      textW = ctx.measureText(shown).width + shown.length * ls + spaceCount * ws;
+    }
     const r = el.getBoundingClientRect();
     const num = (v: string): number => {
       const n = parseFloat(v);
