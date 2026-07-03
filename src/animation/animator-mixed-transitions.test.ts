@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { generateAnimatedSvg, type AnimationFrame } from "./animator.js";
+import { buildMagicMove } from "./magic-move.js";
+import type { CapturedElement } from "../capture/types.js";
+
+/** Minimal CapturedElement factory for buildMagicMove (mirrors magic-move.test.ts). */
+function mkEl(opts: Partial<CapturedElement> & { tag: string; x: number; y: number }): CapturedElement {
+  return { text: "", width: 100, height: 20, styles: {} as CapturedElement["styles"], children: [], ...opts };
+}
 
 // DM-1414: a frame's ENTRANCE must be composed from the PREVIOUS frame's
 // transition type, independently of its OWN (exit) type. Before the fix, a slide
@@ -132,5 +139,57 @@ describe("animator: unified mixed-family compositor (DM-1548)", () => {
     expect(svg).not.toContain("@keyframes fp-");
     // It still reveals via clip-path (the fr track from the old reveal branch).
     expect(svg).toContain("@keyframes fr-1");
+  });
+});
+
+// DM-1598: the entrance of the frame AFTER a magic-move depends on whether the
+// magic-move built a bridge — `classifyEntrance`'s `prevType === "magic-move"`
+// branch returns `cut` when bridged (frame.magicMove present) else `fade`. Both
+// arms had no assertion (the DM-1414/1548 matrix above skips magic-move as a
+// prevType). This drives both via a real `buildMagicMove` bridge vs its absence.
+describe("animator: frame entrance after a magic-move — bridged cuts, unbridged fades (DM-1598)", () => {
+  // A real bridge: a div moves (10,10)→(60,90), so buildMagicMove pairs it.
+  const bridge = buildMagicMove(
+    mkEl({ tag: "body", x: 0, y: 0, children: [mkEl({ tag: "div", x: 10, y: 10, text: "card" })] }),
+    mkEl({ tag: "body", x: 0, y: 0, children: [mkEl({ tag: "div", x: 60, y: 90, text: "card" })] }),
+    (roots) => `<g>${roots.length}</g>`, "mm0-",
+  );
+
+  // 4 frames so frame 2 (the one entering AFTER the magic-move) is NOT the last
+  // frame (avoids the hold-to-loop special-casing) and uses a crossfade so its
+  // entrance is a visible opacity ramp rather than a hard step.
+  const genAfterMagicMove = (withBridge: boolean): string => generateAnimatedSvg({
+    width: W, height: H,
+    frames: [
+      { svgContent: rect("#3366ff"), duration: 1000, transition: { type: "crossfade", duration: 400 } },
+      { svgContent: rect("#33cc66"), duration: 1000, transition: { type: "magic-move", duration: 400 }, ...(withBridge ? { magicMove: bridge } : {}) },
+      { svgContent: rect("#ffaa00"), duration: 1000, transition: { type: "crossfade", duration: 400 } },
+      { svgContent: rect("#cc3366"), duration: 1000, transition: { type: "cut", duration: 0 } },
+    ],
+  });
+
+  /** The fade-in span of frame 2 = (first opacity:1 stop) − (the opacity:0 stop
+   *  just below it). ~0 ⇒ a hard cut; a wide span ⇒ a gradual fade-in. */
+  function fadeInSpan(svg: string): number {
+    const block = keyframeBlock(svg, "fv-2");
+    const pctsFor = (op: string): number[] => block
+      .split("\n").filter((l) => l.includes(`opacity: ${op}`))
+      .flatMap((l) => [...l.matchAll(/([\d.]+)%/g)].map((m) => parseFloat(m[1])));
+    const zeros = pctsFor("0"), ones = pctsFor("1");
+    const firstOne = Math.min(...ones);
+    const zeroJustBelow = Math.max(...zeros.filter((z) => z < firstOne));
+    return firstOne - zeroJustBelow;
+  }
+
+  it("bridged (frame.magicMove present) → the next frame CUTS in (fade-in span ≈ 0)", () => {
+    expect(fadeInSpan(genAfterMagicMove(true))).toBeLessThan(1);
+  });
+
+  it("unbridged (no bridge) → the next frame FADES in (a gradual opacity ramp)", () => {
+    expect(fadeInSpan(genAfterMagicMove(false))).toBeGreaterThan(3);
+  });
+
+  it("the two entrances actually differ (the bridge changes the composition)", () => {
+    expect(fadeInSpan(genAfterMagicMove(false))).toBeGreaterThan(fadeInSpan(genAfterMagicMove(true)));
   });
 });
