@@ -136,6 +136,35 @@ export function embedResizedDataUri(
   return embedAsDataUri(url);
 }
 
+/**
+ * DM-1588: return the raw SVG source text for a captured `<img>`'s `imageSrc`
+ * when — and only when — the source resolves to an SVG, so the renderer can
+ * inline it as a native `<svg>` instead of a rasterized-on-zoom `<image>`.
+ *
+ * Resolves the source the same way the renderer's `<image href>` path does
+ * (via `embedAsDataUri`: file read, `file://` decode, or a pre-fetched remote
+ * `_dataUriCache` hit), then decodes the payload iff its mime is
+ * `image/svg+xml`. Returns null for raster sources (PNG/JPEG/…), for
+ * remote/unresolved URLs we couldn't embed to a data URI, or on decode
+ * failure — in every such case the caller keeps the existing `<image>` path.
+ * Deliberately does NOT consult `_resizedDataUriCache`: the resize pre-pass
+ * rasterizes SVGs to PNG via sharp, which is exactly what we're avoiding.
+ */
+export function resolveSvgSource(url: string | null | undefined): string | null {
+  if (url == null || url === "") return null;
+  const dataUri = embedAsDataUri(url);
+  const m = /^data:image\/svg\+xml([^,]*),(.*)$/is.exec(dataUri);
+  if (m == null) return null;
+  const params = m[1] ?? "";
+  const payload = m[2];
+  try {
+    if (/;base64/i.test(params)) return Buffer.from(payload, "base64").toString("utf8");
+    return decodeURIComponent(payload);
+  } catch {
+    return null;
+  }
+}
+
 function mimeFromExtension(path: string): string | null {
   const lower = path.toLowerCase();
   if (lower.endsWith(".png")) return "image/png";

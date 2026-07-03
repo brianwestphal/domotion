@@ -42,6 +42,18 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 96 (`docs/96-native-svg-image-inlining.md`, DM-1588)** — **Shipped.** An
+  `<img src="*.svg">` inlines as a native, positioned, id-namespaced nested
+  `<svg>` in the output instead of `<image href="data:image/svg+xml;base64,…">`.
+  Chromium rasterizes an SVG-in-`<image>` at layout size then scales it (softens
+  at zoom); the native inline stays vector-crisp at any scale and drops the ~33%
+  base64 bloat. Trigger `resolveSvgSource(el.imageSrc)` (`src/capture/embed.ts`),
+  rewrite `inlineImgSvg`/`prefixSvgIds` (`src/render/svg-inline.ts`), emitted from
+  `paintImage`. Raster `<img>` (PNG/JPEG/…) unaffected. This is the *inverse* of a
+  raster fallback — see `docs/reference/raster-image-fallback-cases.md`. **Known
+  v1 boundaries:** `object-fit: none` with a known intrinsic size still rasters,
+  and class selectors inside an SVG `<style>` block aren't namespaced.
+
 - **Doc 08 motion presets (`docs/08-animation-model.md`, DM-1526)** — **Shipped.**
   A named motion + easing vocabulary on intra-frame animations so authors don't
   hand-tune cubic-beziers. `src/animation/motion-presets.ts`: motion presets

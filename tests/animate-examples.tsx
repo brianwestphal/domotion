@@ -316,8 +316,11 @@ const EXAMPLES: Example[] = [
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 720 405"`)) f.push("missing viewBox 720x405");
       if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 composited frame groups (template + captured)");
-      // The brand's logo asset lands on the template frame's banner as an <image>.
-      if (!/<image\b/.test(svg)) f.push("missing the brand logo <image> — brand.logo did not reach the template frame's mark");
+      // The brand's logo asset (an <img src="*.svg">) lands on the template
+      // frame's banner inlined as a native, resolution-independent <svg> — its
+      // own viewBox="0 0 100 100" — rather than a rasterized-on-zoom
+      // <image data:image/svg+xml> (DM-1588).
+      if (!/viewBox="0 0 100 100"/.test(svg)) f.push("missing the brand logo native <svg> (viewBox 0 0 100 100) — brand.logo did not reach the template frame's mark, or was not inlined natively");
       // The brand's orange accent (#f97316 → rgb(249,115,22)) appears — the
       // lower-third accent bar (template brand default) and the page's injected
       // --brand-accent eyebrow.

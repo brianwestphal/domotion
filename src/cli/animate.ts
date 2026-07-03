@@ -59,6 +59,7 @@ import { optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-presets.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
+import { prefixSvgIds } from "../render/svg-inline.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
@@ -2344,16 +2345,13 @@ function resolveSvgOverlays(overlays: OverlayInput[] | undefined, configDir: str
  * without id collisions.
  */
 function namespaceSvgIds(svg: string, prefix: string): string {
-  // Strip XML decl + outer <svg ...> wrapper.
+  // Strip XML decl + outer <svg ...> wrapper, then namespace ids/refs via the
+  // shared prefixer (DM-1588 — same regexes back the native SVG-image inliner).
   let inner = svg;
   inner = inner.replace(/<\?xml[^>]*\?>/, "");
   inner = inner.replace(/<svg\b[^>]*>/, "");
   inner = inner.replace(/<\/svg>\s*$/, "");
-  // Prefix ids and hash references.
-  inner = inner.replace(/\bid="([^"]+)"/g, (_m, id: string) => `id="${prefix}${id}"`);
-  inner = inner.replace(/\b(href|xlink:href)="#([^"]+)"/g, (_m, attr: string, id: string) => `${attr}="#${prefix}${id}"`);
-  inner = inner.replace(/url\(#([^)]+)\)/g, (_m, id: string) => `url(#${prefix}${id})`);
-  return inner;
+  return prefixSvgIds(inner, prefix);
 }
 
 function resolveFrameInput(input: string, configDir: string): string {

@@ -42,7 +42,10 @@ shortest possible map:
   Linux bare-vs-Noto runtime profile selector (`linuxFontProfile()`, DM-1404) +
   the live `fc-match`/CoreText system-fallback resolver (DM-1416/DM-1018);
   `unicode-classification.ts` owns the Unicode predicates;
-  `mask.ts` owns mask-def emission; `borders.ts` owns border math.
+  `mask.ts` owns mask-def emission; `borders.ts` owns border math;
+  `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced
+  nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96) — crisp at
+  any zoom instead of a rasterized `<image data:image/svg+xml>`.
 - **`src/animation/`** — multi-frame composition (animator, magic-move) +
   **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
   (`composeAnimatedLayers` — stack animated SVGs as placed, independently-timed

@@ -1,0 +1,130 @@
+import { describe, expect, it } from "vitest";
+import { inlineImgSvg, prefixSvgIds } from "./svg-inline.js";
+import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
+import type { CapturedElement } from "../capture/types.js";
+
+const BASE_STYLES = {
+  backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", backgroundSize: "auto",
+  backgroundPosition: "0% 0%", backgroundRepeat: "repeat", backgroundClip: "border-box",
+  backgroundOrigin: "padding-box", backgroundAttachment: "scroll",
+  borderColor: "rgb(0,0,0)", borderWidth: "0", borderRadius: "0",
+  borderTopLeftRadius: "0", borderTopRightRadius: "0", borderBottomRightRadius: "0", borderBottomLeftRadius: "0",
+  borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
+  borderTopColor: "rgb(0,0,0)", borderRightColor: "rgb(0,0,0)", borderBottomColor: "rgb(0,0,0)", borderLeftColor: "rgb(0,0,0)",
+  borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none",
+  color: "rgb(0,0,0)", fontSize: "16px", fontFamily: "sans-serif", fontWeight: "400", fontStyle: "normal",
+  lineHeight: "20px", letterSpacing: "normal", textAlign: "left", textTransform: "none",
+  whiteSpace: "normal", direction: "ltr", writingMode: "horizontal-tb",
+  overflowX: "visible", overflowY: "visible", opacity: "1", transform: "none", transformOrigin: "50% 50%", visibility: "visible",
+  objectFit: "fill", objectPosition: "50% 50%", display: "inline",
+  paddingTop: "0", paddingRight: "0", paddingBottom: "0", paddingLeft: "0", position: "static",
+} as unknown as CapturedElement["styles"];
+
+const imgEl = (imageSrc: string, styleOver: Record<string, string> = {}): CapturedElement => ({
+  tag: "img", text: "", x: 10, y: 10, width: 80, height: 80, children: [],
+  imageSrc, styles: { ...BASE_STYLES, ...styleOver } as CapturedElement["styles"],
+} as unknown as CapturedElement);
+
+const SVG_URI = (svg: string): string =>
+  `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+const PNG_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+
+describe("prefixSvgIds — namespace ids / refs to avoid cross-document collisions (DM-1588)", () => {
+  it("prefixes id, url(#…), href, and xlink:href (both quote styles)", () => {
+    const svg = `<linearGradient id="g1"/><rect fill="url(#g1)"/>` +
+      `<use href="#g1"/><use xlink:href="#g1"/><clipPath id='c1'/><path clip-path="url(#c1)"/>`;
+    const out = prefixSvgIds(svg, "P-");
+    expect(out).toContain(`id="P-g1"`);
+    expect(out).toContain(`fill="url(#P-g1)"`);
+    expect(out).toContain(`href="#P-g1"`);
+    expect(out).toContain(`xlink:href="#P-g1"`);
+    expect(out).toContain(`id='P-c1'`);
+    expect(out).toContain(`clip-path="url(#P-c1)"`);
+  });
+
+  it("leaves non-hash href (external URL) untouched", () => {
+    const out = prefixSvgIds(`<image href="logo.png"/>`, "P-");
+    expect(out).toBe(`<image href="logo.png"/>`);
+  });
+});
+
+describe("inlineImgSvg — img src=svg → positioned native <svg> (DM-1588)", () => {
+  const P = { x: 10, y: 20, w: 100, h: 80, par: "xMidYMid meet", idPrefix: "P-" };
+
+  it("keeps the source viewBox and re-declares x/y/width/height/preserveAspectRatio", () => {
+    const src = `<svg width="50px" height="50px" viewBox="0 0 50 50"><rect width="50" height="50"/></svg>`;
+    const out = inlineImgSvg(src, P)!;
+    expect(out.startsWith("<svg")).toBe(true);
+    expect(out).toContain(`viewBox="0 0 50 50"`);
+    expect(out).toContain(`x="10" y="20" width="100" height="80"`);
+    expect(out).toContain(`preserveAspectRatio="xMidYMid meet"`);
+    // The source width/height="50px" must be stripped, not duplicated.
+    expect(out).not.toContain(`50px`);
+    expect(out).toContain(`<rect width="50" height="50"/></svg>`);
+  });
+
+  it("namespaces internal ids so gradients/clipPaths/filters can't collide", () => {
+    const src = `<svg viewBox="0 0 10 10"><defs><linearGradient id="grad"/></defs>` +
+      `<rect fill="url(#grad)"/></svg>`;
+    const out = inlineImgSvg(src, P)!;
+    expect(out).toContain(`id="P-grad"`);
+    expect(out).toContain(`fill="url(#P-grad)"`);
+    expect(out).not.toMatch(/\bid="grad"/);
+  });
+
+  it("synthesizes a viewBox from absolute width/height when the SVG has none", () => {
+    const src = `<svg width="40" height="30"><rect/></svg>`;
+    const out = inlineImgSvg(src, P)!;
+    expect(out).toContain(`viewBox="0 0 40 30"`);
+  });
+
+  it("falls back to the intrinsic size when the SVG has neither viewBox nor absolute size", () => {
+    const src = `<svg><rect/></svg>`;
+    const out = inlineImgSvg(src, { ...P, intrinsic: { w: 64, h: 48 } })!;
+    expect(out).toContain(`viewBox="0 0 64 48"`);
+  });
+
+  it("returns null (→ raster fallback) with no coordinate system at all", () => {
+    expect(inlineImgSvg(`<svg><rect/></svg>`, P)).toBeNull();
+    // percentage width is not an absolute coordinate system
+    expect(inlineImgSvg(`<svg width="100%" height="100%"><rect/></svg>`, P)).toBeNull();
+  });
+
+  it("returns null when there is no <svg> root", () => {
+    expect(inlineImgSvg(`<rect width="10" height="10"/>`, P)).toBeNull();
+  });
+
+  it("drops an XML declaration / leading content before the root <svg>", () => {
+    const src = `<?xml version="1.0"?>\n<svg viewBox="0 0 10 10"><rect/></svg>`;
+    const out = inlineImgSvg(src, P)!;
+    expect(out.startsWith("<svg")).toBe(true);
+    expect(out).not.toContain("<?xml");
+  });
+});
+
+describe("paintImage — <img src=svg> inlines natively; raster stays <image> (DM-1588)", () => {
+  it("emits a native nested <svg> for an SVG source, not <image data:image/svg+xml>", () => {
+    const svg = `<svg viewBox="0 0 24 24"><rect width="24" height="24" fill="#f00"/></svg>`;
+    const out = elementTreeToSvgInner([imgEl(SVG_URI(svg))], 200, 200);
+    expect(out).toContain(`viewBox="0 0 24 24"`);
+    expect(out).not.toMatch(/<image[^>]*data:image\/svg\+xml/);
+    // Positioned at the content-box top-left (no border/padding here → el.x/y).
+    expect(out).toMatch(/<svg[^>]*x="10" y="10" width="80" height="80"/);
+  });
+
+  it("keeps a raster (PNG) <img> on the <image> path", () => {
+    const out = elementTreeToSvgInner([imgEl(PNG_URI)], 200, 200);
+    expect(out).toMatch(/<image\b/);
+    expect(out).not.toMatch(/viewBox="0 0/);
+  });
+
+  it("wraps a border-radius SVG img in a rounded clip group", () => {
+    const svg = `<svg viewBox="0 0 24 24"><rect width="24" height="24"/></svg>`;
+    const el = imgEl(SVG_URI(svg), {
+      borderRadius: "12px", borderTopLeftRadius: "12px", borderTopRightRadius: "12px",
+      borderBottomRightRadius: "12px", borderBottomLeftRadius: "12px",
+    });
+    const out = elementTreeToSvgInner([el], 200, 200);
+    expect(out).toMatch(/<g clip-path="url\(#[^)]*\)"><svg[^>]*viewBox="0 0 24 24"/);
+  });
+});

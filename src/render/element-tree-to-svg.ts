@@ -51,16 +51,18 @@ import {
   _resizedDataUriCache,
   embedResizedDataUri,
   embedRemoteImages,
+  resolveSvgSource,
   setActiveHiDPIFactor,
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
+import { inlineImgSvg } from "./svg-inline.js";
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 
 // Public-API re-exports kept here for backward compatibility — older imports
 // from `./render/element-tree-to-svg.js` keep resolving. Internal consumers
 // should prefer importing from `../capture/{embed,warnings,index}.js` directly.
-export { _dataUriCache, _resizedDataUriCache, embedResizedDataUri, embedRemoteImages, type EmbedRemoteImagesOptions } from "../capture/embed.js";
+export { _dataUriCache, _resizedDataUriCache, embedResizedDataUri, embedRemoteImages, resolveSvgSource, type EmbedRemoteImagesOptions } from "../capture/embed.js";
 export { getLastCaptureWarnings, logCaptureWarnings } from "../capture/warnings.js";
 export { captureElementTree, captureElementTreeWithWarnings, calibrateBaselines } from "../capture/index.js";
 
@@ -335,6 +337,27 @@ function paintImage(
   } else {
     const par = preserveAspectRatioFor(fitEffective, el.styles.objectPosition);
     const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";
+    // DM-1588: an `<img src="*.svg">` embeds today as a `data:image/svg+xml`
+    // `<image>`, which Chromium rasterizes at the layout size then scales —
+    // so it softens/aliases at high zoom. Inline the SVG as a native, truly
+    // vector nested `<svg>` instead (also drops the ~33% base64 bloat). Only
+    // SVG sources take this path; raster `<img>` (PNG/JPEG/…) stays `<image>`.
+    // A source with no usable coordinate system returns null → raster fallback.
+    const svgText = resolveSvgSource(el.imageSrc);
+    if (svgText != null) {
+      const inlined = inlineImgSvg(svgText, {
+        x: contentX, y: contentY, w: contentW, h: contentH,
+        par, intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg"),
+      });
+      if (inlined != null) {
+        ctx.svgParts.push(
+          roundedClipId != null
+            ? `${indent}<g clip-path="url(#${roundedClipId})">${inlined}</g>`
+            : `${indent}${inlined}`,
+        );
+        return;
+      }
+    }
     // DM-819: Chrome doesn't honor `preserveAspectRatio` on `<image>`
     // when the href is an SVG data URI — the embedded SVG paints at its
     // own intrinsic size (viewBox or width/height) regardless of the
