@@ -152,19 +152,21 @@ async function measureCaret(page: Page, selector: string): Promise<CaretRect | n
     };
     const fontSize = num(cs.fontSize) || 16;
     const x = r.left + num(cs.borderLeftWidth) + num(cs.paddingLeft) + textW - el.scrollLeft;
-    // Match Chrome's REAL caret geometry (pixel-measured against the live field,
-    // not a magic multiplier):
-    //  - HEIGHT ≈ the font's cap/ink height (a 16px field caret is ~10px, NOT the
-    //    full 1.2 line box ~19px — that engulfed the text). Measure the ink box of
-    //    a representative cap ("M"); fall back to ~0.7em if the metric is missing.
+    // Caret geometry matching how Blink actually draws a text caret (see the
+    // `caretMetrics` note in `src/animation/caret-metrics.ts`, shared with the
+    // typing overlay):
+    //  - HEIGHT = the font's metrics height (ascent + descent) — that is the text
+    //    fragment / line-box height Blink uses for a bar caret, NOT cap height (too
+    //    short) nor a fixed 1.2×em multiplier. `fontBoundingBox{Ascent,Descent}`
+    //    is Chromium's own font-metrics height.
     //  - POSITION: center the caret within the LINE BOX, and place the line box the
     //    same way `captureInputValue` places the value text — a single-line <input>
     //    centers its line in the content box; a <textarea> lays lines from the top —
     //    so the caret and the captured text share one line box and can't diverge.
-    const capM = ctx.measureText("M");
-    const capH = (capM.actualBoundingBoxAscent || 0) + (capM.actualBoundingBoxDescent || 0);
-    const caretHeight = Math.round(capH > 0 ? capH : fontSize * 0.7);
-    const lineH = num(cs.lineHeight) || fontSize * 1.2;
+    const fm = ctx.measureText("Hg");
+    const fontBox = (fm.fontBoundingBoxAscent || 0) + (fm.fontBoundingBoxDescent || 0);
+    const caretHeight = Math.round(fontBox > 0 ? fontBox : fontSize * 1.15);
+    const lineH = num(cs.lineHeight) || fontBox || fontSize * 1.2;
     const contentTop = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
     const contentHeight = r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom);
     const lineTop = el instanceof HTMLTextAreaElement
