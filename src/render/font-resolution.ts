@@ -348,7 +348,12 @@ export function clearWebfonts(): void {
 interface LocalFontAliasVariant { weight: number; italic: boolean; baseKey: string }
 const localFontAliasRegistry = new Map<string, LocalFontAliasVariant[]>();
 export function registerLocalFontAlias(family: string, resolvedKey: string, weight: number = 400, italic: boolean = false): void {
-  const key = family.toLowerCase().replace(/^["']|["']$/g, "").trim();
+  // Normalize IDENTICALLY to the lookup side (the `resolveFontKey` tokenizer:
+  // trim → strip boundary quotes → lowercase). A different order (e.g. strip
+  // quotes before trimming) leaves interior quotes on a whitespace-padded name,
+  // so the alias registers under a key `matchFamilyNameToKey` never looks up and
+  // local-font resolution silently misses (DM-1597).
+  const key = family.trim().replace(/^["']|["']$/g, "").toLowerCase();
   if (key === "" || resolvedKey === "") return;
   const list = localFontAliasRegistry.get(key) ?? [];
   list.push({ weight, italic, baseKey: resolvedKey });
@@ -370,6 +375,17 @@ function pickLocalFontAliasVariant(family: string, weight: number, italic: boole
     if (score < bestScore) { bestScore = score; best = v; }
   }
   return best;
+}
+
+/**
+ * Test-only: the variant `pickLocalFontAliasVariant` would choose for a
+ * `(family, weight, italic)` request, without touching real fonts. Mirrors
+ * `__pickWebfontVariantMetaForTest` so the local-alias scoring (italic dominates
+ * weight) can be unit-tested on any platform (DM-1597).
+ */
+export function __pickLocalFontAliasVariantForTest(family: string, weight: number, italic: boolean): LocalFontAliasVariant | null {
+  const key = family.trim().replace(/^["']|["']$/g, "").toLowerCase();
+  return pickLocalFontAliasVariant(key, weight, italic);
 }
 
 /**

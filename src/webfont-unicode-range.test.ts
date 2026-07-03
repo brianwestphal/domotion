@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach } from "vitest";
 import { parseUnicodeRangeDescriptor } from "./capture/index.js";
-import { __pickWebfontVariantMetaForCodepointForTest, __pickWebfontVariantMetaForTest, clearWebfonts, registerWebfont, unicodeRangeCovers } from "./render/text-to-path.js";
+import { __pickWebfontVariantMetaForCodepointForTest, __pickWebfontVariantMetaForTest, __pickLocalFontAliasVariantForTest, clearWebfonts, registerWebfont, registerLocalFontAlias, unicodeRangeCovers } from "./render/text-to-path.js";
 
 // DM-517: webfont registration honors the `@font-face { unicode-range: ... }`
 // descriptor. Google-Fonts-style partitioning declares the same `(family,
@@ -203,5 +203,51 @@ describe("pickWebfontVariantForCodepoint: per-codepoint partition routing (DM-55
 
   it.skipIf(!haveFontFixture)("returns null when family is not registered at all", () => {
     expect(__pickWebfontVariantMetaForCodepointForTest("nonexistent", 400, false, 0x0041)).toBeNull();
+  });
+});
+
+// DM-1597: the local-font-alias variant scorer (registerLocalFontAlias +
+// pickLocalFontAliasVariant) is the on-disk-@font-face sibling of the webfont
+// picker — it had no direct coverage. These are pure (no real fonts), so they
+// run on any platform / CI.
+describe("registerLocalFontAlias: variant scoring (DM-303/DM-360/DM-1597)", () => {
+  beforeEach(() => clearWebfonts());
+
+  it("returns null when the family has no registered aliases", () => {
+    expect(__pickLocalFontAliasVariantForTest("georgia", 400, false)).toBeNull();
+  });
+
+  it("italic match dominates weight distance", () => {
+    // A family declaring regular(400), italic(400), bold(700) but NO bold-italic.
+    registerLocalFontAlias("Fam", "georgia", 400, false);
+    registerLocalFontAlias("Fam", "georgia-italic", 400, true);
+    registerLocalFontAlias("Fam", "georgia-bold", 700, false);
+    // Request bold+italic: italic(400) scores 0 + |400-700|=300; bold(700) scores
+    // 1000 + 0 = 1000. Italic wins despite the larger weight gap.
+    expect(__pickLocalFontAliasVariantForTest("Fam", 700, true)).toMatchObject({ baseKey: "georgia-italic", italic: true });
+    // Request bold+upright: bold(700) is the exact match.
+    expect(__pickLocalFontAliasVariantForTest("Fam", 700, false)).toMatchObject({ baseKey: "georgia-bold" });
+  });
+
+  it("normalizes the family key (quotes/case/whitespace) on register + lookup", () => {
+    registerLocalFontAlias('  "My Font" ', "arial", 400, false);
+    expect(__pickLocalFontAliasVariantForTest("my font", 400, false)).toMatchObject({ baseKey: "arial" });
+  });
+
+  it("ignores empty family or resolved key", () => {
+    registerLocalFontAlias("", "arial", 400, false);
+    registerLocalFontAlias("Empty", "", 400, false);
+    expect(__pickLocalFontAliasVariantForTest("", 400, false)).toBeNull();
+    expect(__pickLocalFontAliasVariantForTest("Empty", 400, false)).toBeNull();
+  });
+
+  it("register→clear→register: clearWebfonts wipes the alias registry (no cross-capture leak)", () => {
+    registerLocalFontAlias("Fam", "georgia", 400, false);
+    expect(__pickLocalFontAliasVariantForTest("Fam", 400, false)).not.toBeNull();
+    clearWebfonts(); // the SAME clear that resets the webfont registry between captures
+    expect(__pickLocalFontAliasVariantForTest("Fam", 400, false)).toBeNull();
+    // A fresh registration after clear starts clean (no accumulated duplicates).
+    registerLocalFontAlias("Fam", "arial", 700, true);
+    expect(__pickLocalFontAliasVariantForTest("Fam", 700, true)).toMatchObject({ baseKey: "arial", weight: 700, italic: true });
   });
 });
