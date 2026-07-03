@@ -160,6 +160,9 @@ callers; (A) was chosen.)
   `onFrame`'s `ctx.tree` is `null` for them and the frames-out variant's
   corresponding `frame.svgContent` is the composed scroll SVG — callers
   mutating it should treat it as opaque.
+- **`cast` / `template` frames don't fire `onFrame` at all.** They push their
+  pre-built `svgContent` and `continue` before the hook site (`src/cli/animate.ts`),
+  so the hook only runs for captured (page-`input` / `continue`) and scroll frames.
 
 ## Follow-up tickets
 

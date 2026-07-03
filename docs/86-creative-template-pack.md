@@ -23,7 +23,9 @@ A full-bleed opening card: an optional eyebrow/kicker, a large headline, an
 optional subtitle, on a brand background. Staggered fade-up/`pop` reveal (reuse
 the kinetic-text motion vocabulary), then hold.
 Params: `title` (req), `subtitle`, `eyebrow`, `align` (left/center), `background`,
-`textColor`, `accent`, `fontFamily`, `width`, `height`, `holdMs`.
+`textColor`, `accent`, `fontFamily`, `logo`, `logoPosition`, `width`, `height`,
+`holdMs`. `logo` (a URL/data-URI mark, auto-filled from `brand.logo` — DM-1575)
+renders above the title; `logoPosition` places it.
 
 ### 2. `quote` (testimonial)
 A pull-quote block + attribution (name, role/handle, optional avatar

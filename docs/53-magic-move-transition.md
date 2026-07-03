@@ -51,7 +51,8 @@ cross-fade.
 ## The mechanism (reuses existing infrastructure)
 
 `diffTrees(prev, next)` already classifies every element across two
-`CapturedElement` trees as `unchanged` / `moved` (matched, bbox shifted) /
+`CapturedElement` trees. Its `DiffEntryKind` values (`src/animation/tree-diff.ts`)
+are `static` (matched, unmoved) / `translated` (matched, bbox shifted) /
 `modified` (matched, same path) / `added` / `removed`, and `dominantTranslate()`
 already finds bulk-shifted groups. The scroll-segment composer
 (`src/scroll/executor.ts`) already consumes this to pick per-element treatment
@@ -60,8 +61,8 @@ idea promoted to a **frame-to-frame transition type** in the animator:
 
 | Diff kind | Magic-move treatment |
 | --- | --- |
-| `unchanged` | Emit once, hold across the transition (no animation). |
-| `moved` / `modified` | Animate `translate`+`scale` from prev bbox → next bbox, plus tween color/opacity/border. |
+| `static` | Emit once, hold across the transition (no animation). |
+| `translated` / `modified` | Animate `translate`+`scale` from prev bbox → next bbox, plus tween color/opacity/border. |
 | `added` | Fade in (opacity 0→1) over the transition. |
 | `removed` | Fade out (opacity 1→0) over the transition. |
 

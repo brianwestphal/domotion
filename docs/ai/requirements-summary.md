@@ -129,8 +129,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   proportional fonts + pixel-accurate wrap (DM-1557), `fontFamily` override (DM-1558),
   and a **v2 `typeResample`** per-keystroke real-site re-sampling mode (DM-1556 — types
   one key at a time, re-captures after each, so the field's own input mask/validation/
-  font renders; nests N states as one frame's animated SVG). **Still open:** GPOS-kerned
-  shaping (DM-1578), CLI font-family auto-resolve (DM-1579).
+  font renders; nests N states as one frame's animated SVG). **Later follow-ups also
+  shipped:** optional GPOS-kerned shaping (`kern`, DM-1578), CLI font-family
+  auto-resolve from the anchored field (DM-1579), caret shapes (bar/block/underscore,
+  DM-1591; doc 97), and an opt-in `typeResample.regionOnly` that captures just the
+  field's region per keystroke onto a static base to cut O(N·page) output size (DM-1581).
 
 - **Doc 94 (`docs/94-interaction-state-capture.md`, DM-1516)** — **Shipped (v1).** An
   `animate` frame can capture a **real forced CSS pseudo-state** so a page's own
@@ -143,9 +146,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   SVG silently captures the rest state. **All follow-ups shipped:** a forced-state
   `reset` verb (DM-1566), and all four auto-detection options — `hoverReveal` sugar
   (Option 1, DM-1562), `hoverDetect` computed-style-diff (Option 2, DM-1563), `jsReveal`
-  MutationObserver harness (Option 3, DM-1564 — added/removed-node crossfade; the
-  surviving-node attribute-tween is a follow-up, DM-1580), and the `interact` overlay
-  (Option 4, no-DOM/PDF fake, DM-1565).
+  MutationObserver harness (Option 3, DM-1564 — added/removed-node crossfade, plus a
+  surviving-node **motion tween** for transform/opacity attribute deltas, DM-1580;
+  `hoverDetect` and `jsReveal` share one `synthesizeMotionTween`, DM-1582), and the
+  `interact` overlay (Option 4, no-DOM/PDF fake, DM-1565).
 
 - **Doc 86 (`docs/86-creative-template-pack.md`, DM-1523 design → DM-1531/1532/1533 impl)** —
   **All three batches shipped.** Batch A: four narrative text-card templates

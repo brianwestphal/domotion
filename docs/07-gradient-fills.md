@@ -108,6 +108,13 @@ layers take a separate branch — they rasterize to a PNG `<pattern>` via
 The same `gradientFillFor` helper handles the thumb fill (`renderRange` thumb
 path) and the progress-value / meter-value fills (SK-1222).
 
+**Legacy `-webkit-gradient()` syntax.** Chromium's computed-style serializer still
+emits the old `-webkit-gradient(linear, …, from(), color-stop(), to())` form for
+some pages (e.g. legacy mobile headers). `parseGradient` calls
+`convertLegacyWebkitGradient` (`src/render/gradients.ts`) first, normalizing that
+into an equivalent modern `linear-gradient(...)` before the main parse, so the
+rest of the pipeline never sees the legacy form.
+
 ## Edge cases
 
 - **Radial gradients (SK-1225)**: shipped via `<radialGradient>`. Supports `circle`/`ellipse` shapes, the four extent keywords (`closest-side` / `closest-corner` / `farthest-side` / `farthest-corner`), explicit length sizing, and the `at <position>` clause (single keyword, two-token keyword/length pairs, percent positions). Ellipses use `gradientTransform="translate(cx, cy) scale(1, ry/rx) translate(-cx, -cy)"` to bend the natively-circular SVG radial into the desired aspect. For the corner keywords the ellipse keeps the matching side's aspect ratio and is scaled to pass through the corner — exactly `√2 ×` the side radii (DM-1243; verified against Chrome's painted ring).
@@ -133,7 +140,7 @@ The gradient pipeline lands in three slices, each tracked as a separate ticket:
 - Per-tile fail bands (currently dominated by the wrong-color track stripe) drop below the suite-level pass thresholds.
 - A slider with `linear-gradient(45deg, red 0%, yellow 50%, blue 100%)` renders three correctly positioned stops at the right diagonal angle.
 - Two sliders sharing the same gradient text deduplicate to one `<linearGradient>` def.
-- A slider with `radial-gradient(...)` falls back to the first color stop and emits a `warn()` with the host's selector.
+- A slider with `radial-gradient(...)` renders a real `<radialGradient>` (shipped SK-1225 — `gradientFillFor` dispatches `radial` to `buildRadialGradientDef`, `src/render/form-controls.ts`). Only unrecognized gradient kinds fall back to the first color stop.
 - All previously passing html-test, features, and showcase tests stay passing.
 
 ## Status

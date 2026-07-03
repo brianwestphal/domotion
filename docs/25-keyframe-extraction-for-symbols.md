@@ -57,7 +57,7 @@ The existing `inline-svg-use-symbol` and `inline-svg-use-group` fixtures continu
 
 ## Open caveats
 
-- **`transform-box: view-box`** (the legacy SVG default in some browsers): the bake composes against the element's bbox, which works for `transform-box: fill-box` (the modern CSS default). For `view-box` the origin is the SVG viewport's origin, not the element's bbox. None of the real-world fixtures we've validated use `view-box`; if seen, file a follow-up.
+- **`transform-box` values** (DM-752): all the standard boxes are handled at capture time (`src/capture/script/walker/inline-svg.ts`). `fill-box` (the modern CSS default) and `content-box`/`border-box` add the element's bbox origin; `view-box` (the legacy SVG default) does NOT add the bbox origin (its origin is the SVG viewport); `stroke-box` adds the bbox origin then subtracts half the stroke width. So the bake composes against the correct origin for each `transform-box` rather than assuming `fill-box`.
 - **3D transforms**: SVG's `transform` attribute is 2D-only. CSS `transform: rotate3d(...)` resolves to a 4×4 matrix that we'd flatten to the 2D approximation. None of our fixtures use 3D on SVG; not yet validated.
 - **JS-driven animations** (`element.animate(...)`): no different from CSS animations from `getComputedStyle`'s perspective. The computed transform reflects the JS animation's current value too. Same bake works.
 - **Animation play-state: paused at t=0**: identical to the unpaused case from a paint perspective — the painted state at t=0 is what we capture. Author intent (paused vs. running) doesn't survive.

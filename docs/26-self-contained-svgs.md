@@ -42,7 +42,7 @@ await rec.captureUrl("/");
 const svg = await rec.captureCurrent();        // already self-contained
 ```
 
-The distributed-demo Domotion examples (`examples/showcase-rendering.ts`, `showcase-transitions.ts`, `hero-product-demo.ts`, `domotion-word-demo.ts`, `transition-tour.ts`, `iframe-recursion.ts`) call `embedRemoteImages` unconditionally — distributed demo SVGs always load in Preview / QuickLook regardless of how they're ingested. (`terminal-demo.ts` has no remote images to embed, so it doesn't.)
+The distributed-demo Domotion examples (`examples/showcase-rendering.ts`, `showcase-transitions.ts`, `hero-product-demo.ts`, `domotion-word-demo.ts`, `transition-tour.ts`, `transition-mixed.ts`, `iframe-recursion.ts`) call `embedRemoteImages` unconditionally — distributed demo SVGs always load in Preview / QuickLook regardless of how they're ingested. (`terminal-demo.ts` has no remote images to embed, so it doesn't.)
 
 For end users who don't use `DemoRecorder` and want fine-grained control, the bare `embedRemoteImages(tree)` function is exported from the package root.
 

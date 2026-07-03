@@ -123,7 +123,8 @@ through fontkit like any other file.
 - `npm test` passes on macOS with no regression (the resolver's darwin branch is
   the unchanged lookup). ✅
 - On Linux / Windows with the canonical platform fonts, `getFontInstance("helvetica")`
-  returns a font (DejaVu Sans / Arial respectively), verified by the
+  returns a font (Liberation Sans / Arial respectively — `LINUX_FONT_PATHS["helvetica"]`
+  → `LiberationSans-Regular.ttf`, matching fontconfig's `fc-match "Helvetica"`), verified by the
   `resolveFontSpec: cross-platform font path discovery` tests, which run on every
   platform's CI and assert the sans-serif primary resolves to an on-disk file and
   the CSS generics become renderable.

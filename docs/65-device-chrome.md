@@ -36,6 +36,15 @@ bezel grows the output — `phone` adds an even rim on every side (390×844 →
 for browser, 960×636 for window). An unknown device name is a hard error
 listing the supported set.
 
+**Bezel furniture scales with the screen (DM-1559 / DM-1577).** The rim / bar
+thicknesses, traffic-light dots, and corner radii above are the sizes at the
+reference screen; for a larger screen the furniture is scaled up so a big / tall
+capture (e.g. a `reel` 1080×1920 format screen) doesn't get a hairline rim or a
+too-thin title bar. The factor is `s = max(1, min(screenW, screenH) / REF)` —
+`REF = 390` for `phone` and `600` for `browser`/`window`
+(`src/render/device-chrome.ts`) — so at or below the reference the geometry is
+unchanged, and above it the whole bezel grows proportionally.
+
 `--chrome-label <text>` sets the **browser** URL bar address or the **window**
 title; it's ignored by `phone`, and omitting it leaves an empty URL pill /
 blank title bar.

@@ -47,7 +47,7 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 
 2. **CapturedElement.styles** — add `frostedBgFallback?: string` to the `Styles` interface.
 
-3. **Renderer** (`renderElement` in `elementTreeToSvg`) — after computing `bgColor`, if `bgColor` is null or alpha ≤ 0.1 AND `el.styles.frostedBgFallback` is set, paint an extra `<rect>` with the fallback fill at the element's box (respecting `border-radius`) before any background-image layers. Mirrors the existing `bgColor != null && bgColor.a > 0.01` block at line ~3333.
+3. **Renderer** (`renderElement` in `elementTreeToSvg`) — after computing `bgColor`, the real background-color is painted whenever `bgColor.a > 0.01` (`paintBackgroundColor`, `src/render/element-tree-to-svg.ts`); only in the `else` (null or alpha ≤ 0.01) AND with `el.styles.frostedBgFallback` set does the renderer paint the fallback `<rect>` (respecting `border-radius`) before any background-image layers. Note the two thresholds differ by design: capture *stores* `frostedBgFallback` at alpha ≤ 0.1 (`src/capture/script/walker/borders-backgrounds.ts`), but the renderer only *substitutes* it below 0.01 — so a background-color with 0.01 < alpha ≤ 0.1 keeps its (barely-there) real translucent color rather than the fallback.
 
 ## What still doesn't work
 

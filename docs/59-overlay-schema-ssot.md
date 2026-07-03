@@ -27,7 +27,8 @@ that consumer's build, never in domotion's.
 ```
 src/animation/overlay-schema.ts        ← SSOT (zod)
    typingOverlaySchema, tapOverlaySchema, svgOverlaySchema,
-   blinkOverlaySchema, animationOverlaySchema, intraFrameAnimationSchema
+   blinkOverlaySchema, shineOverlaySchema, interactOverlaySchema,
+   animationOverlaySchema, intraFrameAnimationSchema
    export type TypingOverlay = z.infer<typeof typingOverlaySchema>   (resolved/runtime view)
         │                                   │
         │ z.infer                           │ .extend({...})
@@ -41,9 +42,9 @@ src/animation/animator.ts            src/cli/animate.ts
 
 - **Resolved view** (the base schemas): concrete `x` / `y`, no selector
   `anchor`. This is exactly what `generateAnimatedSvg` consumes. The public
-  package types (`TypingOverlay`, `TapOverlay`, `SvgOverlay`, `AnimationOverlay`,
-  `IntraFrameAnimation`) are `z.infer` of these and are re-exported unchanged
-  from `domotion-svg`.
+  package types (`TypingOverlay`, `TapOverlay`, `SvgOverlay`, `BlinkOverlay`,
+  `ShineOverlay`, `InteractOverlay`, `AnimationOverlay`, `IntraFrameAnimation`)
+  are `z.infer` of these and are re-exported unchanged from `domotion-svg`.
 - **Authoring view** (CLI): `src/cli/animate.ts` builds each overlay's config
   schema by **extending** the matching base — adding the config-only
   conveniences (`x` / `y` defaulted to `0` so an `anchor` can supply them; the

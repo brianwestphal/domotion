@@ -26,14 +26,15 @@ The screenshot must show **only** the element's painted pixels — not whatever 
 Approach: temporary stylesheet that hides everything except the target element and its descendants:
 
 ```css
-* { visibility: hidden !important; }
-[data-domotion-snapshot-target] ,
-[data-domotion-snapshot-target] * { visibility: visible !important; }
+*, *::before, *::after { visibility: hidden !important; }
+[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,
+[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,
+[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }
 html, body { background: transparent !important; }
 ```
 
 - `visibility: hidden` preserves layout, so the target's bounding rect doesn't shift while the snapshot is taken.
-- `visibility: hidden` is inherited by `::before` / `::after` pseudos, so non-ancestor pseudos that paint on top of the target's screen rect are hidden for free.
+- The `*` rule hides `::before` / `::after` pseudos **explicitly** (`*::before, *::after`) — `visibility` is inherited, but a pseudo with its own `visibility: visible` would otherwise re-appear — and the re-show rule explicitly re-enables the target's OWN `::before`/`::after` (and its descendants') so the target's pseudos still paint. This is `SNAPSHOT_HIDE_CSS` in `src/capture/index.ts`.
 - The target gets `data-domotion-snapshot-target` set on it (and removed in `finally`), which the rule's specificity overrides the `*` rule.
 - `html` and `body` background overrides plus `omitBackground: true` on the screenshot keep the page background out of the alpha channel — partially-transparent canvases composite cleanly onto the SVG behind them.
 

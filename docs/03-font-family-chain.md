@@ -31,10 +31,11 @@ In `src/render/font-resolution.ts`:
    - Quoted family names (`"Helvetica Neue"`, `"Times New Roman"`) match against an explicit table.
    - Unquoted system-default keywords (`-apple-system`, `system-ui`, `BlinkMacSystemFont`) → SF Pro.
    - Generic keywords (matching Chrome on macOS, per `third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm`):
-     - `serif` / `ui-serif` → Times New Roman.
-     - `sans-serif` / `ui-sans-serif` → **Helvetica** (NOT SF Pro — Chrome's macOS sans-serif default is Helvetica; SF Pro is the `system-ui` / `-apple-system` mapping).
+     - `serif` / `ui-serif` → Apple Times (the `times` key).
+     - `sans-serif` → **Helvetica** (NOT SF Pro — Chrome's macOS sans-serif default is Helvetica; SF Pro is the `system-ui` / `-apple-system` mapping).
      - `system-ui` / `-apple-system` / `BlinkMacSystemFont` → SF Pro.
-     - `monospace` / `ui-monospace` → **Courier** (NOT SF Mono or Menlo — Chrome's macOS monospace default per Blink's `kMonospaceFamily → kCourier`. SF Mono is ~3% wider and has a 2px taller rounded ascent at 13px, which misaligns `<code>` baselines vs surrounding text).
+     - `monospace` → **Courier** (NOT SF Mono or Menlo — Chrome's macOS monospace default per Blink's `kMonospaceFamily → kCourier`. SF Mono is ~3% wider and has a 2px taller rounded ascent at 13px, which misaligns `<code>` baselines vs surrounding text).
+     - **`ui-sans-serif` and `ui-monospace` are NOT recognized on macOS** (DM-269 empirical probe: Chrome paints them at the *standard* default width, not Helvetica/Courier), so `matchFamilyNameToKey` intentionally does NOT match them — they fall through to the last-resort `times` mapping, exactly as Chrome does. Only `ui-serif` is honored (and it maps to `times` anyway).
      - `cursive` → **Apple Chancery** (Chrome on macOS resolves bare `cursive` to Apple Chancery, NOT Snell Roundhand — verified by empirical advance-width probe; author-named "Snell Roundhand" still gets its own face).
      - `fantasy` → **Papyrus** (Chrome on macOS resolves bare `fantasy` to Papyrus — verified by empirical advance-width probe).
    - Anything else → next token, then SF Pro.

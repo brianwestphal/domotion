@@ -78,8 +78,16 @@ _fits_, never clipped. The cap is only applied under a chosen format
 
 - `cardScaleFactor(w, h, safeInset)` — thin re-export of `formatScaleFactor` so a
   card imports its two format helpers (`cardHeadCss` + this) from one module.
-- `fs(px, sf)` → a scaled `"…px"` string (`fs(84, 1)` → `"84px"`, unchanged).
-- `fsNum(px, sf)` → a scaled bare number (for an SVG `font-size` attribute).
+- `fs(px, sf, exp=1)` → a scaled `"…px"` string (`fs(84, 1)` → `"84px"`, unchanged).
+- `fsNum(px, sf, exp=1)` → a scaled bare number (for an SVG `font-size` attribute).
+- **Per-element scale exponent (`exp`, DM-1568).** Both helpers take an optional
+  exponent so different type roles can scale *differently* with format: the scaled
+  size is `round(px · sf^exp · 100)/100`. A role that should grow harder than the
+  linear default uses `exp > 1`, one that should stay closer to its base size uses
+  `exp < 1`. `title-card` wires this via `TC_EXP = { headline: 1.25, support: 0.9 }`
+  (`src/templates/builtin/text-card-common.ts`, `title-card.ts`) so the headline
+  scales up faster than the eyebrow/subtitle. `exp = 1` (default) is the plain
+  linear `px · sf`, so callers that omit it are unchanged.
 - `fitOdometerCell(cell, cols, availableW)` → the number-card width cap.
 
 ## Verification

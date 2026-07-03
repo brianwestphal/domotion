@@ -10,7 +10,7 @@ SVGO post-pass tuned for the kind of output Domotion produces (path-mode text do
 |---|---|
 | `convertPathData` (`floatPrecision: 1`, `transformPrecision: 3`, `makeArcs: false`) | Trims glyph path coordinates and converts to relative commands. The biggest single win on text-heavy captures. `makeArcs: false` keeps fontkit-extracted cubics intact — converting them to arcs is lossy and visually shifts curves. |
 | `convertTransform` | Collapses redundant transform chains into a single matrix where possible. |
-| `minifyStyles` | Strips whitespace and comments from inline `<style>` blocks. |
+| `minifyStyles` | Minifies inline `<style>` blocks via csso — strips whitespace/comments AND restructures/reorders CSS declarations (can factor a common longhand out across rules, DM-1454). Because it reorders, emitted animation CSS must keep timing functions *inside* the `animation:` shorthand (never a trailing `animation-timing-function`), or csso can reorder them and silently turn a hard cut into a full-duration fade. |
 | `removeComments` | Strips `<!-- ... -->` author comments left over from the source DOM. |
 | `removeEmptyAttrs` | Drops attributes that ended up empty after other passes. |
 

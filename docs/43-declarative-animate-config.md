@@ -55,7 +55,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 
 **Problem.** Today every frame re-loads `input` from scratch, so client-side state (open modals, typed text, route changes) resets between frames. A multi-step interaction can't be captured: each frame would have to replay every prior action from a fresh load, and client-only transient states can't be reconstructed at all.
 
-**Surface.** Make `input` optional. The first frame must load an `input`. A later frame that omits `input` (or sets `"continue": true`) keeps the **current live page** and captures it after running its own `actions`.
+**Surface.** Make `input` optional. The first frame must load a **content source** — an `input`, a `cast` (terminal recording), or a `template`. A later frame that omits all of these (or sets `"continue": true`) keeps the **current live page** and captures it after running its own `actions`.
 
 ```jsonc
 { "input": "http://localhost:4188", "waitFor": ".diff-view", "actions": [ /* … */ ] },
@@ -65,7 +65,7 @@ All **string** fields in a config (`input`, every `selector`, action `value`/`ht
 
 **Semantics.**
 - The browser **context/page persists** across continued frames (one page, advanced step by step) instead of a fresh context per frame.
-- Frame 0 must have an `input` (error otherwise). A continued frame must have a predecessor (error if frame 0 sets `continue`).
+- Frame 0 must load a content source — `input`, `cast`, or `template` (error otherwise). A continued frame must have a predecessor (error if frame 0 sets `continue`).
 - `continue: true` and an explicit `input` on the same frame is an error (ambiguous: reload or continue?).
 - A continued frame may still set `selector`, `wait`/`waitFor`, `scrollTo`, `actions`, `overlays`, `animations`. Its `actions` mutate the persisted page; capture happens after.
 - `mobile` / `colorScheme` / viewport are context-level and fixed for the whole run (they can't change mid-session).
@@ -389,7 +389,7 @@ The CLI ignores the `"$schema"` key. Every config under `examples/animate/` carr
 
 **Source of truth & sync.** The schema is *generated from* the zod `animateConfigSchema` in `src/cli/animate.ts` — never hand-edited — so it cannot drift from what the CLI actually enforces. Regenerate with `npm run build:animate-schema` (also run automatically as part of `npm run build`); the `animate-config-json-schema.test.ts` unit test fails if the committed file is stale.
 
-**Coverage caveat.** JSON Schema captures *structure and types* only. Cross-field and content rules expressed as zod refinements — "frame 0 must load an `input`", a `scroll.pattern` must parse against the scroll-pattern grammar (`docs/37`), a `replaceText.pattern` must be a valid regex — have no JSON Schema equivalent and are **not** represented. Those stay enforced at runtime by `validateAnimateConfig`. A config that passes the JSON Schema can still be rejected by the CLI for one of these reasons; the JSON Schema is an editor aid, not a substitute for the runtime validator.
+**Coverage caveat.** JSON Schema captures *structure and types* only. Cross-field and content rules expressed as zod refinements — "frame 0 must load a content source (`input` / `cast` / `template`)", a `scroll.pattern` must parse against the scroll-pattern grammar (`docs/37`), a `replaceText.pattern` must be a valid regex — have no JSON Schema equivalent and are **not** represented. Those stay enforced at runtime by `validateAnimateConfig`. A config that passes the JSON Schema can still be rejected by the CLI for one of these reasons; the JSON Schema is an editor aid, not a substitute for the runtime validator.
 
 ---
 

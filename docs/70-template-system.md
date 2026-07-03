@@ -1,10 +1,12 @@
 # 70 — Template system
 
 Status: **shipped** (DM-1276 spike + the first-party library). The `Template`
-contract, the registry/loader, the `domotion template` CLI verb, and **seven**
-built-in templates (`lower-third`, `device-mockup`, `background-loop`,
-`kinetic-text`, `chart`, `chat`, `subscribe`) are implemented and tested. The
-only remaining follow-up is the Lottie input adapter (not yet built).
+contract, the registry/loader, the `domotion template` CLI verb, and **fourteen**
+built-in templates are implemented and tested: the original seven (`lower-third`,
+`device-mockup`, `background-loop`, `kinetic-text`, `chart`, `chat`, `subscribe`)
+plus the creative-template pack (`title-card`, `quote`, `caption`, `cta`,
+`counter`, `stat`, `compare` — doc 86). The only remaining follow-up is the
+Lottie input adapter (not yet built).
 
 ## What a template is (and isn't)
 
@@ -134,6 +136,7 @@ template gallery on the site (`site/src/content/docs/usage/templates.md`).
 | `chart` | generator | Data/infographics — an animated `column` / `bar` / `line` chart from a list of values (bars grow, the line draws in). See **doc 75**. |
 | `chat` | generator | A message thread whose bubbles pop in one at a time, alternating sides (iMessage / WhatsApp style). See **doc 76**. |
 | `subscribe` | generator | A subscribe / follow pop-up card that pops in with a pulsing call-to-action button. See **doc 76**. |
+| `title-card` `quote` `caption` `cta` `counter` `stat` `compare` | generator | The **creative-template pack** — full-bleed text/number cards (intro title, pull-quote, lower-caption, call-to-action, count-up number, single stat, before/after compare). See **doc 86**. |
 
 ## Code
 
@@ -147,12 +150,13 @@ template gallery on the site (`site/src/content/docs/usage/templates.md`).
 - **`src/templates/json-schema.ts`** — `templateParamsJsonSchema` /
   `describeTemplateParams` (zod → JSON Schema, the same machinery as the animate
   config).
-- **`src/templates/builtin/`** — the seven built-ins (`lower-third`,
-  `device-mockup`, `background-loop`, `kinetic-text`, `chart`, `chat`,
-  `subscribe`), registered in `registry.ts`. Their pure HTML/plan builders
-  (e.g. `buildLowerThirdHtml`) are unit-tested without a browser.
+- **`src/templates/builtin/`** — the fourteen built-ins (the original seven —
+  `lower-third`, `device-mockup`, `background-loop`, `kinetic-text`, `chart`,
+  `chat`, `subscribe` — plus the creative pack `title-card`, `quote`, `caption`,
+  `cta`, `counter`, `stat`, `compare`), registered in `registry.ts`. Their pure
+  HTML/plan builders (e.g. `buildLowerThirdHtml`) are unit-tested without a browser.
 - **`src/cli/template.ts`** — the `domotion template` verb.
-- Public API: the contract, registry, render, and all seven built-ins are re-exported
+- Public API: the contract, registry, render, and all built-ins are re-exported
   from the package root (`src/index.ts`).
 
 ## Examples

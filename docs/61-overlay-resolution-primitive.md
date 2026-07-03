@@ -36,7 +36,8 @@ const [overlay] = await resolveOverlays(page, [
 ```
 
 - **Input** (`AnchoredOverlay[]`): a resolved overlay (`TypingOverlay` /
-  `TapOverlay` / `SvgOverlay` / `BlinkOverlay`) plus optional `anchor`, and — for
+  `TapOverlay` / `SvgOverlay` / `BlinkOverlay` / `ShineOverlay` / `InteractOverlay`,
+  `src/animation/resolve-overlays.ts`) plus optional `anchor`, and — for
   typing — `maxWidth: "anchor" | number`.
 - **Output**: the same overlays with `x` / `y` (and typing `wrapWidth`) concrete
   and the `anchor` / `maxWidth` keys stripped.
@@ -66,12 +67,13 @@ longer diverge.
   file `src` — reading + id-namespacing a file is a CLI-only concern
   (`resolveSvgOverlays`), not page resolution. The CLI runs its anchor resolution
   first, then inlines svg `src`, exactly as before.
-- **Cursor `selector` → point and the action runner** are not exposed here. They
-  resolve different things (a cursor target is the element's border-box center;
-  actions drive Playwright). Imperative callers needing a cursor point today can
-  use `boxAnchorPoint` over a measured rect (or `contentBox(page, sel, { at:
-  "center" })` for the content-box center). Exposing a unified cursor/action
-  resolver is tracked as a follow-up.
+- **Cursor `selector` → point and the action runner** are resolved separately (a
+  cursor target is the element's border-box center; actions drive Playwright).
+  These now ship as their own root-exported primitives — `resolveCursorTarget` /
+  `borderBox` / `runActions` (`src/index.ts`; see doc 63) — rather than being
+  folded into this overlay resolver. Imperative callers needing a cursor point can
+  also use `boxAnchorPoint` over a measured rect (or `contentBox(page, sel, { at:
+  "center" })` for the content-box center).
 
 ## Related
 

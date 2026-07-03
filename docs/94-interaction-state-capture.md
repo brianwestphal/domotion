@@ -243,11 +243,14 @@ tween).
 
 ### Option 3 — MutationObserver + style-diff harness around dispatched pointer events
 
-**Status: partially shipped (DM-1564)** — the MutationObserver harness + the
+**Status: shipped (DM-1564 / DM-1580)** — the MutationObserver harness + the
 added/removed-node crossfade path are built (see "v2 — the `jsReveal`
-MutationObserver harness" below); the attribute/style **property tween** for
-surviving nodes is the remaining follow-up (it reuses Option 2's computed-style-
-diff engine).
+MutationObserver harness" below), and a non-structural mutation that only MOVES
+the target (a class flip changing transform/opacity) now tweens in place instead
+of crossfading, reusing Option 2's computed-style-diff engine (the shared
+`synthesizeMotionTween`, DM-1580/DM-1582). The remaining follow-up is narrower:
+**paint-property** deltas (color/background on surviving nodes) still crossfade
+rather than tween, since they can't map to a cross-engine keyframe.
 
 For **JS-driven** feedback (a framework toggling a class / injecting a tooltip /
 swapping text on `mouseover`/`mousedown`), install a `MutationObserver` (+ a
@@ -307,14 +310,18 @@ animation frame per config frame — the 1:1 invariant holds — and **no animat
 change**. When the observer sees no mutation, the frame emits just the rest state
 (a still frame): there was no feedback, so it doesn't invent one.
 
-**What's deferred (follow-up).** Attribute-/style-only deltas (a class flip that
-only recolors a surviving node, an aria change with no visual paint) currently
-ride the same rest→after crossfade — they *dissolve* rather than *tween*. Routing
-those through a **property-accurate computed-style-diff tween** is Option 2's
-engine; when that lands, `jsReveal` should classify surviving-node attribute
-deltas onto the tween and keep the crossfade only for added/removed nodes. The
-`MutationSummary` already distinguishes `structural` (added/removed) from
-attribute/character-data changes, so the split point exists.
+**What's shipped, and what's still deferred (DM-1580).** A surviving-node
+attribute/style delta that only MOVES the target (a class flip changing
+transform/opacity) now routes through Option 2's **property-accurate computed-
+style-diff tween** — `jsReveal` snapshots the target's rest vs settled styles,
+classifies a `motion` delta, and emits an intra-frame transform/opacity tween in
+place of the crossfade (`synthMutationTween` → the shared `synthesizeMotionTween`).
+Still deferred: **paint-only** attribute deltas (a class flip that only *recolors*
+a surviving node, an aria change with no motion) — those keep the rest→after
+crossfade, because paint properties can't map to a cross-engine keyframe. The
+`MutationSummary.structural` flag plus the motion/paint classification are the
+split points: `structural` → crossfade, non-structural `motion` → tween,
+non-structural `paint` → crossfade.
 
 - `src/cli/mutation-detect.ts` — `detectJsMutations` (the observer + dispatch +
   settle) and `buildJsRevealAnimation` (the crossfade compositor), wired into

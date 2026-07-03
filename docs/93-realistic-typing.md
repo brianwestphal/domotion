@@ -256,6 +256,7 @@ same frame that would otherwise carry `input` / `continue` + `actions`):
     "tailMs": 900,                 // hold on the fully-typed state (ms); default 700
     "clear": true,                 // clear the field first; default true
     "caret": true,                 // draw the field's REAL caret; default true
+    "caretShape": "auto",          // DM-1591: "auto" honors the field's computed CSS caret-shape; bar/block/underscore force one
     "regionOnly": false            // DM-1581: capture only the field per keystroke; default false
   }
 }

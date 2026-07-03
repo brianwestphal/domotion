@@ -131,7 +131,7 @@ There is no global axis parameter. Each action resolves its own axis at execute 
 
 `down:-100px` ≡ `up:100px`. A signed delta magnitude **composes with the direction prefix by sign-multiplication** — it does *not* take the magnitude as `abs` with the prefix unconditionally winning. The resolved delta is `prefixSign × signedMagnitude`, where the prefix sign is `+1` for `down` / `right`, `-1` for `up` / `left`, and `+1` (default `down`) when no prefix is present (`resolveScrollAction` in `src/scroll/executor.ts`). So a negative magnitude **reverses** the prefix's direction: `down:-100px` resolves to a delta of `+1 × (−100) = −100` and `up:100px` to `−1 × 100 = −100` — both scroll up 100, which is why they're equivalent.
 
-Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horizontal anchor) are validator errors at parse-after-resolve time, not grammar errors.
+Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horizontal anchor) are **not** raised as errors; there is no such validator. The direction prefix wins the axis (`axisOfScroll`, `src/scroll/executor.ts`), and the mismatched anchor is then resolved on that axis (`resolveAbsoluteTarget` — e.g. `left` → `0` on y). A genuine direction-sign mismatch just resolves to a no-op (clamped), so a nonsensical combination silently does nothing rather than failing.
 
 `until` conditions evaluate against the axis their condition expression references; count conditions (`until N times`) are axis-agnostic.
 

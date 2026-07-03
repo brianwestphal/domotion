@@ -76,7 +76,10 @@ for touching each frame as it's composed.)
 To act on each frame **as it's composed** — while the page is still on that
 frame's DOM — pass an `onFrame` hook via the options-object form of the trailing
 argument (`{ configDir?, log?, onFrame? }`). It fires after the frame is captured,
-culled, and pushed, before the magic-move bridge:
+culled, and pushed, before the magic-move bridge. NOTE: `onFrame` fires only for
+**captured** frames (page-`input` / `continue` and scroll frames) — `cast`
+(terminal) and `template` frames push their pre-built `svgContent` and skip the
+hook (`src/cli/animate.ts`), so it never fires for them.
 
 ```ts
 const svg = await composeAnimateConfig(browser, cfg, {

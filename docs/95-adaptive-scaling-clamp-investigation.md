@@ -131,9 +131,10 @@ fraction of the cost.
 
 ## Follow-up tickets proposed (for the maintainer to file)
 
-- **Per-element scale exponents on `formatScaleFactor`** — add an optional
-  exponent per authored size (`fs(px, sf, exp)`), let each card tune headline vs
-  body scaling; keeps the opt-in gate + number-card cap. (The recommended path.)
+- **Per-element scale exponents on `formatScaleFactor`** — ✅ **SHIPPED (DM-1568).**
+  `fs`/`fsNum` gained an optional `exp` so each card tunes headline-vs-body scaling
+  (`title-card` uses `TC_EXP = { headline: 1.25, support: 0.9 }`); the opt-in gate +
+  number-card cap are preserved. See doc 91. (This was the recommended path.)
 - **Designer tuning pass on the curve/reference** — revisit `ADAPTIVE_REFERENCE`,
   the `[0.75, 1.85]` clamp, and the √-area curve against real reel/landscape
   proofs; decide whether per-format (not just per-area) tuning is wanted.

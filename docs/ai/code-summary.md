@@ -89,7 +89,7 @@ shortest possible map:
 - **`src/templates/`** — the template system (DM-1276 / doc 70): the `Template`
   contract (`types.ts`), registry + `domotion-template-*` loader (`registry.ts`),
   param validation + render driver + the `captureToSvg` static-capture primitive
-  (`render.ts`), zod→JSON-Schema projection (`json-schema.ts`), and the seven
+  (`render.ts`), zod→JSON-Schema projection (`json-schema.ts`), and the fourteen
   built-ins: `builtin/lower-third.ts`, `builtin/device-mockup.ts`,
   `builtin/background-loop.ts` (doc 71), `builtin/kinetic-text.ts` (doc 72),
   `builtin/chart.ts` (doc 75), `builtin/chat.ts` + `builtin/subscribe.ts` (doc 76),

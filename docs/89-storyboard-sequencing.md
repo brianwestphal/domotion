@@ -54,7 +54,7 @@ config's `output`, `-o`, or stdout).
 }
 ```
 
-A scene may also carry `overlays` (per-scene typing / tap / svg / blink / shine):
+A scene may also carry `overlays` (per-scene typing / tap / svg / blink / shine / interact):
 
 ```jsonc
 { "capture": { "file": "./demo.html" }, "duration": 2400,
@@ -130,7 +130,7 @@ effect reference.
 ## Per-scene overlays (DM-1554)
 
 Each scene may carry an `overlays` array — the SAME authoring vocabulary and
-render path `animate` uses (typing / tap / svg / blink / shine — docs 43 / 88),
+render path `animate` uses (typing / tap / svg / blink / shine / interact — docs 43 / 88 / 94),
 reused verbatim. A `capture` scene can thus show a typed-caption / tap demo layered
 on top of the live capture:
 

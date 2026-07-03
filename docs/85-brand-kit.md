@@ -93,6 +93,7 @@ Initial mapping for the current built-ins:
 | **kinetic-text** | `text`→`color`, `background`→`background`, `font.family`→`fontFamily` |
 | **background-loop** | `background`→`background`, `palette`→blob `colors` |
 | **cta** (end-card) | `primary`→`ctaColor`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1539 — the first built-in to consume `brand.logo`) |
+| **title-card** | `accent`→`accent`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1575 — the mark renders above the title, placed by `logoPosition`) |
 | **device-mockup** | (no natural brand slot in v1; chrome theme stays as-is) |
 
 `palette`→`colors` fills a template's multi-color list (chart series, background

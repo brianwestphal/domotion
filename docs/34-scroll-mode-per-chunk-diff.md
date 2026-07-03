@@ -43,7 +43,7 @@ Chunk 0's metrics mirror the canonical metrics for the same triplet.
 
 - **Source page**: scrolling back to each `segments[i].scrollY` re-runs intersection observers, which can start new animations the original freeze pass didn't catch. The harness runs a follow-up `getAnimations().pause()` after each scroll to suppress those before screenshotting.
 - **Render page**: the composed SVG's animation runs over `segments[N-1].segmentEndMs`. Seeking to `segments[i].segmentEndMs` lands exactly on a composer keyframe anchor (not interpolated), so the rendered frame matches what the SVG paints when the consumer actually scrolls to that point.
-- **`animations: "disabled"`** is passed to every screenshot so Playwright freezes the moment of capture independently of any animations Chromium / the SVG might still be running.
+- **`animations: "disabled"`** is passed to the *expected* (source-page) screenshots so Playwright freezes the moment of capture independently of any animations Chromium might still be running. The one deliberate exception is the per-chunk *actual* (composed-SVG) screenshot, which OMITS the flag (`tests/real-world.tsx`): the SVG's transition is an infinite CSS animation seeked via `currentTime`, and `animations: "disabled"` would cancel it and undo the seek — so the actual frame is screenshotted with animations live at the seeked time.
 
 ## Pass criterion
 

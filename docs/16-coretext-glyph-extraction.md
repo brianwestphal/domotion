@@ -217,7 +217,7 @@ If any guard fails, the renderer treats every fontkit-empty path as **missing** 
 ## Validation
 
 - `02-text-ruby` (DM-364 / DM-382): expected to drop the residual ~0.43 % diff on the unmarked-Han route once `pingfang-sc` is wired through CoreText.
-- Helvetica `H` outline parity check: extract via both fontkit and the helper, compare path commands within a numeric tolerance to confirm the y-flip and curve mapping are correct. Add to unit tests as `tests/coretext-extractor.test.ts`.
+- Helvetica `H` outline parity check: extract via both fontkit and the helper, compare path commands within a numeric tolerance to confirm the y-flip and curve mapping are correct. This lives in `src/render/glyph-helper.test.ts` (the current helper/extractor tests), not a standalone `coretext-extractor` file.
 - New ad-hoc tool: `scripts/probe-coretext-glyphs.mjs` — invokes the helper with a small input, prints per-glyph summaries for human inspection.
 - Per-platform CI: macOS GitHub runner builds the helper on a clean checkout (validates the build script) and runs `npm run demos:test:html` to exercise the routing.
 

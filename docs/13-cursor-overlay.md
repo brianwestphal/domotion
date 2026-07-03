@@ -37,7 +37,7 @@ The overlay is driven by a sequence of timed events. Times are milliseconds from
 
 ```ts
 type CursorEvent =
-  | { type: "show";  t: number; x: number; y: number }
+  | { type: "show";  t: number; x: number; y: number; cursor?: string }
   | { type: "move";  t: number; duration?: number;
       to?: { x: number; y: number };
       by?: { dx: number; dy: number };
