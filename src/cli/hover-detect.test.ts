@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import {
   diffHoverSnapshots,
   classifyHoverTransition,
+  synthesizeMotionTween,
   type ElementStyleSnapshot,
 } from "./hover-detect.js";
 
@@ -95,5 +96,29 @@ describe("classifyHoverTransition (DM-1563)", () => {
   it("falls back to paint for a non-clean opacity baseline (rest already dimmed)", () => {
     const diff = { paint: [], motion: [{ key: "", property: "opacity", from: "0.5", to: "1" }] };
     expect(classifyHoverTransition(diff)).toBe("paint");
+  });
+});
+
+describe("synthesizeMotionTween — shared motion-tween synthesis (DM-1582)", () => {
+  it("transform delta → transform primary (centered, eases out) with opacity fused in", () => {
+    const tracks = synthesizeMotionTween({ paint: [], motion: [
+      { key: "", property: "transform", from: "none", to: "scale(1.1)" },
+      { key: "", property: "opacity", from: "1", to: "0.9" },
+    ] }, 300);
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]).toMatchObject({ property: "transform", from: "none", to: "scale(1.1)", duration: 300, easing: "ease-out", transformOrigin: "center" });
+    expect(tracks[0].fuse).toEqual([{ property: "opacity", from: "1", to: "0.9" }]);
+    expect(tracks[0].delay).toBeUndefined();
+  });
+
+  it("opacity-only delta → a plain opacity track; a delay is threaded when given", () => {
+    expect(synthesizeMotionTween({ paint: [], motion: [{ key: "", property: "opacity", from: "1", to: "0.5" }] }, 200))
+      .toEqual([{ property: "opacity", from: "1", to: "0.5", duration: 200, easing: "ease-out" }]);
+    expect(synthesizeMotionTween({ paint: [], motion: [{ key: "", property: "opacity", from: "1", to: "0.5" }] }, 200, 120)[0].delay).toBe(120);
+  });
+
+  it("returns nothing when no motion delta is on the target (key === '')", () => {
+    expect(synthesizeMotionTween({ paint: [], motion: [{ key: "2", property: "transform", from: "none", to: "scale(2)" }] }, 300)).toEqual([]);
+    expect(synthesizeMotionTween({ paint: [], motion: [] }, 300)).toEqual([]);
   });
 });

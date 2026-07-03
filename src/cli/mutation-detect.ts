@@ -30,7 +30,7 @@ import { elementTreeToSvgInner } from "../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
-import { captureStyleSnapshot, diffHoverSnapshots, classifyHoverTransition, HOVER_DIFF_PROPERTIES, type HoverDiff } from "./hover-detect.js";
+import { captureStyleSnapshot, diffHoverSnapshots, classifyHoverTransition, synthesizeMotionTween, HOVER_DIFF_PROPERTIES, type HoverDiff } from "./hover-detect.js";
 import type { IntraFrameAnimation } from "../animation/overlay-schema.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -43,21 +43,10 @@ const JS_REVEAL_ANIM_ID = "jr0";
  *  in place instead of dissolving. Mirrors `hover-detect`'s motion synthesis but
  *  targets a resolved `animId`. Returns `[]` when there's no motion track. */
 export function synthMutationTween(diff: HoverDiff, animId: string, durationMs: number): IntraFrameAnimation[] {
-  const target = diff.motion.filter((d) => d.key === "");
-  const transform = target.find((d) => d.property === "transform");
-  const opacity = target.find((d) => d.property === "opacity");
-  if (transform != null) {
-    const anim: IntraFrameAnimation = {
-      animId, property: "transform", from: transform.from, to: transform.to,
-      duration: durationMs, easing: "ease-out", transformOrigin: "center",
-    };
-    if (opacity != null) anim.fuse = [{ property: "opacity", from: opacity.from, to: opacity.to }];
-    return [anim];
-  }
-  if (opacity != null) {
-    return [{ animId, property: "opacity", from: opacity.from, to: opacity.to, duration: durationMs, easing: "ease-out" }];
-  }
-  return [];
+  // DM-1582: shares the transform/opacity synthesis with `hoverDetect` via
+  // `synthesizeMotionTween` (one source of truth); this attaches the resolved-form
+  // `animId` key that the intra-frame animator targets (`anim-<id>`).
+  return synthesizeMotionTween(diff, durationMs).map((track) => ({ animId, ...track }));
 }
 
 /** Clear a captured element tree's `animId` tags (DM-1580) — used to strip the

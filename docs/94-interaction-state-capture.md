@@ -408,6 +408,12 @@ the output beyond the existing cross-engine `@keyframes` vocabulary.
 - `examples/animate/js-reveal/` — the runnable Option-3 (`jsReveal`) demo: a JS
   dropdown injected on `mouseover`, detected + cross-faded in. + committed golden.
 - `src/cli/hover-detect.ts` — the pure diff (`diffHoverSnapshots`) + classify
-  (`classifyHoverTransition`) helpers behind `hoverDetect`.
+  (`classifyHoverTransition`) helpers, PLUS the shared motion-tween synthesizer
+  `synthesizeMotionTween` (DM-1582). `hoverDetect` and `jsReveal` are two distinct
+  *detection* mechanisms (a forced CSS `:hover` diff vs a real JS event +
+  MutationObserver), but they now share the whole *synthesis* path — the same
+  diff/classify and the same transform/opacity tween — each adding only its own
+  target key (`selector` for the config form, `animId` for jsReveal's tween).
 - `src/cli/mutation-detect.ts` — the `jsReveal` MutationObserver harness
-  (`detectJsMutations` / `buildJsRevealAnimation`).
+  (`detectJsMutations` / `buildJsRevealAnimation` / `synthMutationTween`, a thin
+  wrapper over `synthesizeMotionTween`).

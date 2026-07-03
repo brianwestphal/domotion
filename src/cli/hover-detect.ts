@@ -138,6 +138,50 @@ export function classifyHoverTransition(diff: HoverDiff): HoverSynthesisMode {
   return motionOnly ? "motion" : "paint";
 }
 
+/** One fused intra-frame motion tween derived from a `motion` diff — the target's
+ *  transform (primary) with opacity fused in, or an opacity-only track. The
+ *  target-key field (`selector` for the config form, `animId` for the resolved
+ *  form) is added by the caller, so this stays shape-agnostic (DM-1582). */
+export interface MotionTweenTrack {
+  property: "transform" | "opacity";
+  from: string;
+  to: string;
+  duration: number;
+  easing: string;
+  transformOrigin?: string;
+  delay?: number;
+  fuse?: Array<{ property: "opacity"; from: string; to: string }>;
+}
+
+/**
+ * DM-1582: the single shared motion-tween synthesizer for the `motion`-mode
+ * synthesis (a clean transform/opacity delta). `hoverDetect` (forced `:hover`
+ * diff) and `jsReveal` (JS-mutation diff) both call this and then attach their
+ * own target key (`selector` / `animId`), so the transform-primary-with-fused-
+ * opacity / opacity-only logic lives in ONE place. `transform` is the primary
+ * track (centered origin, eases out into the state); an opacity change fuses in,
+ * or an opacity-only delta becomes a plain opacity track. Returns `[]` when the
+ * diff carries no target motion track.
+ */
+export function synthesizeMotionTween(diff: HoverDiff, durationMs: number, delayMs = 0): MotionTweenTrack[] {
+  const target = diff.motion.filter((d) => d.key === "");
+  const transform = target.find((d) => d.property === "transform");
+  const opacity = target.find((d) => d.property === "opacity");
+  const delayField = delayMs > 0 ? { delay: delayMs } : {};
+  if (transform != null) {
+    const primary: MotionTweenTrack = {
+      property: "transform", from: transform.from, to: transform.to,
+      duration: durationMs, easing: "ease-out", transformOrigin: "center", ...delayField,
+    };
+    if (opacity != null) primary.fuse = [{ property: "opacity", from: opacity.from, to: opacity.to }];
+    return [primary];
+  }
+  if (opacity != null) {
+    return [{ property: "opacity", from: opacity.from, to: opacity.to, duration: durationMs, easing: "ease-out", ...delayField }];
+  }
+  return [];
+}
+
 /**
  * Read a computed-style + geometry snapshot of `selector` and its descendants.
  * Throws (in page context) if the selector matches nothing. The lone browser

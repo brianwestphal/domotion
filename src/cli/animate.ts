@@ -28,6 +28,7 @@ import { resolveAnchoredOverlays } from "../animation/resolve-overlays.js";
 import {
   captureStyleSnapshot,
   classifyHoverTransition,
+  synthesizeMotionTween,
   diffHoverSnapshots,
   HOVER_DIFF_PROPERTIES,
   type HoverDiff,
@@ -2089,39 +2090,11 @@ async function expandHoverDetect(
  * caller has already guaranteed clean baselines via `classifyHoverTransition`.
  */
 function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationMs: number, delayMs = 0): Anims {
-  const target = diff.motion.filter((d) => d.key === "");
-  const transform = target.find((d) => d.property === "transform");
-  const opacity = target.find((d) => d.property === "opacity");
-  // DM-1586: hold the tween until the injected cursor has landed on the target.
-  const delayField = delayMs > 0 ? { delay: delayMs } : {};
-  if (transform != null) {
-    const primary: Anims[number] = {
-      selector,
-      property: "transform",
-      from: transform.from,
-      to: transform.to,
-      duration: durationMs,
-      easing: "ease-out",
-      transformOrigin: "center",
-      ...delayField,
-    };
-    if (opacity != null) {
-      primary.fuse = [{ property: "opacity", from: opacity.from, to: opacity.to }];
-    }
-    return [primary];
-  }
-  if (opacity != null) {
-    return [{
-      selector,
-      property: "opacity",
-      from: opacity.from,
-      to: opacity.to,
-      duration: durationMs,
-      easing: "ease-out",
-      ...delayField,
-    }];
-  }
-  return [];
+  // DM-1582: the transform-primary-with-fused-opacity / opacity-only synthesis is
+  // the shared `synthesizeMotionTween` (also used by jsReveal, DM-1580); this just
+  // attaches the config-form `selector` key. `delayMs` (DM-1586) holds the tween
+  // until an injected cursor lands on the target.
+  return synthesizeMotionTween(diff, durationMs, delayMs).map((track) => ({ selector, ...track }));
 }
 
 /**
