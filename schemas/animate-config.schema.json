@@ -1181,6 +1181,9 @@
                   "block",
                   "underscore"
                 ]
+              },
+              "regionOnly": {
+                "type": "boolean"
               }
             },
             "required": [

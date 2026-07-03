@@ -48,7 +48,13 @@ describe("resolveTypeResampleSpec (DM-1556)", () => {
       clear: TYPE_RESAMPLE_DEFAULTS.clear,
       caret: TYPE_RESAMPLE_DEFAULTS.caret,
       caretShape: TYPE_RESAMPLE_DEFAULTS.caretShape,
+      regionOnly: TYPE_RESAMPLE_DEFAULTS.regionOnly,
     });
+  });
+
+  it("DM-1581: regionOnly defaults to false (full capture) and can be enabled", () => {
+    expect(resolveTypeResampleSpec({ selector: "#f", text: "x" }).regionOnly).toBe(false);
+    expect(resolveTypeResampleSpec({ selector: "#f", text: "x", regionOnly: true }).regionOnly).toBe(true);
   });
 
   it("respects explicit overrides, including falsy ones (clear:false, caret:false, delay:0)", () => {

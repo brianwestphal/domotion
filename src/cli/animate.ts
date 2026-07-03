@@ -402,6 +402,10 @@ const typeResampleSchema = z.object({
   /** Caret shape (DM-1591). `"auto"` (default) honors the field's computed CSS
    *  `caret-shape`; `bar`/`block`/`underscore` force a shape. */
   caretShape: z.enum(["auto", "bar", "block", "underscore"]).optional(),
+  /** DM-1581: capture only the field's region per keystroke onto a static base,
+   *  cutting output size (O(N·page) → O(page + N·field)). Off by default — with it
+   *  ON, changes OUTSIDE the field aren't animated (only the field is). */
+  regionOnly: z.boolean().optional(),
 });
 
 // DM-1564 (docs/94 option 3): MutationObserver JS-change harness. `forceState`

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masked field</title>
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    padding: 40px;
+    height: 280px;
+  }
+  .card {
+    max-width: 420px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 28px;
+  }
+  h1 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  p.sub { font-size: 12px; color: #7d8590; margin-bottom: 20px; }
+  label { display: block; font-size: 12px; color: #7d8590; margin-bottom: 6px; }
+  .phone {
+    width: 100%;
+    height: 42px;
+    padding: 0 14px;
+    font-size: 16px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.02em;
+    color: #e6edf3;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    outline: none;
+  }
+  .phone:focus { border-color: #2f81f7; box-shadow: 0 0 0 2px rgba(47,129,247,0.35); }
+  .phone.valid { border-color: #2ea043; box-shadow: 0 0 0 2px rgba(46,160,67,0.3); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Add your phone number</h1>
+    <p class="sub">We'll text a verification code.</p>
+    <label for="phone">Mobile number</label>
+    <input class="phone" id="phone" type="tel" inputmode="tel"
+           placeholder="(___) ___-____" autocomplete="off">
+  </div>
+  <script>
+    // Live input mask: format the RAW digits the user types into a US phone
+    // number — "(415) 555-0142" — so the field's DISPLAYED value diverges from
+    // the raw keystrokes. Turns green (.valid) once 10 digits are present. This
+    // is exactly the page-owned behavior a synthetic typing overlay can't know
+    // about but per-keystroke re-sampling captures for free.
+    const el = document.getElementById('phone');
+    el.addEventListener('input', () => {
+      const digits = el.value.replace(/\D/g, '').slice(0, 10);
+      let out = '';
+      if (digits.length > 0) out = '(' + digits.slice(0, 3);
+      if (digits.length >= 3) out += ') ' + digits.slice(3, 6);
+      if (digits.length >= 6) out += '-' + digits.slice(6, 10);
+      el.value = out;
+      el.classList.toggle('valid', digits.length === 10);
+    });
+  </script>
+</body>
+</html>

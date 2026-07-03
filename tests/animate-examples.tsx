@@ -204,6 +204,23 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    name: "type-resample-region",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 500 280"`)) f.push("missing viewBox 500x280");
+      // DM-1581 regionOnly: ONE static base backdrop (`tr0_base-`) + the field
+      // flipbook overlaid as a nested animated <svg> (namespaced `tr0_fld`).
+      if (!/tr0_base-/.test(svg)) f.push("missing the static base backdrop (tr0_base-)");
+      if (!/tr0_fld/.test(svg)) f.push("missing the field-only flipbook overlay (tr0_fld)");
+      // 11 field states (0..10 chars): the final `tr0_fldf-10` state present.
+      if (!/tr0_fldf-10\b/.test(svg)) f.push("missing the final field state (tr0_fldf-10)");
+      // Field content + the measured caret ride the overlay.
+      if (!/<(text|path)/.test(svg)) f.push("missing rendered field content");
+      if (!/@keyframes tr0_fldblink\d+/.test(svg)) f.push("missing the re-sampled caret on the overlay");
+      return f;
+    },
+  },
+  {
     // DM-1564 (docs/94 option 3): MutationObserver JS-change harness. One frame
     // dispatches `mouseover` on an "Account" button whose JS INJECTS a dropdown
     // menu (+1 node) and flips `aria-expanded="true"` (which the page's own CSS

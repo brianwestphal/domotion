@@ -255,10 +255,21 @@ same frame that would otherwise carry `input` / `continue` + `actions`):
     "delay": 300,                  // hold before the first key (ms); default 0
     "tailMs": 900,                 // hold on the fully-typed state (ms); default 700
     "clear": true,                 // clear the field first; default true
-    "caret": true                  // draw the field's REAL caret; default true
+    "caret": true,                 // draw the field's REAL caret; default true
+    "regionOnly": false            // DM-1581: capture only the field per keystroke; default false
   }
 }
 ```
+
+**`regionOnly` — cut the output size (DM-1581).** By default every keystroke
+re-captures the WHOLE page, so the output is O(N·page) and any change OUTSIDE the
+field (a live character counter, a validation message) animates too. With
+`regionOnly: true` the full page is captured ONCE as a static base and each
+keystroke captures only the FIELD's subtree, overlaid on that base — output drops
+to O(page + N·field) (~30–70% smaller in practice, more the larger the page). The
+field's own masking / validation / font is still faithful (the field itself is
+re-captured); the tradeoff is that non-field page changes freeze at their initial
+state. Opt-in, so the default output is unchanged.
 
 ### Mechanism — nest, don't extend the animator
 

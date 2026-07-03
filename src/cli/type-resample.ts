@@ -53,6 +53,13 @@ export interface TypeResampleSpec {
   /** DM-1591: caret shape. `"auto"` (default) honors the field's computed CSS
    *  `caret-shape`; `bar`/`block`/`underscore` force a shape regardless. */
   caretShape: CaretShape | "auto";
+  /** DM-1581: capture ONLY the field's region per keystroke and overlay it on a
+   *  single static base, cutting output size from O(N·page) to O(page + N·field).
+   *  Opt-in — with it OFF (default) every keystroke re-captures the full page, so
+   *  changes OUTSIDE the field (a live char counter, validation message) animate
+   *  too; with it ON only the field animates (its own masking/validation is still
+   *  faithful, since the field itself is re-captured). */
+  regionOnly: boolean;
 }
 
 /** Defaults for the optional `typeResample` config fields (docs/93). */
@@ -63,6 +70,7 @@ export const TYPE_RESAMPLE_DEFAULTS = {
   clear: true,
   caret: true,
   caretShape: "auto",
+  regionOnly: false,
 } as const;
 
 /**
@@ -78,6 +86,7 @@ export function resolveTypeResampleSpec(raw: {
   clear?: boolean;
   caret?: boolean;
   caretShape?: CaretShape | "auto";
+  regionOnly?: boolean;
 }): TypeResampleSpec {
   return {
     selector: raw.selector,
@@ -88,6 +97,7 @@ export function resolveTypeResampleSpec(raw: {
     clear: raw.clear ?? TYPE_RESAMPLE_DEFAULTS.clear,
     caret: raw.caret ?? TYPE_RESAMPLE_DEFAULTS.caret,
     caretShape: raw.caretShape ?? TYPE_RESAMPLE_DEFAULTS.caretShape,
+    regionOnly: raw.regionOnly ?? TYPE_RESAMPLE_DEFAULTS.regionOnly,
   };
 }
 
@@ -269,15 +279,31 @@ export async function buildTypeResampleAnimation(
   const subFrames: AnimationFrame[] = [];
   let rootBg: string | undefined;
 
+  // DM-1581: `regionOnly` captures ONE full-page base (the static backdrop) and
+  // then only the FIELD's subtree per keystroke — the flipbook overlays just the
+  // changing field on that base, so the output is O(page + N·field) instead of
+  // O(N·page). `captureElementTree(selector)` renders the field at its own
+  // absolute coords (transparent elsewhere), so it drops cleanly over the base.
+  let baseInner = "";
   for (let j = 0; j <= chars.length; j++) {
     if (j > 0) {
       // Type ONE character through the real keyboard so the page's keydown /
       // input / keyup handlers run (masking, auto-format, validation).
       await page.keyboard.type(chars[j - 1]);
     }
-    const tree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+    if (spec.regionOnly && j === 0) {
+      // Capture the full page ONCE (empty state) as the static base backdrop.
+      const baseTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+      cullElementsOutsideViewBox(baseTree, width, height, undefined, 0, 1);
+      rootBg = baseTree[0]?.styles?.rootBgComputed;
+      baseInner = elementTreeToSvgInner(baseTree, width, height, `${framePrefix}base-`, true, 2, false);
+    }
+    // Per-keystroke capture: only the field's subtree when `regionOnly`, else the
+    // whole page (so out-of-field changes animate too).
+    const captureSel = spec.regionOnly ? spec.selector : "body";
+    const tree = await captureElementTree(page, captureSel, { x: 0, y: 0, width, height });
     cullElementsOutsideViewBox(tree, width, height, undefined, 0, 1);
-    if (j === 0) rootBg = tree[0]?.styles?.rootBgComputed;
+    if (j === 0 && !spec.regionOnly) rootBg = tree[0]?.styles?.rootBgComputed;
     const svgContent = elementTreeToSvgInner(tree, width, height, `${framePrefix}s${j}-`, true, 2, false);
     const overlays = spec.caret ? caretOverlay(await measureCaret(page, spec.selector, spec.caretShape)) : undefined;
     subFrames.push({
@@ -293,19 +319,29 @@ export async function buildTypeResampleAnimation(
   // the OUTER animate run's shared embedded-font builder (collected once after the
   // outer loop). The nested SVG therefore defers its @font-face to that block,
   // exactly like a `cast` frame's `manageFonts: false`.
+  // In `regionOnly` mode the field flipbook is a TRANSPARENT overlay (no
+  // background — the static base + a bg rect paint it in the wrapper below).
   const nested = generateAnimatedSvg({
     width,
     height,
     frames: subFrames,
     fontFaceCss: "",
-    ...(rootBg != null ? { background: rootBg } : {}),
+    ...(rootBg != null && !spec.regionOnly ? { background: rootBg } : {}),
   });
   // Namespace document-global names (ids, `.f-N` frame classes, `@keyframes`,
   // `--scene-dur`) so they can't collide with the outer animation or sibling
   // nested frames — but NOT the font-family refs (they point at the shared
   // builder's already-unique `dmfN` names), same as `cast`.
-  const namespaced = namespaceEmbeddedAnimatedSvg(nested, framePrefix, { namespaceFonts: false });
-  const svgContent = namespaced.replace(/^<\?xml[^>]*\?>\s*/, "");
+  const namespaced = namespaceEmbeddedAnimatedSvg(nested, `${framePrefix}${spec.regionOnly ? "fld" : ""}`, { namespaceFonts: false });
+  const flipbook = namespaced.replace(/^<\?xml[^>]*\?>\s*/, "");
   const periodMs = durations.reduce((a, b) => a + b, 0);
-  return { svgContent, periodMs, rootBg };
+
+  if (spec.regionOnly) {
+    // Static base UNDER the animated field flipbook (a nested <svg>), + the root
+    // background so the transparent overlay reads on the right canvas color.
+    const bgRect = rootBg != null ? `<rect width="${width}" height="${height}" fill="${rootBg}" />` : "";
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${bgRect}${baseInner}${flipbook}</svg>`;
+    return { svgContent, periodMs, rootBg };
+  }
+  return { svgContent: flipbook, periodMs, rootBg };
 }
