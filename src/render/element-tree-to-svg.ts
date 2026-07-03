@@ -331,9 +331,27 @@ function paintImage(
       clipId = ctx.nextClipId("ifn");
       ctx.defsParts.push(`<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`);
     }
-    ctx.svgParts.push(
-      `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
-    );
+    // DM-1592: an SVG source under `object-fit: none` inlines as a native
+    // `<svg>` at its intrinsic size (iw×ih), positioned by object-position and
+    // clipped to the content box — the object-fit:none counterpart of the
+    // standard-branch native path (DM-1588). iw×ih IS the SVG's intrinsic size,
+    // so its own viewBox maps 1:1; `xMidYMid meet` (the SVG default) keeps that
+    // exact with no distortion. Falls back to the raster `<image>` when the
+    // source isn't SVG or has no usable coordinate system.
+    const svgTextNone = resolveSvgSource(el.imageSrc);
+    const inlinedNone = svgTextNone != null
+      ? inlineImgSvg(svgTextNone, {
+          x: ix, y: iy, w: iw, h: ih,
+          par: "xMidYMid meet", intrinsic: el.imageIntrinsic, idPrefix: ctx.nextClipId("svgimg"),
+        })
+      : null;
+    if (inlinedNone != null) {
+      ctx.svgParts.push(`${indent}<g clip-path="url(#${clipId})">${inlinedNone}</g>`);
+    } else {
+      ctx.svgParts.push(
+        `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
+      );
+    }
   } else {
     const par = preserveAspectRatioFor(fitEffective, el.styles.objectPosition);
     const clipAttr = roundedClipId != null ? ` clip-path="url(#${roundedClipId})"` : "";

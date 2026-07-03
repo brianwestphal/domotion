@@ -36,9 +36,15 @@ The result is emitted by `paintImage` in `src/render/element-tree-to-svg.ts`. A 
 
 `prefixSvgIds` is shared with the animator's SVG-overlay inliner (`namespaceSvgIds` in `src/cli/animate.ts`), so the namespacing regexes live in exactly one place.
 
+## object-fit coverage
+
+All `object-fit` values take the native path:
+
+- `fill` (default), `contain`, `cover`, and `scale-down` place the nested `<svg>` at the content box with a `preserveAspectRatio` derived from `object-fit` / `object-position` (the standard branch).
+- **`object-fit: none`** (DM-1592) places the nested `<svg>` at the SVG's **intrinsic size** (`el.imageIntrinsic`), positioned by `object-position` inside the content box and clipped to it — the native counterpart of the raster intrinsic-size branch. Since `iw×ih` *is* the SVG's intrinsic size, its own viewBox maps 1:1 and `preserveAspectRatio="xMidYMid meet"` (the SVG default) keeps that exact with no distortion. Falls back to the raster `<image>` when the source isn't SVG or has no coordinate system.
+
 ## Scope / known boundaries (v1)
 
-- **`object-fit: none` with a known intrinsic size** still emits a raster `<image>`. That branch renders the image at its intrinsic size positioned by `object-position` and clipped to the content box; reproducing those exact semantics natively (for an arbitrary source viewBox) is deferred as a follow-up. `object-fit: fill` (the default), `contain`, `cover`, and `scale-down` all take the native path.
 - **CSS class selectors inside an SVG `<style>` block are not namespaced.** `prefixSvgIds` rewrites ids and hash/`url(#…)` references but not class names, so two inlined SVGs that both define, say, `.cls-1` in a `<style>` block could cross-contaminate. Id-based collisions (the common case for gradients/filters exported by design tools) are fully handled; class-based `<style>` collisions are a rarer follow-up. This matches the existing behavior of the inline-`<svg>` DOM path (`paintInlineSvg`), which emits `<style>` blocks without namespacing class names.
 - **`<filter>` regions, `currentColor`, and CSS custom properties** inside the SVG resolve against the nested `<svg>` context, matching how the browser resolves them for the original `<img>` in the common cases (design-tool exports with self-contained gradients/filters). SVGs that rely on inheriting `color` / CSS variables from the host page are out of scope.
 

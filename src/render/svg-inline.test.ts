@@ -128,3 +128,25 @@ describe("paintImage — <img src=svg> inlines natively; raster stays <image> (D
     expect(out).toMatch(/<g clip-path="url\(#[^)]*\)"><svg[^>]*viewBox="0 0 24 24"/);
   });
 });
+
+describe("paintImage — object-fit: none SVG img inlines natively at intrinsic size (DM-1592)", () => {
+  it("emits a native <svg> at the object-position-derived (ix,iy) + intrinsic size, clipped", () => {
+    const svg = `<svg viewBox="0 0 40 40"><rect width="40" height="40" fill="#f0a"/></svg>`;
+    // content box 80×80 at (10,10); intrinsic 40×40; object-position 100% 0%
+    // → ix = 10 + (80-40)*1.0 = 50, iy = 10 + (80-40)*0 = 10.
+    const el = imgEl(SVG_URI(svg), { objectFit: "none", objectPosition: "100% 0%" });
+    (el as { imageIntrinsic?: { w: number; h: number } }).imageIntrinsic = { w: 40, h: 40 };
+    const out = elementTreeToSvgInner([el], 200, 200);
+    expect(out).not.toMatch(/<image[^>]*data:image\/svg\+xml/);
+    // Native <svg> at intrinsic size, positioned by object-position, clip-wrapped.
+    expect(out).toMatch(/<g clip-path="url\(#[^)]*\)"><svg[^>]*x="50" y="10" width="40" height="40" viewBox="0 0 40 40"/);
+  });
+
+  it("keeps a raster (PNG) object-fit:none img on the <image> path", () => {
+    const el = imgEl(PNG_URI, { objectFit: "none" });
+    (el as { imageIntrinsic?: { w: number; h: number } }).imageIntrinsic = { w: 40, h: 40 };
+    const out = elementTreeToSvgInner([el], 200, 200);
+    expect(out).toMatch(/<image\b/);
+    expect(out).not.toMatch(/viewBox="0 0 40 40"/);
+  });
+});
