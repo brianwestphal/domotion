@@ -19,7 +19,7 @@ First run auto-installs Playwright's Chromium (`npx playwright install chromium`
 
 | CLI | Purpose |
 |---|---|
-| `domotion` | The main tool: `capture`, `animate`, `template`, `term`, `composite`. |
+| `domotion` | The main tool: `capture`, `animate`, `template`, `term`, `composite`, `storyboard`. |
 | `svg-to-video` | Render an animated SVG to MP4/WebM/MOV. |
 | `svg-to-image` | Rasterize a still (or one frame of an animated) SVG to PNG/JPEG/PDF/WebP/AVIF/TIFF — your "look at the pixels" tool. |
 | `svg-review` | Diff a capture against the Chromium screenshot (for filing fidelity bugs). |
@@ -35,7 +35,7 @@ domotion capture ./card.html -o card.svg --width 1200 --height 630 --selector ".
 cat page.html | domotion capture - -o page.svg
 ```
 
-Useful flags: `--width N` / `--height N` (viewport, default 800×600) · `--selector <css>` (capture one element, default `body`) · `--clip x,y,w,h` · `--wait-for <css>` (wait for a selector) · `--wait <ms>` · `--color-scheme light|dark` · `--mobile` · `--optimize` (SVGO) · `--chrome phone|browser|window` (wrap in a device bezel, with `--chrome-label`) · `--cross-origin-frames "<hosts>"` (recurse cross-origin `<iframe>`s from trusted hosts, or `"*"`; disables web security, so only for pages you trust — same-origin frames recurse automatically) · `--debug` (write a reproduction bundle for `svg-review`).
+Useful flags: `--width N` / `--height N` (viewport, default 800×600) · `--selector <css>` (capture one element, default `body`) · `--clip x,y,w,h` · `--wait-for <css>` (wait for a selector) · `--wait <ms>` · `--color-scheme light|dark` · `--mobile` · `--optimize` (SVGO) · `--chrome phone|browser|window` (wrap in a device bezel, with `--chrome-label`) · `--format <preset|WxH>` (size the viewport to a social preset — `reel` 1080×1920, `square` 1080×1080, `portrait` 1080×1350, `landscape` 1920×1080 — with `--safe-guide` to overlay the safe-area) · `--brand <file.json>` (theme the page by injecting the brand's CSS custom properties — `--brand-primary`, etc. — onto `:root` before it paints) · `--cross-origin-frames "<hosts>"` (recurse cross-origin `<iframe>`s from trusted hosts, or `"*"`; disables web security, so only for pages you trust — same-origin frames recurse automatically) · `--debug` (write a reproduction bundle for `svg-review`).
 
 **Animated scroll demo** of a long page, in one capture: `--scroll "<pattern>"` captures at successive scroll offsets and composes one scrolling SVG. Patterns: `down:bottom/8s`, `720px,2s until bottom`, `(720px,2s until bottom), (200px,3s)`. Tune with `--scroll-speed <px/s>` and `--scroll-selector <css>` (an inner scroller). See the scroll-pattern docs for the grammar.
 
@@ -56,7 +56,11 @@ Stitches captured frames with CSS keyframe transitions. The config is JSON valid
 }
 ```
 
-Frame kinds: `input` (capture HTML/URL), `template` (embed a built-in template, below), or `cast` (a terminal recording). Transitions: `crossfade`, `cut`, `push-left`, `scroll`, `magic-move` — and they **compose** when chained: a frame enters the way the previous transition handed off to it (fades in after a crossfade, slides in after a push/scroll) and exits its own way, so you can mix types freely across a sequence. A frame also supports **intra-frame `animations`** (animate a captured element: `opacity`, `transform`, `translateX/Y`, `scale`, `width`/`height`, `clipPath`), **overlays** (`typing` / `tap` / `svg` / `blink`, optionally anchored to an element), a config-level **`cursor`**, **continuous-session** frames that carry client state across steps (`"continue": true` + DOM-mutation/interaction `actions` + `waitForText`/`waitForGone`/`waitForCount`), and `vars` + `${}` interpolation.
+Frame kinds: `input` (capture HTML/URL), `template` (embed a built-in template, below), or `cast` (a terminal recording). Transitions: `crossfade`, `cut`, `push-left`, `scroll`, `magic-move`, `wipe`, `iris`, `wipe-clock`, `zoom-in`, `zoom-out`, `shine` — and they **compose** when chained: a frame enters the way the previous transition handed off to it (fades in after a crossfade, slides in after a push/scroll, reveals after a wipe/iris, dollies after a zoom) and exits its own way, so you can mix types freely across a sequence. A frame also supports **intra-frame `animations`** (animate a captured element: `opacity`, `transform`, `translateX/Y`, `scale`, `width`/`height`, `clipPath`; every animation takes an `easing`, incl. `cubic-bezier(...)`), **overlays** (`typing` / `tap` / `svg` / `blink` / `shine` / `interact`, optionally anchored to an element via a `selector`), a config-level **`cursor`**, **continuous-session** frames that carry client state across steps (`"continue": true` + DOM-mutation/interaction `actions` + `waitForText`/`waitForGone`/`waitForCount`), and `vars` + `${}` interpolation.
+
+**Typing overlays** render character-by-character with the field's real caret; options include `mode: "type"|"paste"`, `jitter`, `mistakes` (typo→backspace→correct), `kern` (GPOS-kerned proportional typing), and `caret.shape` (`bar`/`block`/`underscore`). For **high-fidelity** typing that shows the page's own input mask / validation / font, use a **`typeResample`** frame field instead (it drives the live field one key at a time and re-captures after each keystroke; `regionOnly: true` keeps the output small by re-capturing just the field region).
+
+**Interaction-state capture** — capture a page's real interactive states (not a faked overlay): a per-frame **`forceState`** applies a real CSS `:hover`/`:active`/`:focus` (via CDP) before capture; **`hoverReveal`** / **`hoverDetect`** auto-detect and synthesize a hover reveal (crossfade or in-place transform/opacity tween); **`jsReveal`** dispatches a real JS event and observes the MutationObserver result (added/removed-node crossfade, or an in-place motion tween for a class-flip that only moves the target); the **`interact`** overlay fakes a hover/focus/press for no-DOM inputs (PDF, a flat image).
 
 ## `domotion template <name>` — parameterized animated SVGs from a few flags
 
@@ -68,7 +72,11 @@ domotion template chart --type donut --data "42,28,18,12" --labels "Search,Direc
 domotion template kinetic-text --text "Ship it" --variant pop --by char -o title.svg
 ```
 
-Built-ins: **lower-third** (broadcast banner) · **device-mockup** (wrap a captured page in a phone/browser/window bezel) · **background-loop** (seamless looping background: aurora/orbs/stars/gradient-pan/grid/wave) · **kinetic-text** (animated typography) · **chart** (column/bar/line/pie/donut, single or multi-series) · **chat** (iMessage-style thread) · **subscribe** (follow/subscribe pop-up). Pass scalar params as `--flags`, or arrays/objects via `--params '<json>'`. Third-party templates are npm packages named `domotion-template-<name>` — install one and use it by `<name>`.
+Built-ins (14): **lower-third** (broadcast banner) · **device-mockup** (wrap a captured page in a phone/browser/window bezel) · **background-loop** (seamless looping background: aurora/orbs/stars/gradient-pan/grid/wave) · **kinetic-text** (animated typography) · **chart** (column/bar/line/pie/donut, single or multi-series) · **chat** (iMessage-style thread) · **subscribe** (follow/subscribe pop-up) · plus the **creative-template pack** of full-bleed text/number cards: **title-card** (intro title) · **quote** (pull-quote) · **caption** (lower caption overlay) · **cta** (end-card with a pulsing button) · **counter** (count-up/down/timer on an odometer digit-reel) · **stat** (KPI + trend chip) · **compare** (before/after clip-wipe). Every template honors a `--format` preset (reel/square/portrait/landscape — the type scales adaptively) and a `--brand <file.json>` (palette/type/logo defaults). Pass scalar params as `--flags`, or arrays/objects via `--params '<json>'`. Third-party templates are npm packages named `domotion-template-<name>` — install one and use it by `<name>`.
+
+## `domotion storyboard <config.json>` — sequence distinct SCENES end-to-end
+
+Where `animate` stitches captured *frames* of one subject, `storyboard` sequences distinct **scenes** — each a `template`, a `capture` (URL/HTML), a `cast` (terminal), or a pre-rendered `svg` — into one narrative video, with per-scene transitions, overlays, and a shared `--brand` / `--format`. Reach for it to assemble a multi-part promo (title card → product capture → chart → CTA) as one self-contained animated SVG.
 
 ## `domotion term --cast <file.cast>` — terminal recording → animated SVG
 
@@ -234,7 +242,7 @@ Before returning a result, verify:
 
 - One **self-contained** `<svg>` document — no external fonts/images/scripts. Embed with `<img src="out.svg">` (CSS animations play, it's lazy-loadable and accessible with `alt`), or inline it if you need CSS to reach in.
 - **Scales** crisply at any size; **text is real glyph paths**, so it renders identically across browsers.
-- Some content is embedded as a raster `<image>` rather than native SVG (color emoji, vertical text, `<canvas>`/`<video>`, conic gradients, `<textarea>` content, and a **cross-origin** `<iframe>` unless allowlisted via `--cross-origin-frames`) — still self-contained. A **same-origin `<iframe>` is recursed into native SVG** (walked like the parent page), not rastered.
+- Some content is embedded as a raster `<image>` rather than native SVG (color emoji, vertical text, `<canvas>`/`<video>`, conic gradients, `<textarea>` content, and a **cross-origin** `<iframe>` unless allowlisted via `--cross-origin-frames`) — still self-contained. A **same-origin `<iframe>` is recursed into native SVG** (walked like the parent page), and an **`<img src="*.svg">` is inlined as native `<svg>`** (razor-sharp at any zoom, not a rastered image) — neither is flattened to a raster.
 - **Transparent background round-trips.** A transparent page/root background (or a transparent terminal theme `bg`) yields a **transparent SVG** — no opaque backdrop rect is painted — so the output composites over whatever host background it lands on. Give the root an opaque background if you want one baked in.
 
 ## Gotchas / constraints

@@ -14,7 +14,7 @@
 
 **Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. Text is emitted as real glyph paths, so it looks identical across browsers; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
 
-Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with transitions, overlays, and simulated interaction, **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
+Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with transitions, overlays, and simulated interaction, **scene storyboarding** (sequence distinct scenes end-to-end), **brand kits** and **social-format presets** (reel / square / portrait / landscape), **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
 
 <p align="center">
   <img src="examples/output/hero-product-demo.svg" alt="An analytics dashboard assembling itself inside a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked — all in one self-contained animated SVG" width="760">
@@ -87,7 +87,7 @@ For a multi-frame animated SVG, write a small JSON config and run `domotion anim
 domotion animate ./demo.json
 ```
 
-The config describes each frame (input, duration, transition) plus a declarative surface for interaction demos: continuous-session frames that carry client-side state across steps (omit `input` / set `"continue": true`), DOM-mutation and interaction actions, richer readiness waits (`waitForText` / `waitForGone` / `waitForCount`), typing / tap / svg / blink overlays that can anchor to an element's box, an on-screen `cursor` (explicit or `"auto"`), `vars` + `${}` interpolation, and a small `evaluate` escape hatch. See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
+The config describes each frame (input, duration, transition) plus a declarative surface for interaction demos: continuous-session frames that carry client-side state across steps (omit `input` / set `"continue": true`), DOM-mutation and interaction actions, richer readiness waits (`waitForText` / `waitForGone` / `waitForCount`), typing / tap / svg / blink / shine / interact overlays that can anchor to an element's box (typing supports per-keystroke reveal, `kern`, caret shapes, and a high-fidelity `typeResample` mode), real interaction-state capture (`forceState` / `hoverReveal` / `hoverDetect` / `jsReveal`), an on-screen `cursor` (explicit or `"auto"`), `vars` + `${}` interpolation, and a small `evaluate` escape hatch. See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
 
 ### Templates — animated SVGs from a few flags
 
@@ -99,7 +99,7 @@ domotion template chart --type donut --data "42,28,18,12" --labels "Search,Direc
 domotion template kinetic-text --text "Ship it" --variant pop --by char -o title.svg
 ```
 
-Built-ins: **lower-third** (broadcast banner) · **kinetic-text** (animated typography) · **chart** (column / bar / line / pie / donut) · **chat** (message thread) · **subscribe** (follow pop-up) · **background-loop** (seamless looping background) · **device-mockup** (wrap a page in a phone / browser / window bezel). Third-party templates are npm packages named `domotion-template-<name>`.
+Built-ins (14): **lower-third** (broadcast banner) · **kinetic-text** (animated typography) · **chart** (column / bar / line / pie / donut) · **chat** (message thread) · **subscribe** (follow pop-up) · **background-loop** (seamless looping background) · **device-mockup** (wrap a page in a phone / browser / window bezel) · and a **creative-template pack** of full-bleed text/number cards: **title-card**, **quote**, **caption**, **cta**, **counter**, **stat**, **compare**. Every template adapts to a `--format` social preset (reel / square / portrait / landscape) and a `--brand` kit (palette / type / logo). Third-party templates are npm packages named `domotion-template-<name>`.
 
 ### Terminal sessions
 

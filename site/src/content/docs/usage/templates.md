@@ -26,6 +26,16 @@ New here and want end-to-end creative recipes (a 9:16 teaser, a testimonial card
 a kinetic title over a captured screen, a storyboard) rather than the per-template
 reference? See the [Recipe gallery](/domotion/creators/recipes/).
 
+There are **14 built-ins**. Beyond the ones walked through below, the
+**creative-template pack** adds full-bleed text/number cards — **title-card**
+(intro title), **quote** (pull-quote), **caption** (lower caption overlay),
+**cta** (end-card with a pulsing button), **counter** (count-up/down/timer on an
+odometer digit-reel), **stat** (KPI + trend chip), and **compare** (before/after
+clip-wipe). Every template also adapts to a `--format` social preset (reel /
+square / portrait / landscape — the type scales to fit) and a `--brand <file.json>`
+kit (palette / type / logo defaults). See the [Recipe gallery](/domotion/creators/recipes/)
+for these in action.
+
 ## Charts
 
 Turn a list of numbers into an animated `column` / `bar` / `line` / `pie` /
