@@ -35,6 +35,10 @@ export const lowerThirdParamsSchema = z.object({
   holdMs: z.coerce.number().int().positive().default(3000).describe("Total on-screen time in ms."),
   background: z.string().default("transparent").describe('Frame background (CSS color or "transparent").'),
   logo: z.string().optional().describe("Optional brand mark (URL or absolute path) shown on the banner."),
+  logoPosition: z
+    .enum(["panel", "top-left", "top-right"])
+    .default("panel")
+    .describe('Where the logo sits: "panel" (on the banner, default) or a "top-left"/"top-right" frame corner.'),
   fontFamily: z
     .string()
     .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
@@ -75,8 +79,21 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
   // token maps here). It sits inside `.lt-panel`, so it slides + fades in with
   // the panel and rests at identity; the panel itself already honors `safeInset`
   // via the body padding, so the mark stays inside the safe area.
-  const logo = p.logo != null && p.logo !== ""
-    ? `<img class="lt-logo" src="${escapeHtml(p.logo)}" alt="">`
+  const hasLogo = p.logo != null && p.logo !== "";
+  const logoSrc = p.logo ?? "";
+  // DM-1576: `logoPosition` places the mark ON the banner (default) or in a frame
+  // CORNER. The corner mark is absolutely positioned at the safe-area inset (so it
+  // stays inside the safe area) and rests at identity (a static opacity fade-in).
+  const onPanel = p.logoPosition === "panel";
+  const panelLogo = hasLogo && onPanel
+    ? `<img class="lt-logo" src="${escapeHtml(logoSrc)}" alt="">`
+    : "";
+  // Corner inset offsets = the same per-side safe padding the body uses.
+  const insetTop = safeInset != null ? Math.max(d, safeInset.top) : d;
+  const insetLeft = safeInset != null ? Math.max(d, safeInset.left) : d;
+  const insetRight = safeInset != null ? Math.max(d, safeInset.right) : d;
+  const cornerLogo = hasLogo && !onPanel
+    ? `<img class="lt-logo-corner" src="${escapeHtml(logoSrc)}" alt="" style="top:${insetTop}px;${p.logoPosition === "top-right" ? `right:${insetRight}px` : `left:${insetLeft}px`}">`
     : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -88,8 +105,8 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
     display: flex;
     justify-content: ${justify};
     align-items: ${align};
-    padding: ${padding};
-  }
+    padding: ${padding};${cornerLogo !== "" ? "\n    position: relative;" : ""}
+  }${cornerLogo !== "" ? "\n  .lt-logo-corner { position: absolute; height: 52px; max-width: 180px; object-fit: contain; }" : ""}
   .lt { display: flex; }
   .lt-panel {
     display: flex; align-items: stretch;
@@ -116,9 +133,10 @@ export function buildLowerThirdHtml(p: LowerThirdParams, safeInset?: SafeInset):
         <div class="lt-title">${escapeHtml(p.title)}</div>
         ${subtitle}
       </div>
-      ${logo}
+      ${panelLogo}
     </div>
   </div>
+  ${cornerLogo}
 </body></html>`;
 }
 

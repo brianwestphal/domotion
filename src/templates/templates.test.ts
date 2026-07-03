@@ -164,6 +164,21 @@ describe("lower-third HTML generation (pure, no browser)", () => {
     expect(withoutLogo).not.toContain("<img");
   });
 
+  it("DM-1576: logoPosition places the mark on the panel (default) or a frame corner", () => {
+    const panel = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Acme", logo: "/l.svg" }));
+    expect(panel).toMatch(/<img class="lt-logo" src="\/l\.svg"/); // on-panel
+    expect(panel).not.toContain("lt-logo-corner");
+    expect(panel).not.toContain("position: relative"); // byte-identical default
+
+    const tr = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Acme", logo: "/l.svg", logoPosition: "top-right" }));
+    expect(tr).not.toMatch(/class="lt-logo"/);          // NOT on the panel
+    expect(tr).toMatch(/lt-logo-corner[^>]*right:48px/); // absolute, top-right at the inset
+    expect(tr).toContain("position: relative");          // body positioned for the absolute mark
+
+    const tl = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "Acme", logo: "/l.svg", logoPosition: "top-left" }));
+    expect(tl).toMatch(/lt-logo-corner[^>]*left:48px/);
+  });
+
   it("escapes a logo URL's HTML-special characters (DM-1545)", () => {
     const html = buildLowerThirdHtml(lowerThirdParamsSchema.parse({ title: "x", logo: 'a"b.svg' }));
     expect(html).toContain('src="a&quot;b.svg"');
