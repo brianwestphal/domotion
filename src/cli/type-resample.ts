@@ -135,17 +135,26 @@ async function measureCaret(page: Page, selector: string): Promise<CaretRect | n
       return Number.isFinite(n) ? n : 0;
     };
     const fontSize = num(cs.fontSize) || 16;
-    const caretHeight = Math.round(fontSize * 1.2);
     const x = r.left + num(cs.borderLeftWidth) + num(cs.paddingLeft) + textW - el.scrollLeft;
-    // Content box (inside border + padding). A single-line <input> vertically
-    // CENTERS its text within this box, so the caret must center too — pinning it
-    // to the content top (paddingTop) left it high/misaligned vs the centered text.
-    // A <textarea> lays text from the top, so keep the caret at the content top there.
+    // Match Chrome's REAL caret geometry (pixel-measured against the live field,
+    // not a magic multiplier):
+    //  - HEIGHT ≈ the font's cap/ink height (a 16px field caret is ~10px, NOT the
+    //    full 1.2 line box ~19px — that engulfed the text). Measure the ink box of
+    //    a representative cap ("M"); fall back to ~0.7em if the metric is missing.
+    //  - POSITION: center the caret within the LINE BOX, and place the line box the
+    //    same way `captureInputValue` places the value text — a single-line <input>
+    //    centers its line in the content box; a <textarea> lays lines from the top —
+    //    so the caret and the captured text share one line box and can't diverge.
+    const capM = ctx.measureText("M");
+    const capH = (capM.actualBoundingBoxAscent || 0) + (capM.actualBoundingBoxDescent || 0);
+    const caretHeight = Math.round(capH > 0 ? capH : fontSize * 0.7);
+    const lineH = num(cs.lineHeight) || fontSize * 1.2;
     const contentTop = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
     const contentHeight = r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom);
-    const y = el instanceof HTMLTextAreaElement
+    const lineTop = el instanceof HTMLTextAreaElement
       ? contentTop
-      : contentTop + Math.max(0, (contentHeight - caretHeight) / 2);
+      : contentTop + Math.max(0, (contentHeight - lineH) / 2);
+    const y = lineTop + (lineH - caretHeight) / 2;
     const caretColor = cs.caretColor && cs.caretColor !== "auto" ? cs.caretColor : cs.color;
     return { x, y, height: caretHeight, color: caretColor };
   }, selector);
