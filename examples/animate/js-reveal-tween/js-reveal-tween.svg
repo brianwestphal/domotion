@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 280" width="420" height="280">
+  <defs>
+    <clipPath id="viewport-clip"><rect width="420" height="280" /></clipPath>
+  </defs>
+  <style>
+@font-face { font-family: "dmf0"; font-style: normal; font-weight: 600; src: url("data:font/ttf;base64,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"); }
+    :root { --scene-dur: 2.30s; }
+    .f { opacity: 0; visibility: hidden; }
+    
+    @keyframes fv-0 {
+      0.00%, 100% { opacity: 1; }
+    }
+    @keyframes fd-0 {
+      0% { visibility: hidden; }
+      0.000% { visibility: hidden; }
+      0.000% { visibility: visible; }
+      100.000% { visibility: visible; }
+      100.000% { visibility: hidden; }
+      100% { visibility: hidden; }
+    }
+    .f-0 { animation: fv-0 2.30s infinite, fd-0 2.30s infinite step-end; }
+  </style>
+  <g clip-path="url(#viewport-clip)">
+  <g class="f f-0">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 280" width="420" height="280">
+  <defs>
+    <clipPath id="jr0_viewport-clip"><rect width="420" height="280" /></clipPath>
+  </defs>
+  <style>
+    :root { --scene-dur-jr0_: 0.90s; }
+    .jr0_f { opacity: 0; visibility: hidden; }
+    
+    @keyframes jr0_fv-0 { 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 0; } 0% { opacity: 1; } 39.1304% { opacity: 1; } 39.1304% { opacity: 0; } 39.1304% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes jr0_fd-0 { 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: hidden; } 0% { visibility: visible; } 39.1304% { visibility: visible; } 39.1304% { visibility: hidden; } 39.1304% { visibility: hidden; } 100% { visibility: visible; } }
+    .jr0_f-0 { animation:jr0_fv-0 2.3s step-end infinite,jr0_fd-0 2.3s step-end infinite; }
+    @keyframes jr0_f0-jr0-0 { 0% { transform: none; } 0% { transform: none; } 0% { transform: none; } 16.5217% { transform: matrix(1.1, 0, 0, 1.1, 0, -11); } 39.1304% { transform: matrix(1.1, 0, 0, 1.1, 0, -11); } 100% { transform: matrix(1.1, 0, 0, 1.1, 0, -11); } }
+    .jr0_anim-jr0 { animation:jr0_f0-jr0-0 2.3s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  </style>
+  <g clip-path="url(#jr0_viewport-clip)">
+  <g class="jr0_f jr0_f-0">
+  <defs><filter id="jr0_jr0_s0-sh0" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter><linearGradient id="jr0_jr0_s0-bg1" gradientUnits="userSpaceOnUse" x1="117.5" y1="47.5" x2="302.5" y2="232.5"><stop offset="0" stop-color="rgb(35,134,54)" /><stop offset="1" stop-color="rgb(46,160,67)" /></linearGradient><clipPath id="jr0_jr0_s0-ct2"><rect x="90" y="75" width="240" height="130" /></clipPath></defs>
+  <rect x="0" y="0" width="420" height="280" rx="0" fill="rgb(13,17,23)" />
+  <g class="jr0_anim-jr0">
+  <rect x="90" y="83" width="240" height="130" rx="14" fill="rgba(0,0,0,0.4)" filter="url(#jr0_jr0_s0-sh0)" />
+  <rect x="90" y="75" width="240" height="130" rx="14" fill="url(#jr0_jr0_s0-bg1)" />
+  <g role="img" aria-label="Hover me"><title>Hover me</title><text x="169.8 183.16 193.28 202.66 212.81 219.83 224.11 240.02" y="146.5" font-family="dmf0" font-size="18" font-weight="600" fill="rgb(255,255,255)"></text></g>
+  </g>
+  </g>
+  </g>
+</svg>
+  </g>
+  <g class="cursor-overlay" pointer-events="none">
+    <style>@keyframes co-pos-1fhrly{0%{transform:translate(0px,0px)}6.5217%{transform:translate(0px,0px)}23.913%{transform:translate(210px,140px)}100%{transform:translate(210px,140px)}}@keyframes co-glyph-1fhrly-0{0%{opacity:0}6.5218%{opacity:1}100%{opacity:1}}</style>
+    <g class="cursor-pointer" style="animation:co-pos-1fhrly 2.3s linear infinite">
+      <g opacity="0" style="animation:co-glyph-1fhrly-0 2.3s step-end infinite">
+        <g transform="translate(-4.13 -4.13) scale(0.9167)"><g transform="translate(0 0)"><g fill="#fff" stroke="rgb(0, 0, 0)" stroke-width="1.4" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></g></g></g>
+      </g>
+    </g>
+
+  </g>
+  </g>
+</svg>

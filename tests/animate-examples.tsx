@@ -225,6 +225,20 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    name: "js-reveal-tween",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 420 280"`)) f.push("missing viewBox 420x280");
+      // DM-1580: a class-flip that only TRANSFORMS the card TWEENS in place — a
+      // single rest state with an intra-frame transform animation, NOT a rest→after
+      // crossfade (no second `jr0_fv-1` state, no `s1-` after capture).
+      if (/jr0_fv-1\b/.test(svg)) f.push("should NOT crossfade (found a second state jr0_fv-1) — a motion mutation must tween");
+      if (!/anim-jr0/.test(svg)) f.push("missing the tweened element (anim-jr0)");
+      if (!/@keyframes[^{]*\{[^}]*transform/.test(svg)) f.push("missing the intra-frame transform tween");
+      return f;
+    },
+  },
+  {
     name: "scroll-landing",
     check: (svg) => {
       const f: string[] = [];

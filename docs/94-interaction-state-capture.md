@@ -4,8 +4,9 @@ Status: **shipped** — explicit forced-pseudo-state capture (DM-1516), a
 forced-state **reset** verb (DM-1566), and all four auto-detection options: the
 **`hoverReveal`** sugar (Option 1, DM-1562), **`hoverDetect`** computed-style-diff
 detection (Option 2, DM-1563), Option 3's **MutationObserver harness** (DM-1564 —
-the `jsReveal` field synthesizes JS-driven added/removed-node reveals as a
-crossfade; the attribute/style property-tween is a follow-up), and Option 4's
+the `jsReveal` field synthesizes JS-driven mutations — a crossfade for
+added/removed-node changes, and an in-place property **tween** for
+attribute/style-only changes that move the target, DM-1580), and Option 4's
 no-DOM/PDF **`interact` overlay** fake (DM-1565).
 
 ## The problem

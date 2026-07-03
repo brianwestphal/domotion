@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 420,
+  "height": 280,
+  "cursor": { "events": [ { "frame": 0, "at": 150, "type": "move", "selector": "#card" } ] },
+  "frames": [
+    {
+      "input": "./card.html",
+      "duration": 2000,
+      "jsReveal": { "selector": "#card", "event": "mouseover", "holdMs": 900, "crossfadeMs": 380 }
+    }
+  ]
+}

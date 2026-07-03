@@ -30,6 +30,48 @@ import { elementTreeToSvgInner } from "../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
+import { captureStyleSnapshot, diffHoverSnapshots, classifyHoverTransition, HOVER_DIFF_PROPERTIES, type HoverDiff } from "./hover-detect.js";
+import type { IntraFrameAnimation } from "../animation/overlay-schema.js";
+import type { CapturedElement } from "../capture/types.js";
+
+/** The anim id the jsReveal tween targets on the mutated element (DM-1580). */
+const JS_REVEAL_ANIM_ID = "jr0";
+
+/** DM-1580: build the intra-frame tween for an attribute/style-only motion
+ *  mutation — the target's transform (and/or opacity) morphing from its rest to
+ *  its settled value, so a class flip that only moves/scales the element animates
+ *  in place instead of dissolving. Mirrors `hover-detect`'s motion synthesis but
+ *  targets a resolved `animId`. Returns `[]` when there's no motion track. */
+export function synthMutationTween(diff: HoverDiff, animId: string, durationMs: number): IntraFrameAnimation[] {
+  const target = diff.motion.filter((d) => d.key === "");
+  const transform = target.find((d) => d.property === "transform");
+  const opacity = target.find((d) => d.property === "opacity");
+  if (transform != null) {
+    const anim: IntraFrameAnimation = {
+      animId, property: "transform", from: transform.from, to: transform.to,
+      duration: durationMs, easing: "ease-out", transformOrigin: "center",
+    };
+    if (opacity != null) anim.fuse = [{ property: "opacity", from: opacity.from, to: opacity.to }];
+    return [anim];
+  }
+  if (opacity != null) {
+    return [{ animId, property: "opacity", from: opacity.from, to: opacity.to, duration: durationMs, easing: "ease-out" }];
+  }
+  return [];
+}
+
+/** Clear a captured element tree's `animId` tags (DM-1580) — used to strip the
+ *  jsReveal target's tween tag from the tree when the mutation takes the crossfade
+ *  path, so its `restSvg` is byte-identical to the pre-feature output. */
+function clearAnimIds(tree: CapturedElement[]): void {
+  const walk = (els: CapturedElement[]): void => {
+    for (const el of els) {
+      if (el.animId != null) el.animId = undefined;
+      if (el.children != null) walk(el.children);
+    }
+  };
+  walk(tree);
+}
 
 /** The pointer events the harness can dispatch. Mouse/pointer only, so the event
  *  object is constructed with the right coordinates + bubbling. */
@@ -207,11 +249,22 @@ export async function buildJsRevealAnimation(
 ): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined; summary: MutationSummary }> {
   const { width, height, framePrefix, log } = opts;
 
-  // 1. REST — the page before the pointer event.
+  // DM-1580: tag the target so a non-structural motion mutation (a class flip that
+  // moves/scales it) can TWEEN in place via the intra-frame animator, rather than
+  // dissolving. The tag rides the rest capture; it's stripped again (clearAnimIds)
+  // on every path except the tween, so the crossfade / rest-only `restSvg` stays
+  // byte-identical to the pre-feature output.
+  await page.evaluate((sel: string) => {
+    const el = document.querySelector(sel);
+    if (el instanceof HTMLElement) el.dataset.domotionAnim = "jr0";
+  }, spec.selector).catch(() => { /* selector may be absent; falls through to crossfade */ });
+
+  // 1. REST — the page before the pointer event (tree + the target's style snapshot).
   const restTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
   cullElementsOutsideViewBox(restTree, width, height, undefined, 0, 1);
   const rootBg = restTree[0]?.styles?.rootBgComputed;
-  const restSvg = elementTreeToSvgInner(restTree, width, height, `${framePrefix}s0-`, true, 2, false);
+  const restSnap = await captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch(() => null);
+  const renderRest = (): string => elementTreeToSvgInner(restTree, width, height, `${framePrefix}s0-`, true, 2, false);
 
   // 2. Dispatch + observe + settle.
   const summary = await detectJsMutations(page, spec);
@@ -224,21 +277,46 @@ export async function buildJsRevealAnimation(
   const subFrames: AnimationFrame[] = [];
   if (!summary.changed) {
     log(`  jsReveal: no DOM mutations observed — emitting the rest state only (nothing to reveal)`);
+    clearAnimIds(restTree);
     // `cut` (not "no transition") so the single-state loop period is exactly holdMs.
-    subFrames.push({ svgContent: restSvg, duration: spec.holdMs, transition: { type: "cut", duration: 0 } });
+    subFrames.push({ svgContent: renderRest(), duration: spec.holdMs, transition: { type: "cut", duration: 0 } });
   } else {
-    if (!summary.structural) {
-      log(
-        `  jsReveal: only attribute/text changes (no added/removed nodes) — ` +
-          `synthesizing as a crossfade; a property-accurate tween is a follow-up (docs/94 option 2)`,
-      );
+    // DM-1580: an attribute/style-only mutation that MOVES the target (transform /
+    // opacity) tweens in place instead of crossfading. Diff the target's rest vs
+    // settled computed styles (the same engine `hoverDetect` uses); a `motion`
+    // classification → an intra-frame tween on the tagged element.
+    let tweened = false;
+    if (!summary.structural && restSnap != null) {
+      const afterSnap = await captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch(() => null);
+      const diff = afterSnap != null ? diffHoverSnapshots(restSnap, afterSnap) : null;
+      if (diff != null && classifyHoverTransition(diff) === "motion") {
+        const anims = synthMutationTween(diff, JS_REVEAL_ANIM_ID, spec.crossfadeMs);
+        if (anims.length > 0) {
+          log(`  jsReveal: attribute/style-only motion on "${spec.selector}" → intra-frame ${anims.map((a) => a.property).join("+")} tween (not a crossfade)`);
+          // Single frame, rest state, tweening in place; loops on its own holdMs clock.
+          subFrames.push({ svgContent: renderRest(), duration: spec.holdMs, animations: anims, transition: { type: "cut", duration: 0 } });
+          tweened = true;
+        }
+      }
     }
-    // 3. AFTER — the settled, mutated page.
-    const afterTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
-    cullElementsOutsideViewBox(afterTree, width, height, undefined, 0, 1);
-    const afterSvg = elementTreeToSvgInner(afterTree, width, height, `${framePrefix}s1-`, true, 2, false);
-    subFrames.push({ svgContent: restSvg, duration: spec.holdMs, transition: { type: "crossfade", duration: spec.crossfadeMs } });
-    subFrames.push({ svgContent: afterSvg, duration: spec.holdMs });
+    if (!tweened) {
+      if (!summary.structural) {
+        log(
+          `  jsReveal: attribute/text changes with no tweenable motion delta — ` +
+            `synthesizing as a crossfade (paint-only / non-target change)`,
+        );
+      }
+      clearAnimIds(restTree);
+      // 3. AFTER — the settled, mutated page. The `data-domotion-anim` tag still
+      // rides the DOM, so strip it from this capture too — the crossfade never
+      // uses the tween tag (byte-identical to the pre-feature output).
+      const afterTree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+      cullElementsOutsideViewBox(afterTree, width, height, undefined, 0, 1);
+      clearAnimIds(afterTree);
+      const afterSvg = elementTreeToSvgInner(afterTree, width, height, `${framePrefix}s1-`, true, 2, false);
+      subFrames.push({ svgContent: renderRest(), duration: spec.holdMs, transition: { type: "crossfade", duration: spec.crossfadeMs } });
+      subFrames.push({ svgContent: afterSvg, duration: spec.holdMs });
+    }
   }
 
   const nested = generateAnimatedSvg({

@@ -4,7 +4,8 @@
  * `buildJsRevealAnimation`) is covered by `mutation-detect.e2e.test.ts`.
  */
 import { describe, expect, it } from "vitest";
-import { resolveJsRevealSpec, JS_REVEAL_DEFAULTS, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
+import { resolveJsRevealSpec, JS_REVEAL_DEFAULTS, MUTATION_DETECT_EVENTS, synthMutationTween } from "./mutation-detect.js";
+import type { HoverDiff } from "./hover-detect.js";
 
 describe("resolveJsRevealSpec (DM-1564)", () => {
   it("applies the documented defaults when only selector is given", () => {
@@ -32,5 +33,29 @@ describe("resolveJsRevealSpec (DM-1564)", () => {
   it("defaults the event to mouseover (the most common JS hover trigger)", () => {
     expect(resolveJsRevealSpec({ selector: "#x" }).event).toBe("mouseover");
     expect(MUTATION_DETECT_EVENTS).toContain("mouseover");
+  });
+});
+
+describe("synthMutationTween (DM-1580)", () => {
+  const diff = (motion: HoverDiff["motion"]): HoverDiff => ({ paint: [], motion });
+
+  it("builds a transform tween (with fused opacity) for a target motion delta", () => {
+    const anims = synthMutationTween(diff([
+      { key: "", property: "transform", from: "none", to: "scale(1.1)" },
+      { key: "", property: "opacity", from: "1", to: "0.8" },
+    ]), "jr0", 300);
+    expect(anims).toHaveLength(1);
+    expect(anims[0]).toMatchObject({ animId: "jr0", property: "transform", from: "none", to: "scale(1.1)", duration: 300, transformOrigin: "center" });
+    expect(anims[0].fuse).toEqual([{ property: "opacity", from: "1", to: "0.8" }]);
+  });
+
+  it("builds an opacity-only tween when there's no transform delta", () => {
+    const anims = synthMutationTween(diff([{ key: "", property: "opacity", from: "1", to: "0.5" }]), "jr0", 200);
+    expect(anims).toEqual([{ animId: "jr0", property: "opacity", from: "1", to: "0.5", duration: 200, easing: "ease-out" }]);
+  });
+
+  it("returns nothing when the motion deltas aren't on the target (key !== '')", () => {
+    expect(synthMutationTween(diff([{ key: "3", property: "transform", from: "none", to: "scale(2)" }]), "jr0", 300)).toEqual([]);
+    expect(synthMutationTween(diff([]), "jr0", 300)).toEqual([]);
   });
 });
