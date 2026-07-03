@@ -155,8 +155,9 @@ const EXAMPLES: Example[] = [
     check: (svg) => {
       const f: string[] = [];
       if (!svg.includes(`viewBox="0 0 720 260"`)) f.push("missing viewBox 720x260");
-      // DM-1591: three typing overlays with bar / block / underscore carets.
-      const carets = [...svg.matchAll(/<rect class="t\d+-caret"[^>]*\/>/g)].map((m) => m[0]);
+      // DM-1591: three typing overlays with bar / block / underscore carets,
+      // all in ONE frame — their ids are t0 / t0_1 / t0_2 (DM-1596 disambiguation).
+      const carets = [...svg.matchAll(/<rect class="t[\d_]+-caret"[^>]*\/>/g)].map((m) => m[0]);
       if (carets.length !== 3) f.push(`expected 3 caret rects, got ${carets.length}`);
       // A block caret is a translucent (fill-opacity 0.5), cell-wide box.
       if (!carets.some((c) => /fill-opacity="0\.5"/.test(c) && /width="1[0-9.]+"/.test(c))) f.push("missing translucent block caret");

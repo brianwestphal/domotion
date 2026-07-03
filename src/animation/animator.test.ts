@@ -511,6 +511,30 @@ describe("animator", () => {
     }
   });
 
+  it("DM-1596: two typing overlays in one frame get distinct ids and both reveal (no collision)", () => {
+    const svg = generateAnimatedSvg({
+      width: 300, height: 120,
+      frames: [{
+        svgContent: `<rect/>`, duration: 3000,
+        overlays: [
+          { kind: "typing", text: "alpha", x: 10, y: 30, caret: true },
+          { kind: "typing", text: "bravo", x: 10, y: 70, caret: true },
+        ],
+      }],
+    });
+    // First overlay keeps the byte-identical `t0` id; the second is disambiguated
+    // to `t0_1` — so their reveal clips + carets + @keyframes no longer collide.
+    expect(svg).toMatch(/class="t0-text"/);
+    expect(svg).toMatch(/class="t0_1-text"/);
+    expect(svg).toMatch(/@keyframes t0-rev0\b/);
+    expect(svg).toMatch(/@keyframes t0_1-rev0\b/);
+    expect(svg).toMatch(/class="t0-caret"/);
+    expect(svg).toMatch(/class="t0_1-caret"/);
+    // Each overlay reveals its OWN text (both glyph runs present, independently).
+    expect(decodeXml(svg)).toContain("aria-label=\"alpha\"");
+    expect(decodeXml(svg)).toContain("aria-label=\"bravo\"");
+  });
+
   it("DM-1518: reveal clip steps per keystroke and the caret parks exactly at the measured text edge", () => {
     const svg = generateAnimatedSvg({
       width: 200,

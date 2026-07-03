@@ -6,86 +6,50 @@
   <style>
 @font-face { font-family: "dmf0"; font-style: normal; font-weight: 600; src: url("data:font/ttf;base64,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"); }
 @font-face { font-family: "dmf1"; font-style: normal; font-weight: 400; src: url("data:font/ttf;base64,T1RUTwAKAIAAAwAgQ0ZGIPwYyxcAAAS8AAAHg09TLzJQ7FrzAAABEAAAAGBjbWFwAAzgPgAABHAAAAAsaGVhZAAAAAAAAACsAAAANmhoZWEHvgNQAAAA5AAAACRobXR4P1gAAAAADEAAAAA0bHRhZ2V+AAQAAAx0AAAAEm1heHAADVAAAAABCAAAAAZuYW1lkeZ6NAAAAXAAAAL9cG9zdAADAAAAAAScAAAAIAABAAAAAQAAAAAAAF8PPPUAAwgAAAAAAAAAAAAAAAAAAAAAAACW/+wEiQXmAAAAAwACAAAAAAAAAAEAAAe8/lAAAATyAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAANAABQAAANAAAAAwTyAfQABQAAAooCuwAAAIwCigK7AAAB3wAxAQIAAAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAAWFhYWABA4ADgCwe8/lAAAAXmABQAAAABAAAAAAPeBeYAAAAAAAAAAAAzAmoAAAAEAAAAAAACAB4AAAAEAAAAAQAIAAAAAAAEAAAAAgAOAAgAAAAEAAAAAwAeAEQAAAAEAAAABAAYABYAAAAEAAAABQAWAC4AAAAEAAAABgAWAAAAAAAEAAAABwACAB4AAAAEAAAACAACAB4AAAAEAAAACQACAB4AAAAEAAAACgACAB4AAAAEAAAACwACAB4AAAAEAAAADAACAB4AAAAEAAAADQACAB4AAAAEAAAADgACAB4AAAAEAAAAEAAIAAAAAAAEAAAAEQAOAAgAAQAAAAAAAAABAB8AAQAAAAAAAQAEAGIAAQAAAAAAAgAHAGYAAQAAAAAAAwAPAIQAAQAAAAAABAAMAG0AAQAAAAAABQALAHkAAQAAAAAABgALAGIAAQAAAAAABwABAB8AAQAAAAAACAABAB8AAQAAAAAACQABAB8AAQAAAAAACgABAB8AAQAAAAAACwABAB8AAQAAAAAADAABAB8AAQAAAAAADQABAB8AAQAAAAAADgABAB8AAQAAAAAAEAAEAGIAAQAAAAAAEQAHAGYAAwABBAkAAAACAB4AAwABBAkAAQAIAAAAAwABBAkAAgAOAAgAAwABBAkAAwAeAEQAAwABBAkABAAYABYAAwABBAkABQAWAC4AAwABBAkABgAWAAAAAwABBAkABwACAB4AAwABBAkACAACAB4AAwABBAkACQACAB4AAwABBAkACgACAB4AAwABBAkACwACAB4AAwABBAkADAACAB4AAwABBAkADQACAB4AAwABBAkADgACAB4AAwABBAkAEAAIAAAAAwABBAkAEQAOAAgAZABtAGYAMQBSAGUAZwB1AGwAYQByAGQAbQBmADEAIABSAGUAZwB1AGwAYQByAFYAZQByAHMAaQBvAG4AIAAwAC4AMQAgADoAIABkAG0AZgAxACAAUgBlAGcAdQBsAGEAcmRtZjFSZWd1bGFyZG1mMSBSZWd1bGFyVmVyc2lvbiAwLjEgOiBkbWYxIFJlZ3VsYXIAAAAAAAABAAMAAQAAAAwABAAgAAAABAAEAAEAAOAL//8AAOAA//8gAQABAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAEAQABAQEMZG1mMVJlZ3VsYXIAAQEBQ/gbAPgcAvgdA/geBIt3HAe8HATyBR0AAADDDx0AAADcEYsdAAAHgxIeCgAEiCgSXx4PHg8eCgAEiCgSXx4PHg8MBwAQAQEMGBwjJysvMzc7P0NHS09TVmVyc2lvbiAwLjFkbWYxIFJlZ3VsYXJkbWYxUmVndWxhcmc1MTdnNDg3ZzY3M2c2MDhnNjMyZzUyMWc2MDJnNzA0ZzYyMmc1MjhnNTM2ZzY4MwAAAAGLAYwBjQGOAY8BkAGRAZIBkwGUAZUBlgANAgABAAQAtQF7AfMCIQLNA2MDqAQKBGsFHAXJBon6lA4cBPL5UXkVPotIm1SqCFOqYbhvxgh4iwWL+zgF+zuLBYscBeYF90GLBYv85QWdiwWjxrO5w6sIwqrOm9mLCN+L1HjJZgjJZbtWrkYIrUacO4suCIv7XwWLMHo7aUYIaEZbVU1lCE1lQng3iwhZ9ycV5YvTqsDICMDIpd2L8QiL9y0Fi/Jx3FbJCFbIQ6kxiwgyi0VsVk8IVk5wOYskCIv7LQWLJKY6wE4IwE7RbOSLCA4cBPL4n3gVJIs3qUzHCEzGa9qL7QiL66zWzsMIzsLqqfcPkQj3vpoFi+0Fi9F3wWOxCGKwUZ5AiwhMi1d+YnEIYXFvZnxbCPs7iwWSxKG+sLYIsLa7rcakCMajzpfViwj3E4vubNFNCNFNrjSL+wQIi/16Bfs2iwWL9zkFeosFcVBiXlJsCFJrR3s8iwi89yIVwou8lreiCLairqqksgikspi2i7wIi/cZBfurfgX7L4Q+S4v7CwiLUZ9ds2oIsmnBetCLCA4cBPL44vh5FYv8eQX7OosFi/pOBfuFiwWL9xUF+CmLBYv7qAWhiwWf7rbXzb8IzL7gpfSLCKqLqYmnhwinhqKFnIQIi/tJBXKVb5NrkAhqkGyObYsI+wyLLWNIOwhIOmn7Aov7IQj35Px5Ff1liwWL9xUF+WWLBQ4cBPL654sV/heLBYv3GQX4B4sFixwE3AX8BIsFi/cZBfiuiwWLHPqfBff6iwUOHATy+Q14FSuLOJ9FsghEslXCZdMIZNN44IvsCIv3NwWL7J7gstMIsdLBw9KyCNGy3p/riwjri9530mQI0WTBU7JECLFDnjaLKgiL+zcFiyp4NmVDCGRDVVRFZAhEZDh3K4sIi/pmFS6LQmtVTQhUTHA1i/sBCIv7FwWL+wGmNcJMCMFM1Gzoiwjoi9SqwsoIwcqm4Yv3AQiL9xcFi/cBcOBVywhUykKqLosIDhwE8vrR+YIV+zyLBYHKbb5asQhasU+eRosILItDa1hMCFhMcjCL+woIiycFi/sKpDC+TAi+TNNr6osI0YvHnryxCLywqL2Vygj3PIsFffsAXTY+TAg+TChr+wuLCPsni/sHtjnhCDnhYvcMi/cuCIv3JAWL9y+09wzd4Qjd4fcHtvcniwj3DIvta9lMCNhMuDSZ+wEIDhwE8vhY+OQV+G34fwX3YosF/Ff8XgVIVAX7QvtABYv8IgX7PosFixwF5gX3PosFi/4qBfcVexX3EvMF+Gf9PAX7XosFDhwE8vrJ+s8Vi/7PBfs3iwWL91MFfYsFbkhfV09mCE5mRHk5iwj7CosxrU3QCEzPbO6L9xYIi/lTBfc+iwWL/SoFiyifQbRbCLRbyXPgiwjli9OowsUIwsWm14vqCIv5EwUOHATy91GLFYv6zwX3N4sFi/tTBZmLBajOt7/IsAjHsNKd3YsI9wqL5WnKRwjJRqooi/sWCIv9UwX7PosFi/kqBYvud9Viuwhiu02jNosIMYtDblRRCFRRcD+LLAiL/RMFDhwE8vjJeRXYi86bw6oIwqq1uKfGCJ6LBYv7OAX3O4sFixwF5gX7QYsFi/zlBXmLBXPGY7lUqwhTqkibPYsIN4tCeE1mCE1lW1ZpRghoRno7iy4Ii/tfBYswnDuuRgitRrtVyWUIyWXUeN+LCL33JxUxi0SqVsgIVshw3YvxCIv3LQWL8qbcwMkIwMjSqeWLCOSL0mzATwjATqU5iyQIi/stBYskcTpWTghWTkRsMosIDhwE8vkZ+lcVMItEbVhQCFhPcTiLIAj4z4sFi/Vy3lrHCFnHRqkziwj3rf1CFfc5iwWAUHJXZF4IY15YaU9zCE5yRn8+iwj7KYv7B7Y44Ag44GL3DIv3LgiL9zYFi+qe3rHSCLHSwcLQsgjQstuf54sI6Yvbd85jCM5jvlKvQAiuQJ0xiyIIiyUF/XeLBYthBYskpzrCTgjCTtRt54sIz4vFmbunCLumqrGavAgOHATy94L5rRWL6LDW1MQI1MTsp/cLiwj3BYvocdJXCNJXtESVMgj7OIsFgbxxsWCnCGCnVplMiwhGi1R8Ym0IYmx2YotYCItgmmmpcgipcbx2z3sI9y1pBfRz2We9XAi8W6RMiz0IiyhlPD5QCD5QJG37FYsI+w+LKKU+wQg+wGDTgugI90GLBZhYqGO5bwi4bsV90YsI1YvGm7erCLarobWLwAiLuHyvbqUIbqRaoEabCPs1sAX7V7gp7Yv3LAgOAAQAAAAE8gAABPIAAATyAAAE8gAABPIAAATyAAAE8gAABPIAAATyAAAE8gAABPIAAATyAAAAAAABAAAAAAAAAAEAEAACZW4AAA=="); }
-    :root { --scene-dur: 7.80s; }
+    :root { --scene-dur: 3.60s; }
     .f { opacity: 0; visibility: hidden; }
     
     @keyframes fv-0 {
       0% { opacity: 0; }
       0.000% { opacity: 0; }
       0.000% { opacity: 1; }
-      33.330% { opacity: 1; }
-      33.331% { opacity: 0; }
+      100.000% { opacity: 1; }
+      100.000% { opacity: 0; }
       100% { opacity: 0; }
     }
     @keyframes fd-0 {
       0% { visibility: hidden; }
       0.000% { visibility: hidden; }
       0.000% { visibility: visible; }
-      35.253% { visibility: visible; }
-      35.254% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
-    .f-0 { animation: fv-0 7.80s step-end infinite, fd-0 7.80s step-end infinite; }
-
-    @keyframes t0-rev0 { 0.00% { width: 0.01px; } 4.99% { width: 0.01px; } 5.00% { width: 12.13px; } 6.15% { width: 23.25px; } 7.31% { width: 34.38px; } 8.46% { width: 45.51px; } 9.62% { width: 56.63px; } 10.77% { width: 67.76px; } 11.92% { width: 78.89px; } 13.08% { width: 90.02px; } 14.23% { width: 101.14px; } 15.38% { width: 112.27px; } 16.54% { width: 123.40px; } 17.69% { width: 134.52px; } 18.85% { width: 145.65px; } 31.41% { width: 145.650390625px; } 32.69%, 100% { width: 0.01px; } }
-    .t0-rev0 { animation: t0-rev0 7.80s step-end infinite; }
-    @keyframes t0-vis { 0%, 3.85% { opacity: 0; } 4.23% { opacity: 1; } 31.41% { opacity: 1; } 32.69%, 100% { opacity: 0; } }
-    .t0-text { animation: t0-vis 7.80s infinite; }
-    @keyframes t0-caret-pos { 0.00% { transform: translate(0px, 0px); } 3.85% { transform: translate(0px, 0px); } 5.00% { transform: translate(11.13px, 0.00px); } 6.15% { transform: translate(22.25px, 0.00px); } 7.31% { transform: translate(33.38px, 0.00px); } 8.46% { transform: translate(44.51px, 0.00px); } 9.62% { transform: translate(55.63px, 0.00px); } 10.77% { transform: translate(66.76px, 0.00px); } 11.92% { transform: translate(77.89px, 0.00px); } 13.08% { transform: translate(89.02px, 0.00px); } 14.23% { transform: translate(100.14px, 0.00px); } 15.38% { transform: translate(111.27px, 0.00px); } 16.54% { transform: translate(122.40px, 0.00px); } 17.69% { transform: translate(133.52px, 0.00px); } 18.85% { transform: translate(144.65px, 0.00px); } 31.41%, 100% { transform: translate(144.65px, 0.00px); } }
-    @keyframes t0-caret-blink { 0%, 3.85% { opacity: 0; } 4.23% { opacity: 1; } 18.85% { opacity: 1; } 22.24% { opacity: 0; } 25.64% { opacity: 1; } 29.04% { opacity: 0; } 32.69%, 100% { opacity: 0; } }
-    .t0-caret { animation: t0-caret-pos 7.80s step-end infinite, t0-caret-blink 7.80s step-end infinite; }
-
-    @keyframes fv-1 {
-      0% { opacity: 0; }
-      33.329% { opacity: 0; }
-      33.330% { opacity: 1; }
-      66.670% { opacity: 1; }
-      66.671% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-1 {
-      0% { visibility: hidden; }
-      31.406% { visibility: hidden; }
-      31.407% { visibility: visible; }
-      68.593% { visibility: visible; }
-      68.594% { visibility: hidden; }
-      100% { visibility: hidden; }
-    }
-    .f-1 { animation: fv-1 7.80s step-end infinite, fd-1 7.80s step-end infinite; }
-
-    @keyframes t1-rev0 { 0.00% { width: 0.01px; } 38.32% { width: 0.01px; } 38.33% { width: 12.13px; } 39.49% { width: 23.25px; } 40.64% { width: 34.38px; } 41.79% { width: 45.51px; } 42.95% { width: 56.63px; } 44.10% { width: 67.76px; } 45.26% { width: 78.89px; } 46.41% { width: 90.02px; } 47.56% { width: 101.14px; } 48.72% { width: 112.27px; } 49.87% { width: 123.40px; } 51.03% { width: 134.52px; } 52.18% { width: 145.65px; } 53.33% { width: 156.78px; } 64.74% { width: 156.77734375px; } 66.03%, 100% { width: 0.01px; } }
-    .t1-rev0 { animation: t1-rev0 7.80s step-end infinite; }
-    @keyframes t1-vis { 0%, 37.18% { opacity: 0; } 37.56% { opacity: 1; } 64.74% { opacity: 1; } 66.03%, 100% { opacity: 0; } }
-    .t1-text { animation: t1-vis 7.80s infinite; }
-    @keyframes t1-caret-pos { 0.00% { transform: translate(0px, 0px); } 37.18% { transform: translate(0px, 0px); } 38.33% { transform: translate(11.13px, 0.00px); } 39.49% { transform: translate(22.25px, 0.00px); } 40.64% { transform: translate(33.38px, 0.00px); } 41.79% { transform: translate(44.51px, 0.00px); } 42.95% { transform: translate(55.63px, 0.00px); } 44.10% { transform: translate(66.76px, 0.00px); } 45.26% { transform: translate(77.89px, 0.00px); } 46.41% { transform: translate(89.02px, 0.00px); } 47.56% { transform: translate(100.14px, 0.00px); } 48.72% { transform: translate(111.27px, 0.00px); } 49.87% { transform: translate(122.40px, 0.00px); } 51.03% { transform: translate(133.52px, 0.00px); } 52.18% { transform: translate(144.65px, 0.00px); } 53.33% { transform: translate(155.78px, 0.00px); } 64.74%, 100% { transform: translate(155.78px, 0.00px); } }
-    @keyframes t1-caret-blink { 0%, 37.18% { opacity: 0; } 37.56% { opacity: 1; } 53.33% { opacity: 1; } 56.73% { opacity: 0; } 60.13% { opacity: 1; } 63.53% { opacity: 0; } 66.03%, 100% { opacity: 0; } }
-    .t1-caret { animation: t1-caret-pos 7.80s step-end infinite, t1-caret-blink 7.80s step-end infinite; }
-
-    @keyframes fv-2 {
-      0% { opacity: 0; }
-      66.669% { opacity: 0; }
-      66.670% { opacity: 1; }
-      100.000% { opacity: 1; }
-      100.000% { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    @keyframes fd-2 {
-      0% { visibility: hidden; }
-      64.746% { visibility: hidden; }
-      64.747% { visibility: visible; }
       100.000% { visibility: visible; }
       100.000% { visibility: hidden; }
       100% { visibility: hidden; }
     }
-    .f-2 { animation: fv-2 7.80s step-end infinite, fd-2 7.80s step-end infinite; }
+    .f-0 { animation: fv-0 3.60s step-end infinite, fd-0 3.60s step-end infinite; }
 
-    @keyframes t2-rev0 { 0.00% { width: 0.01px; } 71.66% { width: 0.01px; } 71.67% { width: 12.13px; } 72.82% { width: 23.25px; } 73.97% { width: 34.38px; } 75.13% { width: 45.51px; } 76.28% { width: 56.63px; } 77.44% { width: 67.76px; } 78.59% { width: 78.89px; } 79.74% { width: 90.02px; } 80.90% { width: 101.14px; } 82.05% { width: 112.27px; } 83.21% { width: 123.40px; } 84.36% { width: 134.52px; } 85.51% { width: 145.65px; } 86.67% { width: 156.78px; } 87.82% { width: 167.90px; } 88.97% { width: 179.03px; } 98.08% { width: 179.03125px; } 99.36%, 100% { width: 0.01px; } }
-    .t2-rev0 { animation: t2-rev0 7.80s step-end infinite; }
-    @keyframes t2-vis { 0%, 70.51% { opacity: 0; } 70.90% { opacity: 1; } 98.08% { opacity: 1; } 99.36%, 100% { opacity: 0; } }
-    .t2-text { animation: t2-vis 7.80s infinite; }
-    @keyframes t2-caret-pos { 0.00% { transform: translate(0px, 0px); } 70.51% { transform: translate(0px, 0px); } 71.67% { transform: translate(11.13px, 0.00px); } 72.82% { transform: translate(22.25px, 0.00px); } 73.97% { transform: translate(33.38px, 0.00px); } 75.13% { transform: translate(44.51px, 0.00px); } 76.28% { transform: translate(55.63px, 0.00px); } 77.44% { transform: translate(66.76px, 0.00px); } 78.59% { transform: translate(77.89px, 0.00px); } 79.74% { transform: translate(89.02px, 0.00px); } 80.90% { transform: translate(100.14px, 0.00px); } 82.05% { transform: translate(111.27px, 0.00px); } 83.21% { transform: translate(122.40px, 0.00px); } 84.36% { transform: translate(133.52px, 0.00px); } 85.51% { transform: translate(144.65px, 0.00px); } 86.67% { transform: translate(155.78px, 0.00px); } 87.82% { transform: translate(166.90px, 0.00px); } 88.97% { transform: translate(178.03px, 0.00px); } 98.08%, 100% { transform: translate(178.03px, 0.00px); } }
-    @keyframes t2-caret-blink { 0%, 70.51% { opacity: 0; } 70.90% { opacity: 1; } 88.97% { opacity: 1; } 92.37% { opacity: 0; } 95.77% { opacity: 1; } 99.36%, 100% { opacity: 0; } }
-    .t2-caret { animation: t2-caret-pos 7.80s step-end infinite, t2-caret-blink 7.80s step-end infinite; }
+    @keyframes t0-rev0 { 0.00% { width: 0.01px; } 11.38% { width: 0.01px; } 11.39% { width: 12.13px; } 14.44% { width: 23.25px; } 17.50% { width: 34.38px; } 20.56% { width: 45.51px; } 23.61% { width: 56.63px; } 26.67% { width: 67.76px; } 29.72% { width: 78.89px; } 32.78% { width: 90.02px; } 35.83% { width: 101.14px; } 38.89% { width: 112.27px; } 41.94% { width: 123.40px; } 45.00% { width: 134.52px; } 48.06% { width: 145.65px; } 95.83% { width: 145.650390625px; } 98.61%, 100% { width: 0.01px; } }
+    .t0-rev0 { animation: t0-rev0 3.60s step-end infinite; }
+    @keyframes t0-vis { 0%, 8.33% { opacity: 0; } 9.17% { opacity: 1; } 95.83% { opacity: 1; } 98.61%, 100% { opacity: 0; } }
+    .t0-text { animation: t0-vis 3.60s infinite; }
+    @keyframes t0-caret-pos { 0.00% { transform: translate(0px, 0px); } 8.33% { transform: translate(0px, 0px); } 11.39% { transform: translate(11.13px, 0.00px); } 14.44% { transform: translate(22.25px, 0.00px); } 17.50% { transform: translate(33.38px, 0.00px); } 20.56% { transform: translate(44.51px, 0.00px); } 23.61% { transform: translate(55.63px, 0.00px); } 26.67% { transform: translate(66.76px, 0.00px); } 29.72% { transform: translate(77.89px, 0.00px); } 32.78% { transform: translate(89.02px, 0.00px); } 35.83% { transform: translate(100.14px, 0.00px); } 38.89% { transform: translate(111.27px, 0.00px); } 41.94% { transform: translate(122.40px, 0.00px); } 45.00% { transform: translate(133.52px, 0.00px); } 48.06% { transform: translate(144.65px, 0.00px); } 95.83%, 100% { transform: translate(144.65px, 0.00px); } }
+    @keyframes t0-caret-blink { 0%, 8.33% { opacity: 0; } 9.17% { opacity: 1; } 48.06% { opacity: 1; } 55.42% { opacity: 0; } 62.78% { opacity: 1; } 70.14% { opacity: 0; } 77.50% { opacity: 1; } 84.86% { opacity: 0; } 92.22% { opacity: 1; } 98.61%, 100% { opacity: 0; } }
+    .t0-caret { animation: t0-caret-pos 3.60s step-end infinite, t0-caret-blink 3.60s step-end infinite; }
+
+    @keyframes t0_1-rev0 { 0.00% { width: 0.01px; } 11.38% { width: 0.01px; } 11.39% { width: 12.13px; } 14.44% { width: 23.25px; } 17.50% { width: 34.38px; } 20.56% { width: 45.51px; } 23.61% { width: 56.63px; } 26.67% { width: 67.76px; } 29.72% { width: 78.89px; } 32.78% { width: 90.02px; } 35.83% { width: 101.14px; } 38.89% { width: 112.27px; } 41.94% { width: 123.40px; } 45.00% { width: 134.52px; } 48.06% { width: 145.65px; } 51.11% { width: 156.78px; } 95.83% { width: 156.77734375px; } 98.61%, 100% { width: 0.01px; } }
+    .t0_1-rev0 { animation: t0_1-rev0 3.60s step-end infinite; }
+    @keyframes t0_1-vis { 0%, 8.33% { opacity: 0; } 9.17% { opacity: 1; } 95.83% { opacity: 1; } 98.61%, 100% { opacity: 0; } }
+    .t0_1-text { animation: t0_1-vis 3.60s infinite; }
+    @keyframes t0_1-caret-pos { 0.00% { transform: translate(0px, 0px); } 8.33% { transform: translate(0px, 0px); } 11.39% { transform: translate(11.13px, 0.00px); } 14.44% { transform: translate(22.25px, 0.00px); } 17.50% { transform: translate(33.38px, 0.00px); } 20.56% { transform: translate(44.51px, 0.00px); } 23.61% { transform: translate(55.63px, 0.00px); } 26.67% { transform: translate(66.76px, 0.00px); } 29.72% { transform: translate(77.89px, 0.00px); } 32.78% { transform: translate(89.02px, 0.00px); } 35.83% { transform: translate(100.14px, 0.00px); } 38.89% { transform: translate(111.27px, 0.00px); } 41.94% { transform: translate(122.40px, 0.00px); } 45.00% { transform: translate(133.52px, 0.00px); } 48.06% { transform: translate(144.65px, 0.00px); } 51.11% { transform: translate(155.78px, 0.00px); } 95.83%, 100% { transform: translate(155.78px, 0.00px); } }
+    @keyframes t0_1-caret-blink { 0%, 8.33% { opacity: 0; } 9.17% { opacity: 1; } 51.11% { opacity: 1; } 58.47% { opacity: 0; } 65.83% { opacity: 1; } 73.19% { opacity: 0; } 80.56% { opacity: 1; } 87.92% { opacity: 0; } 95.28% { opacity: 1; } 98.61%, 100% { opacity: 0; } }
+    .t0_1-caret { animation: t0_1-caret-pos 3.60s step-end infinite, t0_1-caret-blink 3.60s step-end infinite; }
+
+    @keyframes t0_2-rev0 { 0.00% { width: 0.01px; } 11.38% { width: 0.01px; } 11.39% { width: 12.13px; } 14.44% { width: 23.25px; } 17.50% { width: 34.38px; } 20.56% { width: 45.51px; } 23.61% { width: 56.63px; } 26.67% { width: 67.76px; } 29.72% { width: 78.89px; } 32.78% { width: 90.02px; } 35.83% { width: 101.14px; } 38.89% { width: 112.27px; } 41.94% { width: 123.40px; } 45.00% { width: 134.52px; } 48.06% { width: 145.65px; } 51.11% { width: 156.78px; } 54.17% { width: 167.90px; } 57.22% { width: 179.03px; } 95.83% { width: 179.03125px; } 98.61%, 100% { width: 0.01px; } }
+    .t0_2-rev0 { animation: t0_2-rev0 3.60s step-end infinite; }
+    @keyframes t0_2-vis { 0%, 8.33% { opacity: 0; } 9.17% { opacity: 1; } 95.83% { opacity: 1; } 98.61%, 100% { opacity: 0; } }
+    .t0_2-text { animation: t0_2-vis 3.60s infinite; }
+    @keyframes t0_2-caret-pos { 0.00% { transform: translate(0px, 0px); } 8.33% { transform: translate(0px, 0px); } 11.39% { transform: translate(11.13px, 0.00px); } 14.44% { transform: translate(22.25px, 0.00px); } 17.50% { transform: translate(33.38px, 0.00px); } 20.56% { transform: translate(44.51px, 0.00px); } 23.61% { transform: translate(55.63px, 0.00px); } 26.67% { transform: translate(66.76px, 0.00px); } 29.72% { transform: translate(77.89px, 0.00px); } 32.78% { transform: translate(89.02px, 0.00px); } 35.83% { transform: translate(100.14px, 0.00px); } 38.89% { transform: translate(111.27px, 0.00px); } 41.94% { transform: translate(122.40px, 0.00px); } 45.00% { transform: translate(133.52px, 0.00px); } 48.06% { transform: translate(144.65px, 0.00px); } 51.11% { transform: translate(155.78px, 0.00px); } 54.17% { transform: translate(166.90px, 0.00px); } 57.22% { transform: translate(178.03px, 0.00px); } 95.83%, 100% { transform: translate(178.03px, 0.00px); } }
+    @keyframes t0_2-caret-blink { 0%, 8.33% { opacity: 0; } 9.17% { opacity: 1; } 57.22% { opacity: 1; } 64.58% { opacity: 0; } 71.94% { opacity: 1; } 79.31% { opacity: 0; } 86.67% { opacity: 1; } 94.03% { opacity: 0; } 98.61%, 100% { opacity: 0; } }
+    .t0_2-caret { animation: t0_2-caret-pos 3.60s step-end infinite, t0_2-caret-blink 3.60s step-end infinite; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">
@@ -99,27 +63,11 @@
   <defs><clipPath id="t0-clip0"><rect class="t0-rev0" x="210" y="88" width="0.01px" height="22" /></clipPath></defs>
   <g class="t0-text" clip-path="url(#t0-clip0)"><g transform="translate(210,106)" fill="#e6edf3" role="img" aria-label="insertion bar"><title>insertion bar</title><g transform="scale(0.00879,-0.00879)"><use href="#g0" x="0" y="0"/><use href="#g1" x="1266" y="0"/><use href="#g2" x="2532" y="0"/><use href="#g3" x="3798" y="0"/><use href="#g4" x="5064" y="0"/><use href="#g5" x="6330" y="0"/><use href="#g0" x="7596" y="0"/><use href="#g6" x="8862" y="0"/><use href="#g1" x="10128" y="0"/><use href="#g7" x="12660" y="0"/><use href="#g8" x="13926" y="0"/><use href="#g4" x="15192" y="0"/></g></g></g>
   <rect class="t0-caret" x="210" y="88.60" width="2" height="21" fill="#58ff9b" />
-  <g class="f f-1">
-  <defs><clipPath id="f1-ct0"><rect x="40" y="28" width="640" height="21" /></clipPath><clipPath id="f1-ct1"><rect x="40" y="71" width="130" height="18" /></clipPath><clipPath id="f1-ct2"><rect x="40" y="115" width="130" height="18" /></clipPath><clipPath id="f1-ct3"><rect x="40" y="159" width="130" height="18" /></clipPath></defs>
-  <rect x="0" y="0" width="720" height="260" rx="0" fill="rgb(13,17,23)" />
-    <g role="img" aria-label="caret-shape"><title>caret-shape</title><text x="40 51.3 62.61 73.91 85.22 96.53 107.83 119.14 130.45 141.75 153.06" y="45" font-family="dmf0" font-size="18" font-weight="600" fill="rgb(230,237,243)"></text></g>
-  <g role="img" aria-label="bar"><title>bar</title><text x="40 49.27 58.53" y="85" font-family="dmf1" font-size="15" fill="rgb(88,166,255)"></text></g>
-  <g role="img" aria-label="block"><title>block</title><text x="40 49.27 58.53 67.81 77.08" y="129" font-family="dmf1" font-size="15" fill="rgb(88,166,255)"></text></g>
-  <g role="img" aria-label="underscore"><title>underscore</title><text x="40 49.27 58.53 67.81 77.08 86.36 95.63 104.91 114.17 123.44" y="173" font-family="dmf1" font-size="15" fill="rgb(88,166,255)"></text></g>
-  </g>
-  <defs><clipPath id="t1-clip0"><rect class="t1-rev0" x="210" y="132" width="0.01px" height="22" /></clipPath></defs>
-  <g class="t1-text" clip-path="url(#t1-clip0)"><g transform="translate(210,150)" fill="#e6edf3" role="img" aria-label="terminal block"><title>terminal block</title><g transform="scale(0.00879,-0.00879)"><use href="#g5" x="0" y="0"/><use href="#g3" x="1266" y="0"/><use href="#g4" x="2532" y="0"/><use href="#g9" x="3798" y="0"/><use href="#g0" x="5064" y="0"/><use href="#g1" x="6330" y="0"/><use href="#g8" x="7596" y="0"/><use href="#g10" x="8862" y="0"/><use href="#g7" x="11394" y="0"/><use href="#g10" x="12660" y="0"/><use href="#g6" x="13926" y="0"/><use href="#g11" x="15192" y="0"/><use href="#g12" x="16458" y="0"/></g></g></g>
-  <rect class="t1-caret" x="210" y="132.60" width="11.13" height="21" fill="#58ff9b" fill-opacity="0.5" />
-  <g class="f f-2">
-  <defs><clipPath id="f2-ct0"><rect x="40" y="28" width="640" height="21" /></clipPath><clipPath id="f2-ct1"><rect x="40" y="71" width="130" height="18" /></clipPath><clipPath id="f2-ct2"><rect x="40" y="115" width="130" height="18" /></clipPath><clipPath id="f2-ct3"><rect x="40" y="159" width="130" height="18" /></clipPath></defs>
-  <rect x="0" y="0" width="720" height="260" rx="0" fill="rgb(13,17,23)" />
-    <g role="img" aria-label="caret-shape"><title>caret-shape</title><text x="40 51.3 62.61 73.91 85.22 96.53 107.83 119.14 130.45 141.75 153.06" y="45" font-family="dmf0" font-size="18" font-weight="600" fill="rgb(230,237,243)"></text></g>
-  <g role="img" aria-label="bar"><title>bar</title><text x="40 49.27 58.53" y="85" font-family="dmf1" font-size="15" fill="rgb(88,166,255)"></text></g>
-  <g role="img" aria-label="block"><title>block</title><text x="40 49.27 58.53 67.81 77.08" y="129" font-family="dmf1" font-size="15" fill="rgb(88,166,255)"></text></g>
-  <g role="img" aria-label="underscore"><title>underscore</title><text x="40 49.27 58.53 67.81 77.08 86.36 95.63 104.91 114.17 123.44" y="173" font-family="dmf1" font-size="15" fill="rgb(88,166,255)"></text></g>
-  </g>
-  <defs><clipPath id="t2-clip0"><rect class="t2-rev0" x="210" y="176" width="0.01px" height="22" /></clipPath></defs>
-  <g class="t2-text" clip-path="url(#t2-clip0)"><g transform="translate(210,194)" fill="#e6edf3" role="img" aria-label="retro underscore"><title>retro underscore</title><g transform="scale(0.00879,-0.00879)"><use href="#g4" x="0" y="0"/><use href="#g3" x="1266" y="0"/><use href="#g5" x="2532" y="0"/><use href="#g4" x="3798" y="0"/><use href="#g6" x="5064" y="0"/><use href="#g13" x="7596" y="0"/><use href="#g1" x="8862" y="0"/><use href="#g14" x="10128" y="0"/><use href="#g3" x="11394" y="0"/><use href="#g4" x="12660" y="0"/><use href="#g2" x="13926" y="0"/><use href="#g11" x="15192" y="0"/><use href="#g6" x="16458" y="0"/><use href="#g4" x="17724" y="0"/><use href="#g3" x="18990" y="0"/></g></g></g>
-  <rect class="t2-caret" x="210" y="194.00" width="11.13" height="2" fill="#58ff9b" />
+  <defs><clipPath id="t0_1-clip0"><rect class="t0_1-rev0" x="210" y="132" width="0.01px" height="22" /></clipPath></defs>
+  <g class="t0_1-text" clip-path="url(#t0_1-clip0)"><g transform="translate(210,150)" fill="#e6edf3" role="img" aria-label="terminal block"><title>terminal block</title><g transform="scale(0.00879,-0.00879)"><use href="#g5" x="0" y="0"/><use href="#g3" x="1266" y="0"/><use href="#g4" x="2532" y="0"/><use href="#g9" x="3798" y="0"/><use href="#g0" x="5064" y="0"/><use href="#g1" x="6330" y="0"/><use href="#g8" x="7596" y="0"/><use href="#g10" x="8862" y="0"/><use href="#g7" x="11394" y="0"/><use href="#g10" x="12660" y="0"/><use href="#g6" x="13926" y="0"/><use href="#g11" x="15192" y="0"/><use href="#g12" x="16458" y="0"/></g></g></g>
+  <rect class="t0_1-caret" x="210" y="132.60" width="11.13" height="21" fill="#58ff9b" fill-opacity="0.5" />
+  <defs><clipPath id="t0_2-clip0"><rect class="t0_2-rev0" x="210" y="176" width="0.01px" height="22" /></clipPath></defs>
+  <g class="t0_2-text" clip-path="url(#t0_2-clip0)"><g transform="translate(210,194)" fill="#e6edf3" role="img" aria-label="retro underscore"><title>retro underscore</title><g transform="scale(0.00879,-0.00879)"><use href="#g4" x="0" y="0"/><use href="#g3" x="1266" y="0"/><use href="#g5" x="2532" y="0"/><use href="#g4" x="3798" y="0"/><use href="#g6" x="5064" y="0"/><use href="#g13" x="7596" y="0"/><use href="#g1" x="8862" y="0"/><use href="#g14" x="10128" y="0"/><use href="#g3" x="11394" y="0"/><use href="#g4" x="12660" y="0"/><use href="#g2" x="13926" y="0"/><use href="#g11" x="15192" y="0"/><use href="#g6" x="16458" y="0"/><use href="#g4" x="17724" y="0"/><use href="#g3" x="18990" y="0"/></g></g></g>
+  <rect class="t0_2-caret" x="210" y="194.00" width="11.13" height="2" fill="#58ff9b" />
   </g>
 </svg>

@@ -5,26 +5,12 @@
   "frames": [
     {
       "input": "./caret-shapes.html",
-      "duration": 2600,
+      "duration": 3600,
       "transition": { "type": "cut", "duration": 0 },
       "overlays": [
-        { "kind": "typing", "text": "insertion bar", "x": 210, "y": 106, "fontSize": 18, "color": "#e6edf3", "speed": 90, "caret": { "shape": "bar", "color": "#58ff9b" } }
-      ]
-    },
-    {
-      "input": "./caret-shapes.html",
-      "duration": 2600,
-      "transition": { "type": "cut", "duration": 0 },
-      "overlays": [
-        { "kind": "typing", "text": "terminal block", "x": 210, "y": 150, "fontSize": 18, "color": "#e6edf3", "speed": 90, "caret": { "shape": "block", "color": "#58ff9b" } }
-      ]
-    },
-    {
-      "input": "./caret-shapes.html",
-      "duration": 2600,
-      "transition": { "type": "cut", "duration": 0 },
-      "overlays": [
-        { "kind": "typing", "text": "retro underscore", "x": 210, "y": 194, "fontSize": 18, "color": "#e6edf3", "speed": 90, "caret": { "shape": "underscore", "color": "#58ff9b" } }
+        { "kind": "typing", "text": "insertion bar", "x": 210, "y": 106, "fontSize": 18, "color": "#e6edf3", "speed": 110, "caret": { "shape": "bar", "color": "#58ff9b" } },
+        { "kind": "typing", "text": "terminal block", "x": 210, "y": 150, "fontSize": 18, "color": "#e6edf3", "speed": 110, "caret": { "shape": "block", "color": "#58ff9b" } },
+        { "kind": "typing", "text": "retro underscore", "x": 210, "y": 194, "fontSize": 18, "color": "#e6edf3", "speed": 110, "caret": { "shape": "underscore", "color": "#58ff9b" } }
       ]
     }
   ]

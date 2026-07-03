@@ -995,29 +995,39 @@ function emitFrameOverlays(
   const groups: string[] = [];
   const keyframes: string[] = [];
   if (frame.overlays != null) {
+    // DM-1596: every overlay's id/class is suffixed with `idBase` so its
+    // `@keyframes` + classes are unique. Two overlays of the SAME kind in ONE
+    // frame used to collide (both keyed by the frame index `i` alone), so only
+    // one revealed. Keep the byte-identical `${i}` for the FIRST overlay of each
+    // kind and disambiguate later ones with `${i}_${n}` — no existing single-
+    // overlay golden shifts, and same-frame overlays no longer clash.
+    const kindSeq: Record<string, number> = {};
     for (const overlay of frame.overlays) {
+      const n = kindSeq[overlay.kind] ?? 0;
+      kindSeq[overlay.kind] = n + 1;
+      const idBase = n === 0 ? `${i}` : `${i}_${n}`;
       if (overlay.kind === "typing") {
-        const { svgMarkup, css } = renderTypingOverlay(overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderTypingOverlay(overlay, idBase, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "tap") {
-        const { svgMarkup, css } = renderTapOverlay(overlay, i, timeOffset, totalDuration, totalSec);
+        const { svgMarkup, css } = renderTapOverlay(overlay, idBase, timeOffset, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "svg") {
-        const { svgMarkup, css } = renderSvgOverlay(overlay, i, timeOffset, frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderSvgOverlay(overlay, idBase, timeOffset, frame.duration, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "blink") {
-        const { svgMarkup, css } = renderBlinkOverlay(overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderBlinkOverlay(overlay, idBase, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "shine") {
-        const { svgMarkup, css } = renderShineOverlay(overlay, i, timeOffset, frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderShineOverlay(overlay, idBase, timeOffset, frame.duration, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       } else if (overlay.kind === "interact") {
-        const { svgMarkup, css } = renderInteractOverlay(overlay, i, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
+        const { svgMarkup, css } = renderInteractOverlay(overlay, idBase, timeOffset, timeOffset + frame.duration, totalDuration, totalSec);
         groups.push(svgMarkup);
         keyframes.push(css);
       }
@@ -1856,7 +1866,7 @@ function buildTypingMistakes(
 
 function renderTypingOverlay(
   overlay: TypingOverlay,
-  frameIdx: number,
+  idBase: string,
   frameStart: number,
   frameEnd: number,
   totalDuration: number,
@@ -1882,7 +1892,7 @@ function renderTypingOverlay(
   const lineHeight = Math.round(fontSize * 1.35);
   const color = overlay.color ?? "#e6edf3";
   const typeStartMs = frameStart + delay;
-  const id = `t${frameIdx}`;
+  const id = `t${idBase}`;
 
   // DM-840 / DM-1134: wrap to `wrapWidth` so typed text behaves like a browser
   // field (textarea) — wrapping to the next line instead of running off the
@@ -1990,7 +2000,7 @@ function renderTypingOverlay(
 
 function renderTapOverlay(
   overlay: TapOverlay,
-  frameIdx: number,
+  idBase: string,
   frameStart: number,
   totalDuration: number,
   totalSec: number,
@@ -1998,7 +2008,7 @@ function renderTapOverlay(
   const delay = overlay.delay ?? DEFAULT_TAP_DELAY_MS;
   const tapMs = frameStart + delay;
   const rippleDur = 500;
-  const id = `tap${frameIdx}`;
+  const id = `tap${idBase}`;
 
   const tapStartPct = pct(tapMs, totalDuration);
   const tapPeakPct = pct(tapMs + rippleDur * 0.3, totalDuration);
@@ -2026,7 +2036,7 @@ function renderTapOverlay(
  */
 function renderShineOverlay(
   overlay: ShineOverlay,
-  frameIdx: number,
+  idBase: string,
   frameStart: number,
   frameHoldMs: number,
   totalDuration: number,
@@ -2036,7 +2046,7 @@ function renderShineOverlay(
   const duration = overlay.duration ?? 900;
   const sweepStartMs = frameStart + delay;
   const sweep = buildShineSweep({
-    id: `sh${frameIdx}`,
+    id: `sh${idBase}`,
     x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height,
     startPct: pct(sweepStartMs, totalDuration),
     endPct: pct(Math.min(frameStart + frameHoldMs, sweepStartMs + duration), totalDuration),
@@ -2056,13 +2066,13 @@ function renderShineOverlay(
 
 function renderBlinkOverlay(
   overlay: BlinkOverlay,
-  frameIdx: number,
+  idBase: string,
   frameStart: number,
   frameEnd: number,
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
-  const id = `blink${frameIdx}`;
+  const id = `blink${idBase}`;
   const period = overlay.periodMs ?? DEFAULT_BLINK_PERIOD_MS;
   const color = overlay.color ?? "#e6edf3";
   const startMs = frameStart + (overlay.delay ?? 0);
@@ -2108,13 +2118,13 @@ const INTERACT_DEFAULTS: Record<"hover" | "focus" | "press", { fill: string; fil
  */
 function renderInteractOverlay(
   overlay: InteractOverlay,
-  frameIdx: number,
+  idBase: string,
   frameStart: number,
   frameEnd: number,
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
-  const id = `ix${frameIdx}`;
+  const id = `ix${idBase}`;
   const treatment = overlay.treatment ?? "hover";
   const d = INTERACT_DEFAULTS[treatment];
   const fill = overlay.fill ?? d.fill;
@@ -2325,13 +2335,13 @@ function slideKeyframes(
  */
 function renderSvgOverlay(
   overlay: SvgOverlay,
-  frameIdx: number,
+  idBase: string,
   frameStart: number,
   frameHoldMs: number,
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
-  const id = `ov-${frameIdx}-${overlay.animId}`;
+  const id = `ov-${idBase}-${overlay.animId}`;
   const clipId = `${id}-clip`;
   const visibilityId = `${id}-vis`;
   const overlayEnd = frameStart + frameHoldMs;
