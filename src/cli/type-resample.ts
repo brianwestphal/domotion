@@ -135,10 +135,19 @@ async function measureCaret(page: Page, selector: string): Promise<CaretRect | n
       return Number.isFinite(n) ? n : 0;
     };
     const fontSize = num(cs.fontSize) || 16;
+    const caretHeight = Math.round(fontSize * 1.2);
     const x = r.left + num(cs.borderLeftWidth) + num(cs.paddingLeft) + textW - el.scrollLeft;
-    const y = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
+    // Content box (inside border + padding). A single-line <input> vertically
+    // CENTERS its text within this box, so the caret must center too — pinning it
+    // to the content top (paddingTop) left it high/misaligned vs the centered text.
+    // A <textarea> lays text from the top, so keep the caret at the content top there.
+    const contentTop = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
+    const contentHeight = r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom);
+    const y = el instanceof HTMLTextAreaElement
+      ? contentTop
+      : contentTop + Math.max(0, (contentHeight - caretHeight) / 2);
     const caretColor = cs.caretColor && cs.caretColor !== "auto" ? cs.caretColor : cs.color;
-    return { x, y, height: Math.round(fontSize * 1.2), color: caretColor };
+    return { x, y, height: caretHeight, color: caretColor };
   }, selector);
 }
 
