@@ -206,6 +206,14 @@ Verified in the rasterized SVG: `fontFamily: "Georgia, serif"` on a `wrapWidth:
 line than the monospace default's three), paints a proportional serif, and
 mid-type the caret sits flush against the wide `W`.
 
+**Auto-resolve from the anchored field (DM-1579).** The sentinel
+`fontFamily: "anchor"` adopts the anchored field's own computed `font-family`
+(and its `font-size`, unless an explicit `fontSize` is set) during capture — so a
+"type into this real field" overlay matches the field's font without the author
+restating it. It reuses the same anchor-resolution path as `anchor` / `maxWidth:
+"anchor"` (`resolveAnchoredOverlays`, which now also measures the element's
+`font-family`/`font-size`) and requires an `anchor`.
+
 ## v2 — per-keystroke real-site re-sampling (shipped, DM-1556)
 
 The `typing` overlay above SYNTHESIZES the field's text: it paints a monospace

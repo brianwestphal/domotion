@@ -79,6 +79,11 @@ export const typingOverlaySchema = z.object({
    * glyph paths (DM-1557) driven by the family's measured per-glyph advances.
    * A first-choice family that can't be resolved falls back through the stack;
    * if nothing resolves the reveal degrades to a native `<text>` element.
+   *
+   * DM-1579: the sentinel `"anchor"` auto-resolves the family (and, unless an
+   * explicit `fontSize` is set, the size) from the overlay's anchored field's
+   * computed font — so "type into this real field" matches the field's own font.
+   * Requires an `anchor`.
    */
   fontFamily: z.string().optional(),
   color: z.string().optional(),

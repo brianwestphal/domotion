@@ -56,7 +56,7 @@ export type AnchoredOverlay =
  * px, used to auto-round a `shine` overlay's clip (DM-1549/DM-1551) or an
  * `interact` overlay's fill/ring (DM-1565) to the anchored element's corners.
  */
-interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number }
+interface AnchorBox { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily: string; fontSize: number }
 
 /**
  * Structural shape the shared engine resolves over. Both the public
@@ -76,6 +76,9 @@ interface AnchorableOverlay {
   radius?: number;
   anchor?: OverlayAnchor;
   maxWidth?: "anchor" | number;
+  /** Typing overlay: `"anchor"` auto-resolves the font from the anchored field (DM-1579). */
+  fontFamily?: string;
+  fontSize?: number;
 }
 
 /**
@@ -98,7 +101,11 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
   for (const ov of overlays) {
     const anchor = ov.anchor;
     const maxWidth = ov.kind === "typing" ? ov.maxWidth : undefined;
-    if (anchor == null && maxWidth == null) {
+    // DM-1579: a typing overlay with `fontFamily: "anchor"` adopts the anchored
+    // field's own computed font (family + size), so "type into this real field"
+    // matches without restating the font.
+    const fontFromAnchor = ov.kind === "typing" && ov.fontFamily === "anchor";
+    if (anchor == null && maxWidth == null && !fontFromAnchor) {
       out.push(ov);
       continue;
     }
@@ -118,6 +125,10 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
           // The computed top-left border-radius (px), to auto-round a `shine`
           // overlay's clip (DM-1549/DM-1551) or `interact` fill/ring (DM-1565).
           borderRadius: parseFloat(cs.borderTopLeftRadius) || 0,
+          // The field's own font (DM-1579) — a typing overlay's `fontFamily:
+          // "anchor"` adopts it so the typed text matches the real field.
+          fontFamily: cs.fontFamily,
+          fontSize: parseFloat(cs.fontSize) || 16,
         };
       }, anchor.selector);
       if (box == null) throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no element`);
@@ -153,6 +164,13 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
       } else {
         resolved.wrapWidth = maxWidth;
       }
+    }
+    if (fontFromAnchor) {
+      // DM-1579: adopt the anchored field's font family, and its font SIZE too
+      // unless the overlay pinned an explicit size.
+      if (box == null) throw new Error(`${label(ov.kind)} fontFamily:"anchor" requires an anchor`);
+      resolved.fontFamily = box.fontFamily;
+      if (ov.fontSize == null) resolved.fontSize = box.fontSize;
     }
     out.push(resolved);
   }

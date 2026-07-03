@@ -13,10 +13,10 @@ import { resolveOverlays } from "./resolve-overlays.js";
 // A stub Page whose `evaluate` returns a fixed anchor box (border box 50,60
 // 200×100, content width 176, border-radius 12), standing in for the
 // page.evaluate measurement.
-const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number } | null): Page =>
+const stubPage = (box: { x: number; y: number; width: number; height: number; contentWidth: number; borderRadius: number; fontFamily?: string; fontSize?: number } | null): Page =>
   ({ evaluate: async () => box }) as unknown as Page;
 
-const BOX = { x: 50, y: 60, width: 200, height: 100, contentWidth: 176, borderRadius: 12 };
+const BOX = { x: 50, y: 60, width: 200, height: 100, contentWidth: 176, borderRadius: 12, fontFamily: "Georgia, serif", fontSize: 22 };
 
 describe("resolveOverlays (DM-1132)", () => {
   it("resolves a typing overlay's anchor + maxWidth:'anchor' and strips the authoring keys", async () => {
@@ -79,6 +79,26 @@ describe("resolveOverlays (DM-1132)", () => {
     const input = { kind: "shine" as const, x: 5, y: 6, width: 100, height: 20, radius: 10 };
     const [ov] = await resolveOverlays(stubPage(BOX), [input] as never);
     expect(ov).toEqual(input);
+  });
+
+  it("DM-1579: typing fontFamily:'anchor' adopts the field's font (family + size)", async () => {
+    const [ov] = await resolveOverlays(stubPage(BOX), [
+      { kind: "typing", text: "hi", fontFamily: "anchor", anchor: { selector: "#f" } } as never,
+    ]);
+    expect(ov).toMatchObject({ kind: "typing", fontFamily: "Georgia, serif", fontSize: 22 });
+  });
+
+  it("DM-1579: an explicit fontSize wins over the anchored field's size", async () => {
+    const [ov] = await resolveOverlays(stubPage(BOX), [
+      { kind: "typing", text: "hi", fontFamily: "anchor", fontSize: 40, anchor: { selector: "#f" } } as never,
+    ]);
+    expect(ov).toMatchObject({ fontFamily: "Georgia, serif", fontSize: 40 });
+  });
+
+  it("DM-1579: fontFamily:'anchor' without an anchor throws a clear error", async () => {
+    await expect(
+      resolveOverlays(stubPage(null), [{ kind: "typing", text: "x", fontFamily: "anchor" } as never]),
+    ).rejects.toThrow(/fontFamily:"anchor" requires an anchor/);
   });
 
   it("DM-1574: the return type includes shine + interact overlays (kind-narrowing compiles)", async () => {
