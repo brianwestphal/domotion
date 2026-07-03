@@ -1914,7 +1914,18 @@ export function expandHoverReveal(cfg: AnimateConfig, log: (msg: string) => void
     };
     newFrames.push(restFrame, hoverFrame);
     if (hr.cursor !== false) {
-      injectedCursorEvents.push({ frame: hoverIdx, at: 0, type: "move", selector: hr.selector });
+      // DM-1586: glide the cursor onto the element DURING the rest frame so it's
+      // settled on the target when the hover crossfade begins. Injecting the move
+      // on the hover frame (at 0) instead makes the pointer depart the same instant
+      // the paint starts, so the element reaches full hover before the cursor lands.
+      // Arrive at the rest frame's end (= the hover frame's start).
+      const restIdx = hoverIdx - 1;
+      injectedCursorEvents.push({
+        frame: restIdx,
+        at: Math.max(0, (restFrame.duration ?? 0) - CURSOR_MOVE_DUR_MS),
+        type: "move",
+        selector: hr.selector,
+      });
     }
   });
   const cursor = mergeInjectedCursorEvents(cfg.cursor, restIndexForOld, injectedCursorEvents, log, "hoverReveal");
@@ -2020,13 +2031,19 @@ async function expandHoverDetect(
 
     const frameIdx = newFrames.length;
     if (hd.cursor !== false) {
-      // Motion mode has one frame (cursor on it); paint mode's reveal frame is next.
-      const cursorFrame = mode === "motion" ? frameIdx : frameIdx + 1;
-      injectedCursorEvents.push({ frame: cursorFrame, at: 0, type: "move", selector: hd.selector });
+      // DM-1586: land the cursor on the target BEFORE the hover reveal fires.
+      // Motion mode is a single frame — glide the cursor in from the start and
+      // DELAY the tween by the glide (below) so it reacts after the pointer lands.
+      // Paint mode has a rest frame (frameIdx) then a reveal frame — glide the
+      // cursor during the rest frame so it arrives as the crossfade begins.
+      const cursorAt = mode === "motion" ? 0 : Math.max(0, f.duration - CURSOR_MOVE_DUR_MS);
+      injectedCursorEvents.push({ frame: frameIdx, at: cursorAt, type: "move", selector: hd.selector });
     }
 
     if (mode === "motion") {
-      const anims = synthesizeMotionAnimations(diff, hd.selector, transitionMs);
+      // DM-1586: hold the tween until the cursor has glided in (when a cursor was injected).
+      const tweenDelay = hd.cursor !== false ? CURSOR_MOVE_DUR_MS : 0;
+      const anims = synthesizeMotionAnimations(diff, hd.selector, transitionMs, tweenDelay);
       const frame: AnimateFrameCfg = { ...f, animations: [...(f.animations ?? []), ...anims] };
       delete (frame as { hoverDetect?: unknown }).hoverDetect;
       newFrames.push(frame);
@@ -2059,10 +2076,12 @@ async function expandHoverDetect(
  * `opacity` fused in; an opacity-only change becomes a plain opacity tween. The
  * caller has already guaranteed clean baselines via `classifyHoverTransition`.
  */
-function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationMs: number): Anims {
+function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationMs: number, delayMs = 0): Anims {
   const target = diff.motion.filter((d) => d.key === "");
   const transform = target.find((d) => d.property === "transform");
   const opacity = target.find((d) => d.property === "opacity");
+  // DM-1586: hold the tween until the injected cursor has landed on the target.
+  const delayField = delayMs > 0 ? { delay: delayMs } : {};
   if (transform != null) {
     const primary: Anims[number] = {
       selector,
@@ -2072,6 +2091,7 @@ function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationM
       duration: durationMs,
       easing: "ease-out",
       transformOrigin: "center",
+      ...delayField,
     };
     if (opacity != null) {
       primary.fuse = [{ property: "opacity", from: opacity.from, to: opacity.to }];
@@ -2086,6 +2106,7 @@ function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationM
       to: opacity.to,
       duration: durationMs,
       easing: "ease-out",
+      ...delayField,
     }];
   }
   return [];

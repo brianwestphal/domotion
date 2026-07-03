@@ -63,15 +63,15 @@
     <g role="img" aria-label="Start free trial"><title>Start free trial</title><text x="177.97 188.64 193.97 202.86 209.09 214.42 218.86 224.19 230.42 239.31 248.22 252.66 257.98 264.22 268.66 277.56" y="209" font-family="dmf2" font-size="16" font-weight="600" fill="rgb(255,255,255)"></text></g>
   </g>
   <g class="cursor-overlay" pointer-events="none">
-    <style>@keyframes co-pos-mxsn3n{0%{transform:translate(0px,0px)}51.4286%{transform:translate(0px,0px)}62.8571%{transform:translate(230px,204px)}100%{transform:translate(230px,204px)}}@keyframes co-glyph-mxsn3n-0{0%{opacity:0}51.4286%{opacity:1}56.795%{opacity:0}57.535%{opacity:1}57.8712%{opacity:0}60.6163%{opacity:1}61.6247%{opacity:0}100%{opacity:0}}@keyframes co-glyph-mxsn3n-1{0%{opacity:0}51.4286%{opacity:0}56.795%{opacity:1}57.535%{opacity:0}57.8712%{opacity:1}60.6163%{opacity:0}61.6247%{opacity:0}100%{opacity:0}}@keyframes co-glyph-mxsn3n-2{0%{opacity:0}51.4286%{opacity:0}56.795%{opacity:0}57.535%{opacity:0}57.8712%{opacity:0}60.6163%{opacity:0}61.6247%{opacity:1}100%{opacity:1}}</style>
-    <g class="cursor-pointer" style="animation:co-pos-mxsn3n 3.5s linear infinite">
-      <g opacity="0" style="animation:co-glyph-mxsn3n-0 3.5s step-end infinite">
+    <style>@keyframes co-pos-qhwlbo{0%{transform:translate(0px,0px)}28.5714%{transform:translate(0px,0px)}40%{transform:translate(230px,204px)}100%{transform:translate(230px,204px)}}@keyframes co-glyph-qhwlbo-0{0%{opacity:0}28.5714%{opacity:1}33.9379%{opacity:0}34.6779%{opacity:1}35.014%{opacity:0}37.7591%{opacity:1}38.7675%{opacity:0}100%{opacity:0}}@keyframes co-glyph-qhwlbo-1{0%{opacity:0}28.5714%{opacity:0}33.9379%{opacity:1}34.6779%{opacity:0}35.014%{opacity:1}37.7591%{opacity:0}38.7675%{opacity:0}100%{opacity:0}}@keyframes co-glyph-qhwlbo-2{0%{opacity:0}28.5714%{opacity:0}33.9379%{opacity:0}34.6779%{opacity:0}35.014%{opacity:0}37.7591%{opacity:0}38.7675%{opacity:1}100%{opacity:1}}</style>
+    <g class="cursor-pointer" style="animation:co-pos-qhwlbo 3.5s linear infinite">
+      <g opacity="0" style="animation:co-glyph-qhwlbo-0 3.5s step-end infinite">
         <g transform="translate(-4.13 -4.13) scale(0.9167)"><g transform="translate(0 0)"><g fill="#fff" stroke="rgb(0, 0, 0)" stroke-width="1.4" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></g></g></g>
       </g>
-      <g opacity="0" style="animation:co-glyph-mxsn3n-1 3.5s step-end infinite">
+      <g opacity="0" style="animation:co-glyph-qhwlbo-1 3.5s step-end infinite">
         <g transform="translate(-11.00 -11.00) scale(0.9167)"><g transform="translate(0 0)"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="3.4"><path d="M17 22h-1a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h1"/><path d="M7 22h1a4 4 0 0 0 4-4"/><path d="M7 2h1a4 4 0 0 1 4 4"/></g><g stroke="rgb(0, 0, 0)" stroke-width="1.7"><path d="M17 22h-1a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4h1"/><path d="M7 22h1a4 4 0 0 0 4-4"/><path d="M7 2h1a4 4 0 0 1 4 4"/></g></g></g></g>
       </g>
-      <g opacity="0" style="animation:co-glyph-mxsn3n-2 3.5s step-end infinite">
+      <g opacity="0" style="animation:co-glyph-qhwlbo-2 3.5s step-end infinite">
         <g transform="translate(-7.33 -1.83) scale(0.9167)"><g transform="translate(0 0)"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="3.4"><path d="M22 14a8 8 0 0 1-8 8"/><path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1"/><path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></g><g stroke="rgb(0, 0, 0)" stroke-width="1.7"><path d="M22 14a8 8 0 0 1-8 8"/><path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1"/><path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></g></g></g></g>
       </g>
     </g>

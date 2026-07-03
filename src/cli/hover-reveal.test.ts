@@ -34,10 +34,24 @@ describe("expandHoverReveal (DM-1562)", () => {
     expect(hover.forceState).toEqual([{ selector: ".cta", states: ["hover"] }]);
   });
 
-  it("injects a cursor move onto the element on the reveal frame", () => {
+  it("injects a cursor move during the REST frame so the pointer lands before the hover reveal (DM-1586)", () => {
     const cfg = make({ frames: [{ input: "./card.html", duration: 1000, hoverReveal: { selector: ".cta" } }] });
     const out = expandHoverReveal(cfg);
-    expect(out.cursor).toEqual({ events: [{ frame: 1, at: 0, type: "move", selector: ".cta" }] });
+    // The move is on the rest frame (0), timed to arrive at its end (1000ms rest −
+    // the 400ms glide = 600), so the cursor is settled on the element when the hover
+    // crossfade begins — not still traveling while the paint reaches full hover.
+    expect(out.cursor).toEqual({ events: [{ frame: 0, at: 600, type: "move", selector: ".cta" }] });
+  });
+
+  it("times the cursor arrival from the frame's OWN duration, not a fixed value (DM-1586)", () => {
+    // A long rest hold → the move starts late enough to arrive at the hold's end
+    // (duration − the 400ms glide). This is per-frame, so any real config gets
+    // correct arrival timing, not just the demos.
+    const long = expandHoverReveal(make({ frames: [{ input: "./x.html", duration: 2000, hoverReveal: { selector: ".b" } }] }));
+    expect(long.cursor).toEqual({ events: [{ frame: 0, at: 1600, type: "move", selector: ".b" }] });
+    // A hold shorter than the glide clamps to 0 (start gliding immediately).
+    const short = expandHoverReveal(make({ frames: [{ input: "./x.html", duration: 300, hoverReveal: { selector: ".b" } }] }));
+    expect(short.cursor).toEqual({ events: [{ frame: 0, at: 0, type: "move", selector: ".b" }] });
   });
 
   it("honors crossfadeMs / hoverMs / states / cursor:false overrides", () => {
@@ -78,9 +92,10 @@ describe("expandHoverReveal (DM-1562)", () => {
     const out = expandHoverReveal(cfg);
     const cursor = out.cursor as { events: Array<{ frame: number }> };
     // The user's event that referenced old frame 1 now points at new frame 2, and
-    // the injected hover cursor lands on the reveal frame (new frame 1).
+    // the injected hover cursor glides in on the rest frame (new frame 0), arriving
+    // at its end (1000 − 400ms glide) so it's on the element before the reveal.
     expect(cursor.events).toContainEqual({ frame: 2, at: 100, type: "move", to: { x: 10, y: 10 } });
-    expect(cursor.events).toContainEqual({ frame: 1, at: 0, type: "move", selector: ".cta" });
+    expect(cursor.events).toContainEqual({ frame: 0, at: 600, type: "move", selector: ".cta" });
   });
 });
 

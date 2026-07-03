@@ -22,8 +22,8 @@
     .f-0 { animation: fv-0 1.90s infinite, fd-0 1.90s infinite step-end; }
     @keyframes f0-f0a0-0 {
       0% { transform: none; }
-      0.000% { transform: none; }
-      21.053% { transform: matrix(1.08, 0, 0, 1.08, 0, 0); }
+      21.053% { transform: none; }
+      42.105% { transform: matrix(1.08, 0, 0, 1.08, 0, 0); }
       100% { transform: matrix(1.08, 0, 0, 1.08, 0, 0); }
     }
     .anim-f0a0 { animation: f0-f0a0-0 1.90s ease-out infinite; transform-box: fill-box; transform-origin: center; }
