@@ -578,7 +578,66 @@ function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -
  * corner angles (so the polygon threads each corner precisely). Returns a CSS
  * fragment (one `pct% { clip-path: … }` per line).
  */
-function clockWipeStops(w: number, h: number, enterNum: number, startNum: number, startDeg = 0, dir: 1 | -1 = 1): string {
+/**
+ * DM-1583: evaluate a `cubic-bezier(x1,y1,x2,y2)` (or a mapped CSS keyword) at
+ * time `u∈[0,1]` → eased progress, for time-remapping the clock sweep. Returns
+ * null for `linear`, a `linear(...)` spring sample, `steps(...)`, or anything we
+ * can't reduce to a cubic-bezier — those keep the linear clock sweep (springs are
+ * intentionally not applied to a rotation, which can't over-rotate — see DM-1583
+ * note / user decision "option 3").
+ */
+function cubicBezierSampler(easingCss: string): ((u: number) => number) | null {
+  const t = easingCss.trim();
+  const KW: Record<string, string> = {
+    ease: "0.25,0.1,0.25,1", "ease-in": "0.42,0,1,1",
+    "ease-out": "0,0,0.58,1", "ease-in-out": "0.42,0,0.58,1",
+  };
+  let nums: number[] | null = null;
+  if (t in KW) nums = KW[t].split(",").map(Number);
+  else {
+    const m = /^cubic-bezier\(([^)]+)\)$/i.exec(t);
+    if (m != null) nums = m[1].split(",").map((s) => parseFloat(s));
+  }
+  if (nums == null || nums.length !== 4 || nums.some((n) => !Number.isFinite(n))) return null;
+  const [x1, y1, x2, y2] = nums;
+  return (u: number): number => {
+    if (u <= 0) return 0;
+    if (u >= 1) return 1;
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+    const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const sampleX = (s: number): number => ((ax * s + bx) * s + cx) * s;
+    const sampleY = (s: number): number => ((ay * s + by) * s + cy) * s;
+    const dX = (s: number): number => (3 * ax * s + 2 * bx) * s + cx;
+    // Newton–Raphson: find the bezier parameter s where x(s) = u, then y(s).
+    let s = u;
+    for (let i = 0; i < 8; i++) {
+      const x = sampleX(s) - u;
+      if (Math.abs(x) < 1e-6) break;
+      const d = dX(s);
+      if (Math.abs(d) < 1e-6) break;
+      s -= x / d;
+    }
+    s = Math.max(0, Math.min(1, s));
+    return sampleY(s);
+  };
+}
+
+function clockWipeStops(w: number, h: number, enterNum: number, startNum: number, startDeg = 0, dir: 1 | -1 = 1, ease?: (u: number) => number): string {
+  // DM-1583: with an easing, remap the sweep by placing stops at even TIME steps
+  // whose GEOMETRY is the eased progress (clamped to [0,1] so a `back-*`
+  // overshoot settles at full rather than over-rotating). Without an easing, keep
+  // the corner-precise linear stops (byte-identical).
+  if (ease != null) {
+    const N = 24;
+    const out: string[] = [];
+    for (let k = 1; k < N; k++) {
+      const u = k / N;
+      const f = Math.max(0, Math.min(1, ease(u)));
+      const p = enterNum + (startNum - enterNum) * u;
+      out.push(`      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h, startDeg, dir)}; }`);
+    }
+    return out.join("\n");
+  }
   const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
   const s = (startDeg * Math.PI) / 180;
   // Corner fractions = each corner's phase into the sweep (respects start + dir),
@@ -710,12 +769,15 @@ function emitRevealFrame(
       // (see `clockWipeClip`) interpolated between the hidden f=0 start and the
       // fully-revealed f=1 end, threading each corner. Rests at the full-rectangle
       // polygon (fully revealed — the reveal's identity). `clip-path` + opacity
-      // only; no conic mask, no filter. (Easing on the clock sweep is a follow-up.)
+      // only; no conic mask, no filter. DM-1583: a cubic-bezier `easing` time-
+      // remaps the sweep (springs/linear stay a linear sweep).
       const enterNum = parseFloat(revealEnterStartPct);
       const startNum = parseFloat(startPct);
       const hidden = clockWipeClip(0, dims.width, dims.height, clockStartDeg, clockDir);
       const shown = clockWipeClip(1, dims.width, dims.height, clockStartDeg, clockDir);
-      const midStops = clockWipeStops(dims.width, dims.height, enterNum, startNum, clockStartDeg, clockDir);
+      // DM-1583: a cubic-bezier easing time-remaps the sweep; springs/linear stay linear.
+      const clockEase = revealEasing != null ? cubicBezierSampler(revealEasing) ?? undefined : undefined;
+      const midStops = clockWipeStops(dims.width, dims.height, enterNum, startNum, clockStartDeg, clockDir, clockEase);
       revealKf = `
     @keyframes fr-${i} {
       0%, ${beforeEnter}% { clip-path: ${hidden}; }
@@ -942,7 +1004,9 @@ function emitComposedFrame(
       const cDir = entrance.clockDir ?? 1;
       const hidden = clockWipeClip(0, width, height, cStart, cDir);
       const shown = clockWipeClip(1, width, height, cStart, cDir);
-      const mid = clockWipeStops(width, height, enterNum, startNum, cStart, cDir);
+      // DM-1583: cubic-bezier easing time-remaps the sweep (springs stay linear).
+      const cEase = entrance.easing != null ? cubicBezierSampler(entrance.easing) ?? undefined : undefined;
+      const mid = clockWipeStops(width, height, enterNum, startNum, cStart, cDir, cEase);
       keyframe += `
     @keyframes fr-${i} {
       0%, ${rBefore}% { clip-path: ${hidden}; }

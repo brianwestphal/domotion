@@ -76,6 +76,17 @@ gradient / `conic` mask (which has cross-engine caveats), no animated filter.
     o'clock** (e.g. `90` starts at 3 o'clock).
   - `wipeCounterclockwise` — sweep **anticlockwise** instead of clockwise.
 
+  **Easing (DM-1583).** A `wipe`/`iris` reveal eases via a per-keyframe
+  `animation-timing-function`, but the clock's multi-stop polygon sweep can't —
+  a timing-function on the first stop would only ease the first sub-segment. So a
+  **cubic-bezier** `easing` (ease-in/out, or an explicit `cubic-bezier(...)`) is
+  baked in by **time-remapping** the sweep stops: they're emitted at even time
+  steps whose geometry is the eased progress (`clockEase(u)`), clamped to [0,1]
+  so a `back-*` overshoot settles at full rather than over-rotating. **Spring
+  easings and `linear` are NOT applied** — a rotation can't over-rotate past
+  360°, so springs would just wrap; the clock stays a linear sweep for them
+  (byte-identical to no easing).
+
   Internally the geometry generalizes to `phase(a) = ((dir·(a − start)) mod 2π)`
   — how far into the sweep an angle is reached — so the fixed 7-vertex polygon (a
   fixed sweep-start point plus the four corners in the order the sweep reaches

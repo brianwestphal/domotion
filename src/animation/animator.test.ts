@@ -1491,6 +1491,28 @@ describe("radial / clock wipe transitions (DM-1547)", () => {
     }
   });
 
+  it("DM-1583: a cubic-bezier easing time-remaps the clock sweep; springs/linear stay linear", () => {
+    const clock = (easing?: string) => generateAnimatedSvg({
+      width: 400, height: 200,
+      frames: [
+        { svgContent: `<rect width="400" height="200" fill="red"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400, ...(easing != null ? { easing } : {}) } as never },
+        { svgContent: `<rect width="400" height="200" fill="blue"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400 } as never },
+      ],
+    });
+    const linear = clock();
+    // A monotonic cubic-bezier easing reshapes the sweep → output differs.
+    expect(clock("ease-in-out")).not.toBe(linear);
+    expect(clock("cubic-bezier(0.5,0,0.5,1)")).not.toBe(linear);
+    // Springs (sampled linear()) + the literal `linear` are NOT applied to the
+    // rotation (DM-1583 option 3) — the clock stays a linear sweep, byte-identical.
+    expect(clock("spring-soft")).toBe(linear);
+    expect(clock("spring-bouncy")).toBe(linear);
+    expect(clock("linear")).toBe(linear);
+    // Still a fixed 7-vertex polygon at every eased stop.
+    const block = clock("ease-in-out").match(/@keyframes fr-1 \{[\s\S]*?\n {4}\}/)?.[0] ?? "";
+    for (const p of block.matchAll(/polygon\(([^)]*)\)/g)) expect(p[1].split(",")).toHaveLength(7);
+  });
+
   it("DM-1585: wipe-clock honors a start angle + counterclockwise sweep", () => {
     const clock = (extra: Record<string, unknown>) => generateAnimatedSvg({
       width: 400, height: 200,
