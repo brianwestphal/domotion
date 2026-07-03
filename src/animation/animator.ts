@@ -1549,7 +1549,7 @@ function hashString(s: string): number {
  */
 function overlayAdvances(
   fontFamily: string, fontSize: number,
-): { advOf: (ch: string) => number; measured: boolean; ascentPx?: number; descentPx?: number } {
+): { advOf: (ch: string) => number; measured: boolean; ascentPx?: number; descentPx?: number; shapedCum?: (line: string) => number[] | null } {
   const estimate = fontSize * MONO_CHAR_WIDTH_RATIO;
   let font: ReturnType<typeof getFontInstance> = null;
   try {
@@ -1572,7 +1572,27 @@ function overlayAdvances(
   // downward magnitude.
   const ascentPx = font.ascent * scale;
   const descentPx = -font.descent * scale;
-  return { advOf, measured: true, ascentPx, descentPx };
+  // DM-1578: GPOS-kerned per-character cumulative offsets, via `font.layout` (which
+  // applies kern/GPOS). `line` is shaped once; `cum[k]` is the x AFTER k chars. The
+  // caret + reveal + glyph placement all ride the SAME `cum`, so kerning tightens
+  // the glyphs while the caret stays locked to the true edge. Returns null when the
+  // shaped glyph count ≠ the code-point count (ligatures / reordering — the
+  // per-character caret mapping breaks there), so the caller falls back to the
+  // per-glyph advances (caret-lock preserved, just unkerned).
+  const shapedCum = (line: string): number[] | null => {
+    const cps = [...line];
+    if (cps.length === 0) return [0];
+    let laid: ReturnType<typeof font.layout>;
+    try { laid = font.layout(line); } catch { return null; }
+    if (laid.positions == null || laid.positions.length !== cps.length) return null;
+    const c = [0];
+    for (let i = 0; i < laid.positions.length; i++) {
+      const adv = laid.positions[i].xAdvance * scale;
+      c.push(c[i] + (adv > 0 ? adv : estimate));
+    }
+    return c;
+  };
+  return { advOf, measured: true, ascentPx, descentPx, shapedCum };
 }
 
 /**
@@ -2013,14 +2033,20 @@ function renderTypingOverlay(
   // proportional-aware — and wrap by MEASURED PIXEL WIDTH (not a coarse char
   // count), so a proportional field-matching family breaks where it actually
   // overflows. Falls back to the uniform estimate when the font can't resolve.
-  const { advOf, ascentPx, descentPx } = overlayAdvances(fontFamily, fontSize);
+  const { advOf, ascentPx, descentPx, shapedCum } = overlayAdvances(fontFamily, fontSize);
   const lines = wrapTypingTextPx(overlay.text, maxLineWidth, advOf);
   // Per-line code-point arrays (astral pairs count as one glyph) drive both the
   // reveal stepping and the caret, so they can't desync.
   const chars = lines.map((l) => [...l]);
   // DM-1518: fontkit-measured cumulative advances per line — the caret + reveal
   // ride these exact edges instead of the old uniform 0.6em estimate.
-  const cum = cumFromChars(chars, advOf);
+  // DM-1578: with `kern`, ride the GPOS-shaped cumulative offsets instead (pairs
+  // like "AV" tighten); the glyphs, caret, and reveal all use this ONE `cum`, so
+  // the caret stays flush. Falls back per-line to the per-glyph advances when a
+  // line can't be mapped 1:1 (ligatures) — never breaks the caret lock.
+  const cum = overlay.kern === true && shapedCum != null
+    ? chars.map((charArr, li) => shapedCum(lines[li]) ?? cumFromChars([charArr], advOf)[0])
+    : cumFromChars(chars, advOf);
   const visibleChars = Math.max(1, chars.reduce((n, l) => n + l.length, 0));
   const longestLineWidth = cum.reduce((m, c) => Math.max(m, c[c.length - 1]), 0);
   const discrete = overlay.mode !== "paste" && visibleChars <= MAX_DISCRETE_TYPING_CHARS;

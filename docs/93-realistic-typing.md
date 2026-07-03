@@ -72,6 +72,18 @@ The caret can be a `bar` (default), `block`, or `underscore` — see
 `caret-metrics.ts` module (`caretShapeRect`), shared with the `typeResample`
 caret, so a block/underscore caret is drawn identically on both surfaces.
 
+### GPOS-kerned proportional typing (`kern`)
+
+By default the typed glyphs ride per-glyph advances (no kerning) — simple and
+guaranteed to lock the caret to the true edge. Setting **`kern: true`** shapes
+each line through `font.layout` (which applies `kern`/GPOS), so proportional
+pairs like "AV" / "To" tighten. The kerned cumulative offsets become the ONE
+`cum` array the glyphs, the reveal clip, AND the caret all ride — so the caret
+stays flush even as the pairs pull together. A line whose shaped glyph count
+doesn't map 1:1 to its code points (ligatures / reordering) falls back to the
+per-glyph advances for that line, so the caret lock is never broken. Off by
+default → the no-kern output is byte-identical (`fontkit` per-glyph advances).
+
 ### One shared reveal plan (`buildTypingPlan`)
 
 Typing is compiled once into a `TypedGlyph[]` — one entry per typed character

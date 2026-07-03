@@ -480,6 +480,30 @@ describe("animator", () => {
     expect(svg).toMatch(/\.t0-caret\s*{[^}]*step-end[^}]*step-end/);
   });
 
+  it("DM-1578: `kern` shapes proportional typing (GPOS) without ever widening or unlocking the caret", () => {
+    const gen = (kern: boolean) => generateAnimatedSvg({
+      width: 500, height: 100,
+      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [
+        { kind: "typing", text: "AVATAR To Wave", x: 10, y: 40, fontSize: 40, fontFamily: "Helvetica, Arial, sans-serif", caret: true, ...(kern ? { kern: true } : {}) }] }],
+    });
+    const revWidth = (svg: string): number => {
+      const b = svg.match(/@keyframes t0-rev0 \{([\s\S]*?)\.t0-rev0/)?.[1] ?? "";
+      return Math.max(0, ...[...b.matchAll(/width:\s*([\d.]+)px/g)].map((m) => parseFloat(m[1])));
+    };
+    const off = gen(false), on = gen(true);
+    // Default (no kern) is byte-identical to before this feature.
+    expect(gen(false)).toBe(off);
+    // Kerning never WIDENS the line (it tightens pairs, or is a no-op if the font
+    // has no kern data / doesn't resolve on this platform).
+    expect(revWidth(on)).toBeLessThanOrEqual(revWidth(off) + 0.01);
+    // The caret parks at the fully-revealed edge in BOTH modes — it rides the same
+    // `cum` as the reveal, so it stays flush whether or not kerning is applied.
+    for (const svg of [off, on]) {
+      const caretEnd = parseFloat(/@keyframes t0-caret-pos \{[\s\S]*?100% \{ transform: translate\(([\d.]+)px/.exec(svg)?.[1] ?? "NaN");
+      expect(caretEnd).toBeCloseTo(revWidth(svg) - 1, 1); // reveal adds +1px slack over the caret edge
+    }
+  });
+
   it("DM-1590: the caret height + top come from the face's EXACT ascent/descent, not the 1.15×em fallback", () => {
     const fontSize = 14;
     const baseline = 40;

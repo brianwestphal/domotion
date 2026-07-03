@@ -1256,6 +1256,9 @@
                     "fontFamily": {
                       "type": "string"
                     },
+                    "kern": {
+                      "type": "boolean"
+                    },
                     "color": {
                       "type": "string"
                     },

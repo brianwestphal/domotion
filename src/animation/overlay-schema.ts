@@ -86,6 +86,10 @@ export const typingOverlaySchema = z.object({
    * Requires an `anchor`.
    */
   fontFamily: z.string().optional(),
+  /** DM-1578: shape typed text with GPOS kerning (via `font.layout`) so
+   *  proportional pairs like "AV" / "To" tighten. Off by default — the caret
+   *  stays locked to the true edge either way. */
+  kern: z.boolean().optional(),
   color: z.string().optional(),
   /** Delay from frame start before typing begins (ms). */
   delay: z.number().optional(),
