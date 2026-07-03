@@ -21,7 +21,7 @@
 
 import type { Page } from "@playwright/test";
 import { boxAnchorPoint, type BoxAnchor } from "../capture/content-box.js";
-import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay } from "./overlay-schema.js";
+import type { TypingOverlay, TapOverlay, SvgOverlay, BlinkOverlay, ShineOverlay, InteractOverlay, AnimationOverlay } from "./overlay-schema.js";
 
 /** Anchor an overlay to an element's box — same vocabulary as the declarative config's `anchor`. */
 export interface OverlayAnchor {
@@ -172,7 +172,14 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
  * // overlay.x / overlay.y are concrete; maxWidth:"anchor" resolved into overlay.wrapWidth (DM-1134).
  * ```
  */
-export async function resolveOverlays(page: Page, overlays: AnchoredOverlay[]): Promise<(TypingOverlay | TapOverlay | SvgOverlay | BlinkOverlay)[]> {
+export async function resolveOverlays(page: Page, overlays: AnchoredOverlay[]): Promise<AnimationOverlay[]> {
+  // DM-1574: the input `AnchoredOverlay` union carries all six overlay kinds and
+  // the shared engine resolves each structurally (shine + interact anchoring now
+  // work), so the resolved result can be ANY kind. The old
+  // `(Typing|Tap|Svg|Blink)Overlay[]` return type silently dropped `Shine` +
+  // `Interact` — an unsound narrowing. After resolution the `anchor`/`maxWidth`
+  // sugar is stripped, leaving a plain `AnimationOverlay` (the schema's full
+  // discriminated union), which is exactly what this returns.
   const resolved = await resolveAnchoredOverlays(page, overlays);
-  return (resolved ?? []) as (TypingOverlay | TapOverlay | SvgOverlay | BlinkOverlay)[];
+  return (resolved ?? []) as AnimationOverlay[];
 }

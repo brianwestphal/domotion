@@ -81,6 +81,21 @@ describe("resolveOverlays (DM-1132)", () => {
     expect(ov).toEqual(input);
   });
 
+  it("DM-1574: the return type includes shine + interact overlays (kind-narrowing compiles)", async () => {
+    const out = await resolveOverlays(stubPage(BOX), [
+      { kind: "shine", x: 0, y: 0, width: 10, height: 10, repeat: "infinite" },
+      { kind: "interact", x: 0, y: 0, width: 10, height: 10, treatment: "press" },
+    ]);
+    // These narrowings are the real assertion: under the old
+    // `(Typing|Tap|Svg|Blink)Overlay[]` return type both `find`s narrowed to
+    // `undefined` (the predicate could never be true), so reading a shine-/
+    // interact-only field wouldn't type-check. They compile now.
+    const shine = out.find((o) => o.kind === "shine");
+    const interact = out.find((o) => o.kind === "interact");
+    expect(shine?.repeat).toBe("infinite");
+    expect(interact?.treatment).toBe("press");
+  });
+
   // DM-1565: an `interact` overlay auto-SIZES + auto-ROUNDS from the anchored
   // element's box (like `shine`), with explicit positive values still winning.
   const RBOX = { ...BOX, borderRadius: 8 };
