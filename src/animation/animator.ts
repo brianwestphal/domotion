@@ -99,6 +99,15 @@ export interface AnimationFrame {
      * types (their motion is fixed). Default: `linear`.
      */
     easing?: string;
+    /**
+     * DM-1585: `wipe-clock` only — where the clock hand STARTS, in degrees
+     * clockwise from 12 o'clock (default 0), and whether it sweeps
+     * counterclockwise (default clockwise). Lets a clock wipe open from, say, 3
+     * o'clock (`wipeStartAngle: 90`) or unwind anticlockwise
+     * (`wipeCounterclockwise: true`). Ignored by every other transition type.
+     */
+    wipeStartAngle?: number;
+    wipeCounterclockwise?: boolean;
   };
   /**
    * Magic-move bridge layer for this frame's transition to the next, built by
@@ -514,16 +523,22 @@ function revealShapeOf(transType: string): RevealShape {
  * clock wipe with plain linear interpolation. Cross-engine-safe: polygon clip-path
  * animates on Blink / WebKit / Gecko; no conic mask, no filter (docs/84).
  */
-function clockWipeClip(f: number, w: number, h: number): string {
+function clockWipeClip(f: number, w: number, h: number, startDeg = 0, dir: 1 | -1 = 1): string {
   const cx = w / 2;
   const cy = h / 2;
   const theta = 2 * Math.PI * f;
   const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
-  // Corner angles, measured clockwise from straight up (monotone TR<BR<BL<TL).
-  const aTR = norm(Math.atan2(w / 2, h / 2));
-  const aBR = norm(Math.atan2(w / 2, -h / 2));
-  const aBL = norm(Math.atan2(-w / 2, -h / 2));
-  const aTL = norm(Math.atan2(-w / 2, h / 2));
+  // DM-1585: the sweep starts at `startDeg` (clockwise from 12 o'clock) and turns
+  // in direction `dir` (+1 = clockwise, −1 = counterclockwise). `phase(a)` is how
+  // far into the sweep the absolute angle `a` is reached; a corner snaps once the
+  // swept angle passes it. Default (startDeg=0, dir=1) → the original CW-from-12.
+  const s = (startDeg * Math.PI) / 180;
+  const phase = (a: number): number => norm(dir * (a - s));
+  // Corner angles, measured clockwise from straight up.
+  const aTR = Math.atan2(w / 2, h / 2);
+  const aBR = Math.atan2(w / 2, -h / 2);
+  const aBL = Math.atan2(-w / 2, -h / 2);
+  const aTL = Math.atan2(-w / 2, h / 2);
   // Where the ray from center at clockwise-from-up angle `t` hits the rect edge.
   const edgePoint = (t: number): [number, number] => {
     const dx = Math.sin(t);
@@ -536,15 +551,20 @@ function clockWipeClip(f: number, w: number, h: number): string {
     if (!isFinite(best)) best = 0;
     return [cx + dx * best, cy + dy * best];
   };
-  const lead = edgePoint(theta);
-  const slot = (passed: boolean, corner: [number, number]): [number, number] => (passed ? corner : lead);
+  const startEdge = edgePoint(s);              // fixed sweep-start edge point
+  const lead = edgePoint(s + dir * theta);     // current leading edge
+  // Corners in the order the sweep reaches them (fixed for the whole sweep, so the
+  // 7-vertex polygon interpolates smoothly). Each rides `lead` until passed.
+  const corners: Array<{ ph: number; pt: [number, number] }> = [
+    { ph: phase(aTR), pt: [w, 0] as [number, number] },
+    { ph: phase(aBR), pt: [w, h] as [number, number] },
+    { ph: phase(aBL), pt: [0, h] as [number, number] },
+    { ph: phase(aTL), pt: [0, 0] as [number, number] },
+  ].sort((p, q) => p.ph - q.ph);
   const verts: [number, number][] = [
     [cx, cy],          // center
-    [cx, 0],           // fixed 12 o'clock start
-    slot(theta >= aTR, [w, 0]),
-    slot(theta >= aBR, [w, h]),
-    slot(theta >= aBL, [0, h]),
-    slot(theta >= aTL, [0, 0]),
+    startEdge,         // fixed sweep-start point
+    ...corners.map((c) => (theta >= c.ph ? c.pt : lead)),
     lead,              // current leading edge
   ];
   return "polygon(" + verts.map(([x, y]) => `${x.toFixed(2)}px ${y.toFixed(2)}px`).join(", ") + ")";
@@ -558,14 +578,17 @@ function clockWipeClip(f: number, w: number, h: number): string {
  * corner angles (so the polygon threads each corner precisely). Returns a CSS
  * fragment (one `pct% { clip-path: … }` per line).
  */
-function clockWipeStops(w: number, h: number, enterNum: number, startNum: number): string {
+function clockWipeStops(w: number, h: number, enterNum: number, startNum: number, startDeg = 0, dir: 1 | -1 = 1): string {
   const norm = (a: number): number => { let x = a % (2 * Math.PI); if (x < 0) x += 2 * Math.PI; return x; };
+  const s = (startDeg * Math.PI) / 180;
+  // Corner fractions = each corner's phase into the sweep (respects start + dir),
+  // so a stop lands exactly where the polygon threads each corner (DM-1585).
   const cornerFracs = [
-    norm(Math.atan2(w / 2, h / 2)),
-    norm(Math.atan2(w / 2, -h / 2)),
-    norm(Math.atan2(-w / 2, -h / 2)),
-    norm(Math.atan2(-w / 2, h / 2)),
-  ].map((a) => a / (2 * Math.PI));
+    Math.atan2(w / 2, h / 2),
+    Math.atan2(w / 2, -h / 2),
+    Math.atan2(-w / 2, -h / 2),
+    Math.atan2(-w / 2, h / 2),
+  ].map((a) => norm(dir * (a - s)) / (2 * Math.PI));
   const fracs = new Set<number>(cornerFracs);
   const SUBDIVISIONS = 16;
   for (let k = 1; k < SUBDIVISIONS; k++) fracs.add(k / SUBDIVISIONS);
@@ -573,7 +596,7 @@ function clockWipeStops(w: number, h: number, enterNum: number, startNum: number
   return sorted
     .map((f) => {
       const p = enterNum + (startNum - enterNum) * f;
-      return `      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h)}; }`;
+      return `      ${p.toFixed(3)}% { clip-path: ${clockWipeClip(f, w, h, startDeg, dir)}; }`;
     })
     .join("\n");
 }
@@ -630,6 +653,9 @@ function emitRevealFrame(
   holdLastFrame: boolean,
   /** DM-1550: named/raw CSS easing for the clip-path reveal segment. Default linear. */
   revealEasing?: string,
+  /** DM-1585: wipe-clock start angle (deg CW from 12) + sweep direction. */
+  clockStartDeg = 0,
+  clockDir: 1 | -1 = 1,
 ): { group: string; keyframe: string } {
   const { revealEnterStartPct, startPct, transEndPct } = win;
   // Opacity ON-window: visible from the entrance (or its own start) through the
@@ -687,9 +713,9 @@ function emitRevealFrame(
       // only; no conic mask, no filter. (Easing on the clock sweep is a follow-up.)
       const enterNum = parseFloat(revealEnterStartPct);
       const startNum = parseFloat(startPct);
-      const hidden = clockWipeClip(0, dims.width, dims.height);
-      const shown = clockWipeClip(1, dims.width, dims.height);
-      const midStops = clockWipeStops(dims.width, dims.height, enterNum, startNum);
+      const hidden = clockWipeClip(0, dims.width, dims.height, clockStartDeg, clockDir);
+      const shown = clockWipeClip(1, dims.width, dims.height, clockStartDeg, clockDir);
+      const midStops = clockWipeStops(dims.width, dims.height, enterNum, startNum, clockStartDeg, clockDir);
       revealKf = `
     @keyframes fr-${i} {
       0%, ${beforeEnter}% { clip-path: ${hidden}; }
@@ -759,6 +785,15 @@ interface ComposedEntrance {
   reveal?: RevealShape;
   /** dolly / reveal: resolved CSS easing for the entrance segment (DM-1550). */
   easing?: string;
+  /** reveal (clock only): sweep start angle (deg CW from 12) + direction (DM-1585). */
+  clockStartDeg?: number;
+  clockDir?: 1 | -1;
+}
+
+/** DM-1585: resolve a transition's `wipe-clock` start angle + sweep direction
+ *  into the `(startDeg, dir)` the clock geometry takes. Defaults: 0° / clockwise. */
+function resolveClockParams(startAngle: number | undefined, ccw: boolean | undefined): { startDeg: number; dir: 1 | -1 } {
+  return { startDeg: startAngle ?? 0, dir: ccw === true ? -1 : 1 };
 }
 interface ComposedExit {
   kind: ExitKind;
@@ -771,11 +806,14 @@ interface ComposedExit {
  *  scroll predecessor slides the incoming in; a crossfade/shine fades it in; a
  *  zoom dollies it in (a fade + scale); a wipe/iris/… reveals it on top; a cut /
  *  magic-move / first-frame appears at its own start. */
-function classifyEntrance(prevType: string | undefined, prevMagicBridged: boolean, prevEasing: string | undefined): ComposedEntrance {
+function classifyEntrance(prevType: string | undefined, prevMagicBridged: boolean, prevEasing: string | undefined, prevWipeStartAngle?: number, prevWipeCcw?: boolean): ComposedEntrance {
   if (prevType == null) return { kind: "cut" };
   const dir = PUSH_DIRS[prevType];
   if (dir != null) return { kind: "slide", axis: dir.axis, sign: dir.sign };
-  if (REVEAL_KINDS.has(prevType)) return { kind: "reveal", reveal: revealShapeOf(prevType), easing: resolveEasingPreset(prevEasing) };
+  if (REVEAL_KINDS.has(prevType)) {
+    const clock = resolveClockParams(prevWipeStartAngle, prevWipeCcw);
+    return { kind: "reveal", reveal: revealShapeOf(prevType), easing: resolveEasingPreset(prevEasing), clockStartDeg: clock.startDeg, clockDir: clock.dir };
+  }
   if (prevType === "zoom-in" || prevType === "zoom-out") return { kind: "dolly", fromScale: prevType === "zoom-in" ? 0.9 : 1.1, easing: resolveEasingPreset(prevEasing) };
   if (prevType === "crossfade" || prevType === "shine") return { kind: "fade" };
   // magic-move WITH a built bridge: appears at its own start (the bridge covered
@@ -900,9 +938,11 @@ function emitComposedFrame(
     const rBefore = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
     const tf = entrance.easing != null ? ` animation-timing-function: ${entrance.easing};` : "";
     if (shape === "clock") {
-      const hidden = clockWipeClip(0, width, height);
-      const shown = clockWipeClip(1, width, height);
-      const mid = clockWipeStops(width, height, enterNum, startNum);
+      const cStart = entrance.clockStartDeg ?? 0;
+      const cDir = entrance.clockDir ?? 1;
+      const hidden = clockWipeClip(0, width, height, cStart, cDir);
+      const shown = clockWipeClip(1, width, height, cStart, cDir);
+      const mid = clockWipeStops(width, height, enterNum, startNum, cStart, cDir);
       keyframe += `
     @keyframes fr-${i} {
       0%, ${rBefore}% { clip-path: ${hidden}; }
@@ -1168,7 +1208,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
     // branch would drop half of) through `emitComposedFrame`. Same-type chains and
     // the slide/fade mixes the DM-1414 branches already compose stay on those
     // branches, so their output is byte-identical (see `composedBoundaryNeeded`).
-    const composedEntrance = classifyEntrance(prevType, entersViaMagicMove, prevFrame?.transition?.easing);
+    const composedEntrance = classifyEntrance(prevType, entersViaMagicMove, prevFrame?.transition?.easing, prevFrame?.transition?.wipeStartAngle, prevFrame?.transition?.wipeCounterclockwise);
     const composedExit = classifyExit(transType);
     const useComposed = composedBoundaryNeeded(composedEntrance.kind, composedExit.kind);
 
@@ -1217,7 +1257,10 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
       // transition (the one that unveils THIS frame). Resolve any named preset
       // (incl. the sampled springs) to a CSS easing string.
       const revealEasing = entranceReveal != null ? resolveEasingPreset(prevFrame?.transition?.easing) : undefined;
-      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing);
+      // DM-1585: wipe-clock start angle + direction are authored on the PREVIOUS
+      // frame's transition (the one that unveils THIS frame), like the easing.
+      const clock = resolveClockParams(prevFrame?.transition?.wipeStartAngle, prevFrame?.transition?.wipeCounterclockwise);
+      const r = emitRevealFrame(i, frame.svgContent, entranceReveal, { width, height }, { revealEnterStartPct, startPct, holdEndPct, transEndPct }, totalSec, holdLastFrame, revealEasing, clock.startDeg, clock.dir);
       frameGroups.push(r.group);
       keyframes.push(r.keyframe);
 
@@ -2167,7 +2210,31 @@ function renderInteractOverlay(
   // One fused animation: opacity + transform at each stop (single timeline). The
   // in-segment eases out (decelerates into peak); the release eases in.
   const s = (ms: number): string => pct(ms, totalDuration);
-  const css = `
+  let css: string;
+  if (overlay.repeat != null) {
+    // DM-1585: ambient REPEAT pulse (mirrors `shine`'s repeat). One keyframe cycle
+    // spans `period` ms: rise → brief hold → release → idle at rest, applied with
+    // `animation-fill-mode: both` so it holds the rested state (opacity 0) before
+    // the first pulse (the `delay`) and after the last — it rests at identity.
+    const period = overlay.repeatPeriodMs ?? 1600;
+    const iterations = overlay.repeat === "infinite" ? "infinite" : String(overlay.repeat);
+    const holdInPulse = overlay.holdMs ?? 140; // a brief peak hold, not the one-shot's frame-long hold
+    const riseEnd = Math.min(1, duration / period);
+    const holdEnd = Math.min(1, (duration + holdInPulse) / period);
+    const releaseEnd = Math.min(1, (duration + holdInPulse + releaseMs) / period);
+    const p = (frac: number): string => `${(frac * 100).toFixed(2)}%`;
+    css = `
+    @keyframes ${id} {
+      0% { opacity: 0; transform: scale(1); animation-timing-function: ease-out; }
+      ${p(riseEnd)} { opacity: 1; transform: scale(${scaleTo}); }
+      ${p(holdEnd)} { opacity: 1; transform: scale(${scaleTo}); animation-timing-function: ease-in; }
+      ${p(releaseEnd)} { opacity: 0; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1); }
+    }
+    .${id} { animation: ${id} ${period}ms linear ${appearMs.toFixed(0)}ms ${iterations} both; transform-origin: ${cx}px ${cy}px; }`;
+    return { svgMarkup, css };
+  }
+  css = `
     @keyframes ${id} {
       0% { opacity: 0; transform: scale(1); }
       ${s(appearMs)} { opacity: 0; transform: scale(1); animation-timing-function: ease-out; }

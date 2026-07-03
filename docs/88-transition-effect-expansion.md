@@ -69,6 +69,21 @@ gradient / `conic` mask (which has cross-engine caveats), no animated filter.
   reproduce a clean clock wipe with plain linear interpolation. It rests at the
   full-rectangle polygon (fully revealed).
 
+  **Start angle + direction (DM-1585).** By default the hand starts at 12 o'clock
+  and sweeps clockwise, but the transition takes two optional knobs (authored on
+  the transition that unveils the frame, like `easing`):
+  - `wipeStartAngle` — where the hand starts, in **degrees clockwise from 12
+    o'clock** (e.g. `90` starts at 3 o'clock).
+  - `wipeCounterclockwise` — sweep **anticlockwise** instead of clockwise.
+
+  Internally the geometry generalizes to `phase(a) = ((dir·(a − start)) mod 2π)`
+  — how far into the sweep an angle is reached — so the fixed 7-vertex polygon (a
+  fixed sweep-start point plus the four corners in the order the sweep reaches
+  them) still interpolates smoothly. The default (`start 0`, clockwise) is
+  byte-identical to the original. `clockWipeClip` / `clockWipeStops` take
+  `(startDeg, dir)`; the value flows through `classifyEntrance` → the composed
+  reveal and through `emitRevealFrame`.
+
 ### Why a `polygon()` sweep, not a conic mask
 
 A clock wipe wants an ANGULAR reveal, which reads naturally as an animated

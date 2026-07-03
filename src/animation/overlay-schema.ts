@@ -337,6 +337,13 @@ export const interactOverlaySchema = z.object({
   holdMs: z.number().optional(),
   /** Release (fade-out) time in ms back to rest. Default 180. */
   releaseMs: z.number().optional(),
+  /** DM-1585: turn the one-shot treatment into an ambient REPEAT pulse (like
+   *  `shine`'s `repeat`) — a count or `"infinite"`. Each cycle rises to peak,
+   *  briefly holds, releases back to rest, then idles for the rest of the period.
+   *  Rests at identity between/after pulses (fill-mode `both`). */
+  repeat: z.union([z.number(), z.literal("infinite")]).optional(),
+  /** Period of ONE ambient pulse in ms (only with `repeat`). Default 1600. */
+  repeatPeriodMs: z.number().optional(),
 });
 export type InteractOverlay = z.infer<typeof interactOverlaySchema>;
 

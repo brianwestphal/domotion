@@ -370,6 +370,14 @@
               "easing": {
                 "description": "Named/raw easing for wipe/iris/zoom reveals (spring-* etc.).",
                 "type": "string"
+              },
+              "wipeStartAngle": {
+                "description": "wipe-clock: start angle in degrees clockwise from 12 o'clock (default 0).",
+                "type": "number"
+              },
+              "wipeCounterclockwise": {
+                "description": "wipe-clock: sweep counterclockwise instead of clockwise.",
+                "type": "boolean"
               }
             },
             "required": [
@@ -1801,6 +1809,20 @@
                       "type": "number"
                     },
                     "releaseMs": {
+                      "type": "number"
+                    },
+                    "repeat": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "const": "infinite"
+                        }
+                      ]
+                    },
+                    "repeatPeriodMs": {
                       "type": "number"
                     },
                     "anchor": {

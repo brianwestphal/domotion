@@ -836,6 +836,20 @@
                     "releaseMs": {
                       "type": "number"
                     },
+                    "repeat": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "const": "infinite"
+                        }
+                      ]
+                    },
+                    "repeatPeriodMs": {
+                      "type": "number"
+                    },
                     "anchor": {
                       "type": "object",
                       "properties": {

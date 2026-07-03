@@ -345,14 +345,23 @@ duty as a plain synthetic hover/focus/press treatment on a captured demo.
   "fill": "#ffffff", "fillOpacity": 0.18,  // "none" omits the fill
   "ring": "#4c9ffe", "ringWidth": 2,       // a focus ring; default on for "focus"
   "scale": 1.03,          // scale-pop target about the box center (1 = no pop)
-  "holdMs": 900, "releaseMs": 180
+  "holdMs": 900, "releaseMs": 180,
+  "repeat": "infinite", "repeatPeriodMs": 1600  // DM-1585: ambient pulse (see below)
   // "anchor": { "selector": ".cta" }  // CLI: auto-sizes x/y/width/height/radius from the box
 }
 ```
 
 Each treatment fades a fill and/or focus ring IN over `duration` (with a scale
 "pop" about the box center), HOLDS, then RELEASES back to nothing before the frame
-ends. The three presets: **`hover`** = translucent highlight fill + a small
+ends.
+
+**Ambient `repeat` pulse (DM-1585).** By default the treatment fires once. Setting
+`repeat` (a count or `"infinite"`) turns it into an **ambient pulse** that loops on
+its own `repeatPeriodMs` clock (default 1600 ms) — like `shine`'s `repeat` — for a
+"look here" beat on a CTA. Each cycle rises to peak, briefly holds, releases back
+to rest, then idles for the remainder of the period; `animation-fill-mode: both`
+holds the rested state (opacity 0) before the first pulse and after the last, so
+it still **rests at identity** (a re-capture sees nothing). The three presets: **`hover`** = translucent highlight fill + a small
 scale-up; **`focus`** = a focus ring (stroke) + a faint fill; **`press`** = a
 darken fill + a scale-DOWN press-in that auto-releases. Opacity + `transform:
 scale` animate as **one fused keyframe animation** (a single timeline that can't

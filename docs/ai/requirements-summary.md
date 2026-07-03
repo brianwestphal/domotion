@@ -96,10 +96,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   auto-sizes to its anchor (DM-1551/1549); the reveal transitions take an optional
   named `easing` incl. the sampled spring `linear()` curves (DM-1550); `wipe-radial`
   (an `iris` alias) + `wipe-clock` (a fixed-vertex animated `clip-path: polygon()`
-  angular sweep — no conic mask/filter, DM-1547). An **`interact`** overlay kind
-  (synthetic hover/focus/press fill+ring+scale for no-DOM/PDF inputs, DM-1565, docs/94)
-  shares `shine`'s anchor auto-sizing. **Still open:** mixed transition-type chaining
-  (unified entrance/exit compositor, DM-1548).
+  angular sweep — no conic mask/filter, DM-1547; `wipeStartAngle` +
+  `wipeCounterclockwise` variants in DM-1585). An **`interact`** overlay kind
+  (synthetic hover/focus/press fill+ring+scale for no-DOM/PDF inputs, DM-1565, docs/94;
+  ambient `repeat` pulse in DM-1585) shares `shine`'s anchor auto-sizing.
+  **Still open:** mixed transition-type chaining (unified entrance/exit compositor, DM-1548).
 
 - **Doc 89 (`docs/89-storyboard-sequencing.md`, DM-1527)** — **Shipped.** A
   declarative **storyboard** runner + `domotion storyboard <config.json>` verb that

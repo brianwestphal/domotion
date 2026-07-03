@@ -101,6 +101,10 @@ const transitionSchema = z.object({
   // preset vocabulary in the animator (incl. the sampled `spring-*` curves).
   // Ignored by the other transition types. Default: linear.
   easing: z.string().optional().describe("Named/raw easing for wipe/iris/zoom reveals (spring-* etc.)."),
+  // DM-1585: `wipe-clock` only — start angle (deg clockwise from 12 o'clock) and
+  // counterclockwise sweep. Ignored by other transition types.
+  wipeStartAngle: z.number().optional().describe("wipe-clock: start angle in degrees clockwise from 12 o'clock (default 0)."),
+  wipeCounterclockwise: z.boolean().optional().describe("wipe-clock: sweep counterclockwise instead of clockwise."),
 });
 
 const scrollSchema = z.object({

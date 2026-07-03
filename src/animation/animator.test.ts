@@ -1490,6 +1490,25 @@ describe("radial / clock wipe transitions (DM-1547)", () => {
       expect(svg, type).not.toContain("conic-gradient");
     }
   });
+
+  it("DM-1585: wipe-clock honors a start angle + counterclockwise sweep", () => {
+    const clock = (extra: Record<string, unknown>) => generateAnimatedSvg({
+      width: 400, height: 200,
+      frames: [
+        { svgContent: `<rect width="400" height="200" fill="red"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400, ...extra } as never },
+        { svgContent: `<rect width="400" height="200" fill="blue"/>`, duration: 500, transition: { type: "wipe-clock", duration: 400 } as never },
+      ],
+    });
+    const def = clock({});
+    // The sweep-start vertex is the fixed 2nd polygon point. Default = 12 o'clock
+    // (200,0); startAngle 90° starts the hand at 3 o'clock (400,100).
+    expect(def).toContain("polygon(200.00px 100.00px, 200.00px 0.00px,"); // hidden, from 12 o'clock
+    expect(clock({ wipeStartAngle: 90 })).toContain("polygon(200.00px 100.00px, 400.00px 100.00px,"); // from 3 o'clock
+    // CCW changes the sweep — output differs from the clockwise default.
+    expect(clock({ wipeCounterclockwise: true })).not.toBe(def);
+    // Both variants still rest at the full rectangle (all four corners revealed).
+    expect(clock({ wipeCounterclockwise: true })).toContain("400.00px 0.00px");
+  });
 });
 
 // DM-1565: synthetic interaction-feedback overlay (docs/94 Option 4) — a fake
@@ -1521,6 +1540,21 @@ describe("interaction-feedback overlay (DM-1565)", () => {
     const block = svg.match(/@keyframes ix0 \{[\s\S]*?\n {4}\}/)?.[0] ?? "";
     expect(block).toMatch(/0% \{ opacity: 0; transform: scale\(1\);/);
     expect(block).toMatch(/100% \{ opacity: 0; transform: scale\(1\); \}/);
+  });
+
+  it("DM-1585: an ambient `repeat` pulse loops on its own period + rests at identity", () => {
+    const once = withOverlay({ treatment: "hover" });
+    const svg = withOverlay({ treatment: "hover", repeat: 3, repeatPeriodMs: 1600 });
+    // Loops on a 1600ms period, 3 iterations, `both` fill-mode (holds rest before + after).
+    expect(svg).toMatch(/\.ix0 \{ animation: ix0 1600ms linear \d+ms 3 both;/);
+    // "infinite" also accepted.
+    expect(withOverlay({ treatment: "hover", repeat: "infinite" })).toMatch(/animation: ix0 \d+ms linear \d+ms infinite both;/);
+    // Still rests at identity at BOTH cycle boundaries (opacity 0 / scale 1).
+    const block = svg.match(/@keyframes ix0 \{[\s\S]*?\n {4}\}/)?.[0] ?? "";
+    expect(block).toMatch(/0% \{ opacity: 0; transform: scale\(1\);/);
+    expect(block).toMatch(/100% \{ opacity: 0; transform: scale\(1\); \}/);
+    // The one-shot form is unchanged (scene-length infinite, not a period).
+    expect(once).toMatch(/\.ix0 \{ animation: ix0 [\d.]+s linear infinite;/);
   });
 
   it("focus draws a stroked ring (fill=none stroke)", () => {
