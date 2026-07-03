@@ -23,6 +23,7 @@ import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/
 import { interpolateCssValue, resolveEasing } from "./easing.js";
 import { resolveEasingPreset } from "./motion-presets.js";
 import { buildShineSweep } from "./shine.js";
+import { barCaretHeightPx } from "./caret-metrics.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -1772,8 +1773,14 @@ function buildTypingCaret(
     }
     blinkStops.push(`${disappearPct}, 100% { opacity: 0; }`);
 
+    // DM-1587: caret height = the font metrics height (ascent+descent ≈ the line
+    // box), the same standard the `typeResample` caret uses (see `caret-metrics.ts`),
+    // rather than the bare em — a real browser bar caret spans the full font box.
+    // Keep the caret BOTTOM where it was (just below the baseline) and grow upward.
+    const caretHeight = barCaretHeightPx(fontSize);
+    const caretTop = (overlay.y + 2 - caretHeight).toFixed(2);
     parts.push(
-      `  <rect class="${id}-caret" x="${overlay.x}" y="${overlay.y - fontSize + 2}" width="${caretW}" height="${fontSize}" fill="${caretColor}" />`,
+      `  <rect class="${id}-caret" x="${overlay.x}" y="${caretTop}" width="${caretW}" height="${caretHeight}" fill="${caretColor}" />`,
     );
     // The position track is step-end (per-keystroke jumps, matching real typing
     // and the discrete reveal); the blink is step-end too.
