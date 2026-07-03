@@ -61,7 +61,7 @@
     "demos:test:animate": "npm run build:capture-script && tsx tests/animate-examples.tsx",
     "demos:test:all": "npm run build:capture-script && (tsx tests/features.ts ; tsx tests/snapshot-isolation.tsx ; tsx tests/showcase.tsx ; tsx tests/animate-examples.tsx ; tsx tests/html-test-suite.tsx ; tsx tests/real-world.tsx)",
     "demos:review": "tsx tests/review-server.tsx",
-    "demos:examples": "npm run build:capture-script && tsx examples/terminal-demo.ts && tsx examples/terminal-onboarding.ts && tsx examples/hero-product-demo.ts && tsx examples/showcase-rendering.ts && tsx examples/showcase-transitions.ts && tsx examples/transition-tour.ts && tsx examples/transition-mixed.ts && tsx examples/svg-to-video-demo.ts && tsx examples/templates-demo.ts && tsx examples/brand-capture-demo.ts && tsx examples/format-capture-demo.ts && tsx examples/terminal-window-scroll.ts && tsx examples/storyboard-demo.ts",
+    "demos:examples": "npm run build:capture-script && tsx examples/terminal-demo.ts && tsx examples/terminal-onboarding.ts && tsx examples/hero-product-demo.ts && tsx examples/showcase-rendering.ts && tsx examples/showcase-transitions.ts && tsx examples/transition-tour.ts && tsx examples/transition-mixed.ts && tsx examples/svg-to-video-demo.ts && tsx examples/templates-demo.ts && tsx examples/brand-capture-demo.ts && tsx examples/kinetic-over-capture.ts && tsx examples/format-capture-demo.ts && tsx examples/terminal-window-scroll.ts && tsx examples/storyboard-demo.ts",
     "check:features": "tsx tools/check-feature-coverage.ts",
     "site:dev": "cd site && npm install && npm run dev",
     "site:build": "cd site && npm install && npm run build",
