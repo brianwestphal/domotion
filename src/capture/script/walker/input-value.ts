@@ -116,9 +116,16 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
     // contract intact.
     const display = cs.display;
     const isFlexLike = display === 'flex' || display === 'inline-flex' || display === 'grid' || display === 'inline-grid';
-    const isButtonInput = tag === 'input'
-      && (inputType === 'submit' || inputType === 'button' || inputType === 'reset');
-    if ((isFlexLike && cs.alignItems === 'center') || isButtonInput) {
+    // DM-1587: Chrome vertically centers a single-line `<input>`'s value text within
+    // its content box for EVERY input type (the text-field editing host centers its
+    // single line), not just submit/button/reset (DM-666) or flex/align-center
+    // containers (DM-581). Anchoring the captured value to content-top left tall
+    // text/tel/email/etc. fields sitting high — e.g. the type-resample phone field
+    // (height 42, font 16, no vertical padding → the value sat ~10px too high). A
+    // `<textarea>` lays multiple lines from the top, so it stays top-anchored unless
+    // it's an explicit flex/align-center container.
+    const isSingleLineInput = tag === 'input';
+    if (isSingleLineInput || (isFlexLike && cs.alignItems === 'center')) {
       const contentH = rect.height - bt - bb - pt - pb;
       if (contentH > textHeight + 0.5) {
         textTop = (rect.top - vp.y + bt + pt) + (contentH - textHeight) / 2;
