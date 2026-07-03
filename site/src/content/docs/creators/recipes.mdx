@@ -129,8 +129,13 @@ domotion template chart --brand acme-brand.json \
 ```
 
 For a vertical feed, combine the two: `--brand acme-brand.json --format reel`
-gives you the same on-brand chart sized for a Reel. The brand file is small —
-palette, font, radius, and an optional logo, reused across every template:
+gives you the same on-brand chart sized for a Reel — the type and bars scale up
+so it reads well at 9:16, not just fits:
+
+<img src="/domotion/demos/templates/brand-acme-chart-reel.svg" alt="The same on-brand column chart sized for a 9:16 Reel, with the type and bars scaled up to read well vertically" style="width:auto;max-height:520px" loading="lazy" />
+
+The brand file is small — palette, font, radius, and an optional logo, reused
+across every template:
 
 ```json
 // acme-brand.json

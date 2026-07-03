@@ -342,6 +342,16 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     brand: ACME_BRAND,
   },
   {
+    // DM-1571: the SAME on-brand chart sized for a Reel (9:16) — backs recipe 4's
+    // "for a vertical feed" claim with its own vertical asset instead of reusing
+    // the landscape chart. `brand` + `format` compose (adaptive type scaling, DM-1560).
+    file: "brand-acme-chart-reel",
+    template: chartTemplate,
+    params: { type: "column", data: [42, 68, 55, 90, 34, 76], labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], title: "Signups" },
+    brand: ACME_BRAND,
+    format: "reel",
+  },
+  {
     file: "brand-acme-subscribe",
     template: subscribeTemplate,
     params: { name: "Acme", subtitle: "1.2M subscribers", action: "Subscribe" },
