@@ -46,6 +46,41 @@ export function prefixSvgIds(svg: string, prefix: string): string {
   return out;
 }
 
+/**
+ * Namespace CSS class names in an SVG fragment with `prefix`, so two inlined
+ * SVGs that both define e.g. `.cls-1` in a `<style>` block (common in
+ * Illustrator / Figma exports) can't cross-contaminate — an inlined SVG
+ * `<style>` applies document-wide (DM-1593, the class-selector counterpart of
+ * {@link prefixSvgIds}'s id namespacing). Rewrites:
+ *   (a) class selectors in the SELECTOR portion of each rule inside `<style>`
+ *       blocks — only the text before each `{`, so a `.` inside a declaration
+ *       VALUE (e.g. `stroke-width: 1.5`, `content: ".x"`) is never misread as a
+ *       class selector; and
+ *   (b) `class="…"` / `class='…'` attribute tokens.
+ *
+ * Callers gate on `<style>` presence (see {@link inlineImgSvg}) so an SVG with
+ * no stylesheet — where class names have no rendering effect — stays
+ * byte-identical. Nested at-rules (`@media { … }`) inside an SVG `<style>` are
+ * not handled (essentially never present in an SVG asset); the flat
+ * `selector { … }` rule shape that design tools emit is.
+ */
+export function prefixSvgClasses(svg: string, prefix: string): string {
+  let out = svg;
+  // (a) class selectors inside <style> … </style>, selector-portion only.
+  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
+    const rewritten = css.replace(/([^{}]*)(\{[^{}]*\})/g, (_r, sel: string, block: string) =>
+      sel.replace(/\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)/g, (_c, name: string) => `.${prefix}${name}`) + block,
+    );
+    return open + rewritten + close;
+  });
+  // (b) class attribute tokens (single- or double-quoted).
+  out = out.replace(/\bclass=("|')([^"']*)\1/gi, (_m, q: string, val: string) => {
+    const toks = val.split(/\s+/).filter(Boolean).map((t) => `${prefix}${t}`).join(" ");
+    return `class=${q}${toks}${q}`;
+  });
+  return out;
+}
+
 /** Read a numeric SVG length attribute (`width`/`height`), stripping a `px`
  *  unit suffix. Returns null for `%`, `em`, `auto`, missing, or non-finite. */
 function readLengthAttr(attrs: string, name: string): number | null {
@@ -133,8 +168,17 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
   attrs = stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio"]);
   // Namespace ids: the root tag's own attrs (a root `id`/`url(#…)` is rare but
   // legal) and the whole body (defs + references).
-  const rootAttrs = prefixSvgIds(attrs, p.idPrefix).replace(/\s+$/, "");
-  const body = prefixSvgIds(svgText.slice(tag.index + tag[0].length), p.idPrefix);
+  let rootAttrs = prefixSvgIds(attrs, p.idPrefix).replace(/\s+$/, "");
+  let body = prefixSvgIds(svgText.slice(tag.index + tag[0].length), p.idPrefix);
+  // DM-1593: also namespace CSS class names — but ONLY when the SVG carries a
+  // `<style>` block (the only way a class can affect rendering, so the common
+  // presentation-attribute export stays byte-identical). Gated on the whole
+  // source: `<style>` + `class="…"` live in the body; a `class` on the root svg
+  // is rare but handled too.
+  if (/<style[\s>]/i.test(svgText)) {
+    rootAttrs = prefixSvgClasses(rootAttrs, p.idPrefix);
+    body = prefixSvgClasses(body, p.idPrefix);
+  }
 
   const open =
     `<svg${rootAttrs}` +

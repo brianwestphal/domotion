@@ -43,9 +43,15 @@ All `object-fit` values take the native path:
 - `fill` (default), `contain`, `cover`, and `scale-down` place the nested `<svg>` at the content box with a `preserveAspectRatio` derived from `object-fit` / `object-position` (the standard branch).
 - **`object-fit: none`** (DM-1592) places the nested `<svg>` at the SVG's **intrinsic size** (`el.imageIntrinsic`), positioned by `object-position` inside the content box and clipped to it — the native counterpart of the raster intrinsic-size branch. Since `iw×ih` *is* the SVG's intrinsic size, its own viewBox maps 1:1 and `preserveAspectRatio="xMidYMid meet"` (the SVG default) keeps that exact with no distortion. Falls back to the raster `<image>` when the source isn't SVG or has no coordinate system.
 
-## Scope / known boundaries (v1)
+## Id + class namespacing
 
-- **CSS class selectors inside an SVG `<style>` block are not namespaced.** `prefixSvgIds` rewrites ids and hash/`url(#…)` references but not class names, so two inlined SVGs that both define, say, `.cls-1` in a `<style>` block could cross-contaminate. Id-based collisions (the common case for gradients/filters exported by design tools) are fully handled; class-based `<style>` collisions are a rarer follow-up. This matches the existing behavior of the inline-`<svg>` DOM path (`paintInlineSvg`), which emits `<style>` blocks without namespacing class names.
+`prefixSvgIds` rewrites every `id`, `href="#…"`, `xlink:href="#…"`, and `url(#…)` with the per-document-unique prefix so gradients / clipPaths / filters / masks / `<use>` targets can't collide across inlined SVGs or with the outer document.
+
+`prefixSvgClasses` (DM-1593) does the same for **CSS class names** — but only when the SVG carries a `<style>` block (the only way a class affects rendering, so a presentation-attribute export like the `brand-mixed` logo stays byte-identical). It rewrites class selectors in the *selector portion* of each rule inside `<style>` (never a `.` in a declaration value) plus every `class="…"` attribute. Without this, two design-tool exports that both define `.cls-1` in a `<style>` block would cross-contaminate, since an inlined SVG `<style>` applies document-wide (verified: a red-`.cls-1` and a blue-`.cls-1` SVG now render independently). Nested at-rules (`@media`) inside an SVG `<style>` are not handled — essentially never present in an SVG asset.
+
+## Scope / known boundaries
+
+- The **inline-`<svg>` DOM path** (`paintInlineSvg`) and the **animator's svg-overlay inliner** (`namespaceSvgIds` in `src/cli/animate.ts`) have the same latent class-collision issue but are not yet class-namespaced — tracked as follow-up DM-1595. (`namespaceSvgIds` shares `prefixSvgIds` for ids already.)
 - **`<filter>` regions, `currentColor`, and CSS custom properties** inside the SVG resolve against the nested `<svg>` context, matching how the browser resolves them for the original `<img>` in the common cases (design-tool exports with self-contained gradients/filters). SVGs that rely on inheriting `color` / CSS variables from the host page are out of scope.
 
 ## Testing
@@ -57,6 +63,6 @@ All `object-fit` values take the native path:
 ## Files
 
 - `src/capture/embed.ts` — `resolveSvgSource`.
-- `src/render/svg-inline.ts` — `prefixSvgIds`, `inlineImgSvg` (+ the `InlineSvgPlacement` shape).
+- `src/render/svg-inline.ts` — `prefixSvgIds`, `prefixSvgClasses`, `inlineImgSvg` (+ the `InlineSvgPlacement` shape).
 - `src/render/element-tree-to-svg.ts` — `paintImage` native-SVG branch.
 - `src/cli/animate.ts` — `namespaceSvgIds` now delegates to the shared `prefixSvgIds`.

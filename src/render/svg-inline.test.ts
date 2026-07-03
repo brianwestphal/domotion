@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inlineImgSvg, prefixSvgIds } from "./svg-inline.js";
+import { inlineImgSvg, prefixSvgIds, prefixSvgClasses } from "./svg-inline.js";
 import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -148,5 +148,49 @@ describe("paintImage — object-fit: none SVG img inlines natively at intrinsic 
     const out = elementTreeToSvgInner([el], 200, 200);
     expect(out).toMatch(/<image\b/);
     expect(out).not.toMatch(/viewBox="0 0 40 40"/);
+  });
+});
+
+describe("prefixSvgClasses — namespace CSS class names in <style>-bearing SVGs (DM-1593)", () => {
+  it("prefixes class selectors in <style> and matching class= attributes", () => {
+    const svg = `<style>.cls-1{fill:#f00}.a .cls-2{stroke:#00f}</style>` +
+      `<rect class="cls-1"/><g class="cls-2 extra"/>`;
+    const out = prefixSvgClasses(svg, "P-");
+    expect(out).toContain(`.P-cls-1{fill:#f00}`);
+    expect(out).toContain(`.P-a .P-cls-2{stroke:#00f}`);
+    expect(out).toContain(`class="P-cls-1"`);
+    expect(out).toContain(`class="P-cls-2 P-extra"`);
+  });
+
+  it("does NOT touch a `.` inside a declaration value (only the selector portion)", () => {
+    const svg = `<style>.b{stroke-width:1.5;stroke-dasharray:.5}</style><rect class="b"/>`;
+    const out = prefixSvgClasses(svg, "P-");
+    expect(out).toContain(`.P-b{stroke-width:1.5;stroke-dasharray:.5}`);
+    expect(out).not.toContain(`.P-5`);
+  });
+});
+
+describe("inlineImgSvg — class namespacing (DM-1593)", () => {
+  it("scopes classes only when a <style> block is present; presentation-attr SVGs stay untouched", () => {
+    const styled = `<svg viewBox="0 0 10 10"><style>.c{fill:#f00}</style><rect class="c"/></svg>`;
+    const plain = `<svg viewBox="0 0 10 10"><rect class="c" fill="#f00"/></svg>`;
+    const P = { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "Q-" };
+    // Styled → class rewritten.
+    expect(inlineImgSvg(styled, P)!).toContain(`class="Q-c"`);
+    // No <style> → class attr left as-is (no stylesheet → no collision risk).
+    expect(inlineImgSvg(plain, P)!).toContain(`class="c"`);
+  });
+
+  it("two inlined SVGs with colliding .cls-1 get distinct scoped classes", () => {
+    const mk = (color: string) => `<svg viewBox="0 0 10 10"><style>.cls-1{fill:${color}}</style><rect class="cls-1"/></svg>`;
+    const a = inlineImgSvg(mk("#f00"), { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "A-" })!;
+    const b = inlineImgSvg(mk("#00f"), { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "B-" })!;
+    // Each SVG's rule + usage carry its OWN prefix, so A's rule can't style B's rect.
+    expect(a).toContain(`.A-cls-1{fill:#f00}`);
+    expect(a).toContain(`class="A-cls-1"`);
+    expect(b).toContain(`.B-cls-1{fill:#00f}`);
+    expect(b).toContain(`class="B-cls-1"`);
+    expect(a).not.toContain("B-cls-1");
+    expect(b).not.toContain("A-cls-1");
   });
 });
