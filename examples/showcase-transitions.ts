@@ -162,7 +162,7 @@ const SH_B = scene({ bg: TEAL, chip: "Shine", accent: "#5eead4", body:
 
 type TransitionType =
   | "crossfade" | "push-left" | "scroll" | "magic-move"
-  | "wipe" | "iris" | "zoom-in" | "shine";
+  | "wipe" | "iris" | "zoom-in" | "shine" | "wipe-clock";
 
 async function buildDemo(
   pg: Page,
@@ -207,6 +207,8 @@ async function main(): Promise<void> {
     await buildDemo(pg, "iris", { html: IR_A, p: "ira-" }, { html: IR_B, p: "irb-" }, "iris", 800);
     await buildDemo(pg, "zoom", { html: ZM_A, p: "zma-" }, { html: ZM_B, p: "zmb-" }, "zoom-in", 700);
     await buildDemo(pg, "shine", { html: SH_A, p: "sha-" }, { html: SH_B, p: "shb-" }, "shine", 800);
+    // DM-1547 angular "clock hand" sweep (reuses the wipe scenes).
+    await buildDemo(pg, "clock", { html: WP_A, p: "wca-" }, { html: WP_B, p: "wcb-" }, "wipe-clock", 1000);
     // DM-1542 motion effects: a spring intra-frame animation + a shine overlay.
     await buildEffects(pg);
   } finally {

@@ -151,6 +151,23 @@ const EXAMPLES: Example[] = [
     // its `.valid` green border are what get serialized, NOT the raw keystrokes a
     // synthetic typing overlay would paint. The N captures compose into a nested
     // per-keystroke animated SVG (the cast/template nesting pattern).
+    name: "interact-states",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 640 220"`)) f.push("missing viewBox 640x220");
+      // DM-1584/1585: three interact overlays (hover/focus/press) in ONE frame,
+      // each an ambient repeat pulse (distinct ids thanks to DM-1596).
+      const ix = [...svg.matchAll(/@keyframes ix[\d_]+\b/g)];
+      if (ix.length !== 3) f.push(`expected 3 interact keyframe blocks, got ${ix.length}`);
+      // Ambient repeat: a period-ms animation with `both` fill-mode.
+      const pulses = [...svg.matchAll(/animation: ix[\d_]+ 1800ms linear \d+ms infinite both/g)];
+      if (pulses.length !== 3) f.push(`expected 3 ambient-repeat pulses, got ${pulses.length}`);
+      // focus draws a stroked ring.
+      if (!/stroke="#4c9ffe"/.test(svg)) f.push("missing focus ring");
+      return f;
+    },
+  },
+  {
     name: "caret-shapes",
     check: (svg) => {
       const f: string[] = [];

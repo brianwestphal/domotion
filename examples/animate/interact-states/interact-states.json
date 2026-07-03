@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 640,
+  "height": 220,
+  "frames": [
+    {
+      "input": "./interact-states.html",
+      "duration": 3600,
+      "transition": { "type": "cut", "duration": 0 },
+      "overlays": [
+        { "kind": "interact", "treatment": "hover", "x": 92,  "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 },
+        { "kind": "interact", "treatment": "focus", "x": 268, "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 },
+        { "kind": "interact", "treatment": "press", "x": 444, "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 }
+      ]
+    }
+  ]
+}
