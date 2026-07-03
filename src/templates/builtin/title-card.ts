@@ -22,6 +22,14 @@ const REVEAL = ["fade-up", "pop"] as const;
 const THEMES = ["dark", "light"] as const;
 const PADDING = 96; // generous default margin for a full-bleed card
 
+/**
+ * DM-1568: per-element format-scale EXPONENTS. Under a format (`sf !== 1`) the
+ * headline scales HARDER than its supporting type, so a reel's title reads big
+ * while the eyebrow/subtitle stay restrained. With no format `sf === 1`, so
+ * `1 ** exp === 1` — every element is byte-identical to the pre-DM-1568 output.
+ */
+const TC_EXP = { headline: 1.25, support: 0.9 } as const;
+
 export const titleCardParamsSchema = z.object({
   title: z.string().min(1).describe("The headline (required)."),
   subtitle: z.string().optional().describe("Optional line under the headline."),
@@ -72,9 +80,9 @@ export function buildTitleCardHtml(p: TitleCardParams, safeInset?: SafeInset): s
     display: flex; flex-direction: column; justify-content: center; align-items: ${alignItems};
     text-align: ${textAlign}; gap: ${fs(20, sf)};
   }
-  .tc-eyebrow { font-size: ${fs(26, sf)}; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: ${p.accent}; }
-  .tc-title { font-size: ${fs(84, sf)}; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; max-width: 90%; }
-  .tc-sub { font-size: ${fs(34, sf)}; font-weight: 500; line-height: 1.3; color: ${t.muted}; max-width: 80%; }${hasLogo ? `\n  .tc-logo { height: ${fs(76, sf)}; max-width: 46%; object-fit: contain; }` : ""}
+  .tc-eyebrow { font-size: ${fs(26, sf, TC_EXP.support)}; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: ${p.accent}; }
+  .tc-title { font-size: ${fs(84, sf, TC_EXP.headline)}; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; max-width: 90%; }
+  .tc-sub { font-size: ${fs(34, sf, TC_EXP.support)}; font-weight: 500; line-height: 1.3; color: ${t.muted}; max-width: 80%; }${hasLogo ? `\n  .tc-logo { height: ${fs(76, sf)}; max-width: 46%; object-fit: contain; }` : ""}
 </style></head>
 <body>
   ${items.join("\n  ")}

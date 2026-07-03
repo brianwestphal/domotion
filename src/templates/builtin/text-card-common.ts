@@ -30,14 +30,23 @@ export function cardScaleFactor(width: number, height: number, safeInset?: SafeI
  * with `sf === 1` it returns the integer unchanged (e.g. `fs(84, 1)` → `"84px"`),
  * keeping the no-format default byte-identical.
  */
-export function fs(px: number, sf: number): string {
-  return `${Math.round(px * sf * 100) / 100}px`;
+export function fs(px: number, sf: number, exp = 1): string {
+  return `${fsNum(px, sf, exp)}px`;
 }
 
-/** Scale an authored px length by `sf`, returned as a rounded number (for markup
- *  that needs a bare number, e.g. an SVG `font-size` attribute). */
-export function fsNum(px: number, sf: number): number {
-  return Math.round(px * sf * 100) / 100;
+/**
+ * Scale an authored px length by `sf`, returned as a rounded number (for markup
+ * that needs a bare number, e.g. an SVG `font-size` attribute).
+ *
+ * DM-1568: an optional per-element scale EXPONENT lets one element scale HARDER
+ * than another under a format — a headline `fs(84, sf, 1.25)` grows more
+ * aggressively at reel than body `fs(34, sf, 0.9)`, since the uniform `sf` alone
+ * can't differentiate. Pure authoring-time math: `sf ** exp`. Stays opt-in and
+ * byte-identical with no format — `sf === 1` gives `1 ** exp === 1` for ANY
+ * exponent — so the exponent only bites once a format sets `sf !== 1`.
+ */
+export function fsNum(px: number, sf: number, exp = 1): number {
+  return Math.round(px * Math.pow(sf, exp) * 100) / 100;
 }
 
 /** Tabular-digit advance as a fraction of the cell (em). The number templates lay

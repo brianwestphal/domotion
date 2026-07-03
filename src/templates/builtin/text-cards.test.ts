@@ -63,6 +63,21 @@ describe("text-card-common (DM-1531)", () => {
     expect(fs(33, 1.333)).toBe("43.99px"); // 33 * 1.333 = 43.989 → 43.99
   });
 
+  it("DM-1568: a per-element exponent scales harder/softer under a format, byte-identical with none", () => {
+    // sf === 1 (no format): ANY exponent is a no-op (1 ** exp === 1).
+    expect(fsNum(84, 1, 1.25)).toBe(84);
+    expect(fs(26, 1, 0.9)).toBe("26px");
+    // sf !== 1: exp > 1 scales harder, exp < 1 softer, exp = 1 the plain factor.
+    expect(fsNum(100, 1.5, 1)).toBe(150);        // plain
+    expect(fsNum(100, 1.5, 1.25)).toBe(Math.round(100 * Math.pow(1.5, 1.25) * 100) / 100); // ~166
+    expect(fsNum(100, 1.5, 1.25)).toBeGreaterThan(150); // harder than uniform
+    expect(fsNum(100, 1.5, 0.9)).toBeLessThan(150);     // softer than uniform
+    // Headline (1.25) : support (0.9) ratio GROWS as sf rises — the DM-1568 gap.
+    const r1 = fsNum(84, 1, 1.25) / fsNum(26, 1, 0.9);
+    const r2 = fsNum(84, 1.5, 1.25) / fsNum(26, 1.5, 0.9);
+    expect(r2).toBeGreaterThan(r1);
+  });
+
   it("fitOdometerCell (DM-1541): caps a scaled number-cell so it fits the content width", () => {
     // 9 columns ("1,284,000") at 0.64 advance → a 298px cell would be 1716px wide,
     // far over a ~820px reel content width → clamped down to fit.
@@ -129,9 +144,13 @@ describe("title-card (DM-1531)", () => {
     );
     const sf = cardScaleFactor(reel.width, reel.height, reel.safeInset);
     expect(sf).toBeGreaterThan(1.3);
-    // The headline is scaled up by the factor (bigger relative type at 9:16).
-    expect(html).toContain(`.tc-title { font-size: ${fs(84, sf)};`);
+    // DM-1568: the headline scales by the factor RAISED to its per-element
+    // exponent (1.25) — harder than the eyebrow/subtitle (0.9), so it reads big.
+    expect(html).toContain(`.tc-title { font-size: ${fs(84, sf, 1.25)};`);
+    expect(html).toContain(`.tc-eyebrow { font-size: ${fs(26, sf, 0.9)};`);
     expect(html).not.toContain(".tc-title { font-size: 84px;");
+    // The headline scales HARDER than the eyebrow (the DM-1568 differential).
+    expect(fs(84, sf, 1.25) === fs(84, sf)).toBe(false);
   });
 
   it("brandDefaults maps background/text/accent/font", () => {

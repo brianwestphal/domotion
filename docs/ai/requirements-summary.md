@@ -228,8 +228,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   now folds into `formatScaleFactor` (DM-1560, no-op proven at sf=1); the CSS
   `clamp()`/viewport-unit alternative was investigated (doc 95, DM-1561 — verdict:
   keep the uniform factor, add per-element scale *exponents* rather than clamp/vw,
-  since naive `vw` shrinks reel type). **Still open:** per-element scale exponents
-  (DM-1568), a designer tuning pass (DM-1569).
+  since naive `vw` shrinks reel type). **Per-element exponents shipped (DM-1568):**
+  `fs`/`fsNum` take an optional exponent so a headline scales `sf**1.25` (harder)
+  while its eyebrow/subtitle scale `sf**0.9` (softer) under a format — applied to
+  `title-card`; `1 ** exp === 1` keeps the no-format default byte-identical.
+  **Still open:** a designer tuning pass on the curve/exponents (DM-1569).
 
 - **Doc 84 (`docs/84-viewer-browser-support.md`, DM-1515)** — **Shipped contract.**
   The support matrix for the browsers that *view* the output (distinct from the
