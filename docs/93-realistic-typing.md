@@ -46,6 +46,25 @@ When the font can't be resolved (a platform without the monospace face),
 `measureTypingLines` falls back to the old uniform `0.6em` estimate — no crash,
 same behavior as before, and still self-consistent.
 
+### Exact caret height (per-font ascent + descent)
+
+The caret x rides the measured advances (above); its **height** is likewise
+taken from the face's exact metrics, not a fixed em multiplier. Blink draws a
+bar caret at the text fragment / line-box height, which for `line-height:
+normal` is the font's **metrics height = ascent + descent** (see the
+`caret-metrics.ts` module note). `overlayAdvances` returns the resolved fontkit
+face's `ascent` / `descent` (× `fontSize / unitsPerEm`), and `buildTypingCaret`
+sizes the caret to `round(ascent + descent)` and places its top at `baseline −
+ascent` (the overlay's `y` is the text baseline). That is algebraically the same
+placement the `typeResample` caret uses — centering ascent+descent within the
+line box under CSS half-leading — so both simulated-typing surfaces draw an
+identical caret. The result is per-font-exact: a 20px serif, sans, and monospace
+caret differ in height (e.g. 23 / 20 / 24 px) because their real metrics differ,
+where the old `1.15×em` fallback gave all three the same 23px. When the face
+can't be resolved, the caret falls back to `round(fontSize × 1.15)` with its
+bottom 2px below the baseline (DM-1587), so it stays self-consistent without a
+measurable font. (DM-1590.)
+
 ### One shared reveal plan (`buildTypingPlan`)
 
 Typing is compiled once into a `TypedGlyph[]` — one entry per typed character

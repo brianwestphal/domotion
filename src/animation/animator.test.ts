@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import { generateAnimatedSvg, dedupeFrameIds } from "./animator.js";
 import { optimizeSvg } from "../post-processing/optimize.js";
+import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
 
 // DM-1557: a typing overlay's wrapped lines paint as GLYPH PATHS
 // (`<g class="tN-text"><g transform="translate(x,baseline)" aria-label="…">`)
@@ -477,6 +478,37 @@ describe("animator", () => {
     // DM-1518: both tracks are step-end — the caret JUMPS to each glyph's edge
     // as it is typed (real per-keystroke typing) and hard-toggles the blink.
     expect(svg).toMatch(/\.t0-caret\s*{[^}]*step-end[^}]*step-end/);
+  });
+
+  it("DM-1590: the caret height + top come from the face's EXACT ascent/descent, not the 1.15×em fallback", () => {
+    const fontSize = 14;
+    const baseline = 40;
+    const svg = generateAnimatedSvg({
+      width: 300, height: 80,
+      frames: [{ svgContent: `<rect/>`, duration: 3000, overlays: [{ kind: "typing", text: "hi there", x: 10, y: baseline, caret: true }] }],
+    });
+    const caret = /<rect class="t0-caret"[^>]*>/.exec(svg)?.[0] ?? "";
+    const y = parseFloat(/\by="([-\d.]+)"/.exec(caret)?.[1] ?? "NaN");
+    const h = parseFloat(/\bheight="([-\d.]+)"/.exec(caret)?.[1] ?? "NaN");
+
+    // Derive the expectation from the SAME font resolution the renderer uses, so
+    // the assertion holds on any platform: where the face resolves we expect the
+    // exact metrics-height caret placed at `baseline − ascent`; where it doesn't
+    // (no SF Mono) we expect the 1.15×em fallback at `baseline + 2 − height`.
+    const font = getFontInstance(resolveFontKey("'SF Mono', Menlo, Monaco, monospace"), 400, fontSize, 0);
+    if (font != null) {
+      const scale = fontSize / font.unitsPerEm;
+      const ascentPx = font.ascent * scale;
+      const descentPx = -font.descent * scale;
+      expect(h).toBe(Math.round(ascentPx + descentPx));
+      expect(y).toBeCloseTo(baseline - ascentPx, 1);
+      // The caret bottom sits at baseline + descent (the line box), NOT the old
+      // fixed 2px below the baseline.
+      expect(y + h).toBeCloseTo(baseline + descentPx, 0);
+    } else {
+      expect(h).toBe(Math.round(fontSize * 1.15));
+      expect(y).toBeCloseTo(baseline + 2 - h, 5);
+    }
   });
 
   it("DM-1518: reveal clip steps per keystroke and the caret parks exactly at the measured text edge", () => {

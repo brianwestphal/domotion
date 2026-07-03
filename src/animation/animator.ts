@@ -1432,7 +1432,7 @@ function hashString(s: string): number {
  */
 function overlayAdvances(
   fontFamily: string, fontSize: number,
-): { advOf: (ch: string) => number; measured: boolean } {
+): { advOf: (ch: string) => number; measured: boolean; ascentPx?: number; descentPx?: number } {
   const estimate = fontSize * MONO_CHAR_WIDTH_RATIO;
   let font: ReturnType<typeof getFontInstance> = null;
   try {
@@ -1449,7 +1449,13 @@ function overlayAdvances(
     const adv = (g?.advanceWidth ?? 0) * scale;
     return adv > 0 ? adv : estimate;
   };
-  return { advOf, measured: true };
+  // DM-1590: the face's exact ascent/descent (px) — the metrics-height caret
+  // (Blink's bar-caret = line-box = ascent+descent) instead of the 1.15×em
+  // fallback. `descent` is negative in fontkit (hhea/OS-2), so negate for the
+  // downward magnitude.
+  const ascentPx = font.ascent * scale;
+  const descentPx = -font.descent * scale;
+  return { advOf, measured: true, ascentPx, descentPx };
 }
 
 /**
@@ -1733,6 +1739,7 @@ function buildTypingCaret(
   caretSteps: CaretStep[], lineHeight: number, fontSize: number,
   typeStartPct: string, typeStartMs: number, textEndMs: number, holdEndMs: number, holdEndPct: string, disappearPct: string,
   totalDuration: number, totalSec: number,
+  ascentPx?: number, descentPx?: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
   const cssRules: string[] = [];
@@ -1773,12 +1780,20 @@ function buildTypingCaret(
     }
     blinkStops.push(`${disappearPct}, 100% { opacity: 0; }`);
 
-    // DM-1587: caret height = the font metrics height (ascent+descent ≈ the line
-    // box), the same standard the `typeResample` caret uses (see `caret-metrics.ts`),
-    // rather than the bare em — a real browser bar caret spans the full font box.
-    // Keep the caret BOTTOM where it was (just below the baseline) and grow upward.
-    const caretHeight = barCaretHeightPx(fontSize);
-    const caretTop = (overlay.y + 2 - caretHeight).toFixed(2);
+    // Caret height = the font metrics height (ascent+descent ≈ the line box),
+    // the same standard the `typeResample` caret uses (see `caret-metrics.ts`) —
+    // a real browser bar caret spans the full font box, not the bare em.
+    // DM-1590: when the fontkit face resolved, use its EXACT ascent/descent (px)
+    // for a per-font-exact height, and place the caret top at `baseline − ascent`
+    // (overlay.y is the text baseline). That is algebraically the same as the
+    // typeResample caret centering ascent+descent within the line box under CSS
+    // half-leading. Fall back to the 1.15×em height + "bottom 2px below baseline"
+    // placement (DM-1587) on platforms where the face can't be measured, so the
+    // caret stays self-consistent without a font.
+    const caretHeight = barCaretHeightPx(fontSize, ascentPx, descentPx);
+    const caretTop = (ascentPx != null && descentPx != null && ascentPx + descentPx > 0
+      ? overlay.y - ascentPx
+      : overlay.y + 2 - caretHeight).toFixed(2);
     parts.push(
       `  <rect class="${id}-caret" x="${overlay.x}" y="${caretTop}" width="${caretW}" height="${caretHeight}" fill="${caretColor}" />`,
     );
@@ -1872,7 +1887,7 @@ function renderTypingOverlay(
   // proportional-aware — and wrap by MEASURED PIXEL WIDTH (not a coarse char
   // count), so a proportional field-matching family breaks where it actually
   // overflows. Falls back to the uniform estimate when the font can't resolve.
-  const { advOf } = overlayAdvances(fontFamily, fontSize);
+  const { advOf, ascentPx, descentPx } = overlayAdvances(fontFamily, fontSize);
   const lines = wrapTypingTextPx(overlay.text, maxLineWidth, advOf);
   // Per-line code-point arrays (astral pairs count as one glyph) drive both the
   // reveal stepping and the caret, so they can't desync.
@@ -1954,7 +1969,7 @@ function renderTypingOverlay(
   // Optional blinking insertion caret glued to the growing text edge. In paste
   // mode only the final edge matters, so the caret rides a single end stop.
   const caretRide = overlay.mode === "paste" ? caretSteps.slice(-1) : caretSteps;
-  const cr = buildTypingCaret(overlay, id, color, caretRide, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec);
+  const cr = buildTypingCaret(overlay, id, color, caretRide, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec, ascentPx, descentPx);
   parts.push(...cr.parts);
   cssRules.push(...cr.cssRules);
 
