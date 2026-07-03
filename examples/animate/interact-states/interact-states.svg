@@ -33,7 +33,7 @@
       31.11% { opacity: 0; transform: scale(1); }
       100% { opacity: 0; transform: scale(1); }
     }
-    .ix0 { animation: ix0 1800ms linear 200ms infinite both; transform-origin: 167px 110px; }
+    .ix0 { animation: ix0 1800ms linear 200ms infinite both; transform-origin: 144px 110px; }
 
     @keyframes ix0_1 {
       0% { opacity: 0; transform: scale(1); animation-timing-function: ease-out; }
@@ -42,7 +42,7 @@
       31.11% { opacity: 0; transform: scale(1); }
       100% { opacity: 0; transform: scale(1); }
     }
-    .ix0_1 { animation: ix0_1 1800ms linear 200ms infinite both; transform-origin: 343px 110px; }
+    .ix0_1 { animation: ix0_1 1800ms linear 200ms infinite both; transform-origin: 320px 110px; }
 
     @keyframes ix0_2 {
       0% { opacity: 0; transform: scale(1); animation-timing-function: ease-out; }
@@ -51,7 +51,7 @@
       31.11% { opacity: 0; transform: scale(1); }
       100% { opacity: 0; transform: scale(1); }
     }
-    .ix0_2 { animation: ix0_2 1800ms linear 200ms infinite both; transform-origin: 519px 110px; }
+    .ix0_2 { animation: ix0_2 1800ms linear 200ms infinite both; transform-origin: 496px 110px; }
   </style>
   <g clip-path="url(#viewport-clip)">
   <g class="f f-0">
@@ -66,14 +66,14 @@
   <g role="img" aria-label="Press"><title>Press</title><text x="474.77 485.02 491.17 500.31 508.67" y="116" font-family="dmf0" font-size="16" font-weight="600" fill="rgb(255,255,255)"></text></g>
   </g>
   <g class="ix0">
-    <rect x="92" y="84" width="150" height="52" rx="10" ry="10" fill="#ffffff" fill-opacity="0.18" />
+    <rect x="69" y="84" width="150" height="52" rx="10" ry="10" fill="#ffffff" fill-opacity="0.18" />
   </g>
   <g class="ix0_1">
-    <rect x="268" y="84" width="150" height="52" rx="10" ry="10" fill="#4c9ffe" fill-opacity="0.1" />
-    <rect x="269" y="85" width="148" height="50" rx="10" ry="10" fill="none" stroke="#4c9ffe" stroke-width="2" />
+    <rect x="245" y="84" width="150" height="52" rx="10" ry="10" fill="#4c9ffe" fill-opacity="0.1" />
+    <rect x="246" y="85" width="148" height="50" rx="10" ry="10" fill="none" stroke="#4c9ffe" stroke-width="2" />
   </g>
   <g class="ix0_2">
-    <rect x="444" y="84" width="150" height="52" rx="10" ry="10" fill="#000000" fill-opacity="0.18" />
+    <rect x="421" y="84" width="150" height="52" rx="10" ry="10" fill="#000000" fill-opacity="0.18" />
   </g>
   </g>
 </svg>

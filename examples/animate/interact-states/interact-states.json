@@ -8,9 +8,9 @@
       "duration": 3600,
       "transition": { "type": "cut", "duration": 0 },
       "overlays": [
-        { "kind": "interact", "treatment": "hover", "x": 92,  "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 },
-        { "kind": "interact", "treatment": "focus", "x": 268, "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 },
-        { "kind": "interact", "treatment": "press", "x": 444, "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 }
+        { "kind": "interact", "treatment": "hover", "x": 69,  "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 },
+        { "kind": "interact", "treatment": "focus", "x": 245, "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 },
+        { "kind": "interact", "treatment": "press", "x": 421, "y": 84, "width": 150, "height": 52, "radius": 10, "repeat": "infinite", "repeatPeriodMs": 1800 }
       ]
     }
   ]
