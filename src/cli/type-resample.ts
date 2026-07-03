@@ -26,7 +26,9 @@
 
 import type { Page } from "@playwright/test";
 import type { AnimationFrame, AnimationOverlay } from "../animation/index.js";
+import type { BlinkOverlay } from "../animation/overlay-schema.js";
 import { generateAnimatedSvg } from "../animation/index.js";
+import { caretShapeRect, type CaretShape } from "../animation/caret-metrics.js";
 import { captureElementTree } from "../capture/index.js";
 import { elementTreeToSvgInner } from "../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
@@ -48,6 +50,9 @@ export interface TypeResampleSpec {
   clear: boolean;
   /** Draw the field's REAL caret (measured from `selectionEnd`) as a blinking bar. */
   caret: boolean;
+  /** DM-1591: caret shape. `"auto"` (default) honors the field's computed CSS
+   *  `caret-shape`; `bar`/`block`/`underscore` force a shape regardless. */
+  caretShape: CaretShape | "auto";
 }
 
 /** Defaults for the optional `typeResample` config fields (docs/93). */
@@ -57,6 +62,7 @@ export const TYPE_RESAMPLE_DEFAULTS = {
   tailMs: 700,
   clear: true,
   caret: true,
+  caretShape: "auto",
 } as const;
 
 /**
@@ -71,6 +77,7 @@ export function resolveTypeResampleSpec(raw: {
   tailMs?: number;
   clear?: boolean;
   caret?: boolean;
+  caretShape?: CaretShape | "auto";
 }): TypeResampleSpec {
   return {
     selector: raw.selector,
@@ -80,6 +87,7 @@ export function resolveTypeResampleSpec(raw: {
     tailMs: raw.tailMs ?? TYPE_RESAMPLE_DEFAULTS.tailMs,
     clear: raw.clear ?? TYPE_RESAMPLE_DEFAULTS.clear,
     caret: raw.caret ?? TYPE_RESAMPLE_DEFAULTS.caret,
+    caretShape: raw.caretShape ?? TYPE_RESAMPLE_DEFAULTS.caretShape,
   };
 }
 
@@ -101,11 +109,20 @@ export function typeResampleDurations(charCount: number, speed: number, delay: n
   return durs;
 }
 
-/** A measured caret rectangle in page-viewport coordinates (= canvas coords). */
-interface CaretRect {
+/** A measured caret in page-viewport coordinates (= canvas coords). The final
+ *  rect is derived node-side via {@link caretShapeRect} so the bar/block/
+ *  underscore geometry lives in one shared, tested place (DM-1591). */
+interface CaretMeasurement {
+  /** Insertion-point x (the caret's left edge). */
   x: number;
-  y: number;
-  height: number;
+  /** Text baseline y. */
+  baselineY: number;
+  ascentPx: number;
+  descentPx: number;
+  /** Advance of the insertion cell (a space at end-of-text) — block/underscore width. */
+  cellWidthPx: number;
+  fontSize: number;
+  shape: CaretShape;
   color: string;
 }
 
@@ -116,8 +133,8 @@ interface CaretRect {
  * keystrokes. Returns `null` when the element isn't a text input/textarea or the
  * measurement can't be taken (best-effort; the caller then omits the caret).
  */
-async function measureCaret(page: Page, selector: string): Promise<CaretRect | null> {
-  return page.evaluate((sel: string) => {
+async function measureCaret(page: Page, selector: string, shapeOverride: CaretShape | "auto"): Promise<CaretMeasurement | null> {
+  return page.evaluate(({ sel, shapeOverride }: { sel: string; shapeOverride: string }) => {
     const el = document.querySelector(sel);
     if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;
     const cs = getComputedStyle(el);
@@ -164,35 +181,60 @@ async function measureCaret(page: Page, selector: string): Promise<CaretRect | n
     //    centers its line in the content box; a <textarea> lays lines from the top —
     //    so the caret and the captured text share one line box and can't diverge.
     const fm = ctx.measureText("Hg");
-    const fontBox = (fm.fontBoundingBoxAscent || 0) + (fm.fontBoundingBoxDescent || 0);
-    const caretHeight = Math.round(fontBox > 0 ? fontBox : fontSize * 1.15);
+    const fmAsc = fm.fontBoundingBoxAscent || 0;
+    const fmDesc = fm.fontBoundingBoxDescent || 0;
+    const fontBox = fmAsc + fmDesc;
+    // Exact ascent/descent when the canvas exposes them, else the 1.15×em split.
+    const ascentPx = fontBox > 0 ? fmAsc : fontSize * 0.9;
+    const descentPx = fontBox > 0 ? fmDesc : fontSize * 0.25;
+    const caretHeight = Math.round(ascentPx + descentPx);
     const lineH = num(cs.lineHeight) || fontBox || fontSize * 1.2;
     const contentTop = r.top + num(cs.borderTopWidth) + num(cs.paddingTop);
     const contentHeight = r.height - num(cs.borderTopWidth) - num(cs.borderBottomWidth) - num(cs.paddingTop) - num(cs.paddingBottom);
     const lineTop = el instanceof HTMLTextAreaElement
       ? contentTop
       : contentTop + Math.max(0, (contentHeight - lineH) / 2);
-    const y = lineTop + (lineH - caretHeight) / 2;
+    // Caret box centered in the line box; baseline sits `ascent` below the box top.
+    const boxTop = lineTop + (lineH - caretHeight) / 2;
+    const baselineY = boxTop + ascentPx;
+    // Insertion cell = a space at end-of-text (the block/underscore width).
+    const cellWidthPx = ctx.measureText(" ").width || fontSize * 0.5;
     const caretColor = cs.caretColor && cs.caretColor !== "auto" ? cs.caretColor : cs.color;
-    return { x, y, height: caretHeight, color: caretColor };
-  }, selector);
+    // Shape: an explicit override wins; else the field's computed CSS caret-shape
+    // (Blink resolves `auto` → a bar for text); else bar.
+    const valid = ["bar", "block", "underscore"];
+    // `caret-shape` is a newer property not in the CSSStyleDeclaration lib types.
+    const computed = cs.getPropertyValue("caret-shape").trim();
+    const shape = (shapeOverride !== "auto" && valid.includes(shapeOverride))
+      ? shapeOverride
+      : (computed != null && valid.includes(computed)) ? computed : "bar";
+    return { x, baselineY, ascentPx, descentPx, cellWidthPx, fontSize, shape: shape as "bar" | "block" | "underscore", color: caretColor };
+  }, { sel: selector, shapeOverride });
 }
 
-/** Build the blinking-caret overlay for one re-sampled state, or `undefined`. */
-function caretOverlay(rect: CaretRect | null): AnimationOverlay[] | undefined {
-  if (rect == null) return undefined;
-  return [
-    {
-      kind: "blink",
-      x: Math.round(rect.x * 100) / 100,
-      y: rect.y,
-      width: 1.5,
-      height: rect.height,
-      color: rect.color,
-      periodMs: 1060,
-      radius: 0.75,
-    },
-  ];
+/** Build the blinking-caret overlay for one re-sampled state, or `undefined`.
+ *  Applies the shared {@link caretShapeRect} so the bar / block / underscore
+ *  geometry matches the typing overlay (DM-1591). The bar keeps its historical
+ *  1.5px width + 0.75 corner radius; block/underscore are square-cornered. */
+function caretOverlay(m: CaretMeasurement | null): AnimationOverlay[] | undefined {
+  if (m == null) return undefined;
+  const rect = caretShapeRect({
+    shape: m.shape, x: m.x, baselineY: m.baselineY,
+    ascentPx: m.ascentPx, descentPx: m.descentPx, cellWidthPx: m.cellWidthPx,
+    fontSize: m.fontSize, barWidthPx: 1.5,
+  });
+  const overlay: BlinkOverlay = {
+    kind: "blink",
+    x: Math.round(rect.x * 100) / 100,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    color: m.color,
+    periodMs: 1060,
+    radius: m.shape === "bar" ? 0.75 : undefined,
+  };
+  if (rect.opacity < 1) overlay.fillOpacity = rect.opacity;
+  return [overlay];
 }
 
 /**
@@ -237,7 +279,7 @@ export async function buildTypeResampleAnimation(
     cullElementsOutsideViewBox(tree, width, height, undefined, 0, 1);
     if (j === 0) rootBg = tree[0]?.styles?.rootBgComputed;
     const svgContent = elementTreeToSvgInner(tree, width, height, `${framePrefix}s${j}-`, true, 2, false);
-    const overlays = spec.caret ? caretOverlay(await measureCaret(page, spec.selector)) : undefined;
+    const overlays = spec.caret ? caretOverlay(await measureCaret(page, spec.selector, spec.caretShape)) : undefined;
     subFrames.push({
       svgContent,
       duration: durations[j],

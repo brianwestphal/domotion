@@ -151,6 +151,23 @@ const EXAMPLES: Example[] = [
     // its `.valid` green border are what get serialized, NOT the raw keystrokes a
     // synthetic typing overlay would paint. The N captures compose into a nested
     // per-keystroke animated SVG (the cast/template nesting pattern).
+    name: "caret-shapes",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 720 260"`)) f.push("missing viewBox 720x260");
+      // DM-1591: three typing overlays with bar / block / underscore carets.
+      const carets = [...svg.matchAll(/<rect class="t\d+-caret"[^>]*\/>/g)].map((m) => m[0]);
+      if (carets.length !== 3) f.push(`expected 3 caret rects, got ${carets.length}`);
+      // A block caret is a translucent (fill-opacity 0.5), cell-wide box.
+      if (!carets.some((c) => /fill-opacity="0\.5"/.test(c) && /width="1[0-9.]+"/.test(c))) f.push("missing translucent block caret");
+      // An underscore caret is a thin (small height) cell-wide bar.
+      if (!carets.some((c) => /height="[12]"/.test(c) && /width="1[0-9.]+"/.test(c))) f.push("missing thin underscore caret");
+      // A bar caret is width 2, opaque.
+      if (!carets.some((c) => /width="2"/.test(c) && !/fill-opacity/.test(c))) f.push("missing bar caret");
+      return f;
+    },
+  },
+  {
     name: "type-resample",
     check: (svg) => {
       const f: string[] = [];

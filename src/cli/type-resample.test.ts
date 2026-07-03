@@ -47,6 +47,7 @@ describe("resolveTypeResampleSpec (DM-1556)", () => {
       tailMs: TYPE_RESAMPLE_DEFAULTS.tailMs,
       clear: TYPE_RESAMPLE_DEFAULTS.clear,
       caret: TYPE_RESAMPLE_DEFAULTS.caret,
+      caretShape: TYPE_RESAMPLE_DEFAULTS.caretShape,
     });
   });
 
@@ -59,5 +60,11 @@ describe("resolveTypeResampleSpec (DM-1556)", () => {
     expect(spec.tailMs).toBe(100);
     expect(spec.clear).toBe(false);
     expect(spec.caret).toBe(false);
+  });
+
+  it("DM-1591: caretShape defaults to 'auto' and accepts a forced shape", () => {
+    expect(resolveTypeResampleSpec({ selector: "#f", text: "x" }).caretShape).toBe("auto");
+    expect(resolveTypeResampleSpec({ selector: "#f", text: "x", caretShape: "block" }).caretShape).toBe("block");
+    expect(resolveTypeResampleSpec({ selector: "#f", text: "x", caretShape: "underscore" }).caretShape).toBe("underscore");
   });
 });

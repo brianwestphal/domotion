@@ -129,7 +129,14 @@ export const typingOverlaySchema = z.object({
    * `color`, 2px wide, ~530ms cadence); an object overrides them.
    */
   caret: z
-    .union([z.boolean(), z.object({ color: z.string().optional(), width: z.number().optional(), blinkMs: z.number().optional() })])
+    .union([z.boolean(), z.object({
+      color: z.string().optional(),
+      width: z.number().optional(),
+      blinkMs: z.number().optional(),
+      // DM-1591: caret shape — `bar` (default thin bar), `block` (a translucent
+      // char-cell-wide box), or `underscore` (a thin bar at the baseline).
+      shape: z.enum(["bar", "block", "underscore"]).optional(),
+    })])
     .optional(),
   /**
    * DM-1555: humanize the typing with occasional MISTAKES — type a wrong
@@ -223,6 +230,9 @@ export const blinkOverlaySchema = z.object({
   periodMs: z.number().optional(),
   /** Fill color (default a light gray). */
   color: z.string().optional(),
+  /** Fill opacity when "on" (default 1). DM-1591: a `block` caret paints at 0.5
+   *  so the glyph shows through. */
+  fillOpacity: z.number().optional(),
   /** Corner radius — set to half the width/height for a dot. */
   radius: z.number().optional(),
   /** Ms after the frame becomes visible before blinking starts. Default 0. */

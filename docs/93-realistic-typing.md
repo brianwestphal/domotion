@@ -65,6 +65,13 @@ can't be resolved, the caret falls back to `round(fontSize × 1.15)` with its
 bottom 2px below the baseline (DM-1587), so it stays self-consistent without a
 measurable font. (DM-1590.)
 
+### Caret shape
+
+The caret can be a `bar` (default), `block`, or `underscore` — see
+[97-caret-shapes.md](97-caret-shapes.md). The geometry lives in the same
+`caret-metrics.ts` module (`caretShapeRect`), shared with the `typeResample`
+caret, so a block/underscore caret is drawn identically on both surfaces.
+
 ### One shared reveal plan (`buildTypingPlan`)
 
 Typing is compiled once into a `TypedGlyph[]` — one entry per typed character

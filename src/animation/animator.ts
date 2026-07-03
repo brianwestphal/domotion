@@ -23,7 +23,7 @@ import { KEYFRAME_EPSILON, cullOverlapPct, padAfter, padBefore } from "../utils/
 import { interpolateCssValue, resolveEasing } from "./easing.js";
 import { resolveEasingPreset } from "./motion-presets.js";
 import { buildShineSweep } from "./shine.js";
-import { barCaretHeightPx } from "./caret-metrics.js";
+import { barCaretHeightPx, caretShapeRect, type CaretShape } from "./caret-metrics.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -1739,7 +1739,7 @@ function buildTypingCaret(
   caretSteps: CaretStep[], lineHeight: number, fontSize: number,
   typeStartPct: string, typeStartMs: number, textEndMs: number, holdEndMs: number, holdEndPct: string, disappearPct: string,
   totalDuration: number, totalSec: number,
-  ascentPx?: number, descentPx?: number,
+  ascentPx?: number, descentPx?: number, cellWidthPx?: number,
 ): { parts: string[]; cssRules: string[] } {
   const parts: string[] = [];
   const cssRules: string[] = [];
@@ -1747,6 +1747,7 @@ function buildTypingCaret(
     const caretOpts = typeof overlay.caret === "object" ? overlay.caret : {};
     const caretColor = caretOpts.color ?? color;
     const caretW = caretOpts.width ?? 2;
+    const caretShape: CaretShape = caretOpts.shape ?? "bar";
     const blinkMs = caretOpts.blinkMs ?? 530;
     const lastG = caretSteps[caretSteps.length - 1];
     const endX = lastG.edge;
@@ -1780,22 +1781,30 @@ function buildTypingCaret(
     }
     blinkStops.push(`${disappearPct}, 100% { opacity: 0; }`);
 
-    // Caret height = the font metrics height (ascent+descent ≈ the line box),
-    // the same standard the `typeResample` caret uses (see `caret-metrics.ts`) —
-    // a real browser bar caret spans the full font box, not the bare em.
-    // DM-1590: when the fontkit face resolved, use its EXACT ascent/descent (px)
-    // for a per-font-exact height, and place the caret top at `baseline − ascent`
-    // (overlay.y is the text baseline). That is algebraically the same as the
-    // typeResample caret centering ascent+descent within the line box under CSS
-    // half-leading. Fall back to the 1.15×em height + "bottom 2px below baseline"
-    // placement (DM-1587) on platforms where the face can't be measured, so the
-    // caret stays self-consistent without a font.
-    const caretHeight = barCaretHeightPx(fontSize, ascentPx, descentPx);
-    const caretTop = (ascentPx != null && descentPx != null && ascentPx + descentPx > 0
-      ? overlay.y - ascentPx
-      : overlay.y + 2 - caretHeight).toFixed(2);
+    // Caret geometry from the font metrics (ascent+descent ≈ the line box), the
+    // same standard the `typeResample` caret uses (see `caret-metrics.ts`).
+    // DM-1590: when the fontkit face resolved, use its EXACT ascent/descent (px);
+    // otherwise fall back to the 1.15×em box with the DM-1587 "bottom 2px below
+    // baseline" split (ascent = height−2, descent = 2), so the caret stays
+    // self-consistent without a measurable face.
+    // DM-1591: `caretShapeRect` turns that box into a bar / block / underscore
+    // rect. `block`/`underscore` are one insertion-cell (a space advance) wide;
+    // `block` paints translucent over the cell.
+    const hasCaretMetrics = ascentPx != null && descentPx != null && ascentPx + descentPx > 0;
+    const barHeight = barCaretHeightPx(fontSize, ascentPx, descentPx);
+    const ascEff = hasCaretMetrics ? ascentPx : barHeight - 2;
+    const descEff = hasCaretMetrics ? descentPx : 2;
+    const cellW = cellWidthPx != null && cellWidthPx > 0 ? cellWidthPx : fontSize * MONO_CHAR_WIDTH_RATIO;
+    const cRect = caretShapeRect({
+      shape: caretShape, x: overlay.x, baselineY: overlay.y,
+      ascentPx: ascEff, descentPx: descEff, cellWidthPx: cellW, fontSize, barWidthPx: caretW,
+    });
+    const caretOpacity = cRect.opacity < 1 ? ` fill-opacity="${cRect.opacity}"` : "";
+    // Strip trailing zeros so a default bar stays `width="2"` (byte-identical to
+    // pre-DM-1591), while a block/underscore cell width keeps up to 2 decimals.
+    const caretWidthStr = Number(cRect.width.toFixed(2)).toString();
     parts.push(
-      `  <rect class="${id}-caret" x="${overlay.x}" y="${caretTop}" width="${caretW}" height="${caretHeight}" fill="${caretColor}" />`,
+      `  <rect class="${id}-caret" x="${overlay.x}" y="${cRect.y.toFixed(2)}" width="${caretWidthStr}" height="${cRect.height}" fill="${caretColor}"${caretOpacity} />`,
     );
     // The position track is step-end (per-keystroke jumps, matching real typing
     // and the discrete reveal); the blink is step-end too.
@@ -1969,7 +1978,10 @@ function renderTypingOverlay(
   // Optional blinking insertion caret glued to the growing text edge. In paste
   // mode only the final edge matters, so the caret rides a single end stop.
   const caretRide = overlay.mode === "paste" ? caretSteps.slice(-1) : caretSteps;
-  const cr = buildTypingCaret(overlay, id, color, caretRide, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec, ascentPx, descentPx);
+  // DM-1591: the insertion cell width for a block/underscore caret — the space
+  // advance in the overlay font (the caret sits at end-of-text, an empty cell).
+  const caretCellWidth = advOf(" ");
+  const cr = buildTypingCaret(overlay, id, color, caretRide, lineHeight, fontSize, typeStartPct, typeStartMs, textEndMs, holdEndMs, holdEndPct, disappearPct, totalDuration, totalSec, ascentPx, descentPx, caretCellWidth);
   parts.push(...cr.parts);
   cssRules.push(...cr.cssRules);
 
@@ -2068,7 +2080,8 @@ function renderBlinkOverlay(
   }
   stops.push(`${pct(frameEnd, totalDuration)}, 100% { opacity: 0; }`);
 
-  const svgMarkup = `  <rect class="${id}" x="${overlay.x}" y="${overlay.y}" width="${overlay.width}" height="${overlay.height}"${radiusAttr} fill="${color}" />`;
+  const opacityAttr = overlay.fillOpacity != null && overlay.fillOpacity < 1 ? ` fill-opacity="${overlay.fillOpacity}"` : "";
+  const svgMarkup = `  <rect class="${id}" x="${overlay.x}" y="${overlay.y}" width="${overlay.width}" height="${overlay.height}"${radiusAttr} fill="${color}"${opacityAttr} />`;
   const css = `
     @keyframes ${id} { ${stops.join(" ")} }
     .${id} { animation: ${id} ${totalSec.toFixed(2)}s step-end infinite; }`;

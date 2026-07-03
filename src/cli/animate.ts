@@ -395,6 +395,9 @@ const typeResampleSchema = z.object({
   clear: z.boolean().optional(),
   /** Draw the field's REAL caret (from `selectionEnd`) as a blinking bar. Default true. */
   caret: z.boolean().optional(),
+  /** Caret shape (DM-1591). `"auto"` (default) honors the field's computed CSS
+   *  `caret-shape`; `bar`/`block`/`underscore` force a shape. */
+  caretShape: z.enum(["auto", "bar", "block", "underscore"]).optional(),
 });
 
 // DM-1564 (docs/94 option 3): MutationObserver JS-change harness. `forceState`

@@ -42,6 +42,16 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 97 (`docs/97-caret-shapes.md`, DM-1591)** — **Shipped.** The `typing`
+  overlay + `typeResample` carets can be a `bar` / `block` / `underscore` (Blink's
+  `CaretShape`). `typeResample` honors the field's computed CSS `caret-shape` by
+  default (`caretShape: "auto"`) or takes a forced shape; the `typing` overlay
+  takes `caret.shape`. Shared geometry in `caret-metrics.ts` (`caretShapeRect`):
+  block = translucent (0.5) cell-wide box, underscore = thin baseline bar. Since
+  Blink only paints a caret with OS focus, these are author-driven animation
+  surfaces (spec-faithful, not Chrome-pixel-compared). Committed demo
+  `examples/animate/caret-shapes/`.
+
 - **Doc 96 (`docs/96-native-svg-image-inlining.md`, DM-1588)** — **Shipped.** An
   `<img src="*.svg">` inlines as a native, positioned, id-namespaced nested
   `<svg>` in the output instead of `<image href="data:image/svg+xml;base64,…">`.

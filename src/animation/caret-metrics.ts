@@ -39,3 +39,79 @@ export function barCaretHeightPx(fontSize: number, ascent?: number, descent?: nu
   }
   return Math.round(fontSize * FONT_METRICS_HEIGHT_EM);
 }
+
+/**
+ * The three CSS `caret-shape` values Blink models (`CaretShape`): a thin vertical
+ * `bar` (the text default), a `block` spanning a whole character cell drawn
+ * semi-transparent over the glyph, and an `underscore` — a thin horizontal bar at
+ * the baseline (DM-1591).
+ */
+export type CaretShape = "bar" | "block" | "underscore";
+
+/**
+ * Block-caret alpha. Blink paints a block caret at 50% — `color_.SetAlpha(0.5)`
+ * in `caret_display_item_client.cc` — so it reads as a translucent highlight over
+ * the character cell rather than hiding the glyph. (Blink gates this on auto
+ * caret-color; we apply it for every block caret so an explicit caret color still
+ * shows the glyph beneath, matching the shape's intent.)
+ */
+export const BLOCK_CARET_ALPHA = 0.5;
+
+/** Default bar-caret width in px. */
+export const DEFAULT_CARET_WIDTH_PX = 2;
+
+/**
+ * Underscore-caret thickness (px) for a font size — a thin bar at the baseline,
+ * ~1/12 em with a 1px floor, matching a typical underline weight.
+ */
+export function underscoreCaretThicknessPx(fontSize: number): number {
+  return Math.max(1, Math.round(fontSize / 12));
+}
+
+export interface CaretRectInput {
+  shape: CaretShape;
+  /** Caret x (the insertion-point left edge), px. */
+  x: number;
+  /** Text baseline y, px. */
+  baselineY: number;
+  /** Font ascent / descent in px (exact metrics — see {@link barCaretHeightPx}). */
+  ascentPx: number;
+  descentPx: number;
+  /** Advance of the insertion cell (the character at/after the caret, or a space
+   *  at end-of-text), px — the width of a `block` / `underscore` caret. */
+  cellWidthPx: number;
+  fontSize: number;
+  /** Bar-caret width override (default {@link DEFAULT_CARET_WIDTH_PX}). */
+  barWidthPx?: number;
+}
+
+export interface CaretShapeRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Fill opacity — 0.5 for `block` (translucent over the glyph), 1 otherwise. */
+  opacity: number;
+}
+
+/**
+ * Resolve a caret's on-screen rectangle for a given {@link CaretShape}, shared by
+ * every simulated-typing surface so a bar / block / underscore caret is drawn the
+ * same way Blink paints it. `bar` and `block` span the font box (`baselineY −
+ * ascent … baselineY + descent`); `underscore` is a thin bar sitting on the
+ * baseline. `block` / `underscore` are `cellWidthPx` wide; `bar` is `barWidthPx`.
+ */
+export function caretShapeRect(inp: CaretRectInput): CaretShapeRect {
+  const boxTop = inp.baselineY - inp.ascentPx;
+  const boxHeight = Math.round(inp.ascentPx + inp.descentPx);
+  const cellW = Math.max(1, inp.cellWidthPx);
+  switch (inp.shape) {
+    case "block":
+      return { x: inp.x, y: boxTop, width: cellW, height: boxHeight, opacity: BLOCK_CARET_ALPHA };
+    case "underscore":
+      return { x: inp.x, y: inp.baselineY, width: cellW, height: underscoreCaretThicknessPx(inp.fontSize), opacity: 1 };
+    case "bar":
+    default:
+      return { x: inp.x, y: boxTop, width: inp.barWidthPx ?? DEFAULT_CARET_WIDTH_PX, height: boxHeight, opacity: 1 };
+  }
+}

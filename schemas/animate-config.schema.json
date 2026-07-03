@@ -1164,6 +1164,15 @@
               },
               "caret": {
                 "type": "boolean"
+              },
+              "caretShape": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "bar",
+                  "block",
+                  "underscore"
+                ]
               }
             },
             "required": [
@@ -1302,6 +1311,14 @@
                             },
                             "blinkMs": {
                               "type": "number"
+                            },
+                            "shape": {
+                              "type": "string",
+                              "enum": [
+                                "bar",
+                                "block",
+                                "underscore"
+                              ]
                             }
                           }
                         }
@@ -1583,6 +1600,9 @@
                     },
                     "color": {
                       "type": "string"
+                    },
+                    "fillOpacity": {
+                      "type": "number"
                     },
                     "radius": {
                       "type": "number"
