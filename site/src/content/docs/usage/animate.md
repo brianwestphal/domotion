@@ -76,20 +76,34 @@ demo:
 
 ## Transitions
 
-`crossfade`, `cut`, `push-left`, `scroll`, `magic-move`.
+`crossfade`, `cut`, `push-left`, `scroll`, `magic-move`, `wipe`, `iris`,
+`wipe-clock`, `zoom-in`, `zoom-out`, `shine`. Every transition takes an `easing`
+(including `cubic-bezier(...)`), and they **compose** when chained: a frame enters
+the way the previous transition handed off to it (fades in after a crossfade,
+slides in after a push/scroll, reveals after a wipe/iris, dollies after a zoom)
+and exits its own way — so you can mix types freely across a sequence.
 
 ## Beyond static frames
 
 A frame also supports:
 
 - **Intra-frame `animations`** — animate a captured element (`opacity`,
-  `transform`, `translateX/Y`, `scale`, `width`/`height`, `clipPath`).
-- **Overlays** — `typing` / `tap` / `svg` / `blink`, optionally anchored to an
-  element's box.
+  `transform`, `translateX/Y`, `scale`, `width`/`height`, `clipPath`); set an
+  `easing` on each (they default to `linear`).
+- **Overlays** — `typing` / `tap` / `svg` / `blink` / `shine` / `interact`,
+  optionally anchored to an element's box. Typing renders character-by-character
+  with the field's real caret and supports `mode`, `jitter`, `mistakes`, `kern`
+  (GPOS-kerned proportional typing), and `caret.shape` (`bar`/`block`/`underscore`).
 - **A config-level `cursor`** — an on-screen pointer, explicit or `"auto"`.
 - **Continuous-session frames** — carry client-side state across steps
   (`"continue": true` + DOM `actions` + `waitForText` / `waitForGone` /
   `waitForCount`), for real interaction demos.
+- **Real interaction-state capture** — `forceState` applies a real CSS
+  `:hover`/`:active`/`:focus` before capture; `hoverReveal` / `hoverDetect`
+  auto-synthesize a hover reveal; `jsReveal` dispatches a JS event and captures
+  the MutationObserver result. For high-fidelity typing that shows the page's own
+  input mask/validation/font, a **`typeResample`** frame field re-captures the
+  live field one keystroke at a time.
 - **`vars` + `${}` interpolation.**
 
 ```json

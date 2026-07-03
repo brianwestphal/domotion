@@ -58,6 +58,8 @@ svg-to-image card.svg -o card.png
 - `--scroll-to x,y` — scroll the page to an offset before capturing
 - `--wait <ms>` (default 200) / `--wait-for <css>` — readiness
 - `--color-scheme light|dark` · `--mobile`
+- `--format <preset|WxH>` — size the viewport to a social preset: `reel` (1080×1920), `square` (1080×1080), `portrait` (1080×1350), or `landscape` (1920×1080) — or a literal `WIDTHxHEIGHT`. Add `--safe-guide` to overlay the safe-area margins.
+- `--brand <file.json>` — theme the captured page by injecting the brand kit's CSS custom properties (`--brand-primary`, `--brand-background`, `--brand-font-family`, …) onto `:root` before it paints, so a page authored against `var(--brand-*)` picks up the brand at capture time.
 - `--optimize` / `--no-optimize` — the SVGO pass (`.svgz` output implies `--optimize`)
 - `--chrome phone|browser|window` — wrap in a device bezel (`--chrome-label`, `--chrome-theme light|dark`)
 - `--cross-origin-frames <hosts>` — recurse cross-origin `<iframe>`s into native SVG (see below)

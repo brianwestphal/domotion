@@ -31,7 +31,7 @@ live page.
 
 ### Transitions
 
-Stitch multiple captured frames into one animation. Domotion ships four
+Stitch multiple captured frames into one animation. Domotion ships eleven
 transition types, and they **compose** — chain different ones in a row and each
 scene enters the way the previous transition handed off to it, then exits its own
 way:
@@ -59,6 +59,22 @@ Each type on its own:
   <figure>
     <img src="/domotion/demos/transition-magicmove.svg" alt="Magic-move transition: three labeled cards glide from a stacked column to new staggered positions" style="width:100%;height:auto" loading="lazy" />
     <figcaption><strong>Magic-move</strong> — shared elements glide to new positions</figcaption>
+  </figure>
+  <figure>
+    <img src="/domotion/demos/transition-wipe.svg" alt="Wipe transition: the next scene is revealed under a directional wipe" style="width:100%;height:auto" loading="lazy" />
+    <figcaption><strong>Wipe</strong> — the next scene reveals under a directional edge</figcaption>
+  </figure>
+  <figure>
+    <img src="/domotion/demos/transition-iris.svg" alt="Iris transition: the next scene opens through an expanding circular mask" style="width:100%;height:auto" loading="lazy" />
+    <figcaption><strong>Iris</strong> — an expanding circular reveal</figcaption>
+  </figure>
+  <figure>
+    <img src="/domotion/demos/transition-zoom.svg" alt="Zoom transition: the scene dollies in/out as it hands off" style="width:100%;height:auto" loading="lazy" />
+    <figcaption><strong>Zoom</strong> — the scene dollies in or out across the cut</figcaption>
+  </figure>
+  <figure>
+    <img src="/domotion/demos/transition-shine.svg" alt="Shine transition: a swept gradient highlight passes over the handoff" style="width:100%;height:auto" loading="lazy" />
+    <figcaption><strong>Shine</strong> — a swept highlight passes over the handoff</figcaption>
   </figure>
 </CardGrid>
 
@@ -95,9 +111,57 @@ sections — each a lightweight, lazy-loading SVG instead of a bulky video.
   <img src="/domotion/demos/templates/background-loop-aurora.svg" alt="A softly looping aurora gradient background suitable for a hero section" style="width:100%;height:auto" loading="lazy" />
 </CardGrid>
 
+And a **creative-template pack** of full-bleed text and number cards — an intro
+title, a pull-quote, a call-to-action end card, a count-up number, and a
+before/after compare that wipes the "after" over the "before":
+
+<CardGrid>
+  <img src="/domotion/demos/templates/title-card.svg" alt="A full-bleed intro title card animating its headline in" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/templates/quote.svg" alt="A pull-quote card with the attribution animating in" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/templates/counter.svg" alt="A number counting up on an odometer-style digit reel" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/templates/compare.svg" alt="A before/after compare card revealing the after state under a clip wipe" style="width:100%;height:auto" loading="lazy" />
+</CardGrid>
+
 See the [Templates guide](/domotion/usage/templates/) for the full library and
 every flag — or the [Recipe gallery](/domotion/creators/recipes/) for copy-paste
 creative recipes (a 9:16 teaser, a testimonial card, a storyboard, and more).
+
+### Brand kits & social formats
+
+One `--brand <kit.json>` themes every template (and a captured page) from a shared
+palette, type, and logo; one `--format` sizes to a social preset — `reel`
+(9:16), `square`, `portrait`, or `landscape` — with the type scaling to fit. The
+same content, on-brand and correctly framed for each surface, by construction.
+
+<CardGrid>
+  <img src="/domotion/demos/brand-capture.svg" alt="A captured page re-themed by an injected brand kit — brand palette, type, and accent applied before paint" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/format-capture-reel.svg" alt="The same content sized to a 9:16 reel format with a safe-area-aware layout" style="width:100%;height:auto" loading="lazy" />
+</CardGrid>
+
+### Storyboard — sequence distinct scenes
+
+Where an animation stitches frames of one subject, a **storyboard** sequences
+distinct *scenes* — a title card, a captured page, a terminal, a chart — into one
+narrative, on a shared brand and format. A whole promo as a single self-contained
+animated SVG.
+
+<figure>
+  <img src="/domotion/demos/storyboard-demo.svg" alt="A multi-scene storyboard: a title card, a captured product page, and a call-to-action, sequenced end to end with transitions" style="width:100%;height:auto" loading="lazy" />
+</figure>
+
+### Interaction capture
+
+Capture a page's real interactive states — not a faked overlay. Force a real CSS
+`:hover`/`:focus`/`:active` before capture, auto-detect and animate a hover
+reveal, or dispatch a JS event and capture what the page's own script does — plus
+a realistic per-keystroke typing mode that shows the field's own input mask and
+caret.
+
+<CardGrid>
+  <img src="/domotion/demos/hover-detect.svg" alt="A button's real :hover state auto-detected and animated as an in-place transition" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/js-reveal.svg" alt="A JS-driven dropdown captured by dispatching the event and observing the DOM mutation" style="width:100%;height:auto" loading="lazy" />
+  <img src="/domotion/demos/type-resample.svg" alt="A form field typed one keystroke at a time, re-captured after each so the page's own input mask and caret render" style="width:100%;height:auto" loading="lazy" />
+</CardGrid>
 
 ### Compositing
 
