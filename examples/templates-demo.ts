@@ -362,6 +362,14 @@ const EXAMPLES: Array<{ file: string; template: Template; params: Record<string,
     params: { headline: "Ship on brand", cta: "Get started", handles: ["@acme", "acme.dev"] },
     brand: ACME_BRAND,
   },
+  {
+    // title-card — the brand's `logo` token auto-fills the mark above the title
+    // (DM-1575), same mapping as `cta` / `lower-third`; no logo flag passed.
+    file: "brand-acme-title-card",
+    template: titleCardTemplate,
+    params: { eyebrow: "Introducing", title: "Acme Cloud", subtitle: "One brand, every frame" },
+    brand: ACME_BRAND,
+  },
 ];
 
 async function main(): Promise<void> {

@@ -98,6 +98,18 @@ describe("title-card (DM-1531)", () => {
     expect(bare).not.toContain('class="tc-sub"');
   });
 
+  it("DM-1575: an optional logo sits above (default) or below the title; no-logo is byte-identical", () => {
+    const noLogo = buildTitleCardHtml(parse(titleCardParamsSchema, { title: "T" }));
+    expect(noLogo).not.toContain("tc-logo"); // no markup AND no CSS rule → default unchanged
+
+    const above = buildTitleCardHtml(parse(titleCardParamsSchema, { title: "T", logo: "/l.svg" }));
+    expect(above).toMatch(/<img class="tc-logo" src="\/l\.svg"/);
+    expect(above.indexOf('class="tc-logo"')).toBeLessThan(above.indexOf('class="tc-title"')); // above
+
+    const below = buildTitleCardHtml(parse(titleCardParamsSchema, { title: "T", logo: "/l.svg", logoPosition: "below" }));
+    expect(below.indexOf('class="tc-title"')).toBeLessThan(below.indexOf('<img class="tc-logo"')); // below
+  });
+
   it("escapes user text", () => {
     const html = buildTitleCardHtml(parse(titleCardParamsSchema, { title: "<b>x</b>" }));
     expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");

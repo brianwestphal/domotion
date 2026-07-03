@@ -36,6 +36,8 @@ export const titleCardParamsSchema = z.object({
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3500).describe("Total on-screen time in ms."),
+  logo: z.string().optional().describe("Optional brand mark (URL or absolute path) shown above/below the title."),
+  logoPosition: z.enum(["above", "below"]).default("above").describe('Place the logo "above" (default) or "below" the title block.'),
 });
 
 export type TitleCardParams = z.infer<typeof titleCardParamsSchema>;
@@ -43,10 +45,17 @@ export type TitleCardParams = z.infer<typeof titleCardParamsSchema>;
 /** Build the standalone HTML. Pure (no I/O) so it's unit-testable without a browser. */
 export function buildTitleCardHtml(p: TitleCardParams, safeInset?: SafeInset): string {
   const t = resolveCardTheme(p.theme, { background: brandOrUndef(p.background), text: p.textColor });
+  // DM-1575: an optional brand mark above/below the title (the brand kit's `logo`
+  // token maps here, like `cta`). It joins the staggered reveal and rests at
+  // identity; `safeInset` is honored via the card padding (`cardHeadCss`).
+  const hasLogo = p.logo != null && p.logo !== "";
+  const logoMarkup = hasLogo ? `<img class="tc-logo" src="${escapeHtml(p.logo!)}" alt="">` : "";
   const items: string[] = [];
+  if (hasLogo && p.logoPosition === "above") items.push(logoMarkup);
   if (p.eyebrow != null && p.eyebrow !== "") items.push(`<div class="tc-eyebrow">${escapeHtml(p.eyebrow)}</div>`);
   items.push(`<div class="tc-title">${escapeHtml(p.title)}</div>`);
   if (p.subtitle != null && p.subtitle !== "") items.push(`<div class="tc-sub">${escapeHtml(p.subtitle)}</div>`);
+  if (hasLogo && p.logoPosition === "below") items.push(logoMarkup);
   const alignItems = p.align === "center" ? "center" : "flex-start";
   const textAlign = p.align;
   // DM-1541: scale the authored (landscape-tuned) type + gap by the adaptive
@@ -65,7 +74,7 @@ export function buildTitleCardHtml(p: TitleCardParams, safeInset?: SafeInset): s
   }
   .tc-eyebrow { font-size: ${fs(26, sf)}; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: ${p.accent}; }
   .tc-title { font-size: ${fs(84, sf)}; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; max-width: 90%; }
-  .tc-sub { font-size: ${fs(34, sf)}; font-weight: 500; line-height: 1.3; color: ${t.muted}; max-width: 80%; }
+  .tc-sub { font-size: ${fs(34, sf)}; font-weight: 500; line-height: 1.3; color: ${t.muted}; max-width: 80%; }${hasLogo ? `\n  .tc-logo { height: ${fs(76, sf)}; max-width: 46%; object-fit: contain; }` : ""}
 </style></head>
 <body>
   ${items.join("\n  ")}
@@ -87,13 +96,20 @@ export const titleCardTemplate: Template<TitleCardParams> = {
       textColor: brand.palette?.text,
       accent: brand.palette?.accent,
       fontFamily: brand.font?.family,
+      // DM-1575: the brand's logo asset fills the title-card mark slot, same
+      // mapping the `cta` end-card + `lower-third` use.
+      logo: brand.logo,
     });
   },
   async render(params: TitleCardParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const selectors: string[] = [];
+    const hasLogo = params.logo != null && params.logo !== "";
+    // DM-1575: the logo joins the staggered reveal in its layout order.
+    if (hasLogo && params.logoPosition === "above") selectors.push(".tc-logo");
     if (params.eyebrow != null && params.eyebrow !== "") selectors.push(".tc-eyebrow");
     selectors.push(".tc-title");
     if (params.subtitle != null && params.subtitle !== "") selectors.push(".tc-sub");
+    if (hasLogo && params.logoPosition === "below") selectors.push(".tc-logo");
     const opts = { style: params.reveal } as const;
     // Ensure the hold outlasts the reveal so the card settles before it ends/loops.
     const holdMs = Math.max(params.holdMs, revealEndMs(selectors.length, opts) + 400);
