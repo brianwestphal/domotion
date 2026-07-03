@@ -230,6 +230,41 @@ domotion template cta --headline "Ship your first demo today" \
 
 ---
 
+## 9. A subscribe / follow social card
+
+A pop-up "follow" card with an avatar, your handle, and a pulsing action button —
+drop it into a stream overlay or the end of a clip.
+
+<img src="/domotion/demos/templates/subscribe-follow-dark.svg" alt="A dark follow card with an avatar, the handle '@ada · 89.4K followers', and a pulsing blue Follow button" style="width:100%;height:auto" loading="lazy" />
+
+```bash
+domotion template subscribe --name "Ada Lovelace" \
+  --subtitle "@ada · 89.4K followers" --action "Follow" \
+  --accent "#1d9bf0" --theme dark -o follow.svg
+```
+
+Swap `--action "Subscribe"` and a red `--accent` for a YouTube-style card, or add
+`--brand acme-brand.json` to theme it from your kit.
+
+---
+
+## 10. A looping-background hero
+
+A seamless, self-contained animated background — aurora, drifting orbs, a starfield,
+a panning gradient, a grid, or a wave — to sit behind a title or loop on a screen.
+
+<img src="/domotion/demos/templates/background-loop-aurora.svg" alt="A seamless looping aurora background — soft colored light drifting across a dark canvas" style="width:100%;height:auto" loading="lazy" />
+
+```bash
+domotion template background-loop --variant aurora --seed 4 \
+  --width 1280 --height 720 -o hero-bg.svg
+```
+
+Variants: `aurora`, `orbs`, `stars`, `gradient-pan`, `grid`, `wave`. The `--seed`
+makes the (deterministic) motion reproducible.
+
+---
+
 ## Where to go next
 
 <CardGrid>
