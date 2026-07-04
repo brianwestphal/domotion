@@ -1,25 +1,24 @@
 ---
-name: hs-investigation
-description: Create a new investigation ticket in Hot Sheet
-allowed-tools: Bash
+name: hs-feature
+description: Create a new feature ticket in Hot Sheet
 ---
 <!-- hotsheet-skill-version: 22 -->
 
-Create a new Hot Sheet **investigation** ticket. Items requiring research or analysis.
+Create a new Hot Sheet **feature** ticket. New features to be implemented.
 
 **Parsing the input:**
 - If the input starts with "next", "up next", or "do next" (case-insensitive), set `up_next` to `true` and use the remaining text as the title
 - Otherwise, use the entire input as the title
 
 **Create the ticket — MCP tool (preferred when the channel is connected):**
-Call the `hotsheet_create_ticket` tool with `{ "title": "<TITLE>", "category": "investigation", "up_next": <true|false> }`. The tool is schema-validated and routes to the channel server's `--data-dir` so there's no chance of cross-project misrouting.
+Call the `hotsheet_create_ticket` tool with `{ "title": "<TITLE>", "category": "feature", "up_next": <true|false> }`. The tool is schema-validated and routes to the channel server's `--data-dir` so there's no chance of cross-project misrouting.
 
 **Fallback (curl):**
 ```bash
 curl -s -X POST http://localhost:4174/api/tickets \
   -H "Content-Type: application/json" \
   -H "X-Hotsheet-Secret: 827ca73d6e98e85625df80114bdb6607" \
-  -d '{"title": "<TITLE>", "defaults": {"category": "investigation", "up_next": <true|false>}}'
+  -d '{"title": "<TITLE>", "defaults": {"category": "feature", "up_next": <true|false>}}'
 ```
 
 If the request fails (connection refused or 403), re-read `.hotsheet/settings.json` for the current `port` and `secret` values — you may be connecting to the wrong Hot Sheet instance.
