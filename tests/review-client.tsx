@@ -71,6 +71,8 @@ interface ReviewManifest {
   // DM-1660: active result source + the toggle list.
   activeSource: string;
   sources: Array<{ id: string; label: string; present: boolean }>;
+  // DM-1665: CI source selected with no cached metadata → fetch-with-feedback.
+  sourceFetchNeeded: boolean;
 }
 
 // ── Boot ──
@@ -93,6 +95,58 @@ if (sourceEl != null) {
     location.href = u.toString();
   });
 }
+
+// DM-1665: async loading feedback. A CI source is fetched from GitHub on demand
+// (~13s for metadata, more for image shards) — never leave the user staring at a
+// blank/frozen page. A full-screen overlay reports progress; the "↻ Refresh"
+// button re-pulls the latest run.
+function showOverlay(msg: string, opts: { spinner?: boolean; error?: boolean } = {}): HTMLElement {
+  let el = document.getElementById("load-overlay");
+  if (el == null) {
+    el = document.createElement("div");
+    el.id = "load-overlay";
+    document.body.appendChild(el);
+  }
+  el.className = opts.error ? "error" : "";
+  el.innerHTML = `${opts.spinner !== false && !opts.error ? '<div class="spinner"></div>' : ""}<div class="msg"></div>`;
+  (el.querySelector(".msg") as HTMLElement).textContent = msg;
+  return el;
+}
+const activeLabel = MANIFEST.sources.find((s) => s.id === MANIFEST.activeSource)?.label ?? MANIFEST.activeSource;
+
+// DM-1665: per-image loading feedback. A CI-source image lazy-fetches its shard
+// server-side (tens of seconds for a 65 MB shard), so mark each <figure> loading
+// until its <img> fires load/error. load/error don't bubble → capture phase.
+// Delegated so it also covers imgs added by later reactive re-renders.
+document.addEventListener("load", (e) => {
+  const t = e.target as HTMLElement;
+  if (t?.tagName === "IMG") t.closest("figure")?.classList.add("img-loaded");
+}, true);
+document.addEventListener("error", (e) => {
+  const t = e.target as HTMLElement;
+  if (t?.tagName === "IMG") t.closest("figure")?.classList.add("img-failed");
+}, true);
+
+async function refreshSource(force: boolean): Promise<void> {
+  showOverlay(`Fetching latest ${activeLabel} results from GitHub…`, { spinner: true });
+  try {
+    const r = await fetch("/api/refresh-source", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: MANIFEST.activeSource, force }),
+    });
+    const j = await r.json() as { ok: boolean; fixtures?: number; error?: string };
+    if (j.ok && (j.fixtures ?? 0) > 0) { location.reload(); return; }
+    if (j.ok) showOverlay(`No completed CI run found for ${activeLabel} yet. Dispatch a sweep, then click ↻ Refresh.`, { error: true });
+    else showOverlay(`Couldn't fetch ${activeLabel}: ${j.error ?? "unknown error"}`, { error: true });
+  } catch (e) {
+    showOverlay(`Couldn't reach the review server: ${e instanceof Error ? e.message : String(e)}`, { error: true });
+  }
+}
+
+// Auto-fetch the first time an un-cached CI source is opened.
+if (MANIFEST.sourceFetchNeeded) void refreshSource(false);
+
+document.getElementById("refresh-source")?.addEventListener("click", () => { void refreshSource(true); });
 
 const filterEl = document.getElementById("filter") as HTMLSelectElement;
 const suiteEl = document.getElementById("suite") as HTMLSelectElement;

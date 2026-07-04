@@ -61,7 +61,11 @@ type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "
 // write to (overridable via REVIEW_OUTPUT_DIR, kept for back-compat / DM-1216);
 // the CI sources live under `tests/output/review/ci-<os>/`.
 interface Source { id: string; label: string; root: string }
-const REVIEW_BASE = resolve(DEFAULT_OUTPUT_DIR, "review");
+// REVIEW_CI_BASE overrides where the CI sources live (default tests/output/review/)
+// — lets the e2e test isolate them from the real download folder.
+const REVIEW_BASE = process.env.REVIEW_CI_BASE != null && process.env.REVIEW_CI_BASE !== ""
+  ? resolve(process.env.REVIEW_CI_BASE)
+  : resolve(DEFAULT_OUTPUT_DIR, "review");
 const LOCAL_MACOS_ROOT = process.env.REVIEW_OUTPUT_DIR != null && process.env.REVIEW_OUTPUT_DIR !== ""
   ? resolve(process.env.REVIEW_OUTPUT_DIR)
   : DEFAULT_OUTPUT_DIR;
@@ -188,6 +192,10 @@ interface ReviewManifest {
   // (present = has ≥1 manifest on disk) so the client can render the selector.
   activeSource: string;
   sources: Array<{ id: string; label: string; present: boolean }>;
+  // DM-1665: true when the active source is a CI source with no cached metadata
+  // yet — the client shows a loading banner + POSTs /api/refresh-source, then
+  // reloads, instead of the page silently blocking on the gh fetch.
+  sourceFetchNeeded: boolean;
 }
 
 function loadManifest(activeSourceId: string): ReviewManifest {
@@ -278,7 +286,8 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   // CI sources are always selectable — the server fetches their metadata from the
   // latest completed run on demand (DM-1662), so "no local data" ≠ "unavailable".
   const sources = SOURCES.map((s) => ({ id: s.id, label: s.label, present: s.id.startsWith("ci-") ? true : sourceIsPresent(s.root) }));
-  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources };
+  const sourceFetchNeeded = activeSourceId.startsWith("ci-") && tests.length === 0;
+  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources, sourceFetchNeeded };
 }
 
 function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
@@ -543,6 +552,22 @@ const REVIEW_CSS = `
   .chunk-imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
   .chunk-imgs figure { margin: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 3px; overflow: hidden; cursor: zoom-in; }
   .chunk-imgs img { display: block; width: 100%; height: auto; }
+  /* DM-1665: async loading feedback. */
+  .refresh-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; width: 28px; height: 28px; font-size: 15px; cursor: pointer; line-height: 1; }
+  .refresh-btn:hover { background: #30363d; color: #fff; }
+  #load-overlay { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(13,17,23,0.92); color: #e6edf3; font-size: 15px; text-align: center; padding: 24px; }
+  #load-overlay .msg { max-width: 560px; }
+  #load-overlay.error { color: #ffa198; }
+  .spinner { width: 40px; height: 40px; border: 4px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Per-image: pulse a placeholder until the <img> loads; red note on failure. */
+  .imgs figure:not(.img-loaded):not(.img-failed), .chunk-imgs figure:not(.img-loaded):not(.img-failed) { position: relative; min-height: 90px; animation: imgpulse 1.2s ease-in-out infinite; }
+  @keyframes imgpulse { 0%,100% { background: #0d1117; } 50% { background: #161d27; } }
+  .imgs figure:not(.img-loaded):not(.img-failed)::after, .chunk-imgs figure:not(.img-loaded):not(.img-failed)::after {
+    content: "loading…"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #6e7681; pointer-events: none; }
+  .imgs figure.img-failed, .chunk-imgs figure.img-failed { min-height: 90px; position: relative; }
+  .imgs figure.img-failed::after, .chunk-imgs figure.img-failed::after {
+    content: "image unavailable"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #ffa198; background: #2d1416; }
 `;
 
 // Bundle the kerfjs client (`tests/review-client.tsx`) once at server start
@@ -595,6 +620,8 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
                 </option>
               ))}
             </select></label>
+            {/* DM-1665: re-pull the latest CI run's metadata for the active source. */}
+            <button id="refresh-source" className="refresh-btn" title="Re-fetch the latest CI run for this source">↻</button>
             <label>Filter: <select id="filter">
               <option value="fail">Failing</option>
               <option value="all">All</option>
@@ -727,9 +754,10 @@ async function main(): Promise<void> {
 
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
         const src = sourceById(url.searchParams.get("source") ?? defaultSource).id;
-        // DM-1662: selecting a CI source pulls the latest completed run's slim
-        // metadata (cached 60s) so the list is live without any upfront staging.
-        if (src.startsWith("ci-")) await refreshCiSource(src);
+        // DM-1665: render IMMEDIATELY — never block the page on a gh fetch (which
+        // takes ~13s for metadata, longer for image shards). A CI source with no
+        // cached metadata is flagged `sourceFetchNeeded`; the client then shows a
+        // loading banner and POSTs /api/refresh-source (below) before reloading.
         send(res, 200, "text/html; charset=utf-8", renderReviewPage(loadManifest(src)));
         return;
       }
@@ -767,6 +795,28 @@ async function main(): Promise<void> {
           return;
         }
         send(res, 200, mimeFor(fname), readFileSync(filePath));
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/refresh-source") {
+        // DM-1665: the client calls this (while showing a loading banner) to pull
+        // the latest CI run's slim metadata, then reloads to render it. Returns the
+        // fixture count so the client can report "no completed run yet" (0).
+        const body = await readBody(req);
+        let source = defaultSource;
+        try {
+          const p = JSON.parse(body) as { source?: string; force?: boolean };
+          source = p.source ?? defaultSource;
+          // Manual ↻ Refresh busts the 60s run-resolution cache so a newer run is picked up.
+          if (p.force) runResolveCache.clear();
+        } catch { /* default */ }
+        const src = sourceById(source).id;
+        try {
+          if (src.startsWith("ci-")) await refreshCiSource(src);
+          sendJson(res, 200, { ok: true, fixtures: loadManifest(src).tests.length });
+        } catch (e) {
+          sendJson(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+        }
         return;
       }
 
@@ -870,7 +920,10 @@ async function main(): Promise<void> {
     console.log(`\n  active [${defaultSource}] — ${failing} failing · ${skipped} skipped · ${manifest.tests.length} total`);
     console.log(`  ${url}`);
     console.log(`  (toggle source in the header · Ctrl+C to stop)`);
-    try { spawn("open", [url], { stdio: "ignore", detached: true }).unref(); } catch { /* manual open works */ }
+    // REVIEW_NO_OPEN skips the browser auto-open (used by the e2e test).
+    if (process.env.REVIEW_NO_OPEN == null || process.env.REVIEW_NO_OPEN === "") {
+      try { spawn("open", [url], { stdio: "ignore", detached: true }).unref(); } catch { /* manual open works */ }
+    }
   });
 }
 
