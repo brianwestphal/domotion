@@ -40,7 +40,11 @@ shortest possible map:
   it) + the per-platform generated routing tables
   (`unicode-font-routing.{darwin,linux,noto-linux,win32}.generated.ts`) + the
   Linux bare-vs-Noto runtime profile selector (`linuxFontProfile()`, DM-1404) +
-  the live `fc-match`/CoreText system-fallback resolver (DM-1416/DM-1018);
+  the live `fc-match`/CoreText system-fallback resolver (DM-1416/DM-1018).
+  **The end-to-end flow (family→key→file→instance→per-codepoint fallback→live
+  resolver→glyph emission, with all platform branching + specific fonts) is
+  mapped in `docs/font-resolution-diagram.md` — a canonical always-in-sync
+  Mermaid reference; keep it current with any font-routing change.**
   `unicode-classification.ts` owns the Unicode predicates;
   `mask.ts` owns mask-def emission; `borders.ts` owns border math;
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced

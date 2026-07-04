@@ -547,6 +547,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   extraction helpers (currently macOS via CoreText is doc 16).
 - **Doc 49 / 50 / 51 / 52** — glyph-helper dispatch, acquisition,
   probe-then-fallback, embedded-mode glyph fallback.
+- **`docs/font-resolution-diagram.md`** — **Shipped.** Canonical
+  always-in-sync Mermaid flow diagram of the *entire* font-resolution
+  system, synthesizing docs 03/30/40/42/51/52/80: family-stack→key, the
+  platform path tables, key→`FontInstance`, the per-codepoint resolver
+  (Blink `FontFallbackIterator` mirror), the darwin/linux/win32 fallback
+  chains with specific per-block fonts, and the live CoreText/fontconfig/
+  DirectWrite resolver. Verified by the `check-requirements-against-code`
+  skill; must be updated in lockstep with any font-routing change.
 
 ## What this file is NOT
 
