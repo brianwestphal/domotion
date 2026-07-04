@@ -96,7 +96,7 @@ export const FEATURES: FeatureEntry[] = [
     id: "render.optimize",
     behavior: "Optional SVGO optimize pass + gzip (.svgz) output.",
     doc: "docs/26-self-contained-svgs.md",
-    exports: ["optimizeSvg", "gzipSvg"],
+    exports: ["optimizeSvg", "gzipSvg", "compressEmbeddedFontsToWoff2"],
     tests: ["src/post-processing/optimize.test.ts"],
   },
   {

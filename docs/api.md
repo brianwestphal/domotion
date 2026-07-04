@@ -155,6 +155,7 @@ string-out.
 | Export | Kind | Description |
 | --- | --- | --- |
 | `optimizeSvg` | function | Run svgo on the output. Aggressive enough to shrink real-world demos ~30-40% without touching paths. |
+| `compressEmbeddedFontsToWoff2` | function | Async post-pass that re-compresses embedded TTF `@font-face` data URIs to WOFF2 (~40% off the font bytes; cross-browser-verified). Applied by the CLI `--optimize` step. |
 | `gzipSvg` | function | gzip the output (for serving as `.svgz`). |
 
 ## Declarative animate pipeline

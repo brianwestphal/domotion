@@ -59,6 +59,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "composeAnimateFrames",
   "composeAnimatedLayers",
   "composeScrollSvg",
+  "compressEmbeddedFontsToWoff2",
   "contentBox",
   "counterTemplate",
   "ctaTemplate",
