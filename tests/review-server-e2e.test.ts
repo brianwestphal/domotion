@@ -99,3 +99,79 @@ describe("review-server async loading (DM-1665)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// DM-1667: the lazy image fetch used execFileSync, which blocked the event loop
+// for the whole (65 MB) download and defeated the in-flight dedup. This proves
+// the async fix: concurrent same-shard requests collapse to ONE `gh` download,
+// and the server keeps serving other requests during it.
+describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
+  let proc: ChildProcess;
+  let tmp: string;
+  let counter: string;
+  const PORT2 = 4397;
+  const B2 = `http://localhost:${PORT2}`;
+
+  beforeAll(async () => {
+    tmp = mkdtempSync(join(tmpdir(), "review-dedup-"));
+    const ciBase = join(tmp, "review");
+    const dir = join(ciBase, "ci-macos", "html-test-unicode");
+    mkdirSync(dir, { recursive: true });
+    // Seed metadata: 3 fixtures, all on shard 1, + the run pointer.
+    writeFileSync(join(dir, "results.json"), JSON.stringify(
+      ["fxA", "fxB", "fxC"].map((name) => ({ name, pass: false, diffPct: 1, shard: 1 }))));
+    writeFileSync(join(dir, ".ci-source.json"), JSON.stringify({ runId: "123", os: "macos", suite: "unicode" }));
+    mkdirSync(join(tmp, "local"), { recursive: true });
+    counter = join(tmp, "gh-calls.log");
+    // Fake gh: `run download` sleeps 1.5s (a "slow" download), logs the call, and
+    // writes the shard's PNGs into --dir; `run list` returns a matching run.
+    const ghDir = join(tmp, "bin");
+    mkdirSync(ghDir);
+    const gh = join(ghDir, "gh");
+    writeFileSync(gh, [
+      "#!/usr/bin/env bash",
+      `if [ "$2" = "list" ]; then echo '[{"databaseId":123,"displayTitle":"Visual tests · unicode · os=all"}]'; exit 0; fi`,
+      'd=""; p=""; while [ $# -gt 0 ]; do case "$1" in --dir) d="$2"; shift 2;; --pattern) p="$2"; shift 2;; *) shift;; esac; done',
+      `echo "$p" >> "${counter}"`,
+      "sleep 1.5",
+      'mkdir -p "$d/$p"',
+      'for f in fxA fxB fxC; do for k in expected actual diff; do printf PNG > "$d/$p/$f-$k.png"; done; done',
+      "exit 0",
+      "",
+    ].join("\n"));
+    chmodSync(gh, 0o755);
+
+    proc = spawn("npx", ["tsx", SERVER, "--port", String(PORT2)], {
+      env: { ...process.env, PATH: `${ghDir}:${process.env.PATH}`, REVIEW_CI_BASE: ciBase, REVIEW_OUTPUT_DIR: join(tmp, "local"), REVIEW_NO_OPEN: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const deadline = Date.now() + 35_000;
+    while (Date.now() < deadline) {
+      try { const r = await fetch(`${B2}/`); if (r.ok) break; } catch { /* not up */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }, 45_000);
+
+  afterAll(() => {
+    proc?.kill("SIGKILL");
+    try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
+  });
+
+  it("collapses 9 concurrent same-shard image requests into ONE gh download, and stays responsive", async () => {
+    // 3 fixtures × 3 kinds = 9 concurrent /img requests, ALL in shard 1.
+    const imgReqs = ["fxA", "fxB", "fxC"].flatMap((f) =>
+      ["expected", "actual", "diff"].map((k) => fetch(`${B2}/img/ci-macos/html-test-unicode/${f}-${k}.png`)));
+    // While those download (1.5s), a plain page request must return quickly —
+    // proof the event loop isn't blocked by the download.
+    const t0 = Date.now();
+    const page = await fetch(`${B2}/?source=local-macos`);
+    const pageMs = Date.now() - t0;
+    const imgs = await Promise.all(imgReqs);
+
+    expect(page.status).toBe(200);
+    expect(pageMs).toBeLessThan(800);                        // server stayed responsive
+    expect(imgs.every((r) => r.status === 200)).toBe(true);  // all 9 images served
+    const { readFileSync } = await import("node:fs");
+    const downloads = readFileSync(counter, "utf8").trim().split("\n").filter(Boolean).length;
+    expect(downloads).toBe(1);                               // deduped: one download, not nine
+  }, 20_000);
+});

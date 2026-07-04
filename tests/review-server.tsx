@@ -35,7 +35,14 @@ import { readFileSync, existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, 
 import { resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
-import { spawn, execFileSync } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+// DM-1667: gh runs ASYNC (promisified execFile) — NOT execFileSync, which blocks
+// the single-threaded server's event loop for the entire (up to 65 MB) download,
+// freezing every other request and defeating the in-flight dedup below.
+const execFileAsync = promisify(execFile);
+const GH_OPTS = { maxBuffer: 32 * 1024 * 1024 } as const;
 import { raw } from "kerfjs";
 import * as esbuild from "esbuild";
 
@@ -335,8 +342,8 @@ function fetchShard(root: string, suite: SuiteName, meta: CiSourceMeta, shard: n
     const tmp = mkdtempSync(resolve(tmpdir(), "review-shard-"));
     try {
       console.log(`  ↓ lazy-fetching ${meta.os} shard ${shard} (run ${meta.runId})…`);
-      execFileSync("gh", ["run", "download", meta.runId, "--dir", tmp,
-        "--pattern", `results-${meta.os}-shard${shard}`], { stdio: "pipe" });
+      await execFileAsync("gh", ["run", "download", meta.runId, "--dir", tmp,
+        "--pattern", `results-${meta.os}-shard${shard}`], GH_OPTS);
       const walk = (d: string): void => {
         for (const ent of readdirSync(d, { withFileTypes: true })) {
           const full = resolve(d, ent.name);
@@ -366,34 +373,44 @@ function ciSuiteName(suite: SuiteName): "unicode" | "html" | null {
   return suite === "html-test-unicode" ? "unicode" : suite === "html-test" ? "html" : null;
 }
 
+// Resolve-the-latest-run is cached 60s AND in-flight deduped, so N concurrent
+// suites/requests share a single `gh run list`.
 const runResolveCache = new Map<string, { runId: string | null; at: number }>();
-function resolveLatestRun(ciSuite: string): string | null {
+const inflightRunResolves = new Map<string, Promise<string | null>>();
+async function resolveLatestRun(ciSuite: string): Promise<string | null> {
   const cached = runResolveCache.get(ciSuite);
   if (cached != null && Date.now() - cached.at < 60_000) return cached.runId;
-  let runId: string | null = null;
-  try {
-    const out = execFileSync("gh", ["run", "list", "--workflow", "visual-tests.yml",
-      "--status", "completed", "--limit", "40",
-      "--json", "databaseId,displayTitle,conclusion"], { encoding: "utf8" });
-    const runs = JSON.parse(out) as Array<{ databaseId: number; displayTitle?: string }>;
-    // Runs come newest-first; take the first whose title names this suite.
-    const hit = runs.find((r) => (r.displayTitle ?? "").includes(`· ${ciSuite} ·`));
-    if (hit != null) runId = String(hit.databaseId);
-  } catch { /* gh unavailable — leave null */ }
-  runResolveCache.set(ciSuite, { runId, at: Date.now() });
-  return runId;
+  const inflight = inflightRunResolves.get(ciSuite);
+  if (inflight != null) return inflight;
+  const task = (async (): Promise<string | null> => {
+    let runId: string | null = null;
+    try {
+      const { stdout } = await execFileAsync("gh", ["run", "list", "--workflow", "visual-tests.yml",
+        "--status", "completed", "--limit", "40",
+        "--json", "databaseId,displayTitle,conclusion"], { ...GH_OPTS, encoding: "utf8" });
+      const runs = JSON.parse(stdout) as Array<{ databaseId: number; displayTitle?: string }>;
+      // Runs come newest-first; take the first whose title names this suite.
+      const hit = runs.find((r) => (r.displayTitle ?? "").includes(`· ${ciSuite} ·`));
+      if (hit != null) runId = String(hit.databaseId);
+    } catch { /* gh unavailable — leave null */ }
+    runResolveCache.set(ciSuite, { runId, at: Date.now() });
+    inflightRunResolves.delete(ciSuite);
+    return runId;
+  })();
+  inflightRunResolves.set(ciSuite, task);
+  return task;
 }
 
 const inflightMetaFetches = new Map<string, Promise<void>>();
-function ensureCiMetadata(root: string, os: string, suite: SuiteName): Promise<void> {
+async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Promise<void> {
   const ciSuite = ciSuiteName(suite);
-  if (ciSuite == null) return Promise.resolve(); // features/showcase/real-world aren't CI-swept
-  const runId = resolveLatestRun(ciSuite);
-  if (runId == null) return Promise.resolve();
+  if (ciSuite == null) return; // features/showcase/real-world aren't CI-swept
+  const runId = await resolveLatestRun(ciSuite);
+  if (runId == null) return;
   const dest = suiteDir(root, suite);
   const existing = readCiSourceMeta(root, suite);
   // Already have THIS run's metadata cached → nothing to do.
-  if (existing != null && existing.runId === runId && existsSync(resolve(dest, "results.json"))) return Promise.resolve();
+  if (existing != null && existing.runId === runId && existsSync(resolve(dest, "results.json"))) return;
   const key = `${runId}:${os}:${suite}`;
   const inflight = inflightMetaFetches.get(key);
   if (inflight != null) return inflight;
@@ -401,7 +418,7 @@ function ensureCiMetadata(root: string, os: string, suite: SuiteName): Promise<v
     const tmp = mkdtempSync(resolve(tmpdir(), "review-meta-"));
     try {
       console.log(`  ↓ fetching ${os} ${ciSuite} metadata (run ${runId})…`);
-      execFileSync("gh", ["run", "download", runId, "--dir", tmp, "--pattern", "visual-tests-meta"], { stdio: "pipe" });
+      await execFileAsync("gh", ["run", "download", runId, "--dir", tmp, "--pattern", "visual-tests-meta"], GH_OPTS);
       const sub = resolve(tmp, "visual-tests-meta");
       const src = existsSync(sub) ? sub : tmp;
       const slim = resolve(src, `results-${os}.slim.json`);
