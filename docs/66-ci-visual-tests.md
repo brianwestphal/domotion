@@ -20,7 +20,7 @@ It dispatches the workflow on your **pushed** branch (it refuses if `origin/<bra
 
 ### Reviewing the CI diffs locally — four-source toggle (DM-1660)
 
-By default the helper **stages every shard's `expected`/`actual`/`diff` PNGs (+ the generated `.svg`) + merged `results.json`** into a per-platform review SOURCE folder — `tests/output/review/ci-<os>/<suiteDir>/` — laid out the way the review UI expects, and prints:
+By default the helper is **metadata-only + lazy (DM-1661)**: it downloads just the tiny pre-merged `results-<os>.json` and stages `results.json` + a `.ci-source.json` (the run pointer) into a per-platform review SOURCE folder — `tests/output/review/ci-<os>/<suiteDir>/`. **No images are downloaded up front** (the full `--os all` + keep-passing image set is ~7–8 GB; the per-block unicode `.svg`s alone are ~2.4 MB each). It prints:
 
 ```sh
 npm run demos:review     # then toggle the header "Source" selector
@@ -28,12 +28,15 @@ npm run demos:review     # then toggle the header "Source" selector
 
 The review UI's **Source** selector switches between four self-contained result sets:
 
-- **Local · macOS** — your local `tests/output/` (what `npm run demos:test:*` writes).
-- **CI · macOS / CI · Linux / CI · Windows** — `tests/output/review/ci-<os>/`, populated by this helper.
+- **Local · macOS** — your local `tests/output/` (what `npm run demos:test:*` writes; full images on disk).
+- **CI · macOS / CI · Linux / CI · Windows** — `tests/output/review/ci-<os>/`, metadata-only until viewed.
 
-Switching reloads with `?source=<id>`; the server re-renders + serves images from that source's folder, so you can compare the **same fixture across platforms** (e.g. a macOS-vs-Linux glyph-fallback difference) without clobbering a local run. `--os all` stages all three CI folders in one pass; the raw per-OS shard artifacts are also left under `<tmp>/results-<os>-shard*/` for `svg-review`. Pass `--no-review` to skip staging.
+Switching reloads with `?source=<id>`; the server re-renders the fixture list from that source's `results.json` (instant — diff%/verdict/regions per fixture). **Images load lazily:** when you open a fixture whose PNGs aren't cached yet, the server `gh run download`s just that fixture's shard artifact (the merge step stamps each result's `shard`), extracts its PNGs into the source folder, and serves them — so you only ever pull the shards you actually look at. This lets you compare the **same fixture across platforms** (e.g. a macOS-vs-Linux glyph-fallback difference) without a multi-GB pre-download. `--os all` stages all three CI folders in one pass. Pass `--no-review` to skip staging.
 
-To include PASSING fixtures too (not just failures), dispatch with `keep_passing` on — it's the **default** for `visual-tests.yml`; set the dispatch input to `false` to prune passing fixtures and shrink the artifacts. `REVIEW_OUTPUT_DIR` still overrides the **Local · macOS** root for back-compat.
+- **`--eager`** restores the old behavior: download every shard's images upfront and stage them (no lazy fetch needed, but GBs).
+- **`keep_passing`** (default **true** on `visual-tests.yml`) keeps PASSING fixtures in the artifacts too, so you can review them; set it `false` to prune passing and shrink artifacts.
+- **`include_svg`** (default **false**) — the generated `.svg`s are ~85% of the artifact weight and the review UI only shows PNGs, so they're dropped before upload; set it `true` to keep them (e.g. for `svg-review`'s "view svg").
+- `REVIEW_OUTPUT_DIR` still overrides the **Local · macOS** root for back-compat.
 
 ## What the workflow does
 

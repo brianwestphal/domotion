@@ -13,7 +13,7 @@
 // push first — this script refuses to dispatch a ref the remote doesn't have.
 
 import { execFileSync, execFile } from "node:child_process";
-import { mkdtempSync, rmSync, mkdirSync, readdirSync, copyFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, readdirSync, copyFileSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -33,6 +33,11 @@ const os = arg("--os", "macos");
 const shards = arg("--shards", "auto");
 const only = arg("--only", "");
 let ref = arg("--ref", null);
+// DM-1661: by default the review staging is METADATA-ONLY — download just the
+// tiny pre-merged `visual-tests-merged` artifact (results-<os>.json) and let the
+// review server lazy-fetch image shards on demand. `--eager` restores the old
+// behavior: download every shard's images upfront (~GBs) and stage them.
+const eager = process.argv.includes("--eager");
 
 if (!["unicode", "html"].includes(suite)) die(`--suite must be unicode|html (got ${suite})`);
 if (!["macos", "linux", "windows", "all"].includes(os)) die(`--os must be macos|linux|windows|all (got ${os})`);
@@ -94,7 +99,8 @@ await new Promise((resolve) => {
 });
 
 const dir = mkdtempSync(join(tmpdir(), "visual-tests-"));
-console.log(`\nDownloading shard artifacts to ${dir} …`);
+const downloadPattern = eager ? "results-*" : "visual-tests-merged";
+console.log(`\nDownloading ${eager ? "shard image artifacts" : "merged metadata (lazy — images fetched on demand in the review UI)"} to ${dir} …`);
 // Artifacts finalize AFTER `gh run watch` returns, and large multi-shard
 // uploads (5 × ~20 MB) can take a couple of minutes to become downloadable —
 // `gh run download` errors until then. Retry over a ~3-minute window (DM-1228:
@@ -110,15 +116,29 @@ for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   try {
-    sh("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", "results-*"], { stdio: "inherit" });
+    sh("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", downloadPattern], { stdio: "inherit" });
     downloaded = true;
   } catch { process.stdout.write(`  (artifacts not ready yet, retrying… ${attempt + 1}/${MAX_ATTEMPTS})\n`); }
 }
 if (!downloaded) die(`no artifacts to download after ~${Math.round(MAX_ATTEMPTS * RETRY_MS / 60000)} min of retries — the run may have failed before any shard finished (see ${url}).`);
 
-console.log(`\nMerging…\n`);
 const here = new URL("..", import.meta.url).pathname;
-execFileSync("node", [join(here, "scripts/merge-shard-results.mjs"), "--input", dir], { stdio: "inherit" });
+if (eager) {
+  console.log(`\nMerging shards…\n`);
+  execFileSync("node", [join(here, "scripts/merge-shard-results.mjs"), "--input", dir], { stdio: "inherit" });
+} else {
+  // The `visual-tests-merged` artifact already carries the CI-merged
+  // results-<os>.json (merged by the aggregate job, shard-annotated); flatten
+  // them into `dir` so the baseline diff + staging below find them.
+  const mergedSub = join(dir, "visual-tests-merged");
+  const srcDir = existsSync(mergedSub) ? mergedSub : dir;
+  let found = 0;
+  for (const name of readdirSync(srcDir)) {
+    if (/^results-[a-z0-9]+\.json$/i.test(name)) { copyFileSync(join(srcDir, name), join(dir, name)); found++; }
+  }
+  if (found === 0) die(`no merged results-<os>.json in the visual-tests-merged artifact — run ${runId} may not have reached the aggregate job (see ${url}).`);
+  console.log(`\nUsing CI-merged metadata (${found} OS result set${found === 1 ? "" : "s"}); images fetched lazily on review.\n`);
+}
 
 // DM-1217: the macOS CI runner (macos-15-arm64) rasterizes text differently
 // enough from a local Mac that the raw CI pass/fail COUNT does not transfer — so
@@ -155,22 +175,29 @@ if (!process.argv.includes("--no-review")) {
   const osesToStage = os === "all" ? ["macos", "linux", "windows"] : [os];
   const staged = [];
   for (const stageOs of osesToStage) {
+    const mergedJson = join(dir, `results-${stageOs}.json`);
+    if (!existsSync(mergedJson)) continue; // this OS produced no results
     const dest = join(here, "tests/output/review", `ci-${stageOs}`, suiteDir);
-    // Fresh snapshot per download so a prior run's (possibly pruned) files don't linger.
+    // Fresh snapshot per download so a prior run's cached images/metadata don't linger.
     rmSync(dest, { recursive: true, force: true });
     mkdirSync(dest, { recursive: true });
+    // Metadata (always) + the lazy-fetch pointer so the review server can pull
+    // image shards on demand for THIS run.
+    copyFileSync(mergedJson, join(dest, "results.json"));
+    writeFileSync(join(dest, ".ci-source.json"), JSON.stringify({ runId: String(runId), os: stageOs, suite }, null, 2));
     let pngs = 0;
-    for (const name of readdirSync(dir)) {
-      const m = /^results-([a-z0-9]+)-shard\d+$/i.exec(name);
-      if (m == null || m[1].toLowerCase() !== stageOs) continue;
-      const shardDir = join(dir, name);
-      for (const f of readdirSync(shardDir)) {
-        if (f.endsWith(".png") || f.endsWith(".svg")) { copyFileSync(join(shardDir, f), join(dest, f)); pngs++; }
+    if (eager) {
+      for (const name of readdirSync(dir)) {
+        const m = /^results-([a-z0-9]+)-shard\d+$/i.exec(name);
+        if (m == null || m[1].toLowerCase() !== stageOs) continue;
+        const shardDir = join(dir, name);
+        for (const f of readdirSync(shardDir)) {
+          if (f.endsWith(".png") || f.endsWith(".svg")) { copyFileSync(join(shardDir, f), join(dest, f)); pngs++; }
+        }
       }
     }
-    const mergedJson = join(dir, `results-${stageOs}.json`);
-    if (existsSync(mergedJson)) copyFileSync(mergedJson, join(dest, "results.json"));
-    if (pngs > 0) { staged.push(stageOs); console.log(`  staged ${pngs} files → tests/output/review/ci-${stageOs}/${suiteDir}/`); }
+    staged.push(stageOs);
+    console.log(`  staged tests/output/review/ci-${stageOs}/${suiteDir}/ — metadata${eager ? ` + ${pngs} images` : " (images fetched lazily on first view)"}`);
   }
   if (staged.length > 0) {
     console.log(`\nReview in the local UI (toggle Source → “CI · ${staged.map((o) => o[0].toUpperCase() + o.slice(1)).join("” / “CI · ")}”):`);

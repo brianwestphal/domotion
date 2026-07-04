@@ -31,10 +31,11 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdtempSync, readdirSync, rmSync, copyFileSync } from "node:fs";
 import { resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { spawn, execFileSync } from "node:child_process";
 import { raw } from "kerfjs";
 import * as esbuild from "esbuild";
 
@@ -280,6 +281,66 @@ function loadManifest(activeSourceId: string): ReviewManifest {
 
 function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
   return resolve(suiteDir(root, t.suite), `${t.name}-${kind}.png`);
+}
+
+// ── DM-1661: lazy image fetch for CI sources ──
+// A CI source is pre-populated with only metadata (results.json — each entry
+// carries its `shard`) + a `.ci-source.json` recording the run. The images are
+// fetched on demand: when the browser requests one that isn't cached yet, we
+// download just the containing shard's artifact and extract its PNGs.
+
+interface CiSourceMeta { runId: string; os: string; suite: string }
+
+function readCiSourceMeta(root: string, suite: SuiteName): CiSourceMeta | null {
+  const p = resolve(suiteDir(root, suite), ".ci-source.json");
+  if (!existsSync(p)) return null;
+  try {
+    const m = JSON.parse(readFileSync(p, "utf8")) as Partial<CiSourceMeta>;
+    if (typeof m.runId === "string" && typeof m.os === "string") return { runId: m.runId, os: m.os, suite: suite };
+  } catch { /* malformed — treat as no lazy source */ }
+  return null;
+}
+
+function shardForFixture(root: string, suite: SuiteName, fixtureBase: string): number | null {
+  const rp = resolve(suiteDir(root, suite), "results.json");
+  if (!existsSync(rp)) return null;
+  try {
+    const arr = JSON.parse(readFileSync(rp, "utf8")) as Array<{ name?: string; shard?: number }>;
+    const hit = arr.find((r) => r.name === fixtureBase);
+    return typeof hit?.shard === "number" ? hit.shard : null;
+  } catch { return null; }
+}
+
+// Download one shard's artifact + cache its PNGs into the source dir. In-flight
+// locked by (runId, os, shard) so N concurrent image requests for the same shard
+// share a single `gh run download`.
+const inflightShardFetches = new Map<string, Promise<void>>();
+function fetchShard(root: string, suite: SuiteName, meta: CiSourceMeta, shard: number): Promise<void> {
+  const key = `${meta.runId}:${meta.os}:${shard}`;
+  const existing = inflightShardFetches.get(key);
+  if (existing != null) return existing;
+  const dest = suiteDir(root, suite);
+  const task = (async () => {
+    const tmp = mkdtempSync(resolve(tmpdir(), "review-shard-"));
+    try {
+      console.log(`  ↓ lazy-fetching ${meta.os} shard ${shard} (run ${meta.runId})…`);
+      execFileSync("gh", ["run", "download", meta.runId, "--dir", tmp,
+        "--pattern", `results-${meta.os}-shard${shard}`], { stdio: "pipe" });
+      const walk = (d: string): void => {
+        for (const ent of readdirSync(d, { withFileTypes: true })) {
+          const full = resolve(d, ent.name);
+          if (ent.isDirectory()) walk(full);
+          else if (ent.name.endsWith(".png")) copyFileSync(full, resolve(dest, ent.name));
+        }
+      };
+      walk(tmp);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+      inflightShardFetches.delete(key);
+    }
+  })();
+  inflightShardFetches.set(key, task);
+  return task;
 }
 
 // ── HTTP helpers ──
@@ -608,8 +669,20 @@ async function main(): Promise<void> {
           send(res, 400, "text/plain", "bad path");
           return;
         }
-        const baseDir = suiteDir(sourceById(sourceId).root, suite as SuiteName);
-        const filePath = resolve(baseDir, decodeURIComponent(fname));
+        const root = sourceById(sourceId).root;
+        const filePath = resolve(suiteDir(root, suite as SuiteName), decodeURIComponent(fname));
+        // DM-1661: cache miss on a lazy CI source → fetch the containing shard, then retry.
+        if (!existsSync(filePath) && fname.endsWith(".png")) {
+          const meta = readCiSourceMeta(root, suite as SuiteName);
+          if (meta != null) {
+            const fixtureBase = decodeURIComponent(fname).replace(/-(expected|actual|diff)\.png$/, "");
+            const shard = shardForFixture(root, suite as SuiteName, fixtureBase);
+            if (shard != null) {
+              try { await fetchShard(root, suite as SuiteName, meta, shard); }
+              catch (e) { console.warn(`  lazy fetch failed: ${e instanceof Error ? e.message : String(e)}`); }
+            }
+          }
+        }
         if (!existsSync(filePath)) {
           send(res, 404, "text/plain", "not found");
           return;

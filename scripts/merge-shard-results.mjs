@@ -60,6 +60,19 @@ function osFromPath(p) {
   return "results";
 }
 
+// DM-1661: parse the shard `<i>` out of the same ancestor dir, so each merged
+// result carries which shard artifact its images live in — the lazy review
+// server uses this to fetch just that shard on demand instead of everything.
+function shardFromPath(p) {
+  let d = dirname(p);
+  while (d !== "/" && d !== "." && d.length > 0) {
+    const m = /^results-[a-z0-9]+-shard(\d+)$/i.exec(basename(d));
+    if (m != null) return Number(m[1]);
+    d = dirname(d);
+  }
+  return null;
+}
+
 const files = findResultsJson(inputDir);
 if (files.length === 0) {
   console.error(`merge-shard-results: no results.json found under ${inputDir}`);
@@ -77,10 +90,16 @@ for (const f of files) {
     continue;
   }
   if (!Array.isArray(arr)) continue;
+  const shard = shardFromPath(f);
   if (!byOs.has(os)) byOs.set(os, new Map());
   const seen = byOs.get(os);
   for (const r of arr) {
-    if (r && typeof r.name === "string" && !seen.has(r.name)) seen.set(r.name, r);
+    // DM-1661: stamp the shard so the lazy review server can locate this
+    // fixture's image artifact. Local single-run (no shard dir) leaves it null.
+    if (r && typeof r.name === "string" && !seen.has(r.name)) {
+      if (shard != null) r.shard = shard;
+      seen.set(r.name, r);
+    }
   }
 }
 

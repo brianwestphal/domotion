@@ -40,6 +40,10 @@ on:
         description: 'Keep PASSING fixtures'' expected/actual/diff artifacts too (default: keep everything for review; set false to prune passing and shrink artifacts)'
         type: boolean
         default: true
+      include_svg:
+        description: 'Include the generated .svg files in artifacts (default false — they are ~85% of the weight and the review UI only needs the PNGs)'
+        type: boolean
+        default: false
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
@@ -117,6 +121,10 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+      - name: Drop SVGs from artifacts (lean, review needs only PNGs)
+        if: ${{ always() && inputs.include_svg != true }}
+        shell: bash
+        run: node scripts/drop-svgs.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
       - name: Prune passing artifacts
         if: ${{ always() && inputs.keep_passing != true }}
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
@@ -152,6 +160,10 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+      - name: Drop SVGs from artifacts (lean, review needs only PNGs)
+        if: ${{ always() && inputs.include_svg != true }}
+        shell: bash
+        run: node scripts/drop-svgs.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
       - name: Prune passing artifacts
         if: ${{ always() && inputs.keep_passing != true }}
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
@@ -188,6 +200,10 @@ jobs:
         if: always()
         shell: bash
         run: node scripts/record-runner-image.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/runner-image.txt
+      - name: Drop SVGs from artifacts (lean, review needs only PNGs)
+        if: ${{ always() && inputs.include_svg != true }}
+        shell: bash
+        run: node scripts/drop-svgs.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
       - name: Prune passing artifacts
         if: ${{ always() && inputs.keep_passing != true }}
         run: node scripts/prune-passing-artifacts.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}
