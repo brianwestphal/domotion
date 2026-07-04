@@ -31,7 +31,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, existsSync, mkdtempSync, readdirSync, rmSync, copyFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, copyFileSync, writeFileSync } from "node:fs";
 import { resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -275,7 +275,9 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   }
 
   const newest = timestamps.sort().pop() ?? new Date().toISOString();
-  const sources = SOURCES.map((s) => ({ id: s.id, label: s.label, present: sourceIsPresent(s.root) }));
+  // CI sources are always selectable — the server fetches their metadata from the
+  // latest completed run on demand (DM-1662), so "no local data" ≠ "unavailable".
+  const sources = SOURCES.map((s) => ({ id: s.id, label: s.label, present: s.id.startsWith("ci-") ? true : sourceIsPresent(s.root) }));
   return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources };
 }
 
@@ -341,6 +343,80 @@ function fetchShard(root: string, suite: SuiteName, meta: CiSourceMeta, shard: n
   })();
   inflightShardFetches.set(key, task);
   return task;
+}
+
+// ── DM-1662: dynamic metadata self-fetch ──
+// The review tool finds the latest completed `visual-tests.yml` run for a suite
+// (matched by the `run-name` title) and downloads its SLIM metadata artifact
+// (visual-tests-meta, ~1 MB — the PNG-free scalar summary). So a CI source shows
+// live results with no upfront staging: select it → latest run's fixtures list
+// appears → click a fixture → its image shard lazy-loads.
+
+// review suite dir → the CI `suite` input value.
+function ciSuiteName(suite: SuiteName): "unicode" | "html" | null {
+  return suite === "html-test-unicode" ? "unicode" : suite === "html-test" ? "html" : null;
+}
+
+const runResolveCache = new Map<string, { runId: string | null; at: number }>();
+function resolveLatestRun(ciSuite: string): string | null {
+  const cached = runResolveCache.get(ciSuite);
+  if (cached != null && Date.now() - cached.at < 60_000) return cached.runId;
+  let runId: string | null = null;
+  try {
+    const out = execFileSync("gh", ["run", "list", "--workflow", "visual-tests.yml",
+      "--status", "completed", "--limit", "40",
+      "--json", "databaseId,displayTitle,conclusion"], { encoding: "utf8" });
+    const runs = JSON.parse(out) as Array<{ databaseId: number; displayTitle?: string }>;
+    // Runs come newest-first; take the first whose title names this suite.
+    const hit = runs.find((r) => (r.displayTitle ?? "").includes(`· ${ciSuite} ·`));
+    if (hit != null) runId = String(hit.databaseId);
+  } catch { /* gh unavailable — leave null */ }
+  runResolveCache.set(ciSuite, { runId, at: Date.now() });
+  return runId;
+}
+
+const inflightMetaFetches = new Map<string, Promise<void>>();
+function ensureCiMetadata(root: string, os: string, suite: SuiteName): Promise<void> {
+  const ciSuite = ciSuiteName(suite);
+  if (ciSuite == null) return Promise.resolve(); // features/showcase/real-world aren't CI-swept
+  const runId = resolveLatestRun(ciSuite);
+  if (runId == null) return Promise.resolve();
+  const dest = suiteDir(root, suite);
+  const existing = readCiSourceMeta(root, suite);
+  // Already have THIS run's metadata cached → nothing to do.
+  if (existing != null && existing.runId === runId && existsSync(resolve(dest, "results.json"))) return Promise.resolve();
+  const key = `${runId}:${os}:${suite}`;
+  const inflight = inflightMetaFetches.get(key);
+  if (inflight != null) return inflight;
+  const task = (async () => {
+    const tmp = mkdtempSync(resolve(tmpdir(), "review-meta-"));
+    try {
+      console.log(`  ↓ fetching ${os} ${ciSuite} metadata (run ${runId})…`);
+      execFileSync("gh", ["run", "download", runId, "--dir", tmp, "--pattern", "visual-tests-meta"], { stdio: "pipe" });
+      const sub = resolve(tmp, "visual-tests-meta");
+      const src = existsSync(sub) ? sub : tmp;
+      const slim = resolve(src, `results-${os}.slim.json`);
+      if (existsSync(slim)) {
+        mkdirSync(dest, { recursive: true });
+        copyFileSync(slim, resolve(dest, "results.json"));
+        writeFileSync(resolve(dest, ".ci-source.json"), JSON.stringify({ runId, os, suite: ciSuite }));
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+      inflightMetaFetches.delete(key);
+    }
+  })();
+  inflightMetaFetches.set(key, task);
+  return task;
+}
+
+// Refresh a CI source's metadata (both suites) from the latest completed run.
+async function refreshCiSource(sourceId: string): Promise<void> {
+  if (!sourceId.startsWith("ci-")) return;
+  const os = sourceId.slice("ci-".length);
+  const root = sourceById(sourceId).root;
+  await Promise.all((["html-test-unicode", "html-test"] as SuiteName[])
+    .map((s) => ensureCiMetadata(root, os, s).catch((e) => console.warn(`  metadata fetch failed: ${e instanceof Error ? e.message : String(e)}`))));
 }
 
 // ── HTTP helpers ──
@@ -651,6 +727,9 @@ async function main(): Promise<void> {
 
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
         const src = sourceById(url.searchParams.get("source") ?? defaultSource).id;
+        // DM-1662: selecting a CI source pulls the latest completed run's slim
+        // metadata (cached 60s) so the list is live without any upfront staging.
+        if (src.startsWith("ci-")) await refreshCiSource(src);
         send(res, 200, "text/html; charset=utf-8", renderReviewPage(loadManifest(src)));
         return;
       }

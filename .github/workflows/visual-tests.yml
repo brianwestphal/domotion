@@ -1,5 +1,9 @@
 name: Visual tests (sharded)
 
+# DM-1662: encode suite + os in the run title so the review tool can find the
+# latest completed run for a given suite via `gh run list --json displayTitle`.
+run-name: Visual tests · ${{ inputs.suite }} · os=${{ inputs.os }}
+
 # DM-1216: fan the html-test / html-test-unicode visual-regression suites out
 # across many free public-repo runners so an ~1h throttled local run becomes a
 # few-minute CI run off the interactive machine. Each shard is one matrix job
@@ -233,6 +237,16 @@ jobs:
           --input shard-artifacts --suite ${{ inputs.suite }}
           --commit ${{ github.sha }}
           ${{ inputs.update_baseline && '--update-baseline' || '' }}
+      # DM-1662: a SLIM, PNG-free metadata artifact the review tool fetches on
+      # demand — just the scalar per-fixture summary (~1 MB vs the ~290 MB
+      # visual-tests-merged, which carries the fat `regions` arrays + all diff PNGs).
+      - name: Slim metadata for the review UI
+        run: node scripts/slim-results.mjs shard-artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-tests-meta
+          path: shard-artifacts/results-*.slim.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: visual-tests-merged

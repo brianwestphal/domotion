@@ -99,7 +99,7 @@ await new Promise((resolve) => {
 });
 
 const dir = mkdtempSync(join(tmpdir(), "visual-tests-"));
-const downloadPattern = eager ? "results-*" : "visual-tests-merged";
+const downloadPattern = eager ? "results-*" : "visual-tests-meta";
 console.log(`\nDownloading ${eager ? "shard image artifacts" : "merged metadata (lazy — images fetched on demand in the review UI)"} to ${dir} …`);
 // Artifacts finalize AFTER `gh run watch` returns, and large multi-shard
 // uploads (5 × ~20 MB) can take a couple of minutes to become downloadable —
@@ -127,17 +127,18 @@ if (eager) {
   console.log(`\nMerging shards…\n`);
   execFileSync("node", [join(here, "scripts/merge-shard-results.mjs"), "--input", dir], { stdio: "inherit" });
 } else {
-  // The `visual-tests-merged` artifact already carries the CI-merged
-  // results-<os>.json (merged by the aggregate job, shard-annotated); flatten
-  // them into `dir` so the baseline diff + staging below find them.
-  const mergedSub = join(dir, "visual-tests-merged");
-  const srcDir = existsSync(mergedSub) ? mergedSub : dir;
+  // The `visual-tests-meta` artifact carries the SLIM, PNG-free, shard-annotated
+  // results-<os>.slim.json (DM-1662). Flatten them to `dir/results-<os>.json` so
+  // the baseline diff + staging below find them.
+  const metaSub = join(dir, "visual-tests-meta");
+  const srcDir = existsSync(metaSub) ? metaSub : dir;
   let found = 0;
   for (const name of readdirSync(srcDir)) {
-    if (/^results-[a-z0-9]+\.json$/i.test(name)) { copyFileSync(join(srcDir, name), join(dir, name)); found++; }
+    const m = /^results-([a-z0-9]+)\.slim\.json$/i.exec(name);
+    if (m != null) { copyFileSync(join(srcDir, name), join(dir, `results-${m[1].toLowerCase()}.json`)); found++; }
   }
-  if (found === 0) die(`no merged results-<os>.json in the visual-tests-merged artifact — run ${runId} may not have reached the aggregate job (see ${url}).`);
-  console.log(`\nUsing CI-merged metadata (${found} OS result set${found === 1 ? "" : "s"}); images fetched lazily on review.\n`);
+  if (found === 0) die(`no results-<os>.slim.json in the visual-tests-meta artifact — run ${runId} may not have reached the aggregate job (see ${url}).`);
+  console.log(`\nUsing CI slim metadata (${found} OS result set${found === 1 ? "" : "s"}); images fetched lazily on review.\n`);
 }
 
 // DM-1217: the macOS CI runner (macos-15-arm64) rasterizes text differently
