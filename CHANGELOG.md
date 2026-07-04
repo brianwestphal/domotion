@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.21.1] - 2026-07-04
+
+
+All three commits in this range are test-only (`test(animator)`) or doc-only (`docs(CLAUDE)`) changes, which the template's frontmatter explicitly excludes ("test-only changes, doc-only changes"). None of them add features, alter behavior a consumer would see, add CLI flags, or break anything.
+
+So there are no user-facing release notes to generate for this range — every section would be empty and is therefore omitted, leaving no output.
+
 ## [0.21.0] - 2026-07-04
 
 
