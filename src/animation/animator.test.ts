@@ -796,7 +796,13 @@ describe("animator", () => {
 
     it("paints with the overridden family as glyph paths", () => {
       const svg = mk("Georgia, serif");
-      expect(svg).toMatch(/<g class="t0-text"[^>]*>\s*<g [^>]*aria-label="Wire Wave"/);
+      // The first line paints as a glyph-path <g aria-label="…"> group (not a
+      // <text> fallback). The EXACT wrap point is font-dependent — macOS resolves
+      // Georgia and breaks after "Wire Wave"; a platform without Georgia (Linux
+      // CI) falls back to a narrower serif that fits "Wire Wave William" — so
+      // assert the robust prefix, not the exact macOS split.
+      expect(svg).toMatch(/<g class="t0-text"[^>]*>\s*<g [^>]*aria-label="Wire Wave/);
+      expect(svg).not.toMatch(/<text class="t0-text"/);
       expect(svg).toContain('<use href="#g');
     });
 
@@ -1130,8 +1136,12 @@ describe("animator", () => {
       const lines = typedLines(svg);
       expect(lines.length).toBeGreaterThan(1);
       // DM-1557: pixel-accurate wrap — each line's monospace width stays within
-      // the usable field (120-4=116px), so at ~8.65px/char no line exceeds ~13.
-      const maxChars = Math.ceil((120 - 4) / (14 * 0.6));
+      // the usable field (120-4=116px). The exact chars/line is font-dependent
+      // (macOS SF Mono ~8.65px/char → ≤14; Linux CI's Liberation Mono is narrower
+      // → 15 fit), so bound by the NARROWEST plausible monospace advance (~0.5em)
+      // to stay platform-robust while still catching a wrap that fails to bound
+      // the line at all.
+      const maxChars = Math.ceil((120 - 4) / (14 * 0.5));
       for (const line of lines) expect(line.length).toBeLessThanOrEqual(maxChars);
       // No glyph escapes the field: each line's right edge stays within the bg.
       expect(lines.join("")).not.toContain("  "); // wrap consumed the break spaces
