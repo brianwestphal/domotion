@@ -2686,35 +2686,21 @@ function matchFamilyNameToKey(name: string): string | null {
     // `-apple-system` fall through via the `continue` clause below.
     if (name === "system-ui" || name === "blinkmacsystemfont"
       || name === "sf pro") return "sf-pro";
-    // DM-1127: "SF Pro Text" / "SF Pro Display" are DISTINCT installed faces, not
-    // the system variable font. On a host where the user installed Apple's SF Pro
-    // package, CoreText resolves these names to their own OTFs (e.g.
-    // `/Library/Fonts/SF-Pro-Text-Regular.otf`, postscript `SFProText-Regular`),
-    // and Chrome paints from them — those OTFs carry glyphs the system `SFNS.ttf`
-    // LACKS (e.g. the two-digit enclosed alphanumerics U+2469–2473 / U+24EB–24F4:
-    // SFNS has the single-digit circled numbers but not the double-digit ones).
-    // Mapping the name straight to `sf-pro` (SFNS) made those codepoints miss in
-    // the primary and fall through to a LATER author family (Arial Unicode MS's
-    // full-em circled numbers), painting a visibly larger glyph than Chrome's
-    // condensed SF Pro Text one. Probe CoreText first so the named cut resolves to
-    // the same OTF Chrome uses; only when the OTF isn't installed do we fall back
-    // to the `sf-pro` (SFNS) approximation, whose Text optical size is pinned via
-    // `OPTICAL_CUT_OPSZ` (DM-1103) — which is also what Chrome paints there, since
-    // an absent OTF means Chrome can't use it either.
-    if (name === "sf pro text" || name === "sf pro display") {
-      const cut = resolveInstalledFont(name);
-      if (cut != null) {
-        const key = `sysfb:${cut.postscriptName}`;
-        // DM-1267: extract via fontkit (not the default native CoreText helper)
-        // so the OTF's GSUB survives — `font-feature-settings` (e.g. Apple's
-        // `sup.footnote { "numr" }` footnote superscripts, mapped to `sups`) needs
-        // the feature lookups, which the native per-glyph extractor strips. SF Pro
-        // Text/Display are clean OTFs fontkit reads cleanly (no hvgl / GSUB-crash).
-        registerDynamicSystemFont(key, cut.path, cut.postscriptName, "fontkit");
-        return key;
-      }
-      return "sf-pro";
-    }
+    // DM-1127 REVERSED (DM-1659): "SF Pro Text" / "SF Pro Display" resolve to the
+    // SYSTEM font `SFNS.ttf` (the `sf-pro` key, opsz-pinned to the Text cut via
+    // `OPTICAL_CUT_OPSZ`/DM-1103) — NOT the standalone `/Library/Fonts/SF-Pro-*.otf`.
+    // DM-1127 preferred the standalone OTF on the assumption it's "the same font
+    // Chrome paints"; empirically that's FALSE. Chrome→CoreText paints "SF Pro
+    // Text" from the system SFNS optical cut, whose glyph DESIGNS differ from the
+    // standalone OTF's — e.g. the '!' dot is a squat rectangle in SFNS (what Chrome
+    // shows) vs a round circle in the OTF, and accent/terminal shapes differ across
+    // the board. The two share Text-cut METRICS (identical advances), so an
+    // advance-only check couldn't tell them apart, but the shapes are Chrome's
+    // ground truth. Verified via CDP `getPlatformFontsForNode` + native CoreText
+    // rasterization of both files. The OTF's extra coverage (the two-digit enclosed
+    // alphanumerics SFNS lacks) is handled by the normal per-codepoint fallback,
+    // which is also what Chrome does for those codepoints (SFNS lacks them → cascade).
+    if (name === "sf pro text" || name === "sf pro display") return "sf-pro";
     // DM-806: author-named "Hiragino Sans" / "Hiragino Kaku Gothic ProN" /
     // the underlying ヒラギノ角ゴシック native name maps to the JP variant
     // we already ship under the `hiragino-jp` key (HiraKakuProN-W3 /
@@ -3173,6 +3159,26 @@ interface FontResolution {
  *   3. Math-Alphanumeric (NFKD compatibility — a deliberately separate axis).
  *   4. kOutOfLuck — LastResort tofu; caller applies its own uncovered terminal.
  */
+
+// DM-1659: the standalone `/Library/Fonts/SF-Pro-*.otf` supplies the few glyphs
+// SFNS lacks (see the per-codepoint hook in resolveFontForCodepoint). Resolved +
+// registered once, lazily. `undefined` = not yet checked, `null` = OTF not
+// installed on this host (Chrome can't use it either → SFNS's cascade continues).
+let _sfProCoverageKey: string | null | undefined;
+function sfProCoverageOtfKey(): string | null {
+  if (_sfProCoverageKey !== undefined) return _sfProCoverageKey;
+  _sfProCoverageKey = null;
+  try {
+    const cut = resolveInstalledFont("SF Pro Text");
+    if (cut != null) {
+      const key = `sysfb:${cut.postscriptName}`;
+      registerDynamicSystemFont(key, cut.path, cut.postscriptName, "fontkit");
+      _sfProCoverageKey = key;
+    }
+  } catch { /* helper unavailable — keep null */ }
+  return _sfProCoverageKey;
+}
+
 export function resolveFontForCodepoint(
   cp: number,
   primaryFont: FontInstance,
@@ -3213,6 +3219,23 @@ export function resolveFontForCodepoint(
 
   // 0. Primary fast-path: literal coverage in the run's primary font.
   if (primaryFont.glyphForCodePoint(cp).id !== 0) return cover(primaryFontKey, null);
+
+  // DM-1659: SF Pro Text/Display and the system font resolve to SFNS (matching
+  // Chrome's PAINTED glyph shapes — see matchFamilyNameToKey). But SFNS lacks a
+  // few glyphs the standalone `/Library/Fonts/SF-Pro-*.otf` carries (the two-digit
+  // enclosed alphanumerics U+2469–2473 / U+24EB–24F4, Enclosed-CJK circled 21–50).
+  // For those, Chrome's CoreText cascades from SFNS to the standalone OTF (which it
+  // still reports as "SF Pro Text"). Mirror that per-codepoint: an sf-pro run whose
+  // codepoint SFNS doesn't cover falls to the standalone OTF BEFORE the declared
+  // chain — else it hits a LATER author family (Arial Unicode MS's full-em circled
+  // numbers, a visibly larger glyph than Chrome's condensed SF Pro one, DM-1127).
+  if (primaryFontKey === "sf-pro" || primaryFontKey === "sf-pro-italic") {
+    const otfKey = sfProCoverageOtfKey();
+    if (otfKey != null) {
+      const otf = getFontInstance(otfKey, weight, fontSize, slant);
+      if (otf != null && otf.glyphForCodePoint(cp).id !== 0) return cover(otfKey, otf);
+    }
+  }
 
   // Canonical NFD singleton (e.g. U+2F800→U+4E3D). null when `cp` has no
   // single-codepoint canonical decomposition — multi-char decompositions are not
