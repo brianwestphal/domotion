@@ -21,6 +21,7 @@ import {
   DEVICE_CHROMES,
   isChromeTheme,
   CHROME_THEMES,
+  compressEmbeddedFontsToWoff2,
   launchChromium,
   logCaptureWarnings,
   optimizeSvg,
@@ -396,7 +397,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       log(`Wrapped in ${values.chrome} chrome (${framed.width}×${framed.height})`);
     }
     if (flags.optimize) {
-      svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => Promise.resolve(optimizeSvg(svg)));
+      svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => compressEmbeddedFontsToWoff2(optimizeSvg(svg)));
     }
 
     if (flags.warnings) logCaptureWarnings("capture");

@@ -56,7 +56,7 @@ import type { CapturedElement } from "../capture/types.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
-import { optimizeSvg } from "../post-processing/index.js";
+import { compressEmbeddedFontsToWoff2, optimizeSvg } from "../post-processing/index.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-presets.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
@@ -839,7 +839,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     (cfg.optimize === true && values["no-optimize"] !== true) ||
     (svgz && values["no-optimize"] !== true);
   if (optimize) {
-    svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => Promise.resolve(optimizeSvg(svg)));
+    svg = await timed(log, `Optimizing SVG (${(svg.length / 1024).toFixed(1)} KB → …)`, () => compressEmbeddedFontsToWoff2(optimizeSvg(svg)));
   }
 
   const outPath = resolveOutputPath(outputArg, configPath, ".svg");
