@@ -21,6 +21,13 @@
  *   # After running any or all of the test suites:
  *   npm run demos:test:all   # runs all three
  *   npm run demos:review     # opens the review page
+ *
+ * DM-1660: the page toggles between FOUR result sources via the header "Source"
+ * selector — the local macOS run (the plain tests/output/ the suites write to)
+ * plus the three CI platforms downloaded into tests/output/review/ci-<os>/ by
+ * tools/run-ci-visual-tests.mjs. Switching the selector reloads with ?source=<id>
+ * and the server re-renders + serves images from that source's folder, so you can
+ * compare the same fixture across local / CI-macOS / CI-Linux / CI-Windows.
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -36,30 +43,63 @@ import * as esbuild from "esbuild";
 // Anchor against this file's location so paths resolve correctly regardless
 // of cwd (running from the repo root or from inside tests/).
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
-// DM-1216: REVIEW_OUTPUT_DIR overrides the suite-output root so the SAME review
-// UI can browse results consolidated from a distributed CI run (downloaded +
-// flattened by tools/run-ci-visual-tests.mjs --review) without clobbering the
-// local `tests/output/`. Defaults to `tests/output`.
-const OUTPUT_DIR = process.env.REVIEW_OUTPUT_DIR != null && process.env.REVIEW_OUTPUT_DIR !== ""
-  ? resolve(process.env.REVIEW_OUTPUT_DIR)
-  : resolve(TESTS_DIR, "output");
-const HTML_TEST_DIR = resolve(OUTPUT_DIR, "html-test");
-const HTML_TEST_UNICODE_DIR = resolve(OUTPUT_DIR, "html-test-unicode");
-const REAL_WORLD_DIR = resolve(OUTPUT_DIR, "real-world");
+const DEFAULT_OUTPUT_DIR = resolve(TESTS_DIR, "output");
 const PROJECT_ROOT = resolve(TESTS_DIR, "..");
 const SETTINGS_PATH = resolve(PROJECT_ROOT, ".hotsheet/settings.json");
 const SECRET_PATH = resolve(PROJECT_ROOT, ".hotsheet/secret.json");
 const WORKLIST_PATH = resolve(PROJECT_ROOT, ".hotsheet/worklist.md");
 
-const MANIFEST_FILES: Array<{ suite: SuiteName; path: string; imagesDir: string; isBareArray: boolean }> = [
-  { suite: "features",          path: resolve(OUTPUT_DIR,             "features-results.json"), imagesDir: OUTPUT_DIR,             isBareArray: false },
-  { suite: "showcase",          path: resolve(OUTPUT_DIR,             "showcase-results.json"), imagesDir: OUTPUT_DIR,             isBareArray: false },
-  { suite: "html-test",         path: resolve(HTML_TEST_DIR,          "results.json"),          imagesDir: HTML_TEST_DIR,          isBareArray: true  },
-  { suite: "html-test-unicode", path: resolve(HTML_TEST_UNICODE_DIR,  "results.json"),          imagesDir: HTML_TEST_UNICODE_DIR,  isBareArray: true  },
-  { suite: "real-world",        path: resolve(REAL_WORLD_DIR,         "results.json"),          imagesDir: REAL_WORLD_DIR,         isBareArray: false },
+type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "real-world";
+
+// DM-1660: the review UI toggles between FOUR result sources — the local macOS
+// run plus the three CI platforms (downloaded per-platform by
+// tools/run-ci-visual-tests.mjs into separate folders). Each source is a
+// self-contained OUTPUT_DIR-style root holding the same suite layout
+// (features-results.json, showcase-results.json, html-test/, html-test-unicode/,
+// real-world/). `local-macos` maps to the plain `tests/output/` the local suites
+// write to (overridable via REVIEW_OUTPUT_DIR, kept for back-compat / DM-1216);
+// the CI sources live under `tests/output/review/ci-<os>/`.
+interface Source { id: string; label: string; root: string }
+const REVIEW_BASE = resolve(DEFAULT_OUTPUT_DIR, "review");
+const LOCAL_MACOS_ROOT = process.env.REVIEW_OUTPUT_DIR != null && process.env.REVIEW_OUTPUT_DIR !== ""
+  ? resolve(process.env.REVIEW_OUTPUT_DIR)
+  : DEFAULT_OUTPUT_DIR;
+const SOURCES: Source[] = [
+  { id: "local-macos", label: "Local · macOS", root: LOCAL_MACOS_ROOT },
+  { id: "ci-macos",    label: "CI · macOS",    root: resolve(REVIEW_BASE, "ci-macos") },
+  { id: "ci-linux",    label: "CI · Linux",    root: resolve(REVIEW_BASE, "ci-linux") },
+  { id: "ci-windows",  label: "CI · Windows",  root: resolve(REVIEW_BASE, "ci-windows") },
 ];
 
-type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "real-world";
+// The per-suite manifest files + image dirs under a given source root.
+function suiteLayout(root: string): {
+  dirs: Record<SuiteName, string>;
+  manifests: Array<{ suite: SuiteName; path: string; isBareArray: boolean }>;
+} {
+  const htmlDir = resolve(root, "html-test");
+  const uniDir = resolve(root, "html-test-unicode");
+  const rwDir = resolve(root, "real-world");
+  return {
+    dirs: { features: root, showcase: root, "html-test": htmlDir, "html-test-unicode": uniDir, "real-world": rwDir },
+    manifests: [
+      { suite: "features",          path: resolve(root,    "features-results.json"), isBareArray: false },
+      { suite: "showcase",          path: resolve(root,    "showcase-results.json"), isBareArray: false },
+      { suite: "html-test",         path: resolve(htmlDir, "results.json"),          isBareArray: true  },
+      { suite: "html-test-unicode", path: resolve(uniDir,  "results.json"),          isBareArray: true  },
+      { suite: "real-world",        path: resolve(rwDir,   "results.json"),          isBareArray: false },
+    ],
+  };
+}
+
+function sourceIsPresent(root: string): boolean {
+  return suiteLayout(root).manifests.some((m) => existsSync(m.path));
+}
+function suiteDir(root: string, suite: SuiteName): string {
+  return suiteLayout(root).dirs[suite];
+}
+function sourceById(id: string | null): Source {
+  return SOURCES.find((s) => s.id === id) ?? SOURCES[0];
+}
 
 // ── Config ──
 
@@ -143,9 +183,15 @@ interface ReviewManifest {
   generatedAt: string;   // most recent across all suites
   suites: Record<SuiteName, { present: boolean; generatedAt?: string; count: number }>;
   tests: ReviewTest[];
+  // DM-1660: which source this manifest was built from, and the full toggle list
+  // (present = has ≥1 manifest on disk) so the client can render the selector.
+  activeSource: string;
+  sources: Array<{ id: string; label: string; present: boolean }>;
 }
 
-function loadManifest(): ReviewManifest {
+function loadManifest(activeSourceId: string): ReviewManifest {
+  const root = sourceById(activeSourceId).root;
+  const manifestFiles = suiteLayout(root).manifests;
   const tests: ReviewTest[] = [];
   const suites: ReviewManifest["suites"] = {
     features:            { present: false, count: 0 },
@@ -156,7 +202,7 @@ function loadManifest(): ReviewManifest {
   };
   const timestamps: string[] = [];
 
-  for (const m of MANIFEST_FILES) {
+  for (const m of manifestFiles) {
     if (!existsSync(m.path)) continue;
     suites[m.suite].present = true;
     const raw = JSON.parse(readFileSync(m.path, "utf8")) as unknown;
@@ -228,15 +274,12 @@ function loadManifest(): ReviewManifest {
   }
 
   const newest = timestamps.sort().pop() ?? new Date().toISOString();
-  return { generatedAt: newest, suites, tests };
+  const sources = SOURCES.map((s) => ({ id: s.id, label: s.label, present: sourceIsPresent(s.root) }));
+  return { generatedAt: newest, suites, tests, activeSource: activeSourceId, sources };
 }
 
-function imagePathFor(t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
-  const dir = t.suite === "html-test"         ? HTML_TEST_DIR
-            : t.suite === "html-test-unicode" ? HTML_TEST_UNICODE_DIR
-            : t.suite === "real-world"        ? REAL_WORLD_DIR
-            :                                   OUTPUT_DIR;
-  return resolve(dir, `${t.name}-${kind}.png`);
+function imagePathFor(root: string, t: ReviewTest, kind: "expected" | "actual" | "diff"): string {
+  return resolve(suiteDir(root, t.suite), `${t.name}-${kind}.png`);
 }
 
 // ── HTTP helpers ──
@@ -392,7 +435,7 @@ function safeJsonForScript(payload: unknown): string {
   return JSON.stringify(payload).replace(/</g, "\\u003c");
 }
 
-function Layout({ manifestJson }: { manifestJson: string }) {
+function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifestJson: string }) {
   return (
     <html lang="en">
       <head>
@@ -405,6 +448,16 @@ function Layout({ manifestJson }: { manifestJson: string }) {
         <header>
           <h1>SVG Demo Test Review</h1>
           <div className="controls">
+            {/* DM-1660: toggle the result source (local macOS + the 3 CI platforms).
+                Options a source hasn't been populated for are disabled. Changing it
+                reloads with ?source=<id> (the client wires the onchange). */}
+            <label>Source: <select id="source">
+              {manifest.sources.map((s) => (
+                <option value={s.id} selected={s.id === manifest.activeSource} disabled={!s.present}>
+                  {`${s.label}${s.present ? "" : " (no data)"}`}
+                </option>
+              ))}
+            </select></label>
             <label>Filter: <select id="filter">
               <option value="fail">Failing</option>
               <option value="all">All</option>
@@ -454,7 +507,7 @@ function Layout({ manifestJson }: { manifestJson: string }) {
 
 function renderReviewPage(manifest: ReviewManifest): string {
   const manifestJson = safeJsonForScript(manifest);
-  return `<!DOCTYPE html>\n${(<Layout manifestJson={manifestJson} />).toString()}`;
+  return `<!DOCTYPE html>\n${(<Layout manifest={manifest} manifestJson={manifestJson} />).toString()}`;
 }
 
 // ── Regions (DM-572 / DM-573) ──
@@ -523,17 +576,12 @@ async function main(): Promise<void> {
   const port = portIdx >= 0 ? parseInt(args[portIdx + 1], 10) : 4175;
 
   const settings = loadSettings();
-  const manifest = loadManifest();
   const clientJs = await bundleClient();
-  if (manifest.tests.length === 0) {
-    console.error("No test results found. Run a suite first:");
-    console.error("  npm run demos:test            # features only");
-    console.error("  npm run demos:test:showcase   # showcase");
-    console.error("  npm run demos:test:html       # html-test (~147)");
-    console.error("  npm run demos:test:unicode    # per-Unicode-block coverage sweep (330, slow)");
-    console.error("  npm run demos:test:real-world # real public sites (DM-454)");
-    console.error("  npm run demos:test:all        # all four");
-    process.exit(1);
+  // DM-1660: the default source is the first PRESENT one (prefer local-macos).
+  const defaultSource = (SOURCES.find((s) => sourceIsPresent(s.root)) ?? SOURCES[0]).id;
+  if (!SOURCES.some((s) => sourceIsPresent(s.root))) {
+    console.warn("⚠ No test results found in any source. Run a local suite (npm run demos:test:*) or");
+    console.warn("  download CI results (node tools/run-ci-visual-tests.mjs …) — then refresh the page.");
   }
 
   const server = createServer(async (req, res) => {
@@ -541,7 +589,8 @@ async function main(): Promise<void> {
       const url = new URL(req.url ?? "/", `http://localhost:${port}`);
 
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-        send(res, 200, "text/html; charset=utf-8", renderReviewPage(manifest));
+        const src = sourceById(url.searchParams.get("source") ?? defaultSource).id;
+        send(res, 200, "text/html; charset=utf-8", renderReviewPage(loadManifest(src)));
         return;
       }
 
@@ -551,21 +600,16 @@ async function main(): Promise<void> {
       }
 
       if (req.method === "GET" && url.pathname.startsWith("/img/")) {
-        // /img/<suite>/<filename>
-        const rest = url.pathname.slice(5);
-        const slash = rest.indexOf("/");
-        if (slash < 0) { send(res, 400, "text/plain", "bad path"); return; }
-        const suite = rest.slice(0, slash);
-        const fname = rest.slice(slash + 1);
-        if (fname.includes("/") || fname.includes("..")) {
+        // /img/<source>/<suite>/<filename>
+        const parts = url.pathname.slice(5).split("/");
+        if (parts.length !== 3) { send(res, 400, "text/plain", "bad path"); return; }
+        const [sourceId, suite, fname] = parts;
+        if (fname.includes("..") || decodeURIComponent(fname).includes("/")) {
           send(res, 400, "text/plain", "bad path");
           return;
         }
-        const baseDir = suite === "html-test"         ? HTML_TEST_DIR
-                      : suite === "html-test-unicode" ? HTML_TEST_UNICODE_DIR
-                      : suite === "real-world"        ? REAL_WORLD_DIR
-                      :                                 OUTPUT_DIR;
-        const filePath = resolve(baseDir, fname);
+        const baseDir = suiteDir(sourceById(sourceId).root, suite as SuiteName);
+        const filePath = resolve(baseDir, decodeURIComponent(fname));
         if (!existsSync(filePath)) {
           send(res, 404, "text/plain", "not found");
           return;
@@ -580,7 +624,9 @@ async function main(): Promise<void> {
           return;
         }
         const body = await readBody(req);
-        const parsed = JSON.parse(body) as { suite?: string; name?: string; comment?: string; regions?: unknown };
+        const parsed = JSON.parse(body) as { source?: string; suite?: string; name?: string; comment?: string; regions?: unknown };
+        const source = sourceById(parsed.source ?? defaultSource);
+        const manifest = loadManifest(source.id);
         const suite = parsed.suite as SuiteName | undefined;
         const name = parsed.name ?? "";
         const comment = parsed.comment ?? "";
@@ -615,10 +661,7 @@ async function main(): Promise<void> {
           detailsParts.push("", regionsBlock);
         }
         if (!match.skipped) {
-          const relPath = match.suite === "html-test"         ? "tests/output/html-test"
-                        : match.suite === "html-test-unicode" ? "tests/output/html-test-unicode"
-                        : match.suite === "real-world"        ? "tests/output/real-world"
-                        :                                       "tests/output";
+          const relPath = suiteDir(source.root, match.suite);
           detailsParts.push(
             "",
             "Source files:",
@@ -637,7 +680,7 @@ async function main(): Promise<void> {
         const failed: string[] = [];
         if (!match.skipped) {
           for (const kind of ["expected", "actual", "diff"] as const) {
-            const p = imagePathFor(match, kind);
+            const p = imagePathFor(source.root, match, kind);
             if (!existsSync(p)) continue;
             try {
               await attachFileToTicket(settings, ticket.id, p);
@@ -664,14 +707,17 @@ async function main(): Promise<void> {
 
   server.listen(port, () => {
     const url = `http://localhost:${port}/`;
+    const manifest = loadManifest(defaultSource);
     const failing = manifest.tests.filter((r) => !r.pass && !r.skipped).length;
     const skipped = manifest.tests.filter((r) => r.skipped).length;
-    console.log(`\nSVG Demo Test Review — ${failing} failing · ${skipped} skipped · ${manifest.tests.length} total`);
-    for (const [suite, info] of Object.entries(manifest.suites)) {
-      console.log(`  ${suite.padEnd(10)} ${info.present ? `${info.count} tests` : "(not run)"}`);
+    console.log(`\nSVG Demo Test Review — sources:`);
+    for (const s of SOURCES) {
+      const present = sourceIsPresent(s.root);
+      console.log(`  ${present ? (s.id === defaultSource ? "▶" : "•") : "·"} ${s.label.padEnd(14)} ${present ? "" : "(no data)"}`);
     }
+    console.log(`\n  active [${defaultSource}] — ${failing} failing · ${skipped} skipped · ${manifest.tests.length} total`);
     console.log(`  ${url}`);
-    console.log(`  (Ctrl+C to stop)`);
+    console.log(`  (toggle source in the header · Ctrl+C to stop)`);
     try { spawn("open", [url], { stdio: "ignore", detached: true }).unref(); } catch { /* manual open works */ }
   });
 }

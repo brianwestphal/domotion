@@ -18,16 +18,22 @@ node tools/run-ci-visual-tests.mjs --suite unicode --update-baseline  # (re)writ
 
 It dispatches the workflow on your **pushed** branch (it refuses if `origin/<branch>` ≠ your `HEAD` — CI runs the pushed ref, not your working tree), waits for the run, downloads the per-shard artifacts, merges them, **diffs the run against the committed CI baseline** (`tests/baselines/<suite>-<os>.json` — see "Two baselines" below), and prints the pass/fail summary + the baseline diff + the local path to the failing-fixture diff crops. Flags: `--suite unicode|html`, `--os macos|linux|windows|all`, `--shards auto|<N>`, `--only <filter>`, `--ref <branch>`, `--update-baseline`, `--no-review`.
 
-### Reviewing the CI diffs locally (same tool)
+### Reviewing the CI diffs locally — four-source toggle (DM-1660)
 
-By default the helper also **consolidates the failing fixtures' `expected`/`actual`/`diff` PNGs (+ the generated `.svg`)** from every shard into one dir laid out the way the review UI expects, and prints:
+By default the helper **stages every shard's `expected`/`actual`/`diff` PNGs (+ the generated `.svg`) + merged `results.json`** into a per-platform review SOURCE folder — `tests/output/review/ci-<os>/<suiteDir>/` — laid out the way the review UI expects, and prints:
 
 ```sh
-REVIEW_OUTPUT_DIR=<tmp>/review npm run demos:review      # browse all CI failures in the usual review UI
-svg-review --expected <tmp>/review/.../<name>-expected.png --actual <tmp>/review/.../<name>-actual.png   # one fixture
+npm run demos:review     # then toggle the header "Source" selector
 ```
 
-`REVIEW_OUTPUT_DIR` points `tests/review-server.tsx` at the consolidated CI output instead of your local `tests/output/` (so it never clobbers a local run). For `--os all` it consolidates the macOS results (the primary); the raw per-OS shard artifacts are left under `<tmp>/results-<os>-shard*/` for `svg-review`. Pass `--no-review` to skip the consolidation. Only failing fixtures carry images (the workflow prunes passing ones to keep artifacts small).
+The review UI's **Source** selector switches between four self-contained result sets:
+
+- **Local · macOS** — your local `tests/output/` (what `npm run demos:test:*` writes).
+- **CI · macOS / CI · Linux / CI · Windows** — `tests/output/review/ci-<os>/`, populated by this helper.
+
+Switching reloads with `?source=<id>`; the server re-renders + serves images from that source's folder, so you can compare the **same fixture across platforms** (e.g. a macOS-vs-Linux glyph-fallback difference) without clobbering a local run. `--os all` stages all three CI folders in one pass; the raw per-OS shard artifacts are also left under `<tmp>/results-<os>-shard*/` for `svg-review`. Pass `--no-review` to skip staging.
+
+To include PASSING fixtures too (not just failures), dispatch with `keep_passing` on — it's the **default** for `visual-tests.yml`; set the dispatch input to `false` to prune passing fixtures and shrink the artifacts. `REVIEW_OUTPUT_DIR` still overrides the **Local · macOS** root for back-compat.
 
 ## What the workflow does
 

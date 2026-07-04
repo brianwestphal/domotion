@@ -68,6 +68,9 @@ interface ReviewManifest {
   generatedAt: string;
   suites: Record<SuiteName, { present: boolean; generatedAt?: string; count: number }>;
   tests: ReviewTest[];
+  // DM-1660: active result source + the toggle list.
+  activeSource: string;
+  sources: Array<{ id: string; label: string; present: boolean }>;
 }
 
 // ── Boot ──
@@ -75,6 +78,21 @@ interface ReviewManifest {
 const manifestEl = document.getElementById("manifest-data");
 if (manifestEl == null) throw new Error("manifest-data <script> missing");
 const MANIFEST = JSON.parse(manifestEl.textContent ?? "{}") as ReviewManifest;
+
+// DM-1660: images are served per-source at /img/<source>/<suite>/<file>.
+const IMG_BASE = `/img/${MANIFEST.activeSource}`;
+
+// The source selector reloads the page with ?source=<id> (server re-renders with
+// that source's manifest). Guard against reloading to the same source.
+const sourceEl = document.getElementById("source") as HTMLSelectElement | null;
+if (sourceEl != null) {
+  sourceEl.addEventListener("change", () => {
+    if (sourceEl.value === MANIFEST.activeSource) return;
+    const u = new URL(location.href);
+    u.searchParams.set("source", sourceEl.value);
+    location.href = u.toString();
+  });
+}
 
 const filterEl = document.getElementById("filter") as HTMLSelectElement;
 const suiteEl = document.getElementById("suite") as HTMLSelectElement;
@@ -212,9 +230,9 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
       <div className="chunk-strip">
         {chunks.map((c) => {
           const suffix = c.index === 0 ? "" : `-${c.index}`;
-          const expected = `/img/${r.suite}/${r.name}-expected${suffix}.png`;
-          const actual = `/img/${r.suite}/${r.name}-actual${suffix}.png`;
-          const diff = `/img/${r.suite}/${r.name}-diff${suffix}.png`;
+          const expected = `${IMG_BASE}/${r.suite}/${r.name}-expected${suffix}.png`;
+          const actual = `${IMG_BASE}/${r.suite}/${r.name}-actual${suffix}.png`;
+          const diff = `${IMG_BASE}/${r.suite}/${r.name}-diff${suffix}.png`;
           // Lead with regions/coverage % when available; legacy chunks
           // fall back to raw diff %.
           const cAny = c as any;
@@ -264,7 +282,7 @@ function Card({ r }: { r: ReviewTest }) {
         <span className={`badge ${statusClass}`}>{badge} · <StatusScore r={r} /></span>
         <ExtraMetrics r={r} />
         {!r.skipped && (
-          <a className="svg-link" href={`/img/${r.suite}/${r.name}.svg`} target="_blank" rel="noopener">view svg ↗</a>
+          <a className="svg-link" href={`${IMG_BASE}/${r.suite}/${r.name}.svg`} target="_blank" rel="noopener">view svg ↗</a>
         )}
       </div>
       {r.skipped ? (
@@ -273,7 +291,7 @@ function Card({ r }: { r: ReviewTest }) {
         <>
           <div className="imgs">
             {(["expected", "actual", "diff"] as const).map((kind) => {
-              const src = `/img/${r.suite}/${r.name}-${kind}.png`;
+              const src = `${IMG_BASE}/${r.suite}/${r.name}-${kind}.png`;
               return (
                 <figure data-src={src}>
                   <figcaption>{kind}</figcaption>
@@ -292,7 +310,7 @@ function Card({ r }: { r: ReviewTest }) {
                 {/* DM-632: src is populated by applyLiveSvgVisibility() only
                     when the toolbar toggle is on, so the SVG isn't fetched
                     or animated by default. */}
-                <img data-svg-src={`/img/${r.suite}/${r.name}.svg`} loading="lazy" alt="" />
+                <img data-svg-src={`${IMG_BASE}/${r.suite}/${r.name}.svg`} loading="lazy" alt="" />
               </figure>
             )}
           </div>
@@ -593,7 +611,7 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
     const res = await fetch("/api/file-ticket", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ suite, name, comment, regions }),
+      body: JSON.stringify({ source: MANIFEST.activeSource, suite, name, comment, regions }),
     });
     const json = await res.json() as { ticket_number?: string; error?: string };
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);

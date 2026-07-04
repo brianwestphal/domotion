@@ -144,31 +144,37 @@ if (updateBaseline) {
   }
 }
 
-// --review (default ON): consolidate one OS's shard PNGs + .svg + merged
-// results.json into a flat dir laid out the way tests/review-server.tsx expects,
-// so you can browse the CI diffs in the SAME review UI. Pick macOS when present
-// (the primary), else the single requested OS. Skipped with --no-review.
+// --review (default ON): stage EACH OS's shard PNGs + .svg + merged results.json
+// into its own review SOURCE folder — tests/output/review/ci-<os>/<suiteDir>/ —
+// laid out the way tests/review-server.tsx expects. The review UI's source
+// toggle (DM-1660: local-macos / ci-macos / ci-linux / ci-windows) then picks
+// each up directly; no REVIEW_OUTPUT_DIR needed. `--os all` stages all three.
+// Skipped with --no-review.
 if (!process.argv.includes("--no-review")) {
-  const reviewOs = (os === "all" || os === "macos") ? "macos" : os;
   const suiteDir = suite === "unicode" ? "html-test-unicode" : "html-test";
-  const reviewRoot = join(dir, "review");
-  const dest = join(reviewRoot, suiteDir);
-  mkdirSync(dest, { recursive: true });
-  let pngs = 0;
-  for (const name of readdirSync(dir)) {
-    const m = /^results-([a-z0-9]+)-shard\d+$/i.exec(name);
-    if (m == null || m[1].toLowerCase() !== reviewOs) continue;
-    const shardDir = join(dir, name);
-    for (const f of readdirSync(shardDir)) {
-      if (f.endsWith(".png") || f.endsWith(".svg")) { copyFileSync(join(shardDir, f), join(dest, f)); pngs++; }
+  const osesToStage = os === "all" ? ["macos", "linux", "windows"] : [os];
+  const staged = [];
+  for (const stageOs of osesToStage) {
+    const dest = join(here, "tests/output/review", `ci-${stageOs}`, suiteDir);
+    // Fresh snapshot per download so a prior run's (possibly pruned) files don't linger.
+    rmSync(dest, { recursive: true, force: true });
+    mkdirSync(dest, { recursive: true });
+    let pngs = 0;
+    for (const name of readdirSync(dir)) {
+      const m = /^results-([a-z0-9]+)-shard\d+$/i.exec(name);
+      if (m == null || m[1].toLowerCase() !== stageOs) continue;
+      const shardDir = join(dir, name);
+      for (const f of readdirSync(shardDir)) {
+        if (f.endsWith(".png") || f.endsWith(".svg")) { copyFileSync(join(shardDir, f), join(dest, f)); pngs++; }
+      }
     }
+    const mergedJson = join(dir, `results-${stageOs}.json`);
+    if (existsSync(mergedJson)) copyFileSync(mergedJson, join(dest, "results.json"));
+    if (pngs > 0) { staged.push(stageOs); console.log(`  staged ${pngs} files → tests/output/review/ci-${stageOs}/${suiteDir}/`); }
   }
-  const mergedJson = join(dir, `results-${reviewOs}.json`);
-  if (existsSync(mergedJson)) copyFileSync(mergedJson, join(dest, "results.json"));
-  if (pngs > 0) {
-    console.log(`\nReview the ${reviewOs} ${suite} diffs in the local UI (failing fixtures only):`);
-    console.log(`  REVIEW_OUTPUT_DIR=${reviewRoot} npm run demos:review`);
-    console.log(`Or a single fixture:  svg-review --expected ${dest}/<name>-expected.png --actual ${dest}/<name>-actual.png`);
+  if (staged.length > 0) {
+    console.log(`\nReview in the local UI (toggle Source → “CI · ${staged.map((o) => o[0].toUpperCase() + o.slice(1)).join("” / “CI · ")}”):`);
+    console.log(`  npm run demos:review`);
   }
 }
 console.log(`\nRaw shard artifacts: ${dir}/results-<os>-shard*/`);
