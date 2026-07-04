@@ -84,7 +84,11 @@ shortest possible map:
 - **`src/review/`** — the published review-tool surface
   (`compare-pngs.ts`, `region-overlay.ts`, `server.ts`, `client.tsx`)
   shared between the in-repo `tests/review-server.tsx` and the
-  consumer-facing `svg-review` CLI.
+  consumer-facing `svg-review` CLI. Also `glyph-compare.ts` (doc 98): the
+  deterministic-CV glyph font-identity comparator — given two crops of one
+  character, CORRECT/INCORRECT on "same font (family/size/weight/style)?"
+  with AA/subpixel noise excluded; CLI `tools/compare-glyphs.ts`,
+  calibration harness `tools/glyph-compare-calibrate.ts`.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56), plus

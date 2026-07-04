@@ -42,6 +42,20 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 98 (`docs/98-glyph-font-compare.md`, DM-1686)** — **Shipped.** The glyph
+  font-identity comparator: given two PNG crops of the SAME character (expected
+  Chromium paint vs rendered SVG), a deterministic traditional-CV pipeline
+  (coverage normalization → symmetric subpixel registration → distance-transform
+  outline agreement, coverage-mass, mean-stroke-width, local Δcoverage hotspot,
+  edge-orientation histogram, counter topology, adaptive zoning) answers
+  CORRECT/INCORRECT on "same font (family/size/weight/style)?" with AA and
+  subpixel-phase noise excluded by construction. Calibrated on a 410-pair
+  real-font corpus to 353/353 decisive-pair accuracy incl. Helvetica-vs-Arial
+  lookalikes. Library `src/review/glyph-compare.ts`; CLI
+  `tools/compare-glyphs.ts`; recalibration harness
+  `tools/glyph-compare-calibrate.ts`; e2e guard in
+  `src/review/glyph-compare.e2e.test.ts`.
+
 - **Doc 97 (`docs/97-caret-shapes.md`, DM-1591)** — **Shipped.** The `typing`
   overlay + `typeResample` carets can be a `bar` / `block` / `underscore` (Blink's
   `CaretShape`). `typeResample` honors the field's computed CSS `caret-shape` by
