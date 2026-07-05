@@ -11,11 +11,14 @@ import { describe, expect, it } from "vitest";
 import {
   compareGlyphCoverage,
   countHoles,
+  decide,
+  DEFAULT_THRESHOLDS,
   distanceTransform,
   extractCoverage,
   orientationHistogram,
   ridgeStrokeWidths,
   type CoverageMap,
+  type GlyphCompareMetrics,
 } from "./glyph-compare.js";
 
 // ── Synthetic rendering helpers ────────────────────────────────────────────
@@ -244,6 +247,34 @@ describe("compareGlyphCoverage verdicts", () => {
     const blank = renderShape(84, 84, () => false);
     const a = renderShape(84, 84, glyphH());
     expect(() => compareGlyphCoverage(a, blank)).toThrow(/no ink/);
+  });
+
+  // Thin-high-frequency-detail guard: a mismatch driven ONLY by outline/d95
+  // (the nearest-neighbor-on-binarized-ink pair) at high NCC is anti-aliasing
+  // phase drift on a dashed / hairline enclosure, not a font difference — the
+  // false-mismatch class seen on standalone regional-indicator glyphs.
+  const thinDetailMetrics = (over: Partial<GlyphCompareMetrics> = {}): GlyphCompareMetrics => ({
+    inkWidthA: 24, inkHeightA: 24, inkWidthB: 24, inkHeightB: 24,
+    sizeDiffPx: 1, sizeRatio: 1.04, inkLogRatio: 0.004, ncc: 0.98,
+    alignDx: 0, alignDy: 0,
+    unexplainedA: 0.12, unexplainedB: 0.09, d95: 6, dMax: 8, hotspotMax: 0.10,
+    strokeWidthA: 3, strokeWidthB: 3, strokeLogRatio: 0,
+    strokeContrastA: 1, strokeContrastB: 1, contrastLogRatio: 0,
+    orientL1: 0.1, holesA: 1, holesB: 1, zoningL2: 0.03,
+    ...over,
+  });
+
+  it("clears an outline/d95-only mismatch at high NCC (thin-detail guard)", () => {
+    const r = decide(thinDetailMetrics(), DEFAULT_THRESHOLDS);
+    expect(r.hardSignals).toEqual(expect.arrayContaining(["outline", "d95"]));
+    expect(r.verdict).toBe("match");
+    expect(r.reasons.join(" ")).toMatch(/thin high-frequency detail/);
+  });
+
+  it("does NOT apply the guard when a shape signal (hotspot) also fires", () => {
+    const r = decide(thinDetailMetrics({ hotspotMax: 0.32 }), DEFAULT_THRESHOLDS);
+    expect(r.hardSignals).toContain("hotspot");
+    expect(r.verdict).toBe("mismatch");
   });
 
   it("throws when the ink is too small to classify", () => {

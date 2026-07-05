@@ -174,6 +174,11 @@ export interface GlyphCompareThresholds {
   zoningL2: number;
   /** Hard (floor): NCC below this is a mismatch signal. */
   nccMin: number;
+  /** Thin-detail guard: NCC at/above which a mismatch driven ONLY by the
+   *  outline/d95 pair is reattributed to anti-aliasing phase drift on a thin,
+   *  repeating feature (dashed enclosure, hairline ring) rather than a font
+   *  difference. Well above the highest real-difference NCC in the corpus. */
+  nccThinDetailFloor: number;
   /** Soft threshold factor (soft = hard × this). */
   softFactor: number;
   /** Minimum ink-box height (px) below which comparison errors out. */
@@ -205,6 +210,7 @@ export const DEFAULT_THRESHOLDS: GlyphCompareThresholds = {
   orientL1: 0.32,
   zoningL2: 0.075,
   nccMin: 0.975,
+  nccThinDetailFloor: 0.93,
   softFactor: 0.75,
   minInkPx: 8,
   recommendedInkPx: 24,
@@ -909,6 +915,40 @@ export function decide(
       softSignals.push("topology");
       reasons.push(`counter (hole) counts differ: ${m.holesA} vs ${m.holesB} (soft — ink below the ${t.recommendedInkPx}px floor where thin counters AA-flicker)`);
     }
+  }
+
+  // ── Thin-high-frequency-detail guard ──────────────────────────────────────
+  // `outline` and `d95` are the only two signals computed on BINARIZED ink via
+  // nearest-neighbor distance, so a ~1 px anti-aliasing phase shift of a thin,
+  // repeating feature (a dashed enclosing border, a hairline ring) destroys
+  // local overlap and inflates both — while the smooth coverage correlation
+  // (NCC) barely moves. When a mismatch is driven ONLY by that pair AND NCC
+  // confirms the two glyphs are globally near-identical, the disagreement is
+  // AA-domain drift, not a font difference (the exact false-mismatch seen on
+  // the standalone regional-indicator / dashed-enclosure glyphs). Corpus-
+  // validated zero-regression: no different-font pair in the DM-1686
+  // calibration set fires a mismatch on hard ⊆ {outline, d95} — every real
+  // difference also trips size / mass / stroke / hotspot / orientation /
+  // zoning / topology / ncc.
+  if (
+    hardSignals.length > 0
+    && hardSignals.every((s) => s === "outline" || s === "d95")
+    && m.ncc >= t.nccThinDetailFloor
+  ) {
+    reasons.push(
+      `outline / edge-distance disagreement is confined to thin high-frequency detail `
+      + `(NCC ${m.ncc.toFixed(3)} ≥ ${t.nccThinDetailFloor} — glyphs globally near-identical); `
+      + `reattributed to anti-aliasing phase drift on a dashed / hairline enclosure, not a font difference`,
+    );
+    return {
+      verdict: "match",
+      confidence: "medium",
+      reasons,
+      metrics: m,
+      hardSignals,
+      softSignals,
+      warnings,
+    };
   }
 
   const mismatch = hardSignals.length >= 1 || softSignals.length >= 2;

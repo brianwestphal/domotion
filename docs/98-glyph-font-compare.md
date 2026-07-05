@@ -21,6 +21,15 @@ the judgment call every text-fidelity ticket turns on.
   — re-renders the corpus and reports distributions + the confusion matrix;
   run it whenever metrics or thresholds change and paste the updated numbers
   here.
+- Batch sheet audit: `npx tsx tools/glyph-sheet-audit.ts --results-dir <dir>
+  --fixtures-dir <dir> [--only <substr>] [--sheet <name>]` — runs the
+  comparator over every glyph cell of the Unicode per-block grid fixtures
+  (`../html-test/unicode/*.html`), emitting a per-codepoint CORRECT/INCORRECT
+  list and a per-sheet defect count. Geometry self-aligns to the stored
+  expected PNG (viewport pinned to its width; a row-projection cross-
+  correlation corrects vertical reflow and flags `layout-drift`). This is how
+  "which characters on which sheets render with the wrong font" is answered
+  deterministically, without per-glyph AI judgment.
 - Unit tests: `src/review/glyph-compare.test.ts` (synthetic supersampled
   glyphs); e2e guard: `src/review/glyph-compare.e2e.test.ts` (real fonts
   through real Chromium — a trimmed slice of the calibration corpus).
@@ -98,6 +107,20 @@ Pipeline (all deterministic):
    hotspot gate is 0.17 at ≥ 24 px ink but 0.24 below, and a hole-count
    difference is hard evidence only at ≥ 24 px (thin counters — the eye of
    a 16 px serif `e` — legitimately AA-flicker closed).
+
+   **Thin-high-frequency-detail guard.** `outline` and `d95` are the only
+   two signals computed on *binarized* ink via nearest-neighbor distance, so
+   a ~1 px anti-aliasing phase shift of a thin, repeating feature — a dashed
+   enclosing border, a hairline ring (e.g. the standalone regional-indicator
+   glyphs `🇦`–`🇿`, whose dashed box is part of the glyph) — destroys local
+   overlap and inflates both, while the smooth coverage correlation `ncc`
+   barely moves. When a mismatch is driven *only* by that pair (`hard ⊆
+   {outline, d95}`) **and** `ncc ≥ nccThinDetailFloor` (0.93), the
+   disagreement is reattributed to AA phase drift and the verdict is match.
+   Corpus-validated zero-regression: no different-font pair in the
+   calibration set fires a mismatch on `hard ⊆ {outline, d95}` — every real
+   difference also trips size / mass / stroke / hotspot / orientation /
+   zoning / topology / ncc, all of which sit far above 0.93's shadow.
 
 ## Calibration (2026-07, macOS, Chromium via Playwright, DPR 2)
 
