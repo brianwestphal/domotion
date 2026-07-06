@@ -1557,6 +1557,17 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   // tools/probe-983-genroutes-linux.mjs (Unifont / FreeSans / Liberation / etc).
   // Consulted as a LAST resort so the hand-tuned routes above still win where
   // they match.
+  // For blocks with no hand-tuned route above, DEFER to the live fc-match
+  // resolver (step 2b) rather than the generated DM-984 table. That table was
+  // frozen from one Playwright-image CDP sweep and has drifted from the current
+  // image (it routed Georgian → Unifont, CJK-Compatibility → FreeSans, where
+  // Chrome's fontconfig now picks FreeSans / WenQuanYi / IPAGothic — verified vs
+  // getPlatformFontsForNode). fc-match queries the SAME fontconfig Chrome does,
+  // so it tracks Chrome's pick by construction (DM-1416). The generated table is
+  // kept only as the post-fc-match safety net.
+  if (_systemFallbackResolutionEnabled && resolveSystemFallbackKeyForCp(codepoint) != null) {
+    return [];
+  }
   const generatedKey = lookupLinuxUnicodeFontRange(codepoint);
   if (generatedKey != null) return [generatedKey];
   return [];
