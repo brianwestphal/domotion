@@ -3292,6 +3292,18 @@ export function resolveFontForCodepoint(
     }
   }
 
+  // NOTE (DM-1688): a per-codepoint SF-cascade guard was tried here and REVERTED.
+  // Chrome's own ground truth (CDP getPlatformFontsForNode) shows Chrome paints
+  // the squared / circled / enclosed alphanumerics AND Latin-Extended (🄰 ① Ɓ …)
+  // from SF Pro Text (SFNS) — i.e. the fast-path below is already correct. Only a
+  // narrow set (🅪🅫 U+1F16A/1F16B RAISED MC/MD) is genuinely cascaded off the SF
+  // UI font (→ New York). Detecting THAT precisely needs the SF UI font's real
+  // coverage (CTFontCreateUIFontForLanguage + CTFontGetGlyphsForCharacters — a
+  // glyph-helper addition); the CoreText default-base (Helvetica) system-fallback
+  // query is NOT a valid proxy — it cascades every codepoint Helvetica lacks
+  // (all of Latin-Extended-B, the enclosed alphanumerics) that SF actually paints,
+  // so gating on it mis-routes those. Left as a documented 2-codepoint residual.
+
   // 0. Primary fast-path: literal coverage in the run's primary font.
   if (primaryFont.glyphForCodePoint(cp).id !== 0) return cover(primaryFontKey, null);
 
