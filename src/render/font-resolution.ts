@@ -2700,7 +2700,23 @@ function matchFamilyNameToKey(name: string): string | null {
     // rasterization of both files. The OTF's extra coverage (the two-digit enclosed
     // alphanumerics SFNS lacks) is handled by the normal per-codepoint fallback,
     // which is also what Chrome does for those codepoints (SFNS lacks them → cascade).
-    if (name === "sf pro text" || name === "sf pro display") return "sf-pro";
+    // ...but that mapping holds ONLY when the named family actually resolves on
+    // THIS machine. Chrome can paint "SF Pro Text" (from its SFNS system cut)
+    // only if the font is installed; on a stock macOS install / the GitHub CI
+    // runner without Apple's downloadable `/Library/Fonts/SF-Pro-*.otf`, Chrome
+    // cannot resolve the name and falls THROUGH to the next CSS family. Mapping
+    // it to `sf-pro` (SFNS, always present) there would paint a face Chrome
+    // never uses — the root of a pervasive CI-macOS divergence where the "SF Pro
+    // Text"-stack fixtures had CI-Chrome fall to Helvetica while Domotion jumped
+    // to SFNS (verified: the runner ships SFNS.ttf but no SF-Pro-*.otf; the comma
+    // is straight in SFNS vs curved in Chrome's fallback). Mirror Chrome: return
+    // `sf-pro` when the named font resolves, else null so the stack walk
+    // continues. (When it IS installed, Chrome still paints from SFNS per
+    // DM-1659, so `sf-pro` remains correct.)
+    if (name === "sf pro text" || name === "sf pro display") {
+      const named = name === "sf pro display" ? "SF Pro Display" : "SF Pro Text";
+      return resolveInstalledFont(named) != null ? "sf-pro" : null;
+    }
     // DM-806: author-named "Hiragino Sans" / "Hiragino Kaku Gothic ProN" /
     // the underlying ヒラギノ角ゴシック native name maps to the JP variant
     // we already ship under the `hiragino-jp` key (HiraKakuProN-W3 /

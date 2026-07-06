@@ -13,10 +13,21 @@ import {
   getFontInstance,
   __resolveSystemFallbackKeyForCpForTest as ctResolve,
 } from "../src/render/font-resolution.js";
+import { resolveInstalledFont } from "../src/render/glyph-helper.js";
 
 const P = (s) => console.log(`FONTPROBE: ${s}`);
 
 P(`platform=${process.platform} arch=${process.arch} release=${os.release()}`);
+
+// 0. Does the NAMED "SF Pro Text"/"SF Pro Display" family resolve on this
+// machine? (The conditional-mapping fix keys off this: Chrome can only paint
+// SF Pro Text when the named font is installed; the stock GitHub runner lacks
+// the standalone SF-Pro-*.otf, so this should be NULL there and non-null on a
+// dev Mac.)
+for (const n of ["SF Pro Text", "SF Pro Display", "SF Pro"]) {
+  const r = resolveInstalledFont(n);
+  P(`resolveInstalledFont("${n}") = ${r ? `${r.postscriptName} @ ${r.path.split("/").pop()}` : "NULL"}`);
+}
 
 // 1. Does Domotion's `sf-pro` key resolve to a file that EXISTS + LOADS here?
 const sfSpec = resolveFontSpec("sf-pro");
