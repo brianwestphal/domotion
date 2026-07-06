@@ -1287,7 +1287,10 @@ describe("linuxFallbackChain: Chromium-on-Linux calibration (DM-259)", () => {
     expect(linuxFallbackChain(0x2500, "courier")).toEqual(["courier", "cjk"]);   // box-drawing, mono primary
     expect(linuxFallbackChain(0x2500)).toEqual(["helvetica", "cjk"]);            // box-drawing, sans primary
     expect(linuxFallbackChain(0x25A0)).toEqual(["helvetica", "cjk"]);            // geometric → Liberation Sans
-    expect(linuxFallbackChain(0x2190)).toEqual(["helvetica", "free-sans"]);      // ← → Liberation Sans
+    // ← → Liberation Sans; the arrows Liberation lacks (↖↘⇄…) defer to the
+    // fc-match resolver, which picks Chrome's WenQuanYi (was a wrong static
+    // FreeSans route — verified vs getPlatformFontsForNode).
+    expect(linuxFallbackChain(0x2190)).toEqual(["helvetica"]);
     expect(linuxFallbackChain(0x2197)).toEqual(["cjk", "helvetica"]);            // ↗ diagonal → WenQuanYi
     expect(linuxFallbackChain(0x2702)).toEqual(["free-sans", "free-serif"]);     // dingbat → FreeSans
     expect(linuxFallbackChain(0x1D400)).toEqual(["free-sans", "free-serif"]);    // Math Alpha → FreeFont

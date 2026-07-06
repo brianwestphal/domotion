@@ -1515,20 +1515,33 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   // Diagonal arrows ↗↙ — WenQuanYi (probe: arrows-diag → WenQuanYi); the rest of
   // the Arrows block → Liberation Sans (probe: ←→↑↓↔ → Liberation Sans).
   if (cp === 0x2197 || cp === 0x2199) return ["cjk", "helvetica"];
-  if (cp >= 0x2190 && cp <= 0x21FF) return ["helvetica", "free-sans"];
+  // Arrows: Liberation Sans covers most; for the ones it lacks (↖↘⇄⇒⇦⇧⇨⇩ …)
+  // Chrome's fontconfig picks WenQuanYi Zen Hei. Defer the remainder to the live
+  // fc-match resolver (2b) instead of the over-covering FreeSans, which
+  // intercepted with a font Chrome doesn't use (verified vs getPlatformFontsForNode).
+  if (cp >= 0x2190 && cp <= 0x21FF) return ["helvetica"];
   // Geometric Shapes — Liberation Sans, then WenQuanYi for what it lacks
   // (probe: ▲●◆■□○ → Liberation Sans + WenQuanYi).
   if (cp >= 0x25A0 && cp <= 0x25FF) return ["helvetica", "cjk"];
   // Misc Symbols — Liberation Sans + IPAGothic (probe: ☀☂♠♥♦ → Liberation Sans
   // + IPAGothic).
-  if (cp >= 0x2600 && cp <= 0x26FF) return ["helvetica", "hiragino-jp", "free-sans"];
+  // Misc Symbols: Liberation Sans for what it covers; the rest Chrome routes to
+  // IPAGothic / WenQuanYi via fontconfig. The old static `hiragino-jp` route maps
+  // to an IPAGothic path that isn't present on the current Playwright image, so it
+  // fell through to FreeSans — a font Chrome doesn't use here. Defer to the fc-match
+  // resolver (2b), which picks exactly Chrome's font on this image.
+  if (cp >= 0x2600 && cp <= 0x26FF) return ["helvetica"];
   // Mathematical Alphanumeric — FreeSans + FreeSerif (probe: 𝐀𝒜𝕊 → FreeSans/FreeSerif).
   if (isMathAlphanumericBlock(cp)) return ["free-sans", "free-serif"];
   // Superscripts / Subscripts — Liberation Sans + FreeSans (probe: aₙ₁).
   if (isSuperSubscriptBlock(cp)) return ["helvetica", "free-sans"];
-  // Letterlike + Math Operators — FreeSans first, then Liberation Sans (probe:
-  // ℝ™ℕℤ → FreeSans + Liberation Sans; ∑∫≠ is covered by the Liberation Sans primary).
-  if (isLetterlikeBlock(cp) || isMathOperatorsBlock(cp)) return ["free-sans", "helvetica"];
+  // Letterlike — FreeSans first, then Liberation Sans (probe: ℝ™ℕℤ → FreeSans).
+  if (isLetterlikeBlock(cp)) return ["free-sans", "helvetica"];
+  // Math Operators — Liberation Sans covers ∑∫≠ etc.; the set-theory / logic
+  // operators it lacks (∀∃∅∇∈∉∧∨∪∴ …) Chrome routes to WenQuanYi Zen Hei via
+  // fontconfig, NOT FreeSans (verified vs getPlatformFontsForNode). Liberation
+  // first, then defer to the fc-match resolver (2b) for the remainder.
+  if (isMathOperatorsBlock(cp)) return ["helvetica"];
   // CJK Han / Kana / CJK Symbols & Punctuation — WenQuanYi Zen Hei (probe:
   // 漢字/あ/ア → WenQuanYi). Japanese-tagged text prefers IPAGothic; left as a
   // refinement (untagged probe resolved to WenQuanYi). DM-259 follow-up.
@@ -2248,6 +2261,12 @@ export function isEmojiCodepoint(cp: number, nextCp: number): boolean {
   // macOS). The sibling squared letters 1F130–1F189 are Emoji_Presentation=No
   // (text default) and are intentionally NOT included.
   if (cp === 0x1F18E || (cp >= 0x1F191 && cp <= 0x1F19A)) return true;
+  // NOTE: ◽◾☝⛹ U+25FD/25FE/261D/26F9 are NOT added here — their presentation is
+  // PLATFORM-dependent, not a fixed property: verified vs getPlatformFontsForNode,
+  // macOS Chrome paints them as TEXT (Apple Symbols / STIX Two Math) while Linux
+  // Chrome's fontconfig falls to Noto Color Emoji. A global emoji flag would break
+  // macOS (Domotion already matches Apple Symbols there). The Linux emoji-vs-text
+  // fallback for these few codepoints is a documented residual.
   // Regional-indicator flags (pairs are joined into country flag emoji).
   if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
   // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport,
