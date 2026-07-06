@@ -60,6 +60,13 @@ const OUTPUT_DIR = process.env.HTML_TEST_OUTPUT_DIR != null && process.env.HTML_
   : resolve(__dirname, "output/html-test");
 const WIDTH = 1024;
 const HEIGHT = 768;
+// Diagnostic capture DPR (default 1). `CAPTURE_DPR=2` renders BOTH the expected
+// Chromium screenshot and the actual Domotion-SVG raster at 2× device pixels —
+// used to lift glyph ink into the DM-1686 comparator's calibrated ≥32px regime
+// so tools/glyph-sheet-audit.ts can tell a real optical-size / font swap from
+// the 1× native-hinting floor. Clip rects stay in CSS px; Playwright emits the
+// DPR-scaled pixels automatically.
+const CAPTURE_DPR = Math.max(1, Math.floor(Number(process.env.CAPTURE_DPR) || 1));
 // DM-1004: when set (`RENDER_SKIPPED=0` or `--no-render-skipped` on CLI),
 // fixtures listed in SKIP_TESTS bypass the goto + screenshot + SVG render
 // pipeline entirely and emit a placeholder result. Default keeps rendering
@@ -108,7 +115,7 @@ const CAPTURE_NODE_HASH = createHash("sha256")
 function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
   return createHash("sha256")
     .update(htmlBytes)
-    .update(`|${WIDTH}x${fixtureHeight}|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}`)
+    .update(`|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}`)
     .digest("hex");
 }
 function expectedCachePngPath(key: string): string { return resolve(EXPECTED_CACHE_DIR, `${key}.png`); }
@@ -1564,7 +1571,7 @@ async function main(): Promise<void> {
     jobs: testFiles,
     workers: workerCount,
     setup: async () => {
-      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
+      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: CAPTURE_DPR });
       const page = await context.newPage();
       // DM-479: 90 s instead of Playwright's 30 s default.
       page.setDefaultTimeout(90_000);

@@ -48,6 +48,9 @@ on:
         description: 'Include the generated .svg files in artifacts (default false — they are ~85% of the weight and the review UI only needs the PNGs)'
         type: boolean
         default: false
+      dpr:
+        description: 'Capture device pixel ratio (default 1). dpr=2 renders expected+actual at 2× — a diagnostic for glyph-sheet-audit so ink clears the DM-1686 comparator''s ≥32px regime.'
+        default: '1'
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).
@@ -120,6 +123,7 @@ jobs:
           HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
           DOMOTION_NO_NICE: '1'
           ONLY: ${{ inputs.only }}
+          CAPTURE_DPR: ${{ inputs.dpr }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()

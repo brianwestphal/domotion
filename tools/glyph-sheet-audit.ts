@@ -67,16 +67,24 @@ async function loadRaw(path: string): Promise<RawImg> {
   return { data, width: info.width, height: info.height, channels: info.channels };
 }
 
+// The unicode grid fixtures always lay out at 1024 CSS px wide (harness WIDTH).
+const CSS_WIDTH = 1024;
+
 async function auditSheet(browser: Browser, name: string, fixture: string, expPath: string, actPath: string): Promise<SheetResult | null> {
   const expMeta = await sharp(expPath).metadata();
   const W = expMeta.width ?? 1024, H = expMeta.height ?? 768;
+  // The capture DPR is baked into the PNG width (1024×DPR). Render the layout at
+  // CSS 1024 × DPR so the screenshot geometry matches the stored PNG and glyph
+  // ink lands at the comparator's calibrated ≥32px scale on a 2× diagnostic run.
+  const dpr = Math.max(1, Math.round(W / CSS_WIDTH));
+  const cssW = Math.round(W / dpr), cssH = Math.round(H / dpr);
 
   // Cells + a fresh screenshot at the stored capture geometry.
-  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ viewport: { width: cssW, height: cssH }, deviceScaleFactor: dpr });
   const page = await ctx.newPage();
   await page.goto(`file://${resolve(fixture)}`);
   await page.waitForLoadState("networkidle");
-  const shot = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
+  const shot = await page.screenshot({ clip: { x: 0, y: 0, width: cssW, height: cssH } });
   const cells: Cell[] = await page.evaluate(() => {
     const out: Array<Record<string, unknown>> = [];
     for (const x of Array.from(document.querySelectorAll("x"))) {
@@ -139,9 +147,12 @@ async function auditSheet(browser: Browser, name: string, fixture: string, expPa
   const act = await loadRaw(actPath);
   const verdicts: CellVerdict[] = [];
   for (const c of cells) {
-    const x = Math.max(0, c.x), y = Math.max(0, c.y + bestDy);
-    const ca = cropRaw(exp, x, y, c.w, c.h);
-    const cb = cropRaw(act, x, y, c.w, c.h);
+    // Cell rects are CSS px; scale to PNG px (×dpr) and add the row-projection
+    // vertical correction (already in PNG px).
+    const x = Math.max(0, Math.round(c.x * dpr)), y = Math.max(0, Math.round(c.y * dpr) + bestDy);
+    const cw = Math.round(c.w * dpr), chh = Math.round(c.h * dpr);
+    const ca = cropRaw(exp, x, y, cw, chh);
+    const cb = cropRaw(act, x, y, cw, chh);
     let va: CoverageMap, vb: CoverageMap;
     try { va = extractCoverage(ca.buf, ca.w, ca.h, ca.ch); vb = extractCoverage(cb.buf, cb.w, cb.h, cb.ch); }
     catch { verdicts.push({ ...c, verdict: "error", hard: [], soft: [], note: "decode" }); continue; }
