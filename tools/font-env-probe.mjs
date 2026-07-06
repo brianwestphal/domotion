@@ -24,7 +24,14 @@ P(`platform=${process.platform} arch=${process.arch} release=${os.release()}`);
 // SF Pro Text when the named font is installed; the stock GitHub runner lacks
 // the standalone SF-Pro-*.otf, so this should be NULL there and non-null on a
 // dev Mac.)
-for (const n of ["SF Pro Text", "SF Pro Display", "SF Pro"]) {
+for (const n of [
+  "SF Pro Text", "SF Pro Display", "SF Pro",
+  // Other author-named fonts the unicode fixtures request via hardcoded-path
+  // keys: does Chrome resolve them on THIS machine? (If NULL but Domotion uses
+  // them unconditionally, that's a fall-through divergence like SF Pro Text.)
+  "Arial Unicode MS", "Hiragino Kaku Gothic ProN", "Arial", "Helvetica",
+  "Times New Roman", "Noto Sans", "Noto Serif", "Noto Sans KR",
+]) {
   const r = resolveInstalledFont(n);
   P(`resolveInstalledFont("${n}") = ${r ? `${r.postscriptName} @ ${r.path.split("/").pop()}` : "NULL"}`);
 }
