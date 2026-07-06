@@ -2240,6 +2240,14 @@ export function isEmojiCodepoint(cp: number, nextCp: number): boolean {
   // the same fixture was rendering as a small monochrome path glyph
   // because this branch was missing.
   if (nextCp === 0xFE0F && cp >= 0x2700 && cp <= 0x27BF) return true;
+  // Enclosed Alphanumeric Supplement squared abbreviations with DEFAULT emoji
+  // presentation (Unicode emoji-data Emoji_Presentation=Yes): 🆎 U+1F18E and
+  // 🆑–🆚 U+1F191..1F19A (CL COOL FREE ID NEW NG OK SOS UP! VS). Chrome paints
+  // these from the color-emoji font WITHOUT a VS-16 (verified vs
+  // getPlatformFontsForNode → Noto Color Emoji on Linux / Apple Color Emoji on
+  // macOS). The sibling squared letters 1F130–1F189 are Emoji_Presentation=No
+  // (text default) and are intentionally NOT included.
+  if (cp === 0x1F18E || (cp >= 0x1F191 && cp <= 0x1F19A)) return true;
   // Regional-indicator flags (pairs are joined into country flag emoji).
   if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;
   // Main emoji blocks: Misc Symbols & Pictographs, Emoticons, Transport,
@@ -2583,6 +2591,45 @@ function splitFontFamilyNames(fontFamily: string): string[] {
  * except for the `resolveInstalledFont` dynamic-registration side effect, which
  * is idempotent.
  */
+// Does the platform actually resolve this SPECIFIC author family name, the way
+// Chrome's FontFallbackIterator does? Chrome uses a CSS family only if it loads
+// (`font_fallback_iterator.cc`: `FontDataAt` skips a family that doesn't load;
+// `first_candidate_` is the first that does), then cascades to the per-codepoint
+// system font. We must mirror that PER-MACHINE so our fallback matches Chrome —
+// e.g. "Hiragino Kaku Gothic ProN" / "Arial Unicode MS" are installed on macOS
+// but absent on a Linux CI runner, where Chrome cascades to the system CJK font
+// (WenQuanYi) rather than a hardcoded substitute. macOS/Windows: the native
+// helper's `resolveInstalledFont` matches by exact family (null ⇒ not installed).
+// Linux: no native helper (resolveInstalledFont is always null) — fontconfig
+// returns the SAME family for a real match but a SUBSTITUTE for a miss, so a
+// family whose `fc-match` result canon-differs from the request is "not present".
+const _famAvailCache = new Map<string, boolean>();
+function canonFamilyName(s: string): string {
+  return s.toLowerCase().replace(/[-_ ]/g, "").replace(/(regular|mt|psmt|ps|roman|book)$/g, "");
+}
+function fcMatchFamilyName(name: string): string | null {
+  try {
+    const out = execFileSync("fc-match", ["-f", "%{family}", name],
+      { encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return out === "" ? null : out.split(",")[0];
+  } catch { return null; }
+}
+function authorFamilyAvailable(name: string): boolean {
+  const cached = _famAvailCache.get(name);
+  if (cached != null) return cached;
+  let avail: boolean;
+  if (resolveInstalledFont(name) != null) {
+    avail = true; // native helper (macOS/Windows) found the exact family
+  } else if (process.platform === "linux") {
+    const fam = fcMatchFamilyName(name);
+    avail = fam != null && canonFamilyName(fam) === canonFamilyName(name);
+  } else {
+    avail = false;
+  }
+  _famAvailCache.set(name, avail);
+  return avail;
+}
+
 function matchFamilyNameToKey(name: string): string | null {
   if (name === "" || name === "doesnotexist") return null;
     // Registered webfonts win — the page declared this family AND we hold
@@ -2669,7 +2716,12 @@ function matchFamilyNameToKey(name: string): string | null {
     // (an empty rectangle) — see the primary-`.notdef` terminal in
     // splitTextIntoFontRuns. Without recognizing the family the primary
     // fell through to `times`, whose `.notdef` is a different-shaped box.
-    if (name === "arial unicode ms" || name === "arialunicodems") return "u-arial-unicode-ms";
+    // Gated: only when Arial Unicode MS actually resolves here (present on macOS,
+    // absent on the Linux runner where Chrome cascades past it — see
+    // authorFamilyAvailable). null ⇒ skip this family, continue the stack.
+    if (name === "arial unicode ms" || name === "arialunicodems") {
+      return authorFamilyAvailable("Arial Unicode MS") ? "u-arial-unicode-ms" : null;
+    }
     // system-ui / BlinkMacSystemFont / "SF Pro" → SF Pro.
     // These keywords mean "the platform UI font", which on modern macOS is
     // San Francisco. NOTE: `-apple-system` is INTENTIONALLY excluded —
@@ -2724,9 +2776,16 @@ function matchFamilyNameToKey(name: string): string | null {
     // sf-pro, which paints Latin glyphs visibly differently from Hiragino
     // Sans (wider letter spacing on a/c/p — the `niche-text-box-trim`
     // fixture's "ideographic — 日本語テキスト" label exposes this).
+    // Gated like Arial Unicode MS: Hiragino is stock macOS but absent on the
+    // Linux runner, where Chrome cascades to the per-codepoint system CJK font
+    // (WenQuanYi) rather than a hardcoded IPAGothic substitute. Check the
+    // canonical "Hiragino Sans" name; null ⇒ skip, continue the stack so the
+    // codepoint-level system fallback matches Chrome.
     if (name === "hiragino sans" || name === "hiragino kaku gothic pron"
       || name === "hiragino kaku gothic pro" || name === "ヒラギノ角ゴシック"
-      || name === "hiragino maru gothic pron") return "hiragino-jp";
+      || name === "hiragino maru gothic pron") {
+      return authorFamilyAvailable("Hiragino Sans") ? "hiragino-jp" : null;
+    }
     // Other generic keywords Chrome on macOS does NOT recognize as system
     // fonts: `ui-monospace`, `ui-rounded`, `fantasy`, `math`, `emoji`,
     // `fangsong`. Chrome treats them as missing and walks past them to the
