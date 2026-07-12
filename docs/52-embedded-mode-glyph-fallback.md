@@ -43,10 +43,19 @@ up, so **no bespoke glyf-construction code is needed**:
    the same shape fontkit's own `glyph.path.commands` has. That's why `paths`
    mode could feed `commandsFor`'s output straight into `ensureGlyphDef`.
 2. `trackGlyphInEmbedFont` **already accepts that exact `PathCommand[]` shape**
-   and converts each command into an opentype.js `Path` op (`moveTo` →
-   `Path.moveTo`, `bezierCurveTo` → `Path.curveTo`, …), which opentype.js
-   serializes into the TTF `glyf`. It does not care whether the commands came
-   from fontkit or the helper.
+   and serializes each command into an SVG path `d` string, which
+   `getBuiltEmbeddedFontFaceCss` hands to svg2ttf as a `<glyph>` in a synthesized
+   SVG font. svg2ttf writes a TrueType `glyf` outline for it (converting any
+   cubic beziers to quadratics via cubic2quad). It does not care whether the
+   commands came from fontkit or the helper.
+
+   > Font flavor (DM-1666): the synthesized font is TrueType `glyf`, not CFF.
+   > The prior writer (opentype.js) could only emit CFF/`OTTO`, and Chrome
+   > rasterizes overlapping same-winding contours in an opentype.js CFF subset
+   > with **even-odd** fill — which punched holes wherever a glyph's contours
+   > overlap (e.g. SF Pro's bold "A" = leg + crossbar + leg, three overlapping
+   > contours, rendered with blue notches at the crossbar joins). `glyf` is
+   > filled nonzero everywhere, so overlapping contours union correctly.
 
 So the fix is a one-line routing change: the embedded glyph loop computes
 `const cmds = commandsFor(glyph, run.fontKey, weight, fontSize, slant)` instead

@@ -87,7 +87,7 @@ flowchart TD
 
 | Mode | Default? | Output | Fidelity | Generation-scoped state |
 |---|---|---|---|---|
-| `embedded-font` | **yes** (DM-839) | `<text>` against a `@font-face` subset TTF, addressed by private-use codepoints (consumer browser does zero shaping) | consumer browser rasterizes (its own hinting/AA) — smaller/faster, not byte-identical across browsers | `embeddedFonts` map + `embedded-font-builder` (`clearEmbeddedFonts`) |
+| `embedded-font` | **yes** (DM-839) | `<text>` against a `@font-face` subset **glyf** TTF (svg2ttf; NOT CFF — DM-1666), addressed by private-use codepoints (consumer browser does zero shaping) | consumer browser rasterizes (its own hinting/AA) — smaller/faster, not byte-identical across browsers | `embeddedFonts` map + `embedded-font-builder` (`clearEmbeddedFonts`) |
 | `paths` | no | `<use href="#gN">` into per-glyph `<path>` defs | per-pixel-faithful to Chromium; used for visual-regression diffing | `glyphDefs` registry (`clearGlyphDefs`) |
 
 Both share the SAME per-codepoint resolution (`resolveFontForCodepoint`); they
@@ -513,7 +513,7 @@ flowchart TD
   E2 --> E5{"render mode"}
   E3 --> E5
   E5 -->|"paths"| E6["ensureGlyphDef(key) → &lt;path&gt; in &lt;defs&gt; · &lt;use href=#gN&gt;<br/>(getGlyphDefs / getGlyphDefsSince — live registry)"]
-  E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getEmbeddedFontFaceCss()"]
+  E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset glyf TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getBuiltEmbeddedFontFaceCss()"]
 ```
 
 **Source of truth:** `commandsFor` / `helperGlyphOutline` / `glyphIsInkable` /
@@ -521,6 +521,14 @@ flowchart TD
 `trackGlyphInEmbedFont` / `getBuiltEmbeddedFontFaceCss` in
 `src/render/embedded-font-builder.ts`. Docs [51](51-probe-then-fallback-dispatch.md),
 [52](52-embedded-mode-glyph-fallback.md).
+
+**Font flavor (DM-1666):** the subset font is TrueType `glyf`, written by
+svg2ttf from an SVG-font description of the tracked glyphs (cubic beziers →
+quadratics via cubic2quad). It is deliberately NOT CFF: Chrome rasterizes
+overlapping same-winding contours in an opentype.js-built CFF subset with
+even-odd fill, which holes any glyph whose source outline draws overlapping
+contours (SF Pro's bold "A" = leg + crossbar + leg). `glyf` fills nonzero, so
+the overlaps union correctly.
 
 ---
 

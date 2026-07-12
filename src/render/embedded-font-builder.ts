@@ -14,48 +14,35 @@
 // cluster reordering (Devanagari i-matra) without us having to ship any
 // GSUB/GPOS rules in the custom font.
 //
-// Known limitation (DM-1202, accepted won't-fix): opentype.js writes
-// CFF-flavored OpenType (`OTTO`/CFF outlines, not TrueType `glyf`). For a few
-// rare glyphs, Chrome's CFF rasterizer paints the embedded subset glyph hollow
-// even though the contour data is correct (fontkit reads it back filled). It is
-// data-dependent — the same glyph round-trips fine in a minimal/realistic font
-// and only goes hollow at a specific subset composition — so it is an
-// opentype.js CFF charstring/subroutine-sharing quirk, not a per-glyph bug we
-// can target. Observed once on U+2E4D (a thin supplemental-punctuation flag,
-// "trivial · 0.00% of image"). The only durable fix would be emitting `glyf`
-// outlines instead of CFF, which opentype.js's writer cannot do — that means a
-// different font writer and re-baselining every embedded-font fixture, not
-// warranted for a single cosmetic punctuation glyph.
+// Outline flavor (DM-1666): we emit TrueType `glyf` outlines, NOT CFF. This is
+// load-bearing for fidelity, not a stylistic choice. System/webfont source
+// glyphs routinely draw a letter as SEVERAL overlapping same-winding contours
+// that rely on nonzero fill to union (SF Pro's bold "A" = left-leg + crossbar +
+// right-leg, three overlapping contours). glyf is filled nonzero by every
+// rasterizer, so the union is correct. The previous writer (opentype.js) can
+// only emit CFF/`OTTO`, and Chrome rasterizes overlapping contours in an
+// opentype.js CFF subset with EVEN-ODD fill — subtracting the overlap regions
+// and punching holes at the joins (the "A" crossbar rendered with blue notches
+// where it met the diagonals). Proven three ways: a 3-overlapping-rectangle CFF
+// renders a textbook even-odd checkerboard; all four winding combinations of
+// the "A" still hole; the same overlapping contours embedded as `glyf`
+// (SFNS.ttf via @font-face) render solid. This also subsumes the old DM-1202
+// "rare hollow glyph" note — that was the same even-odd behavior, just caught
+// on one thin punctuation glyph instead of recognized as systematic.
+//
+// svg2ttf writes `glyf` from an SVG-font description and handles cubic→quadratic
+// conversion (via cubic2quad) for CFF-source outlines. We build one SVG font per
+// tracked instance from the shaped glyph outlines and hand it to svg2ttf.
 
-// opentype.js ships no type declarations; declare the minimal surface we
-// use so callers stay strict-typed at the boundary.
-import opentype from "opentype.js";
+// svg2ttf ships no type declarations (see svg2ttf.d.ts for the tiny surface).
+import svg2ttf from "svg2ttf";
 
-interface OpenTypeGlyph {
-  name: string;
-  unicode?: number;
+/** A tracked glyph's outline (SVG path `d`, font units, y-up) + advance. */
+interface EmbeddedGlyph {
+  /** SVG path data in font units (y-up), ready to drop into an SVG-font `<glyph d=>`. */
+  d: string;
   advanceWidth: number;
 }
-interface OpenTypePath {
-  moveTo(x: number, y: number): void;
-  lineTo(x: number, y: number): void;
-  quadraticCurveTo(cx: number, cy: number, x: number, y: number): void;
-  curveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void;
-  close(): void;
-}
-interface OpenTypeNamespace {
-  Font: new (opts: {
-    familyName: string;
-    styleName: string;
-    unitsPerEm: number;
-    ascender: number;
-    descender: number;
-    glyphs: OpenTypeGlyph[];
-  }) => { toArrayBuffer(): ArrayBuffer };
-  Glyph: new (opts: { name: string; unicode?: number; advanceWidth: number; path: OpenTypePath }) => OpenTypeGlyph;
-  Path: new () => OpenTypePath;
-}
-const ot = opentype as unknown as OpenTypeNamespace;
 
 /**
  * One path command from fontkit. Mirrors fontkit's internal `Path.commands[]`
@@ -78,8 +65,8 @@ interface BuilderEntry {
   unitsPerEm: number;
   ascender: number;
   descender: number;
-  /** Shaped-glyph-id → opentype.js Glyph (built lazily as glyphs are seen). */
-  glyphs: Map<number, OpenTypeGlyph>;
+  /** Shaped-glyph-id → outline (built lazily as glyphs are seen). */
+  glyphs: Map<number, EmbeddedGlyph>;
   /** Shaped-glyph-id → assigned PUA codepoint (U+E000+). */
   puaForGlyphId: Map<number, number>;
   /** Next available PUA codepoint for this entry. */
@@ -165,40 +152,49 @@ export function trackGlyphInEmbedFont(
   const pua = entry.nextPua++;
   entry.puaForGlyphId.set(glyphId, pua);
 
-  const otPath = new ot.Path();
-  for (const cmd of pathCommands) {
-    switch (cmd.command) {
-      case "moveTo":           otPath.moveTo(cmd.args[0], cmd.args[1]); break;
-      case "lineTo":           otPath.lineTo(cmd.args[0], cmd.args[1]); break;
-      case "quadraticCurveTo": otPath.quadraticCurveTo(cmd.args[0], cmd.args[1], cmd.args[2], cmd.args[3]); break;
-      case "bezierCurveTo":    otPath.curveTo(cmd.args[0], cmd.args[1], cmd.args[2], cmd.args[3], cmd.args[4], cmd.args[5]); break;
-      case "closePath":        otPath.close(); break;
-      default: throw new Error(`embedded-font-builder: unknown glyph path command "${(cmd as { command: string }).command}"`);
-    }
-  }
-  entry.glyphs.set(glyphId, new ot.Glyph({
-    name: `g${glyphId}`,
-    unicode: pua,
+  entry.glyphs.set(glyphId, {
+    d: pathCommandsToSvgPath(pathCommands),
     advanceWidth,
-    path: otPath,
-  }));
+  });
   return { cssFamily: entry.cssFamily, puaCodepoint: pua };
 }
 
 /**
+ * Serialize fontkit `PathCommand[]` (font units, y-up) into an SVG path `d`
+ * string. Both the fontkit path space and the SVG-font glyph space are y-up
+ * font units, so the coordinates pass through unchanged — svg2ttf lays them
+ * straight into the `glyf` outline.
+ */
+function pathCommandsToSvgPath(pathCommands: PathCommand[]): string {
+  const parts: string[] = [];
+  for (const cmd of pathCommands) {
+    const a = cmd.args;
+    switch (cmd.command) {
+      case "moveTo":           parts.push(`M${a[0]} ${a[1]}`); break;
+      case "lineTo":           parts.push(`L${a[0]} ${a[1]}`); break;
+      case "quadraticCurveTo": parts.push(`Q${a[0]} ${a[1]} ${a[2]} ${a[3]}`); break;
+      case "bezierCurveTo":    parts.push(`C${a[0]} ${a[1]} ${a[2]} ${a[3]} ${a[4]} ${a[5]}`); break;
+      case "closePath":        parts.push("Z"); break;
+      default: throw new Error(`embedded-font-builder: unknown glyph path command "${(cmd as { command: string }).command}"`);
+    }
+  }
+  return parts.join("");
+}
+
+/**
  * Zero the OpenType `head` table's build timestamps so the serialized font is
- * byte-for-byte reproducible (DM-902). opentype.js stamps `head.modified` (and,
- * unless `createdTimestamp` is given, `head.created`) with the wall-clock build
- * time, then folds those bytes into `head.checkSumAdjustment` and the head
- * table's directory checksum — so every `@font-face` `data:` URI differs
- * run-to-run, breaking golden-SVG comparisons (and reproducible builds) even
- * when nothing about the glyphs changed.
+ * byte-for-byte reproducible (DM-902). We pass `ts: 0` to svg2ttf so it doesn't
+ * stamp `head.created` / `head.modified` with the wall-clock build time in the
+ * first place, but its `head.checkSumAdjustment` and the head table's directory
+ * checksum still summarize the whole font — so we zero all four fields
+ * defensively here, keeping the `@font-face` `data:` URI identical run-to-run
+ * (golden-SVG comparisons and reproducible builds depend on it).
  *
- * Walks the sfnt table directory to the `head` record, then zeroes the four
- * fields that depend on (or summarize) the timestamps: the directory's
- * per-table `head` checksum, `head.checkSumAdjustment`, and `head.created` /
- * `head.modified`. Browsers / FreeType / CoreText / DirectWrite don't validate
- * either checksum for rendering, so zeroing is safe. Mutates `bytes` in place.
+ * Walks the sfnt table directory to the `head` record, then zeroes the
+ * directory's per-table `head` checksum, `head.checkSumAdjustment`, and
+ * `head.created` / `head.modified`. Browsers / FreeType / CoreText / DirectWrite
+ * don't validate either checksum for rendering, so zeroing is safe. Mutates
+ * `bytes` in place.
  */
 function determinizeFontTimestamps(bytes: Buffer): void {
   if (bytes.length < 12) return;
@@ -220,6 +216,39 @@ function determinizeFontTimestamps(bytes: Buffer): void {
 }
 
 /**
+ * Build one `glyf`-flavored TrueType font from a tracked instance's glyphs by
+ * describing it as an SVG font and handing it to svg2ttf.
+ *
+ * The SVG-font glyph space is font units, y-up — identical to the fontkit path
+ * space the `d` strings came from — so coordinates pass through unchanged.
+ * svg2ttf's `<missing-glyph>` becomes gid 0 (.notdef): an empty, zero-width
+ * invisible glyph, so any codepoint the consumer queries that we DIDN'T embed
+ * (shouldn't happen — we emit only registered PUA codepoints) renders blank
+ * rather than tofu. Each `<glyph>` is addressed by its PUA codepoint; svg2ttf
+ * builds the `cmap` from those, so the emitted `<text>` PUA stream maps to the
+ * right outlines with zero shaping.
+ */
+function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
+  const glyphEls: string[] = [];
+  for (const [glyphId, g] of entry.glyphs) {
+    // PUA codepoints are pure hex digits; `d` carries only path grammar
+    // (M/L/Q/C/Z, numbers, spaces) — neither needs XML-escaping.
+    const pua = entry.puaForGlyphId.get(glyphId)!;
+    glyphEls.push(`<glyph unicode="&#x${pua.toString(16)};" horiz-adv-x="${Math.round(g.advanceWidth)}" d="${g.d}"/>`);
+  }
+  const svgFont =
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<svg xmlns="http://www.w3.org/2000/svg"><defs>` +
+    `<font id="${entry.cssFamily}" horiz-adv-x="${Math.round(entry.unitsPerEm / 2)}">` +
+    `<font-face font-family="${entry.cssFamily}" units-per-em="${entry.unitsPerEm}"` +
+    ` ascent="${Math.round(entry.ascender)}" descent="${Math.round(entry.descender)}"/>` +
+    `<missing-glyph horiz-adv-x="${Math.round(entry.unitsPerEm / 2)}"/>` +
+    glyphEls.join("") +
+    `</font></defs></svg>`;
+  return Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer);
+}
+
+/**
  * Serialise every tracked custom font as `@font-face` rules with embedded
  * TTF bytes. Returns the joined CSS ready to drop into the SVG's `<style>`
  * block. Empty string when no glyphs were registered.
@@ -228,27 +257,7 @@ export function getBuiltEmbeddedFontFaceCss(): string {
   if (builderRegistry.size === 0) return "";
   const rules: string[] = [];
   for (const entry of builderRegistry.values()) {
-    // Glyph 0 must be .notdef per OpenType spec — opentype.js enforces this
-    // by adding the first glyph as .notdef. Provide an empty .notdef so any
-    // codepoint the consumer might query that we DIDN'T embed (shouldn't
-    // happen in practice since we emit only PUA codepoints we registered)
-    // renders as a zero-width invisible glyph rather than tofu.
-    const notdef = new ot.Glyph({
-      name: ".notdef",
-      unicode: 0,
-      advanceWidth: Math.round(entry.unitsPerEm / 2),
-      path: new ot.Path(),
-    });
-    const allGlyphs: OpenTypeGlyph[] = [notdef, ...entry.glyphs.values()];
-    const font = new ot.Font({
-      familyName: entry.cssFamily,
-      styleName: "Regular",
-      unitsPerEm: entry.unitsPerEm,
-      ascender: entry.ascender,
-      descender: entry.descender,
-      glyphs: allGlyphs,
-    });
-    const ttfBytes = Buffer.from(font.toArrayBuffer());
+    const ttfBytes = buildGlyfFontForEntry(entry);
     determinizeFontTimestamps(ttfBytes); // DM-902: strip the build-time stamp
     const b64 = ttfBytes.toString("base64");
     // Emit explicit font-style / font-weight descriptors so the consumer
