@@ -1482,6 +1482,24 @@ const isPictographResidueBlock = (cp: number): boolean =>
  * residue the primary lacks. The comment after each branch names the face the
  * probe showed Chromium using for that block.
  */
+// Defer a Linux fallback route to the live fc-match resolver (step 2b) when it
+// covers `cp` — it queries the same fontconfig Chrome does, so it tracks Chrome's
+// pick by construction (DM-1416). Returns the static `fallback` only when fc-match
+// can't cover the codepoint (safety net). Used for symbol/letterlike blocks whose
+// frozen static routes drifted from the current image's Chrome.
+function linuxDeferOrStatic(cp: number, fallback: string[]): string[] {
+  // Linux-only runtime behavior: consult fc-match (Linux's system-fallback
+  // backend). On a non-Linux host — the dev machine running the calibration
+  // unit tests directly — return the static route so this stays host-agnostic
+  // and `resolveSystemFallbackKeyForCp` (which would use CoreText/DirectWrite
+  // off-Linux) is never consulted for Linux logic.
+  if (process.platform === "linux" && _systemFallbackResolutionEnabled
+      && resolveSystemFallbackKeyForCp(cp) != null) {
+    return [];
+  }
+  return fallback;
+}
+
 export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang?: string): string[] {
   // DM-1404: on a mainstream desktop Noto host, route through the Noto-calibrated
   // per-block table instead of the bare image's WenQuanYi/FreeFont routes.
@@ -1509,9 +1527,9 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
     return monoPrimary ? [primaryKey!, "cjk"] : ["helvetica", "cjk"];
   }
   // Dingbats — FreeSans (probe: ✂✈❤ → FreeSans).
-  if (isDingbatsBlock(cp)) return ["free-sans", "free-serif"];
+  if (isDingbatsBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "free-serif"]);
   // Chess pieces — FreeSerif (probe: ♔♚ → FreeSerif).
-  if (cp >= 0x2654 && cp <= 0x265F) return ["free-serif", "free-sans"];
+  if (cp >= 0x2654 && cp <= 0x265F) return linuxDeferOrStatic(cp, ["free-serif", "free-sans"]);
   // Diagonal arrows ↗↙ — WenQuanYi (probe: arrows-diag → WenQuanYi); the rest of
   // the Arrows block → Liberation Sans (probe: ←→↑↓↔ → Liberation Sans).
   if (cp === 0x2197 || cp === 0x2199) return ["cjk", "helvetica"];
@@ -1532,11 +1550,12 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   // resolver (2b), which picks exactly Chrome's font on this image.
   if (cp >= 0x2600 && cp <= 0x26FF) return ["helvetica"];
   // Mathematical Alphanumeric — FreeSans + FreeSerif (probe: 𝐀𝒜𝕊 → FreeSans/FreeSerif).
-  if (isMathAlphanumericBlock(cp)) return ["free-sans", "free-serif"];
+  if (isMathAlphanumericBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "free-serif"]);
   // Superscripts / Subscripts — Liberation Sans + FreeSans (probe: aₙ₁).
   if (isSuperSubscriptBlock(cp)) return ["helvetica", "free-sans"];
-  // Letterlike — FreeSans first, then Liberation Sans (probe: ℝ™ℕℤ → FreeSans).
-  if (isLetterlikeBlock(cp)) return ["free-sans", "helvetica"];
+  // Letterlike — mostly FreeSans (ℝ™ℕℤ), but some codepoints Chrome routes to
+  // WenQuanYi / IPAGothic; defer to fc-match (= Chrome) with FreeSans as the net.
+  if (isLetterlikeBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans", "helvetica"]);
   // Math Operators — Liberation Sans covers ∑∫≠ etc.; the set-theory / logic
   // operators it lacks (∀∃∅∇∈∉∧∨∪∴ …) Chrome routes to WenQuanYi Zen Hei via
   // fontconfig, NOT FreeSans (verified vs getPlatformFontsForNode). Liberation
@@ -1550,7 +1569,7 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   }
   // Pictographs / Transport residue not caught by the color-emoji raster path
   // (doc 15) — FreeSans as a monochrome last resort.
-  if (isPictographResidueBlock(cp)) return ["free-sans"];
+  if (isPictographResidueBlock(cp)) return linuxDeferOrStatic(cp, ["free-sans"]);
   // DM-984: per-Unicode-block fallback derived from a Chrome CDP sweep inside
   // the Playwright Docker container — `CSS.getPlatformFontsForNode` for every
   // block in tools/unicode-fixtures/*.html. Resolved to bare-image paths by
@@ -1565,12 +1584,8 @@ export function linuxFallbackChain(codepoint: number, primaryKey?: string, _lang
   // getPlatformFontsForNode). fc-match queries the SAME fontconfig Chrome does,
   // so it tracks Chrome's pick by construction (DM-1416). The generated table is
   // kept only as the post-fc-match safety net.
-  if (_systemFallbackResolutionEnabled && resolveSystemFallbackKeyForCp(codepoint) != null) {
-    return [];
-  }
   const generatedKey = lookupLinuxUnicodeFontRange(codepoint);
-  if (generatedKey != null) return [generatedKey];
-  return [];
+  return linuxDeferOrStatic(codepoint, generatedKey != null ? [generatedKey] : []);
 }
 
 /** Binary-search the generated `UNICODE_FONT_RANGES_LINUX` for a codepoint. */
