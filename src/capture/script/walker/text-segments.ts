@@ -449,6 +449,20 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       let effectiveFs = parseFloat(flStyle.fontSize) || undefined;
       let effectiveAscent = flMetrics.ascent;
       let styledSegY = minT - vp.y;
+      // DM-1675: `flIsFloatSize` distinguishes a FLOATED sunk drop cap from a
+      // NON-floated raised cap (`.raise`: `initial-letter: 1 3; vertical-align:
+      // super; display: inline; float: none`). The width/height size derivation
+      // below is CORRECT for both (Chrome's `initial-letter: 1` sizes the raised
+      // cap to ~1 line, overriding the `font-size: 2.8em` the author set as a
+      // no-support fallback — so the computed `fontSize` OVER-reports and the
+      // width-derived ~16.7px is right). But the DM-994 pixel-probe re-positioning
+      // must NOT run for the non-floated case: the per-char `Range` rect already
+      // captures the raised paint position (`minT`), and the probe's
+      // "largest ink block" pick merges the small raised cap with the adjacent
+      // floated drop cap below and shoves it ~40-80px down. So keep the derivation
+      // unconditional but gate the probe (further below) on `flIsFloatSize`.
+      const flFloatSize = flStyle.float || flStyle.cssFloat || '';
+      const flIsFloatSize = flFloatSize === 'left' || flFloatSize === 'right';
       if (hasInitialLetter) {
         const probeCanvas = document.createElement('canvas');
         const probeCtx = probeCanvas.getContext('2d');
@@ -604,7 +618,7 @@ export const createTextSegmentsHandler = ({ vp, measureFontMetrics, needsRaster,
       // alongside so the post-pass can solve `seg.y = chromeInkTop −
       // ascent + capHeight` without re-deriving font metrics.
       let initialLetterProbe;
-      if (hasInitialLetter && effectiveFs != null) {
+      if (hasInitialLetter && effectiveFs != null && flIsFloatSize) {
         const capHeightForProbe = effectiveFs * 0.6929; // fallback ratio; overridden below when we have ratios
         // Compute the actual cap-height ratio inline so the probe carries
         // the value matching what we used to derive styledSegY above.
