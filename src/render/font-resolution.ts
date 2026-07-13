@@ -2781,8 +2781,29 @@ function matchFamilyNameToKey(name: string): string | null {
     // jammed against the adjacent Arabic/CJK glyphs because SF Pro's "t"
     // and "o" advances are ~1px wider than Helvetica's at 18px. Let
     // `-apple-system` fall through via the `continue` clause below.
-    if (name === "system-ui" || name === "blinkmacsystemfont"
-      || name === "sf pro") return "sf-pro";
+    // DM-1681: `system-ui` on Linux does NOT resolve to the `sans-serif` face.
+    // Blink configures a `sans-serif` family (Liberation on the noble image) but
+    // has no Linux `system-ui` family, so Chrome-on-Linux resolves `system-ui`
+    // via fontconfig's raw default — WenQuanYi Zen Hei on noble (verified with
+    // `getPlatformFontsForNode`: the `system-ui, sans-serif` fixtures paint
+    // WenQuanYi, not Liberation). This is the ONE generic keyword where `fc-match`
+    // agrees with Chrome (unlike `sans-serif` — see DM-1691), because Blink
+    // doesn't override it. Resolve `system-ui` via the fontconfig default so we
+    // match Chrome; keep macOS/Windows on the `sf-pro` key. Gated by the
+    // live-resolver flag (default-on; honors DOMOTION_SYSTEM_FALLBACK=0).
+    if (name === "system-ui") {
+      if (process.platform === "linux" && _systemFallbackResolutionEnabled) {
+        const matched = fcMatch("sans-serif");
+        if (matched != null) {
+          const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? "system-ui";
+          const key = `sysfb:${psName}`;
+          registerDynamicSystemFont(key, matched.path, matched.postscriptName ?? psName, "fontkit");
+          return key;
+        }
+      }
+      return "sf-pro";
+    }
+    if (name === "blinkmacsystemfont" || name === "sf pro") return "sf-pro";
     // DM-1127 REVERSED (DM-1659): "SF Pro Text" / "SF Pro Display" resolve to the
     // SYSTEM font `SFNS.ttf` (the `sf-pro` key, opsz-pinned to the Text cut via
     // `OPTICAL_CUT_OPSZ`/DM-1103) — NOT the standalone `/Library/Fonts/SF-Pro-*.otf`.
