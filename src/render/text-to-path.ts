@@ -1586,7 +1586,25 @@ function renderTextAsEmbedded(
         // the previous cluster's start.)
         if (!runIsRtl) textIdx += span;
       }
-      perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
+      // DM-1675: don't EMIT a glyph for a legitimately-inkless codepoint (ZWSP,
+      // ZWJ/ZWNJ, other Cf/Cc format chars, variation selectors, tags — and
+      // whitespace separators). Chrome paints NO ink for any of these, so their
+      // advance is all that matters, and that's already handled by the cursor
+      // below. But the resolved font's glyph for them is often a zero-width form
+      // the embedded subset then paints as a visible tofu BOX (Chrome maps the
+      // PUA codepoint to the subset's `.notdef`). The prime case: `::first-letter`
+      // suppression replaces the consumed first letter with U+200B (ZWSP); paths
+      // mode drops it (no outline), but the embedded path was tracking+emitting
+      // a box for every drop cap. Skipping emission is safe for real spaces too —
+      // a blank glyph paints nothing whether emitted or not, and the gap comes
+      // from the advance. (The glyph is still tracked above so cursor/textIdx
+      // stay aligned; it's just left unreferenced — harmless, like any unused
+      // subset glyph.) This also retires the DM-1689 variation-selector boxes.
+      const glyphInkless = glyph.codePoints != null && glyph.codePoints.length > 0
+        && glyph.codePoints.every((cp) => isLegitimatelyInklessCodepoint(cp));
+      if (!glyphInkless) {
+        perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
+      }
       runCursorFontUnits += pos.xAdvance;
     }
     if (glyphFailed || perGlyph.length === 0 || runCssFamily == null) return null;
