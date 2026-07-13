@@ -36,6 +36,7 @@
 
 // svg2ttf ships no type declarations (see svg2ttf.d.ts for the tiny surface).
 import svg2ttf from "svg2ttf";
+import { emboldenPathCommands } from "./embolden-outline.js";
 
 /** A tracked glyph's outline (SVG path `d`, font units, y-up) + advance. */
 interface EmbeddedGlyph {
@@ -123,7 +124,7 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
-  variant: { italic: boolean; weight: number } = { italic: false, weight: 400 },
+  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -152,8 +153,16 @@ export function trackGlyphInEmbedFont(
   const pua = entry.nextPua++;
   entry.puaForGlyphId.set(glyphId, pua);
 
+  // DM-1693: when the resolved static face lacks the requested weight, Chrome
+  // emboldens its outline algorithmically. Bake the same dilation into the
+  // embedded glyph (the @font-face descriptor stays at the requested weight, so
+  // the consumer browser synthesizes nothing on top). `emboldenPathCommands`
+  // returns the input unchanged when the strength is 0 / absent.
+  const cmds = variant.emboldenStrengthFU
+    ? emboldenPathCommands(pathCommands, variant.emboldenStrengthFU)
+    : pathCommands;
   entry.glyphs.set(glyphId, {
-    d: pathCommandsToSvgPath(pathCommands),
+    d: pathCommandsToSvgPath(cmds),
     advanceWidth,
   });
   return { cssFamily: entry.cssFamily, puaCodepoint: pua };

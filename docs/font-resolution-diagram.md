@@ -555,6 +555,21 @@ even-odd fill, which holes any glyph whose source outline draws overlapping
 contours (SF Pro's bold "A" = leg + crossbar + leg). `glyf` fills nonzero, so
 the overlaps union correctly.
 
+**Synthetic (faux) bold bake (DM-1693):** when the resolved face has no variant
+at the requested weight, Chrome emboldens the outline algorithmically (Skia
+`SkFont.setEmbolden`); the embedded `@font-face` — tagged with the requested
+weight — would otherwise paint the thin natural outline with no synthesis. So
+`renderTextAsEmbedded` bakes the same dilation into the outline via
+`emboldenPathCommands` (`src/render/embolden-outline.ts`, a faithful float port
+of FreeType's `FT_Outline_EmboldenXY`) before `trackGlyphInEmbedFont`. The bake
+fires when `requestedWeight − FontInstance.naturalWeight > 200` and no variable
+`wght` axis carries the weight (`FontInstance.hasWeightAxis`), both populated in
+`getFontInstance`. Most visible on Linux, where `system-ui`/CJK resolve to
+single-weight faces (WenQuanYi Zen Hei = 500). **Gated OFF for
+`-webkit-text-stroke` runs:** Chrome emboldens in device space (post-hinting), we
+bake in design space — coverage matches, but a ~1px edge residual that a
+high-contrast stroke would trace is left for stroked heavy text (see doc 52).
+
 ---
 
 ## Caches & lifecycle (summary)

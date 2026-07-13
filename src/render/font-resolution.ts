@@ -55,6 +55,16 @@ export interface FontInstance {
   warmGlyphs?(codePoints: number[]): void;
   /** Native instances can pre-warm a batch of shaping calls (run-based layout). */
   warmShapes?(texts: string[]): void;
+  /** The resolved STATIC face's natural weight (`OS/2.usWeightClass`), populated
+   *  for fontkit instances in `getFontInstance`. Drives the embedded-mode
+   *  faux-bold decision (DM-1693): when the requested weight exceeds this by a
+   *  wide margin and no weight axis was baked, Chrome emboldens the face, so we
+   *  bake the same dilation into the embedded outline. Absent on native-helper
+   *  / webfont instances → those never trigger synthetic bold (safe default). */
+  naturalWeight?: number;
+  /** True when this instance baked the requested weight into a variable `wght`
+   *  axis — its outline is ALREADY at the requested weight, so no faux-bold. */
+  hasWeightAxis?: boolean;
 }
 
 const fontInstanceCache = new Map<string, FontInstance>();
@@ -2456,6 +2466,17 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   if (font == null) return null; // couldn't open and the helper didn't (or can't) rescue
 
   const instance = applyVariationAxes(font, weight, fontSize, slant, variationSettings);
+  // DM-1693: expose the static face's natural weight + whether a variable wght
+  // axis was baked, so the embedded-font path can decide faux-bold. Read from
+  // the ORIGINAL fontkit Font (`font`) — `instance` may be a variation instance
+  // whose OS/2 reflects the base, and whose `variationAxes` presence is what we
+  // want to gate on. Only set a sane usWeightClass (1..1000); 0/absent → leave
+  // undefined so the decision defaults to "no embolden".
+  const usWeight = font?.["OS/2"]?.usWeightClass;
+  if (typeof usWeight === "number" && usWeight >= 1 && usWeight <= 1000) {
+    instance.naturalWeight = usWeight;
+  }
+  instance.hasWeightAxis = font?.variationAxes?.wght != null;
   // DM-891: record the exact file this fontkit instance was loaded from, so the
   // per-glyph helper fallback can open the SAME file (glyph ids match) when
   // fontkit returns an empty outline for a glyph it should be able to draw.

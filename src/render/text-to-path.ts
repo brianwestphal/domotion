@@ -21,6 +21,7 @@ import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { FAUX_BOLD_WEIGHT_DELTA, emboldenStrengthForFont } from "./embolden-outline.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
@@ -1410,6 +1411,38 @@ function renderTextAsEmbedded(
     const runAscent = run.font.ascent;
     const runDescent = run.font.descent;
 
+    // DM-1693: faux-bold for a resolved STATIC face that lacks the requested
+    // weight. Chrome (via fontconfig/FreeType on Linux, CoreText/DirectWrite
+    // elsewhere) emboldens such a face algorithmically; the embedded `@font-face`
+    // otherwise paints the thin natural outline (the descriptor already carries
+    // the requested weight, so the consumer browser synthesizes nothing). When
+    // the requested weight exceeds the face's natural weight by a wide margin
+    // AND no variable `wght` axis carries the weight, bake the same dilation
+    // into the embedded outline. Threshold + strength are empirically calibrated
+    // against Chrome-on-Linux's painted ink (see embolden-outline.ts). Fonts WITH
+    // the weight (a real bold sibling / a baked wght axis) resolve to that face,
+    // so their natural weight ≈ requested → delta small → no embolden.
+    //
+    // Gated OFF for `-webkit-text-stroke` runs: Chrome emboldens in device space
+    // (post-hinting, at render size), we bake in font-design space; the strengths
+    // match (verified: baked embolden reproduces Chrome's +51% stroke coverage
+    // within ±9%), but a ~1px edge-alignment residual remains, and a high-contrast
+    // stroke traces that residual around every glyph — magnifying it into a net
+    // pixel-diff regression even though total coverage is closer to Chrome. So we
+    // apply faux-bold only where the sub-pixel edge residual stays invisible
+    // (unstroked fills), and leave stroked heavy text at its thin baseline until
+    // the device-space edge-alignment is closed (tracked on DM-1681/DM-1693).
+    let emboldenStrengthFU = 0;
+    const faceNaturalWeight = run.font.naturalWeight;
+    if (
+      !(textStrokeWidth != null && textStrokeWidth > 0) &&
+      run.font.hasWeightAxis !== true &&
+      faceNaturalWeight != null &&
+      weight - faceNaturalWeight > FAUX_BOLD_WEIGHT_DELTA
+    ) {
+      emboldenStrengthFU = emboldenStrengthForFont(run.font.unitsPerEm);
+    }
+
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can
     // emit one `<tspan x="...">` per glyph — without explicit per-glyph
@@ -1491,7 +1524,7 @@ function renderTextAsEmbedded(
         // `font-weight=N` attributes as an EXACT match — no faux-italic /
         // faux-bold synthesised on top of glyphs whose slant / weight is
         // already baked in.
-        { italic: slant !== 0, weight },
+        { italic: slant !== 0, weight, emboldenStrengthFU },
       );
       if (placement == null) { glyphFailed = true; break; }
       if (runCssFamily == null) runCssFamily = placement.cssFamily;
