@@ -2888,6 +2888,25 @@ function matchFamilyNameToKey(name: string): string | null {
       registerDynamicSystemFont(key, installed.path, installed.postscriptName);
       return key;
     }
+    // DM-1690: on Linux the `resolveInstalledFont` native helper is always null,
+    // so an installed-but-uncalibrated author family (e.g. `font-family: "DejaVu
+    // Sans"`) used to fall through here to the `times` default — whereas
+    // Chrome-on-Linux resolves it via fontconfig (`FcFontMatch`). Mirror that:
+    // when fontconfig genuinely HAS the family (`authorFamilyAvailable` compares
+    // the `fc-match` result canon-to-canon, so a fontconfig SUBSTITUTE for a miss
+    // still returns false → we fall through, matching Chrome), register its file
+    // as a dynamic `sysfb:` key. Gated by the live-resolver flag (default-on;
+    // honors DOMOTION_SYSTEM_FALLBACK=0) so it can be disabled alongside the
+    // per-codepoint fontconfig resolver.
+    if (process.platform === "linux" && _systemFallbackResolutionEnabled && authorFamilyAvailable(name)) {
+      const matched = fcMatch(name);
+      if (matched != null) {
+        const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? name;
+        const key = `sysfb:${psName}`;
+        registerDynamicSystemFont(key, matched.path, matched.postscriptName ?? psName, "fontkit");
+        return key;
+      }
+    }
   return null;
 }
 
