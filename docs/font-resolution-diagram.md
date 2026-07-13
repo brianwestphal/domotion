@@ -108,6 +108,31 @@ the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
 (used by the per-codepoint resolver to reach later-declared families).
 
+> **This ladder is the macOS family stage — it is NOT `process.platform`-branched.**
+> `matchFamilyNameToKey` unconditionally encodes Chrome-**on-macOS**'s family and
+> generic resolution (each entry is probe-calibrated against Chrome-macOS). The
+> logical keys it returns are macOS-face names; cross-platform behavior emerges
+> only DOWNSTREAM, where §5's `resolveFontSpec` remaps the SAME key to a
+> per-platform file (e.g. `helvetica` → Helvetica on macOS, Liberation Sans on the
+> Linux CI image, `arial.ttf` on Windows). Two consequences worth knowing (see
+> DM-1687):
+>
+> - **Generic keywords are pinned to macOS defaults.** `sans-serif`→`helvetica`,
+>   `serif`→`times`, `monospace`→`courier` are fixed; only `cursive`/`fantasy`
+>   defer to fontconfig (via the Linux table's `fcMatch`). So a host whose
+>   generic-family config differs from the calibration target (e.g. a DejaVu-based
+>   desktop Linux, where Chrome resolves `sans-serif`→DejaVu Sans) diverges —
+>   tracked in **DM-1691**.
+> - **The uncurated-named-font tail is macOS/Windows-only.** The final
+>   `resolveInstalledFont(name)` step (which resolves an installed-but-uncalibrated
+>   family to a `sysfb:` key) uses the native helper, which returns null on Linux —
+>   so on Linux an uncurated named family falls through to the `times` default
+>   instead of resolving via fontconfig like Chrome would. Tracked in **DM-1690**.
+>
+> `docs/03-font-family-chain.md` frames the same mappings as "matching Chrome on
+> macOS"; doc [40](40-cross-platform-font-paths.md) L62 notes the keys are
+> "macOS-centric".
+
 ```mermaid
 flowchart TD
   S0["resolveFontKey(fontFamily)"] --> S1["splitFontFamilyNames:<br/>split ',' · trim · strip quotes · lowercase"]
