@@ -36,7 +36,7 @@
 
 // svg2ttf ships no type declarations (see svg2ttf.d.ts for the tiny surface).
 import svg2ttf from "svg2ttf";
-import { emboldenPathCommands } from "./embolden-outline.js";
+import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
 
 /** A tracked glyph's outline (SVG path `d`, font units, y-up) + advance. */
 interface EmbeddedGlyph {
@@ -124,7 +124,7 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
-  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number } = { italic: false, weight: 400 },
+  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number; shearFactor?: number } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -153,14 +153,15 @@ export function trackGlyphInEmbedFont(
   const pua = entry.nextPua++;
   entry.puaForGlyphId.set(glyphId, pua);
 
-  // DM-1693: when the resolved static face lacks the requested weight, Chrome
-  // emboldens its outline algorithmically. Bake the same dilation into the
-  // embedded glyph (the @font-face descriptor stays at the requested weight, so
-  // the consumer browser synthesizes nothing on top). `emboldenPathCommands`
-  // returns the input unchanged when the strength is 0 / absent.
-  const cmds = variant.emboldenStrengthFU
-    ? emboldenPathCommands(pathCommands, variant.emboldenStrengthFU)
-    : pathCommands;
+  // DM-1693 / DM-1695: bake synthetic bold and/or oblique into the embedded
+  // glyph when the resolved face lacks the requested weight/style (the @font-face
+  // descriptor stays at the requested weight/style, so the consumer browser
+  // synthesizes nothing on top). Embolden first (outline dilation), then shear
+  // (affine) — mirroring Skia, which emboldens the outline then applies the skew
+  // matrix. Both helpers return the input unchanged when their amount is 0/absent.
+  let cmds = pathCommands;
+  if (variant.emboldenStrengthFU) cmds = emboldenPathCommands(cmds, variant.emboldenStrengthFU);
+  if (variant.shearFactor) cmds = shearPathCommands(cmds, variant.shearFactor);
   entry.glyphs.set(glyphId, {
     d: pathCommandsToSvgPath(cmds),
     advanceWidth,

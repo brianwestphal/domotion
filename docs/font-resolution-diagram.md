@@ -570,6 +570,20 @@ single-weight faces (WenQuanYi Zen Hei = 500). **Gated OFF for
 bake in design space — coverage matches, but a ~1px edge residual that a
 high-contrast stroke would trace is left for stroked heavy text (see doc 52).
 
+**Synthetic (faux) oblique bake (DM-1695):** the italic mirror. When italic is
+requested but the resolved face is upright (no italic sibling was routed to, no
+`slnt` axis carried the slant), Chrome shears the glyph (Skia
+`SkFont.setSkewX(-1/4)`); the embedded `@font-face` — tagged `font-style: italic`
+— would otherwise paint the upright outline. So `renderTextAsEmbedded` bakes the
+same shear (`x += 0.25·y`, y-up, pivoting at the baseline) via `shearPathCommands`
+(`embolden-outline.ts`). The bake fires when italic is requested and
+`FontInstance.resolvedItalicAngle` is ~0 (an upright face) and no `slnt` axis
+carried the slant (`FontInstance.hasSlantAxis`), both populated in
+`getFontInstance`. A shear is a pure affine transform — it commutes with the
+uniform font scaling, so unlike the embolden it reproduces Chrome's device-space
+skew EXACTLY at every size and is applied to stroked runs too (no gate). Embolden
+then shear when both apply (bold-italic on a no-bold-no-italic face).
+
 ---
 
 ## Caches & lifecycle (summary)

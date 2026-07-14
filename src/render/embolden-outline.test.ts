@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { emboldenPathCommands, emboldenStrengthForFont, FAUX_BOLD_WEIGHT_DELTA } from "./embolden-outline.js";
+import { emboldenPathCommands, emboldenStrengthForFont, FAUX_BOLD_WEIGHT_DELTA, shearPathCommands, OBLIQUE_SHEAR } from "./embolden-outline.js";
 import type { PathCommand } from "./embedded-font-builder.js";
 
 /** Axis-aligned bounding box of a command list's coordinate pairs. */
@@ -126,6 +126,55 @@ describe("emboldenPathCommands", () => {
     const after = emboldenPathCommands(cmds, 15);
     expect(after.map((c) => c.command)).toEqual(cmds.map((c) => c.command));
     expect(after.map((c) => c.args.length)).toEqual(cmds.map((c) => c.args.length));
+  });
+});
+
+describe("shearPathCommands (faux-italic)", () => {
+  const glyph: PathCommand[] = [
+    { command: "moveTo", args: [0, 0] },      // on baseline
+    { command: "lineTo", args: [0, 100] },    // ascender
+    { command: "quadraticCurveTo", args: [10, 200, 40, 0] },
+    { command: "closePath", args: [] },
+  ];
+
+  it("returns the input unchanged for factor 0", () => {
+    expect(shearPathCommands(glyph, 0)).toBe(glyph);
+  });
+
+  it("returns the input unchanged for empty commands", () => {
+    expect(shearPathCommands([], 0.25)).toEqual([]);
+  });
+
+  it("shears x by factor*y (ascenders lean right, baseline fixed)", () => {
+    const out = shearPathCommands(glyph, 0.25);
+    // baseline point (y=0) x unchanged
+    expect(out[0].args).toEqual([0, 0]);
+    // ascender (0,100) -> x += 0.25*100 = 25
+    expect(out[1].args).toEqual([25, 100]);
+    // quad control (10,200) -> x += 50 = 60 ; endpoint (40,0) -> x unchanged
+    expect(out[2].args).toEqual([60, 200, 40, 0]);
+  });
+
+  it("leans right for a positive factor (top shifts further than bottom)", () => {
+    const out = shearPathCommands(glyph, OBLIQUE_SHEAR);
+    expect(out[1].args[0]).toBeGreaterThan(out[0].args[0]); // ascender x > baseline x
+  });
+
+  it("emits integer coordinates and does not mutate the source", () => {
+    const snapshot = JSON.stringify(glyph);
+    const out = shearPathCommands(glyph, 0.25);
+    for (const c of out) for (const v of c.args) expect(Number.isInteger(v)).toBe(true);
+    expect(JSON.stringify(glyph)).toBe(snapshot);
+  });
+
+  it("preserves command structure", () => {
+    const out = shearPathCommands(glyph, 0.25);
+    expect(out.map((c) => c.command)).toEqual(glyph.map((c) => c.command));
+    expect(out.map((c) => c.args.length)).toEqual(glyph.map((c) => c.args.length));
+  });
+
+  it("OBLIQUE_SHEAR matches Chrome's setSkewX(1/4)", () => {
+    expect(OBLIQUE_SHEAR).toBe(0.25);
   });
 });
 

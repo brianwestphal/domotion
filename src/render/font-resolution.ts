@@ -65,6 +65,17 @@ export interface FontInstance {
   /** True when this instance baked the requested weight into a variable `wght`
    *  axis — its outline is ALREADY at the requested weight, so no faux-bold. */
   hasWeightAxis?: boolean;
+  /** The resolved face's `post.italicAngle` in degrees (0 for an upright face,
+   *  negative for a right-leaning italic). Drives the embedded-mode faux-italic
+   *  decision (DM-1695): when italic is requested but the resolved face is
+   *  upright and no `slnt` axis carried the slant, Chrome synthesizes an oblique,
+   *  so we bake the same shear into the embedded outline. Absent on
+   *  native-helper / webfont instances → those never trigger synthetic italic.
+   *  Named to avoid colliding with fontkit's read-only `italicAngle` getter. */
+  resolvedItalicAngle?: number;
+  /** True when this instance baked the slant into a variable `slnt` axis — its
+   *  outline is ALREADY slanted, so no faux-italic. */
+  hasSlantAxis?: boolean;
 }
 
 const fontInstanceCache = new Map<string, FontInstance>();
@@ -2477,6 +2488,14 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     instance.naturalWeight = usWeight;
   }
   instance.hasWeightAxis = font?.variationAxes?.wght != null;
+  // DM-1695: expose the face's italic angle + whether a slnt axis carried the
+  // slant, for the embedded-font faux-italic decision. Read from the ORIGINAL
+  // fontkit Font (same rationale as the weight fields above).
+  const italicAngle = font?.italicAngle;
+  if (typeof italicAngle === "number" && isFinite(italicAngle)) {
+    instance.resolvedItalicAngle = italicAngle;
+  }
+  instance.hasSlantAxis = font?.variationAxes?.slnt != null;
   // DM-891: record the exact file this fontkit instance was loaded from, so the
   // per-glyph helper fallback can open the SAME file (glyph ids match) when
   // fontkit returns an empty outline for a glyph it should be able to draw.

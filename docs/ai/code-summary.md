@@ -46,9 +46,10 @@ shortest possible map:
   mapped in `docs/font-resolution-diagram.md` — a canonical always-in-sync
   Mermaid reference; keep it current with any font-routing change.**
   `unicode-classification.ts` owns the Unicode predicates;
-  `embolden-outline.ts` bakes synthetic (faux) bold into embedded glyph outlines
-  (a float port of FreeType's `FT_Outline_EmboldenXY`) when the resolved face
-  lacks the requested weight — Linux single-weight faces, DM-1693;
+  `embolden-outline.ts` bakes synthetic (faux) bold + oblique into embedded glyph
+  outlines when the resolved face lacks the requested weight/style — a float port
+  of FreeType's `FT_Outline_EmboldenXY` (DM-1693) plus an affine shear for
+  faux-italic (DM-1695), for Linux single-weight / no-italic faces;
   `embedded-font-builder.ts` builds the per-instance subset `glyf` TTF;
   `mask.ts` owns mask-def emission; `borders.ts` owns border math;
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced

@@ -1,4 +1,15 @@
-// DM-1693: synthetic (faux) bold for embedded-font mode.
+// DM-1693 / DM-1695: synthetic (faux) bold + oblique for embedded-font mode.
+//
+// Faux-italic (DM-1695): when italic is requested but the resolved face is
+// upright (no italic sibling, no `slnt` axis), Chrome synthesizes an oblique by
+// shearing the glyph at render time (Skia `SkFont.setSkewX(-1/4)`). A shear is a
+// pure affine transform — it commutes with the uniform font scaling, so a
+// design-space shear reproduces Chrome's device-space skew EXACTLY at every size
+// (unlike the embolden, which has a hinting-space residual). So `shearPathCommands`
+// bakes `x += OBLIQUE_SHEAR·y` into the outline; the `@font-face` stays tagged
+// `font-style: italic` so the consumer browser synthesizes nothing on top.
+//
+// Faux-bold (DM-1693) below.
 //
 // When Chrome paints text in a system font that has NO face at (or near) the
 // requested weight, it does not leave the glyphs thin — it ALGORITHMICALLY
@@ -33,6 +44,30 @@ import type { PathCommand } from "./embedded-font-builder.js";
  *  emboldened. `> 200` reproduces every measured point and is safely clear of
  *  the corpus-wide 700-weight headers (Δ200) that must NOT be emboldened. */
 export const FAUX_BOLD_WEIGHT_DELTA = 200;
+
+/** Synthetic-oblique shear factor, in font-design (y-up) space: `x += 0.25·y`.
+ *  Mirrors Chrome's `SkFont.setSkewX(-SK_Scalar1/4)` (a right-lean of ~14°) —
+ *  the exact skew Blink applies for synthesized italic (font_platform_data.cc). */
+export const OBLIQUE_SHEAR = 0.25;
+
+/**
+ * Return a NEW PathCommand[] sheared by `x' = x + factor·y` (font units, y-up —
+ * so ascenders lean right, descenders left, pivoting at the baseline y=0). This
+ * is a pure affine transform, so no orientation/winding handling is needed and
+ * it reproduces Chrome's device-space skew exactly at every render size.
+ * `factor === 0` returns the input unchanged.
+ */
+export function shearPathCommands(cmds: PathCommand[], factor: number): PathCommand[] {
+  if (factor === 0 || cmds.length === 0) return cmds;
+  return cmds.map((c) => {
+    const args = c.args.slice();
+    for (let i = 0; i + 1 < args.length; i += 2) {
+      args[i] = Math.round(args[i] + factor * args[i + 1]);
+      args[i + 1] = Math.round(args[i + 1]);
+    }
+    return { command: c.command, args };
+  });
+}
 
 /**
  * Embolden strength in font-design units (TOTAL growth; each side shifts by

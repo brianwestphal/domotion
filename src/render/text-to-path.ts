@@ -21,7 +21,7 @@ import * as fontkit from "fontkit";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont } from "./glyph-helper.js";
 import { makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
-import { FAUX_BOLD_WEIGHT_DELTA, emboldenStrengthForFont } from "./embolden-outline.js";
+import { FAUX_BOLD_WEIGHT_DELTA, emboldenStrengthForFont, OBLIQUE_SHEAR } from "./embolden-outline.js";
 import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
@@ -1443,6 +1443,23 @@ function renderTextAsEmbedded(
       emboldenStrengthFU = emboldenStrengthForFont(run.font.unitsPerEm);
     }
 
+    // DM-1695: faux-italic. When italic is requested (slant ≠ 0) but the resolved
+    // face is UPRIGHT (no italic sibling was routed to, no `slnt` axis carried the
+    // slant), Chrome synthesizes an oblique by shearing the glyph. Bake the same
+    // shear into the embedded outline (the @font-face descriptor stays italic, so
+    // the consumer synthesizes nothing). A shear is a pure affine transform, so —
+    // unlike faux-bold — it reproduces Chrome's device-space skew exactly and is
+    // safe on stroked runs too (no gate). `italicAngle` is the resolved face's
+    // own slant: a real italic face (|angle| ≥ 1°) already leans, so skip it.
+    let shearFactor = 0;
+    if (
+      slant !== 0 &&
+      run.font.hasSlantAxis !== true &&
+      (run.font.resolvedItalicAngle == null || Math.abs(run.font.resolvedItalicAngle) < 1)
+    ) {
+      shearFactor = OBLIQUE_SHEAR;
+    }
+
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can
     // emit one `<tspan x="...">` per glyph — without explicit per-glyph
@@ -1524,7 +1541,7 @@ function renderTextAsEmbedded(
         // `font-weight=N` attributes as an EXACT match — no faux-italic /
         // faux-bold synthesised on top of glyphs whose slant / weight is
         // already baked in.
-        { italic: slant !== 0, weight, emboldenStrengthFU },
+        { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor },
       );
       if (placement == null) { glyphFailed = true; break; }
       if (runCssFamily == null) runCssFamily = placement.cssFamily;
