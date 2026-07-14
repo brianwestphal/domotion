@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fontkit from "fontkit";
-import { __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveFontKeyChain, setRenderTextMode, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain } from "./text-to-path.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -2169,5 +2169,24 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
     // The immediately-following `「` is trimmed to half regardless of the `」`
     // before it → the same left halt shift as in `（「`.
     expect(cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300C, 8, 16, 0.016)).toBe(-500);
+  });
+});
+
+describe("glyphIdForCp (DM-1712 null-safety)", () => {
+  // Minimal FontInstance stub — only glyphForCodePoint matters here.
+  const stub = (ret: { id: number } | null) =>
+    ({ glyphForCodePoint: () => ret } as unknown as Parameters<typeof glyphIdForCp>[0]);
+
+  it("returns the glyph id when the font resolves a glyph", () => {
+    expect(glyphIdForCp(stub({ id: 42 }), 0x41)).toBe(42);
+    expect(glyphIdForCp(stub({ id: 0 }), 0x41)).toBe(0);
+  });
+
+  it("coalesces a null return to 0 (.notdef / uncovered) instead of throwing", () => {
+    // fontkit can hand back null for an unmapped codepoint (color-font /
+    // missing-script cps on Linux/Windows); the coverage checks treat 0 as
+    // "not covered", so the fallback chain is probed rather than crashing.
+    expect(() => glyphIdForCp(stub(null), 0x2b50)).not.toThrow();
+    expect(glyphIdForCp(stub(null), 0x2b50)).toBe(0);
   });
 });

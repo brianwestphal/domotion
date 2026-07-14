@@ -52,6 +52,7 @@ import {
   opticalCutOpszFor,
   pickWebfontVariantForCodepoint,
   r2,
+  glyphIdForCp,
   resolveDottedCircleHbRun,
   resolveFont,
   resolveFontForCodepoint,
@@ -238,7 +239,7 @@ export function textToPathMarkup(
       // placing one on a system color font here would split it out of the
       // surrounding text run and break the overlay's advance pinning (the
       // embedded path, which has no overlay, does let the resolver place them).
-      const emojiToTerminal = primaryFont.glyphForCodePoint(cp).id === 0 && isEmojiCodepoint(cp, nextCp);
+      const emojiToTerminal = glyphIdForCp(primaryFont, cp) === 0 && isEmojiCodepoint(cp, nextCp);
       if (clusterRun != null) {
         emitCh = ch;
         useKey = clusterRun.key;
@@ -813,7 +814,7 @@ export function stripOrphanedDefaultIgnorables(
     const isWs = chLen === 1 && /\s/.test(ch);
     const isMark = /\p{M}/u.test(ch);
     if (isStrippableOrphanIgnorable(cp) && !clusterHasBase
-        && primaryFont.glyphForCodePoint(cp).id === 0) {
+        && glyphIdForCp(primaryFont, cp) === 0) {
       // Drop it: emit no char and no x entry. The cluster base state is
       // unchanged (an ignorable never establishes a base).
       changed = true;
@@ -964,8 +965,8 @@ export function insertSyntheticDottedCircles(
       // centered ◌ stamped over it. Uncovered orphaned Lo cluster letters
       // (Soyombo) are handled by the notdef path above instead.
       if (isMark && orphaned && coveredCircleSet != null && coveredCircleSet.has(i)
-          && primaryFont.glyphForCodePoint(cp).id !== 0
-          && primaryFont.glyphForCodePoint(0x25CC).id !== 0
+          && glyphIdForCp(primaryFont, cp) !== 0
+          && glyphIdForCp(primaryFont, 0x25CC) !== 0
           && !fontAutoInsertsDottedCircle(primaryFont, ch)
           // DM-1229: U+302A–302F (combining CJK/Hangul tone marks) must NOT take
           // this "◌ + centered-mark" path. Real HarfBuzz on the BARE mark in
@@ -1071,7 +1072,7 @@ function splitTextIntoFontRuns(
       const cp = ch.codePointAt(0)!;
       if (seenCp.has(cp)) continue;
       seenCp.add(cp);
-      if (primaryFont.glyphForCodePoint(cp).id !== 0) {
+      if (glyphIdForCp(primaryFont, cp) !== 0) {
         continue; // primary covers it — no fallback probe happens for this cp
       }
       // A webfont primary first tries a per-codepoint webfont variant before the
@@ -1081,7 +1082,7 @@ function splitTextIntoFontRuns(
       if (primaryFontKey.startsWith("webfont:")) {
         const family = primaryFontKey.slice("webfont:".length);
         const cpVariant = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-        if (cpVariant != null && cpVariant.glyphForCodePoint(cp).id !== 0) {
+        if (cpVariant != null && glyphIdForCp(cpVariant, cp) !== 0) {
           continue;
         }
       }

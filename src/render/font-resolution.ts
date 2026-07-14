@@ -78,6 +78,17 @@ export interface FontInstance {
   hasSlantAxis?: boolean;
 }
 
+/** Glyph id for a codepoint, tolerating a null return from `glyphForCodePoint`.
+ *  The interface types that non-null, but a fontkit instance can hand back null
+ *  for an unmapped codepoint (color-font / missing-script codepoints on
+ *  Linux/Windows — DM-1712), and every `glyphForCodePoint(cp).id` read would
+ *  otherwise crash the whole fixture render. Null coalesces to 0 (.notdef /
+ *  uncovered), which is what the coverage checks already treat as "not covered". */
+export function glyphIdForCp(font: FontInstance, cp: number): number {
+  const g = font.glyphForCodePoint(cp);
+  return g == null ? 0 : g.id;
+}
+
 const fontInstanceCache = new Map<string, FontInstance>();
 
 // Webfont registry. Populated per capture by `discoverAndRegisterWebfonts`
@@ -1372,7 +1383,7 @@ function fontFileCoversCodepoint(path: string, postscriptName: string | undefine
         : opened.fonts[0];
     }
     return font != null && typeof font.glyphForCodePoint === "function"
-      && font.glyphForCodePoint(cp).id !== 0;
+      && glyphIdForCp(font, cp) !== 0;
   } catch {
     return false;
   }
@@ -1781,7 +1792,7 @@ function decomposeMathAlphaRun(
     const vKey = freeFontVariantKey(candidate, decomp.bold, decomp.italic);
     const vFont = getFontInstance(vKey, weight, fontSize, 0);
     if (vFont != null && vFont.glyphForCodePoint != null
-        && vFont.glyphForCodePoint(decomp.base).id !== 0) {
+        && glyphIdForCp(vFont, decomp.base) !== 0) {
       return { key: vKey, font: vFont, ch: String.fromCodePoint(decomp.base) };
     }
   }
@@ -3213,7 +3224,7 @@ export function resolveDottedCircleHbRun(
   const markKey = r.key;
   const markFont = r.fontOverride ?? (markKey === primaryFontKey ? primaryFont : getFontInstance(markKey, weight, fontSize, slant));
   if (markFont == null) return null;
-  if (markFont.glyphForCodePoint(0x25CC).id === 0) return null; // ◌ must come from the mark's font, like Chrome
+  if (glyphIdForCp(markFont, 0x25CC) === 0) return null; // ◌ must come from the mark's font, like Chrome
   const path = resolveFontSpec(markKey)?.path;
   if (path == null || path === "") return null;
   const hbInst = makeHarfbuzzShapingInstance(markFont, path);
@@ -3274,24 +3285,24 @@ export function codepointResolvesToNotdef(
   weight: number, fontSize: number, slant: number,
   variationSettings: Record<string, number> | undefined, lang: string | undefined,
 ): boolean {
-  if (primaryFont.glyphForCodePoint(cp).id !== 0) return false;
+  if (glyphIdForCp(primaryFont, cp) !== 0) return false;
   if (primaryFontKey.startsWith("webfont:")) {
     const family = primaryFontKey.slice("webfont:".length);
     const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings);
-    if (v != null && v.glyphForCodePoint(cp).id !== 0) return false;
+    if (v != null && glyphIdForCp(v, cp) !== 0) return false;
   }
   for (const candidate of fallbackFontChain(cp, primaryFontKey, lang)) {
     if (candidate === "last-resort") continue;
     const cf = getFontInstance(candidate, weight, fontSize, slant);
     if (cf != null && cf.glyphForCodePoint != null
-        && cf.glyphForCodePoint(cp).id !== 0) return false;
+        && glyphIdForCp(cf, cp) !== 0) return false;
   }
   if (_systemFallbackResolutionEnabled) {
     const sysKey = resolveSystemFallbackKeyForCp(cp);
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null && sf.glyphForCodePoint != null
-          && sf.glyphForCodePoint(cp).id !== 0) return false;
+          && glyphIdForCp(sf, cp) !== 0) return false;
     }
   }
   return true;
@@ -3408,7 +3419,7 @@ export function resolveFontForCodepoint(
   const csDecomp = complexShaperBaseMarkDecomposition(cp);
   if (csDecomp != null) {
     const dcps = [...csDecomp].map((c) => c.codePointAt(0)!);
-    if (dcps.every((d) => primaryFont.glyphForCodePoint(d).id !== 0)) {
+    if (dcps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
       const hbPath = resolveFontSpec(primaryFontKey)?.path;
       if (hbPath != null && hbPath !== "") {
         const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbPath);
@@ -3430,7 +3441,7 @@ export function resolveFontForCodepoint(
   // so gating on it mis-routes those. Left as a documented 2-codepoint residual.
 
   // 0. Primary fast-path: literal coverage in the run's primary font.
-  if (primaryFont.glyphForCodePoint(cp).id !== 0) return cover(primaryFontKey, null);
+  if (glyphIdForCp(primaryFont, cp) !== 0) return cover(primaryFontKey, null);
 
   // DM-1659: SF Pro Text/Display and the system font resolve to SFNS (matching
   // Chrome's PAINTED glyph shapes — see matchFamilyNameToKey). But SFNS lacks a
@@ -3445,7 +3456,7 @@ export function resolveFontForCodepoint(
     const otfKey = sfProCoverageOtfKey();
     if (otfKey != null) {
       const otf = getFontInstance(otfKey, weight, fontSize, slant);
-      if (otf != null && otf.glyphForCodePoint(cp).id !== 0) return cover(otfKey, otf);
+      if (otf != null && glyphIdForCp(otf, cp) !== 0) return cover(otfKey, otf);
     }
   }
 
@@ -3473,8 +3484,8 @@ export function resolveFontForCodepoint(
   for (const key of fontKeyChain) {
     const inst = instanceFor(key);
     if (inst == null) continue;
-    if (inst.glyphForCodePoint(cp).id !== 0) return cover(key, key === primaryFontKey ? null : inst);
-    if (singleton != null && inst.glyphForCodePoint(singleton).id !== 0) {
+    if (glyphIdForCp(inst, cp) !== 0) return cover(key, key === primaryFontKey ? null : inst);
+    if (singleton != null && glyphIdForCp(inst, singleton) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst, String.fromCodePoint(singleton), true);
     }
   }
@@ -3483,7 +3494,7 @@ export function resolveFontForCodepoint(
   for (const candidate of fallbackFontChain(cp, primaryFontKey, lang)) {
     if (candidate === "last-resort") continue;
     const cf = getFontInstance(candidate, weight, fontSize, slant);
-    if (cf != null && cf.glyphForCodePoint(cp).id !== 0) return cover(candidate, null);
+    if (cf != null && glyphIdForCp(cf, cp) !== 0) return cover(candidate, null);
   }
 
   // 2b. kSystemFonts — live CoreText per-char fallback (literal + in-font decomp).
@@ -3492,8 +3503,8 @@ export function resolveFontForCodepoint(
     if (sysKey != null) {
       const sf = getFontInstance(sysKey, weight, fontSize, slant);
       if (sf != null) {
-        if (sf.glyphForCodePoint(cp).id !== 0) return cover(sysKey, null);
-        if (singleton != null && sf.glyphForCodePoint(singleton).id !== 0) {
+        if (glyphIdForCp(sf, cp) !== 0) return cover(sysKey, null);
+        if (singleton != null && glyphIdForCp(sf, singleton) !== 0) {
           return cover(sysKey, null, String.fromCodePoint(singleton), true);
         }
       }
@@ -3565,7 +3576,7 @@ function glyphInkBoundsX(glyph: { bbox?: { minX: number; maxX: number }; path?: 
 // Mukta emit just the bare mark and DO need the synthetic ◌. Detect by GID — the
 // native glyph-helper leaves `codePoints` empty.
 export function fontAutoInsertsDottedCircle(primaryFont: FontInstance, ch: string): boolean {
-  const circleGid = primaryFont.glyphForCodePoint(0x25CC).id;
+  const circleGid = glyphIdForCp(primaryFont, 0x25CC);
   if (circleGid === 0) return false;
   const lone = primaryFont.layout(ch);
   return lone.glyphs.length > 1 || lone.glyphs.some((g) => g.id === circleGid);
