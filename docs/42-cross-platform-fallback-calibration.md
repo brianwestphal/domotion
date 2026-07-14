@@ -452,6 +452,29 @@ Both non-macOS suites are green at these caps (Linux via `npm run
 test:linux-docker`; Windows via `windows-fidelity.yml`, 97/97). The cap lives in
 `tests/runner.tsx` (`HINTING_FLOOR_PCT`).
 
+### `-webkit-text-stroke` + faux-bold: an amplified hinting-floor case (DM-1694)
+
+The same unhinted-outline-vs-native-hinting gap has one **accepted, documented
+residual** worth calling out because it reads larger than the table above: the
+html-test fixture `20-deep-text-stroke` on Linux. Its display text is
+`system-ui` at `font-weight: 800`, which resolves to a single-weight face
+(WenQuanYi Zen Hei, usWeightClass 500), so Chrome synthesizes faux-bold. Domotion
+CAN bake that faux-bold into the embedded outline (DM-1693, `emboldenPathCommands`)
+and doing so matches Chrome's stroke *coverage* (91→94% of Chrome's stroke ink),
+but Chrome emboldens in **device space** (post-hinting, at render size) while we
+bake in **design space** — leaving a ~1px edge-position residual. On an unstroked
+fill that residual is invisible AA (so faux-bold ships there); on this fixture's
+high-contrast `-webkit-text-stroke` the stroke traces the outline and magnifies
+the 1px over every glyph, so emboldening *raises* the pixel diff (1.55%→2.46%).
+
+**Decision (DM-1694, option c):** faux-bold stays gated OFF for
+`-webkit-text-stroke` runs (`renderTextAsEmbedded`), and this fixture's stroked
+display text is accepted as a native-hinting-floor residual — the font is
+correct, the residual is the hinting of the stroked outline raster, irreducible
+without matching Chrome's device-space hinting (disproportionate for one
+fixture). Not a fallback/positioning/weight bug; the same class as the table
+above, just amplified by the stroke.
+
 ## Acceptance criteria
 
 - **DM-259**: probe results documented per Unicode block on Linux; `linuxFallbackChain`
