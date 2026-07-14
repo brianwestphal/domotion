@@ -38,6 +38,11 @@ let ref = arg("--ref", null);
 // review server lazy-fetch image shards on demand. `--eager` restores the old
 // behavior: download every shard's images upfront (~GBs) and stage them.
 const eager = process.argv.includes("--eager");
+// --run-id <id>: skip dispatch/watch and re-stage an ALREADY-COMPLETED run. Use
+// when a run finished but this driver gave up downloading (the artifacts finalize
+// after `gh run watch` returns and a large multi-shard upload can outlast the
+// retry window). Re-stages from the existing artifacts without burning a new run.
+const runIdOverride = arg("--run-id", null);
 
 if (!["unicode", "html"].includes(suite)) die(`--suite must be unicode|html (got ${suite})`);
 if (!["macos", "linux", "windows", "all"].includes(os)) die(`--os must be macos|linux|windows|all (got ${os})`);
@@ -46,26 +51,24 @@ if (!["macos", "linux", "windows", "all"].includes(os)) die(`--os must be macos|
 try { sh("gh", ["--version"]); } catch { die("GitHub CLI `gh` not found — install it (https://cli.github.com) and `gh auth login`."); }
 
 // Resolve ref to the current branch and confirm the remote has this exact commit
-// (CI runs the pushed ref, NOT your local working tree).
+// (CI runs the pushed ref, NOT your local working tree). Skipped in --run-id mode
+// (the run is already done; we're only re-staging its artifacts).
 if (ref == null) {
   try { ref = sh("git", ["rev-parse", "--abbrev-ref", "HEAD"]); } catch { die("not in a git repo / cannot resolve current branch"); }
 }
 const localSha = sh("git", ["rev-parse", "HEAD"]);
-let remoteSha = "";
-try { remoteSha = sh("git", ["rev-parse", `origin/${ref}`]); } catch { /* branch not on origin */ }
-if (remoteSha !== localSha) {
-  die(`origin/${ref} ${remoteSha ? `is at ${remoteSha.slice(0, 8)} but HEAD is ${localSha.slice(0, 8)}` : "does not exist"}.\n` +
-      `  Push first:  git push -u origin ${ref}\n  (CI runs the pushed ref, not your local changes.)`);
+if (runIdOverride == null) {
+  let remoteSha = "";
+  try { remoteSha = sh("git", ["rev-parse", `origin/${ref}`]); } catch { /* branch not on origin */ }
+  if (remoteSha !== localSha) {
+    die(`origin/${ref} ${remoteSha ? `is at ${remoteSha.slice(0, 8)} but HEAD is ${localSha.slice(0, 8)}` : "does not exist"}.\n` +
+        `  Push first:  git push -u origin ${ref}\n  (CI runs the pushed ref, not your local changes.)`);
+  }
 }
-
-console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}`);
-const dispatchAt = new Date();
-sh("gh", ["workflow", "run", WORKFLOW, "--ref", ref,
-  "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`]);
 
 // The dispatched run takes a few seconds to register. Poll for the newest run on
 // this ref created at/after dispatch.
-async function findRunId() {
+async function findRunId(dispatchAt) {
   for (let attempt = 0; attempt < 20; attempt++) {
     await new Promise((r) => setTimeout(r, 3000));
     let json;
@@ -83,32 +86,45 @@ async function findRunId() {
   return null;
 }
 
-const runId = await findRunId();
-if (runId == null) die("could not find the dispatched run — check `gh run list` / Actions tab.");
-const url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
-console.log(`\nRun ${runId}: ${url}\nWatching (this can take a few minutes)…\n`);
+let runId;
+let url;
+if (runIdOverride != null) {
+  runId = runIdOverride;
+  url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
+  console.log(`Re-staging existing run ${runId}: ${url}\n(skipping dispatch/watch — downloading finalized artifacts)\n`);
+} else {
+  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}`);
+  const dispatchAt = new Date();
+  sh("gh", ["workflow", "run", WORKFLOW, "--ref", ref,
+    "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`]);
+  runId = await findRunId(dispatchAt);
+  if (runId == null) die("could not find the dispatched run — check `gh run list` / Actions tab.");
+  url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
+  console.log(`\nRun ${runId}: ${url}\nWatching (this can take a few minutes)…\n`);
 
-// `gh run watch --exit-status` exits non-zero if the run concluded with failure.
-// A fidelity diff legitimately fails the test jobs, so we DON'T treat that as
-// fatal — we still download + merge + report.
-await new Promise((resolve) => {
-  const child = execFile("gh", ["run", "watch", String(runId), "--exit-status"], { encoding: "utf8" });
-  child.stdout?.pipe(process.stdout);
-  child.stderr?.pipe(process.stderr);
-  child.on("close", () => resolve());
-});
+  // `gh run watch --exit-status` exits non-zero if the run concluded with failure.
+  // A fidelity diff legitimately fails the test jobs, so we DON'T treat that as
+  // fatal — we still download + merge + report.
+  await new Promise((resolve) => {
+    const child = execFile("gh", ["run", "watch", String(runId), "--exit-status"], { encoding: "utf8" });
+    child.stdout?.pipe(process.stdout);
+    child.stderr?.pipe(process.stderr);
+    child.on("close", () => resolve());
+  });
+}
 
 const dir = mkdtempSync(join(tmpdir(), "visual-tests-"));
 const downloadPattern = eager ? "results-*" : "visual-tests-meta";
 console.log(`\nDownloading ${eager ? "shard image artifacts" : "merged metadata (lazy — images fetched on demand in the review UI)"} to ${dir} …`);
 // Artifacts finalize AFTER `gh run watch` returns, and large multi-shard
-// uploads (5 × ~20 MB) can take a couple of minutes to become downloadable —
-// `gh run download` errors until then. Retry over a ~3-minute window (DM-1228:
-// a 25 s window was too short and the first --update-baseline runs all gave up
-// with valid artifacts sitting on the run). The run may also have genuinely
+// uploads can take several minutes to become downloadable — `gh run download`
+// errors until then. Retry over a ~6-minute window (DM-1228: a 25 s window was
+// too short; a 3-min window then also gave up on an `--os all` run whose 116 MB
+// `visual-tests-merged` artifact was still uploading — re-stage that run with
+// `--run-id <id>` rather than re-dispatching). The run may also have genuinely
 // failed before any shard uploaded, in which case every attempt errors.
 let downloaded = false;
-const MAX_ATTEMPTS = 18, RETRY_MS = 10000;
+const MAX_ATTEMPTS = 36, RETRY_MS = 10000;
 for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
   if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_MS));
   // `gh run download` errors with "file exists" if a prior partial extraction
@@ -116,7 +132,10 @@ for (let attempt = 0; attempt < MAX_ATTEMPTS && !downloaded; attempt++) {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   try {
-    sh("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", downloadPattern], { stdio: "inherit" });
+    // NOT via sh(): sh() does `.trim()` on the return, but with stdio:"inherit"
+    // execFileSync returns null → `.trim()` throws a TypeError the catch below
+    // would mis-report as "artifacts not ready" even when the download SUCCEEDED.
+    execFileSync("gh", ["run", "download", String(runId), "--dir", dir, "--pattern", downloadPattern], { stdio: "inherit" });
     downloaded = true;
   } catch { process.stdout.write(`  (artifacts not ready yet, retrying… ${attempt + 1}/${MAX_ATTEMPTS})\n`); }
 }
