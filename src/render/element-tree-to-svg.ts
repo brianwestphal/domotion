@@ -783,6 +783,27 @@ function renderOneText(
     if (hasMultipleSegments) return renderMultiSegmentText(optsWithEmit, opts.el.textSegments!);
     if (isMultiLine) return renderMultiLineText(optsWithEmit);
     return renderSingleLineText(optsWithEmit);
+  } catch (e) {
+    // DM-1713: a fontkit exception on a SINGLE element's text — a null glyph
+    // outline point (`reading 'xCoordinate'`), an unsupported bitmap size
+    // (`Not a fixed size`), etc., typically on an unsupported-script / color
+    // font that only resolves on Linux/Windows — must NOT abort the WHOLE
+    // document render. Chrome paints tofu for these; it never crashes. Fall back
+    // to a plain `<text>` (the consumer browser paints its own glyphs / tofu) so
+    // every other element in the fixture still renders instead of the whole
+    // capture producing zero output.
+    const el = opts.el;
+    const fontSize = parseFloat(el.styles.fontSize) || 14;
+    const baselineY = el.y + (el.fontAscent ?? fontSize * 0.8);
+    const styleAttr = el.styles.fontStyle != null && el.styles.fontStyle !== "normal"
+      ? ` font-style="${esc(el.styles.fontStyle)}"` : "";
+    console.warn(
+      `[element-tree-to-svg] text render failed for <${el.tag}> "${el.text.slice(0, 24)}" ` +
+      `(${e instanceof Error ? e.message : String(e)}) — falling back to <text>`,
+    );
+    return `<text x="${r(el.x)}" y="${r(baselineY)}" font-family="${esc(el.styles.fontFamily)}"`
+      + ` font-size="${r(fontSize)}" font-weight="${esc(el.styles.fontWeight)}"${styleAttr}`
+      + ` fill="${opts.fillColor}" clip-path="url(#${opts.clipId})" xml:space="preserve">${esc(el.text)}</text>`;
   } finally {
     profAccum("text-render", profNow() - _tText);
   }
