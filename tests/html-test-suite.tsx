@@ -1455,9 +1455,6 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     regions = cmp.regions;
   } catch (e) {
     err = e instanceof Error ? e.message : String(e);
-    // TEMP (DM-1713 windows probe): dump the full stack so a CI shard log
-    // reveals where 'Not a fixed size' originates. Revert after diagnosis.
-    console.error(`STACKDUMP[${name}]:`, e instanceof Error ? e.stack : String(e));
   }
 
   const skipReason = SKIP_TESTS[name];
