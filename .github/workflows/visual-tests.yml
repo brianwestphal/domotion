@@ -169,6 +169,8 @@ jobs:
           HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
           DOMOTION_NO_NICE: '1'
           ONLY: ${{ inputs.only }}
+          CAPTURE_DPR: ${{ inputs.dpr }}
+          DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
@@ -209,6 +211,8 @@ jobs:
           HTML_TEST_SHARD: ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}
           DOMOTION_NO_NICE: '1'
           ONLY: ${{ inputs.only }}
+          CAPTURE_DPR: ${{ inputs.dpr }}
+          DOMOTION_HINTED_SUBSET: ${{ inputs.hinted_subset }}
         run: bash scripts/ci-run-shard.sh ${{ inputs.suite }}
       - name: Record runner image
         if: always()
