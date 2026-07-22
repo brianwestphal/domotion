@@ -83,17 +83,24 @@ outline-identical) and **retains the hinting program across instancing**.
 If an axis can't be pinned, `hbSubsetRetainGids` throws and the entry falls
 back to svg2ttf — which bakes the correct instantiated outline, just unhinted.
 
-**Known residual (`cvar`):** the bundled hb-subset drops `cvar` on instancing
-WITHOUT re-targeting the `cvt ` values at the pinned location (verified against
-the real Segoe UI Variable: `cvt ` bytes identical between a wght=400 and
-wght=700 pin). So for a non-default instance of a hinted variable font the
-grid-fitting control values are the default master's — the glyph programs still
-run and grid-fit (outlines themselves are exact: ≤2 font units vs fontkit's
-instancing, ~0.016px at 16px/2048upem), but stem rounding can differ
-microscopically from the native rasterization of the true instance. Strictly
-better than the unhinted svg2ttf rebuild in every measured case; revisit if a
-future harfbuzzjs bundles hb ≥ the version that applies cvar deltas during
-instancing.
+**Non-residual (`cvar`) — measured to be zero:** the bundled hb-subset drops
+`cvar` on instancing without re-targeting `cvt ` at the pinned location, which
+in principle leaves grid-fitting with the default master's control values. In
+practice this contributes NOTHING, measured two ways on the real Segoe UI
+Variable (the dominant hinted variable font):
+
+1. Its entire `cvar` is one tuple peaking at `opsz = −1` — **zero variation
+   along `wght`** (bold/light instances legitimately share the default cvt) —
+   touching 3 of 117 cvt entries only below opsz 10.5 (sub-10.5px text; max
+   delta 123 units ≈ 0.4px at 5px).
+2. An isolated A/B on Windows 11 (real DirectWrite/ClearType in Chrome):
+   two subsets identical except stale-vs-cvar-patched `cvt `, rendered at 5px
+   and 8px — **zero differing pixels**. The affected control values are inert
+   under DirectWrite's rendering of the embedded font.
+
+So no correction is needed; if a future harfbuzzjs bundles an hb whose
+instancer applies cvar (1.4.0, the latest as of 2026-07, does not), it's a
+free upgrade, not a fix.
 
 ### Purity rules
 
