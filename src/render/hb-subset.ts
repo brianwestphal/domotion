@@ -42,6 +42,17 @@ interface HbSubsetExports {
   hb_subset_input_set_flags(input: number, flags: number): void;
   hb_set_add(set: number, cp: number): void;
   hb_subset_or_fail(face: number, input: number): number;
+  /** Pin every variation axis to its default (full instancing). Returns 0 on a
+   *  non-variable face (harmless no-op — the subset still succeeds). */
+  hb_subset_input_pin_all_axes_to_default(input: number, face: number): number;
+  /** Pin one axis to a specific value (overrides a prior pin_all default for
+   *  that tag). Returns 0 when the face doesn't expose the axis. */
+  hb_subset_input_pin_axis_location(input: number, face: number, axisTag: number, value: number): number;
+}
+
+/** Big-endian 4-char OpenType tag as uint32 (hb_tag_t). */
+function hbTag(tag: string): number {
+  return ((tag.charCodeAt(0) << 24) | (tag.charCodeAt(1) << 16) | (tag.charCodeAt(2) << 8) | tag.charCodeAt(3)) >>> 0;
 }
 
 let cachedExports: HbSubsetExports | null = null;
@@ -60,8 +71,22 @@ function hb(): HbSubsetExports {
 /** hb-subset `fontBytes` to `gids` (original glyph ids), keeping hinting +
  *  RETAIN_GIDS so the output's glyph ids equal the input's. `faceIndex` selects
  *  a TTC member. Returns the subset TTF/OTF bytes (still has the ORIGINAL cmap;
- *  call `injectPuaCmap` to remap to private-use codepoints). */
-export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex = 0, keepHinting = true): Buffer {
+ *  call `injectPuaCmap` to remap to private-use codepoints).
+ *
+ *  `pinAxes` (non-null ⇒ the source is a VARIABLE font): fully instance the
+ *  face at that axis location — every axis is pinned to its default, then each
+ *  `pinAxes` entry overrides its tag — so the output is a STATIC font whose
+ *  outlines match what the run shaped with (fontkit `getVariation` and hb apply
+ *  the same gvar deltas), with `fvar`/`gvar` dropped. Full pinning is
+ *  deliberate: leaving any axis variable would let the consumer browser re-vary
+ *  it (e.g. `font-optical-sizing: auto` re-applying `opsz`) on top of outlines
+ *  we already resolved. hb's instancer RETAINS the hinting program
+ *  (`cvt`/`fpgm`/`prep` + per-glyph instructions) across instancing. An empty
+ *  object pins everything to defaults (the run shaped with the default master).
+ *  Throws when a requested axis can't be pinned — outlines would silently be
+ *  the wrong master; the caller falls back to svg2ttf, which bakes the correct
+ *  instantiated outline (unhinted). */
+export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex = 0, keepHinting = true, pinAxes: Record<string, number> | null = null): Buffer {
   const w = hb();
   const heap = (): Uint8Array => new Uint8Array(w.memory.buffer);
   const fontPtr = w.malloc(fontBytes.length);
@@ -74,6 +99,24 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   let flags = HB_SUBSET_FLAGS_RETAIN_GIDS;
   if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;
   w.hb_subset_input_set_flags(input, flags);
+  if (pinAxes != null) {
+    if (w.hb_subset_input_pin_all_axes_to_default(input, face) === 0) {
+      cleanupInput();
+      throw new Error("pin_all_axes_to_default failed (face reports no variation axes?)");
+    }
+    for (const [tag, value] of Object.entries(pinAxes)) {
+      if (w.hb_subset_input_pin_axis_location(input, face, hbTag(tag), value) === 0) {
+        cleanupInput();
+        throw new Error(`pin_axis_location failed for axis "${tag}"`);
+      }
+    }
+  }
+  function cleanupInput(): void {
+    w.hb_subset_input_destroy(input);
+    w.hb_face_destroy(face);
+    w.hb_blob_destroy(blob);
+    w.free(fontPtr);
+  }
   const rface = w.hb_subset_or_fail(face, input);
   try {
     if (rface === 0) throw new Error("hb_subset_or_fail returned null");

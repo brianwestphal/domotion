@@ -2465,10 +2465,19 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
       // so getFontSourceInfo exposes it; buildGlyfFontForEntry guards on actual
       // glyf/CFF presence before subsetting. Behind the flag to avoid the extra
       // fontkit open on the default (svg2ttf) path.
-      if (HINTED_SUBSET_FLAG) {
+      //
+      // DM-1716: when the file is VARIABLE (Segoe UI Variable on Windows 11),
+      // also record the axis location this instance resolved to — the native
+      // helper applies the weight/optical-size axes internally, and the
+      // embedded subset must pin the same location or it would embed the
+      // default master's outlines.
+      if (hintedSubsetEnabled()) {
+        const { faceIndex, fileAxes } = resolveFaceInfoForFile(spec.path, spec.postscriptName);
         fontSourceMap.set(instance as unknown as object, {
-          path: spec.path, postscriptName: spec.postscriptName,
-          faceIndex: resolveFaceIndexForFile(spec.path, spec.postscriptName),
+          path: spec.path, postscriptName: spec.postscriptName, faceIndex,
+          variationAxes: fileAxes != null
+            ? resolveAxisLocationForFile(fileAxes, weight, fontSize, slant, variationSettings)
+            : null,
         });
       }
       fontInstanceCache.set(cacheKey, instance);
@@ -2532,18 +2541,41 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // Only fontkit instances get an entry — helper instances (whole-font tier)
   // and webfonts (no file) deliberately don't, so they never trigger the
   // per-glyph fallback.
-  fontSourceMap.set(instance as unknown as object, { path: spec.path, postscriptName: spec.postscriptName, faceIndex });
+  //
+  // DM-1716: `variationAxes` tells the hinting-preserving embedded subset how to
+  // instance the file. Three-way: a Record when a variation instance was created
+  // (pin exactly those axes); {} when the FILE is variable but shaping used the
+  // default master (applyVariationAxes matched no axis or getVariation failed —
+  // pin everything to defaults so the consumer browser can't re-vary an axis we
+  // didn't); null when the file is static (no pinning needed).
+  const fileIsVariable = font?.variationAxes != null && Object.keys(font.variationAxes).length > 0;
+  const appliedAxes = (instance as unknown as { _appliedVariationAxes?: Record<string, number> })._appliedVariationAxes;
+  fontSourceMap.set(instance as unknown as object, {
+    path: spec.path, postscriptName: spec.postscriptName, faceIndex,
+    variationAxes: fileIsVariable ? (appliedAxes ?? {}) : null,
+  });
   fontInstanceCache.set(cacheKey, instance);
   return instance;
 }
 
-/** DM-1714: the on-disk file + collection index a fontkit instance was loaded
- *  from, for the hinting-preserving hb-subset embedded path. Null for helper /
- *  webfont / synthetic instances that have no backing sfnt file — those keep the
- *  svg2ttf path. */
-export function getFontSourceInfo(font: FontInstance | null | undefined): { path: string; postscriptName?: string; faceIndex: number } | null {
+/** DM-1714/DM-1716: the on-disk file + collection index a font instance was
+ *  loaded from, for the hinting-preserving hb-subset embedded path. Null for
+ *  webfont / synthetic instances that have no backing sfnt file — those keep
+ *  the svg2ttf path. `variationAxes` is the axis location to pin when
+ *  instancing a variable source file (a Record — possibly empty = all
+ *  defaults), or null for a static file. */
+export function getFontSourceInfo(font: FontInstance | null | undefined): FontSourceInfo | null {
   if (font == null) return null;
   return fontSourceMap.get(font as unknown as object) ?? null;
+}
+
+export interface FontSourceInfo {
+  path: string;
+  postscriptName?: string;
+  faceIndex: number;
+  /** Axis location the instance resolved to: Record ⇒ variable source file (pin
+   *  these tags, all others to default); null/absent ⇒ static file. */
+  variationAxes?: Record<string, number> | null;
 }
 
 // Does fontkit have a glyph-outline table it can render from? A font's outlines
@@ -2576,29 +2608,65 @@ export type PathCommand = { command: string; args: number[] };
 type FontkitGlyph = { id: number; path?: { commands: PathCommand[] }; codePoints?: number[]; advanceWidth?: number };
 
 /** Records which on-disk file each fontkit instance was loaded from (populated
- *  in getFontInstance). Helper instances + webfonts are absent → no fallback. */
-const fontSourceMap = new WeakMap<object, { path: string; postscriptName?: string; faceIndex: number }>();
+ *  in getFontInstance). Webfonts are absent → no fallback. */
+const fontSourceMap = new WeakMap<object, FontSourceInfo>();
 
-/** DM-1714 (spike): opt-in the hinting-preserving hb-subset embedded path. Read
- *  once — CI sets the env before the process starts. */
-const HINTED_SUBSET_FLAG = process.env.DOMOTION_HINTED_SUBSET === "1";
+/** DM-1714/DM-1716: opt-in the hinting-preserving hb-subset embedded path.
+ *  Read per call (not at module load) so tests can toggle it. */
+function hintedSubsetEnabled(): boolean {
+  return process.env.DOMOTION_HINTED_SUBSET === "1";
+}
 
 /** The collection-member index of `postscriptName` within a (possibly-TTC) sfnt
- *  file, for hb-subset's hb_face_create. 0 for single-face files / open failures.
- *  Used for native-helper instances (Windows DirectWrite / macOS CoreText) that
- *  skip fontkit's own index resolution but whose FILE we still want to subset. */
-function resolveFaceIndexForFile(path: string, postscriptName?: string): number {
+ *  file (for hb-subset's hb_face_create) plus that face's variation-axis table
+ *  (null when static). faceIndex 0 / axes null on open failure. Used for
+ *  native-helper instances (Windows DirectWrite / macOS CoreText) that skip
+ *  fontkit's own index resolution but whose FILE we still want to subset.
+ *  Cached per (path, postscriptName) — the helper branch hits this once per
+ *  (weight, size) instance of the same file. */
+const fileFaceInfoCache = new Map<string, { faceIndex: number; fileAxes: Record<string, unknown> | null }>();
+function resolveFaceInfoForFile(path: string, postscriptName?: string): { faceIndex: number; fileAxes: Record<string, unknown> | null } {
+  const cacheKey = `${path}#${postscriptName ?? ""}`;
+  const cached = fileFaceInfoCache.get(cacheKey);
+  if (cached != null) return cached;
+  let result: { faceIndex: number; fileAxes: Record<string, unknown> | null } = { faceIndex: 0, fileAxes: null };
   try {
     const opened: any = fontkit.openSync(path);
+    let f: any = opened;
+    let faceIndex = 0;
     if (opened?.fonts != null && Array.isArray(opened.fonts)) {
-      const f = (postscriptName != null && opened.getFont != null)
+      f = (postscriptName != null && opened.getFont != null)
         ? (opened.getFont(postscriptName) ?? opened.fonts[0])
         : opened.fonts[0];
       const idx = opened.fonts.indexOf(f);
-      return idx >= 0 ? idx : 0;
+      faceIndex = idx >= 0 ? idx : 0;
     }
-  } catch { /* not a collection / unreadable → single face */ }
-  return 0;
+    const axes = f?.variationAxes;
+    result = { faceIndex, fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null };
+  } catch { /* unreadable → single static face */ }
+  fileFaceInfoCache.set(cacheKey, result);
+  return result;
+}
+
+/** DM-1716: the axis location a run resolved to on a variable file whose
+ *  outlines came from the NATIVE helper (CoreText / DirectWrite). Mirrors
+ *  applyVariationAxes' resolution — CSS weight → `wght`, font-size → `opsz`
+ *  (Chromium's automatic optical sizing), slant → `slnt`, author
+ *  `font-variation-settings` on top — restricted to axes the file exposes. */
+function resolveAxisLocationForFile(
+  fileAxes: Record<string, unknown>, weight: number, fontSize: number, slant: number,
+  variationSettings?: Record<string, number>,
+): Record<string, number> {
+  const axes: Record<string, number> = {};
+  if (fileAxes.wght != null) axes.wght = weight;
+  if (fileAxes.opsz != null) axes.opsz = fontSize;
+  if (slant !== 0 && fileAxes.slnt != null) axes.slnt = slant;
+  if (variationSettings != null) {
+    for (const tag of Object.keys(variationSettings)) {
+      if (fileAxes[tag] != null) axes[tag] = variationSettings[tag];
+    }
+  }
+  return axes;
 }
 const helperFontCache = new Map<string, FontInstance | null>();       // path → helper instance | null
 const helperOutlineCache = new Map<string, PathCommand[] | null>();   // `${path}#${id}` → commands | null
@@ -2718,6 +2786,11 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
   } catch {
     return font;
   }
+  // DM-1716: record the axis location this variation instance was created at,
+  // so the hinting-preserving embedded subset can pin the SAME location when it
+  // instances the source file (hb-subset applies the same gvar deltas fontkit
+  // did — the pinned subset's outlines match what this instance shaped with).
+  (v as any)._appliedVariationAxes = axes;
   return v;
 }
 

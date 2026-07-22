@@ -1462,18 +1462,15 @@ function renderTextAsEmbedded(
       shearFactor = OBLIQUE_SHEAR;
     }
 
-    // DM-1714 (spike): tag the run with the sfnt file it resolved to, so the
+    // DM-1714/DM-1716: tag the run with the sfnt file it resolved to, so the
     // embedded builder can hb-subset the ORIGINAL (hinted) font instead of the
-    // outline-only svg2ttf rebuild. Gated to STATIC faces: a variable instance's
-    // on-disk default master differs from the instantiated (wght/slnt-applied)
-    // outline this run shaped with, so subsetting the file would embed the wrong
-    // weight/slant — those keep the svg2ttf path (which bakes the instance).
-    // Helper / webfont instances return null here (no backing file) and likewise
-    // keep svg2ttf. The builder only honors this when DOMOTION_HINTED_SUBSET=1.
-    const hintedSource =
-      run.font.hasWeightAxis !== true && run.font.hasSlantAxis !== true
-        ? getFontSourceInfo(run.font)
-        : null;
+    // outline-only svg2ttf rebuild. Variable faces are covered too: the source
+    // info carries the axis location the run resolved to (`variationAxes`), and
+    // the builder pins the subset to that location — hb applies the same gvar
+    // deltas fontkit's getVariation did, so the instanced subset's outlines
+    // match what this run shaped with (and hinting survives instancing).
+    // Webfont instances return null here (no backing file) and keep svg2ttf.
+    const hintedSource = getFontSourceInfo(run.font);
 
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can

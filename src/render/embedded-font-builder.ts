@@ -40,8 +40,11 @@ import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
 import { hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
-/** DM-1714 (spike): opt-in the hinting-preserving hb-subset embedded path. */
-const HINTED_SUBSET_ENABLED = process.env.DOMOTION_HINTED_SUBSET === "1";
+/** DM-1714/DM-1716: opt-in the hinting-preserving hb-subset embedded path.
+ *  Read per call (not at module load) so tests can toggle it. */
+function hintedSubsetEnabled(): boolean {
+  return process.env.DOMOTION_HINTED_SUBSET === "1";
+}
 /** DM-1714 (spike) diagnostics: how many entries took each build path, logged once
  *  per composition in getBuiltEmbeddedFontFaceCss so a CI run confirms the split. */
 const _hintedSubsetStats = { hinted: 0, svg2ttf: 0, failed: 0, lastSkip: "" };
@@ -51,6 +54,19 @@ interface EmbeddedGlyph {
   /** SVG path data in font units (y-up), ready to drop into an SVG-font `<glyph d=>`. */
   d: string;
   advanceWidth: number;
+}
+
+/** Where an embedded entry's glyphs came from, for the hinting-preserving
+ *  subset: the on-disk sfnt (+ TTC member), and — when that file is variable —
+ *  the axis location the run resolved to (`axes`; null/absent ⇒ static file). */
+export interface HintedSource {
+  path: string;
+  faceIndex: number;
+  /** Axis location to pin when instancing a variable source file (possibly
+   *  empty = all defaults); null/absent ⇒ static file. Field name matches
+   *  font-resolution's FontSourceInfo so the resolver's return value can be
+   *  passed through unchanged. */
+  variationAxes?: Record<string, number> | null;
 }
 
 /**
@@ -93,16 +109,19 @@ interface BuilderEntry {
   italic: boolean;
   weight: number;
   /**
-   * DM-1714 (spike): the sfnt file + collection index every glyph in this entry
+   * DM-1714/DM-1716: the sfnt file + collection index every glyph in this entry
    * came from, when they ALL share one openable fontkit source and NONE was
    * synthesized (faux-bold/italic) or supplied by the per-glyph helper fallback.
    * When set, the entry is "pure" — its glyph ids equal the source font's, so
    * `buildGlyfFontForEntry` can hb-subset the ORIGINAL file (keeping TrueType
    * hinting) and inject a PUA→gid cmap, instead of the unhinted svg2ttf rebuild.
-   * Cleared to null the moment a glyph disagrees (different source, or synthetic)
-   * — then the whole entry falls back to svg2ttf. Behind `DOMOTION_HINTED_SUBSET`.
+   * For a VARIABLE source file, `axes` is the axis location the run resolved to
+   * (possibly empty = default master) and the subset is fully instanced there —
+   * hinting survives hb's instancer. Cleared to null the moment a glyph
+   * disagrees (different source/axes, or synthetic) — then the whole entry
+   * falls back to svg2ttf.
    */
-  hintedSource: { path: string; faceIndex: number } | null;
+  hintedSource: HintedSource | null;
   /** Set once any glyph disqualifies the entry from the hinted path (see above). */
   hintedSourceDisqualified: boolean;
 }
@@ -145,7 +164,7 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
-  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number; shearFactor?: number; hintedSource?: { path: string; faceIndex: number } | null } = { italic: false, weight: 400 },
+  variant: { italic: boolean; weight: number; emboldenStrengthFU?: number; shearFactor?: number; hintedSource?: HintedSource | null } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -169,10 +188,14 @@ export function trackGlyphInEmbedFont(
   // A synthetic glyph (faux-bold/italic baked its own outline) or a glyph from a
   // different file (per-glyph helper fallback) breaks the gid↔source identity the
   // subset relies on — disqualify the whole entry the moment one appears.
+  // DM-1716: the axis LOCATION is part of the identity too — two runs on the
+  // same variable file at different locations can't share one instanced subset.
+  // (In practice the instanceKey already separates them; this is the guard.)
   const isSynthetic = Boolean(variant.emboldenStrengthFU) || Boolean(variant.shearFactor);
   const glyphSource = variant.hintedSource ?? null;
   if (isSynthetic || glyphSource == null || entry.hintedSource == null
-      || glyphSource.path !== entry.hintedSource.path || glyphSource.faceIndex !== entry.hintedSource.faceIndex) {
+      || glyphSource.path !== entry.hintedSource.path || glyphSource.faceIndex !== entry.hintedSource.faceIndex
+      || !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes)) {
     entry.hintedSourceDisqualified = true;
   }
   const cached = entry.puaForGlyphId.get(glyphId);
@@ -201,6 +224,18 @@ export function trackGlyphInEmbedFont(
     advanceWidth,
   });
   return { cssFamily: entry.cssFamily, puaCodepoint: pua };
+}
+
+/** Same variable-axis location? Treats null / undefined / {} interchangeably
+ *  only when both sides are empty — a pinned {wght:700} never matches {}. */
+function sameAxisLocation(a: Record<string, number> | null | undefined, b: Record<string, number> | null | undefined): boolean {
+  const ka = a != null ? Object.keys(a) : [];
+  const kb = b != null ? Object.keys(b) : [];
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) {
+    if (a![k] !== b?.[k]) return false;
+  }
+  return true;
 }
 
 /**
@@ -273,13 +308,15 @@ function determinizeFontTimestamps(bytes: Buffer): void {
  * right outlines with zero shaping.
  */
 function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
-  // DM-1714 (spike): hinting-preserving path. When the whole entry came from one
-  // openable static sfnt with no synthetic glyphs, hb-subset the ORIGINAL file
-  // (keeps `cvt`/`fpgm`/`prep` + per-glyph instructions) and swap in a PUA→gid
-  // cmap, instead of svg2ttf's outline-only rebuild. Behind an env flag while we
-  // measure the Windows/Linux hinting-floor payoff. Any failure falls through to
-  // the proven svg2ttf path so a bad font never breaks a render.
-  if (HINTED_SUBSET_ENABLED && entry.hintedSource != null && !entry.hintedSourceDisqualified) {
+  // DM-1714/DM-1716: hinting-preserving path. When the whole entry came from one
+  // openable sfnt with no synthetic glyphs, hb-subset the ORIGINAL file (keeps
+  // `cvt`/`fpgm`/`prep` + per-glyph instructions) and swap in a PUA→gid cmap,
+  // instead of svg2ttf's outline-only rebuild. A variable source is fully
+  // instanced at the run's resolved axis location (`hintedSource.variationAxes`) — hb
+  // applies the same gvar deltas fontkit shaped with, and hinting survives its
+  // instancer. Any failure falls through to the proven svg2ttf path so a bad
+  // font never breaks a render.
+  if (hintedSubsetEnabled() && entry.hintedSource != null && !entry.hintedSourceDisqualified) {
     try {
       const gids = [...entry.puaForGlyphId.keys()];
       const puaToGid = new Map<number, number>();
@@ -288,7 +325,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       // Guard outline-less files (e.g. PingFang's Apple-private hvgl): hb-subset
       // would emit empty glyphs. Those keep the svg2ttf/helper-outline path.
       if (!sfntHasSubsettableOutlines(bytes, entry.hintedSource.faceIndex)) throw new Error("source sfnt has no glyf/CFF outlines");
-      const subset = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true);
+      const subset = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true, entry.hintedSource.variationAxes ?? null);
       const out = injectPuaCmap(subset, puaToGid);
       _hintedSubsetStats.hinted++;
       return out;
@@ -296,7 +333,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       _hintedSubsetStats.failed++;
       console.warn(`[embedded-font-builder] hinted hb-subset failed for ${entry.cssFamily} (${entry.hintedSource.path}); falling back to svg2ttf:`, (e as Error).message);
     }
-  } else if (HINTED_SUBSET_ENABLED) {
+  } else if (hintedSubsetEnabled()) {
     _hintedSubsetStats.svg2ttf++;
     _hintedSubsetStats.lastSkip = entry.hintedSource == null ? "no-source" : "disqualified";
   }
@@ -326,7 +363,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
  */
 export function getBuiltEmbeddedFontFaceCss(): string {
   if (builderRegistry.size === 0) return "";
-  if (HINTED_SUBSET_ENABLED) { _hintedSubsetStats.hinted = 0; _hintedSubsetStats.svg2ttf = 0; _hintedSubsetStats.failed = 0; }
+  if (hintedSubsetEnabled()) { _hintedSubsetStats.hinted = 0; _hintedSubsetStats.svg2ttf = 0; _hintedSubsetStats.failed = 0; }
   const rules: string[] = [];
   for (const entry of builderRegistry.values()) {
     const ttfBytes = buildGlyfFontForEntry(entry);
@@ -341,7 +378,7 @@ export function getBuiltEmbeddedFontFaceCss(): string {
     const styleDesc = entry.italic ? "italic" : "normal";
     rules.push(`@font-face { font-family: "${entry.cssFamily}"; font-style: ${styleDesc}; font-weight: ${entry.weight}; src: url("data:font/ttf;base64,${b64}"); }`);
   }
-  if (HINTED_SUBSET_ENABLED) {
+  if (hintedSubsetEnabled()) {
     console.warn(`[DM-1714] embedded fonts: hinted=${_hintedSubsetStats.hinted} svg2ttf=${_hintedSubsetStats.svg2ttf} failed=${_hintedSubsetStats.failed} lastSkip=${_hintedSubsetStats.lastSkip || "-"}`);
   }
   return rules.join("\n");

@@ -1,6 +1,10 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeAll, beforeEach, afterAll, afterEach } from "vitest";
 import * as fontkit from "fontkit";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { buildStaticHintedFont, buildVariableHintedFont } from "./synth-test-fonts.js";
 
 // A small deterministic glyph outline (a triangle) to register.
 const TRI = [
@@ -131,5 +135,95 @@ describe("embedded-font-builder glyf output (DM-1666)", () => {
     // Both PUA codepoints resolve to real (non-.notdef) glyphs.
     expect(font.glyphForCodePoint(0xE000).id).toBeGreaterThan(0);
     expect(font.glyphForCodePoint(0xE001).id).toBeGreaterThan(0);
+  });
+});
+
+describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () => {
+  let dir: string;
+  let staticPath: string;
+  let variablePath: string;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "domotion-hinted-test-"));
+    staticPath = join(dir, "static-hinted.ttf");
+    variablePath = join(dir, "variable-hinted.ttf");
+    writeFileSync(staticPath, buildStaticHintedFont());
+    writeFileSync(variablePath, buildVariableHintedFont());
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  beforeEach(() => {
+    clearEmbeddedFontBuilder();
+    process.env.DOMOTION_HINTED_SUBSET = "1";
+  });
+  afterEach(() => {
+    delete process.env.DOMOTION_HINTED_SUBSET;
+  });
+
+  function tags(bytes: Buffer): Set<string> {
+    const numTables = bytes.readUInt16BE(4);
+    const t = new Set<string>();
+    for (let i = 0; i < numTables; i++) t.add(bytes.toString("latin1", 12 + i * 16, 16 + i * 16));
+    return t;
+  }
+
+  it("takes the hinted path for a pure static entry: hinting tables survive, PUA cmap maps to the ORIGINAL outline", () => {
+    // glyph id 1 = the synthesized font's "A" rectangle (xMax 550)
+    const placement = trackGlyphInEmbedFont("hinted-static|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    expect(placement).not.toBeNull();
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    const t = tags(bytes);
+    expect(t.has("fpgm")).toBe(true);
+    expect(t.has("prep")).toBe(true);
+    expect(t.has("cvt ")).toBe(true);
+    // the outline is the SOURCE font's glyph 1 (rect to 550), NOT the tracked
+    // TRI outline — proof the subset came from the original file
+    const font = fontkit.create(bytes) as unknown as {
+      glyphForCodePoint(cp: number): { id: number; bbox: { maxX: number; maxY: number } };
+    };
+    const g = font.glyphForCodePoint(placement!.puaCodepoint);
+    expect(g.id).toBe(1); // RETAIN_GIDS: still the source font's gid
+    expect(g.bbox.maxX).toBe(550);
+    expect(g.bbox.maxY).toBe(700);
+  });
+
+  it("pins a variable source to the entry's axis location (DM-1716)", () => {
+    trackGlyphInEmbedFont("hinted-var|w=900|s=0", 1000, 800, -200, 1, TRI, 700,
+      { italic: false, weight: 900, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 900 } } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    const t = tags(bytes);
+    expect(t.has("fvar")).toBe(false); // fully instanced — consumer can't re-vary
+    expect(t.has("prep")).toBe(true);  // hinting survived instancing
+    const font = fontkit.create(bytes) as unknown as {
+      glyphForCodePoint(cp: number): { bbox: { maxX: number } };
+    };
+    // gvar delta at wght=900: "A" right edge 550 → 650
+    expect(font.glyphForCodePoint(0xE000).bbox.maxX).toBe(650);
+  });
+
+  it("falls back to svg2ttf for a synthetic (faux-bold) glyph", () => {
+    trackGlyphInEmbedFont("hinted-synth|w=700|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 700, emboldenStrengthFU: 30, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    expect(tags(bytes).has("fpgm")).toBe(false); // svg2ttf output carries no hinting
+  });
+
+  it("disqualifies an entry whose glyphs disagree on the axis location", () => {
+    const variant = { italic: false, weight: 400 };
+    trackGlyphInEmbedFont("hinted-mixed|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+      { ...variant, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 400 } } });
+    trackGlyphInEmbedFont("hinted-mixed|w=400|s=0", 1000, 800, -200, 2, TRI, 600,
+      { ...variant, hintedSource: { path: variablePath, faceIndex: 0, variationAxes: { wght: 700 } } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    expect(tags(bytes).has("fpgm")).toBe(false); // fell back to svg2ttf
+  });
+
+  it("stays on svg2ttf when the flag is off", () => {
+    delete process.env.DOMOTION_HINTED_SUBSET;
+    trackGlyphInEmbedFont("hinted-off|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    expect(tags(bytes).has("fpgm")).toBe(false);
   });
 });
