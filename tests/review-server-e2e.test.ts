@@ -52,12 +52,13 @@ describe("review-server async loading (DM-1665)", () => {
         REVIEW_NO_OPEN: "1",
       },
       stdio: ["ignore", "pipe", "pipe"],
+      detached: true, // own process group — afterAll kills the WHOLE npx→tsx chain
     });
     await waitForServer(35_000);
   }, 45_000);
 
   afterAll(() => {
-    proc?.kill("SIGKILL");
+    if (proc?.pid != null) { try { process.kill(-proc.pid, "SIGKILL"); } catch { proc.kill("SIGKILL"); } }
     try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   });
 
@@ -143,6 +144,7 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
     proc = spawn("npx", ["tsx", SERVER, "--port", String(PORT2)], {
       env: { ...process.env, PATH: `${ghDir}:${process.env.PATH}`, REVIEW_CI_BASE: ciBase, REVIEW_OUTPUT_DIR: join(tmp, "local"), REVIEW_NO_OPEN: "1" },
       stdio: ["ignore", "pipe", "pipe"],
+      detached: true, // own process group — afterAll kills the WHOLE npx→tsx chain
     });
     const deadline = Date.now() + 35_000;
     while (Date.now() < deadline) {
@@ -152,7 +154,7 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
   }, 45_000);
 
   afterAll(() => {
-    proc?.kill("SIGKILL");
+    if (proc?.pid != null) { try { process.kill(-proc.pid, "SIGKILL"); } catch { proc.kill("SIGKILL"); } }
     try { rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
   });
 
