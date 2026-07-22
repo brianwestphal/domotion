@@ -118,13 +118,17 @@ interface SynthOptions {
   /** Extra name records, e.g. the fvar axis name (fontkit requires a
    *  nameID ≥ 256 record to exist before it will decode fvar axis names). */
   extraNameRecords?: Array<[number, string]>;
+  /** Add a 4th glyph: gid 3 = a COMPOSITE referencing gid 1 ("A") shifted
+   *  +600 x, carrying the standard instruction bytecode, mapped from "C".
+   *  For the gid-compaction tests (component walking + id rewriting). */
+  withComposite?: boolean;
 }
 
 /** Core tables shared by the static and variable synthesized fonts. */
 function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   const family = opts.family ?? "SynthHinted";
   const aXMax = opts.aXMax ?? 550;
-  const numGlyphs = 3; // .notdef (empty), A, B
+  const numGlyphs = opts.withComposite ? 4 : 3; // .notdef (empty), A, B [, composite-of-A]
 
   const head = Buffer.alloc(54);
   head.writeUInt32BE(0x00010000, 0);      // version 1.0
@@ -175,22 +179,38 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   // maxComponentElements / Depth stay zero
 
   const hmtx = Buffer.alloc(numGlyphs * 4);
-  const advances = [500, aXMax + 50, 600];
-  const lsbs = [0, 50, 50];
-  advances.forEach((a, i) => { hmtx.writeUInt16BE(a, i * 4); hmtx.writeInt16BE(lsbs[i], i * 4 + 2); });
+  const advances = [500, aXMax + 50, 600, 1200];
+  const lsbs = [0, 50, 50, 650];
+  for (let i = 0; i < numGlyphs; i++) { hmtx.writeUInt16BE(advances[i], i * 4); hmtx.writeInt16BE(lsbs[i], i * 4 + 2); }
 
   // glyf + long loca: gid0 empty, gid1 "A" rect, gid2 "B" rect
+  // [, gid3 composite: gid1 shifted +600 x, with instruction bytecode]
   const gA = rectGlyph(50, aXMax);
   const gB = rectGlyph(50, 550);
-  const glyf = Buffer.concat([gA, gB]);
+  const glyphs: Buffer[] = [gA, gB];
+  if (opts.withComposite) {
+    const comp = Buffer.alloc(10 + 8 + 2 + GLYPH_INSTRUCTIONS.length);
+    comp.writeInt16BE(-1, 0);             // numberOfContours: composite
+    comp.writeInt16BE(650, 2); comp.writeInt16BE(0, 4);           // bbox
+    comp.writeInt16BE(aXMax + 600, 6); comp.writeInt16BE(700, 8);
+    comp.writeUInt16BE(0x0001 | 0x0002 | 0x0100, 10); // WORDS | XY_VALUES | INSTRUCTIONS
+    comp.writeUInt16BE(1, 12);            // component: gid 1
+    comp.writeInt16BE(600, 14);           // dx
+    comp.writeInt16BE(0, 16);             // dy
+    comp.writeUInt16BE(GLYPH_INSTRUCTIONS.length, 18);
+    GLYPH_INSTRUCTIONS.copy(comp, 20);
+    glyphs.push(comp.length % 2 === 0 ? comp : Buffer.concat([comp, Buffer.alloc(1)]));
+  }
+  const glyf = Buffer.concat(glyphs);
   const loca = Buffer.alloc((numGlyphs + 1) * 4);
   loca.writeUInt32BE(0, 0);               // .notdef: zero length
   loca.writeUInt32BE(0, 4);
-  loca.writeUInt32BE(gA.length, 8);
-  loca.writeUInt32BE(gA.length + gB.length, 12);
+  let acc = 0;
+  glyphs.forEach((g, i) => { acc += g.length; loca.writeUInt32BE(acc, (i + 2) * 4); });
 
-  // cmap: format 4, 'A'(0x41)→gid1, 'B'(0x42)→gid2
-  const segCount = 2; // [0x41..0x42], [0xFFFF terminator]
+  // cmap: format 4, 'A'(0x41)→gid1, 'B'(0x42)→gid2 [, 'C'(0x43)→gid3]
+  const lastCp = opts.withComposite ? 0x43 : 0x42;
+  const segCount = 2; // [0x41..lastCp], [0xFFFF terminator]
   const sub = Buffer.alloc(16 + segCount * 8);
   sub.writeUInt16BE(4, 0);                // format
   sub.writeUInt16BE(sub.length, 2);
@@ -200,7 +220,7 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   sub.writeUInt16BE(1, 10);               // entrySelector
   sub.writeUInt16BE(2, 12);               // rangeShift
   let p = 14;
-  sub.writeUInt16BE(0x42, p); sub.writeUInt16BE(0xffff, p + 2); p += 4; // endCodes
+  sub.writeUInt16BE(lastCp, p); sub.writeUInt16BE(0xffff, p + 2); p += 4; // endCodes
   p += 2;                                   // reservedPad
   sub.writeUInt16BE(0x41, p); sub.writeUInt16BE(0xffff, p + 2); p += 4; // startCodes
   sub.writeInt16BE(1 - 0x41, p); sub.writeInt16BE(1, p + 2); p += 4;    // idDelta (gid1 at 0x41; 0xFFFF maps to gid0)

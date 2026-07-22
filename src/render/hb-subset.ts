@@ -269,6 +269,138 @@ export function appendGlyphCopy(fontBytes: Buffer, srcGid: number): { bytes: Buf
   return { bytes: rebuildSfnt(fontBytes.readUInt32BE(0), tables), newGid: numGlyphs };
 }
 
+// ── glyph-id compaction (DM-1718) ──
+//
+// The RETAIN_GIDS subset keeps the source font's glyph id space, which pads
+// `loca` + `hmtx` to the max retained gid — ~178 KB EACH for a CJK font whose
+// retained gids sit near 52k (STHeiti), making a 48-glyph entry ~389 KB. The
+// bundled wasm exposes no subset-plan API (no old→new mapping), so we compact
+// OURSELVES, which needs no hb internals: the keep-set is exactly the gids the
+// builder requested plus the composite components those glyphs reference
+// (walkable from the subset's own `glyf`), renumbered in ascending order with
+// `.notdef` staying gid 0. Composite glyphs get their component ids rewritten
+// in place (field sizes are unchanged, so the glyph data length is stable).
+
+/** Read the component glyph ids referenced by a composite glyph's data. */
+function compositeComponentGids(glyph: Buffer): number[] {
+  const gids: number[] = [];
+  let p = 10; // past numberOfContours + bbox
+  for (;;) {
+    const flags = glyph.readUInt16BE(p);
+    gids.push(glyph.readUInt16BE(p + 2));
+    p += 4;
+    p += (flags & 0x0001) ? 4 : 2;         // ARG_1_AND_2_ARE_WORDS
+    if (flags & 0x0008) p += 2;            // WE_HAVE_A_SCALE
+    else if (flags & 0x0040) p += 4;       // X_AND_Y_SCALE
+    else if (flags & 0x0080) p += 8;       // TWO_BY_TWO
+    if (!(flags & 0x0020)) break;          // MORE_COMPONENTS
+  }
+  return gids;
+}
+
+/** Rewrite a composite glyph's component ids through `gidMap` (in place on a
+ *  copy — field sizes are unchanged). */
+function remapCompositeComponents(glyph: Buffer, gidMap: Map<number, number>): Buffer {
+  const out = Buffer.from(glyph);
+  let p = 10;
+  for (;;) {
+    const flags = out.readUInt16BE(p);
+    const oldGid = out.readUInt16BE(p + 2);
+    const newGid = gidMap.get(oldGid);
+    if (newGid == null) throw new Error(`compactGlyphIds: composite references unmapped gid ${oldGid}`);
+    out.writeUInt16BE(newGid, p + 2);
+    p += 4;
+    p += (flags & 0x0001) ? 4 : 2;
+    if (flags & 0x0008) p += 2;
+    else if (flags & 0x0040) p += 4;
+    else if (flags & 0x0080) p += 8;
+    if (!(flags & 0x0020)) break;
+  }
+  return out;
+}
+
+/**
+ * Compact a (bare, glyf-flavored) sfnt's glyph id space to `wantedGids` plus
+ * the composite components they reference. Returns the rewritten font and the
+ * old→new gid map (gid 0 always maps to 0). `glyf`/`loca` keep only the kept
+ * glyphs (loca rewritten LONG), `hmtx` becomes full pairs for the kept glyphs,
+ * `maxp.numGlyphs` / `hhea.numberOfHMetrics` shrink to match. Per-glyph
+ * hinting bytecode travels inside each glyph's data, untouched.
+ */
+export function compactGlyphIds(fontBytes: Buffer, wantedGids: number[]): { bytes: Buffer; gidMap: Map<number, number> } {
+  const numTables = fontBytes.readUInt16BE(4);
+  const tables: Record<string, Buffer> = {};
+  for (let i = 0; i < numTables; i++) {
+    const o = 12 + i * 16;
+    const tag = fontBytes.toString("latin1", o, o + 4);
+    const off = fontBytes.readUInt32BE(o + 8);
+    const len = fontBytes.readUInt32BE(o + 12);
+    tables[tag] = Buffer.from(fontBytes.subarray(off, off + len));
+  }
+  const glyf = tables["glyf"], loca = tables["loca"], head = tables["head"], maxp = tables["maxp"], hhea = tables["hhea"], hmtx = tables["hmtx"];
+  if (glyf == null || loca == null || head == null || maxp == null || hhea == null || hmtx == null) {
+    throw new Error("compactGlyphIds: missing required table (glyf/loca/head/maxp/hhea/hmtx)");
+  }
+  const numGlyphs = maxp.readUInt16BE(4);
+  const longLoca = head.readInt16BE(50) === 1;
+  const locaAt = (i: number): number => longLoca ? loca.readUInt32BE(i * 4) : loca.readUInt16BE(i * 2) * 2;
+  const glyphData = (gid: number): Buffer => glyf.subarray(locaAt(gid), locaAt(gid + 1));
+
+  // Keep-set: notdef + wanted + (recursively) composite components.
+  const keep = new Set<number>([0]);
+  const queue = wantedGids.filter((g) => g >= 0 && g < numGlyphs);
+  for (const g of queue) keep.add(g);
+  while (queue.length > 0) {
+    const gid = queue.pop()!;
+    const data = glyphData(gid);
+    if (data.length >= 10 && data.readInt16BE(0) < 0) {
+      for (const comp of compositeComponentGids(data)) {
+        if (!keep.has(comp)) { keep.add(comp); queue.push(comp); }
+      }
+    }
+  }
+  const kept = [...keep].sort((a, b) => a - b);
+  const gidMap = new Map<number, number>();
+  kept.forEach((oldGid, newGid) => gidMap.set(oldGid, newGid));
+
+  // Rebuild glyf + long loca over the kept glyphs (2-byte aligned entries).
+  const newLoca = Buffer.alloc((kept.length + 1) * 4);
+  const parts: Buffer[] = [];
+  let off = 0;
+  kept.forEach((oldGid, newGid) => {
+    let data = glyphData(oldGid);
+    if (data.length >= 10 && data.readInt16BE(0) < 0) data = remapCompositeComponents(data, gidMap);
+    newLoca.writeUInt32BE(off, newGid * 4);
+    parts.push(data);
+    off += data.length;
+    if (off % 2 === 1) { parts.push(Buffer.alloc(1)); off += 1; }
+  });
+  newLoca.writeUInt32BE(off, kept.length * 4);
+  tables["glyf"] = Buffer.concat(parts);
+  tables["loca"] = newLoca;
+  head.writeInt16BE(1, 50); // long loca
+
+  // hmtx → full pairs for the kept glyphs.
+  const numHM = hhea.readUInt16BE(34);
+  const metric = (gid: number): { adv: number; lsb: number } => {
+    if (gid < numHM) return { adv: hmtx.readUInt16BE(gid * 4), lsb: hmtx.readInt16BE(gid * 4 + 2) };
+    const lastAdv = numHM > 0 ? hmtx.readUInt16BE((numHM - 1) * 4) : 0;
+    const lsbOff = numHM * 4 + (gid - numHM) * 2;
+    return { adv: lastAdv, lsb: lsbOff + 2 <= hmtx.length ? hmtx.readInt16BE(lsbOff) : 0 };
+  };
+  const newHmtx = Buffer.alloc(kept.length * 4);
+  kept.forEach((oldGid, newGid) => {
+    const m = metric(oldGid);
+    newHmtx.writeUInt16BE(m.adv, newGid * 4);
+    newHmtx.writeInt16BE(m.lsb, newGid * 4 + 2);
+  });
+  tables["hmtx"] = newHmtx;
+  hhea.writeUInt16BE(kept.length, 34);
+  maxp.writeUInt16BE(kept.length, 4);
+
+  return { bytes: rebuildSfnt(fontBytes.readUInt32BE(0), tables), gidMap };
+}
+
 // ── sfnt cmap replacement ──
 function pad4(n: number): number { return (n + 3) & ~3; }
 function tableChecksum(buf: Buffer): number {

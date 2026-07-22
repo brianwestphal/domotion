@@ -4,7 +4,7 @@
 // the EXACT hinting bytecode and gvar deltas being preserved.
 import { describe, expect, it } from "vitest";
 import * as fkNs from "fontkit";
-import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, compactGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 import {
   buildStaticHintedFont,
   buildVariableHintedFont,
@@ -217,5 +217,57 @@ describe("appendGlyphCopy (DM-1716 gid-0 addressing)", () => {
   it("throws for an out-of-range source glyph", () => {
     const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1]);
     expect(() => appendGlyphCopy(subset, 9999)).toThrow(/out of range/);
+  });
+});
+
+describe("compactGlyphIds (DM-1718)", () => {
+  it("renumbers to a dense id space, preserving outlines, metrics, and bytecode", () => {
+    const subset = hbSubsetRetainGids(buildStaticHintedFont(), [2]); // just "B" (gid 2)
+    const { bytes, gidMap } = compactGlyphIds(subset, [2]);
+    expect(gidMap.get(0)).toBe(0);
+    expect(gidMap.get(2)).toBe(1); // B compacted to gid 1
+    const f = fontkit.create(bytes);
+    expect(f.numGlyphs).toBe(2);
+    const g = f.getGlyph(1);
+    expect(g.bbox.maxX).toBe(550);
+    expect(g.advanceWidth).toBe(600);
+    expect(glyphInstructions(bytes, 1)).toEqual(GLYPH_INSTRUCTIONS);
+  });
+
+  it("keeps composite components and rewrites their glyph ids", () => {
+    // gid 3 is a composite referencing gid 1 shifted +600 x
+    const src = buildStaticHintedFont({ withComposite: true });
+    const subset = hbSubsetRetainGids(src, [3]); // hb's closure retains gid 1 too
+    const { bytes, gidMap } = compactGlyphIds(subset, [3]);
+    expect(gidMap.get(3)).toBe(2); // kept: [0, 1(component), 3] → dense [0, 1, 2]
+    expect(gidMap.get(1)).toBe(1);
+    const f = fontkit.create(bytes);
+    expect(f.numGlyphs).toBe(3);
+    const comp = f.getGlyph(2);
+    // the component resolved through the REWRITTEN id: outline = "A" shifted +600
+    expect(comp.bbox.minX).toBe(650);
+    expect(comp.bbox.maxX).toBe(1150);
+    // the composite's own instruction bytecode survives
+    expect(glyphInstructions(bytes, 1)).toEqual(GLYPH_INSTRUCTIONS);
+  });
+
+  it("shrinks a sparse high-gid id space (the CJK RETAIN_GIDS padding)", () => {
+    const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
+    const { bytes } = compactGlyphIds(subset, [1, 2]);
+    const before = fontkit.create(subset);
+    const after = fontkit.create(bytes);
+    expect(after.numGlyphs).toBeLessThanOrEqual(before.numGlyphs);
+    expect(after.numGlyphs).toBe(3); // notdef + A + B
+  });
+
+  it("composes with the notdef clone + PUA cmap (the full hinted build order)", () => {
+    const subset = hbSubsetRetainGids(buildStaticHintedFont(), [2]);
+    const { bytes: compact, gidMap } = compactGlyphIds(subset, [2]);
+    const { bytes: withCopy, newGid } = appendGlyphCopy(compact, 0);
+    const out = injectPuaCmap(withCopy, new Map([[0xe000, gidMap.get(2)!], [0xe001, newGid]]));
+    const f = fontkit.create(out);
+    expect(f.glyphForCodePoint(0xe000).id).toBe(1);
+    expect(f.glyphForCodePoint(0xe000).bbox.maxX).toBe(550);
+    expect(f.glyphForCodePoint(0xe001).id).toBe(newGid);
   });
 });

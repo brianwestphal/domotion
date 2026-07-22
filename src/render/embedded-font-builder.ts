@@ -38,7 +38,7 @@
 import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
-import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, compactGlyphIds, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
 /** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
  *  DEFAULT; set DOMOTION_HINTED_SUBSET=0 to fall back to the svg2ttf-only
@@ -326,7 +326,17 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       // outline-less files (PingFang's Apple-private hvgl). Those keep the
       // svg2ttf path by design — a quiet skip, not a failure.
       if (sfntHasSubsettableOutlines(bytes, entry.hintedSource.faceIndex)) {
-        let subset = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true, entry.hintedSource.variationAxes ?? null);
+        const retained = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true, entry.hintedSource.variationAxes ?? null);
+        // DM-1718: compact the RETAIN_GIDS id space (padded to the source's max
+        // gid — ~356 KB of loca+hmtx for a CJK font) down to the kept glyphs,
+        // and translate the PUA map through the old→new gid mapping.
+        const { bytes: compacted, gidMap } = compactGlyphIds(retained, gids);
+        let subset = compacted;
+        for (const [pua, gid] of puaToGid) {
+          const mapped = gidMap.get(gid);
+          if (mapped == null) throw new Error(`compacted subset lost gid ${gid}`);
+          puaToGid.set(pua, mapped);
+        }
         // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a
         // cmap entry mapping to gid 0 means "not covered" (the consumer browser
         // cascades past the font and paints NOTHING, losing the tofu box).

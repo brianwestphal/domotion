@@ -37,7 +37,17 @@ builder subsets the **original font file** with harfbuzz's `hb-subset` (the
    hinting KEPT (hb-subset preserves hinting by default; dropping it is the
    opt-in `NO_HINTING` flag). `cvt `/`fpgm`/`prep`, per-glyph instructions,
    `gasp`/`hdmx` all survive. `faceIndex` selects a TTC collection member.
-2. **`injectPuaCmap(subsetBytes, puaToGid)`** replaces the subset's `cmap` with
+2. **`compactGlyphIds(subsetBytes, wantedGids)`** renumbers the RETAIN_GIDS
+   output down to a dense glyph id space — the requested gids plus the
+   composite components they reference (walked from the subset's own `glyf`,
+   with component ids rewritten in place), notdef staying gid 0. Without this,
+   `loca`+`hmtx` are padded to the source font's max retained gid: ~178 KB EACH
+   for a CJK font whose gids sit near 52k — a 48-glyph STHeiti entry was
+   ~389 KB, and compaction brings it to ~33 KB (~12×). The builder's PUA map is
+   translated through the returned old→new mapping. (The bundled wasm has no
+   subset-plan API, so hb can't hand us its own mapping — RETAIN_GIDS + own
+   compaction keeps the mapping fully under our control.)
+3. **`injectPuaCmap(subsetBytes, puaToGid)`** replaces the subset's `cmap` with
    a format-12 (3,10) table mapping Domotion's private-use codepoints → those
    retained gids, rebuilding the sfnt table directory, per-table checksums and
    `head.checkSumAdjustment`. The rest of the embedded pipeline (PUA `<text>`
