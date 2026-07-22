@@ -2456,6 +2456,21 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
     const helper = createGlyphHelperFont({ postscriptName: spec.postscriptName, fontPath: spec.path });
     if (helper != null) {
       const instance = helper as unknown as FontInstance;
+      // DM-1714: even when outlines come from the native helper (macOS CoreText /
+      // Windows DirectWrite — the default for live-resolver-registered system
+      // fonts), the on-disk FILE is known. If it's a standard sfnt with glyf/CFF
+      // (Windows TTFs are — only genuinely outline-less files like PingFang's hvgl
+      // aren't), the hinting-preserving hb-subset path can still subset it by the
+      // helper's glyph ids (which share the file's gid space). Record the source
+      // so getFontSourceInfo exposes it; buildGlyfFontForEntry guards on actual
+      // glyf/CFF presence before subsetting. Behind the flag to avoid the extra
+      // fontkit open on the default (svg2ttf) path.
+      if (HINTED_SUBSET_FLAG) {
+        fontSourceMap.set(instance as unknown as object, {
+          path: spec.path, postscriptName: spec.postscriptName,
+          faceIndex: resolveFaceIndexForFile(spec.path, spec.postscriptName),
+        });
+      }
       fontInstanceCache.set(cacheKey, instance);
       return instance;
     }
@@ -2563,6 +2578,28 @@ type FontkitGlyph = { id: number; path?: { commands: PathCommand[] }; codePoints
 /** Records which on-disk file each fontkit instance was loaded from (populated
  *  in getFontInstance). Helper instances + webfonts are absent → no fallback. */
 const fontSourceMap = new WeakMap<object, { path: string; postscriptName?: string; faceIndex: number }>();
+
+/** DM-1714 (spike): opt-in the hinting-preserving hb-subset embedded path. Read
+ *  once — CI sets the env before the process starts. */
+const HINTED_SUBSET_FLAG = process.env.DOMOTION_HINTED_SUBSET === "1";
+
+/** The collection-member index of `postscriptName` within a (possibly-TTC) sfnt
+ *  file, for hb-subset's hb_face_create. 0 for single-face files / open failures.
+ *  Used for native-helper instances (Windows DirectWrite / macOS CoreText) that
+ *  skip fontkit's own index resolution but whose FILE we still want to subset. */
+function resolveFaceIndexForFile(path: string, postscriptName?: string): number {
+  try {
+    const opened: any = fontkit.openSync(path);
+    if (opened?.fonts != null && Array.isArray(opened.fonts)) {
+      const f = (postscriptName != null && opened.getFont != null)
+        ? (opened.getFont(postscriptName) ?? opened.fonts[0])
+        : opened.fonts[0];
+      const idx = opened.fonts.indexOf(f);
+      return idx >= 0 ? idx : 0;
+    }
+  } catch { /* not a collection / unreadable → single face */ }
+  return 0;
+}
 const helperFontCache = new Map<string, FontInstance | null>();       // path → helper instance | null
 const helperOutlineCache = new Map<string, PathCommand[] | null>();   // `${path}#${id}` → commands | null
 

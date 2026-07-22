@@ -92,6 +92,31 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   }
 }
 
+/** True when the face carries hb-subsettable outlines (`glyf`/`CFF `/`CFF2`).
+ *  False for outline-less files whose glyphs come from a platform-private table
+ *  (e.g. Apple `hvgl` in PingFang) — those must keep the svg2ttf/helper path,
+ *  since hb-subset would emit empty glyphs. TTC-aware: `faceIndex` selects the
+ *  collection member whose table directory is checked (the raw file the embedded
+ *  builder reads may be a `ttcf` collection, not a bare sfnt). */
+export function sfntHasSubsettableOutlines(fontBytes: Buffer, faceIndex = 0): boolean {
+  if (fontBytes.length < 12) return false;
+  let dirOff = 0; // offset of the sfnt table directory to inspect
+  if (fontBytes.toString("latin1", 0, 4) === "ttcf") {
+    const numFonts = fontBytes.readUInt32BE(8);
+    const idx = faceIndex >= 0 && faceIndex < numFonts ? faceIndex : 0;
+    dirOff = fontBytes.readUInt32BE(12 + idx * 4);
+  }
+  if (dirOff + 12 > fontBytes.length) return false;
+  const numTables = fontBytes.readUInt16BE(dirOff + 4);
+  for (let i = 0; i < numTables; i++) {
+    const o = dirOff + 12 + i * 16;
+    if (o + 4 > fontBytes.length) break;
+    const tag = fontBytes.toString("latin1", o, o + 4);
+    if (tag === "glyf" || tag === "CFF " || tag === "CFF2") return true;
+  }
+  return false;
+}
+
 // ── sfnt cmap replacement ──
 function pad4(n: number): number { return (n + 3) & ~3; }
 function tableChecksum(buf: Buffer): number {
