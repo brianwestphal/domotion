@@ -417,6 +417,9 @@ interface TextDecorationOptions {
   /** OpenType feature tags forwarded to fontkit shaping when computing skip-
    *  ink intercepts so small-caps / petite-caps glyphs match the painted text. */
   features?: string[];
+  /** Chromium-captured per-char x offsets, run-relative (xOffsets[i] - segX),
+   *  used to anchor skip-ink intercepts at the painted positions (DM-1698). */
+  runXOffsets?: number[];
 }
 
 interface DecorationLineCtx {
@@ -425,6 +428,8 @@ interface DecorationLineCtx {
   explicitThickness: boolean;
   fontSize: number;
   baselineY: number;
+  /** The decoration run's x origin — the phase anchor for wavy (DM-1698). */
+  segX: number;
   decorationColor: string;
   computeGapsAt: (yRel: number, thick: number) => Array<[number, number]>;
   subSegments: (gaps: Array<[number, number]>) => Array<{ x0: number; x1: number }>;
@@ -440,7 +445,7 @@ interface DecorationLineCtx {
  * stay bound to the run's geometry. Body unchanged, so output is byte-identical.
  */
 function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: DecorationLineCtx): string {
-  const { style, explicitThickness, fontSize, baselineY, decorationColor, computeGapsAt, subSegments, dash } = ctx;
+  const { style, explicitThickness, fontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments, dash } = ctx;
   if (style === "wavy") {
     // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
     //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
@@ -506,72 +511,49 @@ function emitDecorationLine(y: number, t: number, isUnderline: boolean, ctx: Dec
     const bandThickness = 2 * waveAmplitude + tc;
     const wavyGaps = isUnderline ? computeGapsAt(yWave - baselineY, bandThickness) : [];
     const subs = subSegments(wavyGaps);
+    // DM-1698: PHASE-COHERENT waves across skip-ink gaps. Chrome paints ONE
+    // continuous wave for the whole run and clips out the descender gaps
+    // (`decoration_line_painter.cc` strokes the full WavyPath under a clip),
+    // so the wave phase on either side of a gap lines up. The previous emit
+    // restarted every sub-segment at phase 0, which decohered against
+    // Chrome on runs with many descenders (8 gaps in the wavy-underline
+    // fixture's 36px row drifted the peaks line-wide). Generate each
+    // sub-segment's path from the CONTINUOUS wave anchored at the run's
+    // origin instead: walk the run's wavelength grid and emit the sub-cubic
+    // between the clamped parameters — a de Casteljau extraction on both
+    // ends (generalizing the tail-only clip this block previously did).
+    const sub1d = (p0: number, p1: number, p2: number, p3: number, t0: number, t1: number): [number, number, number, number] => {
+      // right split at t0, then left split of the remainder at (t1-t0)/(1-t0)
+      const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+      // split at t0 — keep RIGHT: [D(t0), bcd0, cd0, p3]
+      const ab = lerp(p0, p1, t0), bc = lerp(p1, p2, t0), cd = lerp(p2, p3, t0);
+      const abc = lerp(ab, bc, t0), bcd = lerp(bc, cd, t0);
+      const d0 = lerp(abc, bcd, t0);
+      const r0 = d0, r1 = bcd, r2 = cd, r3 = p3;
+      const u = t0 >= 1 ? 0 : (t1 - t0) / (1 - t0);
+      // split right part at u — keep LEFT: [r0, ab2, abc2, D(u)]
+      const ab2 = lerp(r0, r1, u), bc2 = lerp(r1, r2, u), cd2 = lerp(r2, r3, u);
+      const abc2 = lerp(ab2, bc2, u), bcd2 = lerp(bc2, cd2, u);
+      const d1 = lerp(abc2, bcd2, u);
+      return [r0, ab2, abc2, d1];
+    };
     const parts: string[] = [];
     for (const { x0: sx0, x1: sx1 } of subs) {
       if (sx1 - sx0 < 0.5) continue;
-      // DM-916: when the sub-segment ends mid-wavelength, Chrome's
-      // `WavyPath` truncates the cubic Bezier at the segment endpoint
-      // using de Casteljau's algorithm (the painter clips the cubic at
-      // parameter `t = (sx1 - x) / wavelength`). The previous emit kept
-      // both control points at `x + wavelength/2` while clamping the
-      // endpoint to `sx1` — when `sx1 < cpX` the result was a backward
-      // Bezier that painted as a visible extra stub, exaggerating wave
-      // count on lines with many descenders + skip-ink gaps. Split the
-      // final cubic instead so the truncated curve matches Chrome.
-      let d = `M ${r(sx0)} ${r(yWave)}`;
-      let x = sx0;
-      while (x < sx1 - 0.01) {
-        if (x + wavelength <= sx1 + 0.01) {
-          const nx = x + wavelength;
-          const cpX = x + wavelength / 2;
-          d += ` C ${r(cpX)} ${r(yWave + cpDist)} ${r(cpX)} ${r(yWave - cpDist)} ${r(nx)} ${r(yWave)}`;
-          x = nx;
-        } else {
-          // Partial wavelength remaining. Full cubic control points
-          // (P1, P2, P3) relative to P0 = (x, yWave):
-          //   P1 = (wavelength/2, +cpDist)
-          //   P2 = (wavelength/2, -cpDist)
-          //   P3 = (wavelength,    0)
-          // De Casteljau at parameter t splits this cubic at the point
-          // where the curve has advanced t·wavelength along the x axis
-          // (because the cubic is naturally parameterised so x(t) is
-          // monotonic with t). The "first half" cubic from 0 to t has:
-          //   Q0 = P0
-          //   Q1 = lerp(P0, P1, t)
-          //   Q2 = lerp(Q1, lerp(P1, P2, t), t)
-          //   Q3 = the de-Casteljau midpoint at t
-          const len = sx1 - x;
-          const t = len / wavelength;
-          // Y coordinates (relative to yWave) of the original cubic's
-          // points: 0, +cpDist, -cpDist, 0.
-          const p1y = cpDist, p2y = -cpDist;
-          // De Casteljau split for the FIRST half (start to t):
-          const ab = t * p1y;                                // lerp(0, p1, t).y
-          const bc = (1 - t) * p1y + t * p2y;                // lerp(p1, p2, t).y
-          const cd = (1 - t) * p2y;                          // lerp(p2, 0, t).y
-          const abc = (1 - t) * ab + t * bc;
-          const bcd = (1 - t) * bc + t * cd;
-          const abcd = (1 - t) * abc + t * bcd;
-          // X for the split: cubic x parametric is
-          //   x(t) = 3t(1-t)²·(wavelength/2) + 3t²(1-t)·(wavelength/2) + t³·wavelength
-          // which by symmetry of the cps simplifies to wavelength · t·(3 - 2t·(?))…
-          // Easier: each control point's x = lerped along its segment.
-          const p1x = wavelength / 2, p2x = wavelength / 2, p3x = wavelength;
-          const abx = t * p1x;
-          const bcx = (1 - t) * p1x + t * p2x;
-          const cdx = (1 - t) * p2x + t * p3x;
-          const abcx = (1 - t) * abx + t * bcx;
-          const bcdx = (1 - t) * bcx + t * cdx;
-          const abcdx = (1 - t) * abcx + t * bcdx;
-          // Split-curve cps + endpoint, in absolute coords:
-          const cp1x = x + abx,  cp1y = yWave + ab;
-          const cp2x = x + abcx, cp2y = yWave + abc;
-          const endx = x + abcdx, endy = yWave + abcd;
-          d += ` C ${r(cp1x)} ${r(cp1y)} ${r(cp2x)} ${r(cp2y)} ${r(endx)} ${r(endy)}`;
-          x = sx1;
-        }
+      const k0 = Math.floor((sx0 - segX) / wavelength);
+      const k1 = Math.ceil((sx1 - segX) / wavelength);
+      let d = "";
+      for (let k = k0; k < k1; k++) {
+        const gx = segX + k * wavelength;
+        const t0 = Math.min(1, Math.max(0, (sx0 - gx) / wavelength));
+        const t1 = Math.min(1, Math.max(0, (sx1 - gx) / wavelength));
+        if (t1 - t0 < 0.001) continue;
+        const [qx0, qx1, qx2, qx3] = sub1d(0, wavelength / 2, wavelength / 2, wavelength, t0, t1);
+        const [qy0, qy1, qy2, qy3] = sub1d(0, cpDist, -cpDist, 0, t0, t1);
+        if (d === "") d = `M ${r(gx + qx0)} ${r(yWave + qy0)}`;
+        d += ` C ${r(gx + qx1)} ${r(yWave + qy1)} ${r(gx + qx2)} ${r(yWave + qy2)} ${r(gx + qx3)} ${r(yWave + qy3)}`;
       }
-      parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`);
+      if (d !== "") parts.push(`<path d="${d}" fill="none" stroke="${decorationColor}" stroke-width="${r(tc)}"/>`);
     }
     return parts.join("");
   }
@@ -618,7 +600,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const {
     textDecorationLine, decorationColor, style, segX, baselineY, segWidth,
     fontSize, fontFamily, fontWeight, fontStyle, thicknessOverride,
-    underlineOffset, runText, skipInk, features,
+    underlineOffset, runText, skipInk, features, runXOffsets,
   } = opts;
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
   const m = getDecorationMetrics(fontFamily, fontSize, fontWeight, fontStyle, thicknessOverride, underlineOffset);
@@ -638,7 +620,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   // around them.
   function computeGapsAt(yRel: number, thick: number): Array<[number, number]> {
     if (!skipInkActive || runText == null) return [];
-    return computeSkipInkGaps(runText, fontSize, fontFamily, fontWeight, fontStyle, yRel, thick, features, segWidth);
+    return computeSkipInkGaps(runText, fontSize, fontFamily, fontWeight, fontStyle, yRel, thick, features, segWidth, runXOffsets);
   }
   // Split [segX, segX+segWidth] into sub-runs by removing gap intervals
   // (run-relative; gap[0]+segX is absolute screen X).
@@ -666,7 +648,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const explicitThickness = thicknessOverride != null && thicknessOverride !== ""
     && thicknessOverride !== "auto" && thicknessOverride !== "from-font";
   const decorationLineCtx: DecorationLineCtx = {
-    style, explicitThickness, fontSize, baselineY, decorationColor, computeGapsAt, subSegments, dash,
+    style, explicitThickness, fontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments, dash,
   };
   if (has("underline")) {
     lines.push(emitDecorationLine(baselineY + m.underlineOffsetY, m.underlineThickness, true, decorationLineCtx));
@@ -1144,6 +1126,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
       thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
       runText: pathText, skipInk: el.styles.textDecorationSkipInk, features,
+      runXOffsets: xOffsetsRel ?? undefined,
     });
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
@@ -1406,6 +1389,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
       thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
       runText: reordered.text, skipInk: el.styles.textDecorationSkipInk, features: segFeatures,
+      runXOffsets: segXOffsets ?? undefined,
     });
     if (decoMarkup !== "") segParts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered

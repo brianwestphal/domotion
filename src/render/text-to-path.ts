@@ -1404,7 +1404,19 @@ function renderTextAsEmbedded(
     // variationSettings), so fold it into the key too — otherwise a cut run and
     // a generic run with the same key/weight/slant would share one TTF.
     const cutTuple = run.isPrimary && primaryCutOpsz != null ? `|cut-opsz=${primaryCutOpsz}` : "";
-    const instanceKey = `${run.fontKey}|w=${weight}|s=${slant}${fvsTuple}${cutTuple}`;
+    // DM-1698: fold the RESOLVED axis location into the key. A variable font
+    // with an `opsz` axis (SF Pro = the macOS system-ui) resolves a DIFFERENT
+    // optical instance per font size (auto optical sizing pins opsz to the
+    // size), but nothing size-derived was in the key — so a page mixing sizes
+    // collapsed every size into ONE entry and the first-seen size's outlines
+    // won for shared glyph ids (tracking is idempotent per (key, gid)). The
+    // wavy-underline fixture's 36px row rendered with opsz-13 outlines: ~1px
+    // ink shift and subtly wrong shapes ("font size doesn't seem right").
+    const srcInfo = getFontSourceInfo(run.font);
+    const axesTuple = srcInfo?.variationAxes != null && Object.keys(srcInfo.variationAxes).length > 0
+      ? "|ax=" + Object.keys(srcInfo.variationAxes).sort().map((k) => `${k}=${srcInfo.variationAxes![k]}`).join(",")
+      : "";
+    const instanceKey = `${run.fontKey}|w=${weight}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}`;
 
     // Ascent/descent are font-wide metrics that drive baseline placement
     // when the consumer browser lays out our PUA codepoints. Use the run
@@ -1470,7 +1482,7 @@ function renderTextAsEmbedded(
     // deltas fontkit's getVariation did, so the instanced subset's outlines
     // match what this run shaped with (and hinting survives instancing).
     // Webfont instances return null here (no backing file) and keep svg2ttf.
-    const hintedSource = getFontSourceInfo(run.font);
+    const hintedSource = srcInfo;
 
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can
@@ -2317,6 +2329,14 @@ export function computeSkipInkGaps(
    *  so gaps line up with the painted glyph positions even when fontkit's
    *  layout disagrees with HarfBuzz at sub-px scale. */
   targetWidth?: number,
+  /** Chromium-measured per-char x offsets, RELATIVE to the run start (same
+   *  indexing as the run text's UTF-16 units). When present, each glyph's
+   *  intercept is anchored at the captured offset of its first character
+   *  instead of fontkit's accumulated advance — the accumulated positions
+   *  drift a few px against Chrome's paint over a long run, which misplaced
+   *  wavy-underline skip-ink gaps mid-run even after the proportional
+   *  `targetWidth` rescale (the rescale can only fix the endpoints). */
+  charXOffsets?: number[],
 ): Array<[number, number]> {
   const weight = typeof fontWeight === "number" ? fontWeight : (parseInt(fontWeight) || 400);
   const slant = slantForStyle(fontStyle);
@@ -2329,16 +2349,41 @@ export function computeSkipInkGaps(
   const yBot = decorationCenterYRel + decorationThickness / 2;
   const pad = Math.max(0.5, decorationThickness * 0.5);
   const rawGaps: Array<[number, number]> = [];
+  const anchoredGaps: Array<[number, number]> = [];
   let xCursor = 0;
+  let charCursor = 0; // UTF-16 cursor into `text` tracking each glyph's first char
   for (let i = 0; i < layout.glyphs.length; i++) {
     const glyph = layout.glyphs[i];
     const pos = layout.positions[i];
-    const glyphX = xCursor + (pos.xOffset || 0) * scale;
-    const range = glyphPathIntercepts(glyph.path, glyphX, scale, yTop, yBot);
-    if (range != null) rawGaps.push([range.minX - pad, range.maxX + pad]);
+    const anchor = charXOffsets?.[charCursor];
+    const fkGlyphX = xCursor + (pos.xOffset || 0) * scale;
+    const range = glyphPathIntercepts(glyph.path, fkGlyphX, scale, yTop, yBot);
+    if (range != null) {
+      rawGaps.push([range.minX - pad, range.maxX + pad]);
+      // Anchored variant: shift this glyph's intercept so its pen origin sits
+      // at the CAPTURED per-char offset (range extents stay fontkit-shaped —
+      // the outline is the same; only the origin drifts).
+      if (anchor != null) {
+        const shift = anchor + (pos.xOffset || 0) * scale - fkGlyphX;
+        anchoredGaps.push([range.minX + shift - pad, range.maxX + shift + pad]);
+      }
+    }
     xCursor += pos.xAdvance * scale;
+    // advance the char cursor by this glyph's source characters (UTF-16 units)
+    const cps: number[] | undefined = (glyph as { codePoints?: number[] }).codePoints;
+    if (cps != null && cps.length > 0) {
+      for (const cp of cps) charCursor += cp > 0xFFFF ? 2 : 1;
+    } else {
+      charCursor += 1;
+    }
   }
   if (rawGaps.length === 0) return [];
+  // When every intercepting glyph could be anchored at a captured offset, use
+  // the anchored set verbatim — it already matches Chrome's paint. Otherwise
+  // fall back to the proportional rescale of the fontkit-accumulated set.
+  if (charXOffsets != null && anchoredGaps.length === rawGaps.length) {
+    return mergeGaps(anchoredGaps);
+  }
   if (targetWidth != null && xCursor > 0.5 && Math.abs(xCursor - targetWidth) > 0.5) {
     const factor = targetWidth / xCursor;
     for (const g of rawGaps) { g[0] *= factor; g[1] *= factor; }
