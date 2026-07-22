@@ -1,0 +1,2082 @@
+{
+  "meta": {
+    "suite": "html",
+    "os": "windows",
+    "image": null,
+    "commit": "913be89bd72cea8717799ffb37c8e26c17bde53a",
+    "capturedAt": null,
+    "counts": {
+      "passed": 101,
+      "failed": 187,
+      "skipped": 7,
+      "total": 295
+    }
+  },
+  "fixtures": {
+    "01-structure-base": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05176426090708657,
+      "worstTilePct": 1.1078280133942682,
+      "regionCount": 7
+    },
+    "01-structure-doctype": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05773702456500667,
+      "worstTilePct": 2.098449078497775,
+      "regionCount": 9
+    },
+    "01-structure-external-css": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.13546927983434925,
+      "worstTilePct": 2.760824883255224,
+      "regionCount": 9
+    },
+    "01-structure-link": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.12705472593584086,
+      "worstTilePct": 4.761709097966677,
+      "regionCount": 13
+    },
+    "01-structure-meta": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1141959617870189,
+      "worstTilePct": 3.1500321219279175,
+      "regionCount": 14
+    },
+    "02-deep-bidi-isolate": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05211181685126448,
+      "worstTilePct": 1.4337838113101278,
+      "regionCount": 5
+    },
+    "02-deep-icon-font-pua": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.026602083888472145,
+      "worstTilePct": 1.5015317558759442,
+      "regionCount": 1
+    },
+    "02-deep-line-breaking": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0664729532505595,
+      "worstTilePct": 1.66685499751847,
+      "regionCount": 4
+    },
+    "02-text-bidi": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0758449245997803,
+      "worstTilePct": 3.523814293733408,
+      "regionCount": 7
+    },
+    "02-text-emoji": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.008181683658027164,
+      "worstTilePct": 0.6245563472881527,
+      "regionCount": 1
+    },
+    "02-text-emphasis": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.004749444202014326,
+      "worstTilePct": 0.1569134792350566,
+      "regionCount": 0
+    },
+    "02-text-entities": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2224954396289407,
+      "worstTilePct": 3.885032128224192,
+      "regionCount": 24
+    },
+    "02-text-headings": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "02-text-paragraphs": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.016932294607721353,
+      "worstTilePct": 1.2746026243611228,
+      "regionCount": 3
+    },
+    "02-text-phrasing": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.04234187054636758,
+      "worstTilePct": 1.8167336357242392,
+      "regionCount": 7
+    },
+    "02-text-preformatted": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.18235234227249492,
+      "worstTilePct": 3.879729406670508,
+      "regionCount": 8
+    },
+    "02-text-ruby": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.032640779686498665,
+      "worstTilePct": 2.296860633082686,
+      "regionCount": 1
+    },
+    "02-text-sub-sup": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "02-text-symbols": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1769619844966154,
+      "worstTilePct": 5.190699274594258,
+      "regionCount": 23
+    },
+    "03-lists-dl": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "03-lists-marker": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.005133412395703546,
+      "worstTilePct": 0.5692716010345047,
+      "regionCount": 3
+    },
+    "03-lists-style-image-position": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0049446715648315065,
+      "worstTilePct": 0.2813488873440603,
+      "regionCount": 0
+    },
+    "03-lists-style-types": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.09714421418898929,
+      "worstTilePct": 3.7565362050625764,
+      "regionCount": 17
+    },
+    "03-lists-ul-ol": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.08328340987145146,
+      "worstTilePct": 2.271077300616893,
+      "regionCount": 25
+    },
+    "04-deep-anonymous-boxes": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05438332043240972,
+      "worstTilePct": 2.192214113540008,
+      "regionCount": 5
+    },
+    "04-deep-border-conflict": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.09791978755197284,
+      "worstTilePct": 1.8549460615994817,
+      "regionCount": 21
+    },
+    "04-table-basic": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1072303989221365,
+      "worstTilePct": 1.202389408510837,
+      "regionCount": 0
+    },
+    "04-table-borders": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00390044191427044,
+      "worstTilePct": 0.23447645730191113,
+      "regionCount": 0
+    },
+    "04-table-caption-empty": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.016966516191878223,
+      "worstTilePct": 0.9637810387353434,
+      "regionCount": 2
+    },
+    "04-table-colgroup": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.12362978149179518,
+      "worstTilePct": 0.8772815028581809,
+      "regionCount": 0
+    },
+    "04-table-layout": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.06696876023899717,
+      "worstTilePct": 0.8099395066602425,
+      "regionCount": 0
+    },
+    "04-table-spans": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.03684124655987427,
+      "worstTilePct": 0.6290929323381389,
+      "regionCount": 0
+    },
+    "05-links-anchors": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00397245565217042,
+      "worstTilePct": 0.1985891881528359,
+      "regionCount": 0
+    },
+    "05-links-states": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.006462875972026063,
+      "worstTilePct": 1.0385652856617495,
+      "regionCount": 1
+    },
+    "06-deep-color-scheme-forms": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6776530135165955,
+      "worstTilePct": 5.230947802924596,
+      "regionCount": 22
+    },
+    "06-deep-field-sizing": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.18671718993370912,
+      "worstTilePct": 2.668082838716126,
+      "regionCount": 13
+    },
+    "06-deep-input-baseline": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.361846495547423,
+      "worstTilePct": 2.646546875261601,
+      "regionCount": 13
+    },
+    "06-forms-buttons": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.21565770738218404,
+      "worstTilePct": 3.7872434129902035,
+      "regionCount": 7
+    },
+    "06-forms-datalist": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.036859948650684086,
+      "worstTilePct": 2.810968137254901,
+      "regionCount": 3
+    },
+    "06-forms-fieldset-legend": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2531931758706234,
+      "worstTilePct": 2.1262254901960786,
+      "regionCount": 1
+    },
+    "06-forms-input-types": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5313278080908405,
+      "worstTilePct": 2.340173758791626,
+      "regionCount": 16
+    },
+    "06-forms-meter-progress": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.08153776360192323,
+      "worstTilePct": 4.2270797318715925,
+      "regionCount": 1
+    },
+    "06-forms-output": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.048945377792025624,
+      "worstTilePct": 1.8856440680604194,
+      "regionCount": 3
+    },
+    "06-forms-placeholder-readonly": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.04163660046130173,
+      "worstTilePct": 0.82175190404088,
+      "regionCount": 1
+    },
+    "06-forms-select": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.25564097051373735,
+      "worstTilePct": 10.683945806379128,
+      "regionCount": 5
+    },
+    "06-forms-style-buttons": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1975017482746607,
+      "worstTilePct": 1.8415721975001977,
+      "regionCount": 5
+    },
+    "06-forms-style-checkbox-radio": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.28675621522041245,
+      "worstTilePct": 2.3401483439098114,
+      "regionCount": 7
+    },
+    "06-forms-style-fieldset": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16422289262117692,
+      "worstTilePct": 2.2420577331162206,
+      "regionCount": 5
+    },
+    "06-forms-style-file": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5290708156804543,
+      "worstTilePct": 6.099139383414527,
+      "regionCount": 15
+    },
+    "06-forms-style-focus": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.19878466352601962,
+      "worstTilePct": 1.5854941624268661,
+      "regionCount": 5
+    },
+    "06-forms-style-input-groups": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1551481289872859,
+      "worstTilePct": 1.592182991446383,
+      "regionCount": 9
+    },
+    "06-forms-style-layouts": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1456863694372746,
+      "worstTilePct": 2.161395599204769,
+      "regionCount": 8
+    },
+    "06-forms-style-progress-meter": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3176952264880533,
+      "worstTilePct": 2.616102628392295,
+      "regionCount": 6
+    },
+    "06-forms-style-range": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1680881999502056,
+      "worstTilePct": 2.2780693004883052,
+      "regionCount": 4
+    },
+    "06-forms-style-select": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7628685352204758,
+      "worstTilePct": 19.92770837578722,
+      "regionCount": 4
+    },
+    "06-forms-style-text-inputs": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1339065443982195,
+      "worstTilePct": 0.6953547547042659,
+      "regionCount": 3
+    },
+    "06-forms-style-textarea": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.15339515427071818,
+      "worstTilePct": 1.9128929334739573,
+      "regionCount": 22
+    },
+    "06-forms-textarea": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05909689111647125,
+      "worstTilePct": 0.4196346507352946,
+      "regionCount": 4
+    },
+    "06-forms-validation-ui": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.21198014974922927,
+      "worstTilePct": 4.669874840868774,
+      "regionCount": 0
+    },
+    "07-aspect-ratio": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00031942138666062693,
+      "worstTilePct": 0.036434025495500136,
+      "regionCount": 0
+    },
+    "07-deep-image-rendering": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2299478239583474,
+      "worstTilePct": 2.8222876250958313,
+      "regionCount": 15
+    },
+    "07-deep-svg-markers-strokes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.29981358235218636,
+      "worstTilePct": 9.32299943787384,
+      "regionCount": 14
+    },
+    "07-deep-svg-presentation-attrs": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14321963501251836,
+      "worstTilePct": 1.4393169327544182,
+      "regionCount": 14
+    },
+    "07-deep-svg-textpath-filters": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2436104024158076,
+      "worstTilePct": 3.8113096136434077,
+      "regionCount": 30
+    },
+    "07-deep-svg-use-href": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.09636352686313257,
+      "worstTilePct": 2.371889822653765,
+      "regionCount": 10
+    },
+    "07-img-basic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.18796870422121648,
+      "worstTilePct": 5.89591814856817,
+      "regionCount": 2
+    },
+    "07-img-formats": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0503744041266708,
+      "worstTilePct": 0.9991775158360379,
+      "regionCount": 0
+    },
+    "07-img-map-area": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.003533161197113343,
+      "worstTilePct": 0.17242690035932548,
+      "regionCount": 0
+    },
+    "07-img-picture-srcset": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.019282354320878593,
+      "worstTilePct": 1.1114857972616088,
+      "regionCount": 0
+    },
+    "07-object-fit": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.06907135150654876,
+      "worstTilePct": 1.8459413881016025,
+      "regionCount": 1
+    },
+    "07-svg-shapes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.07884112388253875,
+      "worstTilePct": 0.8848138289838573,
+      "regionCount": 0
+    },
+    "07-svg-text-gradient": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.06412201122194937,
+      "worstTilePct": 0.9141389583096573,
+      "regionCount": 0
+    },
+    "08-deep-details-accordion": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22955075934618044,
+      "worstTilePct": 1.7786155048974808,
+      "regionCount": 31
+    },
+    "08-deep-popover-backdrop": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.224022985962277,
+      "worstTilePct": 3.288408318617322,
+      "regionCount": 8
+    },
+    "08-details-summary": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.017819922628923263,
+      "worstTilePct": 0.9228485479484414,
+      "regionCount": 2
+    },
+    "08-dialog": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.02811718925784347,
+      "worstTilePct": 2.197457107843141,
+      "regionCount": 3
+    },
+    "09-sectioning-landmarks": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05782308817536352,
+      "worstTilePct": 2.929609946241976,
+      "regionCount": 1
+    },
+    "10-deep-attr-quoting": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.020256134346514798,
+      "worstTilePct": 1.69581562392272,
+      "regionCount": 2
+    },
+    "10-deep-form-state-pseudos": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1395143177104852,
+      "worstTilePct": 3.2398770163762123,
+      "regionCount": 16
+    },
+    "10-deep-has-complex": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1026355751375515,
+      "worstTilePct": 3.5648175634399046,
+      "regionCount": 11
+    },
+    "10-deep-nth-of-type": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00028161247702179277,
+      "worstTilePct": 0.03909240257486306,
+      "regionCount": 0
+    },
+    "10-sel-attribute": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.031063996523859508,
+      "worstTilePct": 1.8082443104762032,
+      "regionCount": 0
+    },
+    "10-sel-combinators": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "10-sel-pseudo-elements": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.03605720557893727,
+      "worstTilePct": 2.136898779428882,
+      "regionCount": 5
+    },
+    "10-sel-pseudo-lang-dir": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "10-sel-pseudo-logical": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.06260152477458147,
+      "worstTilePct": 1.054271538316765,
+      "regionCount": 1
+    },
+    "10-sel-pseudo-structural": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.11773171490929596,
+      "worstTilePct": 0.9392802494725057,
+      "regionCount": 1
+    },
+    "10-sel-pseudo-ui-state": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.19760541331335799,
+      "worstTilePct": 4.100586614365555,
+      "regionCount": 0
+    },
+    "10-sel-type-class-id": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.019012675944528358,
+      "worstTilePct": 1.1226992336267834,
+      "regionCount": 0
+    },
+    "11-box-basic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.04703228422171643,
+      "worstTilePct": 1.326361735599452,
+      "regionCount": 4
+    },
+    "11-box-calc-minmax": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0009396256487500579,
+      "worstTilePct": 0.022551015570001384,
+      "regionCount": 0
+    },
+    "11-box-margin-collapse": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.09175719312870403,
+      "worstTilePct": 0.5636294389138856,
+      "regionCount": 0
+    },
+    "11-box-min-max": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00007546441437599423,
+      "worstTilePct": 0.00464189589347853,
+      "regionCount": 0
+    },
+    "11-box-sizing": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.000020551935354426406,
+      "worstTilePct": 0.0019729857940249352,
+      "regionCount": 0
+    },
+    "11-box-units": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.009853987403957131,
+      "worstTilePct": 0.5254231761978624,
+      "regionCount": 1
+    },
+    "11-deep-box-sizing-mix": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.005312222825749788,
+      "worstTilePct": 0.6969746509172082,
+      "regionCount": 0
+    },
+    "11-deep-content-visibility": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.9334262467338961,
+      "worstTilePct": 53.16959316583091,
+      "regionCount": 20
+    },
+    "11-deep-env-safe-area": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.36655672935022837,
+      "worstTilePct": 2.7218370433056753,
+      "regionCount": 14
+    },
+    "11-deep-intrinsic-sizing": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0002668043595120233,
+      "worstTilePct": 0.00783911209040239,
+      "regionCount": 0
+    },
+    "11-deep-margin-collapse-edges": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.17903370570621988,
+      "worstTilePct": 0.9315466346488332,
+      "regionCount": 9
+    },
+    "11-deep-math-functions": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.20049776695376084,
+      "worstTilePct": 2.673481662830495,
+      "regionCount": 26
+    },
+    "11-deep-percent-resolution": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.02827768028844294,
+      "worstTilePct": 1.7948267229716368,
+      "regionCount": 2
+    },
+    "11-deep-viewport-units": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.019493060316050005,
+      "worstTilePct": 2.0428060618453006,
+      "regionCount": 4
+    },
+    "12-deep-display-contents": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05414845633354193,
+      "worstTilePct": 2.527970161256094,
+      "regionCount": 4
+    },
+    "12-deep-display-syntax": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.07045373887298222,
+      "worstTilePct": 1.8955893049061596,
+      "regionCount": 7
+    },
+    "12-display-block-inline": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00015262645822504168,
+      "worstTilePct": 0.006614383898815725,
+      "regionCount": 0
+    },
+    "12-display-contents": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.01634129869892904,
+      "worstTilePct": 1.7602041128398165,
+      "regionCount": 3
+    },
+    "12-display-list-item": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0007838722960430835,
+      "worstTilePct": 0.12010374183399561,
+      "regionCount": 0
+    },
+    "12-display-table": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.06118820207293993,
+      "worstTilePct": 0.8340865708430083,
+      "regionCount": 0
+    },
+    "12-visibility": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.03290595508985983,
+      "worstTilePct": 1.0460649045907873,
+      "regionCount": 0
+    },
+    "13-deep-anchor-positioning": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16605569878576648,
+      "worstTilePct": 1.6393228841394971,
+      "regionCount": 7
+    },
+    "13-deep-containing-block": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.022796370963635737,
+      "worstTilePct": 1.3706965168386063,
+      "regionCount": 3
+    },
+    "13-deep-cross-sc-z-index": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.007944493667433869,
+      "worstTilePct": 1.1392763860670536,
+      "regionCount": 0
+    },
+    "13-deep-fixed-in-transform": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.20244740592247548,
+      "worstTilePct": 2.710508026297399,
+      "regionCount": 0
+    },
+    "13-deep-stacking-context-creators": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.06071013444031366,
+      "worstTilePct": 0.5737603343393153,
+      "regionCount": 0
+    },
+    "13-deep-stacking-paint-order": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.024009997093218417,
+      "worstTilePct": 1.3079073084746322,
+      "regionCount": 4
+    },
+    "13-deep-sticky-condensing-header": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.15528023885198247,
+      "worstTilePct": 1.6285825532247105,
+      "regionCount": 9
+    },
+    "13-deep-sticky-edges": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.012605722942780128,
+      "worstTilePct": 0.2875117705941233,
+      "regionCount": 0
+    },
+    "13-deep-z-index-flex-grid": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.06969983837875368,
+      "worstTilePct": 1.3438127261598198,
+      "regionCount": 3
+    },
+    "13-deep-z-index-negative": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.08434647309594402,
+      "worstTilePct": 0.9076981446234564,
+      "regionCount": 8
+    },
+    "13-pos-absolute": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00638094812322306,
+      "worstTilePct": 0.18809522781523808,
+      "regionCount": 0
+    },
+    "13-pos-fixed": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00004818062767094014,
+      "worstTilePct": 0.018983167302350418,
+      "regionCount": 0
+    },
+    "13-pos-static-relative": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0001223209131478302,
+      "worstTilePct": 0.01654175198688929,
+      "regionCount": 0
+    },
+    "13-pos-sticky": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.000022866411923320507,
+      "worstTilePct": 0.00448181673697082,
+      "regionCount": 0
+    },
+    "13-pos-z-index": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.04132877731925944,
+      "worstTilePct": 1.295997401637891,
+      "regionCount": 3
+    },
+    "14-deep-float-bfc": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1285197820482959,
+      "worstTilePct": 1.2344366390299988,
+      "regionCount": 8
+    },
+    "14-deep-float-interactions": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0012531292148269977,
+      "worstTilePct": 0.0881689850341221,
+      "regionCount": 0
+    },
+    "14-float-basic": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.000020551935354426406,
+      "worstTilePct": 0.0019729857940249352,
+      "regionCount": 0
+    },
+    "14-float-shape-outside": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.01056671679385528,
+      "worstTilePct": 1.0759066355294726,
+      "regionCount": 4
+    },
+    "14-float-text-wrap": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00331426173839738,
+      "worstTilePct": 0.3980122474943967,
+      "regionCount": 0
+    },
+    "15-deep-flex-aspect-ratio": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.053740246684449655,
+      "worstTilePct": 4.04310302696701,
+      "regionCount": 1
+    },
+    "15-deep-flex-baseline": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0435415592157105,
+      "worstTilePct": 1.500638876463835,
+      "regionCount": 3
+    },
+    "15-deep-flex-min-auto": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.07743966313924519,
+      "worstTilePct": 1.2722394854229495,
+      "regionCount": 5
+    },
+    "15-deep-flex-order-vs-z": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.08729810906757231,
+      "worstTilePct": 1.756785672380145,
+      "regionCount": 9
+    },
+    "15-flex-alignment": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.002301757785545464,
+      "worstTilePct": 0.03919776060788053,
+      "regionCount": 0
+    },
+    "15-flex-container": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0012446538060625352,
+      "worstTilePct": 0.028906997544800847,
+      "regionCount": 0
+    },
+    "15-flex-items": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.001999221254165605,
+      "worstTilePct": 0.0655721994567197,
+      "regionCount": 0
+    },
+    "15-flex-nested": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.001591724896018086,
+      "worstTilePct": 0.07596394769431417,
+      "regionCount": 0
+    },
+    "16-deep-grid-baseline": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22428087099423336,
+      "worstTilePct": 2.634803921568627,
+      "regionCount": 9
+    },
+    "16-deep-grid-implicit": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.011974639347565772,
+      "worstTilePct": 1.0200361053038982,
+      "regionCount": 1
+    },
+    "16-deep-grid-min-max-content": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05748809438945515,
+      "worstTilePct": 1.266926949352244,
+      "regionCount": 7
+    },
+    "16-deep-subgrid-lines": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.03234974600877025,
+      "worstTilePct": 2.620929407089202,
+      "regionCount": 3
+    },
+    "16-grid-alignment": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0013619134185814394,
+      "worstTilePct": 0.03238049999670604,
+      "regionCount": 0
+    },
+    "16-grid-areas": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0006294082043219601,
+      "worstTilePct": 0.012518104374976285,
+      "regionCount": 0
+    },
+    "16-grid-auto-flow": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0010615032079472017,
+      "worstTilePct": 0.03617382964847556,
+      "regionCount": 0
+    },
+    "16-grid-lines": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0005038590179671405,
+      "worstTilePct": 0.01456878066250686,
+      "regionCount": 0
+    },
+    "16-grid-repeat": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0020816596573503842,
+      "worstTilePct": 0.0464373086033477,
+      "regionCount": 0
+    },
+    "16-grid-subgrid": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.032881057713618655,
+      "worstTilePct": 1.9073946605480354,
+      "regionCount": 2
+    },
+    "16-grid-template": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0015142152717010108,
+      "worstTilePct": 0.03698776382750822,
+      "regionCount": 0
+    },
+    "17-bg-color-image": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.022378779345502194,
+      "worstTilePct": 0.6985107165378996,
+      "regionCount": 0
+    },
+    "17-bg-multiple": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.05556103318695283,
+      "worstTilePct": 0.4192809927420547,
+      "regionCount": 0
+    },
+    "17-deep-bg-attachment-fixed": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.05504832591349875,
+      "worstTilePct": 3.9373368458196216,
+      "regionCount": 7
+    },
+    "17-deep-bg-clip-text": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7092122314019187,
+      "worstTilePct": 15.636659506604161,
+      "regionCount": 40
+    },
+    "17-deep-image-set": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14572037009812325,
+      "worstTilePct": 1.55497901300323,
+      "regionCount": 9
+    },
+    "17-deep-sprite-icons": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.005541932217144495,
+      "worstTilePct": 0.7049963185728744,
+      "regionCount": 0
+    },
+    "17-gradient-conic": {
+      "pass": false,
+      "skipped": true,
+      "diffPct": 0.03068431283893902,
+      "worstTilePct": 0.6130106153726962,
+      "regionCount": 1
+    },
+    "17-gradient-linear": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1753522639781959,
+      "worstTilePct": 3.9159341075258545,
+      "regionCount": 0
+    },
+    "17-gradient-radial": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.12922243232701666,
+      "worstTilePct": 0.7446699850817986,
+      "regionCount": 0
+    },
+    "17-gradient-repeating": {
+      "pass": false,
+      "skipped": true,
+      "diffPct": 1.1161106272993109,
+      "worstTilePct": 20.815517258395506,
+      "regionCount": 0
+    },
+    "18-border-image": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.06348123590079774,
+      "worstTilePct": 1.0418708092855564,
+      "regionCount": 6
+    },
+    "18-border-radius": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.018380688443514922,
+      "worstTilePct": 0.2744884355501588,
+      "regionCount": 0
+    },
+    "18-border-styles": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.21944428524734114,
+      "worstTilePct": 2.9012695888578124,
+      "regionCount": 6
+    },
+    "18-deep-borders-mixed-sides": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.22948884060000102,
+      "worstTilePct": 4.225235576464073,
+      "regionCount": 21
+    },
+    "18-deep-decoration-clone": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14562464119107998,
+      "worstTilePct": 1.7828157245297047,
+      "regionCount": 8
+    },
+    "18-deep-radius-overflow": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0354027739237332,
+      "worstTilePct": 0.6657753310533641,
+      "regionCount": 0
+    },
+    "18-deep-shadow-stacking": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.12242635885419252,
+      "worstTilePct": 8.407858096114532,
+      "regionCount": 5
+    },
+    "18-outline": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.09366809657139176,
+      "worstTilePct": 1.4077914044513105,
+      "regionCount": 1
+    },
+    "18-shadows": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0029870096621792174,
+      "worstTilePct": 0.06635411684699055,
+      "regionCount": 0
+    },
+    "19-color-formats": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.18732542477487926,
+      "worstTilePct": 1.4779415789121497,
+      "regionCount": 14
+    },
+    "19-color-opacity": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.00527251337179942,
+      "worstTilePct": 0.24590232786459712,
+      "regionCount": 0
+    },
+    "19-deep-color-mix": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.04483068824350404,
+      "worstTilePct": 3.7910554087129795,
+      "regionCount": 3
+    },
+    "19-deep-color-spaces": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.018040779354128383,
+      "worstTilePct": 4.266837085393316,
+      "regionCount": 2
+    },
+    "19-deep-relative-color": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2881121573877342,
+      "worstTilePct": 2.130294187996352,
+      "regionCount": 21
+    },
+    "20-deep-decoration-detail": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0769405402581548,
+      "worstTilePct": 2.1454203327788615,
+      "regionCount": 4
+    },
+    "20-deep-first-letter-line": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.20159682904259857,
+      "worstTilePct": 3.8581164946645576,
+      "regionCount": 10
+    },
+    "20-deep-font-feature-values": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3577173598439267,
+      "worstTilePct": 8.495808323887129,
+      "regionCount": 41
+    },
+    "20-deep-font-features": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0703304441658545,
+      "worstTilePct": 5.352538338763288,
+      "regionCount": 12
+    },
+    "20-deep-font-palette": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.7541998786988449,
+      "worstTilePct": 40.917224574056085,
+      "regionCount": 18
+    },
+    "20-deep-hanging-punctuation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.13284264383702096,
+      "worstTilePct": 1.4683562314701253,
+      "regionCount": 36
+    },
+    "20-deep-line-box-baselines": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.06918807467357754,
+      "worstTilePct": 1.2854469155583803,
+      "regionCount": 4
+    },
+    "20-deep-selection-highlight": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.13745073542106728,
+      "worstTilePct": 1.5317079854770532,
+      "regionCount": 15
+    },
+    "20-deep-tab-size": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0839121328000809,
+      "worstTilePct": 1.3507982418442304,
+      "regionCount": 12
+    },
+    "20-deep-text-emphasis": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0519556130074853,
+      "worstTilePct": 3.072770298713668,
+      "regionCount": 18
+    },
+    "20-deep-text-stroke": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 2.415537003257812,
+      "worstTilePct": 18.89606959421403,
+      "regionCount": 64
+    },
+    "20-deep-text-underline-position": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.29786912882373356,
+      "worstTilePct": 6.78558057825078,
+      "regionCount": 21
+    },
+    "20-deep-vertical-align": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.4638145464342735,
+      "worstTilePct": 2.0352861401426563,
+      "regionCount": 2
+    },
+    "20-deep-wavy-underline-descenders": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2954703351559373,
+      "worstTilePct": 2.9863072589490396,
+      "regionCount": 38
+    },
+    "20-deep-writing-mode-mixed": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.14773710989618444,
+      "worstTilePct": 4.057160036841123,
+      "regionCount": 38
+    },
+    "20-font-face": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.055180732254822236,
+      "worstTilePct": 1.6328056533169502,
+      "regionCount": 1
+    },
+    "20-font-family": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1559158007137294,
+      "worstTilePct": 4.7917259247628445,
+      "regionCount": 8
+    },
+    "20-font-size-weight": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.04533962830849534,
+      "worstTilePct": 1.77311829036009,
+      "regionCount": 3
+    },
+    "20-font-stretch": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.05913043339594155,
+      "worstTilePct": 1.6603225958140708,
+      "regionCount": 0
+    },
+    "20-font-style-variant": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.056564484797178176,
+      "worstTilePct": 1.9978111011055795,
+      "regionCount": 5
+    },
+    "20-logical-properties": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.012496395470902116,
+      "worstTilePct": 1.6102489049535702,
+      "regionCount": 1
+    },
+    "20-text-align": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.011185805396234798,
+      "worstTilePct": 2.1476746360770815,
+      "regionCount": 1
+    },
+    "20-text-decoration": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.007394797429954689,
+      "worstTilePct": 0.7512300234528096,
+      "regionCount": 1
+    },
+    "20-text-indent-shadow": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.002436055734152411,
+      "worstTilePct": 0.1822436567066901,
+      "regionCount": 0
+    },
+    "20-text-line-spacing": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "20-text-transform": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14136203930735883,
+      "worstTilePct": 2.975672913355062,
+      "regionCount": 13
+    },
+    "20-text-wrapping": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.01943776603279534,
+      "worstTilePct": 4.794617803221538,
+      "regionCount": 3
+    },
+    "20-writing-mode": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.07811207544290824,
+      "worstTilePct": 1.7782812612509347,
+      "regionCount": 13
+    },
+    "21-deep-anisotropic-scale": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.6391899880477256,
+      "worstTilePct": 5.746017156862822,
+      "regionCount": 9
+    },
+    "21-deep-transform-3d-preserve": {
+      "pass": false,
+      "skipped": true,
+      "diffPct": 4.893902377063347,
+      "worstTilePct": 43.80835967350152,
+      "regionCount": 11
+    },
+    "21-deep-transform-box": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.31349360533427834,
+      "worstTilePct": 2.376759690852821,
+      "regionCount": 13
+    },
+    "21-deep-transform-origin": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2792650090563298,
+      "worstTilePct": 5.976352490084662,
+      "regionCount": 7
+    },
+    "21-transform-2d": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.037337774611551695,
+      "worstTilePct": 2.165865079068226,
+      "regionCount": 1
+    },
+    "21-transform-3d": {
+      "pass": false,
+      "skipped": true,
+      "diffPct": 5.459848754470472,
+      "worstTilePct": 46.5341342265376,
+      "regionCount": 12
+    },
+    "22-backdrop-filter": {
+      "pass": false,
+      "skipped": true,
+      "diffPct": 1.1923658240962676,
+      "worstTilePct": 42.851527258973974,
+      "regionCount": 1
+    },
+    "22-blend-modes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 2.089893219519441,
+      "worstTilePct": 44.22317937303626,
+      "regionCount": 0
+    },
+    "22-deep-backdrop-translucent-stack": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 2.0021314068499168,
+      "worstTilePct": 16.71700192265053,
+      "regionCount": 0
+    },
+    "22-deep-blend-groups": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.028030365754570477,
+      "worstTilePct": 0.8343387469261041,
+      "regionCount": 2
+    },
+    "22-deep-filter-paint-bounds": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1764158513544297,
+      "worstTilePct": 1.7368849218079547,
+      "regionCount": 12
+    },
+    "22-deep-filter-stacking": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 1.4616125978079633,
+      "worstTilePct": 49.33229463819266,
+      "regionCount": 7
+    },
+    "22-deep-isolation": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.036473492735929466,
+      "worstTilePct": 1.0903033088235285,
+      "regionCount": 4
+    },
+    "22-filter": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1450968113110536,
+      "worstTilePct": 1.264580524811125,
+      "regionCount": 0
+    },
+    "23-clip-path": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.017225034418646794,
+      "worstTilePct": 0.3739568823976402,
+      "regionCount": 0
+    },
+    "23-deep-clip-path-shapes": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.019572393111851043,
+      "worstTilePct": 1.3934385860631542,
+      "regionCount": 3
+    },
+    "23-deep-mask-composite": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.03136635664358803,
+      "worstTilePct": 1.0632065453613724,
+      "regionCount": 1
+    },
+    "23-deep-mask-fade-edges": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.11748101305351452,
+      "worstTilePct": 1.809891457121443,
+      "regionCount": 6
+    },
+    "23-mask": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.019626182894083948,
+      "worstTilePct": 0.3741245357257283,
+      "regionCount": 0
+    },
+    "24-counters": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.008655860711368472,
+      "worstTilePct": 0.3770506312941197,
+      "regionCount": 2
+    },
+    "24-deep-counter-scope": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.016587812005587548,
+      "worstTilePct": 1.2900473351540698,
+      "regionCount": 3
+    },
+    "24-deep-counter-style": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.13644776073304107,
+      "worstTilePct": 4.228530678354729,
+      "regionCount": 17
+    },
+    "24-deep-initial-letter": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.3015704566442946,
+      "worstTilePct": 25.391806038524333,
+      "regionCount": 11
+    },
+    "24-deep-pseudo-shapes": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.014483484286183086,
+      "worstTilePct": 1.4354888661476883,
+      "regionCount": 1
+    },
+    "24-generated-content": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.021348624882234195,
+      "worstTilePct": 0.7746901814220997,
+      "regionCount": 7
+    },
+    "24-quotes": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "25-deep-line-clamp": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.29196332905697175,
+      "worstTilePct": 3.6534671456886296,
+      "regionCount": 16
+    },
+    "25-deep-overflow-auto-positioned": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.20594673923657716,
+      "worstTilePct": 1.8997360378953485,
+      "regionCount": 10
+    },
+    "25-deep-overflow-clip": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.27903532211479976,
+      "worstTilePct": 2.774550511362376,
+      "regionCount": 20
+    },
+    "25-deep-scrollbar-style": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.28478618993205707,
+      "worstTilePct": 2.4641345718603285,
+      "regionCount": 7
+    },
+    "25-overflow-values": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.01158061237945526,
+      "worstTilePct": 0.5685649076601564,
+      "regionCount": 0
+    },
+    "25-overscroll": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.195794709447917,
+      "worstTilePct": 3.7310434512736212,
+      "regionCount": 2
+    },
+    "25-scroll-snap": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.000226290804254665,
+      "worstTilePct": 0.010168390345332892,
+      "regionCount": 0
+    },
+    "25-scrollbar-gutter": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.005691849941466868,
+      "worstTilePct": 0.9350220036138206,
+      "regionCount": 1
+    },
+    "25-text-overflow": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.04777905115780525,
+      "worstTilePct": 1.1103148579055218,
+      "regionCount": 0
+    },
+    "26-deep-forced-colors": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.39497860529983403,
+      "worstTilePct": 2.9708698983539414,
+      "regionCount": 31
+    },
+    "26-deep-mq-prefers": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.01967934393032367,
+      "worstTilePct": 0.2901366387734389,
+      "regionCount": 0
+    },
+    "26-mq-features": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0028271375671614935,
+      "worstTilePct": 0.060983343638140716,
+      "regionCount": 0
+    },
+    "26-mq-range-syntax": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0032177752895520147,
+      "worstTilePct": 0.14797124540927054,
+      "regionCount": 0
+    },
+    "26-mq-width-orientation": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0011007633544855423,
+      "worstTilePct": 0.026167613061930176,
+      "regionCount": 0
+    },
+    "26-supports": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0050707702017565755,
+      "worstTilePct": 0.11646327834871555,
+      "regionCount": 0
+    },
+    "27-deep-page-margin-boxes": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.014548692972876663,
+      "worstTilePct": 1.5755709048789142,
+      "regionCount": 1
+    },
+    "27-page": {
+      "pass": false,
+      "skipped": true,
+      "diffPct": 0.0212352668896478,
+      "worstTilePct": 1.9197844458678965,
+      "regionCount": 6
+    },
+    "28-charset-namespace": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.010451526757287105,
+      "worstTilePct": 1.2411838241229438,
+      "regionCount": 1
+    },
+    "28-container": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.003572627002328634,
+      "worstTilePct": 0.18934680759989647,
+      "regionCount": 0
+    },
+    "28-deep-container-types": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.006060108926931941,
+      "worstTilePct": 0.8648264405073776,
+      "regionCount": 0
+    },
+    "28-deep-layer-import": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.09262062190450672,
+      "worstTilePct": 0.8898052855782215,
+      "regionCount": 0
+    },
+    "28-deep-nesting-complex": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.054793583356968226,
+      "worstTilePct": 1.0712325976428416,
+      "regionCount": 7
+    },
+    "28-deep-scope": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.21083237316668665,
+      "worstTilePct": 2.1485763952520847,
+      "regionCount": 15
+    },
+    "28-import": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.07398933802881691,
+      "worstTilePct": 2.11286257521434,
+      "regionCount": 1
+    },
+    "28-layer": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.11047927396721152,
+      "worstTilePct": 2.5585228890478944,
+      "regionCount": 10
+    },
+    "28-nesting": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.0066042080867049465,
+      "worstTilePct": 1.1945371925142114,
+      "regionCount": 1
+    },
+    "29-cascade-specificity": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "29-custom-properties": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.023351102093141396,
+      "worstTilePct": 0.8674168095803663,
+      "regionCount": 0
+    },
+    "29-deep-layer-priority": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.029982632597162665,
+      "worstTilePct": 1.8079140165468761,
+      "regionCount": 2
+    },
+    "29-deep-property-registration": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.028769773311534623,
+      "worstTilePct": 3.2467842085826857,
+      "regionCount": 1
+    },
+    "29-deep-where-is-specificity": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.0005662070183174455,
+      "worstTilePct": 0.06363936094944254,
+      "regionCount": 0
+    },
+    "29-important": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "29-inheritance-keywords": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "30-caret-accent": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.15377242296359223,
+      "worstTilePct": 7.020888886078361,
+      "regionCount": 3
+    },
+    "30-cursor": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2659219888250302,
+      "worstTilePct": 3.079486460554151,
+      "regionCount": 31
+    },
+    "30-deep-resize-overflow": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.23774627969621545,
+      "worstTilePct": 2.588789167972438,
+      "regionCount": 32
+    },
+    "30-resize": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.01871607525806316,
+      "worstTilePct": 0.24595971200980435,
+      "regionCount": 4
+    },
+    "30-user-select": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0,
+      "worstTilePct": 0,
+      "regionCount": 0
+    },
+    "31-aria-data": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.002088815027136689,
+      "worstTilePct": 0.11673333061323109,
+      "regionCount": 0
+    },
+    "31-deep-inert-hidden": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16976529195785317,
+      "worstTilePct": 2.3075354443886007,
+      "regionCount": 12
+    },
+    "31-global-attrs": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1518208544943069,
+      "worstTilePct": 3.9639333123628737,
+      "regionCount": 6
+    },
+    "32-real-world-blog-post": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5737252390103076,
+      "worstTilePct": 9.659925550549048,
+      "regionCount": 26
+    },
+    "32-real-world-mobile-app-frame": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.14849160877766138,
+      "worstTilePct": 3.8009837781408504,
+      "regionCount": 3
+    },
+    "32-real-world-news-card": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.019304035596727387,
+      "worstTilePct": 0.8824875187399115,
+      "regionCount": 1
+    },
+    "32-real-world-pricing-table": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.5513177824126035,
+      "worstTilePct": 10.217297895570676,
+      "regionCount": 12
+    },
+    "33-columns-basic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.11493908383443194,
+      "worstTilePct": 1.4930185830240161,
+      "regionCount": 10
+    },
+    "33-deep-columns-break": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.8839746134489981,
+      "worstTilePct": 60.42133709950809,
+      "regionCount": 11
+    },
+    "34-mathml-basic": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.222542804292402,
+      "worstTilePct": 2.2631738142199866,
+      "regionCount": 10
+    },
+    "34-mathml-layout": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2274800931221423,
+      "worstTilePct": 2.402478324907808,
+      "regionCount": 13
+    },
+    "niche-align-content-block": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.10245201586905045,
+      "worstTilePct": 1.519801331008591,
+      "regionCount": 10
+    },
+    "niche-anchor-position-try": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.12930020763689987,
+      "worstTilePct": 1.6844736286161084,
+      "regionCount": 13
+    },
+    "niche-command-invokers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.31209951456993634,
+      "worstTilePct": 2.7423998355304238,
+      "regionCount": 15
+    },
+    "niche-contrast-color": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.31867721485135675,
+      "worstTilePct": 3.08241060956479,
+      "regionCount": 14
+    },
+    "niche-cross-fade-images": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.09633959292912432,
+      "worstTilePct": 1.4917282879916798,
+      "regionCount": 5
+    },
+    "niche-css-function-rule": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2517213096819654,
+      "worstTilePct": 8.98765921641397,
+      "regionCount": 7
+    },
+    "niche-if-function": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.18480455265474227,
+      "worstTilePct": 3.7677602531857763,
+      "regionCount": 10
+    },
+    "niche-logical-clear-caption": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16281852843841055,
+      "worstTilePct": 1.479622469065411,
+      "regionCount": 19
+    },
+    "niche-mask-border": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.16125679758805572,
+      "worstTilePct": 0.818776198381878,
+      "regionCount": 10
+    },
+    "niche-reading-flow": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.35715742138595125,
+      "worstTilePct": 7.156123372192027,
+      "regionCount": 19
+    },
+    "niche-scroll-markers": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.2227015134705618,
+      "worstTilePct": 12.75113554741652,
+      "regionCount": 17
+    },
+    "niche-scroll-state-queries": {
+      "pass": true,
+      "skipped": false,
+      "diffPct": 0.1523018103394453,
+      "worstTilePct": 1.7387116027426017,
+      "regionCount": 13
+    },
+    "niche-select-customizable": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.35358622157355296,
+      "worstTilePct": 1.572895473448359,
+      "regionCount": 19
+    },
+    "niche-shadow-dom-declarative": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.33423966659223336,
+      "worstTilePct": 3.127004645032013,
+      "regionCount": 18
+    },
+    "niche-style-queries": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.1978390806360173,
+      "worstTilePct": 3.698907104759878,
+      "regionCount": 13
+    },
+    "niche-svg-view-switch": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.20841519185600968,
+      "worstTilePct": 1.5921785424639994,
+      "regionCount": 16
+    },
+    "niche-text-box-trim": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.11754235860589755,
+      "worstTilePct": 1.6228237730754467,
+      "regionCount": 10
+    },
+    "niche-webkit-box-reflect": {
+      "pass": false,
+      "skipped": true,
+      "diffPct": 3.4064476362808653,
+      "worstTilePct": 42.31246717015938,
+      "regionCount": 8
+    },
+    "niche-zoom-text-rendering": {
+      "pass": false,
+      "skipped": false,
+      "diffPct": 0.19774906637108564,
+      "worstTilePct": 2.1431836901574077,
+      "regionCount": 22
+    }
+  }
+}

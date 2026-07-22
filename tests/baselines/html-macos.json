@@ -2,12 +2,12 @@
   "meta": {
     "suite": "html",
     "os": "macos",
-    "image": "macos26-arm64",
-    "commit": "1ccf9fb74ea5bb1a7a6c78826201b14fae2eb5c3",
+    "image": null,
+    "commit": "913be89bd72cea8717799ffb37c8e26c17bde53a",
     "capturedAt": null,
     "counts": {
-      "passed": 143,
-      "failed": 145,
+      "passed": 144,
+      "failed": 144,
       "skipped": 7,
       "total": 295
     }
@@ -16,2066 +16,2066 @@
     "01-structure-base": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.024218467165223776,
+      "diffPct": 0.024025256297925762,
       "worstTilePct": 0.9042609483220115,
       "regionCount": 0
     },
     "01-structure-doctype": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.011816516458386338,
-      "worstTilePct": 0.1972273284313725,
+      "diffPct": 0.011746506971777683,
+      "worstTilePct": 0.19684436274509803,
       "regionCount": 0
     },
     "01-structure-external-css": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.060275574509262235,
-      "worstTilePct": 0.9064647864975373,
+      "diffPct": 0.06018739764067676,
+      "worstTilePct": 0.9089577431010705,
       "regionCount": 1
     },
     "01-structure-link": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.015563964843750066,
-      "worstTilePct": 0.3620940563725485,
+      "diffPct": 0.015219395456750474,
+      "worstTilePct": 0.34620098039215635,
       "regionCount": 1
     },
     "01-structure-meta": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0155844096264809,
-      "worstTilePct": 0.2762140012254899,
+      "diffPct": 0.015134624406403285,
+      "worstTilePct": 0.2765012254901958,
       "regionCount": 0
     },
     "02-deep-bidi-isolate": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.030793735526323564,
-      "worstTilePct": 0.252056514119575,
+      "diffPct": 0.03844013448411821,
+      "worstTilePct": 0.6607604590142742,
       "regionCount": 0
     },
     "02-deep-icon-font-pua": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03976776388443271,
-      "worstTilePct": 0.40080191897476725,
+      "diffPct": 0.03917030033119208,
+      "worstTilePct": 0.40222519482633856,
       "regionCount": 2
     },
     "02-deep-line-breaking": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03851409471896572,
-      "worstTilePct": 0.22207268849545203,
+      "diffPct": 0.04182593768648416,
+      "worstTilePct": 0.50367851059682,
       "regionCount": 4
     },
     "02-text-bidi": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03208135467728787,
-      "worstTilePct": 0.3002450980392154,
+      "diffPct": 0.035098705416411594,
+      "worstTilePct": 0.3004365808823527,
       "regionCount": 1
     },
     "02-text-emoji": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01773772123261485,
-      "worstTilePct": 0.355376801423369,
+      "diffPct": 0.017655276953658525,
+      "worstTilePct": 0.3554725428449377,
       "regionCount": 0
     },
     "02-text-emphasis": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.02555039162914984,
-      "worstTilePct": 0.42107077205882326,
-      "regionCount": 2
+      "diffPct": 0.025513099661594586,
+      "worstTilePct": 0.4215494791666664,
+      "regionCount": 3
     },
     "02-text-entities": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01843119097117148,
+      "diffPct": 0.018907184726973,
       "worstTilePct": 0.29622207430840886,
       "regionCount": 0
     },
     "02-text-headings": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.006516066374625481,
-      "worstTilePct": 0.13681449142156857,
+      "diffPct": 0.006345701165652095,
+      "worstTilePct": 0.13671874999999994,
       "regionCount": 0
     },
     "02-text-paragraphs": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.033058216369230224,
-      "worstTilePct": 0.40757123161764647,
+      "diffPct": 0.032740574257046795,
+      "worstTilePct": 0.39445465686274456,
       "regionCount": 0
     },
     "02-text-phrasing": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.024701233203716068,
-      "worstTilePct": 0.2750651041666664,
+      "diffPct": 0.024519847524406325,
+      "worstTilePct": 0.26252297794117624,
       "regionCount": 1
     },
     "02-text-preformatted": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02729711978851669,
-      "worstTilePct": 0.37124604253923266,
+      "diffPct": 0.02685868215699995,
+      "worstTilePct": 0.3712462032465842,
       "regionCount": 0
     },
     "02-text-ruby": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0270256856902902,
-      "worstTilePct": 2.109375,
+      "diffPct": 0.026436171379159462,
+      "worstTilePct": 2.1090877757352944,
       "regionCount": 1
     },
     "02-text-sub-sup": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.005701601115706706,
-      "worstTilePct": 0.06816789215686277,
+      "diffPct": 0.0053769778582005755,
+      "worstTilePct": 0.06472120098039218,
       "regionCount": 0
     },
     "02-text-symbols": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.029410334473314637,
-      "worstTilePct": 1.1604817708333333,
-      "regionCount": 9
+      "diffPct": 0.06301862035610305,
+      "worstTilePct": 1.2083524816176485,
+      "regionCount": 17
     },
     "03-lists-dl": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01409048401437499,
-      "worstTilePct": 0.25486366421568607,
+      "diffPct": 0.013923865824275305,
+      "worstTilePct": 0.2507467830882351,
       "regionCount": 0
     },
     "03-lists-marker": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.012126685920231011,
-      "worstTilePct": 0.4086243872549016,
+      "diffPct": 0.01185841047854392,
+      "worstTilePct": 0.4076669730392153,
       "regionCount": 3
     },
     "03-lists-style-image-position": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.030450664798910277,
-      "worstTilePct": 0.42072717581675223,
+      "diffPct": 0.030110379713875642,
+      "worstTilePct": 0.4238703996221779,
       "regionCount": 0
     },
     "03-lists-style-types": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04154120965930179,
-      "worstTilePct": 2.044253036783148,
-      "regionCount": 5
+      "diffPct": 0.0413198075837807,
+      "worstTilePct": 2.040136155655697,
+      "regionCount": 4
     },
     "03-lists-ul-ol": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.022587872094402352,
-      "worstTilePct": 0.2740119485294114,
+      "diffPct": 0.022360872272296075,
+      "worstTilePct": 0.27420343137254866,
       "regionCount": 12
     },
     "04-deep-anonymous-boxes": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.04850057069748114,
-      "worstTilePct": 0.6626497031846645,
+      "diffPct": 0.048376179210953725,
+      "worstTilePct": 0.667482702440544,
       "regionCount": 0
     },
     "04-deep-border-conflict": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06998734210598667,
-      "worstTilePct": 0.6864289117524588,
+      "diffPct": 0.06936465702305437,
+      "worstTilePct": 0.6877692916544196,
       "regionCount": 8
     },
     "04-table-basic": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.12150422459367839,
-      "worstTilePct": 1.4014880419379225,
+      "diffPct": 0.12136954115061235,
+      "worstTilePct": 1.401583783359491,
       "regionCount": 2
     },
     "04-table-borders": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.007055246196377921,
-      "worstTilePct": 0.3587488224979896,
+      "diffPct": 0.006794095506854404,
+      "worstTilePct": 0.35855733965485237,
       "regionCount": 0
     },
     "04-table-caption-empty": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.019834061072506834,
-      "worstTilePct": 1.0283001860253482,
+      "diffPct": 0.01969773689282127,
+      "worstTilePct": 1.0305373416330281,
       "regionCount": 2
     },
     "04-table-colgroup": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.12912624436153042,
-      "worstTilePct": 1.1130413809093318,
+      "diffPct": 0.1291440666366572,
+      "worstTilePct": 1.1144497118379904,
       "regionCount": 0
     },
     "04-table-layout": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0758363107585535,
+      "diffPct": 0.07562936966505886,
       "worstTilePct": 0.7110808293610832,
       "regionCount": 0
     },
     "04-table-spans": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0415004266641137,
-      "worstTilePct": 0.7441684013193072,
+      "diffPct": 0.04150381378528246,
+      "worstTilePct": 0.7423179881508911,
       "regionCount": 0
     },
     "05-links-anchors": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.008996480966417503,
-      "worstTilePct": 0.24741002909048038,
+      "diffPct": 0.00892667981477484,
+      "worstTilePct": 0.24749077921480622,
       "regionCount": 0
     },
     "05-links-states": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.014081967422385698,
-      "worstTilePct": 0.22843903186274503,
+      "diffPct": 0.013891980538960447,
+      "worstTilePct": 0.226907169117647,
       "regionCount": 1
     },
     "06-deep-color-scheme-forms": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.6103039699424295,
-      "worstTilePct": 3.3035907910373115,
+      "diffPct": 0.6103463754691346,
+      "worstTilePct": 3.301195483920099,
       "regionCount": 17
     },
     "06-deep-field-sizing": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.09448892104609183,
+      "diffPct": 0.09567908616161627,
       "worstTilePct": 2.0832375919117663,
-      "regionCount": 7
+      "regionCount": 9
     },
     "06-deep-input-baseline": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.19081030283811176,
-      "worstTilePct": 1.7534364763414083,
-      "regionCount": 7
+      "diffPct": 0.19193048727751383,
+      "worstTilePct": 1.7538183131557206,
+      "regionCount": 8
     },
     "06-forms-buttons": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.21644753183393908,
+      "diffPct": 0.2163926799778321,
       "worstTilePct": 3.7874348958333406,
       "regionCount": 7
     },
     "06-forms-datalist": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03387002383961396,
+      "diffPct": 0.033770293192146646,
       "worstTilePct": 2.857785692401959,
       "regionCount": 3
     },
     "06-forms-fieldset-legend": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.2572601916743412,
+      "diffPct": 0.25708017785566273,
       "worstTilePct": 1.9351256127450978,
       "regionCount": 1
     },
     "06-forms-input-types": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.5345216086712004,
+      "diffPct": 0.5344847850475202,
       "worstTilePct": 4.877738204656867,
       "regionCount": 14
     },
     "06-forms-meter-progress": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05462391737052567,
+      "diffPct": 0.05556319854655244,
       "worstTilePct": 3.033500876708849,
       "regionCount": 2
     },
     "06-forms-output": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04613164299041861,
-      "worstTilePct": 1.4235791973039196,
+      "diffPct": 0.046034110405034315,
+      "worstTilePct": 1.4238664215686254,
       "regionCount": 2
     },
     "06-forms-placeholder-readonly": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04712702907372403,
-      "worstTilePct": 0.7041523719509781,
+      "diffPct": 0.04701755908817296,
+      "worstTilePct": 0.704439596215684,
       "regionCount": 3
     },
     "06-forms-select": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.2103469695132434,
+      "diffPct": 0.21029860014922178,
       "worstTilePct": 8.162383719366812,
       "regionCount": 5
     },
     "06-forms-style-buttons": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0398814019199518,
-      "worstTilePct": 1.0911716000238665,
+      "diffPct": 0.03949542847611524,
+      "worstTilePct": 1.0490007847117817,
       "regionCount": 6
     },
     "06-forms-style-checkbox-radio": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06757701270271492,
-      "worstTilePct": 0.6690145248664381,
+      "diffPct": 0.06704988903420613,
+      "worstTilePct": 0.6643703053486103,
       "regionCount": 5
     },
     "06-forms-style-fieldset": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03721750996713989,
-      "worstTilePct": 1.3949148507767857,
+      "diffPct": 0.036935328474832954,
+      "worstTilePct": 1.3917551861196094,
       "regionCount": 2
     },
     "06-forms-style-file": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.25975752350649833,
+      "diffPct": 0.2598334975167563,
       "worstTilePct": 4.709169533549097,
       "regionCount": 8
     },
     "06-forms-style-focus": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.043688771144836665,
-      "worstTilePct": 0.5577910572987732,
+      "diffPct": 0.043305232365011326,
+      "worstTilePct": 0.548346722004659,
       "regionCount": 1
     },
     "06-forms-style-input-groups": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.07032960337256838,
-      "worstTilePct": 1.7265140315806657,
+      "diffPct": 0.07061857890221952,
+      "worstTilePct": 1.7257771861402162,
       "regionCount": 6
     },
     "06-forms-style-layouts": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05164974460949548,
+      "diffPct": 0.05171056681528666,
       "worstTilePct": 1.564414828431372,
       "regionCount": 7
     },
     "06-forms-style-progress-meter": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.10657592415053783,
+      "diffPct": 0.10565886337919586,
       "worstTilePct": 1.2928921568627567,
       "regionCount": 5
     },
     "06-forms-style-range": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.036356155306611106,
-      "worstTilePct": 0.5629232765437305,
+      "diffPct": 0.03597761343032367,
+      "worstTilePct": 0.5745577036116957,
       "regionCount": 3
     },
     "06-forms-style-select": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.6675393171059857,
+      "diffPct": 0.6674117234965439,
       "worstTilePct": 19.367726884410565,
       "regionCount": 4
     },
     "06-forms-style-text-inputs": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.08682924020302923,
+      "diffPct": 0.08690741539846522,
       "worstTilePct": 0.4085878238963194,
       "regionCount": 5
     },
     "06-forms-style-textarea": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0716349003986311,
-      "worstTilePct": 0.4009228748690038,
+      "diffPct": 0.07195124323349292,
+      "worstTilePct": 0.3900119079181852,
       "regionCount": 10
     },
     "06-forms-textarea": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06001142115374652,
+      "diffPct": 0.05963643391926943,
       "worstTilePct": 0.2596507352941177,
       "regionCount": 4
     },
     "06-forms-validation-ui": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.1932133222869715,
+      "diffPct": 0.1930746327341479,
       "worstTilePct": 4.6629854488966895,
       "regionCount": 0
     },
     "07-aspect-ratio": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0015932337453953439,
+      "diffPct": 0.0014989882835387267,
       "worstTilePct": 0.039024951754142154,
       "regionCount": 0
     },
     "07-deep-image-rendering": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04908516321330067,
+      "diffPct": 0.049167457013449156,
       "worstTilePct": 0.8984265798842357,
-      "regionCount": 6
+      "regionCount": 5
     },
     "07-deep-svg-markers-strokes": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.043692717079580216,
+      "diffPct": 0.04414851548646397,
       "worstTilePct": 0.727309373345264,
       "regionCount": 7
     },
     "07-deep-svg-presentation-attrs": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.040133358853435414,
-      "worstTilePct": 1.6780598958333333,
+      "diffPct": 0.04045910686430766,
+      "worstTilePct": 1.665230545343137,
       "regionCount": 14
     },
     "07-deep-svg-textpath-filters": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.13168347618629747,
-      "worstTilePct": 2.7776387857128784,
+      "diffPct": 0.13186741225322704,
+      "worstTilePct": 2.7705580406399677,
       "regionCount": 17
     },
     "07-deep-svg-use-href": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.016097328020738984,
-      "worstTilePct": 0.267980238970588,
+      "diffPct": 0.01582607663542363,
+      "worstTilePct": 0.26415058210784287,
       "regionCount": 0
     },
     "07-img-basic": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.09969942765543423,
-      "worstTilePct": 2.8065131385036493,
+      "diffPct": 0.0997556230288392,
+      "worstTilePct": 2.8066718511721014,
       "regionCount": 2
     },
     "07-img-formats": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.05124210878548775,
+      "diffPct": 0.05116095874575977,
       "worstTilePct": 0.9991775158360379,
       "regionCount": 0
     },
     "07-img-map-area": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.009168940085491616,
+      "diffPct": 0.00907569193010967,
       "worstTilePct": 0.17242690035932548,
       "regionCount": 0
     },
     "07-img-picture-srcset": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.018943648006443364,
+      "diffPct": 0.019008404605632818,
       "worstTilePct": 1.1114857972616088,
       "regionCount": 0
     },
     "07-object-fit": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.06222651974840372,
-      "worstTilePct": 0.7763125667466031,
+      "diffPct": 0.0624775799843033,
+      "worstTilePct": 0.7744934797367992,
       "regionCount": 0
     },
     "07-svg-shapes": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.07899271446668914,
+      "diffPct": 0.07884112388253875,
       "worstTilePct": 0.8848138289838573,
       "regionCount": 0
     },
     "07-svg-text-gradient": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.06411953816301173,
+      "diffPct": 0.06394750279613061,
       "worstTilePct": 0.9141389583096573,
       "regionCount": 0
     },
     "08-deep-details-accordion": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.07967727326788539,
-      "worstTilePct": 1.2234796262254901,
+      "diffPct": 0.07999569950493002,
+      "worstTilePct": 1.2198414522058825,
       "regionCount": 18
     },
     "08-deep-popover-backdrop": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.036416558452591716,
-      "worstTilePct": 1.5192248774509811,
+      "diffPct": 0.03617696749005499,
+      "worstTilePct": 1.5168313419117654,
       "regionCount": 6
     },
     "08-details-summary": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.020128106212025963,
-      "worstTilePct": 1.2280235746850108,
+      "diffPct": 0.019960823826807254,
+      "worstTilePct": 1.2249276063967856,
       "regionCount": 1
     },
     "08-dialog": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.02339096482876103,
+      "diffPct": 0.023182677282623347,
       "worstTilePct": 2.1494906556372593,
       "regionCount": 1
     },
     "09-sectioning-landmarks": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06182228764245435,
-      "worstTilePct": 2.415843290441179,
+      "diffPct": 0.06195477831509842,
+      "worstTilePct": 2.421683517156866,
       "regionCount": 1
     },
     "10-deep-attr-quoting": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.041501036570864465,
+      "diffPct": 0.040346435526291156,
       "worstTilePct": 1.6960070874826574,
       "regionCount": 2
     },
     "10-deep-form-state-pseudos": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.06783677345631484,
+      "diffPct": 0.06873197597448724,
       "worstTilePct": 2.4601069698338036,
       "regionCount": 13
     },
     "10-deep-has-complex": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04900615771298533,
-      "worstTilePct": 2.5098394810720817,
+      "diffPct": 0.048878201065919155,
+      "worstTilePct": 2.514631261524375,
       "regionCount": 6
     },
     "10-deep-nth-of-type": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.004544682865112095,
-      "worstTilePct": 0.15986024621870856,
+      "diffPct": 0.004514253543365685,
+      "worstTilePct": 0.16005159906042404,
       "regionCount": 0
     },
     "10-sel-attribute": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.035402784900340045,
-      "worstTilePct": 1.9526181531314912,
+      "diffPct": 0.03528418336583746,
+      "worstTilePct": 1.9526804110048122,
       "regionCount": 0
     },
     "10-sel-combinators": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.016832476081106485,
+      "diffPct": 0.01654391090538742,
       "worstTilePct": 0.2463426776960782,
       "regionCount": 0
     },
     "10-sel-pseudo-elements": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05490716019130539,
-      "worstTilePct": 2.1766192311432246,
+      "diffPct": 0.054625303619199615,
+      "worstTilePct": 2.1765239864377803,
       "regionCount": 3
     },
     "10-sel-pseudo-lang-dir": {
-      "pass": false,
+      "pass": true,
       "skipped": false,
-      "diffPct": 0.01633326157100562,
-      "worstTilePct": 0.25426502288495056,
-      "regionCount": 2
+      "diffPct": 0.01638363596794867,
+      "worstTilePct": 0.25503056882802505,
+      "regionCount": 0
     },
     "10-sel-pseudo-logical": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06722759484755289,
-      "worstTilePct": 1.3581248643030555,
+      "diffPct": 0.06708669366398351,
+      "worstTilePct": 1.3605526221027464,
       "regionCount": 1
     },
     "10-sel-pseudo-structural": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.12528217391928617,
+      "diffPct": 0.12511275072869346,
       "worstTilePct": 0.9392802494725057,
       "regionCount": 1
     },
     "10-sel-pseudo-ui-state": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.17221265098812788,
+      "diffPct": 0.17183136151103304,
       "worstTilePct": 2.942847721813427,
       "regionCount": 0
     },
     "10-sel-type-class-id": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0051133618381533855,
-      "worstTilePct": 0.09778057705204667,
+      "diffPct": 0.004983713189748355,
+      "worstTilePct": 0.09793611006968116,
       "regionCount": 0
     },
     "11-box-basic": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.04488049382984755,
-      "worstTilePct": 0.5725153494967081,
+      "diffPct": 0.044735230064488145,
+      "worstTilePct": 0.572446954716274,
       "regionCount": 0
     },
     "11-box-calc-minmax": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00447399261396894,
-      "worstTilePct": 0.10277513609504628,
+      "diffPct": 0.004452685488650547,
+      "worstTilePct": 0.1030857258420309,
       "regionCount": 0
     },
     "11-box-margin-collapse": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.10269957260799878,
-      "worstTilePct": 0.5143095117896176,
+      "diffPct": 0.10230355227788923,
+      "worstTilePct": 0.5143734836500005,
       "regionCount": 0
     },
     "11-box-min-max": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.008501506462871873,
+      "diffPct": 0.008240763631666245,
       "worstTilePct": 0.08576977483745143,
       "regionCount": 0
     },
     "11-box-sizing": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.005094469015791582,
-      "worstTilePct": 0.1847526298252388,
+      "diffPct": 0.004942161624020201,
+      "worstTilePct": 0.18659694672468047,
       "regionCount": 0
     },
     "11-box-units": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.005638535934239277,
-      "worstTilePct": 0.11743934233151931,
+      "diffPct": 0.005557899857732249,
+      "worstTilePct": 0.12159003885610924,
       "regionCount": 0
     },
     "11-deep-box-sizing-mix": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.015285369618696325,
+      "diffPct": 0.015289597295763544,
       "worstTilePct": 0.6969746509172082,
       "regionCount": 0
     },
     "11-deep-content-visibility": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.049728638266673626,
-      "worstTilePct": 0.8932654501511823,
+      "diffPct": 0.050375043951812616,
+      "worstTilePct": 0.9241268367504796,
       "regionCount": 6
     },
     "11-deep-env-safe-area": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.08580709107040795,
-      "worstTilePct": 0.9732176051552586,
-      "regionCount": 9
+      "diffPct": 0.08602460598637242,
+      "worstTilePct": 0.9697782829054815,
+      "regionCount": 10
     },
     "11-deep-intrinsic-sizing": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02352555563903393,
-      "worstTilePct": 0.7298748709469163,
+      "diffPct": 0.023298773427065475,
+      "worstTilePct": 0.7299743552085627,
       "regionCount": 0
     },
     "11-deep-margin-collapse-edges": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.18819637797430655,
+      "diffPct": 0.18821107649328664,
       "worstTilePct": 0.9315466346488332,
       "regionCount": 5
     },
     "11-deep-math-functions": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06817094703241114,
-      "worstTilePct": 0.8834046190156972,
+      "diffPct": 0.06824111437255935,
+      "worstTilePct": 0.8834786506869801,
       "regionCount": 12
     },
     "11-deep-percent-resolution": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.028472237677675167,
-      "worstTilePct": 0.7130650789179732,
+      "diffPct": 0.02855927708899506,
+      "worstTilePct": 0.7196991593889381,
       "regionCount": 0
     },
     "11-deep-viewport-units": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.005664553645255863,
-      "worstTilePct": 0.5144195258351729,
+      "diffPct": 0.00565016934141499,
+      "worstTilePct": 0.5177450174579623,
       "regionCount": 0
     },
     "12-deep-display-contents": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.044992264706526716,
-      "worstTilePct": 0.6768918504901961,
+      "diffPct": 0.04455561256226491,
+      "worstTilePct": 0.6729664522058822,
       "regionCount": 0
     },
     "12-deep-display-syntax": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.02456505389981299,
-      "worstTilePct": 0.26513867157350124,
+      "diffPct": 0.02444524514753235,
+      "worstTilePct": 0.2917082439584067,
       "regionCount": 1
     },
     "12-display-block-inline": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01392230248540114,
-      "worstTilePct": 0.16078560157773958,
+      "diffPct": 0.013640015139026448,
+      "worstTilePct": 0.16325925453891846,
       "regionCount": 0
     },
     "12-display-contents": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.007646699350828804,
-      "worstTilePct": 0.15021829044117643,
+      "diffPct": 0.007570423529436973,
+      "worstTilePct": 0.14571844362745093,
       "regionCount": 0
     },
     "12-display-list-item": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.006897229698299642,
-      "worstTilePct": 0.22797282211233103,
+      "diffPct": 0.006840680324322049,
+      "worstTilePct": 0.22822929241037626,
       "regionCount": 0
     },
     "12-display-table": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0665488532555043,
-      "worstTilePct": 0.8487449704794423,
+      "diffPct": 0.06664094487796304,
+      "worstTilePct": 0.8488403340366735,
       "regionCount": 0
     },
     "12-visibility": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03472267825281176,
-      "worstTilePct": 1.093169684002552,
+      "diffPct": 0.03456607418513829,
+      "worstTilePct": 1.0911591141496109,
       "regionCount": 0
     },
     "13-deep-anchor-positioning": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06621998184748469,
-      "worstTilePct": 0.8489391850490191,
+      "diffPct": 0.06638326027203292,
+      "worstTilePct": 0.8027918198529408,
       "regionCount": 3
     },
     "13-deep-containing-block": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.030302904666231933,
-      "worstTilePct": 1.5403587168204396,
+      "diffPct": 0.030104730773443233,
+      "worstTilePct": 1.5464660122344864,
       "regionCount": 2
     },
     "13-deep-cross-sc-z-index": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01919297327077356,
-      "worstTilePct": 0.40343535647320755,
+      "diffPct": 0.01921068484510063,
+      "worstTilePct": 0.39656553045715237,
       "regionCount": 0
     },
     "13-deep-fixed-in-transform": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.04258298668191693,
-      "worstTilePct": 0.24500229779411747,
+      "diffPct": 0.04245068850228386,
+      "worstTilePct": 0.23207720588235287,
       "regionCount": 0
     },
     "13-deep-stacking-context-creators": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.07356205427646359,
-      "worstTilePct": 0.6003919257078932,
+      "diffPct": 0.0734094744848555,
+      "worstTilePct": 0.6004354163037305,
       "regionCount": 0
     },
     "13-deep-stacking-paint-order": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03338947341205121,
-      "worstTilePct": 0.29363893995098,
+      "diffPct": 0.03305575571583183,
+      "worstTilePct": 0.2927772671568624,
       "regionCount": 0
     },
     "13-deep-sticky-condensing-header": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05184442843486004,
-      "worstTilePct": 2.1633622942065998,
+      "diffPct": 0.051760927986078564,
+      "worstTilePct": 2.1636725467815734,
       "regionCount": 4
     },
     "13-deep-sticky-edges": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.030849869947157292,
-      "worstTilePct": 0.3116390255294729,
+      "diffPct": 0.03067933318486727,
+      "worstTilePct": 0.31183034005905735,
       "regionCount": 0
     },
     "13-deep-z-index-flex-grid": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.08356640239952523,
-      "worstTilePct": 0.554636577081821,
+      "diffPct": 0.08330716711565343,
+      "worstTilePct": 0.5546466985581967,
       "regionCount": 0
     },
     "13-deep-z-index-negative": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.10847485158772092,
+      "diffPct": 0.10808573191945638,
       "worstTilePct": 0.9076981446234564,
       "regionCount": 9
     },
     "13-pos-absolute": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.013181235395133604,
-      "worstTilePct": 0.2823924078661222,
+      "diffPct": 0.013068978696253501,
+      "worstTilePct": 0.2826481616772683,
       "regionCount": 0
     },
     "13-pos-fixed": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.004930368423824021,
-      "worstTilePct": 0.19656237709177415,
+      "diffPct": 0.00487023724332937,
+      "worstTilePct": 0.19696816266832196,
       "regionCount": 0
     },
     "13-pos-static-relative": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.012270571025166183,
-      "worstTilePct": 0.2061187115960444,
+      "diffPct": 0.012061359782006042,
+      "worstTilePct": 0.20682526414969363,
       "regionCount": 0
     },
     "13-pos-sticky": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.005744460627578399,
+      "diffPct": 0.005697136553800657,
       "worstTilePct": 0.1375804227941176,
       "regionCount": 0
     },
     "13-pos-z-index": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02621562733831991,
+      "diffPct": 0.025989048645082818,
       "worstTilePct": 0.41171322168709656,
       "regionCount": 0
     },
     "14-deep-float-bfc": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.1105230956639133,
-      "worstTilePct": 1.075721205872867,
+      "diffPct": 0.11046403073131662,
+      "worstTilePct": 1.0756331916947806,
       "regionCount": 7
     },
     "14-deep-float-interactions": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02360426377207543,
-      "worstTilePct": 0.3021536098020367,
+      "diffPct": 0.023454137650831035,
+      "worstTilePct": 0.3069720874163191,
       "regionCount": 0
     },
     "14-float-basic": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.022531684801113665,
-      "worstTilePct": 0.2495978860294116,
+      "diffPct": 0.02213166174214777,
+      "worstTilePct": 0.24576822916666652,
       "regionCount": 0
     },
     "14-float-shape-outside": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05122056884921093,
-      "worstTilePct": 1.2778973928952706,
+      "diffPct": 0.05072645574914135,
+      "worstTilePct": 1.2781846171599764,
       "regionCount": 4
     },
     "14-float-text-wrap": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.04570626940409417,
+      "diffPct": 0.04527643031351003,
       "worstTilePct": 0.3980122474943967,
       "regionCount": 0
     },
     "15-deep-flex-aspect-ratio": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06583917142548915,
+      "diffPct": 0.06572622536363654,
       "worstTilePct": 4.805774083628508,
       "regionCount": 1
     },
     "15-deep-flex-baseline": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03418060637613807,
+      "diffPct": 0.034128481206193446,
       "worstTilePct": 1.8331367146328068,
       "regionCount": 3
     },
     "15-deep-flex-min-auto": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.022907982884013696,
-      "worstTilePct": 0.23849188112745082,
+      "diffPct": 0.022698383726990554,
+      "worstTilePct": 0.2370557598039214,
       "regionCount": 0
     },
     "15-deep-flex-order-vs-z": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.044763955726519734,
-      "worstTilePct": 0.34762098222213783,
+      "diffPct": 0.04465020107944423,
+      "worstTilePct": 0.3477164810006189,
       "regionCount": 0
     },
     "15-flex-alignment": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0034847284456583708,
-      "worstTilePct": 0.08098672860462304,
+      "diffPct": 0.0035071036057590333,
+      "worstTilePct": 0.0750921243946691,
       "regionCount": 0
     },
     "15-flex-container": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00230377870809284,
-      "worstTilePct": 0.04822405167157012,
+      "diffPct": 0.0021674751827289764,
+      "worstTilePct": 0.04834136883632177,
       "regionCount": 0
     },
     "15-flex-items": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.006998410591185959,
-      "worstTilePct": 0.10718509444165167,
+      "diffPct": 0.006738456444695281,
+      "worstTilePct": 0.10140829107864219,
       "regionCount": 0
     },
     "15-flex-nested": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.009295520532567101,
-      "worstTilePct": 0.1355280266129913,
+      "diffPct": 0.009212316325947018,
+      "worstTilePct": 0.13562359414170796,
       "regionCount": 0
     },
     "16-deep-grid-baseline": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.1864473505971334,
-      "worstTilePct": 2.717428768382353,
+      "diffPct": 0.1862129734819873,
+      "worstTilePct": 2.706897212009804,
       "regionCount": 6
     },
     "16-deep-grid-implicit": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.008777561872130774,
-      "worstTilePct": 0.19822134177752818,
+      "diffPct": 0.008728476758038319,
+      "worstTilePct": 0.19901575517299117,
       "regionCount": 0
     },
     "16-deep-grid-min-max-content": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.01820038127842756,
+      "diffPct": 0.018020983805919807,
       "worstTilePct": 0.22944097855900292,
       "regionCount": 1
     },
     "16-deep-subgrid-lines": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.010994282227356615,
-      "worstTilePct": 0.20143486679999248,
+      "diffPct": 0.01096488726409014,
+      "worstTilePct": 0.2022365695984925,
       "regionCount": 0
     },
     "16-grid-alignment": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0027282205233491053,
-      "worstTilePct": 0.05889522075824598,
+      "diffPct": 0.0026721895717797986,
+      "worstTilePct": 0.05296103224968774,
       "regionCount": 0
     },
     "16-grid-areas": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0028259716620790652,
+      "diffPct": 0.002797059364681864,
       "worstTilePct": 0.05900823607968047,
       "regionCount": 0
     },
     "16-grid-auto-flow": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0013358904418041336,
+      "diffPct": 0.0013002220690628804,
       "worstTilePct": 0.03617382964847556,
       "regionCount": 0
     },
     "16-grid-lines": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.002501545032309956,
-      "worstTilePct": 0.05070581048163919,
+      "diffPct": 0.0024729561031160644,
+      "worstTilePct": 0.05321680484801425,
       "regionCount": 0
     },
     "16-grid-repeat": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.003818089010955568,
+      "diffPct": 0.003586817442054799,
       "worstTilePct": 0.08725894850371296,
       "regionCount": 0
     },
     "16-grid-subgrid": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.012832687361381635,
-      "worstTilePct": 0.21972656249999994,
+      "diffPct": 0.012584959774433808,
+      "worstTilePct": 0.215609681372549,
       "regionCount": 0
     },
     "16-grid-template": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.004279100924897578,
-      "worstTilePct": 0.0791320449948774,
+      "diffPct": 0.004108336868082555,
+      "worstTilePct": 0.07914862646900918,
       "regionCount": 0
     },
     "17-bg-color-image": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.022142926391634517,
+      "diffPct": 0.022119393311122906,
       "worstTilePct": 0.7526511270093637,
       "regionCount": 0
     },
     "17-bg-multiple": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.05999472478456729,
-      "worstTilePct": 0.5458327793313468,
+      "diffPct": 0.06003969700946311,
+      "worstTilePct": 0.5504242104241763,
       "regionCount": 0
     },
     "17-deep-bg-attachment-fixed": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01566263211559884,
+      "diffPct": 0.015572295667742075,
       "worstTilePct": 0.27652166632390074,
       "regionCount": 0
     },
     "17-deep-bg-clip-text": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.1709669762212055,
+      "diffPct": 0.17090154089110202,
       "worstTilePct": 5.648288001886059,
       "regionCount": 5
     },
     "17-deep-image-set": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06652977212490108,
-      "worstTilePct": 1.3337737438725494,
+      "diffPct": 0.06681143997874224,
+      "worstTilePct": 1.3160615808823533,
       "regionCount": 10
     },
     "17-deep-sprite-icons": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02649781425678737,
+      "diffPct": 0.02614991773845572,
       "worstTilePct": 0.7049963185728744,
       "regionCount": 0
     },
     "17-gradient-conic": {
       "pass": false,
       "skipped": true,
-      "diffPct": 0.030698275129584444,
+      "diffPct": 0.03068431283893902,
       "worstTilePct": 0.6130106153726962,
       "regionCount": 1
     },
     "17-gradient-linear": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.17684198061600206,
+      "diffPct": 0.17681449835004967,
       "worstTilePct": 3.9159341075258545,
       "regionCount": 0
     },
     "17-gradient-radial": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.1316921832078684,
+      "diffPct": 0.13163884729817268,
       "worstTilePct": 0.7513259089432128,
       "regionCount": 0
     },
     "17-gradient-repeating": {
       "pass": false,
       "skipped": true,
-      "diffPct": 1.114757849798617,
+      "diffPct": 1.1146851205367438,
       "worstTilePct": 20.815517258395506,
       "regionCount": 0
     },
     "18-border-image": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06717464130559878,
-      "worstTilePct": 1.0224818193473317,
+      "diffPct": 0.06711493724388343,
+      "worstTilePct": 1.0223964975377864,
       "regionCount": 6
     },
     "18-border-radius": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.019675529104348645,
+      "diffPct": 0.019662384286561932,
       "worstTilePct": 0.2744884355501588,
       "regionCount": 0
     },
     "18-border-styles": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.22319921732547646,
+      "diffPct": 0.22311693665717441,
       "worstTilePct": 2.9012695888578124,
       "regionCount": 6
     },
     "18-deep-borders-mixed-sides": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.12514602078016066,
+      "diffPct": 0.12616096553811923,
       "worstTilePct": 1.340634952033137,
       "regionCount": 24
     },
     "18-deep-decoration-clone": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.10250851590395856,
-      "worstTilePct": 0.9506585227224645,
+      "diffPct": 0.1037687684132015,
+      "worstTilePct": 0.9597035789436418,
       "regionCount": 1
     },
     "18-deep-radius-overflow": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.03764804199204848,
+      "diffPct": 0.03760922575924038,
       "worstTilePct": 0.6657753310533641,
       "regionCount": 0
     },
     "18-deep-shadow-stacking": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.010761089463942513,
+      "diffPct": 0.010643817833649198,
       "worstTilePct": 0.2081929305494948,
       "regionCount": 1
     },
     "18-outline": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0950175685908162,
+      "diffPct": 0.0949286710550007,
       "worstTilePct": 1.4077914044513105,
       "regionCount": 1
     },
     "18-shadows": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00610105970105567,
-      "worstTilePct": 0.1886180417560626,
+      "diffPct": 0.005913491102271055,
+      "worstTilePct": 0.1835720716771997,
       "regionCount": 0
     },
     "19-color-formats": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00809597175520039,
-      "worstTilePct": 0.08281967943510701,
+      "diffPct": 0.007842077353589806,
+      "worstTilePct": 0.08450482978455964,
       "regionCount": 0
     },
     "19-color-opacity": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.005823113520495624,
+      "diffPct": 0.005654035703581628,
       "worstTilePct": 0.24590232786459712,
       "regionCount": 0
     },
     "19-deep-color-mix": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.012068419600699718,
-      "worstTilePct": 0.08586647383651232,
+      "diffPct": 0.011877796623363452,
+      "worstTilePct": 0.08602936008424755,
       "regionCount": 0
     },
     "19-deep-color-spaces": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.012906608116873185,
-      "worstTilePct": 0.26644837622549,
+      "diffPct": 0.012541706409891494,
+      "worstTilePct": 0.26462928921568607,
       "regionCount": 0
     },
     "19-deep-relative-color": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04270014593463888,
-      "worstTilePct": 0.7651437660935466,
-      "regionCount": 5
+      "diffPct": 0.04271425781727339,
+      "worstTilePct": 0.7621123125085074,
+      "regionCount": 6
     },
     "20-deep-decoration-detail": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0986890702297339,
-      "worstTilePct": 3.46063770072413,
+      "diffPct": 0.09838204752189077,
+      "worstTilePct": 3.4652071038350454,
       "regionCount": 5
     },
     "20-deep-first-letter-line": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0888287117126873,
-      "worstTilePct": 1.7225492087243701,
+      "diffPct": 0.09537308734958075,
+      "worstTilePct": 1.7453119372580232,
       "regionCount": 1
     },
     "20-deep-font-feature-values": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.08669834298097595,
+      "diffPct": 0.09095773399222173,
       "worstTilePct": 3.108256362707555,
-      "regionCount": 15
+      "regionCount": 17
     },
     "20-deep-font-features": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01232155523387868,
-      "worstTilePct": 0.29291246631343376,
+      "diffPct": 0.011973057876806852,
+      "worstTilePct": 0.29319975565886847,
       "regionCount": 0
     },
     "20-deep-font-palette": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06289659890377149,
-      "worstTilePct": 1.2410003063725492,
-      "regionCount": 13
+      "diffPct": 0.21665164679325002,
+      "worstTilePct": 12.588868277072196,
+      "regionCount": 18
     },
     "20-deep-hanging-punctuation": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04001754698395761,
-      "worstTilePct": 0.7952089590710821,
-      "regionCount": 7
+      "diffPct": 0.03986965631651443,
+      "worstTilePct": 0.7996482869264047,
+      "regionCount": 8
     },
     "20-deep-line-box-baselines": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.05199409104000133,
-      "worstTilePct": 0.612777047491519,
+      "diffPct": 0.0516498646366573,
+      "worstTilePct": 0.6155535782213976,
       "regionCount": 0
     },
     "20-deep-selection-highlight": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.07311765151399607,
-      "worstTilePct": 0.3875886087443126,
-      "regionCount": 9
+      "diffPct": 0.07490851915568145,
+      "worstTilePct": 0.4020248919345161,
+      "regionCount": 8
     },
     "20-deep-tab-size": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.16180634764319965,
-      "worstTilePct": 4.22558147620661,
-      "regionCount": 48
+      "diffPct": 0.1662213559889462,
+      "worstTilePct": 4.505328341229914,
+      "regionCount": 49
     },
     "20-deep-text-emphasis": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03997916043895814,
-      "worstTilePct": 1.6794989057583376,
-      "regionCount": 14
+      "diffPct": 0.04011610719566278,
+      "worstTilePct": 1.679881835136456,
+      "regionCount": 15
     },
     "20-deep-text-stroke": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.14821835922424745,
-      "worstTilePct": 4.933128587593573,
+      "diffPct": 0.147670555489091,
+      "worstTilePct": 4.926773512521408,
       "regionCount": 2
     },
     "20-deep-text-underline-position": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.13908227947817103,
-      "worstTilePct": 4.1627909864391475,
+      "diffPct": 0.13906513375842658,
+      "worstTilePct": 4.159758838839938,
       "regionCount": 7
     },
     "20-deep-vertical-align": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.4259630897541265,
+      "diffPct": 0.4258359875100131,
       "worstTilePct": 1.5171271143426401,
       "regionCount": 0
     },
     "20-deep-wavy-underline-descenders": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.36581300316078164,
-      "worstTilePct": 3.0358984989598103,
-      "regionCount": 24
+      "diffPct": 0.36369984256075366,
+      "worstTilePct": 3.018829171228718,
+      "regionCount": 23
     },
     "20-deep-writing-mode-mixed": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.06996591731925665,
-      "worstTilePct": 2.418404669334689,
-      "regionCount": 19
+      "diffPct": 0.07018115708129256,
+      "worstTilePct": 2.4130141411930364,
+      "regionCount": 22
     },
     "20-font-face": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02100875954222848,
-      "worstTilePct": 0.24777879901960775,
+      "diffPct": 0.02911636252808421,
+      "worstTilePct": 0.570140165441176,
       "regionCount": 0
     },
     "20-font-family": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.05884746531186384,
-      "worstTilePct": 1.2595554531104511,
-      "regionCount": 1
+      "diffPct": 0.06514669169703861,
+      "worstTilePct": 1.6677011332575105,
+      "regionCount": 2
     },
     "20-font-size-weight": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.007630890490962016,
-      "worstTilePct": 0.4679840686274506,
-      "regionCount": 1
+      "diffPct": 0.008046268637663405,
+      "worstTilePct": 0.4696116727941172,
+      "regionCount": 2
     },
     "20-font-stretch": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.005871604518955082,
-      "worstTilePct": 0.13202742034313716,
+      "diffPct": 0.005823757380772174,
+      "worstTilePct": 0.14188878676470584,
       "regionCount": 0
     },
     "20-font-style-variant": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04066367554508793,
-      "worstTilePct": 0.6563074448529402,
-      "regionCount": 2
+      "diffPct": 0.05116331811044725,
+      "worstTilePct": 0.6477864583333325,
+      "regionCount": 6
     },
     "20-logical-properties": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.022496580678541257,
-      "worstTilePct": 0.388168916662744,
+      "diffPct": 0.02191672920915741,
+      "worstTilePct": 0.38807317524117535,
       "regionCount": 0
     },
     "20-text-align": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.054511018281157925,
-      "worstTilePct": 0.352375280082623,
+      "diffPct": 0.053695579196509385,
+      "worstTilePct": 0.3447144121907418,
       "regionCount": 0
     },
     "20-text-decoration": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.014024476831075878,
-      "worstTilePct": 0.7764443172449366,
+      "diffPct": 0.013671955889201682,
+      "worstTilePct": 0.7723274361174857,
       "regionCount": 1
     },
     "20-text-indent-shadow": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.029149067580446,
-      "worstTilePct": 0.27200137867647034,
+      "diffPct": 0.032070632394957256,
+      "worstTilePct": 0.27257582720588214,
       "regionCount": 0
     },
     "20-text-line-spacing": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.041292957974625774,
-      "worstTilePct": 0.2570003076347303,
+      "diffPct": 0.04071055185270223,
+      "worstTilePct": 0.23258479589018505,
       "regionCount": 0
     },
     "20-text-transform": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.028395808600132858,
-      "worstTilePct": 0.8258655024509799,
+      "diffPct": 0.028081158407373453,
+      "worstTilePct": 0.825291053921568,
       "regionCount": 2
     },
     "20-text-wrapping": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.030575979076815134,
-      "worstTilePct": 0.4260361179054604,
+      "diffPct": 0.030189101671978344,
+      "worstTilePct": 0.4212169790473275,
       "regionCount": 2
     },
     "20-writing-mode": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.034402740896141766,
-      "worstTilePct": 0.725766642725578,
-      "regionCount": 6
+      "diffPct": 0.03488636508977761,
+      "worstTilePct": 0.7212634134404902,
+      "regionCount": 7
     },
     "21-deep-anisotropic-scale": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.39613438649398175,
-      "worstTilePct": 14.975517718544937,
+      "diffPct": 0.39671625072056427,
+      "worstTilePct": 14.953589109868695,
       "regionCount": 9
     },
     "21-deep-transform-3d-preserve": {
       "pass": false,
       "skipped": true,
-      "diffPct": 4.867629767732175,
+      "diffPct": 4.867421355317981,
       "worstTilePct": 44.149408743105845,
       "regionCount": 9
     },
     "21-deep-transform-box": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0764264476014264,
-      "worstTilePct": 0.6294605182382412,
+      "diffPct": 0.07665225706156659,
+      "worstTilePct": 0.6335117079787,
       "regionCount": 5
     },
     "21-deep-transform-origin": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.2226556225994352,
+      "diffPct": 0.22255332360331914,
       "worstTilePct": 6.061174133217004,
       "regionCount": 4
     },
     "21-transform-2d": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.027565556074699266,
-      "worstTilePct": 1.6013510175006012,
+      "diffPct": 0.027390334861987404,
+      "worstTilePct": 1.6018422875336396,
       "regionCount": 1
     },
     "21-transform-3d": {
       "pass": false,
       "skipped": true,
-      "diffPct": 5.3978284516216055,
+      "diffPct": 5.3976315338287515,
       "worstTilePct": 46.53821483265849,
       "regionCount": 15
     },
     "22-backdrop-filter": {
       "pass": false,
       "skipped": true,
-      "diffPct": 1.1271720464436028,
+      "diffPct": 1.127145958398871,
       "worstTilePct": 42.99181905848023,
       "regionCount": 1
     },
     "22-blend-modes": {
       "pass": true,
       "skipped": false,
-      "diffPct": 2.089889334446263,
+      "diffPct": 2.0898835035188115,
       "worstTilePct": 44.22393165520498,
       "regionCount": 0
     },
     "22-deep-backdrop-translucent-stack": {
       "pass": true,
       "skipped": false,
-      "diffPct": 1.9790967773706376,
+      "diffPct": 1.9789991327170335,
       "worstTilePct": 19.42427614699029,
       "regionCount": 0
     },
     "22-deep-blend-groups": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.029664725818669167,
+      "diffPct": 0.02957975653669907,
       "worstTilePct": 0.545443312448195,
       "regionCount": 2
     },
     "22-deep-filter-paint-bounds": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.07652259284703394,
-      "worstTilePct": 1.2628037741977796,
+      "diffPct": 0.0767518781962876,
+      "worstTilePct": 1.2728509538311747,
       "regionCount": 5
     },
     "22-deep-filter-stacking": {
       "pass": false,
       "skipped": false,
-      "diffPct": 1.3490915688341254,
+      "diffPct": 1.3506826091738309,
       "worstTilePct": 49.268644151503,
       "regionCount": 6
     },
     "22-deep-isolation": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.027388341892408356,
+      "diffPct": 0.027267022985436828,
       "worstTilePct": 0.2673982410842787,
       "regionCount": 0
     },
     "22-filter": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.14775129274958654,
-      "worstTilePct": 1.2909313206120674,
+      "diffPct": 0.14794456195609712,
+      "worstTilePct": 1.2936224544003718,
       "regionCount": 0
     },
     "23-clip-path": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01892363377530616,
+      "diffPct": 0.018943204064898453,
       "worstTilePct": 0.3739568823976402,
       "regionCount": 0
     },
     "23-deep-clip-path-shapes": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.007689330703226766,
+      "diffPct": 0.007617445506274128,
       "worstTilePct": 0.18378844246866968,
       "regionCount": 0
     },
     "23-deep-mask-composite": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.011264174069335327,
-      "worstTilePct": 0.2591590497022375,
+      "diffPct": 0.011140071448609568,
+      "worstTilePct": 0.2501347203951604,
       "regionCount": 0
     },
     "23-deep-mask-fade-edges": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.045162272896155736,
-      "worstTilePct": 0.6488577170147413,
-      "regionCount": 7
+      "diffPct": 0.045493143498389364,
+      "worstTilePct": 0.6723215894631887,
+      "regionCount": 6
     },
     "23-mask": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.022778367903918965,
+      "diffPct": 0.02313956608452249,
       "worstTilePct": 0.3741245357257283,
       "regionCount": 0
     },
     "24-counters": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.017382817757049952,
-      "worstTilePct": 0.406869583489298,
+      "diffPct": 0.016955882008561147,
+      "worstTilePct": 0.4069462669076207,
       "regionCount": 2
     },
     "24-deep-counter-scope": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.014553993780551378,
-      "worstTilePct": 0.24674822391208168,
+      "diffPct": 0.014324787173589369,
+      "worstTilePct": 0.24917389804965023,
       "regionCount": 2
     },
     "24-deep-counter-style": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0523334698731171,
-      "worstTilePct": 2.0575330097506477,
+      "diffPct": 0.05269166416493804,
+      "worstTilePct": 2.0582031595642767,
       "regionCount": 16
     },
     "24-deep-initial-letter": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.24484414676246785,
+      "diffPct": 0.24372604167020845,
       "worstTilePct": 25.053010191027873,
       "regionCount": 6
     },
     "24-deep-pseudo-shapes": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.02848143921422619,
-      "worstTilePct": 0.33284666546666775,
+      "diffPct": 0.028153994947591198,
+      "worstTilePct": 0.322058862406187,
       "regionCount": 0
     },
     "24-generated-content": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0265818993511491,
-      "worstTilePct": 0.7696222428935283,
+      "diffPct": 0.02691509383952346,
+      "worstTilePct": 0.8084020343679407,
       "regionCount": 1
     },
     "24-quotes": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.030119399324044643,
-      "worstTilePct": 0.34294577205882354,
+      "diffPct": 0.029762175279693288,
+      "worstTilePct": 0.34304151348039214,
       "regionCount": 1
     },
     "25-deep-line-clamp": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.13272463111834112,
-      "worstTilePct": 1.8402297247328951,
+      "diffPct": 0.1330627100094071,
+      "worstTilePct": 1.8487538026808887,
       "regionCount": 15
     },
     "25-deep-overflow-auto-positioned": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.07414540195626186,
-      "worstTilePct": 0.5341631887012236,
+      "diffPct": 0.07495701350043951,
+      "worstTilePct": 1.3309972426470587,
       "regionCount": 12
     },
     "25-deep-overflow-clip": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.08115216562381859,
-      "worstTilePct": 0.6654050914799738,
+      "diffPct": 0.08148663595513875,
+      "worstTilePct": 0.6659981505445883,
       "regionCount": 2
     },
     "25-deep-scrollbar-style": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05434536487637398,
-      "worstTilePct": 0.5005766728420474,
+      "diffPct": 0.05410120472530904,
+      "worstTilePct": 0.5006659865129145,
       "regionCount": 5
     },
     "25-overflow-values": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.039060904512103194,
-      "worstTilePct": 0.37768295235528054,
+      "diffPct": 0.03913496145269072,
+      "worstTilePct": 0.37335493558411914,
       "regionCount": 0
     },
     "25-overscroll": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01632813650554154,
-      "worstTilePct": 0.3468711703431369,
+      "diffPct": 0.01606985265942726,
+      "worstTilePct": 0.34945618872548984,
       "regionCount": 0
     },
     "25-scroll-snap": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0035841746341935712,
-      "worstTilePct": 0.10962392769607841,
+      "diffPct": 0.0034917467647462793,
+      "worstTilePct": 0.11010263480392157,
       "regionCount": 0
     },
     "25-scrollbar-gutter": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.04606023749416259,
-      "worstTilePct": 0.3244558603801533,
+      "diffPct": 0.045676110746008934,
+      "worstTilePct": 0.32038636675316107,
       "regionCount": 0
     },
     "25-text-overflow": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.057180819362245824,
-      "worstTilePct": 1.2845036484572026,
+      "diffPct": 0.05711579905709794,
+      "worstTilePct": 1.284598911812811,
       "regionCount": 0
     },
     "26-deep-forced-colors": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.15640086439259848,
+      "diffPct": 0.1569112100149467,
       "worstTilePct": 0.6016450427879411,
       "regionCount": 7
     },
     "26-deep-mq-prefers": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0371056753247042,
-      "worstTilePct": 0.32019113539068883,
+      "diffPct": 0.03689741406123319,
+      "worstTilePct": 0.32033482522003376,
       "regionCount": 1
     },
     "26-mq-features": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.008131931084983461,
-      "worstTilePct": 0.08526282490122537,
+      "diffPct": 0.007940977679569815,
+      "worstTilePct": 0.07877697300958639,
       "regionCount": 0
     },
     "26-mq-range-syntax": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.008275770890124021,
+      "diffPct": 0.008144059079868279,
       "worstTilePct": 0.18701816964433135,
       "regionCount": 0
     },
     "26-mq-width-orientation": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.006946953598335111,
-      "worstTilePct": 0.12417662377450978,
+      "diffPct": 0.006827276821374325,
+      "worstTilePct": 0.12455958946078428,
       "regionCount": 0
     },
     "26-supports": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00687311623428439,
+      "diffPct": 0.006829925703410673,
       "worstTilePct": 0.11347906407178142,
       "regionCount": 0
     },
     "27-deep-page-margin-boxes": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0497852016486178,
-      "worstTilePct": 1.4915550579123127,
+      "diffPct": 0.0495534739913719,
+      "worstTilePct": 1.4916186089772596,
       "regionCount": 0
     },
     "27-page": {
       "pass": false,
       "skipped": true,
-      "diffPct": 0.055306012689746074,
-      "worstTilePct": 0.7070503982843126,
+      "diffPct": 0.054119569055033775,
+      "worstTilePct": 0.7068589154411753,
       "regionCount": 4
     },
     "28-charset-namespace": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.010219091229747969,
-      "worstTilePct": 0.20115272671568626,
+      "diffPct": 0.010234549480105404,
+      "worstTilePct": 0.19971660539215685,
       "regionCount": 0
     },
     "28-container": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.01088463203698043,
+      "diffPct": 0.010760005165675397,
       "worstTilePct": 0.18934680759989647,
       "regionCount": 0
     },
     "28-deep-container-types": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.006535273817444745,
-      "worstTilePct": 0.23082323920788095,
+      "diffPct": 0.006525142840291346,
+      "worstTilePct": 0.23950754296343277,
       "regionCount": 0
     },
     "28-deep-layer-import": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.11013814451085431,
-      "worstTilePct": 1.0343668379948208,
+      "diffPct": 0.11003366130311389,
+      "worstTilePct": 1.0349909141595783,
       "regionCount": 0
     },
     "28-deep-nesting-complex": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.051032591743439285,
-      "worstTilePct": 0.719017659205323,
+      "diffPct": 0.05164840827890134,
+      "worstTilePct": 0.7190944667361556,
       "regionCount": 1
     },
     "28-deep-scope": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.055805981002509684,
-      "worstTilePct": 0.5834069524990466,
+      "diffPct": 0.05657470842856026,
+      "worstTilePct": 0.5785558441222347,
       "regionCount": 1
     },
     "28-import": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.060872630859128425,
-      "worstTilePct": 0.8970051888208871,
+      "diffPct": 0.060796538689486326,
+      "worstTilePct": 0.9002366670615942,
       "regionCount": 0
     },
     "28-layer": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00027733601419036583,
+      "diffPct": 0.00016072001853843442,
       "worstTilePct": 0.030858243559379404,
       "regionCount": 0
     },
     "28-nesting": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00356860776148991,
-      "worstTilePct": 0.07045036310358059,
+      "diffPct": 0.0034383824140240514,
+      "worstTilePct": 0.07503577943418553,
       "regionCount": 0
     },
     "29-cascade-specificity": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.000931972110807882,
-      "worstTilePct": 0.01219491676477532,
+      "diffPct": 0.0008455681463786995,
+      "worstTilePct": 0.016181716476336483,
       "regionCount": 0
     },
     "29-custom-properties": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.028383546082995658,
-      "worstTilePct": 0.9423903597907578,
+      "diffPct": 0.02834392809194913,
+      "worstTilePct": 0.9427444458081617,
       "regionCount": 0
     },
     "29-deep-layer-priority": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0400056019558624,
-      "worstTilePct": 0.4024011948529408,
+      "diffPct": 0.03964823392022811,
+      "worstTilePct": 0.3940716911764701,
       "regionCount": 6
     },
     "29-deep-property-registration": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.013241280551877987,
-      "worstTilePct": 0.16805415439693666,
+      "diffPct": 0.013166604064230265,
+      "worstTilePct": 0.16629943792913296,
       "regionCount": 0
     },
     "29-deep-where-is-specificity": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.012944953038641498,
-      "worstTilePct": 0.1827557228541881,
+      "diffPct": 0.012956074483445448,
+      "worstTilePct": 0.18478664354276922,
       "regionCount": 0
     },
     "29-important": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.0001976442552531803,
-      "worstTilePct": 0.006135905736831201,
+      "diffPct": 0,
+      "worstTilePct": 0,
       "regionCount": 0
     },
     "29-inheritance-keywords": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.00915320988047453,
-      "worstTilePct": 0.21005667892156862,
+      "diffPct": 0.00908980049655499,
+      "worstTilePct": 0.20881204044117643,
       "regionCount": 0
     },
     "30-caret-accent": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.13438321262577788,
+      "diffPct": 0.13434980285887635,
       "worstTilePct": 7.020888886078361,
       "regionCount": 3
     },
     "30-cursor": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.010927995199152456,
-      "worstTilePct": 0.1054552951940686,
+      "diffPct": 0.010834423204155206,
+      "worstTilePct": 0.1158922306832888,
       "regionCount": 0
     },
     "30-deep-resize-overflow": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0744010990818919,
+      "diffPct": 0.07494240984493473,
       "worstTilePct": 0.8088235294117636,
       "regionCount": 19
     },
     "30-resize": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.028012657882007304,
+      "diffPct": 0.0279823283147646,
       "worstTilePct": 0.24595971200980435,
       "regionCount": 4
     },
     "30-user-select": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.015166700709710263,
-      "worstTilePct": 0.254591973926291,
+      "diffPct": 0.015041491242448444,
+      "worstTilePct": 0.2528355780733401,
       "regionCount": 0
     },
     "31-aria-data": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.009238645457525922,
-      "worstTilePct": 0.18152573529411764,
+      "diffPct": 0.008974536144296896,
+      "worstTilePct": 0.1394918555854371,
       "regionCount": 0
     },
     "31-deep-inert-hidden": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.07192395159072618,
-      "worstTilePct": 1.021150091876167,
+      "diffPct": 0.07271463623357333,
+      "worstTilePct": 1.003851526664238,
       "regionCount": 0
     },
     "31-global-attrs": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.12420325251618972,
+      "diffPct": 0.12466974207151277,
       "worstTilePct": 2.833725532944783,
       "regionCount": 3
     },
     "32-real-world-blog-post": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06264776453248441,
-      "worstTilePct": 0.7594095122729715,
+      "diffPct": 0.06215459659643181,
+      "worstTilePct": 0.7600810715724529,
       "regionCount": 11
     },
     "32-real-world-mobile-app-frame": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04042713895494688,
-      "worstTilePct": 1.0825045356204428,
+      "diffPct": 0.04051287483050434,
+      "worstTilePct": 1.0695993870899054,
       "regionCount": 1
     },
     "32-real-world-news-card": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.01772578613956426,
-      "worstTilePct": 0.24426760299892317,
+      "diffPct": 0.017162178947609623,
+      "worstTilePct": 0.2462467737165643,
       "regionCount": 1
     },
     "32-real-world-pricing-table": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.20054914819819758,
-      "worstTilePct": 2.199599959025128,
+      "diffPct": 0.20070443130291515,
+      "worstTilePct": 2.199819165278753,
       "regionCount": 1
     },
     "33-columns-basic": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.09099853233816178,
+      "diffPct": 0.09194028437837967,
       "worstTilePct": 0.49729368287116427,
       "regionCount": 6
     },
     "33-deep-columns-break": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.054553664999688445,
-      "worstTilePct": 0.8605617236704465,
-      "regionCount": 8
+      "diffPct": 0.05467110762713426,
+      "worstTilePct": 0.8567427528634408,
+      "regionCount": 6
     },
     "34-mathml-basic": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.052876254946647626,
-      "worstTilePct": 1.566365291815608,
+      "diffPct": 0.053653208883508254,
+      "worstTilePct": 1.5809187551555586,
       "regionCount": 10
     },
     "34-mathml-layout": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0428347748154007,
-      "worstTilePct": 1.1988740808823526,
-      "regionCount": 14
+      "diffPct": 0.04356889812586972,
+      "worstTilePct": 1.2092141544117645,
+      "regionCount": 13
     },
     "niche-align-content-block": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.023467475677473638,
-      "worstTilePct": 0.3796590932608445,
+      "diffPct": 0.02363691902843114,
+      "worstTilePct": 0.37937269410466296,
       "regionCount": 2
     },
     "niche-anchor-position-try": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.03307137581079511,
-      "worstTilePct": 1.3465073529411773,
+      "diffPct": 0.03337840136866984,
+      "worstTilePct": 1.3557942708333341,
       "regionCount": 2
     },
     "niche-command-invokers": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05870603932499842,
-      "worstTilePct": 1.1101217830882355,
+      "diffPct": 0.05895955307716555,
+      "worstTilePct": 1.07421875,
       "regionCount": 6
     },
     "niche-contrast-color": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05833130641556577,
-      "worstTilePct": 0.540274536411133,
+      "diffPct": 0.05866727479051441,
+      "worstTilePct": 0.5413595154565912,
       "regionCount": 1
     },
     "niche-cross-fade-images": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.02236750880516938,
+      "diffPct": 0.022520398229129036,
       "worstTilePct": 0.4962872817933344,
-      "regionCount": 4
+      "regionCount": 3
     },
     "niche-css-function-rule": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.13304170718063058,
-      "worstTilePct": 7.843482255614291,
+      "diffPct": 0.13361630008398015,
+      "worstTilePct": 7.8415385952891405,
       "regionCount": 1
     },
     "niche-if-function": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.055943598135040636,
-      "worstTilePct": 0.9295534620098035,
+      "diffPct": 0.05612019256327722,
+      "worstTilePct": 0.89422487745098,
       "regionCount": 6
     },
     "niche-logical-clear-caption": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.06275584121453402,
-      "worstTilePct": 0.9435317095588225,
+      "diffPct": 0.06288415932796504,
+      "worstTilePct": 0.9483187806372544,
       "regionCount": 2
     },
     "niche-mask-border": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05055265887594509,
+      "diffPct": 0.050928323622926396,
       "worstTilePct": 0.5944618129719313,
       "regionCount": 1
     },
     "niche-reading-flow": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.11944311080697646,
-      "worstTilePct": 1.2782372735573824,
+      "diffPct": 0.1193475371341893,
+      "worstTilePct": 1.278556188063315,
       "regionCount": 0
     },
     "niche-scroll-markers": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.09747256492928055,
+      "diffPct": 0.09779574799531246,
       "worstTilePct": 11.893394599139775,
       "regionCount": 2
     },
     "niche-scroll-state-queries": {
       "pass": true,
       "skipped": false,
-      "diffPct": 0.06631252730658213,
-      "worstTilePct": 0.7846966911764693,
+      "diffPct": 0.06762697413559439,
+      "worstTilePct": 0.7845052083333321,
       "regionCount": 0
     },
     "niche-select-customizable": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.13355414394766513,
+      "diffPct": 0.13430480809615997,
       "worstTilePct": 1.5461626066440535,
       "regionCount": 20
     },
     "niche-shadow-dom-declarative": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.12094474951507383,
-      "worstTilePct": 0.6776056069396588,
+      "diffPct": 0.12145032410354276,
+      "worstTilePct": 0.6853494777822623,
       "regionCount": 8
     },
     "niche-style-queries": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.05753985452116109,
-      "worstTilePct": 0.47909911293877955,
+      "diffPct": 0.057644597658352684,
+      "worstTilePct": 0.4868680977628299,
       "regionCount": 3
     },
     "niche-svg-view-switch": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.055584767688225414,
+      "diffPct": 0.055830274372142656,
       "worstTilePct": 1.0225332647143441,
       "regionCount": 3
     },
     "niche-text-box-trim": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.0527159613568705,
-      "worstTilePct": 2.303716150440121,
+      "diffPct": 0.05246799934065826,
+      "worstTilePct": 2.358925574598989,
       "regionCount": 1
     },
     "niche-webkit-box-reflect": {
       "pass": false,
       "skipped": true,
-      "diffPct": 3.213499994898586,
+      "diffPct": 3.2136643860765077,
       "worstTilePct": 40.53166771405396,
       "regionCount": 2
     },
     "niche-zoom-text-rendering": {
       "pass": false,
       "skipped": false,
-      "diffPct": 0.04314155172655142,
-      "worstTilePct": 0.8264399509803909,
+      "diffPct": 0.04369125475165935,
+      "worstTilePct": 0.8259612438725479,
       "regionCount": 5
     }
   }
