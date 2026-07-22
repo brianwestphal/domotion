@@ -138,12 +138,20 @@ required there, which is out of scope.
 
 ## Rollout / flag
 
-`DOMOTION_HINTED_SUBSET` controls the path (read per call in
-`src/render/embedded-font-builder.ts` / `font-resolution.ts`). The CI visual
-suite can dispatch either arm (`tools/run-ci-visual-tests.mjs --hinted-subset`,
-`hinted_subset` input in `.github/workflows/visual-tests.yml`).
+The hinted path is **ON by default**. `DOMOTION_HINTED_SUBSET=0` opts out
+(reverts to the svg2ttf-only builder — A/B measurement, escape hatch); the env
+is read per call in `src/render/embedded-font-builder.ts` /
+`font-resolution.ts`. The CI visual suite dispatches the svg2ttf arm with
+`tools/run-ci-visual-tests.mjs --no-hinted-subset` (`hinted_subset` input in
+`.github/workflows/visual-tests.yml`; empty = renderer default).
 
-<!-- DEFAULT-STATE: updated after the full-sweep measurement -->
+The default was flipped after full-sweep measurement on all three platforms:
+Linux unicode went from 815 failing fixtures to 75 (740 fixed, zero
+regressions vs the flag-off baseline), Windows halved its average diff on both
+suites (unicode 0.505% → 0.291%, html 0.379% → 0.196%, 943/950 fixtures
+improved), and macOS stayed at parity once three subset-correctness bugs the
+sweep surfaced were fixed (CFF exclusion, notdef-outline retention + gid-0
+addressing, TTC faceIndex resolution — see the git history for the details).
 
 ## Test coverage
 

@@ -40,14 +40,13 @@ import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
 import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
-/** DM-1714/DM-1716: opt-in the hinting-preserving hb-subset embedded path.
- *  Read per call (not at module load) so tests can toggle it. */
+/** DM-1714/DM-1716: the hinting-preserving hb-subset embedded path is the
+ *  DEFAULT; set DOMOTION_HINTED_SUBSET=0 to fall back to the svg2ttf-only
+ *  builder (A/B measurement, escape hatch). Read per call (not at module load)
+ *  so tests can toggle it. */
 function hintedSubsetEnabled(): boolean {
-  return process.env.DOMOTION_HINTED_SUBSET === "1";
+  return process.env.DOMOTION_HINTED_SUBSET !== "0";
 }
-/** DM-1714 (spike) diagnostics: how many entries took each build path, logged once
- *  per composition in getBuiltEmbeddedFontFaceCss so a CI run confirms the split. */
-const _hintedSubsetStats = { hinted: 0, svg2ttf: 0, failed: 0, lastSkip: "" };
 
 /** A tracked glyph's outline (SVG path `d`, font units, y-up) + advance. */
 interface EmbeddedGlyph {
@@ -326,10 +325,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       // producing an outline-less font Chrome's OTS rejects → tofu) and
       // outline-less files (PingFang's Apple-private hvgl). Those keep the
       // svg2ttf path by design — a quiet skip, not a failure.
-      if (!sfntHasSubsettableOutlines(bytes, entry.hintedSource.faceIndex)) {
-        _hintedSubsetStats.svg2ttf++;
-        _hintedSubsetStats.lastSkip = "non-glyf-source";
-      } else {
+      if (sfntHasSubsettableOutlines(bytes, entry.hintedSource.faceIndex)) {
         let subset = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true, entry.hintedSource.variationAxes ?? null);
         // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a
         // cmap entry mapping to gid 0 means "not covered" (the consumer browser
@@ -341,20 +337,19 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
           subset = withCopy;
           for (const pua of notdefPuas) puaToGid.set(pua, newGid);
         }
-        const out = injectPuaCmap(subset, puaToGid);
-        _hintedSubsetStats.hinted++;
+        const out = injectPuaCmap(subset, puaToGid, { weight: entry.weight, italic: entry.italic });
         if (process.env.DOMOTION_HINTED_DEBUG === "1") {
           console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${entry.hintedSource.faceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
         }
         return out;
       }
     } catch (e) {
-      _hintedSubsetStats.failed++;
-      console.warn(`[embedded-font-builder] hinted hb-subset failed for ${entry.cssFamily} (${entry.hintedSource.path}); falling back to svg2ttf:`, (e as Error).message);
+      // A guard/subset failure silently falls back to the proven svg2ttf path —
+      // a bad font never breaks a render. Opt-in visibility via the debug env.
+      if (process.env.DOMOTION_HINTED_DEBUG === "1") {
+        console.warn(`[hinted-debug] ${entry.cssFamily}: hb-subset failed for ${entry.hintedSource.path}; falling back to svg2ttf:`, (e as Error).message);
+      }
     }
-  } else if (hintedSubsetEnabled()) {
-    _hintedSubsetStats.svg2ttf++;
-    _hintedSubsetStats.lastSkip = entry.hintedSource == null ? "no-source" : "disqualified";
   }
   const glyphEls: string[] = [];
   for (const [glyphId, g] of entry.glyphs) {
@@ -382,7 +377,6 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
  */
 export function getBuiltEmbeddedFontFaceCss(): string {
   if (builderRegistry.size === 0) return "";
-  if (hintedSubsetEnabled()) { _hintedSubsetStats.hinted = 0; _hintedSubsetStats.svg2ttf = 0; _hintedSubsetStats.failed = 0; }
   const rules: string[] = [];
   for (const entry of builderRegistry.values()) {
     const ttfBytes = buildGlyfFontForEntry(entry);
@@ -396,9 +390,6 @@ export function getBuiltEmbeddedFontFaceCss(): string {
     // already baked into the custom TTF.
     const styleDesc = entry.italic ? "italic" : "normal";
     rules.push(`@font-face { font-family: "${entry.cssFamily}"; font-style: ${styleDesc}; font-weight: ${entry.weight}; src: url("data:font/ttf;base64,${b64}"); }`);
-  }
-  if (hintedSubsetEnabled()) {
-    console.warn(`[DM-1714] embedded fonts: hinted=${_hintedSubsetStats.hinted} svg2ttf=${_hintedSubsetStats.svg2ttf} failed=${_hintedSubsetStats.failed} lastSkip=${_hintedSubsetStats.lastSkip || "-"}`);
   }
   return rules.join("\n");
 }

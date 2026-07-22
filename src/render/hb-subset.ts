@@ -340,18 +340,68 @@ function rebuildSfnt(sfntVersion: number, tables: Record<string, Buffer>): Buffe
   return font;
 }
 
-/** Replace the `cmap` table of an sfnt with a PUA→gid one, rebuilding the table
- *  directory + checksums + `head.checkSumAdjustment`. */
-export function injectPuaCmap(fontBytes: Buffer, puaToGid: Map<number, number>): Buffer {
+/** The only tables the embedded `<text>` pipeline needs. The PUA stream does
+ *  ZERO shaping in the consumer browser (fontkit already shaped at capture
+ *  time) and every glyph gets an explicit x — so GSUB/GPOS/GDEF/kern are dead
+ *  weight, and vertical/device-metric tables are worse than dead weight:
+ *  Chrome's OTS sanitizer REJECTED STHeiti's subset over its `vmtx` (tofu-boxing
+ *  the whole entry), and its `hdmx` alone was ~1 MB (per-glyph device records ×
+ *  a RETAIN_GIDS-padded 52k-glyph id space). Keep outlines, metrics, hinting,
+ *  and identity; drop the rest. */
+const EMBEDDED_KEEP_TABLES = new Set([
+  "head", "hhea", "hmtx", "maxp", "glyf", "loca",  // outlines + metrics
+  "cvt ", "fpgm", "prep", "gasp",                  // the hinting program
+  "OS/2", "post", "name",                          // identity + line metrics
+]);
+
+/** Minimal OS/2 (version 4) synthesized from `hhea` metrics + the entry's
+ *  weight/italic. Legacy Apple TrueType collections (Courier.ttc, …) carry no
+ *  OS/2 at all, and Chrome's OTS REQUIRES one — without it the whole
+ *  `@font-face` is rejected and every glyph tofu-boxes. */
+function synthesizeOs2(hhea: Buffer, weight: number, italic: boolean): Buffer {
+  const ascender = hhea.readInt16BE(4);
+  const descender = hhea.readInt16BE(6);
+  const lineGap = hhea.readInt16BE(8);
+  const advanceMax = hhea.readUInt16BE(10);
+  const os2 = Buffer.alloc(96);
+  os2.writeUInt16BE(4, 0);                            // version
+  os2.writeInt16BE(advanceMax >> 1, 2);               // xAvgCharWidth (cosmetic)
+  os2.writeUInt16BE(weight, 4);                       // usWeightClass
+  os2.writeUInt16BE(5, 6);                            // usWidthClass: medium
+  // fsType 0 (installable), subscript/superscript/strikeout metrics left 0 —
+  // the embedded pipeline positions everything explicitly.
+  os2.write("DMTN", 58, "latin1");                    // achVendID
+  const bold = weight >= 600;
+  os2.writeUInt16BE((italic ? 0x01 : 0) | (bold ? 0x20 : 0) | (!italic && !bold ? 0x40 : 0), 62); // fsSelection
+  os2.writeUInt16BE(0xffff, 64);                      // usFirstCharIndex (PUA — capped)
+  os2.writeUInt16BE(0xffff, 66);                      // usLastCharIndex
+  os2.writeInt16BE(ascender, 68);                     // sTypoAscender
+  os2.writeInt16BE(descender, 70);                    // sTypoDescender
+  os2.writeInt16BE(lineGap, 72);                      // sTypoLineGap
+  os2.writeUInt16BE(Math.max(0, ascender), 74);       // usWinAscent
+  os2.writeUInt16BE(Math.max(0, -descender), 76);     // usWinDescent
+  os2.writeUInt16BE(32, 92);                          // usBreakChar
+  os2.writeUInt16BE(1, 94);                           // usMaxContext
+  return os2;
+}
+
+/** Replace the `cmap` table of an sfnt with a PUA→gid one, dropping every table
+ *  outside EMBEDDED_KEEP_TABLES, synthesizing OS/2 when the source has none,
+ *  and rebuilding the directory + checksums + `head.checkSumAdjustment`. */
+export function injectPuaCmap(fontBytes: Buffer, puaToGid: Map<number, number>, variant: { weight?: number; italic?: boolean } = {}): Buffer {
   const numTables = fontBytes.readUInt16BE(4);
   const tables: Record<string, Buffer> = {};
   for (let i = 0; i < numTables; i++) {
     const o = 12 + i * 16;
     const tag = fontBytes.toString("latin1", o, o + 4);
+    if (!EMBEDDED_KEEP_TABLES.has(tag)) continue;
     const off = fontBytes.readUInt32BE(o + 8);
     const len = fontBytes.readUInt32BE(o + 12);
     tables[tag] = fontBytes.subarray(off, off + len);
   }
   tables["cmap"] = buildFormat12Cmap(puaToGid);
+  if (tables["OS/2"] == null && tables["hhea"] != null) {
+    tables["OS/2"] = synthesizeOs2(tables["hhea"], variant.weight ?? 400, variant.italic ?? false);
+  }
   return rebuildSfnt(fontBytes.readUInt32BE(0), tables);
 }

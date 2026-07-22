@@ -52,8 +52,8 @@ on:
         description: 'Capture device pixel ratio (default 1). dpr=2 renders expected+actual at 2× — a diagnostic for glyph-sheet-audit so ink clears the DM-1686 comparator''s ≥32px regime.'
         default: '1'
       hinted_subset:
-        description: 'DM-1714 spike: build embedded fonts with the hinting-preserving hb-subset path (DOMOTION_HINTED_SUBSET) instead of svg2ttf. 1=on, 0=off.'
-        default: '0'
+        description: 'DOMOTION_HINTED_SUBSET override. Empty = renderer default (hinting-preserving hb-subset embedded path ON); 0 = force the svg2ttf-only arm for A/B measurement.'
+        default: ''
 
 env:
   # Match the Release/Windows workflows' pin (Node 22.22.x ships a broken npm).

@@ -229,8 +229,25 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     expect(track()).toBe(track());
   });
 
-  it("stays on svg2ttf when the flag is off", () => {
-    delete process.env.DOMOTION_HINTED_SUBSET;
+  it("synthesizes an OS/2 table when the source font has none (OTS requires one)", () => {
+    // the synthesized test font deliberately carries no OS/2 — like macOS's
+    // legacy Courier.ttc, whose missing OS/2 got the whole @font-face rejected
+    trackGlyphInEmbedFont("hinted-os2|w=700|s=0", 1000, 800, -200, 1, TRI, 600,
+      { italic: false, weight: 700, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    expect(tags(bytes).has("OS/2")).toBe(true);
+    // locate OS/2 and check usWeightClass carries the entry weight
+    const numTables = bytes.readUInt16BE(4);
+    for (let i = 0; i < numTables; i++) {
+      const o = 12 + i * 16;
+      if (bytes.toString("latin1", o, o + 4) !== "OS/2") continue;
+      const off = bytes.readUInt32BE(o + 8);
+      expect(bytes.readUInt16BE(off + 4)).toBe(700); // usWeightClass
+    }
+  });
+
+  it("stays on svg2ttf when the path is disabled (DOMOTION_HINTED_SUBSET=0)", () => {
+    process.env.DOMOTION_HINTED_SUBSET = "0";
     trackGlyphInEmbedFont("hinted-off|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
       { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
     const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
