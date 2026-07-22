@@ -55,7 +55,10 @@ describe("emoji-detect needsRaster (unconditional branches)", () => {
   });
 
   it("keeps the pre-existing unconditional families and ranges", () => {
-    expect(needsRaster(0x2716, 0, "x")).toBe(true);  // rasterCps ✖
+    // ✖ U+2716 moved from unconditional rasterCps to the cascade-probed
+    // checksCrossesCps set (fill-invariance probe): in a happy-dom test there
+    // is no canvas, so the probe's fail-safe returns true (keep rastering).
+    expect(needsRaster(0x2716, 0, "x")).toBe(true);  // checksCrossesCps ✖ (fail-safe)
     expect(needsRaster(0x1F1E6, 0, "x")).toBe(true); // regional indicator
     expect(needsRaster(0x1F600, 0, "x")).toBe(true); // 1F300–1FAFF main block
   });

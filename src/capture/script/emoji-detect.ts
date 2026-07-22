@@ -23,7 +23,7 @@ export const createEmojiDetect = () => {
   // the captured PNG over the path-mode glyph so this list lets the screen-
   // shotter pick them up.
   const rasterCps = new Set([
-    0x2713, 0x2714, 0x2716, 0x2717, 0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
+    0x2728, 0x2753, 0x2754, 0x2755, 0x2757,
     0x274C, 0x274E, 0x2795, 0x2796, 0x2797, 0x27A1, 0x27B0, 0x27BF,
     // Dingbats with default emoji presentation (Emoji_Presentation=Yes per
     // Unicode emoji-data) that NO macOS text symbol font covers, so Chrome
@@ -47,6 +47,16 @@ export const createEmojiDetect = () => {
   const emojiPresentation2B = new Set([
     0x2B05, 0x2B06, 0x2B07, 0x2B1B, 0x2B1C, 0x2B50, 0x2B55,
   ]);
+  // Checks/crosses ✓✔✖✗ (2713/2714/2716/2717) — CASCADE-DEPENDENT like the
+  // 2B?? family above, NOT unconditional raster (where they previously
+  // lived). They are text-presentation by default (2714/2716 are Emoji=Yes
+  // with Emoji_Presentation=No; 2713/2717 aren't emoji at all), and CDP
+  // CSS.getPlatformFontsForNode shows Chrome painting TEXT glyphs (Lucida
+  // Grande / Zapf Dingbats) on 02-text-symbols' generic-family rows — the
+  // unconditional raster stamped the Apple Color Emoji bitmap over Chrome's
+  // bold Zapf check. But the per-Unicode-block fixture cells, whose stacks
+  // cascade to the color font, DO paint the emoji. Probe per element.
+  const checksCrossesCps = new Set([0x2713, 0x2714, 0x2716, 0x2717]);
   // Codepoints in the U+2600-26FF Misc Symbols block with EmojiPresentation=Yes
   // per Unicode emoji-data: Chrome paints these as color emoji by default
   // (without needing the U+FE0F variation selector). Source: unicode.org
@@ -132,6 +142,49 @@ export const createEmojiDetect = () => {
     return colored;
   };
 
+  // DM-1706: some Apple Color Emoji glyphs are GRAY (✔️ ✖️ heavy check /
+  // multiply), so the chromatic-pixel probe above reads them as "not color"
+  // even when Chrome IS painting the emoji. Discriminate by the defining
+  // property of color-font glyphs instead: they IGNORE the canvas fill color.
+  // Render the cp twice (black vs red fill) — a text glyph's pixels change, a
+  // color-emoji bitmap's don't.
+  const _fillCache = new Map();
+  const ignoresFillColor = (cp, font) => {
+    if (font == null || font === '') return true;
+    const key = cp + '|' + font;
+    const hit = _fillCache.get(key);
+    if (hit !== undefined) return hit;
+    let ignores = true; // fail safe: keep rastering when the probe can't run
+    try {
+      if (_colorCtx == null) {
+        _colorCanvas = document.createElement('canvas');
+        _colorCanvas.width = 48;
+        _colorCanvas.height = 48;
+        _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true });
+      }
+      const draw = (fill) => {
+        _colorCtx.clearRect(0, 0, 48, 48);
+        _colorCtx.fillStyle = fill;
+        _colorCtx.textBaseline = 'top';
+        _colorCtx.font = '32px ' + font;
+        _colorCtx.fillText(String.fromCodePoint(cp), 8, 4);
+        return _colorCtx.getImageData(0, 0, 48, 48).data;
+      };
+      const a = draw('#000');
+      const b = new Uint8ClampedArray(a); // copy — getImageData reuses buffers in some engines
+      b.set(a);
+      const c = draw('#f00');
+      let ink = false, differs = false;
+      for (let i = 0; i < b.length; i += 4) {
+        if (b[i + 3] >= 8 || c[i + 3] >= 8) ink = true;
+        if (Math.abs(b[i] - c[i]) > 16 || Math.abs(b[i + 1] - c[i + 1]) > 16) { differs = true; break; }
+      }
+      ignores = ink && !differs;
+    } catch (e) { /* keep ignores = true */ }
+    _fillCache.set(key, ignores);
+    return ignores;
+  };
+
   const needsRaster = (cp, nextCp, font) => {
     // `rasterCps` (the ✨ ❌ ➡ checkmark/star family) are codepoints Chrome
     // routes to the COLOR emoji font even when a text font in the cascade has
@@ -161,6 +214,12 @@ export const createEmojiDetect = () => {
     // emojiPresentation26 branch above) instead of unconditionally path- OR
     // raster-rendering. Catches bare ✌ (U+270C) / ✒ (U+2712) the FE0F-only
     // gate dropped, while leaving cascade-monochrome ✈ (U+2708) on the path.
+    // Checks/crosses ✓✔✖✗ — cascade-dependent (see checksCrossesCps above),
+    // probed via FILL-COLOR INVARIANCE: Apple's ✔️ ✖️ emojis are GRAY, so the
+    // chromatic isColorGlyph probe reads them as text even when Chrome paints
+    // the emoji. Must precede the emojiBaseCps branch (0x2716 is in that set
+    // and its chromatic probe would intercept with the wrong answer).
+    if (checksCrossesCps.has(cp)) return ignoresFillColor(cp, font);
     if (emojiBaseCps.has(cp)) return isColorGlyph(cp, font);
     // Regional-indicator flags (pairs are joined into country flag emoji).
     if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return true;

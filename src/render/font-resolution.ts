@@ -1933,6 +1933,22 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     if (monoPrimary) return [primaryKey, "menlo", "hiragino-jp"];
     return ["hiragino-jp", "menlo"];
   }
+  // U+2713 CHECK MARK (✓) — context-dependent, per CDP CSS.getPlatformFontsForNode
+  // at 16px on each generic primary (02-text-symbols rows): sans → Lucida
+  // Grande (the DM-980 finding — Zapf's check is visibly thinner at a
+  // different angle), serif → Zapf Dingbats, monospace → Menlo. This must sit
+  // BEFORE the Dingbats-block return: the earlier DM-980 rule lived after it
+  // and was dead code — the block return shadowed it, which is exactly why the
+  // fixture's sans ✓ painted the thin Zapf check.
+  if (codepoint === 0x2713) {
+    const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
+      || primaryKey === "monaco" || primaryKey === "sf-mono";
+    if (monoPrimary) return ["menlo", "zapf-dingbats", "symbols"];
+    if (primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia" || primaryKey === "palatino") {
+      return ["zapf-dingbats", "symbols"];
+    }
+    return ["lucida-grande", "zapf-dingbats", "symbols"];
+  }
   // Dingbats → Zapf Dingbats. macOS Chrome paints ✂✈✏✔✘✚✦❄❤❶ via Zapf
   // Dingbats; Apple Symbols has the same codepoints but at different (often
   // narrower) widths — empirical match shows Chrome consistently picks Zapf.
@@ -1967,6 +1983,16 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   if (codepoint === 0x25A0 || codepoint === 0x25A1
     || codepoint === 0x25CF || codepoint === 0x25CB
     || codepoint === 0x25C6 || codepoint === 0x25C7) {
+    // Context split (CDP per-cp probe on the 02-text-symbols rows): a serif
+    // primary pulls these from Times New Roman, a monospace primary from
+    // Menlo; the sans path keeps Lucida Grande (sans primaries that carry
+    // the glyph themselves — Helvetica has ● — never reach this chain).
+    if (primaryKey === "courier" || primaryKey === "menlo" || primaryKey === "monaco" || primaryKey === "sf-mono") {
+      return ["menlo", "lucida-grande", "symbols"];
+    }
+    if (primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia" || primaryKey === "palatino") {
+      return ["times-new-roman", "lucida-grande", "symbols"];
+    }
     return ["lucida-grande", "symbols"];
   }
   // DM-925: U+25C8 WHITE DIAMOND CONTAINING SMALL BLACK DIAMOND (◈) —
@@ -1977,18 +2003,6 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // reuse it here for this single misc-shapes codepoint.
   if (codepoint === 0x25C8) {
     return ["korean", "symbols"];
-  }
-  // DM-980: U+2713 CHECK MARK (✓) — Chrome routes to **LucidaGrande**, not
-  // Zapf Dingbats. Per-codepoint probe at 32 px sans-serif: Chrome returns
-  // "Lucida Grande" as the sole font (paint width 24.45 px); fontkit's
-  // LucidaGrande.glyphForCodePoint(0x2713) = id 977, width 24.45 px @ 32 px
-  // (exact match). ZapfDingbats also has the glyph at width 24.16 px (close
-  // but the shape is visibly thinner — that's the "thinner / different-angle
-  // checkmark" the ticket flags). All other Dingbats codepoints (U+2714 ✔,
-  // U+2717 ✗, U+2718 ✘, U+271A ✚, U+2730 ✰, …) continue to use Zapf
-  // Dingbats — the broad U+2700..27BF route below still catches them.
-  if (codepoint === 0x2713) {
-    return ["lucida-grande", "zapf-dingbats", "symbols"];
   }
   // DM-979: Double-struck Letterlike Symbols U+2115 ℕ, U+211D ℝ, U+2124 ℤ.
   // Chrome routes these to **Menlo** (per `CSS.getPlatformFontsForNode`
@@ -2046,6 +2060,12 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // each is the first in the chain that has a non-zero glyph for it).
   // Supersedes the earlier U+2197/U+2199 special case at the same
   // codepoints below — keep this branch first to take precedence.
+  if (codepoint === 0x2196 || codepoint === 0x2198) {
+    // ↖ ↘ — Chrome picks Lucida Grande (CDP per-cp probe); Hiragino Sans DOES
+    // carry glyphs for these two (unlike ↗ ↙'s original assumption), so the
+    // unified chain below would stop there and paint the wrong arrow shape.
+    return ["lucida-grande", "symbols"];
+  }
   if (codepoint >= 0x2194 && codepoint <= 0x2199) {
     return ["hiragino-jp", "korean", "lucida-grande", "symbols"];
   }
@@ -2099,7 +2119,16 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
     const monoPrimary = primaryKey === "courier" || primaryKey === "menlo"
       || primaryKey === "monaco" || primaryKey === "sf-mono";
     if (monoPrimary) return [primaryKey!, "menlo", "hiragino-jp", "symbols"];
-    if (serifPrimary) return ["cjk-serif", primaryKey ?? "times", "hiragino-jp", "symbols"];
+    if (serifPrimary) {
+      // Card suits ♠♣♥♦ — a serif primary pulls these from Times New Roman
+      // (CDP per-cp probe: ♥ → Times New Roman), while ★ stays on Songti
+      // (cjk-serif). The Songti face covers the suits too, so the uniform
+      // cjk-serif-first chain painted the wrong (em-square) suit glyphs.
+      if (codepoint === 0x2660 || codepoint === 0x2663 || codepoint === 0x2665 || codepoint === 0x2666) {
+        return ["times-new-roman", "cjk-serif", "hiragino-jp", "symbols"];
+      }
+      return ["cjk-serif", primaryKey ?? "times", "hiragino-jp", "symbols"];
+    }
     return ["hiragino-jp", "cjk", "symbols"];
   }
   // Arrows: most of the Arrows block (↔↦⇒⇔ …) routes to Apple Symbols
@@ -2117,6 +2146,15 @@ export function darwinFallbackChain(codepoint: number, primaryKey?: string, lang
   // diverges (DM-296 reverted by DM-405).
   if (codepoint === 0x2190 || codepoint === 0x2192
       || codepoint === 0x2191 || codepoint === 0x2193) {
+    // Context split (CDP per-cp probe): serif primaries pull ← → from Times
+    // New Roman and monospace primaries from Menlo; Lucida Grande remains the
+    // sans pick and the fall-through for the arrows those faces lack.
+    if (primaryKey === "courier" || primaryKey === "menlo" || primaryKey === "monaco" || primaryKey === "sf-mono") {
+      return ["menlo", "lucida-grande", "symbols"];
+    }
+    if (primaryKey === "times" || primaryKey === "times-new-roman" || primaryKey === "georgia" || primaryKey === "palatino") {
+      return ["times-new-roman", "lucida-grande", "symbols"];
+    }
     return ["lucida-grande", "symbols"];
   }
   // ↗ ↙ — Lucida Grande LACKS these codepoints (verified via fontkit

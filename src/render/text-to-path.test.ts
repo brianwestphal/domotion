@@ -1150,9 +1150,14 @@ describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
     expect(pingfangKeyForLang(undefined)).toBeNull();
   });
   it("routes the symbol blocks serif-aware for serif primaries (DM-988)", () => {
-    // ■ is one of the LucidaGrande-narrow carve-outs (DM-349), so it stays on
-    // its dedicated chain regardless of primary.
-    expect(darwinFallbackChain(0x25A0, "times")).toEqual(["lucida-grande", "symbols"]);
+    // ■ is one of the LucidaGrande-narrow carve-outs (DM-349) — but the
+    // carve-out is now context-aware: a SERIF primary pulls the basic shapes
+    // from Times New Roman first (CDP per-cp probe on 02-text-symbols: serif
+    // ● → "Times New Roman"), falling through to the LucidaGrande chain for
+    // any of the six the face lacks. Sans primaries keep the original chain.
+    expect(darwinFallbackChain(0x25A0, "times")).toEqual(["times-new-roman", "lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x25A0, "helvetica")).toEqual(["lucida-grande", "symbols"]);
+    expect(darwinFallbackChain(0x25CF, "courier")).toEqual(["menlo", "lucida-grande", "symbols"]);
     // DM-988: for a SERIF primary the Geometric Shapes / Misc Symbols block
     // leads with the SERIF CJK font (cjk-serif = Songti SC) and the serif
     // primary itself, then the sans hiragino-jp / Apple Symbols residue —
@@ -1163,7 +1168,9 @@ describe("pingfangKeyForLang BCP-47 mapping (DM-394)", () => {
     expect(darwinFallbackChain(0x2600, "times")).toEqual(["cjk-serif", "times", "hiragino-jp", "symbols"]);
     // Arrows ← → ↑ ↓ route to LucidaGrande regardless of primary (DM-405 —
     // Chrome paints these via LucidaGrande at every size 12 → 32 px).
-    expect(darwinFallbackChain(0x2190, "times")).toEqual(["lucida-grande", "symbols"]);
+    // serif primaries now pull ← → from Times New Roman first (CDP per-cp
+    // probe on 02-text-symbols: serif → → "Times New Roman").
+    expect(darwinFallbackChain(0x2190, "times")).toEqual(["times-new-roman", "lucida-grande", "symbols"]);
   });
 });
 

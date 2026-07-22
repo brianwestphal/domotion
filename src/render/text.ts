@@ -1229,9 +1229,16 @@ function renderSingleLineTextElementFallback(
   // the remaining characters at their captured xOffsets — an all-emoji run
   // otherwise re-painted the whole line under the overlays (double emoji).
   if (seg?.rasterGlyphs != null && seg.rasterGlyphs.some((g) => g.dataUri != null)) {
+    // The single-line result==null path emits raster overlays NOWHERE else
+    // (the result!=null branch has its own emission) — historically the raw
+    // `<text>` fallback painted these chars via the consumer browser's own
+    // fonts. Now that covered clusters are suppressed, the overlays must be
+    // emitted here or the glyphs vanish entirely (caught by the ✅ cell of
+    // the dingbats block going blank).
+    const overlays = rasterGlyphOverlays(seg, segFontSize, clipId);
     const fbBody = rasterAwareFallbackBody(el.text, seg, seg.xOffsets);
-    if (fbBody == null) return "";
-    return `<text x="${r(tl)}" y="${r(textY)}" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${fbBody}</text>`;
+    if (fbBody == null) return overlays;
+    return `${overlays}<text x="${r(tl)}" y="${r(textY)}" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${fbBody}</text>`;
   }
   if (isCentered) {
     const cx = el.x + el.width / 2;
