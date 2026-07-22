@@ -777,6 +777,47 @@ export interface CapturedStyles {
   boxDecorationBreak?: string;
 }
 
+/**
+ * DM-1723: text-decoration propagated from an ancestor "decorating box".
+ * Per CSS Text Decoration 3 §2, `text-decoration` is NOT inherited — it
+ * propagates visually from the decorating element to all in-flow descendants
+ * (a `<strong>` inside an underlined span computes `text-decoration-line:
+ * none` yet Chrome still paints the parent's line beneath it). The renderer
+ * paints decoration per captured element from that element's own computed
+ * styles, so without this record a descendant with `none` would drop the
+ * ancestor's line entirely.
+ *
+ * Filled in by `propagateTextDecorations()` (a render-side pre-pass over the
+ * captured tree — see `src/tree-ops/decoration-propagation.ts`), never by
+ * CAPTURE_SCRIPT, so previously-captured/cached trees pick it up too.
+ *
+ * The font fields identify the DECORATING box's font: Blink computes the
+ * decoration's position and auto thickness from the decorating box's used
+ * font, not the decorated text's own font (`text_decoration_info.cc`:
+ * `decoration.used_font = decorating_box->GetUsedFont()`). Skip-ink
+ * intercepts still come from the decorated run's own glyphs.
+ */
+export interface PropagatedDecoration {
+  /** Decorating box's `text-decoration-line` (non-`none`). */
+  line: string;
+  /** Decorating box's `text-decoration-style`. */
+  style?: string;
+  /** Decoration color, with `currentcolor` already resolved against the
+   *  DECORATING element's `color` (Blink resolves the applied decoration's
+   *  color at the decorating element, not per descendant). */
+  color?: string;
+  /** Decorating box's `text-decoration-thickness`. */
+  thickness?: string;
+  /** Decorating box's `text-underline-offset`. */
+  underlineOffset?: string;
+  /** Decorating box's font — the metrics basis for decoration position and
+   *  auto thickness. */
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: string;
+  fontStyle?: string;
+}
+
 export interface CapturedElement {
   tag: string;
   text: string;
@@ -809,6 +850,13 @@ export interface CapturedElement {
    * itself (cursors are OS-drawn, never in the page paint).
    */
   cursor?: string;
+  /**
+   * DM-1723: decoration propagated from an ancestor decorating box — see
+   * {@link PropagatedDecoration}. Set by the render-side pre-pass
+   * `propagateTextDecorations()`; only consulted when this element's own
+   * `styles.textDecorationLine` is `none`/absent.
+   */
+  propagatedDecoration?: PropagatedDecoration;
   /**
    * DM-603 viewBox culling. Set to `true` by `cullElementsOutsideViewBox()` (or a single-frame
    * static cull) when this element's bbox never intersects the viewBox during

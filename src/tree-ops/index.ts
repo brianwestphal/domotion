@@ -9,3 +9,7 @@ export type { ResizeEmbeddedImagesOptions } from "./resize-embedded-images.js";
 
 export { diffTrees } from "./tree-diff.js";
 export type { TreeDiff, DiffEntry, DiffEntryKind } from "./tree-diff.js";
+
+// NOTE: `propagateTextDecorations` (decoration-propagation.ts) is intentionally
+// NOT re-exported — it runs automatically inside the renderer's
+// `buildRenderState`, so callers never need to invoke it themselves.

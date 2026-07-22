@@ -420,6 +420,19 @@ interface TextDecorationOptions {
   /** Chromium-captured per-char x offsets, run-relative (xOffsets[i] - segX),
    *  used to anchor skip-ink intercepts at the painted positions (DM-1698). */
   runXOffsets?: number[];
+  /** DM-1723: decoration-metrics font overrides for PROPAGATED decorations.
+   *  Blink positions a decoration and derives its auto thickness from the
+   *  DECORATING box's used font (`text_decoration_info.cc`:
+   *  `decoration.used_font = decorating_box->GetUsedFont()`), not the
+   *  decorated text's own font. When a descendant paints an ancestor's
+   *  propagated decoration, these carry the ancestor's font so the line
+   *  lands at the same y/thickness as the ancestor's own runs. Skip-ink
+   *  intercepts still shape with the run's own font (the ink IS the run's
+   *  glyphs). Default to the run's font when absent. */
+  metricsFontFamily?: string;
+  metricsFontSize?: number;
+  metricsFontWeight?: string | number;
+  metricsFontStyle?: string;
 }
 
 interface DecorationLineCtx {
@@ -603,7 +616,15 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
     underlineOffset, runText, skipInk, features, runXOffsets,
   } = opts;
   if (textDecorationLine == null || textDecorationLine === "none" || textDecorationLine === "") return "";
-  const m = getDecorationMetrics(fontFamily, fontSize, fontWeight, fontStyle, thicknessOverride, underlineOffset);
+  // DM-1723: decoration metrics (position, auto thickness) come from the
+  // decorating box's font — which differs from the run's own font when this
+  // run paints an ancestor's propagated decoration. Skip-ink below keeps
+  // using the run's own font. See `TextDecorationOptions.metricsFontFamily`.
+  const mFontFamily = opts.metricsFontFamily ?? fontFamily;
+  const mFontSize = opts.metricsFontSize ?? fontSize;
+  const mFontWeight = opts.metricsFontWeight ?? fontWeight;
+  const mFontStyle = opts.metricsFontStyle ?? fontStyle;
+  const m = getDecorationMetrics(mFontFamily, mFontSize, mFontWeight, mFontStyle, thicknessOverride, underlineOffset);
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
   const dash = (thick: number) => style === "dashed" ? ` stroke-dasharray="${thick * 2} ${thick * 2}"`
@@ -648,7 +669,9 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const explicitThickness = thicknessOverride != null && thicknessOverride !== ""
     && thicknessOverride !== "auto" && thicknessOverride !== "from-font";
   const decorationLineCtx: DecorationLineCtx = {
-    style, explicitThickness, fontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments, dash,
+    // `fontSize` feeds the wavy auto-thickness rule (`max(1, fontSize/10)`)
+    // — a decoration-metrics quantity, so the decorating box's size (DM-1723).
+    style, explicitThickness, fontSize: mFontSize, baselineY, segX, decorationColor, computeGapsAt, subSegments, dash,
   };
   if (has("underline")) {
     lines.push(emitDecorationLine(baselineY + m.underlineOffsetY, m.underlineThickness, true, decorationLineCtx));
@@ -1112,8 +1135,17 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   }
   const result = renderTextAsPath(pathText, tl, renderY, segFontSize, segFontFamily, segFontWeight, segColor, undefined, el.textWidth, xOffsetsRel, segFontStyle, renderAscent, features, el.styles.lang, variationSettings, _ts.width, _ts.color, _ts.paintOrder, singleSeg?.dottedCircleMarks);
   if (result != null) {
-    const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-      ? el.styles.textDecorationColor : segColor;
+    // DM-1723: when this element has no decoration of its own but an
+    // ancestor decorating box propagates one (CSS Text Decoration 3 §2 —
+    // e.g. a <strong> inside an underlined span), paint the ancestor's
+    // decoration with the ancestor's font as the metrics basis. `pd` is
+    // undefined whenever the element carries its own decoration.
+    const pd = (el.styles.textDecorationLine == null || el.styles.textDecorationLine === "" || el.styles.textDecorationLine === "none")
+      ? el.propagatedDecoration : undefined;
+    const decoColor = pd != null
+      ? (pd.color ?? segColor)
+      : (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
+        ? el.styles.textDecorationColor : segColor;
     // baselineY = textTop + fontAscent. Using fontSize here would put the
     // underline ~1px too low (fontSize includes descent; baseline sits at
     // ascent above textTop, not at the line-bottom). DM-265.
@@ -1121,12 +1153,16 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // (`round(baseline) + thickness` for underline top) reproduces. DM-398.
     const decoBaselineY = Math.round(tt + (segAscent ?? segFontSize));
     const decoMarkup = renderTextDecoration({
-      textDecorationLine: el.styles.textDecorationLine, decorationColor: decoColor, style: el.styles.textDecorationStyle,
+      textDecorationLine: pd?.line ?? el.styles.textDecorationLine, decorationColor: decoColor,
+      style: pd != null ? pd.style : el.styles.textDecorationStyle,
       segX: tl, baselineY: decoBaselineY, segWidth: el.textWidth ?? 0,
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
-      thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
+      thicknessOverride: pd != null ? pd.thickness : el.styles.textDecorationThickness,
+      underlineOffset: pd != null ? pd.underlineOffset : el.styles.textUnderlineOffset,
       runText: pathText, skipInk: el.styles.textDecorationSkipInk, features,
       runXOffsets: xOffsetsRel ?? undefined,
+      metricsFontFamily: pd?.fontFamily, metricsFontSize: pd?.fontSize,
+      metricsFontWeight: pd?.fontWeight, metricsFontStyle: pd?.fontStyle,
     });
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
@@ -1266,10 +1302,19 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const _segBidiNeeded = dir === "rtl" || _RTL_RE.test(el.text);
   const _segFullLevels = _segBidiNeeded ? _bidi.getEmbeddingLevels(el.text, dir).levels : null;
   let _segBidiOffset = 0;
-  const decoLine = el.styles.textDecorationLine;
-  const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-    ? el.styles.textDecorationColor : fillColor;
-  const decoStyle = el.styles.textDecorationStyle;
+  // DM-1723: fall back to an ancestor decorating box's propagated decoration
+  // (CSS Text Decoration 3 §2) when this element carries none of its own —
+  // the ancestor's font becomes the decoration-metrics basis below.
+  const pd = (el.styles.textDecorationLine == null || el.styles.textDecorationLine === "" || el.styles.textDecorationLine === "none")
+    ? el.propagatedDecoration : undefined;
+  const decoLine = pd?.line ?? el.styles.textDecorationLine;
+  const decoColor = pd != null
+    ? (pd.color ?? fillColor)
+    : (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
+      ? el.styles.textDecorationColor : fillColor;
+  const decoStyle = pd != null ? pd.style : el.styles.textDecorationStyle;
+  const decoThickness = pd != null ? pd.thickness : el.styles.textDecorationThickness;
+  const decoUnderlineOffset = pd != null ? pd.underlineOffset : el.styles.textUnderlineOffset;
   const elVariationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
   for (const seg of segments) {
     // Color-bitmap glyph fallback (SK-1058): CAPTURE_SCRIPT marked this
@@ -1394,9 +1439,11 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       textDecorationLine: decoLine, decorationColor: decoColor, style: decoStyle,
       segX: seg.x, baselineY: segDecoBaselineY, segWidth: seg.width,
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fontStyle: el.styles.fontStyle,
-      thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
+      thicknessOverride: decoThickness, underlineOffset: decoUnderlineOffset,
       runText: reordered.text, skipInk: el.styles.textDecorationSkipInk, features: segFeatures,
       runXOffsets: segXOffsets ?? undefined,
+      metricsFontFamily: pd?.fontFamily, metricsFontSize: pd?.fontSize,
+      metricsFontWeight: pd?.fontWeight, metricsFontStyle: pd?.fontStyle,
     });
     if (decoMarkup !== "") segParts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered

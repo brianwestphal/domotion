@@ -56,6 +56,7 @@ import {
   type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
 import { inlineImgSvg, prefixSvgClasses } from "./svg-inline.js";
+import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 
@@ -2427,6 +2428,12 @@ function buildRenderState(
   hiDPIFactor: number,
 ): { state: RenderState; fragmentFilterDefs: Map<string, { id: string; outerHTML: string }> } {
   setActiveHiDPIFactor(hiDPIFactor);
+  // DM-1723: annotate in-flow descendants of decorating boxes with their
+  // ancestor's propagated text-decoration (CSS Text Decoration 3 §2 —
+  // decoration propagates without inheriting, so a <strong> inside an
+  // underlined span computes `none` yet Chrome paints the parent's line
+  // beneath it). Idempotent, so re-rendering a shared tree is safe.
+  propagateTextDecorations(elements);
   const svgParts: string[] = [];
   const defsParts: string[] = [];
   let clipIdx = 0;
