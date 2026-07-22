@@ -2467,12 +2467,16 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // member; fall back to the first sub-font if the requested one is missing
   // (defensive against OS font updates renaming members).
   let font: any = null;
+  let faceIndex = 0;
   if (opened != null) {
     font = opened;
     if (opened.fonts != null && Array.isArray(opened.fonts)) {
       font = (spec.postscriptName != null && opened.getFont != null)
         ? (opened.getFont(spec.postscriptName) ?? opened.fonts[0])
         : opened.fonts[0];
+      // DM-1714: the collection member index (for hb-subset's hb_face_create).
+      const idx = opened.fonts.indexOf(font);
+      faceIndex = idx >= 0 ? idx : 0;
     }
   }
 
@@ -2513,9 +2517,18 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
   // Only fontkit instances get an entry — helper instances (whole-font tier)
   // and webfonts (no file) deliberately don't, so they never trigger the
   // per-glyph fallback.
-  fontSourceMap.set(instance as unknown as object, { path: spec.path, postscriptName: spec.postscriptName });
+  fontSourceMap.set(instance as unknown as object, { path: spec.path, postscriptName: spec.postscriptName, faceIndex });
   fontInstanceCache.set(cacheKey, instance);
   return instance;
+}
+
+/** DM-1714: the on-disk file + collection index a fontkit instance was loaded
+ *  from, for the hinting-preserving hb-subset embedded path. Null for helper /
+ *  webfont / synthetic instances that have no backing sfnt file — those keep the
+ *  svg2ttf path. */
+export function getFontSourceInfo(font: FontInstance | null | undefined): { path: string; postscriptName?: string; faceIndex: number } | null {
+  if (font == null) return null;
+  return fontSourceMap.get(font as unknown as object) ?? null;
 }
 
 // Does fontkit have a glyph-outline table it can render from? A font's outlines
@@ -2549,7 +2562,7 @@ type FontkitGlyph = { id: number; path?: { commands: PathCommand[] }; codePoints
 
 /** Records which on-disk file each fontkit instance was loaded from (populated
  *  in getFontInstance). Helper instances + webfonts are absent → no fallback. */
-const fontSourceMap = new WeakMap<object, { path: string; postscriptName?: string }>();
+const fontSourceMap = new WeakMap<object, { path: string; postscriptName?: string; faceIndex: number }>();
 const helperFontCache = new Map<string, FontInstance | null>();       // path → helper instance | null
 const helperOutlineCache = new Map<string, PathCommand[] | null>();   // `${path}#${id}` → commands | null
 

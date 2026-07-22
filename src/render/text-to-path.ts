@@ -43,6 +43,7 @@ import {
   fallbackFontChain,
   fontAutoInsertsDottedCircle,
   getFontInstance,
+  getFontSourceInfo,
   glyphInkXRange,
   glyphPathIntercepts,
   haltInfoFor,
@@ -1461,6 +1462,19 @@ function renderTextAsEmbedded(
       shearFactor = OBLIQUE_SHEAR;
     }
 
+    // DM-1714 (spike): tag the run with the sfnt file it resolved to, so the
+    // embedded builder can hb-subset the ORIGINAL (hinted) font instead of the
+    // outline-only svg2ttf rebuild. Gated to STATIC faces: a variable instance's
+    // on-disk default master differs from the instantiated (wght/slnt-applied)
+    // outline this run shaped with, so subsetting the file would embed the wrong
+    // weight/slant — those keep the svg2ttf path (which bakes the instance).
+    // Helper / webfont instances return null here (no backing file) and likewise
+    // keep svg2ttf. The builder only honors this when DOMOTION_HINTED_SUBSET=1.
+    const hintedSource =
+      run.font.hasWeightAxis !== true && run.font.hasSlantAxis !== true
+        ? getFontSourceInfo(run.font)
+        : null;
+
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can
     // emit one `<tspan x="...">` per glyph — without explicit per-glyph
@@ -1542,7 +1556,7 @@ function renderTextAsEmbedded(
         // `font-weight=N` attributes as an EXACT match — no faux-italic /
         // faux-bold synthesised on top of glyphs whose slant / weight is
         // already baked in.
-        { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor },
+        { italic: slant !== 0, weight, emboldenStrengthFU, shearFactor, hintedSource },
       );
       if (placement == null) { glyphFailed = true; break; }
       if (runCssFamily == null) runCssFamily = placement.cssFamily;

@@ -32,6 +32,10 @@ const suite = arg("--suite", "unicode");
 const os = arg("--os", "macos");
 const shards = arg("--shards", "auto");
 const only = arg("--only", "");
+// DM-1714 spike: --hinted-subset dispatches with DOMOTION_HINTED_SUBSET=1 so the
+// embedded fonts use the hinting-preserving hb-subset path (vs svg2ttf). Run once
+// with and once without against the same fixture to measure the hinting-floor payoff.
+const hintedSubset = process.argv.includes("--hinted-subset") ? "1" : "0";
 let ref = arg("--ref", null);
 // DM-1661: by default the review staging is METADATA-ONLY — download just the
 // tiny pre-merged `visual-tests-merged` artifact (results-<os>.json) and let the
@@ -93,10 +97,11 @@ if (runIdOverride != null) {
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
   console.log(`Re-staging existing run ${runId}: ${url}\n(skipping dispatch/watch — downloading finalized artifacts)\n`);
 } else {
-  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}`);
+  console.log(`Dispatching ${WORKFLOW} — ref=${ref} os=${os} suite=${suite} shards=${shards}${only ? ` only=${only}` : ""}${hintedSubset === "1" ? " hinted-subset=ON" : ""}`);
   const dispatchAt = new Date();
   sh("gh", ["workflow", "run", WORKFLOW, "--ref", ref,
-    "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`]);
+    "-f", `os=${os}`, "-f", `suite=${suite}`, "-f", `shards=${shards}`, "-f", `only=${only}`,
+    "-f", `hinted_subset=${hintedSubset}`]);
   runId = await findRunId(dispatchAt);
   if (runId == null) die("could not find the dispatched run — check `gh run list` / Actions tab.");
   url = sh("gh", ["run", "view", String(runId), "--json", "url", "-q", ".url"]);
