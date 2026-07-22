@@ -19,6 +19,7 @@
 
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const HB_MEMORY_MODE_READONLY = 1;
 const HB_SUBSET_FLAGS_NO_HINTING = 0x01;
@@ -47,7 +48,9 @@ let cachedExports: HbSubsetExports | null = null;
 function hb(): HbSubsetExports {
   if (cachedExports != null) return cachedExports;
   const require = createRequire(import.meta.url);
-  const wasmPath = require.resolve("harfbuzzjs/dist/harfbuzz-subset.wasm");
+  // harfbuzzjs's `exports` map only exposes ".", so the wasm subpath can't be
+  // require.resolve'd directly — resolve the package entry and join to its dist.
+  const wasmPath = join(dirname(require.resolve("harfbuzzjs")), "harfbuzz-subset.wasm");
   const mod = new WebAssembly.Module(readFileSync(wasmPath));
   const inst = new WebAssembly.Instance(mod, {});
   cachedExports = inst.exports as unknown as HbSubsetExports;
