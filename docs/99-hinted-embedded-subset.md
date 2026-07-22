@@ -67,7 +67,15 @@ the **axis location** each font instance resolved to
   `getVariation` (CSS weight → `wght`, font-size → `opsz` for auto optical
   sizing, slant → `slnt`, author `font-variation-settings` on top);
 - native-helper instances (CoreText/DirectWrite outlines): the same resolution
-  computed against the file's `fvar` axes;
+  computed against the file's `fvar` axes. **Known Windows limitation:** for
+  NAMED optical subfamilies ("Segoe UI Variable Text"/"Display"), DirectWrite
+  pins `opsz` at the subfamily's fixed value at every font size (measured:
+  Text = 10.5, Display = 36, width-matched to sub-0.01px) — it does NOT apply
+  automatic optical sizing — while this resolution derives `opsz` from the
+  font size. The right fix is pinning from the helper's RESOLVED DirectWrite
+  axis values; until then those subfamilies embed a nearby-but-different
+  optical instance (~0.7% line width at 32px, growing at small sizes). macOS
+  is unaffected (CoreText genuinely auto-sizes SF; validated pixel-exact);
 - `{}` when the file is variable but shaping used the default master;
 - `null` when the file is static.
 
