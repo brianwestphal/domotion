@@ -4,7 +4,7 @@
 // the EXACT hinting bytecode and gvar deltas being preserved.
 import { describe, expect, it } from "vitest";
 import * as fkNs from "fontkit";
-import { hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 import {
   buildStaticHintedFont,
   buildVariableHintedFont,
@@ -161,6 +161,17 @@ describe("sfntHasSubsettableOutlines (DM-1714)", () => {
     expect(sfntHasSubsettableOutlines(buildStaticHintedFont())).toBe(true);
   });
 
+  it("rejects CFF-flavored (OTTO) faces — the bundled wasm silently drops CFF, so they must stay on svg2ttf", () => {
+    // minimal OTTO directory whose only outline table is `CFF `
+    const dir = Buffer.alloc(12 + 16 + 4);
+    dir.writeUInt32BE(0x4f54544f, 0); // 'OTTO'
+    dir.writeUInt16BE(1, 4);
+    dir.write("CFF ", 12, "latin1");
+    dir.writeUInt32BE(28, 20);
+    dir.writeUInt32BE(4, 24);
+    expect(sfntHasSubsettableOutlines(dir)).toBe(false);
+  });
+
   it("rejects an outline-less face (e.g. Apple-private hvgl outlines)", () => {
     // minimal sfnt directory whose only table is `hvgl`
     const dir = Buffer.alloc(12 + 16 + 4);
@@ -176,5 +187,35 @@ describe("sfntHasSubsettableOutlines (DM-1714)", () => {
     const ttc = wrapInTtc([buildStaticHintedFont(), buildStaticHintedFont({ family: "SynthWide" })]);
     expect(sfntHasSubsettableOutlines(ttc, 0)).toBe(true);
     expect(sfntHasSubsettableOutlines(ttc, 1)).toBe(true);
+  });
+});
+
+describe("appendGlyphCopy (DM-1716 gid-0 addressing)", () => {
+  it("clones a glyph at a fresh gid with identical outline and metrics", () => {
+    const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
+    const before = fontkit.create(subset);
+    const { bytes, newGid } = appendGlyphCopy(subset, 1);
+    expect(newGid).toBe(before.numGlyphs);
+    const f = fontkit.create(bytes);
+    expect(f.numGlyphs).toBe(before.numGlyphs + 1);
+    const src = f.getGlyph(1), copy = f.getGlyph(newGid);
+    expect(copy.bbox.maxX).toBe(src.bbox.maxX);
+    expect(copy.bbox.maxY).toBe(src.bbox.maxY);
+    expect(copy.advanceWidth).toBe(src.advanceWidth);
+  });
+
+  it("a PUA codepoint mapped to the notdef COPY resolves to a real outline (mapping to gid 0 would mean \"uncovered\")", () => {
+    const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1, 2]);
+    const { bytes, newGid } = appendGlyphCopy(subset, 0);
+    const out = injectPuaCmap(bytes, new Map([[0xe000, newGid], [0xe001, 1]]));
+    const f = fontkit.create(out);
+    expect(f.glyphForCodePoint(0xe000).id).toBe(newGid);
+    expect(f.glyphForCodePoint(0xe000).id).not.toBe(0);
+    expect(f.glyphForCodePoint(0xe001).id).toBe(1);
+  });
+
+  it("throws for an out-of-range source glyph", () => {
+    const subset = hbSubsetRetainGids(buildStaticHintedFont(), [1]);
+    expect(() => appendGlyphCopy(subset, 9999)).toThrow(/out of range/);
   });
 });

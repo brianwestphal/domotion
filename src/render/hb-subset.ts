@@ -24,6 +24,10 @@ import { dirname, join } from "node:path";
 const HB_MEMORY_MODE_READONLY = 1;
 const HB_SUBSET_FLAGS_NO_HINTING = 0x01;
 const HB_SUBSET_FLAGS_RETAIN_GIDS = 0x02;
+/** Keep the `.notdef` glyph's OUTLINE (hb-subset empties it by default). The
+ *  embedded pipeline renders the primary font's notdef box for uncovered
+ *  codepoints, so the box outline must survive the subset. */
+const HB_SUBSET_FLAGS_NOTDEF_OUTLINE = 0x40;
 
 interface HbSubsetExports {
   memory: WebAssembly.Memory;
@@ -96,7 +100,7 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   const input = w.hb_subset_input_create_or_fail();
   const gset = w.hb_subset_input_glyph_set(input);
   for (const g of gids) w.hb_set_add(gset, g);
-  let flags = HB_SUBSET_FLAGS_RETAIN_GIDS;
+  let flags = HB_SUBSET_FLAGS_RETAIN_GIDS | HB_SUBSET_FLAGS_NOTDEF_OUTLINE;
   if (!keepHinting) flags |= HB_SUBSET_FLAGS_NO_HINTING;
   w.hb_subset_input_set_flags(input, flags);
   if (pinAxes != null) {
@@ -125,6 +129,12 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
     const dataPtr = w.hb_blob_get_data(outBlob, 0);
     const out = Buffer.from(heap().slice(dataPtr, dataPtr + len));
     w.hb_blob_destroy(outBlob);
+    // Defense in depth: this wasm build silently DROPS tables it can't subset
+    // (observed: `CFF ` on macOS OTTO faces). An outline-less "subset" parses in
+    // fontkit but fails the consumer browser's OTS sanitizer — every glyph of
+    // the @font-face tofu-boxes. Throw instead so the caller falls back to
+    // svg2ttf.
+    if (!sfntHasOutlineTable(out)) throw new Error("subset output has no outline table (glyf/CFF dropped by hb-subset)");
     return out;
   } finally {
     if (rface !== 0) w.hb_face_destroy(rface);
@@ -135,12 +145,22 @@ export function hbSubsetRetainGids(fontBytes: Buffer, gids: number[], faceIndex 
   }
 }
 
-/** True when the face carries hb-subsettable outlines (`glyf`/`CFF `/`CFF2`).
- *  False for outline-less files whose glyphs come from a platform-private table
- *  (e.g. Apple `hvgl` in PingFang) — those must keep the svg2ttf/helper path,
- *  since hb-subset would emit empty glyphs. TTC-aware: `faceIndex` selects the
- *  collection member whose table directory is checked (the raw file the embedded
- *  builder reads may be a `ttcf` collection, not a bare sfnt). */
+/** True when the face carries TrueType `glyf` outlines — the only flavor the
+ *  hinted-subset path accepts.
+ *
+ *  CFF/CFF2 (`OTTO`) faces are deliberately EXCLUDED even though hb-subset can
+ *  nominally subset them: the harfbuzz-subset.wasm build bundled in harfbuzzjs
+ *  silently DROPS the `CFF ` table (verified on macOS ITFDevanagari.ttc — the
+ *  "subset" came back with no outline table at all, which Chrome's OTS rejects,
+ *  tofu-boxing every glyph of the entry). CFF faces keep the svg2ttf path,
+ *  which already converts their cubic outlines to quadratic `glyf` — also the
+ *  flavor we want emitted (overlapping-contour CFF subsets rendered even-odd,
+ *  holing glyphs).
+ *
+ *  Also false for outline-less files whose glyphs come from a platform-private
+ *  table (e.g. Apple `hvgl` in PingFang). TTC-aware: `faceIndex` selects the
+ *  collection member whose table directory is checked (the raw file the
+ *  embedded builder reads may be a `ttcf` collection, not a bare sfnt). */
 export function sfntHasSubsettableOutlines(fontBytes: Buffer, faceIndex = 0): boolean {
   if (fontBytes.length < 12) return false;
   let dirOff = 0; // offset of the sfnt table directory to inspect
@@ -154,10 +174,99 @@ export function sfntHasSubsettableOutlines(fontBytes: Buffer, faceIndex = 0): bo
   for (let i = 0; i < numTables; i++) {
     const o = dirOff + 12 + i * 16;
     if (o + 4 > fontBytes.length) break;
+    if (fontBytes.toString("latin1", o, o + 4) === "glyf") return true;
+  }
+  return false;
+}
+
+/** Does a bare (non-TTC) sfnt's directory carry an outline table? Used to
+ *  validate hb-subset OUTPUT — a subset with no outlines would pass fontkit but
+ *  be rejected by the consumer browser's OTS sanitizer, tofu-boxing the text. */
+function sfntHasOutlineTable(fontBytes: Buffer): boolean {
+  if (fontBytes.length < 12) return false;
+  const numTables = fontBytes.readUInt16BE(4);
+  for (let i = 0; i < numTables; i++) {
+    const o = 12 + i * 16;
+    if (o + 4 > fontBytes.length) break;
     const tag = fontBytes.toString("latin1", o, o + 4);
     if (tag === "glyf" || tag === "CFF " || tag === "CFF2") return true;
   }
   return false;
+}
+
+// ── sfnt glyph-copy surgery (gid-0 addressing) ──
+//
+// A cmap entry mapping a codepoint to glyph id 0 means "NOT COVERED" — the
+// consumer browser cascades right past the font and the codepoint renders as
+// nothing (observed on macOS: the tofu box Chrome paints for an uncovered cell
+// disappeared entirely). But the embedded pipeline legitimately tracks gid 0
+// when a run renders the primary font's `.notdef` box for an uncovered
+// codepoint. `appendGlyphCopy` clones a glyph's `glyf` data at a NEW glyph id
+// (numGlyphs) so the PUA codepoint can address the same outline through a
+// nonzero gid: glyf/loca gain the copy, maxp.numGlyphs bumps, hmtx is expanded
+// to full metrics with the source glyph's advance, and loca is rewritten long.
+
+/** Append a copy of `srcGid`'s glyph to a bare glyf-flavored sfnt. Returns the
+ *  rewritten font and the new glyph's id. Throws when the font has no glyf or
+ *  the source glyph is out of range (an EMPTY source glyph is fine — the copy
+ *  is empty too, preserving invisible-notdef semantics). */
+export function appendGlyphCopy(fontBytes: Buffer, srcGid: number): { bytes: Buffer; newGid: number } {
+  const numTables = fontBytes.readUInt16BE(4);
+  const tables: Record<string, Buffer> = {};
+  for (let i = 0; i < numTables; i++) {
+    const o = 12 + i * 16;
+    const tag = fontBytes.toString("latin1", o, o + 4);
+    const off = fontBytes.readUInt32BE(o + 8);
+    const len = fontBytes.readUInt32BE(o + 12);
+    tables[tag] = Buffer.from(fontBytes.subarray(off, off + len));
+  }
+  const glyf = tables["glyf"], loca = tables["loca"], head = tables["head"], maxp = tables["maxp"], hhea = tables["hhea"], hmtx = tables["hmtx"];
+  if (glyf == null || loca == null || head == null || maxp == null || hhea == null || hmtx == null) {
+    throw new Error("appendGlyphCopy: missing required table (glyf/loca/head/maxp/hhea/hmtx)");
+  }
+  const numGlyphs = maxp.readUInt16BE(4);
+  if (srcGid < 0 || srcGid >= numGlyphs) throw new Error(`appendGlyphCopy: srcGid ${srcGid} out of range (${numGlyphs} glyphs)`);
+  const longLoca = head.readInt16BE(50) === 1;
+  const locaAt = (i: number): number => longLoca ? loca.readUInt32BE(i * 4) : loca.readUInt16BE(i * 2) * 2;
+  const srcStart = locaAt(srcGid), srcEnd = locaAt(srcGid + 1);
+  const copy = glyf.subarray(srcStart, srcEnd);
+  const glyfEnd = locaAt(numGlyphs);
+  // append (2-byte aligned) copy to glyf
+  const alignPad = glyfEnd % 2 === 0 ? 0 : 1;
+  tables["glyf"] = Buffer.concat([glyf.subarray(0, glyfEnd), Buffer.alloc(alignPad), copy]);
+  // rewrite loca as LONG for numGlyphs+1 glyphs
+  const newLoca = Buffer.alloc((numGlyphs + 2) * 4);
+  for (let i = 0; i <= numGlyphs; i++) newLoca.writeUInt32BE(locaAt(i), i * 4);
+  newLoca.writeUInt32BE(glyfEnd + alignPad, numGlyphs * 4);         // new glyph starts after pad
+  newLoca.writeUInt32BE(glyfEnd + alignPad + copy.length, (numGlyphs + 1) * 4);
+  // (entry numGlyphs was the old end-sentinel; overwrite it with the new
+  // glyph's start and add the new end-sentinel — done above.)
+  tables["loca"] = newLoca;
+  head.writeInt16BE(1, 50); // indexToLocFormat: long
+  maxp.writeUInt16BE(numGlyphs + 1, 4);
+  // expand hmtx to full (advance,lsb) pairs for all glyphs + the copy
+  const numHM = hhea.readUInt16BE(34);
+  const newHmtx = Buffer.alloc((numGlyphs + 1) * 4);
+  let lastAdv = 0;
+  for (let i = 0; i < numGlyphs; i++) {
+    let adv: number, lsb: number;
+    if (i < numHM) {
+      adv = hmtx.readUInt16BE(i * 4);
+      lsb = hmtx.readInt16BE(i * 4 + 2);
+      lastAdv = adv;
+    } else {
+      adv = lastAdv;
+      lsb = hmtx.readInt16BE(numHM * 4 + (i - numHM) * 2);
+    }
+    newHmtx.writeUInt16BE(adv, i * 4);
+    newHmtx.writeInt16BE(lsb, i * 4 + 2);
+  }
+  // the copy inherits srcGid's metrics
+  newHmtx.writeUInt16BE(newHmtx.readUInt16BE(srcGid * 4), numGlyphs * 4);
+  newHmtx.writeInt16BE(newHmtx.readInt16BE(srcGid * 4 + 2), numGlyphs * 4 + 2);
+  tables["hmtx"] = newHmtx;
+  hhea.writeUInt16BE(numGlyphs + 1, 34);
+  return { bytes: rebuildSfnt(fontBytes.readUInt32BE(0), tables), newGid: numGlyphs };
 }
 
 // ── sfnt cmap replacement ──
@@ -194,24 +303,14 @@ function buildFormat12Cmap(cpToGid: Map<number, number>): Buffer {
   return Buffer.concat([hdr, sub]);
 }
 
-/** Replace the `cmap` table of an sfnt with a PUA→gid one, rebuilding the table
- *  directory + checksums + `head.checkSumAdjustment`. */
-export function injectPuaCmap(fontBytes: Buffer, puaToGid: Map<number, number>): Buffer {
-  const numTables = fontBytes.readUInt16BE(4);
-  const tables: Record<string, Buffer> = {};
-  for (let i = 0; i < numTables; i++) {
-    const o = 12 + i * 16;
-    const tag = fontBytes.toString("latin1", o, o + 4);
-    const off = fontBytes.readUInt32BE(o + 8);
-    const len = fontBytes.readUInt32BE(o + 12);
-    tables[tag] = fontBytes.subarray(off, off + len);
-  }
-  tables["cmap"] = buildFormat12Cmap(puaToGid);
+/** Reassemble a bare sfnt from named tables: sorted tag order, 4-byte padding,
+ *  per-table checksums, and a recomputed `head.checkSumAdjustment`. */
+function rebuildSfnt(sfntVersion: number, tables: Record<string, Buffer>): Buffer {
   const tags = Object.keys(tables).sort();
   const n = tags.length;
   const dirLen = 12 + n * 16;
   const dir = Buffer.alloc(dirLen);
-  dir.writeUInt32BE(fontBytes.readUInt32BE(0), 0);
+  dir.writeUInt32BE(sfntVersion, 0);
   dir.writeUInt16BE(n, 4);
   const es = Math.floor(Math.log2(n));
   const sr = (1 << es) * 16;
@@ -239,4 +338,20 @@ export function injectPuaCmap(fontBytes: Buffer, puaToGid: Map<number, number>):
     font.writeUInt32BE((0xB1B0AFBA - tableChecksum(font)) >>> 0, headOff + 8);
   }
   return font;
+}
+
+/** Replace the `cmap` table of an sfnt with a PUA→gid one, rebuilding the table
+ *  directory + checksums + `head.checkSumAdjustment`. */
+export function injectPuaCmap(fontBytes: Buffer, puaToGid: Map<number, number>): Buffer {
+  const numTables = fontBytes.readUInt16BE(4);
+  const tables: Record<string, Buffer> = {};
+  for (let i = 0; i < numTables; i++) {
+    const o = 12 + i * 16;
+    const tag = fontBytes.toString("latin1", o, o + 4);
+    const off = fontBytes.readUInt32BE(o + 8);
+    const len = fontBytes.readUInt32BE(o + 12);
+    tables[tag] = fontBytes.subarray(off, off + len);
+  }
+  tables["cmap"] = buildFormat12Cmap(puaToGid);
+  return rebuildSfnt(fontBytes.readUInt32BE(0), tables);
 }

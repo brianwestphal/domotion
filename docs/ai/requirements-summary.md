@@ -42,6 +42,19 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 99 (`docs/99-hinted-embedded-subset.md`, DM-1714/DM-1716)** —
+  **Shipped.** Embedded-font subsets preserve TrueType hinting: when an
+  embedded entry's glyphs all come from one openable sfnt at one axis location
+  with no synthetic bake, the ORIGINAL file is hb-subset (`RETAIN_GIDS`, keeps
+  `cvt`/`fpgm`/`prep` + per-glyph bytecode) with a PUA→gid cmap injected —
+  variable sources (SF Pro, Segoe UI Variable) are fully instanced at the
+  run's resolved axis location, dropping `fvar`/`gvar`. Removes the dominant
+  (embedded-mode) share of the Windows/Linux hinting floor (~93% diff
+  reduction on Windows text fixtures); synthetic/`hvgl`/webfont/mixed entries
+  keep the unhinted svg2ttf rebuild. `src/render/hb-subset.ts` (wasm binding),
+  `embedded-font-builder.ts` (branch), `synth-test-fonts.ts` (deterministic
+  test fonts).
+
 - **Doc 98 (`docs/98-glyph-font-compare.md`, DM-1686)** — **Shipped.** The glyph
   font-identity comparator: given two PNG crops of the SAME character (expected
   Chromium paint vs rendered SVG), a deterministic traditional-CV pipeline

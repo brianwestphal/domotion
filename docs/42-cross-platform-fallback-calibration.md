@@ -452,6 +452,22 @@ Both non-macOS suites are green at these caps (Linux via `npm run
 test:linux-docker`; Windows via `windows-fidelity.yml`, 97/97). The cap lives in
 `tests/runner.tsx` (`HINTING_FLOOR_PCT`).
 
+### The embedded-mode share of the floor is now recoverable (DM-1714/DM-1716)
+
+The floor above was measured in the `paths` render mode (unhinted `<path>`
+outlines) and still applies there. But the **embedded-font** mode — used by the
+broad html/unicode sweeps — had the SAME unhinted signature for a different
+reason: the `@font-face` subset was rebuilt from outlines by svg2ttf, which
+drops the hinting program. That share is no longer a floor: the
+hinting-preserving hb-subset path (doc
+[99](99-hinted-embedded-subset.md)) subsets the ORIGINAL font file keeping
+`cvt`/`fpgm`/`prep` + per-glyph bytecode (instancing variable sources at the
+resolved axis location), and on Windows CI it removed ~93% of a text fixture's
+diff and 100% of the grid-fitting shift signature. What remains at the floor in
+embedded mode: entries that must stay on svg2ttf (synthetic faux-bold/italic
+bakes, per-glyph helper outlines, `hvgl`-only faces, webfonts) and the `paths`
+mode suites.
+
 ### `-webkit-text-stroke` + faux-bold: an amplified hinting-floor case (DM-1694)
 
 The same unhinted-outline-vs-native-hinting gap has one **accepted, documented

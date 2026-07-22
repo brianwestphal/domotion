@@ -38,7 +38,7 @@
 import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { emboldenPathCommands, shearPathCommands } from "./embolden-outline.js";
-import { hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
+import { appendGlyphCopy, hbSubsetRetainGids, injectPuaCmap, sfntHasSubsettableOutlines } from "./hb-subset.js";
 
 /** DM-1714/DM-1716: opt-in the hinting-preserving hb-subset embedded path.
  *  Read per call (not at module load) so tests can toggle it. */
@@ -322,13 +322,32 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
       const puaToGid = new Map<number, number>();
       for (const [gid, pua] of entry.puaForGlyphId) puaToGid.set(pua, gid);
       const bytes = readFileSync(entry.hintedSource.path);
-      // Guard outline-less files (e.g. PingFang's Apple-private hvgl): hb-subset
-      // would emit empty glyphs. Those keep the svg2ttf/helper-outline path.
-      if (!sfntHasSubsettableOutlines(bytes, entry.hintedSource.faceIndex)) throw new Error("source sfnt has no glyf/CFF outlines");
-      const subset = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true, entry.hintedSource.variationAxes ?? null);
-      const out = injectPuaCmap(subset, puaToGid);
-      _hintedSubsetStats.hinted++;
-      return out;
+      // Guard non-glyf faces: CFF/CFF2 (the bundled wasm silently drops `CFF `,
+      // producing an outline-less font Chrome's OTS rejects → tofu) and
+      // outline-less files (PingFang's Apple-private hvgl). Those keep the
+      // svg2ttf path by design — a quiet skip, not a failure.
+      if (!sfntHasSubsettableOutlines(bytes, entry.hintedSource.faceIndex)) {
+        _hintedSubsetStats.svg2ttf++;
+        _hintedSubsetStats.lastSkip = "non-glyf-source";
+      } else {
+        let subset = hbSubsetRetainGids(bytes, gids, entry.hintedSource.faceIndex, true, entry.hintedSource.variationAxes ?? null);
+        // A run rendering the primary's `.notdef` box tracks GLYPH ID 0 — but a
+        // cmap entry mapping to gid 0 means "not covered" (the consumer browser
+        // cascades past the font and paints NOTHING, losing the tofu box).
+        // Clone the notdef outline at a fresh gid and address that instead.
+        const notdefPuas = [...puaToGid.entries()].filter(([, gid]) => gid === 0).map(([pua]) => pua);
+        if (notdefPuas.length > 0) {
+          const { bytes: withCopy, newGid } = appendGlyphCopy(subset, 0);
+          subset = withCopy;
+          for (const pua of notdefPuas) puaToGid.set(pua, newGid);
+        }
+        const out = injectPuaCmap(subset, puaToGid);
+        _hintedSubsetStats.hinted++;
+        if (process.env.DOMOTION_HINTED_DEBUG === "1") {
+          console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${entry.hintedSource.faceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
+        }
+        return out;
+      }
     } catch (e) {
       _hintedSubsetStats.failed++;
       console.warn(`[embedded-font-builder] hinted hb-subset failed for ${entry.cssFamily} (${entry.hintedSource.path}); falling back to svg2ttf:`, (e as Error).message);

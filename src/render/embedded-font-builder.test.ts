@@ -219,6 +219,16 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     expect(tags(bytes).has("fpgm")).toBe(false); // fell back to svg2ttf
   });
 
+  it("hinted output is byte-identical run-to-run (DM-902 determinism holds on this path too)", () => {
+    const track = () => {
+      clearEmbeddedFontBuilder();
+      trackGlyphInEmbedFont("hinted-det|w=400|s=0", 1000, 800, -200, 1, TRI, 600,
+        { italic: false, weight: 400, hintedSource: { path: staticPath, faceIndex: 0, variationAxes: null } });
+      return getBuiltEmbeddedFontFaceCss();
+    };
+    expect(track()).toBe(track());
+  });
+
   it("stays on svg2ttf when the flag is off", () => {
     delete process.env.DOMOTION_HINTED_SUBSET;
     trackGlyphInEmbedFont("hinted-off|w=400|s=0", 1000, 800, -200, 1, TRI, 600,

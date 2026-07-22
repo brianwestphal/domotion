@@ -50,7 +50,13 @@ shortest possible map:
   outlines when the resolved face lacks the requested weight/style — a float port
   of FreeType's `FT_Outline_EmboldenXY` (DM-1693) plus an affine shear for
   faux-italic (DM-1695), for Linux single-weight / no-italic faces;
-  `embedded-font-builder.ts` builds the per-instance subset `glyf` TTF;
+  `embedded-font-builder.ts` builds the per-instance subset `glyf` TTF —
+  hinting-preserving hb-subset of the original file when the entry is pure
+  (variable sources fully instanced at the resolved axis location via
+  `hb-subset.ts`, the wasm binding to harfbuzz's subsetter; DM-1714/DM-1716,
+  doc 99), svg2ttf outline rebuild otherwise;
+  `synth-test-fonts.ts` synthesizes deterministic hinted/variable test fonts
+  for the subset unit tests;
   `mask.ts` owns mask-def emission; `borders.ts` owns border math;
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced
   nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96) — crisp at

@@ -539,6 +539,9 @@ flowchart TD
   E3 --> E5
   E5 -->|"paths"| E6["ensureGlyphDef(key) → &lt;path&gt; in &lt;defs&gt; · &lt;use href=#gN&gt;<br/>(getGlyphDefs / getGlyphDefsSince — live registry)"]
   E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset glyf TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getBuiltEmbeddedFontFaceCss()"]
+  E7 --> E8{"entry pure?<br/>(one sfnt · one axis location ·<br/>no synthetic bake · has glyf)"}
+  E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
+  E8 -->|"no / failure"| E10["svg2ttf rebuild from outlines (unhinted)"]
 ```
 
 **Source of truth:** `commandsFor` / `helperGlyphOutline` / `glyphIsInkable` /
@@ -547,13 +550,32 @@ flowchart TD
 `src/render/embedded-font-builder.ts`. Docs [51](51-probe-then-fallback-dispatch.md),
 [52](52-embedded-mode-glyph-fallback.md).
 
-**Font flavor (DM-1666):** the subset font is TrueType `glyf`, written by
-svg2ttf from an SVG-font description of the tracked glyphs (cubic beziers →
-quadratics via cubic2quad). It is deliberately NOT CFF: Chrome rasterizes
-overlapping same-winding contours in an opentype.js-built CFF subset with
-even-odd fill, which holes any glyph whose source outline draws overlapping
-contours (SF Pro's bold "A" = leg + crossbar + leg). `glyf` fills nonzero, so
-the overlaps union correctly.
+**Font flavor (DM-1666):** the subset font is TrueType `glyf`. It is
+deliberately NOT CFF: Chrome rasterizes overlapping same-winding contours in an
+opentype.js-built CFF subset with even-odd fill, which holes any glyph whose
+source outline draws overlapping contours (SF Pro's bold "A" = leg + crossbar +
+leg). `glyf` fills nonzero, so the overlaps union correctly.
+
+**Two glyf builders (DM-1714/DM-1716, doc [99](99-hinted-embedded-subset.md)):**
+`buildGlyfFontForEntry` picks per entry:
+
+1. **Hinted hb-subset** (preferred): when every glyph in the entry came from ONE
+   openable sfnt at ONE axis location with NO synthetic bake, the ORIGINAL file
+   is subset via harfbuzz's hb-subset (`src/render/hb-subset.ts`) with
+   `RETAIN_GIDS` — keeping `cvt`/`fpgm`/`prep` + per-glyph instruction bytecode
+   — and a format-12 PUA→gid cmap is injected. A variable source is **fully
+   instanced** at the run's resolved axis location (`FontSourceInfo.variationAxes`
+   from `getFontSourceInfo`; pin-all-defaults + per-tag pins, dropping
+   `fvar`/`gvar` so the consumer can't re-vary axes we resolved) — hinting
+   survives hb's instancer. This closes the embedded-mode share of the
+   Windows/Linux hinting floor (doc 42).
+2. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
+   outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
+   faux-bold/italic bakes, per-glyph helper outlines, CFF/CFF2 faces (the
+   bundled wasm silently drops `CFF ` — an outline-less subset fails Chrome's
+   OTS) and outline-less sources (PingFang `hvgl`) — both guarded by
+   `sfntHasSubsettableOutlines` — plus webfont buffers, mixed entries, or any
+   hb-subset failure.
 
 **Synthetic (faux) bold bake (DM-1693):** when the resolved face has no variant
 at the requested weight, Chrome emboldens the outline algorithmically (Skia

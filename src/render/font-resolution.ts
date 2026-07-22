@@ -2498,8 +2498,14 @@ export function getFontInstance(key: string, weight: number, fontSize: number, s
       font = (spec.postscriptName != null && opened.getFont != null)
         ? (opened.getFont(spec.postscriptName) ?? opened.fonts[0])
         : opened.fonts[0];
-      // DM-1714: the collection member index (for hb-subset's hb_face_create).
-      const idx = opened.fonts.indexOf(font);
+      // DM-1714/DM-1716: the collection member index (for hb-subset's
+      // hb_face_create). Match by postscriptName, NOT object identity —
+      // fontkit's getFont() returns a NEW Font object, so indexOf() is always
+      // -1 (which silently subset member 0: NotoSansArmenian.ttc's member 0 is
+      // the BLACK weight, and the armenian fixture's dram sign embedded black
+      // instead of regular).
+      const psName = font?.postscriptName;
+      const idx = psName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === psName) : -1;
       faceIndex = idx >= 0 ? idx : 0;
     }
   }
@@ -2638,7 +2644,10 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string): { faceIn
       f = (postscriptName != null && opened.getFont != null)
         ? (opened.getFont(postscriptName) ?? opened.fonts[0])
         : opened.fonts[0];
-      const idx = opened.fonts.indexOf(f);
+      // Match by postscriptName — getFont() returns a NEW object, so indexOf()
+      // is always -1 (see the same fix in getFontInstance).
+      const psName = f?.postscriptName;
+      const idx = psName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === psName) : -1;
       faceIndex = idx >= 0 ? idx : 0;
     }
     const axes = f?.variationAxes;
