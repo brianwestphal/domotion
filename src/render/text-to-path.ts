@@ -1416,7 +1416,6 @@ function renderTextAsEmbedded(
     const axesTuple = srcInfo?.variationAxes != null && Object.keys(srcInfo.variationAxes).length > 0
       ? "|ax=" + Object.keys(srcInfo.variationAxes).sort().map((k) => `${k}=${srcInfo.variationAxes![k]}`).join(",")
       : "";
-    const instanceKey = `${run.fontKey}|w=${weight}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}`;
 
     // Ascent/descent are font-wide metrics that drive baseline placement
     // when the consumer browser lays out our PUA codepoints. Use the run
@@ -1456,6 +1455,25 @@ function renderTextAsEmbedded(
     ) {
       emboldenStrengthFU = emboldenStrengthForFont(run.font.unitsPerEm);
     }
+
+    // DM-1722: for a STATIC-weight source on the hinted path (no wght axis,
+    // no faux-bold bake), the glyph outlines are identical at every requested
+    // CSS weight — the file is what it is. Requested weight then only matters
+    // for the @font-face descriptor, so drop it from the key and let the
+    // builder emit a `font-weight: min max` RANGE descriptor covering every
+    // weight tracked into the entry. Collapses e.g. the two Arial entries a
+    // page requesting weights 400 and 500 used to carry — each duplicating
+    // Arial's ~6 KB fixed hinting program (cvt/fpgm/prep).
+    // The shared entry must be keyed on the SOURCE FILE identity, not the
+    // logical fontKey: one key (e.g. `helvetica`) resolves per-weight to
+    // DIFFERENT faces (Regular vs the Bold TTC member), and collapsing those
+    // into one `w=*` entry made first-seen-file glyphs win for every weight
+    // (a 400-weight body line rendered from the Bold face's gids).
+    const staticWeightShared = srcInfo != null && srcInfo.variationAxes?.wght == null && !emboldenStrengthFU;
+    const weightPart = staticWeightShared
+      ? `w=*|src=${srcInfo!.path}#${srcInfo!.faceIndex}`
+      : `w=${weight}`;
+    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}`;
 
     // DM-1695: faux-italic. When italic is requested (slant ≠ 0) but the resolved
     // face is UPRIGHT (no italic sibling was routed to, no `slnt` axis carried the

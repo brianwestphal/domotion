@@ -106,7 +106,12 @@ interface BuilderEntry {
    * upright fallback (the Slashdot mobile `<i>` river-story abstract).
    */
   italic: boolean;
-  weight: number;
+  /** Requested CSS weight range tracked into this entry. Distinct only for
+   *  static-weight hinted entries (DM-1722), where the outlines are identical
+   *  at every weight and the @font-face rule carries a `font-weight: min max`
+   *  RANGE descriptor so no faux-bold synthesis fires at any tracked weight. */
+  weightMin: number;
+  weightMax: number;
   /**
    * DM-1714/DM-1716: the sfnt file + collection index every glyph in this entry
    * came from, when they ALL share one openable fontkit source and NONE was
@@ -176,7 +181,8 @@ export function trackGlyphInEmbedFont(
       puaForGlyphId: new Map(),
       nextPua: PUA_START,
       italic: variant.italic,
-      weight: variant.weight,
+      weightMin: variant.weight,
+      weightMax: variant.weight,
       hintedSource: variant.hintedSource ?? null,
       hintedSourceDisqualified: false,
     };
@@ -197,6 +203,8 @@ export function trackGlyphInEmbedFont(
       || !sameAxisLocation(glyphSource.variationAxes, entry.hintedSource.variationAxes)) {
     entry.hintedSourceDisqualified = true;
   }
+  if (variant.weight < entry.weightMin) entry.weightMin = variant.weight;
+  if (variant.weight > entry.weightMax) entry.weightMax = variant.weight;
   const cached = entry.puaForGlyphId.get(glyphId);
   if (cached != null) return { cssFamily: entry.cssFamily, puaCodepoint: cached };
 
@@ -347,7 +355,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry): Buffer {
           subset = withCopy;
           for (const pua of notdefPuas) puaToGid.set(pua, newGid);
         }
-        const out = injectPuaCmap(subset, puaToGid, { weight: entry.weight, italic: entry.italic });
+        const out = injectPuaCmap(subset, puaToGid, { weight: entry.weightMin, italic: entry.italic });
         if (process.env.DOMOTION_HINTED_DEBUG === "1") {
           console.warn(`[hinted-debug] ${entry.cssFamily}: ${entry.hintedSource.path}#${entry.hintedSource.faceIndex} axes=${JSON.stringify(entry.hintedSource.variationAxes ?? null)} gids=${gids.length} out=${out.length}B`);
         }
@@ -399,7 +407,10 @@ export function getBuiltEmbeddedFontFaceCss(): string {
     // italic / faux bold on top of glyphs whose italic / bold shape is
     // already baked into the custom TTF.
     const styleDesc = entry.italic ? "italic" : "normal";
-    rules.push(`@font-face { font-family: "${entry.cssFamily}"; font-style: ${styleDesc}; font-weight: ${entry.weight}; src: url("data:font/ttf;base64,${b64}"); }`);
+    const weightDesc = entry.weightMin === entry.weightMax
+      ? `${entry.weightMin}`
+      : `${entry.weightMin} ${entry.weightMax}`;
+    rules.push(`@font-face { font-family: "${entry.cssFamily}"; font-style: ${styleDesc}; font-weight: ${weightDesc}; src: url("data:font/ttf;base64,${b64}"); }`);
   }
   return rules.join("\n");
 }

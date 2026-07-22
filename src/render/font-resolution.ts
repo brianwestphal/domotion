@@ -2715,6 +2715,26 @@ function resolveAxisLocationForFile(
       if (fileAxes[tag] != null) axes[tag] = variationSettings[tag];
     }
   }
+  return clampAxesToFvarRange(axes, fileAxes);
+}
+
+/** Clamp an axis location to the file's fvar [min, max] per tag. The
+ *  instancers (fontkit getVariation, hb pin) clamp internally anyway, so
+ *  out-of-range values produce IDENTICAL instances — but the UNclamped values
+ *  were flowing into the embedded-font instanceKey, splitting byte-identical
+ *  instances into separate @font-face entries. SF Pro's opsz axis has
+ *  min = 17: every run at font-size ≤ 17px is the SAME optical instance, and a
+ *  mixed 12/13/14/16px page was carrying four duplicate subsets (the bulk of
+ *  the mixed-size demo growth). Clamping at the RECORDING site dedupes the
+ *  keys without touching fidelity — the pinned outlines are unchanged by
+ *  construction. */
+function clampAxesToFvarRange(axes: Record<string, number>, fileAxes: Record<string, unknown>): Record<string, number> {
+  for (const tag of Object.keys(axes)) {
+    const def = fileAxes[tag] as { min?: number; max?: number } | undefined;
+    if (def == null) continue;
+    if (typeof def.min === "number" && axes[tag] < def.min) axes[tag] = def.min;
+    if (typeof def.max === "number" && axes[tag] > def.max) axes[tag] = def.max;
+  }
   return axes;
 }
 const helperFontCache = new Map<string, FontInstance | null>();       // path → helper instance | null
@@ -2839,7 +2859,9 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
   // so the hinting-preserving embedded subset can pin the SAME location when it
   // instances the source file (hb-subset applies the same gvar deltas fontkit
   // did — the pinned subset's outlines match what this instance shaped with).
-  (v as any)._appliedVariationAxes = axes;
+  // Clamped to the fvar range so byte-identical out-of-range instances share
+  // one embedded entry (see clampAxesToFvarRange).
+  (v as any)._appliedVariationAxes = clampAxesToFvarRange({ ...axes }, font.variationAxes ?? {});
   return v;
 }
 
