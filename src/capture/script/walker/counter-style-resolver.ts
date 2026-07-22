@@ -55,7 +55,14 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
       return wrap ? (def.prefix + padded + def.suffix) : padded;
     }
     if (n < def.rangeLo || n > def.rangeHi) {
-      return _resolve(def.fallback ?? 'decimal', n, depth + 1, wrap);
+      // CSS Counter Styles §2: the fallback generates only the VALUE
+      // representation — the ORIGINAL style's prefix/suffix still wrap it.
+      // (Recursing with `wrap` dropped the custom suffix entirely for builtin
+      // fallbacks — the fixed-system list's "11"/"12" markers lost their " "
+      // suffix and painted flush against the content.)
+      const fb = _resolve(def.fallback ?? 'decimal', n, depth + 1, false);
+      if (fb == null) return null;
+      return wrap ? (def.prefix + fb + def.suffix) : fb;
     }
     const negative = n < 0;
     const abs = Math.abs(n);
@@ -116,7 +123,12 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
         break;
       }
     }
-    if (core == null) return _resolve(def.fallback ?? 'decimal', n, depth + 1, wrap);
+    if (core == null) {
+      // Same fallback rule as the range check above: value only, original affixes.
+      const fb = _resolve(def.fallback ?? 'decimal', n, depth + 1, false);
+      if (fb == null) return null;
+      return wrap ? (def.prefix + fb + def.suffix) : fb;
+    }
     const padded = _applyPad(core, def.padLen, def.padSym);
     const sign = negative ? def.negPrefix : '';
     const signTail = negative ? def.negSuffix : '';

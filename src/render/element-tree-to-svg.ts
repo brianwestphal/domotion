@@ -596,8 +596,11 @@ function paintSyntheticListMarker(
     // DM-1258: outside markers preserve their suffix spaces (white-space: pre);
     // inside markers fold into the content line, so let SVG collapse there.
     const xmlSpace = outside ? ' xml:space="preserve"' : "";
+    // Chrome's UA stylesheet gives ::marker `font-variant-numeric:
+    // tabular-nums` — digits render at the wider tabular advance. Without it
+    // the "Step 01:" prefixed markers painted ~3px condensed vs Chrome.
     out.push(
-      `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}"${xmlSpace}>${escLabel}</text>`,
+      `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}" style="font-variant-numeric:tabular-nums"${xmlSpace}>${escLabel}</text>`,
     );
   } else if (lsType === "disc" || lsType === "circle" || lsType === "square") {
     // Chrome's `::marker` paints disc/circle/square at a hardcoded
@@ -657,7 +660,7 @@ function paintSyntheticListMarker(
     const mx = outside ? el.x - 7 + builtinLastRsb : el.x + borderL + padL;
     const anchor = outside ? "end" : "start";
     out.push(
-      `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}">${label}</text>`,
+      `${indent}<text x="${r(mx)}" y="${r(my)}" text-anchor="${anchor}" font-size="${r(markerFontSize)}" font-weight="${markerFontWeight}" font-family="${esc(markerFontFamily)}" fill="${markerColor}" style="font-variant-numeric:tabular-nums">${label}</text>`,
     );
   }
   return out;
