@@ -42,11 +42,21 @@ const SETTINGS_PATH = resolve(PROJECT_ROOT, ".hotsheet/settings.json");
 const DEFAULT_OUTPUT_ROOT = resolve(PROJECT_ROOT, "tests/output/region-crops");
 
 function loadSettings(): Settings {
+  // HOTSHEET_PORT / HOTSHEET_SECRET env vars win — newer Hot Sheet versions no
+  // longer write `port`/`secret` into .hotsheet/settings.json (the connection
+  // details live with the running instance; channel events carry them).
+  const envPort = process.env.HOTSHEET_PORT != null ? Number(process.env.HOTSHEET_PORT) : null;
+  const envSecret = process.env.HOTSHEET_SECRET;
+  if (envPort != null && Number.isFinite(envPort) && envSecret != null && envSecret !== "") {
+    return { port: envPort, secret: envSecret };
+  }
   if (!existsSync(SETTINGS_PATH)) {
     throw new Error(`Hot Sheet settings not found at ${SETTINGS_PATH} — is Hot Sheet set up for this project?`);
   }
   const raw = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as { port?: number; secret?: string };
-  if (raw.port == null || raw.secret == null) throw new Error("Hot Sheet settings missing port or secret");
+  if (raw.port == null || raw.secret == null) {
+    throw new Error("Hot Sheet settings missing port or secret — pass HOTSHEET_PORT + HOTSHEET_SECRET env vars (newer Hot Sheet versions don't persist them in settings.json)");
+  }
   return { port: raw.port, secret: raw.secret };
 }
 

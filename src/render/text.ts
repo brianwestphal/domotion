@@ -239,7 +239,7 @@ function textStrokeAttrString(ts: { width: number; color: string; paintOrder: st
   return out;
 }
 
-function suppressGlyphChars(text: string, seg: TextSegment | undefined): string {
+function suppressGlyphChars(text: string, seg: TextSegment | undefined, alsoRastered = false): string {
   // DM-692: Chrome paints a visible hyphen at line-break points marked by
   // a soft-hyphen (U+00AD); SHYs not at the break paint nothing. Our
   // capture's per-char Range loop keeps EVERY SHY in the captured line
@@ -262,7 +262,13 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined): string 
     normalized = out;
   }
   if (seg?.rasterGlyphs == null) return normalized;
-  const suppress = seg.rasterGlyphs.filter((g) => g.suppressGlyph === true);
+  // DM-1699: `alsoRastered` treats EVERY raster-overlaid glyph (dataUri
+  // present) as suppressed, not just the drop-cap `suppressGlyph` markers —
+  // used by the raw-`<text>` fallback so it never re-paints a character the
+  // overlay already covers (the double-emoji bug: an all-emoji-font run fails
+  // path rendering, and the fallback repainted the full line under the
+  // per-char raster overlays).
+  const suppress = seg.rasterGlyphs.filter((g) => g.suppressGlyph === true || (alsoRastered && g.dataUri != null));
   if (suppress.length === 0) return normalized;
   // text is a UTF-16 string; charIndex is a UTF-16 position. U+200B is one
   // UTF-16 unit so the substitution preserves text length and xOffsets
@@ -287,11 +293,43 @@ function suppressGlyphChars(text: string, seg: TextSegment | undefined): string 
         out += ZWSP;
         i++;
       }
+      // Swallow a trailing U+FE0F variation selector too — the raster rect
+      // covers the whole emoji cluster (e.g. ❤️ = U+2764 U+FE0F), and a
+      // leftover bare VS16 after the ZWSP would still nudge some renderers.
+      if (i + 1 < normalized.length && normalized.charCodeAt(i + 1) === 0xFE0F) {
+        out += ZWSP;
+        i++;
+      }
     } else {
       out += normalized[i];
     }
   }
   return out;
+}
+
+/**
+ * DM-1699: the raw-`<text>` fallback body for a segment that carries raster
+ * overlays. Suppresses every overlaid cluster (they are already painted by
+ * `rasterGlyphOverlays` at exact pixel rects) and positions each REMAINING
+ * visible character at its captured xOffset so the browser's own layout of
+ * the gap-toothed string can't drift. Returns null when nothing visible
+ * remains (the overlays carry the whole paint — emit no fallback at all).
+ */
+function rasterAwareFallbackBody(rawText: string, seg: TextSegment, xOffsets: number[] | undefined): string | null {
+  const suppressed = suppressGlyphChars(rawText, seg, true);
+  if (suppressed.replace(/[\s\u200B]/g, "") === "") return null;
+  if (xOffsets == null) return esc(suppressed);
+  const parts: string[] = [];
+  for (let i = 0; i < suppressed.length; i++) {
+    const code = suppressed.charCodeAt(i);
+    if (code === 0x200B || /\s/.test(suppressed[i])) continue;
+    const isHigh = code >= 0xD800 && code <= 0xDBFF;
+    const cluster = isHigh && i + 1 < suppressed.length ? suppressed.slice(i, i + 2) : suppressed[i];
+    const x = xOffsets[i];
+    parts.push(x != null ? `<tspan x="${r(x)}">${esc(cluster)}</tspan>` : esc(cluster));
+    if (isHigh) i++;
+  }
+  return parts.length > 0 ? parts.join("") : null;
 }
 
 /**
@@ -1138,7 +1176,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // A missing icon should read as 'nothing'.
   if (isAllPrivateUseArea(el.text)) return "";
 
-  return renderSingleLineTextElementFallback(el, fillColor, clipId, segFontSize, segFontWeight, segFontFamily, _ts);
+  return renderSingleLineTextElementFallback(el, fillColor, clipId, segFontSize, segFontWeight, segFontFamily, _ts, singleSeg ?? undefined);
 }
 
 // Build the <rect> (+ optional background-image layers + per-side borders)
@@ -1183,6 +1221,7 @@ function renderSingleLineTextElementFallback(
   segFontWeight: string,
   segFontFamily: string,
   ts: ReturnType<typeof textStrokeParams>,
+  seg?: TextSegment,
 ): string {
   const tl = el.textLeft ?? el.x + 4;
   const ff = segFontFamily.replace(/"/g, "'");
@@ -1202,6 +1241,15 @@ function renderSingleLineTextElementFallback(
     && Math.abs(leftGap - rightGap) < Math.max(2, minGap * 0.3);
 
   const strokeAttr = textStrokeAttrString(ts);
+  // DM-1699: when the segment carries raster overlays, suppress the covered
+  // clusters (the overlays already paint them at exact rects) and position
+  // the remaining characters at their captured xOffsets — an all-emoji run
+  // otherwise re-painted the whole line under the overlays (double emoji).
+  if (seg?.rasterGlyphs != null && seg.rasterGlyphs.some((g) => g.dataUri != null)) {
+    const fbBody = rasterAwareFallbackBody(el.text, seg, seg.xOffsets);
+    if (fbBody == null) return "";
+    return `<text x="${r(tl)}" y="${r(textY)}" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${fbBody}</text>`;
+  }
   if (isCentered) {
     const cx = el.x + el.width / 2;
     return `<text x="${r(cx)}" y="${r(textY)}" text-anchor="middle" dominant-baseline="central" fill="${fillColor}"${strokeAttr} style="${baseStyle}" clip-path="url(#${clipId})">${esc(el.text)}</text>`;
@@ -1344,7 +1392,12 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       const ff = segFontFamily.replace(/"/g, "'");
       const baseStyle = `font-family:${ff};font-size:${r(segFontSize)}px;font-weight:${segFontWeight};font-kerning:normal;font-optical-sizing:auto;`;
       const sy = seg.y + seg.height / 2;
-      segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${esc(seg.text)}</text>`);
+      // DM-1699: never re-paint characters the raster overlays already cover
+      // (double-emoji bug); position the remainder at captured xOffsets.
+      const fbBody = rasterAwareFallbackBody(seg.text, seg, seg.xOffsets);
+      if (fbBody != null) {
+        segParts.push(`<text x="${r(seg.x)}" y="${r(sy)}" dominant-baseline="central" fill="${segColor}"${textStrokeAttrString(_ts)} style="${baseStyle}" clip-path="url(#${clipId})">${fbBody}</text>`);
+      }
     }
     const segDecoBaselineY = Math.round(seg.y + (segAscent ?? segFontSize));
     const decoMarkup = renderTextDecoration({
