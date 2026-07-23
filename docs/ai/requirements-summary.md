@@ -42,16 +42,23 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747)** —
+- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747/DM-1756)** —
   **Shipped** (engine + programmatic wiring + the declarative config surface:
   per-frame `textTracks: [...]` with capture-time selector stamping and
-  frame-relative `at` times, docs/43 §12).
+  frame-relative `at` times, docs/43 §12; mixed-content subtree addressing,
+  DM-1756).
   The caret + selection track from doc 100's "Primitive 2", standalone
   (not gated on the compressor): node-side addressing of `{ target,
   charOffset }` / ranges against the captured tree (code-point offsets over
   per-code-unit segment `xOffsets` — Chromium's painted x; baseline from
   captured `fontAscent`; input-value synthesis for form fields; fontkit
-  advance fallback), resolved caller-side into `AnimationConfig.textTracks`
+  advance fallback). DM-1756: an address resolves over the target's whole
+  SUBTREE — mixed content (`<p>plain <b>bold</b> tail</p>`, a tokenized code
+  line's colored token `<span>`s) is one logical string whose offsets/ranges
+  span the descendants, with reading order reconstructed from painted geometry
+  (baseline line-banding, then x); the single-element / input-value paths are
+  preserved byte-for-byte (the merge only runs when a descendant contributes a
+  run). Resolved caller-side into `AnimationConfig.textTracks`
   and emitted as global-timeline CSS: step-end caret waypoints with
   `caretShapeRect` geometry (bar/block/underscore, docs/97), the standard
   ~1.06 s blink on a nested group, and per-run selection rects swept by

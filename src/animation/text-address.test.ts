@@ -187,3 +187,197 @@ describe("resolveRangeRects", () => {
     expect(resolveRangeRects(astralTree(), { animId: "nope" }, 0, 1)).toBeNull();
   });
 });
+
+// --- Mixed content: address a subtree as one logical string (DM-1756) ---
+//
+// Fixtures mirror the shapes a REAL capture produces (verified against
+// Chromium via a Playwright probe): a parent's OWN text segments and its child
+// elements' segments are captured SEPARATELY (the DOM interleave order between
+// them is not preserved), so the addressing engine reconstructs reading order
+// from painted geometry (baseline line-banding, then x within a line).
+
+// <p>plain <b>bold</b> tail</p> — p owns "plain " (x 20..) and " tail" (x 92..)
+// as two segments on one baseline; the child <b> owns "bold" (x 58..) BETWEEN
+// them in visual x. The engine must interleave them into "plain bold tail".
+function mixedInlineTree(): CapturedElement[] {
+  const b = el({
+    tag: "b", fontAscent: 14, fontDescent: 4, height: 18,
+    textSegments: [seg({ text: "bold", x: 58, y: 22, width: 34, height: 18, xOffsets: [58, 68, 78, 82] })],
+  });
+  return [el({
+    tag: "p", animId: "para", fontAscent: 14, fontDescent: 4, height: 18,
+    textSegments: [
+      seg({ text: "plain ", x: 20, y: 22, width: 38, height: 18, xOffsets: [20, 29, 32, 41, 45, 54] }),
+      seg({ text: " tail", x: 92, y: 22, width: 25, height: 18, xOffsets: [92, 96, 101, 110, 113] }),
+    ],
+    children: [b],
+  })];
+}
+
+// A tokenized code line: <div>[<span>const</span>][ = ][<span>42</span>][;]
+// The div owns " = " and ";" between the token spans; the spans own their
+// tokens. All on one baseline, resolved as one string by x order.
+function codeLineTree(): CapturedElement[] {
+  const kw = el({
+    tag: "span", fontAscent: 13, fontDescent: 4, height: 20,
+    textSegments: [seg({ text: "const", x: 20, y: 64, width: 45, height: 20, xOffsets: [20, 29, 38, 47, 56] })],
+  });
+  const num = el({
+    tag: "span", fontAscent: 13, fontDescent: 4, height: 20,
+    textSegments: [seg({ text: "42", x: 110, y: 64, width: 18, height: 20, xOffsets: [110, 119] })],
+  });
+  return [el({
+    tag: "div", animId: "code", fontAscent: 13, fontDescent: 4, height: 20,
+    textSegments: [
+      seg({ text: " = ", x: 74, y: 64, width: 27, height: 20, xOffsets: [74, 83, 92] }),
+      seg({ text: ";", x: 128, y: 64, width: 9, height: 20, xOffsets: [128] }),
+    ],
+    children: [kw, num],
+  })];
+}
+
+// Nested deeper: <p>a <span><em>x</em></span> b</p> — the <span> is an empty
+// wrapper (no segments, ascent 0); the addressable "x" lives on the <em> two
+// levels down, between p's own "a " and " b".
+function nestedDeepTree(): CapturedElement[] {
+  const em = el({
+    tag: "em", fontAscent: 14, fontDescent: 4, height: 18,
+    textSegments: [seg({ text: "x", x: 33, y: 107, width: 8, height: 18, xOffsets: [33] })],
+  });
+  const span = el({ tag: "span", height: 0, children: [em] }); // empty wrapper
+  return [el({
+    tag: "p", animId: "nested", fontAscent: 14, fontDescent: 4, height: 18,
+    textSegments: [
+      seg({ text: "a ", x: 20, y: 107, width: 13, height: 18, xOffsets: [20, 29] }),
+      seg({ text: " b", x: 41, y: 107, width: 13, height: 18, xOffsets: [41, 46] }),
+    ],
+    children: [span],
+  })];
+}
+
+describe("mixed content — addressing across descendant elements (DM-1756)", () => {
+  it("interleaves a parent's own text with a child element by painted x", () => {
+    const roots = mixedInlineTree();
+    // Logical string is "plain bold tail" — 15 code points.
+    expect(addressableLength(roots, { animId: "para" })).toBe(15);
+    // Offsets walk the three runs in reading order: p."plain " (0-5),
+    // b."bold" (6-9), p." tail" (10-14), end (15).
+    const xs = Array.from({ length: 16 }, (_, i) => resolveCaretPoint(roots, { animId: "para" }, i)?.x);
+    expect(xs).toEqual([20, 29, 32, 41, 45, 54, 58, 68, 78, 82, 92, 96, 101, 110, 113, 117]);
+    // The three runs carry their own captured baselines/heights — all on one
+    // line here (y 22 + ascent 14 = baseline 36).
+    expect(resolveCaretPoint(roots, { animId: "para" }, 7)?.baselineY).toBe(36);
+  });
+
+  it("offsets at child boundaries land on the adjacent run", () => {
+    const roots = mixedInlineTree();
+    // Offset 6 is the boundary between p."plain " and b."bold": it lands at the
+    // START of "bold" (x 58), not after the space at p's run end.
+    expect(resolveCaretPoint(roots, { animId: "para" }, 6)?.x).toBe(58);
+    // Offset 10 is the boundary between b."bold" and p." tail": start of " tail".
+    expect(resolveCaretPoint(roots, { animId: "para" }, 10)?.x).toBe(92);
+  });
+
+  it("end-of-subtree caret parks at the last run's captured right edge", () => {
+    const p = resolveCaretPoint(mixedInlineTree(), { animId: "para" }, 15)!;
+    expect(p.x).toBe(117); // " tail" x 92 + width 25
+  });
+
+  it("a range spanning children yields one correct rect per run", () => {
+    // Select "in bold ta" — code points 3..12 (offsets 3-12): the tail of
+    // "plain ", all of "bold", and the head of " tail".
+    const r = resolveRangeRects(mixedInlineTree(), { animId: "para" }, 3, 13)!;
+    expect(r.charCount).toBe(10);
+    expect(r.rects).toHaveLength(3);
+    // Run 1 (p."plain "): chars i, n, space → right edges 45, 54, 58.
+    expect(r.rects[0].x).toBe(41);
+    expect(r.rects[0].edges).toEqual([45, 54, 58]);
+    // Run 2 (b."bold"): full word.
+    expect(r.rects[1].x).toBe(58);
+    expect(r.rects[1].edges).toEqual([68, 78, 82, 92]);
+    // Run 3 (p." tail"): space, t, a.
+    expect(r.rects[2].x).toBe(92);
+    expect(r.rects[2].edges).toEqual([96, 101, 110]);
+  });
+
+  it("resolves a tokenized code line across its colored token spans", () => {
+    const roots = codeLineTree();
+    // "const" + " = " + "42" + ";" = 5+3+2+1 = 11 code points (the whitespace
+    // between const and the next token is NOT captured as its own segment).
+    expect(addressableLength(roots, { animId: "code" })).toBe(11);
+    const xs = Array.from({ length: 12 }, (_, i) => resolveCaretPoint(roots, { animId: "code" }, i)?.x);
+    // const(20,29,38,47,56) = (74,83,92) 42(110,119) ;(128) end(137).
+    expect(xs).toEqual([20, 29, 38, 47, 56, 74, 83, 92, 110, 119, 128, 137]);
+    // Addressing char 12 of the whole line (inside "42") resolves across the
+    // spans by line-selector alone — the DM-1747 use case.
+    expect(resolveCaretPoint(roots, { animId: "code" }, 9)?.x).toBe(119);
+  });
+
+  it("recurses through an empty wrapper into a deeply-nested run", () => {
+    const roots = nestedDeepTree();
+    // "a " + "x" + " b" = 5 code points; <em> two levels down supplies the x.
+    expect(addressableLength(roots, { animId: "nested" })).toBe(5);
+    const xs = Array.from({ length: 6 }, (_, i) => resolveCaretPoint(roots, { animId: "nested" }, i)?.x);
+    expect(xs).toEqual([20, 29, 33, 41, 46, 54]); // end = " b" x 41 + width 13
+
+  });
+
+  it("descendant runs keep their own font metrics, not the target's", () => {
+    // A superscript-like child on a shifted baseline stays on the same LINE
+    // (small baseline delta) but resolves with its OWN ascent/fontSize.
+    const sup = el({
+      tag: "sup",
+      styles: { fontSize: "10px", fontFamily: "Helvetica", fontWeight: "400" } as CapturedElement["styles"],
+      fontAscent: 8, fontDescent: 2, height: 12,
+      textSegments: [seg({ text: "2", x: 40, y: 98, width: 6, height: 12, xOffsets: [40] })],
+    });
+    const roots = [el({
+      tag: "p", animId: "sup", fontAscent: 14, fontDescent: 4, height: 18,
+      textSegments: [seg({ text: "x", x: 20, y: 100, width: 18, height: 18, xOffsets: [20] })],
+      children: [sup],
+    })];
+    // base "x" baseline 100+14=114; sup "2" baseline 98+8=106 — within 0.6em of
+    // the base, so ONE line, ordered x → "x" then "2".
+    expect(addressableLength(roots, { animId: "sup" })).toBe(2);
+    expect(resolveCaretPoint(roots, { animId: "sup" }, 0)?.x).toBe(20);
+    const two = resolveCaretPoint(roots, { animId: "sup" }, 1)!;
+    expect(two.x).toBe(40);
+    expect(two.fontSize).toBe(10);   // the sup's own size, not the p's 16
+    expect(two.ascentPx).toBe(8);    // the sup's own ascent
+  });
+
+  it("block-level descendants become separate lines top-to-bottom", () => {
+    // Two <div> lines inside the target (each its own baseline a line apart):
+    // addressed as one string, the second line's chars follow the first's.
+    const line2 = el({
+      tag: "div", fontAscent: 14, fontDescent: 4, height: 18,
+      textSegments: [seg({ text: "yz", x: 20, y: 130, width: 18, height: 18, xOffsets: [20, 29] })],
+    });
+    const line1 = el({
+      tag: "div", fontAscent: 14, fontDescent: 4, height: 18,
+      textSegments: [seg({ text: "ab", x: 20, y: 100, width: 18, height: 18, xOffsets: [20, 29] })],
+    });
+    // Children deliberately out of DOM/visual order to prove geometry ordering.
+    const roots = [el({ tag: "section", animId: "blk", children: [line2, line1] })];
+    expect(addressableLength(roots, { animId: "blk" })).toBe(4);
+    // Reading order is ab (y 100) then yz (y 130) despite child array order.
+    expect(resolveCaretPoint(roots, { animId: "blk" }, 0)?.baselineY).toBe(114);
+    expect(resolveCaretPoint(roots, { animId: "blk" }, 2)?.baselineY).toBe(144); // start of "yz"
+    const rr = resolveRangeRects(roots, { animId: "blk" }, 0, 4)!;
+    expect(rr.rects.map((r) => r.y)).toEqual([100, 130]);
+  });
+
+  it("preserves single-element output byte-for-byte (no descendant runs)", () => {
+    // The legacy single-element / input-value paths must be UNCHANGED: these
+    // are the same trees the core suite above asserts, re-checked here to pin
+    // that the subtree generalization did not perturb them.
+    expect(addressableLength(astralTree(), { animId: "t1" })).toBe(3);
+    expect(resolveCaretPoint(astralTree(), { animId: "t1" }, 3)?.x).toBe(44);
+    expect(resolveCaretPoint(twoLineTree(), { animId: "wrap" }, 2)?.baselineY).toBe(136);
+    const input = [el({
+      tag: "input", animId: "field", text: "hi", fontAscent: 11, fontDescent: 3,
+      textLeft: 24, textTop: 40, textWidth: 18, inputXOffsets: [24, 32],
+    })];
+    expect(resolveCaretPoint(input, { animId: "field" }, 2)?.x).toBe(42);
+  });
+});

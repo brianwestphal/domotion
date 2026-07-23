@@ -22,10 +22,39 @@
  * declarative config surface maps `selector` → stamped animId at capture time.
  *
  * **Indexing.** Addresses count Unicode CODE POINTS (an astral pair is one
- * position) across the element's own text runs concatenated in captured order.
+ * position) across the target's text runs concatenated in reading order.
  * `xOffsets` arrays are per UTF-16 code unit (a surrogate pair carries two
  * entries at the same painted x), so the engine converts code-point offsets to
- * UTF-16 indices per run before reading them.
+ * UTF-16 indices per run before reading them. Because each run carries its OWN
+ * text + xOffsets, this per-run conversion composes correctly even when
+ * consecutive runs come from DIFFERENT captured elements (mixed content).
+ *
+ * **Mixed content (DM-1756).** The address resolves over the target's whole
+ * SUBTREE, not just its own text nodes: `<p>plain <b>bold</b> tail</p>` (or a
+ * syntax-highlighted code line tokenized into `<span>`s) is one logical string
+ * whose `charOffset` spans the children. The captured tree stores a parent's
+ * own text segments (`el.textSegments`) and its child elements (`el.children`)
+ * SEPARATELY — the DOM interleave order between them is not preserved — so the
+ * engine reconstructs reading order from Chromium's painted geometry: runs are
+ * grouped into lines by baseline (a `<sub>`/`<sup>` stays on its line; a wrapped
+ * or `display:block` child starts a new line) and ordered left-to-right by
+ * captured `x` within each line. For horizontal LTR inline flow that visual
+ * order equals DOM/logical order (see `src/render/paint-order.ts` for the
+ * distinct element z-order paint sort — reading order here is a separate,
+ * text-flow concern). Each descendant run keeps ITS OWN font metrics /
+ * baseline / xOffsets, so the per-run geometry is exact across child boundaries.
+ * Whitespace is taken verbatim from what Chromium captured — the leading /
+ * trailing spaces inside a text run (`"plain "`, `" tail"`) are preserved; the
+ * engine never synthesizes a space at a child boundary. (Consequence: a
+ * pure-whitespace text node between two inline children is dropped at capture —
+ * all-whitespace segments aren't emitted — so it isn't part of the addressed
+ * string; see the Limits section of docs/101.)
+ *
+ * **Regression safety.** When the target has no descendant element that
+ * contributes any run (the single-element and input-value cases), the engine
+ * returns the target's own runs in captured order UNCHANGED — the paint-order
+ * merge only runs for genuinely mixed content, so existing single-element /
+ * bidi-fragment / input behavior is byte-for-byte preserved.
  *
  * **Fallback.** When a run has no captured `xOffsets` (e.g. some input paths),
  * per-character advances come from fontkit via the same
@@ -114,6 +143,9 @@ interface TextRun {
   /** Captured painted width of the run (right edge = x + width) — Chromium's
    *  measured run extent, preferred over summed advances for end-of-run edges. */
   width?: number;
+  /** Captured line-box height (viewport px). Only used by the paint-order merge
+   *  (mixed content) for line banding; undefined for the input-value run. */
+  lineHeight?: number;
   /** Per-UTF-16-code-unit painted x (viewport-absolute), when captured. */
   xOffsets?: number[];
   fontSize: number;
@@ -124,16 +156,16 @@ interface TextRun {
 }
 
 /**
- * The element's addressable text runs, in captured order. Sources, in
- * preference order:
+ * One captured element's OWN addressable text runs, in captured order (NOT
+ * descending into children). Sources, in preference order:
  *  1. `textSegments` — the normal path (block text, wrapped lines, styled
  *     segments; textarea lines also land here). Vertical-writing segments are
  *     skipped (vertical caret geometry is out of scope for v1).
  *  2. The input-value synthesis — single-line `<input>` captures carry
  *     `text` + `inputXOffsets` + `textLeft`/`textTop` instead of segments.
- * Returns an empty array when the element has no addressable text.
+ * Returns an empty array when the element has no addressable text OF ITS OWN.
  */
-function elementTextRuns(el: CapturedElement): TextRun[] {
+function elementOwnRuns(el: CapturedElement): TextRun[] {
   const fontSize = parseFloat(el.styles.fontSize) || 14;
   const fontFamily = el.styles.fontFamily;
   const fontWeight = el.styles.fontWeight;
@@ -150,6 +182,7 @@ function elementTextRuns(el: CapturedElement): TextRun[] {
         x: seg.x,
         y: seg.y,
         width: seg.width,
+        lineHeight: seg.height,
         xOffsets: seg.xOffsets,
         fontSize: seg.fontSize ?? fontSize,
         ascentPx: ascentOf(seg),
@@ -167,6 +200,7 @@ function elementTextRuns(el: CapturedElement): TextRun[] {
       x: el.textLeft ?? el.x + 4,
       y: el.textTop ?? el.y,
       width: el.textWidth,
+      lineHeight: el.textHeight,
       xOffsets: el.inputXOffsets,
       fontSize,
       ascentPx: ascentOf(),
@@ -176,6 +210,77 @@ function elementTextRuns(el: CapturedElement): TextRun[] {
     }];
   }
   return [];
+}
+
+/** DFS pre-order collection of every DESCENDANT element's own runs (the target
+ *  itself is excluded — its own runs are gathered separately). Order among the
+ *  collected runs is not relied upon: `orderRunsByPaint` re-sorts by geometry. */
+function collectDescendantRuns(el: CapturedElement, out: TextRun[]): void {
+  for (const child of el.children) {
+    for (const run of elementOwnRuns(child)) out.push(run);
+    collectDescendantRuns(child, out);
+  }
+}
+
+/**
+ * Reading-order sort of a merged run list gathered across a subtree (mixed
+ * content). Reconstructs Chromium's visual reading order from painted geometry
+ * — the captured tree does not retain the DOM interleave between a parent's own
+ * text and its child elements, so position is the source of truth:
+ *
+ *  1. Group runs into LINES by baseline (`y + ascentPx`). A new line starts
+ *     when a run's baseline sits more than ~0.6em below the current line's
+ *     baseline — a full line-height gap (wrapped line / `display:block` child)
+ *     breaks; a small sub/sup shift does not.
+ *  2. Within a line, order left-to-right by captured `x`.
+ *  3. Emit lines top-to-bottom.
+ *
+ * Array sort is stable (ES2019+), so equal keys keep capture order. For
+ * horizontal LTR flow this equals DOM/logical order; RTL runs are ordered
+ * visually (left-to-right), matching the v1 bidi limitation documented in
+ * docs/101 (logical-order addressing over bidi is future work).
+ */
+function orderRunsByPaint(runs: TextRun[]): TextRun[] {
+  const baselineOf = (r: TextRun): number => r.y + r.ascentPx;
+  // Stable sort by baseline first (capture order breaks ties).
+  const byBaseline = [...runs].sort((a, b) => baselineOf(a) - baselineOf(b));
+  const ordered: TextRun[] = [];
+  let line: TextRun[] = [];
+  let lineBaseline = 0;
+  const flush = (): void => {
+    // Stable sort within the line by x (left-to-right).
+    line.sort((a, b) => a.x - b.x);
+    for (const r of line) ordered.push(r);
+    line = [];
+  };
+  for (const r of byBaseline) {
+    const bl = baselineOf(r);
+    if (line.length === 0) {
+      lineBaseline = bl;
+    } else if (bl - lineBaseline > 0.6 * r.fontSize) {
+      flush();
+      lineBaseline = bl;
+    }
+    line.push(r);
+  }
+  flush();
+  return ordered;
+}
+
+/**
+ * The target's addressable text runs in reading order, gathered across its
+ * whole SUBTREE (mixed content — DM-1756). When no descendant element
+ * contributes a run, the target's own runs are returned in captured order
+ * unchanged (exact single-element / input-value behavior). Otherwise the
+ * target's own runs and every descendant's runs are merged and re-ordered by
+ * painted geometry (`orderRunsByPaint`).
+ */
+function elementTextRuns(el: CapturedElement): TextRun[] {
+  const own = elementOwnRuns(el);
+  const descendant: TextRun[] = [];
+  collectDescendantRuns(el, descendant);
+  if (descendant.length === 0) return own;
+  return orderRunsByPaint([...own, ...descendant]);
 }
 
 /** fontkit-measured fallback metrics + advances for a font, mirroring the

@@ -38,6 +38,32 @@ resolved **node-side against the captured element tree**:
   line-box top `y`). Single-line `<input>` captures have no segments; they
   resolve through an input-value synthesis over `text` + `inputXOffsets` +
   `textLeft` / `textTop`, mirroring `renderInputText`'s anchors.
+- **Mixed content across descendants (DM-1756).** The address resolves over the
+  target's whole SUBTREE, not just its own text nodes:
+  `<p>plain <b>bold</b> tail</p>` — or a syntax-highlighted code line tokenized
+  into `<span>`s — is one logical string whose `charOffset` spans the children,
+  and a range spans them too. The captured tree stores a parent's own
+  `textSegments` and its child elements (`el.children`) SEPARATELY — the DOM
+  interleave order between them is not retained — so reading order is
+  reconstructed from Chromium's painted geometry: every element in the subtree
+  contributes its own runs (each keeping ITS OWN font metrics / baseline /
+  `xOffsets`), runs are grouped into lines by baseline (a `<sub>`/`<sup>` stays
+  on its line; a wrapped or `display:block` child starts a new line), and
+  ordered left-to-right by captured `x` within each line. For horizontal LTR
+  inline flow that visual order equals DOM/logical order (this is a text-flow
+  reading order, distinct from the element z-order paint sort in
+  `src/render/paint-order.ts`). Because each run carries its own text +
+  `xOffsets`, the code-point → UTF-16 conversion composes correctly across child
+  boundaries. Whitespace is taken verbatim from what Chromium captured — the
+  leading / trailing spaces inside a text run (`"plain "`, `" tail"`) are
+  preserved and the engine never synthesizes a space at a child boundary. This
+  is the prerequisite for addressing a tokenized editor line by its line
+  selector alone (`{ selector: '.code-line-3', charOffset: 12 }` resolves across
+  that line's colored token spans). **Regression safety:** when no descendant
+  element contributes a run (the single-element and input-value cases), the
+  target's own runs are returned in captured order unchanged, so existing
+  single-element / bidi-fragment / input behavior is byte-for-byte preserved —
+  the paint-order merge only runs for genuinely mixed content.
 - **Indexing.** Offsets count Unicode **code points** (an astral pair is one
   position). `xOffsets` arrays are per UTF-16 code unit (a surrogate pair
   repeats the same painted x), so the engine converts per run.
@@ -171,8 +197,28 @@ golden `examples/animate/compressed-run/`.
 
 ## Limits (v1)
 
-- Horizontal writing modes only (vertical segments are not addressable).
-- Ranges across elements are not supported (one target element per event).
+- Horizontal writing modes only (vertical segments are not addressable). A
+  vertical-writing descendant inside an otherwise-horizontal target is skipped
+  (contributes no runs), same as the single-element case.
+- One target element per event, but that target's whole SUBTREE is addressed as
+  one string and a range may span its descendant elements (DM-1756). A range
+  across two SEPARATE targets (two distinct addressed elements) is still not
+  supported.
+- A pure-whitespace text node between two inline children is dropped at capture
+  (all-whitespace segments aren't emitted), so it is not part of the addressed
+  string and not individually addressable — e.g. a code line
+  `<span>const</span> <span>x</span>` addresses as `"constx"` (the lone
+  separating space is absent). Spaces that live inside a text run bearing
+  visible characters (`" = "`, `"plain "`, `" tail"`) ARE preserved. The engine
+  deliberately does not synthesize a space at a child boundary (there is no
+  captured geometry for a synthesized glyph). Wrapping tokens (including their
+  own leading/trailing whitespace) in elements — as real syntax highlighters do
+  — keeps every space addressable.
+- Mixed-content reading order is reconstructed from painted geometry, so within
+  a bidi (RTL) run that split into visual fragments the fragments order by
+  visual x, not logical order — the same visual-order limitation the
+  single-element bidi path already carries (logical-order addressing over bidi
+  is future work).
 - A block caret does not invert the glyph color beneath it (Blink paints the
   caret-covered glyph in the background color; the translucent 0.5-alpha block
   from docs/97 is used instead).
@@ -187,7 +233,15 @@ golden `examples/animate/compressed-run/`.
 
 - `src/animation/text-address.test.ts` — code-point vs UTF-16 indexing (astral
   pair), segment boundaries, end-of-text caret, input-value synthesis, range
-  rects + sweep edges, fontkit fallback, out-of-range rejection.
+  rects + sweep edges, fontkit fallback, out-of-range rejection. Mixed content
+  (DM-1756): `<p>plain <b>bold</b> tail</p>` interleaved by painted x (offsets
+  mid-child, at child boundaries, end-of-subtree), a tokenized code line
+  resolved as one string across its token spans, a range spanning children
+  yielding one correct rect per run, a deeply-nested run reached through an
+  empty wrapper (`<span><em>x</em></span>`), descendant runs keeping their own
+  font metrics (sub/sup on the same line), block-level descendants ordered into
+  separate lines by geometry, and a single-element / input-value
+  no-regression pin.
 - `src/animation/caret-track.test.ts` — event resolution (ordering, skips,
   per-event target override), caret waypoint/visibility/blink CSS, shape
   geometry (bar/block/underscore, metric scaling), selection sweep keyframes,
