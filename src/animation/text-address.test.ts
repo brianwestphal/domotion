@@ -381,3 +381,142 @@ describe("mixed content — addressing across descendant elements (DM-1756)", ()
     expect(resolveCaretPoint(input, { animId: "field" }, 2)?.x).toBe(42);
   });
 });
+
+// --- Logical-order addressing over RTL / bidi runs (DM-1754) ---
+//
+// Geometry taken VERBATIM from Chromium (Helvetica 24px, a Playwright probe of
+// the same strings): capture keeps characters in DOM/LOGICAL order while
+// `xOffsets[i]` is the char's painted VISUAL x, so an RTL stretch's offsets run
+// backwards. `tests/caret-bidi.e2e.test.ts` re-derives all of this live and
+// compares against Chrome's own `Range.getClientRects()` and painted
+// `::selection`; these unit pins lock the numbers in without a browser.
+
+// LTR paragraph "abc שלום def": levels 0,0,0,0,1,1,1,1,0,0,0,0. Visual layout is
+// `abc ` [20, 65.38) · `םולש` [65.38, 113.44) · ` def` [113.44, 153.47).
+function ltrBidiTree(): CapturedElement[] {
+  return [el({
+    tag: "div", animId: "l", fontAscent: 22, fontDescent: 6,
+    styles: { fontSize: "24px", fontFamily: "Helvetica", fontWeight: "400", direction: "ltr" } as CapturedElement["styles"],
+    textSegments: [seg({
+      text: "abc שלום def", x: 20, y: 100, width: 133.47,
+      xOffsets: [20, 33.34, 46.69, 58.69, 96.77, 85.66, 79.73, 65.38, 113.44, 120.09, 133.45, 146.8],
+    })],
+  })];
+}
+
+// RTL paragraph "שלום abc עולם": levels 1,1,1,1,1,2,2,2,1,1,1,1,1. Visual layout
+// is `םלוע ` [20, 70.77) · `abc` [70.77, 109.47) · ` םולש` [109.47, 164.2).
+function rtlBidiTree(): CapturedElement[] {
+  return [el({
+    tag: "div", animId: "r", fontAscent: 22, fontDescent: 6,
+    styles: { fontSize: "24px", fontFamily: "Helvetica", fontWeight: "400", direction: "rtl" } as CapturedElement["styles"],
+    textSegments: [seg({
+      text: "שלום abc עולם", x: 20, y: 100, width: 144.19,
+      xOffsets: [147.53, 136.42, 130.5, 116.13, 109.47, 70.77, 84.11, 97.45, 64.09, 51.39, 45.47, 34.36, 20],
+    })],
+  })];
+}
+
+describe("bidi: logical-order addressing over RTL runs (DM-1754)", () => {
+  it("places an RTL caret on the addressed character's RIGHT edge and marches leftward", () => {
+    const roots = ltrBidiTree();
+    // Latin prefix — unchanged left-edge geometry, no rtl flag.
+    expect(resolveCaretPoint(roots, { animId: "l" }, 0)!.x).toBe(20);
+    expect(resolveCaretPoint(roots, { animId: "l" }, 0)!.rtl).toBeUndefined();
+    // Hebrew word: offsets 4..7 are ש ל ו ם, whose painted lefts DECREASE. The
+    // caret for each sits on its RIGHT edge (= the previous letter's left).
+    const hebrew = [4, 5, 6, 7].map((o) => resolveCaretPoint(roots, { animId: "l" }, o)!);
+    expect(hebrew.map((p) => p.rtl)).toEqual([true, true, true, true]);
+    expect(hebrew.map((p) => +p.x.toFixed(2))).toEqual([113.44, 96.77, 85.66, 79.73]);
+    // Cell widths are the characters' painted advances (positive, leftward).
+    for (const p of hebrew) expect(p.cellWidthPx).toBeGreaterThan(4);
+    // Back in the Latin tail the caret is left-edge again.
+    expect(resolveCaretPoint(roots, { animId: "l" }, 9)!.rtl).toBeUndefined();
+    expect(resolveCaretPoint(roots, { animId: "l" }, 9)!.x).toBe(120.09);
+  });
+
+  it("parks the end-of-text caret on the last character's TRAILING edge in either direction", () => {
+    // LTR paragraph ending in Latin: after 'f' = the run's right edge.
+    expect(+resolveCaretPoint(ltrBidiTree(), { animId: "l" }, 12)!.x.toFixed(2)).toBe(153.47);
+    // RTL paragraph ending in Hebrew: after the last letter = the run's LEFT edge.
+    const end = resolveCaretPoint(rtlBidiTree(), { animId: "r" }, 13)!;
+    expect(end.x).toBe(20);
+    expect(end.rtl).toBe(true);
+    // ...and the start of an RTL paragraph is its RIGHT edge.
+    const start = resolveCaretPoint(rtlBidiTree(), { animId: "r" }, 0)!;
+    expect(+start.x.toFixed(2)).toBe(164.19);
+    expect(start.rtl).toBe(true);
+  });
+
+  it("splits a logical range into one rect per bidi level run, in LOGICAL order", () => {
+    // "c " + the whole Hebrew word: two level runs, adjacent but distinct —
+    // Chrome fragments its own selection the same way.
+    const r = resolveRangeRects(ltrBidiTree(), { animId: "l" }, 2, 8)!;
+    expect(r.charCount).toBe(6);
+    expect(r.rects).toHaveLength(2);
+    expect(r.rects.map((q) => +q.x.toFixed(2))).toEqual([46.69, 65.38]);
+    expect(r.rects.map((q) => +q.width.toFixed(2))).toEqual([18.69, 48.06]);
+    expect(r.rects.map((q) => q.rtl)).toEqual([undefined, true]);
+  });
+
+  it("emits VISUALLY DISCONTIGUOUS rects for a logical range that half-covers an RTL word", () => {
+    // "c " + only ש ל: the Latin piece and the Hebrew piece have UNSELECTED
+    // Hebrew (ו ם) painted between them.
+    const r = resolveRangeRects(ltrBidiTree(), { animId: "l" }, 2, 6)!;
+    expect(r.rects).toHaveLength(2);
+    const [latin, heb] = r.rects;
+    expect(+latin.x.toFixed(2)).toBe(46.69);
+    expect(+(latin.x + latin.width).toFixed(2)).toBe(65.38);
+    expect(+heb.x.toFixed(2)).toBe(85.66);        // ל's left
+    expect(+(heb.x + heb.width).toFixed(2)).toBe(113.44); // ש's right
+    expect(heb.x).toBeGreaterThan(latin.x + latin.width); // a real visual gap
+    // The RTL rect sweeps right-to-left: edges are successive LEFT edges.
+    expect(heb.rtl).toBe(true);
+    expect(heb.edges.map((e) => +e.toFixed(2))).toEqual([96.77, 85.66]);
+    expect(heb.edges[heb.edges.length - 1]).toBeCloseTo(heb.x, 5);
+  });
+
+  it("orders the rects of an RTL paragraph logically (right-to-left on screen)", () => {
+    // The whole RTL line: three level runs. Logical order runs from the
+    // RIGHTMOST piece to the leftmost.
+    const r = resolveRangeRects(rtlBidiTree(), { animId: "r" }, 0, 13)!;
+    expect(r.charCount).toBe(13);
+    expect(r.rects).toHaveLength(3);
+    expect(r.rects.map((q) => +q.x.toFixed(2))).toEqual([109.47, 70.77, 20]);
+    expect(r.rects.map((q) => +q.width.toFixed(2))).toEqual([54.72, 38.7, 50.77]);
+    expect(r.rects.map((q) => q.rtl)).toEqual([true, undefined, true]);
+    // Every covered code point contributes exactly one sweep edge.
+    expect(r.rects.reduce((n, q) => n + q.edges.length, 0)).toBe(13);
+  });
+
+  it("leaves pure-LTR text on the untouched non-bidi path", () => {
+    // No RTL code point and direction ltr → identical to the pre-bidi engine.
+    const r = resolveRangeRects(astralTree(), { animId: "t1" }, 0, 3)!;
+    expect(r.rects).toHaveLength(1);
+    expect(r.rects[0].rtl).toBeUndefined();
+    expect(r.rects[0].edges).toEqual([18, 30, 44]);
+    expect(resolveCaretPoint(astralTree(), { animId: "t1" }, 1)!.rtl).toBeUndefined();
+  });
+
+  it("orders mixed-content runs right-to-left within a line in an RTL paragraph", () => {
+    // Two child spans on one baseline in an RTL paragraph: reading order is the
+    // RIGHTMOST box first.
+    const rtlStyles = { fontSize: "16px", fontFamily: "Helvetica", fontWeight: "400", direction: "rtl" } as CapturedElement["styles"];
+    const left = el({
+      tag: "span", styles: rtlStyles, fontAscent: 12, fontDescent: 4,
+      textSegments: [seg({ text: "םלוע", x: 20, y: 100, width: 30, xOffsets: [44, 36, 28, 20] })],
+    });
+    const right = el({
+      tag: "span", styles: rtlStyles, fontAscent: 12, fontDescent: 4,
+      textSegments: [seg({ text: "םולש", x: 60, y: 100, width: 30, xOffsets: [84, 76, 68, 60] })],
+    });
+    const roots = [el({ tag: "p", animId: "p", styles: rtlStyles, children: [left, right] })];
+    expect(addressableLength(roots, { animId: "p" })).toBe(8);
+    // Offset 0 addresses the RIGHT span's first (rightmost) character.
+    const first = resolveCaretPoint(roots, { animId: "p" }, 0)!;
+    expect(first.x).toBeGreaterThan(80);
+    expect(first.rtl).toBe(true);
+    // Offset 4 crosses into the LEFT span.
+    expect(resolveCaretPoint(roots, { animId: "p" }, 4)!.x).toBeLessThan(60);
+  });
+});

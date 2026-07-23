@@ -42,11 +42,11 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747/DM-1756)** —
+- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747/DM-1756/DM-1754)** —
   **Shipped** (engine + programmatic wiring + the declarative config surface:
   per-frame `textTracks: [...]` with capture-time selector stamping and
   frame-relative `at` times, docs/43 §12; mixed-content subtree addressing,
-  DM-1756).
+  DM-1756; logical-order bidi/RTL addressing, DM-1754).
   The caret + selection track from doc 100's "Primitive 2", standalone
   (not gated on the compressor): node-side addressing of `{ target,
   charOffset }` / ranges against the captured tree (code-point offsets over
@@ -72,9 +72,20 @@ they describe (see `CLAUDE.md` "Documentation"):
   re-emitted on top in the inverse ink (`invertTextColor`, default white) via
   `renderTextAsPath` in paths mode, per-waypoint layers that swap the covered
   glyph as the caret moves and blink together — the terminal/editor block-cursor
-  look; additive/byte-identical when off. Verified by a rasterized-SVG e2e
+  look; additive/byte-identical when off. DM-1754: **logical-order addressing
+  over RTL / bidi runs** — offsets map through `bidi-js` embedding levels
+  resolved over the element's whole concatenated logical text (the renderer's
+  `applyBidiAt` precedent), so an RTL caret sits on the addressed character's
+  RIGHT edge (`rtl` on the point; `caretShapeRect` mirrors block/underscore
+  cells about it) and a logical range emits ONE RECT PER BIDI LEVEL RUN in
+  logical order, each sweeping in its own direction (an RTL rect grows leftward
+  under a static mirror transform). Calibrated against Chrome's own selection
+  paint: rect-for-rect agreement with `Range.getClientRects()` (≤1px over 11
+  ranges) and pixel-span agreement between the composed SVG's ink and Chrome's
+  `::selection` (≤2px), including a visually discontiguous logical range.
+  Pure-LTR text is byte-identical. Verified by a rasterized-SVG e2e
   (caret ink at resolved x ±1.5px, sweep growth, hide; block-invert solid-block
-  + inverse-glyph + waypoint swap).
+  + inverse-glyph + waypoint swap) plus the bidi calibration e2e.
 
 - **Doc 102 (`docs/102-editing-page-rig-cookbook.md`, DM-1748)** —
   **Shipped.** The authoring cookbook written from the rebuilt flagship

@@ -85,3 +85,31 @@ describe("firstLineBaseline (DM-1750)", () => {
     expect(r.baselineY).toBe(18.5);
   });
 });
+
+// DM-1754: an RTL insertion point is the cell's RIGHT edge — every shape mirrors
+// about `x` so a block / underscore still covers the character it addresses.
+describe("caretShapeRect — RTL insertion points", () => {
+  const base = { x: 100, baselineY: 60, ascentPx: 12, descentPx: 4, cellWidthPx: 10, fontSize: 16 } as const;
+
+  it("mirrors block and underscore cells to the LEFT of x", () => {
+    const block = caretShapeRect({ ...base, shape: "block", rtl: true });
+    expect(block.x).toBe(90);
+    expect(block.width).toBe(10);
+    expect(block.x + block.width).toBe(base.x);
+    const und = caretShapeRect({ ...base, shape: "underscore", rtl: true });
+    expect(und.x).toBe(90);
+    expect(und.y).toBe(60);
+  });
+
+  it("puts the bar just inside the RTL edge", () => {
+    const bar = caretShapeRect({ ...base, shape: "bar", rtl: true, barWidthPx: 2 });
+    expect(bar.x).toBe(98);
+    expect(bar.width).toBe(2);
+  });
+
+  it("leaves the left-to-right geometry byte-identical", () => {
+    for (const shape of ["bar", "block", "underscore"] as const) {
+      expect(caretShapeRect({ ...base, shape, rtl: false })).toEqual(caretShapeRect({ ...base, shape }));
+    }
+  });
+});

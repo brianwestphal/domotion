@@ -76,20 +76,62 @@ resolved **node-side against the captured element tree**:
 - **Line breaks.** An offset landing exactly at a segment boundary resolves to
   the START of the next line (position 0 of the next run) — except at the very
   end of the element, where it parks after the last character.
+- **Bidi / RTL — logical-order addressing.** `charOffset` counts LOGICAL
+  positions in mixed-direction text, and the geometry is read through the bidi
+  embedding levels. Capture already keeps each run's characters in DOM/logical
+  order while `xOffsets[i]` holds the character's painted VISUAL x
+  (`src/capture/script/walker/text-segments.ts`), so the levels are what turn
+  that pairing into correct caret and selection geometry. Levels come from
+  `bidi-js`'s `getEmbeddingLevels` over the element's CONCATENATED logical text
+  with the element's CSS `direction` as the paragraph direction — the same
+  library and same whole-paragraph resolution the renderer's paired-bracket
+  mirroring uses (`applyBidi` / `applyBidiAt` in `src/render/text.ts`), which
+  matters because capture splits a bidi line into visual fragments and wrapped
+  lines into separate segments; resolving a fragment in isolation misclassifies
+  neutrals at its edges. Consequences:
+  - **Caret.** Inside an RTL level run the position "before code point N" is
+    that character's RIGHT edge, so the caret marches LEFTWARD as the offset
+    grows, and the resolved point carries `rtl: true` — the insertion cell
+    extends left from `x`, so a `block` / `underscore` caret still covers the
+    character the address names (`caretShapeRect` mirrors every shape about `x`
+    for `rtl`). At end-of-text the caret parks on the last character's TRAILING
+    edge, which is its left edge when that character is RTL.
+  - **Selection.** A logical range over mixed-direction text is visually
+    DISCONTIGUOUS, so a covered run splits further at every bidi level change:
+    one rect per level run, each carrying its own sweep direction. Rects stay in
+    LOGICAL order, so the sweep runs in reading order no matter where the pieces
+    land on screen; an `rtl` rect's `edges` are successive LEFT edges and it
+    grows from its right edge leftward.
+  - **Calibration.** Measured against Chromium on mixed Hebrew/Latin and
+    Arabic/Latin lines in both LTR and RTL paragraphs, the resolved rects match
+    Chrome's own `Range.getClientRects()` fragmentation rect-for-rect (≤1px),
+    and the composed SVG's selection ink lands on the same pixel spans Chrome's
+    `::selection` paints (≤2px) — see `tests/caret-bidi.e2e.test.ts`.
+  - **Boundary affinity (documented behavior).** An offset that falls exactly ON
+    a bidi level-run boundary has TWO legitimate visual caret positions; which
+    one an editor shows depends on caret affinity (Blink chooses between them in
+    `third_party/blink/renderer/core/editing/bidi_adjustment.cc`). This engine
+    always takes the DOWNSTREAM side — the leading edge of the character the
+    offset names — which is what keeps a block caret's cell (and the `invert`
+    option's glyph repaint) over the addressed character. Chrome's
+    collapsed-`Range` API reports the other, upstream side at those offsets; at
+    every non-boundary offset, at offset 0, and at end-of-text the two agree
+    exactly.
+  - **Pure-LTR text is untouched.** Runs with no RTL code point in an `ltr`
+    paragraph skip the whole path and keep their previous geometry and emission
+    byte-for-byte.
 - **Fallback.** Runs without captured `xOffsets` fall back to fontkit advances
   (the same resolve-key → font-instance path the typing overlay's
   `overlayAdvances` uses), anchored at the run's captured `x`.
-- **Out of scope (v1).** Vertical-writing segments are skipped; RTL runs use
-  the captured visual-order `xOffsets` as-is (logical-order addressing over
-  bidi runs is future work); multi-line ranges yield one rect per line (see
-  Selection below) but the *sweep* orders rects in captured segment order.
+- **Out of scope (v1).** Vertical-writing segments are skipped.
 
 API: `resolveCaretPoint(roots, target, charOffset)` → `{ x, baselineY,
-ascentPx, descentPx, fontSize, cellWidthPx }`;
+ascentPx, descentPx, fontSize, cellWidthPx, rtl? }`;
 `resolveRangeRects(roots, target, charStart, charEnd)` → one
-`{ x, y, width, height, edges[] }` per covered run, where `edges` are the
-successive per-character painted right edges (the exact sweep geometry);
-`addressableLength`, `findAddressedElement`.
+`{ x, y, width, height, edges[], rtl? }` per covered run (and per bidi level run
+within it), where `edges` are the successive per-character painted trailing
+edges in logical sweep order — right edges for a left-to-right rect, left edges
+for an `rtl` one; `addressableLength`, `findAddressedElement`.
 
 ## The track (`src/animation/caret-track.ts`)
 
@@ -131,15 +173,20 @@ pattern:
   step-end) on a nested group — opacities compose through nesting
   (vis × blink), the terminal cursor's convention. The caret blinks whenever
   visible; moves are instantaneous so the blink phase carries through.
-- **Selection**: one `<rect>` per covered text run, grown via `width`
-  keyframes stepping through the per-character painted edges — an exact
-  per-char sweep (the same width-keyframe machinery the typing overlay's
-  reveal clips use). `sweepMs` distributes across covered characters in order,
-  so a range spanning wrapped lines sweeps line 1 fully, then line 2. Above
-  120 covered characters the sweep interpolates linearly per rect (bounded
-  CSS, mirroring the typing overlay's discrete cap). Cleared rects snap back
-  to the hidden width (0.01px — a zero-area rect is WebKit-hazardous) at the
-  clear time; otherwise they hold to the loop end.
+- **Selection**: one `<rect>` per covered text run (and per bidi level run
+  within it), grown via `width` keyframes stepping through the per-character
+  painted edges — an exact per-char sweep (the same width-keyframe machinery the
+  typing overlay's reveal clips use). `sweepMs` distributes across covered
+  characters in order, so a range spanning wrapped lines sweeps line 1 fully,
+  then line 2. Above 120 covered characters the sweep interpolates linearly per
+  rect (bounded CSS, mirroring the typing overlay's discrete cap). Cleared rects
+  snap back to the hidden width (0.01px — a zero-area rect is WebKit-hazardous)
+  at the clear time; otherwise they hold to the loop end. An **RTL** rect must
+  grow from its RIGHT edge leftward: rather than animate `x` alongside `width`
+  (two properties that could tear), it is emitted at `x="0"` under a STATIC
+  `transform="translate(R,0) scale(-1,1)"` about its right edge `R`, so the same
+  single growing `width` extends leftward. Left-to-right rects emit exactly as
+  before.
 
 All motion is CSS opacity / transform / width — **no SMIL** (docs/84), no
 animated filter.
@@ -274,11 +321,15 @@ golden `examples/animate/compressed-run/`.
   captured geometry for a synthesized glyph). Wrapping tokens (including their
   own leading/trailing whitespace) in elements — as real syntax highlighters do
   — keeps every space addressable.
-- Mixed-content reading order is reconstructed from painted geometry, so within
-  a bidi (RTL) run that split into visual fragments the fragments order by
-  visual x, not logical order — the same visual-order limitation the
-  single-element bidi path already carries (logical-order addressing over bidi
-  is future work).
+- Bidi WITHIN a run is fully addressed in logical order (see Addressing above).
+  What stays approximate is a line whose CHILD BOXES themselves reorder
+  bidirectionally — an LTR `<span>` embedded mid-line inside an RTL paragraph, or
+  vice versa. Mixed-content reading order is reconstructed from painted geometry,
+  so a line's boxes order by x under the paragraph direction (left-to-right in an
+  LTR paragraph, right-to-left in an RTL one) rather than by resolved embedding
+  level. A single element's own runs — including the visual fragments capture
+  splits a bidi line into — are unaffected: they stay in captured logical order
+  and resolve their levels over the whole concatenated text.
 - Block-caret glyph inversion IS supported standalone via glyph repaint (the
   `invert` option — see "Block-caret inversion" above; the track re-emits the
   covered glyph in the inverse color over a solid block). Default block carets
@@ -304,7 +355,13 @@ golden `examples/animate/compressed-run/`.
   empty wrapper (`<span><em>x</em></span>`), descendant runs keeping their own
   font metrics (sub/sup on the same line), block-level descendants ordered into
   separate lines by geometry, and a single-element / input-value
-  no-regression pin.
+  no-regression pin. Bidi (logical-order addressing over RTL runs): RTL carets on
+  the addressed character's right edge marching leftward, end-of-text on the
+  trailing edge in either direction, a logical range split into one rect per bidi
+  level run, a VISUALLY DISCONTIGUOUS range (a Latin piece and a Hebrew piece with
+  unselected Hebrew between them), logical rect ordering in an RTL paragraph,
+  right-to-left mixed-content box ordering, and a pure-LTR no-regression pin. All
+  fixture geometry is Chromium's, taken verbatim from a Playwright probe.
 - `src/animation/caret-track.test.ts` — event resolution (ordering, skips,
   per-event target override), caret waypoint/visibility/blink CSS, shape
   geometry (bar/block/underscore, metric scaling), selection sweep keyframes,
@@ -321,6 +378,16 @@ golden `examples/animate/compressed-run/`.
   block reads as SOLID (pure red — a translucent blend would fail the pixel
   test), the covered glyph repaints in the inverse ink (blue) on top, and both
   swap to the next covered character when the caret moves.
+- `tests/caret-bidi.e2e.test.ts` — the bidi CALIBRATION against Chrome, on mixed
+  Hebrew/Latin and Arabic/Latin lines in both LTR and RTL paragraphs. Chrome
+  selects the same logical ranges through its own Selection API; the test asserts
+  (i) `resolveRangeRects` matches Chrome's `Range.getClientRects()` fragmentation
+  rect-for-rect (≤1px, 11 ranges), (ii) `resolveCaretPoint` matches Chrome's
+  collapsed-range caret x at every non-boundary offset (≤1px), and (iii) the
+  selection ink the COMPOSED animated SVG rasterizes to lands on the same pixel
+  spans Chrome's own `::selection` paints (≤2px) — including a visually
+  discontiguous logical range that must paint as two separate spans, and a
+  mid-sweep check that the RTL piece grew from its right edge leftward.
 
 ## Related
 

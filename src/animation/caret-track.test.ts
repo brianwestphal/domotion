@@ -329,3 +329,56 @@ describe("generateAnimatedSvg wiring", () => {
     expect(without).not.toContain("text-track");
   });
 });
+
+// Bidi selection sweeps (DM-1754). An RTL level run must grow from its RIGHT
+// edge leftward, which the emission does with a static mirror transform about
+// that edge plus the same single growing `width` — no second animated property
+// that could tear. "שלום" in an RTL paragraph: painted lefts run right-to-left
+// (the capture convention — logical order, visual x), run right edge 100.
+function rtlTree(): CapturedElement[] {
+  return [el({
+    tag: "div", animId: "he", fontAscent: 12, fontDescent: 4,
+    styles: { fontSize: "16px", fontFamily: "Helvetica", fontWeight: "400", direction: "rtl" } as CapturedElement["styles"],
+    textSegments: [seg({ text: "שלום", x: 60, y: 100, width: 40, xOffsets: [90, 80, 70, 60] })],
+  })];
+}
+
+describe("bidi selection sweep + caret emission (DM-1754)", () => {
+  it("grows an RTL rect leftward from its right edge via a mirror transform", () => {
+    const track = resolveTextTrack(rtlTree(), {
+      target: { animId: "he" },
+      events: [{ type: "select", t: 0, charStart: 0, charEnd: 4, sweepMs: 400 }],
+    });
+    expect(track.selections[0].rects).toHaveLength(1);
+    expect(track.selections[0].rects[0].rtl).toBe(true);
+    const svg = textTrackMarkup(track, 1000);
+    // The rect sits at x=0 under a mirror about the run's right edge (100).
+    expect(svg).toContain('x="0"');
+    expect(svg).toContain('transform="translate(100,0) scale(-1,1)"');
+    // Widths step 10, 20, 30, 40 — leftward through ש ל ו ם in LOGICAL order.
+    for (const w of [10, 20, 30, 40]) expect(svg).toContain(`width:${w}px`);
+  });
+
+  it("keeps the left-to-right emission byte-identical", () => {
+    const track = resolveTextTrack(tree(), {
+      target: { animId: "line" },
+      events: [{ type: "select", t: 0, charStart: 0, charEnd: 4, sweepMs: 400 }],
+    });
+    const svg = textTrackMarkup(track, 1000);
+    expect(svg).toContain('<rect class="tt-sel" x="10" y="100" width="0.01"');
+    expect(svg).not.toContain("scale(-1,1)");
+  });
+
+  it("mirrors an RTL block caret so its cell covers the addressed character", () => {
+    const track = resolveTextTrack(rtlTree(), {
+      target: { animId: "he" },
+      shape: "block",
+      events: [{ type: "park", t: 0, charOffset: 0 }],
+    });
+    // Caret x is ש's RIGHT edge (100); the block cell covers [90, 100].
+    expect(track.waypoints[0].point.x).toBe(100);
+    expect(track.waypoints[0].point.rtl).toBe(true);
+    const svg = textTrackMarkup(track, 1000);
+    expect(svg).toContain("translate(90px,100px)");
+  });
+});

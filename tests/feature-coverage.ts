@@ -269,10 +269,10 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "animate.text-track",
-    behavior: "Caret + selection track: node-side captured-text addressing (code-point offsets over segment xOffsets) → blinking caret (bar/block/underscore) + sweeping selection rects as global-timeline CSS, layered via AnimationConfig.textTracks.",
+    behavior: "Caret + selection track: node-side captured-text addressing (code-point offsets over segment xOffsets, LOGICAL order through bidi embedding levels so an RTL caret sits on the addressed character's right edge and a logical range emits one rect per bidi level run) → blinking caret (bar/block/underscore, mirrored for RTL insertion points) + sweeping selection rects as global-timeline CSS, layered via AnimationConfig.textTracks.",
     doc: "docs/101-caret-selection-track.md",
     exports: ["resolveCaretPoint", "resolveRangeRects", "findAddressedElement", "addressableLength", "resolveTextTrack", "textTrackMarkup"],
-    tests: ["src/animation/text-address.test.ts", "src/animation/caret-track.test.ts", "tests/caret-track.e2e.test.ts"],
+    tests: ["src/animation/text-address.test.ts", "src/animation/caret-track.test.ts", "tests/caret-track.e2e.test.ts", "tests/caret-bidi.e2e.test.ts"],
   },
   {
     id: "animate.compressed-run",

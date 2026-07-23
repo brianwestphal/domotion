@@ -83,6 +83,14 @@ export interface CaretRectInput {
   fontSize: number;
   /** Bar-caret width override (default {@link DEFAULT_CARET_WIDTH_PX}). */
   barWidthPx?: number;
+  /**
+   * The insertion point sits on an RTL bidi level: `x` is the cell's RIGHT edge
+   * and the caret extends LEFT from it, so a `block` / `underscore` covers
+   * `[x − cellWidthPx, x]` (the character the caret addresses) and a `bar` sits
+   * just inside that edge. Omitted/false keeps the left-to-right geometry
+   * byte-for-byte.
+   */
+  rtl?: boolean;
 }
 
 export interface CaretShapeRect {
@@ -100,19 +108,26 @@ export interface CaretShapeRect {
  * same way Blink paints it. `bar` and `block` span the font box (`baselineY −
  * ascent … baselineY + descent`); `underscore` is a thin bar sitting on the
  * baseline. `block` / `underscore` are `cellWidthPx` wide; `bar` is `barWidthPx`.
+ *
+ * With {@link CaretRectInput.rtl} the insertion point is the cell's RIGHT edge
+ * (the caret addresses a character on an RTL bidi level, which paints to the
+ * LEFT of the insertion point), so every shape mirrors about `x`.
  */
 export function caretShapeRect(inp: CaretRectInput): CaretShapeRect {
   const boxTop = inp.baselineY - inp.ascentPx;
   const boxHeight = Math.round(inp.ascentPx + inp.descentPx);
   const cellW = Math.max(1, inp.cellWidthPx);
+  const leftOf = (width: number): number => (inp.rtl === true ? inp.x - width : inp.x);
   switch (inp.shape) {
     case "block":
-      return { x: inp.x, y: boxTop, width: cellW, height: boxHeight, opacity: BLOCK_CARET_ALPHA };
+      return { x: leftOf(cellW), y: boxTop, width: cellW, height: boxHeight, opacity: BLOCK_CARET_ALPHA };
     case "underscore":
-      return { x: inp.x, y: inp.baselineY, width: cellW, height: underscoreCaretThicknessPx(inp.fontSize), opacity: 1 };
+      return { x: leftOf(cellW), y: inp.baselineY, width: cellW, height: underscoreCaretThicknessPx(inp.fontSize), opacity: 1 };
     case "bar":
-    default:
-      return { x: inp.x, y: boxTop, width: inp.barWidthPx ?? DEFAULT_CARET_WIDTH_PX, height: boxHeight, opacity: 1 };
+    default: {
+      const barW = inp.barWidthPx ?? DEFAULT_CARET_WIDTH_PX;
+      return { x: leftOf(barW), y: boxTop, width: barW, height: boxHeight, opacity: 1 };
+    }
   }
 }
 

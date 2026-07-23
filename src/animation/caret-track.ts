@@ -445,7 +445,9 @@ function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[]
     if (cg != null) {
       const gm = withRenderTextMode("paths", () =>
         renderTextAsPath(
-          cg.char, wp.point.x, g.y, cg.fontSize, cg.fontFamily, cg.fontWeight,
+          // The glyph is repainted at the CELL's left edge, which is the caret x
+          // for an LTR insertion point and `x − cellWidth` for an RTL one.
+          cg.char, g.x, g.y, cg.fontSize, cg.fontFamily, cg.fontWeight,
           glyphInk, undefined, undefined, undefined, cg.fontStyle, wp.point.ascentPx,
         ),
       );
@@ -478,6 +480,9 @@ function caretGeom(track: ResolvedTextTrack, p: CaretPoint): { x: number; y: num
     cellWidthPx: p.cellWidthPx,
     fontSize: p.fontSize,
     barWidthPx: track.barWidthPx,
+    // Bidi: an RTL insertion point is the cell's RIGHT edge, so the shape
+    // mirrors about it (docs/101).
+    ...(p.rtl === true ? { rtl: true } : {}),
   });
 }
 
@@ -493,6 +498,13 @@ function caretGeom(track: ResolvedTextTrack, p: CaretPoint): { x: number; y: num
  * Rects hide at width 0.01px, not 0 — WebKit treats a zero-area rect specially
  * in some paint paths (the typing overlay learned this for clip rects), and a
  * 0.01px fill shows no visible pixel.
+ *
+ * **Bidi (docs/101).** A rect covering an RTL level run must grow from its RIGHT
+ * edge leftward. Rather than animating `x` alongside `width` (two properties
+ * that could tear), the rect is emitted at `x="0"` under a STATIC
+ * `transform="translate(R,0) scale(-1,1)"` about its right edge `R`, so the same
+ * single growing `width` extends leftward. `y` / `height` are untouched by the
+ * horizontal mirror.
  */
 function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: string[], totalDurationMs: number, totalSec: number): string {
   const discrete = sel.charCount <= MAX_DISCRETE_SWEEP_CHARS;
@@ -503,13 +515,18 @@ function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: st
     const rect = sel.rects[ri];
     const name = `tt-sel-${uid}-${si}-${ri}`;
     const startMs = sel.t + sweptBefore * perCharMs;
+    // Sweep anchor: the rect's leading edge in reading order. `edges` are the
+    // successive trailing edges, so the swept width is their distance from it.
+    const rtl = rect.rtl === true;
+    const anchor = rtl ? rect.x + rect.width : rect.x;
+    const sweptTo = (edge: number): number => (rtl ? anchor - edge : edge - anchor);
     const stops: string[] = [`0%{width:0.01px}`];
     if (startMs > 0) stops.push(`${pct(startMs, totalDurationMs)}{width:0.01px}`);
     if (sel.sweepMs > 0 && rect.edges.length > 0) {
       if (discrete) {
         for (let k = 0; k < rect.edges.length; k++) {
           const t = sel.t + (sweptBefore + k + 1) * perCharMs;
-          stops.push(`${pct(t, totalDurationMs)}{width:${num(rect.edges[k] - rect.x)}px}`);
+          stops.push(`${pct(t, totalDurationMs)}{width:${num(sweptTo(rect.edges[k]))}px}`);
         }
       } else {
         const endMs = sel.t + (sweptBefore + rect.edges.length) * perCharMs;
@@ -531,7 +548,10 @@ function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: st
       stops.push(`100%{width:${num(rect.width)}px}`);
     }
     kf.push(`@keyframes ${name}{${stops.join("")}}`);
-    parts.push(`    <rect class="tt-sel" x="${num(rect.x)}" y="${num(rect.y)}" width="0.01" height="${num(rect.height)}" fill="${sel.color}" style="animation:${name} ${totalSec.toFixed(2)}s ${timing} infinite"/>`);
+    const place = rtl
+      ? `x="0" y="${num(rect.y)}" transform="translate(${num(anchor)},0) scale(-1,1)"`
+      : `x="${num(rect.x)}" y="${num(rect.y)}"`;
+    parts.push(`    <rect class="tt-sel" ${place} width="0.01" height="${num(rect.height)}" fill="${sel.color}" style="animation:${name} ${totalSec.toFixed(2)}s ${timing} infinite"/>`);
     sweptBefore += rect.edges.length;
   }
   return parts.join("\n");

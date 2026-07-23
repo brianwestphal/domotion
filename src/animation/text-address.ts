@@ -56,14 +56,38 @@
  * merge only runs for genuinely mixed content, so existing single-element /
  * bidi-fragment / input behavior is byte-for-byte preserved.
  *
+ * **Bidi / RTL (logical-order addressing).** Capture keeps a run's characters in
+ * DOM/LOGICAL order while `xOffsets[i]` is the char's VISUAL painted x (see
+ * `src/capture/script/walker/text-segments.ts`), so `charOffset` already counts
+ * logical positions — but the GEOMETRY has to be read through the bidi levels:
+ * inside an RTL run the position "before code point N" is that character's RIGHT
+ * edge, not its left, and a logical range covers one visually-separate rectangle
+ * per bidi level run. Levels come from `bidi-js`'s `getEmbeddingLevels` over the
+ * element's concatenated logical text with the element's CSS `direction` as the
+ * paragraph direction — the same library and whole-paragraph resolution the
+ * renderer's paired-bracket mirroring uses (`applyBidi` / `applyBidiAt` in
+ * `src/render/text.ts`). Verified against Chromium: the level runs bidi-js
+ * resolves reproduce Chrome's own `Range.getClientRects()` fragmentation of a
+ * mixed Hebrew/Latin line exactly. Pure-LTR runs skip the whole path and keep
+ * their previous geometry byte-for-byte.
+ *
  * **Fallback.** When a run has no captured `xOffsets` (e.g. some input paths),
  * per-character advances come from fontkit via the same
  * resolve-key → font-instance path the typing overlay's `overlayAdvances`
  * uses, anchored at the run's captured `x`.
  */
 
+import bidiFactory from "bidi-js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
+
+const _bidi = bidiFactory();
+
+/** Any RTL code point (Hebrew + Arabic + Syriac + Thaana + presentation forms).
+ *  A local copy of the renderer's `_RTL_RE` gate (`src/render/text.ts`) so the
+ *  addressing engine can decide whether a run needs bidi handling without
+ *  importing the render module. */
+const RTL_RE = /[֐-ࣿיִ-ﻼ]/;
 
 /** How the addressed element is located in the captured tree. See the module
  *  header: `animId` (the capture-side `data-domotion-anim` stamp) is the
@@ -90,6 +114,11 @@ export interface CaretPoint {
   /** Advance of the insertion cell — the character AT the offset, or the space
    *  advance at end-of-text (the block/underscore caret width). */
   cellWidthPx: number;
+  /** True when the addressed character sits on an RTL bidi level: `x` is then
+   *  the cell's RIGHT edge and the insertion cell extends LEFT from it (a block
+   *  / underscore caret covers `[x − cellWidthPx, x]`). Absent/false for the
+   *  left-to-right case, which keeps its previous geometry exactly. */
+  rtl?: boolean;
 }
 
 /** One selection rectangle covering (part of) a range within a single text
@@ -103,14 +132,24 @@ export interface SelectionRectPlan {
   height: number;
   /** Full width of the covered span (last covered char's right edge − x). */
   width: number;
-  /** Successive right-edge x positions after each covered character, in sweep
-   *  order (length = covered char count). `edges[k] − x` is the rect width
-   *  once `k + 1` characters are swept; the last entry equals `x + width`. */
+  /** Successive painted edge x positions after each covered character, in
+   *  LOGICAL sweep order (length = covered char count). For a left-to-right
+   *  rect these are the successive RIGHT edges: `edges[k] − x` is the rect
+   *  width once `k + 1` characters are swept and the last entry equals
+   *  `x + width`. For an `rtl` rect they are the successive LEFT edges, growing
+   *  leftward: the width after `k + 1` characters is `(x + width) − edges[k]`
+   *  and the last entry equals `x`. */
   edges: number[];
+  /** True when this rect covers an RTL bidi level run — the logical sweep grows
+   *  from the rect's RIGHT edge leftward (see {@link SelectionRectPlan.edges}).
+   *  Absent/false for the left-to-right case. */
+  rtl?: boolean;
 }
 
-/** A resolved range: one rect plan per covered text run (a range spanning
- *  wrapped lines / styled segments yields one rect per run). */
+/** A resolved range: one rect plan per covered text run — and, within a run,
+ *  one per bidi level run, matching how Chromium fragments its own selection
+ *  rects (a logical range over mixed-direction text is visually discontiguous).
+ *  Rects are ordered LOGICALLY, so the sweep runs in reading order. */
 export interface RangeRects {
   rects: SelectionRectPlan[];
   /** Total covered code points (the sweep distributes `sweepMs` across these). */
@@ -153,6 +192,9 @@ interface TextRun {
   descentPx: number;
   fontFamily: string;
   fontWeight: string;
+  /** The owning element's CSS `direction` — the paragraph direction bidi level
+   *  resolution runs under. `"ltr"` unless the capture said otherwise. */
+  dir: "ltr" | "rtl";
 }
 
 /**
@@ -173,6 +215,7 @@ function elementOwnRuns(el: CapturedElement): TextRun[] {
   const ascentOf = (seg?: TextSegment): number =>
     seg?.fontAscent ?? el.fontAscent ?? metrics.ascentPx ?? fontSize * 0.8;
   const descent = el.fontDescent ?? metrics.descentPx ?? fontSize * 0.2;
+  const dir: "ltr" | "rtl" = el.styles.direction === "rtl" ? "rtl" : "ltr";
 
   if (el.textSegments != null && el.textSegments.length > 0) {
     return el.textSegments
@@ -189,6 +232,7 @@ function elementOwnRuns(el: CapturedElement): TextRun[] {
         descentPx: descent,
         fontFamily: seg.fontFamily ?? fontFamily,
         fontWeight: seg.fontWeight ?? fontWeight,
+        dir,
       }));
   }
   if (el.text !== "" && (el.inputXOffsets != null || el.textLeft != null)) {
@@ -207,6 +251,7 @@ function elementOwnRuns(el: CapturedElement): TextRun[] {
       descentPx: descent,
       fontFamily,
       fontWeight,
+      dir,
     }];
   }
   return [];
@@ -232,15 +277,20 @@ function collectDescendantRuns(el: CapturedElement, out: TextRun[]): void {
  *     when a run's baseline sits more than ~0.6em below the current line's
  *     baseline — a full line-height gap (wrapped line / `display:block` child)
  *     breaks; a small sub/sup shift does not.
- *  2. Within a line, order left-to-right by captured `x`.
+ *  2. Within a line, order by captured `x` — left-to-right in an LTR paragraph,
+ *     RIGHT-to-left when the addressed element's CSS `direction` is `rtl`,
+ *     since that is the reading order of the boxes on an RTL line.
  *  3. Emit lines top-to-bottom.
  *
  * Array sort is stable (ES2019+), so equal keys keep capture order. For
- * horizontal LTR flow this equals DOM/logical order; RTL runs are ordered
- * visually (left-to-right), matching the v1 bidi limitation documented in
- * docs/101 (logical-order addressing over bidi is future work).
+ * horizontal inline flow that box order equals DOM/logical order. Bidi WITHIN a
+ * run is handled separately (see `runCharBoxes`); what stays approximate is a
+ * line whose child boxes themselves reorder bidirectionally (an LTR `<span>`
+ * embedded mid-line in an RTL paragraph) — those boxes order by x under the
+ * paragraph direction, not by resolved level. See the Limits section of
+ * docs/101.
  */
-function orderRunsByPaint(runs: TextRun[]): TextRun[] {
+function orderRunsByPaint(runs: TextRun[], dir: "ltr" | "rtl"): TextRun[] {
   const baselineOf = (r: TextRun): number => r.y + r.ascentPx;
   // Stable sort by baseline first (capture order breaks ties).
   const byBaseline = [...runs].sort((a, b) => baselineOf(a) - baselineOf(b));
@@ -248,8 +298,8 @@ function orderRunsByPaint(runs: TextRun[]): TextRun[] {
   let line: TextRun[] = [];
   let lineBaseline = 0;
   const flush = (): void => {
-    // Stable sort within the line by x (left-to-right).
-    line.sort((a, b) => a.x - b.x);
+    // Stable sort within the line by x (reading order for the paragraph).
+    line.sort((a, b) => (dir === "rtl" ? b.x - a.x : a.x - b.x));
     for (const r of line) ordered.push(r);
     line = [];
   };
@@ -280,7 +330,79 @@ function elementTextRuns(el: CapturedElement): TextRun[] {
   const descendant: TextRun[] = [];
   collectDescendantRuns(el, descendant);
   if (descendant.length === 0) return own;
-  return orderRunsByPaint([...own, ...descendant]);
+  return orderRunsByPaint([...own, ...descendant], el.styles.direction === "rtl" ? "rtl" : "ltr");
+}
+
+/**
+ * Per-code-point painted boxes for a run, with each character's bidi level.
+ *
+ * Captured `xOffsets` give each character's painted LEFT edge in DOM/LOGICAL
+ * order, so a character's RIGHT edge is the left edge of whichever character
+ * paints next VISUALLY (and the run's right edge for the visually-last one).
+ * Sorting by painted x recovers that neighbor for both directions at once; for a
+ * pure-LTR run the visual order IS the logical order, so `right` comes out as
+ * `xOffsets[nextCodePoint]` exactly as before.
+ *
+ * `levels` is the slice of the element-wide bidi embedding levels covering this
+ * run (per UTF-16 code unit), or null when the element has no RTL content — in
+ * which case every box is left-to-right.
+ */
+interface CharBox {
+  /** UTF-16 index of the code point's first unit within the run. */
+  utf16: number;
+  /** Painted left edge. */
+  left: number;
+  /** Painted right edge. */
+  right: number;
+  /** True when the character resolved to an odd (RTL) bidi embedding level. */
+  rtl: boolean;
+}
+
+function runCharBoxes(run: TextRun, xs: number[], levels: number[] | null): CharBox[] {
+  const boxes: CharBox[] = [];
+  let u = 0;
+  for (const ch of run.text) {
+    boxes.push({ utf16: u, left: xs[u], right: xs[u], rtl: levels != null && (levels[u] ?? 0) % 2 === 1 });
+    u += ch.length;
+  }
+  if (boxes.length === 0) return boxes;
+  const rightEdge = runRightEdge(run, xs);
+  // Visual order = ascending painted x (stable on ties, so zero-width combining
+  // marks stay behind their base and keep a zero-width cell).
+  const visual = boxes.map((_, i) => i).sort((a, b) => boxes[a].left - boxes[b].left || a - b);
+  for (let k = 0; k < visual.length; k++) {
+    const box = boxes[visual[k]];
+    const next = k + 1 < visual.length ? boxes[visual[k + 1]].left : rightEdge;
+    box.right = next > box.left ? next : box.left;
+  }
+  return boxes;
+}
+
+/**
+ * Bidi embedding levels for an element's runs, resolved over the CONCATENATED
+ * logical text of every run rather than per run — the whole-paragraph
+ * resolution the renderer's paired-bracket mirroring uses (`applyBidiAt` in
+ * `src/render/text.ts`), which matters because capture splits a bidi line into
+ * visual fragments and soft-wrapped lines into separate segments; resolving a
+ * fragment in isolation would misclassify neutrals at its edges.
+ *
+ * Returns null when no run carries RTL content and the paragraph direction is
+ * `ltr` — the signal for callers to take the untouched left-to-right path.
+ */
+function runBidiLevels(runs: TextRun[]): Array<number[] | null> | null {
+  const dir = runs.find((r) => r.dir === "rtl") != null ? "rtl" : "ltr";
+  if (dir !== "rtl" && !runs.some((r) => RTL_RE.test(r.text))) return null;
+  const full = runs.map((r) => r.text).join("");
+  const levels = _bidi.getEmbeddingLevels(full, dir).levels;
+  const out: Array<number[] | null> = [];
+  let base = 0;
+  for (const run of runs) {
+    const slice: number[] = [];
+    for (let i = 0; i < run.text.length; i++) slice.push(levels[base + i] ?? 0);
+    out.push(slice);
+    base += run.text.length;
+  }
+  return out;
 }
 
 /** fontkit-measured fallback metrics + advances for a font, mirroring the
@@ -383,6 +505,18 @@ export function addressableLength(roots: CapturedElement[], target: TextAddressT
  * points across the element's concatenated runs; `charOffset === length` is
  * the caret after the final character. Returns null when the target doesn't
  * resolve or the offset is out of range.
+ *
+ * **Bidi.** Inside an RTL level run the caret sits on the addressed
+ * character's RIGHT edge (`rtl: true` on the result, with the insertion cell
+ * extending left from it); at end-of-text it sits on the last character's
+ * trailing edge, which is its LEFT edge when that character is RTL. Chromium
+ * agrees exactly at every position except the two-sided ones — an offset that
+ * falls exactly ON a bidi level-run boundary has two legitimate visual caret
+ * positions and the one shown depends on caret affinity (Blink implements the
+ * choice in `third_party/blink/renderer/core/editing/bidi_adjustment.cc`). This
+ * engine always takes the DOWNSTREAM side — the leading edge of the character
+ * the offset names — so a `block` / `underscore` caret's cell (and the `invert`
+ * option's glyph repaint) always covers the character the address refers to.
  */
 export function resolveCaretPoint(roots: CapturedElement[], target: TextAddressTarget, charOffset: number): CaretPoint | null {
   const el = findAddressedElement(roots, target);
@@ -393,21 +527,41 @@ export function resolveCaretPoint(roots: CapturedElement[], target: TextAddressT
   const run = runs[loc.runIndex];
   const xs = runXOffsets(run);
   const atEnd = loc.utf16 >= run.text.length;
-  const x = atEnd ? runRightEdge(run, xs) : xs[loc.utf16];
-  // Insertion-cell width: the char at the offset (next-x − x within the run,
-  // right edge for the final char); at end-of-text, the space advance — the
-  // natural "empty cell" block/underscore carets use (see caret-metrics.ts).
+  const levels = runBidiLevels(runs);
+  const spaceAdvance = (): number => fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize).advOf(" ");
+
+  let x: number;
   let cellWidthPx: number;
-  if (atEnd) {
-    const { advOf } = fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize);
-    cellWidthPx = advOf(" ");
-  } else {
-    const chLen = codePointLengthAt(run.text, loc.utf16);
-    const nextU = loc.utf16 + chLen;
-    cellWidthPx = (nextU < run.text.length ? xs[nextU] : runRightEdge(run, xs)) - x;
+  let rtl = false;
+  if (levels != null) {
+    const boxes = runCharBoxes(run, xs, levels[loc.runIndex]);
+    // At end-of-text the caret parks after the LAST logical character, on its
+    // trailing edge (left for RTL, right for LTR); otherwise it sits on the
+    // leading edge of the character the offset names.
+    const box = atEnd ? boxes[boxes.length - 1] : boxes.find((b) => b.utf16 === loc.utf16);
+    if (box == null) return null;
+    rtl = box.rtl;
+    x = atEnd ? (box.rtl ? box.left : box.right) : (box.rtl ? box.right : box.left);
+    cellWidthPx = atEnd ? spaceAdvance() : box.right - box.left;
     if (!(cellWidthPx > 0)) {
-      const { advOf } = fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize);
-      cellWidthPx = advOf(run.text.slice(loc.utf16, nextU));
+      const nextU = loc.utf16 + codePointLengthAt(run.text, loc.utf16);
+      cellWidthPx = fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize).advOf(run.text.slice(loc.utf16, nextU));
+    }
+  } else {
+    x = atEnd ? runRightEdge(run, xs) : xs[loc.utf16];
+    // Insertion-cell width: the char at the offset (next-x − x within the run,
+    // right edge for the final char); at end-of-text, the space advance — the
+    // natural "empty cell" block/underscore carets use (see caret-metrics.ts).
+    if (atEnd) {
+      cellWidthPx = spaceAdvance();
+    } else {
+      const chLen = codePointLengthAt(run.text, loc.utf16);
+      const nextU = loc.utf16 + chLen;
+      cellWidthPx = (nextU < run.text.length ? xs[nextU] : runRightEdge(run, xs)) - x;
+      if (!(cellWidthPx > 0)) {
+        const { advOf } = fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize);
+        cellWidthPx = advOf(run.text.slice(loc.utf16, nextU));
+      }
     }
   }
   return {
@@ -417,6 +571,7 @@ export function resolveCaretPoint(roots: CapturedElement[], target: TextAddressT
     descentPx: run.descentPx,
     fontSize: run.fontSize,
     cellWidthPx,
+    ...(rtl ? { rtl: true } : {}),
   };
 }
 
@@ -431,43 +586,78 @@ function codePointLengthAt(text: string, u: number): number {
  * one per covered text run (so a range across wrapped lines or styled segments
  * yields a rect per line/segment) — with per-character sweep edges. Returns
  * null when the target doesn't resolve, the range is empty, or out of range.
+ *
+ * **Bidi.** A logical range over mixed-direction text is visually
+ * DISCONTIGUOUS, so a covered run additionally splits at every bidi level
+ * change: one rect per level run, each carrying its own sweep direction
+ * (`rtl` grows right-to-left). Rects stay in LOGICAL order, so the sweep runs in
+ * reading order regardless of where the pieces land on screen. This reproduces
+ * Chromium's own selection fragmentation — measured against
+ * `Range.getClientRects()` on mixed Hebrew/Latin lines in both LTR and RTL
+ * paragraphs, the rect boundaries agree exactly.
  */
 export function resolveRangeRects(roots: CapturedElement[], target: TextAddressTarget, charStart: number, charEnd: number): RangeRects | null {
   const el = findAddressedElement(roots, target);
   if (el == null || charEnd <= charStart || charStart < 0) return null;
   const runs = elementTextRuns(el);
   if (runs.length === 0) return null;
+  const levels = runBidiLevels(runs);
 
   const rects: SelectionRectPlan[] = [];
   let cp = 0; // running code-point index across runs
   let covered = 0;
-  for (const run of runs) {
+  for (let ri = 0; ri < runs.length; ri++) {
+    const run = runs[ri];
     const xs = runXOffsets(run);
-    let utf16 = 0;
+    // Run top = the font-box top (baseline − ascent); height spans the font box
+    // (ascent + descent), matching what Blink highlights.
+    const height = Math.round(run.ascentPx + run.descentPx);
+    if (levels == null) {
+      let utf16 = 0;
+      let plan: SelectionRectPlan | null = null;
+      for (const ch of run.text) {
+        if (cp >= charStart && cp < charEnd) {
+          const left = xs[utf16];
+          const nextU = utf16 + ch.length;
+          const right = nextU < run.text.length ? xs[nextU] : runRightEdge(run, xs);
+          if (plan == null) {
+            plan = { x: left, y: run.y, height, width: 0, edges: [] };
+            rects.push(plan);
+          }
+          plan.edges.push(right);
+          plan.width = right - plan.x;
+          covered++;
+        }
+        cp++;
+        utf16 += ch.length;
+      }
+      continue;
+    }
+    // Bidi run: break the covered stretch at every level change, so each rect
+    // covers one visually-contiguous level run and sweeps in its own direction.
+    const boxes = runCharBoxes(run, xs, levels[ri]);
     let plan: SelectionRectPlan | null = null;
-    for (const ch of run.text) {
+    let planRtl = false;
+    for (const box of boxes) {
       if (cp >= charStart && cp < charEnd) {
-        const left = xs[utf16];
-        const nextU = utf16 + ch.length;
-        const right = nextU < run.text.length ? xs[nextU] : runRightEdge(run, xs);
-        if (plan == null) {
-          plan = {
-            x: left,
-            // Run top = the font-box top (baseline − ascent); height spans the
-            // font box (ascent + descent), matching what Blink highlights.
-            y: run.y,
-            height: Math.round(run.ascentPx + run.descentPx),
-            width: 0,
-            edges: [],
-          };
+        if (plan == null || planRtl !== box.rtl) {
+          plan = { x: box.left, y: run.y, height, width: box.right - box.left, edges: [], ...(box.rtl ? { rtl: true } : {}) };
+          planRtl = box.rtl;
           rects.push(plan);
         }
-        plan.edges.push(right);
-        plan.width = right - plan.x;
+        // The level run is visually contiguous: extend the rect over the box and
+        // record the trailing edge the sweep steps to (right for LTR, left for
+        // RTL — the sweep grows away from the rect's leading edge).
+        const right = Math.max(plan.x + plan.width, box.right);
+        const left = Math.min(plan.x, box.left);
+        plan.x = left;
+        plan.width = right - left;
+        plan.edges.push(box.rtl ? box.left : box.right);
         covered++;
+      } else if (plan != null) {
+        plan = null; // a gap in coverage starts a fresh rect
       }
       cp++;
-      utf16 += ch.length;
     }
   }
   if (covered === 0) return null;

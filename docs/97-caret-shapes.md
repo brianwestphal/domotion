@@ -29,6 +29,7 @@ The caret only paints in Blink when the window has OS focus, so it never appears
 - **Block alpha `0.5`** mirrors Blink's `color_.SetAlpha(0.5)` in `caret_display_item_client.cc`, so the glyph shows through the block.
 - **Cell width** is the advance of the character the caret sits on. At the insertion point (end of typed text) there is no next character, so it uses the **space advance** in the caret's font — a natural "empty cell", matching editor/terminal block cursors.
 - **Underscore** sits *on* the baseline (top of the bar at the baseline), `≈ 1/12 em` thick with a 1px floor.
+- **RTL insertion points** (`rtl: true`, set by the caret + selection track's addressing engine — [docs/101](101-caret-selection-track.md)) put the caret x on the cell's **right** edge, because the character it addresses paints to the *left* of the insertion point. Every shape then mirrors about `x`: `block` / `underscore` cover `[x − cell, x]` and `bar` sits just inside that edge, so the cell still lands on the addressed character. Omitting the flag keeps the left-to-right geometry byte-for-byte.
 
 ## Authoring
 
@@ -63,7 +64,7 @@ The `typeResample` caret is a `blink` overlay; a block caret sets the overlay's 
 
 ## Testing / demos
 
-- `src/animation/caret-metrics.test.ts` — `caretShapeRect` geometry per shape (bar/block/underscore, cell-width clamp, underscore thickness/baseline).
+- `src/animation/caret-metrics.test.ts` — `caretShapeRect` geometry per shape (bar/block/underscore, cell-width clamp, underscore thickness/baseline) plus the mirrored `rtl` variants and a left-to-right byte-identity pin.
 - `src/cli/type-resample.test.ts` — `caretShape` defaulting to `auto` + forced shapes.
 - `examples/animate/caret-shapes/` — a committed golden demo cycling a bar, block, and underscore caret (wired into `tests/animate-examples.tsx`). Verified by rasterizing the SVG: the block reads as a translucent box, the underscore as a thin baseline bar.
 
