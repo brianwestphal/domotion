@@ -70,15 +70,20 @@ export function underscoreCaretThicknessPx(fontSize: number): number {
 
 export interface CaretRectInput {
   shape: CaretShape;
-  /** Caret x (the insertion-point left edge), px. */
+  /** Caret x (the insertion-point left edge), px. For a `vertical` caret this is
+   *  the COLUMN's left edge instead. */
   x: number;
-  /** Text baseline y, px. */
+  /** The caret's position along the FLOW axis: the text baseline y for
+   *  horizontal writing, the top of the addressed column cell for `vertical`. */
   baselineY: number;
-  /** Font ascent / descent in px (exact metrics — see {@link barCaretHeightPx}). */
+  /** Font ascent / descent in px (exact metrics — see {@link barCaretHeightPx}).
+   *  Unused by the `vertical` variant, whose cross extent is the column's. */
   ascentPx: number;
   descentPx: number;
-  /** Advance of the insertion cell (the character at/after the caret, or a space
-   *  at end-of-text), px — the width of a `block` / `underscore` caret. */
+  /** Extent of the insertion cell ALONG THE FLOW AXIS (the character at/after
+   *  the caret, or a space at end-of-text), px — the `block` / `underscore`
+   *  caret's width for horizontal writing, its HEIGHT down the column for
+   *  `vertical`. */
   cellWidthPx: number;
   fontSize: number;
   /** Bar-caret width override (default {@link DEFAULT_CARET_WIDTH_PX}). */
@@ -88,9 +93,18 @@ export interface CaretRectInput {
    * and the caret extends LEFT from it, so a `block` / `underscore` covers
    * `[x − cellWidthPx, x]` (the character the caret addresses) and a `bar` sits
    * just inside that edge. Omitted/false keeps the left-to-right geometry
-   * byte-for-byte.
+   * byte-for-byte. Ignored by the `vertical` variant.
    */
   rtl?: boolean;
+  /**
+   * Vertical writing mode: the caret runs ACROSS the column instead of down the
+   * line, so every shape rotates a quarter turn (see {@link caretShapeRect}).
+   * Omitted/false keeps the horizontal geometry byte-for-byte.
+   */
+  vertical?: boolean;
+  /** Cross-axis extent of the column (`vertical` only) — what a `bar` caret
+   *  spans and a `block` caret's width. Falls back to `cellWidthPx`. */
+  columnWidthPx?: number;
 }
 
 export interface CaretShapeRect {
@@ -112,8 +126,23 @@ export interface CaretShapeRect {
  * With {@link CaretRectInput.rtl} the insertion point is the cell's RIGHT edge
  * (the caret addresses a character on an RTL bidi level, which paints to the
  * LEFT of the insertion point), so every shape mirrors about `x`.
+ *
+ * With {@link CaretRectInput.vertical} the text stacks down a column, so the
+ * caret rotates a quarter turn — the same three shapes about the column's axis:
+ *
+ * | shape | x | y | width | height |
+ * |---|---|---|---|---|
+ * | `bar` | column left | `baselineY` | column width | `barWidthPx` (a HORIZONTAL bar across the column) |
+ * | `block` | column left | `baselineY` | column width | one cell (the column cell) |
+ * | `underscore` | column left | `baselineY` | thickness | one cell (a thin bar down the column's LEFT edge) |
+ *
+ * The `underscore` side is the column's LEFT edge because that is where Chrome
+ * paints a vertical-text underline — measured on both `vertical-rl` and
+ * `vertical-lr` with a colored `text-decoration: underline`, the rule lands
+ * ~2px inside the column's left edge in each.
  */
 export function caretShapeRect(inp: CaretRectInput): CaretShapeRect {
+  if (inp.vertical === true) return verticalCaretShapeRect(inp);
   const boxTop = inp.baselineY - inp.ascentPx;
   const boxHeight = Math.round(inp.ascentPx + inp.descentPx);
   const cellW = Math.max(1, inp.cellWidthPx);
@@ -128,6 +157,23 @@ export function caretShapeRect(inp: CaretRectInput): CaretShapeRect {
       const barW = inp.barWidthPx ?? DEFAULT_CARET_WIDTH_PX;
       return { x: leftOf(barW), y: boxTop, width: barW, height: boxHeight, opacity: 1 };
     }
+  }
+}
+
+/** The quarter-turned twin of {@link caretShapeRect} for vertical writing — see
+ *  that function's doc comment for the shape table and the underline-side
+ *  measurement behind the `underscore` placement. */
+function verticalCaretShapeRect(inp: CaretRectInput): CaretShapeRect {
+  const colW = Math.max(1, inp.columnWidthPx ?? inp.cellWidthPx);
+  const cellH = Math.max(1, inp.cellWidthPx);
+  switch (inp.shape) {
+    case "block":
+      return { x: inp.x, y: inp.baselineY, width: colW, height: cellH, opacity: BLOCK_CARET_ALPHA };
+    case "underscore":
+      return { x: inp.x, y: inp.baselineY, width: underscoreCaretThicknessPx(inp.fontSize), height: cellH, opacity: 1 };
+    case "bar":
+    default:
+      return { x: inp.x, y: inp.baselineY, width: colW, height: inp.barWidthPx ?? DEFAULT_CARET_WIDTH_PX, opacity: 1 };
   }
 }
 

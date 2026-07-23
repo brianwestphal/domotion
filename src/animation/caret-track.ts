@@ -237,12 +237,16 @@ export function resolveTextTrack(roots: CapturedElement[], spec: TextTrackSpec):
  * within the addressed element — the glyph a block-invert caret repaints in the
  * inverse color. Resolved node-side from the captured tree via the exported
  * {@link findAddressedElement}, walking the element's horizontal text runs in
- * captured order (mirroring `text-address.ts`'s `elementTextRuns`: skip
- * vertical-writing segments, fall back to the input-value run). Kept LOCAL — a
- * focused read rather than an addressing-engine change — so `text-address.ts`
- * stays untouched. Returns null for an unresolved target, an out-of-range
- * offset, or `charOffset === length` (the after-last-char slot: an empty cell
- * with no glyph to invert).
+ * captured order (falling back to the input-value run). Kept LOCAL — a focused
+ * read rather than an addressing-engine change — so `text-address.ts` stays
+ * untouched. Returns null for an unresolved target, an out-of-range offset, or
+ * `charOffset === length` (the after-last-char slot: an empty cell with no glyph
+ * to invert).
+ *
+ * VERTICAL-writing segments are skipped: repainting a column glyph needs the
+ * renderer's upright/rotated placement, which this standalone repaint doesn't
+ * reproduce, so a vertical block-invert caret degrades to the translucent
+ * 0.5-alpha block and the page's own glyph shows through (docs/101 Limits).
  */
 function resolveCoveredGlyph(roots: CapturedElement[], target: TextAddressTarget, charOffset: number): CoveredGlyph | null {
   if (charOffset < 0) return null;
@@ -457,8 +461,10 @@ function invertedCaretMarkup(track: ResolvedTextTrack, uid: string, kf: string[]
     // outline couldn't be produced on this host (font unresolvable in paths
     // mode), degrade to the translucent 0.5-alpha block so the page's own glyph
     // still shows through — never cover a character with an opaque block we
-    // can't re-ink.
-    const degraded = cg != null && glyphMarkup === "";
+    // can't re-ink. VERTICAL-writing waypoints degrade the same way: the covered
+    // glyph would need the renderer's upright/rotated column placement, which
+    // this standalone repaint doesn't reproduce (docs/101 Limits).
+    const degraded = glyphMarkup === "" && (cg != null || wp.point.vertical != null);
     const blockOpacity = degraded ? ` fill-opacity="${BLOCK_CARET_ALPHA}"` : "";
     const block = `<rect class="tt-caret" x="${num(g.x)}" y="${num(g.y)}" width="${num(g.width)}" height="${num(g.height)}" fill="${track.color}"${blockOpacity}/>`;
     layers.push(`      <g class="tt-ivis" opacity="${onAtZero ? 1 : 0}" style="animation:${visName} ${totalSec.toFixed(2)}s step-end infinite">${block}${glyphMarkup}</g>`);
@@ -483,6 +489,8 @@ function caretGeom(track: ResolvedTextTrack, p: CaretPoint): { x: number; y: num
     // Bidi: an RTL insertion point is the cell's RIGHT edge, so the shape
     // mirrors about it (docs/101).
     ...(p.rtl === true ? { rtl: true } : {}),
+    // Vertical writing: the caret rotates a quarter turn about the column.
+    ...(p.vertical != null ? { vertical: true, columnWidthPx: p.columnWidthPx } : {}),
   });
 }
 
@@ -505,6 +513,11 @@ function caretGeom(track: ResolvedTextTrack, p: CaretPoint): { x: number; y: num
  * `transform="translate(R,0) scale(-1,1)"` about its right edge `R`, so the same
  * single growing `width` extends leftward. `y` / `height` are untouched by the
  * horizontal mirror.
+ *
+ * **Vertical writing (docs/101).** A rect covering a column-stacked run spans
+ * the column's fixed cross extent and grows DOWN it, so the swept property is
+ * `height` and the fixed one is `width` — the axes simply swap. Its `edges` are
+ * the successive bottom edges.
  */
 function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: string[], totalDurationMs: number, totalSec: number): string {
   const discrete = sel.charCount <= MAX_DISCRETE_SWEEP_CHARS;
@@ -515,43 +528,50 @@ function selectionMarkup(sel: ResolvedSelection, si: number, uid: string, kf: st
     const rect = sel.rects[ri];
     const name = `tt-sel-${uid}-${si}-${ri}`;
     const startMs = sel.t + sweptBefore * perCharMs;
+    // The swept axis: `width` across a line, `height` down a column.
+    const vertical = rect.vertical === true;
+    const prop = vertical ? "height" : "width";
+    const fullExtent = vertical ? rect.height : rect.width;
     // Sweep anchor: the rect's leading edge in reading order. `edges` are the
-    // successive trailing edges, so the swept width is their distance from it.
+    // successive trailing edges, so the swept extent is their distance from it.
     const rtl = rect.rtl === true;
-    const anchor = rtl ? rect.x + rect.width : rect.x;
-    const sweptTo = (edge: number): number => (rtl ? anchor - edge : edge - anchor);
-    const stops: string[] = [`0%{width:0.01px}`];
-    if (startMs > 0) stops.push(`${pct(startMs, totalDurationMs)}{width:0.01px}`);
+    const anchor = vertical ? rect.y : (rtl ? rect.x + rect.width : rect.x);
+    const sweptTo = (edge: number): number => (rtl && !vertical ? anchor - edge : edge - anchor);
+    const stops: string[] = [`0%{${prop}:0.01px}`];
+    if (startMs > 0) stops.push(`${pct(startMs, totalDurationMs)}{${prop}:0.01px}`);
     if (sel.sweepMs > 0 && rect.edges.length > 0) {
       if (discrete) {
         for (let k = 0; k < rect.edges.length; k++) {
           const t = sel.t + (sweptBefore + k + 1) * perCharMs;
-          stops.push(`${pct(t, totalDurationMs)}{width:${num(sweptTo(rect.edges[k]))}px}`);
+          stops.push(`${pct(t, totalDurationMs)}{${prop}:${num(sweptTo(rect.edges[k]))}px}`);
         }
       } else {
         const endMs = sel.t + (sweptBefore + rect.edges.length) * perCharMs;
-        stops.push(`${pct(endMs, totalDurationMs)}{width:${num(rect.width)}px}`);
+        stops.push(`${pct(endMs, totalDurationMs)}{${prop}:${num(fullExtent)}px}`);
       }
     } else {
-      stops.push(`${pct(startMs, totalDurationMs)}{width:${num(rect.width)}px}`);
+      stops.push(`${pct(startMs, totalDurationMs)}{${prop}:${num(fullExtent)}px}`);
     }
     // Discrete sweeps (and instant selections) step per stop; the coarse
     // fallback interpolates linearly between its endpoints. Under `linear`
-    // timing, a clear must still SNAP — so a full-width hold stop lands just
+    // timing, a clear must still SNAP — so a full-extent hold stop lands just
     // before the clear time (duplicate adjacent values hold under linear).
     const timing = discrete || sel.sweepMs === 0 ? "step-end" : "linear";
     if (sel.clearT != null) {
-      if (timing === "linear") stops.push(`${pct(Math.max(sel.t, sel.clearT - 1), totalDurationMs)}{width:${num(rect.width)}px}`);
-      stops.push(`${pct(sel.clearT, totalDurationMs)}{width:0.01px}`);
-      stops.push(`100%{width:0.01px}`);
+      if (timing === "linear") stops.push(`${pct(Math.max(sel.t, sel.clearT - 1), totalDurationMs)}{${prop}:${num(fullExtent)}px}`);
+      stops.push(`${pct(sel.clearT, totalDurationMs)}{${prop}:0.01px}`);
+      stops.push(`100%{${prop}:0.01px}`);
     } else {
-      stops.push(`100%{width:${num(rect.width)}px}`);
+      stops.push(`100%{${prop}:${num(fullExtent)}px}`);
     }
     kf.push(`@keyframes ${name}{${stops.join("")}}`);
-    const place = rtl
+    const place = rtl && !vertical
       ? `x="0" y="${num(rect.y)}" transform="translate(${num(anchor)},0) scale(-1,1)"`
       : `x="${num(rect.x)}" y="${num(rect.y)}"`;
-    parts.push(`    <rect class="tt-sel" ${place} width="0.01" height="${num(rect.height)}" fill="${sel.color}" style="animation:${name} ${totalSec.toFixed(2)}s ${timing} infinite"/>`);
+    const size = vertical
+      ? `width="${num(rect.width)}" height="0.01"`
+      : `width="0.01" height="${num(rect.height)}"`;
+    parts.push(`    <rect class="tt-sel" ${place} ${size} fill="${sel.color}" style="animation:${name} ${totalSec.toFixed(2)}s ${timing} infinite"/>`);
     sweptBefore += rect.edges.length;
   }
   return parts.join("\n");

@@ -31,6 +31,18 @@ The caret only paints in Blink when the window has OS focus, so it never appears
 - **Underscore** sits *on* the baseline (top of the bar at the baseline), `≈ 1/12 em` thick with a 1px floor.
 - **RTL insertion points** (`rtl: true`, set by the caret + selection track's addressing engine — [docs/101](101-caret-selection-track.md)) put the caret x on the cell's **right** edge, because the character it addresses paints to the *left* of the insertion point. Every shape then mirrors about `x`: `block` / `underscore` cover `[x − cell, x]` and `bar` sits just inside that edge, so the cell still lands on the addressed character. Omitting the flag keeps the left-to-right geometry byte-for-byte.
 
+### Vertical writing modes
+
+`vertical: true` (with `columnWidthPx`, also set by the docs/101 addressing engine) rotates the caret a quarter turn about the column. `x` is then the **column's left edge**, `baselineY` the along-column position, and `cellWidthPx` the cell's extent **down** the column:
+
+| shape | x | y | width | height |
+|---|---|---|---|---|
+| `bar` | column left | along-column position | column width | `barWidthPx` — a **horizontal** bar across the column |
+| `block` | column left | along-column position | column width | one cell |
+| `underscore` | column left | along-column position | `≈ fontSize / 12` | one cell — a thin bar down the column's **left** edge |
+
+The `underscore` side is the column's left edge because that is where Chrome paints a vertical-text underline: probed on both `vertical-rl` and `vertical-lr` with a colored `text-decoration: underline`, the rule lands ~2px inside the column's left edge in each. Omitting the flag keeps the horizontal geometry byte-for-byte.
+
 ## Authoring
 
 ### `typing` overlay
@@ -64,7 +76,7 @@ The `typeResample` caret is a `blink` overlay; a block caret sets the overlay's 
 
 ## Testing / demos
 
-- `src/animation/caret-metrics.test.ts` — `caretShapeRect` geometry per shape (bar/block/underscore, cell-width clamp, underscore thickness/baseline) plus the mirrored `rtl` variants and a left-to-right byte-identity pin.
+- `src/animation/caret-metrics.test.ts` — `caretShapeRect` geometry per shape (bar/block/underscore, cell-width clamp, underscore thickness/baseline) plus the mirrored `rtl` variants and the quarter-turned `vertical` ones, each with a byte-identity pin on the horizontal output.
 - `src/cli/type-resample.test.ts` — `caretShape` defaulting to `auto` + forced shapes.
 - `examples/animate/caret-shapes/` — a committed golden demo cycling a bar, block, and underscore caret (wired into `tests/animate-examples.tsx`). Verified by rasterizing the SVG: the block reads as a translucent box, the underscore as a thin baseline bar.
 

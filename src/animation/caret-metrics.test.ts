@@ -113,3 +113,41 @@ describe("caretShapeRect — RTL insertion points", () => {
     }
   });
 });
+
+// DM-1753: vertical writing modes rotate the caret a quarter turn about the
+// column — `x` is the column's left edge, `baselineY` the along-column position,
+// `cellWidthPx` the cell's extent DOWN the column, `columnWidthPx` its cross
+// extent.
+describe("caretShapeRect — vertical writing modes", () => {
+  const base = { x: 430, baselineY: 92, ascentPx: 21, descentPx: 3, cellWidthPx: 24, fontSize: 24, columnWidthPx: 24, vertical: true } as const;
+
+  it("turns the bar caret HORIZONTAL across the column", () => {
+    const bar = caretShapeRect({ ...base, shape: "bar", barWidthPx: 2 });
+    expect(bar).toEqual({ x: 430, y: 92, width: 24, height: 2, opacity: 1 });
+  });
+
+  it("spans the column cell with the block caret, still translucent", () => {
+    const block = caretShapeRect({ ...base, shape: "block" });
+    expect(block).toEqual({ x: 430, y: 92, width: 24, height: 24, opacity: 0.5 });
+  });
+
+  it("runs the underscore caret DOWN the column's left edge", () => {
+    const und = caretShapeRect({ ...base, shape: "underscore" });
+    expect(und).toEqual({ x: 430, y: 92, width: 2, height: 24, opacity: 1 });
+  });
+
+  it("falls back to the cell extent when no column width is given, and clamps", () => {
+    const bar = caretShapeRect({ ...base, shape: "bar", columnWidthPx: undefined });
+    expect(bar.width).toBe(24);
+    const tiny = caretShapeRect({ ...base, shape: "block", columnWidthPx: 0, cellWidthPx: 0 });
+    expect(tiny.width).toBe(1);
+    expect(tiny.height).toBe(1);
+  });
+
+  it("leaves the horizontal geometry byte-identical", () => {
+    const h = { x: 100, baselineY: 60, ascentPx: 12, descentPx: 4, cellWidthPx: 10, fontSize: 16 } as const;
+    for (const shape of ["bar", "block", "underscore"] as const) {
+      expect(caretShapeRect({ ...h, shape, vertical: false })).toEqual(caretShapeRect({ ...h, shape }));
+    }
+  });
+});

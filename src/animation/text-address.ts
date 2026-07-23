@@ -104,21 +104,36 @@ export interface TextAddressTarget {
  *  (= SVG root) coordinates. */
 export interface CaretPoint {
   /** Caret x — the addressed code point's left edge (or the right edge of the
-   *  final character for `charOffset === length`). Subpixel, Chromium's paint. */
+   *  final character for `charOffset === length`). Subpixel, Chromium's paint.
+   *  For a `vertical` point this is the COLUMN's left edge instead. */
   x: number;
-  /** Text baseline y (run top + ascent). */
+  /** The caret's position along the FLOW axis: the text baseline y for
+   *  horizontal writing, and the top of the addressed character's column cell
+   *  for `vertical` writing (where there is no horizontal baseline). */
   baselineY: number;
   ascentPx: number;
   descentPx: number;
   fontSize: number;
-  /** Advance of the insertion cell — the character AT the offset, or the space
-   *  advance at end-of-text (the block/underscore caret width). */
+  /** Extent of the insertion cell ALONG THE FLOW AXIS — the advance of the
+   *  character at the offset (or the space advance at end-of-text) for
+   *  horizontal writing, and the cell's height down the column for `vertical`.
+   *  This is the block / underscore caret's length. */
   cellWidthPx: number;
   /** True when the addressed character sits on an RTL bidi level: `x` is then
    *  the cell's RIGHT edge and the insertion cell extends LEFT from it (a block
    *  / underscore caret covers `[x − cellWidthPx, x]`). Absent/false for the
-   *  left-to-right case, which keeps its previous geometry exactly. */
+   *  left-to-right case, which keeps its previous geometry exactly. Not set for
+   *  `vertical` points (the column's flow axis is y). */
   rtl?: boolean;
+  /** The captured `writing-mode` when the addressed text stacks down a COLUMN
+   *  (`vertical-rl` / `vertical-lr` / `sideways-rl` / `sideways-lr`). The caret
+   *  then runs ACROSS the column: `x` is the column's left edge, `baselineY` the
+   *  along-column position, `cellWidthPx` the cell's height, and
+   *  {@link CaretPoint.columnWidthPx} the column's cross extent. */
+  vertical?: string;
+  /** Cross-axis extent of the column (`vertical` points only) — what a bar
+   *  caret spans and a block caret's width. */
+  columnWidthPx?: number;
 }
 
 /** One selection rectangle covering (part of) a range within a single text
@@ -144,6 +159,12 @@ export interface SelectionRectPlan {
    *  from the rect's RIGHT edge leftward (see {@link SelectionRectPlan.edges}).
    *  Absent/false for the left-to-right case. */
   rtl?: boolean;
+  /** True when this rect covers VERTICAL-writing text: the flow axis is y, so
+   *  `x` / `width` are the column's fixed cross extent, `y` / `height` are the
+   *  swept span DOWN the column, and `edges` are the successive BOTTOM edges
+   *  (`edges[k] − y` is the rect height once `k + 1` characters are swept). The
+   *  sweep grows via `height` keyframes instead of `width`. */
+  vertical?: boolean;
 }
 
 /** A resolved range: one rect plan per covered text run — and, within a run,
@@ -195,14 +216,37 @@ interface TextRun {
   /** The owning element's CSS `direction` — the paragraph direction bidi level
    *  resolution runs under. `"ltr"` unless the capture said otherwise. */
   dir: "ltr" | "rtl";
+  /**
+   * Vertical writing mode (`vertical-rl` / `vertical-lr` / `sideways-rl` /
+   * `sideways-lr`) when this run stacks DOWN A COLUMN instead of across a line.
+   * The along-flow axis is then y, not x, so the geometry reads
+   * `yOffsets` / `verticalAdvances` / `columnLength` instead of
+   * `xOffsets` / `width`, and `x` / `width` describe the column's CROSS extent.
+   */
+  vertical?: string;
+  /** Per-UTF-16-code-unit painted y (vertical runs) — `xOffsets`' along-axis
+   *  twin. */
+  yOffsets?: number[];
+  /** Per-UTF-16-code-unit advance DOWN the column (vertical runs). */
+  verticalAdvances?: number[];
+  /** Captured column length (vertical runs): the column's bottom edge is
+   *  `y + columnLength`, the end-of-text caret position. */
+  columnLength?: number;
+}
+
+/** True for the CSS `writing-mode` values that stack text down a column. */
+function isVerticalMode(mode: string | undefined): boolean {
+  return mode != null && mode !== "" && mode !== "horizontal-tb";
 }
 
 /**
  * One captured element's OWN addressable text runs, in captured order (NOT
  * descending into children). Sources, in preference order:
  *  1. `textSegments` — the normal path (block text, wrapped lines, styled
- *     segments; textarea lines also land here). Vertical-writing segments are
- *     skipped (vertical caret geometry is out of scope for v1).
+ *     segments; textarea lines also land here). A vertical-writing segment
+ *     becomes a VERTICAL run: same shape, but the along-flow axis is y, so it
+ *     carries `yOffsets` / `verticalAdvances` / `columnLength` and its `x` /
+ *     `width` describe the column's cross extent.
  *  2. The input-value synthesis — single-line `<input>` captures carry
  *     `text` + `inputXOffsets` + `textLeft`/`textTop` instead of segments.
  * Returns an empty array when the element has no addressable text OF ITS OWN.
@@ -219,7 +263,7 @@ function elementOwnRuns(el: CapturedElement): TextRun[] {
 
   if (el.textSegments != null && el.textSegments.length > 0) {
     return el.textSegments
-      .filter((seg) => seg.verticalWritingMode == null && seg.text.length > 0)
+      .filter((seg) => seg.text.length > 0)
       .map((seg) => ({
         text: seg.text,
         x: seg.x,
@@ -233,6 +277,14 @@ function elementOwnRuns(el: CapturedElement): TextRun[] {
         fontFamily: seg.fontFamily ?? fontFamily,
         fontWeight: seg.fontWeight ?? fontWeight,
         dir,
+        ...(seg.verticalWritingMode != null
+          ? {
+            vertical: seg.verticalWritingMode,
+            yOffsets: seg.yOffsets,
+            verticalAdvances: seg.verticalAdvances,
+            columnLength: seg.height,
+          }
+          : {}),
       }));
   }
   if (el.text !== "" && (el.inputXOffsets != null || el.textLeft != null)) {
@@ -318,19 +370,74 @@ function orderRunsByPaint(runs: TextRun[], dir: "ltr" | "rtl"): TextRun[] {
 }
 
 /**
+ * The vertical-writing twin of {@link orderRunsByPaint}: reading order for a
+ * subtree whose runs stack down COLUMNS. The line band becomes a COLUMN band,
+ * and the two axes swap roles:
+ *
+ *  1. Group runs into COLUMNS by their cross-axis center (`x + width / 2`). A
+ *     new column starts when a run's center sits more than ~0.6em away from the
+ *     current column's — the same relative tolerance the horizontal bander uses
+ *     for a baseline, so a slightly narrower styled run stays in its column
+ *     while a wrapped column starts a new one.
+ *  2. Within a column, order TOP-to-bottom by captured `y` (the flow axis runs
+ *     downward in every CSS vertical writing mode).
+ *  3. Emit columns in block-flow order: RIGHT-to-left for `vertical-rl` /
+ *     `sideways-rl`, left-to-right for `vertical-lr` / `sideways-lr`.
+ */
+function orderRunsByColumn(runs: TextRun[], mode: string): TextRun[] {
+  const rightToLeft = mode === "vertical-rl" || mode === "sideways-rl";
+  const centerOf = (r: TextRun): number => r.x + (r.width ?? 0) / 2;
+  const byColumn = [...runs].sort((a, b) => (rightToLeft ? centerOf(b) - centerOf(a) : centerOf(a) - centerOf(b)));
+  const ordered: TextRun[] = [];
+  let column: TextRun[] = [];
+  let columnCenter = 0;
+  const flush = (): void => {
+    column.sort((a, b) => a.y - b.y);
+    for (const r of column) ordered.push(r);
+    column = [];
+  };
+  for (const r of byColumn) {
+    const c = centerOf(r);
+    if (column.length === 0) {
+      columnCenter = c;
+    } else if (Math.abs(c - columnCenter) > 0.6 * r.fontSize) {
+      flush();
+      columnCenter = c;
+    }
+    column.push(r);
+  }
+  flush();
+  return ordered;
+}
+
+/**
  * The target's addressable text runs in reading order, gathered across its
  * whole SUBTREE (mixed content — DM-1756). When no descendant element
  * contributes a run, the target's own runs are returned in captured order
  * unchanged (exact single-element / input-value behavior). Otherwise the
  * target's own runs and every descendant's runs are merged and re-ordered by
- * painted geometry (`orderRunsByPaint`).
+ * painted geometry — `orderRunsByPaint` for horizontal flow, its column-banding
+ * twin `orderRunsByColumn` for vertical.
+ *
+ * **One writing axis per address.** An address resolves over the runs sharing
+ * the TARGET's own writing axis; a descendant with the OPPOSITE axis (a
+ * `writing-mode: vertical-rl` block nested in horizontal prose, or vice versa)
+ * contributes no runs. Its flow is a different reading order that cannot be
+ * interleaved into one offset space — address it with its own target instead.
  */
 function elementTextRuns(el: CapturedElement): TextRun[] {
   const own = elementOwnRuns(el);
   const descendant: TextRun[] = [];
   collectDescendantRuns(el, descendant);
   if (descendant.length === 0) return own;
-  return orderRunsByPaint([...own, ...descendant], el.styles.direction === "rtl" ? "rtl" : "ltr");
+  // The target's axis: its own runs when it has any, else its computed
+  // writing-mode (a wrapper element with no text of its own).
+  const wantVertical = own.length > 0 ? own[0].vertical != null : isVerticalMode(el.styles.writingMode);
+  const axis = [...own, ...descendant].filter((r) => (r.vertical != null) === wantVertical);
+  if (axis.length === 0) return own;
+  return wantVertical
+    ? orderRunsByColumn(axis, axis[0].vertical ?? el.styles.writingMode ?? "vertical-rl")
+    : orderRunsByPaint(axis, el.styles.direction === "rtl" ? "rtl" : "ltr");
 }
 
 /**
@@ -466,6 +573,67 @@ function runRightEdge(run: TextRun, xs: number[]): number {
   return lastX + advOf(last);
 }
 
+/**
+ * Per-code-unit y offsets for a VERTICAL run — captured when available, else
+ * accumulated from the captured `verticalAdvances` (or the font size, the
+ * natural upright CJK cell) from the column's top. `yOffsets` is `xOffsets`'
+ * along-axis twin: one entry per UTF-16 code unit, viewport-absolute, and a
+ * surrogate pair repeats the same y.
+ */
+function runYOffsets(run: TextRun): number[] {
+  if (run.yOffsets != null && run.yOffsets.length >= run.text.length) return run.yOffsets;
+  const ys: number[] = [];
+  let y = run.y;
+  let u = 0;
+  for (const ch of run.text) {
+    for (let k = 0; k < ch.length; k++) ys.push(y);
+    y += run.verticalAdvances?.[u] ?? run.fontSize;
+    u += ch.length;
+  }
+  return ys;
+}
+
+/** The vertical run's BOTTOM edge — the captured column length when present,
+ *  else the last character's y + its advance. The end-of-text caret parks here,
+ *  matching Chromium's own collapsed-range y past the final character. */
+function runBottomEdge(run: TextRun, ys: number[]): number {
+  if (run.columnLength != null && run.columnLength > 0) return run.y + run.columnLength;
+  if (run.text.length === 0) return run.y;
+  const chars = [...run.text];
+  const lastU = run.text.length - chars[chars.length - 1].length;
+  return ys[lastU] + (run.verticalAdvances?.[lastU] ?? run.fontSize);
+}
+
+/**
+ * Per-code-point cells for a VERTICAL run: each character's `top` / `bottom`
+ * along the column. The flow axis runs downward in every CSS vertical writing
+ * mode, so captured order IS painted order and a cell's bottom is simply the
+ * next character's top (the column's bottom edge for the last one). No bidi
+ * reordering applies along the column — a bidi run inside vertical text
+ * reorders WITHIN its rotated line box, which capture flattens into these same
+ * downward offsets (see the Limits section of docs/101).
+ */
+interface VerticalCell {
+  utf16: number;
+  top: number;
+  bottom: number;
+}
+
+function runVerticalCells(run: TextRun, ys: number[]): VerticalCell[] {
+  const cells: VerticalCell[] = [];
+  let u = 0;
+  for (const ch of run.text) {
+    cells.push({ utf16: u, top: ys[u], bottom: 0 });
+    u += ch.length;
+  }
+  const bottomEdge = runBottomEdge(run, ys);
+  for (let i = 0; i < cells.length; i++) {
+    const next = i + 1 < cells.length ? cells[i + 1].top : bottomEdge;
+    cells[i].bottom = next > cells[i].top ? next : cells[i].top;
+  }
+  return cells;
+}
+
 /** Locate code-point offset `cpOffset` within the element's concatenated runs:
  *  the run index and the UTF-16 index inside it. An offset equal to the total
  *  code-point count maps to (lastRun, run.text.length) — the after-last-char
@@ -517,6 +685,13 @@ export function addressableLength(roots: CapturedElement[], target: TextAddressT
  * engine always takes the DOWNSTREAM side — the leading edge of the character
  * the offset names — so a `block` / `underscore` caret's cell (and the `invert`
  * option's glyph repaint) always covers the character the address refers to.
+ *
+ * **Vertical writing.** For a column-stacked run the flow axis is y: `x` is the
+ * COLUMN's left edge, `baselineY` the top of the addressed character's cell
+ * (`yOffsets[u]` — Chromium's painted y), `cellWidthPx` the cell's extent DOWN
+ * the column, and `columnWidthPx` the column's cross extent. `charOffset ===
+ * length` parks the caret at the column's bottom edge, which is exactly where
+ * Chromium's own collapsed range lands past the final character.
  */
 export function resolveCaretPoint(roots: CapturedElement[], target: TextAddressTarget, charOffset: number): CaretPoint | null {
   const el = findAddressedElement(roots, target);
@@ -525,8 +700,29 @@ export function resolveCaretPoint(roots: CapturedElement[], target: TextAddressT
   const loc = locateOffset(runs, charOffset);
   if (loc == null) return null;
   const run = runs[loc.runIndex];
-  const xs = runXOffsets(run);
   const atEnd = loc.utf16 >= run.text.length;
+  if (run.vertical != null) {
+    // Vertical writing: the flow axis is y. Caret x/width come from the COLUMN,
+    // the caret's position and cell extent from the column cells.
+    const ys = runYOffsets(run);
+    const cells = runVerticalCells(run, ys);
+    const cell = atEnd ? cells[cells.length - 1] : cells.find((c) => c.utf16 === loc.utf16);
+    if (cell == null) return null;
+    const alongY = atEnd ? runBottomEdge(run, ys) : cell.top;
+    let extent = atEnd ? run.fontSize : cell.bottom - cell.top;
+    if (!(extent > 0)) extent = run.fontSize;
+    return {
+      x: run.x,
+      baselineY: alongY,
+      ascentPx: run.ascentPx,
+      descentPx: run.descentPx,
+      fontSize: run.fontSize,
+      cellWidthPx: extent,
+      vertical: run.vertical,
+      columnWidthPx: run.width != null && run.width > 0 ? run.width : run.fontSize,
+    };
+  }
+  const xs = runXOffsets(run);
   const levels = runBidiLevels(runs);
   const spaceAdvance = (): number => fallbackMetrics(run.fontFamily, run.fontWeight, run.fontSize).advOf(" ");
 
@@ -595,6 +791,10 @@ function codePointLengthAt(text: string, u: number): number {
  * Chromium's own selection fragmentation — measured against
  * `Range.getClientRects()` on mixed Hebrew/Latin lines in both LTR and RTL
  * paragraphs, the rect boundaries agree exactly.
+ *
+ * **Vertical writing.** A covered vertical run yields a rect spanning the
+ * COLUMN's cross extent and growing DOWN it: `edges` are the successive bottom
+ * edges and the emission steps `height` where the horizontal path steps `width`.
  */
 export function resolveRangeRects(roots: CapturedElement[], target: TextAddressTarget, charStart: number, charEnd: number): RangeRects | null {
   const el = findAddressedElement(roots, target);
@@ -608,6 +808,29 @@ export function resolveRangeRects(roots: CapturedElement[], target: TextAddressT
   let covered = 0;
   for (let ri = 0; ri < runs.length; ri++) {
     const run = runs[ri];
+    if (run.vertical != null) {
+      // Vertical writing: one rect per covered column stretch, spanning the
+      // column's cross extent and growing DOWN it. `edges` are the successive
+      // bottom edges, so the sweep steps `height` the way the horizontal path
+      // steps `width`.
+      const ys = runYOffsets(run);
+      const cells = runVerticalCells(run, ys);
+      const colWidth = run.width != null && run.width > 0 ? run.width : run.fontSize;
+      let plan: SelectionRectPlan | null = null;
+      for (const cell of cells) {
+        if (cp >= charStart && cp < charEnd) {
+          if (plan == null) {
+            plan = { x: run.x, y: cell.top, width: colWidth, height: 0, edges: [], vertical: true };
+            rects.push(plan);
+          }
+          plan.edges.push(cell.bottom);
+          plan.height = cell.bottom - plan.y;
+          covered++;
+        }
+        cp++;
+      }
+      continue;
+    }
     const xs = runXOffsets(run);
     // Run top = the font-box top (baseline − ascent); height spans the font box
     // (ascent + descent), matching what Blink highlights.

@@ -520,3 +520,146 @@ describe("bidi: logical-order addressing over RTL runs (DM-1754)", () => {
     expect(resolveCaretPoint(roots, { animId: "p" }, 4)!.x).toBeLessThan(60);
   });
 });
+
+// --- Vertical writing modes (DM-1753) ---
+//
+// Geometry taken VERBATIM from a Chromium capture of
+// `<div style="writing-mode:vertical-rl">縦書きabcテスト</div>` at 24px: the
+// column sits at x 430 (24px wide) starting at y 20 and running 188.3125px, the
+// three upright CJK chars advance a full 24px each, the rotated Latin "abc"
+// advance by their own horizontal widths, and the trailing katakana are upright
+// again. `tests/caret-vertical.e2e.test.ts` re-derives all of this live and
+// compares against Chrome; these unit pins lock the numbers in without a browser.
+const V_Y = [20, 44, 68, 92, 106.203125, 122.109375, 136.296875, 160.296875, 184.296875];
+const V_ADV = [24, 24, 24, 14.21875, 15.921875, 14.203125, 24.015625, 24.015625, 24.015625];
+
+function verticalTree(mode = "vertical-rl"): CapturedElement[] {
+  return [el({
+    tag: "div", animId: "v", fontAscent: 21, fontDescent: 3,
+    styles: { fontSize: "24px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: mode } as CapturedElement["styles"],
+    textSegments: [seg({
+      text: "縦書きabcテスト", x: 430, y: 20, width: 24, height: 188.3125,
+      verticalWritingMode: mode, yOffsets: V_Y, verticalAdvances: V_ADV,
+    })],
+  })];
+}
+
+describe("vertical writing modes (DM-1753)", () => {
+  it("makes a vertical segment addressable at all (it used to be skipped)", () => {
+    expect(addressableLength(verticalTree(), { animId: "v" })).toBe(9);
+  });
+
+  it("takes caret y from the column offsets and caret x from the column", () => {
+    for (let o = 0; o < V_Y.length; o++) {
+      const p = resolveCaretPoint(verticalTree(), { animId: "v" }, o)!;
+      expect(p.vertical).toBe("vertical-rl");
+      expect(p.baselineY).toBe(V_Y[o]);   // the along-column position
+      expect(p.x).toBe(430);              // the column's left edge
+      expect(p.columnWidthPx).toBe(24);   // its cross extent
+    }
+    // The insertion cell's extent runs DOWN the column: a full em for the
+    // upright CJK cells, the rotated glyph's own advance for the Latin ones.
+    expect(resolveCaretPoint(verticalTree(), { animId: "v" }, 0)!.cellWidthPx).toBe(24);
+    // Derived from the painted offsets (106.203125 − 92), the cell Chromium
+    // actually laid out, rather than the captured nominal advance.
+    expect(resolveCaretPoint(verticalTree(), { animId: "v" }, 3)!.cellWidthPx).toBeCloseTo(14.2, 1);
+  });
+
+  it("parks the end-of-text caret at the column's bottom edge", () => {
+    const end = resolveCaretPoint(verticalTree(), { animId: "v" }, 9)!;
+    expect(end.baselineY).toBe(208.3125); // column top 20 + length 188.3125
+    expect(end.x).toBe(430);
+    expect(end.vertical).toBe("vertical-rl");
+  });
+
+  it("resolves a range to one column rect whose sweep edges step DOWNWARD", () => {
+    const r = resolveRangeRects(verticalTree(), { animId: "v" }, 1, 4)!;
+    expect(r.charCount).toBe(3);
+    expect(r.rects).toHaveLength(1);
+    const rect = r.rects[0];
+    expect(rect.vertical).toBe(true);
+    expect(rect.x).toBe(430);      // the column's cross extent is fixed…
+    expect(rect.width).toBe(24);
+    expect(rect.y).toBe(44);       // …and the swept span runs down it
+    expect(rect.height).toBeCloseTo(62.2, 1);
+    expect(rect.edges.map((e) => +e.toFixed(2))).toEqual([68, 92, 106.2]);
+    expect(rect.edges[rect.edges.length - 1]).toBeCloseTo(rect.y + rect.height, 5);
+  });
+
+  it("covers the whole column when the range runs to the end", () => {
+    const r = resolveRangeRects(verticalTree(), { animId: "v" }, 0, 9)!;
+    expect(r.rects[0].y).toBe(20);
+    expect(r.rects[0].height).toBeCloseTo(188.3125, 4);
+  });
+
+  it("falls back to the captured advances when yOffsets are missing", () => {
+    const roots = [el({
+      tag: "div", animId: "nv", fontAscent: 21, fontDescent: 3,
+      styles: { fontSize: "20px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: "vertical-rl" } as CapturedElement["styles"],
+      textSegments: [seg({ text: "あいう", x: 100, y: 50, width: 20, height: 60, verticalWritingMode: "vertical-rl" })],
+    })];
+    expect(resolveCaretPoint(roots, { animId: "nv" }, 0)!.baselineY).toBe(50);
+    expect(resolveCaretPoint(roots, { animId: "nv" }, 1)!.baselineY).toBe(70); // + fontSize
+    expect(resolveCaretPoint(roots, { animId: "nv" }, 3)!.baselineY).toBe(110); // column bottom
+  });
+
+  it("orders mixed-content columns in block-flow order and top-to-bottom within one", () => {
+    // Two column boxes in a vertical-rl block: reading order is the RIGHTMOST
+    // column first, then top-to-bottom inside it.
+    const vStyles = (mode: string): CapturedElement["styles"] =>
+      ({ fontSize: "20px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: mode }) as CapturedElement["styles"];
+    const leftCol = el({
+      tag: "span", styles: vStyles("vertical-rl"), fontAscent: 17, fontDescent: 3,
+      textSegments: [seg({ text: "cd", x: 100, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-rl", yOffsets: [20, 40], verticalAdvances: [20, 20] })],
+    });
+    const rightCol = el({
+      tag: "span", styles: vStyles("vertical-rl"), fontAscent: 17, fontDescent: 3,
+      textSegments: [seg({ text: "ab", x: 140, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-rl", yOffsets: [20, 40], verticalAdvances: [20, 20] })],
+    });
+    const roots = [el({ tag: "div", animId: "cols", styles: vStyles("vertical-rl"), children: [leftCol, rightCol] })];
+    expect(addressableLength(roots, { animId: "cols" })).toBe(4);
+    expect(resolveCaretPoint(roots, { animId: "cols" }, 0)!.x).toBe(140); // right column first
+    expect(resolveCaretPoint(roots, { animId: "cols" }, 1)!.baselineY).toBe(40);
+    expect(resolveCaretPoint(roots, { animId: "cols" }, 2)!.x).toBe(100); // then the left one
+    // vertical-lr reverses the column order.
+    const lrRoots = [el({
+      tag: "div", animId: "cols", styles: vStyles("vertical-lr"),
+      children: [
+        el({ ...leftCol, styles: vStyles("vertical-lr"), textSegments: [seg({ text: "cd", x: 100, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-lr", yOffsets: [20, 40] })] }),
+        el({ ...rightCol, styles: vStyles("vertical-lr"), textSegments: [seg({ text: "ab", x: 140, y: 20, width: 20, height: 40, verticalWritingMode: "vertical-lr", yOffsets: [20, 40] })] }),
+      ],
+    })];
+    expect(resolveCaretPoint(lrRoots, { animId: "cols" }, 0)!.x).toBe(100);
+  });
+
+  it("addresses only the runs sharing the target's writing axis", () => {
+    // A horizontal paragraph with a vertical-writing child: the vertical run is
+    // a different reading order and contributes no offsets (and vice versa).
+    const vChild = el({
+      tag: "span", fontAscent: 12, fontDescent: 4,
+      styles: { fontSize: "16px", fontFamily: "Helvetica", fontWeight: "400", writingMode: "vertical-rl" } as CapturedElement["styles"],
+      textSegments: [seg({ text: "縦", x: 200, y: 100, width: 16, height: 16, verticalWritingMode: "vertical-rl", yOffsets: [100] })],
+    });
+    const hChild = el({
+      tag: "b", fontAscent: 12, fontDescent: 4,
+      textSegments: [seg({ text: "bold", x: 60, y: 100, width: 30, xOffsets: [60, 67, 74, 82] })],
+    });
+    const roots = [el({
+      tag: "p", animId: "mix", fontAscent: 12, fontDescent: 4,
+      textSegments: [seg({ text: "hi ", x: 20, y: 100, width: 20, xOffsets: [20, 27, 34] })],
+      children: [hChild, vChild],
+    })];
+    // "hi " + "bold" — the vertical child is not part of the string.
+    expect(addressableLength(roots, { animId: "mix" })).toBe(7);
+    expect(resolveCaretPoint(roots, { animId: "mix" }, 3)!.x).toBe(60);
+    expect(resolveCaretPoint(roots, { animId: "mix" }, 7)!.vertical).toBeUndefined();
+  });
+
+  it("leaves horizontal addressing untouched", () => {
+    // The vertical branch must not perturb any of the existing horizontal
+    // geometry (re-pinned here alongside the new axis).
+    expect(resolveCaretPoint(astralTree(), { animId: "t1" }, 1)!.vertical).toBeUndefined();
+    expect(resolveCaretPoint(astralTree(), { animId: "t1" }, 3)!.x).toBe(44);
+    expect(resolveRangeRects(twoLineTree(), { animId: "wrap" }, 1, 4)!.rects.map((r) => r.vertical)).toEqual([undefined, undefined]);
+  });
+});

@@ -120,18 +120,52 @@ resolved **node-side against the captured element tree**:
   - **Pure-LTR text is untouched.** Runs with no RTL code point in an `ltr`
     paragraph skip the whole path and keep their previous geometry and emission
     byte-for-byte.
+- **Vertical writing modes.** `vertical-rl` / `vertical-lr` / `sideways-rl` /
+  `sideways-lr` text is addressable through the same offsets — the engine simply
+  swaps the axes. A vertical captured segment becomes a VERTICAL run whose flow
+  axis is y: it carries the capture's `yOffsets` (per-code-unit painted y, the
+  `xOffsets` twin) and `verticalAdvances`, while its `x` / `width` describe the
+  COLUMN's cross extent and the segment's `height` is the column's length.
+  - **Caret.** `x` is the column's left edge, `baselineY` the addressed
+    character's cell top (`yOffsets[u]`), `cellWidthPx` the cell's extent DOWN
+    the column, and `columnWidthPx` the column's cross extent; the point carries
+    the captured `writing-mode` as `vertical`. `charOffset === length` parks at
+    the column's bottom edge. Verified against Chromium: the resolved position
+    matches Chrome's own collapsed-range caret at EVERY offset (≤1px) across all
+    three modes.
+  - **Caret geometry rotates a quarter turn** (`caretShapeRect`'s vertical
+    variant, docs/97): `bar` becomes a HORIZONTAL bar spanning the column,
+    `block` covers the column cell, and `underscore` runs DOWN the column's left
+    edge — the side Chrome paints a vertical-text underline on (measured on
+    `vertical-rl` and `vertical-lr` with a colored `text-decoration: underline`).
+  - **Selection.** One rect per covered column stretch, spanning the column's
+    fixed cross extent and growing DOWN it: `edges` are the successive bottom
+    edges and the emission sweeps `height` where the horizontal path sweeps
+    `width`. Matches Chrome's own `Range.getClientRects()` for the same range.
+  - **Reading order.** For mixed content the line-band grouping becomes COLUMN
+    banding: runs group by cross-axis center, order top-to-bottom within a
+    column, and the columns themselves emit in block-flow order — right-to-left
+    for `vertical-rl` / `sideways-rl`, left-to-right for `vertical-lr` /
+    `sideways-lr`.
+  - **One axis per address (scoped out).** An address resolves over the runs
+    sharing the TARGET's writing axis; a descendant with the OPPOSITE axis (a
+    `vertical-rl` block nested in horizontal prose, or vice versa) contributes no
+    runs, because its flow is a different reading order that cannot be
+    interleaved into one offset space. Address it with its own target.
 - **Fallback.** Runs without captured `xOffsets` fall back to fontkit advances
   (the same resolve-key → font-instance path the typing overlay's
-  `overlayAdvances` uses), anchored at the run's captured `x`.
-- **Out of scope (v1).** Vertical-writing segments are skipped.
+  `overlayAdvances` uses), anchored at the run's captured `x`; a vertical run
+  without `yOffsets` accumulates its captured `verticalAdvances` (or the font
+  size, the natural upright CJK cell) from the column's top.
 
 API: `resolveCaretPoint(roots, target, charOffset)` → `{ x, baselineY,
-ascentPx, descentPx, fontSize, cellWidthPx, rtl? }`;
+ascentPx, descentPx, fontSize, cellWidthPx, rtl?, vertical?, columnWidthPx? }`;
 `resolveRangeRects(roots, target, charStart, charEnd)` → one
-`{ x, y, width, height, edges[], rtl? }` per covered run (and per bidi level run
-within it), where `edges` are the successive per-character painted trailing
-edges in logical sweep order — right edges for a left-to-right rect, left edges
-for an `rtl` one; `addressableLength`, `findAddressedElement`.
+`{ x, y, width, height, edges[], rtl?, vertical? }` per covered run (and per bidi
+level run within it), where `edges` are the successive per-character painted
+trailing edges in logical sweep order — right edges for a left-to-right rect,
+left edges for an `rtl` one, bottom edges for a `vertical` one;
+`addressableLength`, `findAddressedElement`.
 
 ## The track (`src/animation/caret-track.ts`)
 
@@ -186,7 +220,8 @@ pattern:
   (two properties that could tear), it is emitted at `x="0"` under a STATIC
   `transform="translate(R,0) scale(-1,1)"` about its right edge `R`, so the same
   single growing `width` extends leftward. Left-to-right rects emit exactly as
-  before.
+  before. A **vertical** rect simply swaps the axes: `width` is the column's
+  fixed cross extent and the swept property is `height`.
 
 All motion is CSS opacity / transform / width — **no SMIL** (docs/84), no
 animated filter.
@@ -304,9 +339,23 @@ golden `examples/animate/compressed-run/`.
 
 ## Limits (v1)
 
-- Horizontal writing modes only (vertical segments are not addressable). A
-  vertical-writing descendant inside an otherwise-horizontal target is skipped
-  (contributes no runs), same as the single-element case.
+- Vertical writing modes ARE addressable (see Addressing above), but ONE WRITING
+  AXIS PER ADDRESS: an address resolves over the runs sharing the target's own
+  axis, so a `vertical-rl` descendant inside an otherwise-horizontal target (or a
+  horizontal one inside a vertical target) contributes no runs and needs its own
+  target. The two flows are different reading orders and cannot share one offset
+  space.
+- Bidi INSIDE vertical text is not resolved through embedding levels: a vertical
+  run's cells are taken in captured order down the column, which is what Chromium
+  painted, but an RTL stretch inside a vertical line box would need the bidi
+  treatment applied along the rotated inline axis. Vertical CJK and rotated Latin
+  (`sideways-*`, `text-orientation: mixed`) — the cases vertical demos actually
+  use — are exact.
+- Block-caret glyph inversion (`invert`) does not repaint a VERTICAL glyph: that
+  needs the renderer's upright/rotated column placement, which the standalone
+  overlay's repaint doesn't reproduce. A vertical block-`invert` caret degrades
+  to the docs/97 translucent 0.5-alpha block, so the page's own glyph shows
+  through and is never covered by an opaque block.
 - One target element per event, but that target's whole SUBTREE is addressed as
   one string and a range may span its descendant elements (DM-1756). A range
   across two SEPARATE targets (two distinct addressed elements) is still not
@@ -360,8 +409,14 @@ golden `examples/animate/compressed-run/`.
   trailing edge in either direction, a logical range split into one rect per bidi
   level run, a VISUALLY DISCONTIGUOUS range (a Latin piece and a Hebrew piece with
   unselected Hebrew between them), logical rect ordering in an RTL paragraph,
-  right-to-left mixed-content box ordering, and a pure-LTR no-regression pin. All
-  fixture geometry is Chromium's, taken verbatim from a Playwright probe.
+  right-to-left mixed-content box ordering, and a pure-LTR no-regression pin.
+  Vertical writing modes: a formerly-skipped vertical segment addressable at all,
+  caret y from the column offsets and x from the column, the end-of-text caret at
+  the column's bottom edge, a range's downward-stepping sweep edges, the
+  `verticalAdvances` fallback when `yOffsets` are missing, column banding in
+  block-flow order for mixed content, the one-axis-per-address rule, and a
+  horizontal no-regression pin. All fixture geometry is Chromium's, taken
+  verbatim from a Playwright probe.
 - `src/animation/caret-track.test.ts` — event resolution (ordering, skips,
   per-event target override), caret waypoint/visibility/blink CSS, shape
   geometry (bar/block/underscore, metric scaling), selection sweep keyframes,
@@ -388,6 +443,14 @@ golden `examples/animate/compressed-run/`.
   spans Chrome's own `::selection` paints (≤2px) — including a visually
   discontiguous logical range that must paint as two separate spans, and a
   mid-sweep check that the RTL piece grew from its right edge leftward.
+- `tests/caret-vertical.e2e.test.ts` — vertical-writing addressing on a real
+  `vertical-rl` / `vertical-lr` / `sideways-rl` page. First against CHROME's own
+  column geometry (collapsed-range caret y/x/column-width at every offset
+  including end-of-text, ≤1px, and `Range.getClientRects()` for a range); then by
+  RASTERIZING the composed animated SVG: the caret ink reads as a HORIZONTAL bar
+  (thin along the column, wide across it) at the resolved position for three
+  offsets down the column, and the selection sweep spans the column's width while
+  its height grows downward from the range's top (mid-sweep partial → full).
 
 ## Related
 

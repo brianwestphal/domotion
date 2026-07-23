@@ -42,11 +42,12 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747/DM-1756/DM-1754)** —
+- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747/DM-1756/DM-1754/DM-1753)** —
   **Shipped** (engine + programmatic wiring + the declarative config surface:
   per-frame `textTracks: [...]` with capture-time selector stamping and
   frame-relative `at` times, docs/43 §12; mixed-content subtree addressing,
-  DM-1756; logical-order bidi/RTL addressing, DM-1754).
+  DM-1756; logical-order bidi/RTL addressing, DM-1754; vertical writing modes,
+  DM-1753).
   The caret + selection track from doc 100's "Primitive 2", standalone
   (not gated on the compressor): node-side addressing of `{ target,
   charOffset }` / ranges against the captured tree (code-point offsets over
@@ -83,9 +84,22 @@ they describe (see `CLAUDE.md` "Documentation"):
   paint: rect-for-rect agreement with `Range.getClientRects()` (≤1px over 11
   ranges) and pixel-span agreement between the composed SVG's ink and Chrome's
   `::selection` (≤2px), including a visually discontiguous logical range.
-  Pure-LTR text is byte-identical. Verified by a rasterized-SVG e2e
+  Pure-LTR text is byte-identical. DM-1753: **vertical writing modes**
+  (`vertical-rl` / `vertical-lr` / `sideways-*`) are addressable through the same
+  offsets with the axes swapped — caret x from the column, y from the captured
+  `yOffsets`, end-of-text at the column's bottom edge, `caretShapeRect`'s
+  quarter-turned variant (horizontal `bar`, column-cell `block`, `underscore`
+  down the column's left edge — the side Chrome paints a vertical underline on),
+  selection rects spanning the column and sweeping via `height` keyframes, and
+  column banding (block-flow order, top-to-bottom within a column) for mixed
+  content. Scoped out + documented: one writing axis per address (an
+  opposite-axis descendant contributes no runs), bidi INSIDE vertical text, and
+  block-`invert` glyph repaint on vertical text (degrades to the translucent
+  block). Verified by a rasterized-SVG e2e
   (caret ink at resolved x ±1.5px, sweep growth, hide; block-invert solid-block
-  + inverse-glyph + waypoint swap) plus the bidi calibration e2e.
+  + inverse-glyph + waypoint swap) plus the bidi calibration e2e and a vertical
+  e2e that checks Chrome's own column geometry at every offset and rasterizes a
+  horizontal caret bar + a downward-growing selection sweep.
 
 - **Doc 102 (`docs/102-editing-page-rig-cookbook.md`, DM-1748)** —
   **Shipped.** The authoring cookbook written from the rebuilt flagship

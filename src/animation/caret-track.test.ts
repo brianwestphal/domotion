@@ -382,3 +382,64 @@ describe("bidi selection sweep + caret emission (DM-1754)", () => {
     expect(svg).toContain("translate(90px,100px)");
   });
 });
+
+// Vertical writing modes (DM-1753). The axes swap: the caret rotates a quarter
+// turn about the column and a selection rect keeps a fixed `width` while its
+// `height` sweeps DOWN the column. "あいう" stacked in a 20px-wide column at
+// x 100, cells at y 50 / 70 / 90, column bottom 110.
+function verticalTree(): CapturedElement[] {
+  return [el({
+    tag: "div", animId: "col", fontAscent: 17, fontDescent: 3,
+    styles: { fontSize: "20px", fontFamily: "Hiragino Sans", fontWeight: "400", writingMode: "vertical-rl" } as CapturedElement["styles"],
+    textSegments: [seg({
+      text: "あいう", x: 100, y: 50, width: 20, height: 60,
+      verticalWritingMode: "vertical-rl", yOffsets: [50, 70, 90], verticalAdvances: [20, 20, 20],
+    })],
+  })];
+}
+
+describe("vertical-writing caret + selection emission (DM-1753)", () => {
+  it("sweeps a selection via HEIGHT keyframes down the column", () => {
+    const track = resolveTextTrack(verticalTree(), {
+      target: { animId: "col" },
+      events: [{ type: "select", t: 0, charStart: 0, charEnd: 3, sweepMs: 300 }],
+    });
+    const rect = track.selections[0].rects[0];
+    expect(rect.vertical).toBe(true);
+    expect(rect.edges).toEqual([70, 90, 110]);
+    const svg = textTrackMarkup(track, 1000);
+    // Fixed cross extent, growing height — the mirror image of the line case.
+    expect(svg).toContain('<rect class="tt-sel" x="100" y="50" width="20" height="0.01"');
+    expect(svg).toContain("height:20px");
+    expect(svg).toContain("height:40px");
+    expect(svg).toContain("height:60px");
+    expect(svg).not.toContain("width:20px");
+  });
+
+  it("emits a HORIZONTAL bar caret spanning the column", () => {
+    const track = resolveTextTrack(verticalTree(), {
+      target: { animId: "col" },
+      events: [{ type: "park", t: 0, charOffset: 1 }],
+    });
+    expect(track.waypoints[0].point.vertical).toBe("vertical-rl");
+    expect(track.waypoints[0].point.baselineY).toBe(70);
+    const svg = textTrackMarkup(track, 1000);
+    // 20px wide (the column), 2px tall (the bar) at the cell's top.
+    expect(svg).toContain('width="20" height="2"');
+    expect(svg).toContain("translate(100px,70px)");
+  });
+
+  it("degrades a vertical block-invert caret to the translucent block", () => {
+    // The covered glyph would need the renderer's upright/rotated column
+    // placement, so the overlay never covers it with an opaque block.
+    const track = resolveTextTrack(verticalTree(), {
+      target: { animId: "col" },
+      shape: "block",
+      invert: true,
+      events: [{ type: "park", t: 0, charOffset: 0 }],
+    });
+    expect(track.waypoints[0].glyph).toBeUndefined();
+    const svg = textTrackMarkup(track, 1000);
+    expect(svg).toContain('fill-opacity="0.5"');
+  });
+});
