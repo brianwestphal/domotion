@@ -27,9 +27,9 @@
           "selector": "[data-line='3']",
           "color": "#93c5fd",
           "events": [
-            { "type": "park", "at": 200, "charOffset": 19 },
-            { "type": "move", "at": 600, "charOffset": 9 },
-            { "type": "select", "at": 800, "charStart": 9, "charEnd": 15, "sweepMs": 450 }
+            { "type": "park", "at": 200, "charOffset": 24 },
+            { "type": "move", "at": 600, "charOffset": 14 },
+            { "type": "select", "at": 800, "charStart": 14, "charEnd": 20, "sweepMs": 450 }
           ]
         }
       ]
