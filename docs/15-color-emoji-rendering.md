@@ -44,6 +44,36 @@ The advance — not the font size — is the correct side because Chrome enforce
 
 `src/render/text.ts::rasterGlyphOverlays` emits one `<image href="data:image/png;base64,…" x=… y=… width=… height=… preserveAspectRatio="none" clip-path="url(#…)"/>` per `rasterGlyphs` entry. The image is positioned at the captured viewport-relative rect (already snapped to the advance square at capture time); its width/height matches the painted size so the bitmap stretches/squishes to fit if the strike's aspect ratio differs slightly from the painted rect.
 
+## Per-strike artwork self-calibration
+
+Apple hand-tunes the emoji artwork PER STRIKE: the same glyph can sit at a
+different position inside the bitmap frame at different ppem (U+1F6F7 sled:
+ink starts at 5/32 of the 32-ppem frame but 18/96 of the 96-ppem frame;
+U+1F684 train: 10/32 vs 23/96), and a few glyphs are outright redrawn between
+strikes (U+1F6CE bellhop bell, U+1FA7B x-ray's pixel-sharpened small
+strikes). Chrome paints the strike matching the render size 1:1 over the
+advance square, so stamping our high-res strike (kept for >1× sharpness) over
+the same square landed strike-tuned artwork 1-3px off — the residual regions
+in the seven emoji unicode-block fixtures.
+
+`calibrateSbixOverlays` (in `rasterizeBitmapGlyphs`) therefore self-calibrates
+every sbix stamp against Chrome's OWN paint: it screenshots the advance square
+(transparent background, deduped per codepoint + rounded size), alpha-scans
+both the screenshot and the embedded strike for their ink bboxes, and
+
+- **re-solves the destination rect** when the mapped ink misses Chrome's
+  measured ink by ≥ ~1px on any edge (position-tuned artwork — sled/train);
+- **demotes to the screenshot pixels** when, even aligned, the mean RGBA
+  difference over the inked union exceeds a threshold (redrawn-per-strike
+  artwork — bell/x-ray): exact at 1× (the fidelity target), at the cost of
+  >1× sharpness for that rare glyph;
+- leaves strike-invariant artwork (the overwhelming majority) byte-identical
+  via a sub-quarter-pixel guard.
+
+No CoreText strike-selection model is involved — an earlier attempt to predict
+"the strike Chrome paints" from `smallest strike ≥ size` mis-corrected other
+cells; measuring the page is authoritative.
+
 ## Path-pipeline interaction (DM-334)
 
 The path pipeline still walks the emoji codepoint and, when the resolved font (typically Apple Symbols as the last-resort fallback) returns a `.notdef` tofu, USED to emit the tofu rectangle under the raster overlay. PNG anti-aliasing left visible dark edges around the emoji where the raster's sub-pixel transparency exposed the tofu's outline. `src/render/font-resolution.ts::isEmojiCodepoint` mirrors the capture-side `needsRaster` predicate; the path-pipeline per-char emit loop suppresses any `<use>` whose glyph id is 0 when the codepoint is in an emoji range. Non-emoji unknown-char codepoints (PUA, deeply-exotic scripts) keep emitting their tofu as a "missing glyph" indicator.
