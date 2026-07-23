@@ -1,13 +1,29 @@
-# 100 — Rich-text typing & editing (`richText`)
+# 100 — Rich-text typing & editing: captured states + compression + caret/selection tracks
 
 Status: **Design** (nothing in this doc is implemented). This is the requirements +
-design reference for a first-class rich-text display/editing primitive in the
-animate pipeline: a styled text document plus a timeline of editing operations
-(type / insert / select / replace / restyle), rendered natively per keystroke with
-a caret, selection highlights, and **real reflow of trailing text** — the text
-analogue of what `domotion term` does for a terminal grid. Plain text is the
-trivial case (one unstyled span per line), so this primitive subsumes "animate
-some text being typed and edited" generally, not just syntax-colored code.
+design reference for making editor-style typing/editing sequences (an IDE window
+typed into and edited, with syntax coloring, selection, mid-line inserts that
+reflow trailing text) first-class in the animate pipeline. Plain text is the
+trivial case, so this covers "animate text being typed and edited" generally.
+
+**Design history.** The first draft of this doc specified a synthetic rich-text
+primitive: a styled document model in config JSON plus an operation timeline
+(type / insert / select / replace / restyle) compiled to a bespoke glyph renderer.
+That core is **superseded** (see "The superseded alternative" at the end for what
+it bought and why it lost). The adopted design keeps the *page* as the document
+model — the capture page renders each editing state as real DOM, exactly the
+authoring model the ground-truth kerf capture already used — and adds two
+primitives that fix that model's real costs:
+
+1. a **frame-sequence compressor** (an opt-in run block) that pairs identical
+   glyphs across the N captured states and emits each once with step tracks —
+   output O(doc + changes) instead of O(doc × states); and
+2. a **caret + selection track** — declarative caret/selection rendering anchored
+   to captured text, replacing hand-rolled page-side caret spans and selection CSS.
+
+Both are grounded in a measured evaluation probe (12 per-keystroke states through
+the production capture→render pipeline, plus a byte-level dissection of the
+shipped kerf capture); the key numbers appear inline below.
 
 ## Motivation — the workarounds this replaces
 
@@ -39,283 +55,172 @@ today's declarative surface required four classes of elaborate workaround:
    text snapping to its syntax-colored form) was a page-side swap of the whole
    line for a colored twin with identical glyph geometry, staged as its own frame.
 
-The result works, but the config is ~37 frames of which most exist only to fake
-editing, every typed line needs a page-side contract, and each mid-line edit is
-O(chars/2) full captures. A native primitive collapses all four into declarative
-data the animator can render exactly.
+Of these, the *authoring model* — page renders states, one continue+cut frame per
+state — was actually sound: real reflow and real syntax coloring come from the
+browser for free, and the per-state page helpers are simple. The genuine costs
+were (a) every state is a full copy of the scene in the output SVG (and in the
+viewer's live DOM), (b) caret/selection/cover machinery hand-rolled per page, and
+(c) the timing contracts around the typing overlay's forced fade. The design
+below attacks exactly those three; the two fold-ins at the end attack (c).
 
-## Existing machinery this builds on (reuse, don't reinvent)
+## Primitive 1 — the frame-sequence compressor (opt-in run block)
 
-- **Measured advances + the shared reveal plan** — `renderTypingOverlay`,
-  `overlayAdvances`, `buildTypingPlan`, `buildTypingLines`, `buildTypingCaret`
-  in `src/animation/animator.ts` (docs/93): fontkit-measured per-glyph advances,
-  one compiled plan that the reveal clips AND the caret both ride (structurally
-  cannot desync), `step-end` per-keystroke stepping, deterministic seeded jitter.
-- **Glyph-path text** — `typedGlyphMarkup` / `renderTextAsPath` in `paths` mode
-  plus the glyph-defs registry (`ensureGlyphDef` / `getGlyphDefsSince` /
-  `truncateGlyphDefs`): typed text is baked outline geometry (`<use href="#gK">`),
-  so painted advances equal measured advances on every viewer, proportional fonts
-  included; `<text>` fallback when the font can't resolve.
-- **Caret geometry** — `src/animation/caret-metrics.ts` (`caretShapeRect`,
-  docs/97): Blink-faithful bar/block/underscore carets from real ascent/descent.
-- **Identity-tracked incremental composition** — `src/terminal/incremental.ts`
-  (`TrackedLine`, `lineKeyframes`): the line-pool model where each logical line is
-  emitted ONCE and driven by waypoint keyframes (`step-end` opacity for appear/
-  leave, `linear` translate glides for scrolls). The rich-text renderer applies
-  the same identity + waypoint idea to text segments within a line.
-- **The cross-frame track precedent** — the config-level cursor overlay
-  (docs/13): markup rendered once, animated in global-timeline percents across
-  many frames. A rich-text document that persists across frames follows the same
-  pattern.
-- **Anchor resolution** — `resolveAnchoredOverlays` (`src/animation/
-  resolve-overlays.ts`): selector → border box / content width / computed font at
-  capture time.
-- **Per-keystroke re-capture** — `typeResample` (`src/cli/type-resample.ts`,
-  docs/93 v2) is the neighboring primitive for LIVE fields: it re-captures the
-  real page per keystroke so masking/validation/IME render faithfully, at
-  O(N·page) cost. `richText` is the synthetic counterpart for AUTHORED text:
-  O(doc + ops) output, no page contract, full editing vocabulary. The two are
-  complementary; `richText` deliberately does NOT use the flipbook approach for
-  its core rendering.
+### What it does
 
-## The document model
+A marked run of consecutive `continue` + `cut` states is composed into **one
+nested animated SVG**: the first state's content is emitted once, every later
+state contributes only what actually changed — new glyphs appear via `step-end`
+opacity births, deleted glyphs die the same way, a shifted tail run rides
+`step-end` `translateX` waypoints, a recolored glyph gets a `fill` step keyframe.
+Layout changes **snap** at state boundaries — deliberately not tweened: real
+editors snap, and cross-fading two nearly-identical lines reads as a blur-pulse
+per keystroke.
 
-A rich-text document is a fixed grid of lines, each a sequence of styled spans.
-Documents are declared once at the top level of the animate config and referenced
-by id from frames (mirroring `vars`):
+This is `src/terminal/incremental.ts`'s identity model (`TrackedLine` /
+`lineKeyframes`: each identity emitted once, driven by step-end opacity +
+transform waypoint tracks) taken one level down — from line identity in a
+terminal grid to **per-line glyph identity** driven by the captured `xOffsets`.
 
-```jsonc
-"richTexts": {
-  "editor": {
-    "fontFamily": "Menlo, ui-monospace, monospace",
-    "fontSize": 12.5,
-    "lineHeight": 19,             // px per line row (default: round(fontSize × 1.35))
-    "color": "#e2e8f0",           // default span color
-    "styles": {                    // named styles, referenced by spans and restyle ops
-      "kw":  { "color": "#93c5fd" },
-      "str": { "color": "#86efac" },
-      "num":  { "color": "#fbbf24" },
-      "sel":  { "background": "#3b82f6aa" }   // used for selection highlights too
-    },
-    "gutter": { "width": 40, "style": { "color": "#475569" }, "numbers": true },
-    "lines": [
-      { "spans": [] },             // starts empty; ops type content in
-      { "spans": [ { "text": "const n = ", "style": null }, { "text": "42", "style": "num" } ] }
-    ]
-  }
-}
-```
+### Why pairing works (measured)
 
-- **`styles`** — a named-style map. A style is `{ color?, background?, weight?,
-  italic?, underline? }`. Spans reference styles by name (`"style": "kw"`) or
-  inline (`"style": { "color": "#…" }`); `null`/omitted means the document
-  defaults. Named styles are what `restyle` ops target, and they keep the
-  colorize-on-completion op cheap to author.
-- **`lines`** — the initial state. A line is `{ spans: [...] }`; an empty spans
-  array is a blank row. Lines occupy a fixed vertical grid: line `i` renders at
-  `y = i × lineHeight` (baseline at `y + ascent`, from the resolved face's real
-  metrics as in `overlayAdvances`). There is **no paragraph wrap** — a line is a
-  line (the editor/terminal model, and what makes reflow tractable; see Out of
-  scope).
-- **`gutter`** (optional) — a left column of `width` px rendered right-aligned
-  before each line's text origin (line numbers when `numbers: true`, or a per-line
-  `gutterText`). Gutter text is static decoration and **excluded from column
-  addressing** — `{ line, col }` positions address only the editable span text.
-- **Addressing** — positions are `{ "line": L, "col": C }`, both 0-based,
-  `col` counted in Unicode code points across the line's concatenated span text
-  (astral pairs count as one, same as the typing overlay's per-glyph arrays).
-  Ranges are `{ "from": pos, "to": pos }`, end-exclusive, single-line in v1
-  (`from.line === to.line`; multi-line ranges are a v2 extension).
-- **Plain text** is the trivial case: no `styles`, each line one default span.
+The captured tree already carries everything pairing needs: `TextSegment` has
+`text`, baseline `x`/`y`, and **`xOffsets`** — per-code-unit viewport-absolute x,
+subpixel, exactly what Chromium painted — plus per-segment color/font overrides.
+The evaluation probe (an editor page modeled on the kerf window; a mid-line
+insert typed one keystroke per state through the production pipeline) measured:
 
-### Placement
+- **Zero capture jitter**: the same static page state captured twice is
+  byte-identical (45/45 elements, 0.00 px glyph drift across 212 glyphs).
+- **~87% of glyphs pair exactly** (same char + subpixel-x + fill) between
+  adjacent keystroke states; the non-exact remainder is precisely the tail run
+  right of the insertion point.
+- **The tail shifts by a single uniform delta = exactly one glyph advance**
+  (+7.53 px per state for Menlo 12.5px), so one `translateX` waypoint per
+  keystroke represents the whole tail *exactly*, not approximately.
+- **Recolors pair glyph-exactly**: the colorize-on-completion state (the whole
+  line re-tokenized from one plain span into multiple colored spans) pairs
+  219/221 glyphs with 2 recolored and 0 moved — element identity is destroyed by
+  re-tokenization while glyph identity survives byte-exact. Pairing must
+  therefore be **glyph-level**, matching on (char, position) with fill diffed
+  into a step track.
+- Pairing must use **order-preserving per-line alignment** (LCS over the
+  (char, fill) sequence with tight position tolerance) — a greedy/multiset
+  matcher measurably mispairs repeated characters.
 
-The document renders as a **cross-frame track**: its markup is emitted once and
-animated in global-timeline percents (the cursor-overlay pattern), layered above
-the frame content like other overlays for the contiguous run of frames that
-reference it. Placement comes from the first referencing frame:
+The failure mode is graceful by construction: anything that fails exact pairing
+(ligature/kern reshaping around an edit in a proportional font, layout jitter on
+a non-static page) is simply **re-emitted from its own state's capture** — never
+wrong pixels, just locally less compression. The compressor should log its
+pairing ratio so authors can see when compression collapsed.
 
-```jsonc
-{ "richText": { "id": "editor", "anchor": { "selector": "#code", "at": "top-left", "dx": 54, "dy": 10 }, "ops": [ … ] } }
-```
+### What it saves (measured, with an honest caveat)
 
-or explicit `x`/`y`. The anchor resolves through the same
-`resolveAnchoredOverlays` engine as other overlays. An optional
-`mask: { width, height, color }` paints an opaque backdrop behind the document
-(same knob as the typing overlay) for placing the doc over non-empty captured
-content.
+- Probe (12 states, embedded-font mode): 163 KB raw → ~35–50 KB raw; only 8.0%
+  of the flipbook's frame payload actually changes state-to-state.
+- The shipped kerf capture (37 frames, 995 KB raw / 70 KB gzip): **91.3% of the
+  869 KB frame payload is cross-frame redundancy** (76 KB of real change).
+  Simulated compressed: ~190 KB raw / ~46 KB gzip — **~5.2× raw, ~1.45× gzip**.
+- **The honest pitch is raw size and live-DOM weight, not bandwidth**: gzip
+  already dedupes flipbooks, so the wire win is only ~1.2–1.5×. What gzip cannot
+  fix is the viewer's retained DOM — 37 near-identical full desktop scenes vs
+  ~9× fewer live nodes — which is what shows up as paint/composite cost on pages
+  embedding these SVGs (plus data-URI and non-gzip contexts).
+- The win is **not editing-specific**: kerf's browser click round (12 frames of
+  near-identical scene, 334 KB payload) contains only 7.7 KB of real change.
+  Any hold-heavy continue+cut run compresses as hard as an editing run.
 
-## The operation timeline grammar
+### Placement: an explicit opt-in run block (v1)
 
-Each referencing frame carries `richText: { id, ops: [...] }`. Ops run
-**sequentially** within the frame, starting at frame start (+ optional block
-`delay`), and the document state carries across frames: frame N's initial state
-is the state after all ops of earlier frames (exactly how `continue` frames
-accumulate page state). The op vocabulary:
+The compressor composes its run as one nested animated SVG re-anchored into its
+config frame's window (`embeddedAnimationPeriodMs`) — **exactly the
+`typeResample` / `cast` / scroll-block precedent, requiring zero animator
+changes** and preserving the load-bearing 1 config-frame ↔ 1 animation-frame
+invariant. Authoring: either `compress: true` stamped on the run's frames or a
+`states: [...]` block (per-state actions + hold durations) inside one config
+frame — final surface decided at build time (the config-sugar ticket).
 
-```jsonc
-// Type text at a position, one keystroke at a time. Text to the RIGHT of the
-// insertion point shifts right per keystroke (real reflow). At end-of-line this
-// is plain append (the typing-overlay case).
-{ "op": "type", "at": { "line": 3, "col": 0 }, "text": "const cls = computed(…);", "style": null,
-  "speed": 24, "jitter": 0.12 }
+Rejected placements, for the record: a *transition type* (compression is
+run-scoped identity tracking, not a pairwise A→B effect), and an *automatic pass
+over all continue+cut runs* (right long-term, but it would change every existing
+config's output shape and requires shared-content groups spanning frame windows;
+promote to automatic later, once the machinery is proven behind the opt-in).
 
-// Paste: the whole string lands at once (single reflow step).
-{ "op": "type", "at": …, "text": "…", "mode": "paste" }
+Interactions (all inherited from the nested-block precedent): outer transitions
+compose normally around the run (the run holds its final state until the cut);
+the cull pass runs once over the merged union (strictly better — the per-frame
+cull-class collision class cannot occur within a merged run); magic-move to/from
+a run block degrades to crossfade like other block frames; embedded-font and
+glyph-defs accumulation are unaffected; the scrubber already supports nested
+animated SVGs. One documented v1 restriction: cursor-overlay events address
+config frames, so per-state pointer motion *inside* a run isn't addressable —
+acceptable because editing runs have no pointer.
 
-// Delete a range: the range's glyphs vanish and trailing text snaps left.
-// `perChar: true` deletes one code point per keystroke (backspace cadence,
-// right-to-left) instead of one atomic snap.
-{ "op": "delete", "range": { "from": { "line": 0, "col": 8 }, "to": { "line": 0, "col": 18 } } }
+### Why not magic-move (the obvious-looking tool)
 
-// Select a range: a selection highlight (the document's `sel` style background,
-// or an inline `background`) appears behind the glyphs. `sweepMs` grows the
-// highlight from `from` to `to` over that time; omitted = instant.
-{ "op": "select", "range": …, "sweepMs": 220 }
+Three structural mismatches, from `src/animation/magic-move.ts` / `tree-diff.ts`:
+(1) **granularity** — it fingerprints elements on (tag, text, children), so any
+text change unmatches the whole line (added+removed → whole-line crossfade), and
+even a forced `data-magic-key` pair goes through `appearanceChanged()` into the
+dual-render cross-fade; the measured pairable unit is the glyph. (2) **motion
+model** — magic-move interpolates continuously; editors need step-end snaps, and
+an unchanged prefix must not participate in any fade. (3) **cost model** — each
+bridge is a full composite render of the next tree, so N states would *grow*
+output, not shrink it. The compressor keeps magic-move's *idea* (identity across
+frames) and its caller-side placement; the identity unit, timing function, and
+scope are all different.
 
-// Clear the selection without editing.
-{ "op": "deselect" }
+## Primitive 2 — the caret + selection track
 
-// Replace a range with typed text: the selection highlight (if any) clears, the
-// range is deleted (trailing text snaps left), then `text` types in per
-// keystroke (trailing text pushes right again) — the kerf "btn" → {cls} edit as
-// ONE op. Sugar for select? + delete + type at range.from.
-{ "op": "replace", "range": …, "text": "{cls}", "speed": 24 }
+The genuinely new first-class renderable, valuable with or without the
+compressor (it must not be gated on it):
 
-// Restyle a range in place (no geometry change for color-only styles): the
-// colorize-on-completion effect. `styleMap` recolors several sub-ranges at once
-// so a whole line "tokenizes" in one step.
-{ "op": "restyle", "range": …, "style": "kw" }
-{ "op": "restyle", "line": 0, "styleMap": [ { "from": 0, "to": 6, "style": "kw" }, { "from": 26, "to": 34, "style": "str" } ] }
+- **Addressing**: `{ selector, charOffset }` (ranges: `charStart`/`charEnd`),
+  resolved **node-side against the captured tree** — the captured segments carry
+  per-char `xOffsets` and baseline `y`, so the caret sits on *Chromium's* painted
+  x with no live-page probe, no fontkit advance model, and no hand-tuned
+  `dy ≈ ascent` constant. Vertical geometry from the element's captured
+  `fontAscent` (fallback: the `overlayAdvances` fontkit path).
+- **Caret**: geometry via the shared `caretShapeRect`
+  (`src/animation/caret-metrics.ts`, docs/97 — bar/block/underscore), `step-end`
+  position waypoints, the standard ~1.06 s blink cycle while parked — the
+  two-track emission pattern `buildCursor` (terminal) and `buildTypingCaret`
+  (typing overlay) already implement. New code is essentially captured-text
+  address resolution + waypoint-list → CSS.
+- **Selection**: a rect track from `xOffsets[start]` to `xOffsets[end]`, grown
+  over `sweepMs` via width keyframes (per-char x is available, so sweep geometry
+  is exact), cleared on command. Z-order note: true editor selection paints
+  *behind* the glyphs — inside a compressed run the merged emission can do that;
+  as a standalone overlay on an ordinary frame the rect sits above the text
+  (a translucent highlight-marker look, right for walkthrough highlighting).
+- **Auto-caret inside compressed runs**: the pairing pass computes each state's
+  edit point (where the new glyph landed / where the tail split), so caret
+  waypoints inside a run are derivable **for free** — no authoring.
+- **Kills a measured artifact**: page-side caret spans perturb trailing geometry
+  by ±0.5 px whenever they appear/disappear (measured in the probe); native
+  carets remove the perturbation and the page-side `.caret` machinery with it.
+- **Non-editing reuse**: caret parked in a captured form field (complementing
+  `typeResample`), selection sweep highlighting a sentence in a doc walkthrough,
+  block caret in a fake terminal.
 
-// Insert a blank line at `line`, pushing later lines down (translateY glide,
-// terminal-composer style); deleteLine is the inverse.
-{ "op": "insertLine", "line": 4 }
-{ "op": "deleteLine", "line": 4 }
+## What stays page-side (and its cost, measured)
 
-// Move the caret without editing (glide or jump), park it blinking.
-{ "op": "caretTo", "at": { "line": 11, "col": 71 } }
-
-// Hold the current state (a beat between ops).
-{ "op": "pause", "ms": 600 }
-
-// End the track early / re-show it (see "Handoff" below). Default: the track
-// shows from its first referencing frame to the end of its last one.
-{ "op": "hide" }
-{ "op": "show" }
-```
-
-A worked fragment — the kerf mid-line insert, today five evaluate+capture frames
-plus page helpers, as one op:
-
-```jsonc
-{ "continue": true, "duration": 1400,
-  "richText": { "id": "editor", "ops": [
-    { "op": "type", "at": { "line": 0, "col": 15 }, "text": " computed,", "speed": 85 }
-  ] } }
-```
-
-## Timing semantics
-
-- **Per-keystroke cadence**: `speed` is ms per code point (default 60, the
-  typing-overlay default), `jitter` (0–1) humanizes it via the same deterministic
-  FNV-1a/mulberry32 PRNG seeded off the op text (byte-stable output, the
-  committed-golden invariant). `mode: "paste"` lands the whole string at once.
-- **Sequencing**: ops run back-to-back in array order; an op's optional `delay`
-  inserts a beat before it. The block-level `delay` offsets the whole frame's op
-  run from frame start.
-- **Duration coverage**: a frame's op run should fit its `duration`; when it
-  doesn't, the CLI warns and the remaining ops **compress** into the available
-  window (the typing overlay's existing compress-to-fit rule) rather than leak
-  past the cut. Sizing rule of thumb, same as `cast` frames: `duration ≈ delay +
-  Σ(op time) + a settle beat`.
-- **Holds**: after a frame's ops finish, the document holds its state — through
-  the frame end and across subsequent frames until the next ops (or the track
-  end). There is **no forced end-of-frame fade**: holding to the cut is the
-  entire point (contrast the typing overlay's `disappearGap`).
-
-## Rendering model
-
-The compiler lowers the ops into one **shared plan** per document (extending the
-`buildTypingPlan` idea), from which all visual tracks are generated — so glyphs,
-segment shifts, selection, and caret cannot desync:
-
-- **Glyphs appear once.** Every glyph the document ever shows is emitted once as
-  a glyph-path `<use>` (via `typedGlyphMarkup` / the glyph-defs registry;
-  `<text>` fallback when the font can't resolve), positioned at its **birth**
-  coordinates. Typed glyphs get a `step-end` opacity keyframe at their
-  keystroke time; deleted glyphs get a `step-end` off at deletion time.
-- **Reflow = segment waypoints.** An edit splits its line into identity-tracked
-  segments (the `TrackedLine` idea, applied within a line): the text right of the
-  edit point becomes a tail segment whose `translateX` rides `step-end` waypoints
-  — one stop per keystroke, each `Δx` = the measured advance of the glyph that
-  landed (real editors move text atomically per keystroke, matching the typing
-  overlay's staircase). A delete snaps the tail left in one stop (or steps
-  per-char with `perChar`). Line insert/delete moves later lines with a short
-  `translateY` glide (the terminal composer's `SLIDE_MS`-style slide). Because
-  per-glyph advances are context-free with kerning off, tail Δx is exact for
-  proportional fonts too (see Open questions on `kern`).
-- **Selection** is a rect track behind the glyph layer: born at `select` (grown
-  over `sweepMs` via a width keyframe or per-glyph steps), cleared at
-  `deselect`/`replace`. Rect geometry comes from the same measured cum-advance
-  arrays as the glyphs.
-- **Restyle**: color-only restyles animate `fill` on the affected span group with
-  a `step-end` keyframe (same outlines, new paint). A weight/italic restyle
-  changes outlines, so both copies are emitted and swapped by paired `step-end`
-  opacity tracks.
-- **Caret**: one caret element per document, geometry from `caretShapeRect`
-  (bar default; block/underscore per docs/97), `step-end` position waypoints at
-  every keystroke (including the leftward snap on delete/replace — the retreat
-  the mistakes machinery already renders for typing overlays), a standard blink
-  cycle while parked, hidden while the track is hidden.
-- **Determinism**: glyph-defs snapshot/rollback around generation (the
-  typing-overlay pattern) so repeated runs re-assign the same `gK` ids; jitter
-  seeded off op text. Output is byte-stable.
-- **Output cost** is O(unique glyphs + ops), not O(states × doc): a 12-line
-  editor session with ~500 typed characters emits ~500 glyph uses + per-keystroke
-  CSS stops — compare the per-2-char flipbook's full page capture per state.
-- **Cross-engine**: everything above is CSS `@keyframes` over `opacity` /
-  `transform` / `fill` (no SMIL, no animated `filter`), per the docs/84 viewer
-  matrix.
-
-### Why not a nested per-state flipbook
-
-`typeResample` composes N full captures into a nested animated SVG per frame —
-right for live pages (the browser must paint each state), wrong here: the states
-are synthetic and differ by one glyph, so a flipbook re-emits the whole document
-per keystroke. The incremental model above is the same insight that took the
-terminal composer from "22 copies of one line" to one tracked line with
-waypoints.
-
-## Interaction with frames, overlays, and transitions
-
-- **Z-order**: the track renders in the overlay layer of its participating
-  frames' window — above captured frame content, below the cursor overlay. Other
-  overlays on the same frames compose normally.
-- **Contiguity**: the frames referencing one document id must be contiguous
-  (validation error otherwise). The track's visibility keyframe spans exactly
-  that window (plus `hide`/`show` ops within it).
-- **Transitions**: frame transitions behave normally around the track; since the
-  track holds through cuts, a `cut` between two op frames is seamless by
-  construction. Crossfades under a static track region also read correctly (the
-  track itself doesn't fade).
-- **Handoff to page text**: when the document's region must return to captured
-  page content (e.g. the kerf editor window glides away — the track is statically
-  positioned and would NOT follow an animated window), end the track (`hide` op,
-  or let its frame run end) at a cut where the page carries identical text. The
-  handoff is invisible when text/geometry match — and unlike today it happens
-  **once per document**, not once per line, with no fade gap to paper over.
-  Mirroring a window glide with a transform on the track itself is out of scope
-  for v1 (see Open questions).
-- **Capture side**: none. The document renders node-side from fontkit metrics —
-  no page contract, no `evaluate` helpers, no extra captures. (Fonts must be
-  resolvable node-side, same constraint as typing-overlay glyph paths; webfonts
-  registered via the capture's webfont discovery work as they do for overlays.)
+The author still builds the state-stepping page (kerf's `window.S/ins/rep/E`
+helpers): the page is the document model, and that is the design's deliberate
+trade — real reflow and real syntax coloring from the browser, zero synthetic
+text renderer to keep faithful. The contract shrinks a lot (no cover rects, no
+baseline constants, no caret spans, no per-line reveal animations) but does not
+vanish. Capture cost stays O(N·page) at authoring time: ~30 ms/state measured on
+the probe page (~100–200 ms for a kerf-scale desktop scene) — minutes for a
+whole per-keystroke session, acceptable. Append-only typed lines can stay as
+typing overlays (with `holdToFrameEnd` below), so per-keystroke states are only
+needed where reflow actually happens. A documented page-rig recipe (a small
+reusable snippet the `S`/`ins`/`rep` helpers could have been copied from) ships
+with the flagship validation.
 
 ## Fold-ins: two small, independent typing-overlay improvements
 
 These fix the two sharpest edges of the CURRENT workaround and are worth landing
-regardless of (and before) `richText`:
+regardless of (and before) everything above:
 
 1. **`holdToFrameEnd: true`** on the `typing` overlay — opt out of the forced
    end-of-frame fade. Today `renderTypingOverlay` computes `holdEndMs = frameEnd
@@ -334,111 +239,54 @@ regardless of (and before) `richText`:
    the typed text's baseline in `renderTypingOverlay` — lands exactly on the
    page text's baseline. Kills the hand-tuned `dy ≈ 11.5` ascent constant.
 
-## Explicitly out of scope for v1
-
-- **Paragraph wrap / cross-line reflow** — a line is a line; an over-long line
-  runs on (clip with the mask). Editors don't soft-wrap in these demos, and wrap
-  would make every edit a whole-block relayout. (The typing overlay's
-  `wrapWidth` remains the tool for textarea-style wrapped typing.)
-- **Multi-line ranges** for select/replace/restyle (v1 ranges are single-line;
-  `styleMap` covers the common whole-line tokenize).
-- **Mistake → backspace → correct** on richText ops (the typing overlay's
-  `mistakes` machinery ports cleanly onto the shared plan later; `jitter` IS in
-  v1).
-- **Bidi/RTL editing and cross-boundary contextual reshaping** — Arabic joining
-  forms across a moving edit point would need per-state re-shaping; v1 targets
-  LTR scripts with context-free advances (the code/editor use case).
-- **GPOS kerning** (`kern`) across edit boundaries — kerned advances are
-  context-dependent, breaking the exact tail-shift math; v1 is per-glyph
-  advances (the typing overlay's default too).
-- **IME composition, live-field fidelity** — that's `typeResample`'s domain.
-- **Following an animated container** (a track that rides a window glide).
-- **A built-in syntax tokenizer** — spans and `restyle` ops are explicit;
-  highlighting is the author's (or a generator script's) job in v1.
-
 ## Staged implementation plan
 
-Each stage is a self-contained, independently landable ticket:
+1. **Fold-ins** — `holdToFrameEnd`; baseline anchor. Small, independent,
+   landable immediately. (days)
+2. **Caret + selection track** — standalone primitive per the section above.
+   (~2–4 days)
+3. **Compressor v1** — the opt-in run block: maximal marked continue+cut runs →
+   per-line order-preserving glyph alignment (LCS on (char, fill), tight position
+   tolerance, re-emit on any doubt) → union emission at birth positions +
+   step-end opacity/translate/fill tracks → auto-caret from per-state edit
+   points → one nested animated SVG. Pairing-ratio logging. Committed golden.
+   (~1–2 weeks)
+4. **Config surface** — the run-block sugar + caret/selection overlay schema,
+   validation, JSON-Schema regeneration, docs/43 cross-reference, examples.
+5. **Flagship validation** — rebuild the kerf getting-started editor phases on
+   runs + caret/selection; compare size and frame-by-frame visual parity against
+   the shipped SVG (rasterize the actual output, per the verify-the-SVG rule);
+   write the page-rig cookbook from the rebuilt flagship; fold findings back
+   here and flip this doc's status.
 
-1. **Model + state machine** (`src/animation/rich-text/model.ts`): zod schemas
-   for the document (styles/lines/spans/gutter), positions/ranges, and the op
-   union; a pure `applyOp(state, op)` reducer + state sequencer; line layout via
-   the `overlayAdvances` measurement path. Unit tests including transition-matrix
-   sequences (type→select→replace→restyle→delete interleavings, per the stateful-
-   module testing rule).
-2. **Timeline compiler** (`src/animation/rich-text/plan.ts`): ops → the shared
-   plan — glyph birth/death events, segment identities + translate waypoints,
-   selection rect track, caret waypoints, per-op time windows with jitter +
-   compress-to-fit. Pure + unit-tested (no SVG yet).
-3. **Renderer + animator wiring** (`src/animation/rich-text/render.ts`): plan →
-   glyph-path markup + `@keyframes` CSS in global-timeline percents; the
-   cross-frame track hookup in `generateAnimatedSvg` (cursor-overlay pattern);
-   glyph-defs snapshot/rollback; `<text>` fallback; mask/gutter emission.
-   E2E-verified by rasterizing frames of the rendered SVG (the "verify the
-   rendered SVG, not plan math" rule).
-4. **Declarative config surface** (`src/cli/animate.ts`): top-level `richTexts`
-   registry + per-frame `richText` blocks, anchor resolution (including the
-   fold-in baseline mode), contiguity/duration validation + warnings, JSON-Schema
-   regeneration, docs/43 cross-reference, a committed golden under
-   `examples/animate/rich-text/`, feature-coverage index entries.
-5. **Flagship validation**: rebuild the kerf getting-started editor phases as an
-   example on the new primitive; compare output size + visual parity against the
-   per-2-char flipbook approach; fold findings back into this doc and flip its
-   status.
+## The superseded alternative — the synthetic document model + op timeline
 
-The two fold-ins (`holdToFrameEnd`; baseline anchor) are separate small tickets,
-landable before stage 1.
-
-## Open questions
-
-Genuinely open decisions where the answer changes the design (not bikeshed):
-
-1. **Placement form.** This doc proposes a **cross-frame overlay track**
-   (document declared once, ops per frame, glyphs emitted once, holds through
-   cuts). The alternative in the original sketch is a **frame-kind** (`cast`-
-   style nested SVG per frame). The track wins on output size, persistence, and
-   the handoff story, but is a new animator concept (second cross-frame track
-   after the cursor). Is the track model approved, or should v1 be the simpler
-   nested-per-frame block despite per-frame re-emission?
-2. **Source of truth for the styled model.** V1 proposes **inline JSON spans**
-   (deterministic, no capture dependency). The alternative: **capture-derived** —
-   point at a selector and harvest per-char computed styles from the captured
-   page into a document, then edit it with ops (avoids restating styled content
-   that already exists in a page, e.g. kerf's colored lines). Inline-only for v1
-   with capture-derived as a follow-up — or is capture-derived needed up front
-   for the flagship use case to be ergonomic?
-3. **Proportional fonts & kerning.** With per-glyph advances (kern off),
-   proportional fonts work exactly (context-free Δx). Supporting `kern: true`
-   would require re-shaping the edited line per state and re-positioning
-   surviving glyphs (kern pairs change across the edit boundary). Is kern-off
-   proportional support sufficient for v1 (recommended), or is kerned editing a
-   requirement?
-4. **Ops → frame mapping.** Proposed: ops run **intra-frame** (many keystrokes
-   per frame, state persists across frames via the doc id) — one frame per
-   narrative beat rather than per edit. Any need for the inverse (auto-splitting
-   an op list into generated frames, e.g. to let transitions land mid-edit)?
-5. **Vertical reflow scope.** V1 has explicit `insertLine`/`deleteLine` with
-   translateY pushes on a fixed line grid, no soft wrap. Sufficient for the
-   editor/terminal-style use cases this targets?
-6. **Following animated containers.** When the region a document sits over is
-   itself animated (the kerf window glides), v1's answer is "end the track at a
-   cut and hand off to page text". Is a v2 `transform`-mirroring facility (the
-   track restates the container's glide) worth designing now, or is boundary
-   handoff acceptable indefinitely?
-7. **Selection sweep & mistakes parity.** Should v1 ship `sweepMs` selection
-   growth and defer the `mistakes` port (recommended), or is typo/backspace
-   humanization expected at parity with the typing overlay from day one?
+The original design core: a `richTexts` config registry (styled spans, named
+styles, gutter, fixed line grid), an op vocabulary (`type` / `delete` / `select`
+/ `replace` / `restyle` / `insertLine` / `caretTo` / …) with `{line, col}`
+addressing, compiled to a bespoke glyph-path renderer with identity-tracked
+segment waypoints. What it bought over the adopted design: config-only authoring
+(no capture page at all), an op vocabulary friendly to generator scripts,
+per-keystroke humanization (jitter/mistakes) as compiled timing, and byte-stable
+output independent of a browser run. Why it lost: 2–3× the build cost across a
+document model + reducer + plan compiler + renderer; its hardest edge is
+matching a synthetic text renderer against real page text at every handoff —
+precisely the class of fidelity risk the adopted design cannot have, because
+compressed pixels always come from captures. The op surface remains available
+later at low risk: ops can **compile to page states + a compressed run** instead
+of to a bespoke renderer, if config-only authoring is ever wanted.
 
 ## Related
 
 - `docs/93-realistic-typing.md` — the typing overlay (measured advances, shared
-  reveal plan, glyph paths, `typeResample`), the machinery this generalizes.
+  reveal plan, glyph paths, `typeResample`); the fold-ins land there.
 - `docs/97-caret-shapes.md` / `src/animation/caret-metrics.ts` — shared caret
-  geometry.
+  geometry the caret track reuses.
 - `docs/67-terminal-capture.md` / `src/terminal/incremental.ts` — the
-  identity-tracked incremental composition model this borrows.
-- `docs/43-declarative-animate-config.md` — the animate config the `richTexts` /
-  `richText` surface extends.
-- `docs/13-cursor-overlay.md` — the cross-frame track precedent.
+  identity-tracked incremental composition model the compressor generalizes.
+- `docs/43-declarative-animate-config.md` — the animate config the run-block and
+  caret/selection surfaces extend.
+- `docs/08-animation-model.md` — the frame/transition model the run block nests
+  into (typeResample/cast/scroll precedent).
 - `docs/84-viewer-browser-support.md` — the cross-engine animation constraints
-  the rendering model observes.
+  (CSS opacity/transform/fill only; no SMIL).
