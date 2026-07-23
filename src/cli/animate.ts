@@ -1421,7 +1421,7 @@ async function buildCapturedFrame(
     // DM-603: viewBox-cull pass — mutates the tree (sets `displayNone` /
     // `cullClass` on elements that fall outside the viewBox during this
     // frame's segment of the scene cycle) and returns the keyframes CSS
-    // mapping each `cull-N` class to its visible window. Must run BEFORE
+    // mapping each window-derived `cull-<start>-<end>` class to its visible window. Must run BEFORE
     // `elementTreeToSvg` so the renderer sees the mutated tree.
     let frameStartMs = 0;
     for (let pi = 0; pi < i; pi++) {

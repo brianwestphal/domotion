@@ -5,6 +5,9 @@
 
 import { describe, it, expect } from "vitest";
 import { generateAnimatedSvg, dedupeFrameIds } from "./animator.js";
+import type { IntraFrameAnimation } from "./animator.js";
+import type { CapturedElement } from "../capture/types.js";
+import { cullElementsOutsideViewBox } from "../tree-ops/viewbox-culling.js";
 import { optimizeSvg } from "../post-processing/optimize.js";
 import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
 
@@ -1299,6 +1302,66 @@ describe("optimizer preserves hard-cut step-end timing (DM-1454)", () => {
       // An `.f-N` rule that binds an animation must still carry step-end.
       if (/animation:/.test(r)) expect(r, `step-end lost after optimize in: ${r}`).toContain("step-end");
     }
+  });
+});
+
+// Regression: per-frame `cull-*` classes used to be numbered from a per-frame
+// counter, so every frame's first window was `cull-0` and the LAST frame's
+// `@keyframes cull-0` (spliced into the ONE scene-wide <style>) won for every
+// carrier across all frames — an earlier frame's exit-window elements were held
+// hidden during their own frame by a later frame's enter window. Names are now
+// derived from the window (`cull-<start>-<end>`), and the animator dedupes the
+// byte-identical blocks that identical windows re-emit.
+describe("scene-wide cull keyframes composition", () => {
+  // Realistic per-frame cull CSS, produced by the real culler: frame A has an
+  // exit window (visible [0%, 25%]), frame B an enter window ([75%, 100%]),
+  // frame C repeats frame A's window exactly.
+  const cullFrames = () => {
+    const mkTree = (animId: string) => ({
+      tag: "div", text: "", x: 100, y: 100, width: 100, height: 100,
+      styles: {} as CapturedElement["styles"], children: [], animId,
+    } as CapturedElement);
+    const exitAnim: IntraFrameAnimation = {
+      animId: "out", property: "translateY", from: "0px", to: "1000px", duration: 1000, easing: "linear",
+    };
+    const enterAnim: IntraFrameAnimation = {
+      animId: "in", property: "translateY", from: "-1000px", to: "0px", duration: 1000, easing: "linear",
+    };
+    const treeA = mkTree("out");
+    const { css: cssA } = cullElementsOutsideViewBox(treeA, 800, 600, [exitAnim], 0, 4000);
+    const treeB = mkTree("in");
+    const { css: cssB } = cullElementsOutsideViewBox(treeB, 800, 600, [enterAnim], 3000, 4000);
+    const treeC = mkTree("out");
+    const { css: cssC } = cullElementsOutsideViewBox(treeC, 800, 600, [exitAnim], 0, 4000);
+    return { classA: treeA.cullClass!, classB: treeB.cullClass!, cssA, cssB, cssC };
+  };
+
+  it("distinct windows keep distinct keyframes; a repeated window is emitted once", () => {
+    const { classA, classB, cssA, cssB, cssC } = cullFrames();
+    const rect = (id: string) => `<rect id="${id}" width="100" height="100" fill="red"/>`;
+    const svg = generateAnimatedSvg({
+      width: 800, height: 600,
+      frames: [
+        { svgContent: rect("a"), duration: 1000, cullCss: cssA },
+        { svgContent: rect("b"), duration: 1000, cullCss: cssB },
+        { svgContent: rect("c"), duration: 1000, cullCss: cssC },
+      ],
+    });
+    // Different windows → different names, both present.
+    expect(classA).not.toBe(classB);
+    expect(svg).toContain(`@keyframes ${classA} `);
+    expect(svg).toContain(`@keyframes ${classB} `);
+    // Frame A's window semantics survive composition: exactly ONE block defines
+    // its class (frame C's identical re-emission is deduped), and it declares
+    // frame A's window, not frame B's.
+    expect(svg.match(new RegExp(`@keyframes ${classA} `, "g"))!.length).toBe(1);
+    expect(svg.match(new RegExp(`@keyframes ${classB} `, "g"))!.length).toBe(1);
+    const aBlock = svg.match(new RegExp(`@keyframes ${classA} \\{[\\s\\S]*?\\n\\s*\\}`))![0];
+    expect(aBlock).toContain("25.000% { visibility: visible; }");
+    expect(aBlock).not.toContain("75.000% { visibility: visible; }");
+    // Each block's `.cull-* { animation: … }` binding survives (once).
+    expect(svg.match(new RegExp(`\\.${classA} \\{ animation:`, "g"))!.length).toBe(1);
+    expect(svg.match(new RegExp(`\\.${classB} \\{ animation:`, "g"))!.length).toBe(1);
   });
 });
 

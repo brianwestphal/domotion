@@ -886,7 +886,8 @@ export interface CapturedElement {
    */
   displayNone?: boolean;
   /**
-   * DM-603 viewBox culling. CSS class name (`cull-N`) that maps to a
+   * DM-603 viewBox culling. CSS class name (`cull-<start>-<end>`, derived from
+   * the visibility window so the name is deterministic scene-wide) that maps to a
    * scene-wide keyframes block toggling `display: inline ↔ none` for the
    * times when this element is partially visible (e.g. only after an
    * `animation: translateY` brings it into the viewBox). The keyframes block

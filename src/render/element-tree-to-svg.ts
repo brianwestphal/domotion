@@ -3454,7 +3454,7 @@ function computeGroupWrapperAttrs(
   const needsIsolation = explicitIsolate || implicitIsolate;
   // DM-603: an element marked for viewBox culling forces a wrapping <g>
   // even if none of the above attributes would otherwise have demanded one,
-  // since that's where `style="display:none"` / `class="cull-N"` lives.
+  // since that's where `style="display:none"` / `class="cull-*"` lives.
   const needsCullWrapper = el.displayNone === true || (el.cullClass != null && el.cullClass !== "");
   const needsGroup = opacity < 1 || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || needsIsolation || needsCullWrapper;
   const groupAttrs: string[] = [];
@@ -3469,7 +3469,7 @@ function computeGroupWrapperAttrs(
   // class (which gets applied to the outer group) so the two `animation`
   // declarations don't clobber each other.
   const animClass = el.animId != null && el.animId !== "" ? `anim-${el.animId}` : "";
-  // DM-603: viewBox-cull class (`cull-N`) goes on the OUTER group so it
+  // DM-603: viewBox-cull class (`cull-<start>-<end>`) goes on the OUTER group so it
   // composes with any inner animation/transform wrappers cleanly. Likewise
   // `style="display:none"` is on the outer group so the entire subtree is
   // skipped from paint.

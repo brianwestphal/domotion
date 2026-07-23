@@ -150,7 +150,7 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
   it("emits a coalesced keyframes block for animated descendants that share a visible window", () => {
     // Two children of a translateY-animated parent. Both off-viewBox at `from`,
     // both inside at `to` (animation moves them all into view). They share the
-    // same visible window so they should share a single `cull-0` class.
+    // same visible window so they should share a single cull class.
     const anim: IntraFrameAnimation = {
       animId: "scroll", property: "translateY",
       from: "-2000px", to: "0px",
@@ -183,10 +183,11 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     // visStart = fromVisible ? 0 : animStartPct = 0
     // visEnd = toVisible ? 100 : animEndPct = 50
     expect(tree.children![0].displayNone).toBeFalsy();
-    expect(tree.children![0].cullClass).toBe("cull-0");
-    expect(tree.children![1].cullClass).toBe("cull-0");
+    // Window-derived class name (visible [0%, 50%]): deterministic scene-wide.
+    expect(tree.children![0].cullClass).toBe("cull-0_000-50_000");
+    expect(tree.children![1].cullClass).toBe("cull-0_000-50_000");
     // One coalesced keyframes block, not two.
-    expect((css.match(/@keyframes cull-\d+/g) ?? []).length).toBe(1);
+    expect((css.match(/@keyframes cull-[\w-]+/g) ?? []).length).toBe(1);
     // DM-641: keyframes now toggle visibility instead of display.
     expect(css).toContain("visibility: visible");
     expect(css).toContain("visibility: hidden");
@@ -268,8 +269,93 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     // Child should be hidden BEFORE its own toast animation (it starts off-left).
     // The child's `cullClass` should be set; not `displayNone`.
     expect(tree.children![0].displayNone).toBeFalsy();
-    expect(tree.children![0].cullClass).toMatch(/^cull-\d+$/);
-    expect(css).toContain("@keyframes cull-0");
+    expect(tree.children![0].cullClass).toMatch(/^cull-[\d_]+-[\d_]+$/);
+    expect(css).toContain(`@keyframes ${tree.children![0].cullClass}`);
+  });
+});
+
+// Regression: `cull-*` class names collided across frames. Class names used to
+// come from a per-CALL counter (`cull-0`, `cull-1`, …) while every frame's
+// keyframes CSS is concatenated into ONE scene-wide <style> — so the LAST
+// frame's `@keyframes cull-0` won for every `class="cull-0"` carrier in every
+// frame (observed on a 37-frame scene: frame 10's exit-window text runs were
+// hidden during their own frame by frame 36's enter-type `cull-0`). Class names
+// are now derived from the visibility window itself, so distinct windows can
+// never collide and identical windows share one class + byte-identical block.
+describe("cullElementsOutsideViewBox — multi-frame scene composition", () => {
+  const TOTAL = 4000; // 4-frame scene, 1000 ms per frame
+
+  // Frame A shape: element visible at `from`, animated out of the viewBox
+  // during frame A → exit window [0%, animEnd].
+  const exitTree = () => el({
+    x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "out",
+  });
+  const exitAnim: IntraFrameAnimation = {
+    animId: "out", property: "translateY", from: "0px", to: "1000px",
+    duration: 1000, easing: "linear",
+  };
+
+  // Frame B shape: element off-viewBox at `from`, animated into the viewBox
+  // during frame B → enter window [animStart, 100%].
+  const enterTree = () => el({
+    x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "in",
+  });
+  const enterAnim: IntraFrameAnimation = {
+    animId: "in", property: "translateY", from: "-1000px", to: "0px",
+    duration: 1000, easing: "linear",
+  };
+
+  it("frames with different windows get distinct class names and non-conflicting keyframes", () => {
+    // Frame A at scene start (exit window: visible [0%, 25%])…
+    const treeA = exitTree();
+    const { css: cssA } = cullElementsOutsideViewBox(treeA, VW, VH, [exitAnim], 0, TOTAL);
+    // …frame B at scene end (enter window: visible [75%, 100%]).
+    const treeB = enterTree();
+    const { css: cssB } = cullElementsOutsideViewBox(treeB, VW, VH, [enterAnim], 3000, TOTAL);
+
+    expect(treeA.cullClass).toBeDefined();
+    expect(treeB.cullClass).toBeDefined();
+    // Different windows → different class names (this was the collision).
+    expect(treeA.cullClass).not.toBe(treeB.cullClass);
+
+    // The animator concatenates per-frame CSS into one <style>. No class name
+    // may appear in two @keyframes blocks with different bodies.
+    const sceneCss = [cssA, cssB].join("\n");
+    const blocks = [...sceneCss.matchAll(/@keyframes (cull-[\w-]+) \{([^}]*(?:\}[^}]*)*?)\n\s*\}/g)];
+    const bodiesByName = new Map<string, Set<string>>();
+    for (const [, name, body] of blocks) {
+      if (!bodiesByName.has(name)) bodiesByName.set(name, new Set());
+      bodiesByName.get(name)!.add(body);
+    }
+    for (const [name, bodies] of bodiesByName) {
+      expect(bodies.size, `@keyframes ${name} has conflicting bodies`).toBe(1);
+    }
+
+    // Frame A's carriers keep frame A's window semantics in the composed CSS:
+    // its (single) keyframes block turns visible at 0% and hidden after 25%.
+    const aBlock = sceneCss.match(new RegExp(`@keyframes ${treeA.cullClass} \\{[\\s\\S]*?\\n\\s*\\}`))![0];
+    expect(sceneCss.match(new RegExp(`@keyframes ${treeA.cullClass} `, "g"))!.length).toBe(1);
+    expect(aBlock).toContain("0.000% { visibility: visible; }");
+    expect(aBlock).toContain("25.000% { visibility: visible; }");
+    expect(aBlock).toContain("25.001% { visibility: hidden; }");
+    // Frame B's block turns visible only at 75%.
+    const bBlock = sceneCss.match(new RegExp(`@keyframes ${treeB.cullClass} \\{[\\s\\S]*?\\n\\s*\\}`))![0];
+    expect(bBlock).toContain("75.000% { visibility: visible; }");
+    expect(bBlock).toContain("74.999% { visibility: hidden; }");
+  });
+
+  it("frames with identical windows share one class name and byte-identical keyframes", () => {
+    // Two frames whose elements resolve to the SAME window (both frame-0
+    // exits with identical geometry/timing) — e.g. a scene that revisits a
+    // layout. Their classes coincide and the blocks are byte-identical, so
+    // scene-wide last-wins concatenation is a no-op (and the animator can
+    // dedupe by name).
+    const treeA = exitTree();
+    const { css: cssA } = cullElementsOutsideViewBox(treeA, VW, VH, [exitAnim], 0, TOTAL);
+    const treeC = exitTree();
+    const { css: cssC } = cullElementsOutsideViewBox(treeC, VW, VH, [exitAnim], 0, TOTAL);
+    expect(treeC.cullClass).toBe(treeA.cullClass);
+    expect(cssC).toBe(cssA);
   });
 });
 

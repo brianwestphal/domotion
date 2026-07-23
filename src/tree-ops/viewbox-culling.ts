@@ -227,6 +227,24 @@ function r3(n: number): string {
 }
 
 /**
+ * Class name for a visibility window, derived from the window values themselves
+ * (e.g. `cull-8_419-91_581` for visible during [8.419%, 91.581%]). The name must
+ * be a pure function of the window — NOT a per-call counter — because a scene is
+ * culled one frame at a time but every frame's keyframes CSS is concatenated
+ * into ONE scene-wide `<style>`: counter-based names (`cull-0`, `cull-1`, …)
+ * restarted from 0 on every frame, so a later frame's `@keyframes cull-0`
+ * clobbered an earlier frame's different window and hid that frame's elements
+ * during their own frame. With window-derived names, identical windows share a
+ * class (their keyframes blocks are byte-identical, so re-emission is harmless
+ * and the animator can dedupe them) and distinct windows can never collide.
+ * Percent values are non-negative, so after `.` → `_` this is a valid CSS
+ * identifier.
+ */
+function cullClassName(visStartPct: number, visEndPct: number): string {
+  return `cull-${r3(visStartPct).replace(".", "_")}-${r3(visEndPct).replace(".", "_")}`;
+}
+
+/**
  * Per-frame culling pass. Walks the captured tree, mutates each element's
  * `displayNone` and `cullClass` fields, and returns the keyframes CSS to
  * append to the scene-wide `<style>` block.
@@ -287,7 +305,7 @@ export function cullElementsOutsideViewBox(
       const key = `${r3(decision.visStartPct)},${r3(decision.visEndPct)}`;
       let className = windowToClass.get(key);
       if (className == null) {
-        className = `cull-${windowToClass.size}`;
+        className = cullClassName(decision.visStartPct, decision.visEndPct);
         windowToClass.set(key, className);
         cssBlocks.push(buildCullKeyframes(className, decision.visStartPct, decision.visEndPct));
       }

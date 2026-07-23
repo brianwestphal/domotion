@@ -32,9 +32,10 @@ export interface AnimationFrame {
    * Per-element viewBox-cull keyframes CSS (DM-603). The caller runs
    * `cullElementsOutsideViewBox()` on the captured tree before `elementTreeToSvg()` — that
    * mutates `displayNone` / `cullClass` on each element (which the renderer
-   * surfaces) and returns the keyframes blocks that map each `cull-N` class
-   * to its visible window. The animator splices this CSS into the scene-wide
-   * `<style>` block.
+   * surfaces) and returns the keyframes blocks that map each window-derived
+   * `cull-<start>-<end>` class to its visible window. The animator splices
+   * this CSS into the scene-wide `<style>` block, deduping blocks whose class
+   * (= window) repeats across frames.
    *
    * When omitted, no culling happens — callers passing pre-rendered
    * `svgContent` strings without the cull CSS get unchanged behavior.
@@ -1140,6 +1141,31 @@ function emitFrameOverlays(
   return { groups, keyframes };
 }
 
+/**
+ * Join per-frame viewBox-cull CSS, emitting each `@keyframes cull-*` block
+ * (plus its `.cull-*` class rule) at most once. Cull class names are derived
+ * from the visibility window itself (`cull-<start>-<end>`, see
+ * `src/tree-ops/viewbox-culling.ts`), so two frames that share a window produce
+ * byte-identical blocks — keep the first and drop the repeats. Distinct windows
+ * have distinct names, so every distinct block survives. Any non-cull content
+ * (there is none today) passes through unchanged.
+ */
+function dedupeCullCss(perFrameCss: string[]): string {
+  const seen = new Set<string>();
+  const blocks: string[] = [];
+  for (const css of perFrameCss) {
+    for (const block of css.split(/\n(?=\s*@keyframes cull-)/)) {
+      const name = /@keyframes (cull-[\w-]+)/.exec(block)?.[1];
+      if (name != null) {
+        if (seen.has(name)) continue;
+        seen.add(name);
+      }
+      blocks.push(block);
+    }
+  }
+  return blocks.join("\n");
+}
+
 export function generateAnimatedSvg(config: AnimationConfig): string {
   const { width, height } = config;
   // DM-1557: snapshot the glyph-defs registry so we can emit ONLY the glyphs the
@@ -1395,7 +1421,7 @@ export function generateAnimatedSvg(config: AnimationConfig): string {
   // `cullElementsOutsideViewBox()` and we splice the resulting blocks into the scene-wide
   // <style>. The keyframes reference `var(--scene-dur)`; we expose that
   // variable on the root selector below.
-  const cullCss = frames.map((f) => f.cullCss ?? "").filter((s) => s !== "").join("\n");
+  const cullCss = dedupeCullCss(frames.map((f) => f.cullCss ?? "").filter((s) => s !== ""));
   // Cursor overlay (DM-277). The frame start times let the resolver pick
   // which frame's selector matches apply at each event's timestamp.
   let overlayMarkup = "";
