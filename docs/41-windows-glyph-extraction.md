@@ -259,7 +259,18 @@ a cert is provisioned.
   helper font, since `CreateFontFace` from a file path yields the default
   `fvar` instance. Verified on the Win11 VM: Text/Display resolve to
   `SEGUIVAR.TTF` with the measured axis pins at sizes 8–32px, and the two
-  subfamilies produce distinct advances.
+  subfamilies produce distinct advances. **Bare typographic family names
+  ("Segoe UI Variable" without a subfamily) intentionally report
+  `found:false`** — Chrome-on-Win11 does NOT resolve them either: a
+  two-string width probe on the VM showed Chrome painting the bare name as
+  Times New Roman (the standard-font default, Δ ≤ 0.01px on both test
+  strings at 16/24/32px), i.e. it walks past the name like any unknown
+  family. An earlier single-string probe had suggested "≈wght 325/opsz 36
+  via DirectWrite's own mapping"; that was a ridge-fit artifact — one width
+  measurement can't distinguish a nearby SEGUIVAR instance from Times — so
+  do NOT add a typographic-model (`DWRITE_FONT_FAMILY_MODEL_TYPOGRAPHIC`)
+  fallback to `runFamilyQuery`: resolving the bare name would *diverge* from
+  Chrome.
 - ✅ **Helper written + CI wired** (DM-837): `tools/win32-glyph-extractor/`
   (`src/main.cpp` + `CMakeLists.txt` + `build.ps1` + `README.md`; the JSON
   parser/serializer is shared verbatim with the Linux helper). The release asset
