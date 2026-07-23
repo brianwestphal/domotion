@@ -34,8 +34,8 @@ For each captured element, compute the set of time intervals during which its tr
 - Non-empty → always visible → no change.
 
 **Animated element (matches a `data-domotion-anim`, or descendant of one)**:
-- Parse `from` and `to` of the relevant `IntraFrameAnimation`. The supported properties that can move an element off-viewBox are `transform`, `translateX`, `translateY`. Other properties (`width`, `height`, `opacity`, `clipPath`) don't shift the bbox.
-- Compute `bbox_start = bbox + apply(from)` and `bbox_end = bbox + apply(to)`.
+- Parse `from` and `to` of the relevant `IntraFrameAnimation` into an axis-aligned 2D affine (translate + scale about the animation's transform-origin — see [The affine model](#the-affine-model-translate--scale) below). The supported properties that can move an element's bbox are `transform`, `translateX`, `translateY`, and `scale`. Other properties (`width`, `height`, `opacity`, `clipPath`) don't shift the bbox. Transforms we can't model as translate+scale (rotate, skew, matrix, 3D functions, percentage translations) make the element unconditionally visible — no hide, no window.
+- Compute `bbox_start = affine_from(bbox)` and `bbox_end = affine_to(bbox)` (map the corners, take the AABB).
 - Four cases:
 
   | start∩vb | end∩vb | Action |
@@ -110,7 +110,7 @@ The composition-time pre-pass is O(elements) for static analysis, O(elements × 
 4. **CLI integration** —
    - **`runCapture` (single frame)** calls `cullElementsOutsideViewBox(tree, w, h)` with no animations — pure static cull pass, returns empty CSS, mutates `displayNone` only.
    - **`runAnimate` (multi-frame)** computes `frameStartMs` and `totalDurationMs`, calls `cullElementsOutsideViewBox(tree, w, h, resolvedAnimations, frameStartMs, totalDurationMs)` BEFORE `elementTreeToSvg`. The keyframes CSS is forwarded to the animator via `AnimationFrame.cullCss`.
-5. **Unit tests** in `src/tree-ops/viewbox-culling.test.ts` (18 tests) — static intersection, enter-during-animation, exit-during-animation, fully-inside, never-visible, path-crosses-during-anim, translateX axis, non-translate property (no bbox shift), tree walk with mixed visibility, coalescing, child-anim-overrides-parent-anim, keyframes structure (step-end timing, `var(--scene-dur)`).
+5. **Unit tests** in `src/tree-ops/viewbox-culling.test.ts` — static intersection, enter-during-animation, exit-during-animation, fully-inside, never-visible, path-crosses-during-anim, translateX axis, non-translate property (no bbox shift), tree walk with mixed visibility, coalescing, child-anim-overrides-parent-anim, keyframes structure (step-end timing, `var(--scene-dur)`), cross-frame class-name stability, and the affine model: scale-only glides (both the no-over-hide and culling-win directions), translate+scale composition with hand-computed geometry, transform-origin variants (corner %, px, `center`, unset→canvas (0,0)), rotate/matrix/percent-translate conservatism, fused-track composition, and repeat semantics.
 
 ## Algorithm details
 
@@ -118,9 +118,24 @@ The composition-time pre-pass is O(elements) for static analysis, O(elements × 
 
 `bboxIntersectsViewport(bbox, vw, vh) = bbox.x < vw && bbox.x + bbox.w > 0 && bbox.y < vh && bbox.y + bbox.h > 0`.
 
-### Translate parsing
+### The affine model (translate + scale)
 
-`translateFromAnimValue(prop, value)` extracts an `(tx, ty)` pixel offset from the animation's `from`/`to` string. Supports `<n>px`, plain `<n>`, the named functions `translate(...)`, `translateX(...)`, `translateY(...)`. Non-translate properties (`width`, `height`, `opacity`, `clipPath`) return `null` so the analyzer treats them as no-ops on the bbox.
+Culling originally parsed only the translate component of a transform value, so a glide like `transform: translate(-250px, 190px) scale(0.12)` (a window shrinking toward a corner) tested children's UNscaled bboxes offset by the translate alone — hiding elements the scale actually pulled into the viewBox (over-hide: content invisible during its own frame) and forfeiting culling entirely for scale-only glides (which parsed to `{tx: 0, ty: 0}`). The culler now models the animation as a full axis-aligned 2D affine.
+
+`affinesFromAnim(anim)` resolves the animation's transform geometry to an affine `x' = sx·x + tx, y' = sy·y + ty` at each endpoint, with three outcomes:
+
+- **`"static"`** — no transform-family track (`width`, `opacity`, `clipPath`, …): the bbox doesn't move; plain static intersection applies.
+- **An affine pair `{ from, to }`** — every transform-family track parsed. `transform` values are parsed as a CSS transform list composed left-to-right (`translate(…) scale(…)` = scale first, then translate), recognizing `translate`/`translateX`/`translateY` (px) and `scale`/`scaleX`/`scaleY` (unitless); the standalone `translateX`/`translateY` (px) and `scale` (`<sx> [<sy>]`, unitless) properties parse directly. Fused transform-family tracks (`fuse`) sharing the primary's timing are composed into the affine in track order — mirroring how the animator composes them into one `transform:` declaration.
+- **`"unsupported"`** — the element moves in a way we can't model: `rotate` / `skew` / `matrix` / 3D functions, percentage or non-px translation values, or a fused transform track carrying its own `duration`/`delay`/`easing` (a separate timeline — the composed position isn't a single from→to lerp). The element is treated as **always visible**: no `displayNone`, no window. Over-hide (content invisible during its own frame) is the catastrophic direction; a forfeited cull is only a missed optimization. When in doubt, emit no window.
+
+**Transform-origin.** Scale converges points toward the transform-origin, so the affine must be applied about the right origin point (a pure translate is origin-invariant). Resolution matches what the animator actually emits:
+
+- `transformOrigin` **unset**: the animator emits no `transform-box`/`transform-origin`, so the `<g class="anim-…">` wrapper falls back to the SVG default — Blink's UA stylesheet (`third_party/blink/renderer/core/css/svg.css`) sets `transform-origin: 0 0` for SVG elements without a CSS layout box, per the CSS Transforms spec. The wrapper draws in viewport coordinates, so the origin is the **viewBox top-left (0, 0)** — *not* the element's center.
+- `transformOrigin` **set**: the animator emits `transform-box: fill-box; transform-origin: <value>`, so percentages and keywords resolve against the animated element's own box. The tree walk stamps the `animId` carrier's border box into the animation context (`animatedBbox`) when it reaches the carrier; descendants inherit that context, so a child's bbox is mapped about the carrier's origin point in the shared coordinate space. (Border box approximates the wrapper's fill-box.) Supported syntax: `left|center|right|top|bottom` keywords (reorderable), `<n>px`, `<n>%`, one- or two-value forms. An unresolvable origin (three-value/z forms, unknown units, or a scale-bearing context with no known carrier box) goes conservative: always visible.
+
+Mapping a bbox through the affine about origin `o` is `p' = o + A·(p − o) + t` per corner, then min/max to an AABB (exact for axis-aligned affines, and correct for negative/flipping scales). Sampling interpolates the affine components linearly, which is exact for matched translate+scale lists — CSS interpolates each function's arguments linearly and the composed `sx/sy/tx/ty` are linear in those arguments.
+
+**Repeating animations** (`repeat`/`alternate`) loop for as long as their frame is on screen — they never rest at `from` before `animStartPct` or at `to` after `animEndPct`, so the hide-before/hide-after window semantics don't apply. If any sampled position intersects the viewBox the element stays visible for the whole cycle; if the entire from→to path misses the viewBox it is still `alwaysHidden` (the loop only ever occupies positions on that path).
 
 ### Easing
 
@@ -131,9 +146,11 @@ The composition-time pre-pass is O(elements) for static analysis, O(elements × 
 For a given static bbox + animation context:
 
 1. If no animation context: static intersection only.
-2. Otherwise, compute bbox at `from` and `to`. If both intersect: always visible.
-3. If both miss AND no sample in `(0, 1)` (50 samples, eased) intersects: always hidden → `displayNone`.
-4. Otherwise compute the visible scene-cycle window:
+2. If the animation's geometry is `"static"` (no transform-family track): static intersection only. If it is `"unsupported"` (rotate/matrix/…): always visible, stop.
+3. Otherwise, map the bbox through the affine at `from` and `to` (about the resolved transform-origin). If both intersect: always visible.
+4. If both miss AND no sample in `(0, 1)` (50 samples, eased, affine components lerped) intersects: always hidden → `displayNone`.
+5. If the animation repeats: always visible (no window), stop.
+6. Otherwise compute the visible scene-cycle window:
    - `visStart = fromVisible ? 0 : animStartPct` (hide-before iff from-state is off-viewBox)
    - `visEnd = toVisible ? 100 : animEndPct` (hide-after iff to-state is off-viewBox)
    - If `visStart <= 0 && visEnd >= 100`: always visible. Else emit a cull class.
