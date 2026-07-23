@@ -42,6 +42,23 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Design only** (not
+  shipped). A first-class rich-text typing/editing primitive for animate configs:
+  a styled document (named styles, lines of spans, optional gutter) + a per-frame
+  timeline of ops (`type`/`delete`/`select`/`replace`/`restyle`/`insertLine`/
+  `caretTo`/…), rendered natively per keystroke with REAL reflow of trailing text
+  (identity-tracked segments riding `step-end` translate waypoints — the terminal
+  composer's model applied within a line), glyph-path text emitted once
+  (O(doc + ops), not a per-state flipbook), shared-plan caret/selection, and a
+  cross-frame overlay track (cursor-track precedent) that holds through cuts.
+  Replaces the kerf getting-started workarounds (cover-rect underlay contract,
+  per-2-char evaluate+capture frames for mid-line edits, page-side colorize
+  swaps). Includes two small independent fold-ins on the existing `typing`
+  overlay: `holdToFrameEnd` (opt out of the forced 150 ms end-of-frame fade) and
+  a baseline anchor mode (`anchor.baseline: true` resolves `y` to the anchored
+  element's first-line text baseline). Staged implementation + open questions in
+  the doc.
+
 - **Doc 99 (`docs/99-hinted-embedded-subset.md`, DM-1714/DM-1716)** —
   **Shipped.** Embedded-font subsets preserve TrueType hinting: when an
   embedded entry's glyphs all come from one openable sfnt at one axis location
