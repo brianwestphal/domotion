@@ -275,6 +275,14 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/animation/text-address.test.ts", "src/animation/caret-track.test.ts", "tests/caret-track.e2e.test.ts"],
   },
   {
+    id: "animate.compressed-run",
+    behavior: "Frame-sequence compressor (opt-in run block): N captured continue+cut editing states compose into ONE nested animated SVG — per-line order-preserving glyph pairing (LCS on char+style, fill diffed into recolor steps), shared content emitted once, changes as step-end opacity births/deaths + translateX tail waypoints + fill steps, chrome union with display-windowed variants, re-emit on any doubt, optional auto-caret from the detected edit points.",
+    doc: "docs/100-rich-text-editing.md",
+    exports: ["composeCompressedRun", "alignLineGlyphs"],
+    tests: ["src/animation/glyph-align.test.ts", "src/animation/compressed-run.test.ts", "tests/compressed-run.e2e.test.ts"],
+    transition: "type → colorize → select-ish chrome change → backspace ×2 across two lines threads one identity pool (birth/shift/recolor/death per glyph, windowed chrome variants) — asserted as a single multi-state sequence, not isolated pairs.",
+  },
+  {
     id: "animate.interaction-state",
     behavior: "Force real CSS pseudo-state (:hover / :active / :focus) on selectors via CDP CSS.forcePseudoState before capture, so a frame paints the page's OWN interaction styling — the animate config's per-frame `forceState` and the imperative `applyForcedPseudoStates` primitive.",
     doc: "docs/94-interaction-state-capture.md",

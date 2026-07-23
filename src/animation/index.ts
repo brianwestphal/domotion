@@ -61,6 +61,21 @@ export {
   type ResolvedSelection,
 } from "./caret-track.js";
 
+// Frame-sequence compressor v1 (docs/100, Primitive 1): compose N captured
+// continue+cut states into one nested animated SVG — shared content emitted
+// once, changes on step-end opacity/translate/fill tracks, snap at every
+// state boundary. Embed the result as one outer frame's `svgContent` with
+// `embeddedAnimationPeriodMs: durationMs` (the typeResample/cast precedent).
+export {
+  composeCompressedRun,
+  type CompressedRunState,
+  type CompressedRunOptions,
+  type CompressedRunResult,
+  type CompressedRunPairingStats,
+  type CompressedRunEdit,
+} from "./compressed-run.js";
+export { alignLineGlyphs, type AlignGlyph, type AlignedPair, type LineAlignment } from "./glyph-align.js";
+
 export {
   cursorOverlayMarkup,
   resolveCursorScript,

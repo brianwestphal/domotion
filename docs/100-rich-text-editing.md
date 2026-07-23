@@ -1,8 +1,10 @@
 # 100 — Rich-text typing & editing: captured states + compression + caret/selection tracks
 
-Status: **Design; Primitive 2 shipped** (the caret + selection track is
-implemented — see `docs/101-caret-selection-track.md`; the compressor, the
-fold-ins, and the config surface remain design). This is the requirements +
+Status: **Design; Primitives 1 + 2 shipped as engines** (the caret + selection
+track is implemented — see `docs/101-caret-selection-track.md` — and the
+frame-sequence compressor's v1 engine is implemented — see "Shipped engine
+(v1)" under Primitive 1 below; the fold-ins and the declarative config surface
+remain design). This is the requirements +
 design reference for making editor-style typing/editing sequences (an IDE window
 typed into and edited, with syntax coloring, selection, mid-line inserts that
 reflow trailing text) first-class in the animate pipeline. Plain text is the
@@ -157,6 +159,88 @@ animated SVGs. One documented v1 restriction: cursor-overlay events address
 config frames, so per-state pointer motion *inside* a run isn't addressable —
 acceptable because editing runs have no pointer.
 
+### Shipped engine (v1): `composeCompressedRun`
+
+The v1 engine is `composeCompressedRun(states, opts)` in
+`src/animation/compressed-run.ts` (public export), with the per-line aligner
+in `src/animation/glyph-align.ts` (`alignLineGlyphs`, also public). It takes N
+captured trees + per-state hold durations and returns `{ svg, durationMs,
+pairingStats, edits }` — one self-contained nested animated SVG, embedded as a
+single outer animate frame's `svgContent` with `embeddedAnimationPeriodMs:
+durationMs` (the typeResample/cast precedent; zero animator changes). The
+declarative run-block sugar is the config-surface stage below.
+
+**Mechanism.** The output is three layers, all rendered through the production
+`elementTreeToSvgInner` pipeline:
+
+1. **Chrome layer** — each state's tree minus the text the glyph layer owns,
+   merged into one union tree by element-level pairing on byte-equality of the
+   captured records (a sound under-approximation of rendered-markup equality:
+   the renderer is a pure function of captured element + id prefix). Shared
+   subtrees emit once; anything unequal re-emits as a sibling variant gated by
+   a `step-end` `display` track (the cull pass's `display: inline ↔ none`
+   mechanism — chosen over opacity so the track can't fight a baked
+   captured-opacity wrapper). z-order inside chrome is exact.
+2. **Glyph layer** — per-line glyph identities threaded across all N states
+   (the terminal composer's TrackedLine model one level down). Adjacent states
+   align per line via order-preserving LCS on (char, style-key) — fill is
+   ignored for pairing and diffed into a recolor track; exact painted
+   positions win ties; lone shifting glyphs are demoted to re-emission
+   (re-emit on any doubt; because every track is step-end, pairing quality
+   affects only bytes, never pixels). Identities sharing a lifetime, line,
+   style, shift timeline, and fill timeline coalesce into one **group**: a
+   synthetic text-only element (box paint neutralized) holding the group's
+   characters at their birth-state captured `xOffsets` — the mid-segment
+   split is exact by construction. Groups ride up to three `step-end` tracks:
+   opacity (birth/death), `translateX` (per-state waypoints), and `fill`
+   (applied to the group's descendants, where a CSS animation outranks the
+   `fill` presentation attribute). Keyframe bodies and animation lists are
+   content-deduped across groups.
+3. **Auto-caret** (opt-in `caret: true | { shape, color }`, default off) —
+   the pairing pass knows each state's edit point (after the rightmost typed
+   glyph; at the close-up x of a deletion), emitted through the docs/101
+   caret-track machinery. The detected `edits` are also returned.
+
+The glyph layer paints above the merged chrome. That yields true editor
+z-order (selection-style box paint lands *behind* the glyphs), guarded by an
+occlusion check: text only joins the glyph layer when no box-painting element
+that paints after it (document order, or any non-auto z-index) intersects its
+rects — otherwise the text stays in chrome and flipbooks. Further eligibility
+guards (each demotes to chrome, never wrong pixels): captured `xOffsets`
+present, horizontal LTR simple-script text only (no complex shaping across a
+split), no decorations / shadows / strokes / emphasis / gradient fills / raster
+overlays, no transform / filter / mask / clip / blend / sub-1 opacity on the
+element or an ancestor, and text rects fully inside every overflow-clipping
+ancestor.
+
+**Pairing-ratio logging.** Every run logs one line via `opts.log`:
+`compress: run of N states, X% glyphs paired, Y KB → Z KB` (raw = the N states
+rendered independently, i.e. the flipbook frame payload; both sides exclude
+the shared `@font-face` block). `pairingStats` carries the full breakdown
+(paired %, births/deaths/recolors, group + chrome-track counts, byte sizes).
+
+**Measured (the rasterized e2e, `tests/compressed-run.e2e.test.ts`).** A
+12-state run on the evaluation's editor page (10-keystroke mid-line insert +
+colorize-on-completion): **99.6% glyphs paired, 135.6 KB → 46.6 KB (34%)**,
+and the composed SVG — embedded through the real outer-frame
+`embeddedAnimationPeriodMs` path — rasterizes **pixel-identical to the
+uncompressed flipbook at every one of the 12 states** (`regionCount === 0`),
+with the tail verified to shift by exactly one advance per keystroke, the
+prefix pixels byte-stable across all typed states, and the recolor landing in
+place.
+
+**v1 limitations** (each degrades to re-emission or is documented, never wrong
+pixels): no cross-line identity (a vertically-moved line re-emits — automatic
+run detection and line-move tracking are follow-ups); states are captured
+statics (intra-frame animations / per-state cursor-overlay addressing inside a
+run are unsupported — editing runs have no pointer); coding-ligature fonts may
+unligate across a split boundary (positions stay exact; the glyph shape at the
+boundary may differ from a ligated paint); no viewBox culling *inside* the run
+(the outer animator still culls the frame as one unit); the default
+embedded-font render mode is assumed (`paths` mode's glyph-defs registry is
+not deduped across the compressor's internal renders); chrome variants don't
+reopen (an A→B→A blink pattern emits A twice).
+
 ### Why not magic-move (the obvious-looking tool)
 
 Three structural mismatches, from `src/animation/magic-move.ts` / `tree-diff.ts`:
@@ -251,12 +335,11 @@ regardless of (and before) everything above:
    selection emission (`src/animation/caret-track.ts`), and the
    `AnimationConfig.textTracks` wiring, verified by rasterized-SVG e2e. Its
    declarative config sugar lands with stage 4.
-3. **Compressor v1** — the opt-in run block: maximal marked continue+cut runs →
-   per-line order-preserving glyph alignment (LCS on (char, fill), tight position
-   tolerance, re-emit on any doubt) → union emission at birth positions +
-   step-end opacity/translate/fill tracks → auto-caret from per-state edit
-   points → one nested animated SVG. Pairing-ratio logging. Committed golden.
-   (~1–2 weeks)
+3. **Compressor v1** — **Shipped (engine)** — see "Shipped engine (v1)" above:
+   `composeCompressedRun` (`src/animation/compressed-run.ts` +
+   `src/animation/glyph-align.ts`), verified by aligner/threading unit tests, a
+   transition-matrix sequence test, and the rasterized pixel-parity e2e. The
+   committed golden example lands with stage 4 (it needs the config surface).
 4. **Config surface** — the run-block sugar + caret/selection overlay schema,
    validation, JSON-Schema regeneration, docs/43 cross-reference, examples.
 5. **Flagship validation** — rebuild the kerf getting-started editor phases on

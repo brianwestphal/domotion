@@ -106,6 +106,19 @@ and typing / tap / SVG overlays.
 | `OverlayAnchor`, `AnchoredOverlay` | type | The anchor descriptor (`{ selector, at?, dx?, dy? }`) and the `resolveOverlays` input (a resolved overlay plus optional `anchor` / typing `maxWidth`). |
 | `MagicMove` | type | The bridge layer `buildMagicMove` returns (composite markup + per-element slide / fade descriptors). |
 | `MagicMoveSlide` | type | One matched-element slide entry within a `MagicMove`. |
+| `resolveTextTrack` | function | Resolve an address-based caret/selection `TextTrackSpec` (timed `park` / `move` / `hide` / `select` / `clearSelection` events over `{ target, charOffset }` addresses) against a captured tree into concrete geometry. Pass the results as `AnimationConfig.textTracks`. See `docs/101-caret-selection-track.md`. |
+| `textTrackMarkup` | function | Pure emission for one resolved text track: a self-contained `<g class="text-track">` (caret waypoints, blink, selection sweep) in global-timeline percents. Called by `generateAnimatedSvg`; exposed for hand-assembled SVGs. |
+| `resolveCaretPoint` | function | Resolve `{ target, charOffset }` against a captured tree → `{ x, baselineY, ascentPx, descentPx, fontSize, cellWidthPx }` on Chromium's own painted glyph positions (captured `xOffsets`). |
+| `resolveRangeRects` | function | Resolve a `[charStart, charEnd)` range → one selection rect per covered text run, with per-character sweep edges. |
+| `findAddressedElement` | function | Locate the captured element a text address targets (`animId` stamp or a `match` predicate). |
+| `addressableLength` | function | Total addressable code points across the target element's text runs. |
+| `TextAddressTarget`, `CaretPoint`, `SelectionRectPlan`, `RangeRects` | type | The addressing-engine parameter/result shapes. |
+| `TextTrackSpec`, `TextTrackSpecEvent`, `ResolvedTextTrack`, `ResolvedCaretWaypoint`, `ResolvedSelection` | type | The caret/selection track spec + resolved shapes. |
+| `CARET_BLINK_MS`, `DEFAULT_SELECTION_COLOR` | const | The standard ~1.06 s blink period and the default translucent-blue selection fill. |
+| `composeCompressedRun` | function | **Frame-sequence compressor (docs/100, Primitive 1).** `composeCompressedRun(states, { width, height, background?, caret?, idPrefix?, manageFonts?, log? })` → `{ svg, durationMs, pairingStats, edits }`. Composes N captured continue+cut editing states into ONE nested animated SVG: shared glyphs/chrome emitted once, changes as `step-end` opacity births/deaths, `translateX` tail-shift waypoints, and `fill` recolor steps — layout snaps at every state boundary. Embed the result as one outer frame's `svgContent` with `embeddedAnimationPeriodMs: durationMs`. Unpairable content re-emits from its own state (graceful flipbook degradation); the pairing ratio is logged per run. |
+| `CompressedRunState`, `CompressedRunOptions`, `CompressedRunResult`, `CompressedRunPairingStats`, `CompressedRunEdit` | type | The `composeCompressedRun` parameter/result shapes (per-state `{ tree, holdMs }`, pairing/size stats, detected per-state edit points). |
+| `alignLineGlyphs` | function | The compressor's per-line aligner: order-preserving LCS over one visual line's glyphs between two adjacent states — pairs on (char, style) ignoring fill (fill diffs become recolor steps), prefers exact painted positions, and demotes lone shifting glyphs to re-emission. |
+| `AlignGlyph`, `AlignedPair`, `LineAlignment` | type | The aligner's parameter/result shapes. |
 
 ## Scroll
 

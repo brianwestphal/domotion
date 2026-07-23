@@ -66,7 +66,12 @@ shortest possible map:
   `{ target, charOffset }` / range resolution against the captured tree —
   code-point offsets over segment `xOffsets`) and `caret-track.ts`
   (`resolveTextTrack` / `textTrackMarkup` — blinking caret + selection sweep
-  as global-timeline CSS, consumed via `AnimationConfig.textTracks`) +
+  as global-timeline CSS, consumed via `AnimationConfig.textTracks`) + the
+  **frame-sequence compressor** (doc 100 Primitive 1): `compressed-run.ts`
+  (`composeCompressedRun` — N captured continue+cut states → one nested
+  animated SVG: chrome union + per-line glyph identities on step-end
+  opacity/translateX/fill tracks, opt-in auto-caret) and `glyph-align.ts`
+  (`alignLineGlyphs` — the order-preserving per-line LCS aligner) +
   **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
   (`composeAnimatedLayers` — stack animated SVGs as placed, independently-timed
   layers), `embed-namespace.ts` (per-layer name namespacing), `embed-timeline.ts`

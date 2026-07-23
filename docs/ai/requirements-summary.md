@@ -59,19 +59,26 @@ they describe (see `CLAUDE.md` "Documentation"):
   arrives with the compressor's merged emission. Verified by a rasterized-SVG
   e2e (caret ink at resolved x ±1.5px, sweep growth, hide).
 
-- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Design; Primitive
-  2 shipped** (doc 101). Editor-style typing/editing sequences, redesigned (7/23) around
+- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Design;
+  Primitives 1 + 2 shipped as engines** (the declarative config surface is the
+  remaining stage). Editor-style typing/editing sequences, redesigned (7/23) around
   captured states rather than a synthetic document model: the capture page stays
   the document model (per-state continue+cut frames — real reflow, real syntax
-  coloring), and two primitives fix that model's measured costs: (1) a
-  **frame-sequence compressor** — an opt-in run block composed as one nested
-  animated SVG (typeResample placement, zero animator changes) that pairs
-  identical glyphs across states via per-line LCS on captured `xOffsets` and
-  emits each once on step-end opacity/translate/fill tracks (measured: ~87%
-  exact glyph pairing per keystroke, tail shifts = exactly one advance, kerf's
-  real capture is 91.3% cross-frame redundancy → ~5.2× raw / ~1.45× gzip /
-  ~9× fewer live-DOM nodes; unpaired content re-emits — graceful degradation,
-  never wrong pixels); and (2) a **caret + selection track** — declarative
+  coloring), and two primitives fix that model's measured costs: (1) the
+  **frame-sequence compressor** (DM-1745, **shipped engine**:
+  `composeCompressedRun` in `src/animation/compressed-run.ts` + the
+  order-preserving per-line LCS aligner in `src/animation/glyph-align.ts`) —
+  an opt-in run block composed as one nested animated SVG (typeResample
+  placement via `embeddedAnimationPeriodMs`, zero animator changes) that
+  threads per-line glyph identities across the N states over captured
+  `xOffsets` and emits each once on step-end opacity/translate/fill tracks,
+  with a chrome union (element-level byte-equality pairing, display-windowed
+  variants) beneath the glyph layer and an opt-in auto-caret from the detected
+  edit points; unpaired/ineligible content re-emits — graceful degradation,
+  never wrong pixels; one-line pairing-ratio log per run. Measured on the
+  12-state editor e2e: 99.6% glyphs paired, 135.6 KB → 46.6 KB (34%), and
+  pixel parity (`regionCount === 0`) with the uncompressed flipbook at every
+  state; and (2) a **caret + selection track** — declarative
   caret/selection anchored node-side to captured text (`selector` + char offset
   over segment `xOffsets`; `caretShapeRect` geometry; blink + sweep), standalone
   and useful beyond editing. The original document-model + op-timeline core is
