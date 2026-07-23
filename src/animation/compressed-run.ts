@@ -60,9 +60,13 @@
  * The glyph layer paints ABOVE the chrome layer. That gives true editor
  * z-order for selection-style box paint behind text, and is guarded by an
  * occlusion check: an element's text only joins the glyph layer when no
- * box-painting element that paints after it (document order, or any non-auto
- * z-index) intersects its text rects — otherwise the text stays in the chrome
- * layer and flipbooks with it. Re-emit on any doubt, never wrong pixels.
+ * box-painting element that paints after it intersects its text rects —
+ * otherwise the text stays in the chrome layer and flipbooks with it. "Paints
+ * after" comes from the renderer's REAL paint order (`paintOrderHitSequence`),
+ * with each candidate occluder intersected against its own overflow clips, so
+ * demotion matches painted truth rather than approximating it with DFS order
+ * plus an "any non-auto z-index occludes" heuristic. Re-emit on any doubt,
+ * never wrong pixels.
  *
  * ── Eligibility guards (what re-emits instead of pairing) ──────────────────
  *
@@ -91,6 +95,7 @@
 
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
+import { paintOrderHitSequence } from "../render/paint-order.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { alignLineGlyphs, type AlignGlyph } from "./glyph-align.js";
 import { textTrackMarkup, CARET_BLINK_MS, DEFAULT_SELECTION_COLOR, type ResolvedTextTrack, type ResolvedSelection } from "./caret-track.js";
@@ -269,14 +274,6 @@ interface GlyphRec {
   srcSeg: TextSegment;
 }
 
-interface FlatEl {
-  el: CapturedElement;
-  dfsIndex: number;
-  ancestors: Set<CapturedElement>;
-  paintsBox: boolean;
-  zNonAuto: boolean;
-}
-
 function paintsBox(el: CapturedElement): boolean {
   const s = el.styles;
   if (colorPaints(s.backgroundColor)) return true;
@@ -392,27 +389,36 @@ interface ExtractedState {
 /** Extract the glyph-layer records + the chrome (text-stripped) clone for one
  *  state's captured tree. Pure over the tree (no browser). */
 function extractState(tree: CapturedElement[]): ExtractedState {
-  // Pass 1: flatten in DFS (≈ paint) order for the occlusion scan.
-  const flat: FlatEl[] = [];
-  const walkFlat = (el: CapturedElement, ancestors: Set<CapturedElement>): void => {
-    flat.push({ el, dfsIndex: flat.length, ancestors, paintsBox: paintsBox(el), zNonAuto: el.styles.zIndex != null && el.styles.zIndex !== "auto" && num(el.styles.zIndex) !== 0 });
-    const next = new Set(ancestors);
-    next.add(el);
-    for (const c of el.children) walkFlat(c, next);
-  };
-  for (const root of tree) walkFlat(root, new Set());
-  const flatByEl = new Map<CapturedElement, FlatEl>(flat.map((f) => [f.el, f]));
+  // Pass 1: the renderer's REAL paint order — the same
+  // `gatherStackingContextChildren` / `sortChildrenByPaintOrder` traversal
+  // `elementTreeToSvg` emits with (stacking contexts, z-index buckets,
+  // float/inline hoisting, viewport-fixed pull, preserve-3d re-sort), so
+  // demotion matches the painted truth instead of approximating "paints after"
+  // by DFS order plus a coarse "any non-auto z-index occludes" heuristic.
+  // `paintOrderHitSequence` is pure paint order (its `pointer-events: none`
+  // skip lives in `hitTestTopmost`, not here) — sound for occlusion, since a
+  // pointer-transparent box still paints over text.
+  const order = paintOrderHitSequence(tree);
+  const paintIndex = new Map<CapturedElement, number>();
+  for (let i = 0; i < order.length; i++) paintIndex.set(order[i].el, i);
 
   const occluded = (el: CapturedElement): boolean => {
-    const me = flatByEl.get(el);
-    if (me == null || el.textSegments == null) return true;
-    for (const f of flat) {
-      if (f.el === el || !f.paintsBox) continue;
-      if (me.ancestors.has(f.el)) continue; // ancestors paint below the text
-      if (!(f.dfsIndex > me.dfsIndex || f.zNonAuto)) continue;
+    const mine = paintIndex.get(el);
+    if (mine == null || el.textSegments == null) return true;
+    for (let i = mine + 1; i < order.length; i++) {
+      const f = order[i];
+      if (!paintsBox(f.el)) continue;
+      // The occluder only paints inside its own overflow clips.
+      let fx = f.el.x, fy = f.el.y;
+      let fr = fx + f.el.width, fb = fy + f.el.height;
+      for (const c of f.clips) {
+        fx = Math.max(fx, c.x); fy = Math.max(fy, c.y);
+        fr = Math.min(fr, c.x + c.w); fb = Math.min(fb, c.y + c.h);
+      }
+      if (!(fr - fx > 0 && fb - fy > 0)) continue;
       for (const seg of el.textSegments) {
-        const ix = Math.min(seg.x + seg.width, f.el.x + f.el.width) - Math.max(seg.x, f.el.x);
-        const iy = Math.min(seg.y + seg.height, f.el.y + f.el.height) - Math.max(seg.y, f.el.y);
+        const ix = Math.min(seg.x + seg.width, fr) - Math.max(seg.x, fx);
+        const iy = Math.min(seg.y + seg.height, fb) - Math.max(seg.y, fy);
         if (ix > 0.5 && iy > 0.5) return true;
       }
     }
@@ -898,6 +904,32 @@ function extendDeep(n: UnionNode, s: number): void {
   }
 }
 
+/** Deep key over a union node's ENTIRE subtree — every child, all variants.
+ *  Used to find an INACTIVE sibling that can reopen for a reappearing element.
+ *  A node whose subtree accumulated variants (children with disjoint windows)
+ *  simply won't match a plain captured subtree, so it falls back to a fresh
+ *  variant — the reopen path only fires on a genuinely identical subtree. */
+const fullDeepKeyCache = new WeakMap<UnionNode, string>();
+function fullDeepKey(n: UnionNode): string {
+  let k = fullDeepKeyCache.get(n);
+  if (k == null) {
+    k = fnv(n.shallowKey + "[" + n.children.map(fullDeepKey).join(",") + "]");
+    fullDeepKeyCache.set(n, k);
+  }
+  return k;
+}
+
+/** Append a visibility window for state `s` to a node and its whole subtree —
+ *  the reopen of an A→B→A blink. Every descendant reappears together (the
+ *  subtree matched deep-equal), so the window bookkeeping is uniform: extend
+ *  when contiguous, otherwise push a new window. */
+function reopenDeep(n: UnionNode, s: number): void {
+  const w = lastWindow(n);
+  if (w.end === s) w.end = s + 1;
+  else if (w.end < s) n.windows.push({ start: s, end: s + 1 });
+  for (const c of n.children) reopenDeep(c, s);
+}
+
 /** Merge one state's element list into the union level. Order-preserving LCS
  *  with deep matches (subtree byte-equal → extend, no recursion) weighted over
  *  shallow matches (same element record, different children → recurse). */
@@ -944,6 +976,7 @@ function mergeLevel(unionList: UnionNode[], nextEls: CapturedElement[], s: numbe
   // Apply matches; insert unmatched next elements so relative paint order is
   // preserved: after the previously applied match, before the next one.
   let cursor = 0; // insertion index for unmatched next elements
+  const reopened = new Set<UnionNode>();
   for (let b = 0; b < m; b++) {
     const hit = matchedNext.get(b);
     if (hit != null) {
@@ -961,6 +994,28 @@ function mergeLevel(unionList: UnionNode[], nextEls: CapturedElement[], s: numbe
           target = unionList.indexOf(h2.node);
           break;
         }
+      }
+      // REOPEN: an INACTIVE sibling whose entire subtree is byte-equal to this
+      // element gets an extra visibility window instead of a duplicate variant
+      // (the A→B→A blink emitted A twice in v1). Only reopen when the node
+      // already sits within the insertion range this element would occupy, so
+      // reopening can never reorder paint; otherwise fall through to a fresh
+      // variant (re-emit on any doubt).
+      let reopenAt = -1;
+      for (let k = 0; k < unionList.length; k++) {
+        const n = unionList[k];
+        if (reopened.has(n) || lastWindow(n).end >= s) continue;
+        if (k < cursor || k > target) continue;
+        if (fullDeepKey(n) !== nextDeep[b]) continue;
+        reopenAt = k;
+        break;
+      }
+      if (reopenAt >= 0) {
+        const node = unionList[reopenAt];
+        reopenDeep(node, s);
+        reopened.add(node);
+        cursor = reopenAt + 1;
+        continue;
       }
       const pos = Math.max(cursor, Math.min(target, unionList.length));
       unionList.splice(pos, 0, nodeFromEl(nextEls[b], s));

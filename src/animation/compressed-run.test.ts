@@ -340,15 +340,51 @@ describe("buildCompressedRunPlan — chrome union", () => {
     expect(plan.thread.births).toBe(0);
     expect(plan.thread.deaths).toBe(0);
     // The line element's chrome (its box paint) exists as windowed variants.
+    // A→B→A REOPENS: the plain variant is emitted ONCE carrying two visibility
+    // windows rather than a duplicate third variant.
     const root = plan.chromeRoots[0];
     expect(root.windows).toEqual([{ start: 0, end: 3 }]);
     const variants = root.children;
-    expect(variants.length).toBe(3); // plain [0,1), highlighted [1,2), plain [2,3)
+    expect(variants.length).toBe(2); // plain [0,1)+[2,3), highlighted [1,2)
     expect(variants.map((v) => v.windows)).toEqual([
-      [{ start: 0, end: 1 }],
+      [{ start: 0, end: 1 }, { start: 2, end: 3 }],
       [{ start: 1, end: 2 }],
-      [{ start: 2, end: 3 }],
     ]);
+  });
+
+  it("chrome-variant reopen carries the whole subtree's window bookkeeping", () => {
+    // A→B→A where the reappearing variant has DESCENDANTS: every node in the
+    // reopened subtree must gain the new window, not just its root.
+    const withKid = (bg?: string) => [box([
+      box([lineEl("abc", { y: 100 })], { x: 40, y: 90, styles: styles(bg != null ? { backgroundColor: bg } : {}) }),
+    ])];
+    const plan = buildCompressedRunPlan([state(withKid()), state(withKid("rgb(59, 130, 246)")), state(withKid())]);
+    const variants = plan.chromeRoots[0].children;
+    expect(variants.length).toBe(2);
+    const plain = variants[0];
+    expect(plain.windows).toEqual([{ start: 0, end: 1 }, { start: 2, end: 3 }]);
+    // ...and its descendant reopened in lockstep.
+    expect(plain.children).toHaveLength(1);
+    expect(plain.children[0].windows).toEqual([{ start: 0, end: 1 }, { start: 2, end: 3 }]);
+  });
+
+  it("a reopen never reorders paint: a variant that reappears out of position re-emits instead", () => {
+    // The 'x' line reappears at state 2 but AFTER a sibling that did not exist
+    // when it was last active, so reopening in place would be a paint-order
+    // change — it must fall back to a fresh variant.
+    const L = (t: string, y: number) => lineEl(t, { y, styles: { backgroundColor: "rgb(1, 2, 3)" } });
+    const plan = buildCompressedRunPlan([
+      state([box([L("xxx", 100)])]),
+      state([box([L("yyy", 100)])]),
+      state([box([L("yyy", 100), L("xxx", 120)])]),
+    ]);
+    // Pixels stay correct either way; assert the windows partition the states
+    // so nothing is visible twice at once.
+    for (const v of plan.chromeRoots[0].children) {
+      for (let i = 1; i < v.windows.length; i++) {
+        expect(v.windows[i].start).toBeGreaterThanOrEqual(v.windows[i - 1].end);
+      }
+    }
   });
 
   it("chrome subtree replacement inserts the variant in paint order", () => {
@@ -410,6 +446,41 @@ describe("buildCompressedRunPlan — eligibility guards (re-emit on doubt)", () 
     const underlay = box([], { x: 55, y: 95, width: 100, height: 30, styles: styles({ backgroundColor: "rgb(0, 0, 0)" }) });
     const text = lineEl("abc", { x: 60, y: 100 });
     const plan = buildCompressedRunPlan([state([box([underlay, text])])]);
+    expect(glyphCount(plan)).toBe(3);
+  });
+
+  it("a LATER negative-z-index box paints BELOW the text and does not demote it (real paint order)", () => {
+    // v1 approximated "paints after" as DFS order plus "any non-auto z-index is
+    // an occluder", so this overlay demoted the text even though a negative
+    // z-index positioned child paints beneath its parent's in-flow content.
+    // The real stacking/paint-order walk puts it before the text.
+    const text = lineEl("abc", { x: 60, y: 100 });
+    const under = box([], {
+      x: 55, y: 95, width: 100, height: 30,
+      styles: styles({ backgroundColor: "rgb(0, 0, 0)", position: "relative", zIndex: "-1" }),
+    });
+    const plan = buildCompressedRunPlan([state([box([text, under])])]);
+    expect(glyphCount(plan)).toBe(3);
+  });
+
+  it("an EARLIER positive-z-index box still paints above the text and demotes it", () => {
+    const over = box([], {
+      x: 55, y: 95, width: 100, height: 30,
+      styles: styles({ backgroundColor: "rgb(0, 0, 0)", position: "relative", zIndex: "5" }),
+    });
+    const text = lineEl("abc", { x: 60, y: 100 });
+    const plan = buildCompressedRunPlan([state([box([over, text])])]);
+    expect(glyphCount(plan)).toBe(0);
+  });
+
+  it("an occluder clipped away by its overflow ancestor does not demote the text", () => {
+    // The overlay's box would intersect the text, but its scroller clips it to
+    // a region that doesn't — the paint-order walk carries those clips.
+    const text = lineEl("abc", { x: 60, y: 300 });
+    const scroller = box([
+      box([], { x: 55, y: 295, width: 100, height: 30, styles: styles({ backgroundColor: "rgb(0, 0, 0)" }) }),
+    ], { x: 40, y: 80, width: 600, height: 100, styles: styles({ overflowX: "hidden", overflowY: "hidden" }) });
+    const plan = buildCompressedRunPlan([state([box([text, scroller])])]);
     expect(glyphCount(plan)).toBe(3);
   });
 

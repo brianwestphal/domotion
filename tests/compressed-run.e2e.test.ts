@@ -425,6 +425,90 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
     }
   }, 180_000);
 
+  it("chrome-variant reopen + paint-order occlusion: an A→B→A highlight blink emits A once and stays pixel-exact", async () => {
+    // State 1 puts a highlight behind a line, state 2 removes it again. The
+    // chrome union must REOPEN the plain variant (one emission, two visibility
+    // windows) instead of emitting it twice — and the text must stay in the
+    // glyph layer (the highlight sits BEHIND it, so it is not an occluder).
+    const { browser } = env!;
+    const RW = 380, RH = 160;
+    const RPAGE = String.raw`<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; width: ${RW}px; height: ${RH}px; background: #101820; }
+      #code { position: absolute; left: 16px; top: 16px;
+        font-family: Menlo, ui-monospace, monospace; font-size: 13px; line-height: 19px; }
+      .ln { white-space: pre; height: 19px; color: #e2e8f0; }
+      .hl { background: #1d4ed8; }
+    </style></head><body><div id="code"></div>
+    <script>
+      var ROWS = ['const alpha = 1;','const beta = 2;','const gamma = 3;'];
+      window.render = function(hl){ document.getElementById('code').innerHTML = ROWS.map(function(r,i){
+        return '<div class="ln' + (hl && i === 1 ? ' hl' : '') + '">' + r + '</div>'; }).join(''); };
+      window.render(false);
+    </script></body></html>`;
+    const ctx = await browser.newContext({ viewport: { width: RW, height: RH }, deviceScaleFactor: 1 });
+    try {
+      const page = await ctx.newPage();
+      await page.setContent(RPAGE, { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => document.fonts.ready);
+      const trees: CapturedElement[][] = [];
+      const cap = async () => { trees.push(await captureElementTree(page, "body", { x: 0, y: 0, width: RW, height: RH })); };
+      await cap();                                                                     // A: plain
+      await page.evaluate(() => (window as unknown as { render: (h: boolean) => void }).render(true));
+      await cap();                                                                     // B: highlighted
+      await page.evaluate(() => (window as unknown as { render: (h: boolean) => void }).render(false));
+      await cap();                                                                     // A again
+
+      const holds = [300, 300, 400];
+      const boundaries = [0, 300, 600];
+      const rootBg = "rgb(16, 24, 32)";
+      const run = composeCompressedRun(trees.map((tree, i) => ({ tree, holdMs: holds[i] })), {
+        width: RW, height: RH, idPrefix: "rp0", background: rootBg,
+      });
+      // Reopen: the plain variant is emitted once with a two-window display
+      // track (0..1 and 2..3), so the run carries FEWER chrome variants than
+      // the three states would naively need.
+      // eslint-disable-next-line no-console
+      console.log(`[reopen e2e] chromeTracks=${run.pairingStats.chromeTrackCount} groups=${run.pairingStats.groupCount} deaths=${run.pairingStats.deaths}`);
+      // The text pairs across all three states — the highlight paints behind it.
+      expect(run.pairingStats.deaths).toBe(0);
+      expect(run.pairingStats.births).toBe(0);
+
+      clearEmbeddedFonts();
+      clearGlyphDefs();
+      const frames = trees.map((tree, i) => ({
+        svgContent: elementTreeToSvgInner(structuredClone(tree), RW, RH, `rf${i}-`, true, 2, false),
+        duration: holds[i], transition: { type: "cut" as const, duration: 0 },
+      }));
+      const flipbookSvg = generateAnimatedSvg({ width: RW, height: RH, frames, fontFaceCss: getEmbeddedFontFaceCss(), background: rootBg });
+      const outerSvg = generateAnimatedSvg({
+        width: RW, height: RH,
+        frames: [{ svgContent: namespaceEmbeddedAnimatedSvg(run.svg, "rpcmp"), duration: run.durationMs, embeddedAnimationPeriodMs: run.durationMs, transition: { type: "cut", duration: 0 } }],
+        fontFaceCss: "",
+      });
+      const flipPage = await ctx.newPage();
+      await flipPage.setContent(`<!doctype html><html><body style="margin:0">${flipbookSvg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await flipPage.evaluate(() => document.fonts.ready);
+      const compPage = await ctx.newPage();
+      await compPage.setContent(`<!doctype html><html><body style="margin:0">${outerSvg}</body></html>`, { waitUntil: "domcontentloaded" });
+      await compPage.evaluate(() => document.fonts.ready);
+      const comparePage = await ctx.newPage();
+      mkdirSync(OUT_DIR, { recursive: true });
+      for (let s = 0; s < trees.length; s++) {
+        const t = boundaries[s] + holds[s] / 2;
+        await seekTo(flipPage, t);
+        await seekTo(compPage, t);
+        const expPath = join(OUT_DIR, `reopen-${s}-flipbook.png`);
+        const actPath = join(OUT_DIR, `reopen-${s}-compressed.png`);
+        writeFileSync(expPath, await flipPage.screenshot({ clip: { x: 0, y: 0, width: RW, height: RH } }));
+        writeFileSync(actPath, await compPage.screenshot({ clip: { x: 0, y: 0, width: RW, height: RH } }));
+        const cmp = await comparePngs(comparePage, expPath, actPath, join(OUT_DIR, `reopen-${s}-diff.png`));
+        expect(cmp.regionCount, `state ${s}: reopen render diverges from the flipbook`).toBe(0);
+      }
+    } finally {
+      await ctx.close();
+    }
+  }, 180_000);
+
   it("behind-glyph selection: the selection rect paints BEHIND the glyph ink (docs/101 true editor z-order)", async () => {
     // A minimal white-on-dark monospace line, selected over the middle chars
     // with an OPAQUE red selection. Behind-glyph z-order is decisive: the glyph

@@ -15,12 +15,13 @@ rebuilt on the new primitives as the committed golden
 validation results" below — and the authoring recipe is written up as
 `docs/102-editing-page-rig-cookbook.md`. Automatic run detection is now shipped
 behind the opt-in `autoCompress` flag (below). Behind-glyph selection (the
-`selection` option on `composeCompressedRun`) and cross-line identity for
-vertically-moved lines are also shipped — see Primitive 1 below. Remaining
+`selection` option on `composeCompressedRun`), cross-line identity for
+vertically-moved lines, paint-order-accurate occlusion demotion, and
+chrome-variant reopen are also shipped — see Primitive 1 below. Remaining
 items are the filed follow-ups (locally tracked): the complex-interaction cases
 auto-detection excludes (per-frame overlays/cursor/magic-move crossing a run),
-chrome-variant reopen, the multi-frame `compress: true` form, and the
-caret-track addressing limits (docs/101 v1 limits).
+the multi-frame `compress: true` form, and the caret-track addressing limits
+(docs/101 v1 limits).
 Since then, **automatic run detection has shipped behind an opt-in flag**
 (`autoCompress`, DM-1757 — see "Placement" below and docs/43 §13): the pre-pass
 collapses maximal `continue` + `cut` runs into `states` runs automatically,
@@ -294,8 +295,16 @@ The glyph layer paints above the merged chrome (with selection rects, when
 requested, interleaved just below it). That yields true editor z-order
 (selection-style box paint lands *behind* the glyphs), guarded by an
 occlusion check: text only joins the glyph layer when no box-painting element
-that paints after it (document order, or any non-auto z-index) intersects its
-rects — otherwise the text stays in chrome and flipbooks. Further eligibility
+that paints after it intersects its rects — otherwise the text stays in chrome
+and flipbooks. "Paints after" is the renderer's REAL paint order
+(`paintOrderHitSequence`, the same `gatherStackingContextChildren` /
+`sortChildrenByPaintOrder` traversal `elementTreeToSvg` emits with: stacking
+contexts, z-index buckets, float/inline hoisting, viewport-fixed pull,
+preserve-3d re-sort), and candidate occluders are intersected with their own
+overflow clips first. So a later-in-DOM negative-z-index underlay correctly
+does NOT demote the text, and a clipped-away overlay does not either — both of
+which the earlier DFS-order-plus-"any non-auto z-index occludes" approximation
+got wrong (conservatively, but at a real cost in compression). Further eligibility
 guards (each demotes to chrome, never wrong pixels): captured `xOffsets`
 present, horizontal LTR simple-script text only (no complex shaping across a
 split), no decorations / shadows / strokes / emphasis / gradient fills / raster
@@ -327,8 +336,14 @@ unligate across a split boundary (positions stay exact; the glyph shape at the
 boundary may differ from a ligated paint); no viewBox culling *inside* the run
 (the outer animator still culls the frame as one unit); the default
 embedded-font render mode is assumed (`paths` mode's glyph-defs registry is
-not deduped across the compressor's internal renders); chrome variants don't
-reopen (an A→B→A blink pattern emits A twice).
+not deduped across the compressor's internal renders). Chrome variants DO
+reopen: a subtree that reappears byte-identical after an absence (an A→B→A
+blink) gains a second visibility window on its existing emission instead of a
+duplicate variant, with the whole reopened subtree's windows kept in lockstep.
+The one deliberate hold-back is positional: a variant only reopens when it
+already sits inside the insertion range the reappearing element would occupy,
+so a reopen can never reorder paint — otherwise it re-emits (re-emit on any
+doubt).
 
 ### Why not magic-move (the obvious-looking tool)
 
