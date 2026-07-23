@@ -446,6 +446,11 @@ export interface CapturedStyles {
   zIndex: string;
   position: string;
   float: string;
+  /** DM-1742: captured only when the computed value is `none` (the
+   *  hit-test-relevant case — such elements are transparent to cursor
+   *  hit-testing, matching browser behavior). `pointer-events` inherits, so
+   *  each descendant's computed value carries the ancestor's `none` itself. */
+  pointerEvents?: "none";
   /** CSS `order` (flex/grid items). Per CSS Flexbox 1 §5.4.1 and CSS Grid 1
    *  §17, paint order is order-modified document order — items are painted
    *  in ascending `order` value, ties broken by source (DOM) order. The

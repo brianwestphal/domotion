@@ -445,6 +445,37 @@ describe("cursor overlay config (DM-851)", () => {
       validateAnimateConfig({ ...base, cursor: { events: [{ frame: 0, type: "move" }] }, frames: [{ input: "a.html", duration: 1 }] }),
     ).toThrow(/requires `selector` or `to`/);
   });
+
+  // DM-1742: interaction actions carry an optional cursor aim so `cursor:
+  // "auto"` can land the pointer beside a label the viewer must read instead
+  // of dead-center (the invisible-child-pad workaround).
+  it("accepts cursorAt / cursorOffset on click, fill, and hover actions", () => {
+    const cfg = validateAnimateConfig({
+      ...base,
+      cursor: "auto",
+      frames: [{
+        input: "a.html", duration: 1,
+        actions: [
+          { type: "click", selector: ".b", cursorAt: "bottom-right", cursorOffset: { dx: -4, dy: 8 } },
+          { type: "fill", selector: ".in", value: "x", cursorOffset: { dx: 40 } },
+          { type: "hover", selector: ".h", cursorAt: "left" },
+        ],
+      }],
+    });
+    const acts = cfg.frames[0].actions!;
+    expect(acts[0]).toMatchObject({ cursorAt: "bottom-right", cursorOffset: { dx: -4, dy: 8 } });
+    expect(acts[1]).toMatchObject({ cursorOffset: { dx: 40 } });
+    expect(acts[2]).toMatchObject({ cursorAt: "left" });
+  });
+
+  it("rejects an unknown cursorAt anchor keyword", () => {
+    expect(() =>
+      validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, actions: [{ type: "click", selector: ".b", cursorAt: "middle" }] }],
+      }),
+    ).toThrow();
+  });
 });
 
 // DM-1050: auto-cursor click TIMING. In the continuous-session model a frame's

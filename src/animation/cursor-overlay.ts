@@ -28,6 +28,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { hitTestTopmost } from "../render/paint-order.js";
 import { cursorGlyphSvg } from "./cursor-glyphs.js";
 
 export interface CursorStyle {
@@ -113,21 +114,19 @@ export interface CursorTimelineEntry { t: number; cursor: string | null }
 
 /**
  * DM-1106: the effective cursor keyword at viewport point (x, y) for a captured
- * tree — the LAST element in paint order (DFS pre-order) whose box contains the
- * point. `cursor` inherits and was resolved per element at capture, so the
- * topmost element's stored value (or `default` when omitted) is what Chrome
- * painted. A z-index-agnostic approximation: good for the nested-element and
- * later-sibling-on-top cases a cursor overlay cares about.
+ * tree — the visually-topmost element whose box contains the point. `cursor`
+ * inherits and was resolved per element at capture, so the topmost element's
+ * stored value (or `default` when omitted) is what Chrome painted.
+ *
+ * DM-1742: hit-tests in TRUE paint order (the renderer's own stacking-context
+ * / z-index traversal via `hitTestTopmost`), honoring `pointer-events: none`
+ * and overflow clipping — not the old DFS-pre-order approximation, which on
+ * stacked layouts (overlapping windows switched via z-index, modals,
+ * dropdowns) answered with whatever happened to be later in the DOM instead
+ * of what the viewer sees.
  */
 export function cursorAtPoint(roots: CapturedElement[], x: number, y: number): string {
-  let best: CapturedElement | null = null;
-  const visit = (n: CapturedElement): void => {
-    if (n.width > 0 && n.height > 0 && x >= n.x && x < n.x + n.width && y >= n.y && y < n.y + n.height) best = n;
-    const kids = (n as { children?: CapturedElement[] }).children;
-    if (kids != null) for (const c of kids) visit(c);
-  };
-  for (const r of roots) visit(r);
-  return (best as CapturedElement | null)?.cursor ?? "default";
+  return hitTestTopmost(roots, x, y)?.cursor ?? "default";
 }
 
 const DEFAULT_STYLE: CursorStyle = {
@@ -164,11 +163,10 @@ export function resolveCursorScript(
   const clicks: ResolvedClick[] = [];
   let curX = 0;
   let curY = 0;
-  let visible = false;
 
   const pushKey = (t: number, x: number, y: number, vis: boolean, cursor?: string): void => {
     positions.push({ t, x, y, visible: vis, cursor });
-    curX = x; curY = y; visible = vis;
+    curX = x; curY = y;
   };
 
   const frameForT = (t: number): number => {

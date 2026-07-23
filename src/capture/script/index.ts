@@ -532,6 +532,11 @@ export const captureScript =
         zIndex: cs.zIndex,
         position: cs.position,
         float: cs.float,
+        // DM-1742: `pointer-events: none` makes an element transparent to
+        // cursor hit-testing (the auto cursor-overlay glyph picker). Captured
+        // only when `none` — the property inherits, so descendants report it
+        // themselves; every other value hit-tests normally.
+        pointerEvents: cs.pointerEvents === 'none' ? 'none' : undefined,
         order: cs.order,
         flexDirection: cs.flexDirection,
         emptyCellsHidden: (tag === 'td' || tag === 'th') && cs.emptyCells === 'hide' && (el.textContent || '').trim() === '' && el.children.length === 0,

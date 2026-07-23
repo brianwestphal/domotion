@@ -51,7 +51,7 @@ import {
 } from "../animation/index.js";
 import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
-import { borderBox } from "../capture/content-box.js";
+import { type BoxAnchor, borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
@@ -191,13 +191,26 @@ function expandMotionPreset(a: z.infer<typeof frameAnimationSchema>): ExpandedFr
 const insertPositionSchema = z.enum(["beforebegin", "afterbegin", "beforeend", "afterend"]);
 const scrollLogicalSchema = z.enum(["start", "center", "end", "nearest"]);
 
+// DM-1742: optional cursor aim on interaction actions, consumed by
+// `cursor: "auto"` when deriving the pointer target. `cursorAt` picks one of
+// the nine named anchor points on the target's border box (the overlay
+// `anchor.at` vocabulary, default "center"); `cursorOffset` nudges from
+// there in px. Lets an auto-derived click land beside a label the viewer must
+// read (e.g. a counter button whose text IS the changing value) without the
+// invisible-child-pad workaround. Ignored under explicit `cursor.events`
+// (those carry their own selector/at/offset) and when no cursor is shown.
+const cursorAimSchema = {
+  cursorAt: z.enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"]).optional(),
+  cursorOffset: z.object({ dx: z.number().optional(), dy: z.number().optional() }).optional(),
+};
+
 const actionSchema = z.discriminatedUnion("type", [
   // Interaction (Playwright-native).
-  z.object({ type: z.literal("click"),  selector: z.string() }),
-  z.object({ type: z.literal("fill"),   selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("click"),  selector: z.string(), ...cursorAimSchema }),
+  z.object({ type: z.literal("fill"),   selector: z.string(), value: z.string(), ...cursorAimSchema }),
   z.object({ type: z.literal("press"),  key: z.string() }),
   z.object({ type: z.literal("scroll"), x: z.number().optional(), y: z.number().optional() }),
-  z.object({ type: z.literal("hover"),  selector: z.string() }),
+  z.object({ type: z.literal("hover"),  selector: z.string(), ...cursorAimSchema }),
   z.object({ type: z.literal("wait"),   ms: z.number() }),
   // DM-848 §3 — interaction actions beyond click/fill.
   z.object({ type: z.literal("scrollIntoView"), selector: z.string(), block: scrollLogicalSchema.optional(), inline: scrollLogicalSchema.optional() }),
@@ -1268,11 +1281,13 @@ async function buildCapturedFrame(
     await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
   }
   // DM-851 §6: for `cursor: "auto"`, record each interaction target's
-  // center BEFORE the action runs (that's where the pointer clicks).
+  // aim point BEFORE the action runs (that's where the pointer clicks).
+  // DM-1742: the action's optional `cursorAt` / `cursorOffset` aim the
+  // pointer at a named border-box anchor + px nudge instead of the center.
   if (cursorAuto && fc.actions != null) {
     for (const a of fc.actions) {
       if (a.type === "click" || a.type === "hover" || a.type === "fill") {
-        const c = await queryCursorBox(page, a.selector);
+        const c = await queryCursorBox(page, a.selector, a.cursorAt, a.cursorOffset);
         if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy });
       }
     }
@@ -2139,15 +2154,22 @@ function resolveOverlayAnchors(page: Page, overlays: OverlayInput[] | undefined,
 type CursorEventInput = z.infer<typeof cursorEventSchema>;
 type CursorStyleInput = z.infer<typeof cursorStyleSchema>;
 
-/** Resolve a selector's BORDER-box center in page (viewport) coords, or null if
- *  absent. DM-1139: collapsed onto the shared `borderBox` primitive (doc 63) so
- *  the CLI cursor and the public `resolveCursorTarget` can't diverge. `borderBox`
+/** Resolve a selector's BORDER-box aim point in page (viewport) coords, or null
+ *  if absent. DM-1139: collapsed onto the shared `borderBox` primitive (doc 63)
+ *  so the CLI cursor and the public `resolveCursorTarget` can't diverge.
+ *  DM-1742: `at` picks one of the nine named anchor points (default center) and
+ *  `offset` nudges from there — the auto-cursor aim vocabulary. `borderBox`
  *  throws on no-match; the `"auto"` recording path tolerates a missing selector
  *  (the action itself fails later, the cursor recording just skips it), so we map
  *  that throw back to null here. */
-async function queryCursorBox(page: Page, sel: string): Promise<{ cx: number; cy: number } | null> {
+async function queryCursorBox(
+  page: Page,
+  sel: string,
+  at: BoxAnchor = "center",
+  offset?: { dx?: number; dy?: number },
+): Promise<{ cx: number; cy: number } | null> {
   try {
-    const [cx, cy] = (await borderBox(page, sel, { at: "center" })).at;
+    const [cx, cy] = (await borderBox(page, sel, { at, dx: offset?.dx ?? 0, dy: offset?.dy ?? 0 })).at;
     return { cx, cy };
   } catch {
     return null;

@@ -246,4 +246,57 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 90_000);
+
+  // DM-1742: the auto-cursor glyph hit-test must follow PAINT order (z-index),
+  // not DOM order, and click actions can aim the pointer off-center. Regression
+  // scenario distilled from kerf's getting-started capture: two full-size
+  // stacked "windows" switched via z-index — the front one (z:6, EARLIER in
+  // the DOM) holds the click target; the back one (z:1, later in the DOM) is
+  // full of cursor:text content that used to win the old DFS-last hit-test.
+  // A pointer-events:none decorative overlay sits on top of everything and
+  // must stay transparent to the hit-test (exercises the new captured field).
+  it("auto cursor: paint-order glyph hit-test on stacked windows + cursorOffset aim (DM-1742)", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(path.join(tmpdir(), "cursor-hittest-"));
+    try {
+      writeFileSync(path.join(dir, "stage.html"),
+        `<!doctype html><html><head><meta charset="utf-8"><style>
+          body{margin:0;width:640px;height:480px;position:relative;font:16px sans-serif}
+          .win{position:absolute;inset:0}
+          .front{z-index:6;background:#fff}
+          .back{z-index:1;background:#dde}
+          #btn{position:absolute;left:200px;top:300px;width:120px;height:40px;cursor:pointer}
+          .code{position:absolute;left:0;top:0;width:640px;height:300px;cursor:text}
+          .deco{position:absolute;inset:0;z-index:10;pointer-events:none}
+        </style></head><body>
+          <div class="win front"><button id="btn">Clicked 0 times</button></div>
+          <div class="win back"><div class="code">const x = 1;</div></div>
+          <div class="deco"></div>
+        </body></html>`);
+      const rawCfg = {
+        width: 640, height: 480,
+        cursor: "auto",
+        frames: [{
+          input: "stage.html", duration: 800,
+          actions: [{ type: "click", selector: "#btn", cursorOffset: { dx: 40, dy: 0 } }],
+        }],
+      };
+      const config = await composeAnimateFrames(browser, validateAnimateConfig(rawCfg), dir, () => {});
+
+      // The aim: button border-box center (260, 320) + the (40, 0) offset.
+      const move = config.cursorOverlay?.events.find((e) => e.type === "move");
+      expect(move).toBeDefined();
+      expect(move != null && move.type === "move" ? move.to : null).toEqual({ x: 300, y: 320 });
+
+      const at = config.resolveCursorAt!;
+      // Over the front window's button → hand, even though the back window's
+      // cursor:text .code block is later in the DOM and also contains the point.
+      expect(at(300, 320, 0)).toBe("pointer");
+      // Over the front window's empty area (still covered by .code beneath and
+      // the pointer-events:none .deco above) → the front window's default arrow.
+      expect(at(500, 100, 0)).toBe("default");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
 });

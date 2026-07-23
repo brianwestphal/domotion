@@ -480,6 +480,31 @@
                     },
                     "selector": {
                       "type": "string"
+                    },
+                    "cursorAt": {
+                      "type": "string",
+                      "enum": [
+                        "top-left",
+                        "top",
+                        "top-right",
+                        "left",
+                        "center",
+                        "right",
+                        "bottom-left",
+                        "bottom",
+                        "bottom-right"
+                      ]
+                    },
+                    "cursorOffset": {
+                      "type": "object",
+                      "properties": {
+                        "dx": {
+                          "type": "number"
+                        },
+                        "dy": {
+                          "type": "number"
+                        }
+                      }
                     }
                   },
                   "required": [
@@ -499,6 +524,31 @@
                     },
                     "value": {
                       "type": "string"
+                    },
+                    "cursorAt": {
+                      "type": "string",
+                      "enum": [
+                        "top-left",
+                        "top",
+                        "top-right",
+                        "left",
+                        "center",
+                        "right",
+                        "bottom-left",
+                        "bottom",
+                        "bottom-right"
+                      ]
+                    },
+                    "cursorOffset": {
+                      "type": "object",
+                      "properties": {
+                        "dx": {
+                          "type": "number"
+                        },
+                        "dy": {
+                          "type": "number"
+                        }
+                      }
                     }
                   },
                   "required": [
@@ -550,6 +600,31 @@
                     },
                     "selector": {
                       "type": "string"
+                    },
+                    "cursorAt": {
+                      "type": "string",
+                      "enum": [
+                        "top-left",
+                        "top",
+                        "top-right",
+                        "left",
+                        "center",
+                        "right",
+                        "bottom-left",
+                        "bottom",
+                        "bottom-right"
+                      ]
+                    },
+                    "cursorOffset": {
+                      "type": "object",
+                      "properties": {
+                        "dx": {
+                          "type": "number"
+                        },
+                        "dy": {
+                          "type": "number"
+                        }
+                      }
                     }
                   },
                   "required": [
