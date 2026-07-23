@@ -16,7 +16,7 @@
  * grabbed frame / trimmed SVG / MP4 looks like.
  */
 
-import { signal, effect, mount, delegate } from "kerfjs";
+import { signal, computed, effect, mount, delegate } from "kerfjs";
 import { fitRectToAspect, constrainResizeToAspect } from "./crop.js";
 
 interface Bootstrap { svg: string | null; name: string | null; path?: string | null; review?: boolean }
@@ -180,6 +180,22 @@ function markerLeft(ms: number): string {
   return `${THUMB_R + (Math.min(Math.max(ms, 0), dur) / dur) * usable}px`;
 }
 
+// DM-1730: fine-grained playback bindings. The rAF loop writes
+// `playhead.value` EVERY FRAME while playing; with kerf >= 1.0, passing a
+// computed directly into a JSX text hole updates just that text node — so
+// these two labels are the ONLY things that track the playhead, and render()
+// itself never reads it. Before this, the whole app re-rendered + morphed at
+// up to 60fps during playback. (The scrub thumb was already fine-grained: an
+// `effect` pokes its `.value` imperatively below.) Structural state
+// (panels, load/busy flags) stays `.value`-read — "values bind, structure
+// re-renders".
+// Each computed is the SOLE child of its element: mixing a bound hole with
+// static sibling text in one parent is morph-fragile (siblings can be
+// dropped when a re-render races the binding update), so the whole label
+// string is computed instead.
+const timeLabel = computed(() => `${fmt(playhead.value)} / ${fmt(durationMs.value)}`);
+const frameLabel = computed(() => fmt(playhead.value));
+
 function render() {
   const dur = durationMs.value;
   const hi = rangeEnd.value > rangeStart.value ? rangeEnd.value : dur;
@@ -218,7 +234,7 @@ function render() {
             )}
             <input type="range" class="scrub" data-action="scrub" min="0" max="1000" step="0.1" disabled={!svgLoaded.value} />
           </div>
-          <div class="time">{fmt(playhead.value)} / {fmt(dur)}</div>
+          <div class="time">{timeLabel}</div>
         </div>
         <div class="row row2">
           <div class="grp">
@@ -278,7 +294,7 @@ function render() {
               </button>
               <button data-action="rv-clear-region" disabled={!svgLoaded.value || regions.value.length === 0}>Clear</button>
               <label class="muted"><input type="checkbox" data-action="rv-attach" checked={attachFrame.value} disabled={!svgLoaded.value} />attach frame</label>
-              <span class="muted">frame @ {fmt(playhead.value)} · range {fmt(rangeStart.value)}–{fmt(hi)}</span>
+              <span class="muted">frame @ <span>{frameLabel}</span> · range {fmt(rangeStart.value)}–{fmt(hi)}</span>
               <button class="primary" data-action="rv-save" disabled={!svgLoaded.value || savingTicket.value}>{savingTicket.value ? "Saving…" : "Save issue"}</button>
             </div>
             <textarea class="rv-note" data-action="rv-note" placeholder="Describe the issue (becomes the ticket body)…" disabled={!svgLoaded.value}></textarea>
@@ -288,6 +304,17 @@ function render() {
       </div>
     </div>
   );
+}
+
+// DM-1730: opt-in kerf dev diagnostics — `?kerfdev` turns on the 2.0
+// warnings so coarse re-renders (a render that reads only signal values and
+// could be fully bound) and stale bindings surface in the console during
+// development. There is no separate dev bundle, so this is query-gated
+// rather than build-gated; production URLs stay silent.
+if (location.search.includes("kerfdev")) {
+  (globalThis as unknown as Record<string, unknown>).KERF_DEV = true;
+  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_VALUE_ONLY_RERENDER = true;
+  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_STALE_BINDING = true;
 }
 
 const app = document.getElementById("app")!;

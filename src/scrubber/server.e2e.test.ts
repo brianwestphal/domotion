@@ -161,6 +161,45 @@ describe("svg-scrubber server (DM-1040)", () => {
     }
   }, 60_000);
 
+  // DM-1730: fine-grained playback bindings. The time label is a kerf computed
+  // hole tracking `playhead` — during playback it must ADVANCE (binding wired)
+  // while the surrounding transport DOM is left untouched (no per-frame morph:
+  // untracked attribute state survives a full second of playback frames).
+  it("playback advances the time label without re-rendering the transport (DM-1730)", async () => {
+    if (!chromiumAvailable) return;
+    const anim = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><rect width="40" height="40" fill="#28c"><animateTransform attributeName="transform" type="translate" from="0 0" to="60 60" dur="4s" repeatCount="indefinite"/></rect></svg>`;
+    const b2 = await chromium.launch();
+    const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: anim, initialName: "anim.svg" });
+    const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(s2.url, { waitUntil: "load" });
+      await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
+      const label0 = await page.locator(".time").textContent();
+      await page.locator("button[data-action=play]").click();
+      await page.waitForTimeout(450); // let the play-toggle re-render + ResizeObserver-driven re-renders settle
+      // Plant an untracked marker attribute on a transport node kerf manages,
+      // WHILE playback is running. A coarse per-frame re-render + morph would
+      // rebuild/normalize this node within the next frames and drop the
+      // marker; a fine-grained text binding leaves it alone. (The play/pause
+      // clicks themselves re-render structurally by design, so the marker is
+      // planted after play and read before pause.)
+      await page.evaluate(() => {
+        document.querySelector(".row .grp button[data-action=setin]")!.setAttribute("data-dm1730-marker", "alive");
+      });
+      await page.waitForTimeout(800); // ~48 playback frames
+      const marker = await page.evaluate(() =>
+        document.querySelector(".row .grp button[data-action=setin]")!.getAttribute("data-dm1730-marker"));
+      const label1 = await page.locator(".time").textContent();
+      await page.locator("button[data-action=play]").click(); // pause
+      expect(label1).not.toBe(label0); // the computed hole tracks the playhead
+      expect(marker).toBe("alive");    // no per-frame transport morph
+    } finally {
+      await ctx.close().catch(() => {});
+      await closeSafely(() => s2.close(), b2, 6_000);
+    }
+  }, 60_000);
+
   // DM-1104: crop. The PNG/MP4 exports crop the raster output to the rect; the
   // SVG trim rewrites the root viewBox (vector crop).
   it("/export-frame crops the PNG to the requested rect", async () => {
