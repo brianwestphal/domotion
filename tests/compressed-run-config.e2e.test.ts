@@ -252,6 +252,60 @@ describeBrowser("`textTracks` caret/selection config (docs/101 config surface)",
     }
   }, 240_000);
 
+  // DM-1763: a frame's track ends at that frame's cut BY DEFAULT — the CLI
+  // synthesizes a trailing hide (+ clearSelection) at the frame's duration, so a
+  // caret parked in frame 0 does NOT haunt frame 1. `persist: true` opts out.
+  it("auto-ends a parked caret at the frame's cut so it does not haunt the next frame (persist: true keeps it)", async () => {
+    const { browser, dir } = env!;
+    // Frame 0 parks a red caret at the line's left edge with NO explicit hide;
+    // frame 1 is a plain continue frame. The caret bar lives near x≈40, y in
+    // the #line font box (top:60px, 24px) — scan a tight rect around it.
+    const caretRect = { x: 34, y: 52, w: 16, h: 40 };
+    const makeCfg = (persist: boolean) =>
+      validateAnimateConfig({
+        width: W,
+        height: H,
+        frames: [
+          {
+            input: "./page.html",
+            duration: 1000,
+            transition: { type: "cut", duration: 0 },
+            textTracks: [{
+              selector: "#line",
+              color: "#ff0000",
+              ...(persist ? { persist: true } : {}),
+              events: [{ type: "park", at: 100, charOffset: 0 }],
+            }],
+          },
+          { continue: true, duration: 1000, transition: { type: "cut", duration: 0 } },
+        ],
+      });
+
+    // t=1500 is inside frame 1 AND lands in the blink-ON half of the ~1.06 s
+    // cycle (1500/1060 → phase 0.42 < 0.5), so a VISIBLE caret would paint here.
+    const caretInkAt1500 = async (persist: boolean): Promise<number> => {
+      const config = await composeAnimateFrames(browser, makeCfg(persist), { configDir: dir });
+      const svg = generateAnimatedSvg(config);
+      const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+      try {
+        const viewer = await ctx.newPage();
+        await viewer.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`, { waitUntil: "domcontentloaded" });
+        await viewer.evaluate(() => document.fonts.ready);
+        await seekTo(viewer, 1500);
+        const png = await viewer.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
+        return (await scanInk(viewer, png, "red", caretRect)).count;
+      } finally {
+        await ctx.close();
+      }
+    };
+
+    // Default: the synthesized hide at the frame-0 cut removes the caret — no
+    // red ink over frame 1.
+    expect(await caretInkAt1500(false)).toBe(0);
+    // persist: true carries the parked caret over — red ink present in frame 1.
+    expect(await caretInkAt1500(true)).toBeGreaterThan(5);
+  }, 240_000);
+
   it("hard-errors at capture when a track selector matches nothing, naming frame + path", async () => {
     const { browser, dir } = env!;
     const cfg = validateAnimateConfig({

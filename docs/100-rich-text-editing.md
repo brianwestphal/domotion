@@ -433,9 +433,14 @@ t > 0 / carried a re-tokenization):
 
 **Authoring caveats found** (recorded in doc 102): a `textTracks` caret and
 selection hold their final state through the loop and layer above every
-frame — always end a track with `clearSelection` + `hide` at the frame's cut;
-and track addressing covers the element's OWN text runs only, so a selection
-over a token targets the token span (`[data-line='6'] .str`), not the line.
+frame — this originally required ending every track by hand with
+`clearSelection` + `hide` at the frame's cut. Since DM-1763 the CLI
+synthesizes that terminal `clearSelection` + `hide` at the frame's `duration`
+by default (config tracks are per-frame), so a parked caret no longer haunts
+later frames without author action; `persist: true` opts out for a deliberate
+carry-over (docs/43 §12). And track addressing covers the element's OWN text
+runs only, so a selection over a token targets the token span
+(`[data-line='6'] .str`), not the line.
 
 ## The superseded alternative — the synthetic document model + op timeline
 

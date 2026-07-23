@@ -277,7 +277,7 @@
     </g>
   </g>
   <g class="text-track" pointer-events="none">
-    <style>@keyframes tt-sel-18l1s6-0-0{0%{width:0.01px}65.9367%{width:0.01px}67.7616%{width:7.53px}69.5864%{width:15.06px}71.4112%{width:22.58px}73.236%{width:30.11px}75.0608%{width:37.63px}76.8856%{width:45.16px}100%{width:45.16px}}@keyframes tt-pos-18l1s6{0%{transform:translate(232.64px,96px)}51.3382%{transform:translate(232.64px,96px)}61.0706%{transform:translate(157.36px,96px)}100%{transform:translate(157.36px,96px)}}@keyframes tt-vis-18l1s6{0%{opacity:0}51.3382%{opacity:1}61.0706%{opacity:1}100%{opacity:1}}@keyframes tt-blink-18l1s6{0%{opacity:1}50%{opacity:0}100%{opacity:1}}</style>
+    <style>@keyframes tt-sel-18l1s6-0-0{0%{width:0.01px}65.9367%{width:0.01px}67.7616%{width:7.53px}69.5864%{width:15.06px}71.4112%{width:22.58px}73.236%{width:30.11px}75.0608%{width:37.63px}76.8856%{width:45.16px}100%{width:0.01px}100%{width:0.01px}}@keyframes tt-pos-18l1s6{0%{transform:translate(232.64px,96px)}51.3382%{transform:translate(232.64px,96px)}61.0706%{transform:translate(157.36px,96px)}100%{transform:translate(157.36px,96px)}}@keyframes tt-vis-18l1s6{0%{opacity:0}51.3382%{opacity:1}61.0706%{opacity:1}100%{opacity:0}100%{opacity:0}}@keyframes tt-blink-18l1s6{0%{opacity:1}50%{opacity:0}100%{opacity:1}}</style>
     <rect class="tt-sel" x="157.36" y="96" width="0.01" height="15" fill="#3b82f6aa" style="animation:tt-sel-18l1s6-0-0 4.11s step-end infinite"/>
     <g class="tt-vis" opacity="0" style="animation:tt-vis-18l1s6 4.11s step-end infinite"><g class="tt-pos" style="animation:tt-pos-18l1s6 4.11s step-end infinite"><rect class="tt-caret" width="2" height="15" fill="#93c5fd" style="animation:tt-blink-18l1s6 1.06s step-end infinite"/></g></g>
   </g>

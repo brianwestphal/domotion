@@ -177,9 +177,7 @@ by a `states` run frame:
       "events": [
         { "type": "park", "at": 250, "charOffset": 5 },
         { "type": "move", "at": 700, "charOffset": 0 },
-        { "type": "select", "at": 950, "charStart": 0, "charEnd": 5, "sweepMs": 400 },
-        { "type": "clearSelection", "at": 2400 },
-        { "type": "hide", "at": 2400 }
+        { "type": "select", "at": 950, "charStart": 0, "charEnd": 5, "sweepMs": 400 }
       ] } ] }
 ```
 
@@ -189,10 +187,17 @@ Two authoring rules learned from the flagship:
   OWN text runs; text inside child elements is not addressable (v1 limit,
   docs/101). `"btn"` lives in a `.str` child of the line, so the track
   targets `[data-line='6'] .str` directly.
-- **End the track explicitly.** A track's caret and selection hold their
-  final state through the animation loop — and the track layers above every
-  frame. Always `clearSelection` + `hide` at the frame's end (the cut into
-  the replacement run), or the parked caret haunts every later frame.
+- **The track auto-ends at the frame's cut (DM-1763).** A track's caret and
+  selection would otherwise hold their final state through the animation loop
+  — and the track layers above every frame — so a parked caret would haunt
+  every later frame. Because config tracks are per-frame, the CLI now
+  synthesizes the trailing `clearSelection` + `hide` at the frame's `duration`
+  for you: the sweep above declares no terminal events and still clears
+  cleanly at the cut into the replacement run. You only reach for an explicit
+  end when you want it at a *non*-cut time; and `"persist": true` on the track
+  opts out of the auto-end entirely, deliberately carrying the caret/selection
+  past the cut (docs/43 §12). (The rule inverted: tracks auto-end; use
+  `persist` to carry over.)
 
 Z-order caveat (docs/101): as a standalone overlay the selection paints
 ABOVE the glyphs (a translucent highlight-marker look). True behind-the-glyph

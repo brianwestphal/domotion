@@ -529,6 +529,13 @@ const textTrackSchema = z
     /** Default selection fill (per-event `color` overrides). Default a translucent blue. */
     selectionColor: z.string().optional(),
     events: z.array(textTrackEventSchema).min(1, "must be a non-empty array"),
+    /** DM-1763: by default a frame's track ENDS at that frame's cut — the CLI
+     *  synthesizes a trailing `hide` (and `clearSelection` if a selection is
+     *  still active) at the frame's `duration` so a parked caret/selection does
+     *  not hold through the loop and layer above every later frame. Set
+     *  `persist: true` to opt out for a deliberate carry-over (the pre-DM-1763
+     *  behavior, where the author ends the track by hand). */
+    persist: z.boolean().optional(),
   })
   .superRefine((tt, ctx) => {
     tt.events.forEach((ev, j) => {
@@ -1650,7 +1657,7 @@ async function buildCapturedFrame(
     // `AnimationConfig.textTracks`.
     if (fc.textTracks != null && fc.textTracks.length > 0) {
       for (let k = 0; k < fc.textTracks.length; k++) {
-        ctx.textTracks.push(resolveTextTrack(tree, configTextTrackSpec(fc.textTracks[k], i, k, frameStartMs)));
+        ctx.textTracks.push(resolveTextTrack(tree, configTextTrackSpec(fc.textTracks[k], i, k, frameStartMs, fc.duration)));
       }
     }
   }
@@ -1739,10 +1746,19 @@ async function buildStatesRunContent(
  * times, capture-stamped selectors) to the engine's `TextTrackSpec` (global
  * `t` times, `animId` targets). The animIds follow the stamping convention in
  * `buildCapturedFrame`: `f{frame}tt{track}` for the track target,
- * `f{frame}tt{track}e{event}` for a per-event selector override. Pure —
+ * `f{frame}tt{track}e{event}` for a per-event selector override.
+ *
+ * DM-1763: a frame's track ENDS at that frame's cut by default. If the authored
+ * events leave the caret visible or a selection active at end-of-frame, the CLI
+ * synthesizes a trailing `clearSelection` / `hide` at the frame's `duration`
+ * (mapped to the same global time an explicit `at: <duration>` event would be)
+ * so the caret/selection does not hold through the loop and layer above every
+ * later frame. `persist: true` opts out. An author who already ends the track
+ * (their own terminal `hide` / `clearSelection`) sees no synthesized duplicate —
+ * the final-state scan leaves the caret hidden / selection cleared. Pure —
  * exported for unit tests.
  */
-export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackIdx: number, frameStartMs: number): TextTrackSpec {
+export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackIdx: number, frameStartMs: number, frameDurationMs: number): TextTrackSpec {
   const events: TextTrackSpecEvent[] = tt.events.map((ev, j) => {
     const t = frameStartMs + ev.at;
     const override = "selector" in ev && ev.selector != null
@@ -1765,6 +1781,33 @@ export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackI
         return { type: "clearSelection", t };
     }
   });
+  // DM-1763: auto-end the track at the frame's cut unless `persist` is set.
+  // Scan the authored events in `at` order to find the caret/selection state
+  // the track would hold at end-of-frame; synthesize only what's still "on".
+  if (tt.persist !== true) {
+    let caretVisible = false;
+    let selectionActive = false;
+    for (const ev of [...tt.events].sort((a, b) => a.at - b.at)) {
+      switch (ev.type) {
+        case "park":
+        case "move":
+          caretVisible = true;
+          break;
+        case "hide":
+          caretVisible = false;
+          break;
+        case "select":
+          selectionActive = true;
+          break;
+        case "clearSelection":
+          selectionActive = false;
+          break;
+      }
+    }
+    const endT = frameStartMs + frameDurationMs;
+    if (selectionActive) events.push({ type: "clearSelection", t: endT });
+    if (caretVisible) events.push({ type: "hide", t: endT });
+  }
   return {
     target: { animId: `f${frameIdx}tt${trackIdx}` },
     ...(tt.shape != null ? { shape: tt.shape } : {}),

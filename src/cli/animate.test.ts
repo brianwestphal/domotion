@@ -469,7 +469,9 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
           }],
         }],
       });
-      const spec = configTextTrackSpec(cfg.frames[0].textTracks![0], 2, 1, 5000);
+      // The authored events already end the track (clearSelection + hide), so
+      // the DM-1763 auto-end synthesizes nothing — the mapping is 1:1.
+      const spec = configTextTrackSpec(cfg.frames[0].textTracks![0], 2, 1, 5000, 4000);
       expect(spec.target).toEqual({ animId: "f2tt1" });
       expect(spec.shape).toBe("underscore");
       expect(spec.events).toEqual([
@@ -479,6 +481,99 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
         { type: "clearSelection", t: 7500 },
         { type: "hide", t: 8000 },
       ]);
+    });
+
+    // DM-1763: a frame's track ends at that frame's cut by default. The CLI
+    // synthesizes the trailing hide (and clearSelection if a selection is still
+    // active) at the frame's duration; `persist: true` opts out; an author's own
+    // terminal hide/clearSelection is never doubled.
+    describe("auto-end at the frame's cut (DM-1763)", () => {
+      const track = (events: unknown[], extra: Record<string, unknown> = {}) =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 2000, textTracks: [{ selector: "#line", events, ...extra }] }],
+        }).frames[0].textTracks![0];
+
+      it("synthesizes a hide at the frame duration when the caret is left parked", () => {
+        const spec = configTextTrackSpec(track([{ type: "park", at: 100, charOffset: 3 }]), 0, 0, 0, 2000);
+        expect(spec.events).toEqual([
+          { type: "park", t: 100, charOffset: 3 },
+          { type: "hide", t: 2000 },
+        ]);
+      });
+
+      it("synthesizes clearSelection + hide (in that order) when a selection is active and the caret parked", () => {
+        const spec = configTextTrackSpec(
+          track([
+            { type: "park", at: 100, charOffset: 0 },
+            { type: "select", at: 300, charStart: 0, charEnd: 4, sweepMs: 200 },
+          ]),
+          1, 0, 5000, 2000,
+        );
+        expect(spec.events).toEqual([
+          { type: "park", t: 5100, charOffset: 0 },
+          { type: "select", t: 5300, charStart: 0, charEnd: 4, sweepMs: 200 },
+          { type: "clearSelection", t: 7000 },
+          { type: "hide", t: 7000 },
+        ]);
+      });
+
+      it("does not synthesize a selection clear when the caret was moved but no selection is active", () => {
+        // A select followed by an explicit clearSelection leaves only the caret on.
+        const spec = configTextTrackSpec(
+          track([
+            { type: "select", at: 100, charStart: 0, charEnd: 3 },
+            { type: "clearSelection", at: 500 },
+            { type: "move", at: 600, charOffset: 3 },
+          ]),
+          0, 0, 0, 2000,
+        );
+        expect(spec.events.filter((e) => e.type === "clearSelection")).toHaveLength(1);
+        expect(spec.events.at(-1)).toEqual({ type: "hide", t: 2000 });
+      });
+
+      it("does not double the author's own terminal hide", () => {
+        const spec = configTextTrackSpec(
+          track([
+            { type: "park", at: 100, charOffset: 3 },
+            { type: "hide", at: 1800 },
+          ]),
+          0, 0, 0, 2000,
+        );
+        expect(spec.events).toEqual([
+          { type: "park", t: 100, charOffset: 3 },
+          { type: "hide", t: 1800 },
+        ]);
+        expect(spec.events.filter((e) => e.type === "hide")).toHaveLength(1);
+      });
+
+      it("does not double the author's own terminal clearSelection + hide", () => {
+        const spec = configTextTrackSpec(
+          track([
+            { type: "park", at: 100, charOffset: 0 },
+            { type: "select", at: 300, charStart: 0, charEnd: 4 },
+            { type: "clearSelection", at: 1900 },
+            { type: "hide", at: 1900 },
+          ]),
+          0, 0, 0, 2000,
+        );
+        expect(spec.events.filter((e) => e.type === "hide")).toHaveLength(1);
+        expect(spec.events.filter((e) => e.type === "clearSelection")).toHaveLength(1);
+      });
+
+      it("persist: true suppresses all synthesized end events", () => {
+        const spec = configTextTrackSpec(
+          track([
+            { type: "park", at: 100, charOffset: 0 },
+            { type: "select", at: 300, charStart: 0, charEnd: 4 },
+          ], { persist: true }),
+          0, 0, 0, 2000,
+        );
+        expect(spec.events).toEqual([
+          { type: "park", t: 100, charOffset: 0 },
+          { type: "select", t: 300, charStart: 0, charEnd: 4 },
+        ]);
+      });
     });
   });
 

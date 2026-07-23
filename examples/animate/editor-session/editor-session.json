@@ -112,9 +112,7 @@
           "events": [
             { "type": "park", "at": 250, "charOffset": 5 },
             { "type": "move", "at": 700, "charOffset": 0 },
-            { "type": "select", "at": 950, "charStart": 0, "charEnd": 5, "sweepMs": 400 },
-            { "type": "clearSelection", "at": 2400 },
-            { "type": "hide", "at": 2400 }
+            { "type": "select", "at": 950, "charStart": 0, "charEnd": 5, "sweepMs": 400 }
           ]
         }
       ]

@@ -2133,6 +2133,9 @@
                       }
                     ]
                   }
+                },
+                "persist": {
+                  "type": "boolean"
                 }
               },
               "required": [
