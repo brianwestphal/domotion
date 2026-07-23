@@ -439,6 +439,37 @@ const EXAMPLES: Example[] = [
       return f;
     },
   },
+  {
+    // docs/100 stage 4: the declarative compressed-run + text-track surface.
+    // Frame 0 is ONE `states` frame: seven captured editing states (a mid-line
+    // insert typed two chars at a time, then a colorize-on-completion) composed
+    // by the frame-sequence compressor into a nested animated SVG, with the
+    // auto-caret riding the derived edit points. Frame 1 continues the live
+    // page and parks/moves a declarative `textTracks` caret then sweeps a
+    // selection over "signal" — the docs/101 track resolved from a config
+    // selector at capture time.
+    name: "compressed-run",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 640 360"`)) f.push("missing viewBox 640x360");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected 2 frame groups (the states run + the textTracks frame)");
+      // The compressed run nests as its own animated <svg> (cast/typeResample
+      // pattern), namespaced with the per-frame `cr0_` token.
+      if (count(svg, /<svg/g) < 2) f.push("missing the nested compressed-run animated <svg>");
+      if (!/cr0_/.test(svg)) f.push("missing the cr0_ namespace token on the nested run");
+      // Glyph identity groups with step-end tracks — the compressor's output
+      // shape (shared glyphs once, births/shifts/recolors as animations).
+      if (!/cr0_anim-cr0g\d+/.test(svg)) f.push("missing compressed-run glyph identity groups (cr0_anim-cr0g…)");
+      if (!/step-end/.test(svg)) f.push("missing step-end tracks (the compressor snaps at state boundaries)");
+      // The run's auto-caret (docs/101 markup inside the nested SVG).
+      if (!/class="cr0_text-track"/.test(svg)) f.push("missing the compressed run's auto-caret (cr0_text-track)");
+      // Frame 1's declarative textTracks emit a TOP-LEVEL (unprefixed)
+      // text-track group with a selection sweep rect.
+      if (!/class="text-track"/.test(svg)) f.push("missing the frame-1 textTracks group (top-level text-track)");
+      if (!/class="tt-sel"/.test(svg)) f.push("missing the selection sweep rect (tt-sel)");
+      return f;
+    },
+  },
 ];
 
 /**

@@ -1,10 +1,9 @@
 # 101 — Caret + selection track (declarative, anchored to captured text)
 
-Status: **Shipped** (engine + programmatic wiring + tests). The declarative
-config surface (schema, validation, selector sugar) is a follow-up stage — see
-"Config surface" below. Designed in `docs/100-rich-text-editing.md`
-("Primitive 2"); standalone, deliberately NOT gated on the frame-sequence
-compressor (doc 100, Primitive 1).
+Status: **Shipped** (engine + programmatic wiring + declarative config surface
++ tests). Designed in `docs/100-rich-text-editing.md` ("Primitive 2");
+standalone, deliberately NOT gated on the frame-sequence compressor (doc 100,
+Primitive 1).
 
 ## What it is
 
@@ -138,12 +137,22 @@ Public exports from the package root: `resolveTextTrack`, `textTrackMarkup`,
 `resolveCaretPoint`, `resolveRangeRects`, `findAddressedElement`,
 `addressableLength` and their types.
 
-### Config surface (follow-up stage)
+### Config surface (shipped)
 
-The declarative surface — `selector`-based addressing sugar (capture-side
-`data-domotion-anim` stamping like intra-frame animations), zod schema +
-validation + JSON-Schema regeneration, docs/43 cross-reference — is the next
-stage of doc 100's plan and intentionally not part of this primitive.
+The declarative surface is the per-frame `textTracks: [...]` list in the
+animate config (`src/cli/animate.ts`; authoring reference **docs/43 §12**):
+each track gives a `selector` (stamped `data-domotion-anim` on the first match
+at capture time — the intra-frame-animation mechanism; a no-match is a hard
+error naming the frame + config path) plus events with frame-relative `at`
+times, mapped to global time like cursor events. Per-event `selector`
+overrides stamp their own animId. The CLI maps the config track to a
+`TextTrackSpec` (`configTextTrackSpec`), resolves it against the frame's
+captured tree via `resolveTextTrack`, and threads the accumulated tracks into
+`AnimationConfig.textTracks`. `${vars}` interpolation applies to the selector
+fields like every other config string. Covered by schema unit tests
+(`src/cli/animate.test.ts`), the rasterized config e2e
+(`tests/compressed-run-config.e2e.test.ts`), and frame 1 of the committed
+golden `examples/animate/compressed-run/`.
 
 ## Limits (v1)
 

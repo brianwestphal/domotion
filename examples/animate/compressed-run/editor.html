@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- Compressed editing run demo page (docs/100 Primitive 1): an editor window
+     whose `ins(k)` helper inserts " computed," mid-line one step at a time
+     (reflowing the tail) and whose `colorize()` re-tokenizes the import line
+     at unchanged glyph positions. The animate config drives these helpers as
+     per-state actions inside ONE `states` frame; the compressor pairs the
+     unchanged glyphs across the captured states. -->
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 640px; height: 360px; overflow: hidden;
+    font-family: system-ui, sans-serif; background: #e8eaee; position: relative; }
+  .window { position: absolute; top: 16px; left: 16px; width: 608px; height: 328px;
+    border-radius: 10px; overflow: hidden; background: #1e293b; display: flex; flex-direction: column;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35); }
+  .titlebar { height: 30px; flex: none; background: #0f172a; display: flex; align-items: center;
+    padding: 0 12px; font-size: 12px; color: #94a3b8; }
+  .codearea { flex: 1; padding: 10px 0; font-family: Menlo, ui-monospace, monospace;
+    font-size: 12.5px; line-height: 19px; color: #e2e8f0; overflow: hidden; }
+  .ln { display: flex; white-space: pre; height: 19px; }
+  .ln .no { width: 36px; flex: none; text-align: right; padding-right: 12px; color: #475569; }
+  .kw { color: #93c5fd; } .str { color: #86efac; } .hole { color: #fbbf24; }
+</style></head><body>
+  <div class="window">
+    <div class="titlebar">app.tsx — compressed run</div>
+    <div class="codearea" id="code"></div>
+  </div>
+<script>
+  const K = (s) => '<span class="kw">' + s + '</span>';
+  const S = (s) => '<span class="str">' + s + '</span>';
+  const INS = " computed,";
+  const L3 = K("const") + " count = signal(0);";
+  const L4 = K("const") + " doubled = computed(() " + K("=>") + " count.value * 2);";
+  function render(rows) {
+    document.getElementById("code").innerHTML = rows.map((html, i) =>
+      '<div class="ln"><span class="no">' + (i + 1) + '</span><span class="src" data-line="' + (i + 1) + '">' + html + "</span></div>").join("");
+  }
+  window.ins = (k) => {
+    render([K("import") + " { signal," + INS.slice(0, k) + " mount } " + K("from") + " " + S("'kerfjs'") + ";", "", L3, L4]);
+  };
+  window.colorize = () => {
+    render([K("import") + ' <span class="hole">{</span> signal, computed, mount <span class="hole">}</span> ' + K("from") + " " + S("'kerfjs'") + ";", "", L3, L4]);
+  };
+  window.ins(0);
+</script></body></html>

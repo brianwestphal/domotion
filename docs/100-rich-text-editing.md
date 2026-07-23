@@ -1,10 +1,14 @@
 # 100 — Rich-text typing & editing: captured states + compression + caret/selection tracks
 
-Status: **Design; Primitives 1 + 2 shipped as engines** (the caret + selection
-track is implemented — see `docs/101-caret-selection-track.md` — and the
-frame-sequence compressor's v1 engine is implemented — see "Shipped engine
-(v1)" under Primitive 1 below; the fold-ins and the declarative config surface
-remain design). This is the requirements +
+Status: **Primitives 1 + 2 shipped (engines + declarative config surface);
+flagship validation remains.** The caret + selection track is implemented —
+see `docs/101-caret-selection-track.md` — the frame-sequence compressor's v1
+engine is implemented — see "Shipped engine (v1)" under Primitive 1 below —
+and the declarative config surface is shipped: the `states: [...]` run block
+(+ `caret` auto-caret) and the `textTracks: [...]` caret/selection tracks in
+the animate config, docs/43 §11–12, with the committed golden example
+`examples/animate/compressed-run/`. The fold-ins shipped earlier. This is the
+requirements +
 design reference for making editor-style typing/editing sequences (an IDE window
 typed into and edited, with syntax coloring, selection, mid-line inserts that
 reflow trailing text) first-class in the animate pipeline. Plain text is the
@@ -139,9 +143,15 @@ The compressor composes its run as one nested animated SVG re-anchored into its
 config frame's window (`embeddedAnimationPeriodMs`) — **exactly the
 `typeResample` / `cast` / scroll-block precedent, requiring zero animator
 changes** and preserving the load-bearing 1 config-frame ↔ 1 animation-frame
-invariant. Authoring: either `compress: true` stamped on the run's frames or a
-`states: [...]` block (per-state actions + hold durations) inside one config
-frame — final surface decided at build time (the config-sugar ticket).
+invariant. Authoring (decided at build time): the **`states: [...]` block**
+inside one config frame — per-state actions + hold durations, state 0 being
+the frame's own post-actions state — shipped as the surface (docs/43 §11).
+The alternative `compress: true` form stamped across a run of ordinary
+consecutive continue+cut frames was NOT built: collapsing N config frames into
+one animation frame re-indexes every frame-addressed feature (cursor events,
+transitions, magic-move bridges, frame trees), which breaks the invariant the
+block form preserves for free. It remains a candidate follow-up on top of the
+same machinery (tracked locally).
 
 Rejected placements, for the record: a *transition type* (compression is
 run-scoped identity tracking, not a pairwise A→B effect), and an *automatic pass
@@ -343,10 +353,17 @@ regardless of (and before) everything above:
 3. **Compressor v1** — **Shipped (engine)** — see "Shipped engine (v1)" above:
    `composeCompressedRun` (`src/animation/compressed-run.ts` +
    `src/animation/glyph-align.ts`), verified by aligner/threading unit tests, a
-   transition-matrix sequence test, and the rasterized pixel-parity e2e. The
-   committed golden example lands with stage 4 (it needs the config surface).
-4. **Config surface** — the run-block sugar + caret/selection overlay schema,
-   validation, JSON-Schema regeneration, docs/43 cross-reference, examples.
+   transition-matrix sequence test, and the rasterized pixel-parity e2e.
+4. **Config surface** — **Shipped** — the `states: [...]` run block (per-state
+   actions + hold durations, `caret` auto-caret, pairing-ratio logging) and the
+   `textTracks: [...]` caret/selection tracks (capture-time selector stamping →
+   `data-domotion-anim` → node-side address resolution, frame-relative `at`
+   mapped to global time) in `src/cli/animate.ts`; docs/43 §11–12 are the
+   authoring reference. JSON Schema regenerated; validated by schema unit tests
+   plus the rasterized config e2e (`tests/compressed-run-config.e2e.test.ts`)
+   and the committed golden example `examples/animate/compressed-run/` (a
+   mid-line insert + colorize run with the auto-caret riding it, then a
+   declarative caret park/move + selection sweep).
 5. **Flagship validation** — rebuild the kerf getting-started editor phases on
    runs + caret/selection; compare size and frame-by-frame visual parity against
    the shipped SVG (rasterize the actual output, per the verify-the-SVG rule);

@@ -42,9 +42,11 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744)** — **Shipped**
-  (engine + programmatic wiring; the declarative config surface is a follow-up
-  stage). The caret + selection track from doc 100's "Primitive 2", standalone
+- **Doc 101 (`docs/101-caret-selection-track.md`, DM-1744/DM-1747)** —
+  **Shipped** (engine + programmatic wiring + the declarative config surface:
+  per-frame `textTracks: [...]` with capture-time selector stamping and
+  frame-relative `at` times, docs/43 §12).
+  The caret + selection track from doc 100's "Primitive 2", standalone
   (not gated on the compressor): node-side addressing of `{ target,
   charOffset }` / ranges against the captured tree (code-point offsets over
   per-code-unit segment `xOffsets` — Chromium's painted x; baseline from
@@ -59,9 +61,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   arrives with the compressor's merged emission. Verified by a rasterized-SVG
   e2e (caret ink at resolved x ±1.5px, sweep growth, hide).
 
-- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Design;
-  Primitives 1 + 2 shipped as engines** (the declarative config surface is the
-  remaining stage). Editor-style typing/editing sequences, redesigned (7/23) around
+- **Doc 100 (`docs/100-rich-text-editing.md`, DM-1739)** — **Primitives 1 + 2
+  shipped (engines + the declarative config surface, DM-1747: the
+  `states: [...]` run block with `caret` auto-caret, docs/43 §11, golden
+  `examples/animate/compressed-run/`); the flagship validation is the
+  remaining stage**. Editor-style typing/editing sequences, redesigned (7/23) around
   captured states rather than a synthetic document model: the capture page stays
   the document model (per-state continue+cut frames — real reflow, real syntax
   coloring), and two primitives fix that model's measured costs: (1) the

@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, type AnimateConfig } from "./animate.js";
+import { validateAnimateConfig, interpolateConfigVars, resolveConfigBrand, buildCursorOverlay, placeEmbeddedFrame, resolveEmbeddedFrameOverlays, configTextTrackSpec, type AnimateConfig } from "./animate.js";
 import type { CursorEvent } from "../index.js";
 
 const base = { width: 100, height: 100 };
@@ -297,6 +297,191 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
     });
   });
 
+  describe("compressed-run `states` frames (DM-1747, docs/100 Primitive 1)", () => {
+    it("accepts a states frame with per-state actions and an auto-caret", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{
+          input: "editor.html",
+          duration: 1500,
+          caret: true,
+          states: [
+            { duration: 200 },
+            { actions: [{ type: "evaluate", script: "ins(1)" }], duration: 170 },
+            { actions: [{ type: "setText", selector: "#l1", value: "done" }], duration: 900 },
+          ],
+        }],
+      });
+      expect(cfg.frames[0].states).toHaveLength(3);
+      expect(cfg.frames[0].caret).toBe(true);
+    });
+
+    it("accepts caret as a { shape, color } object; rejects a bad shape", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], caret: { shape: "block", color: "#ff0000" } }],
+      });
+      expect(cfg.frames[0].caret).toEqual({ shape: "block", color: "#ff0000" });
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], caret: { shape: "beam" } }] }),
+      ).toThrow(/caret/);
+    });
+
+    it("rejects an empty states array (path-specific)", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [] }] }),
+      ).toThrow(/frames\[0\]\.states: must be a non-empty array/);
+    });
+
+    it("rejects a non-positive state duration (path-specific)", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 0 }] }] }),
+      ).toThrow(/frames\[0\]\.states\[0\]\.duration: must be a positive number \(ms\)/);
+    });
+
+    it("rejects states combined with scroll / cast / template / typeResample / jsReveal", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], scroll: { pattern: "down" } }] }),
+      ).toThrow(/cannot set both `states` and `scroll`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ cast: "x.cast", duration: 1, states: [{ duration: 100 }] }] }),
+      ).toThrow(/cannot set both `states` and `cast`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ template: "lower-third", duration: 1, states: [{ duration: 100 }] }] }),
+      ).toThrow(/cannot set both `states` and `template`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], typeResample: { selector: "#p", text: "x" } }] }),
+      ).toThrow(/cannot set both `states` and `typeResample`/);
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], jsReveal: { selector: "#a" } }] }),
+      ).toThrow(/cannot set both `states` and `jsReveal`/);
+    });
+
+    it("rejects `caret` without `states`", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, caret: true }] }),
+      ).toThrow(/frames\[0\]\.caret: `caret` requires a `states` compressed run/);
+    });
+
+    it("allows states on a continue frame (it drives the live page)", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1 }, { continue: true, duration: 1, states: [{ duration: 100 }] }],
+      });
+      expect(cfg.frames[1].states).toHaveLength(1);
+    });
+  });
+
+  describe("caret/selection `textTracks` frames (DM-1747, docs/101)", () => {
+    it("accepts a track with the full event vocabulary + options", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{
+          input: "a.html",
+          duration: 4000,
+          textTracks: [{
+            selector: "#line",
+            shape: "block",
+            color: "#ff0000",
+            barWidthPx: 1.5,
+            blinkMs: 900,
+            selectionColor: "#22ff2288",
+            events: [
+              { type: "park", at: 200, charOffset: 0 },
+              { type: "move", at: 1200, charOffset: 6, selector: "#other" },
+              { type: "select", at: 2000, charStart: 0, charEnd: 5, sweepMs: 600, color: "#0000ff44" },
+              { type: "clearSelection", at: 3000 },
+              { type: "hide", at: 3500 },
+            ],
+          }],
+        }],
+      });
+      expect(cfg.frames[0].textTracks?.[0].events).toHaveLength(5);
+    });
+
+    it("rejects an empty events array (path-specific)", () => {
+      expect(() =>
+        validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [] }] }] }),
+      ).toThrow(/frames\[0\]\.textTracks\[0\]\.events: must be a non-empty array/);
+    });
+
+    it("rejects a select whose charEnd <= charStart (path-specific)", () => {
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "select", at: 0, charStart: 5, charEnd: 5 }] }] }],
+        }),
+      ).toThrow(/frames\[0\]\.textTracks\[0\]\.events\[0\]\.charEnd: `charEnd` must be greater than `charStart`/);
+    });
+
+    it("rejects a negative event time and a negative charOffset", () => {
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "park", at: -1, charOffset: 0 }] }] }],
+        }),
+      ).toThrow(/frames\[0\]\.textTracks\[0\]\.events\[0\]\.at/);
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "park", at: 0, charOffset: -2 }] }] }],
+        }),
+      ).toThrow(/frames\[0\]\.textTracks\[0\]\.events\[0\]\.charOffset/);
+    });
+
+    it("rejects textTracks on a frame without a single captured tree", () => {
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, scroll: { pattern: "down" }, textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }] }],
+        }),
+      ).toThrow(/`textTracks` needs this frame's captured tree — it cannot be combined with `scroll`/);
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ input: "a.html", duration: 1, states: [{ duration: 100 }], textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }] }],
+        }),
+      ).toThrow(/`textTracks` needs this frame's captured tree — it cannot be combined with `states`/);
+      expect(() =>
+        validateAnimateConfig({
+          ...base,
+          frames: [{ cast: "x.cast", duration: 1, textTracks: [{ selector: "#x", events: [{ type: "hide", at: 0 }] }] }],
+        }),
+      ).toThrow(/`textTracks` needs this frame's captured tree — it cannot be combined with `cast`/);
+    });
+
+    it("configTextTrackSpec maps frame-relative times to global time and animIds to the stamping convention", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{
+          input: "a.html",
+          duration: 4000,
+          textTracks: [{
+            selector: "#line",
+            shape: "underscore",
+            events: [
+              { type: "park", at: 100, charOffset: 2 },
+              { type: "move", at: 900, charOffset: 4, selector: "#other" },
+              { type: "select", at: 1500, charStart: 1, charEnd: 3, sweepMs: 250 },
+              { type: "clearSelection", at: 2500 },
+              { type: "hide", at: 3000 },
+            ],
+          }],
+        }],
+      });
+      const spec = configTextTrackSpec(cfg.frames[0].textTracks![0], 2, 1, 5000);
+      expect(spec.target).toEqual({ animId: "f2tt1" });
+      expect(spec.shape).toBe("underscore");
+      expect(spec.events).toEqual([
+        { type: "park", t: 5100, charOffset: 2 },
+        { type: "move", t: 5900, charOffset: 4, target: { animId: "f2tt1e1" } },
+        { type: "select", t: 6500, charStart: 1, charEnd: 3, sweepMs: 250 },
+        { type: "clearSelection", t: 7500 },
+        { type: "hide", t: 8000 },
+      ]);
+    });
+  });
+
   it("accepts a top-level vars map", () => {
     const cfg = validateAnimateConfig({ ...base, vars: { base: "http://x" }, frames: [{ input: "${base}", duration: 1 }] });
     expect(cfg.vars).toEqual({ base: "http://x" });
@@ -425,6 +610,30 @@ describe("interpolateConfigVars (DM-852)", () => {
     expect(out.frames[0].input).toBe("http://localhost:4188");
     const action = out.frames[0].actions?.[0];
     expect(action != null && "selector" in action ? action.selector : undefined).toBe(".f[title='session.ts']");
+  });
+
+  it("substitutes ${name} inside `states` actions and `textTracks` selectors (DM-1747)", () => {
+    const out = interpolateConfigVars(validateAnimateConfig({
+      ...base,
+      vars: { line: "#line-1", ins: "ins(2)" },
+      frames: [
+        {
+          input: "editor.html", duration: 1000,
+          states: [{ duration: 100 }, { actions: [{ type: "evaluate", script: "${ins}" }, { type: "setText", selector: "${line}", value: "x" }], duration: 100 }],
+        },
+        {
+          continue: true, duration: 1000,
+          textTracks: [{ selector: "${line}", events: [{ type: "move", at: 0, charOffset: 1, selector: "${line}" }] }],
+        },
+      ],
+    }));
+    const stActions = out.frames[0].states![1].actions!;
+    expect(stActions[0].type === "evaluate" ? stActions[0].script : "").toBe("ins(2)");
+    expect("selector" in stActions[1] ? stActions[1].selector : "").toBe("#line-1");
+    const tt = out.frames[1].textTracks![0];
+    expect(tt.selector).toBe("#line-1");
+    const ev = tt.events[0];
+    expect(ev.type === "move" ? ev.selector : "").toBe("#line-1");
   });
 
   it("throws on an unknown variable", () => {

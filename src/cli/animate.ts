@@ -41,6 +41,8 @@ import {
   buildMagicMove,
   generateAnimatedSvg,
   cursorAtPoint,
+  composeCompressedRun,
+  resolveTextTrack,
   type AnimationConfig,
   type AnimationFrame,
   type IntraFrameAnimation,
@@ -48,6 +50,10 @@ import {
   type CursorOverlay,
   type CursorEvent,
   type CursorStyle,
+  type CompressedRunState,
+  type ResolvedTextTrack,
+  type TextTrackSpec,
+  type TextTrackSpecEvent,
 } from "../animation/index.js";
 import { captureElementTree, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
@@ -456,6 +462,83 @@ const jsRevealSchema = z.object({
 });
 export type ForceState = z.infer<typeof forceStateSchema>;
 
+// DM-1747 (docs/100 Primitive 1): compressed editing run — the `states: [...]`
+// block. One config frame captures N editing states of the live page (each
+// state runs its actions, then is captured) and composes them via
+// `composeCompressedRun` into ONE nested animated SVG: shared content emitted
+// once, every later state contributing only what changed (step-end glyph
+// births/deaths, tail shifts, recolors). The frame's content is the composed
+// run — the typeResample/cast nesting precedent, zero animator changes.
+const runStateSchema = z.object({
+  /** Actions applied to the live page before this state is captured. State 0
+   *  is the frame's own post-`actions` state, so it usually omits them. */
+  actions: z.array(actionSchema).optional(),
+  /** How long this state holds (ms) before snapping to the next. */
+  duration: z.number().positive("must be a positive number (ms)"),
+});
+
+// The run's opt-in auto-caret (docs/101 machinery): the compressor derives the
+// per-state edit points, so the caret rides the run with zero addressing.
+const statesCaretSchema = z.union([
+  z.boolean(),
+  z.object({
+    shape: z.enum(["bar", "block", "underscore"]).optional().describe("Caret shape (docs/97). Default bar."),
+    color: z.string().optional().describe("Caret color. Default #111111."),
+  }),
+]);
+
+// DM-1747 (docs/101): declarative caret + selection track. Events address
+// character positions inside a captured element (`selector` resolved at
+// capture time via the `data-domotion-anim` stamp, exactly like intra-frame
+// animations); `at` is ms within the frame, mapped to global time like cursor
+// events. Offsets count Unicode code points.
+const textTrackEventSchema = z.discriminatedUnion("type", [
+  /** Place the caret at the offset (shows it if hidden); blinks while parked. */
+  z.object({ type: z.literal("park"), at: z.number().nonnegative(), charOffset: z.number().int().nonnegative(), selector: z.string().optional() }),
+  /** Step-end jump to the offset (same semantics as park; reads better in scripts). */
+  z.object({ type: z.literal("move"), at: z.number().nonnegative(), charOffset: z.number().int().nonnegative(), selector: z.string().optional() }),
+  /** Hide the caret until the next park/move. */
+  z.object({ type: z.literal("hide"), at: z.number().nonnegative() }),
+  /** Sweep a selection over [charStart, charEnd), growing over sweepMs. */
+  z.object({
+    type: z.literal("select"),
+    at: z.number().nonnegative(),
+    charStart: z.number().int().nonnegative(),
+    charEnd: z.number().int().positive(),
+    sweepMs: z.number().nonnegative().optional(),
+    color: z.string().optional(),
+    selector: z.string().optional(),
+  }),
+  /** Clear the most recent selection. */
+  z.object({ type: z.literal("clearSelection"), at: z.number().nonnegative() }),
+]);
+
+const textTrackSchema = z
+  .object({
+    /** The element whose text the events address (first match; stamped with
+     *  `data-domotion-anim` at capture — a no-match is a hard error). */
+    selector: z.string(),
+    /** Caret shape (docs/97): bar (default) / block / underscore. */
+    shape: z.enum(["bar", "block", "underscore"]).optional(),
+    /** Caret color. Default #111111. */
+    color: z.string().optional(),
+    /** Bar-caret width px (default 2). */
+    barWidthPx: z.number().positive().optional(),
+    /** Blink period ms (default 1060). */
+    blinkMs: z.number().positive().optional(),
+    /** Default selection fill (per-event `color` overrides). Default a translucent blue. */
+    selectionColor: z.string().optional(),
+    events: z.array(textTrackEventSchema).min(1, "must be a non-empty array"),
+  })
+  .superRefine((tt, ctx) => {
+    tt.events.forEach((ev, j) => {
+      if (ev.type === "select" && ev.charEnd <= ev.charStart) {
+        ctx.addIssue({ code: "custom", path: ["events", j, "charEnd"], message: "`charEnd` must be greater than `charStart`" });
+      }
+    });
+  });
+type TextTrackInput = z.infer<typeof textTrackSchema>;
+
 // DM-1562 (docs/94 Option 1): `hoverReveal` sugar. A one-field per-frame reveal
 // that auto-expands (BEFORE the capture loop, in `expandHoverReveal`) into two
 // frames — the frame at REST, then a `continue` frame that forces `:hover`
@@ -608,6 +691,32 @@ const frameSchema = z.object({
    * Mutually exclusive with `scroll` / `cast` / `template` / `typeResample`.
    */
   jsReveal: jsRevealSchema.optional(),
+  /**
+   * DM-1747 (docs/100 Primitive 1): compressed editing run. Captures N states
+   * of the live page inside this ONE frame — state 0 is the frame's own
+   * post-`actions` state; each later state runs its `actions` then captures —
+   * and composes them via the frame-sequence compressor into a nested animated
+   * SVG that becomes this frame's content (shared content once, step-end glyph
+   * births / tail shifts / recolors; layout SNAPS at state boundaries).
+   * Mutually exclusive with `scroll` / `cast` / `template` / `typeResample` /
+   * `jsReveal` (all produce the frame's content).
+   */
+  states: z.array(runStateSchema).min(1, "must be a non-empty array").optional(),
+  /**
+   * DM-1747: the compressed run's auto-caret — `true` (bar, #111111) or
+   * `{ shape, color }`. The compressor derives each state's edit point, so the
+   * caret rides the run with zero addressing. Requires `states`.
+   */
+  caret: statesCaretSchema.optional(),
+  /**
+   * DM-1747 (docs/101): declarative caret + selection tracks anchored to this
+   * frame's captured text. Each track's `selector` is stamped at capture time
+   * (`data-domotion-anim`, the intra-frame-animation mechanism) and events
+   * address character positions by code-point offset; `at` is ms within the
+   * frame. Requires a captured frame (not scroll/cast/template/typeResample/
+   * jsReveal/states, which have no single captured tree).
+   */
+  textTracks: z.array(textTrackSchema).optional(),
   overlays: z.array(overlaySchema).optional(),
   /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
   animations: z.array(frameAnimationSchema).optional(),
@@ -742,6 +851,38 @@ export const animateConfigSchema = z
       }
       if (f.jsReveal != null && f.typeResample != null) {
         ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `typeResample`" });
+      }
+      // DM-1747: `states` produces the frame's content (a compressed-run nested
+      // animated SVG), so it can't coexist with the other content-producing
+      // kinds. It drives the live page, so it's fine on a `continue` frame or a
+      // fresh `input` load (like `typeResample`).
+      if (f.states != null) {
+        const conflicts: Array<[string, unknown]> = [
+          ["scroll", f.scroll], ["cast", f.cast], ["template", f.template],
+          ["typeResample", f.typeResample], ["jsReveal", f.jsReveal],
+        ];
+        for (const [key, present] of conflicts) {
+          if (present != null) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "states"], message: `a frame cannot set both \`states\` and \`${key}\`` });
+          }
+        }
+      }
+      if (f.caret != null && f.states == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "caret"], message: "`caret` requires a `states` compressed run (the typing overlay and `typeResample` carry their own caret options)" });
+      }
+      // DM-1747: `textTracks` resolves addresses against THIS frame's single
+      // captured tree, so it can't ride a frame whose content is a nested
+      // composition (no single tree to resolve against).
+      if (f.textTracks != null) {
+        const conflicts: Array<[string, unknown]> = [
+          ["scroll", f.scroll], ["cast", f.cast], ["template", f.template],
+          ["typeResample", f.typeResample], ["jsReveal", f.jsReveal], ["states", f.states],
+        ];
+        for (const [key, present] of conflicts) {
+          if (present != null) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "textTracks"], message: `\`textTracks\` needs this frame's captured tree — it cannot be combined with \`${key}\`` });
+          }
+        }
       }
       // DM-1294: `duration` is required (and positive) except on a `template`
       // frame, which derives it from the template's play time when omitted (the
@@ -1235,6 +1376,9 @@ interface CapturedFrameContext {
   explicitCursorEvents: CursorEventInput[];
   autoCursorTargets: Array<{ frame: number; cx: number; cy: number }>;
   explicitCursorBoxes: Map<string, { cx: number; cy: number }>;
+  /** DM-1747 (docs/101): resolved caret/selection tracks accumulated across
+   *  frames (global-time geometry) for `AnimationConfig.textTracks`. */
+  textTracks: ResolvedTextTrack[];
 }
 
 /**
@@ -1353,6 +1497,39 @@ async function buildCapturedFrame(
     }
   }
 
+  // DM-1747 (docs/101): stamp each text track's target (and any per-event
+  // selector override) with `data-domotion-anim` on the live DOM — the exact
+  // mechanism intra-frame animations use above — so the captured tree carries
+  // the animId the text-address resolver looks up. One target element per
+  // track (first match); a selector matching nothing is a hard error naming
+  // the frame + config path.
+  if (fc.textTracks != null && fc.textTracks.length > 0) {
+    const stamp = async (selector: string, animId: string, label: string): Promise<void> => {
+      const matched = await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const el = document.querySelector(args.selector);
+          if (el instanceof HTMLElement) {
+            el.dataset.domotionAnim = args.animId;
+            return true;
+          }
+          return false;
+        },
+        { selector, animId },
+      );
+      if (!matched) throw new Error(`animate: ${label} selector "${selector}" matched no element in frame ${i}`);
+    };
+    for (let k = 0; k < fc.textTracks.length; k++) {
+      const tt = fc.textTracks[k];
+      await stamp(tt.selector, `f${i}tt${k}`, `frames[${i}].textTracks[${k}]`);
+      for (let j = 0; j < tt.events.length; j++) {
+        const ev = tt.events[j];
+        if ("selector" in ev && ev.selector != null) {
+          await stamp(ev.selector, `f${i}tt${k}e${j}`, `frames[${i}].textTracks[${k}].events[${j}]`);
+        }
+      }
+    }
+  }
+
   let svgContent: string;
   let frameCullCss: string;
   // DM-898: retain this frame's captured tree so a magic-move transition
@@ -1394,6 +1571,22 @@ async function buildCapturedFrame(
     embeddedAnimationPeriodMs = res.periodMs;
     if (fc.duration < res.periodMs) {
       log(`  note: frame duration ${fc.duration}ms < jsReveal play time ${res.periodMs}ms — the reveal will be cut off; size duration to ≈ ${res.periodMs}ms`);
+    }
+  } else if (fc.states != null) {
+    // DM-1747 (docs/100 Primitive 1): compressed editing run. Each state runs
+    // its actions against the live page and is captured; the N states compose
+    // via `composeCompressedRun` into ONE nested animated SVG (shared content
+    // emitted once, step-end birth/shift/recolor tracks, snap at boundaries)
+    // that becomes this frame's content — the typeResample/cast nesting
+    // precedent, so the animator needs zero changes. No single captured tree
+    // (magic-move to/from it falls back to crossfade).
+    const res = await buildStatesRunContent(page, fc, i, cfg, log);
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+    if (fc.duration < res.periodMs) {
+      log(`  note: frame duration ${fc.duration}ms < compressed-run play time ${res.periodMs}ms — the run will be cut off; size duration to ≈ ${res.periodMs}ms`);
     }
   } else if (fc.scroll != null) {
     // DM-612: scroll-demo block. Run the executor against the loaded
@@ -1451,6 +1644,15 @@ async function buildCapturedFrame(
     rootBg = tree[0]?.styles?.rootBgComputed;
     svgContent = elementTreeToSvgInner(tree, cfg.width, cfg.height, `f${i}-`, true, 2, false);
     frameTree = tree;
+    // DM-1747 (docs/101): resolve this frame's declarative text tracks against
+    // the captured tree — frame-relative `at` mapped to global time (the cursor
+    // events' frame→global mapping) — and accumulate for the animator's
+    // `AnimationConfig.textTracks`.
+    if (fc.textTracks != null && fc.textTracks.length > 0) {
+      for (let k = 0; k < fc.textTracks.length; k++) {
+        ctx.textTracks.push(resolveTextTrack(tree, configTextTrackSpec(fc.textTracks[k], i, k, frameStartMs)));
+      }
+    }
   }
 
   // DM-850 §5: resolve selector-anchored overlays against the live page
@@ -1472,6 +1674,106 @@ async function buildCapturedFrame(
     ...(embeddedAnimationPeriodMs != null ? { embeddedAnimationPeriodMs } : {}),
   };
   return { frame, frameTree, rootBg };
+}
+
+/**
+ * DM-1747 (docs/100 Primitive 1): build a `states` frame's content. Runs each
+ * state's actions against the live page, captures the tree, and composes the N
+ * captured states via `composeCompressedRun` into one nested animated SVG:
+ * content shared across states is emitted once; later states contribute only
+ * their changes as `step-end` tracks (glyph births/deaths, uniform tail
+ * shifts, recolors), snapping at every state boundary. Fonts are deferred to
+ * the outer run's shared embedded-font builder (`manageFonts: false`, the
+ * cast/typeResample pattern), and the run's document-global names are
+ * namespaced per frame so nested runs can't collide. The compressor's pairing
+ * log line (`compress: run of N states, X% glyphs paired, …`) surfaces through
+ * the CLI logger.
+ */
+async function buildStatesRunContent(
+  page: Page,
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  log: (msg: string) => void,
+): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined }> {
+  const stateCfgs = fc.states!;
+  log(`  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`);
+  const states: CompressedRunState[] = [];
+  for (let j = 0; j < stateCfgs.length; j++) {
+    const st = stateCfgs[j];
+    // State 0 is the frame's own post-`actions` state; each state's own
+    // actions (if any) run before its capture.
+    if (st.actions != null && st.actions.length > 0) await runActions(page, st.actions, log);
+    const tree = await captureElementTree(page, fc.selector ?? "body", {
+      x: 0, y: 0, width: cfg.width, height: cfg.height,
+    });
+    cullElementsOutsideViewBox(tree, cfg.width, cfg.height, undefined, 0, 1);
+    states.push({ tree, holdMs: st.duration });
+  }
+  const rootBg = states[0].tree[0]?.styles?.rootBgComputed;
+  const run = composeCompressedRun(states, {
+    width: cfg.width,
+    height: cfg.height,
+    idPrefix: `cr${i}`,
+    ...(rootBg != null ? { background: rootBg } : {}),
+    ...(fc.caret != null ? { caret: fc.caret } : {}),
+    // Defer @font-face to the outer run's shared embedded-font builder (one
+    // scene-wide block, collected after the loop) — the cast pattern.
+    manageFonts: false,
+    log: (m) => log(`  ${m}`),
+  });
+  // Namespace the run's document-global names (ids, classes, @keyframes) so
+  // it can't collide with the outer animation or sibling nested frames — but
+  // NOT font-family refs (they point at the shared builder's already-unique
+  // dmfN names), same as a `cast` frame.
+  const namespaced = namespaceEmbeddedAnimatedSvg(run.svg, `cr${i}_`, { namespaceFonts: false });
+  return {
+    svgContent: namespaced.replace(/^<\?xml[^>]*\?>\s*/, ""),
+    periodMs: run.durationMs,
+    rootBg,
+  };
+}
+
+/**
+ * DM-1747 (docs/101): map a config-level text track (frame-relative `at`
+ * times, capture-stamped selectors) to the engine's `TextTrackSpec` (global
+ * `t` times, `animId` targets). The animIds follow the stamping convention in
+ * `buildCapturedFrame`: `f{frame}tt{track}` for the track target,
+ * `f{frame}tt{track}e{event}` for a per-event selector override. Pure —
+ * exported for unit tests.
+ */
+export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackIdx: number, frameStartMs: number): TextTrackSpec {
+  const events: TextTrackSpecEvent[] = tt.events.map((ev, j) => {
+    const t = frameStartMs + ev.at;
+    const override = "selector" in ev && ev.selector != null
+      ? { target: { animId: `f${frameIdx}tt${trackIdx}e${j}` } }
+      : {};
+    switch (ev.type) {
+      case "park":
+      case "move":
+        return { type: ev.type, t, charOffset: ev.charOffset, ...override };
+      case "select":
+        return {
+          type: "select", t, charStart: ev.charStart, charEnd: ev.charEnd,
+          ...(ev.sweepMs != null ? { sweepMs: ev.sweepMs } : {}),
+          ...(ev.color != null ? { color: ev.color } : {}),
+          ...override,
+        };
+      case "hide":
+        return { type: "hide", t };
+      case "clearSelection":
+        return { type: "clearSelection", t };
+    }
+  });
+  return {
+    target: { animId: `f${frameIdx}tt${trackIdx}` },
+    ...(tt.shape != null ? { shape: tt.shape } : {}),
+    ...(tt.color != null ? { color: tt.color } : {}),
+    ...(tt.barWidthPx != null ? { barWidthPx: tt.barWidthPx } : {}),
+    ...(tt.blinkMs != null ? { blinkMs: tt.blinkMs } : {}),
+    ...(tt.selectionColor != null ? { selectionColor: tt.selectionColor } : {}),
+    events,
+  };
 }
 
 export async function composeAnimateFrames(
@@ -1571,10 +1873,15 @@ export async function composeAnimateFrames(
       }
     }
 
+    // DM-1747 (docs/101): resolved caret/selection tracks accumulated across
+    // captured frames, threaded into the animator's `textTracks`.
+    const textTracks: ResolvedTextTrack[] = [];
+
     // DM-1379: the per-frame loop state `buildCapturedFrame` reads/appends to.
     const capturedCtx: CapturedFrameContext = {
       page, cfg, configDir, log, tracker,
       cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes,
+      textTracks,
     };
 
     for (let i = 0; i < cfg.frames.length; i++) {
@@ -1651,7 +1958,12 @@ export async function composeAnimateFrames(
     const fontFaceCss = getEmbeddedFontFaceCss();
     // DM-1137: return the assembled config instead of rendering it here — the
     // render lives in `composeAnimateConfig` so callers can mutate frames first.
-    return { width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg };
+    return {
+      width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg,
+      // DM-1747 (docs/101): declarative caret/selection tracks resolved during
+      // capture. Omitted when none are declared (byte-identical output).
+      ...(textTracks.length > 0 ? { textTracks } : {}),
+    };
   } finally {
     await ctx.close();
   }

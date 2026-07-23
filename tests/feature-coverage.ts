@@ -283,6 +283,19 @@ export const FEATURES: FeatureEntry[] = [
     transition: "type → colorize → select-ish chrome change → backspace ×2 across two lines threads one identity pool (birth/shift/recolor/death per glyph, windowed chrome variants) — asserted as a single multi-state sequence, not isolated pairs.",
   },
   {
+    id: "animate.states-config",
+    behavior: "Declarative compressed-run surface: a frame's `states: [...]` block (per-state actions + hold durations, state 0 = the frame's own post-actions state) captures N editing states of the live page and composes them via composeCompressedRun into the frame's nested svgContent (embeddedAnimationPeriodMs re-anchor), with `caret: true|{shape,color}` auto-caret and the pairing-ratio log surfaced through the CLI logger; mutually exclusive with the other content-producing frame kinds.",
+    doc: "docs/43-declarative-animate-config.md",
+    tests: ["src/cli/animate.test.ts", "tests/compressed-run-config.e2e.test.ts", "tests/animate-examples.tsx"],
+    transition: "load → frame actions → state-0 capture → per-state actions+capture ×N → compose → nested embed, asserted end-to-end through composeAnimateFrames with the rasterized tail shift + colorize recolor at seeked state midpoints.",
+  },
+  {
+    id: "animate.text-tracks-config",
+    behavior: "Declarative caret/selection surface: a frame's `textTracks: [...]` list — selector stamped `data-domotion-anim` at capture (hard error on no match, naming frame + path), events with frame-relative `at` mapped to global time (park/move/hide/select/clearSelection, code-point offsets), resolved against the captured tree into AnimationConfig.textTracks.",
+    doc: "docs/101-caret-selection-track.md",
+    tests: ["src/cli/animate.test.ts", "tests/compressed-run-config.e2e.test.ts", "tests/animate-examples.tsx"],
+  },
+  {
     id: "animate.interaction-state",
     behavior: "Force real CSS pseudo-state (:hover / :active / :focus) on selectors via CDP CSS.forcePseudoState before capture, so a frame paints the page's OWN interaction styling — the animate config's per-frame `forceState` and the imperative `applyForcedPseudoStates` primitive.",
     doc: "docs/94-interaction-state-capture.md",

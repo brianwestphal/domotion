@@ -71,7 +71,9 @@ shortest possible map:
   (`composeCompressedRun` — N captured continue+cut states → one nested
   animated SVG: chrome union + per-line glyph identities on step-end
   opacity/translateX/fill tracks, opt-in auto-caret) and `glyph-align.ts`
-  (`alignLineGlyphs` — the order-preserving per-line LCS aligner) +
+  (`alignLineGlyphs` — the order-preserving per-line LCS aligner); both have a
+  declarative surface in the animate config (docs/43 §11–12: the `states`
+  run block + per-frame `textTracks`, wired in `src/cli/animate.ts`) +
   **animated-SVG compositing** (DM-1323, doc 77): `composite.ts`
   (`composeAnimatedLayers` — stack animated SVGs as placed, independently-timed
   layers), `embed-namespace.ts` (per-layer name namespacing), `embed-timeline.ts`

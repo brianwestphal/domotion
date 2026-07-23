@@ -332,6 +332,64 @@ A frame may force real CSS pseudo-state on selectors **before capture**, so it p
 
 ---
 
+## 11. Compressed editing runs — `states` (docs/100 Primitive 1)
+
+A frame may capture **N editing states of the live page inside one frame** and compose them through the frame-sequence compressor (`composeCompressedRun`, `docs/100-rich-text-editing.md`): content shared across states is emitted once, and every later state contributes only what actually changed — new glyphs appear via `step-end` opacity births, a shifted tail rides `step-end` `translateX` waypoints, a recolored glyph gets a `fill` step keyframe. Layout **snaps** at state boundaries (real editors snap; crossfading near-identical lines reads as a blur-pulse). The composed run becomes this frame's content as a nested animated SVG — the `typeResample` / `cast` nesting pattern, so it needs no animator changes.
+
+**Surface.**
+
+```jsonc
+{ "input": "./editor.html", "duration": 1910,
+  "caret": { "color": "#e2e8f0" },
+  "states": [
+    { "duration": 260 },                                                      // state 0: the frame's own post-actions state
+    { "actions": [{ "type": "evaluate", "script": "ins(2)" }], "duration": 150 },
+    { "actions": [{ "type": "evaluate", "script": "ins(4)" }], "duration": 150 },
+    { "actions": [{ "type": "evaluate", "script": "colorize()" }], "duration": 900 }
+  ] }
+```
+
+**Semantics.**
+
+- The frame loads / continues as usual and runs its own `actions`; **state 0 is that post-actions state**. Each later state runs its `actions` (the full §2–§3 vocabulary) against the live page, then captures. Per-state `duration` (> 0, required) is how long the state holds before snapping to the next; the run's total play time is the sum — size the frame's `duration` to ≈ that sum (the CLI warns otherwise, the `cast`-frame rule).
+- `caret: true | { shape, color }` opts into the run's **auto-caret**: the compressor derives each state's edit point (where the typed glyphs landed / where a deletion closed up), so the docs/97-shaped caret rides the run with zero addressing. `shape` defaults to `bar`, `color` to `#111111`. `caret` requires `states`.
+- The compressor logs its **pairing ratio** per run (`compress: run of N states, X% glyphs paired, Y KB → Z KB`) so authors can see when compression collapsed (anything failing exact pairing re-emits from its own state's capture — never wrong pixels, just less compression).
+- `states` is mutually exclusive with the other content-producing kinds (`scroll` / `cast` / `template` / `typeResample` / `jsReveal`). It drives the live page, so it works on a `continue` frame or a fresh `input` load. Like those kinds, a `states` frame has no single captured tree: magic-move to/from it falls back to crossfade, and cursor events can't address the states *inside* the run (editing runs have no pointer).
+- A `compress: true` form stamped across a run of ordinary consecutive `continue`+`cut` frames is **not** part of v1 — collapsing config frames would re-index every frame-addressed feature (cursor events, transitions, magic-move); `states:` keeps the 1 config-frame ↔ 1 animation-frame invariant instead.
+
+Example: `examples/animate/compressed-run/`. Engine + measured behavior: `docs/100-rich-text-editing.md` ("Shipped engine (v1)").
+
+## 12. Caret + selection tracks — `textTracks` (docs/101)
+
+A frame may declare **caret / selection tracks** anchored to its captured text: timed events addressing character positions inside an element, rendered as a blinking caret (bar / block / underscore, docs/97 geometry) and/or a sweeping selection highlight — on **Chromium's own painted glyph positions** from the captured tree (no live-page probe, no hand-tuned ascent constants). See `docs/101-caret-selection-track.md` for the engine.
+
+**Surface.**
+
+```jsonc
+{ "continue": true, "duration": 2200,
+  "textTracks": [
+    { "selector": "[data-line='3']",
+      "color": "#93c5fd",
+      "events": [
+        { "type": "park",   "at": 200, "charOffset": 19 },
+        { "type": "move",   "at": 600, "charOffset": 9 },
+        { "type": "select", "at": 800, "charStart": 9, "charEnd": 15, "sweepMs": 450 }
+      ] }
+  ] }
+```
+
+**Semantics.**
+
+- **Addressing.** The track's `selector` resolves at capture time by stamping `data-domotion-anim` on the **first** match (the intra-frame-animation mechanism); a selector matching nothing is a **hard error** naming the frame + config path. Offsets count Unicode **code points** over the element's own text runs in captured order. A per-event `selector` override retargets that one event.
+- **Events** (`at` = ms within the frame, mapped to global time like cursor events): `park` / `move` `{ at, charOffset }` place the caret (step-end jumps; blinks while parked); `hide` `{ at }` hides it until the next park/move; `select` `{ at, charStart, charEnd, sweepMs?, color? }` sweeps a selection over the range, growing per painted character edge over `sweepMs` (0 = appears at once); `clearSelection` `{ at }` clears the most recent selection.
+- **Track options**: `shape` (`bar` default / `block` / `underscore`), `color` (default `#111111`), `barWidthPx` (2), `blinkMs` (1060), `selectionColor` (default a translucent blue; per-event `color` overrides).
+- Unresolvable **events** (out-of-range offsets) are skipped with a warning (the cursor-overlay soft-fail convention) — only the selector itself is a hard error.
+- `textTracks` requires this frame's single captured tree, so it can't be combined with `scroll` / `cast` / `template` / `typeResample` / `jsReveal` / `states`. Z-order: selection rects paint **above** the captured text (a highlight-marker look — true behind-the-glyphs selection is the compressed run's merged emission), and the whole track layers above frame content but **below the cursor overlay**.
+
+Example: frame 1 of `examples/animate/compressed-run/`.
+
+---
+
 ## Nested animation: preserved vs snapshotted (DM-1322)
 
 Composition primitives differ in whether a **nested animation** survives. This is the single most surprising thing about composing animated pieces, so the contract is spelled out:
@@ -341,6 +399,7 @@ Composition primitives differ in whether a **nested animation** survives. This i
 | `cast` frame | **Preserved** | The terminal recording plays. Since DM-1319 its timeline is re-anchored to start when the frame appears (see `docs/67`). |
 | `template` frame | **Preserved** | An animated template (one with a `durationMs`) plays; re-anchored like a cast (DM-1319). A static template (e.g. `device-mockup`) has nothing to animate. |
 | `scroll` frame (`--scroll` / `scroll` block) | **Preserved** | The composed scroll SVG carries its own keyframe loop. |
+| `states` frame (compressed run, §11) | **Preserved** | The composed run is a nested animated SVG (step-end birth/shift/recolor tracks), re-anchored to start when the frame is shown (`embeddedAnimationPeriodMs`). |
 | `input` frame `animations` | **Preserved** | Intra-frame property animations on captured elements run during the frame's hold. |
 | **`svg` overlay** | **Snapshot (NOT preserved)** | A referenced `.svg` is inlined as a **static first-frame** graphic — an *animated* SVG loses its animation. Use a `cast` / `template` frame, or the `composite` primitive, for an animated inset — not an `svg` overlay. |
 | `device-mockup` / `wrapInDeviceChrome` (decorator) | **Preserved with animated content** | `wrapInDeviceChrome` *nests* its screen (it doesn't re-render), so it preserves animation. The `device-mockup` template's `input`-capture path is static, but its `screenSvg` param (DM-1323) nests a pre-rendered **animated** SVG with animation intact. |

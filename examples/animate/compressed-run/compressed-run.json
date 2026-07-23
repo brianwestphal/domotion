@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 640,
+  "height": 360,
+  "frames": [
+    {
+      "input": "./editor.html",
+      "duration": 1910,
+      "transition": { "type": "cut", "duration": 0 },
+      "caret": { "color": "#e2e8f0" },
+      "states": [
+        { "duration": 260 },
+        { "actions": [{ "type": "evaluate", "script": "ins(2)" }], "duration": 150 },
+        { "actions": [{ "type": "evaluate", "script": "ins(4)" }], "duration": 150 },
+        { "actions": [{ "type": "evaluate", "script": "ins(6)" }], "duration": 150 },
+        { "actions": [{ "type": "evaluate", "script": "ins(8)" }], "duration": 150 },
+        { "actions": [{ "type": "evaluate", "script": "ins(10)" }], "duration": 150 },
+        { "actions": [{ "type": "evaluate", "script": "colorize()" }], "duration": 900 }
+      ]
+    },
+    {
+      "continue": true,
+      "duration": 2200,
+      "transition": { "type": "cut", "duration": 0 },
+      "textTracks": [
+        {
+          "selector": "[data-line='3']",
+          "color": "#93c5fd",
+          "events": [
+            { "type": "park", "at": 200, "charOffset": 19 },
+            { "type": "move", "at": 600, "charOffset": 9 },
+            { "type": "select", "at": 800, "charStart": 9, "charEnd": 15, "sweepMs": 450 }
+          ]
+        }
+      ]
+    }
+  ]
+}
