@@ -165,6 +165,10 @@ describe("svg-scrubber server (DM-1040)", () => {
   // hole tracking `playhead` — during playback it must ADVANCE (binding wired)
   // while the surrounding transport DOM is left untouched (no per-frame morph:
   // untracked attribute state survives a full second of playback frames).
+  // The hole shares its parent with static sibling text ("{hole} / {total}"):
+  // kerfjs < 2.0.1 intermittently dropped the static siblings when a
+  // re-render raced the binding update (upstream KF-374, fixed in 2.0.1), so
+  // this test also asserts the static " / total" part survives playback.
   it("playback advances the time label without re-rendering the transport (DM-1730)", async () => {
     if (!chromiumAvailable) return;
     const anim = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><rect width="40" height="40" fill="#28c"><animateTransform attributeName="transform" type="translate" from="0 0" to="60 60" dur="4s" repeatCount="indefinite"/></rect></svg>`;
@@ -193,6 +197,7 @@ describe("svg-scrubber server (DM-1040)", () => {
       const label1 = await page.locator(".time").textContent();
       await page.locator("button[data-action=play]").click(); // pause
       expect(label1).not.toBe(label0); // the computed hole tracks the playhead
+      expect(label1).toContain(" / "); // static siblings of the bound hole survive (KF-374 regression pin)
       expect(marker).toBe("alive");    // no per-frame transport morph
     } finally {
       await ctx.close().catch(() => {});

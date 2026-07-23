@@ -189,11 +189,12 @@ function markerLeft(ms: number): string {
 // `effect` pokes its `.value` imperatively below.) Structural state
 // (panels, load/busy flags) stays `.value`-read — "values bind, structure
 // re-renders".
-// Each computed is the SOLE child of its element: mixing a bound hole with
-// static sibling text in one parent is morph-fragile (siblings can be
-// dropped when a re-render races the binding update), so the whole label
-// string is computed instead.
-const timeLabel = computed(() => `${fmt(playhead.value)} / ${fmt(durationMs.value)}`);
+// The bound holes below share their parents with static sibling content
+// ("{hole} / {static}") — natural mixed markup. kerfjs < 2.0.1 had a morph
+// bug where a re-render racing a binding update could intermittently drop
+// the static siblings of a bound hole (upstream KF-374; we worked around it
+// for a while by making each computed the sole child of its element).
+// Fixed in kerfjs 2.0.1, so the markup is back to the natural form.
 const frameLabel = computed(() => fmt(playhead.value));
 
 function render() {
@@ -234,7 +235,7 @@ function render() {
             )}
             <input type="range" class="scrub" data-action="scrub" min="0" max="1000" step="0.1" disabled={!svgLoaded.value} />
           </div>
-          <div class="time">{timeLabel}</div>
+          <div class="time">{frameLabel} / {fmt(dur)}</div>
         </div>
         <div class="row row2">
           <div class="grp">
@@ -294,7 +295,7 @@ function render() {
               </button>
               <button data-action="rv-clear-region" disabled={!svgLoaded.value || regions.value.length === 0}>Clear</button>
               <label class="muted"><input type="checkbox" data-action="rv-attach" checked={attachFrame.value} disabled={!svgLoaded.value} />attach frame</label>
-              <span class="muted">frame @ <span>{frameLabel}</span> · range {fmt(rangeStart.value)}–{fmt(hi)}</span>
+              <span class="muted">frame @ {frameLabel} · range {fmt(rangeStart.value)}–{fmt(hi)}</span>
               <button class="primary" data-action="rv-save" disabled={!svgLoaded.value || savingTicket.value}>{savingTicket.value ? "Saving…" : "Save issue"}</button>
             </div>
             <textarea class="rv-note" data-action="rv-note" placeholder="Describe the issue (becomes the ticket body)…" disabled={!svgLoaded.value}></textarea>
