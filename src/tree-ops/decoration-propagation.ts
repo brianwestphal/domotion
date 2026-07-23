@@ -49,11 +49,11 @@ import type { CapturedElement, PropagatedDecoration } from "../capture/types.js"
  * start, not the decorating box's. The renderer's existing per-segment
  * `segX` anchoring already matches, so this pass carries no phase anchor.
  *
- * Known simplification: a `vertical-align`-shifted child (sub/sup) paints
- * the propagated decorations at its own shifted baseline rather than the
- * decorating box's line position (Blink's `offset_from_decorating_box`);
- * `vertical-align` isn't captured today, so that correction needs a
- * capture-side field first — tracked separately.
+ * DM-1732: each entry also records the decorating element's own measured
+ * text baselines (`baselines`), so a `vertical-align`-shifted child (sub/
+ * sup) can anchor the inherited line at the DECORATING box's position
+ * (Blink's `offset_from_decorating_box`) — see `pickPropagatedBaseline` in
+ * `src/render/text.ts` for the selection rule.
  *
  * Idempotent: re-running clears and recomputes the annotations, so callers
  * may run it on every render of a shared tree.
