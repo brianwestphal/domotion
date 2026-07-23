@@ -662,6 +662,72 @@ describe("animator", () => {
     }
   });
 
+  // DM-1749 (docs/100 fold-in): `holdToFrameEnd` opts out of the forced
+  // end-of-frame fade — the overlay holds full opacity to the frame boundary
+  // and drops with a hard step cut, instead of fading out 150 ms early.
+  describe("typing holdToFrameEnd (DM-1749)", () => {
+    // Two frames (2000 + 1000 ms, cut) so the frame boundary (2000 ms = 66.67%)
+    // is interior to the loop and the epsilon-after stop is distinguishable.
+    const mk = (overlay: Record<string, unknown>): string =>
+      generateAnimatedSvg({
+        width: 300, height: 80,
+        frames: [
+          { svgContent: `<rect/>`, duration: 2000, transition: { type: "cut", duration: 0 },
+            overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, caret: true, mask: { color: "#fff" }, ...overlay } as never] },
+          { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+        ],
+      });
+
+    // The whole `@keyframes <name> { … }` block is emitted on one line — grab it.
+    const kfLine = (svg: string, name: string): string =>
+      svg.split("\n").find((l) => l.includes(`@keyframes ${name} `)) ?? "";
+
+    it("holds full opacity to the frame boundary and cuts with step-end (no fade ramp)", () => {
+      const svg = mk({ holdToFrameEnd: true });
+      // The overlay visibility + mask hold `opacity: 1` AT the boundary (66.67%)
+      // with a step-end segment, and drop at the epsilon-after stop (66.68%) —
+      // no 100 ms fade ramp, no 150 ms early reserve.
+      for (const name of ["t0-vis", "t0-bg"]) {
+        const block = kfLine(svg, name);
+        expect(block).toContain("66.67% { opacity: 1; animation-timing-function: step-end; }");
+        expect(block).toContain("66.68%, 100% { opacity: 0; }");
+      }
+      // The reveal clip holds the full width to the boundary and hides at the
+      // epsilon-after stop (its animation is already step-end — a hard cut).
+      expect(kfLine(svg, "t0-rev0")).toMatch(/66\.67% \{ width: [\d.]+px; \} 66\.68%, 100% \{ width: 0\.01px; \}/);
+      // The parked caret blinks to the boundary, then cuts (step-end track).
+      expect(kfLine(svg, "t0-caret-blink")).toContain("66.68%, 100% { opacity: 0; }");
+    });
+
+    it("default keeps the 150 ms fade reserve, byte-identical with holdToFrameEnd: false", () => {
+      const svg = mk({});
+      // holdEnd = 2000 − 150 = 1850 ms (61.67%), fade completes at 1950 ms (65%).
+      expect(kfLine(svg, "t0-vis")).toContain("61.67% { opacity: 1; } 65.00%, 100% { opacity: 0; }");
+      expect(svg).not.toContain("animation-timing-function: step-end");
+      expect(mk({ holdToFrameEnd: false })).toBe(svg);
+    });
+
+    it("typing compression reclaims the 150 ms fade reserve", () => {
+      // 60 ms/char × 8 chars = 480 ms natural from typeStart, but a tight frame
+      // compresses it: default clamps to frameEnd − 150, holdToFrameEnd to
+      // frameEnd — so the hold-mode reveal's last glyph lands LATER.
+      const tight = (overlay: Record<string, unknown>): number[] => {
+        const svg = generateAnimatedSvg({
+          width: 300, height: 80,
+          frames: [
+            { svgContent: `<rect/>`, duration: 500, transition: { type: "cut", duration: 0 },
+              overlays: [{ kind: "typing", text: "hi there", x: 10, y: 40, delay: 100, ...overlay } as never] },
+            { svgContent: `<rect/>`, duration: 1000, transition: { type: "cut", duration: 0 } },
+          ],
+        });
+        const rev = svg.split("\n").find((l) => l.includes("@keyframes t0-rev0 ")) ?? "";
+        return [...rev.matchAll(/([\d.]+)% \{ width: [\d.]+px; \}/g)].map((m) => parseFloat(m[1]));
+      };
+      const lastGlyphPct = (stops: number[]) => stops[stops.length - 2]; // last stop before the hold stop
+      expect(lastGlyphPct(tight({ holdToFrameEnd: true }))).toBeGreaterThan(lastGlyphPct(tight({})));
+    });
+  });
+
   it("DM-870: typing overlay without the caret option emits no caret", () => {
     const svg = generateAnimatedSvg({
       width: 200,

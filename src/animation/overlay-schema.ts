@@ -173,6 +173,18 @@ export const typingOverlaySchema = z.object({
    * `400`. Only meaningful when `mistakes` is set.
    */
   mistakeThinkMs: z.number().optional(),
+  /**
+   * DM-1749 (docs/100 fold-in): opt out of the forced end-of-frame fade. By
+   * default the typed text, mask, and parked caret fade out starting 150 ms
+   * before the frame ends. With `holdToFrameEnd: true` they instead hold at
+   * FULL opacity through the frame's end and drop with a hard step cut at the
+   * frame boundary — so when the NEXT frame carries the identical text as real
+   * page content at the same geometry, the handoff is seamless with zero
+   * page-side reveal choreography. Typing compression (the natural typing time
+   * clamped into the frame) still applies, minus the 150 ms fade reserve.
+   * Default false (the fade; existing output is byte-identical).
+   */
+  holdToFrameEnd: z.boolean().optional(),
 });
 export type TypingOverlay = z.infer<typeof typingOverlaySchema>;
 

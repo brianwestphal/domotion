@@ -315,7 +315,8 @@ regardless of (and before) everything above:
    with a hard `step-end` cut at the frame boundary (the mask rect too). With the
    next frame carrying identical page text, the handoff becomes seamless without
    the cover-rect reveal choreography. Default stays the current fade (existing
-   goldens byte-identical).
+   goldens byte-identical). **Shipped** — see the parameter table in
+   [93-realistic-typing.md](93-realistic-typing.md) and docs/43 §5.
 2. **Baseline anchor mode** for typing overlays — `anchor.baseline: true` makes
    the resolved `y` the anchored element's **first-line text baseline** instead
    of its border-box top. `resolveAnchoredOverlays` already measures the

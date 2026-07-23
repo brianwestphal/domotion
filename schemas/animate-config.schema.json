@@ -1444,6 +1444,9 @@
                     "mistakeThinkMs": {
                       "type": "number"
                     },
+                    "holdToFrameEnd": {
+                      "type": "boolean"
+                    },
                     "anchor": {
                       "type": "object",
                       "properties": {

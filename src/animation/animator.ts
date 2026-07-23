@@ -2107,17 +2107,32 @@ function renderTypingOverlay(
   // at the requested speed; if that runs past the frame we compress the reveal
   // to fit. The fully-typed text then HOLDS until just before the frame ends
   // (the old hard 3 s cap cut long text off mid-type), then fades out.
-  const disappearGap = 150;
+  // DM-1749: `holdToFrameEnd` opts out of that fade — no 150 ms reserve, the
+  // overlay (text, mask, parked caret) holds at full opacity through the
+  // frame's end and drops with a hard step cut at the frame boundary, so a
+  // next frame carrying the identical page text takes over seamlessly.
+  const holdToEnd = overlay.holdToFrameEnd === true;
+  const disappearGap = holdToEnd ? 0 : 150;
   // DM-1555: grow the natural window by each typo's cost (wrong glyph +
   // backspace + think pause) so mistakes don't over-compress the rest.
   const naturalEndMs = typeStartMs + visibleChars * speed + mistakeOverheadMs(mistakes, speed, thinkMs);
   const textEndMs = Math.min(naturalEndMs, Math.max(typeStartMs + 1, frameEnd - disappearGap));
   const effTypeDur = Math.max(1, textEndMs - typeStartMs);
   const holdEndMs = Math.max(textEndMs, frameEnd - disappearGap);
-  const disappearMs = Math.min(frameEnd, holdEndMs + 100);
+  const disappearMs = holdToEnd ? frameEnd : Math.min(frameEnd, holdEndMs + 100);
   const textHeight = fontSize + 4;
   const holdEndPct = pct(holdEndMs, totalDuration);
-  const disappearPct = pct(disappearMs, totalDuration);
+  // DM-1749: with the hard cut, the full-opacity stop sits AT the frame
+  // boundary and the disappear stop an epsilon past it (so the boundary tick
+  // belongs to the visible state); the segment between them gets a step-end
+  // timing function (`holdAtf`, appended to the hold stop of the fade-driven
+  // `-bg` / `-vis` keyframes) so no fade ramp is emitted at all. The reveal
+  // clips and caret already animate step-end, so the epsilon stop alone makes
+  // their drop a hard cut too.
+  const disappearPct = holdToEnd
+    ? `${padAfter(pctNum(disappearMs, totalDuration), KEYFRAME_EPSILON.display, 2)}%`
+    : pct(disappearMs, totalDuration);
+  const holdAtf = holdToEnd ? " animation-timing-function: step-end;" : "";
 
   // Background mask — grown to cover every wrapped line so the typed text
   // always lands on a clean field instead of the captured placeholder.
@@ -2134,7 +2149,7 @@ function renderTypingOverlay(
       `  <rect class="${id}-bg" x="${overlay.x - 2}" y="${overlay.y - fontSize + 2}" width="${bgW}" height="${bgH}" fill="${maskColor}" rx="2" />`,
     );
     cssRules.push(`
-    @keyframes ${id}-bg { 0%, ${bgStartPct} { opacity: 0; } ${pct(typeStartMs + 50, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }
+    @keyframes ${id}-bg { 0%, ${bgStartPct} { opacity: 0; } ${pct(typeStartMs + 50, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1;${holdAtf} } ${disappearPct}, 100% { opacity: 0; } }
     .${id}-bg { animation: ${id}-bg ${totalSec.toFixed(2)}s infinite; }`);
   }
 
@@ -2160,7 +2175,7 @@ function renderTypingOverlay(
   // Whole-overlay visibility — shared by every line's <text>.
   const typeStartPct = pct(typeStartMs, totalDuration);
   cssRules.push(`
-    @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1; } ${disappearPct}, 100% { opacity: 0; } }
+    @keyframes ${id}-vis { 0%, ${typeStartPct} { opacity: 0; } ${pct(typeStartMs + 30, totalDuration)} { opacity: 1; } ${holdEndPct} { opacity: 1;${holdAtf} } ${disappearPct}, 100% { opacity: 0; } }
     .${id}-text { animation: ${id}-vis ${totalSec.toFixed(2)}s infinite; }`);
 
   // Optional blinking insertion caret glued to the growing text edge. In paste
