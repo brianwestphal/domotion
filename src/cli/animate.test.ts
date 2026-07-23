@@ -1208,8 +1208,10 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
   const cross = { type: "crossfade", duration: 150 } as const;
   const cfgOf = (frames: unknown[], extra: Record<string, unknown> = {}) =>
     validateAnimateConfig({ ...B, ...extra, frames });
-  /** Four frames that would ALL collapse under `autoCompress` — the contrast set. */
-  const eligible4 = () => [
+  /** Four frames that would ALL collapse under `autoCompress` — the contrast set.
+   *  Typed loosely so a test can stamp `compress` onto a member without the
+   *  inferred element union rejecting the extra key (`cfgOf` takes `unknown[]`). */
+  const eligible4 = (): Record<string, unknown>[] => [
     { input: "a.html", duration: 100, transition: cut },
     { continue: true, duration: 100, transition: cut },
     { continue: true, duration: 100, transition: cut },
